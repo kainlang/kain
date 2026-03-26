@@ -148,8 +148,8 @@ What changed:
 - `kain-core` now derives per-surface shader-canvas font atlas descriptors, text runs, and runtime resource bindings directly from UI node props instead of leaving text as an implicit future idea
 - `kain-ui-native` now carries those metadata structures through shader-surface resolution, folds them into the shader-surface signature, and exposes the counts in the on-surface diagnostics
 - presented shader surfaces now serialize a richer storage payload that includes shader-canvas header data plus atlas records, text-run records, atlas glyph bytes, and run text bytes
-- the native host now synthesizes a bitmap atlas texture from bundle metadata and binds that texture through the same shader-surface path that previously only uploaded a 1x1 fallback sample
-- focused validation confirmed the new bundle-emission contract in `kain-core`; the `kain-ui-native` validation path is still blocked by unrelated `kain-host`/`pyo3` build failures in the wider workspace
+- the native host now synthesizes a packed bitmap atlas texture from bundle metadata, records per-atlas origins in the shader storage payload, and reuses cached packed textures when surfaces share the same atlas content
+- focused validation confirmed the new bundle-emission contract in `kain-core`, and once the Fabric/Python boundary was fixed the previously blocked `kain-ui-native` validation path turned green as well
 
 Why this matters:
 
@@ -160,14 +160,37 @@ Why this matters:
 What is still incomplete:
 
 - the current atlas generator is intentionally simple and bitmap-based; it is a real GPU text resource path, not yet a high-quality font rasterization pipeline
-- the current host path provisions one atlas texture per surface callback path; it is not yet a shared atlas cache or a multi-atlas bindless resource system
+- the current host path now reuses cached packed textures across repeated atlas signatures, but it is still a per-app cache rather than a global atlas service or a bindless multi-texture system
 - direct SPIR-V execution for the UI lane is still future work; the current native host remains WGSL/WGPU-backed even though the bundle contract is SPIR-V-canonical
 
 What future work should preserve:
 
 - keep text/resource declarations in `RealtimeAppBundle.shader_canvases` so host provisioning stays compiler-owned and host-agnostic
 - widen the storage/texture contract in additive ways instead of replacing it with a renderer-local special case once richer text or image resources land
-- fix the unrelated `kain-host` validation blocker separately instead of weakening shader-canvas isolation to make workspace builds appear greener
+- keep the Fabric/Python boundary narrow by exposing execution helpers from `kain-python` instead of letting `kain-host` depend on `pyo3` imports or private Python scope internals
+
+## 2026-03-25 - Fabric Python Execution Stopped Leaking Through Kain Host Internals
+
+The `kain-host` Fabric runtime no longer reaches directly into Python implementation details just to execute a Python step.
+
+What changed:
+
+- `kain-python` now exposes `execute_python_source(env, source)` as the narrow public seam for running Python source inside the registered Kain Python scope and surfacing an optional `result` value or `run()` return value
+- `python_scope_state` and `scope_dict_from_guard` went back to private helper status inside `kain-python`, so the crate no longer publishes a private type through a public API
+- `kain-host`'s Fabric `PythonAdapter` now delegates Python execution through `kain_python::execute_python_source` instead of importing `pyo3` directly or reading `PythonScopeState.scope`
+- with that boundary cleaned up, `cargo check -p kain-host --lib`, `cargo check -p kain-ui-native --lib`, and the previously blocked `cargo test -p kain-ui-native resolve_shader_surface_uses_runtime_catalog_and_wgsl_output -- --nocapture` all succeeded
+
+Why this matters:
+
+- it keeps Python runtime ownership in `kain-python` instead of letting `kain-host` grow a second, leaky Python integration surface
+- it removed the exact blocker that was masking real `kain-ui-native` shader-canvas validation
+- it gives future Fabric Python work a cleaner extension seam than direct `pyo3` coupling inside the host crate
+
+What future work should preserve:
+
+- if Fabric needs richer Python behavior, add explicit helpers to `kain-python` instead of reopening access to internal scope state
+- keep `kain-host` focused on host/runtime orchestration, not Python object model ownership
+- prefer narrow execution APIs over public state handles when one crate owns a language bridge
 
 ## 2026-03-25 - Native Runtime Service Discovery Stopped Pretending The Runtime Was Smaller Than It Is
 
@@ -288,6 +311,37 @@ What future work should preserve:
 - keep explicit workgroup, dispatch, tensor, stream, and neural metadata in one compiler-owned compute-plan contract
 - do not let future runtime lanes invent their own stream/workgroup dialects once the authored bundle shape exists
 - if Fabric, Python, Cargo FFI, or Node steps start orchestrating tensor pipelines, they should consume the same compute-plan and shared-buffer contract family rather than bypassing it
+
+## 2026-03-25 - C ABI FFI Stopped Being Locked To Host-Backed Interpret/Test In The Native-UI Packaging Lane
+
+The repo now has a real native packaging story for `use c::...` imports instead of only a host-backed smoke path.
+
+What changed:
+
+- `kain-c-ffi` now accepts the Rust/native packaging lane during source preparation instead of hard-failing outside `Interpret` and `Test`
+- generated C bridge metadata is now explicit: each imported library emits packaged host-bridge descriptors, bridge/shared-library artifact names, and symbol/service registration data
+- packaged bridge loading is now a first-class runtime helper in `kain-c-ffi`, so generated native apps can load prebuilt bridge DLLs from a manifest instead of depending on cache-only absolute paths
+- generated bridge crates stopped depending on the larger `kain-host` surface and now use local value-conversion helpers on top of `kain-core`, which makes packaged bridge DLLs build cleanly without dragging unrelated host subsystems into the bridge build
+- native app materialization now copies bridge DLLs, shared C libraries, and binding/report sidecars into the packaged artifact set, writes an aggregate `kain_c_host_bridges.json`, adds `host.bridge` / `c.ffi` runtime metadata, and generates `config/app_manifest.json` plus `state/runtime_snapshot.json`
+- generated native app entrypoints now load the packaged bridge manifest before booting `kain-ui-native`, and the generated Cargo manifest adds `kain-c-ffi` automatically when imported C libraries are present
+
+Why this matters:
+
+- it removes a real honesty gap where the importer could understand C ABI libraries but the native-ui/native-app lane still behaved like those imports did not exist
+- it gives the runtime a package-owned bridge manifest instead of relying on transient cache paths and ad hoc operator setup
+- it moves Kain closer to one lane-converged foreign-runtime story, even though the underlying native UI host is still bundle-driven rather than a full general-purpose Kain interpreter
+
+What is still incomplete:
+
+- the native-ui app still boots from emitted UI/runtime bundles; packaging C bridges does not by itself turn the current native host into a full arbitrary Kain runtime executor
+- static-library packaging is still not modeled separately; today the packaging path is oriented around shared libraries / DLL sidecars
+- the emitted host-bridge descriptors are aligned with the native runtime host-bridge ABI shape, but the Rust native UI lane still consumes them through manifest-driven startup rather than a direct Rust binding to the C host-bridge registry
+
+What future work should preserve:
+
+- keep bridge/library packaging data manifest-owned instead of rebuilding it from scattered path guesses
+- keep `host.bridge` and `c.ffi` runtime requirements explicit on the emitted native app metadata so downstream tools do not have to infer foreign dependencies from source text
+- if the native UI lane grows a richer live Kain execution environment, make it consume the same packaged bridge manifest and descriptors rather than inventing a second foreign-library registry
 
 Next serious move:
 
@@ -515,6 +569,33 @@ The next real step is Phase 2:
 - then wire Python, Rust crate FFI, C ABI, and Node adapters one by one
 
 If that path holds, Fabric stops being "manifest paperwork" and starts becoming a genuine local-first polyglot execution lane for Kain.
+
+## 2026-03-25 - Fabric Phase 3 Became A Real Local Polyglot Executor
+
+This pass closed the gap between "Fabric validates" and "Fabric runs."
+`kain fabric run` is no longer a stringly typed Kain/Python stub. The host executor now runs all declared local runtime kinds, preserves contract-aware outputs, and leaves behind session artifacts that are actually useful for debugging.
+
+### What Changed
+
+- `crates/kain-host/src/fabric.rs` now owns a real `FabricSession` executor with adapters for `kain`, `python`, `rust_crate`, `c_abi`, and `node`.
+- Fabric step results in `crates/kain-omni/src/fabric.rs` now store typed output snapshots and structured failure reasons instead of one optional output string.
+- Fabric reports/locks/events now include richer per-step provenance:
+  runtime, adapter label, resolved paths, timestamps, resolved dependency inputs, typed outputs, and structured failures.
+- `smoketest/fabric/polyglot_local` is the first durable local-first proof that a declared Python -> Kain -> C ABI -> Rust crate -> Node pipeline can succeed end-to-end.
+
+### Design Decisions That Matter
+
+- `kain-omni` still owns manifest schema, validation, report types, and capability truth. It does not execute runtime steps.
+- `kain-host` owns execution and dependency-to-output plumbing.
+- Shared payload truth stays aligned to the canonical `contract.value`, `contract.shared-buffer`, and `contract.shared-image` model. No second Fabric-specific contract dialect was added.
+- Script lanes receive normalized `fabric_serialized_inputs` because Python and Node cannot accept foreign Kain host objects directly; Kain/C/Rust glue still receives raw `fabric_inputs` so shared handles stay real where the bridge supports them.
+- Rust crate and C ABI Fabric steps now expect an `entry` Kain glue file. That keeps the runtime adapters small and local-first instead of forcing `kain-host` to guess call signatures for arbitrary imported functions.
+
+### Current Risks And Follow-Up
+
+- The default `kain fabric init --template polyglot` scaffold is better aligned to the runtime now, but the fully runnable vertical slice still lives in `smoketest/fabric/polyglot_local`.
+- Python/Node multi-output steps that mix several shared contract outputs are still intentionally narrow; today the clean path is one shared output or plain value objects.
+- The next hardening pass should validate this executor with the intended crate-level test commands and update any docs or CLI UX that still describe Fabric as validation-only.
 
 ## 2026-03-21 - LLVM Native Packaging Stopped Being A Side Quest
 

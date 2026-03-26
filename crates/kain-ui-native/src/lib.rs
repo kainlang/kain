@@ -118,6 +118,7 @@ struct UiShaderSurfaceStoragePayload {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct UiShaderSurfaceFontAtlasRecord {
+    atlas_origin_px: [u32; 2],
     texture_size_px: [u32; 2],
     cell_size_px: [u32; 2],
     columns: u32,
@@ -141,7 +142,8 @@ struct UiShaderSurfaceTextRunRecord {
 #[derive(Clone, Debug)]
 struct UiShaderSurfaceTexturePayload {
     size_px: [u32; 2],
-    rgba8: Vec<u8>,
+    atlas_origins_px: Vec<[u32; 2]>,
+    rgba8: Arc<[u8]>,
 }
 
 #[derive(Clone, Debug)]
@@ -2425,6 +2427,7 @@ struct KainUiNativeApp {
     presented_viewport_host: Option<PresentedViewportHost>,
     viewport_surfaces: BTreeMap<UiNodeId, ViewportSurfaceState>,
     shader_surfaces: BTreeMap<UiNodeId, ShaderSurfaceState>,
+    shader_surface_texture_cache: BTreeMap<String, UiShaderSurfaceTexturePayload>,
     runtime_artifact_watch: RuntimeArtifactWatch,
     viewport_input: ViewportInputSnapshot,
     start_time: Instant,
@@ -2513,6 +2516,7 @@ impl KainUiNativeApp {
             presented_viewport_host,
             viewport_surfaces: BTreeMap::new(),
             shader_surfaces: BTreeMap::new(),
+            shader_surface_texture_cache: BTreeMap::new(),
             runtime_artifact_watch,
             viewport_input: ViewportInputSnapshot::default(),
             start_time: Instant::now(),
@@ -2546,6 +2550,7 @@ impl KainUiNativeApp {
             match load_realtime_bundle_from_env() {
                 Some((bundle, _)) => {
                     self.realtime_catalog = RealtimeBundleCatalog::from_bundle(&bundle);
+                    self.shader_surface_texture_cache.clear();
                     trace_runtime(format!("runtime_reload: refreshed realtime bundle {path}"));
                 }
                 None => trace_runtime(format!(
@@ -2564,6 +2569,7 @@ impl KainUiNativeApp {
                 Some((bundle, _)) => {
                     self.shader_bundle = Some(bundle);
                     self.shader_surfaces.clear();
+                    self.shader_surface_texture_cache.clear();
                     self.refresh_viewport_shader_bundle_state();
                     trace_runtime(format!("runtime_reload: refreshed shader bundle {path}"));
                 }
@@ -2608,6 +2614,7 @@ impl KainUiNativeApp {
             transfer_surface_state_map(&previous_output, &next_output, previous_viewport_surfaces);
         self.shader_surfaces =
             transfer_surface_state_map(&previous_output, &next_output, previous_shader_surfaces);
+        self.shader_surface_texture_cache.clear();
         self.output = next_output;
         self.debug_tree = render_ui_output_debug(&self.output);
         self.config.window_title = bundle.metadata.window_title.clone();
@@ -2986,7 +2993,7 @@ impl CallbackTrait for PresentedShaderSurfaceCallback {
                     origin: wgpu::Origin3d::ZERO,
                     aspect: wgpu::TextureAspect::All,
                 },
-                &frame.surface_texture.rgba8,
+                frame.surface_texture.rgba8.as_ref(),
                 wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(4 * frame.surface_texture.size_px[0].max(1)),
@@ -3288,6 +3295,7 @@ fn build_presented_shader_surface_resources(
 fn build_ui_shader_surface_storage_bytes(
     header: &UiShaderSurfaceStoragePayload,
     descriptor: &ResolvedUiShaderSurface,
+    surface_texture: &UiShaderSurfaceTexturePayload,
     theme: &NativeWidgetTheme,
 ) -> Vec<u8> {
     let mut atlas_records = Vec::new();
@@ -3300,6 +3308,11 @@ fn build_ui_shader_surface_storage_bytes(
         let glyph_start = atlas_glyph_bytes.len() as u32;
         atlas_glyph_bytes.extend_from_slice(glyph_text.as_bytes());
         atlas_records.push(UiShaderSurfaceFontAtlasRecord {
+            atlas_origin_px: surface_texture
+                .atlas_origins_px
+                .get(atlas_index)
+                .copied()
+                .unwrap_or([0, 0]),
             texture_size_px: atlas.texture_size_px,
             cell_size_px: atlas.cell_size_px,
             columns: atlas.columns,
@@ -3359,22 +3372,86 @@ fn build_ui_shader_surface_storage_bytes(
     bytes
 }
 
-fn build_ui_shader_surface_texture_payload(
+fn resolve_ui_shader_surface_texture_payload(
+    cache: &mut BTreeMap<String, UiShaderSurfaceTexturePayload>,
     descriptor: &ResolvedUiShaderSurface,
-    theme: &NativeWidgetTheme,
 ) -> UiShaderSurfaceTexturePayload {
-    let Some(atlas) = descriptor.font_atlases.first() else {
+    let signature = shader_surface_texture_payload_signature(&descriptor.font_atlases);
+    if let Some(payload) = cache.get(&signature) {
+        return payload.clone();
+    }
+
+    let payload = build_ui_shader_surface_texture_payload(descriptor.font_atlases.as_slice());
+    cache.insert(signature, payload.clone());
+    payload
+}
+
+fn shader_surface_texture_payload_signature(
+    font_atlases: &[RealtimeShaderCanvasFontAtlas],
+) -> String {
+    let mut hasher = DefaultHasher::new();
+    for atlas in font_atlases {
+        atlas.key.hash(&mut hasher);
+        atlas.family.hash(&mut hasher);
+        atlas.glyphs.hash(&mut hasher);
+        atlas.cell_size_px.hash(&mut hasher);
+        atlas.texture_size_px.hash(&mut hasher);
+        atlas.columns.hash(&mut hasher);
+        atlas.rows.hash(&mut hasher);
+    }
+    format!("atlas:{:016x}", hasher.finish())
+}
+
+fn build_ui_shader_surface_texture_payload(
+    font_atlases: &[RealtimeShaderCanvasFontAtlas],
+) -> UiShaderSurfaceTexturePayload {
+    if font_atlases.is_empty() {
         return UiShaderSurfaceTexturePayload {
             size_px: [1, 1],
-            rgba8: vec![
-                theme.accent.r(),
-                theme.accent.g(),
-                theme.accent.b(),
-                theme.accent.a(),
-            ],
+            atlas_origins_px: Vec::new(),
+            rgba8: Arc::from(vec![255, 255, 255, 255]),
         };
-    };
+    }
 
+    let packed_width = font_atlases
+        .iter()
+        .map(|atlas| atlas.texture_size_px[0].max(1))
+        .max()
+        .unwrap_or(1);
+    let packed_height = font_atlases
+        .iter()
+        .map(|atlas| atlas.texture_size_px[1].max(1))
+        .sum::<u32>()
+        .max(1);
+    let mut rgba8 = vec![0u8; (packed_width * packed_height * 4) as usize];
+    let mut atlas_origins_px = Vec::with_capacity(font_atlases.len());
+    let mut atlas_y = 0u32;
+
+    for atlas in font_atlases {
+        let atlas_width = atlas.texture_size_px[0].max(1);
+        let atlas_height = atlas.texture_size_px[1].max(1);
+        let atlas_rgba = rasterize_shader_surface_font_atlas(atlas);
+        atlas_origins_px.push([0, atlas_y]);
+
+        for row in 0..atlas_height as usize {
+            let src_offset = row * atlas_width as usize * 4;
+            let dst_offset = (((atlas_y as usize + row) * packed_width as usize) * 4) as usize;
+            let dst_end = dst_offset + atlas_width as usize * 4;
+            rgba8[dst_offset..dst_end]
+                .copy_from_slice(&atlas_rgba[src_offset..src_offset + atlas_width as usize * 4]);
+        }
+
+        atlas_y += atlas_height;
+    }
+
+    UiShaderSurfaceTexturePayload {
+        size_px: [packed_width, packed_height],
+        atlas_origins_px,
+        rgba8: Arc::from(rgba8),
+    }
+}
+
+fn rasterize_shader_surface_font_atlas(atlas: &RealtimeShaderCanvasFontAtlas) -> Vec<u8> {
     let width = atlas.texture_size_px[0].max(1);
     let height = atlas.texture_size_px[1].max(1);
     let mut rgba8 = vec![0u8; (width * height * 4) as usize];
@@ -3411,10 +3488,7 @@ fn build_ui_shader_surface_texture_payload(
         }
     }
 
-    UiShaderSurfaceTexturePayload {
-        size_px: [width, height],
-        rgba8,
-    }
+    rgba8
 }
 
 fn resolve_shader_canvas_text_color(
@@ -4679,12 +4753,18 @@ fn render_gpu_canvas_surface(
                         surface_texture_height: 1,
                         _reserved: [0; 1],
                     };
-                    let surface_texture =
-                        build_ui_shader_surface_texture_payload(descriptor, theme);
+                    let surface_texture = resolve_ui_shader_surface_texture_payload(
+                        &mut app.shader_surface_texture_cache,
+                        descriptor,
+                    );
                     storage_payload.surface_texture_width = surface_texture.size_px[0];
                     storage_payload.surface_texture_height = surface_texture.size_px[1];
-                    let storage_payload_bytes =
-                        build_ui_shader_surface_storage_bytes(&storage_payload, descriptor, theme);
+                    let storage_payload_bytes = build_ui_shader_surface_storage_bytes(
+                        &storage_payload,
+                        descriptor,
+                        &surface_texture,
+                        theme,
+                    );
                     if let Ok(mut gpu_state) = presented_state.lock() {
                         gpu_state.pending_frame = Some(PresentedShaderSurfaceFrame {
                             signature,
@@ -6446,23 +6526,44 @@ mod tests {
                 derived_format: Some("wgsl".to_string()),
                 renderer_preference: "shader".to_string(),
                 composition_mode: "shader-canvas".to_string(),
-                font_atlases: vec![RealtimeShaderCanvasFontAtlas {
-                    key: "surface.hero.atlas.default".to_string(),
-                    family: "kain.builtin.bitmap_5x7".to_string(),
-                    glyphs: " HEROFASTLANE".to_string(),
-                    cell_size_px: [8, 8],
-                    texture_size_px: [96, 8],
-                    columns: 12,
-                    rows: 1,
-                }],
-                text_runs: vec![RealtimeShaderCanvasTextRun {
-                    id: "surface.hero.title".to_string(),
-                    text: "Hero Surface".to_string(),
-                    role: "title".to_string(),
-                    atlas_key: "surface.hero.atlas.default".to_string(),
-                    origin_px: [16, 16],
-                    color_token: "theme.text.default".to_string(),
-                }],
+                font_atlases: vec![
+                    RealtimeShaderCanvasFontAtlas {
+                        key: "surface.hero.atlas.default".to_string(),
+                        family: "kain.builtin.bitmap_5x7".to_string(),
+                        glyphs: " HEROFASTLANE".to_string(),
+                        cell_size_px: [8, 8],
+                        texture_size_px: [96, 8],
+                        columns: 12,
+                        rows: 1,
+                    },
+                    RealtimeShaderCanvasFontAtlas {
+                        key: "surface.hero.atlas.metrics".to_string(),
+                        family: "kain.builtin.bitmap_5x7".to_string(),
+                        glyphs: "0123456789".to_string(),
+                        cell_size_px: [8, 8],
+                        texture_size_px: [80, 8],
+                        columns: 10,
+                        rows: 1,
+                    },
+                ],
+                text_runs: vec![
+                    RealtimeShaderCanvasTextRun {
+                        id: "surface.hero.title".to_string(),
+                        text: "Hero Surface".to_string(),
+                        role: "title".to_string(),
+                        atlas_key: "surface.hero.atlas.default".to_string(),
+                        origin_px: [16, 16],
+                        color_token: "theme.text.default".to_string(),
+                    },
+                    RealtimeShaderCanvasTextRun {
+                        id: "surface.hero.metric".to_string(),
+                        text: "120".to_string(),
+                        role: "metric".to_string(),
+                        atlas_key: "surface.hero.atlas.metrics".to_string(),
+                        origin_px: [16, 32],
+                        color_token: "theme.accent".to_string(),
+                    },
+                ],
                 resource_bindings: vec![
                     RealtimeShaderCanvasResourceBinding {
                         binding_name: "surface_uniforms".to_string(),
@@ -6475,6 +6576,12 @@ mod tests {
                         resource_kind: "texture-2d".to_string(),
                         source_kind: "runtime.surface.font-atlas".to_string(),
                         atlas_key: Some("surface.hero.atlas.default".to_string()),
+                    },
+                    RealtimeShaderCanvasResourceBinding {
+                        binding_name: "metrics_atlas".to_string(),
+                        resource_kind: "texture-2d".to_string(),
+                        source_kind: "runtime.surface.font-atlas".to_string(),
+                        atlas_key: Some("surface.hero.atlas.metrics".to_string()),
                     },
                 ],
             },
@@ -6499,11 +6606,91 @@ mod tests {
             Some("ui.hero_surface")
         );
         assert_eq!(resolved.resource_layouts.len(), 1);
-        assert_eq!(resolved.font_atlases.len(), 1);
-        assert_eq!(resolved.text_runs.len(), 1);
-        assert_eq!(resolved.resource_bindings.len(), 2);
+        assert_eq!(resolved.font_atlases.len(), 2);
+        assert_eq!(resolved.text_runs.len(), 2);
+        assert_eq!(resolved.resource_bindings.len(), 3);
         assert!(resolved.wgsl_source.contains("hero_main"));
         assert!(resolved.warning.is_none());
+    }
+
+    #[test]
+    fn shader_surface_texture_payload_packs_multiple_font_atlases() {
+        let atlases = vec![
+            RealtimeShaderCanvasFontAtlas {
+                key: "atlas.primary".to_string(),
+                family: "kain.builtin.bitmap_5x7".to_string(),
+                glyphs: "ABC".to_string(),
+                cell_size_px: [8, 8],
+                texture_size_px: [24, 8],
+                columns: 3,
+                rows: 1,
+            },
+            RealtimeShaderCanvasFontAtlas {
+                key: "atlas.metrics".to_string(),
+                family: "kain.builtin.bitmap_5x7".to_string(),
+                glyphs: "123456".to_string(),
+                cell_size_px: [8, 8],
+                texture_size_px: [48, 8],
+                columns: 6,
+                rows: 1,
+            },
+        ];
+
+        let payload = build_ui_shader_surface_texture_payload(&atlases);
+
+        assert_eq!(payload.size_px, [48, 16]);
+        assert_eq!(payload.atlas_origins_px, vec![[0, 0], [0, 8]]);
+        assert_eq!(payload.rgba8.len(), (48 * 16 * 4) as usize);
+    }
+
+    #[test]
+    fn shader_surface_texture_payload_cache_reuses_packed_texture() {
+        let descriptor = ResolvedUiShaderSurface {
+            shader_ref: "ui.hero_surface".to_string(),
+            shader_name: "hero_surface_fragment".to_string(),
+            module_name: "ui_hero_surface".to_string(),
+            fragment_entry_point: "hero_main".to_string(),
+            stage: "fragment".to_string(),
+            derived_format: "wgsl".to_string(),
+            canonical_native_payload: "wgsl".to_string(),
+            shader_bundle_ref_key: Some("ui.hero_surface".to_string()),
+            wgsl_source:
+                "@fragment fn hero_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }"
+                    .to_string(),
+            resource_layouts: Vec::new(),
+            font_atlases: vec![
+                RealtimeShaderCanvasFontAtlas {
+                    key: "atlas.primary".to_string(),
+                    family: "kain.builtin.bitmap_5x7".to_string(),
+                    glyphs: "ABC".to_string(),
+                    cell_size_px: [8, 8],
+                    texture_size_px: [24, 8],
+                    columns: 3,
+                    rows: 1,
+                },
+                RealtimeShaderCanvasFontAtlas {
+                    key: "atlas.metrics".to_string(),
+                    family: "kain.builtin.bitmap_5x7".to_string(),
+                    glyphs: "123456".to_string(),
+                    cell_size_px: [8, 8],
+                    texture_size_px: [48, 8],
+                    columns: 6,
+                    rows: 1,
+                },
+            ],
+            text_runs: Vec::new(),
+            resource_bindings: Vec::new(),
+            warning: None,
+        };
+        let mut cache = BTreeMap::new();
+
+        let first = resolve_ui_shader_surface_texture_payload(&mut cache, &descriptor);
+        let second = resolve_ui_shader_surface_texture_payload(&mut cache, &descriptor);
+
+        assert_eq!(cache.len(), 1);
+        assert_eq!(first.size_px, second.size_px);
+        assert_eq!(first.atlas_origins_px, second.atlas_origins_px);
+        assert!(Arc::ptr_eq(&first.rgba8, &second.rgba8));
     }
 
     fn themed_test_output(child_values: Option<BTreeMap<String, UiValue>>) -> UiBuildOutput {

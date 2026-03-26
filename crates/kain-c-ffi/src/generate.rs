@@ -207,10 +207,9 @@ fn render_bridge_manifest(resolved: &ResolvedCLibrary) -> String {
         .unwrap_or_else(|| resolved.manifest_root.clone());
     let crate_name = bridge_crate_name(&resolved.import_name);
     format!(
-        "[package]\nname = {:?}\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\ncrate-type = [\"cdylib\"]\n\n[dependencies]\nkain-core = {{ path = {:?} }}\nkain-host = {{ path = {:?}, default-features = false }}\nkain-interop = {{ path = {:?} }}\nlibloading = \"0.8\"\n\n[profile.dev]\ndebug = 0\npanic = \"unwind\"\n\n[workspace]\nresolver = \"2\"\n",
+        "[package]\nname = {:?}\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\ncrate-type = [\"cdylib\"]\n\n[dependencies]\nkain-core = {{ path = {:?} }}\nkain-interop = {{ path = {:?} }}\nlibloading = \"0.8\"\n\n[profile.dev]\ndebug = 0\npanic = \"unwind\"\n\n[workspace]\nresolver = \"2\"\n",
         crate_name,
         repo_root.join("crates").join("kain-core").display().to_string(),
-        repo_root.join("crates").join("kain-host").display().to_string(),
         repo_root
             .join("crates")
             .join("kain-interop")
@@ -243,7 +242,6 @@ fn render_bridge_source(resolved: &ResolvedCLibrary, bundle: &BindingBundle) -> 
     let mut output = String::new();
     output.push_str("use kain_core::error::KainError;\n");
     output.push_str("use kain_core::runtime::{Env, Value};\n");
-    output.push_str("use kain_host::{FromKainValue, ToKainValue};\n");
     output.push_str("use libloading::{Library, Symbol};\n");
     output.push_str("use std::ffi::{c_void, CStr, CString};\n");
     output.push_str("use std::path::PathBuf;\n");
@@ -301,7 +299,7 @@ impl ByteBufferArg {
             });
         }
         Ok(Self {
-            bytes: <Vec<u8> as FromKainValue>::from_kain_value(value)?,
+            bytes: bytes_from_value(value)?,
             writeback: None,
         })
     }
@@ -336,7 +334,22 @@ impl ByteBufferArg {
 }
 
 fn bytes_from_value(value: Value) -> Result<Vec<u8>, KainError> {
-    <Vec<u8> as FromKainValue>::from_kain_value(value)
+    match value {
+        Value::Array(values) => values
+            .read()
+            .map_err(|_| KainError::runtime("Failed to read Kain byte array".to_string()))?
+            .iter()
+            .map(|value| match value {
+                Value::Int(value) if (0..=255).contains(value) => Ok(*value as u8),
+                other => Err(KainError::runtime(format!(
+                    "Expected byte-sized Int in array, got {other:?}"
+                ))),
+            })
+            .collect(),
+        other => Err(KainError::runtime(format!(
+            "Expected Array<Int> for byte buffer, got {other:?}"
+        ))),
+    }
 }
 
 fn bytes_to_value(bytes: &[u8]) -> Value {
@@ -365,6 +378,51 @@ fn extract_c_handle(
             Ok(handle.address as *mut c_void)
         }
     }
+}
+
+fn bool_from_value(value: Value) -> Result<bool, KainError> {
+    match value {
+        Value::Bool(value) => Ok(value),
+        other => Err(KainError::runtime(format!("Expected Bool, got {other:?}"))),
+    }
+}
+
+fn int_from_value(value: Value) -> Result<i64, KainError> {
+    match value {
+        Value::Int(value) => Ok(value),
+        other => Err(KainError::runtime(format!("Expected Int, got {other:?}"))),
+    }
+}
+
+fn float_from_value(value: Value) -> Result<f64, KainError> {
+    match value {
+        Value::Float(value) => Ok(value),
+        Value::Int(value) => Ok(value as f64),
+        other => Err(KainError::runtime(format!("Expected Float, got {other:?}"))),
+    }
+}
+
+fn string_from_value(value: Value) -> Result<String, KainError> {
+    match value {
+        Value::String(value) => Ok(value),
+        other => Err(KainError::runtime(format!("Expected String, got {other:?}"))),
+    }
+}
+
+fn value_from_bool(value: bool) -> Value {
+    Value::Bool(value)
+}
+
+fn value_from_int(value: i64) -> Value {
+    Value::Int(value)
+}
+
+fn value_from_float(value: f64) -> Value {
+    Value::Float(value)
+}
+
+fn value_from_string(value: String) -> Value {
+    Value::String(value)
 }
 
 fn resolve_shared_library_path() -> Result<PathBuf, KainError> {
@@ -495,27 +553,27 @@ fn render_param_conversion(
             param.name
         ),
         BridgeType::Bool => format!(
-            "    let {} = <bool as FromKainValue>::from_kain_value(iter.next().expect(\"checked arg count\"))?;\n",
+            "    let {} = bool_from_value(iter.next().expect(\"checked arg count\"))?;\n",
             param.name
         ),
         BridgeType::SignedInt(name) => format!(
-            "    let {} = <i64 as FromKainValue>::from_kain_value(iter.next().expect(\"checked arg count\"))? as {};\n",
+            "    let {} = int_from_value(iter.next().expect(\"checked arg count\"))? as {};\n",
             param.name, name
         ),
         BridgeType::UnsignedInt(name) => format!(
-            "    let __{}_value = <i64 as FromKainValue>::from_kain_value(iter.next().expect(\"checked arg count\"))?;\n    if __{}_value < 0 {{ return Err(KainError::runtime(\"unsigned C ABI argument cannot be negative\".to_string())); }}\n    let {} = __{}_value as {};\n",
+            "    let __{}_value = int_from_value(iter.next().expect(\"checked arg count\"))?;\n    if __{}_value < 0 {{ return Err(KainError::runtime(\"unsigned C ABI argument cannot be negative\".to_string())); }}\n    let {} = __{}_value as {};\n",
             param.name, param.name, param.name, param.name, name
         ),
         BridgeType::Float32 => format!(
-            "    let {} = <f64 as FromKainValue>::from_kain_value(iter.next().expect(\"checked arg count\"))? as f32;\n",
+            "    let {} = float_from_value(iter.next().expect(\"checked arg count\"))? as f32;\n",
             param.name
         ),
         BridgeType::Float64 => format!(
-            "    let {} = <f64 as FromKainValue>::from_kain_value(iter.next().expect(\"checked arg count\"))?;\n",
+            "    let {} = float_from_value(iter.next().expect(\"checked arg count\"))?;\n",
             param.name
         ),
         BridgeType::CString => format!(
-            "    let __{}_owned = <String as FromKainValue>::from_kain_value(iter.next().expect(\"checked arg count\"))?;\n    let __{}_cstring = CString::new(__{}_owned).map_err(|_| KainError::runtime(\"C string argument contained interior NUL\".to_string()))?;\n    let {} = __{}_cstring.as_ptr();\n",
+            "    let __{}_owned = string_from_value(iter.next().expect(\"checked arg count\"))?;\n    let __{}_cstring = CString::new(__{}_owned).map_err(|_| KainError::runtime(\"C string argument contained interior NUL\".to_string()))?;\n    let {} = __{}_cstring.as_ptr();\n",
             param.name, param.name, param.name, param.name, param.name
         ),
         BridgeType::ByteBuffer { mutable, .. } => {
@@ -542,13 +600,13 @@ fn render_param_conversion(
 fn render_return_conversion(ty: &BridgeType) -> String {
     match ty {
         BridgeType::Unit => "    Ok(Value::Unit)\n".to_string(),
-        BridgeType::Bool => "    Ok(ToKainValue::to_kain_value(result))\n".to_string(),
-        BridgeType::SignedInt(_) => "    Ok(ToKainValue::to_kain_value(result as i64))\n".to_string(),
-        BridgeType::UnsignedInt(_) => "    if (result as u128) > (i64::MAX as u128) { return Err(KainError::runtime(\"unsigned C ABI return overflowed Kain Int\".to_string())); }\n    Ok(ToKainValue::to_kain_value(result as i64))\n".to_string(),
+        BridgeType::Bool => "    Ok(value_from_bool(result))\n".to_string(),
+        BridgeType::SignedInt(_) => "    Ok(value_from_int(result as i64))\n".to_string(),
+        BridgeType::UnsignedInt(_) => "    if (result as u128) > (i64::MAX as u128) { return Err(KainError::runtime(\"unsigned C ABI return overflowed Kain Int\".to_string())); }\n    Ok(value_from_int(result as i64))\n".to_string(),
         BridgeType::Float32 | BridgeType::Float64 => {
-            "    Ok(ToKainValue::to_kain_value(result as f64))\n".to_string()
+            "    Ok(value_from_float(result as f64))\n".to_string()
         }
-        BridgeType::CString => "    if result.is_null() { return Err(KainError::runtime(\"C string return was null\".to_string())); }\n    let text = unsafe { CStr::from_ptr(result) }.to_string_lossy().into_owned();\n    Ok(ToKainValue::to_kain_value(text))\n".to_string(),
+        BridgeType::CString => "    if result.is_null() { return Err(KainError::runtime(\"C string return was null\".to_string())); }\n    let text = unsafe { CStr::from_ptr(result) }.to_string_lossy().into_owned();\n    Ok(value_from_string(text))\n".to_string(),
         BridgeType::ByteBuffer { .. } => "    Err(KainError::runtime(\"byte-buffer returns require explicit output metadata and are not supported yet\".to_string()))\n".to_string(),
         BridgeType::OpaqueHandle { mutable, pointee } => format!(
             "    if result.is_null() {{ return Ok(Value::None); }}\n    Ok(Value::host_object(\"kain.c.handle\", Arc::new(CAbiOpaqueHandle {{ pointee: {:?}.to_string(), mutable: {}, address: result as usize }})))\n",

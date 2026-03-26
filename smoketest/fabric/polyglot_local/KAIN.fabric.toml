@@ -1,0 +1,75 @@
+version = 1
+
+[workspace]
+root = "."
+search_roots = ["src", "scripts", "native", "local_crate"]
+
+[[requires]]
+key = "session.local"
+version = 1
+optional = false
+
+[[steps]]
+id = "python_source"
+runtime = "python"
+entry = "scripts/python_step.py"
+
+[[steps.outputs]]
+name = "settings"
+kind = "value"
+
+[[steps]]
+id = "kain_orchestrator"
+runtime = "kain"
+entry = "src/main.kn"
+depends_on = ["python_source"]
+
+[[steps.outputs]]
+name = "image"
+kind = "shared_image"
+
+[[steps.outputs]]
+name = "report"
+kind = "value"
+
+[[steps]]
+id = "native_filter"
+runtime = "c_abi"
+entry = "src/native_step.kn"
+module = "image_fx"
+library = "native/image_fx.dll"
+depends_on = ["kain_orchestrator"]
+
+[[steps.outputs]]
+name = "filtered_image"
+kind = "shared_image"
+
+[[steps.outputs]]
+name = "snapshot"
+kind = "shared_buffer"
+
+[[steps]]
+id = "rust_analyzer"
+runtime = "rust_crate"
+entry = "src/rust_step.kn"
+crate_name = "fabric_runtime_lab"
+manifest_path = "local_crate/Cargo.toml"
+depends_on = ["native_filter", "kain_orchestrator"]
+
+[[steps.outputs]]
+name = "analysis"
+kind = "value"
+
+[[steps]]
+id = "node_packager"
+runtime = "node"
+entry = "scripts/node_step.mjs"
+depends_on = ["kain_orchestrator", "native_filter", "rust_analyzer"]
+
+[[steps.outputs]]
+name = "html_bundle"
+kind = "value"
+
+[reports]
+directory = ".kain/fabric/reports"
+emit_jsonl_events = true

@@ -259,12 +259,14 @@ impl DriverSession {
         root_component: Option<&str>,
     ) -> Result<RealtimeAppBundleOutput, KainError> {
         let typed = self.frontend_to_typed_program(source, target)?;
+        let prepared_source =
+            prepare_c_ffi_source(source, target).unwrap_or_else(|_| source.to_string());
         let resolved_root_component = root_component
             .map(str::to_string)
             .or_else(|| discover_root_component_name(&typed));
         let ui_output = if let Some(root_component) = resolved_root_component.as_deref() {
             Some(kain_core::build_ui_output_from_source(
-                source,
+                &prepared_source,
                 root_component,
             )?)
         } else {

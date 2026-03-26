@@ -1,0 +1,6 @@
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "image_fx"
+header = "native/image_fx.h"
+shared_lib = "native/image_fx.dll"

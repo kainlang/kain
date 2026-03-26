@@ -4215,15 +4215,38 @@ fn python_object_label(obj: &PyAny) -> String {
     format!("python:{}", type_name)
 }
 
-pub fn python_scope_state(env: &Env) -> KainResult<Arc<PythonScopeState>> {
+pub fn execute_python_source(env: &Env, source: &str) -> KainResult<Option<Value>> {
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+
+        py.run(source, Some(scope_dict), Some(scope_dict))
+            .map_err(|err| KainError::runtime(format!("Python Error: {err}")))?;
+
+        if let Ok(Some(result_var)) = scope_dict.get_item("result") {
+            return py_to_value(result_var).map(Some);
+        }
+
+        if let Ok(Some(run_fn)) = scope_dict.get_item("run") {
+            if run_fn.is_callable() {
+                let result = run_fn
+                    .call0()
+                    .map_err(|err| KainError::runtime(format!("Python Error in run(): {err}")))?;
+                return py_to_value(result).map(Some);
+            }
+        }
+
+        Ok(None)
+    })
+}
+
+fn python_scope_state(env: &Env) -> KainResult<Arc<PythonScopeState>> {
     env.get_extension_state::<PythonScopeState>(PYTHON_EXTENSION_KEY)
         .ok_or_else(|| KainError::runtime("Python runtime is not registered for this environment"))
 }
 
-pub fn scope_dict_from_guard<'py>(
-    py: Python<'py>,
-    scope: &'py PyObject,
-) -> KainResult<&'py PyDict> {
+fn scope_dict_from_guard<'py>(py: Python<'py>, scope: &'py PyObject) -> KainResult<&'py PyDict> {
     scope
         .as_ref(py)
         .downcast::<PyDict>()

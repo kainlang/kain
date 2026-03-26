@@ -104,6 +104,12 @@ fn print_execution_summary(result: &kain_omni::FabricExecutionResult) {
             step.runtime.display_name(),
             step.status
         );
+        if !step.outputs.is_empty() {
+            println!("    outputs: {}", step.outputs.len());
+        }
+        if let Some(error) = &step.error {
+            println!("    error: {}", error.message);
+        }
     }
 }
 
@@ -171,16 +177,15 @@ mod tests {
     }
 
     #[test]
-    fn run_command_reports_failure_for_unsupported_runtime_steps() {
+    fn generated_polyglot_manifest_still_validates() {
         let dir = tempfile::tempdir().unwrap();
         let init =
             kain_omni::init_fabric_manifest(dir.path(), kain_omni::FabricTemplateKind::Polyglot)
                 .unwrap();
 
-        let error = run(FabricCommand::Run {
+        run(FabricCommand::Validate {
             manifest: init.manifest_path,
         })
-        .unwrap_err();
-        assert!(error.to_string().contains("Fabric execution failed"));
+        .unwrap();
     }
 }

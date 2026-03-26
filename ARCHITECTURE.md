@@ -69,6 +69,11 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 
 `.kn source -> compiler/runtime contracts -> host bridge crates (Python, Node, C ABI, Rust crate FFI) -> shared payload contracts via kain-interop`
 
+Current native-ui packaging rule for C ABI imports:
+
+- `kain-c-ffi` is no longer only an `Interpret`/`Test` lane concern. The Rust/native-ui packaging lane now emits packaged bridge manifests, copies bridge/shared-library sidecars into the app artifact set, and has the generated native app launcher load those packaged bridges before boot.
+- This does not mean the current native UI host is a full general-purpose Kain interpreter. The lane is still bundle-driven; the packaging change makes foreign bridge dependencies explicit and shippable rather than hidden behind cache-local host-backed behavior.
+
 ### Compute pipeline flow
 
 The current compute direction is:
@@ -90,7 +95,7 @@ The native shader-canvas UI lane now follows this contract:
 - `kain-core` also emits first-class shader-canvas text resources per surface: font atlas descriptors, text runs, and declared runtime resource bindings
 - `kain-driver` materializes shader bundles and native app sidecars that keep shader-canvas metadata, shader refs, and native UI bundles aligned
 - `kain-ui-native` resolves shader canvases from realtime bundle metadata first and only falls back to surface-local shader refs when metadata is missing
-- `kain-ui-native` now turns the shader-canvas text contract into real GPU inputs by serializing atlas/text metadata into the surface storage buffer and synthesizing a host-provisioned bitmap atlas texture for shaders that bind textures
+- `kain-ui-native` now turns the shader-canvas text contract into real GPU inputs by serializing atlas/text metadata into the surface storage buffer and synthesizing a host-provisioned packed bitmap atlas texture, with cache reuse across repeated surfaces that share atlas content
 - canonical native shader payload remains SPIR-V, while the current WGPU native host may consume derived WGSL or runtime-transpiled WGSL from the same bundle family
 
 The architecture rule here is the same as the viewport and compute lanes: shader-canvas execution can optimize presentation, but it must stay subordinate to compiler-owned bundle truth rather than inventing a renderer-local UI shader dialect.
@@ -150,7 +155,10 @@ If the debug CLI is missing:
 - The native runtime is Windows-first today. Linux and macOS surfaces exist, but much of that lane is still stubbed or partial.
 - The compute pipeline is mid-transition from heuristic metadata to compiler-owned truth. When touching it, prefer extending bundle contracts over adding new runtime-only inference.
 - The native shader-canvas lane is SPIR-V-canonical at the bundle level, but the current WGPU host still resolves WGSL for execution. Do not mistake that compatibility bridge for permission to move shader-canvas truth out of the emitted bundles.
-- Focused `kain-ui-native` validation is currently blocked by unrelated `crates/kain-host/src/fabric.rs` compile errors around missing `pyo3` linkage and private `kain_python::PythonScopeState` access. Do not treat a blocked workspace build as evidence that the shader-canvas lane itself regressed.
+- Fabric Python execution should stay behind `kain-python` helpers. Do not make `kain-host` reach directly into `pyo3` imports or `PythonScopeState` internals when the Python lane can expose a narrower execution API.
+- Fabric runtime ownership is now split cleanly: `kain-omni` owns `KAIN.fabric.toml` schema/validation/report types, while `kain-host` owns local execution, dependency plumbing, and runtime adapter behavior.
+- Fabric step inputs now have two host-facing forms: raw `fabric_inputs` for Kain/C/Rust glue that needs canonical shared contract handles, and normalized `fabric_serialized_inputs` for Python/Node glue that cannot accept foreign host objects directly.
+- The durable end-to-end Fabric proof lives under `smoketest/fabric/polyglot_local`. It is the quickest repo-local example of Python -> Kain -> C ABI -> Rust crate -> Node execution with typed shared image/shared buffer flow.
 
 ## Template Packs
 

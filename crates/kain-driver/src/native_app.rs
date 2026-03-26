@@ -381,13 +381,14 @@ impl DriverSession {
             .clone()
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| root_component.clone());
+        let prepared_ui_source = crate::prepare_c_ffi_source(source, CompileTarget::Rust)?;
         let mut runtime_contract =
             self.compile_runtime_contract_bundle(source, CompileTarget::Rust)?;
         let realtime = self
             .compile_realtime_app_bundle(source, CompileTarget::Rust, Some(&root_component))?
             .bundle;
         let shader_bundle = self.compile_shader_artifact_bundle(source).ok();
-        let ui = build_ui_output_from_source(source, &root_component)?;
+        let ui = build_ui_output_from_source(&prepared_ui_source, &root_component)?;
         let metadata = NativeAppMetadata {
             app_name,
             window_title,
@@ -473,7 +474,7 @@ impl DriverSession {
         let runtime_contract_json = render_runtime_contract_json(bundle)?;
         fs::write(&runtime_contract_path, runtime_contract_json.as_bytes())
             .map_err(io_error("write native app runtime contract"))?;
-        artifact_paths.push(runtime_contract_path);
+        artifact_paths.push(runtime_contract_path.clone());
 
         let runtime_compatibility_path =
             artifact_root.join(NATIVE_APP_RUNTIME_COMPATIBILITY_FILE_NAME);
@@ -483,7 +484,7 @@ impl DriverSession {
             runtime_compatibility_json.as_bytes(),
         )
         .map_err(io_error("write native app runtime compatibility"))?;
-        artifact_paths.push(runtime_compatibility_path);
+        artifact_paths.push(runtime_compatibility_path.clone());
 
         let realtime_bundle_path = artifact_root.join(NATIVE_APP_REALTIME_BUNDLE_FILE_NAME);
         let realtime_bundle_json = render_realtime_bundle_json(bundle)?;
@@ -775,20 +776,22 @@ fn render_manifest(
             format!(r#"{{ version = "{version}" }}"#)
         }
     };
-    let c_ffi_dependency = include_c_ffi_runtime
-        .then(|| resolve_workspace_crate_dependency(project_dir, "kain-c-ffi"))
-        .transpose()
-        .ok()
-        .flatten()
-        .map(|dependency| match dependency {
-            NativeAppRuntimeDependency::Path(path) => {
+    let c_ffi_dependency = if include_c_ffi_runtime {
+        match resolve_workspace_crate_dependency(project_dir, "kain-c-ffi")
+            .ok()
+            .flatten()
+        {
+            Some(NativeAppRuntimeDependency::Path(path)) => {
                 format!("\nkain-c-ffi = {{ path = \"{}\" }}", path_for_toml(&path))
             }
-            NativeAppRuntimeDependency::Version(version) => {
+            Some(NativeAppRuntimeDependency::Version(version)) => {
                 format!("\nkain-c-ffi = {{ version = \"{version}\" }}")
             }
-        })
-        .unwrap_or_default();
+            None => String::new(),
+        }
+    } else {
+        String::new()
+    };
 
     format!(
         "[package]\nname = \"{app_name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n\n[dependencies]\n{runtime_crate_name} = {dependency}{c_ffi_dependency}\n"
@@ -2068,7 +2071,7 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
         .expect("manifest");
 
         let previous_dir = std::env::current_dir().expect("current dir");
-        let result = (|| {
+        let result: Result<(), KainError> = (|| {
             std::env::set_current_dir(project_root).expect("set cwd");
             let source = r#"
 use c::beacon_math
@@ -2124,6 +2127,7 @@ component App():
             let cargo_manifest =
                 fs::read_to_string(&materialized.manifest_path).expect("cargo manifest");
             assert!(cargo_manifest.contains("kain-c-ffi"));
+            Ok(())
         })();
         std::env::set_current_dir(previous_dir).expect("restore cwd");
         result.expect("c ffi native app packaging result");

@@ -10,8 +10,12 @@ default = ["derive"]
 derive = ["dep:kain-host-derive"]
 
 [dependencies]
+kain-c-ffi = { path = "../kain-c-ffi" }
+kain-crate-ffi = { path = "../kain-crate-ffi" }
 kain-core = { path = "../kain-core" }
 kain-driver = { path = "../kain-driver", default-features = false }
+kain-interop = { path = "../kain-interop" }
+kain-node = { path = "../kain-node" }
 kain-python = { path = "../kain-python" }
 kain-host-derive = { path = "../kain-host-derive", optional = true }
 kain-omni = { path = "../kain-omni" }

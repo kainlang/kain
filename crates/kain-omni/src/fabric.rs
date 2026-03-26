@@ -5,6 +5,7 @@ use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 
 use crate::{OmniError, OmniResult};
 
@@ -122,7 +123,7 @@ pub struct FabricOutputBinding {
     pub kind: FabricContractKind,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FabricContractKind {
     SharedBuffer,
@@ -179,11 +180,107 @@ pub enum FabricStepStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FabricFailureReason {
+    pub code: String,
+    pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<JsonValue>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FabricValueSnapshot {
+    pub summary: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub json: Option<JsonValue>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FabricSharedBufferSnapshot {
+    pub contract: String,
+    pub byte_length: usize,
+    pub element_type: String,
+    pub element_size: i64,
+    pub shape: Vec<i64>,
+    pub strides: Vec<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub format: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    pub source_runtime: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_backend: Option<String>,
+    pub ownership: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub labels: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FabricSharedImageSnapshot {
+    pub contract: String,
+    pub byte_length: usize,
+    pub representation: String,
+    pub width: i64,
+    pub height: i64,
+    pub channels: i64,
+    pub layout: String,
+    pub pixel_format: String,
+    pub mime_type: String,
+    pub row_stride: i64,
+    pub color_space: String,
+    pub alpha_mode: String,
+    pub source_runtime: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_backend: Option<String>,
+    pub ownership: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub labels: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum FabricOutputPayloadSnapshot {
+    Value { value: FabricValueSnapshot },
+    SharedBuffer { buffer: FabricSharedBufferSnapshot },
+    SharedImage { image: FabricSharedImageSnapshot },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FabricProducedOutput {
+    pub name: String,
+    pub declared_kind: FabricContractKind,
+    pub payload: FabricOutputPayloadSnapshot,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FabricResolvedInputRecord {
+    pub from_step_id: String,
+    pub output_name: String,
+    pub declared_kind: FabricContractKind,
+    pub payload: FabricOutputPayloadSnapshot,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FabricStepExecution {
     pub id: String,
     pub runtime: FabricRuntimeKind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub entry: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub module: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crate_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manifest_path: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub library: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adapter: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_entry: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_manifest_path: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_library: Option<PathBuf>,
     #[serde(default)]
     pub depends_on: Vec<String>,
     pub status: FabricStepStatus,
@@ -191,10 +288,12 @@ pub struct FabricStepExecution {
     pub started_unix_ms: Option<u128>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub finished_unix_ms: Option<u128>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resolved_inputs: Vec<FabricResolvedInputRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub outputs: Vec<FabricProducedOutput>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub output: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
+    pub error: Option<FabricFailureReason>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -225,6 +324,8 @@ pub struct FabricEventRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<FabricStepStatus>,
     pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<JsonValue>,
 }
 
 impl Default for FabricManifest {
@@ -299,21 +400,35 @@ pub fn init_fabric_manifest(
             let python_step = scripts_dir.join("python_step.py");
             write_if_missing(
                 &python_step,
-                "def run():\n    return {\"status\": \"python-step-ready\"}\n",
+                "def run(fabric_inputs):\n    return {\"status\": \"python-step-ready\", \"message\": \"provide a real Fabric fixture or local glue\"}\n",
             )?;
             created_paths.push(python_step);
 
             let node_step = scripts_dir.join("node_step.mjs");
             write_if_missing(
                 &node_step,
-                "export function run() {\n  return { status: 'node-step-ready' };\n}\n",
+                "export function run(fabricInputs) {\n  return { status: 'node-step-ready', dependencies: Object.keys(fabricInputs ?? {}) };\n}\n",
             )?;
             created_paths.push(node_step);
+
+            let rust_entry = src_dir.join("rust_step.kn");
+            write_if_missing(
+                &rust_entry,
+                "fn main() -> String:\n    return \"fabric-rust-step-placeholder\"\n",
+            )?;
+            created_paths.push(rust_entry);
+
+            let native_entry = src_dir.join("native_step.kn");
+            write_if_missing(
+                &native_entry,
+                "fn main() -> String:\n    return \"fabric-native-step-placeholder\"\n",
+            )?;
+            created_paths.push(native_entry);
 
             let native_readme = native_dir.join("README.md");
             write_if_missing(
                 &native_readme,
-                "# Native bridge placeholders\n\nPlace future C ABI libraries or bridge artifacts here for Fabric sessions.\n",
+                "# Native bridge placeholders\n\nPlace future C ABI libraries, bridge manifests, or compiled shared libraries here for Fabric sessions.\n",
             )?;
             created_paths.push(native_readme);
         }
@@ -612,11 +727,23 @@ fn validate_step_shape(step: &FabricStep) -> OmniResult<()> {
                     step.id
                 )));
             }
+            if step.entry.is_none() {
+                return Err(OmniError::Config(format!(
+                    "Fabric step '{}' with runtime 'rust_crate' must declare 'entry' so kain-host can run local glue against the imported crate",
+                    step.id
+                )));
+            }
         }
         FabricRuntimeKind::CAbi => {
             if step.library.is_none() {
                 return Err(OmniError::Config(format!(
                     "Fabric step '{}' with runtime 'c_abi' must declare 'library'",
+                    step.id
+                )));
+            }
+            if step.entry.is_none() {
+                return Err(OmniError::Config(format!(
+                    "Fabric step '{}' with runtime 'c_abi' must declare 'entry' so kain-host can run local glue against the imported library",
                     step.id
                 )));
             }
@@ -740,7 +867,7 @@ fn polyglot_manifest_template() -> FabricManifest {
             FabricStep {
                 id: "rust_analyzer".to_string(),
                 runtime: FabricRuntimeKind::RustCrate,
-                entry: None,
+                entry: Some(PathBuf::from("src/rust_step.kn")),
                 module: None,
                 crate_name: Some("example_fabric_crate".to_string()),
                 manifest_path: Some(PathBuf::from("Cargo.toml")),
@@ -759,8 +886,8 @@ fn polyglot_manifest_template() -> FabricManifest {
             FabricStep {
                 id: "native_filter".to_string(),
                 runtime: FabricRuntimeKind::CAbi,
-                entry: None,
-                module: None,
+                entry: Some(PathBuf::from("src/native_step.kn")),
+                module: Some("image_fx".to_string()),
                 crate_name: None,
                 manifest_path: None,
                 library: Some(PathBuf::from("native/image_fx.dll")),
