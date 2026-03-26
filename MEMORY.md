@@ -10,6 +10,63 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-26 - SM64 Level Chunk Extract + Navigate + Actor Transform + Shader Override Architecture
+
+The Fast3D runtime now supports loading and navigating real SM64 level geometry, not just Mario's title-screen face.
+
+### What changed
+
+#### kain-fast3d-runtime — extractor.rs
+- `extract_sm64_level_chunk_scene(sm64_root, level_name, area_id, manifest_out)` reads all `levels/{level}/areas/{area}/{1..N}/model.inc.c` files, merges vertex arrays + display lists + light groups into a single manifest, and writes it to disk.
+- The root display list chains sub-area roots; orphaned cross-segment display list references are silently skipped with a well-placed `continue`.
+- Coordinate scale: `N64 units ÷ 500 → world units` (Bob-omb Battlefield area 1 renders at ≈ ±80 world unit radius).
+- UV scale: `raw_uv / (32 × 64)` for level geometry (passes through the checkerboard placeholder cleanly).
+- Textures: two checkerboard placeholders (`level_ground`, `level_rock`) since real level textures require ROM extraction.
+- Both `Fast3dSmokeManifest` and `CameraConfig` struct initializers updated to include all evolved schema fields (`controller_mode`, `free_position`, `move_speed`, `look_speed`, `scene_instances`, `shader_overrides`).
+
+#### kain-fast3d-runtime — runtime.rs
+- `FreeCameraPose { position, yaw_radians, pitch_radians, fov_y_degrees, near_plane, far_plane }` — new struct.
+- `render_frame_with_pose(&FreeCameraPose, combine_override)` — renders a frame from an explicit camera pose, bypassing the orbit model entirely.
+- `actor_override_transforms: HashMap<String, Matrix4>` — new field on `Fast3dRuntime`.
+- `set_actor_transform(display_list_id, [[f32;4];4])` / `clear_actor_transform(display_list_id)` — bind gameplay physics positions to named display lists at render time.
+- `CallDisplayList` executor now checks for an actor override and pushes/pops it on the matrix stack.
+
+#### kain-fast3d-runtime — viewer.rs (rewritten)
+- `FreeFlyControls { position, yaw_radians, pitch_radians, speed }` — new struct (public).
+- `CameraMode::Orbit / FreeFly` — `F` key toggles between modes.
+- In FreeFly mode: WASD = horizontal move, Q/E = ascend/descend, mouse drag = look, scroll = speed adjust.
+- `render_current_frame()` dispatches to `render_frame` or `render_frame_with_pose` by mode.
+- Sidebar shows context-aware control hints per camera mode.
+- Full rewrite removed all dead references to `RuntimeFrameBindings`, `CameraControllerMode`, `OrbitControls.fly_position` (the evolved viewer.rs had these in a broken state pre-session).
+
+#### kain-fast3d-runtime — lib.rs
+- `--extract-sm64-level-chunk SM64_ROOT --level bob --area 1 --manifest-out path.json` CLI verb.
+- `execute_host_config_path` extended for `ExtractSm64LevelChunk` action.
+- Dead references to `RuntimeFrameBindings`, `GameplayStateDocument`, `load_gameplay_state_document`, `load_shader_override_document` (which had been removed from runtime.rs) cleaned out.
+
+#### kain-fast3d-runtime — config.rs
+- `ExtractSm64LevelChunk { sm64_source_root, level_name, area_id, manifest_output_path }` added to both serialization and deserialization enums.
+
+#### Other pre-existing breakage fixed (found during compile)
+- `combiner.rs`: `CompiledCombiner.shade` was referencing `self.color_multiplier` and `self.emissive_add` which don't exist on that struct (they're on `CombinerState`). Fixed by removing the post-multiply.
+- `math.rs`: `Vec3::to_radians()` doesn't exist in glam — fixed with per-component conversion.
+
+### Design decisions
+
+- **No ROM required** — the extractor targets the decompiled sm64-master source tree only.
+- **Actor transforms are per-display-list** — the key is the display list ID string, so bindings are data-driven and manifest-driven. No special actor metadata needed.
+- **Shader override = MaterialOverrideBundle** — the insertion point for Kain GPU shaders is the draw-call path: the CPU combiner can be replaced per-mode by a wgpu pipeline built from a Kain `shader vertex`+`shader fragment` pair. The architecture is defined but not yet wired. Key blocker: Kain compiler does not yet emit valid SPIR-V for vertex/fragment execution models (only compute is proven).
+
+### What's in the smoketest
+- `smoketest/3D/sm64_bob_level_chunk/scene_manifest.json` — Bob-omb Battlefield area 1, 30 display lists, 5 light groups, checkerboard placeholder textures. Viewer confirmed working (geometry visible, no materials yet).
+
+### What remains
+- Real texture support requires ROM extraction (separate project).
+- Vertex count from the 30 display lists is sparse compared to full level; many display lists reference cross-segment data not available in the source C alone.
+- Shader override hook (wgpu pipeline from Kain SPIR-V) requires `shader vertex`/`shader fragment` emission in `kain-core` GPU backend.
+- Actor transform demo: a test that drives a named display list rotation from `elapsed_seconds` would prove the binding end-to-end.
+- Build `smoketest/fabric/gpu_compute_convergence/` smoketest (from prior session's next-steps list) is still outstanding.
+
 ## 2026-03-26 - GPU Compute Pipeline Converged Into Fabric Executor
 
 The Tensor/Compute Pipeline and the Fabric Polyglot Executor now share a unified execution path. `gpu_compute` is a first-class Fabric runtime kind and `compute_plan` is a valid contract kind.

@@ -5,6 +5,21 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=81c153252605fa0c -->
+## 2026-03-26 17:19:35 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `9c48aaa3`
+- Changed files: 2
+- [??] `smoketest/3D/sm64_bob_level_chunk/scene_manifest.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/viewer.json`
+
+<!-- polytools-changelog:fingerprint=c2701c6c907de8db -->
+## 2026-03-26 17:19:06 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `9c48aaa3`
+- Changed files: 1
+- [??] `smoketest/3D/sm64_bob_level_chunk/scene_manifest.json`
+
 <!-- polytools-changelog:fingerprint=085b46bf7f67e2cf -->
 ## 2026-03-26 17:18:04 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`
