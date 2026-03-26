@@ -63,7 +63,8 @@ pub fn transform_from_trs(
     scale: [f32; 3],
 ) -> Matrix4 {
     let translation = vec3_from_array(translation);
-    let rotation_radians = vec3_from_array(rotation_degrees).to_radians();
+    let deg = vec3_from_array(rotation_degrees);
+    let rotation_radians = Float3::new(deg.x.to_radians(), deg.y.to_radians(), deg.z.to_radians());
     let rotation = Matrix4::from_euler(
         glam::EulerRot::XYZ,
         rotation_radians.x,

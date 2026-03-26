@@ -5,6 +5,40 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=085b46bf7f67e2cf -->
+## 2026-03-26 17:18:04 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f592cb27`
+- Changed files: 5
+- [.M] `crates/kain-fast3d-runtime/src/combiner.rs`
+- [.M] `crates/kain-fast3d-runtime/src/extractor.rs`
+- [.M] `crates/kain-fast3d-runtime/src/lib.rs`
+- [.M] `crates/kain-fast3d-runtime/src/math.rs`
+- [.M] `crates/kain-fast3d-runtime/src/viewer.rs`
+
+<!-- polytools-changelog:fingerprint=943746523662deff -->
+## 2026-03-26 17:16:30 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f592cb27`
+- Changed files: 2
+- [.M] `crates/kain-fast3d-runtime/src/lib.rs`
+- [.M] `crates/kain-fast3d-runtime/src/viewer.rs`
+
+<!-- polytools-changelog:fingerprint=4eae803dcf72e4d5 -->
+## 2026-03-26 17:15:41 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f592cb27`
+- Changed files: 1
+- [.M] `crates/kain-fast3d-runtime/src/viewer.rs`
+
+<!-- polytools-changelog:fingerprint=d383d10760592c30 -->
+## 2026-03-26 17:14:18 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f592cb27`
+- Changed files: 2
+- [M.] `crates/kain-fast3d-runtime/src/runtime.rs`
+- [.M] `crates/kain-fast3d-runtime/src/viewer.rs`
+
 <!-- polytools-changelog:fingerprint=3a01e5faee1e3f0f -->
 ## 2026-03-26 17:11:01 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

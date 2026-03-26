@@ -118,6 +118,30 @@ What future work should preserve:
 - if Goddard/title-screen parity becomes the goal, add that as another extractor target beside the current face smoke instead of replacing the simpler model-inc proof
 - keep the driver-level host-sidecar contract generic and data-driven; future adapters should bring their own config/data sidecars and entrypoints instead of widening shared runtime contracts prematurely
 
+## 2026-03-26 - Universal Web Template Expanded With KainScript + Actor/Chat Systems
+
+The universal web template pack now carries explicit chat personas, chat modes, and actor playbook/tool data while also proving KainScript support in the client bundle lane.
+
+What changed:
+
+- the Node helper bundler now accepts `.ks` modules, and a sample KainScript file ships alongside TSX islands
+- site data and actor-server plans now include chat personas/modes and actor playbooks/tools
+- chat, actor, operator, and hybrid archetypes expose the new persona/mode/playbook/tool sections through manifests
+- stdlib `site_runtime` gained wrappers for catalog, actor plan, system contract, and UI schema to keep boilerplate out of template code
+- the updated template was mirrored into `K:\templates\Web` and `M:\Templates\Web` for non-repo consumption
+
+Why this matters:
+
+- the pack is now ready for chat-heavy and actor-heavy site experiences without Rust tooling
+- KainScript modules can coexist with React/TypeScript-style islands in the same bundle
+- more boilerplate lives in stdlib and data registries instead of one-off template code
+
+What future work should preserve:
+
+- keep persona/mode/playbook/tool data manifest-driven
+- keep KainScript bundling compatible with TS/TSX island workflows
+- extend the shared helper runtime instead of copy-pasting site logic into new starters
+
 ## 2026-03-25 - Fabric Polyglot Execution Became A Real Local-First Lane
 
 Fabric stopped being mostly a manifest validator plus partial executor and became a runnable local-first polyglot pipeline across every declared runtime kind.

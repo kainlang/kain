@@ -9,8 +9,7 @@ use regex::Regex;
 
 use crate::model::{
     CameraConfig, CombineMode, DisplayListCommand, DisplayListDefinition, Fast3dSmokeManifest,
-    Fast3dVertex, LightGroupDefinition, ResolutionConfig, SegmentBinding, SegmentBindingKind,
-    TextureDefinition, TextureSource,
+    Fast3dVertex, LightGroupDefinition, ResolutionConfig, TextureDefinition, TextureSource,
 };
 
 const MARIO_FACE_MODEL_PATH: &str = "actors/mario/model.inc.c";
@@ -214,6 +213,7 @@ pub fn extract_sm64_level_chunk_scene(
         },
         clear_color: [100, 160, 220, 255],
         camera: CameraConfig {
+            controller_mode: crate::model::CameraControllerMode::Orbit,
             target: [0.0, 5.0, 0.0],
             orbit_radius: 80.0,
             orbit_height: 30.0,
@@ -222,10 +222,15 @@ pub fn extract_sm64_level_chunk_scene(
             fov_y_degrees: 60.0,
             near_plane: 0.5,
             far_plane: 2000.0,
+            free_position: [0.0, 20.0, 80.0],
+            move_speed: 40.0,
+            look_speed: 1.5,
         },
         auto_rotation_radians_per_second: 0.08,
         segment_bindings: Vec::new(),
         light_groups,
+        scene_instances: Vec::new(),
+        shader_overrides: Vec::new(),
         textures,
         display_lists: extracted_display_lists,
     };
@@ -488,6 +493,7 @@ pub fn extract_sm64_title_face_scene(
         },
         clear_color: [8, 12, 24, 255],
         camera: CameraConfig {
+            controller_mode: crate::model::CameraControllerMode::Orbit,
             target: [0.9, -0.05, 0.0],
             orbit_radius: 5.0,
             orbit_height: 0.45,
@@ -496,10 +502,15 @@ pub fn extract_sm64_title_face_scene(
             fov_y_degrees: 34.0,
             near_plane: 0.1,
             far_plane: 80.0,
+            free_position: [0.0, 2.0, 5.0],
+            move_speed: 5.5,
+            look_speed: 1.35,
         },
         auto_rotation_radians_per_second: 0.0,
         segment_bindings: Vec::new(),
         light_groups,
+        scene_instances: Vec::new(),
+        shader_overrides: Vec::new(),
         textures: vec![
             TextureDefinition {
                 id: "sm64_title_card".to_string(),

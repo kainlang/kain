@@ -15,11 +15,8 @@ use std::{
 
 pub use config::{load_host_config, Fast3dHostAction, Fast3dHostConfig, ResolvedFast3dHostAction};
 pub use extractor::{extract_sm64_level_chunk_scene, extract_sm64_title_face_scene};
-pub use runtime::{
-    load_gameplay_state_document, load_shader_override_document, Fast3dRuntime,
-    GameplayStateDocument, RuntimeFrameBindings,
-};
-pub use viewer::{launch_viewer, write_snapshot_png, OrbitControls};
+pub use runtime::{Fast3dRuntime, FreeCameraPose, OrbitControls};
+pub use viewer::{launch_viewer, write_snapshot_png, FreeFlyControls};
 
 pub const KAIN_FAST3D_CONFIG_ENV: &str = "KAIN_FAST3D_CONFIG";
 pub const KAIN_FAST3D_MANIFEST_ENV: &str = "KAIN_FAST3D_MANIFEST";
@@ -34,8 +31,7 @@ pub fn run_fast3d_cli() -> Result<(), Box<dyn std::error::Error>> {
         }
         let manifest_path = resolve_default_manifest_path();
         let runtime = Fast3dRuntime::load_from_path(&manifest_path)?;
-        let runtime_bindings = RuntimeFrameBindings::default();
-        launch_viewer(manifest_path, runtime, runtime_bindings)?;
+        launch_viewer(manifest_path, runtime)?;
         return Ok(());
     };
 
@@ -123,12 +119,10 @@ pub fn run_fast3d_cli() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let runtime = Fast3dRuntime::load_from_path(&manifest_path)?;
-    let runtime_bindings = RuntimeFrameBindings::default();
     if let Some(snapshot_path) = snapshot_path {
         let frame = runtime.render_frame(
             snapshot_time_seconds,
-            &runtime.default_camera_controls(),
-            Some(&runtime_bindings),
+            &OrbitControls::default(),
             None,
         )?;
         write_snapshot_png(&snapshot_path, &frame)?;
@@ -141,7 +135,7 @@ pub fn run_fast3d_cli() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    launch_viewer(manifest_path, runtime, runtime_bindings)?;
+    launch_viewer(manifest_path, runtime)?;
     Ok(())
 }
 
@@ -156,30 +150,21 @@ pub fn execute_host_config_path(config_path: &Path) -> Result<(), Box<dyn std::e
     match config.resolve(config_path)? {
         ResolvedFast3dHostAction::Viewer {
             manifest_path,
-            gameplay_state_path,
-            shader_overrides_path,
+            gameplay_state_path: _,
+            shader_overrides_path: _,
         } => {
             let runtime = Fast3dRuntime::load_from_path(&manifest_path)?;
-            let runtime_bindings =
-                load_runtime_bindings(gameplay_state_path.as_deref(), shader_overrides_path.as_deref())?;
-            launch_viewer(manifest_path, runtime, runtime_bindings)?;
+            launch_viewer(manifest_path, runtime)?;
         }
         ResolvedFast3dHostAction::Snapshot {
             manifest_path,
             output_path,
             time_seconds,
-            gameplay_state_path,
-            shader_overrides_path,
+            gameplay_state_path: _,
+            shader_overrides_path: _,
         } => {
             let runtime = Fast3dRuntime::load_from_path(&manifest_path)?;
-            let runtime_bindings =
-                load_runtime_bindings(gameplay_state_path.as_deref(), shader_overrides_path.as_deref())?;
-            let frame = runtime.render_frame(
-                time_seconds,
-                &runtime.default_camera_controls(),
-                Some(&runtime_bindings),
-                None,
-            )?;
+            let frame = runtime.render_frame(time_seconds, &OrbitControls::default(), None)?;
             write_snapshot_png(&output_path, &frame)?;
             println!(
                 "Wrote Fast3D snapshot to {} ({}x{})",
@@ -219,19 +204,4 @@ pub fn execute_host_config_path(config_path: &Path) -> Result<(), Box<dyn std::e
         }
     }
     Ok(())
-}
-
-fn load_runtime_bindings(
-    gameplay_state_path: Option<&Path>,
-    shader_overrides_path: Option<&Path>,
-) -> Result<RuntimeFrameBindings, Box<dyn std::error::Error>> {
-    Ok(RuntimeFrameBindings {
-        gameplay_state: gameplay_state_path
-            .map(load_gameplay_state_document)
-            .transpose()?,
-        shader_overrides: shader_overrides_path
-            .map(load_shader_override_document)
-            .transpose()?
-            .unwrap_or_default(),
-    })
 }

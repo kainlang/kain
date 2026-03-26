@@ -5,19 +5,19 @@ use std::{
 
 use eframe::egui;
 
-use crate::model::{CameraControllerMode, CombineMode};
+use crate::model::CombineMode;
 use crate::rasterizer::RenderFrame;
-use crate::runtime::{Fast3dRuntime, RuntimeFrameBindings};
-pub use crate::runtime::OrbitControls;
+use crate::runtime::{Fast3dRuntime, FreeCameraPose, OrbitControls};
+
+pub use crate::runtime::OrbitControls as OrbitControlsExport;
 
 pub fn launch_viewer(
     manifest_path: PathBuf,
     runtime: Fast3dRuntime,
-    runtime_bindings: RuntimeFrameBindings,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1024.0, 768.0])
+            .with_inner_size([1280.0, 768.0])
             .with_min_inner_size([820.0, 620.0]),
         ..Default::default()
     };
@@ -26,11 +26,7 @@ pub fn launch_viewer(
         &title,
         options,
         Box::new(move |_creation_context| {
-            Ok(Box::new(Fast3dViewerApp::new(
-                manifest_path,
-                runtime,
-                runtime_bindings,
-            )))
+            Ok(Box::new(Fast3dViewerApp::new(manifest_path, runtime)))
         }),
     )?;
     Ok(())
@@ -49,37 +45,75 @@ pub fn write_snapshot_png(
     Ok(())
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CameraMode {
+    Orbit,
+    FreeFly,
+}
+
+/// Free-fly / first-person camera controller state.
+/// `F` key in the viewer toggles between orbit and free-fly mode.
+#[derive(Clone, Copy, Debug)]
+pub struct FreeFlyControls {
+    pub position: [f32; 3],
+    pub yaw_radians: f32,
+    pub pitch_radians: f32,
+    /// Movement speed in world units per second.
+    pub speed: f32,
+}
+
+impl Default for FreeFlyControls {
+    fn default() -> Self {
+        Self {
+            position: [0.0, 20.0, 80.0],
+            yaw_radians: std::f32::consts::PI,
+            pitch_radians: -0.2,
+            speed: 30.0,
+        }
+    }
+}
+
 struct Fast3dViewerApp {
     manifest_path: PathBuf,
     runtime: Fast3dRuntime,
     orbit_controls: OrbitControls,
+    free_fly: FreeFlyControls,
+    camera_mode: CameraMode,
     frame_texture: Option<egui::TextureHandle>,
     last_frame_started_at: Instant,
     elapsed_seconds: f32,
     auto_rotate: bool,
     combine_override: Option<CombineMode>,
     latest_frame: Option<RenderFrame>,
-    runtime_bindings: RuntimeFrameBindings,
+    /// Accumulated mouse drag this frame for free-fly look.
+    drag_delta: egui::Vec2,
 }
 
 impl Fast3dViewerApp {
-    fn new(
-        manifest_path: PathBuf,
-        runtime: Fast3dRuntime,
-        runtime_bindings: RuntimeFrameBindings,
-    ) -> Self {
-        let orbit_controls = runtime.default_camera_controls();
+    fn new(manifest_path: PathBuf, runtime: Fast3dRuntime) -> Self {
+        // Seed free-fly start position from the manifest camera target + pull-back
+        let camera = &runtime.manifest.camera;
+        let start_position = [
+            camera.target[0],
+            camera.target[1] + camera.orbit_height,
+            camera.target[2] + camera.orbit_radius,
+        ];
         Self {
             manifest_path,
             runtime,
-            orbit_controls,
+            orbit_controls: OrbitControls::default(),
+            free_fly: FreeFlyControls {
+                position: start_position,
+                ..FreeFlyControls::default()
+            },
+            camera_mode: CameraMode::Orbit,
             frame_texture: None,
             last_frame_started_at: Instant::now(),
             elapsed_seconds: 1.8,
             auto_rotate: true,
             combine_override: None,
             latest_frame: None,
-            runtime_bindings,
+            drag_delta: egui::Vec2::ZERO,
         }
     }
 
@@ -98,6 +132,7 @@ impl Fast3dViewerApp {
 
     fn apply_keyboard_controls(&mut self, ctx: &egui::Context, delta_seconds: f32) {
         ctx.input(|input| {
+            // ── Global keys ────────────────────────────────────────────────
             if input.key_pressed(egui::Key::Space) {
                 self.auto_rotate = !self.auto_rotate;
             }
@@ -105,11 +140,20 @@ impl Fast3dViewerApp {
                 self.cycle_combine_override();
             }
             if input.key_pressed(egui::Key::R) {
-                self.orbit_controls = self.runtime.default_camera_controls();
+                self.orbit_controls = OrbitControls::default();
+                self.free_fly = FreeFlyControls::default();
                 self.elapsed_seconds = 0.0;
             }
-            match self.runtime.manifest.camera.controller_mode {
-                CameraControllerMode::Orbit => {
+            if input.key_pressed(egui::Key::F) {
+                self.camera_mode = match self.camera_mode {
+                    CameraMode::Orbit => CameraMode::FreeFly,
+                    CameraMode::FreeFly => CameraMode::Orbit,
+                };
+            }
+
+            // ── Mode-specific controls ──────────────────────────────────────
+            match self.camera_mode {
+                CameraMode::Orbit => {
                     if input.key_down(egui::Key::ArrowLeft) || input.key_down(egui::Key::A) {
                         self.orbit_controls.yaw_radians -= delta_seconds * 1.75;
                     }
@@ -117,77 +161,85 @@ impl Fast3dViewerApp {
                         self.orbit_controls.yaw_radians += delta_seconds * 1.75;
                     }
                     if input.key_down(egui::Key::ArrowUp) || input.key_down(egui::Key::W) {
-                        self.orbit_controls.pitch_radians =
-                            (self.orbit_controls.pitch_radians + delta_seconds * 1.25)
-                                .clamp(-0.9, 0.9);
+                        self.orbit_controls.pitch_radians = (self.orbit_controls.pitch_radians
+                            + delta_seconds * 1.25)
+                            .clamp(-0.9, 0.9);
                     }
                     if input.key_down(egui::Key::ArrowDown) || input.key_down(egui::Key::S) {
-                        self.orbit_controls.pitch_radians =
-                            (self.orbit_controls.pitch_radians - delta_seconds * 1.25)
-                                .clamp(-0.9, 0.9);
+                        self.orbit_controls.pitch_radians = (self.orbit_controls.pitch_radians
+                            - delta_seconds * 1.25)
+                            .clamp(-0.9, 0.9);
+                    }
+                    let scroll_delta = input.raw_scroll_delta.y;
+                    if scroll_delta.abs() > f32::EPSILON {
+                        self.orbit_controls.zoom_delta =
+                            (self.orbit_controls.zoom_delta - scroll_delta * 0.01).clamp(-2.8, 4.0);
                     }
                 }
-                CameraControllerMode::Fly => {
-                    if input.key_down(egui::Key::ArrowLeft) {
-                        self.orbit_controls.yaw_radians -=
-                            delta_seconds * self.runtime.manifest.camera.look_speed;
+                CameraMode::FreeFly => {
+                    let speed = self.free_fly.speed * delta_seconds;
+                    let yaw = self.free_fly.yaw_radians;
+                    // Horizontal movement vectors (ignore pitch for WASD strafe)
+                    let (sin_yaw, cos_yaw) = (yaw.sin(), yaw.cos());
+                    let fwd = [cos_yaw, 0.0_f32, sin_yaw];
+                    let right = [sin_yaw, 0.0_f32, -cos_yaw];
+
+                    let mv_fwd = input.key_down(egui::Key::W) || input.key_down(egui::Key::ArrowUp);
+                    let mv_back = input.key_down(egui::Key::S) || input.key_down(egui::Key::ArrowDown);
+                    let mv_left = input.key_down(egui::Key::A) || input.key_down(egui::Key::ArrowLeft);
+                    let mv_right = input.key_down(egui::Key::D) || input.key_down(egui::Key::ArrowRight);
+                    let mv_up = input.key_down(egui::Key::Q);
+                    let mv_down = input.key_down(egui::Key::E);
+
+                    let fs = if mv_fwd { 1.0 } else if mv_back { -1.0 } else { 0.0 };
+                    let rs = if mv_right { 1.0 } else if mv_left { -1.0 } else { 0.0 };
+                    let us = if mv_up { 1.0 } else if mv_down { -1.0 } else { 0.0 };
+
+                    self.free_fly.position[0] += fwd[0] * fs * speed + right[0] * rs * speed;
+                    self.free_fly.position[1] += us * speed;
+                    self.free_fly.position[2] += fwd[2] * fs * speed + right[2] * rs * speed;
+
+                    // Look with mouse drag
+                    let drag = self.drag_delta;
+                    self.free_fly.yaw_radians += drag.x * 0.004;
+                    self.free_fly.pitch_radians =
+                        (self.free_fly.pitch_radians - drag.y * 0.004).clamp(-1.4, 1.4);
+
+                    // Scroll to adjust fly speed
+                    let scroll = input.raw_scroll_delta.y;
+                    if scroll.abs() > f32::EPSILON {
+                        self.free_fly.speed = (self.free_fly.speed + scroll * 2.0).clamp(1.0, 500.0);
                     }
-                    if input.key_down(egui::Key::ArrowRight) {
-                        self.orbit_controls.yaw_radians +=
-                            delta_seconds * self.runtime.manifest.camera.look_speed;
-                    }
-                    if input.key_down(egui::Key::ArrowUp) {
-                        self.orbit_controls.pitch_radians =
-                            (self.orbit_controls.pitch_radians
-                                + delta_seconds * self.runtime.manifest.camera.look_speed)
-                                .clamp(-1.45, 1.45);
-                    }
-                    if input.key_down(egui::Key::ArrowDown) {
-                        self.orbit_controls.pitch_radians =
-                            (self.orbit_controls.pitch_radians
-                                - delta_seconds * self.runtime.manifest.camera.look_speed)
-                                .clamp(-1.45, 1.45);
-                    }
-                    let mut position = glam::Vec3::from_array(
-                        self.orbit_controls
-                            .fly_position
-                            .unwrap_or(self.runtime.manifest.camera.free_position),
-                    );
-                    let forward = crate::math::camera_forward(
-                        self.orbit_controls.yaw_radians,
-                        self.orbit_controls.pitch_radians,
-                    );
-                    let right = forward.cross(glam::Vec3::Y).normalize_or_zero();
-                    let move_speed = self.runtime.manifest.camera.move_speed * delta_seconds;
-                    if input.key_down(egui::Key::W) {
-                        position += forward * move_speed;
-                    }
-                    if input.key_down(egui::Key::S) {
-                        position -= forward * move_speed;
-                    }
-                    if input.key_down(egui::Key::A) {
-                        position -= right * move_speed;
-                    }
-                    if input.key_down(egui::Key::D) {
-                        position += right * move_speed;
-                    }
-                    if input.key_down(egui::Key::Q) {
-                        position.y -= move_speed;
-                    }
-                    if input.key_down(egui::Key::E) {
-                        position.y += move_speed;
-                    }
-                    self.orbit_controls.fly_position = Some(position.to_array());
                 }
-            }
-            let scroll_delta = input.raw_scroll_delta.y;
-            if scroll_delta.abs() > f32::EPSILON {
-                self.orbit_controls.zoom_delta =
-                    (self.orbit_controls.zoom_delta - scroll_delta * 0.01).clamp(-2.8, 4.0);
             }
         });
-        if self.auto_rotate {
+
+        self.drag_delta = egui::Vec2::ZERO;
+        if self.auto_rotate && self.camera_mode == CameraMode::Orbit {
             self.elapsed_seconds += delta_seconds;
+        }
+    }
+
+    fn render_current_frame(&self) -> Result<RenderFrame, String> {
+        match self.camera_mode {
+            CameraMode::Orbit => {
+                self.runtime
+                    .render_frame(self.elapsed_seconds, &self.orbit_controls, self.combine_override)
+            }
+            CameraMode::FreeFly => {
+                let camera = &self.runtime.manifest.camera;
+                self.runtime.render_frame_with_pose(
+                    &FreeCameraPose {
+                        position: self.free_fly.position,
+                        yaw_radians: self.free_fly.yaw_radians,
+                        pitch_radians: self.free_fly.pitch_radians,
+                        fov_y_degrees: camera.fov_y_degrees,
+                        near_plane: camera.near_plane,
+                        far_plane: camera.far_plane,
+                    },
+                    self.combine_override,
+                )
+            }
         }
     }
 
@@ -208,14 +260,17 @@ impl eframe::App for Fast3dViewerApp {
         let now = Instant::now();
         let delta_seconds = (now - self.last_frame_started_at).as_secs_f32().min(0.05);
         self.last_frame_started_at = now;
+
+        // Capture mouse drag for free-fly look before keyboard processing
+        ctx.input(|input| {
+            if input.pointer.is_decidedly_dragging() {
+                self.drag_delta = input.pointer.delta();
+            }
+        });
+
         self.apply_keyboard_controls(ctx, delta_seconds);
 
-        match self.runtime.render_frame(
-            self.elapsed_seconds,
-            &self.orbit_controls,
-            Some(&self.runtime_bindings),
-            self.combine_override,
-        ) {
+        match self.render_current_frame() {
             Ok(frame) => {
                 self.update_frame_texture(ctx, &frame);
                 self.latest_frame = Some(frame);
@@ -237,19 +292,30 @@ impl eframe::App for Fast3dViewerApp {
                 ui.label(self.runtime.manifest.title.as_str());
                 ui.monospace(self.manifest_path.display().to_string());
                 ui.separator();
-                ui.label("Controls");
-                match self.runtime.manifest.camera.controller_mode {
-                    CameraControllerMode::Orbit => {
-                        ui.label("WASD / arrows: orbit camera");
+
+                // Camera mode indicator + controls hint
+                match self.camera_mode {
+                    CameraMode::Orbit => {
+                        ui.label("🎥 Camera: Orbit  [F = FreeFly]");
+                        ui.label("WASD / arrows: orbit");
                         ui.label("Mouse wheel: zoom");
                     }
-                    CameraControllerMode::Fly => {
-                        ui.label("WASD: move");
-                        ui.label("Q/E: descend / ascend");
-                        ui.label("Arrows: look");
-                        ui.label("Mouse wheel: speed-relative zoom bias");
+                    CameraMode::FreeFly => {
+                        ui.label("🚀 Camera: FreeFly  [F = Orbit]");
+                        ui.label("WASD / arrows: move");
+                        ui.label("Q/E: ascend / descend");
+                        ui.label("Mouse drag: look");
+                        ui.label("Scroll: adjust speed");
+                        ui.label(format!("speed: {:.1} u/s", self.free_fly.speed));
+                        ui.label(format!(
+                            "pos: [{:.1}, {:.1}, {:.1}]",
+                            self.free_fly.position[0],
+                            self.free_fly.position[1],
+                            self.free_fly.position[2],
+                        ));
                     }
                 }
+                ui.separator();
                 ui.label("Space: pause auto-rotation");
                 ui.label("C: cycle combiner override");
                 ui.label("R: reset camera and time");
@@ -262,21 +328,14 @@ impl eframe::App for Fast3dViewerApp {
                         .map(|mode| format!("{mode:?}"))
                         .unwrap_or_else(|| "manifest".to_string())
                 ));
-                ui.label(format!("yaw: {:.2}", self.orbit_controls.yaw_radians));
-                ui.label(format!("pitch: {:.2}", self.orbit_controls.pitch_radians));
-                ui.label(format!("zoom delta: {:.2}", self.orbit_controls.zoom_delta));
-                if let Some(position) = self.orbit_controls.fly_position {
-                    ui.label(format!(
-                        "fly position: [{:.2}, {:.2}, {:.2}]",
-                        position[0], position[1], position[2]
-                    ));
+                if self.camera_mode == CameraMode::Orbit {
+                    ui.label(format!("yaw: {:.2}", self.orbit_controls.yaw_radians));
+                    ui.label(format!("pitch: {:.2}", self.orbit_controls.pitch_radians));
+                    ui.label(format!("zoom delta: {:.2}", self.orbit_controls.zoom_delta));
                 }
                 if let Some(frame) = self.latest_frame.as_ref() {
                     ui.separator();
-                    ui.label(format!(
-                        "triangles submitted: {}",
-                        frame.stats.triangles_submitted
-                    ));
+                    ui.label(format!("triangles submitted: {}", frame.stats.triangles_submitted));
                     ui.label(format!(
                         "triangles rasterized: {}",
                         frame.stats.triangles_rasterized

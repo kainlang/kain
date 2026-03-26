@@ -3,6 +3,18 @@ export type KainChatSeedMessage = {
   text: string;
 };
 
+export type KainCardEntry = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  summary?: string | null;
+};
+
+export type KainProcessStep = {
+  title?: string | null;
+  body?: string | null;
+};
+
 export type KainAppModule = {
   name: string;
   route?: string | null;
@@ -86,6 +98,10 @@ export type KainSiteData = {
   app_modules?: KainAppModule[];
   realtime_channels?: KainRealtimeChannel[];
   chat_seed?: KainChatSeedMessage[];
+  chat_personas?: KainCardEntry[];
+  chat_modes?: KainCardEntry[];
+  actor_playbooks?: KainProcessStep[];
+  actor_tools?: KainCardEntry[];
   scene?: KainSceneDescriptor;
   auth?: KainAuthDescriptor | null;
   commerce?: KainCommerceDescriptor | null;
