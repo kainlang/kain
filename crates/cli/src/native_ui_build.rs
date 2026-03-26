@@ -100,7 +100,7 @@ pub fn run_native_ui_build_pipeline(
         .filter(|value| !value.trim().is_empty())
         .unwrap_or("kain")
         .to_string();
-    let bundle_config = native_app_bundle_config_from_cli(input, &base_name, config);
+    let bundle_config = native_app_bundle_config_from_cli(input, &base_name, config)?;
     let source_file_name = bundle_config
         .source_file_name
         .clone()
@@ -153,8 +153,8 @@ fn native_app_bundle_config_from_cli(
     input: &Path,
     base_name: &str,
     config: &NativeUiBuildConfig,
-) -> NativeAppBundleConfig {
-    NativeAppBundleConfig {
+) -> Result<NativeAppBundleConfig, KainError> {
+    Ok(NativeAppBundleConfig {
         app_name: config
             .app_name
             .clone()
@@ -170,9 +170,10 @@ fn native_app_bundle_config_from_cli(
             .file_name()
             .and_then(|value| value.to_str())
             .map(|value| value.to_string()),
+        source_root: absolute_path(input)?.parent().map(Path::to_path_buf),
         initial_window_size: config.initial_window_size,
         include_spirv: config.include_spirv,
-    }
+    })
 }
 
 fn resolve_project_dir(

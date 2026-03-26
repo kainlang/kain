@@ -259,10 +259,18 @@ pub struct FabricComputeDispatchSnapshot {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum FabricOutputPayloadSnapshot {
-    Value { value: FabricValueSnapshot },
-    SharedBuffer { buffer: FabricSharedBufferSnapshot },
-    SharedImage { image: FabricSharedImageSnapshot },
-    ComputePlan { dispatch: FabricComputeDispatchSnapshot },
+    Value {
+        value: FabricValueSnapshot,
+    },
+    SharedBuffer {
+        buffer: FabricSharedBufferSnapshot,
+    },
+    SharedImage {
+        image: FabricSharedImageSnapshot,
+    },
+    ComputePlan {
+        dispatch: FabricComputeDispatchSnapshot,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -789,7 +797,11 @@ fn validate_step_shape(step: &FabricStep) -> OmniResult<()> {
                     step.id
                 )));
             }
-            if step.compute_key.as_ref().is_none_or(|k| k.trim().is_empty()) {
+            if step
+                .compute_key
+                .as_ref()
+                .is_none_or(|k| k.trim().is_empty())
+            {
                 return Err(OmniError::Config(format!(
                     "Fabric step '{}' with runtime 'gpu_compute' must declare 'compute_key'",
                     step.id
@@ -1081,6 +1093,8 @@ fn local_manifest_template() -> FabricManifest {
             crate_name: None,
             manifest_path: None,
             library: None,
+            shader_source: None,
+            compute_key: None,
             depends_on: Vec::new(),
             requires: Vec::new(),
             outputs: vec![FabricOutputBinding {
@@ -1118,6 +1132,8 @@ fn polyglot_manifest_template() -> FabricManifest {
                 crate_name: None,
                 manifest_path: None,
                 library: None,
+            shader_source: None,
+            compute_key: None,
                 depends_on: Vec::new(),
                 requires: Vec::new(),
                 outputs: vec![FabricOutputBinding {
@@ -1133,6 +1149,8 @@ fn polyglot_manifest_template() -> FabricManifest {
                 crate_name: None,
                 manifest_path: None,
                 library: None,
+            shader_source: None,
+            compute_key: None,
                 depends_on: vec!["python_source".to_string()],
                 requires: Vec::new(),
                 outputs: vec![
@@ -1157,6 +1175,8 @@ fn polyglot_manifest_template() -> FabricManifest {
                     "native/{}",
                     polyglot_native_library_name()
                 ))),
+                shader_source: None,
+                compute_key: None,
                 depends_on: vec!["kain_orchestrator".to_string()],
                 requires: Vec::new(),
                 outputs: vec![
@@ -1178,6 +1198,8 @@ fn polyglot_manifest_template() -> FabricManifest {
                 crate_name: Some("fabric_runtime_lab".to_string()),
                 manifest_path: Some(PathBuf::from("local_crate/Cargo.toml")),
                 library: None,
+            shader_source: None,
+            compute_key: None,
                 depends_on: vec!["native_filter".to_string(), "kain_orchestrator".to_string()],
                 requires: Vec::new(),
                 outputs: vec![FabricOutputBinding {
@@ -1193,6 +1215,8 @@ fn polyglot_manifest_template() -> FabricManifest {
                 crate_name: None,
                 manifest_path: None,
                 library: None,
+                shader_source: None,
+                compute_key: None,
                 depends_on: vec![
                     "kain_orchestrator".to_string(),
                     "native_filter".to_string(),

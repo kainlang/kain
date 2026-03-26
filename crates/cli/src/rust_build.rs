@@ -91,7 +91,7 @@ pub fn run_rust_build_pipeline(
             &base_name,
             native_ui,
             config.artifacts.contains(&RustBuildArtifact::Spirv),
-        );
+        )?;
         match discover_native_app_root_component(
             &source,
             bundle_config.root_component.as_deref(),
@@ -290,8 +290,8 @@ fn native_app_bundle_config_from_cli(
     base_name: &str,
     config: &crate::packager::config::RustNativeUiAppConfig,
     include_spirv: bool,
-) -> NativeAppBundleConfig {
-    NativeAppBundleConfig {
+) -> Result<NativeAppBundleConfig, KainError> {
+    Ok(NativeAppBundleConfig {
         app_name: config
             .app_name
             .clone()
@@ -307,9 +307,10 @@ fn native_app_bundle_config_from_cli(
             .file_name()
             .and_then(|value| value.to_str())
             .map(|value| value.to_string()),
+        source_root: absolute_path(input)?.parent().map(Path::to_path_buf),
         initial_window_size: config.initial_window_size,
         include_spirv,
-    }
+    })
 }
 
 fn rust_build_output_from_native_app_bundle(
@@ -331,6 +332,16 @@ fn resolve_project_dir(
         Some(path) => output_root.join(path),
         None => output_root.join(format!("{app_name}-native-ui")),
     }
+}
+
+fn absolute_path(path: &Path) -> Result<PathBuf, KainError> {
+    if path.is_absolute() {
+        return Ok(path.to_path_buf());
+    }
+
+    let cwd = std::env::current_dir()
+        .map_err(|err| KainError::runtime(format!("Failed to resolve current directory: {err}")))?;
+    Ok(cwd.join(path))
 }
 
 fn resolve_workspace_root() -> Result<PathBuf, KainError> {

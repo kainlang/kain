@@ -7,8 +7,8 @@ use eframe::egui;
 
 use crate::model::CombineMode;
 use crate::rasterizer::RenderFrame;
-pub use crate::runtime::OrbitControls;
 use crate::runtime::Fast3dRuntime;
+pub use crate::runtime::OrbitControls;
 
 pub fn launch_viewer(
     manifest_path: PathBuf,
@@ -140,10 +140,11 @@ impl eframe::App for Fast3dViewerApp {
         self.last_frame_started_at = now;
         self.apply_keyboard_controls(ctx, delta_seconds);
 
-        match self
-            .runtime
-            .render_frame(self.elapsed_seconds, &self.orbit_controls, self.combine_override)
-        {
+        match self.runtime.render_frame(
+            self.elapsed_seconds,
+            &self.orbit_controls,
+            self.combine_override,
+        ) {
             Ok(frame) => {
                 self.update_frame_texture(ctx, &frame);
                 self.latest_frame = Some(frame);

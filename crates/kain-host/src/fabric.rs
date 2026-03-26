@@ -15,15 +15,18 @@ use kain_crate_ffi::{
     import_crate, ArtifactMode as RustArtifactMode, ImportCrateOptions,
     PrepareContext as RustPrepareContext,
 };
+use kain_gpu_runtime::VulkanComputeExecutor;
 use kain_interop::{
     extract_shared_buffer, extract_shared_image, shared_buffer_value, shared_image_value,
+    KainSharedBuffer, SharedBufferMetadata,
 };
 use kain_omni::fabric::{
     resolve_fabric_path, topological_step_order, unix_timestamp_ms, write_fabric_json,
-    FabricContractKind, FabricEventRecord, FabricExecutionResult, FabricFailureReason,
-    FabricManifest, FabricOutputPayloadSnapshot, FabricProducedOutput, FabricResolvedInputRecord,
-    FabricRuntimeKind, FabricSessionStatus, FabricSharedBufferSnapshot, FabricSharedImageSnapshot,
-    FabricStep, FabricStepExecution, FabricStepStatus, FabricValidationResult, FabricValueSnapshot,
+    FabricComputeDispatchSnapshot, FabricContractKind, FabricEventRecord, FabricExecutionResult,
+    FabricFailureReason, FabricManifest, FabricOutputPayloadSnapshot, FabricProducedOutput,
+    FabricResolvedInputRecord, FabricRuntimeKind, FabricSessionStatus, FabricSharedBufferSnapshot,
+    FabricSharedImageSnapshot, FabricStep, FabricStepExecution, FabricStepStatus,
+    FabricValidationResult, FabricValueSnapshot,
 };
 use kain_omni::{OmniError, OmniResult};
 use serde_json::{json, Value as JsonValue};
@@ -193,6 +196,7 @@ impl FabricExecutor {
                 Box::new(RustCrateAdapter),
                 Box::new(CAbiAdapter),
                 Box::new(NodeAdapter),
+                Box::new(GpuComputeAdapter),
             ],
         }
     }
@@ -702,6 +706,379 @@ impl FabricRuntimeAdapter for NodeAdapter {
     }
 }
 
+pub struct GpuComputeAdapter;
+
+impl FabricRuntimeAdapter for GpuComputeAdapter {
+    fn label(&self) -> &'static str {
+        "gpu-compute-vulkan"
+    }
+
+    fn supports(&self, kind: &FabricRuntimeKind) -> bool {
+        matches!(kind, FabricRuntimeKind::GpuCompute)
+    }
+
+    fn execute(&self, context: &FabricAdapterContext) -> Result<Value, FabricFailureReason> {
+        let shader_source = context.step.shader_source.as_ref().ok_or_else(|| {
+            fabric_failure(
+                "missing_shader_source",
+                format!(
+                    "Fabric step '{}' with runtime 'gpu_compute' must declare 'shader_source'",
+                    context.step.id
+                ),
+            )
+        })?;
+        let compute_key = context.step.compute_key.as_ref().ok_or_else(|| {
+            fabric_failure(
+                "missing_compute_key",
+                format!(
+                    "Fabric step '{}' with runtime 'gpu_compute' must declare 'compute_key'",
+                    context.step.id
+                ),
+            )
+        })?;
+
+        let resolved_shader = resolve_fabric_path(context.workspace_root, shader_source);
+        let shader_text = fs::read_to_string(&resolved_shader).map_err(|err| {
+            fabric_failure(
+                "shader_read_failed",
+                format!(
+                    "Fabric step '{}': failed to read shader source '{}': {}",
+                    context.step.id,
+                    resolved_shader.display(),
+                    err
+                ),
+            )
+        })?;
+
+        // Compile shader source to get SPIR-V + artifact bundle
+        register_fabric_extensions();
+        let session = kain_driver::DriverSession::default();
+        let artifact_output = session
+            .compile_shader_artifact_bundle(&shader_text)
+            .map_err(|err| runtime_bridge_failure(context.step, "shader_compile_failed", err))?;
+
+        // Write shader bundle JSON to session directory
+        let shader_bundle_path = context
+            .session_directory
+            .join(format!("{}_shader_bundle.json", context.step.id));
+        fs::write(&shader_bundle_path, &artifact_output.bundle_json).map_err(|err| {
+            fabric_failure(
+                "shader_bundle_write_failed",
+                format!("Fabric step '{}': {}", context.step.id, err),
+            )
+        })?;
+
+        // Build compute residency from artifact bundle metadata + upstream shared-buffer inputs
+        let residency =
+            build_compute_residency_from_artifact(context, compute_key, &artifact_output.bundle)?;
+        let residency_json = serde_json::to_string_pretty(&residency).map_err(|err| {
+            fabric_failure(
+                "residency_serialize_failed",
+                format!("Fabric step '{}': {}", context.step.id, err),
+            )
+        })?;
+        let residency_path = context
+            .session_directory
+            .join(format!("{}_compute_residency.json", context.step.id));
+        fs::write(&residency_path, &residency_json).map_err(|err| {
+            fabric_failure(
+                "residency_write_failed",
+                format!("Fabric step '{}': {}", context.step.id, err),
+            )
+        })?;
+
+        // Write payload sidecar files for each binding
+        let residency_root = residency_path.parent().unwrap_or(Path::new("."));
+        write_residency_payload_files(context, &residency, residency_root)?;
+
+        // Create executor and dispatch
+        let executor = VulkanComputeExecutor::try_new().map_err(|err| {
+            fabric_failure(
+                "vulkan_init_failed",
+                format!(
+                    "Fabric step '{}': Vulkan compute executor init failed: {}",
+                    context.step.id, err
+                ),
+            )
+        })?;
+        let dispatch_result = executor
+            .dispatch_from_sidecars(&shader_bundle_path, &residency_path, compute_key)
+            .map_err(|err| {
+                fabric_failure(
+                    "compute_dispatch_failed",
+                    format!(
+                        "Fabric step '{}': dispatch failed: {}",
+                        context.step.id, err
+                    ),
+                )
+            })?;
+
+        // Build output value from dispatch results
+        let output_buffers = dispatch_result
+            .output_bindings
+            .iter()
+            .map(|(slot, bytes)| {
+                let binding_key = residency
+                    .compute_shaders
+                    .first()
+                    .and_then(|entry| {
+                        entry
+                            .bindings
+                            .iter()
+                            .find(|b| b.slot == *slot)
+                            .map(|b| b.key.clone())
+                    })
+                    .unwrap_or_else(|| format!("output_slot_{}", slot));
+                let metadata = SharedBufferMetadata {
+                    element_type: "f32".to_string(),
+                    element_size: 4,
+                    shape: vec![(bytes.len() / 4) as i64],
+                    strides: vec![1],
+                    format: Some("f32".to_string()),
+                    mime_type: Some("application/octet-stream".to_string()),
+                    source_runtime: "gpu-compute".to_string(),
+                    source_backend: Some("vulkan".to_string()),
+                    ownership: "owned".to_string(),
+                    labels: vec![binding_key.clone(), "gpu-output".to_string()],
+                };
+                let shared = KainSharedBuffer::owned(metadata, bytes.clone());
+                (binding_key, shared_buffer_value(shared))
+            })
+            .collect::<Vec<_>>();
+
+        // Build dispatch snapshot value for downstream report
+        let dispatch_snapshot = FabricComputeDispatchSnapshot {
+            compute_key: compute_key.clone(),
+            dispatch_invocations: dispatch_result.dispatch_invocations,
+            tensor_binding_count: dispatch_result.tensor_binding_count,
+            stream_binding_count: dispatch_result.stream_binding_count,
+            neural_node_count: dispatch_result.neural_node_count,
+            output_binding_count: dispatch_result.output_bindings.len(),
+            total_output_bytes: dispatch_result
+                .output_bindings
+                .iter()
+                .map(|(_, b)| b.len())
+                .sum(),
+        };
+
+        // If step has outputs, return output buffers mapped by name
+        // If single output buffer, return it directly
+        // If no declared outputs, return dispatch summary as value
+        if output_buffers.len() == 1 && context.step.outputs.len() == 1 {
+            Ok(output_buffers.into_iter().next().unwrap().1)
+        } else if output_buffers.is_empty() {
+            // Return metadata about the dispatch as a value
+            Ok(Value::String(format!(
+                "gpu-compute:{}:invocations={}:tensors={}:outputs=0",
+                compute_key,
+                dispatch_snapshot.dispatch_invocations,
+                dispatch_snapshot.tensor_binding_count,
+            )))
+        } else {
+            let mut fields = HashMap::new();
+            for (key, value) in output_buffers {
+                fields.insert(key, value);
+            }
+            Ok(Value::Struct(
+                "GpuComputeOutputs".to_string(),
+                Arc::new(RwLock::new(fields)),
+            ))
+        }
+    }
+}
+
+/// Internal compute residency model for sidecar generation.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct FabricComputeResidency {
+    target: String,
+    compute_shaders: Vec<FabricComputeResidencyEntry>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct FabricComputeResidencyEntry {
+    key: String,
+    module_name: String,
+    entry_point: String,
+    workgroup_size: Option<[u32; 3]>,
+    dispatch_size: Option<[u32; 3]>,
+    tensor_binding_count: usize,
+    stream_binding_count: usize,
+    neural_node_count: usize,
+    bindings: Vec<FabricComputeResidencyBinding>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct FabricComputeResidencyBinding {
+    key: String,
+    contract: String,
+    descriptor_kind: String,
+    element_type: String,
+    shape: Vec<i64>,
+    strides: Vec<i64>,
+    access_mode: String,
+    slot: u32,
+    payload_file: String,
+}
+
+/// Build compute residency from a compiled ShaderArtifactBundle.
+///
+/// Uses the bundle's `entry_points` to locate the compute entry matching `compute_key`,
+/// and the `resource_layouts` to fill binding descriptors.
+fn build_compute_residency_from_artifact(
+    context: &FabricAdapterContext,
+    compute_key: &str,
+    bundle: &kain_core::ShaderArtifactBundle,
+) -> Result<FabricComputeResidency, FabricFailureReason> {
+    // Find a matching entry point — the compute_key is typically "shader::Name::compute"
+    let entry = bundle
+        .entry_points
+        .iter()
+        .find(|ep| {
+            ep.stage == "compute"
+                && (ep.shader == compute_key
+                    || ep.entry_point == compute_key
+                    || format!("shader::{}::compute", ep.shader) == compute_key)
+        })
+        .ok_or_else(|| {
+            fabric_failure(
+                "compute_key_not_found",
+                format!(
+                    "Fabric step '{}': compute_key '{}' was not found in shader bundle entry_points: [{}]",
+                    context.step.id,
+                    compute_key,
+                    bundle
+                        .entry_points
+                        .iter()
+                        .map(|ep| format!("{}:{}", ep.shader, ep.entry_point))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            )
+        })?;
+
+    // Collect resource bindings for this shader from the bundle's resource layouts
+    let layouts: Vec<_> = bundle
+        .resource_layouts
+        .iter()
+        .filter(|layout| layout.shader == entry.shader)
+        .collect();
+
+    let mut bindings = Vec::new();
+    for layout in &layouts {
+        let descriptor_kind = match layout.kind.as_str() {
+            "storage_buffer" | "read_write" => "storage_buffer",
+            _ => "uniform_buffer",
+        };
+        let access_mode = match layout.kind.as_str() {
+            "read_write" => "read_write",
+            "write" => "write",
+            _ => "read",
+        };
+        let payload_file = format!(
+            "{}_binding_{}.bin",
+            context.step.id, layout.binding
+        );
+        bindings.push(FabricComputeResidencyBinding {
+            key: layout.name.clone(),
+            contract: "kain.shared.buffer".to_string(),
+            descriptor_kind: descriptor_kind.to_string(),
+            element_type: infer_element_type_from_layout(&layout.ty),
+            shape: vec![1],
+            strides: vec![1],
+            access_mode: access_mode.to_string(),
+            slot: layout.binding,
+            payload_file,
+        });
+    }
+
+    Ok(FabricComputeResidency {
+        target: "spirv".to_string(),
+        compute_shaders: vec![FabricComputeResidencyEntry {
+            key: compute_key.to_string(),
+            module_name: entry.module_name.clone(),
+            entry_point: entry.entry_point.clone(),
+            workgroup_size: Some([8, 1, 1]),
+            dispatch_size: Some([1, 1, 1]),
+            tensor_binding_count: 0,
+            stream_binding_count: 0,
+            neural_node_count: 0,
+            bindings,
+        }],
+    })
+}
+
+fn infer_element_type_from_layout(ty: &str) -> String {
+    let lower = ty.to_ascii_lowercase();
+    if lower.contains("vec4") || lower.contains("float") {
+        "f32".to_string()
+    } else if lower.contains("int") || lower.contains("i32") {
+        "i32".to_string()
+    } else if lower.contains("uint") || lower.contains("u32") {
+        "u32".to_string()
+    } else {
+        "f32".to_string()
+    }
+}
+
+fn resolve_upstream_binding_bytes(
+    context: &FabricAdapterContext,
+    binding_key: &str,
+) -> Option<Vec<u8>> {
+    // Walk through fabric_inputs looking for a shared buffer matching this key
+    if let Value::Struct(_, fields) = &context.fabric_inputs {
+        let fields = fields.read().ok()?;
+        for (_, step_outputs) in fields.iter() {
+            if let Value::Struct(_, output_fields) = step_outputs {
+                let output_fields = output_fields.read().ok()?;
+                if let Some(value) = output_fields.get(binding_key) {
+                    if let Ok(buffer) = extract_shared_buffer(value) {
+                        return Some(buffer.bytes());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn zero_fill_binding(shape: &[i64], element_type: &str) -> Vec<u8> {
+    let element_size = match element_type {
+        "u8" | "i8" | "bool" => 1,
+        "u16" | "i16" => 2,
+        "u32" | "i32" | "f32" => 4,
+        "u64" | "i64" | "f64" => 8,
+        _ => 4,
+    };
+    let total_elements: i64 = shape.iter().copied().product();
+    vec![0u8; (total_elements.max(1) as usize) * element_size]
+}
+
+fn write_residency_payload_files(
+    context: &FabricAdapterContext,
+    residency: &FabricComputeResidency,
+    root: &Path,
+) -> Result<(), FabricFailureReason> {
+    for entry in &residency.compute_shaders {
+        for binding in &entry.bindings {
+            let payload_path = root.join(&binding.payload_file);
+            let bytes = resolve_upstream_binding_bytes(context, &binding.key)
+                .unwrap_or_else(|| zero_fill_binding(&binding.shape, &binding.element_type));
+            fs::write(&payload_path, &bytes).map_err(|err| {
+                fabric_failure(
+                    "payload_write_failed",
+                    format!(
+                        "Fabric step '{}': failed to write payload '{}': {}",
+                        context.step.id,
+                        payload_path.display(),
+                        err
+                    ),
+                )
+            })?;
+        }
+    }
+    Ok(())
+}
+
 fn resolve_dependency_inputs(
     step: &FabricStep,
     steps_by_id: &BTreeMap<String, FabricStep>,
@@ -871,6 +1248,10 @@ fn normalize_contract_value(
             })?;
             Ok(shared_image_value(image))
         }
+        FabricContractKind::ComputePlan => {
+            // ComputePlan outputs are passed through as-is (the adapter handles the GPU dispatch)
+            Ok(value)
+        }
     }
 }
 
@@ -937,6 +1318,17 @@ fn snapshot_contract_value(
                 },
             })
         }
+        FabricContractKind::ComputePlan => Ok(FabricOutputPayloadSnapshot::ComputePlan {
+            dispatch: FabricComputeDispatchSnapshot {
+                compute_key: "unknown".to_string(),
+                dispatch_invocations: 0,
+                tensor_binding_count: 0,
+                stream_binding_count: 0,
+                neural_node_count: 0,
+                output_binding_count: 0,
+                total_output_bytes: 0,
+            },
+        }),
     }
 }
 
@@ -1025,6 +1417,9 @@ fn render_python_output_projection(
                 FabricContractKind::SharedImage => format!(
                     "py_bridge_shared_image(py_bridge_call_raw(\"__kain_fabric_output_field\", [fabric_result, {field_name}]))"
                 ),
+                FabricContractKind::ComputePlan => format!(
+                    "py_bridge_call(\"__kain_fabric_output_field\", [fabric_result, {field_name}])"
+                ),
             };
             format!("{}: {value_expr}", output.name)
         })
@@ -1059,6 +1454,9 @@ fn render_node_output_projection(
                 FabricContractKind::SharedImage => format!(
                     "js_web_shared_image(js_bridge_getattr_raw(fabric_result, {field_name}))"
                 ),
+                FabricContractKind::ComputePlan => {
+                    format!("js_bridge_getattr(fabric_result, {field_name})")
+                }
             };
             format!("{}: {value_expr}", output.name)
         })
@@ -1122,6 +1520,9 @@ fn python_call_expression(context: &FabricAdapterContext) -> Result<String, Fabr
                         "py_bridge_shared_image(py_bridge_call_raw({callable}, [fabric_inputs]))"
                     )
                 }
+                FabricContractKind::ComputePlan => {
+                    format!("py_bridge_call({callable}, [fabric_inputs])")
+                }
             };
             Ok(format!(
                 "py_bridge_exec({exec_source})\n    return {result_expr}"
@@ -1162,6 +1563,9 @@ fn python_call_expression(context: &FabricAdapterContext) -> Result<String, Fabr
                 ),
                 FabricContractKind::SharedImage => format!(
                     "py_bridge_shared_image(py_bridge_call_attr_raw(py_bridge_require_module({module_literal}), \"run\", [fabric_inputs]))"
+                ),
+                FabricContractKind::ComputePlan => format!(
+                    "py_bridge_call_attr(py_bridge_require_module({module_literal}), \"run\", [fabric_inputs])"
                 ),
             };
             Ok(format!("return {result_expr}"))
@@ -1222,6 +1626,9 @@ fn render_node_harness(context: &FabricAdapterContext) -> Result<String, FabricF
             FabricContractKind::SharedImage => format!(
                 "js_web_shared_image(js_bridge_call_method_raw(module_ref, {export_literal}, [fabric_inputs]))"
             ),
+            FabricContractKind::ComputePlan => {
+                format!("js_bridge_call_method(module_ref, {export_literal}, [fabric_inputs])")
+            }
         };
         format!("let module_ref = js_bridge_import({import_literal})\n    return {result_expr}")
     };

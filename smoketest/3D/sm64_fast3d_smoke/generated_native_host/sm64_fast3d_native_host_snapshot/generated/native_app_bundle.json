@@ -1,0 +1,348 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "app_name": "sm64-fast3d-native-host-snapshot",
+    "window_title": "SM64 Fast3D Native Host (snapshot)",
+    "root_component": "App",
+    "source_file_name": "sm64_fast3d_native_host.kn",
+    "initial_window_size": [
+      1440.0,
+      920.0
+    ]
+  },
+  "output": {
+    "tree": {
+      "root": 2,
+      "nodes": {
+        "1": {
+          "id": 1,
+          "identity_key": null,
+          "kind": "Panel",
+          "props": {
+            "tag": {
+              "String": "panel"
+            },
+            "title": {
+              "String": "SM64 Fast3D Native Host"
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "FlexColumn",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null,
+            "tab_group_id": null,
+            "tab_label": null,
+            "tab_order": null,
+            "tab_default_active": false,
+            "tab_closable": false
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "2": {
+          "id": 2,
+          "identity_key": null,
+          "kind": {
+            "ComponentRef": "App"
+          },
+          "props": {},
+          "children": [
+            1
+          ],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null,
+            "tab_group_id": null,
+            "tab_label": null,
+            "tab_order": null,
+            "tab_default_active": false,
+            "tab_closable": false
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": null,
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        }
+      }
+    },
+    "patches": [
+      {
+        "CreateNode": {
+          "node": {
+            "id": 1,
+            "identity_key": null,
+            "kind": "Panel",
+            "props": {
+              "tag": {
+                "String": "panel"
+              },
+              "title": {
+                "String": "SM64 Fast3D Native Host"
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "FlexColumn",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null,
+              "tab_group_id": null,
+              "tab_label": null,
+              "tab_order": null,
+              "tab_default_active": false,
+              "tab_closable": false
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 2,
+            "identity_key": null,
+            "kind": {
+              "ComponentRef": "App"
+            },
+            "props": {},
+            "children": [
+              1
+            ],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null,
+              "tab_group_id": null,
+              "tab_label": null,
+              "tab_order": null,
+              "tab_default_active": false,
+              "tab_closable": false
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": null,
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "ReplaceChildren": {
+          "parent": 2,
+          "children": [
+            1
+          ]
+        }
+      },
+      {
+        "SetRoot": {
+          "id": 2
+        }
+      }
+    ],
+    "systems": {
+      "computed": [],
+      "resources": [],
+      "transactions": [],
+      "focus_graph": {
+        "scopes": [],
+        "default_scope": null
+      },
+      "event_routes": [],
+      "animation_tracks": [],
+      "surfaces": [],
+      "scheduler": {
+        "phases": [
+          "Signals",
+          "Resources",
+          "Layout",
+          "Animation",
+          "Patches",
+          "Effects"
+        ],
+        "pending": []
+      },
+      "selection_model": {
+        "scopes": [],
+        "active_scope": null
+      },
+      "command_buffer": {
+        "pending": []
+      },
+      "theme_registry": {
+        "active_theme": "default",
+        "scopes": [],
+        "semantic_tokens": [],
+        "variants": [],
+        "diff_keys": []
+      },
+      "workspace_layout": {
+        "roots": [],
+        "persistence_key": null,
+        "virtualization_enabled": false,
+        "active_tabs": {}
+      },
+      "hot_reload": {
+        "preserve_focus": true,
+        "preserve_selection": true,
+        "preserve_docking": true,
+        "preserve_animation_state": true,
+        "preserve_session_state": true,
+        "identity_aliases": []
+      },
+      "signal_values": {},
+      "animation_state": {},
+      "session_state": {}
+    }
+  },
+  "native_projection": {
+    "root_id": 2,
+    "primary_panel_title": "SM64 Fast3D Native Host",
+    "primary_viewport_title": null,
+    "primary_viewport_scene": null,
+    "tab_groups": [],
+    "nodes": [
+      {
+        "id": 2,
+        "parent_id": null,
+        "depth": 0,
+        "kind": "ComponentRef",
+        "title": null,
+        "text": null,
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "dock_placement": null,
+        "split_ratio": null,
+        "resizable": false,
+        "persistent_layout_id": "node-2",
+        "tab_group_id": null,
+        "tab_label": null,
+        "tab_order": null,
+        "tab_default_active": false,
+        "tab_closable": false,
+        "tab_is_active": true,
+        "child_count": 1
+      },
+      {
+        "id": 1,
+        "parent_id": 2,
+        "depth": 1,
+        "kind": "Panel",
+        "title": "SM64 Fast3D Native Host",
+        "text": null,
+        "tag": "panel",
+        "scene": null,
+        "layout_kind": "FlexColumn",
+        "dock_placement": null,
+        "split_ratio": null,
+        "resizable": false,
+        "persistent_layout_id": "node-1",
+        "tab_group_id": null,
+        "tab_label": "SM64 Fast3D Native Host",
+        "tab_order": null,
+        "tab_default_active": false,
+        "tab_closable": false,
+        "tab_is_active": true,
+        "child_count": 0
+      }
+    ]
+  }
+}

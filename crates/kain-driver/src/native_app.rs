@@ -41,6 +41,7 @@ pub struct NativeAppBundleConfig {
     pub window_title: Option<String>,
     pub root_component: Option<String>,
     pub source_file_name: Option<String>,
+    pub source_root: Option<PathBuf>,
     pub initial_window_size: [f32; 2],
     pub include_spirv: bool,
 }
@@ -52,6 +53,7 @@ impl Default for NativeAppBundleConfig {
             window_title: None,
             root_component: None,
             source_file_name: Some("app.kn".to_string()),
+            source_root: None,
             initial_window_size: [1440.0, 920.0],
             include_spirv: true,
         }
@@ -199,6 +201,7 @@ pub struct NativeAppMetadata {
     pub window_title: String,
     pub root_component: String,
     pub source_file_name: String,
+    pub source_root: Option<PathBuf>,
     pub initial_window_size: [f32; 2],
 }
 
@@ -294,12 +297,8 @@ pub struct NativeAppHostSidecarBinding {
 
 #[derive(Debug, Clone)]
 pub enum NativeAppLauncherEntrypoint {
-    RunBundledAppJson {
-        function_name: String,
-    },
-    RunNoArgFunction {
-        function_name: String,
-    },
+    RunBundledAppJson { function_name: String },
+    RunNoArgFunction { function_name: String },
 }
 
 impl Default for NativeAppLauncherEntrypoint {
@@ -403,6 +402,7 @@ impl DriverSession {
         config: &NativeAppBundleConfig,
     ) -> Result<NativeAppBundle, KainError> {
         let source_file_name = normalized_source_file_name(config.source_file_name.as_deref());
+        let source_root = normalized_source_root(config.source_root.as_deref());
         let source_name = source_file_name.as_str();
         let root_component = discover_native_app_root_component(
             source,
@@ -434,6 +434,7 @@ impl DriverSession {
             window_title,
             root_component,
             source_file_name,
+            source_root,
             initial_window_size: config.initial_window_size,
         };
         let ui_runtime_bundle = ui_runtime_bundle_from_output(
@@ -505,7 +506,11 @@ impl DriverSession {
 
         let mut artifact_paths = Vec::new();
         let (materialized_realtime_bundle, packaged_realtime_asset_paths) =
-            materialize_realtime_assets(&bundle.realtime, &artifact_root)?;
+            materialize_realtime_assets(
+                &bundle.realtime,
+                &artifact_root,
+                bundle.metadata.source_root.as_deref(),
+            )?;
         artifact_paths.extend(packaged_realtime_asset_paths.iter().cloned());
 
         let runtime_bundle_path = artifact_root.join(NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME);
@@ -1006,15 +1011,20 @@ fn materialize_host_sidecars(
 fn materialize_realtime_assets(
     realtime_bundle: &RealtimeAppBundle,
     artifact_root: &Path,
+    source_root: Option<&Path>,
 ) -> Result<(RealtimeAppBundle, Vec<PathBuf>), KainError> {
     let mut materialized = realtime_bundle.clone();
     let mut packaged_paths = Vec::new();
     for asset in &mut materialized.assets {
-        let source_path = PathBuf::from(&asset.source);
+        let source_path = resolve_realtime_asset_source_path(asset, source_root);
         if !source_path.exists() {
+            let source_root_context = source_root
+                .map(|root| format!(" resolved relative to source root '{}'", root.display()));
             return Err(KainError::runtime(format!(
-                "Native app asset '{}' points to missing source '{}'",
-                asset.key, asset.source
+                "Native app asset '{}' points to missing source '{}'{}",
+                asset.key,
+                asset.source,
+                source_root_context.as_deref().unwrap_or("")
             )));
         }
 
@@ -1029,6 +1039,21 @@ fn materialize_realtime_assets(
     }
 
     Ok((materialized, packaged_paths))
+}
+
+fn resolve_realtime_asset_source_path(
+    asset: &RealtimeAssetBinding,
+    source_root: Option<&Path>,
+) -> PathBuf {
+    let source_path = PathBuf::from(&asset.source);
+    if source_path.is_absolute() {
+        return source_path;
+    }
+
+    match source_root {
+        Some(root) => root.join(&source_path),
+        None => source_path,
+    }
 }
 
 fn packaged_realtime_asset_file_name(asset: &RealtimeAssetBinding) -> String {
@@ -1575,6 +1600,16 @@ fn normalized_source_file_name(source_file_name: Option<&str>) -> String {
         .unwrap_or_else(|| "app.kn".to_string())
 }
 
+fn normalized_source_root(source_root: Option<&Path>) -> Option<PathBuf> {
+    source_root.and_then(|value| {
+        value
+            .components()
+            .next()
+            .is_some()
+            .then(|| value.to_path_buf())
+    })
+}
+
 fn source_stem(source_name: &str) -> String {
     Path::new(source_name)
         .file_stem()
@@ -1825,6 +1860,7 @@ component App():
                 window_title: Some("Studio Shell".to_string()),
                 root_component: None,
                 source_file_name: Some("studio.kn".to_string()),
+                source_root: None,
                 initial_window_size: [1600.0, 900.0],
                 include_spirv: true,
             },
@@ -1834,6 +1870,7 @@ component App():
         assert_eq!(bundle.metadata.app_name, "studio-shell");
         assert_eq!(bundle.metadata.root_component, "App");
         assert_eq!(bundle.metadata.source_file_name, "studio.kn");
+        assert_eq!(bundle.metadata.source_root, None);
         assert_eq!(bundle.runtime_contract.target, "rust");
         assert!(bundle
             .runtime_contract
@@ -1971,6 +2008,80 @@ component App():
                 .as_deref(),
             Some(font_asset.key.as_str())
         );
+    }
+
+    #[test]
+    fn materialize_native_app_bundle_resolves_relative_font_assets_from_source_root() {
+        let _guard = TEST_CWD_LOCK.lock().expect("cwd lock");
+        let temp = TempDir::new().expect("temp dir");
+        let source_root = temp.path().join("source-root");
+        let font_dir = source_root.join("fonts");
+        fs::create_dir_all(&font_dir).expect("font dir");
+        let font_path = font_dir.join("hero_font.ttf");
+        fs::write(&font_path, b"dummy-font-bytes").expect("font file");
+        let project_dir = temp.path().join("native-app-relative-font-assets");
+        let source = r#"
+shader fragment hero_surface(uv: Vec2) -> Vec4:
+    return vec4(uv.x, uv.y, 1.0, 1.0)
+
+component App():
+    render <panel>
+        <canvas title="Hero Surface" text="Fast lane" shader_ref="hero_surface" shader_stage="fragment" shader_format="spirv" font_asset="fonts/hero_font.ttf" />
+    </panel>
+"#;
+
+        let bundle = compile_native_app_bundle(
+            source,
+            &NativeAppBundleConfig {
+                source_file_name: Some("relative_font_asset_test.kn".to_string()),
+                source_root: Some(source_root.clone()),
+                ..Default::default()
+            },
+        )
+        .expect("bundle should compile");
+
+        assert_eq!(
+            bundle.metadata.source_root.as_deref(),
+            Some(source_root.as_path())
+        );
+
+        let unrelated_cwd = temp.path().join("other-cwd");
+        fs::create_dir_all(&unrelated_cwd).expect("other cwd");
+        let previous_dir = std::env::current_dir().expect("current dir");
+        let result: Result<(), KainError> = (|| {
+            std::env::set_current_dir(&unrelated_cwd).expect("set cwd");
+            let materialized = materialize_native_app_bundle(
+                source,
+                &bundle,
+                &native_ui_materialization_config(project_dir.clone()),
+            )
+            .expect("materialization should succeed");
+
+            let realtime_bundle_path = materialized
+                .artifact_paths
+                .iter()
+                .find(|path| path.ends_with(NATIVE_APP_REALTIME_BUNDLE_FILE_NAME))
+                .expect("realtime bundle sidecar");
+            let realtime_bundle_json =
+                fs::read_to_string(realtime_bundle_path).expect("realtime bundle");
+            let realtime_bundle = realtime_app_bundle_from_json(&realtime_bundle_json)
+                .expect("parse realtime bundle");
+            let font_asset = realtime_bundle
+                .assets
+                .iter()
+                .find(|asset| asset.kind == "font")
+                .expect("font asset binding");
+
+            assert_eq!(font_asset.key, "font::fonts/hero_font.ttf");
+            assert_ne!(font_asset.source, "fonts/hero_font.ttf");
+            assert!(font_asset.source.starts_with("kain_asset_font_"));
+            assert!(materialized.artifact_paths.iter().any(|path| {
+                path.file_name().and_then(OsStr::to_str) == Some(font_asset.source.as_str())
+            }));
+            Ok(())
+        })();
+        std::env::set_current_dir(previous_dir).expect("restore cwd");
+        result.expect("relative font asset packaging result");
     }
 
     #[test]

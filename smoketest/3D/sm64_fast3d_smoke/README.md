@@ -26,6 +26,8 @@ Primary files:
 - `host_configs/title_face_extract.json`
 - `host_configs/title_face_viewer.json`
 - `host_configs/title_face_snapshot.json`
+- `host_configs/title_face_native_host_viewer.json`
+- `host_configs/title_face_native_host_snapshot.json`
 - `crates/kain-fast3d-runtime/src/lib.rs`
 - `crates/kain-fast3d-runtime/src/config.rs`
 - `crates/kain-fast3d-runtime/src/model.rs`
@@ -64,6 +66,13 @@ Capture the current title-face scene directly to a PNG:
 capture_title_face_snapshot.bat
 ```
 
+Materialize a packaged native host that launches `kain-fast3d-runtime` through a copied config sidecar:
+
+```bat
+materialize_native_host_snapshot.bat
+launch_native_host_viewer.bat
+```
+
 Refresh the staged SM64 import from the live decomp tree:
 
 ```bat
@@ -91,6 +100,8 @@ Native-hosting direction:
 - the crate now supports a data-driven host config contract in `crates/kain-fast3d-runtime/src/config.rs`, with `viewer`, `snapshot`, and `extract_sm64_title_face` actions consumed from JSON or TOML
 - the smoke scripts now drive the backend crate through `host_configs/*.json` instead of hardcoding manifest/output arguments directly
 - env hooks like `KAIN_FAST3D_CONFIG`, `KAIN_FAST3D_MANIFEST`, and `KAIN_FAST3D_SM64_ROOT` are treated as host-launcher inputs, not language semantics
+- `kain-driver` now has a generic host-sidecar packaging path plus a launcher entrypoint switch, so an experimental crate can receive copied config/data sidecars through env without teaching `kain-core` or the shared native runtime anything SM64-specific
+- the packaged native-host proof lives under `outputs/native_host`, where the generated launcher copies `title_face_native_host_*.json` and `scene_manifest_title_face.json` beside the executable and then boots `kain-fast3d-runtime::run_fast3d_cli()`
 
 Where Fabric fits cleanly:
 - keep display-list extraction and frame rendering in this isolated adapter lane

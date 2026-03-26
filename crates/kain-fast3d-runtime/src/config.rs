@@ -46,7 +46,9 @@ pub enum ResolvedFast3dHostAction {
     },
 }
 
-pub fn load_host_config(config_path: &Path) -> Result<Fast3dHostConfig, Box<dyn std::error::Error>> {
+pub fn load_host_config(
+    config_path: &Path,
+) -> Result<Fast3dHostConfig, Box<dyn std::error::Error>> {
     let config_text = fs::read_to_string(config_path)?;
     let extension = config_path
         .extension()

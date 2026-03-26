@@ -143,9 +143,36 @@ fn build_sm64_title_card(width: u32, height: u32) -> Vec<[u8; 4]> {
         }
     }
 
-    draw_scaled_text(&mut pixels, width, height, 22, 36, 5, "SUPER", [255, 214, 72, 255]);
-    draw_scaled_text(&mut pixels, width, height, 58, 108, 6, "MARIO", [234, 52, 42, 255]);
-    draw_scaled_text(&mut pixels, width, height, 118, 176, 6, "64", [70, 126, 255, 255]);
+    draw_scaled_text(
+        &mut pixels,
+        width,
+        height,
+        22,
+        36,
+        5,
+        "SUPER",
+        [255, 214, 72, 255],
+    );
+    draw_scaled_text(
+        &mut pixels,
+        width,
+        height,
+        58,
+        108,
+        6,
+        "MARIO",
+        [234, 52, 42, 255],
+    );
+    draw_scaled_text(
+        &mut pixels,
+        width,
+        height,
+        118,
+        176,
+        6,
+        "64",
+        [70, 126, 255, 255],
+    );
     draw_scaled_text(
         &mut pixels,
         width,

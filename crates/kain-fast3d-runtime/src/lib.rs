@@ -8,11 +8,12 @@ pub mod runtime;
 pub mod texture;
 pub mod viewer;
 
-use std::{env, path::{Path, PathBuf}};
-
-pub use config::{
-    load_host_config, Fast3dHostAction, Fast3dHostConfig, ResolvedFast3dHostAction,
+use std::{
+    env,
+    path::{Path, PathBuf},
 };
+
+pub use config::{load_host_config, Fast3dHostAction, Fast3dHostConfig, ResolvedFast3dHostAction};
 pub use extractor::extract_sm64_title_face_scene;
 pub use runtime::Fast3dRuntime;
 pub use viewer::{launch_viewer, write_snapshot_png, OrbitControls};

@@ -66,6 +66,9 @@ Update:
 - dedicated helper scripts now build, extract, launch, and snapshot the title-face lane without touching shared renderer crates: `extract_sm64_title_face.bat`, `launch_title_face_visual_exe.bat`, and `capture_title_face_snapshot.bat`
 - the current title-face proof uses real extracted Mario face geometry and display-list structure, but still uses generated fallback title-card and facial textures because the external checkout does not ship the original extracted title-screen blobs or baserom assets
 - the backend crate now owns a data-driven host config contract (`viewer`, `snapshot`, `extract_sm64_title_face`), and the smoke scripts call that contract through `host_configs/*.json` plus env expansion instead of baking more ad hoc arguments into launcher scripts
+- `kain-driver` now has a generic host-sidecar packaging mechanism for native app materialization, plus a launcher entrypoint enum that can either call the default bundled UI runtime path or a crate-owned no-arg function
+- the Fast3D smoke now uses that generic mechanism to materialize a real packaged native host under `smoketest/3D/sm64_fast3d_smoke/generated_native_host`, with copied `KAIN_FAST3D_CONFIG` and scene-manifest sidecars and a generated executable under `outputs/native_host`
+- the end-to-end proof is a packaged launcher, not a direct smoke script shortcut: running `sm64-fast3d-native-host-snapshot.exe` writes `sm64_title_face_native_host_snapshot.png` from copied sidecars without any Fast3D-specific code in `kain-driver`
 
 Why this matters:
 
@@ -73,12 +76,14 @@ Why this matters:
 - it validated that the clean backend investment is not “teach shared `kain-3D` about N64,” but “teach the isolated adapter to parse a little more of the SM64 display-list dialect and texture/combine contract”
 - it surfaced a reusable runtime lesson: imported retro geometry often needs lighting to happen after adapter-space transforms, not at raw vertex-load time
 - it keeps the experiment honest about ownership: the crate can call into Kain-hosted power later, but the language and shared native runtime do not need SM64/Fast3D-specific semantics baked into them first
+- it proves the next integration step cleanly: experimental backend crates can now be hosted by the existing native app materializer through generic sidecars and launcher selection, instead of forcing everything through `kain-ui-native` assumptions
 
 What future work should preserve:
 
 - keep widening the extractor and combiner mapping inside the smoke lane before promoting any semantics into shared crates
 - prefer exact texture and segment extraction over inventing more fallback art once the required assets are available
 - if Goddard/title-screen parity becomes the goal, add that as another extractor target beside the current face smoke instead of replacing the simpler model-inc proof
+- keep the driver-level host-sidecar contract generic and data-driven; future adapters should bring their own config/data sidecars and entrypoints instead of widening shared runtime contracts prematurely
 
 ## 2026-03-25 - Fabric Polyglot Execution Became A Real Local-First Lane
 
@@ -279,6 +284,7 @@ Update:
 
 - `kain-ui-native` now prefers `ab_glyph` rasterization for shader-canvas font atlases and resolves that through a small data-driven registry of system-font aliases and candidate paths, with `kain.default-ui-sans` as the default emitted atlas family from `kain-core`
 - shader-canvas font atlases can now point at the shared realtime asset catalog through `asset_key`, and `kain-driver` materializes those font files into the native app artifact set while rewriting the emitted realtime bundle to the packaged filenames
+- native app bundle compilation now carries an explicit `source_root` through `NativeAppBundleConfig` and `NativeAppMetadata`, so relative realtime asset sources are resolved against the authored input location during packaging instead of whichever working directory happens to run materialization
 - `kain-ui-native` now resolves packaged realtime font assets relative to the loaded realtime bundle before falling back to system aliases, so font quality is no longer tied to host-local font installation for packaged apps
 - the packed multi-atlas texture contract, atlas-origin storage records, and per-app texture cache were preserved exactly, so the quality upgrade stayed under the existing shader-surface resource contract instead of inventing a second text path
 - the bitmap 5x7 rasterizer remains as compatibility fallback when neither a packaged asset nor a requested font alias can be resolved on the current machine

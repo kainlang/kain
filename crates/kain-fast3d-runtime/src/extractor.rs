@@ -247,8 +247,11 @@ fn build_title_face_matrix(
     parsed_display_lists: &HashMap<String, Vec<ParsedGfxCommand>>,
     parsed_vertex_arrays: &HashMap<String, Vec<ParsedVertex>>,
 ) -> Result<[[f32; 4]; 4], String> {
-    let face_positions =
-        collect_display_list_positions(root_display_list_name, parsed_display_lists, parsed_vertex_arrays)?;
+    let face_positions = collect_display_list_positions(
+        root_display_list_name,
+        parsed_display_lists,
+        parsed_vertex_arrays,
+    )?;
     let rotation = Mat4::from_rotation_y(TITLE_FACE_ROTATION_Y_RADIANS);
     let mut minimum = Vec3::splat(f32::INFINITY);
     let mut maximum = Vec3::splat(f32::NEG_INFINITY);
@@ -402,7 +405,10 @@ fn convert_display_list_commands(
                     .take(*count)
                     .map(|vertex| Fast3dVertex {
                         position: vertex.position,
-                        uv: [vertex.uv_raw[0] / (32.0 * 32.0), vertex.uv_raw[1] / (32.0 * 32.0)],
+                        uv: [
+                            vertex.uv_raw[0] / (32.0 * 32.0),
+                            vertex.uv_raw[1] / (32.0 * 32.0),
+                        ],
                         color: [255, 255, 255, 255],
                         normal: Some(vertex.normal),
                     })
@@ -535,13 +541,11 @@ fn parse_vertex_arrays(input: &str) -> Result<HashMap<String, Vec<ParsedVertex>>
 }
 
 fn parse_display_lists(input: &str) -> Result<HashMap<String, Vec<ParsedGfxCommand>>, String> {
-    let display_list_start_regex =
-        Regex::new(r"const Gfx (?P<name>[A-Za-z0-9_]+)\[\]\s*=\s*\{")
-            .map_err(|error| format!("failed to compile display-list start regex: {error}"))?;
-    let vertex_regex = Regex::new(
-        r"gsSPVertex\((?P<name>[A-Za-z0-9_]+),\s*(?P<count>\d+),\s*(?P<slot>\d+)\)",
-    )
-    .map_err(|error| format!("failed to compile gsSPVertex regex: {error}"))?;
+    let display_list_start_regex = Regex::new(r"const Gfx (?P<name>[A-Za-z0-9_]+)\[\]\s*=\s*\{")
+        .map_err(|error| format!("failed to compile display-list start regex: {error}"))?;
+    let vertex_regex =
+        Regex::new(r"gsSPVertex\((?P<name>[A-Za-z0-9_]+),\s*(?P<count>\d+),\s*(?P<slot>\d+)\)")
+            .map_err(|error| format!("failed to compile gsSPVertex regex: {error}"))?;
     let tri2_regex = Regex::new(
         r"gsSP2Triangles\(\s*(?P<a0>\d+),\s*(?P<a1>\d+),\s*(?P<a2>\d+),\s*0x0,\s*(?P<b0>\d+),\s*(?P<b1>\d+),\s*(?P<b2>\d+),\s*0x0\)",
     )
@@ -551,10 +555,9 @@ fn parse_display_lists(input: &str) -> Result<HashMap<String, Vec<ParsedGfxComma
             .map_err(|error| format!("failed to compile gsSP1Triangle regex: {error}"))?;
     let call_regex = Regex::new(r"gsSPDisplayList\((?P<name>[A-Za-z0-9_]+)\)")
         .map_err(|error| format!("failed to compile gsSPDisplayList regex: {error}"))?;
-    let texture_regex = Regex::new(
-        r"gsDPSetTextureImage\([^,]+,\s*[^,]+,\s*[^,]+,\s*(?P<name>[A-Za-z0-9_]+)\)",
-    )
-    .map_err(|error| format!("failed to compile texture regex: {error}"))?;
+    let texture_regex =
+        Regex::new(r"gsDPSetTextureImage\([^,]+,\s*[^,]+,\s*[^,]+,\s*(?P<name>[A-Za-z0-9_]+)\)")
+            .map_err(|error| format!("failed to compile texture regex: {error}"))?;
     let combine_mode_regex =
         Regex::new(r"gsDPSetCombineMode\((?P<name>[A-Za-z0-9_]+),\s*[A-Za-z0-9_]+\)")
             .map_err(|error| format!("failed to compile combine regex: {error}"))?;
@@ -630,9 +633,7 @@ fn parse_display_lists(input: &str) -> Result<HashMap<String, Vec<ParsedGfxComma
             continue;
         }
         if let Some(capture) = light_regex.captures(line) {
-            current_commands.push(ParsedGfxCommand::SetLightGroup(
-                capture["name"].to_string(),
-            ));
+            current_commands.push(ParsedGfxCommand::SetLightGroup(capture["name"].to_string()));
         }
     }
 
@@ -659,7 +660,8 @@ fn map_sm64_combine_mode(name: &str) -> Option<CombineMode> {
 
 fn parse_u8_literal(value: &str) -> Result<u8, String> {
     let parsed = if let Some(stripped) = value.strip_prefix("0x") {
-        u16::from_str_radix(stripped, 16).map_err(|error| format!("invalid hex literal: {error}"))?
+        u16::from_str_radix(stripped, 16)
+            .map_err(|error| format!("invalid hex literal: {error}"))?
     } else {
         value
             .parse::<u16>()
@@ -685,9 +687,18 @@ mod tests {
 
     #[test]
     fn maps_supported_mario_textures() {
-        assert_eq!(map_mario_texture_name("mario_texture_eyes_front"), Some("mario_eyes_front"));
-        assert_eq!(map_mario_texture_name("mario_texture_mustache"), Some("mario_mustache"));
-        assert_eq!(map_mario_texture_name("mario_texture_hair_sideburn"), Some("mario_sideburn"));
+        assert_eq!(
+            map_mario_texture_name("mario_texture_eyes_front"),
+            Some("mario_eyes_front")
+        );
+        assert_eq!(
+            map_mario_texture_name("mario_texture_mustache"),
+            Some("mario_mustache")
+        );
+        assert_eq!(
+            map_mario_texture_name("mario_texture_hair_sideburn"),
+            Some("mario_sideburn")
+        );
         assert_eq!(map_mario_texture_name("mario_texture_m_logo"), None);
     }
 

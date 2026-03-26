@@ -114,18 +114,41 @@ pub struct DisplayListDefinition {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum DisplayListCommand {
-    PushMatrix { matrix: [[f32; 4]; 4] },
+    PushMatrix {
+        matrix: [[f32; 4]; 4],
+    },
     PopMatrix,
-    LoadVertices { slot: u16, vertices: Vec<Fast3dVertex> },
-    DrawTriangles { triangles: Vec<[u16; 3]> },
-    BindTexture { texture_id: String },
-    BindTextureSegment { segment_id: u8 },
-    CallDisplayList { display_list_id: String },
-    CallDisplayListSegment { segment_id: u8 },
-    SetCombineMode { mode: CombineMode },
-    SetPrimitiveColor { color: [u8; 4] },
-    SetEnvColor { color: [u8; 4] },
-    SetLightGroup { light_group_id: String },
+    LoadVertices {
+        slot: u16,
+        vertices: Vec<Fast3dVertex>,
+    },
+    DrawTriangles {
+        triangles: Vec<[u16; 3]>,
+    },
+    BindTexture {
+        texture_id: String,
+    },
+    BindTextureSegment {
+        segment_id: u8,
+    },
+    CallDisplayList {
+        display_list_id: String,
+    },
+    CallDisplayListSegment {
+        segment_id: u8,
+    },
+    SetCombineMode {
+        mode: CombineMode,
+    },
+    SetPrimitiveColor {
+        color: [u8; 4],
+    },
+    SetEnvColor {
+        color: [u8; 4],
+    },
+    SetLightGroup {
+        light_group_id: String,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]

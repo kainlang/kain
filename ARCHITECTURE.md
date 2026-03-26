@@ -93,7 +93,7 @@ The native shader-canvas UI lane now follows this contract:
 - `kain-ui` owns authored semantic surfaces and shader-canvas intent on canvas-like nodes
 - `kain-core` emits explicit `shader_canvases` entries in `RealtimeAppBundle` so hosts do not have to rediscover shader-canvas bindings by guessing from local UI props
 - `kain-core` also emits first-class shader-canvas text resources per surface: font atlas descriptors, text runs, declared runtime resource bindings, and optional asset-backed font references through the shared realtime asset catalog
-- `kain-driver` materializes shader bundles and native app sidecars that keep shader-canvas metadata, shader refs, native UI bundles, and packaged realtime font assets aligned
+- `kain-driver` materializes shader bundles and native app sidecars that keep shader-canvas metadata, shader refs, native UI bundles, and packaged realtime font assets aligned, resolving relative realtime asset sources against the authored source root instead of the materialization working directory
 - `kain-ui-native` resolves shader canvases from realtime bundle metadata first and only falls back to surface-local shader refs when metadata is missing
 - `kain-ui-native` now turns the shader-canvas text contract into real GPU inputs by serializing atlas/text metadata into the surface storage buffer and synthesizing a host-provisioned packed atlas texture, preferring packaged realtime font assets first, then `ab_glyph` rasterization from data-driven system-font aliases, with bitmap fallback and cache reuse across repeated surfaces that share atlas content
 - canonical native shader payload remains SPIR-V, while the current WGPU native host may consume derived WGSL or runtime-transpiled WGSL from the same bundle family
@@ -153,6 +153,7 @@ If the debug CLI is missing:
 - The same smoke now has a title-face extraction lane. `extract_sm64_title_face.bat`, `launch_title_face_visual_exe.bat`, and `capture_title_face_snapshot.bat` are the quickest path to a compiled proof that uses real extracted Mario face geometry while keeping N64-specific semantics inside the adapter.
 - The adapter is no longer only a smoke-local runtime. The reusable host surface now lives in `crates/kain-fast3d-runtime`, while the smoke folder acts as a consumer that provides manifests, scripts, and validation assets.
 - Keep the Fast3D lane data-driven. Its host startup now flows through crate-owned config files and env hooks (`KAIN_FAST3D_CONFIG`, `KAIN_FAST3D_MANIFEST`, `KAIN_FAST3D_SM64_ROOT`) rather than widening Kain language semantics or shared runtime contracts for one experimental console adapter.
+- Native app launcher materialization now also supports generic host-sidecar packaging in `kain-driver`: generated launchers can copy arbitrary sidecars into the artifact/executable set, optionally export them as env vars, and switch between the default `run_bundled_app_json(...)` launcher path and a crate-owned no-arg entrypoint like `kain-fast3d-runtime::run_fast3d_cli()`. Preserve that mechanism as a generic host adapter capability, not a Fast3D-specific special case.
 
 ## Common Errors
 

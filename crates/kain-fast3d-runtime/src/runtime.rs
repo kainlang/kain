@@ -9,8 +9,7 @@ use crate::math::{
 };
 use crate::model::{
     CombineMode, DisplayListCommand, DisplayListDefinition, Fast3dSmokeManifest, Fast3dVertex,
-    LightGroupDefinition,
-    SegmentBindingKind,
+    LightGroupDefinition, SegmentBindingKind,
 };
 use crate::rasterizer::{Framebuffer, RenderFrame, RenderStats, ScreenVertex};
 use crate::texture::{build_texture_catalog, TextureImage};
@@ -95,8 +94,11 @@ impl Fast3dRuntime {
         combine_override: Option<CombineMode>,
     ) -> Result<RenderFrame, String> {
         let resolution = self.manifest.resolution;
-        let mut framebuffer =
-            Framebuffer::new(resolution.width, resolution.height, self.manifest.clear_color);
+        let mut framebuffer = Framebuffer::new(
+            resolution.width,
+            resolution.height,
+            self.manifest.clear_color,
+        );
         let mut stats = RenderStats::default();
         let view_projection = self.build_view_projection(time_seconds, orbit_controls);
         let mut execution = ExecutionState::new();
@@ -111,11 +113,7 @@ impl Fast3dRuntime {
         Ok(framebuffer.finish(stats))
     }
 
-    fn build_view_projection(
-        &self,
-        time_seconds: f32,
-        orbit_controls: &OrbitControls,
-    ) -> Matrix4 {
+    fn build_view_projection(&self, time_seconds: f32, orbit_controls: &OrbitControls) -> Matrix4 {
         let camera = self.manifest.camera;
         let yaw = camera.initial_yaw_radians
             + time_seconds * self.manifest.auto_rotation_radians_per_second
@@ -311,7 +309,9 @@ impl Fast3dRuntime {
             .normal
             .zip(current_light_group)
             .map(|(normal, light_group)| {
-                let transformed_normal = (model_matrix * normal.extend(0.0)).xyz().normalize_or_zero();
+                let transformed_normal = (model_matrix * normal.extend(0.0))
+                    .xyz()
+                    .normalize_or_zero();
                 light_group.shade_world_normal(transformed_normal, vertex.base_color.w)
             })
             .unwrap_or(vertex.base_color);

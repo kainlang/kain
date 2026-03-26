@@ -21,6 +21,7 @@ kain-host-derive = { path = "../kain-host-derive", optional = true }
 kain-omni = { path = "../kain-omni" }
 kain-gpu-runtime = { path = "../kain-gpu-runtime" }
 kain-reflect = { path = "../kain-reflect" }
+serde = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]

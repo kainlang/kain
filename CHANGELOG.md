@@ -5,6 +5,215 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=284f4ed540d74841 -->
+## 2026-03-26 16:59:06 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `a7e3db0c`
+- Changed files: 42
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/cli/src/rust_build.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-fast3d-runtime/src/config.rs`
+- [.M] `crates/kain-fast3d-runtime/src/extractor.rs`
+- [.M] `crates/kain-fast3d-runtime/src/lib.rs`
+- [.M] `crates/kain-fast3d-runtime/src/model.rs`
+- [.M] `crates/kain-fast3d-runtime/src/runtime.rs`
+- [.M] `crates/kain-fast3d-runtime/src/texture.rs`
+- [.M] `crates/kain-fast3d-runtime/src/viewer.rs`
+- [.M] `crates/kain-host/Cargo.toml`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/README.md`
+- [??] `crates/kain-driver/examples/materialize_fast3d_native_host.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/Cargo.lock`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/Cargo.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/config/app_manifest.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_realtime_app_bundle.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_reflection_payload.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_runtime_compatibility.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_runtime_contract.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_runtime_version.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/lib.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/native_app_bundle.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/scene_manifest_title_face.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/title_face_native_host_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/sm64_fast3d_native_host.kn`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/src/main.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/state/runtime_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_native_host_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_native_host_viewer.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/launch_native_host_viewer.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/materialize_native_host_snapshot.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/kain_realtime_app_bundle.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/kain_reflection_payload.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/kain_runtime_compatibility.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/kain_runtime_contract.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/kain_runtime_version.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/scene_manifest_title_face.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/sm64_title_face_native_host_snapshot.png`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/title_face_native_host_snapshot.json`
+
+<!-- polytools-changelog:fingerprint=3df37c129ab9929d -->
+## 2026-03-26 16:34:19 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `a7e3db0c`
+- Changed files: 41
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/cli/src/rust_build.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-fast3d-runtime/src/config.rs`
+- [.M] `crates/kain-fast3d-runtime/src/extractor.rs`
+- [.M] `crates/kain-fast3d-runtime/src/lib.rs`
+- [.M] `crates/kain-fast3d-runtime/src/model.rs`
+- [.M] `crates/kain-fast3d-runtime/src/runtime.rs`
+- [.M] `crates/kain-fast3d-runtime/src/texture.rs`
+- [.M] `crates/kain-fast3d-runtime/src/viewer.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/README.md`
+- [??] `crates/kain-driver/examples/materialize_fast3d_native_host.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/Cargo.lock`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/Cargo.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/config/app_manifest.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_realtime_app_bundle.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_reflection_payload.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_runtime_compatibility.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_runtime_contract.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_runtime_version.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/lib.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/native_app_bundle.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/scene_manifest_title_face.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/title_face_native_host_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/sm64_fast3d_native_host.kn`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/src/main.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/state/runtime_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_native_host_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_native_host_viewer.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/launch_native_host_viewer.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/materialize_native_host_snapshot.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/kain_realtime_app_bundle.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/kain_reflection_payload.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/kain_runtime_compatibility.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/kain_runtime_contract.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/kain_runtime_version.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/scene_manifest_title_face.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/sm64_title_face_native_host_snapshot.png`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/title_face_native_host_snapshot.json`
+
+<!-- polytools-changelog:fingerprint=a140d37e5e4246b5 -->
+## 2026-03-26 16:32:34 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `a7e3db0c`
+- Changed files: 40
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/cli/src/rust_build.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-fast3d-runtime/src/config.rs`
+- [.M] `crates/kain-fast3d-runtime/src/extractor.rs`
+- [.M] `crates/kain-fast3d-runtime/src/lib.rs`
+- [.M] `crates/kain-fast3d-runtime/src/model.rs`
+- [.M] `crates/kain-fast3d-runtime/src/runtime.rs`
+- [.M] `crates/kain-fast3d-runtime/src/texture.rs`
+- [.M] `crates/kain-fast3d-runtime/src/viewer.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+- [??] `crates/kain-driver/examples/materialize_fast3d_native_host.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/Cargo.lock`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/Cargo.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/config/app_manifest.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_realtime_app_bundle.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_reflection_payload.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_runtime_compatibility.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_runtime_contract.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_runtime_version.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/lib.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/native_app_bundle.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/scene_manifest_title_face.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/title_face_native_host_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/sm64_fast3d_native_host.kn`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/src/main.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/state/runtime_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_native_host_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_native_host_viewer.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/launch_native_host_viewer.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/materialize_native_host_snapshot.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/kain_realtime_app_bundle.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/kain_reflection_payload.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/kain_runtime_compatibility.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/kain_runtime_contract.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/kain_runtime_version.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/scene_manifest_title_face.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/sm64_title_face_native_host_snapshot.png`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/native_host/title_face_native_host_snapshot.json`
+
+<!-- polytools-changelog:fingerprint=57e1a661c0c03a6b -->
+## 2026-03-26 16:29:47 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `a7e3db0c`
+- Changed files: 32
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/cli/src/rust_build.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-fast3d-runtime/src/config.rs`
+- [.M] `crates/kain-fast3d-runtime/src/extractor.rs`
+- [.M] `crates/kain-fast3d-runtime/src/lib.rs`
+- [.M] `crates/kain-fast3d-runtime/src/model.rs`
+- [.M] `crates/kain-fast3d-runtime/src/runtime.rs`
+- [.M] `crates/kain-fast3d-runtime/src/texture.rs`
+- [.M] `crates/kain-fast3d-runtime/src/viewer.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+- [??] `crates/kain-driver/examples/materialize_fast3d_native_host.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/Cargo.lock`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/Cargo.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/config/app_manifest.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_realtime_app_bundle.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_reflection_payload.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_runtime_compatibility.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_runtime_contract.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_runtime_version.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/lib.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/native_app_bundle.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/scene_manifest_title_face.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/title_face_native_host_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/sm64_fast3d_native_host.kn`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/src/main.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/state/runtime_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_native_host_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_native_host_viewer.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/launch_native_host_viewer.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/materialize_native_host_snapshot.bat`
+
+<!-- polytools-changelog:fingerprint=32f8b2f900fdb69e -->
+## 2026-03-26 16:29:06 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `a7e3db0c`
+- Changed files: 24
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/cli/src/rust_build.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [??] `crates/kain-driver/examples/materialize_fast3d_native_host.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/Cargo.lock`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/Cargo.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/config/app_manifest.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_realtime_app_bundle.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_reflection_payload.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_runtime_compatibility.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_runtime_contract.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/kain_runtime_version.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/lib.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/native_app_bundle.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/scene_manifest_title_face.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/generated/title_face_native_host_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/sm64_fast3d_native_host.kn`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/src/main.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/generated_native_host/sm64_fast3d_native_host_snapshot/state/runtime_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_native_host_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_native_host_viewer.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/launch_native_host_viewer.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/materialize_native_host_snapshot.bat`
+
 <!-- polytools-changelog:fingerprint=9aec20a2eb8c8855 -->
 ## 2026-03-26 16:26:06 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

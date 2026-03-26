@@ -1,0 +1,131 @@
+{
+  "app_id": "sm64.fast3d.native.host.snapshot",
+  "name": "SM64 Fast3D Native Host (snapshot)",
+  "version": "0.1.0",
+  "window_title": "SM64 Fast3D Native Host (snapshot)",
+  "root_component": "App",
+  "layout_id": "sm64_fast3d_native_host_snapshot_shell",
+  "required_runtime_capabilities": [
+    "compiler.typed-program",
+    "driver.native-app-bundle",
+    "memory.raw-ops",
+    "memory.raw-pointers",
+    "runtime.contract.bundle",
+    "ui.components",
+    "ui.runtime-bundle"
+  ],
+  "panels": [
+    {
+      "id": "runtime_surface",
+      "title": "SM64 Fast3D Native Host (snapshot)",
+      "dock": "center",
+      "kind": "native-ui"
+    }
+  ],
+  "commands": [
+    {
+      "id": "runtime.reload",
+      "label": "Reload Runtime",
+      "surface": "titlebar",
+      "intent": "runtime.reload"
+    }
+  ],
+  "providers": [
+    {
+      "id": "native_runtime",
+      "label": "Native Runtime",
+      "transport": "in-process",
+      "profile_kind": "native-ui",
+      "supports_tools": true,
+      "supports_streaming": false,
+      "active": true,
+      "profile_configured": true,
+      "profile_keys": []
+    }
+  ],
+  "tools": [
+    {
+      "id": "compiler_typed-program",
+      "label": "compiler.typed-program",
+      "capability": "compiler.typed-program",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "driver_native-app-bundle",
+      "label": "driver.native-app-bundle",
+      "capability": "driver.native-app-bundle",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "memory_raw-ops",
+      "label": "memory.raw-ops",
+      "capability": "memory.raw-ops",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "memory_raw-pointers",
+      "label": "memory.raw-pointers",
+      "capability": "memory.raw-pointers",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "runtime_contract_bundle",
+      "label": "runtime.contract.bundle",
+      "capability": "runtime.contract.bundle",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "ui_components",
+      "label": "ui.components",
+      "capability": "ui.components",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "ui_runtime-bundle",
+      "label": "ui.runtime-bundle",
+      "capability": "ui.runtime-bundle",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    }
+  ],
+  "sessions": {
+    "total_sessions": 1,
+    "active_provider": "native_runtime",
+    "recent_session_id": "native-app-session",
+    "recent_session_title": "SM64 Fast3D Native Host (snapshot)"
+  },
+  "recent_sessions": [
+    {
+      "id": "native-app-session",
+      "title": "SM64 Fast3D Native Host (snapshot)",
+      "provider_id": "native_runtime",
+      "status": "active",
+      "workspace_root": "M:\\Code\\Kain",
+      "updated_at": "2026-03-25T00:00:00Z",
+      "message_count": 1,
+      "last_message_role": "system",
+      "last_message_preview": "Native app materialization snapshot"
+    }
+  ],
+  "workspaces": [
+    {
+      "root": "M:\\Code\\Kain",
+      "session_count": 1,
+      "recent_session_title": "SM64 Fast3D Native Host (snapshot)"
+    }
+  ],
+  "updated_at": "2026-03-25T00:00:00Z"
+}
