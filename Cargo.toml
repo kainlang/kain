@@ -7,6 +7,7 @@ members = [
     "crates/kain-node",
     "crates/kain-python",
     "crates/kain-3D",
+    "crates/kain-fast3d-runtime",
     "crates/kain-ui",
     "crates/kain-ui-native",
     "crates/kain-selfhost",

@@ -1915,7 +1915,7 @@ mod tests {
             .parent()
             .unwrap()
             .join("target")
-            .join(format!("{label}-{}", std::process::id()))
+            .join(label)
     }
 
     fn prepare_fabric_test_workspace(root: &Path) {

@@ -1,0 +1,13 @@
+[package]
+name = "kain-fast3d-runtime"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+eframe = { version = "0.31", features = ["wgpu"] }
+font8x8 = "0.3"
+glam = "0.29"
+png = "0.17"
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
