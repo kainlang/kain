@@ -1,5 +1,0 @@
-
-
-
-#include "CrystalNodesSettings.h"
-
