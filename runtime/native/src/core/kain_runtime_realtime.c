@@ -125,6 +125,48 @@ static void kain_runtime_realtime_extract_string_field(
     kain_runtime_realtime_copy_string_value(value_start, scope_end, out, out_cap);
 }
 
+static int kain_runtime_realtime_extract_double_field(
+    const char* scope_start,
+    const char* scope_end,
+    const char* key,
+    double* out
+) {
+    const char* value_start =
+        kain_runtime_realtime_find_value_start(scope_start, scope_end, key);
+    char* end_ptr = NULL;
+    double value;
+    if (!value_start || value_start >= scope_end || !out) {
+        return 0;
+    }
+    value = strtod(value_start, &end_ptr);
+    if (end_ptr == value_start) {
+        return 0;
+    }
+    *out = value;
+    return 1;
+}
+
+static int kain_runtime_realtime_extract_int_field(
+    const char* scope_start,
+    const char* scope_end,
+    const char* key,
+    int* out
+) {
+    const char* value_start =
+        kain_runtime_realtime_find_value_start(scope_start, scope_end, key);
+    char* end_ptr = NULL;
+    long value;
+    if (!value_start || value_start >= scope_end || !out) {
+        return 0;
+    }
+    value = strtol(value_start, &end_ptr, 10);
+    if (end_ptr == value_start) {
+        return 0;
+    }
+    *out = (int)value;
+    return 1;
+}
+
 static int kain_runtime_realtime_count_array_objects(
     const char* array_start,
     const char* array_end
@@ -178,6 +220,38 @@ static void kain_runtime_realtime_join_string_array(
         }
         ++cursor;
     }
+}
+
+static int kain_runtime_realtime_extract_number_array(
+    const char* array_start,
+    const char* array_end,
+    double* values,
+    int max_values
+) {
+    const char* cursor;
+    int count = 0;
+    if (!array_start || !array_end || array_start >= array_end || *array_start != '[' || !values || max_values <= 0) {
+        return 0;
+    }
+    cursor = array_start + 1;
+    while (cursor < array_end && count < max_values) {
+        char* end_ptr = NULL;
+        double value;
+        cursor = kain_runtime_realtime_skip_ws(cursor, array_end);
+        if (cursor >= array_end || *cursor == ']') {
+            break;
+        }
+        value = strtod(cursor, &end_ptr);
+        if (end_ptr == cursor) {
+            break;
+        }
+        values[count++] = value;
+        cursor = kain_runtime_realtime_skip_ws(end_ptr, array_end);
+        if (cursor < array_end && *cursor == ',') {
+            ++cursor;
+        }
+    }
+    return count;
 }
 
 static int kain_runtime_graphics_count_string_array(

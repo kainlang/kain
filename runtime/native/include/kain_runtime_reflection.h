@@ -3,6 +3,7 @@
 
 #include "kain_runtime_base.h"
 #include "kain_runtime_diagnostics.h"
+#include "kain_runtime_scene.h"
 #include <stddef.h>
 
 /*
@@ -94,6 +95,48 @@ typedef struct {
     char signature[KAIN_REFLECTION_SIGNATURE_MAX];
     unsigned long long type_id;
 } KainItemMetadata;
+
+typedef enum {
+    KAIN_RUNTIME_REFLECTION_SCOPE_UNKNOWN = 0,
+    KAIN_RUNTIME_REFLECTION_SCOPE_SCENE,
+    KAIN_RUNTIME_REFLECTION_SCOPE_RESOURCE,
+    KAIN_RUNTIME_REFLECTION_SCOPE_BINDING,
+    KAIN_RUNTIME_REFLECTION_SCOPE_DEVICE,
+    KAIN_RUNTIME_REFLECTION_SCOPE_BUNDLE,
+} KainRuntimeReflectionScope;
+
+typedef enum {
+    KAIN_RUNTIME_REFLECTION_SELECTOR_NONE = 0,
+    KAIN_RUNTIME_REFLECTION_SELECTOR_PRIMARY,
+    KAIN_RUNTIME_REFLECTION_SELECTOR_HANDLE,
+    KAIN_RUNTIME_REFLECTION_SELECTOR_NAME,
+    KAIN_RUNTIME_REFLECTION_SELECTOR_TYPE_ID,
+    KAIN_RUNTIME_REFLECTION_SELECTOR_ITEM_ID,
+} KainRuntimeReflectionSelectorKind;
+
+typedef struct {
+    KainRuntimeReflectionScope scope;
+    KainRuntimeReflectionSelectorKind selector_kind;
+    KainSceneResourceKind subject_kind;
+    KainSceneHandle scene_handle;
+    KainSceneHandle subject_handle;
+    unsigned long long type_id;
+    unsigned long long item_id;
+    char subject_name[KAIN_REFLECTION_NAME_MAX];
+} KainRuntimeReflectionQuery;
+
+typedef struct {
+    int resolved;
+    KainRuntimeReflectionScope scope;
+    KainSceneResourceKind subject_kind;
+    KainSceneHandle scene_handle;
+    KainSceneHandle subject_handle;
+    unsigned long long type_id;
+    unsigned long long item_id;
+    char subject_name[KAIN_REFLECTION_NAME_MAX];
+    char source_path[KAIN_REFLECTION_PATH_MAX];
+    char summary[KAIN_REFLECTION_SIGNATURE_MAX];
+} KainRuntimeReflectionRecord;
 
 /*
  * Load Reflection Payload from JSON
@@ -246,6 +289,22 @@ int kain_reflection_format_type_schema(
  */
 int kain_reflection_format_item_metadata(
     const KainItemMetadata* metadata,
+    char* out,
+    size_t out_size
+);
+void kain_runtime_reflection_query_init(KainRuntimeReflectionQuery* query);
+void kain_runtime_reflection_record_init(KainRuntimeReflectionRecord* record);
+int kain_runtime_reflection_query_matches_item(
+    const KainRuntimeReflectionQuery* query,
+    const KainItemMetadata* metadata
+);
+void kain_runtime_reflection_record_from_item(
+    const KainRuntimeReflectionQuery* query,
+    const KainItemMetadata* metadata,
+    KainRuntimeReflectionRecord* record
+);
+int kain_runtime_reflection_format_record(
+    const KainRuntimeReflectionRecord* record,
     char* out,
     size_t out_size
 );

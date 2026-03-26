@@ -5,6 +5,108 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=8a2e66e4ace3f6f8 -->
+## 2026-03-25 20:26:34 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `7ddce34e`
+- Changed files: 16
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/kain_runtime.c`
+- [.M] `runtime/native/include/kain_runtime_asset.h`
+- [.M] `runtime/native/include/kain_runtime_contract.h`
+- [.M] `runtime/native/include/kain_runtime_realtime.h`
+- [.M] `runtime/native/include/kain_runtime_reflection.h`
+- [.M] `runtime/native/include/kain_runtime_services.h`
+- [.M] `runtime/native/src/asset/kain_asset_gltf.c`
+- [.M] `runtime/native/src/core/kain_runtime_contract.c`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+- [.M] `runtime/native/src/core/kain_runtime_reflection.c`
+- [.M] `runtime/native/src/core/kain_runtime_services.c`
+- [.M] `runtime/native_runtime.toml`
+- [??] `runtime/native/include/kain_runtime_scene.h`
+- [??] `runtime/native/src/core/kain_runtime_scene.c`
+
+<!-- polytools-changelog:fingerprint=7bb681c6fe3c1e84 -->
+## 2026-03-25 20:26:20 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `7ddce34e`
+- Changed files: 15
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/kain_runtime.c`
+- [.M] `runtime/native/include/kain_runtime_asset.h`
+- [.M] `runtime/native/include/kain_runtime_contract.h`
+- [.M] `runtime/native/include/kain_runtime_realtime.h`
+- [.M] `runtime/native/include/kain_runtime_reflection.h`
+- [.M] `runtime/native/include/kain_runtime_services.h`
+- [.M] `runtime/native/src/asset/kain_asset_gltf.c`
+- [.M] `runtime/native/src/core/kain_runtime_contract.c`
+- [.M] `runtime/native/src/core/kain_runtime_reflection.c`
+- [.M] `runtime/native/src/core/kain_runtime_services.c`
+- [.M] `runtime/native_runtime.toml`
+- [??] `runtime/native/include/kain_runtime_scene.h`
+- [??] `runtime/native/src/core/kain_runtime_scene.c`
+
+<!-- polytools-changelog:fingerprint=357e9a9ec4242a07 -->
+## 2026-03-25 20:25:16 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `7ddce34e`
+- Changed files: 13
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `runtime/kain_runtime.c`
+- [.M] `runtime/native/include/kain_runtime_asset.h`
+- [.M] `runtime/native/include/kain_runtime_contract.h`
+- [.M] `runtime/native/include/kain_runtime_reflection.h`
+- [.M] `runtime/native/include/kain_runtime_services.h`
+- [.M] `runtime/native/src/asset/kain_asset_gltf.c`
+- [.M] `runtime/native/src/core/kain_runtime_contract.c`
+- [.M] `runtime/native/src/core/kain_runtime_reflection.c`
+- [.M] `runtime/native/src/core/kain_runtime_services.c`
+- [.M] `runtime/native_runtime.toml`
+- [??] `runtime/native/include/kain_runtime_scene.h`
+- [??] `runtime/native/src/core/kain_runtime_scene.c`
+
+<!-- polytools-changelog:fingerprint=0063f323d08e42d5 -->
+## 2026-03-25 20:24:37 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `7ddce34e`
+- Changed files: 12
+- [.M] `runtime/kain_runtime.c`
+- [.M] `runtime/native/include/kain_runtime_asset.h`
+- [.M] `runtime/native/include/kain_runtime_contract.h`
+- [.M] `runtime/native/include/kain_runtime_reflection.h`
+- [.M] `runtime/native/include/kain_runtime_services.h`
+- [.M] `runtime/native/src/asset/kain_asset_gltf.c`
+- [.M] `runtime/native/src/core/kain_runtime_contract.c`
+- [.M] `runtime/native/src/core/kain_runtime_reflection.c`
+- [.M] `runtime/native/src/core/kain_runtime_services.c`
+- [.M] `runtime/native_runtime.toml`
+- [??] `runtime/native/include/kain_runtime_scene.h`
+- [??] `runtime/native/src/core/kain_runtime_scene.c`
+
+<!-- polytools-changelog:fingerprint=4cee01e657e8b7b4 -->
+## 2026-03-25 20:23:34 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `7ddce34e`
+- Changed files: 8
+- [.M] `runtime/native/include/kain_runtime_asset.h`
+- [.M] `runtime/native/include/kain_runtime_reflection.h`
+- [.M] `runtime/native/include/kain_runtime_services.h`
+- [.M] `runtime/native/src/asset/kain_asset_gltf.c`
+- [.M] `runtime/native/src/core/kain_runtime_reflection.c`
+- [.M] `runtime/native/src/core/kain_runtime_services.c`
+- [??] `runtime/native/include/kain_runtime_scene.h`
+- [??] `runtime/native/src/core/kain_runtime_scene.c`
+
+<!-- polytools-changelog:fingerprint=7b5d608ede2802c2 -->
+## 2026-03-25 20:22:00 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `7ddce34e`
+- Changed files: 2
+- [??] `runtime/native/include/kain_runtime_scene.h`
+- [??] `runtime/native/src/core/kain_runtime_scene.c`
+
 <!-- polytools-changelog:fingerprint=59e3b058ae926703 -->
 ## 2026-03-25 20:14:42 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

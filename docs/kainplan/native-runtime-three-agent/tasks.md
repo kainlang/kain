@@ -152,34 +152,36 @@ Do not expand scope beyond this slice until the slice is real.
 
 ## Phase 1: Alpha Contract Spine
 
-- [ ] 1.1 Add canonical native scene identity types and handles
+Status: contracts landed in native headers, core helpers, service registration, and runtime manifest wiring. Host consumers still need later phases to become vertically proven.
+
+- [x] 1.1 Add canonical native scene identity types and handles
   - Define stable runtime handle types for scene instances, entities, meshes, materials, lights, cameras, volumes, and instancers
   - Keep handles opaque at the ABI surface
   - Land declarations under `runtime/native/include/`
   - _Owner: Alpha_
 
-- [ ] 1.2 Add transactional scene-delta receipts
+- [x] 1.2 Add transactional scene-delta receipts
   - Define mutation requests and receipts for create, update, delete, attach, detach, and selection-affecting edits
   - Include ids, timestamps or sequence markers, and failure reporting fields
   - Keep this ABI independent from any single editor widget implementation
   - _Owner: Alpha_
 
-- [ ] 1.3 Add native scene-query contracts
+- [x] 1.3 Add native scene-query contracts
   - Define picking, raycast, bounds query, visibility query, and selection-mask query request and result structs
   - Ensure the API can support viewport-bound queries without embedding Win32 message details
   - _Owner: Alpha_
 
-- [ ] 1.4 Add device and backend reflection descriptors
+- [x] 1.4 Add device and backend reflection descriptors
   - Define runtime-facing descriptors for backend type, feature support, display modes, GPU capabilities, and hotplug-sensitive device identity
   - Thread them into the existing service-registry and compatibility surfaces where appropriate
   - _Owner: Alpha_
 
-- [ ] 1.5 Add runtime reflection query surfaces for scene and resource inspection
+- [x] 1.5 Add runtime reflection query surfaces for scene and resource inspection
   - Extend reflection APIs so tools can inspect runtime-owned scene objects, resources, and binding layouts
   - Keep runtime inspection distinct from compiler reflection artifacts while allowing them to be correlated
   - _Owner: Alpha_
 
-- [ ] 1.6 Add native ingestion descriptors
+- [x] 1.6 Add native ingestion descriptors
   - Define the canonical path for compiler-emitted bundles and staged host assets to enter the native lane
   - Prefer descriptor-driven asset and bundle ingestion over ad hoc environment-variable-only resolution
   - _Owner: Alpha_

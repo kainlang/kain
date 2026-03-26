@@ -3,6 +3,7 @@
 
 #include "native/src/core/kain_runtime_core.c"
 #include "native/src/core/kain_runtime_contract.c"
+#include "native/src/core/kain_runtime_scene.c"
 #include "native/src/core/kain_runtime_realtime.c"
 #include "native/src/core/kain_runtime_memory.c"
 #include "native/src/core/kain_runtime_bitfield.c"

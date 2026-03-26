@@ -21,7 +21,8 @@ use kain_core::{
     build_ui_output_from_source, realtime_app_bundle_from_json, render_ui_output_debug,
     shader_artifact_bundle_from_json, CompiledMaterialDefinition, RealtimeAppBundle,
     RealtimeSceneBinding, RealtimeShaderBundleRef, RealtimeShaderCanvasBinding,
-    ShaderArtifactBundle, ShaderEntryPoint, ShaderResourceLayout,
+    RealtimeViewportCameraBinding, RealtimeViewportPresentationBinding, ShaderArtifactBundle,
+    ShaderEntryPoint, ShaderResourceLayout,
 };
 use kain_ui::{
     ui_resolve_theme_for_node, ui_runtime_bundle_from_json, ui_runtime_bundle_from_output,
@@ -2156,6 +2157,8 @@ struct ViewportSurfaceState {
     bundle_viewport_node: Option<String>,
     bundle_material_refs: Vec<String>,
     bundle_shader_ref_keys: Vec<String>,
+    bundle_camera: Option<RealtimeViewportCameraBinding>,
+    bundle_presentation: Option<RealtimeViewportPresentationBinding>,
     bundle_warning: Option<String>,
     controller: ViewportCameraController,
     last_render_at: Option<Instant>,
@@ -2180,6 +2183,8 @@ struct ResolvedViewportBinding {
     scene_name: String,
     material_refs: Vec<String>,
     shader_ref_keys: Vec<String>,
+    camera: Option<RealtimeViewportCameraBinding>,
+    presentation: Option<RealtimeViewportPresentationBinding>,
     warning: Option<String>,
 }
 
@@ -5002,7 +5007,7 @@ fn render_viewport_surface(
                 app.scene_catalog.scene(&scene_name).map(|scene| {
                     (
                         scene.clone(),
-                        scene.camera.pose_at(0.0),
+                        resolve_viewport_reference_pose(scene, binding.camera.as_ref()),
                         scene.viewport_summary.clone(),
                     )
                 })
@@ -5027,6 +5032,8 @@ fn render_viewport_surface(
                         bundle_viewport_node: binding.viewport_node.clone(),
                         bundle_material_refs: binding.material_refs.clone(),
                         bundle_shader_ref_keys: binding.shader_ref_keys.clone(),
+                        bundle_camera: binding.camera.clone(),
+                        bundle_presentation: binding.presentation.clone(),
                         bundle_warning: binding.warning.clone(),
                         controller: ViewportCameraController::from_pose(&reference_pose),
                         last_render_at: None,
@@ -5042,11 +5049,16 @@ fn render_viewport_surface(
                         }),
                     });
             trace_runtime(format!("viewport: state_ready node={}", node.id.0));
-            if surface.scene_name != scene_name {
+            if surface.scene_name != scene_name
+                || surface.bundle_camera != binding.camera
+                || surface.bundle_presentation != binding.presentation
+            {
                 surface.scene_name = scene_name.clone();
                 surface.bundle_viewport_node = binding.viewport_node.clone();
                 surface.bundle_material_refs = binding.material_refs.clone();
                 surface.bundle_shader_ref_keys = binding.shader_ref_keys.clone();
+                surface.bundle_camera = binding.camera.clone();
+                surface.bundle_presentation = binding.presentation.clone();
                 surface.bundle_warning = binding.warning.clone();
                 surface.controller.recenter(&reference_pose);
                 surface.texture = None;
@@ -5068,6 +5080,8 @@ fn render_viewport_surface(
                 surface.bundle_viewport_node = binding.viewport_node.clone();
                 surface.bundle_material_refs = binding.material_refs.clone();
                 surface.bundle_shader_ref_keys = binding.shader_ref_keys.clone();
+                surface.bundle_camera = binding.camera.clone();
+                surface.bundle_presentation = binding.presentation.clone();
                 surface.bundle_warning = binding.warning.clone();
             }
             sync_viewport_input(
@@ -5496,6 +5510,8 @@ fn resolve_viewport_binding(app: &KainUiNativeApp, node: &UiNode) -> ResolvedVie
             scene_name: binding.scene.clone(),
             material_refs: binding.material_refs.clone(),
             shader_ref_keys: binding.shader_bundle_ref_keys.clone(),
+            camera: binding.camera.clone(),
+            presentation: binding.presentation.clone(),
             warning: (!warnings.is_empty()).then(|| warnings.join(" | ")),
         };
     }
@@ -5509,6 +5525,8 @@ fn resolve_viewport_binding(app: &KainUiNativeApp, node: &UiNode) -> ResolvedVie
             .map(|value| vec![value.to_string()])
             .unwrap_or_default(),
         shader_ref_keys: Vec::new(),
+        camera: resolve_viewport_camera_binding_from_node(node),
+        presentation: resolve_viewport_presentation_binding_from_node(node),
         warning: None,
     }
 }
@@ -5696,6 +5714,88 @@ fn viewport_render_resolution(size: Vec2, max_axis_px: u64) -> RenderResolution 
 
 fn prop_text<'a>(node: &'a UiNode, key: &str) -> Option<&'a str> {
     node.props.get(key).and_then(ui_value_as_str)
+}
+
+fn prop_f32(node: &UiNode, key: &str) -> Option<f32> {
+    node.props.get(key).and_then(ui_value_as_f32)
+}
+
+fn prop_i64(node: &UiNode, key: &str) -> Option<i64> {
+    node.props.get(key).and_then(ui_value_as_i64)
+}
+
+fn prop_vec3(node: &UiNode, key_prefix: &str) -> Option<[f32; 3]> {
+    Some([
+        prop_f32(node, &format!("{key_prefix}.x"))?,
+        prop_f32(node, &format!("{key_prefix}.y"))?,
+        prop_f32(node, &format!("{key_prefix}.z"))?,
+    ])
+}
+
+fn resolve_viewport_camera_binding_from_node(node: &UiNode) -> Option<RealtimeViewportCameraBinding> {
+    let camera = RealtimeViewportCameraBinding {
+        position: prop_vec3(node, "camera.position"),
+        target: prop_vec3(node, "camera.target"),
+        fov_y_degrees: prop_f32(node, "camera.fov_y_degrees").or_else(|| prop_f32(node, "camera.fov_y")),
+        near_plane: prop_f32(node, "camera.near_plane").or_else(|| prop_f32(node, "camera.near")),
+        far_plane: prop_f32(node, "camera.far_plane").or_else(|| prop_f32(node, "camera.far")),
+    };
+    (camera.position.is_some()
+        || camera.target.is_some()
+        || camera.fov_y_degrees.is_some()
+        || camera.near_plane.is_some()
+        || camera.far_plane.is_some())
+    .then_some(camera)
+}
+
+fn resolve_viewport_presentation_binding_from_node(
+    node: &UiNode,
+) -> Option<RealtimeViewportPresentationBinding> {
+    let particle_budget = prop_i64(node, "viewport.particle_budget")
+        .and_then(|value| u32::try_from(value).ok());
+    let presentation = RealtimeViewportPresentationBinding {
+        profile: prop_text(node, "viewport.profile").map(ToString::to_string),
+        fog_density: prop_f32(node, "viewport.fog_density"),
+        particle_budget,
+    };
+    (presentation.profile.is_some()
+        || presentation.fog_density.is_some()
+        || presentation.particle_budget.is_some())
+    .then_some(presentation)
+}
+
+fn vec3_from_triplet(value: [f32; 3]) -> Vec3 {
+    Vec3::new(value[0], value[1], value[2])
+}
+
+fn resolve_viewport_reference_pose(
+    scene: &SceneDescription,
+    camera_binding: Option<&RealtimeViewportCameraBinding>,
+) -> CameraPose {
+    let mut pose = scene.camera.pose_at(0.0);
+    let Some(camera_binding) = camera_binding else {
+        return pose;
+    };
+
+    if let Some(position) = camera_binding.position {
+        pose.position = vec3_from_triplet(position);
+    }
+    if let Some(target) = camera_binding.target {
+        pose.target = vec3_from_triplet(target);
+    }
+    if let Some(fov_y_degrees) = camera_binding.fov_y_degrees {
+        pose.fov_y_degrees = fov_y_degrees.clamp(1.0, 175.0);
+    }
+    if let Some(near_plane) = camera_binding.near_plane {
+        pose.near_plane = near_plane.max(0.001);
+    }
+    if let Some(far_plane) = camera_binding.far_plane {
+        pose.far_plane = far_plane.max(pose.near_plane + 0.1);
+    }
+    if pose.far_plane <= pose.near_plane {
+        pose.far_plane = pose.near_plane + 0.1;
+    }
+    pose
 }
 
 fn ui_value_as_str(value: &UiValue) -> Option<&str> {

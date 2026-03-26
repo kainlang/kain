@@ -24,10 +24,27 @@ typedef struct {
     char load_origin[KAIN_RUNTIME_REALTIME_MAX_ORIGIN];
     char source_path[KAIN_RUNTIME_REALTIME_MAX_PATH];
     char primary_viewport_node[KAIN_RUNTIME_REALTIME_MAX_NODE];
+    char primary_viewport_kind[KAIN_RUNTIME_REALTIME_MAX_TAG];
     char primary_scene[KAIN_RUNTIME_REALTIME_MAX_TAG];
     char primary_title[KAIN_RUNTIME_REALTIME_MAX_TITLE];
     char primary_material_refs[KAIN_RUNTIME_REALTIME_MAX_INLINE];
     char primary_shader_ref_keys[KAIN_RUNTIME_REALTIME_MAX_INLINE];
+    int primary_camera_has_position;
+    int primary_camera_has_target;
+    int primary_camera_has_fov_y_degrees;
+    int primary_camera_has_near_plane;
+    int primary_camera_has_far_plane;
+    double primary_camera_position[3];
+    double primary_camera_target[3];
+    double primary_camera_fov_y_degrees;
+    double primary_camera_near_plane;
+    double primary_camera_far_plane;
+    int primary_presentation_has_profile;
+    int primary_presentation_has_fog_density;
+    int primary_presentation_has_particle_budget;
+    char primary_presentation_profile[KAIN_RUNTIME_REALTIME_MAX_TAG];
+    double primary_presentation_fog_density;
+    int primary_presentation_particle_budget;
 } KainRuntimeRealtimeBundle;
 
 void kain_runtime_realtime_init(KainRuntimeRealtimeBundle* bundle);

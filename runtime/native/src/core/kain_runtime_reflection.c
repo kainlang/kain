@@ -562,6 +562,123 @@ void kain_reflection_print_summary(const KainReflectionPayload* payload) {
     }
 }
 
+void kain_runtime_reflection_query_init(KainRuntimeReflectionQuery* query) {
+    if (!query) {
+        return;
+    }
+    ZeroMemory(query, sizeof(*query));
+}
+
+void kain_runtime_reflection_record_init(KainRuntimeReflectionRecord* record) {
+    if (!record) {
+        return;
+    }
+    ZeroMemory(record, sizeof(*record));
+}
+
+int kain_runtime_reflection_query_matches_item(
+    const KainRuntimeReflectionQuery* query,
+    const KainItemMetadata* metadata
+) {
+    if (!query || !metadata) {
+        return 0;
+    }
+
+    if (query->selector_kind == KAIN_RUNTIME_REFLECTION_SELECTOR_NONE ||
+        query->selector_kind == KAIN_RUNTIME_REFLECTION_SELECTOR_PRIMARY) {
+        return 1;
+    }
+
+    if (query->selector_kind == KAIN_RUNTIME_REFLECTION_SELECTOR_ITEM_ID) {
+        return query->item_id != 0ull && query->item_id == metadata->item_id;
+    }
+
+    if (query->selector_kind == KAIN_RUNTIME_REFLECTION_SELECTOR_TYPE_ID) {
+        return query->type_id != 0ull && query->type_id == metadata->type_id;
+    }
+
+    if (query->selector_kind == KAIN_RUNTIME_REFLECTION_SELECTOR_NAME) {
+        return query->subject_name[0] && strcmp(query->subject_name, metadata->name) == 0;
+    }
+
+    if (query->selector_kind == KAIN_RUNTIME_REFLECTION_SELECTOR_HANDLE) {
+        if (!kain_scene_handle_is_valid(query->subject_handle)) {
+            return 0;
+        }
+        if (query->subject_name[0]) {
+            return strcmp(query->subject_name, metadata->name) == 0;
+        }
+        if (query->item_id != 0ull) {
+            return query->item_id == metadata->item_id;
+        }
+        return 1;
+    }
+
+    return 0;
+}
+
+void kain_runtime_reflection_record_from_item(
+    const KainRuntimeReflectionQuery* query,
+    const KainItemMetadata* metadata,
+    KainRuntimeReflectionRecord* record
+) {
+    if (!metadata || !record) {
+        return;
+    }
+
+    kain_runtime_reflection_record_init(record);
+    record->resolved = 1;
+    if (query) {
+        record->scope = query->scope;
+        record->subject_kind = query->subject_kind;
+        record->scene_handle = query->scene_handle;
+        record->subject_handle = query->subject_handle;
+        if (query->subject_name[0]) {
+            reflection_copy_text(
+                record->subject_name,
+                sizeof(record->subject_name),
+                query->subject_name
+            );
+        }
+    }
+    record->item_id = metadata->item_id;
+    record->type_id = metadata->type_id;
+    if (!record->subject_name[0]) {
+        reflection_copy_text(record->subject_name, sizeof(record->subject_name), metadata->name);
+    }
+    reflection_copy_text(record->source_path, sizeof(record->source_path), metadata->module_path);
+    snprintf(
+        record->summary,
+        sizeof(record->summary),
+        "%s item %s (type %llu)",
+        metadata->module_path[0] ? metadata->module_path : "runtime",
+        metadata->name,
+        metadata->type_id
+    );
+}
+
+int kain_runtime_reflection_format_record(
+    const KainRuntimeReflectionRecord* record,
+    char* out,
+    size_t out_size
+) {
+    if (!record || !out || out_size == 0) {
+        return 0;
+    }
+
+    return snprintf(
+        out,
+        out_size,
+        "RuntimeRecord{scope=%d, kind=%s, name=\"%s\", item_id=%llu, type_id=%llu, source=\"%s\"}",
+        (int)record->scope,
+        kain_scene_resource_kind_name(record->subject_kind),
+        record->subject_name,
+        record->item_id,
+        record->type_id,
+        record->source_path
+    );
+}
+
 /* Minimal JSON parser implementation */
 static int json_parse(JsonParser* parser, const char* json) {
     parser->json = json;

@@ -10,6 +10,7 @@ sources = [
     "native/src/core/kain_runtime_diagnostics.c",
     "native/src/core/kain_runtime_services.c",
     "native/src/core/kain_runtime_contract.c",
+    "native/src/core/kain_runtime_scene.c",
     "native/src/core/kain_runtime_reflection.c",
     "native/src/core/kain_runtime_realtime.c",
     "native/src/core/kain_runtime_async.c",
@@ -108,12 +109,44 @@ platforms = ["windows"]
 description = "Win32 viewport host and OpenGL rendering"
 
 [[services]]
+key = "scene.runtime"
+name = "Scene Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Stable native scene handles and runtime-owned scene state access"
+
+[[services]]
+key = "scene.query"
+name = "Scene Query"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Picking, raycast, bounds, visibility, and selection query contracts"
+
+[[services]]
+key = "scene.mutation"
+name = "Scene Mutation"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Transactional scene mutation requests and receipts"
+
+[[services]]
 key = "asset.gltf"
 name = "glTF Asset Loader"
 provider = "native-core"
 requirement = "optional"
 status = "available"
 description = "glTF 2.0 asset loading and parsing"
+
+[[services]]
+key = "asset.ingestion"
+name = "Asset Ingestion"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Canonical descriptor-driven entry path for assets and emitted bundles"
 
 [[services]]
 key = "asset.realtime"
@@ -139,6 +172,22 @@ provider = "native-core"
 requirement = "optional"
 status = "available"
 description = "Reflection payload loading and runtime type lookup"
+
+[[services]]
+key = "runtime.inspection"
+name = "Runtime Inspection"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Runtime-owned scene, resource, and binding inspection queries"
+
+[[services]]
+key = "device.reflection"
+name = "Device Reflection"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Backend, GPU, display, and hotplug capability descriptors"
 
 [[services]]
 key = "actor.runtime"

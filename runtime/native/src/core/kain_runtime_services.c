@@ -71,7 +71,13 @@ static const KainServiceKeyAlias g_kain_native_runtime_service_aliases[] = {
     {"native.app-host", KAIN_SERVICE_KEY_PLATFORM_APP_HOST},
     {"native.input", KAIN_SERVICE_KEY_PLATFORM_INPUT},
     {"native.viewport", KAIN_SERVICE_KEY_GFX_VIEWPORT},
+    {"native.scene", KAIN_SERVICE_KEY_SCENE_RUNTIME},
+    {"native.scene.query", KAIN_SERVICE_KEY_SCENE_QUERY},
+    {"native.scene.mutation", KAIN_SERVICE_KEY_SCENE_MUTATION},
+    {"native.runtime.inspection", KAIN_SERVICE_KEY_RUNTIME_INSPECTION},
+    {"native.device.reflection", KAIN_SERVICE_KEY_DEVICE_REFLECTION},
     {"native.asset.gltf", KAIN_SERVICE_KEY_ASSET_GLTF},
+    {"native.asset.ingestion", KAIN_SERVICE_KEY_ASSET_INGESTION},
     {"native.ui.compiled-bundle", KAIN_SERVICE_KEY_UI_BUNDLE},
     {"native.compute", KAIN_SERVICE_KEY_GFX_COMPUTE},
 };
@@ -138,9 +144,49 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
         NULL
     },
     {
+        KAIN_SERVICE_KEY_SCENE_RUNTIME,
+        "Scene Runtime",
+        "Stable native scene handles and runtime-owned scene state access",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    },
+    {
+        KAIN_SERVICE_KEY_SCENE_QUERY,
+        "Scene Query",
+        "Picking, raycast, bounds, visibility, and selection query contracts",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    },
+    {
+        KAIN_SERVICE_KEY_SCENE_MUTATION,
+        "Scene Mutation",
+        "Transactional scene mutation requests and receipts",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    },
+    {
         KAIN_SERVICE_KEY_ASSET_GLTF,
         "glTF Asset Loader",
         "glTF 2.0 asset loading and parsing",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    },
+    {
+        KAIN_SERVICE_KEY_ASSET_INGESTION,
+        "Asset Ingestion",
+        "Canonical descriptor-driven entry path for assets and emitted bundles",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_SERVICE_STATUS_AVAILABLE,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
@@ -171,6 +217,26 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
         KAIN_SERVICE_KEY_REFLECTION,
         "Reflection Runtime",
         "Reflection payload loading and runtime type lookup",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    },
+    {
+        KAIN_SERVICE_KEY_RUNTIME_INSPECTION,
+        "Runtime Inspection",
+        "Runtime-owned scene, resource, and binding inspection queries",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    },
+    {
+        KAIN_SERVICE_KEY_DEVICE_REFLECTION,
+        "Device Reflection",
+        "Backend, GPU, display, and hotplug capability descriptors",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_SERVICE_STATUS_AVAILABLE,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,

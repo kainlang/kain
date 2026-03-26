@@ -12,7 +12,13 @@ static const KainRuntimeServiceSpec g_kain_runtime_service_specs[] = {
     {KAIN_SERVICE_KEY_PLATFORM_APP_HOST, KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST, 1},
     {KAIN_SERVICE_KEY_PLATFORM_INPUT, KAIN_RUNTIME_SERVICE_NATIVE_INPUT, 1},
     {KAIN_SERVICE_KEY_GFX_VIEWPORT, KAIN_RUNTIME_SERVICE_NATIVE_VIEWPORT, 1},
+    {KAIN_SERVICE_KEY_SCENE_RUNTIME, KAIN_RUNTIME_SERVICE_SCENE_RUNTIME, 0},
+    {KAIN_SERVICE_KEY_SCENE_QUERY, KAIN_RUNTIME_SERVICE_SCENE_QUERY, 0},
+    {KAIN_SERVICE_KEY_SCENE_MUTATION, KAIN_RUNTIME_SERVICE_SCENE_MUTATION, 0},
+    {KAIN_SERVICE_KEY_RUNTIME_INSPECTION, KAIN_RUNTIME_SERVICE_RUNTIME_INSPECTION, 0},
+    {KAIN_SERVICE_KEY_DEVICE_REFLECTION, KAIN_RUNTIME_SERVICE_DEVICE_REFLECTION, 0},
     {KAIN_SERVICE_KEY_ASSET_GLTF, KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF, 0},
+    {KAIN_SERVICE_KEY_ASSET_INGESTION, KAIN_RUNTIME_SERVICE_ASSET_INGESTION, 0},
     {KAIN_SERVICE_KEY_UI_BUNDLE, KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED, 0},
     {KAIN_SERVICE_KEY_GFX_COMPUTE, KAIN_RUNTIME_SERVICE_GFX_COMPUTE, 0},
 };
@@ -379,6 +385,18 @@ static void kain_runtime_contract_finalize(KainRuntimeContractBundle* bundle) {
         (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED) != 0u;
     bundle->has_gfx_compute =
         (bundle->service_mask & KAIN_RUNTIME_SERVICE_GFX_COMPUTE) != 0u;
+    bundle->has_scene_runtime =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_SCENE_RUNTIME) != 0u;
+    bundle->has_scene_queries =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_SCENE_QUERY) != 0u;
+    bundle->has_scene_mutation =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_SCENE_MUTATION) != 0u;
+    bundle->has_runtime_inspection =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_RUNTIME_INSPECTION) != 0u;
+    bundle->has_device_reflection =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_DEVICE_REFLECTION) != 0u;
+    bundle->has_asset_ingestion =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_ASSET_INGESTION) != 0u;
     bundle->core_service_count = kain_runtime_contract_count_bits(
         bundle->service_mask & KAIN_RUNTIME_SERVICE_CORE_MASK
     );

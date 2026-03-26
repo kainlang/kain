@@ -464,6 +464,66 @@ void kain_native_scene_asset_init(KainNativeSceneAsset* asset) {
     asset->recommended_far_clip = 180.0;
 }
 
+void kain_runtime_ingestion_descriptor_init(KainRuntimeIngestionDescriptor* descriptor) {
+    if (!descriptor) {
+        return;
+    }
+    ZeroMemory(descriptor, sizeof(*descriptor));
+}
+
+void kain_runtime_ingestion_descriptor_from_path(
+    KainRuntimeIngestionDescriptor* descriptor,
+    KainRuntimeIngestionPayloadKind payload_kind,
+    KainRuntimeIngestionSourceKind source_kind,
+    const char* source_path,
+    const char* logical_name
+) {
+    if (!descriptor) {
+        return;
+    }
+
+    kain_runtime_ingestion_descriptor_init(descriptor);
+    descriptor->declared = 1;
+    descriptor->payload_kind = payload_kind;
+    descriptor->source_kind = source_kind;
+    descriptor->target_kind = KAIN_SCENE_RESOURCE_SCENE;
+    if (source_path && source_path[0]) {
+        strncpy_s(descriptor->source_path, sizeof(descriptor->source_path), source_path, _TRUNCATE);
+    }
+    if (logical_name && logical_name[0]) {
+        strncpy_s(descriptor->logical_name, sizeof(descriptor->logical_name), logical_name, _TRUNCATE);
+    }
+}
+
+void kain_native_scene_asset_describe_ingestion(
+    const KainNativeSceneAsset* asset,
+    KainRuntimeIngestionDescriptor* descriptor
+) {
+    if (!descriptor) {
+        return;
+    }
+
+    kain_runtime_ingestion_descriptor_init(descriptor);
+    descriptor->declared = asset && asset->loaded;
+    descriptor->payload_kind = KAIN_RUNTIME_INGESTION_PAYLOAD_SCENE_ASSET;
+    descriptor->source_kind = KAIN_RUNTIME_INGESTION_SOURCE_HOST_STAGED;
+    descriptor->target_kind = KAIN_SCENE_RESOURCE_SCENE;
+    if (!asset || !asset->loaded) {
+        strncpy_s(descriptor->detail, sizeof(descriptor->detail), "scene asset not loaded", _TRUNCATE);
+        return;
+    }
+
+    descriptor->target_scene = kain_scene_handle_make(KAIN_SCENE_RESOURCE_SCENE, 1u, 1u);
+    strncpy_s(descriptor->source_path, sizeof(descriptor->source_path), asset->source_path, _TRUNCATE);
+    strncpy_s(descriptor->logical_name, sizeof(descriptor->logical_name), asset->asset_label, _TRUNCATE);
+    strncpy_s(
+        descriptor->detail,
+        sizeof(descriptor->detail),
+        "host-staged glTF scene asset compiled into native viewport geometry",
+        _TRUNCATE
+    );
+}
+
 void kain_native_scene_asset_shutdown(KainNativeSceneAsset* asset) {
     if (!asset) {
         return;

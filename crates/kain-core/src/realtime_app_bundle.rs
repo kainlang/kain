@@ -3,12 +3,12 @@ use serde::{Deserialize, Serialize};
 use crate::ast::{ComputeMetadata, ShaderStage, Type, COMPUTE_PLAN_CAPABILITY_KEY};
 use crate::{CompileTarget, TypedItem, TypedProgram, TypedShader};
 use kain_ui::{
-    UiBuildOutput, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
+    UiBuildOutput, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference, UiValue,
 };
 
 pub const REALTIME_APP_BUNDLE_SCHEMA_VERSION: u32 = 1;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RealtimeAppBundle {
     pub schema_version: u32,
     pub target: String,
@@ -21,13 +21,13 @@ pub struct RealtimeAppBundle {
     pub requirements: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RenderSceneBundle {
     pub scenes: Vec<RealtimeSceneBinding>,
     pub materials: Vec<CompiledMaterialDefinition>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RealtimeSceneBinding {
     pub viewport_node: String,
     pub viewport_kind: String,
@@ -35,6 +35,34 @@ pub struct RealtimeSceneBinding {
     pub title: Option<String>,
     pub material_refs: Vec<String>,
     pub shader_bundle_ref_keys: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub camera: Option<RealtimeViewportCameraBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub presentation: Option<RealtimeViewportPresentationBinding>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RealtimeViewportCameraBinding {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position: Option<[f32; 3]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<[f32; 3]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fov_y_degrees: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub near_plane: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub far_plane: Option<f32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RealtimeViewportPresentationBinding {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fog_density: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub particle_budget: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -605,6 +633,88 @@ fn infer_tensor_element_type(binding: &RealtimeResourceBinding) -> &'static str 
     }
 }
 
+fn ui_value_as_f32(value: &UiValue) -> Option<f32> {
+    match value {
+        UiValue::Float(value) => Some(*value as f32),
+        UiValue::Int(value) => Some(*value as f32),
+        UiValue::String(value) => value.parse::<f32>().ok(),
+        _ => None,
+    }
+}
+
+fn ui_value_as_u32(value: &UiValue) -> Option<u32> {
+    match value {
+        UiValue::Int(value) => (*value).try_into().ok(),
+        UiValue::Float(value) if *value >= 0.0 => Some(*value as u32),
+        UiValue::String(value) => value.parse::<u32>().ok(),
+        _ => None,
+    }
+}
+
+fn scene_prop_string(props: &std::collections::BTreeMap<String, UiValue>, key: &str) -> Option<String> {
+    props.get(key)
+        .and_then(UiValue::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn scene_prop_f32(
+    props: &std::collections::BTreeMap<String, UiValue>,
+    keys: &[&str],
+) -> Option<f32> {
+    keys.iter().find_map(|key| props.get(*key).and_then(ui_value_as_f32))
+}
+
+fn scene_prop_u32(
+    props: &std::collections::BTreeMap<String, UiValue>,
+    keys: &[&str],
+) -> Option<u32> {
+    keys.iter().find_map(|key| props.get(*key).and_then(ui_value_as_u32))
+}
+
+fn scene_prop_vec3(
+    props: &std::collections::BTreeMap<String, UiValue>,
+    key_prefix: &str,
+) -> Option<[f32; 3]> {
+    let x = scene_prop_f32(props, &[&format!("{key_prefix}.x")])?;
+    let y = scene_prop_f32(props, &[&format!("{key_prefix}.y")])?;
+    let z = scene_prop_f32(props, &[&format!("{key_prefix}.z")])?;
+    Some([x, y, z])
+}
+
+fn collect_scene_camera_binding(
+    props: &std::collections::BTreeMap<String, UiValue>,
+) -> Option<RealtimeViewportCameraBinding> {
+    let camera = RealtimeViewportCameraBinding {
+        position: scene_prop_vec3(props, "camera.position"),
+        target: scene_prop_vec3(props, "camera.target"),
+        fov_y_degrees: scene_prop_f32(props, &["camera.fov_y_degrees", "camera.fov_y"]),
+        near_plane: scene_prop_f32(props, &["camera.near_plane", "camera.near"]),
+        far_plane: scene_prop_f32(props, &["camera.far_plane", "camera.far"]),
+    };
+    (camera.position.is_some()
+        || camera.target.is_some()
+        || camera.fov_y_degrees.is_some()
+        || camera.near_plane.is_some()
+        || camera.far_plane.is_some())
+    .then_some(camera)
+}
+
+fn collect_scene_presentation_binding(
+    props: &std::collections::BTreeMap<String, UiValue>,
+) -> Option<RealtimeViewportPresentationBinding> {
+    let presentation = RealtimeViewportPresentationBinding {
+        profile: scene_prop_string(props, "viewport.profile"),
+        fog_density: scene_prop_f32(props, &["viewport.fog_density"]),
+        particle_budget: scene_prop_u32(props, &["viewport.particle_budget"]),
+    };
+    (presentation.profile.is_some()
+        || presentation.fog_density.is_some()
+        || presentation.particle_budget.is_some())
+    .then_some(presentation)
+}
+
 fn collect_scene_bindings(
     ui_output: Option<&UiBuildOutput>,
     shader_bundle_refs: &[RealtimeShaderBundleRef],
@@ -642,6 +752,8 @@ fn collect_scene_bindings(
             .and_then(|value| value.as_str())
             .map(|value| vec![value.to_string()])
             .unwrap_or_default();
+        let camera = collect_scene_camera_binding(&node.props);
+        let presentation = collect_scene_presentation_binding(&node.props);
 
         scenes.push(RealtimeSceneBinding {
             viewport_node: surface.id.clone(),
@@ -650,6 +762,8 @@ fn collect_scene_bindings(
             title: surface.title.clone(),
             material_refs,
             shader_bundle_ref_keys: default_shader_keys.clone(),
+            camera,
+            presentation,
         });
     }
 
@@ -889,6 +1003,11 @@ component App():
             bundle.render.scenes[0].material_refs,
             vec!["terrain".to_string()]
         );
+        assert_eq!(
+            bundle.render.scenes[0].camera,
+            None,
+            "legacy viewport bindings should stay sparse when no camera metadata is authored"
+        );
         assert!(bundle
             .requirements
             .iter()
@@ -908,7 +1027,19 @@ component App():
         "scene": "magma_terraces",
         "title": "Viewport",
         "material_refs": ["terrain"],
-        "shader_bundle_ref_keys": ["shader::terrain::fragment"]
+        "shader_bundle_ref_keys": ["shader::terrain::fragment"],
+        "camera": {
+          "position": [8.0, 4.5, 16.0],
+          "target": [0.0, 1.5, 0.0],
+          "fov_y_degrees": 58.0,
+          "near_plane": 0.05,
+          "far_plane": 220.0
+        },
+        "presentation": {
+          "profile": "tensor_stream_probe",
+          "fog_density": 0.018,
+          "particle_budget": 192
+        }
       }
     ],
     "materials": [
@@ -928,7 +1059,92 @@ component App():
         let bundle =
             realtime_app_bundle_from_json(json).expect("realtime bundle should deserialize");
         assert_eq!(bundle.render.scenes[0].scene, "magma_terraces");
+        assert_eq!(
+            bundle.render.scenes[0].camera.as_ref().and_then(|camera| camera.position),
+            Some([8.0, 4.5, 16.0])
+        );
+        assert_eq!(
+            bundle
+                .render
+                .scenes[0]
+                .presentation
+                .as_ref()
+                .and_then(|presentation| presentation.profile.as_deref()),
+            Some("tensor_stream_probe")
+        );
         assert_eq!(bundle.render.materials[0].id, "terrain");
+    }
+
+    #[test]
+    fn emits_bundle_owned_camera_and_presentation_metadata_for_viewports() {
+        let source = r#"
+component App():
+    render <panel>
+        <viewport3d
+            title="Tensor Probe"
+            scene="tensor_stream_probe"
+            camera.position.x={12.0}
+            camera.position.y={6.0}
+            camera.position.z={18.0}
+            camera.target.x={0.0}
+            camera.target.y={2.0}
+            camera.target.z={0.0}
+            camera.fov_y={48.0}
+            camera.near_plane={0.05}
+            camera.far_plane={320.0}
+            viewport.profile="kerr_black_hole"
+            viewport.fog_density={0.012}
+            viewport.particle_budget={288}
+        />
+    </panel>
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let span_mapper = diagnostics::SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &span_mapper, "<input>")
+            .parse()
+            .expect("ast");
+        let typed = types::check(&ast, &span_mapper, "<input>").expect("typed");
+        let ui = build_ui_output_from_source(source, "App").expect("ui");
+
+        let bundle = emit_realtime_app_bundle(&typed, Some(&ui), CompileTarget::Llvm);
+        let scene = &bundle.render.scenes[0];
+        assert_eq!(scene.scene, "tensor_stream_probe");
+        assert_eq!(
+            scene.camera.as_ref().and_then(|camera| camera.position),
+            Some([12.0, 6.0, 18.0])
+        );
+        assert_eq!(
+            scene.camera.as_ref().and_then(|camera| camera.target),
+            Some([0.0, 2.0, 0.0])
+        );
+        assert_eq!(
+            scene
+                .camera
+                .as_ref()
+                .and_then(|camera| camera.fov_y_degrees),
+            Some(48.0)
+        );
+        assert_eq!(
+            scene
+                .presentation
+                .as_ref()
+                .and_then(|presentation| presentation.profile.as_deref()),
+            Some("kerr_black_hole")
+        );
+        assert_eq!(
+            scene
+                .presentation
+                .as_ref()
+                .and_then(|presentation| presentation.fog_density),
+            Some(0.012)
+        );
+        assert_eq!(
+            scene
+                .presentation
+                .as_ref()
+                .and_then(|presentation| presentation.particle_budget),
+            Some(288)
+        );
     }
 
     #[test]

@@ -21,6 +21,12 @@
 #define KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF      (1u << 3)
 #define KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED     (1u << 4)
 #define KAIN_RUNTIME_SERVICE_GFX_COMPUTE            (1u << 5)
+#define KAIN_RUNTIME_SERVICE_SCENE_RUNTIME          (1u << 6)
+#define KAIN_RUNTIME_SERVICE_SCENE_QUERY            (1u << 7)
+#define KAIN_RUNTIME_SERVICE_SCENE_MUTATION         (1u << 8)
+#define KAIN_RUNTIME_SERVICE_RUNTIME_INSPECTION     (1u << 9)
+#define KAIN_RUNTIME_SERVICE_DEVICE_REFLECTION      (1u << 10)
+#define KAIN_RUNTIME_SERVICE_ASSET_INGESTION        (1u << 11)
 
 #define KAIN_RUNTIME_SERVICE_CORE_MASK ( \
     KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST | \
@@ -31,7 +37,13 @@
 #define KAIN_RUNTIME_SERVICE_OPTIONAL_MASK ( \
     KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF | \
     KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED | \
-    KAIN_RUNTIME_SERVICE_GFX_COMPUTE \
+    KAIN_RUNTIME_SERVICE_GFX_COMPUTE | \
+    KAIN_RUNTIME_SERVICE_SCENE_RUNTIME | \
+    KAIN_RUNTIME_SERVICE_SCENE_QUERY | \
+    KAIN_RUNTIME_SERVICE_SCENE_MUTATION | \
+    KAIN_RUNTIME_SERVICE_RUNTIME_INSPECTION | \
+    KAIN_RUNTIME_SERVICE_DEVICE_REFLECTION | \
+    KAIN_RUNTIME_SERVICE_ASSET_INGESTION \
 )
 
 typedef struct {
@@ -50,6 +62,12 @@ typedef struct {
     int has_native_asset_gltf;
     int has_native_ui_compiled_bundle;
     int has_gfx_compute;
+    int has_scene_runtime;
+    int has_scene_queries;
+    int has_scene_mutation;
+    int has_runtime_inspection;
+    int has_device_reflection;
+    int has_asset_ingestion;
     unsigned int service_mask;
     unsigned int required_abi_version;
     char target[KAIN_RUNTIME_CONTRACT_MAX_TARGET];

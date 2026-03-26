@@ -10,6 +10,76 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-25 - Native Alpha Contract Spine Landed For Scene, Query, Inspection, And Ingestion
+
+The native runtime now has a dedicated Alpha-owned contract layer for the first blocker wave instead of leaving those concepts implicit in the Win32 viewport host.
+
+What changed:
+
+- a new native scene ABI header and core implementation now define opaque scene handles, transactional mutation receipts, scene-query requests/results, and backend/device capability descriptors
+- the runtime reflection ABI now includes runtime-inspection query/record surfaces so native tools can correlate runtime-owned state with compiler reflection metadata through one canonical contract family
+- the native asset ABI now includes ingestion descriptors so staged host assets and emitted bundles have a shared descriptor shape instead of being only environment-variable conventions
+- the native service catalog, runtime contract mask table, runtime manifest, and legacy umbrella source list were updated so these new Alpha surfaces are visible to the runtime's canonical metadata instead of existing as isolated helper code
+
+Why this matters:
+
+- it creates a real contract boundary between Alpha's substrate work and Delta's editor/workspace work
+- it reduces the risk that viewport, inspector, and packaging work will invent a second scene or ingestion model inside host-specific code
+- it gives future runtime bundle and tool work a more honest place to attach scene identity, query, inspection, and ingestion semantics
+
+What is still incomplete:
+
+- the Win32 viewport and UI lanes are not consuming these contracts end-to-end yet
+- scene handles are canonical tokens now, but there is not yet a runtime-owned scene registry behind them
+- runtime inspection is a usable ABI surface, not yet a fully wired live-host query engine
+- ingestion descriptors exist, but most bundle loading still starts from existing path and env flows
+
+What future work should preserve:
+
+- keep scene identity, scene queries, mutation receipts, backend reflection, runtime inspection, and ingestion descriptors in shared native headers rather than re-declaring them inside viewport or UI code
+- make Delta consume Alpha's contracts instead of smuggling editor semantics into platform-specific message handlers
+- prefer descriptor-driven ingestion and registry-driven service discovery over more ad hoc environment-variable-only expansion
+
+Next serious move:
+
+- wire the new scene/query contracts into the Win32 viewport and native UI shell
+- build the first runtime-owned scene registry behind the opaque handles
+- then start Alpha Phase 2 with render-graph, residency, and compute-scheduling descriptors that reuse the same contract discipline
+## 2026-03-25 - Shader Canvas Became An Explicit Native UI Lane
+
+The native shader-canvas path stopped being only a best-effort surface heuristic and became an explicit bundle-driven lane.
+
+What changed:
+
+- `RealtimeAppBundle` now carries `shader_canvases` metadata so native hosts can resolve shader-canvas surfaces from compiler-emitted bundle truth instead of only rediscovering shader refs from surface-local props
+- the native host now keeps a `shader_canvases_by_surface` catalog and resolves shader canvases through that lane first, with surface-local fallback only when bundle metadata is missing
+- presented shader surfaces now upload a richer built-in runtime payload: uniform data, storage payload data, and a small fallback texture sample instead of leaving storage/texture bindings as inert placeholders
+- shader-surface diagnostics in the native host now expose payload format and resolved shader-bundle ref identity so shader-canvas failures are easier to explain from the UI itself
+
+Why this matters:
+
+- it makes shader canvas a real native UI subsystem instead of a fragile convenience path
+- it keeps the repo aligned with its architecture rule that hosts should consume compiler-owned bundle metadata rather than inventing renderer-local contracts
+- it creates a practical base for the harder next steps like text atlases, glyph buffers, and richer per-surface instance payloads without throwing away the retained semantic UI model
+
+What is still incomplete:
+
+- the current WGPU native execution path still consumes WGSL or SPIR-V-to-WGSL transpilation rather than driving raw SPIR-V directly through a Vulkan-first host
+- automatic shader-canvas resource provisioning is still intentionally small and built-in; it is not yet a full data-driven asset/font/texture registry for serious text-heavy UI
+- text, accessibility, and high-level retained UI state still belong to the host/runtime side; shader canvas is an accelerated lane, not the whole UI architecture
+
+What future work should preserve:
+
+- keep shader-canvas binding truth in `kain-core`/`RealtimeAppBundle`, not re-inferred ad hoc inside `kain-ui-native`
+- keep the retained semantic UI/runtime model as the source of layout, focus, and tool-state truth even when more pixels move into shader-canvas execution
+- extend shader-canvas resources through typed bundle contracts and reflection-driven binding metadata instead of baking more name-based guesses into the host
+
+Next serious move:
+
+- add typed font atlas and glyph-run contracts so shader canvas can own high-performance text without abandoning compiler/runtime truth
+- promote shader-canvas resource catalogs beyond the current built-in payloads into reusable bundle-driven image/buffer/font bindings
+- if direct SPIR-V execution becomes necessary for the next performance step, add it as another host adapter that still consumes the same shader-canvas bundle contract family
+
 ## 2026-03-25 - Native Runtime Service Discovery Stopped Pretending The Runtime Was Smaller Than It Is
 
 The raw-native runtime now has one shared canonical service catalog in `runtime/native/src/core/kain_runtime_services.c` instead of splitting service truth across tiny contract-era registration helpers and scattered tests.
@@ -747,3 +817,4 @@ Next serious move:
 - add first-class schema validation and CLI hydration for the web template registries
 - evolve the Node helper runtime into a reusable browser adapter surface that future KainScript or semantic UI web lanes can consume
 - then replace the current HTML-plus-islands workaround with a real semantic `kain-ui-web` lowering path
+
