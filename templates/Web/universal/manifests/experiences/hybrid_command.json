@@ -27,6 +27,7 @@
     { "id": "voices", "kind": "testimonials", "eyebrow": "Proof", "title": "Why keep a hybrid lane", "source": "content.testimonials" },
     { "id": "commands", "kind": "command_lines", "eyebrow": "Command", "title": "Operator commands", "source": "content.command_lines" },
     { "id": "docs", "kind": "docs_grid", "eyebrow": "Docs", "title": "Runtime notes and route docs", "source": "content.docs_links" },
+    { "id": "blog", "kind": "blog_roll", "eyebrow": "Blog", "title": "System notes", "source": "content.blog_posts" },
     { "id": "prompts", "kind": "prompt_deck", "eyebrow": "Prompts", "title": "Route the system by prompt", "source": "content.prompt_presets" },
     { "id": "chat", "kind": "chat_lab", "eyebrow": "Chat", "title": "Prompt the site system", "source": "content.chat_seed", "placeholder": "What kind of website should I build?", "button_label": "Ask" },
     { "id": "search", "kind": "search_panel", "eyebrow": "Search", "title": "Search the hybrid system", "source": "experience.search_panel" },

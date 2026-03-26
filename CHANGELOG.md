@@ -5,6 +5,73 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=f9c61a1b244b4f53 -->
+## 2026-03-26 15:10:29 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `961743d2`
+- Changed files: 14
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-fast3d-runtime/src/runtime.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/README.md`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/local_crate/Cargo.lock`
+- [.D] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/combiner.rs`
+- [.D] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/extractor.rs`
+- [.D] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/math.rs`
+- [.D] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/model.rs`
+- [.D] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/rasterizer.rs`
+- [.D] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/runtime.rs`
+- [.D] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/texture.rs`
+- [.D] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/viewer.rs`
+
+<!-- polytools-changelog:fingerprint=093f8bf3172aee2b -->
+## 2026-03-26 15:07:06 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `961743d2`
+- Changed files: 13
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-fast3d-runtime/src/runtime.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/README.md`
+- [.D] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/combiner.rs`
+- [.D] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/extractor.rs`
+- [.D] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/math.rs`
+- [.D] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/model.rs`
+- [.D] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/rasterizer.rs`
+- [.D] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/runtime.rs`
+- [.D] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/texture.rs`
+- [.D] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/viewer.rs`
+
+<!-- polytools-changelog:fingerprint=4535f9f278c166a3 -->
+## 2026-03-26 15:06:47 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `961743d2`
+- Changed files: 5
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-fast3d-runtime/src/runtime.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/README.md`
+
+<!-- polytools-changelog:fingerprint=0f081cb4b079da29 -->
+## 2026-03-26 15:04:05 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `961743d2`
+- Changed files: 3
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-fast3d-runtime/src/runtime.rs`
+
+<!-- polytools-changelog:fingerprint=864f6c5ea46191de -->
+## 2026-03-26 15:03:22 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `961743d2`
+- Changed files: 2
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-fast3d-runtime/src/runtime.rs`
+
 <!-- polytools-changelog:fingerprint=b1baa4c8123aba90 -->
 ## 2026-03-26 14:59:56 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

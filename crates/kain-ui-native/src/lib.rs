@@ -3,7 +3,7 @@ use std::{
     fs::{self, OpenOptions},
     hash::{Hash, Hasher},
     io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::{Duration, Instant, SystemTime},
 };
@@ -21,11 +21,11 @@ use kain_3d::{
 use kain_core::{
     build_ui_output_from_source, realtime_app_bundle_from_json, render_ui_output_debug,
     shader_artifact_bundle_from_json, CompiledMaterialDefinition, RealtimeAppBundle,
-    RealtimeSceneBinding, RealtimeShaderBundleRef, RealtimeShaderCanvasBinding,
-    RealtimeShaderCanvasFontAtlas, RealtimeShaderCanvasResourceBinding,
-    RealtimeShaderCanvasTextRun, RealtimeViewportCameraBinding,
-    RealtimeViewportPresentationBinding, ShaderArtifactBundle, ShaderEntryPoint,
-    ShaderResourceLayout,
+    RealtimeAssetBinding, RealtimeSceneBinding, RealtimeShaderBundleRef,
+    RealtimeShaderCanvasBinding, RealtimeShaderCanvasFontAtlas,
+    RealtimeShaderCanvasResourceBinding, RealtimeShaderCanvasTextRun,
+    RealtimeViewportCameraBinding, RealtimeViewportPresentationBinding, ShaderArtifactBundle,
+    ShaderEntryPoint, ShaderResourceLayout,
 };
 use kain_ui::{
     ui_resolve_theme_for_node, ui_runtime_bundle_from_json, ui_runtime_bundle_from_output,
@@ -560,7 +560,7 @@ impl RuntimeArtifactWatch {
 }
 
 impl RealtimeBundleCatalog {
-    fn from_bundle(bundle: &RealtimeAppBundle) -> Self {
+    fn from_bundle(bundle: &RealtimeAppBundle, bundle_path: Option<&str>) -> Self {
         Self {
             scenes_by_viewport: bundle
                 .render
@@ -588,6 +588,15 @@ impl RealtimeBundleCatalog {
                 .cloned()
                 .map(|binding| (binding.surface_id.clone(), binding))
                 .collect(),
+            assets_by_key: bundle
+                .assets
+                .iter()
+                .cloned()
+                .map(|asset| (asset.key.clone(), asset))
+                .collect(),
+            asset_base_dir: bundle_path
+                .map(PathBuf::from)
+                .and_then(|path| path.parent().map(Path::to_path_buf)),
         }
     }
 }
@@ -2272,6 +2281,8 @@ struct RealtimeBundleCatalog {
     materials_by_id: BTreeMap<String, CompiledMaterialDefinition>,
     shader_refs_by_key: BTreeMap<String, RealtimeShaderBundleRef>,
     shader_canvases_by_surface: BTreeMap<String, RealtimeShaderCanvasBinding>,
+    assets_by_key: BTreeMap<String, RealtimeAssetBinding>,
+    asset_base_dir: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug)]
@@ -2305,6 +2316,7 @@ struct ResolvedUiShaderSurface {
     wgsl_source: String,
     resource_layouts: Vec<ShaderResourceLayout>,
     font_atlases: Vec<RealtimeShaderCanvasFontAtlas>,
+    font_asset_sources_by_key: BTreeMap<String, String>,
     text_runs: Vec<RealtimeShaderCanvasTextRun>,
     resource_bindings: Vec<RealtimeShaderCanvasResourceBinding>,
     warning: Option<String>,
@@ -2525,7 +2537,7 @@ impl KainUiNativeApp {
         let runtime_snapshot_origin = runtime_snapshot.as_ref().map(|(_, path)| path.clone());
         let realtime_catalog = realtime_bundle
             .as_ref()
-            .map(|(bundle, _)| RealtimeBundleCatalog::from_bundle(bundle))
+            .map(|(bundle, path)| RealtimeBundleCatalog::from_bundle(bundle, Some(path.as_str())))
             .unwrap_or_default();
         let runtime_artifact_watch = RuntimeArtifactWatch::default()
             .with_runtime_bundle_path(runtime_bundle_origin.clone())
@@ -2604,8 +2616,9 @@ impl KainUiNativeApp {
             .and_then(WatchedRuntimeFile::take_if_changed);
         if let Some(path) = realtime_bundle_path {
             match load_realtime_bundle_from_env() {
-                Some((bundle, _)) => {
-                    self.realtime_catalog = RealtimeBundleCatalog::from_bundle(&bundle);
+                Some((bundle, bundle_path)) => {
+                    self.realtime_catalog =
+                        RealtimeBundleCatalog::from_bundle(&bundle, Some(bundle_path.as_str()));
                     self.shader_surface_texture_cache.clear();
                     trace_runtime(format!("runtime_reload: refreshed realtime bundle {path}"));
                 }
@@ -3432,36 +3445,39 @@ fn resolve_ui_shader_surface_texture_payload(
     cache: &mut BTreeMap<String, UiShaderSurfaceTexturePayload>,
     descriptor: &ResolvedUiShaderSurface,
 ) -> UiShaderSurfaceTexturePayload {
-    let signature = shader_surface_texture_payload_signature(&descriptor.font_atlases);
+    let signature = shader_surface_texture_payload_signature(descriptor);
     if let Some(payload) = cache.get(&signature) {
         return payload.clone();
     }
 
-    let payload = build_ui_shader_surface_texture_payload(descriptor.font_atlases.as_slice());
+    let payload = build_ui_shader_surface_texture_payload(descriptor);
     cache.insert(signature, payload.clone());
     payload
 }
 
-fn shader_surface_texture_payload_signature(
-    font_atlases: &[RealtimeShaderCanvasFontAtlas],
-) -> String {
+fn shader_surface_texture_payload_signature(descriptor: &ResolvedUiShaderSurface) -> String {
     let mut hasher = DefaultHasher::new();
-    for atlas in font_atlases {
+    for atlas in &descriptor.font_atlases {
         atlas.key.hash(&mut hasher);
         atlas.family.hash(&mut hasher);
+        atlas.asset_key.hash(&mut hasher);
         atlas.glyphs.hash(&mut hasher);
         atlas.cell_size_px.hash(&mut hasher);
         atlas.texture_size_px.hash(&mut hasher);
         atlas.columns.hash(&mut hasher);
         atlas.rows.hash(&mut hasher);
+        descriptor
+            .font_asset_sources_by_key
+            .get(&atlas.key)
+            .hash(&mut hasher);
     }
     format!("atlas:{:016x}", hasher.finish())
 }
 
 fn build_ui_shader_surface_texture_payload(
-    font_atlases: &[RealtimeShaderCanvasFontAtlas],
+    descriptor: &ResolvedUiShaderSurface,
 ) -> UiShaderSurfaceTexturePayload {
-    if font_atlases.is_empty() {
+    if descriptor.font_atlases.is_empty() {
         return UiShaderSurfaceTexturePayload {
             size_px: [1, 1],
             atlas_origins_px: Vec::new(),
@@ -3469,24 +3485,32 @@ fn build_ui_shader_surface_texture_payload(
         };
     }
 
-    let packed_width = font_atlases
+    let packed_width = descriptor
+        .font_atlases
         .iter()
         .map(|atlas| atlas.texture_size_px[0].max(1))
         .max()
         .unwrap_or(1);
-    let packed_height = font_atlases
+    let packed_height = descriptor
+        .font_atlases
         .iter()
         .map(|atlas| atlas.texture_size_px[1].max(1))
         .sum::<u32>()
         .max(1);
     let mut rgba8 = vec![0u8; (packed_width * packed_height * 4) as usize];
-    let mut atlas_origins_px = Vec::with_capacity(font_atlases.len());
+    let mut atlas_origins_px = Vec::with_capacity(descriptor.font_atlases.len());
     let mut atlas_y = 0u32;
 
-    for atlas in font_atlases {
+    for atlas in &descriptor.font_atlases {
         let atlas_width = atlas.texture_size_px[0].max(1);
         let atlas_height = atlas.texture_size_px[1].max(1);
-        let atlas_rgba = rasterize_shader_surface_font_atlas(atlas);
+        let atlas_rgba = rasterize_shader_surface_font_atlas(
+            atlas,
+            descriptor
+                .font_asset_sources_by_key
+                .get(&atlas.key)
+                .map(String::as_str),
+        );
         atlas_origins_px.push([0, atlas_y]);
 
         for row in 0..atlas_height as usize {
@@ -3507,15 +3531,27 @@ fn build_ui_shader_surface_texture_payload(
     }
 }
 
-fn rasterize_shader_surface_font_atlas(atlas: &RealtimeShaderCanvasFontAtlas) -> Vec<u8> {
-    if let Some(font) = try_load_shader_canvas_font(&atlas.family) {
+fn rasterize_shader_surface_font_atlas(
+    atlas: &RealtimeShaderCanvasFontAtlas,
+    asset_source: Option<&str>,
+) -> Vec<u8> {
+    if let Some(font) = try_load_shader_canvas_font(asset_source, &atlas.family) {
         return rasterize_shader_surface_font_atlas_with_ab_glyph(atlas, &font);
     }
 
     rasterize_shader_surface_font_atlas_bitmap(atlas)
 }
 
-fn try_load_shader_canvas_font(family: &str) -> Option<FontArc> {
+fn try_load_shader_canvas_font(asset_source: Option<&str>, family: &str) -> Option<FontArc> {
+    if let Some(asset_source) = asset_source {
+        let asset_path = PathBuf::from(asset_source);
+        if let Ok(bytes) = fs::read(&asset_path) {
+            if let Ok(font) = FontArc::try_from_vec(bytes) {
+                return Some(font);
+            }
+        }
+    }
+
     let normalized_family = normalize_shader_canvas_font_family(family);
     if normalized_family.is_empty()
         || normalized_family
@@ -5205,6 +5241,18 @@ fn resolve_ui_shader_surface_from_catalog(
         .filter(|layout| layout.shader == shader_name)
         .cloned()
         .collect::<Vec<_>>();
+    let font_atlases = runtime_canvas_binding
+        .map(|entry| entry.font_atlases.clone())
+        .unwrap_or_default();
+    let font_asset_sources_by_key = font_atlases
+        .iter()
+        .filter_map(|atlas| {
+            atlas.asset_key.as_deref().and_then(|asset_key| {
+                resolve_realtime_asset_source_path(realtime_catalog, asset_key)
+                    .map(|asset_source| (atlas.key.clone(), asset_source))
+            })
+        })
+        .collect();
 
     Ok(ResolvedUiShaderSurface {
         shader_ref: shader_ref.to_string(),
@@ -5227,9 +5275,8 @@ fn resolve_ui_shader_surface_from_catalog(
             .or_else(|| resolved_ref.as_ref().map(|entry| entry.key.clone())),
         wgsl_source,
         resource_layouts,
-        font_atlases: runtime_canvas_binding
-            .map(|entry| entry.font_atlases.clone())
-            .unwrap_or_default(),
+        font_atlases,
+        font_asset_sources_by_key,
         text_runs: runtime_canvas_binding
             .map(|entry| entry.text_runs.clone())
             .unwrap_or_default(),
@@ -5238,6 +5285,25 @@ fn resolve_ui_shader_surface_from_catalog(
             .unwrap_or_default(),
         warning,
     })
+}
+
+fn resolve_realtime_asset_source_path(
+    realtime_catalog: &RealtimeBundleCatalog,
+    asset_key: &str,
+) -> Option<String> {
+    let asset = realtime_catalog.assets_by_key.get(asset_key)?;
+    let source_path = PathBuf::from(&asset.source);
+    if source_path.is_absolute() {
+        return Some(source_path.to_string_lossy().to_string());
+    }
+
+    realtime_catalog
+        .asset_base_dir
+        .as_ref()
+        .map(|base_dir| base_dir.join(&source_path))
+        .unwrap_or(source_path)
+        .to_str()
+        .map(|value| value.to_string())
 }
 
 fn find_fragment_entry_point(
@@ -6754,6 +6820,7 @@ mod tests {
                     RealtimeShaderCanvasFontAtlas {
                         key: "surface.hero.atlas.default".to_string(),
                         family: "kain.builtin.bitmap_5x7".to_string(),
+                        asset_key: None,
                         glyphs: " HEROFASTLANE".to_string(),
                         cell_size_px: [8, 8],
                         texture_size_px: [96, 8],
@@ -6763,6 +6830,7 @@ mod tests {
                     RealtimeShaderCanvasFontAtlas {
                         key: "surface.hero.atlas.metrics".to_string(),
                         family: "kain.builtin.bitmap_5x7".to_string(),
+                        asset_key: None,
                         glyphs: "0123456789".to_string(),
                         cell_size_px: [8, 8],
                         texture_size_px: [80, 8],
@@ -6843,6 +6911,7 @@ mod tests {
             RealtimeShaderCanvasFontAtlas {
                 key: "atlas.primary".to_string(),
                 family: "kain.builtin.bitmap_5x7".to_string(),
+                asset_key: None,
                 glyphs: "ABC".to_string(),
                 cell_size_px: [8, 8],
                 texture_size_px: [24, 8],
@@ -6852,6 +6921,7 @@ mod tests {
             RealtimeShaderCanvasFontAtlas {
                 key: "atlas.metrics".to_string(),
                 family: "kain.builtin.bitmap_5x7".to_string(),
+                asset_key: None,
                 glyphs: "123456".to_string(),
                 cell_size_px: [8, 8],
                 texture_size_px: [48, 8],
@@ -6859,8 +6929,27 @@ mod tests {
                 rows: 1,
             },
         ];
+        let descriptor = ResolvedUiShaderSurface {
+            shader_ref: "ui.hero_surface".to_string(),
+            shader_name: "hero_surface_fragment".to_string(),
+            module_name: "ui_hero_surface".to_string(),
+            fragment_entry_point: "hero_main".to_string(),
+            stage: "fragment".to_string(),
+            derived_format: "wgsl".to_string(),
+            canonical_native_payload: "wgsl".to_string(),
+            shader_bundle_ref_key: Some("ui.hero_surface".to_string()),
+            wgsl_source:
+                "@fragment fn hero_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }"
+                    .to_string(),
+            resource_layouts: Vec::new(),
+            font_atlases: atlases,
+            font_asset_sources_by_key: BTreeMap::new(),
+            text_runs: Vec::new(),
+            resource_bindings: Vec::new(),
+            warning: None,
+        };
 
-        let payload = build_ui_shader_surface_texture_payload(&atlases);
+        let payload = build_ui_shader_surface_texture_payload(&descriptor);
 
         assert_eq!(payload.size_px, [48, 16]);
         assert_eq!(payload.atlas_origins_px, vec![[0, 0], [0, 8]]);
@@ -6886,6 +6975,7 @@ mod tests {
                 RealtimeShaderCanvasFontAtlas {
                     key: "atlas.primary".to_string(),
                     family: "kain.builtin.bitmap_5x7".to_string(),
+                    asset_key: None,
                     glyphs: "ABC".to_string(),
                     cell_size_px: [8, 8],
                     texture_size_px: [24, 8],
@@ -6895,6 +6985,7 @@ mod tests {
                 RealtimeShaderCanvasFontAtlas {
                     key: "atlas.metrics".to_string(),
                     family: "kain.builtin.bitmap_5x7".to_string(),
+                    asset_key: None,
                     glyphs: "123456".to_string(),
                     cell_size_px: [8, 8],
                     texture_size_px: [48, 8],
@@ -6902,6 +6993,7 @@ mod tests {
                     rows: 1,
                 },
             ],
+            font_asset_sources_by_key: BTreeMap::new(),
             text_runs: Vec::new(),
             resource_bindings: Vec::new(),
             warning: None,

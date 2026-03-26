@@ -109,6 +109,8 @@ pub struct RealtimeShaderCanvasBinding {
 pub struct RealtimeShaderCanvasFontAtlas {
     pub key: String,
     pub family: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub asset_key: Option<String>,
     pub glyphs: String,
     pub cell_size_px: [u32; 2],
     pub texture_size_px: [u32; 2],
@@ -373,6 +375,9 @@ fn collect_shader_canvas_surface_resources(
     if !text_runs.is_empty() {
         let atlas_key = format!("surface.node.{}.atlas.default", node.id.0);
         let glyphs = collect_shader_canvas_glyphs(&text_runs);
+        let font_asset_source =
+            first_string_prop(node, &["font_asset", "font_path", "font_source"])
+                .and_then(|value| normalize_asset_source(&value));
         let cell_width_px =
             first_u32_prop(node, &["font_cell_width_px", "font_cell_px"]).unwrap_or(8);
         let cell_height_px =
@@ -383,6 +388,9 @@ fn collect_shader_canvas_surface_resources(
             key: atlas_key.clone(),
             family: first_string_prop(node, &["font_family", "font"])
                 .unwrap_or_else(|| "kain.default-ui-sans".to_string()),
+            asset_key: font_asset_source
+                .as_deref()
+                .map(|source| realtime_asset_key("font", source)),
             glyphs,
             cell_size_px: [cell_width_px, cell_height_px],
             texture_size_px: [cell_width_px * columns, cell_height_px * rows.max(1)],
@@ -1008,21 +1016,64 @@ fn collect_assets(ui_output: Option<&UiBuildOutput>) -> Vec<RealtimeAssetBinding
 
     let mut assets = Vec::new();
     for node in output.tree.nodes.values() {
-        if let Some(asset) = node.props.get("asset").and_then(|value| value.as_str()) {
-            let asset = asset.trim();
-            if asset.is_empty() {
-                continue;
-            }
-            assets.push(RealtimeAssetBinding {
-                key: format!("asset::{asset}"),
-                kind: "runtime".to_string(),
-                source: asset.to_string(),
-            });
-        }
+        push_asset_binding_from_prop(&mut assets, node, "asset", "runtime");
+        push_asset_binding_from_first_prop(
+            &mut assets,
+            node,
+            &["font_asset", "font_path", "font_source"],
+            "font",
+        );
     }
     assets.sort_by(|left, right| left.key.cmp(&right.key));
     assets.dedup_by(|left, right| left.key == right.key);
     assets
+}
+
+fn push_asset_binding_from_prop(
+    assets: &mut Vec<RealtimeAssetBinding>,
+    node: &UiNode,
+    key: &str,
+    kind: &str,
+) {
+    if let Some(source) =
+        node_prop_string(node, key).and_then(|value| normalize_asset_source(&value))
+    {
+        assets.push(RealtimeAssetBinding {
+            key: realtime_asset_key(kind, &source),
+            kind: kind.to_string(),
+            source,
+        });
+    }
+}
+
+fn push_asset_binding_from_first_prop(
+    assets: &mut Vec<RealtimeAssetBinding>,
+    node: &UiNode,
+    keys: &[&str],
+    kind: &str,
+) {
+    if let Some(source) =
+        first_string_prop(node, keys).and_then(|value| normalize_asset_source(&value))
+    {
+        assets.push(RealtimeAssetBinding {
+            key: realtime_asset_key(kind, &source),
+            kind: kind.to_string(),
+            source,
+        });
+    }
+}
+
+fn normalize_asset_source(source: &str) -> Option<String> {
+    let trimmed = source.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn realtime_asset_key(kind: &str, source: &str) -> String {
+    format!("{kind}::{source}")
 }
 
 fn program_has_explicit_compute_metadata(program: &TypedProgram) -> bool {
@@ -1355,7 +1406,7 @@ shader fragment hero_surface(uv: Vec2) -> Vec4:
 
 component App():
     render <panel>
-        <canvas title="Hero Surface" text="Fast lane" shader_ref="hero_surface" shader_stage="fragment" shader_format="spirv" />
+        <canvas title="Hero Surface" text="Fast lane" shader_ref="hero_surface" shader_stage="fragment" shader_format="spirv" font_asset="fonts/ui/hero.ttf" />
     </panel>
 "#;
         let tokens = Lexer::new(source).tokenize().expect("tokens");
@@ -1376,8 +1427,18 @@ component App():
         );
         assert_eq!(bundle.shader_canvases[0].composition_mode, "shader-canvas");
         assert_eq!(bundle.shader_canvases[0].font_atlases.len(), 1);
+        assert_eq!(
+            bundle.shader_canvases[0].font_atlases[0]
+                .asset_key
+                .as_deref(),
+            Some("font::fonts/ui/hero.ttf")
+        );
         assert_eq!(bundle.shader_canvases[0].text_runs.len(), 2);
         assert_eq!(bundle.shader_canvases[0].resource_bindings.len(), 4);
+        assert!(bundle
+            .assets
+            .iter()
+            .any(|asset| asset.key == "font::fonts/ui/hero.ttf" && asset.kind == "font"));
         assert!(bundle
             .tool_caps
             .iter()

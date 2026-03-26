@@ -3,7 +3,7 @@
   "seo": {
     "title": "Mesh Actor Ops | Kain Actor Server Site",
     "description": "Actor-backed local site runtime with route contracts, command docs, search, FAQ, and control-room surfaces.",
-    "image": "/social-actors.png"
+    "image": "social-card.svg"
   },
   "nav": [
     { "label": "Routes", "href": "#routes" },

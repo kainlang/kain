@@ -16,6 +16,7 @@
     { "id": "actors", "kind": "actor_mesh", "eyebrow": "Actors", "title": "Actor ownership", "source": "content.actor_roles" },
     { "id": "scene", "kind": "scene_spotlight", "eyebrow": "Scene", "title": "Command spindle", "source": "scene" },
     { "id": "docs", "kind": "docs_grid", "eyebrow": "Docs", "title": "Operational guides", "source": "content.docs_links" },
+    { "id": "blog", "kind": "blog_roll", "eyebrow": "Blog", "title": "Operator notes", "source": "content.blog_posts" },
     { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Operator lane questions", "source": "content.faq_items" },
     { "id": "intake", "kind": "form_panel", "eyebrow": "Request", "title": "Capture operator workflow requests", "source": "content.forms.operator_request" },
     { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }

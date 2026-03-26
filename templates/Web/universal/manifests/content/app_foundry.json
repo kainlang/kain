@@ -3,7 +3,7 @@
   "seo": {
     "title": "App Foundry | Kain Product App Template",
     "description": "A Kain web archetype for product apps, member workspaces, auth strategy, integrations, and typed local data collections.",
-    "image": "/social-app-foundry.png"
+    "image": "social-card.svg"
   },
   "nav": [
     { "label": "Modules", "href": "#modules" },

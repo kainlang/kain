@@ -1,14 +1,16 @@
 {
+  "includes": ["blog_shared"],
   "brand": "Signalcraft Systems",
   "seo": {
     "title": "Signalcraft Systems | Kain Universal Business Site",
     "description": "Manifest-driven launch system for product websites, pricing rails, docs links, search, and local intake flows.",
-    "image": "/social-signalcraft.png"
+    "image": "social-card.svg"
   },
   "nav": [
     { "label": "Systems", "href": "#systems" },
     { "label": "Pricing", "href": "#pricing" },
     { "label": "Proof", "href": "#proof" },
+    { "label": "Blog", "href": "#blog" },
     { "label": "FAQ", "href": "#faq" },
     { "label": "Start", "href": "#intake" }
   ],

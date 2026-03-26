@@ -1,13 +1,15 @@
 {
+  "includes": ["blog_shared"],
   "brand": "Spectrum Portfolio",
   "seo": {
     "title": "Spectrum Portfolio | Kain Universal Portfolio Site",
     "description": "Portfolio lane with searchable case studies, testimonials, narrative sequencing, and local brief capture.",
-    "image": "/social-portfolio.png"
+    "image": "social-card.svg"
   },
   "nav": [
     { "label": "Work", "href": "#work" },
     { "label": "Proof", "href": "#proof" },
+    { "label": "Blog", "href": "#blog" },
     { "label": "Search", "href": "#search" },
     { "label": "Brief", "href": "#brief" }
   ],

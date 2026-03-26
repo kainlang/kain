@@ -1,5 +1,6 @@
 {
   "entries": {
+    "blog_shared": "blog_shared.json",
     "signalcraft_business": "signalcraft_business.json",
     "spectrum_portfolio": "spectrum_portfolio.json",
     "luminous_immersive": "luminous_immersive.json",

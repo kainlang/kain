@@ -61,6 +61,7 @@ What future work should preserve:
 Update:
 
 - the smoke now has a real extractor entrypoint in `smoketest/3D/sm64_fast3d_smoke/local_crate/src/extractor.rs` that reads `actors/mario/model.inc.c`, parses light groups, vertex arrays, display lists, and a small SM64 combine-mode subset, and emits `scene_manifest_title_face.json`
+- that adapter logic has now been promoted into the workspace backend crate `crates/kain-fast3d-runtime`, and the smoke folder's scripts build and run the workspace crate instead of a smoke-local engine binary
 - the runtime now shades lit vertices after model transforms instead of before them, which matters for imported geometry because extracted display lists often need adapter-owned rotation and recentering before they resemble a camera-facing scene
 - dedicated helper scripts now build, extract, launch, and snapshot the title-face lane without touching shared renderer crates: `extract_sm64_title_face.bat`, `launch_title_face_visual_exe.bat`, and `capture_title_face_snapshot.bat`
 - the current title-face proof uses real extracted Mario face geometry and display-list structure, but still uses generated fallback title-card and facial textures because the external checkout does not ship the original extracted title-screen blobs or baserom assets
@@ -98,13 +99,20 @@ Why this matters:
 What future work should preserve:
 
 - keep Fabric contract truth anchored to the canonical interop payload kinds instead of growing a second output typing system
-- keep Python and Node on their normalized serialized-input lane for foreign values, but let the host keep ownership of the real shared buffer and image handles
+- keep Python and Node on the canonical `fabric_inputs` lane now that their bridge crates can project shared buffer/image contracts into language-native objects without reopening host-internal handle APIs
 - keep polyglot smoke fixtures and generated templates close enough that one can continue serving as the proving ground for the other
 
 Update:
 
 - Python and Node multi-output steps now fail with a structured `missing_output_field` Fabric error when a declared output field is absent, so downstream debugging no longer depends on raw bridge exception text
 - `kain fabric init --template polyglot` now writes `FABRIC.README.md` alongside the runnable scaffold so the generated project itself explains the smoke-grade pipeline shape and quickstart commands
+
+Update:
+
+- the Python Fabric lane now receives canonical `fabric_inputs`, with `kain-python` projecting shared buffers and images into contract-shaped Python objects whose `bytes` fields are real `bytearray` values instead of serialized JSON blobs
+- the Node Fabric lane now receives the same canonical `fabric_inputs`, with `kain-node` projecting shared buffers and images into contract-shaped JavaScript objects whose `bytes` fields are `Uint8Array`
+- `kain-host` smoketests now keep deterministic work roots under `target/fab-init` and `target/fab-smoke`, preserving `.kain/cache` across separate `cargo test` invocations so repeated end-to-end Fabric runs no longer rebuild bridge artifacts inside the test body
+- the first rerun after switching to deterministic roots still seeds those stable caches; after that seed, the heavy `polyglot_fixture` and `polyglot_init_template` test bodies drop back under a second and the remaining wall time is ordinary Cargo compilation
 
 ## 2026-03-25 - Viewport Camera And Presentation Defaults Became Bundle-Owned
 
@@ -268,8 +276,10 @@ What future work should preserve:
 Update:
 
 - `kain-ui-native` now prefers `ab_glyph` rasterization for shader-canvas font atlases and resolves that through a small data-driven registry of system-font aliases and candidate paths, with `kain.default-ui-sans` as the default emitted atlas family from `kain-core`
+- shader-canvas font atlases can now point at the shared realtime asset catalog through `asset_key`, and `kain-driver` materializes those font files into the native app artifact set while rewriting the emitted realtime bundle to the packaged filenames
+- `kain-ui-native` now resolves packaged realtime font assets relative to the loaded realtime bundle before falling back to system aliases, so font quality is no longer tied to host-local font installation for packaged apps
 - the packed multi-atlas texture contract, atlas-origin storage records, and per-app texture cache were preserved exactly, so the quality upgrade stayed under the existing shader-surface resource contract instead of inventing a second text path
-- the bitmap 5x7 rasterizer remains as compatibility fallback when the requested font alias cannot be resolved on the current machine
+- the bitmap 5x7 rasterizer remains as compatibility fallback when neither a packaged asset nor a requested font alias can be resolved on the current machine
 
 ## 2026-03-25 - Fabric Python Execution Stopped Leaking Through Kain Host Internals
 

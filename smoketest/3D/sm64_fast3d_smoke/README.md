@@ -6,6 +6,7 @@ Why it exists:
 - it proves a display-list-driven native viewer path without polluting `crates/kain-3D`
 - it keeps the command-stream, matrix stack, texture sampling, and combiner logic in a dedicated smoke crate
 - it gives us a concrete target format that a future `sm64_all.kn` extractor can emit into
+- the smoke folder is now a consumer of the backend crate `crates/kain-fast3d-runtime` instead of owning the adapter runtime itself
 
 What it does today:
 - loads a manifest-driven Fast3D scene description from `scene_manifest.json`
@@ -20,11 +21,12 @@ What it does today:
 Primary files:
 - `scene_manifest.json`
 - `scene_manifest_title_face.json`
-- `local_crate/src/model.rs`
-- `local_crate/src/runtime.rs`
-- `local_crate/src/rasterizer.rs`
-- `local_crate/src/extractor.rs`
-- `local_crate/src/viewer.rs`
+- `crates/kain-fast3d-runtime/src/lib.rs`
+- `crates/kain-fast3d-runtime/src/model.rs`
+- `crates/kain-fast3d-runtime/src/runtime.rs`
+- `crates/kain-fast3d-runtime/src/rasterizer.rs`
+- `crates/kain-fast3d-runtime/src/extractor.rs`
+- `crates/kain-fast3d-runtime/src/viewer.rs`
 - `sm64_import_profile.render_us.json`
 - `refresh_sm64_import.ps1`
 
@@ -34,6 +36,8 @@ Run it:
 build_visual_exe.bat
 launch_visual_exe.bat
 ```
+
+The release launcher now builds the workspace crate `kain-fast3d-runtime` and copies its native executable into `outputs/`.
 
 Generate a snapshot without opening the window:
 
@@ -75,6 +79,10 @@ Current title-face reality:
 - the title-face smoke now uses real extracted Mario face geometry, lights, and display-list structure from `actors/mario/model.inc.c`
 - the provided external SM64 checkout still does not include the original extracted title-screen texture blobs or a baserom, so the background card plus some facial textures are generated fallback assets rather than pixel-perfect Nintendo originals
 - the current composition intentionally favors a truthful compiled extraction proof over exact title-screen parity; the next step for higher fidelity is wider texture/segment extraction, not moving N64-specific behavior into shared `kain-3D`
+
+Native-hosting direction:
+- the backend adapter now lives in `crates/kain-fast3d-runtime`, which exposes the CLI/runtime entrypoint that the smoke scripts call
+- the crate supports an env-driven default manifest through `KAIN_FAST3D_MANIFEST`, which is the first clean step toward letting future native launchers host the adapter without the smoke folder being the runtime owner
 
 Where Fabric fits cleanly:
 - keep display-list extraction and frame rendering in this isolated adapter lane

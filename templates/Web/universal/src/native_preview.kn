@@ -49,8 +49,8 @@ component App():
                         <text role="caption">experience archetypes</text>
                     </panel>
                     <panel scope="web_pack" variant="card">
-                        <text role="metric">9</text>
-                        <text role="caption">artifacts per site (+client bundle)</text>
+                        <text role="metric">10+</text>
+                        <text role="caption">artifacts per site (+blog pages)</text>
                     </panel>
                     <panel scope="web_pack" variant="card">
                         <text role="metric">0</text>

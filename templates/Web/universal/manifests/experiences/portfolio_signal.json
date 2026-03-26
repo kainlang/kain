@@ -11,6 +11,7 @@
     { "id": "work", "kind": "portfolio_grid", "eyebrow": "Work", "title": "Selected work", "source": "content.portfolio_entries" },
     { "id": "voices", "kind": "testimonials", "eyebrow": "Proof", "title": "Client and peer proof", "source": "content.testimonials" },
     { "id": "timeline", "kind": "timeline", "eyebrow": "Flow", "title": "How the portfolio reads", "source": "content.timeline" },
+    { "id": "blog", "kind": "blog_roll", "eyebrow": "Blog", "title": "Process notes", "source": "content.blog_posts" },
     { "id": "search", "kind": "search_panel", "eyebrow": "Search", "title": "Search project notes", "source": "experience.search_panel" },
     { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Portfolio questions", "source": "content.faq_items" },
     { "id": "brief", "kind": "form_panel", "eyebrow": "Brief", "title": "Start a conversation", "source": "content.forms.brief" },

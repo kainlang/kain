@@ -12,7 +12,7 @@ use kain_core::diagnostics::SpanMapper;
 use kain_core::error::KainError;
 use kain_core::{
     build_ui_output_from_source, realtime_app_bundle_to_json, runtime_contract_bundle_to_json,
-    CompileTarget, Lexer, Parser, RealtimeAppBundle, RuntimeCapability,
+    CompileTarget, Lexer, Parser, RealtimeAppBundle, RealtimeAssetBinding, RuntimeCapability,
     RuntimeCompatibilityMetadata, RuntimeContractBundle, RuntimePlatformAvailabilityMetadata,
     RuntimeServiceBinding, RuntimeVersionRecord,
 };
@@ -464,6 +464,10 @@ impl DriverSession {
             .map_err(io_error("create native app artifact directory"))?;
 
         let mut artifact_paths = Vec::new();
+        let (materialized_realtime_bundle, packaged_realtime_asset_paths) =
+            materialize_realtime_assets(&bundle.realtime, &artifact_root)?;
+        artifact_paths.extend(packaged_realtime_asset_paths.iter().cloned());
+
         let runtime_bundle_path = artifact_root.join(NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME);
         let runtime_bundle_json = render_runtime_bundle_json(bundle)?;
         fs::write(&runtime_bundle_path, runtime_bundle_json.as_bytes())
@@ -487,7 +491,7 @@ impl DriverSession {
         artifact_paths.push(runtime_compatibility_path.clone());
 
         let realtime_bundle_path = artifact_root.join(NATIVE_APP_REALTIME_BUNDLE_FILE_NAME);
-        let realtime_bundle_json = render_realtime_bundle_json(bundle)?;
+        let realtime_bundle_json = render_realtime_bundle_json(&materialized_realtime_bundle)?;
         fs::write(&realtime_bundle_path, realtime_bundle_json.as_bytes())
             .map_err(io_error("write native app realtime bundle"))?;
         artifact_paths.push(realtime_bundle_path.clone());
@@ -683,6 +687,12 @@ impl DriverSession {
                     .filter(|file_name| *file_name != COMPUTE_RESIDENCY_FILE_NAME),
             );
             runtime_sidecar_file_names.extend(
+                packaged_realtime_asset_paths
+                    .iter()
+                    .filter_map(|path| path.file_name().and_then(OsStr::to_str))
+                    .filter(|file_name| !file_name.is_empty()),
+            );
+            runtime_sidecar_file_names.extend(
                 packaged_c_ffi_manifest_path
                     .iter()
                     .chain(c_ffi_artifact_paths.iter())
@@ -857,6 +867,56 @@ fn render_main_rs(
     format!(
         "#![cfg_attr(all(target_os = \"windows\", not(debug_assertions)), windows_subsystem = \"windows\")]\n\nuse std::path::PathBuf;\n\n{c_ffi_import}use {runtime_module_name}::run_bundled_app_json;\n\nconst KAIN_RUNTIME_BUNDLE: &str = include_str!({runtime_bundle_include_path});\n\nfn resolve_runtime_sidecar(file_name: &str) -> Option<PathBuf> {{\n    if let Some(current_exe_candidate) = std::env::current_exe().ok().and_then(|exe| {{\n        exe.parent().map(|dir| dir.join(file_name)).filter(|path| path.exists())\n    }}) {{\n        return Some(current_exe_candidate);\n    }}\n    let manifest_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(\"generated\").join(file_name);\n    if manifest_candidate.exists() {{\n        return Some(manifest_candidate);\n    }}\n    None\n}}\n\nfn resolve_project_sidecar(file_name: &str, relative_source_path: &str) -> Option<PathBuf> {{\n    if let Some(runtime_sidecar) = resolve_runtime_sidecar(file_name) {{\n        return Some(runtime_sidecar);\n    }}\n    let project_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(relative_source_path);\n    if project_candidate.exists() {{\n        return Some(project_candidate);\n    }}\n    None\n}}\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n    if let Some(path) = resolve_runtime_sidecar({runtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_RUNTIME_BUNDLE\", &path);\n    }}\n    if let Some(path) = resolve_runtime_sidecar({realtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_REALTIME_BUNDLE\", &path);\n    }}\n{compute_residency_setter}{shader_bundle_setter}{c_ffi_loader}    if let Some(path) = resolve_project_sidecar({app_manifest_file_name}, {app_manifest_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_MANIFEST\", &path);\n    }}\n    if let Some(path) = resolve_project_sidecar({app_snapshot_file_name}, {app_snapshot_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_SNAPSHOT\", &path);\n    }}\n    run_bundled_app_json(KAIN_RUNTIME_BUNDLE)\n}}\n"
     )
+}
+
+fn materialize_realtime_assets(
+    realtime_bundle: &RealtimeAppBundle,
+    artifact_root: &Path,
+) -> Result<(RealtimeAppBundle, Vec<PathBuf>), KainError> {
+    let mut materialized = realtime_bundle.clone();
+    let mut packaged_paths = Vec::new();
+    for asset in &mut materialized.assets {
+        let source_path = PathBuf::from(&asset.source);
+        if !source_path.exists() {
+            return Err(KainError::runtime(format!(
+                "Native app asset '{}' points to missing source '{}'",
+                asset.key, asset.source
+            )));
+        }
+
+        let packaged_file_name = packaged_realtime_asset_file_name(asset);
+        let destination = artifact_root.join(&packaged_file_name);
+        if source_path != destination {
+            fs::copy(&source_path, &destination)
+                .map_err(io_error("copy native app realtime asset"))?;
+        }
+        asset.source = packaged_file_name;
+        packaged_paths.push(destination);
+    }
+
+    Ok((materialized, packaged_paths))
+}
+
+fn packaged_realtime_asset_file_name(asset: &RealtimeAssetBinding) -> String {
+    let extension = Path::new(&asset.source)
+        .extension()
+        .and_then(OsStr::to_str)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("bin");
+    let sanitized_key = asset
+        .key
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>()
+        .trim_matches('_')
+        .to_string();
+    format!("kain_asset_{}.{}", sanitized_key, extension)
 }
 
 fn ensure_native_c_ffi_runtime_contract_metadata(
@@ -1503,11 +1563,10 @@ fn apply_runtime_compatibility_metadata(
     }
 }
 
-fn render_realtime_bundle_json(bundle: &NativeAppBundle) -> Result<String, KainError> {
-    realtime_app_bundle_to_json(&bundle.realtime).map_err(|err| {
+fn render_realtime_bundle_json(realtime_bundle: &RealtimeAppBundle) -> Result<String, KainError> {
+    realtime_app_bundle_to_json(realtime_bundle).map_err(|err| {
         KainError::runtime(format!(
-            "Failed to serialize realtime app bundle for {}: {err}",
-            bundle.metadata.app_name
+            "Failed to serialize native app realtime bundle: {err}"
         ))
     })
 }
@@ -1697,6 +1756,81 @@ component App():
             .artifact_paths
             .iter()
             .any(|path| path.ends_with(NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME)));
+    }
+
+    #[test]
+    fn materialize_native_app_bundle_packages_shader_canvas_font_assets() {
+        let temp = TempDir::new().expect("temp dir");
+        let project_dir = temp.path().join("native-app-font-assets");
+        let font_path = temp.path().join("hero_font.ttf");
+        fs::write(&font_path, b"dummy-font-bytes").expect("font file");
+        let source = format!(
+            r#"
+shader fragment hero_surface(uv: Vec2) -> Vec4:
+    return vec4(uv.x, uv.y, 1.0, 1.0)
+
+component App():
+    render <panel>
+        <canvas title="Hero Surface" text="Fast lane" shader_ref="hero_surface" shader_stage="fragment" shader_format="spirv" font_asset="{}" />
+    </panel>
+"#,
+            path_for_toml(&font_path)
+        );
+
+        let bundle = compile_native_app_bundle(
+            &source,
+            &NativeAppBundleConfig {
+                source_file_name: Some("font_asset_test.kn".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("bundle should compile");
+
+        let materialized = materialize_native_app_bundle(
+            &source,
+            &bundle,
+            &NativeAppMaterializationConfig {
+                project_dir: project_dir.clone(),
+                runtime_crate_name: "kain-ui-native".to_string(),
+                runtime_dependency: NativeAppRuntimeDependency::Version("0.1.0".to_string()),
+                artifact_output_dir: PathBuf::from("generated"),
+                build_executable: false,
+                release: false,
+                executable_output_dir: None,
+            },
+        )
+        .expect("materialization should succeed");
+
+        let realtime_bundle_path = materialized
+            .artifact_paths
+            .iter()
+            .find(|path| path.ends_with(NATIVE_APP_REALTIME_BUNDLE_FILE_NAME))
+            .expect("realtime bundle sidecar");
+        let realtime_bundle_json =
+            fs::read_to_string(realtime_bundle_path).expect("realtime bundle");
+        let realtime_bundle =
+            realtime_app_bundle_from_json(&realtime_bundle_json).expect("parse realtime bundle");
+        let font_asset = realtime_bundle
+            .assets
+            .iter()
+            .find(|asset| asset.kind == "font")
+            .expect("font asset binding");
+
+        assert_eq!(
+            font_asset.key,
+            format!("font::{}", path_for_toml(&font_path))
+        );
+        assert_ne!(font_asset.source, path_for_toml(&font_path));
+        assert!(font_asset.source.starts_with("kain_asset_font_"));
+        assert!(materialized.artifact_paths.iter().any(|path| {
+            path.file_name().and_then(OsStr::to_str) == Some(font_asset.source.as_str())
+        }));
+        assert_eq!(
+            realtime_bundle.shader_canvases[0].font_atlases[0]
+                .asset_key
+                .as_deref(),
+            Some(font_asset.key.as_str())
+        );
     }
 
     #[test]

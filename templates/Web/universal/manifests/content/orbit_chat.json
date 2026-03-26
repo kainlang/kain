@@ -3,7 +3,7 @@
   "seo": {
     "title": "Orbit Chat Lab | Kain Chat-First Site",
     "description": "Conversation-first website lane with prompt surfaces, search, route-aware replies, FAQ, and intake wiring.",
-    "image": "/social-chat.png"
+    "image": "social-card.svg"
   },
   "nav": [
     { "label": "Chat", "href": "#chat" },

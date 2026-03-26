@@ -418,6 +418,10 @@ mod tests {
     fn fixture_manifest_path() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..")
+            .join("..")
+            .join("smoketest")
+            .join("3D")
+            .join("sm64_fast3d_smoke")
             .join("scene_manifest.json")
     }
 

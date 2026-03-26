@@ -1,15 +1,17 @@
 {
+  "includes": ["blog_shared"],
   "brand": "Operator Foundry",
   "seo": {
     "title": "Operator Foundry | Kain Command And Ops Site",
     "description": "Operator-dashboard archetype with actor meshes, route catalogs, prompt decks, capability matrices, and command-center flows.",
-    "image": "/social-operator.png"
+    "image": "social-card.svg"
   },
   "nav": [
     { "label": "Prompts", "href": "#prompts" },
     { "label": "Routes", "href": "#routes" },
     { "label": "Actors", "href": "#actors" },
     { "label": "Scene", "href": "#scene" },
+    { "label": "Blog", "href": "#blog" },
     { "label": "Request", "href": "#intake" }
   ],
   "hero": {

@@ -3,7 +3,7 @@
   "seo": {
     "title": "Commerce Signal | Kain Commerce Template",
     "description": "A Kain web archetype for offer stacks, memberships, auth handoff, integrations, and commerce-first storytelling.",
-    "image": "/social-commerce-signal.png"
+    "image": "social-card.svg"
   },
   "nav": [
     { "label": "Offers", "href": "#offers" },

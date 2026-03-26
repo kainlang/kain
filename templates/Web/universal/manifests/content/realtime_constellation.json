@@ -3,7 +3,7 @@
   "seo": {
     "title": "Realtime Constellation | Kain Realtime Template",
     "description": "A Kain web archetype for chat-first and operator-heavy realtime websites with channel metadata, actor routes, prompts, and incident dashboards.",
-    "image": "/social-realtime-constellation.png"
+    "image": "social-card.svg"
   },
   "nav": [
     { "label": "Realtime", "href": "#realtime" },

@@ -1676,6 +1676,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "kain-fast3d-runtime"
+version = "0.1.0"
+dependencies = [
+ "eframe",
+ "font8x8",
+ "glam",
+ "png 0.17.16",
+ "regex",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "khronos-egl"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2821,13 +2834,7 @@ dependencies = [
 name = "sm64_fast3d_smoke_viewer"
 version = "0.1.0"
 dependencies = [
- "eframe",
- "font8x8",
- "glam",
- "png 0.17.16",
- "regex",
- "serde",
- "serde_json",
+ "kain-fast3d-runtime",
 ]
 
 [[package]]

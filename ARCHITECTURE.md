@@ -92,10 +92,10 @@ The native shader-canvas UI lane now follows this contract:
 
 - `kain-ui` owns authored semantic surfaces and shader-canvas intent on canvas-like nodes
 - `kain-core` emits explicit `shader_canvases` entries in `RealtimeAppBundle` so hosts do not have to rediscover shader-canvas bindings by guessing from local UI props
-- `kain-core` also emits first-class shader-canvas text resources per surface: font atlas descriptors, text runs, and declared runtime resource bindings
-- `kain-driver` materializes shader bundles and native app sidecars that keep shader-canvas metadata, shader refs, and native UI bundles aligned
+- `kain-core` also emits first-class shader-canvas text resources per surface: font atlas descriptors, text runs, declared runtime resource bindings, and optional asset-backed font references through the shared realtime asset catalog
+- `kain-driver` materializes shader bundles and native app sidecars that keep shader-canvas metadata, shader refs, native UI bundles, and packaged realtime font assets aligned
 - `kain-ui-native` resolves shader canvases from realtime bundle metadata first and only falls back to surface-local shader refs when metadata is missing
-- `kain-ui-native` now turns the shader-canvas text contract into real GPU inputs by serializing atlas/text metadata into the surface storage buffer and synthesizing a host-provisioned packed atlas texture, preferring `ab_glyph` rasterization from data-driven system-font aliases with bitmap fallback and cache reuse across repeated surfaces that share atlas content
+- `kain-ui-native` now turns the shader-canvas text contract into real GPU inputs by serializing atlas/text metadata into the surface storage buffer and synthesizing a host-provisioned packed atlas texture, preferring packaged realtime font assets first, then `ab_glyph` rasterization from data-driven system-font aliases, with bitmap fallback and cache reuse across repeated surfaces that share atlas content
 - canonical native shader payload remains SPIR-V, while the current WGPU native host may consume derived WGSL or runtime-transpiled WGSL from the same bundle family
 
 The architecture rule here is the same as the viewport and compute lanes: shader-canvas execution can optimize presentation, but it must stay subordinate to compiler-owned bundle truth rather than inventing a renderer-local UI shader dialect.
@@ -151,6 +151,7 @@ If the debug CLI is missing:
 - Platform- or console-specific render-command experiments should start as isolated adapter lanes under `smoketest/` or another dedicated adapter crate before any shared `kain-3D` contract is widened. The new `smoketest/3D/sm64_fast3d_smoke` is the pattern: it owns its own manifest, segment registry, display-list interpreter, and combiner logic instead of baking N64-specific assumptions into the common scene/material API too early.
 - The SM64 import refresh workflow for that lane is now profile-driven and lives beside the smoke under `smoketest/3D/sm64_fast3d_smoke`. Use `refresh_sm64_import.bat` and `sm64_import_profile.render_us.json` instead of reconstructing long one-off `import-c` commands from memory.
 - The same smoke now has a title-face extraction lane. `extract_sm64_title_face.bat`, `launch_title_face_visual_exe.bat`, and `capture_title_face_snapshot.bat` are the quickest path to a compiled proof that uses real extracted Mario face geometry while keeping N64-specific semantics inside the adapter.
+- The adapter is no longer only a smoke-local runtime. The reusable host surface now lives in `crates/kain-fast3d-runtime`, while the smoke folder acts as a consumer that provides manifests, scripts, and validation assets.
 
 ## Common Errors
 
@@ -164,11 +165,12 @@ If the debug CLI is missing:
 - The native shader-canvas lane is SPIR-V-canonical at the bundle level, but the current WGPU host still resolves WGSL for execution. Do not mistake that compatibility bridge for permission to move shader-canvas truth out of the emitted bundles.
 - Fabric Python execution should stay behind `kain-python` helpers. Do not make `kain-host` reach directly into `pyo3` imports or `PythonScopeState` internals when the Python lane can expose a narrower execution API.
 - Fabric runtime ownership is now split cleanly: `kain-omni` owns `KAIN.fabric.toml` schema/validation/report types, while `kain-host` owns local execution, dependency plumbing, and runtime adapter behavior.
-- Fabric step inputs now have two host-facing forms: raw `fabric_inputs` for Kain/C/Rust glue that needs canonical shared contract handles, and normalized `fabric_serialized_inputs` for Python/Node glue that cannot accept foreign host objects directly.
-- Fabric Python and Node steps now support mixed named outputs when they return a dict/object whose fields match the manifest's declared output names. Value outputs are normalized, while shared outputs still flow through canonical host-owned interop handles.
+- Fabric step inputs now flow through raw `fabric_inputs` for every runtime adapter. Kain/C/Rust glue consumes canonical host objects directly, while the Python and Node bridge crates project shared buffer/image payloads into language-native contract objects with `bytearray` and `Uint8Array` bytes views.
+- Fabric Python and Node steps now support mixed named outputs when they return a dict/object whose fields match the manifest's declared output names. Shared outputs round-trip through the canonical host-owned interop contract family instead of falling back to string-only placeholders.
 - Missing declared Python/Node output fields now fail with structured Fabric errors keyed as `missing_output_field`, with `output_name` recorded in failure details. Preserve that contract surface when touching adapter execution or bridge helpers.
 - The durable end-to-end Fabric proof lives under `smoketest/fabric/polyglot_local`. It is the quickest repo-local example of Python -> Kain -> C ABI -> Rust crate -> Node execution with typed shared image/shared buffer flow.
 - `kain fabric init --template polyglot` now emits a runnable local smoke-grade scaffold, including its local Rust crate manifest and native C fixture, instead of a validation-only placeholder.
+- Fabric host smoketests now use deterministic roots under `target/fab-init` and `target/fab-smoke`, preserving `.kain/cache` across separate `cargo test` invocations. If a rerun is still slow, the remaining wall time is usually Cargo recompilation rather than bridge cache misses inside the test body.
 - The generated polyglot scaffold also writes `FABRIC.README.md`; treat that file as the first-stop quickstart for the smoke-grade local pipeline shape.
 - For SM64/Fast3D research, Fabric should stay an optional post-extraction simulation lane that feeds buffers or textures into the adapter. Do not make display-list extraction or the base render loop depend on Fabric before the geometry and segment path is stable.
 

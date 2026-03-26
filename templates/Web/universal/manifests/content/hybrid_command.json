@@ -1,9 +1,10 @@
 {
+  "includes": ["blog_shared"],
   "brand": "Hybrid Command",
   "seo": {
     "title": "Hybrid Command | Kain Universal Web System",
     "description": "The full-spectrum Kain web archetype that mixes business launch, portfolio proof, immersive scene staging, chat, docs search, forms, and actor routes.",
-    "image": "/social-hybrid.png"
+    "image": "social-card.svg"
   },
   "nav": [
     { "label": "System", "href": "#system" },
@@ -17,6 +18,7 @@
     { "label": "Scene", "href": "#scene" },
     { "label": "Proof", "href": "#proof" },
     { "label": "Search", "href": "#search" },
+    { "label": "Blog", "href": "#blog" },
     { "label": "Routes", "href": "#routes" },
     { "label": "Start", "href": "#intake" }
   ],

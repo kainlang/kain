@@ -12,6 +12,7 @@
     { "id": "pricing", "kind": "pricing", "eyebrow": "Pricing", "title": "Commercial rails", "source": "content.pricing_tiers" },
     { "id": "social-proof", "kind": "testimonials", "eyebrow": "Voices", "title": "Operator proof", "source": "content.testimonials" },
     { "id": "docs", "kind": "docs_grid", "eyebrow": "Docs", "title": "Launch docs and operator guides", "source": "content.docs_links" },
+    { "id": "blog", "kind": "blog_roll", "eyebrow": "Blog", "title": "Launch notes", "source": "content.blog_posts" },
     { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Common questions", "source": "content.faq_items" },
     { "id": "intake", "kind": "form_panel", "eyebrow": "Intake", "title": "Start the launch", "source": "content.forms.contact" },
     { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }

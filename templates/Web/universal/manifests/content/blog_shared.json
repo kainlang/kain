@@ -1,0 +1,36 @@
+{
+  "blog": {
+    "kicker": "Blog",
+    "title": "Kain web notes",
+    "body": "Markdown-driven posts emitted as first-class artifacts. Use this lane for changelogs, docs, release notes, and technical deep dives without adding a CMS dependency."
+  },
+  "blog_posts": [
+    {
+      "id": "shipping-without-rust",
+      "slug": "shipping-without-rust",
+      "title": "Shipping web without Rust",
+      "summary": "Kain owns authored intent; Node FFI owns browser packaging. No cargo required.",
+      "published_at": "2026-03-26",
+      "tags": ["kain", "node", "ffi", "templates"],
+      "markdown_path": "manifests/posts/shipping-without-rust.md"
+    },
+    {
+      "id": "actor-servers-on-day-one",
+      "slug": "actor-servers-on-day-one",
+      "title": "Actor servers on day one",
+      "summary": "Treat routes as an actor contract and keep the runtime reportable from the start.",
+      "published_at": "2026-03-26",
+      "tags": ["actors", "routes", "ws", "sse"],
+      "markdown_path": "manifests/posts/actor-servers-on-day-one.md"
+    },
+    {
+      "id": "three-d-webgl-islands",
+      "slug": "three-d-webgl-islands",
+      "title": "3D WebGL islands (Three.js)",
+      "summary": "Embed real WebGL scenes as client islands while keeping the page shell manifest-driven.",
+      "published_at": "2026-03-26",
+      "tags": ["3d", "webgl", "three", "islands"],
+      "markdown_path": "manifests/posts/three-d-webgl-islands.md"
+    }
+  ]
+}

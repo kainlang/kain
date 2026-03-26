@@ -1,14 +1,17 @@
 {
+  "includes": ["blog_shared"],
   "brand": "Atlas Knowledge Hub",
   "seo": {
     "title": "Atlas Knowledge Hub | Kain Docs And Search Site",
     "description": "Knowledge-base archetype with search, onboarding rails, capability matrices, command docs, and local intake.",
-    "image": "/social-atlas.png"
+    "image": "social-card.svg"
   },
   "nav": [
     { "label": "Blueprints", "href": "#blueprints" },
     { "label": "Capabilities", "href": "#capabilities" },
     { "label": "Process", "href": "#process" },
+    { "label": "Docs", "href": "#docs" },
+    { "label": "Blog", "href": "#blog" },
     { "label": "Search", "href": "#search" },
     { "label": "Intake", "href": "#intake" }
   ],

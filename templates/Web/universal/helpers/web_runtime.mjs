@@ -5,10 +5,95 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import matter from "gray-matter";
+import MarkdownIt from "markdown-it";
+import sanitizeHtml from "sanitize-html";
+
 const require = createRequire(import.meta.url);
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function readText(filePath) {
+  return fs.readFileSync(filePath, "utf8");
+}
+
+function isLikelyAbsoluteUrl(value) {
+  const raw = String(value || "").trim();
+  return raw.startsWith("http://") || raw.startsWith("https://");
+}
+
+let markdownRenderer = null;
+
+function getMarkdownRenderer() {
+  if (markdownRenderer) return markdownRenderer;
+  markdownRenderer = new MarkdownIt({
+    html: false,
+    linkify: true,
+    typographer: true
+  });
+  return markdownRenderer;
+}
+
+function renderMarkdownToHtml(markdownText) {
+  const renderer = getMarkdownRenderer();
+  const rawHtml = renderer.render(String(markdownText || ""));
+  return sanitizeHtml(rawHtml, {
+    allowedTags: [
+      "a",
+      "b",
+      "blockquote",
+      "br",
+      "code",
+      "del",
+      "em",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "hr",
+      "i",
+      "img",
+      "li",
+      "ol",
+      "p",
+      "pre",
+      "strong",
+      "table",
+      "thead",
+      "tbody",
+      "tr",
+      "th",
+      "td",
+      "ul"
+    ],
+    allowedAttributes: {
+      a: ["href", "title", "target", "rel"],
+      img: ["src", "alt", "title", "width", "height"],
+      code: ["class"]
+    },
+    allowedSchemes: ["http", "https", "mailto"],
+    transformTags: {
+      a: sanitizeHtml.simpleTransform("a", { rel: "noopener noreferrer", target: "_blank" })
+    }
+  });
+}
+
+function loadMarkdownDocument(rootDir, markdownPath) {
+  const fullPath = resolveFrom(rootDir, markdownPath);
+  const raw = readText(fullPath);
+  const parsed = matter(raw);
+  const attributes = parsed.data && typeof parsed.data === "object" ? parsed.data : {};
+  const content = String(parsed.content || "");
+  return {
+    path: markdownPath,
+    attributes,
+    markdown: content,
+    html: renderMarkdownToHtml(content)
+  };
 }
 
 function resolveFrom(baseDir, relativePath) {
@@ -161,6 +246,54 @@ function uniqueStrings(values) {
   return [...new Set((values || []).filter(Boolean).map((value) => String(value)))];
 }
 
+function isPlainObject(value) {
+  if (!value || typeof value !== "object") return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function deepMergeTemplateData(baseValue, overlayValue) {
+  if (Array.isArray(baseValue) && Array.isArray(overlayValue)) {
+    return [...baseValue, ...overlayValue];
+  }
+  if (isPlainObject(baseValue) && isPlainObject(overlayValue)) {
+    const out = { ...baseValue };
+    for (const [key, overlayChild] of Object.entries(overlayValue)) {
+      if (key === "includes") continue;
+      const baseChild = out[key];
+      if (baseChild === undefined) {
+        out[key] = overlayChild;
+      } else {
+        out[key] = deepMergeTemplateData(baseChild, overlayChild);
+      }
+    }
+    return out;
+  }
+  return overlayValue === undefined ? baseValue : overlayValue;
+}
+
+function resolveContentIncludes(contentEntry, contentRegistry, visiting = new Set()) {
+  if (!contentEntry || !Array.isArray(contentEntry.includes) || contentEntry.includes.length === 0) {
+    return contentEntry;
+  }
+
+  if (visiting.has(contentEntry.id)) {
+    throw new Error(`content include cycle detected at '${contentEntry.id}'`);
+  }
+
+  visiting.add(contentEntry.id);
+  let merged = { ...contentEntry, includes: [...contentEntry.includes] };
+
+  for (const includeId of contentEntry.includes) {
+    const includeEntry = requireEntry(contentRegistry, includeId, "content include");
+    const resolvedInclude = resolveContentIncludes(includeEntry, contentRegistry, visiting);
+    merged = deepMergeTemplateData(resolvedInclude, merged);
+  }
+
+  visiting.delete(contentEntry.id);
+  return merged;
+}
+
 function getByPath(rootValue, sourcePath, fallbackValue = undefined) {
   if (!sourcePath) {
     return rootValue ?? fallbackValue;
@@ -229,6 +362,48 @@ function renderRichText(value) {
     return `<p>${escapeHtml(value)}</p>`;
   }
   return "";
+}
+
+function renderMarkdownPanel(value) {
+  if (Array.isArray(value)) {
+    return `<div class="markdown">${renderMarkdownToHtml(value.join("\n"))}</div>`;
+  }
+  if (typeof value === "string" && value.trim()) {
+    return `<div class="markdown">${renderMarkdownToHtml(value)}</div>`;
+  }
+  return "";
+}
+
+function formatBlogDate(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const parsed = new Date(raw);
+  if (!Number.isFinite(parsed.getTime())) return raw;
+  return parsed.toISOString().slice(0, 10);
+}
+
+function renderBlogRoll(posts) {
+  const entries = Array.isArray(posts) ? posts : [];
+  if (entries.length === 0) {
+    return `<p class="section-copy">No posts are registered yet. Add markdown files and wire them through content manifests.</p>`;
+  }
+
+  const cards = entries
+    .map((post) => {
+      const tags = (post.tags || []).slice(0, 6).map((tag) => `<span class="tag-pill">${escapeHtml(tag)}</span>`).join("");
+      const dateLabel = formatBlogDate(post.published_at);
+      const kicker = dateLabel ? `Blog · ${dateLabel}` : "Blog";
+      const href = post.href || `blog/${escapeHtml(post.slug || "")}/`;
+      return `<article class="doc-card blog-card">
+  <p class="card-kicker">${escapeHtml(kicker)}</p>
+  <h3><a href="${escapeHtml(href)}">${escapeHtml(post.title || post.slug || "Post")}</a></h3>
+  <p>${escapeHtml(post.summary || "")}</p>
+  ${tags ? `<div class="tag-row">${tags}</div>` : ""}
+</article>`;
+    })
+    .join("");
+
+  return `<div class="docs-grid blog-grid">${cards}</div>`;
 }
 
 function renderMetrics(metrics) {
@@ -763,10 +938,14 @@ function renderSectionBlock(section, model) {
     bodyHtml = renderLinkGroups(getModelValue(model, normalized.source, []));
   } else if (kind === "docs_grid") {
     bodyHtml = renderDocsLinks(getModelValue(model, normalized.source, []));
+  } else if (kind === "blog_roll") {
+    bodyHtml = renderBlogRoll(buildBlogPosts(model));
   } else if (kind === "form_panel") {
     bodyHtml = renderFormPanel(getModelValue(model, normalized.source, {}));
   } else if (kind === "search_panel") {
     bodyHtml = renderSearchPanel(getModelValue(model, normalized.source, {}));
+  } else if (kind === "markdown_panel") {
+    bodyHtml = renderMarkdownPanel(getModelValue(model, normalized.source, normalized.body || ""));
   } else if (kind === "process_steps") {
     bodyHtml = renderProcessSteps(getModelValue(model, normalized.source, []));
   } else if (kind === "capability_matrix") {
@@ -929,16 +1108,97 @@ function buildDerivedSearchDocuments(model) {
       tags: [offer.kicker, offer.cadence].filter(Boolean)
     });
   }
+  for (const post of model.content.blog_posts || []) {
+    const slug = post.slug || slugify(post.title || post.id || "post");
+    documents.push({
+      kind: "blog",
+      title: post.title || slug,
+      summary: post.summary || "",
+      href: `#blog`,
+      tags: post.tags || []
+    });
+    documents.push({
+      kind: "blog-page",
+      title: post.title || slug,
+      summary: post.summary || "",
+      href: `blog/${slug}/`,
+      tags: post.tags || []
+    });
+  }
   return documents;
 }
 
+function resolveSeoAssetUrl(baseUrl, outputSlug, assetPath) {
+  const raw = String(assetPath || "").trim();
+  const cleanedBase = String(baseUrl || "https://example.com").replace(/\/$/, "");
+  const cleanedSlug = String(outputSlug || "").replace(/^\/+|\/+$/g, "");
+  if (!raw) return `${cleanedBase}/${cleanedSlug}/social-card.svg`;
+  if (isLikelyAbsoluteUrl(raw)) return raw;
+  if (raw.startsWith("/")) return `${cleanedBase}${raw}`;
+  return `${cleanedBase}/${cleanedSlug}/${raw.replace(/^\/+/, "")}`;
+}
+
+function buildBlogPosts(model) {
+  if (model && Array.isArray(model.__cached_blog_posts)) {
+    return model.__cached_blog_posts;
+  }
+  const entries = Array.isArray(model.content.blog_posts) ? model.content.blog_posts : [];
+  const posts = [];
+  for (const entry of entries) {
+    if (!entry) continue;
+    const fallbackSlug = slugify(entry.title || entry.id || "post");
+    const slug = slugify(entry.slug || fallbackSlug) || fallbackSlug;
+    const loaded = entry.markdown_path ? loadMarkdownDocument(model.context.root_dir, entry.markdown_path) : null;
+    const frontmatter = loaded?.attributes || {};
+    const title = String(entry.title || frontmatter.title || slug).trim();
+    const summary = String(entry.summary || frontmatter.summary || "").trim();
+    const publishedAt = String(entry.published_at || frontmatter.published_at || frontmatter.date || "").trim();
+    const tags = Array.isArray(entry.tags) ? entry.tags : Array.isArray(frontmatter.tags) ? frontmatter.tags : [];
+    posts.push({
+      id: entry.id || slug,
+      slug,
+      title,
+      summary,
+      published_at: publishedAt || null,
+      tags,
+      href: `blog/${slug}/`,
+      markdown_path: entry.markdown_path || null,
+      markdown: loaded?.markdown || String(entry.markdown || ""),
+      html: loaded?.html || (entry.markdown ? renderMarkdownToHtml(entry.markdown) : "")
+    });
+  }
+  posts.sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || "")));
+  if (model) {
+    model.__cached_blog_posts = posts;
+  }
+  return posts;
+}
+
 function buildSiteData(model) {
+  const blogPosts = buildBlogPosts(model);
   const configuredSearchDocuments = model.content.search_documents || [];
   const searchDocuments = configuredSearchDocuments.length > 0
     ? configuredSearchDocuments
     : buildDerivedSearchDocuments(model);
   const forms = Object.values(model.content.forms || {});
   const clientBundle = getClientBundlePaths(model.context);
+  const baseUrl = model.context.app.site?.base_url || "https://example.com";
+  const resolvedSocialImage = resolveSeoAssetUrl(
+    baseUrl,
+    model.experience.output_slug,
+    model.content.seo?.image || model.context.app.site?.default_social_image || "social-card.svg"
+  );
+  const newsUpdates = Array.isArray(model.content.news_items)
+    ? model.content.news_items
+    : Array.isArray(model.content.timeline)
+      ? model.content.timeline
+      : [];
+  const blogUpdates = blogPosts.map((post) => ({
+    title: post.title,
+    summary: post.summary || "Blog post",
+    href: post.href,
+    published_at: post.published_at
+  }));
   return {
     experience_id: model.experience.id,
     mode: model.experience.mode,
@@ -960,16 +1220,26 @@ function buildSiteData(model) {
     actors: model.content.actor_roles || [],
     routes: model.content.server_routes || [],
     seo: {
-      base_url: model.context.app.site?.base_url || "https://example.com",
+      base_url: baseUrl,
       title: model.content.seo?.title || model.experience.page_title,
       description:
         model.content.seo?.description ||
         model.context.app.site?.default_description ||
         `${model.experience.page_title} built with the Kain universal web template.`,
-      image: model.content.seo?.image || model.context.app.site?.default_social_image || "/social-card.png"
+      image: resolvedSocialImage
     },
     search_documents: searchDocuments,
-    updates: model.content.news_items || model.content.timeline || [],
+    updates: [...newsUpdates, ...blogUpdates],
+    blog: model.content.blog || null,
+    blog_posts: blogPosts.map((post) => ({
+      id: post.id,
+      slug: post.slug,
+      title: post.title,
+      summary: post.summary,
+      published_at: post.published_at,
+      tags: post.tags,
+      href: post.href
+    })),
     client_features: model.context.app.site_runtime.client_features || [],
     prompt_presets: model.content.prompt_presets || [],
     blueprints: model.content.blueprints || [],
@@ -1022,7 +1292,8 @@ function buildModel(appManifestPath, experienceId) {
   const selectedId = experienceId || context.app.default_experience;
   const experience = requireEntry(context.experiences, selectedId, "experience");
   const theme = requireEntry(context.themes, experience.theme, "theme");
-  const content = requireEntry(context.content, experience.content, "content");
+  const rawContent = requireEntry(context.content, experience.content, "content");
+  const content = resolveContentIncludes(rawContent, context.content);
   const scene = requireEntry(context.scenes, experience.scene, "scene");
   return {
     context,
@@ -1178,7 +1449,7 @@ function renderClientRuntime(model, siteData) {
 </script>`;
 }
 
-function renderDocument(model, siteData) {
+function renderDocument(model, siteData, options = {}) {
   const { app, experience, theme, content } = {
     app: model.context.app,
     experience: model.experience,
@@ -1186,7 +1457,9 @@ function renderDocument(model, siteData) {
     content: model.content
   };
   const description = siteData.seo.description;
-  const canonicalUrl = `${siteData.seo.base_url.replace(/\/$/, "")}/${escapeHtml(experience.output_slug)}/`;
+  const canonicalBase = `${siteData.seo.base_url.replace(/\/$/, "")}/${escapeHtml(experience.output_slug)}/`;
+  const canonicalPath = String(options.canonical_path || "").replace(/^\/+/, "");
+  const canonicalUrl = canonicalPath ? `${canonicalBase}${canonicalPath}` : canonicalBase;
   const sections = (experience.sections || []).map((section, index) => renderSectionBlock(normalizeSection(section, index), model)).join("");
   return `<!doctype html>
 <html lang="en">
@@ -1359,6 +1632,39 @@ function renderDocument(model, siteData) {
       background: rgba(255,255,255,0.03);
       color: var(--muted);
     }
+    .tag-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .tag-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.03);
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    .markdown { color: var(--muted); line-height: 1.7; }
+    .markdown :is(h1, h2, h3, h4, h5, h6) { color: var(--text); margin: 18px 0 10px; }
+    .markdown a { color: var(--accent-soft); text-decoration: underline; text-decoration-color: rgba(255,255,255,0.22); }
+    .markdown code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.95em;
+      color: rgba(255,255,255,0.88);
+      background: rgba(0,0,0,0.3);
+      padding: 2px 6px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .markdown pre {
+      overflow-x: auto;
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(0,0,0,0.38);
+    }
+    .markdown pre code { display: block; padding: 0; border: none; background: transparent; }
     .portfolio-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
     .tag-filter {
       min-height: 38px;
@@ -1570,6 +1876,43 @@ function renderDocument(model, siteData) {
 </html>`;
 }
 
+function buildSocialCardSvg(model, siteData) {
+  const theme = model.theme;
+  const title = String(siteData.seo.title || siteData.page_title || "Kain Web").slice(0, 140);
+  const description = String(siteData.seo.description || "").slice(0, 220);
+  const accent = theme.accent || "#5ae4ff";
+  const soft = theme.accent_soft || "#b8f5ff";
+  const bgTop = theme.background_top || "#06111a";
+  const bgBottom = theme.background_bottom || "#0b1d2b";
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${escapeHtml(bgTop)}"/>
+      <stop offset="100%" stop-color="${escapeHtml(bgBottom)}"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="${escapeHtml(soft)}" stop-opacity="0.55"/>
+      <stop offset="70%" stop-color="${escapeHtml(accent)}" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="${escapeHtml(accent)}" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="22"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="600" cy="260" r="330" fill="url(#glow)" filter="url(#blur)"/>
+  <rect x="70" y="70" width="1060" height="490" rx="46" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.12)"/>
+  <text x="120" y="185" fill="${escapeHtml(soft)}" font-family="${escapeHtml(theme.font_display || "system-ui")}" font-size="22" letter-spacing="6">KAIN WEB</text>
+  <text x="120" y="260" fill="white" font-family="${escapeHtml(theme.font_display || "system-ui")}" font-size="64" font-weight="700">${escapeHtml(title)}</text>
+  <text x="120" y="330" fill="rgba(255,255,255,0.72)" font-family="${escapeHtml(theme.font_body || "system-ui")}" font-size="28">${escapeHtml(description)}</text>
+  <text x="120" y="520" fill="rgba(255,255,255,0.55)" font-family="${escapeHtml(theme.font_body || "system-ui")}" font-size="22">${escapeHtml(model.context.app.name)} · ${escapeHtml(model.experience.id)}</text>
+  <circle cx="1040" cy="165" r="46" fill="${escapeHtml(accent)}" opacity="0.22"/>
+  <circle cx="1040" cy="165" r="22" fill="${escapeHtml(accent)}" opacity="0.62"/>
+</svg>`;
+}
+
 function buildSummary(model) {
   return {
     id: model.experience.id,
@@ -1585,6 +1928,7 @@ function buildSummary(model) {
     sitemap_path: path.join(model.output_dir, "sitemap.xml"),
     robots_path: path.join(model.output_dir, "robots.txt"),
     feed_path: path.join(model.output_dir, "feed.xml"),
+    social_card_path: path.join(model.output_dir, "social-card.svg"),
     server_port: model.context.app.site_runtime.default_port,
     output_dir: model.output_dir,
     route_count: (model.content.server_routes || []).length,
@@ -1595,12 +1939,18 @@ function buildSummary(model) {
 }
 
 function buildSitemap(siteData) {
-  const url = `${siteData.seo.base_url.replace(/\/$/, "")}/${siteData.output_slug}/`;
+  const baseUrl = `${siteData.seo.base_url.replace(/\/$/, "")}/${siteData.output_slug}/`;
+  const urls = [baseUrl];
+  if (Array.isArray(siteData.blog_posts) && siteData.blog_posts.length > 0) {
+    urls.push(`${baseUrl}blog/`);
+    for (const post of siteData.blog_posts) {
+      const slug = slugify(post.slug || post.id || post.title || "post");
+      urls.push(`${baseUrl}blog/${slug}/`);
+    }
+  }
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>${escapeHtml(url)}</loc>
-  </url>
+${urls.map((url) => `  <url>\n    <loc>${escapeHtml(url)}</loc>\n  </url>`).join("\n")}
 </urlset>
 `;
 }
@@ -1611,12 +1961,24 @@ function buildRobots(siteData) {
 
 function buildFeed(siteData) {
   const siteUrl = `${siteData.seo.base_url.replace(/\/$/, "")}/${siteData.output_slug}/`;
-  const items = (siteData.updates || [])
+  const sourceItems = Array.isArray(siteData.blog_posts) && siteData.blog_posts.length > 0
+    ? siteData.blog_posts
+    : (siteData.updates || []);
+  const items = sourceItems
     .slice(0, 8)
     .map((entry, index) => {
       const title = entry.title || entry.phase || `Update ${index + 1}`;
       const description = entry.body || entry.summary || "";
-      return `<item><title>${escapeHtml(title)}</title><link>${escapeHtml(siteUrl)}</link><description>${escapeHtml(description)}</description></item>`;
+      const href = entry.href || "";
+      const link = isLikelyAbsoluteUrl(href)
+        ? href
+        : href.startsWith("/")
+          ? `${siteData.seo.base_url.replace(/\/$/, "")}${href}`
+          : href
+            ? `${siteUrl}${href.replace(/^\/+/, "")}`
+            : siteUrl;
+      const pubDate = entry.published_at ? `<pubDate>${escapeHtml(new Date(entry.published_at).toUTCString())}</pubDate>` : "";
+      return `<item><title>${escapeHtml(title)}</title><link>${escapeHtml(link)}</link><description>${escapeHtml(description)}</description>${pubDate}</item>`;
     })
     .join("");
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -1774,9 +2136,115 @@ export function buildExperience(appManifestPath, experienceId) {
   const siteData = buildSiteData(model);
   const summary = buildSummary(model);
   const actorServerPlan = buildActorServerPlan(appManifestPath, model.experience.id);
+  const blogPosts = buildBlogPosts(model);
+
+  const pages = [];
+
+  if (blogPosts.length > 0) {
+    const blogIndexSiteData = {
+      ...siteData,
+      page_title: `${siteData.page_title} · Blog`,
+      seo: {
+        ...siteData.seo,
+        title: `${siteData.seo.title} · Blog`,
+        description: siteData.blog?.body || siteData.seo.description
+      }
+    };
+    const blogIndexModel = {
+      ...model,
+      experience: {
+        ...model.experience,
+        eyebrow: "Blog",
+        sections: [
+          { id: "blog", kind: "blog_roll", eyebrow: siteData.blog?.kicker || "Blog", title: siteData.blog?.title || "Blog", source: "content.blog_posts" }
+        ]
+      },
+      content: {
+        ...model.content,
+        hero: {
+          kicker: siteData.blog?.kicker || "Blog",
+          title: siteData.blog?.title || "Blog",
+          body: siteData.blog?.body || "Markdown-driven posts emitted as first-class artifacts.",
+          actions: [{ label: "Back to site", href: "../", style: "secondary" }]
+        },
+        metrics: [],
+        nav: [
+          { label: "Home", href: "../" },
+          { label: "Blog", href: "./" }
+        ],
+        footer: "blog index"
+      }
+    };
+    pages.push({
+      route: "/blog/",
+      output_path: path.join(model.output_dir, "blog", "index.html"),
+      html: renderDocument(blogIndexModel, blogIndexSiteData, { canonical_path: "blog/" })
+    });
+
+    for (const post of blogPosts) {
+      const slug = slugify(post.slug || post.id || post.title || "post");
+      const postSiteData = {
+        ...siteData,
+        page_title: post.title,
+        seo: {
+          ...siteData.seo,
+          title: `${post.title} · ${siteData.page_title}`,
+          description: post.summary || siteData.seo.description
+        }
+      };
+      const postModel = {
+        ...model,
+        experience: {
+          ...model.experience,
+          eyebrow: "Blog",
+          sections: [
+            {
+              id: "post",
+              kind: "markdown_panel",
+              eyebrow: post.published_at ? `Published ${formatBlogDate(post.published_at)}` : "Post",
+              title: post.title,
+              body: post.markdown || ""
+            }
+          ]
+        },
+        content: {
+          ...model.content,
+          hero: {
+            kicker: "Blog post",
+            title: post.title,
+            body: post.summary || siteData.seo.description,
+            actions: [{ label: "Back to blog", href: "../", style: "secondary" }, { label: "Back to site", href: "../../", style: "secondary" }]
+          },
+          metrics: [],
+          nav: [
+            { label: "Home", href: "../../" },
+            { label: "Blog", href: "../" }
+          ],
+          footer: `blog post ${slug}`
+        }
+      };
+      pages.push({
+        route: `/blog/${slug}/`,
+        output_path: path.join(model.output_dir, "blog", slug, "index.html"),
+        html: renderDocument(postModel, postSiteData, { canonical_path: `blog/${slug}/` })
+      });
+    }
+  }
+
+  const assets = [
+    {
+      route: "/social-card.svg",
+      output_path: summary.social_card_path,
+      content_type: "image/svg+xml; charset=utf-8",
+      text: buildSocialCardSvg(model, siteData)
+    }
+  ];
+
   return {
     ...summary,
     html: renderDocument(model, siteData),
+    pages,
+    assets,
     manifest: {
       experience: model.experience,
       theme: model.theme,
@@ -1837,12 +2305,14 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/sitemap.xml", purpose: "returns sitemap output for the current experience", actor: "site_renderer" },
     { method: "GET", path: "/robots.txt", purpose: "returns crawler policy", actor: "site_renderer" },
     { method: "GET", path: "/feed.xml", purpose: "returns the local update feed", actor: "site_renderer" },
+    { method: "GET", path: "/social-card.svg", purpose: "returns the generated social-card SVG", actor: "site_renderer" },
     { method: "GET", path: "/api/runtime", purpose: "returns active runtime metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/catalog", purpose: "returns the available experience catalog", actor: "runtime_reporter" },
     { method: "GET", path: "/api/routes", purpose: "returns the route contract", actor: "mesh_supervisor" },
     { method: "GET", path: "/api/site", purpose: "returns site data and seo metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/scene", purpose: "returns the current scene descriptor", actor: "site_renderer" },
     { method: "GET", path: "/api/forms", purpose: "returns the available form contracts", actor: "intake_collector" },
+    { method: "GET", path: "/api/blog/posts", purpose: "returns the blog post registry metadata", actor: "site_renderer" },
     { method: "GET", path: "/api/search/documents", purpose: "returns the local search document index", actor: "search_indexer" },
     { method: "GET", path: "/api/search", purpose: "queries the local search document index", actor: "search_indexer" },
     { method: "GET", path: "/api/chat", purpose: "returns chat seed messages or a local reply", actor: "chat_seed_router" },
@@ -1869,6 +2339,11 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/actors", purpose: "returns actor topology and role descriptions", actor: "mesh_supervisor" },
     { method: "GET", path: "/healthz", purpose: "simple health response for local supervision", actor: "mesh_supervisor" }
   ];
+
+  if (Array.isArray(siteData.blog_posts) && siteData.blog_posts.length > 0) {
+    builtInRoutes.push({ method: "GET", path: "/blog/", purpose: "returns the blog index page", actor: "site_renderer" });
+    builtInRoutes.push({ method: "GET", path: "/blog/*", purpose: "serves generated blog post pages", actor: "site_renderer" });
+  }
 
   if (siteData.client_bundle?.enabled && siteData.client_bundle.out_file) {
     builtInRoutes.push({
@@ -1939,6 +2414,8 @@ function buildWrittenCatalog(context, built) {
       mode: entry.mode,
       output_slug: entry.output_slug,
       page_title: entry.page_title,
+      page_count: (entry.pages || []).length + 1,
+      asset_count: (entry.assets || []).length,
       files: {
         html: path.basename(entry.html_path),
         manifest: path.basename(entry.manifest_path),
@@ -1948,8 +2425,18 @@ function buildWrittenCatalog(context, built) {
         ui_schema: path.basename(entry.ui_schema_path),
         sitemap: path.basename(entry.sitemap_path),
         robots: path.basename(entry.robots_path),
-        feed: path.basename(entry.feed_path)
-      }
+        feed: path.basename(entry.feed_path),
+        social_card: path.basename(entry.social_card_path)
+      },
+      pages: (entry.pages || []).map((page) => ({
+        route: page.route,
+        file: path.relative(entry.output_dir, page.output_path).replaceAll("\\", "/")
+      })),
+      assets: (entry.assets || []).map((asset) => ({
+        route: asset.route,
+        file: path.relative(entry.output_dir, asset.output_path).replaceAll("\\", "/"),
+        content_type: asset.content_type
+      }))
     }))
   };
 }
@@ -1959,11 +2446,15 @@ export function buildMatrix(appManifestPath) {
   const clientBundleEnabled = Boolean(getClientBundlePaths(context));
   const experienceIds = context.app.build.experiences || Object.keys(context.experiences);
   const experiences = experienceIds.map((id) => buildExperience(appManifestPath, id));
+  const experienceArtifacts = experiences.reduce(
+    (total, entry) => total + 9 + (entry.pages || []).length + (entry.assets || []).length,
+    0
+  );
   return {
     default_experience: context.app.default_experience,
     output_root: context.app.output_root,
     experience_count: experiences.length,
-    artifact_count: experiences.length * 9 + 2 + (clientBundleEnabled ? 2 : 0),
+    artifact_count: experienceArtifacts + 2 + (clientBundleEnabled ? 2 : 0),
     server_port: context.app.site_runtime.default_port,
     experience_ids: experiences.map((entry) => entry.id),
     client_features: context.app.site_runtime.client_features || [],
@@ -1990,12 +2481,26 @@ export function writeMatrix(appManifestPath) {
     writeText(entry.sitemap_path, entry.sitemap_xml);
     writeText(entry.robots_path, entry.robots_txt);
     writeText(entry.feed_path, entry.feed_xml);
+    for (const page of entry.pages || []) {
+      writeText(page.output_path, page.html);
+    }
+    for (const asset of entry.assets || []) {
+      if (asset.bytes) {
+        writeBinary(asset.output_path, asset.bytes);
+      } else {
+        writeText(asset.output_path, asset.text || "");
+      }
+    }
   }
+  const experienceArtifacts = built.reduce(
+    (total, entry) => total + 9 + (entry.pages || []).length + (entry.assets || []).length,
+    0
+  );
   const summary = {
     default_experience: context.app.default_experience,
     output_root: context.app.output_root,
     experience_count: built.length,
-    artifact_count: built.length * 9 + 2 + (getClientBundlePaths(context) ? 2 : 0),
+    artifact_count: experienceArtifacts + 2 + (getClientBundlePaths(context) ? 2 : 0),
     server_port: context.app.site_runtime.default_port,
     experience_ids: built.map((entry) => entry.id),
     client_features: context.app.site_runtime.client_features || [],
@@ -2033,6 +2538,7 @@ function contentTypeForPath(filePath) {
   if (ext === ".json") return "application/json; charset=utf-8";
   if (ext === ".map") return "application/json; charset=utf-8";
   if (ext === ".css") return "text/css; charset=utf-8";
+  if (ext === ".svg") return "image/svg+xml; charset=utf-8";
   return "application/octet-stream";
 }
 
@@ -2172,6 +2678,8 @@ async function serveExperience(appManifestPath, experienceId) {
   const plan = bundle.actor_server;
   const searchIndex = bundle.site_data.search_documents || [];
   const chatSeed = bundle.manifest.content.chat_seed || [];
+  const pagesByRoute = new Map((bundle.pages || []).map((page) => [page.route, page]));
+  const assetsByRoute = new Map((bundle.assets || []).map((asset) => [asset.route, asset]));
   const formsByPath = new Map(
     (bundle.site_data.forms || []).map((form) => [form.action || `/api/forms/${form.id}`, form])
   );
@@ -2195,6 +2703,25 @@ async function serveExperience(appManifestPath, experienceId) {
     }
     if (request.method === "GET" && pathname === "/") {
       sendHtml(response, bundle.html);
+      return;
+    }
+    if (request.method === "GET" && !pathname.endsWith("/") && pagesByRoute.has(`${pathname}/`)) {
+      response.writeHead(302, { location: `${pathname}/` });
+      response.end();
+      return;
+    }
+    if (request.method === "GET" && pagesByRoute.has(pathname)) {
+      sendHtml(response, pagesByRoute.get(pathname).html);
+      return;
+    }
+    if (request.method === "GET" && assetsByRoute.has(pathname)) {
+      const asset = assetsByRoute.get(pathname);
+      if (asset.bytes) {
+        response.writeHead(200, { "content-type": asset.content_type || "application/octet-stream" });
+        response.end(asset.bytes);
+        return;
+      }
+      sendText(response, 200, asset.text || "", asset.content_type || "text/plain; charset=utf-8");
       return;
     }
     if (request.method === "GET" && pathname === "/site.data.json") {
@@ -2377,6 +2904,10 @@ async function serveExperience(appManifestPath, experienceId) {
     }
     if (request.method === "GET" && pathname === "/api/search/documents") {
       sendJson(response, 200, searchIndex);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/blog/posts") {
+      sendJson(response, 200, { ok: true, posts: bundle.site_data.blog_posts || [] });
       return;
     }
     if (request.method === "GET" && pathname === "/api/search") {

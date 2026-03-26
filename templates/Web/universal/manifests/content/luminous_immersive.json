@@ -3,7 +3,7 @@
   "seo": {
     "title": "Luminous Port | Kain Immersive 3D Site",
     "description": "Immersive lane for premium release sites with scene staging, technical breakdowns, editions, and intake flows.",
-    "image": "/social-luminous.png"
+    "image": "social-card.svg"
   },
   "nav": [
     { "label": "World", "href": "#world" },

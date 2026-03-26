@@ -58,6 +58,8 @@
 ## Artifacts Emitted Per Experience
 
 - `index.html`
+- `blog/index.html` (when `content.blog_posts` is configured)
+- `blog/<slug>/index.html` (markdown-driven post pages)
 - `site.manifest.json`
 - `actor-server.plan.json`
 - `site.data.json`
@@ -66,6 +68,7 @@
 - `sitemap.xml`
 - `robots.txt`
 - `feed.xml`
+- `social-card.svg`
 
 ## Shared Artifacts (Written Once Per Build)
 

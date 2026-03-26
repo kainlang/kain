@@ -12,7 +12,7 @@
   "site": {
     "base_url": "https://example.com",
     "default_description": "Universal Kain website template for launch pages, portfolios, immersive 3D experiences, chat-first products, and actor-backed web servers.",
-    "default_social_image": "/social-card.png"
+    "default_social_image": "social-card.svg"
   },
   "site_runtime": {
     "host": "127.0.0.1",

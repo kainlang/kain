@@ -36,7 +36,10 @@
     "serve:hybrid": "node ./helpers/web_runtime.mjs serve manifests/app.json hybrid_command"
   },
   "dependencies": {
+    "gray-matter": "^4.0.3",
+    "markdown-it": "^14.1.0",
     "preact": "^10.27.2",
+    "sanitize-html": "^2.13.1",
     "three": "^0.174.0",
     "ws": "^8.18.3"
   },
