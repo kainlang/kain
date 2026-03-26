@@ -4,6 +4,8 @@
 **/*target*/**
 **/debug/
 **/debug/**
+/smoketest/3D/
+smoketest/3D/
 /target_selfhost_probe*/
 *.exe
 *.pdb

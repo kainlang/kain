@@ -1,0 +1,51 @@
+use std::interop::bridge
+
+struct FabricBuffers:
+    src: Any
+    dst: Any
+    report: String
+
+fn push_u32_le(bytes: Array<Int>, value: Int) -> Void:
+    bytes.push(value % 256)
+    bytes.push((value / 256) % 256)
+    bytes.push((value / 65536) % 256)
+    bytes.push((value / 16777216) % 256)
+    return
+
+fn build_src_bytes(start: Int, step: Int, count: Int) -> Array<Int>:
+    let bytes = []
+    let index = 0
+    while index < count:
+        let value = start + index * step
+        push_u32_le(bytes, value)
+        index = index + 1
+    return bytes
+
+fn build_zero_bytes(count: Int) -> Array<Int>:
+    let bytes = []
+    let index = 0
+    while index < count:
+        push_u32_le(bytes, 0)
+        index = index + 1
+    return bytes
+
+fn main() -> FabricBuffers:
+    let settings = fabric_inputs.python_source.settings
+    let src_bytes = build_src_bytes(settings.start, settings.step, settings.count)
+    let dst_bytes = build_zero_bytes(settings.count)
+    let src = interop_shared_buffer_from_bytes(
+        src_bytes,
+        "u32",
+        [settings.count],
+        "u32",
+        "application/octet-stream",
+    )
+    let dst = interop_shared_buffer_from_bytes(
+        dst_bytes,
+        "u32",
+        [settings.count],
+        "u32",
+        "application/octet-stream",
+    )
+    let report = settings.title + ":" + str(settings.start) + ":" + str(settings.step) + ":" + str(settings.bias)
+    return FabricBuffers { src: src, dst: dst, report: report }

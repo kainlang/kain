@@ -1,0 +1,27 @@
+shader compute FabricGpuAdd() -> Void:
+    uniform src: StorageBuffer<UInt> @0
+    uniform dst: StorageBuffer<UInt> @1
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    comptime:
+        let compute = (
+            [4, 1, 1],
+            [
+                ("src", "u32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("dst", "u32", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("fabric_gpu_add", "add_bias", ["src"], ["dst"], false),
+            ],
+        )
+
+    let index = dispatch_thread_id.x
+    if index >= 4 as UInt:
+        return
+
+    let input_value = src[index]
+    let output_value = input_value + UInt(7)
+    dst[index] = output_value
+    return

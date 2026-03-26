@@ -5,6 +5,197 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=b9d12ddfab5ad963 -->
+## 2026-03-26 17:48:45 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `ad8c9d3d`
+- Changed files: 8
+- [.M] `crates/kain-driver/examples/materialize_fast3d_native_host.rs`
+- [.M] `smoketest/3D/sm64_bob_level_chunk/viewer.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/KAIN.fabric.toml`
+- [??] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [??] `smoketest/fabric/gpu_compute_convergence/scripts/node_step.mjs`
+- [??] `smoketest/fabric/gpu_compute_convergence/scripts/python_step.py`
+- [??] `smoketest/fabric/gpu_compute_convergence/shaders/gpu_step.kn`
+- [??] `smoketest/fabric/gpu_compute_convergence/src/main.kn`
+
+<!-- polytools-changelog:fingerprint=66f4dbc8b405233d -->
+## 2026-03-26 17:46:09 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `ad8c9d3d`
+- Changed files: 59
+- [.M] `crates/kain-driver/examples/materialize_fast3d_native_host.rs`
+- [.M] `smoketest/3D/sm64_bob_level_chunk/viewer.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/gameplay_state.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/Cargo.lock`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/Cargo.toml`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/config/app_manifest.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/generated/gameplay_state.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/generated/kain_realtime_app_bundle.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/generated/kain_reflection_payload.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/generated/kain_runtime_compatibility.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/generated/kain_runtime_contract.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/generated/kain_runtime_version.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/generated/lib.rs`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/generated/native_app_bundle.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/generated/native_host_snapshot.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/generated/scene_manifest.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/generated/shader_overrides.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/sm64_fast3d_native_host.kn`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/src/main.rs`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-snapshot/state/runtime_snapshot.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/Cargo.lock`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/Cargo.toml`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/config/app_manifest.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/gameplay_state.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/kain_realtime_app_bundle.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/kain_reflection_payload.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/kain_runtime_compatibility.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/kain_runtime_contract.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/kain_runtime_version.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/lib.rs`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/native_app_bundle.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/native_host_viewer.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/scene_manifest.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/shader_overrides.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/sm64_fast3d_native_host.kn`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/src/main.rs`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/state/runtime_snapshot.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/host_configs/native_host_snapshot.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/host_configs/native_host_viewer.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/materialize_native_host_snapshot.bat`
+- [??] `smoketest/3D/sm64_bob_level_chunk/materialize_native_host_viewer.bat`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/gameplay_state.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/kain_realtime_app_bundle.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/kain_reflection_payload.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/kain_runtime_compatibility.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/kain_runtime_contract.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/kain_runtime_version.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/native_host_viewer.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/scene_manifest.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/shader_overrides.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/sm64_bob_snapshot.png`
+- [??] `smoketest/3D/sm64_bob_level_chunk/shader_overrides.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/snapshot.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/KAIN.fabric.toml`
+- [??] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [??] `smoketest/fabric/gpu_compute_convergence/scripts/node_step.mjs`
+- [??] `smoketest/fabric/gpu_compute_convergence/scripts/python_step.py`
+- [??] `smoketest/fabric/gpu_compute_convergence/shaders/gpu_step.kn`
+- [??] `smoketest/fabric/gpu_compute_convergence/src/main.kn`
+
+<!-- polytools-changelog:fingerprint=095b51092068bd37 -->
+## 2026-03-26 17:45:41 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `ad8c9d3d`
+- Changed files: 42
+- [.M] `crates/kain-driver/examples/materialize_fast3d_native_host.rs`
+- [.M] `smoketest/3D/sm64_bob_level_chunk/viewer.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/gameplay_state.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/Cargo.lock`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/Cargo.toml`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/config/app_manifest.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/gameplay_state.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/kain_realtime_app_bundle.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/kain_reflection_payload.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/kain_runtime_compatibility.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/kain_runtime_contract.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/kain_runtime_version.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/lib.rs`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/native_app_bundle.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/native_host_viewer.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/scene_manifest.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/shader_overrides.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/sm64_fast3d_native_host.kn`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/src/main.rs`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/state/runtime_snapshot.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/host_configs/native_host_snapshot.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/host_configs/native_host_viewer.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/materialize_native_host_snapshot.bat`
+- [??] `smoketest/3D/sm64_bob_level_chunk/materialize_native_host_viewer.bat`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/gameplay_state.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/kain_realtime_app_bundle.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/kain_reflection_payload.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/kain_runtime_compatibility.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/kain_runtime_contract.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/kain_runtime_version.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/native_host_viewer.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/scene_manifest.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/shader_overrides.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/sm64_bob_snapshot.png`
+- [??] `smoketest/3D/sm64_bob_level_chunk/shader_overrides.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/snapshot.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/KAIN.fabric.toml`
+- [??] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [??] `smoketest/fabric/gpu_compute_convergence/scripts/node_step.mjs`
+- [??] `smoketest/fabric/gpu_compute_convergence/scripts/python_step.py`
+- [??] `smoketest/fabric/gpu_compute_convergence/shaders/gpu_step.kn`
+- [??] `smoketest/fabric/gpu_compute_convergence/src/main.kn`
+
+<!-- polytools-changelog:fingerprint=50d0ba8d012a2a0f -->
+## 2026-03-26 17:43:51 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `ad8c9d3d`
+- Changed files: 27
+- [.M] `crates/kain-driver/examples/materialize_fast3d_native_host.rs`
+- [.M] `smoketest/3D/sm64_bob_level_chunk/viewer.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/gameplay_state.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/Cargo.lock`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/Cargo.toml`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/config/app_manifest.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/gameplay_state.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/kain_realtime_app_bundle.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/kain_reflection_payload.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/kain_runtime_compatibility.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/kain_runtime_contract.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/kain_runtime_version.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/lib.rs`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/native_app_bundle.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/native_host_viewer.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/scene_manifest.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/generated/shader_overrides.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/sm64_fast3d_native_host.kn`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/src/main.rs`
+- [??] `smoketest/3D/sm64_bob_level_chunk/generated_native_host/sm64-bob-native-host-viewer/state/runtime_snapshot.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/host_configs/native_host_snapshot.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/host_configs/native_host_viewer.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/materialize_native_host_snapshot.bat`
+- [??] `smoketest/3D/sm64_bob_level_chunk/materialize_native_host_viewer.bat`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/sm64_bob_snapshot.png`
+- [??] `smoketest/3D/sm64_bob_level_chunk/shader_overrides.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/snapshot.json`
+
+<!-- polytools-changelog:fingerprint=d6419f0ad0ea6c07 -->
+## 2026-03-26 17:42:37 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `ad8c9d3d`
+- Changed files: 10
+- [.M] `crates/kain-driver/examples/materialize_fast3d_native_host.rs`
+- [.M] `smoketest/3D/sm64_bob_level_chunk/viewer.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/gameplay_state.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/host_configs/native_host_snapshot.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/host_configs/native_host_viewer.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/materialize_native_host_snapshot.bat`
+- [??] `smoketest/3D/sm64_bob_level_chunk/materialize_native_host_viewer.bat`
+- [??] `smoketest/3D/sm64_bob_level_chunk/outputs/sm64_bob_snapshot.png`
+- [??] `smoketest/3D/sm64_bob_level_chunk/shader_overrides.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/snapshot.json`
+
+<!-- polytools-changelog:fingerprint=c3e6a684bbfe1bc8 -->
+## 2026-03-26 17:41:02 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `ad8c9d3d`
+- Changed files: 9
+- [.M] `crates/kain-driver/examples/materialize_fast3d_native_host.rs`
+- [.M] `smoketest/3D/sm64_bob_level_chunk/viewer.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/gameplay_state.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/host_configs/native_host_snapshot.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/host_configs/native_host_viewer.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/materialize_native_host_snapshot.bat`
+- [??] `smoketest/3D/sm64_bob_level_chunk/materialize_native_host_viewer.bat`
+- [??] `smoketest/3D/sm64_bob_level_chunk/shader_overrides.json`
+- [??] `smoketest/3D/sm64_bob_level_chunk/snapshot.json`
+
 <!-- polytools-changelog:fingerprint=af84206fa6ce0bd5 -->
 ## 2026-03-26 17:39:46 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`
