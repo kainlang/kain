@@ -1,0 +1,40 @@
+// Broadcast, livestream, rundown, feed-routing, and live-program-control contracts.
+
+struct BroadcastFeedDescriptor:
+    feed_id: String
+    feed_kind: String
+    routing_policy: String
+
+struct RundownDescriptor:
+    rundown_id: String
+    rundown_scope: String
+    operator_policy: String
+
+struct BroadcastOverlayDescriptor:
+    overlay_id: String
+    overlay_kind: String
+    tally_policy: String
+
+struct BroadcastRuntimeProfile:
+    program_feed: BroadcastFeedDescriptor
+    rundown: RundownDescriptor
+    overlays: BroadcastOverlayDescriptor
+
+fn default_broadcast_runtime_profile() -> BroadcastRuntimeProfile with Pure:
+    let profile = BroadcastRuntimeProfile()
+
+    profile.program_feed = BroadcastFeedDescriptor()
+    profile.program_feed.feed_id = "program_feed"
+    profile.program_feed.feed_kind = "stage_viewport_camera_and_live_mix"
+    profile.program_feed.routing_policy = "operator_and_authority_gated"
+
+    profile.rundown = RundownDescriptor()
+    profile.rundown.rundown_id = "broadcast_rundown"
+    profile.rundown.rundown_scope = "segments_takes_lower_thirds_and_delivery_cues"
+    profile.rundown.operator_policy = "control_room_or_stage_supervisor_owned"
+
+    profile.overlays = BroadcastOverlayDescriptor()
+    profile.overlays.overlay_id = "broadcast_overlay_mix"
+    profile.overlays.overlay_kind = "graphics_tally_and_program_state"
+    profile.overlays.tally_policy = "program_preview_and_operator_acknowledged"
+    profile

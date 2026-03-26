@@ -1,0 +1,40 @@
+// Navigation, pathfinding, crowd flow, and runtime path-query contracts.
+
+struct NavigationMeshDescriptor:
+    navmesh_id: String
+    navmesh_kind: String
+    rebuild_policy: String
+
+struct CrowdRuntimeDescriptor:
+    crowd_id: String
+    steering_policy: String
+    authority_policy: String
+
+struct PathQueryDescriptor:
+    query_id: String
+    query_scope: String
+    latency_policy: String
+
+struct NavigationRuntimeProfile:
+    navigation_mesh: NavigationMeshDescriptor
+    crowd_runtime: CrowdRuntimeDescriptor
+    path_query: PathQueryDescriptor
+
+fn default_navigation_runtime_profile() -> NavigationRuntimeProfile with Pure:
+    let profile = NavigationRuntimeProfile()
+
+    profile.navigation_mesh = NavigationMeshDescriptor()
+    profile.navigation_mesh.navmesh_id = "runtime_navigation_mesh"
+    profile.navigation_mesh.navmesh_kind = "world_partition_and_local_agent_mesh"
+    profile.navigation_mesh.rebuild_policy = "streaming_and_edit_delta_aware"
+
+    profile.crowd_runtime = CrowdRuntimeDescriptor()
+    profile.crowd_runtime.crowd_id = "agent_crowd_runtime"
+    profile.crowd_runtime.steering_policy = "avoidance_cost_and_goal_priority"
+    profile.crowd_runtime.authority_policy = "session_or_runtime_authority_gated"
+
+    profile.path_query = PathQueryDescriptor()
+    profile.path_query.query_id = "navigation_path_query"
+    profile.path_query.query_scope = "agent_vehicle_and_tool_runtime_paths"
+    profile.path_query.latency_policy = "realtime_or_async_batchable"
+    profile

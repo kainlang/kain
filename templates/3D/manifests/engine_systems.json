@@ -1,0 +1,954 @@
+[
+   {
+      "lane" : "foundation",
+      "description" : "Declares app identity, product flavor, feature packs, deployment policy, collaboration posture, and output strategy.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/project_profile.kn",
+      "label" : "Project Profile",
+      "id" : "project_profile",
+      "required" : true
+   },
+   {
+      "id" : "workspace_shell",
+      "required" : true,
+      "label" : "Workspace Shell",
+      "lane" : "ui",
+      "description" : "Native Kain UI shell with docked panels, 3D viewport surfaces, inspectors, graphs, timelines, and automation decks.",
+      "source_path" : "src-kain/apps/universal_3d_workbench/main.kn"
+   },
+   {
+      "id" : "render_runtime",
+      "required" : true,
+      "label" : "Render Runtime",
+      "lane" : "render",
+      "description" : "Render graph policy, lighting, visibility, material evaluation, frame presentation, and viewport inspection contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/render_runtime.kn"
+   },
+   {
+      "required" : true,
+      "id" : "engine_runtime_lanes",
+      "label" : "Engine Runtime Lanes",
+      "source_path" : "src-kain/stdlib/three_d_runtime/engine_systems.kn",
+      "lane" : "foundation",
+      "description" : "Primary runtime lane bundle definitions for rendering, assets, animation, simulation, tooling, packaging, and deployment orchestration."
+   },
+   {
+      "id" : "scene_runtime",
+      "required" : true,
+      "lane" : "scene",
+      "description" : "Scene catalogs, layers, node topology, selection scopes, cameras, and authored world/runtime metadata.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/scene_runtime.kn",
+      "label" : "Scene Runtime"
+   },
+   {
+      "label" : "Tensor Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/tensor_runtime.kn",
+      "lane" : "compute",
+      "description" : "Tensor asset classes, pipeline descriptors, scheduling hints, memory policy, and reflection export intent for GPU-driven workflows.",
+      "required" : true,
+      "id" : "tensor_runtime"
+   },
+   {
+      "id" : "asset_pipeline",
+      "required" : true,
+      "description" : "Asset ingest, conversion, baking, scan processing, validation, import/export, and cache policy for content-heavy 3D applications.",
+      "lane" : "assets",
+      "source_path" : "src-kain/stdlib/three_d_runtime/asset_pipeline.kn",
+      "label" : "Asset Pipeline"
+   },
+   {
+      "required" : true,
+      "id" : "material_runtime",
+      "label" : "Material Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/material_runtime.kn",
+      "description" : "Material graph, shader family, texture stack, and layer evaluation contracts for real-time and offline rendering surfaces.",
+      "lane" : "materials"
+   },
+   {
+      "label" : "Animation And Mocap",
+      "lane" : "animation",
+      "description" : "Rig hierarchies, animation graphs, retargeting, timeline playback, and mocap compute system registration.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/animation_runtime.kn",
+      "id" : "animation_and_mocap",
+      "required" : true
+   },
+   {
+      "label" : "Simulation Stack",
+      "source_path" : "src-kain/stdlib/three_d_runtime/simulation_runtime.kn",
+      "lane" : "simulation",
+      "description" : "Cloth, particles, fluids, destruction, soft body, and field-based compute orchestration.",
+      "required" : true,
+      "id" : "simulation_stack"
+   },
+   {
+      "required" : true,
+      "id" : "world_runtime",
+      "label" : "World Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/world_runtime.kn",
+      "description" : "World partitioning, terrain clipmaps, scatter systems, streaming sectors, and large-scene residency policy.",
+      "lane" : "world"
+   },
+   {
+      "label" : "Editor Runtime",
+      "lane" : "editor",
+      "description" : "Command history, property inspection, graph editors, timeline shells, scan/review session modes, and workspace persistence contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/editor_runtime.kn",
+      "id" : "editor_runtime",
+      "required" : true
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/ui_workbench.kn",
+      "description" : "Kain UI shell defaults for multi-panel desktop authoring workflows.",
+      "lane" : "ui",
+      "label" : "UI Workbench",
+      "required" : true,
+      "id" : "ui_workbench"
+   },
+   {
+      "id" : "interop_runtime",
+      "required" : true,
+      "label" : "Interop Runtime",
+      "lane" : "interop",
+      "description" : "Foreign bridge policy for optional DCC, engine, plugin, and device integration while keeping Kain as the owning authoring layer.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/ffi_runtime.kn"
+   },
+   {
+      "lane" : "procedural",
+      "description" : "Node-driven geometry, field systems, scatter orchestration, and procedural authoring runtime contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/procedural_runtime.kn",
+      "label" : "Procedural Runtime",
+      "id" : "procedural_runtime",
+      "required" : true
+   },
+   {
+      "id" : "grooming_runtime",
+      "required" : true,
+      "label" : "Grooming Runtime",
+      "lane" : "groom",
+      "description" : "Hair, fur, strand, and brush-driven grooming contracts for character and creature pipelines.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/grooming_runtime.kn"
+   },
+   {
+      "id" : "volumetric_runtime",
+      "required" : true,
+      "label" : "Volumetric Runtime",
+      "description" : "Sparse field, fog, SDF, pyro, and volume render contracts for FX and modeling workflows.",
+      "lane" : "volume",
+      "source_path" : "src-kain/stdlib/three_d_runtime/volumetric_runtime.kn"
+   },
+   {
+      "label" : "Photogrammetry Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/photogrammetry_runtime.kn",
+      "lane" : "photogrammetry",
+      "description" : "Capture ingest, reconstruction, calibration, and reprojection contracts for scan-based workflows.",
+      "required" : true,
+      "id" : "photogrammetry_runtime"
+   },
+   {
+      "label" : "Audio Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/audio_runtime.kn",
+      "lane" : "audio",
+      "description" : "Audio graph, playback, spatialization, and reactive analysis contracts for runtime engines and tools.",
+      "required" : true,
+      "id" : "audio_runtime"
+   },
+   {
+      "required" : true,
+      "id" : "collaboration_runtime",
+      "label" : "Collaboration Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/collaboration_runtime.kn",
+      "lane" : "collaboration",
+      "description" : "Session sync, presence, synchronized review, and annotation contracts for multi-user workflows."
+   },
+   {
+      "label" : "Plugin Runtime",
+      "lane" : "packaging",
+      "description" : "Plugin packaging, extension registration, and runtime capability exposure contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/plugin_runtime.kn",
+      "id" : "plugin_runtime",
+      "required" : true
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/orchestration_runtime.kn",
+      "lane" : "orchestration",
+      "description" : "Manifest-driven artifact graphs, package materialization, deployment queues, and output delivery contracts.",
+      "label" : "Orchestration Runtime",
+      "required" : true,
+      "id" : "orchestration_runtime"
+   },
+   {
+      "label" : "Constraint Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/constraint_runtime.kn",
+      "description" : "Rig, assembly, and simulation constraint graphs with GPU-friendly solver registration.",
+      "lane" : "constraints",
+      "required" : true,
+      "id" : "constraint_runtime"
+   },
+   {
+      "label" : "Biome Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/biome_runtime.kn",
+      "description" : "Terrain biome, ecosystem, climate, and layered terrain material authoring contracts.",
+      "lane" : "biome",
+      "required" : true,
+      "id" : "biome_runtime"
+   },
+   {
+      "label" : "Destruction Runtime",
+      "lane" : "destruction",
+      "description" : "Fracture, debris, cache, and destruction authoring contracts for interactive and baked workflows.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/destruction_runtime.kn",
+      "id" : "destruction_runtime",
+      "required" : true
+   },
+   {
+      "label" : "Review Annotation Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/review_annotation_runtime.kn",
+      "lane" : "review",
+      "description" : "Frame drawover, scene note, review capture, and approval routing contracts.",
+      "required" : true,
+      "id" : "review_annotation_runtime"
+   },
+   {
+      "id" : "publishing_runtime",
+      "required" : true,
+      "lane" : "publishing",
+      "description" : "Release channel, catalog distribution, and package delivery contracts for runtime and plugin outputs.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/publishing_runtime.kn",
+      "label" : "Publishing Runtime"
+   },
+   {
+      "required" : true,
+      "id" : "renderer_graph_runtime",
+      "label" : "Renderer Graph Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/renderer_graph_runtime.kn",
+      "description" : "Frame graph, lighting graph, pass scheduling, and render dependency authoring contracts.",
+      "lane" : "renderer_graph"
+   },
+   {
+      "required" : true,
+      "id" : "behavior_runtime",
+      "label" : "Behavior Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/behavior_runtime.kn",
+      "lane" : "behavior",
+      "description" : "Behavior graph, state machine, automation logic, and replicated runtime behavior contracts."
+   },
+   {
+      "required" : true,
+      "id" : "cad_runtime",
+      "label" : "CAD Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/cad_runtime.kn",
+      "lane" : "cad",
+      "description" : "Exact CAD surfacing, NURBS assemblies, drafting, and manufacturing-adjacent exchange contracts."
+   },
+   {
+      "label" : "Robotics Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/robotics_runtime.kn",
+      "lane" : "robotics",
+      "description" : "Robotics kinematics, toolpath planning, digital twin, and machine export contracts.",
+      "required" : true,
+      "id" : "robotics_runtime"
+   },
+   {
+      "id" : "live_sync_runtime",
+      "required" : true,
+      "description" : "Live workspace mirroring, runtime hot reload, and conflict-aware asset sync contracts.",
+      "lane" : "live_sync",
+      "source_path" : "src-kain/stdlib/three_d_runtime/live_sync_runtime.kn",
+      "label" : "Live Sync Runtime"
+   },
+   {
+      "id" : "compositor_runtime",
+      "required" : true,
+      "label" : "Compositor Runtime",
+      "lane" : "compositor",
+      "description" : "Realtime compositor, sequence finishing, and color delivery contracts for viewport and editorial outputs.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/compositor_runtime.kn"
+   },
+   {
+      "id" : "scene_exchange_runtime",
+      "required" : true,
+      "lane" : "scene_exchange",
+      "description" : "USD-style scene exchange, layer composition, variant policy, and asset resolver contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/scene_exchange_runtime.kn",
+      "label" : "Scene Exchange Runtime"
+   },
+   {
+      "description" : "Inspection probes, deviation analysis, and tolerance-gated reporting contracts.",
+      "lane" : "metrology",
+      "source_path" : "src-kain/stdlib/three_d_runtime/metrology_runtime.kn",
+      "label" : "Metrology Runtime",
+      "id" : "metrology_runtime",
+      "required" : true
+   },
+   {
+      "label" : "Fabrication Runtime",
+      "lane" : "fabrication",
+      "description" : "Fabrication job scheduling, nesting, delivery, and machine queue contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/fabrication_runtime.kn",
+      "id" : "fabrication_runtime",
+      "required" : true
+   },
+   {
+      "label" : "Review Database Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/review_database_runtime.kn",
+      "lane" : "review_database",
+      "description" : "Persistent review evidence indexing, retention, and searchable production record contracts.",
+      "required" : true,
+      "id" : "review_database_runtime"
+   },
+   {
+      "id" : "scene_semantics_runtime",
+      "required" : true,
+      "label" : "Scene Semantics Runtime",
+      "description" : "Scene semantics, collection policy, variants, and authored semantic-view contracts for large workspaces.",
+      "lane" : "scene_semantics",
+      "source_path" : "src-kain/stdlib/three_d_runtime/scene_semantics_runtime.kn"
+   },
+   {
+      "required" : true,
+      "id" : "query_runtime",
+      "label" : "Query Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/query_runtime.kn",
+      "description" : "Picking, selection masking, scene probing, and query batching contracts for viewport-driven tooling.",
+      "lane" : "query_selection"
+   },
+   {
+      "label" : "Runtime Bundle Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/runtime_bundle_runtime.kn",
+      "lane" : "runtime_bundles",
+      "description" : "Standalone bundle assembly, launch profile, and delivery registry contracts for native and hybrid runtimes.",
+      "required" : true,
+      "id" : "runtime_bundle_runtime"
+   },
+   {
+      "label" : "Materialization Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/materialization_runtime.kn",
+      "description" : "Artifact receipt, promotion, and generated-output materialization contracts.",
+      "lane" : "materialization",
+      "required" : true,
+      "id" : "materialization_runtime"
+   },
+   {
+      "id" : "asset_registry_runtime",
+      "required" : true,
+      "label" : "Asset Registry Runtime",
+      "description" : "Asset lineage, dependency registry, residency audit, and provenance contracts.",
+      "lane" : "asset_registry",
+      "source_path" : "src-kain/stdlib/three_d_runtime/asset_registry_runtime.kn"
+   },
+   {
+      "id" : "character_runtime",
+      "required" : true,
+      "description" : "Character rigs, facial solving, deformation stacks, performer variants, and groom-bound character contracts.",
+      "lane" : "character",
+      "source_path" : "src-kain/stdlib/three_d_runtime/character_runtime.kn",
+      "label" : "Character Runtime"
+   },
+   {
+      "label" : "Virtual Production Runtime",
+      "description" : "Stage cameras, LED volume sync, lens metadata, take recording, and virtual production control contracts.",
+      "lane" : "virtual_production",
+      "source_path" : "src-kain/stdlib/three_d_runtime/virtual_production_runtime.kn",
+      "id" : "virtual_production_runtime",
+      "required" : true
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/geospatial_runtime.kn",
+      "description" : "Geospatial coordinates, tile streaming, survey alignment, and digital-twin terrain contracts.",
+      "lane" : "geospatial",
+      "label" : "Geospatial Runtime",
+      "required" : true,
+      "id" : "geospatial_runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/xr_runtime.kn",
+      "description" : "Stereo presentation, spatial input, immersive UI, and XR device profile contracts.",
+      "lane" : "xr",
+      "label" : "XR Runtime",
+      "required" : true,
+      "id" : "xr_runtime"
+   },
+   {
+      "label" : "Networking Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/networking_runtime.kn",
+      "description" : "Replication, authority, rollback, session transport, and shared runtime topology contracts.",
+      "lane" : "networking",
+      "required" : true,
+      "id" : "networking_runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/device_runtime.kn",
+      "lane" : "device_runtime",
+      "description" : "Device profiles, runtime hardware discovery, display/sensor orchestration, and machine-adjacent IO contracts.",
+      "label" : "Device Runtime",
+      "required" : true,
+      "id" : "device_runtime"
+   },
+   {
+      "label" : "Reflection Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/reflection_runtime.kn",
+      "lane" : "runtime_reflection",
+      "description" : "Schema catalogs, kernel metadata, runtime contract indexing, and reflection-query console contracts.",
+      "required" : true,
+      "id" : "reflection_runtime"
+   },
+   {
+      "id" : "lookdev_runtime",
+      "required" : true,
+      "lane" : "lookdev",
+      "description" : "Lighting rigs, lookdev wedges, reference matching, and approval-driven surface review contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/lookdev_runtime.kn",
+      "label" : "Lookdev Runtime"
+   },
+   {
+      "description" : "Advanced solver graphs, coupled-domain simulation authoring, checkpoint branches, and cache-graph contracts.",
+      "lane" : "simulation_authoring",
+      "source_path" : "src-kain/stdlib/three_d_runtime/simulation_authoring_runtime.kn",
+      "label" : "Simulation Authoring Runtime",
+      "id" : "simulation_authoring_runtime",
+      "required" : true
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/delivery_runtime.kn",
+      "lane" : "delivery_materializer",
+      "description" : "Manifest-consuming delivery materializers, resumable batches, and promotion-aware delivery graph contracts.",
+      "label" : "Delivery Runtime",
+      "required" : true,
+      "id" : "delivery_runtime"
+   },
+   {
+      "id" : "scene_bundle_runtime",
+      "required" : true,
+      "description" : "Authorable scene packages, launch presets, bundle layering, and reusable runtime/editor scene composition contracts.",
+      "lane" : "scene_bundles",
+      "source_path" : "src-kain/stdlib/three_d_runtime/scene_bundle_runtime.kn",
+      "label" : "Scene Bundle Runtime"
+   },
+   {
+      "description" : "Native widget schemas, dock layouts, viewport overlays, property sheets, and tool-context UI contracts.",
+      "lane" : "native_widgets",
+      "source_path" : "src-kain/stdlib/three_d_runtime/widget_runtime.kn",
+      "label" : "Widget Runtime",
+      "id" : "widget_runtime",
+      "required" : true
+   },
+   {
+      "description" : "Broad import/export/transcode and archive handoff contracts for scene, asset, cache, and review package workflows.",
+      "lane" : "interchange",
+      "source_path" : "src-kain/stdlib/three_d_runtime/interchange_runtime.kn",
+      "label" : "Interchange Runtime",
+      "id" : "interchange_runtime",
+      "required" : true
+   },
+   {
+      "label" : "Automation Runtime",
+      "lane" : "automation",
+      "description" : "Scheduled, event-driven, and approval-gated automation recipe contracts for command graphs and production queues.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/automation_runtime.kn",
+      "id" : "automation_runtime",
+      "required" : true
+   },
+   {
+      "required" : true,
+      "id" : "knowledge_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/knowledge_runtime.kn",
+      "lane" : "knowledge",
+      "description" : "Searchable project knowledge, operations memory, delivery context, and production-summary contracts.",
+      "label" : "Knowledge Runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/sequencing_runtime.kn",
+      "description" : "Shot assembly, take management, editorial conform, cinematic timing, and timeline review contracts.",
+      "lane" : "sequencing",
+      "label" : "Sequencing Runtime",
+      "required" : true,
+      "id" : "sequencing_runtime"
+   },
+   {
+      "required" : true,
+      "id" : "navigation_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/navigation_runtime.kn",
+      "description" : "Navmesh generation, pathfinding, crowd steering, agent costs, and runtime path-query contracts.",
+      "lane" : "navigation",
+      "label" : "Navigation Runtime"
+   },
+   {
+      "id" : "vehicle_runtime",
+      "required" : true,
+      "label" : "Vehicle Runtime",
+      "lane" : "vehicle",
+      "description" : "Vehicle handling, drivetrain, suspension, wheel contact, and machine-motion runtime contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/vehicle_runtime.kn"
+   },
+   {
+      "id" : "lighting_runtime",
+      "required" : true,
+      "lane" : "lighting",
+      "description" : "Lighting rigs, probe bake policy, shadow atlas continuity, exposure control, and lighting-delivery contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/lighting_runtime.kn",
+      "label" : "Lighting Runtime"
+   },
+   {
+      "id" : "broadcast_runtime",
+      "required" : true,
+      "label" : "Broadcast Runtime",
+      "lane" : "broadcast",
+      "description" : "Live feed routing, rundown control, overlay mixing, tally policy, and stage-to-program delivery contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/broadcast_runtime.kn"
+   },
+   {
+      "id" : "evaluation_runtime",
+      "required" : true,
+      "lane" : "evaluation",
+      "description" : "Dependency-graph scheduling, dirty propagation, checkpoint caches, and cross-domain evaluation contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/evaluation_runtime.kn",
+      "label" : "Evaluation Runtime"
+   },
+   {
+      "required" : true,
+      "id" : "viewport_runtime",
+      "label" : "Viewport Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/viewport_runtime.kn",
+      "lane" : "viewport",
+      "description" : "Renderer-owned viewport stacks, camera rigs, overlay composition, and review-aware presentation contracts."
+   },
+   {
+      "id" : "interaction_runtime",
+      "required" : true,
+      "label" : "Interaction Runtime",
+      "description" : "Input routing, gizmo stacks, tool contexts, command palettes, and transaction-aware interaction contracts.",
+      "lane" : "interaction",
+      "source_path" : "src-kain/stdlib/three_d_runtime/interaction_runtime.kn"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/persistence_runtime.kn",
+      "lane" : "persistence",
+      "description" : "Autosave snapshots, workspace session persistence, recovery checkpoints, and resumable project-state contracts.",
+      "label" : "Persistence Runtime",
+      "required" : true,
+      "id" : "persistence_runtime"
+   },
+   {
+      "id" : "jobs_runtime",
+      "required" : true,
+      "description" : "Farm queues, worker-capability routing, background bake/simulation delivery jobs, and execution-receipt contracts.",
+      "lane" : "jobs",
+      "source_path" : "src-kain/stdlib/three_d_runtime/jobs_runtime.kn",
+      "label" : "Jobs Runtime"
+   },
+   {
+      "required" : true,
+      "id" : "telemetry_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/telemetry_runtime.kn",
+      "description" : "Frame profiling, resource budgets, diagnostics, trace export, and observability-console contracts.",
+      "lane" : "telemetry",
+      "label" : "Telemetry Runtime"
+   },
+   {
+      "required" : true,
+      "id" : "security_runtime",
+      "label" : "Security Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/security_runtime.kn",
+      "lane" : "security",
+      "description" : "Capability registries, trust zones, policy gates, and audit-oriented runtime-governance contracts."
+   },
+   {
+      "lane" : "entity",
+      "description" : "Entity graphs, component schemas, archetype spawning, and mutation-safe scene/runtime state contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/entity_runtime.kn",
+      "label" : "Entity Runtime",
+      "id" : "entity_runtime",
+      "required" : true
+   },
+   {
+      "required" : true,
+      "id" : "prefab_runtime",
+      "label" : "Prefab Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/prefab_runtime.kn",
+      "description" : "Reusable prefab assemblies, layered variants, patch sets, and launch-ready composition contracts.",
+      "lane" : "prefab"
+   },
+   {
+      "label" : "Command Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/command_runtime.kn",
+      "description" : "Transactional commands, tool actions, macro orchestration, audit receipts, and replay-safe authoring contracts.",
+      "lane" : "commands",
+      "required" : true,
+      "id" : "command_runtime"
+   },
+   {
+      "required" : true,
+      "id" : "state_migration_runtime",
+      "label" : "State Migration Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/state_migration_runtime.kn",
+      "description" : "Project state schemas, upgrade plans, compatibility windows, and migration receipt contracts for long-lived products.",
+      "lane" : "state_migration"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/workspace_layout_runtime.kn",
+      "description" : "Multi-window docking, workspace presets, viewport-safe overlays, and authored layout-routing contracts for native Kain UI.",
+      "lane" : "workspace_layout",
+      "label" : "Workspace Layout Runtime",
+      "required" : true,
+      "id" : "workspace_layout_runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/workspace_preset_runtime.kn",
+      "description" : "Manifest-backed workspace preset registries, launch-manifest exports, runtime bindings, and receipt-aware downstream delivery contracts.",
+      "lane" : "workspace_preset",
+      "label" : "Workspace Preset Runtime",
+      "required" : true,
+      "id" : "workspace_preset_runtime"
+   },
+   {
+      "id" : "gameplay_runtime",
+      "required" : true,
+      "label" : "Gameplay Runtime",
+      "lane" : "gameplay",
+      "description" : "Gameplay state, rulesets, mission flow, event routing, and runtime-safe game framework contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/gameplay_runtime.kn"
+   },
+   {
+      "label" : "Presentation Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/presentation_runtime.kn",
+      "lane" : "presentation",
+      "description" : "HUD, menus, prompts, subtitles, accessibility, and in-game/native presentation-shell contracts.",
+      "required" : true,
+      "id" : "presentation_runtime"
+   },
+   {
+      "required" : true,
+      "id" : "replay_runtime",
+      "label" : "Replay Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/replay_runtime.kn",
+      "lane" : "replay",
+      "description" : "Deterministic capture, replay scrub, branch review, and issue-repro runtime contracts."
+   },
+   {
+      "required" : true,
+      "id" : "localization_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/localization_runtime.kn",
+      "description" : "Locale bundles, subtitle/audio timing, regional asset routing, and localized presentation contracts.",
+      "lane" : "localization",
+      "label" : "Localization Runtime"
+   },
+   {
+      "id" : "streaming_runtime",
+      "required" : true,
+      "label" : "Streaming Runtime",
+      "lane" : "streaming",
+      "description" : "Remote streaming sessions, thin-client authority, cloud-hosted runtime control, and adaptive quality contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/streaming_runtime.kn"
+   },
+   {
+      "id" : "point_cloud_runtime",
+      "required" : true,
+      "description" : "Point-cloud ingest, lidar indexing, splat presentation, segmentation, and scan-to-scene runtime contracts.",
+      "lane" : "point_cloud",
+      "source_path" : "src-kain/stdlib/three_d_runtime/point_cloud_runtime.kn",
+      "label" : "Point Cloud Runtime"
+   },
+   {
+      "label" : "Scene Source Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/scene_source_runtime.kn",
+      "description" : "Source-level scene documents, scene classes, runtime mounts, and authored launch declarations for reusable 3D applications.",
+      "lane" : "scene_source",
+      "required" : true,
+      "id" : "scene_source_runtime"
+   },
+   {
+      "id" : "widget_primitives_runtime",
+      "required" : true,
+      "description" : "Source-level native widget primitives, dock atoms, overlay chrome, and schema-bound widget bindings for Kain UI shells.",
+      "lane" : "widget_primitives",
+      "source_path" : "src-kain/stdlib/three_d_runtime/widget_primitives_runtime.kn",
+      "label" : "Widget Primitives Runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/graph_materialization_runtime.kn",
+      "description" : "Direct graph materialization, receipt indexing, provenance tracking, and approval-aware artifact promotion contracts.",
+      "lane" : "graph_materialization",
+      "label" : "Graph Materialization Runtime",
+      "required" : true,
+      "id" : "graph_materialization_runtime"
+   },
+   {
+      "description" : "Input device families, action maps, shortcut layers, modal overrides, and editor/runtime/XR routing contracts.",
+      "lane" : "input",
+      "source_path" : "src-kain/stdlib/three_d_runtime/input_runtime.kn",
+      "label" : "Input Runtime",
+      "id" : "input_runtime",
+      "required" : true
+   },
+   {
+      "required" : true,
+      "id" : "camera_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/camera_runtime.kn",
+      "description" : "Camera rigs, lens packs, capture routes, tracked-camera sync, and viewport/stage/replay-safe camera contracts.",
+      "lane" : "camera",
+      "label" : "Camera Runtime"
+   },
+   {
+      "label" : "Cache Runtime",
+      "description" : "Tiered cache stores, checkpoints, lineage, invalidation policy, and resumable runtime/delivery cache contracts.",
+      "lane" : "cache",
+      "source_path" : "src-kain/stdlib/three_d_runtime/cache_runtime.kn",
+      "id" : "cache_runtime",
+      "required" : true
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/scene_object_runtime.kn",
+      "lane" : "scene_objects",
+      "description" : "Source-level scene-object graphs, authored object classes, component mounts, relationships, and mutation-safe scene/runtime contracts.",
+      "label" : "Scene Object Runtime",
+      "required" : true,
+      "id" : "scene_object_runtime"
+   },
+   {
+      "id" : "native_controls_runtime",
+      "required" : true,
+      "lane" : "native_controls",
+      "description" : "Native control-family contracts for inspectors, outliners, tables, timelines, command bars, and dock-aware editor widgets.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/native_controls_runtime.kn",
+      "label" : "Native Controls Runtime"
+   },
+   {
+      "required" : true,
+      "id" : "schema_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/schema_runtime.kn",
+      "lane" : "schemas",
+      "description" : "Runtime/import/export schema catalogs, compatibility windows, validation gates, and reflection-aligned exchange contracts.",
+      "label" : "Schema Runtime"
+   },
+   {
+      "required" : true,
+      "id" : "physics_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/physics_runtime.kn",
+      "description" : "Rigid body, collision, joint, controller, and deterministic physics authoring/runtime contracts.",
+      "lane" : "physics",
+      "label" : "Physics Runtime"
+   },
+   {
+      "label" : "Shader Runtime",
+      "lane" : "shader",
+      "description" : "Shader family, permutation, program layout, and reflection-safe material binding contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/shader_runtime.kn",
+      "id" : "shader_runtime",
+      "required" : true
+   },
+   {
+      "id" : "resource_runtime",
+      "required" : true,
+      "lane" : "resources",
+      "description" : "GPU/CPU/virtual resource residency, streaming, eviction, and budget-governance contracts for large 3D applications.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/resource_runtime.kn",
+      "label" : "Resource Runtime"
+   },
+   {
+      "id" : "material_source_runtime",
+      "required" : true,
+      "description" : "Source-level material documents, layer authoring, preview compilation, and shader-hook contracts for robust material authoring.",
+      "lane" : "material_source",
+      "source_path" : "src-kain/stdlib/three_d_runtime/material_source_runtime.kn",
+      "label" : "Material Source Runtime"
+   },
+   {
+      "required" : true,
+      "id" : "editor_widget_runtime",
+      "label" : "Editor Widget Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/editor_widget_runtime.kn",
+      "lane" : "editor_widgets",
+      "description" : "Higher-order editor widget suites, pane state, modal routing, and reflection-bound desktop tooling contracts."
+   },
+   {
+      "id" : "scene_mutation_runtime",
+      "required" : true,
+      "description" : "Transactional scene mutation, delta replay, replication-safe edits, and audit-visible scene change receipt contracts.",
+      "lane" : "scene_mutation",
+      "source_path" : "src-kain/stdlib/three_d_runtime/scene_mutation_runtime.kn",
+      "label" : "Scene Mutation Runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/render_delegation_runtime.kn",
+      "description" : "Render backend delegation, frame capture, presentation routing, and multi-host render handoff contracts.",
+      "lane" : "render_delegation",
+      "label" : "Render Delegation Runtime",
+      "required" : true,
+      "id" : "render_delegation_runtime"
+   },
+   {
+      "id" : "resource_reflection_runtime",
+      "required" : true,
+      "lane" : "resource_reflection",
+      "description" : "Resource reflection catalogs, residency inspection, budget queries, and compatibility-aware resource governance contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/resource_reflection_runtime.kn",
+      "label" : "Resource Reflection Runtime"
+   },
+   {
+      "required" : true,
+      "id" : "runtime_compatibility_runtime",
+      "label" : "Runtime Compatibility Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/runtime_compatibility_runtime.kn",
+      "description" : "Runtime compatibility matrices, launch-readiness gates, backend/device windows, and promotion-safe validation contracts.",
+      "lane" : "runtime_compatibility"
+   },
+   {
+      "required" : true,
+      "id" : "mesh_runtime",
+      "label" : "Mesh Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/mesh_runtime.kn",
+      "lane" : "mesh",
+      "description" : "Mesh topology, remeshing, LOD generation, UV policy, and runtime-safe geometry mutation contracts."
+   },
+   {
+      "id" : "baking_runtime",
+      "required" : true,
+      "label" : "Baking Runtime",
+      "lane" : "baking",
+      "description" : "Texture, light, probe, and validation baking contracts with atlas scheduling and receipt visibility.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/baking_runtime.kn"
+   },
+   {
+      "label" : "Scripting Runtime",
+      "description" : "KainScript/editor/gameplay scripting host contracts, sandboxed bindings, and automation-safe script packaging.",
+      "lane" : "scripting",
+      "source_path" : "src-kain/stdlib/three_d_runtime/scripting_runtime.kn",
+      "id" : "scripting_runtime",
+      "required" : true
+   },
+   {
+      "label" : "AI Runtime",
+      "description" : "AI planner, agent, utility, and scene-aware decision runtime contracts for tools, crowds, and gameplay systems.",
+      "lane" : "ai",
+      "source_path" : "src-kain/stdlib/three_d_runtime/ai_runtime.kn",
+      "id" : "ai_runtime",
+      "required" : true
+   },
+   {
+      "lane" : "modding",
+      "description" : "Sandboxed mod package, mount, registry, and approval-aware extension delivery contracts.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/modding_runtime.kn",
+      "label" : "Modding Runtime",
+      "id" : "modding_runtime",
+      "required" : true
+   },
+   {
+      "label" : "Identity Runtime",
+      "description" : "Operator identity, role/entitlement policy, and audit-safe session authority contracts across editor, runtime, cloud, and fleet lanes.",
+      "lane" : "identity",
+      "source_path" : "src-kain/stdlib/three_d_runtime/identity_runtime.kn",
+      "id" : "identity_runtime",
+      "required" : true
+   },
+   {
+      "required" : true,
+      "id" : "cloud_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/cloud_runtime.kn",
+      "description" : "Cloud session placement, object storage, burst compute, and hybrid workspace routing contracts for scalable 3D application delivery.",
+      "lane" : "cloud",
+      "label" : "Cloud Runtime"
+   },
+   {
+      "label" : "Marketplace Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/marketplace_runtime.kn",
+      "lane" : "marketplace",
+      "description" : "Marketplace catalogs, package entitlements, publication channels, and promotion-aware delivery contracts for assets, plugins, and feature packs.",
+      "required" : true,
+      "id" : "marketplace_runtime"
+   },
+   {
+      "id" : "dataops_runtime",
+      "required" : true,
+      "lane" : "dataops",
+      "description" : "Dataset registries, lineage graphs, training corpus governance, and data-product orchestration contracts for 3D dataops lanes.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/dataops_runtime.kn",
+      "label" : "DataOps Runtime"
+   },
+   {
+      "required" : true,
+      "id" : "fleet_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/fleet_runtime.kn",
+      "description" : "Worker/device fleet capacity, leasing, dispatch, and failover-aware orchestration contracts for render, bake, sim, AI, and delivery workloads.",
+      "lane" : "fleet",
+      "label" : "Fleet Runtime"
+   },
+   {
+      "description" : "Skeleton authoring, control-rig solve, skin binding, and retarget-safe rig assembly contracts for characters, props, machines, and stages.",
+      "lane" : "rigging",
+      "source_path" : "src-kain/stdlib/three_d_runtime/rigging_runtime.kn",
+      "label" : "Rigging Runtime",
+      "id" : "rigging_runtime",
+      "required" : true
+   },
+   {
+      "label" : "Deformation Runtime",
+      "lane" : "deformation",
+      "description" : "Ordered deformer stacks, morph layers, wrap cages, lattices, and pose-space correction contracts for editable high-resolution surfaces.",
+      "source_path" : "src-kain/stdlib/three_d_runtime/deformation_runtime.kn",
+      "id" : "deformation_runtime",
+      "required" : true
+   },
+   {
+      "label" : "Painting Runtime",
+      "description" : "Texture, vertex, mask, projection, and layer-stack painting contracts for DCC suites, painterly tools, and engine-ready authoring.",
+      "lane" : "painting",
+      "source_path" : "src-kain/stdlib/three_d_runtime/painting_runtime.kn",
+      "id" : "painting_runtime",
+      "required" : true
+   },
+   {
+      "required" : true,
+      "id" : "uv_runtime",
+      "label" : "UV Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/uv_runtime.kn",
+      "lane" : "uv",
+      "description" : "UV charting, UDIM layout, seam policy, and texel-density-safe packing contracts for bake, paint, exchange, and runtime delivery workflows."
+   },
+   {
+      "id" : "brush_runtime",
+      "required" : true,
+      "label" : "Brush Runtime",
+      "description" : "Brush libraries, alpha presets, stroke engines, and stylus-aware tool contracts for sculpt, paint, mask, polish, and trim workflows.",
+      "lane" : "brush",
+      "source_path" : "src-kain/stdlib/three_d_runtime/brush_runtime.kn"
+   },
+   {
+      "id" : "color_runtime",
+      "required" : true,
+      "label" : "Color Runtime",
+      "description" : "Color-management policy, display-profile routing, and look-transform contracts for paint, render, review, and delivery parity.",
+      "lane" : "color",
+      "source_path" : "src-kain/stdlib/three_d_runtime/color_runtime.kn"
+   },
+   {
+      "id" : "media_runtime",
+      "required" : true,
+      "label" : "Media Runtime",
+      "description" : "Clip ingest, plate routing, decode-cache, and transcode-safe media contracts for stage, review, replay, and delivery workflows.",
+      "lane" : "media",
+      "source_path" : "src-kain/stdlib/three_d_runtime/media_runtime.kn"
+   },
+   {
+      "id" : "narrative_runtime",
+      "required" : true,
+      "label" : "Narrative Runtime",
+      "description" : "Branching-state, dialogue, objective, and checkpoint-safe story contracts for runtime, previz, and interactive review surfaces.",
+      "lane" : "narrative",
+      "source_path" : "src-kain/stdlib/three_d_runtime/narrative_runtime.kn"
+   },
+   {
+      "id" : "haptics_runtime",
+      "required" : true,
+      "label" : "Haptics Runtime",
+      "description" : "Stylus, controller, XR, and machine-feedback device routing plus force-profile contracts for editor and runtime surfaces.",
+      "lane" : "haptics",
+      "source_path" : "src-kain/stdlib/three_d_runtime/haptics_runtime.kn"
+   },
+   {
+      "id" : "updates_runtime",
+      "required" : true,
+      "label" : "Updates Runtime",
+      "description" : "Channel manifests, patch bundles, install routes, rollback policy, and migration-aware update delivery contracts.",
+      "lane" : "updates",
+      "source_path" : "src-kain/stdlib/three_d_runtime/updates_runtime.kn"
+   }
+]

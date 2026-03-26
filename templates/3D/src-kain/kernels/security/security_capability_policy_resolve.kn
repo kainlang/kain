@@ -1,0 +1,6 @@
+// Capability-policy and trust-zone evaluation seed for secured runtime orchestration.
+
+kernel security_capability_policy_resolve:
+    stage = "security_capability_policy"
+    domain = "security"
+    intent = "Resolve capability grants, trust-zone boundaries, FFI/network/device policies, and audit emission."

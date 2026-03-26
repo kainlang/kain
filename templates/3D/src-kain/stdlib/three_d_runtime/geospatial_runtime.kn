@@ -1,0 +1,40 @@
+// Geospatial, survey, and digital-twin streaming contracts.
+
+struct CoordinateReferenceDescriptor:
+    reference_id: String
+    coordinate_space: String
+    precision_policy: String
+
+struct TileStreamingDescriptor:
+    stream_id: String
+    tile_kind: String
+    tensor_pipeline_id: String
+
+struct SurveyAlignmentDescriptor:
+    alignment_id: String
+    input_profile: String
+    solve_policy: String
+
+struct GeospatialRuntimeProfile:
+    coordinate_reference: CoordinateReferenceDescriptor
+    tile_streaming: TileStreamingDescriptor
+    survey_alignment: SurveyAlignmentDescriptor
+
+fn default_geospatial_runtime_profile() -> GeospatialRuntimeProfile with Pure:
+    let profile = GeospatialRuntimeProfile()
+
+    profile.coordinate_reference = CoordinateReferenceDescriptor()
+    profile.coordinate_reference.reference_id = "world_crs_runtime"
+    profile.coordinate_reference.coordinate_space = "geodetic_projected_and_local_scene"
+    profile.coordinate_reference.precision_policy = "double_origin_with_local_offsets"
+
+    profile.tile_streaming = TileStreamingDescriptor()
+    profile.tile_streaming.stream_id = "geospatial_tile_stream"
+    profile.tile_streaming.tile_kind = "terrain_imagery_vector_and_pointcloud"
+    profile.tile_streaming.tensor_pipeline_id = "geospatial_stream_tensor_pipeline"
+
+    profile.survey_alignment = SurveyAlignmentDescriptor()
+    profile.survey_alignment.alignment_id = "survey_alignment_runtime"
+    profile.survey_alignment.input_profile = "gps_lidar_photogrammetry_and_bim"
+    profile.survey_alignment.solve_policy = "survey_control_and_scene_anchor_bound"
+    profile

@@ -1,0 +1,14 @@
+// SPIR-V seed for ordered deformer stack evaluation, corrective blending, and cache-visible deformation receipts.
+
+kernel deformer_stack_resolve:
+    stage = "compute"
+    domain = "deformation"
+    dispatch = [128, 1, 1]
+
+    input source_surface: Tensor
+    input deformer_layers: Tensor
+    input corrective_targets: Tensor
+    input deformation_context: Tensor
+
+    output resolved_surface_deformation: Tensor
+    output deformation_receipts: Tensor

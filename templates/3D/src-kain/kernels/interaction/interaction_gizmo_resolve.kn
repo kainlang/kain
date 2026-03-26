@@ -1,0 +1,6 @@
+// Interaction and gizmo-resolution seed for input routing and tool-context updates.
+
+kernel interaction_gizmo_resolve:
+    stage = "interaction_gizmo"
+    domain = "interaction"
+    intent = "Resolve input-device intent, gizmo transforms, and tool-context command routing."

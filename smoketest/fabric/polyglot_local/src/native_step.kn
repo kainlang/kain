@@ -8,10 +8,14 @@ struct NativeOutputs:
 fn main() -> NativeOutputs:
     let image = fabric_inputs.kain_orchestrator.image
     let info = interop_shared_image_info(image)
-    let before = imagefx_checksum(image, info.byte_length)
+    let before_bytes = interop_shared_image_bytes(image)
+    let before_first_channel = before_bytes[0]
     imagefx_halo_rgba(image, info.byte_length, 37)
-    let after = imagefx_checksum(image, info.byte_length)
-    assert(before != after, "expected native image filter to mutate the shared image")
+    let after_bytes = interop_shared_image_bytes(image)
+    assert(
+        before_first_channel != after_bytes[0],
+        "expected native image filter to mutate the shared image"
+    )
     let bytes = interop_shared_image_bytes(image)
     let snapshot = interop_shared_buffer_from_bytes(
         bytes,

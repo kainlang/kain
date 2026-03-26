@@ -1,0 +1,6 @@
+// Render-delegation packet seed for backend routing, capture/debug frames, presentation surfaces, and multi-host render handoff.
+
+kernel render_delegate_packet_resolve:
+    stage = "render_delegation"
+    domain = "render_delegation"
+    intent = "Resolve render backend packets, capture/debug routes, stage/stream/review presentation surfaces, and device-safe render handoff."

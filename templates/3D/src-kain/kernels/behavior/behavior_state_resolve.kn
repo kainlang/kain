@@ -1,0 +1,19 @@
+// SPIR-V behavior state evaluation seed.
+
+shader compute behavior_state_resolve(id: UVec3) -> Vec4:
+    uniform behavior_nodes: StorageBuffer<Vec4> @0
+    uniform event_stream: StorageBuffer<Vec4> @1
+    uniform state_memory: StorageBuffer<Vec4> @2
+    uniform resolved_behavior_state: StorageBuffer<Vec4> @3
+    let node_index = id.x
+    let behavior = behavior_nodes[node_index]
+    let event = event_stream[node_index]
+    let memory = state_memory[node_index]
+    let output = vec4(
+        behavior.x + event.x,
+        behavior.y + memory.y,
+        event.z + memory.z,
+        1.0
+    )
+    resolved_behavior_state[node_index] = output
+    return output

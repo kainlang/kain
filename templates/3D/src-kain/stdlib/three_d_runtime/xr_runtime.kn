@@ -1,0 +1,40 @@
+// XR runtime contracts for immersive authoring, stereo presentation, and spatial input.
+
+struct XrStereoDescriptor:
+    stereo_id: String
+    presentation_mode: String
+    tensor_pipeline_id: String
+
+struct SpatialInputDescriptor:
+    input_id: String
+    device_profile: String
+    interaction_policy: String
+
+struct ImmersiveUiDescriptor:
+    surface_id: String
+    layout_mode: String
+    comfort_policy: String
+
+struct XrRuntimeProfile:
+    stereo_runtime: XrStereoDescriptor
+    spatial_input: SpatialInputDescriptor
+    immersive_ui: ImmersiveUiDescriptor
+
+fn default_xr_runtime_profile() -> XrRuntimeProfile with Pure:
+    let profile = XrRuntimeProfile()
+
+    profile.stereo_runtime = XrStereoDescriptor()
+    profile.stereo_runtime.stereo_id = "xr_stereo_runtime"
+    profile.stereo_runtime.presentation_mode = "headset_cave_or_tablet_passthrough"
+    profile.stereo_runtime.tensor_pipeline_id = "xr_immersive_tensor_pipeline"
+
+    profile.spatial_input = SpatialInputDescriptor()
+    profile.spatial_input.input_id = "xr_spatial_input"
+    profile.spatial_input.device_profile = "hands_controllers_and_trackers"
+    profile.spatial_input.interaction_policy = "gesture_ray_and_direct_manipulation"
+
+    profile.immersive_ui = ImmersiveUiDescriptor()
+    profile.immersive_ui.surface_id = "xr_immersive_ui"
+    profile.immersive_ui.layout_mode = "world_locked_and_head_locked_mixed"
+    profile.immersive_ui.comfort_policy = "latency_safe_and_user_scale_aware"
+    profile

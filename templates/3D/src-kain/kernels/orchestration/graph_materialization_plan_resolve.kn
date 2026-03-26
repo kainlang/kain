@@ -1,0 +1,11 @@
+// Direct graph-materialization planning seed for source/manifests/kernels to runtime, SPIR-V, reflection, and delivery outputs.
+
+fn graph_materialization_plan_resolve() -> Void:
+    let graph_scope = "source_manifest_kernel_and_delivery_graphs"
+    let output_scope = "runtime_spirv_reflection_bundle_and_distribution_outputs"
+    let receipt_scope = "resumable_provenance_and_promotion_receipts"
+    let policy_scope = "approval_aware_materialization_and_channel_routing"
+    graph_scope
+    output_scope
+    receipt_scope
+    policy_scope

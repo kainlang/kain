@@ -1,0 +1,19 @@
+// SPIR-V material layer evaluation seed.
+
+shader compute material_layer_stack_tensor(id: UVec3) -> Vec4:
+    uniform material_layers: StorageBuffer<Vec4> @0
+    uniform layer_masks: StorageBuffer<Vec4> @1
+    uniform surface_inputs: StorageBuffer<Vec4> @2
+    uniform material_surface_tensor: StorageBuffer<Vec4> @3
+    let pixel_index = id.y * 4096 + id.x
+    let layer = material_layers[pixel_index]
+    let mask = layer_masks[pixel_index]
+    let surface = surface_inputs[pixel_index]
+    let output = vec4(
+        surface.x * mask.x + layer.x,
+        surface.y * mask.y + layer.y,
+        surface.z * mask.z + layer.z,
+        1.0
+    )
+    material_surface_tensor[pixel_index] = output
+    return output

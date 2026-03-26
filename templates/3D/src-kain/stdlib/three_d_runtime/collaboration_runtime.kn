@@ -1,0 +1,36 @@
+// Multi-user collaboration, review, and session authority contracts.
+
+struct CollaborationSessionDescriptor:
+    session_id: String
+    authority_mode: String
+    presence_policy: String
+    sync_policy: String
+
+struct ReviewSurfaceDescriptor:
+    surface_id: String
+    annotation_mode: String
+    playback_policy: String
+
+struct CollaborationRuntimeProfile:
+    edit_session: CollaborationSessionDescriptor
+    review_session: CollaborationSessionDescriptor
+    review_surface: ReviewSurfaceDescriptor
+
+fn default_collaboration_session(session_id: String, authority_mode: String) -> CollaborationSessionDescriptor with Pure:
+    let descriptor = CollaborationSessionDescriptor()
+    descriptor.session_id = session_id
+    descriptor.authority_mode = authority_mode
+    descriptor.presence_policy = "live_presence"
+    descriptor.sync_policy = "delta_and_snapshot"
+    descriptor
+
+fn default_collaboration_runtime_profile() -> CollaborationRuntimeProfile with Pure:
+    let profile = CollaborationRuntimeProfile()
+    profile.edit_session = default_collaboration_session("edit_session", "shared_authority")
+    profile.review_session = default_collaboration_session("review_session", "host_authority")
+
+    profile.review_surface = ReviewSurfaceDescriptor()
+    profile.review_surface.surface_id = "collaboration_review_surface"
+    profile.review_surface.annotation_mode = "frame_and_scene_annotations"
+    profile.review_surface.playback_policy = "synchronized_review"
+    profile

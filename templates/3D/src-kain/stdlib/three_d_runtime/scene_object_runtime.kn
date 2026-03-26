@@ -1,0 +1,40 @@
+// Source-level scene object contracts for authored object classes, component mounts, relationships, and mutation-safe runtime bundles.
+
+struct SceneObjectDescriptor:
+    object_id: String
+    object_kind: String
+    mutation_policy: String
+
+struct SceneObjectClassDescriptor:
+    class_id: String
+    class_scope: String
+    bundle_policy: String
+
+struct SceneObjectRelationshipDescriptor:
+    relationship_id: String
+    relationship_kind: String
+    binding_policy: String
+
+struct SceneObjectRuntimeProfile:
+    scene_object: SceneObjectDescriptor
+    object_class: SceneObjectClassDescriptor
+    relationship_runtime: SceneObjectRelationshipDescriptor
+
+fn default_scene_object_runtime_profile() -> SceneObjectRuntimeProfile with Pure:
+    let profile = SceneObjectRuntimeProfile()
+
+    profile.scene_object = SceneObjectDescriptor()
+    profile.scene_object.object_id = "universal_scene_object"
+    profile.scene_object.object_kind = "authored_editor_runtime_stage_and_delivery_scene_object"
+    profile.scene_object.mutation_policy = "transactional_receipt_bound_and_replication_safe"
+
+    profile.object_class = SceneObjectClassDescriptor()
+    profile.object_class.class_id = "universal_scene_object_class"
+    profile.object_class.class_scope = "component_mounts_variants_and_launch_profiles"
+    profile.object_class.bundle_policy = "bundle_manifest_and_scene_source_aware"
+
+    profile.relationship_runtime = SceneObjectRelationshipDescriptor()
+    profile.relationship_runtime.relationship_id = "scene_object_relationship_runtime"
+    profile.relationship_runtime.relationship_kind = "parent_constraint_reference_and_delivery_relationships"
+    profile.relationship_runtime.binding_policy = "schema_bound_and_scene_bundle_safe"
+    profile

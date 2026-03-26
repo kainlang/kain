@@ -1,0 +1,103 @@
+# Generated Outputs
+
+Treat this folder as disposable build output.
+
+- runtime scripts
+- native-ui bundles
+- SPIR-V artifacts
+- reflection metadata
+- runtime contracts
+- review captures
+- distribution bundles
+- package outputs
+- sync mirrors
+- CAD exchange exports
+- robotics toolpath packages
+- compositor outputs
+- scene exchange bundles
+- inspection reports
+- fabrication schedules
+- review database exports
+- runtime bundle assemblies
+- workspace-preset-aware layout and launch receipts
+- materialization receipts
+- asset registry snapshots
+- character outputs
+- virtual production stage packages
+- geospatial streams and tiles
+- XR experience bundles
+- network replication snapshots
+- device-control outputs
+- runtime reflection catalogs
+- lookdev review packages
+- simulation authoring caches
+- delivery materializer batches
+- scene bundle assemblies
+- native widget schemas and layout exports
+- interchange packages and transcode receipts
+- automation recipe graphs and execution receipts
+- knowledge catalogs and searchable operations indexes
+- sequencing edits, shot-conform bundles, and timeline preview exports
+- navigation meshes, crowd-flow caches, and path-query packages
+- vehicle dynamics captures, handling profiles, and machine motion exports
+- lighting probe bakes, shadow atlases, and exposure review bundles
+- broadcast rundowns, program mixes, and live overlay packages
+- evaluation schedules, checkpoint bundles, and cache governance exports
+- viewport frame packets, camera profiles, and overlay presentation bundles
+- interaction gizmo state, shortcut maps, and tool-context exports
+- persistence snapshots, recovery checkpoints, and session-delta bundles
+- jobs dispatch plans, worker-capability receipts, and queue audit packages
+- telemetry budget rollups, trace bundles, and diagnostics exports
+- security capability policies, trust-zone snapshots, and audit bundles
+- entity archetype exports, component schemas, and scene mutation receipts
+- prefab assemblies, variant bundles, and launch-preset packages
+- command receipts, macro graphs, and tool-action replay bundles
+- state-migration plans, compatibility maps, and upgrade audit packages
+- workspace layouts, dock-graph registries, and window-surface exports
+- gameplay framework bundles, runtime-state receipts, and gameplay-graph packages
+- presentation shells, HUD/menu layouts, and accessibility-aware UI bundles
+- replay captures, branch timelines, and deterministic session review packages
+- localization bundles, subtitle/audio maps, and region-aware presentation exports
+- remote streaming sessions, thin-client shells, and operator authority packages
+- point-cloud indexes, lidar streams, and splat/viewer delivery bundles
+
+- scene-source documents, authored scene classes, runtime mounts, and launch-declaration bundles
+- widget primitive schemas, dock atoms, overlay chrome packs, and native-ui composition exports
+- direct graph materialization plans, provenance catalogs, and resumable promotion receipts
+- input action maps, shortcut layers, and device-routing packages
+- camera rigs, lens packs, capture routes, and stage/review camera bundles
+- cache stores, checkpoint bundles, lineage indexes, and resumable recovery packages
+- scene-object graphs, authored object-class bundles, and runtime mutation receipts
+- native control schemas, inspector/outliner/timeline families, and dock-control exports
+- schema catalogs, import-export contract bundles, and compatibility validation receipts
+- physics caches, rigid-body solve packets, and collision/joint delivery bundles
+- shader permutations, render-program bundles, and reflection-linked material exports
+- resource residency maps, virtual-stream budgets, and memory/asset governance bundles
+- mesh topology clusters, remesh plans, lod packs, and geometry mutation receipts
+- baking schedules, bake atlases, light/probe outputs, and bake audit bundles
+- script host bundles, capability-gated script packets, and KS/TS/JS/hybrid script exports
+- AI planner outputs, agent decision packets, and crowd/tool-assistant delivery bundles
+- mod package mounts, compatibility receipts, and registry-ready extension bundles
+Regenerate from authored sources and manifests instead of editing files here by hand.
+- material source documents, preview compile packets, and shader-hook authoring exports
+- editor widget suite schemas, pane-state bundles, and desktop-tool routing exports
+- scene mutation deltas, transaction receipts, and replay-safe change bundles
+- render delegation packets, capture/debug routes, and presentation handoff bundles
+- resource reflection catalogs, budget-inspection bundles, and compatibility query exports
+- runtime compatibility matrices, launch-readiness receipts, and promotion-gate bundles
+- operator identity graphs, entitlement receipts, and authority-transition bundles
+- cloud session placements, storage routing plans, and burst-compute receipts
+- marketplace catalogs, license windows, and promotion-ready package bundles
+- dataset lineage graphs, corpus receipts, and governed data-product exports
+- fleet capacity maps, lease packets, and dispatch/failover bundles
+
+- rigging solve packets, skeleton bundles, skin-binding audits, and retarget delivery outputs
+- deformation receipts, corrective caches, wrap/lattice exports, and preview-safe deformer bundles
+- painting canvases, stroke receipts, layered texture exports, and bake-linked paint packages
+- uv layouts, chart packing receipts, texel-density audits, and udim delivery bundles
+- brush libraries, alpha packs, stylus profiles, and stroke-engine preset exports
+- color-management bundles, display profiles, look transforms, and parity-safe review exports
+- media clips, backplates, proxy/master transcodes, and stage/editorial routing bundles
+- narrative graphs, dialogue bundles, objective-state receipts, and localization-linked story exports
+- haptic device profiles, force-feedback routes, and stylus/XR tactile delivery bundles
+- update channels, patch bundles, rollback plans, and install-route audit packages

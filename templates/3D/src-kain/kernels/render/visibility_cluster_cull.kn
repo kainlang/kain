@@ -1,0 +1,11 @@
+// SPIR-V visibility pass seed for clustered rendering.
+
+shader compute visibility_cluster_cull(id: UVec3) -> Vec4:
+    uniform instance_bounds: StorageBuffer<Vec4> @0
+    uniform visible_cluster_mask: StorageBuffer<Vec4> @1
+    let cluster_index = id.x
+    let bounds = instance_bounds[cluster_index]
+    let visible = step(bounds.w, 1.0)
+    let output = vec4(visible, 0.0, 0.0, 1.0)
+    visible_cluster_mask[cluster_index] = output
+    return output

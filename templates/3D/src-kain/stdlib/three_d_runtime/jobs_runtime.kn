@@ -1,0 +1,40 @@
+// Farm queues, background jobs, operator approvals, and materialization job contracts.
+
+struct JobQueueDescriptor:
+    queue_id: String
+    queue_kind: String
+    dispatch_policy: String
+
+struct WorkerPoolDescriptor:
+    pool_id: String
+    worker_scope: String
+    capability_policy: String
+
+struct JobReceiptDescriptor:
+    receipt_id: String
+    receipt_kind: String
+    promotion_policy: String
+
+struct JobsRuntimeProfile:
+    queue: JobQueueDescriptor
+    workers: WorkerPoolDescriptor
+    receipts: JobReceiptDescriptor
+
+fn default_jobs_runtime_profile() -> JobsRuntimeProfile with Pure:
+    let profile = JobsRuntimeProfile()
+
+    profile.queue = JobQueueDescriptor()
+    profile.queue.queue_id = "farm_job_queue"
+    profile.queue.queue_kind = "asset_bake_simulation_delivery_and_review_queue"
+    profile.queue.dispatch_policy = "priority_deadline_operator_gate_and_capacity_aware"
+
+    profile.workers = WorkerPoolDescriptor()
+    profile.workers.pool_id = "runtime_worker_pool"
+    profile.workers.worker_scope = "local_remote_gpu_headless_and_machine_adjacent_workers"
+    profile.workers.capability_policy = "manifest_declared_contract_and_device_profile_matched"
+
+    profile.receipts = JobReceiptDescriptor()
+    profile.receipts.receipt_id = "job_materialization_receipts"
+    profile.receipts.receipt_kind = "execution_audit_retry_resume_and_promotion_records"
+    profile.receipts.promotion_policy = "approval_channel_and_distribution_registry_bound"
+    profile

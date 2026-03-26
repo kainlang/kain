@@ -1,0 +1,69 @@
+// Scene/runtime contracts shared by editor, renderer, animation, and simulation surfaces.
+
+struct SceneLayerDescriptor:
+    layer_id: String
+    label: String
+    domain: String
+    visible: Bool
+    editable: Bool
+
+struct SceneNodeDescriptor:
+    node_id: String
+    node_kind: String
+    parent_id: String
+    transform_policy: String
+
+struct CameraDescriptor:
+    camera_id: String
+    projection_mode: String
+    navigation_mode: String
+    output_surface_id: String
+
+struct SelectionContext:
+    selection_scope_id: String
+    active_node_id: String
+    manipulator_mode: String
+    manipulator_space: String
+    pivot_policy: String
+
+struct SceneAssetDescriptor:
+    asset_id: String
+    asset_kind: String
+    source_uri: String
+    residency: String
+    import_profile: String
+
+struct ThreeDSceneRuntime:
+    scene_id: String
+    root_label: String
+    active_camera_id: String
+    active_layers: Array<SceneLayerDescriptor>
+    active_nodes: Array<SceneNodeDescriptor>
+    assets: Array<SceneAssetDescriptor>
+    selection: SelectionContext
+
+fn default_scene_layer(layer_id: String, label: String, domain: String) -> SceneLayerDescriptor with Pure:
+    let layer = SceneLayerDescriptor()
+    layer.layer_id = layer_id
+    layer.label = label
+    layer.domain = domain
+    layer.visible = true
+    layer.editable = true
+    layer
+
+fn default_scene_node(node_id: String, node_kind: String, parent_id: String) -> SceneNodeDescriptor with Pure:
+    let node = SceneNodeDescriptor()
+    node.node_id = node_id
+    node.node_kind = node_kind
+    node.parent_id = parent_id
+    node.transform_policy = "trs"
+    node
+
+fn default_selection_context() -> SelectionContext with Pure:
+    let selection = SelectionContext()
+    selection.selection_scope_id = "main_scene_selection"
+    selection.active_node_id = "world_root"
+    selection.manipulator_mode = "translate"
+    selection.manipulator_space = "world"
+    selection.pivot_policy = "selection_center"
+    selection

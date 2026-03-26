@@ -1,0 +1,40 @@
+// Modding contracts for user extension packs, sandboxed mounts, content registries, and approval-aware distribution.
+
+struct ModPackageDescriptor:
+    package_id: String
+    package_scope: String
+    compatibility_policy: String
+
+struct ModMountDescriptor:
+    mount_id: String
+    mount_kind: String
+    isolation_policy: String
+
+struct ModRegistryDescriptor:
+    registry_id: String
+    registry_scope: String
+    approval_policy: String
+
+struct ModdingRuntimeProfile:
+    mod_package: ModPackageDescriptor
+    mod_mount: ModMountDescriptor
+    mod_registry: ModRegistryDescriptor
+
+fn default_modding_runtime_profile() -> ModdingRuntimeProfile with Pure:
+    let profile = ModdingRuntimeProfile()
+
+    profile.mod_package = ModPackageDescriptor()
+    profile.mod_package.package_id = "universal_mod_package_runtime"
+    profile.mod_package.package_scope = "user_content_tools_gameplay_packs_ui_extensions_and_runtime_addons"
+    profile.mod_package.compatibility_policy = "schema_versioned_receipt_bound_and_bundle_safe"
+
+    profile.mod_mount = ModMountDescriptor()
+    profile.mod_mount.mount_id = "mod_mount_runtime"
+    profile.mod_mount.mount_kind = "workspace_project_session_and_runtime_bundle_mounts"
+    profile.mod_mount.isolation_policy = "trust_zone_capability_and_dependency_audit_safe"
+
+    profile.mod_registry = ModRegistryDescriptor()
+    profile.mod_registry.registry_id = "mod_registry_runtime"
+    profile.mod_registry.registry_scope = "workspace_review_public_and_partner_mod_catalogs"
+    profile.mod_registry.approval_policy = "operator_gate_signoff_and_distribution_channel_aligned"
+    profile

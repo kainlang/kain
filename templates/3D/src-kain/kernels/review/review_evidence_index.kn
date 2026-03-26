@@ -1,0 +1,19 @@
+// SPIR-V review evidence indexing seed.
+
+shader compute review_evidence_index(id: UVec3) -> Vec4:
+    uniform review_media_events: StorageBuffer<Vec4> @0
+    uniform annotation_events: StorageBuffer<Vec4> @1
+    uniform ranking_policy: StorageBuffer<Vec4> @2
+    uniform ranked_evidence_index: StorageBuffer<Vec4> @3
+    let evidence_index = id.x
+    let media = review_media_events[evidence_index]
+    let annotation = annotation_events[evidence_index]
+    let ranking = ranking_policy[0]
+    let output = vec4(
+        media.x + annotation.x,
+        media.y + ranking.y,
+        annotation.z + ranking.z,
+        1.0
+    )
+    ranked_evidence_index[evidence_index] = output
+    return output

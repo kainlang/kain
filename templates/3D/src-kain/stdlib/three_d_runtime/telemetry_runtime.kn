@@ -1,0 +1,40 @@
+// Profiling, diagnostics, resource budgets, and runtime observability contracts.
+
+struct FrameTelemetryDescriptor:
+    telemetry_id: String
+    telemetry_scope: String
+    aggregation_policy: String
+
+struct BudgetDescriptor:
+    budget_id: String
+    budget_kind: String
+    escalation_policy: String
+
+struct DiagnosticDescriptor:
+    diagnostic_id: String
+    diagnostic_kind: String
+    export_policy: String
+
+struct TelemetryRuntimeProfile:
+    frame_telemetry: FrameTelemetryDescriptor
+    budgets: BudgetDescriptor
+    diagnostics: DiagnosticDescriptor
+
+fn default_telemetry_runtime_profile() -> TelemetryRuntimeProfile with Pure:
+    let profile = TelemetryRuntimeProfile()
+
+    profile.frame_telemetry = FrameTelemetryDescriptor()
+    profile.frame_telemetry.telemetry_id = "frame_telemetry_runtime"
+    profile.frame_telemetry.telemetry_scope = "cpu_gpu_streaming_editor_and_delivery_metrics"
+    profile.frame_telemetry.aggregation_policy = "frame_shot_session_and_release_rollup"
+
+    profile.budgets = BudgetDescriptor()
+    profile.budgets.budget_id = "runtime_budget_policies"
+    profile.budgets.budget_kind = "memory_frame_io_shader_and_job_capacity_budgets"
+    profile.budgets.escalation_policy = "warning_gate_review_and_auto_throttle_bound"
+
+    profile.diagnostics = DiagnosticDescriptor()
+    profile.diagnostics.diagnostic_id = "runtime_diagnostics"
+    profile.diagnostics.diagnostic_kind = "capture_trace_crash_gpu_event_and_schema_violation_stream"
+    profile.diagnostics.export_policy = "knowledge_review_and_delivery_registry_exportable"
+    profile

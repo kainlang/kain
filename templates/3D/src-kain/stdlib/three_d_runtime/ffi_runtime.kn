@@ -1,0 +1,32 @@
+// Optional host bridge policy.
+// FFI is allowed here when it extends Kain-owned runtime surfaces instead of replacing them.
+
+struct FfiBridgeDescriptor:
+    bridge_id: String
+    foreign_system: String
+    bridge_mode: String
+    ownership_policy: String
+    enabled: Bool
+    schema_policy: String
+
+struct FfiBridgePack:
+    dcc_host_bridge: FfiBridgeDescriptor
+    plugin_bridge: FfiBridgeDescriptor
+    device_bridge: FfiBridgeDescriptor
+
+fn default_ffi_bridge(bridge_id: String, foreign_system: String) -> FfiBridgeDescriptor with Pure:
+    let descriptor = FfiBridgeDescriptor()
+    descriptor.bridge_id = bridge_id
+    descriptor.foreign_system = foreign_system
+    descriptor.bridge_mode = "contract_driven"
+    descriptor.ownership_policy = "kain_authored_runtime"
+    descriptor.enabled = true
+    descriptor.schema_policy = "generated_required"
+    descriptor
+
+fn default_ffi_bridge_pack() -> FfiBridgePack with Pure:
+    let pack = FfiBridgePack()
+    pack.dcc_host_bridge = default_ffi_bridge("dcc_host_bridge", "dcc_or_engine_host")
+    pack.plugin_bridge = default_ffi_bridge("plugin_bridge", "plugin_runtime")
+    pack.device_bridge = default_ffi_bridge("device_bridge", "sensor_or_input_device")
+    pack

@@ -1,0 +1,38 @@
+// Review, drawover, note, and approval contracts for local and collaborative 3D review.
+
+struct ReviewAnnotationDescriptor:
+    annotation_id: String
+    annotation_kind: String
+    storage_policy: String
+    sync_policy: String
+
+struct ReviewCaptureDescriptor:
+    capture_id: String
+    capture_kind: String
+    tensor_pipeline_id: String
+    delivery_policy: String
+
+struct ReviewAnnotationRuntimeProfile:
+    frame_annotation: ReviewAnnotationDescriptor
+    scene_annotation: ReviewAnnotationDescriptor
+    review_capture: ReviewCaptureDescriptor
+
+fn default_review_annotation(annotation_id: String, annotation_kind: String) -> ReviewAnnotationDescriptor with Pure:
+    let descriptor = ReviewAnnotationDescriptor()
+    descriptor.annotation_id = annotation_id
+    descriptor.annotation_kind = annotation_kind
+    descriptor.storage_policy = "timeline_and_scene_bound"
+    descriptor.sync_policy = "local_or_collaborative"
+    descriptor
+
+fn default_review_annotation_runtime_profile() -> ReviewAnnotationRuntimeProfile with Pure:
+    let profile = ReviewAnnotationRuntimeProfile()
+    profile.frame_annotation = default_review_annotation("frame_annotation", "drawover_note")
+    profile.scene_annotation = default_review_annotation("scene_annotation", "anchored_scene_comment")
+
+    profile.review_capture = ReviewCaptureDescriptor()
+    profile.review_capture.capture_id = "review_capture"
+    profile.review_capture.capture_kind = "frame_overlay_and_snapshot"
+    profile.review_capture.tensor_pipeline_id = "review_overlay_tensor_pipeline"
+    profile.review_capture.delivery_policy = "embed_and_publish"
+    profile

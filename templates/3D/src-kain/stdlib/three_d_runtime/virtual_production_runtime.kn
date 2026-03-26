@@ -1,0 +1,64 @@
+// Virtual production stage, camera, and take-recording contracts.
+
+struct StageCameraDescriptor:
+    camera_id: String
+    tracking_profile: String
+    lens_metadata_policy: String
+
+struct LedVolumeDescriptor:
+    volume_id: String
+    sync_policy: String
+    color_pipeline: String
+
+struct LensCalibrationDescriptor:
+    calibration_id: String
+    profile_scope: String
+    ingest_policy: String
+    export_root: String
+
+struct PlaybackSyncDescriptor:
+    playback_id: String
+    sync_scope: String
+    receipt_policy: String
+
+struct TakeRecordingDescriptor:
+    take_runtime_id: String
+    slate_policy: String
+    output_channel: String
+
+struct VirtualProductionRuntimeProfile:
+    stage_camera: StageCameraDescriptor
+    led_volume: LedVolumeDescriptor
+    lens_calibration: LensCalibrationDescriptor
+    playback_sync: PlaybackSyncDescriptor
+    take_recording: TakeRecordingDescriptor
+
+fn default_virtual_production_runtime_profile() -> VirtualProductionRuntimeProfile with Pure:
+    let profile = VirtualProductionRuntimeProfile()
+
+    profile.stage_camera = StageCameraDescriptor()
+    profile.stage_camera.camera_id = "vp_stage_camera"
+    profile.stage_camera.tracking_profile = "tracked_camera_and_lens_distortion"
+    profile.stage_camera.lens_metadata_policy = "per_take_and_live_stage_bound"
+
+    profile.led_volume = LedVolumeDescriptor()
+    profile.led_volume.volume_id = "vp_led_volume"
+    profile.led_volume.sync_policy = "camera_wall_and_playback_locked"
+    profile.led_volume.color_pipeline = "stage_linear_color_pipeline"
+
+    profile.lens_calibration = LensCalibrationDescriptor()
+    profile.lens_calibration.calibration_id = "vp_lens_calibration"
+    profile.lens_calibration.profile_scope = "tracked_camera_lens_distortion_and_stage_capture_profiles"
+    profile.lens_calibration.ingest_policy = "per_show_and_per_lens_manifest_registered"
+    profile.lens_calibration.export_root = "generated/stage/calibration"
+
+    profile.playback_sync = PlaybackSyncDescriptor()
+    profile.playback_sync.playback_id = "vp_playback_sync"
+    profile.playback_sync.sync_scope = "plates_timecode_camera_tracking_and_led_wall_playback"
+    profile.playback_sync.receipt_policy = "take_and_stage_receipt_bound"
+
+    profile.take_recording = TakeRecordingDescriptor()
+    profile.take_recording.take_runtime_id = "vp_take_recording"
+    profile.take_recording.slate_policy = "show_sequence_shot_take"
+    profile.take_recording.output_channel = "virtual_production_stage_registry"
+    profile

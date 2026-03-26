@@ -1,0 +1,40 @@
+// Media contracts for plate ingestion, clip playback, image-sequence routing, and transcode-safe 3D application workflows.
+
+struct MediaClipDescriptor:
+    clip_id: String
+    clip_scope: String
+    decode_policy: String
+
+struct MediaPlateDescriptor:
+    plate_id: String
+    plate_kind: String
+    sync_policy: String
+
+struct MediaTranscodeDescriptor:
+    transcode_id: String
+    transcode_scope: String
+    delivery_policy: String
+
+struct MediaRuntimeProfile:
+    clip_runtime: MediaClipDescriptor
+    plate_runtime: MediaPlateDescriptor
+    transcode_runtime: MediaTranscodeDescriptor
+
+fn default_media_runtime_profile() -> MediaRuntimeProfile with Pure:
+    let profile = MediaRuntimeProfile()
+
+    profile.clip_runtime = MediaClipDescriptor()
+    profile.clip_runtime.clip_id = "universal_media_clip_runtime"
+    profile.clip_runtime.clip_scope = "video_audio_image_sequence_and_reference_clip_assets"
+    profile.clip_runtime.decode_policy = "cache_stream_and_edit_safe"
+
+    profile.plate_runtime = MediaPlateDescriptor()
+    profile.plate_runtime.plate_id = "media_plate_runtime"
+    profile.plate_runtime.plate_kind = "backplates_stage_feeds_reference_turntables_and_texture_sequences"
+    profile.plate_runtime.sync_policy = "camera_sequence_replay_and_broadcast_aligned"
+
+    profile.transcode_runtime = MediaTranscodeDescriptor()
+    profile.transcode_runtime.transcode_id = "media_transcode_runtime"
+    profile.transcode_runtime.transcode_scope = "proxy_review_master_and_archive_media_exports"
+    profile.transcode_runtime.delivery_policy = "manifest_driven_quality_gated_and_receipt_safe"
+    profile

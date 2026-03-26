@@ -197,10 +197,6 @@ impl FabricExecutor {
         }
     }
 
-    pub fn add_adapter(&mut self, adapter: Box<dyn FabricRuntimeAdapter>) {
-        self.adapters.push(adapter);
-    }
-
     pub fn execute(&self, mut session: FabricSession) -> OmniResult<FabricExecutionResult> {
         let execution_order = topological_step_order(&session.manifest.steps)?;
         let steps_by_id = session
@@ -432,7 +428,7 @@ impl FabricExecutor {
     }
 }
 
-pub trait FabricRuntimeAdapter {
+trait FabricRuntimeAdapter {
     fn label(&self) -> &'static str;
     fn supports(&self, kind: &FabricRuntimeKind) -> bool;
     fn execute(&self, context: &FabricAdapterContext) -> Result<Value, FabricFailureReason>;
@@ -595,7 +591,12 @@ impl FabricRuntimeAdapter for RustCrateAdapter {
             },
         )
         .map_err(|err| runtime_bridge_failure(context.step, "rust_crate_import_failed", err))?;
-        let source = format!("{}\n{}", imported.canonical_module_source, entry_source);
+        let fabric_entry_source =
+            strip_runtime_module_import(&entry_source, "rust", crate_name.as_str());
+        let source = format!(
+            "{}\n{}",
+            imported.canonical_module_source, fabric_entry_source
+        );
         interpret_fabric_kain_source(context, &source)
     }
 }
@@ -668,7 +669,11 @@ impl FabricRuntimeAdapter for CAbiAdapter {
         )
         .map_err(|err| runtime_bridge_failure(context.step, "c_abi_import_failed", err))?;
         validate_c_library_alignment(context.step, &imported.resolved.shared_lib_path)?;
-        let source = format!("{}\n{}", imported.canonical_module_source, entry_source);
+        let fabric_entry_source = strip_runtime_module_import(&entry_source, "c", &import_name);
+        let source = format!(
+            "{}\n{}",
+            imported.canonical_module_source, fabric_entry_source
+        );
         interpret_fabric_kain_source(context, &source)
     }
 }
@@ -1406,6 +1411,19 @@ fn kain_string_literal(value: &str) -> String {
     rendered
 }
 
+fn strip_runtime_module_import(source: &str, lane: &str, module_name: &str) -> String {
+    let expected = format!("use {lane}::{module_name}");
+    let mut kept_lines = Vec::new();
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed == expected || trimmed == format!("{expected};") {
+            continue;
+        }
+        kept_lines.push(line);
+    }
+    kept_lines.join("\n")
+}
+
 fn fabric_failure(code: impl Into<String>, message: impl Into<String>) -> FabricFailureReason {
     FabricFailureReason {
         code: code.into(),
@@ -1432,7 +1450,6 @@ fn runtime_bridge_failure(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
 
     #[test]
     fn local_fabric_manifest_executes_and_records_typed_outputs() {
@@ -1443,7 +1460,17 @@ mod tests {
 
         let result = execute_fabric_manifest_path(&init.manifest_path).unwrap();
 
-        assert_eq!(result.status, FabricSessionStatus::Succeeded);
+        assert_eq!(
+            result.status,
+            FabricSessionStatus::Succeeded,
+            "{}",
+            fs::read_to_string(&result.report_path).unwrap_or_else(|_| {
+                format!(
+                    "failed to read Fabric report at {}",
+                    result.report_path.display()
+                )
+            })
+        );
         assert!(result.report_path.exists());
         assert!(result.lock_path.exists());
         assert!(result
@@ -1460,8 +1487,10 @@ mod tests {
 
     #[test]
     fn polyglot_fixture_executes_all_runtime_kinds() {
-        let temp = TempDir::new().expect("temp dir");
-        let fixture_root = temp.path().join("fabric_polyglot_smoke");
+        let fixture_root = short_fixture_root();
+        if fixture_root.exists() {
+            let _ = fs::remove_dir_all(&fixture_root);
+        }
         copy_fixture(
             Path::new(env!("CARGO_MANIFEST_DIR"))
                 .parent()
@@ -1478,7 +1507,17 @@ mod tests {
 
         let result = execute_fabric_manifest_path(&fixture_root.join("KAIN.fabric.toml")).unwrap();
 
-        assert_eq!(result.status, FabricSessionStatus::Succeeded);
+        assert_eq!(
+            result.status,
+            FabricSessionStatus::Succeeded,
+            "{}",
+            fs::read_to_string(&result.report_path).unwrap_or_else(|_| {
+                format!(
+                    "failed to read Fabric report at {}",
+                    result.report_path.display()
+                )
+            })
+        );
         assert_eq!(result.step_results.len(), 5);
         assert!(result
             .step_results
@@ -1518,6 +1557,8 @@ mod tests {
             .outputs
             .iter()
             .any(|output| output.declared_kind == FabricContractKind::SharedBuffer));
+
+        let _ = fs::remove_dir_all(&fixture_root);
     }
 
     fn compile_fixture_shared_library(fixture_root: &Path) {
@@ -1565,5 +1606,15 @@ mod tests {
             fs::write(&path, source.replace("image_fx.dll", output_name))
                 .expect("rewrite fixture manifest");
         }
+    }
+
+    fn short_fixture_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("target")
+            .join(format!("fabric-smoke-{}", std::process::id()))
     }
 }

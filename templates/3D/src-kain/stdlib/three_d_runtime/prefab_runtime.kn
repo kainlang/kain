@@ -1,0 +1,42 @@
+// Reusable prefab, assembly, and variant composition contracts for universal 3D authoring.
+
+struct PrefabDescriptor:
+    prefab_id: String
+    prefab_kind: String
+    composition_policy: String
+    patch_policy: String
+
+struct PrefabVariantDescriptor:
+    variant_id: String
+    selection_policy: String
+    delivery_policy: String
+
+struct AssemblyDescriptor:
+    assembly_id: String
+    assembly_scope: String
+    activation_policy: String
+
+struct PrefabRuntimeProfile:
+    authored_prefab: PrefabDescriptor
+    runtime_variant: PrefabVariantDescriptor
+    assembly_graph: AssemblyDescriptor
+
+fn default_prefab_runtime_profile() -> PrefabRuntimeProfile with Pure:
+    let profile = PrefabRuntimeProfile()
+
+    profile.authored_prefab = PrefabDescriptor()
+    profile.authored_prefab.prefab_id = "authoring_prefab"
+    profile.authored_prefab.prefab_kind = "entity_component_graph_prefab"
+    profile.authored_prefab.composition_policy = "layered_and_manifest_registered"
+    profile.authored_prefab.patch_policy = "non_destructive_variant_patch_sets"
+
+    profile.runtime_variant = PrefabVariantDescriptor()
+    profile.runtime_variant.variant_id = "runtime_prefab_variant"
+    profile.runtime_variant.selection_policy = "context_role_and_platform_resolved"
+    profile.runtime_variant.delivery_policy = "bundle_registry_and_release_gate_bound"
+
+    profile.assembly_graph = AssemblyDescriptor()
+    profile.assembly_graph.assembly_id = "prefab_assembly_graph"
+    profile.assembly_graph.assembly_scope = "scene_runtime_widget_and_delivery_composition"
+    profile.assembly_graph.activation_policy = "workspace_preview_and_launch_profile_switchable"
+    profile

@@ -1,0 +1,14 @@
+// SPIR-V seed for stylus-driven brush dab accumulation, alpha modulation, and stroke receipt export.
+
+kernel brush_dab_accumulate_resolve:
+    stage = "compute"
+    domain = "brush"
+    dispatch = [128, 1, 1]
+
+    input stylus_samples: Tensor
+    input brush_tip_fields: Tensor
+    input stroke_modulators: Tensor
+    input surface_context: Tensor
+
+    output accumulated_dab_tensor: Tensor
+    output brush_stroke_receipts: Tensor

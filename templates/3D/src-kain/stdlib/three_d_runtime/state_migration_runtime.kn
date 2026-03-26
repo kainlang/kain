@@ -1,0 +1,40 @@
+// Save-state, schema migration, and compatibility contracts for long-lived 3D applications.
+
+struct StateSchemaDescriptor:
+    schema_id: String
+    schema_scope: String
+    version_policy: String
+
+struct MigrationPlanDescriptor:
+    migration_id: String
+    source_policy: String
+    verification_policy: String
+
+struct CompatibilityDescriptor:
+    compatibility_id: String
+    fallback_policy: String
+    audit_policy: String
+
+struct StateMigrationRuntimeProfile:
+    state_schema: StateSchemaDescriptor
+    migration_plan: MigrationPlanDescriptor
+    compatibility: CompatibilityDescriptor
+
+fn default_state_migration_runtime_profile() -> StateMigrationRuntimeProfile with Pure:
+    let profile = StateMigrationRuntimeProfile()
+
+    profile.state_schema = StateSchemaDescriptor()
+    profile.state_schema.schema_id = "project_state_schema"
+    profile.state_schema.schema_scope = "scene_asset_ui_runtime_and_delivery_state"
+    profile.state_schema.version_policy = "semver_milestone_and_release_channel_aware"
+
+    profile.migration_plan = MigrationPlanDescriptor()
+    profile.migration_plan.migration_id = "project_state_migration"
+    profile.migration_plan.source_policy = "snapshot_branch_bundle_and_registry_import_capable"
+    profile.migration_plan.verification_policy = "dry_run_diff_and_operator_gate_supported"
+
+    profile.compatibility = CompatibilityDescriptor()
+    profile.compatibility.compatibility_id = "runtime_state_compatibility"
+    profile.compatibility.fallback_policy = "forward_patch_or_safe_read_only_mount"
+    profile.compatibility.audit_policy = "migration_receipt_and_schema_reflection_logged"
+    profile

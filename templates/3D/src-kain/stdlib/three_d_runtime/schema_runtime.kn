@@ -1,0 +1,40 @@
+// Runtime/import/export schema contracts for reflection catalogs, compatibility windows, and exchange-safe contract validation.
+
+struct SchemaCatalogDescriptor:
+    catalog_id: String
+    catalog_scope: String
+    evolution_policy: String
+
+struct SchemaCompatibilityDescriptor:
+    compatibility_id: String
+    compatibility_scope: String
+    validation_policy: String
+
+struct ExchangeSchemaDescriptor:
+    exchange_id: String
+    exchange_kind: String
+    receipt_policy: String
+
+struct SchemaRuntimeProfile:
+    schema_catalog: SchemaCatalogDescriptor
+    compatibility_runtime: SchemaCompatibilityDescriptor
+    exchange_schema: ExchangeSchemaDescriptor
+
+fn default_schema_runtime_profile() -> SchemaRuntimeProfile with Pure:
+    let profile = SchemaRuntimeProfile()
+
+    profile.schema_catalog = SchemaCatalogDescriptor()
+    profile.schema_catalog.catalog_id = "universal_runtime_schema_catalog"
+    profile.schema_catalog.catalog_scope = "runtime_ui_interchange_plugin_and_delivery_contracts"
+    profile.schema_catalog.evolution_policy = "versioned_reflected_and_manifest_registered"
+
+    profile.compatibility_runtime = SchemaCompatibilityDescriptor()
+    profile.compatibility_runtime.compatibility_id = "runtime_schema_compatibility"
+    profile.compatibility_runtime.compatibility_scope = "project_upgrade_exchange_and_bundle_compatibility_windows"
+    profile.compatibility_runtime.validation_policy = "gate_before_materialization_publish_or_mount"
+
+    profile.exchange_schema = ExchangeSchemaDescriptor()
+    profile.exchange_schema.exchange_id = "schema_exchange_contract"
+    profile.exchange_schema.exchange_kind = "import_export_transcode_and_plugin_schema_contract"
+    profile.exchange_schema.receipt_policy = "validation_and_delivery_receipt_bound"
+    profile

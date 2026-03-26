@@ -1,0 +1,19 @@
+// SPIR-V interchange transcode and package-normalization seed.
+
+shader compute interchange_transcode_resolve(id: UVec3) -> Vec4:
+    uniform source_format_records: StorageBuffer<Vec4> @0
+    uniform target_format_records: StorageBuffer<Vec4> @1
+    uniform dependency_records: StorageBuffer<Vec4> @2
+    uniform transcoded_exchange_records: StorageBuffer<Vec4> @3
+    let record_index = id.x
+    let source_record = source_format_records[record_index]
+    let target_record = target_format_records[record_index]
+    let dependency_record = dependency_records[record_index]
+    let output = vec4(
+        source_record.x + target_record.x,
+        source_record.y + dependency_record.y,
+        target_record.z + dependency_record.z,
+        1.0
+    )
+    transcoded_exchange_records[record_index] = output
+    return output

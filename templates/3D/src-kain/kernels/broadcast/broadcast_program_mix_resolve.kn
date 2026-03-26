@@ -1,0 +1,19 @@
+// SPIR-V broadcast program-mix and rundown-control seed.
+
+shader compute broadcast_program_mix_resolve(id: UVec3) -> Vec4:
+    uniform program_feeds: StorageBuffer<Vec4> @0
+    uniform rundown_state: StorageBuffer<Vec4> @1
+    uniform overlay_state: StorageBuffer<Vec4> @2
+    uniform mixed_program_frames: StorageBuffer<Vec4> @3
+    let feed_index = id.x
+    let feed = program_feeds[feed_index]
+    let rundown = rundown_state[feed_index]
+    let overlay = overlay_state[feed_index]
+    let output = vec4(
+        feed.x + rundown.x,
+        feed.y + overlay.y,
+        rundown.z + overlay.z,
+        1.0
+    )
+    mixed_program_frames[feed_index] = output
+    return output

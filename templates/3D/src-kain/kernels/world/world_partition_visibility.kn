@@ -1,0 +1,15 @@
+// SPIR-V world partition visibility seed.
+
+shader compute world_partition_visibility(id: UVec3) -> Vec4:
+    uniform streaming_sectors: StorageBuffer<Vec4> @0
+    uniform camera_position: StorageBuffer<Vec4> @1
+    uniform streaming_budget: StorageBuffer<Vec4> @2
+    uniform visible_sector_mask: StorageBuffer<Vec4> @3
+    let sector_index = id.x
+    let sector = streaming_sectors[sector_index]
+    let camera = camera_position[0]
+    let budget = streaming_budget[0]
+    let visible = step(abs(sector.x - camera.x), budget.x)
+    let output = vec4(visible, 0.0, 0.0, 1.0)
+    visible_sector_mask[sector_index] = output
+    return output

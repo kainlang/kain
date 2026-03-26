@@ -1,0 +1,40 @@
+// Cache, checkpoint, residency, and lineage contracts for simulation, scene, render, scan, and delivery workloads.
+
+struct CacheStoreDescriptor:
+    store_id: String
+    store_kind: String
+    residency_policy: String
+
+struct CheckpointDescriptor:
+    checkpoint_id: String
+    checkpoint_scope: String
+    replay_policy: String
+
+struct CacheLineageDescriptor:
+    lineage_id: String
+    lineage_scope: String
+    invalidation_policy: String
+
+struct CacheRuntimeProfile:
+    cache_store: CacheStoreDescriptor
+    checkpoint_runtime: CheckpointDescriptor
+    cache_lineage: CacheLineageDescriptor
+
+fn default_cache_runtime_profile() -> CacheRuntimeProfile with Pure:
+    let profile = CacheRuntimeProfile()
+
+    profile.cache_store = CacheStoreDescriptor()
+    profile.cache_store.store_id = "universal_runtime_cache_store"
+    profile.cache_store.store_kind = "scene_simulation_render_scan_and_delivery_cache_store"
+    profile.cache_store.residency_policy = "tiered_streaming_gpu_cpu_and_archive_cache"
+
+    profile.checkpoint_runtime = CheckpointDescriptor()
+    profile.checkpoint_runtime.checkpoint_id = "universal_runtime_checkpoint"
+    profile.checkpoint_runtime.checkpoint_scope = "solver_scene_authoring_and_delivery_resumable_checkpoints"
+    profile.checkpoint_runtime.replay_policy = "branchable_audit_visible_and_receipt_bound"
+
+    profile.cache_lineage = CacheLineageDescriptor()
+    profile.cache_lineage.lineage_id = "runtime_cache_lineage"
+    profile.cache_lineage.lineage_scope = "asset_scene_kernel_bundle_and_delivery_dependency_lineage"
+    profile.cache_lineage.invalidation_policy = "manifest_source_and_receipt_driven"
+    profile

@@ -1,0 +1,6 @@
+// Evaluation graph scheduling seed for scene, operator, and delivery dependency resolution.
+
+kernel scene_evaluation_schedule_resolve:
+    stage = "scene_evaluation"
+    domain = "evaluation"
+    intent = "Resolve dirty-region scheduling, cache checkpoints, and cross-domain evaluation ordering."

@@ -1,0 +1,40 @@
+// Deterministic replay capture, session scrub, and issue-repro contracts.
+
+struct ReplayCaptureDescriptor:
+    capture_id: String
+    capture_kind: String
+    integrity_policy: String
+
+struct ReplayTimelineDescriptor:
+    timeline_id: String
+    timeline_kind: String
+    branch_policy: String
+
+struct ReplayReviewDescriptor:
+    review_id: String
+    review_kind: String
+    export_policy: String
+
+struct ReplayRuntimeProfile:
+    capture: ReplayCaptureDescriptor
+    timeline: ReplayTimelineDescriptor
+    review: ReplayReviewDescriptor
+
+fn default_replay_runtime_profile() -> ReplayRuntimeProfile with Pure:
+    let profile = ReplayRuntimeProfile()
+
+    profile.capture = ReplayCaptureDescriptor()
+    profile.capture.capture_id = "deterministic_replay_capture"
+    profile.capture.capture_kind = "frame_input_state_and_checkpoint_record"
+    profile.capture.integrity_policy = "checksum_and_schema_bound"
+
+    profile.timeline = ReplayTimelineDescriptor()
+    profile.timeline.timeline_id = "replay_timeline_runtime"
+    profile.timeline.timeline_kind = "scrub_branch_compare_and_repro_markers"
+    profile.timeline.branch_policy = "checkpoint_fork_and_issue_repro_safe"
+
+    profile.review = ReplayReviewDescriptor()
+    profile.review.review_id = "replay_review_runtime"
+    profile.review.review_kind = "cinematic_session_review_and_bug_triage"
+    profile.review.export_policy = "knowledge_and_delivery_bundle_exportable"
+    profile

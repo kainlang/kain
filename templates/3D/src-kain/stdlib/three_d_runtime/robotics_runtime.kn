@@ -1,0 +1,34 @@
+// Robotics, digital twin, and toolpath authoring contracts.
+
+struct KinematicsRuntimeDescriptor:
+    runtime_id: String
+    rig_kind: String
+    tensor_pipeline_id: String
+
+struct ToolpathRuntimeDescriptor:
+    toolpath_id: String
+    execution_policy: String
+    export_policy: String
+
+struct RoboticsRuntimeProfile:
+    arm_kinematics: KinematicsRuntimeDescriptor
+    machine_kinematics: KinematicsRuntimeDescriptor
+    toolpath_runtime: ToolpathRuntimeDescriptor
+
+fn default_kinematics_runtime(runtime_id: String, rig_kind: String) -> KinematicsRuntimeDescriptor with Pure:
+    let descriptor = KinematicsRuntimeDescriptor()
+    descriptor.runtime_id = runtime_id
+    descriptor.rig_kind = rig_kind
+    descriptor.tensor_pipeline_id = "robotics_toolpath_tensor_pipeline"
+    descriptor
+
+fn default_robotics_runtime_profile() -> RoboticsRuntimeProfile with Pure:
+    let profile = RoboticsRuntimeProfile()
+    profile.arm_kinematics = default_kinematics_runtime("arm_kinematics", "multi_axis_robot_arm")
+    profile.machine_kinematics = default_kinematics_runtime("machine_kinematics", "cnc_or_printer_gantry")
+
+    profile.toolpath_runtime = ToolpathRuntimeDescriptor()
+    profile.toolpath_runtime.toolpath_id = "toolpath_runtime"
+    profile.toolpath_runtime.execution_policy = "simulate_validate_then_export"
+    profile.toolpath_runtime.export_policy = "controller_profile_and_machine_pack"
+    profile

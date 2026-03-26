@@ -1,0 +1,40 @@
+// Runtime-compatibility contracts for build targets, device/backend windows, schema evolution, and launch-safe product validation.
+
+struct RuntimeCompatibilityMatrixDescriptor:
+    matrix_id: String
+    matrix_scope: String
+    validation_policy: String
+
+struct CompatibilityWindowDescriptor:
+    window_id: String
+    window_scope: String
+    promotion_policy: String
+
+struct LaunchReadinessDescriptor:
+    readiness_id: String
+    readiness_scope: String
+    gate_policy: String
+
+struct RuntimeCompatibilityRuntimeProfile:
+    compatibility_matrix: RuntimeCompatibilityMatrixDescriptor
+    compatibility_window: CompatibilityWindowDescriptor
+    launch_readiness: LaunchReadinessDescriptor
+
+fn default_runtime_compatibility_runtime_profile() -> RuntimeCompatibilityRuntimeProfile with Pure:
+    let profile = RuntimeCompatibilityRuntimeProfile()
+
+    profile.compatibility_matrix = RuntimeCompatibilityMatrixDescriptor()
+    profile.compatibility_matrix.matrix_id = "runtime_compatibility_matrix"
+    profile.compatibility_matrix.matrix_scope = "native_hybrid_wasm_stage_streaming_xr_and_headless_runtime_targets"
+    profile.compatibility_matrix.validation_policy = "schema_device_shader_resource_and_feature_pack_bound"
+
+    profile.compatibility_window = CompatibilityWindowDescriptor()
+    profile.compatibility_window.window_id = "runtime_compatibility_window"
+    profile.compatibility_window.window_scope = "project_version_backend_os_device_and_delivery_channel_windows"
+    profile.compatibility_window.promotion_policy = "approval_gate_and_manifest_registered"
+
+    profile.launch_readiness = LaunchReadinessDescriptor()
+    profile.launch_readiness.readiness_id = "runtime_launch_readiness"
+    profile.launch_readiness.readiness_scope = "launch_profiles_operator_checks_fallback_routes_and_issue_receipts"
+    profile.launch_readiness.gate_policy = "delivery_safe_and_audit_visible"
+    profile

@@ -1,0 +1,6 @@
+// Point-cloud seed for LiDAR indexing, splat-view resolution, and semantic segmentation staging.
+
+kernel point_cloud_stream_resolve:
+    stage = "point_cloud_stream"
+    domain = "point_cloud"
+    intent = "Resolve point-cloud chunks, semantic tags, and view state into streamable splat-ready point-cloud presentation."

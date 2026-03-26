@@ -1,0 +1,792 @@
+[
+  {
+    "outputs": [
+      {
+        "target": "ks",
+        "path": "generated/runtime/ks/automation_recipe_tower/main.ks"
+      },
+      {
+        "path": "generated/runtime/js/automation_recipe_tower/main.js",
+        "target": "js"
+      },
+      {
+        "target": "hybrid",
+        "path": "generated/runtime/hybrid/automation_recipe_tower/module.hybrid"
+      }
+    ],
+    "host_kind": "ks_runtime",
+    "id": "automation_recipe_tower",
+    "runtime_kind": "automation_recipe_suite",
+    "label": "Automation Recipe Tower",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "automation_recipe_tower"
+  },
+  {
+    "runtime_kind": "delivery_orchestration_suite",
+    "outputs": [
+      {
+        "path": "generated/runtime/ks/delivery_materializer_tower/main.ks",
+        "target": "ks"
+      },
+      {
+        "path": "generated/runtime/js/delivery_materializer_tower/main.js",
+        "target": "js"
+      },
+      {
+        "path": "generated/runtime/hybrid/delivery_materializer_tower/module.hybrid",
+        "target": "hybrid"
+      }
+    ],
+    "host_kind": "ks_runtime",
+    "id": "delivery_materializer_tower",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "delivery_materializer_tower",
+    "label": "Delivery Materializer Tower"
+  },
+  {
+    "host_kind": "native_ui",
+    "outputs": [
+      {
+        "target": "ks",
+        "path": "generated/runtime/ks/artifact_orchestration_studio/main.ks"
+      },
+      {
+        "target": "ts",
+        "path": "generated/runtime/ts/artifact_orchestration_studio/main.ts"
+      },
+      {
+        "target": "js",
+        "path": "generated/runtime/js/artifact_orchestration_studio/main.js"
+      },
+      {
+        "target": "hybrid",
+        "path": "generated/runtime/hybrid/artifact_orchestration_studio/module.hybrid"
+      }
+    ],
+    "id": "artifact_orchestration_studio",
+    "runtime_kind": "desktop_orchestrator",
+    "label": "Artifact Orchestration Studio",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "artifact_orchestration_studio"
+  },
+  {
+    "id": "plugin_package_builder",
+    "outputs": [
+      {
+        "path": "generated/runtime/ks/plugin_package_builder/main.ks",
+        "target": "ks"
+      },
+      {
+        "target": "ts",
+        "path": "generated/runtime/ts/plugin_package_builder/main.ts"
+      },
+      {
+        "path": "generated/runtime/js/plugin_package_builder/main.js",
+        "target": "js"
+      },
+      {
+        "target": "hybrid",
+        "path": "generated/runtime/hybrid/plugin_package_builder/module.hybrid"
+      }
+    ],
+    "host_kind": "native_ui",
+    "runtime_kind": "desktop_packager",
+    "label": "Plugin Package Builder",
+    "namespace": "plugin_package_builder",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
+  },
+  {
+    "label": "Release Publisher",
+    "namespace": "release_publisher",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "id": "release_publisher",
+    "outputs": [
+      {
+        "target": "ks",
+        "path": "generated/runtime/ks/release_publisher/main.ks"
+      },
+      {
+        "target": "ts",
+        "path": "generated/runtime/ts/release_publisher/main.ts"
+      },
+      {
+        "path": "generated/runtime/js/release_publisher/main.js",
+        "target": "js"
+      },
+      {
+        "path": "generated/runtime/hybrid/release_publisher/module.hybrid",
+        "target": "hybrid"
+      }
+    ],
+    "host_kind": "native_ui",
+    "runtime_kind": "desktop_publisher"
+  },
+  {
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "headless_build_orchestrator",
+    "label": "Headless Build Orchestrator",
+    "runtime_kind": "desktop_script",
+    "outputs": [
+      {
+        "path": "generated/runtime/ks/headless_build_orchestrator/main.ks",
+        "target": "ks"
+      },
+      {
+        "path": "generated/runtime/js/headless_build_orchestrator/main.js",
+        "target": "js"
+      }
+    ],
+    "host_kind": "ks_runtime",
+    "id": "headless_build_orchestrator"
+  },
+  {
+    "host_kind": "native_ui",
+    "outputs": [
+      {
+        "path": "generated/runtime/ks/asset_pipeline_studio/main.ks",
+        "target": "ks"
+      },
+      {
+        "path": "generated/runtime/ts/asset_pipeline_studio/main.ts",
+        "target": "ts"
+      },
+      {
+        "path": "generated/runtime/js/asset_pipeline_studio/main.js",
+        "target": "js"
+      },
+      {
+        "path": "generated/runtime/hybrid/asset_pipeline_studio/module.hybrid",
+        "target": "hybrid"
+      }
+    ],
+    "id": "asset_pipeline_studio",
+    "runtime_kind": "desktop_tool_suite",
+    "label": "Asset Pipeline Studio",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "asset_pipeline_studio"
+  },
+  {
+    "id": "game_runtime_shell",
+    "host_kind": "hybrid",
+    "outputs": [
+      {
+        "path": "generated/runtime/hybrid/game_runtime_shell/module.hybrid",
+        "target": "hybrid"
+      },
+      {
+        "path": "generated/runtime/wasm/game_runtime_shell/module.wasm",
+        "target": "wasm"
+      },
+      {
+        "target": "ts",
+        "path": "generated/runtime/ts/game_runtime_shell/bindings.ts"
+      }
+    ],
+    "runtime_kind": "hybrid_module",
+    "label": "Game Runtime Shell",
+    "namespace": "game_runtime_shell",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
+  },
+  {
+    "label": "Runtime Bundle Manager",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "runtime_bundle_manager",
+    "host_kind": "native_ui",
+    "outputs": [
+      {
+        "target": "ks",
+        "path": "generated/runtime/ks/runtime_bundle_manager/main.ks"
+      },
+      {
+        "path": "generated/runtime/ts/runtime_bundle_manager/main.ts",
+        "target": "ts"
+      },
+      {
+        "target": "js",
+        "path": "generated/runtime/js/runtime_bundle_manager/main.js"
+      },
+      {
+        "target": "hybrid",
+        "path": "generated/runtime/hybrid/runtime_bundle_manager/module.hybrid"
+      }
+    ],
+    "id": "runtime_bundle_manager",
+    "runtime_kind": "native_bundle_suite"
+  },
+  {
+    "label": "Character Facial Lab",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "character_facial_lab",
+    "host_kind": "native_ui",
+    "outputs": [
+      {
+        "path": "generated/runtime/ks/character_facial_lab/main.ks",
+        "target": "ks"
+      },
+      {
+        "path": "generated/runtime/ts/character_facial_lab/main.ts",
+        "target": "ts"
+      },
+      {
+        "path": "generated/runtime/js/character_facial_lab/main.js",
+        "target": "js"
+      },
+      {
+        "path": "generated/runtime/hybrid/character_facial_lab/module.hybrid",
+        "target": "hybrid"
+      }
+    ],
+    "id": "character_facial_lab",
+    "runtime_kind": "native_character_suite"
+  },
+  {
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "device_control_center",
+    "label": "Device Control Center",
+    "runtime_kind": "native_device_suite",
+    "outputs": [
+      {
+        "path": "generated/runtime/ks/device_control_center/main.ks",
+        "target": "ks"
+      },
+      {
+        "path": "generated/runtime/ts/device_control_center/main.ts",
+        "target": "ts"
+      },
+      {
+        "target": "js",
+        "path": "generated/runtime/js/device_control_center/main.js"
+      },
+      {
+        "path": "generated/runtime/hybrid/device_control_center/module.hybrid",
+        "target": "hybrid"
+      }
+    ],
+    "host_kind": "native_ui",
+    "id": "device_control_center"
+  },
+  {
+    "id": "scene_exchange_hub",
+    "outputs": [
+      {
+        "path": "generated/runtime/ks/scene_exchange_hub/main.ks",
+        "target": "ks"
+      },
+      {
+        "target": "ts",
+        "path": "generated/runtime/ts/scene_exchange_hub/main.ts"
+      },
+      {
+        "target": "js",
+        "path": "generated/runtime/js/scene_exchange_hub/main.js"
+      },
+      {
+        "target": "hybrid",
+        "path": "generated/runtime/hybrid/scene_exchange_hub/module.hybrid"
+      }
+    ],
+    "host_kind": "native_ui",
+    "runtime_kind": "native_exchange_suite",
+    "label": "Scene Exchange Hub",
+    "namespace": "scene_exchange_hub",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
+  },
+  {
+    "outputs": [
+      {
+        "target": "ks",
+        "path": "generated/runtime/ks/fabrication_schedule_tower/main.ks"
+      },
+      {
+        "target": "ts",
+        "path": "generated/runtime/ts/fabrication_schedule_tower/main.ts"
+      },
+      {
+        "target": "js",
+        "path": "generated/runtime/js/fabrication_schedule_tower/main.js"
+      },
+      {
+        "path": "generated/runtime/hybrid/fabrication_schedule_tower/module.hybrid",
+        "target": "hybrid"
+      }
+    ],
+    "host_kind": "native_ui",
+    "id": "fabrication_schedule_tower",
+    "runtime_kind": "native_fabrication_suite",
+    "label": "Fabrication Schedule Tower",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "fabrication_schedule_tower"
+  },
+  {
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "compositor_finishing_studio",
+    "label": "Compositor Finishing Studio",
+    "runtime_kind": "native_finishing_suite",
+    "outputs": [
+      {
+        "path": "generated/runtime/ks/compositor_finishing_studio/main.ks",
+        "target": "ks"
+      },
+      {
+        "path": "generated/runtime/ts/compositor_finishing_studio/main.ts",
+        "target": "ts"
+      },
+      {
+        "path": "generated/runtime/js/compositor_finishing_studio/main.js",
+        "target": "js"
+      },
+      {
+        "target": "hybrid",
+        "path": "generated/runtime/hybrid/compositor_finishing_studio/module.hybrid"
+      }
+    ],
+    "host_kind": "native_ui",
+    "id": "compositor_finishing_studio"
+  },
+  {
+    "label": "Geospatial Twin Studio",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "geospatial_twin_studio",
+    "host_kind": "native_ui",
+    "outputs": [
+      {
+        "path": "generated/runtime/ks/geospatial_twin_studio/main.ks",
+        "target": "ks"
+      },
+      {
+        "path": "generated/runtime/ts/geospatial_twin_studio/main.ts",
+        "target": "ts"
+      },
+      {
+        "target": "js",
+        "path": "generated/runtime/js/geospatial_twin_studio/main.js"
+      },
+      {
+        "target": "hybrid",
+        "path": "generated/runtime/hybrid/geospatial_twin_studio/module.hybrid"
+      }
+    ],
+    "id": "geospatial_twin_studio",
+    "runtime_kind": "native_geospatial_suite"
+  },
+  {
+    "runtime_kind": "native_inspection_suite",
+    "host_kind": "native_ui",
+    "outputs": [
+      {
+        "target": "ks",
+        "path": "generated/runtime/ks/metrology_inspection_lab/main.ks"
+      },
+      {
+        "path": "generated/runtime/ts/metrology_inspection_lab/main.ts",
+        "target": "ts"
+      },
+      {
+        "path": "generated/runtime/js/metrology_inspection_lab/main.js",
+        "target": "js"
+      },
+      {
+        "target": "hybrid",
+        "path": "generated/runtime/hybrid/metrology_inspection_lab/module.hybrid"
+      }
+    ],
+    "id": "metrology_inspection_lab",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "metrology_inspection_lab",
+    "label": "Metrology Inspection Lab"
+  },
+  {
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "knowledge_ops_console",
+    "label": "Knowledge Ops Console",
+    "runtime_kind": "native_knowledge_suite",
+    "outputs": [
+      {
+        "path": "generated/runtime/ks/knowledge_ops_console/main.ks",
+        "target": "ks"
+      },
+      {
+        "target": "ts",
+        "path": "generated/runtime/ts/knowledge_ops_console/main.ts"
+      },
+      {
+        "path": "generated/runtime/js/knowledge_ops_console/main.js",
+        "target": "js"
+      },
+      {
+        "path": "generated/runtime/hybrid/knowledge_ops_console/module.hybrid",
+        "target": "hybrid"
+      }
+    ],
+    "host_kind": "native_ui",
+    "id": "knowledge_ops_console"
+  },
+  {
+    "label": "Lookdev Review Stage",
+    "namespace": "lookdev_review_stage",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "id": "lookdev_review_stage",
+    "host_kind": "native_ui",
+    "outputs": [
+      {
+        "target": "ks",
+        "path": "generated/runtime/ks/lookdev_review_stage/main.ks"
+      },
+      {
+        "target": "ts",
+        "path": "generated/runtime/ts/lookdev_review_stage/main.ts"
+      },
+      {
+        "target": "js",
+        "path": "generated/runtime/js/lookdev_review_stage/main.js"
+      },
+      {
+        "target": "hybrid",
+        "path": "generated/runtime/hybrid/lookdev_review_stage/module.hybrid"
+      }
+    ],
+    "runtime_kind": "native_lookdev_suite"
+  },
+  {
+    "id": "materialization_control_center",
+    "host_kind": "native_ui",
+    "outputs": [
+      {
+        "target": "ks",
+        "path": "generated/runtime/ks/materialization_control_center/main.ks"
+      },
+      {
+        "path": "generated/runtime/ts/materialization_control_center/main.ts",
+        "target": "ts"
+      },
+      {
+        "target": "js",
+        "path": "generated/runtime/js/materialization_control_center/main.js"
+      },
+      {
+        "path": "generated/runtime/hybrid/materialization_control_center/module.hybrid",
+        "target": "hybrid"
+      }
+    ],
+    "runtime_kind": "native_materialization_suite",
+    "label": "Materialization Control Center",
+    "namespace": "materialization_control_center",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
+  },
+  {
+    "label": "Network Replication Console",
+    "namespace": "network_replication_console",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "id": "network_replication_console",
+    "host_kind": "native_ui",
+    "outputs": [
+      {
+        "path": "generated/runtime/ks/network_replication_console/main.ks",
+        "target": "ks"
+      },
+      {
+        "path": "generated/runtime/ts/network_replication_console/main.ts",
+        "target": "ts"
+      },
+      {
+        "path": "generated/runtime/js/network_replication_console/main.js",
+        "target": "js"
+      },
+      {
+        "target": "hybrid",
+        "path": "generated/runtime/hybrid/network_replication_console/module.hybrid"
+      }
+    ],
+    "runtime_kind": "native_network_suite"
+  },
+  {
+    "runtime_kind": "native_query_suite",
+    "id": "query_selection_lab",
+    "host_kind": "native_ui",
+    "outputs": [
+      {
+        "target": "ks",
+        "path": "generated/runtime/ks/query_selection_lab/main.ks"
+      },
+      {
+        "path": "generated/runtime/ts/query_selection_lab/main.ts",
+        "target": "ts"
+      },
+      {
+        "target": "js",
+        "path": "generated/runtime/js/query_selection_lab/main.js"
+      },
+      {
+        "path": "generated/runtime/hybrid/query_selection_lab/module.hybrid",
+        "target": "hybrid"
+      }
+    ],
+    "namespace": "query_selection_lab",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "label": "Query Selection Lab"
+  },
+  {
+    "host_kind": "native_ui",
+    "outputs": [
+      {
+        "target": "ks",
+        "path": "generated/runtime/ks/runtime_reflection_console/main.ks"
+      },
+      {
+        "path": "generated/runtime/ts/runtime_reflection_console/main.ts",
+        "target": "ts"
+      },
+      {
+        "path": "generated/runtime/js/runtime_reflection_console/main.js",
+        "target": "js"
+      },
+      {
+        "target": "hybrid",
+        "path": "generated/runtime/hybrid/runtime_reflection_console/module.hybrid"
+      }
+    ],
+    "id": "runtime_reflection_console",
+    "runtime_kind": "native_reflection_suite",
+    "label": "Runtime Reflection Console",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "runtime_reflection_console"
+  },
+  {
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "asset_registry_console",
+    "label": "Asset Registry Console",
+    "runtime_kind": "native_registry_suite",
+    "outputs": [
+      {
+        "target": "ks",
+        "path": "generated/runtime/ks/asset_registry_console/main.ks"
+      },
+      {
+        "path": "generated/runtime/ts/asset_registry_console/main.ts",
+        "target": "ts"
+      },
+      {
+        "path": "generated/runtime/js/asset_registry_console/main.js",
+        "target": "js"
+      },
+      {
+        "path": "generated/runtime/hybrid/asset_registry_console/module.hybrid",
+        "target": "hybrid"
+      }
+    ],
+    "host_kind": "native_ui",
+    "id": "asset_registry_console"
+  },
+  {
+    "label": "Collaboration Review Stage",
+    "namespace": "collaboration_review_stage",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "id": "collaboration_review_stage",
+    "outputs": [
+      {
+        "target": "ks",
+        "path": "generated/runtime/ks/collaboration_review_stage/main.ks"
+      },
+      {
+        "target": "ts",
+        "path": "generated/runtime/ts/collaboration_review_stage/main.ts"
+      },
+      {
+        "path": "generated/runtime/js/collaboration_review_stage/main.js",
+        "target": "js"
+      },
+      {
+        "path": "generated/runtime/hybrid/collaboration_review_stage/module.hybrid",
+        "target": "hybrid"
+      }
+    ],
+    "host_kind": "native_ui",
+    "runtime_kind": "native_review_suite"
+  },
+  {
+    "outputs": [
+      {
+        "path": "generated/runtime/ks/scene_semantics_studio/main.ks",
+        "target": "ks"
+      },
+      {
+        "path": "generated/runtime/ts/scene_semantics_studio/main.ts",
+        "target": "ts"
+      },
+      {
+        "path": "generated/runtime/js/scene_semantics_studio/main.js",
+        "target": "js"
+      },
+      {
+        "target": "hybrid",
+        "path": "generated/runtime/hybrid/scene_semantics_studio/module.hybrid"
+      }
+    ],
+    "host_kind": "native_ui",
+    "id": "scene_semantics_studio",
+    "runtime_kind": "native_scene_suite",
+    "label": "Scene Semantics Studio",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "scene_semantics_studio"
+  },
+  {
+    "runtime_kind": "native_solver_suite",
+    "id": "simulation_authoring_lab",
+    "host_kind": "native_ui",
+    "outputs": [
+      {
+        "target": "ks",
+        "path": "generated/runtime/ks/simulation_authoring_lab/main.ks"
+      },
+      {
+        "target": "ts",
+        "path": "generated/runtime/ts/simulation_authoring_lab/main.ts"
+      },
+      {
+        "target": "js",
+        "path": "generated/runtime/js/simulation_authoring_lab/main.js"
+      },
+      {
+        "target": "hybrid",
+        "path": "generated/runtime/hybrid/simulation_authoring_lab/module.hybrid"
+      }
+    ],
+    "namespace": "simulation_authoring_lab",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "label": "Simulation Authoring Lab"
+  },
+  {
+    "namespace": "virtual_production_stage",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "label": "Virtual Production Stage",
+    "runtime_kind": "native_stage_suite",
+    "id": "virtual_production_stage",
+    "outputs": [
+      {
+        "path": "generated/runtime/ks/virtual_production_stage/main.ks",
+        "target": "ks"
+      },
+      {
+        "path": "generated/runtime/ts/virtual_production_stage/main.ts",
+        "target": "ts"
+      },
+      {
+        "target": "js",
+        "path": "generated/runtime/js/virtual_production_stage/main.js"
+      },
+      {
+        "path": "generated/runtime/hybrid/virtual_production_stage/module.hybrid",
+        "target": "hybrid"
+      }
+    ],
+    "host_kind": "native_ui"
+  },
+  {
+    "namespace": "live_sync_control_tower",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "label": "Live Sync Control Tower",
+    "runtime_kind": "native_sync_suite",
+    "id": "live_sync_control_tower",
+    "host_kind": "native_ui",
+    "outputs": [
+      {
+        "target": "ks",
+        "path": "generated/runtime/ks/live_sync_control_tower/main.ks"
+      },
+      {
+        "path": "generated/runtime/ts/live_sync_control_tower/main.ts",
+        "target": "ts"
+      },
+      {
+        "path": "generated/runtime/js/live_sync_control_tower/main.js",
+        "target": "js"
+      },
+      {
+        "target": "hybrid",
+        "path": "generated/runtime/hybrid/live_sync_control_tower/module.hybrid"
+      }
+    ]
+  },
+  {
+    "outputs": [
+      {
+        "path": "generated/runtime/ks/native_widget_designer/main.ks",
+        "target": "ks"
+      },
+      {
+        "path": "generated/runtime/ts/native_widget_designer/main.ts",
+        "target": "ts"
+      },
+      {
+        "target": "js",
+        "path": "generated/runtime/js/native_widget_designer/main.js"
+      },
+      {
+        "target": "hybrid",
+        "path": "generated/runtime/hybrid/native_widget_designer/module.hybrid"
+      }
+    ],
+    "host_kind": "native_ui",
+    "id": "native_widget_designer",
+    "runtime_kind": "native_widget_suite",
+    "label": "Native Widget Designer",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "native_widget_designer"
+  },
+  {
+    "runtime_kind": "native_workbench",
+    "outputs": [
+      {
+        "target": "ks",
+        "path": "generated/runtime/ks/universal_3d_workbench/main.ks"
+      },
+      {
+        "target": "ts",
+        "path": "generated/runtime/ts/universal_3d_workbench/main.ts"
+      },
+      {
+        "target": "js",
+        "path": "generated/runtime/js/universal_3d_workbench/main.js"
+      },
+      {
+        "path": "generated/runtime/hybrid/universal_3d_workbench/module.hybrid",
+        "target": "hybrid"
+      },
+      {
+        "target": "wasm",
+        "path": "generated/runtime/wasm/universal_3d_workbench/module.wasm"
+      }
+    ],
+    "host_kind": "native_ui",
+    "id": "universal_3d_workbench",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "namespace": "universal_3d_workbench",
+    "label": "Universal 3D Workbench"
+  },
+  {
+    "label": "XR Experience Lab",
+    "namespace": "xr_experience_lab",
+    "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
+    "id": "xr_experience_lab",
+    "outputs": [
+      {
+        "path": "generated/runtime/ks/xr_experience_lab/main.ks",
+        "target": "ks"
+      },
+      {
+        "target": "ts",
+        "path": "generated/runtime/ts/xr_experience_lab/main.ts"
+      },
+      {
+        "path": "generated/runtime/js/xr_experience_lab/main.js",
+        "target": "js"
+      },
+      {
+        "target": "hybrid",
+        "path": "generated/runtime/hybrid/xr_experience_lab/module.hybrid"
+      }
+    ],
+    "host_kind": "native_ui",
+    "runtime_kind": "native_xr_suite"
+  }
+]

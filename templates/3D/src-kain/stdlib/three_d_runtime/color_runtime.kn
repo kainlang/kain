@@ -1,0 +1,40 @@
+// Color-management contracts for OCIO/LUT policy, HDR display paths, and paint-render-compositor parity.
+
+struct ColorPipelineDescriptor:
+    pipeline_id: String
+    pipeline_scope: String
+    transform_policy: String
+
+struct DisplayProfileDescriptor:
+    profile_id: String
+    profile_kind: String
+    validation_policy: String
+
+struct LookTransformDescriptor:
+    look_id: String
+    look_scope: String
+    routing_policy: String
+
+struct ColorRuntimeProfile:
+    pipeline_runtime: ColorPipelineDescriptor
+    display_runtime: DisplayProfileDescriptor
+    look_runtime: LookTransformDescriptor
+
+fn default_color_runtime_profile() -> ColorRuntimeProfile with Pure:
+    let profile = ColorRuntimeProfile()
+
+    profile.pipeline_runtime = ColorPipelineDescriptor()
+    profile.pipeline_runtime.pipeline_id = "universal_color_pipeline_runtime"
+    profile.pipeline_runtime.pipeline_scope = "paint_render_compositor_review_and_delivery_color_routes"
+    profile.pipeline_runtime.transform_policy = "ocio_lut_hdr_and_texture_space_safe"
+
+    profile.display_runtime = DisplayProfileDescriptor()
+    profile.display_runtime.profile_id = "display_profile_runtime"
+    profile.display_runtime.profile_kind = "sdr_hdr_reference_and_operator_display_profiles"
+    profile.display_runtime.validation_policy = "viewport_stage_broadcast_and_review_consistent"
+
+    profile.look_runtime = LookTransformDescriptor()
+    profile.look_runtime.look_id = "look_transform_runtime"
+    profile.look_runtime.look_scope = "show_lut_shot_grade_material_preview_and_delivery_look_transforms"
+    profile.look_runtime.routing_policy = "manifest_driven_preview_safe_and_receipt_visible"
+    profile

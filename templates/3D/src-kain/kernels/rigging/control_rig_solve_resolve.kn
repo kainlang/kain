@@ -1,0 +1,14 @@
+// SPIR-V seed for control-rig evaluation, constraint solve, and pose packet export.
+
+kernel control_rig_solve_resolve:
+    stage = "compute"
+    domain = "rigging"
+    dispatch = [128, 1, 1]
+
+    input control_states: Tensor
+    input rig_hierarchy: Tensor
+    input constraint_rules: Tensor
+    input solve_context: Tensor
+
+    output resolved_pose_packets: Tensor
+    output rig_solve_receipts: Tensor

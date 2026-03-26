@@ -1,0 +1,11 @@
+// SPIR-V seed for entity-component mutation, residency, and archetype delta resolution.
+
+fn entity_component_delta_resolve() -> Void:
+    let frame_token = "entity_component_delta_frame"
+    let mutation_scope = "scene_entity_component_delta"
+    let residency_scope = "streaming_and_checkpoint_aware"
+    let result_policy = "authoring_runtime_and_replication_safe"
+    frame_token
+    mutation_scope
+    residency_scope
+    result_policy

@@ -1,0 +1,38 @@
+// Volumetric, sparse field, fog, and signed-distance authoring contracts.
+
+struct VolumeDomainDescriptor:
+    volume_id: String
+    volume_kind: String
+    tensor_pipeline_id: String
+    storage_policy: String
+
+struct VolumeRenderDescriptor:
+    render_id: String
+    integration_mode: String
+    lighting_policy: String
+
+struct VolumetricRuntimeProfile:
+    fog_volume: VolumeDomainDescriptor
+    sdf_volume: VolumeDomainDescriptor
+    pyro_volume: VolumeDomainDescriptor
+    volume_render: VolumeRenderDescriptor
+
+fn default_volume_domain(volume_id: String, volume_kind: String) -> VolumeDomainDescriptor with Pure:
+    let descriptor = VolumeDomainDescriptor()
+    descriptor.volume_id = volume_id
+    descriptor.volume_kind = volume_kind
+    descriptor.tensor_pipeline_id = "volumetric_authoring_tensor_pipeline"
+    descriptor.storage_policy = "sparse_streaming"
+    descriptor
+
+fn default_volumetric_runtime_profile() -> VolumetricRuntimeProfile with Pure:
+    let profile = VolumetricRuntimeProfile()
+    profile.fog_volume = default_volume_domain("fog_volume", "atmospheric_fog")
+    profile.sdf_volume = default_volume_domain("sdf_volume", "signed_distance_field")
+    profile.pyro_volume = default_volume_domain("pyro_volume", "smoke_or_fire")
+
+    profile.volume_render = VolumeRenderDescriptor()
+    profile.volume_render.render_id = "volume_render"
+    profile.volume_render.integration_mode = "raymarch_tensor_assisted"
+    profile.volume_render.lighting_policy = "single_and_multiple_scatter"
+    profile

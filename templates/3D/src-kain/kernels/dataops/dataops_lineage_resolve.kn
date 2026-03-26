@@ -1,0 +1,14 @@
+// SPIR-V seed for dataset lineage resolution, training corpus shaping, and provenance-safe data packets.
+
+kernel dataops_lineage_resolve:
+    stage = "compute"
+    domain = "dataops"
+    dispatch = [128, 1, 1]
+
+    input dataset_nodes: Tensor
+    input transform_edges: Tensor
+    input governance_rules: Tensor
+    input corpus_targets: Tensor
+
+    output resolved_dataset_lineage: Tensor
+    output training_corpus_receipts: Tensor

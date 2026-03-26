@@ -1,0 +1,40 @@
+// Resource-reflection contracts for budget queries, residency introspection, compatibility catalogs, and runtime-safe streaming diagnostics.
+
+struct ResourceReflectionCatalogDescriptor:
+    catalog_id: String
+    catalog_scope: String
+    export_root: String
+
+struct ResourceInspectionDescriptor:
+    inspection_id: String
+    inspection_scope: String
+    query_policy: String
+
+struct ResourceCompatibilityDescriptor:
+    compatibility_id: String
+    compatibility_scope: String
+    gate_policy: String
+
+struct ResourceReflectionRuntimeProfile:
+    reflection_catalog: ResourceReflectionCatalogDescriptor
+    inspection_runtime: ResourceInspectionDescriptor
+    compatibility_runtime: ResourceCompatibilityDescriptor
+
+fn default_resource_reflection_runtime_profile() -> ResourceReflectionRuntimeProfile with Pure:
+    let profile = ResourceReflectionRuntimeProfile()
+
+    profile.reflection_catalog = ResourceReflectionCatalogDescriptor()
+    profile.reflection_catalog.catalog_id = "resource_reflection_catalog"
+    profile.reflection_catalog.catalog_scope = "residency_streaming_budget_cache_and_delivery_resource_metadata"
+    profile.reflection_catalog.export_root = "generated/resource-reflection"
+
+    profile.inspection_runtime = ResourceInspectionDescriptor()
+    profile.inspection_runtime.inspection_id = "resource_inspection_runtime"
+    profile.inspection_runtime.inspection_scope = "viewport_editor_jobs_telemetry_and_delivery_visible_resource_queries"
+    profile.inspection_runtime.query_policy = "manifest_contract_and_runtime_receipt_bound"
+
+    profile.compatibility_runtime = ResourceCompatibilityDescriptor()
+    profile.compatibility_runtime.compatibility_id = "resource_compatibility_runtime"
+    profile.compatibility_runtime.compatibility_scope = "device_backend_schema_and_budget_window_compatibility"
+    profile.compatibility_runtime.gate_policy = "approval_aware_and_schema_reported"
+    profile

@@ -1,0 +1,101 @@
+// Standalone runtime bundle assembly contracts for native apps, hybrid runtimes, and portable workspaces.
+
+struct RuntimeBundleDescriptor:
+    bundle_id: String
+    bundle_kind: String
+    target_surface: String
+    delivery_policy: String
+
+struct LaunchProfileDescriptor:
+    profile_id: String
+    host_kind: String
+    startup_policy: String
+    manifest_source: String
+    preset_registry_id: String
+
+struct WorkspacePresetCatalogDescriptor:
+    catalog_id: String
+    preset_manifest: String
+    routing_policy: String
+
+struct BundleReceiptDescriptor:
+    receipt_id: String
+    receipt_scope: String
+    export_root: String
+    reflection_catalog_id: String
+
+struct LaunchManifestExportDescriptor:
+    export_id: String
+    export_scope: String
+    export_root: String
+    receipt_id: String
+
+struct BundleCompatibilityDescriptor:
+    compatibility_id: String
+    compatibility_scope: String
+    gate_policy: String
+
+struct BundleRegistryDescriptor:
+    registry_id: String
+    registry_kind: String
+    approval_policy: String
+
+struct RuntimeBundleProfile:
+    native_bundle: RuntimeBundleDescriptor
+    hybrid_bundle: RuntimeBundleDescriptor
+    launch_profile: LaunchProfileDescriptor
+    workspace_preset_catalog: WorkspacePresetCatalogDescriptor
+    bundle_receipts: BundleReceiptDescriptor
+    launch_manifest_export: LaunchManifestExportDescriptor
+    compatibility_runtime: BundleCompatibilityDescriptor
+    bundle_registry: BundleRegistryDescriptor
+
+fn default_runtime_bundle_profile() -> RuntimeBundleProfile with Pure:
+    let profile = RuntimeBundleProfile()
+
+    profile.native_bundle = RuntimeBundleDescriptor()
+    profile.native_bundle.bundle_id = "native_runtime_bundle"
+    profile.native_bundle.bundle_kind = "desktop_workbench_bundle"
+    profile.native_bundle.target_surface = "native_ui"
+    profile.native_bundle.delivery_policy = "assembled_from_canonical_runtime_apps_and_workspace_presets"
+
+    profile.hybrid_bundle = RuntimeBundleDescriptor()
+    profile.hybrid_bundle.bundle_id = "hybrid_runtime_bundle"
+    profile.hybrid_bundle.bundle_kind = "hybrid_module_bundle"
+    profile.hybrid_bundle.target_surface = "hybrid_and_wasm"
+    profile.hybrid_bundle.delivery_policy = "assembled_from_canonical_runtime_apps_and_workspace_presets"
+
+    profile.launch_profile = LaunchProfileDescriptor()
+    profile.launch_profile.profile_id = "runtime_bundle_launch_profile"
+    profile.launch_profile.host_kind = "native_or_embedded_runtime"
+    profile.launch_profile.startup_policy = "workspace_preset_manifest_selected"
+    profile.launch_profile.manifest_source = "manifests/workspace_presets.json"
+    profile.launch_profile.preset_registry_id = "workspace_preset_registry"
+
+    profile.workspace_preset_catalog = WorkspacePresetCatalogDescriptor()
+    profile.workspace_preset_catalog.catalog_id = "runtime_bundle_workspace_preset_catalog"
+    profile.workspace_preset_catalog.preset_manifest = "manifests/workspace_presets.json"
+    profile.workspace_preset_catalog.routing_policy = "focus_lane_host_kind_and_runtime_app_bound"
+
+    profile.bundle_receipts = BundleReceiptDescriptor()
+    profile.bundle_receipts.receipt_id = "runtime_bundle_receipts"
+    profile.bundle_receipts.receipt_scope = "bundle_materialization_launch_profile_and_distribution_receipts"
+    profile.bundle_receipts.export_root = "generated/bundles/receipts"
+    profile.bundle_receipts.reflection_catalog_id = "distribution_receipt_catalog"
+
+    profile.launch_manifest_export = LaunchManifestExportDescriptor()
+    profile.launch_manifest_export.export_id = "runtime_bundle_launch_manifest_export"
+    profile.launch_manifest_export.export_scope = "workspace_preset_bound_launch_profiles_and_bundle_registry_exports"
+    profile.launch_manifest_export.export_root = "generated/workspace-presets/launch"
+    profile.launch_manifest_export.receipt_id = "workspace_preset_materialization_receipts"
+
+    profile.compatibility_runtime = BundleCompatibilityDescriptor()
+    profile.compatibility_runtime.compatibility_id = "runtime_bundle_compatibility_runtime"
+    profile.compatibility_runtime.compatibility_scope = "runtime_host_workspace_preset_and_delivery_window_compatibility"
+    profile.compatibility_runtime.gate_policy = "bundle_gate_and_runtime_compatibility_bound"
+
+    profile.bundle_registry = BundleRegistryDescriptor()
+    profile.bundle_registry.registry_id = "runtime_bundle_registry"
+    profile.bundle_registry.registry_kind = "workspace_and_release_catalog"
+    profile.bundle_registry.approval_policy = "bundle_gate"
+    profile

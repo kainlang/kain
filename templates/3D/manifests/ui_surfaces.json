@@ -1,0 +1,700 @@
+[
+   {
+      "title" : "Universal Kain 3D",
+      "id" : "main_workbench",
+      "layout" : "dock",
+      "widget" : "Panel",
+      "persistent_layout_id" : "universal_kain_3d_workbench"
+   },
+   {
+      "scene" : "main_scene",
+      "widget" : "Viewport3D",
+      "renderer_preference" : "native",
+      "title" : "Primary Viewport",
+      "id" : "viewport_stage"
+   },
+   {
+      "widget" : "Tree",
+      "title" : "Scene Graph",
+      "id" : "scene_outliner",
+      "binding" : "scene.layers"
+   },
+   {
+      "binding" : "scene.selection",
+      "id" : "selection_inspector",
+      "title" : "Selection Inspector",
+      "widget" : "Inspector"
+   },
+   {
+      "binding" : "assets.catalog",
+      "widget" : "Browser",
+      "id" : "asset_browser",
+      "title" : "Asset Browser"
+   },
+   {
+      "binding" : "materials.graph",
+      "widget" : "Graph",
+      "id" : "material_graph",
+      "title" : "Material Graph"
+   },
+   {
+      "binding" : "graph.runtime",
+      "widget" : "Graph",
+      "title" : "Runtime Graph",
+      "id" : "node_graph"
+   },
+   {
+      "binding" : "timeline.runtime",
+      "title" : "Animation And Simulation Timeline",
+      "id" : "timeline_surface",
+      "widget" : "Timeline"
+   },
+   {
+      "title" : "Curve Editor",
+      "id" : "curve_editor",
+      "widget" : "CurveEditor",
+      "binding" : "animation.curves"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "simulation_console",
+      "title" : "Simulation Console",
+      "binding" : "simulation.runtime"
+   },
+   {
+      "binding" : "world.streaming",
+      "widget" : "Graph",
+      "title" : "World Streaming",
+      "id" : "world_streaming"
+   },
+   {
+      "id" : "automation_console",
+      "title" : "Automation Console",
+      "widget" : "Inspector",
+      "binding" : "automation.runtime"
+   },
+   {
+      "binding" : "procedural.graph",
+      "widget" : "Graph",
+      "id" : "procedural_stack",
+      "title" : "Procedural Stack"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "groom_surface",
+      "title" : "Groom Surface",
+      "binding" : "groom.runtime"
+   },
+   {
+      "binding" : "volume.runtime",
+      "title" : "Volume Lab",
+      "id" : "volume_lab",
+      "widget" : "Graph"
+   },
+   {
+      "id" : "scan_reconstruction",
+      "title" : "Scan Reconstruction",
+      "widget" : "Inspector",
+      "binding" : "photogrammetry.runtime"
+   },
+   {
+      "title" : "Audio Graph",
+      "id" : "audio_graph",
+      "widget" : "Graph",
+      "binding" : "audio.runtime"
+   },
+   {
+      "binding" : "collaboration.runtime",
+      "id" : "collaboration_review_surface",
+      "title" : "Collaboration Review",
+      "widget" : "Inspector"
+   },
+   {
+      "binding" : "packaging.runtime",
+      "title" : "Plugin Packaging",
+      "id" : "plugin_packaging",
+      "widget" : "Inspector"
+   },
+   {
+      "binding" : "orchestration.runtime",
+      "widget" : "Graph",
+      "title" : "Artifact Orchestration",
+      "id" : "artifact_orchestration"
+   },
+   {
+      "title" : "Constraint Graph",
+      "id" : "constraint_graph",
+      "widget" : "Graph",
+      "binding" : "constraints.runtime"
+   },
+   {
+      "widget" : "Graph",
+      "id" : "biome_authoring",
+      "title" : "Biome Authoring",
+      "binding" : "biome.runtime"
+   },
+   {
+      "id" : "destruction_lab",
+      "title" : "Destruction Lab",
+      "widget" : "Inspector",
+      "binding" : "destruction.runtime"
+   },
+   {
+      "id" : "review_annotations",
+      "title" : "Review Annotations",
+      "widget" : "Inspector",
+      "binding" : "review.annotations"
+   },
+   {
+      "id" : "distribution_publisher",
+      "title" : "Distribution Publisher",
+      "widget" : "Inspector",
+      "binding" : "publishing.runtime"
+   },
+   {
+      "binding" : "renderer_graph.runtime",
+      "id" : "renderer_graph_authoring",
+      "title" : "Renderer Graph Authoring",
+      "widget" : "Graph"
+   },
+   {
+      "widget" : "Graph",
+      "id" : "behavior_graph_surface",
+      "title" : "Behavior Graph Surface",
+      "binding" : "behavior.runtime"
+   },
+   {
+      "id" : "cad_surface_authoring",
+      "title" : "CAD Surface Authoring",
+      "widget" : "Inspector",
+      "binding" : "cad.runtime"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "robotics_toolpath_surface",
+      "title" : "Robotics Toolpath Surface",
+      "binding" : "robotics.runtime"
+   },
+   {
+      "title" : "Live Sync Console",
+      "id" : "live_sync_console",
+      "widget" : "Inspector",
+      "binding" : "live_sync.runtime"
+   },
+   {
+      "id" : "compositor_finishing_surface",
+      "title" : "Compositor Finishing",
+      "widget" : "Graph",
+      "binding" : "compositor.runtime"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "scene_exchange_surface",
+      "title" : "Scene Exchange",
+      "binding" : "scene_exchange.runtime"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "metrology_inspection_surface",
+      "title" : "Metrology Inspection",
+      "binding" : "metrology.runtime"
+   },
+   {
+      "binding" : "fabrication.runtime",
+      "widget" : "Inspector",
+      "title" : "Fabrication Scheduling",
+      "id" : "fabrication_schedule_surface"
+   },
+   {
+      "binding" : "review_database.runtime",
+      "title" : "Review Database",
+      "id" : "review_database_surface",
+      "widget" : "Graph"
+   },
+   {
+      "binding" : "scene_semantics.runtime",
+      "widget" : "Inspector",
+      "id" : "scene_semantics_surface",
+      "title" : "Scene Semantics"
+   },
+   {
+      "binding" : "query_selection.runtime",
+      "title" : "Query Selection",
+      "id" : "query_selection_surface",
+      "widget" : "Graph"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "runtime_bundle_surface",
+      "title" : "Runtime Bundles",
+      "binding" : "runtime_bundles.runtime"
+   },
+   {
+      "widget" : "Graph",
+      "title" : "Materialization",
+      "id" : "materialization_surface",
+      "binding" : "materialization.runtime"
+   },
+   {
+      "id" : "asset_registry_surface",
+      "title" : "Asset Registry",
+      "widget" : "Graph",
+      "binding" : "asset_registry.runtime"
+   },
+   {
+      "binding" : "character.runtime",
+      "widget" : "Inspector",
+      "id" : "character_facial_surface",
+      "title" : "Character Facial Surface"
+   },
+   {
+      "binding" : "virtual_production.runtime",
+      "widget" : "Inspector",
+      "id" : "virtual_production_surface",
+      "title" : "Virtual Production Stage"
+   },
+   {
+      "binding" : "geospatial.runtime",
+      "id" : "geospatial_surface",
+      "title" : "Geospatial Twin Surface",
+      "widget" : "Graph"
+   },
+   {
+      "id" : "xr_surface",
+      "title" : "XR Runtime Surface",
+      "widget" : "Inspector",
+      "binding" : "xr.runtime"
+   },
+   {
+      "id" : "networking_surface",
+      "title" : "Network Replication",
+      "widget" : "Inspector",
+      "binding" : "networking.runtime"
+   },
+   {
+      "binding" : "device.runtime",
+      "title" : "Device Control Center",
+      "id" : "device_control_surface",
+      "widget" : "Inspector"
+   },
+   {
+      "binding" : "runtime_reflection.runtime",
+      "id" : "runtime_reflection_surface",
+      "title" : "Runtime Reflection Console",
+      "widget" : "Graph"
+   },
+   {
+      "title" : "Lookdev Review Stage",
+      "id" : "lookdev_review_surface",
+      "widget" : "Inspector",
+      "binding" : "lookdev.runtime"
+   },
+   {
+      "binding" : "simulation_authoring.runtime",
+      "widget" : "Graph",
+      "id" : "simulation_authoring_surface",
+      "title" : "Simulation Authoring Lab"
+   },
+   {
+      "binding" : "delivery.runtime",
+      "title" : "Delivery Materializer Tower",
+      "id" : "delivery_materializer_surface",
+      "widget" : "Inspector"
+   },
+   {
+      "title" : "Scene Bundle Studio",
+      "id" : "scene_bundle_surface",
+      "widget" : "Graph",
+      "binding" : "scene_bundles.runtime"
+   },
+   {
+      "binding" : "native_widgets.runtime",
+      "title" : "Native Widget Designer",
+      "id" : "native_widget_surface",
+      "widget" : "Inspector"
+   },
+   {
+      "widget" : "Inspector",
+      "title" : "Interchange Exchange Hub",
+      "id" : "interchange_surface",
+      "binding" : "interchange.runtime"
+   },
+   {
+      "widget" : "Graph",
+      "title" : "Automation Recipe Tower",
+      "id" : "automation_recipe_surface",
+      "binding" : "automation.runtime"
+   },
+   {
+      "widget" : "Graph",
+      "title" : "Knowledge Ops Console",
+      "id" : "knowledge_ops_surface",
+      "binding" : "knowledge.runtime"
+   },
+   {
+      "widget" : "Timeline",
+      "id" : "sequencing_surface",
+      "title" : "Sequencing Studio",
+      "binding" : "sequencing.runtime"
+   },
+   {
+      "widget" : "Graph",
+      "title" : "Navigation Crowd Lab",
+      "id" : "navigation_surface",
+      "binding" : "navigation.runtime"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "vehicle_surface",
+      "title" : "Vehicle Dynamics Lab",
+      "binding" : "vehicle.runtime"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "lighting_surface",
+      "title" : "Lighting Pipeline Stage",
+      "binding" : "lighting.runtime"
+   },
+   {
+      "binding" : "broadcast.runtime",
+      "widget" : "Inspector",
+      "title" : "Broadcast Control Room",
+      "id" : "broadcast_surface"
+   },
+   {
+      "title" : "Evaluation Graph Console",
+      "id" : "evaluation_surface",
+      "widget" : "Graph",
+      "binding" : "evaluation.runtime"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "viewport_surface",
+      "title" : "Viewport Stack Studio",
+      "binding" : "viewport.runtime"
+   },
+   {
+      "binding" : "interaction.runtime",
+      "widget" : "Inspector",
+      "title" : "Interaction Gizmo Lab",
+      "id" : "interaction_surface"
+   },
+   {
+      "binding" : "persistence.runtime",
+      "id" : "persistence_surface",
+      "title" : "Persistence Recovery Console",
+      "widget" : "Inspector"
+   },
+   {
+      "id" : "jobs_surface",
+      "title" : "Farm Job Control Tower",
+      "widget" : "Graph",
+      "binding" : "jobs.runtime"
+   },
+   {
+      "id" : "telemetry_surface",
+      "title" : "Telemetry Budget Console",
+      "widget" : "Graph",
+      "binding" : "telemetry.runtime"
+   },
+   {
+      "title" : "Security Capability Console",
+      "id" : "security_surface",
+      "widget" : "Inspector",
+      "binding" : "security.runtime"
+   },
+   {
+      "binding" : "entity.runtime",
+      "widget" : "Graph",
+      "id" : "entity_archetype_surface",
+      "title" : "Entity Archetype Studio"
+   },
+   {
+      "title" : "Prefab Assembly Lab",
+      "id" : "prefab_assembly_surface",
+      "widget" : "Inspector",
+      "binding" : "prefab.runtime"
+   },
+   {
+      "widget" : "Graph",
+      "title" : "Command Macro Console",
+      "id" : "command_macro_surface",
+      "binding" : "command.runtime"
+   },
+   {
+      "id" : "state_migration_surface",
+      "title" : "State Migration Console",
+      "widget" : "Inspector",
+      "binding" : "state_migration.runtime"
+   },
+   {
+      "title" : "Workspace Layout Studio",
+      "id" : "workspace_layout_surface",
+      "widget" : "Graph",
+      "binding" : "workspace_layout.runtime"
+   },
+   {
+      "binding" : "gameplay.runtime",
+      "id" : "gameplay_surface",
+      "title" : "Gameplay Framework Lab",
+      "widget" : "Graph"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "presentation_surface",
+      "title" : "Presentation Shell Studio",
+      "binding" : "presentation.runtime"
+   },
+   {
+      "binding" : "replay.runtime",
+      "id" : "replay_surface",
+      "title" : "Replay Capture Console",
+      "widget" : "Timeline"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "localization_surface",
+      "title" : "Localization Pipeline Hub",
+      "binding" : "localization.runtime"
+   },
+   {
+      "binding" : "streaming.runtime",
+      "title" : "Remote Streaming Control Tower",
+      "id" : "streaming_surface",
+      "widget" : "Inspector"
+   },
+   {
+      "widget" : "Graph",
+      "id" : "point_cloud_surface",
+      "title" : "Point Cloud LiDAR Studio",
+      "binding" : "point_cloud.runtime"
+   },
+   {
+      "title" : "Scene Source Studio",
+      "id" : "scene_source_surface",
+      "widget" : "Inspector",
+      "binding" : "scene_source.runtime"
+   },
+   {
+      "binding" : "widget_primitives.runtime",
+      "title" : "Widget Primitives Lab",
+      "id" : "widget_primitives_surface",
+      "widget" : "Inspector"
+   },
+   {
+      "binding" : "graph_materialization.runtime",
+      "widget" : "Graph",
+      "title" : "Graph Materialization Tower",
+      "id" : "graph_materialization_surface"
+   },
+   {
+      "widget" : "Inspector",
+      "title" : "Input Mapping Control Room",
+      "id" : "input_surface",
+      "binding" : "input.runtime"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "camera_surface",
+      "title" : "Camera Rig Console",
+      "binding" : "camera.runtime"
+   },
+   {
+      "widget" : "Graph",
+      "title" : "Cache Runtime Center",
+      "id" : "cache_surface",
+      "binding" : "cache.runtime"
+   },
+   {
+      "binding" : "scene_objects.runtime",
+      "title" : "Scene Object Studio",
+      "id" : "scene_object_surface",
+      "widget" : "Graph"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "native_controls_surface",
+      "title" : "Native Control Designer",
+      "binding" : "native_controls.runtime"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "schema_surface",
+      "title" : "Schema Contract Console",
+      "binding" : "schemas.runtime"
+   },
+   {
+      "title" : "Physics Authoring Lab",
+      "id" : "physics_surface",
+      "widget" : "Inspector",
+      "binding" : "physics.runtime"
+   },
+   {
+      "title" : "Shader Permutation Studio",
+      "id" : "shader_surface",
+      "widget" : "Graph",
+      "binding" : "shader.runtime"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "resource_surface",
+      "title" : "Resource Residency Console",
+      "binding" : "resources.runtime"
+   },
+   {
+      "binding" : "material_source.runtime",
+      "title" : "Material Source Studio",
+      "id" : "material_source_surface",
+      "widget" : "Graph"
+   },
+   {
+      "binding" : "editor_widgets.runtime",
+      "title" : "Editor Widget Suite Designer",
+      "id" : "editor_widget_surface",
+      "widget" : "Inspector"
+   },
+   {
+      "title" : "Scene Mutation Console",
+      "id" : "scene_mutation_surface",
+      "widget" : "Graph",
+      "binding" : "scene_mutation.runtime"
+   },
+   {
+      "binding" : "render_delegation.runtime",
+      "title" : "Render Delegation Lab",
+      "id" : "render_delegation_surface",
+      "widget" : "Inspector"
+   },
+   {
+      "title" : "Resource Reflection Console",
+      "id" : "resource_reflection_surface",
+      "widget" : "Graph",
+      "binding" : "resource_reflection.runtime"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "runtime_compatibility_surface",
+      "title" : "Runtime Compatibility Hub",
+      "binding" : "runtime_compatibility.runtime"
+   },
+   {
+      "binding" : "mesh.runtime",
+      "title" : "Mesh Topology Studio",
+      "id" : "mesh_surface",
+      "widget" : "Graph"
+   },
+   {
+      "id" : "baking_surface",
+      "title" : "Baking Pipeline Forge",
+      "widget" : "Inspector",
+      "binding" : "baking.runtime"
+   },
+   {
+      "widget" : "Inspector",
+      "id" : "scripting_surface",
+      "title" : "KainScript Runtime Tower",
+      "binding" : "scripting.runtime"
+   },
+   {
+      "binding" : "ai.runtime",
+      "widget" : "Graph",
+      "title" : "AI Agent Director",
+      "id" : "ai_surface"
+   },
+   {
+      "binding" : "modding.runtime",
+      "widget" : "Inspector",
+      "id" : "modding_surface",
+      "title" : "Modding Registry Control"
+   },
+   {
+      "binding" : "identity.runtime",
+      "widget" : "Inspector",
+      "title" : "Identity Access Console",
+      "id" : "identity_surface"
+   },
+   {
+      "binding" : "cloud.runtime",
+      "id" : "cloud_surface",
+      "title" : "Cloud Session Control Tower",
+      "widget" : "Inspector"
+   },
+   {
+      "binding" : "marketplace.runtime",
+      "widget" : "Inspector",
+      "id" : "marketplace_surface",
+      "title" : "Marketplace Registry Hub"
+   },
+   {
+      "binding" : "dataops.runtime",
+      "title" : "DataOps Dataset Foundry",
+      "id" : "dataops_surface",
+      "widget" : "Graph"
+   },
+   {
+      "title" : "Fleet Orchestration Tower",
+      "id" : "fleet_surface",
+      "widget" : "Inspector",
+      "binding" : "fleet.runtime"
+   },
+   {
+      "binding" : "rigging.runtime",
+      "widget" : "Inspector",
+      "id" : "rigging_surface",
+      "title" : "Rigging Authoring Studio"
+   },
+   {
+      "title" : "Deformation Stack Lab",
+      "id" : "deformation_surface",
+      "widget" : "Inspector",
+      "binding" : "deformation.runtime"
+   },
+   {
+      "binding" : "painting.runtime",
+      "id" : "painting_surface",
+      "title" : "Texture Paint Studio",
+      "widget" : "Graph"
+   },
+   {
+      "id" : "uv_surface",
+      "title" : "UV Layout Workbench",
+      "widget" : "Graph",
+      "binding" : "uv.runtime"
+   },
+   {
+      "binding" : "brush.runtime",
+      "widget" : "Inspector",
+      "title" : "Brush System Foundry",
+      "id" : "brush_surface"
+   },
+   {
+      "binding" : "color.runtime",
+      "widget" : "Graph",
+      "title" : "Color Management Control Room",
+      "id" : "color_surface"
+   },
+   {
+      "binding" : "media.runtime",
+      "widget" : "Graph",
+      "title" : "Media Pipeline Stage",
+      "id" : "media_surface"
+   },
+   {
+      "binding" : "narrative.runtime",
+      "widget" : "Graph",
+      "title" : "Narrative State Studio",
+      "id" : "narrative_surface"
+   },
+   {
+      "binding" : "haptics.runtime",
+      "widget" : "Graph",
+      "title" : "Haptics Routing Lab",
+      "id" : "haptics_surface"
+   },
+   {
+      "binding" : "updates.runtime",
+      "widget" : "Graph",
+      "title" : "Update Channel Registry",
+      "id" : "updates_surface"
+   }
+]

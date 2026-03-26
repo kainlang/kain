@@ -1,0 +1,38 @@
+// Render/runtime contracts for frame orchestration, lighting, material evaluation, and presentation.
+
+struct RenderStageDescriptor:
+    stage_id: String
+    stage_kind: String
+    tensor_pipeline_id: String
+    output_surface: String
+
+struct LightingRuntimeDescriptor:
+    lighting_mode: String
+    shadow_policy: String
+    probe_policy: String
+
+struct RenderRuntimeProfile:
+    viewport_renderer: RenderStageDescriptor
+    selection_overlay: RenderStageDescriptor
+    material_preview: RenderStageDescriptor
+    lighting: LightingRuntimeDescriptor
+
+fn default_render_stage(stage_id: String, stage_kind: String, tensor_pipeline_id: String) -> RenderStageDescriptor with Pure:
+    let stage = RenderStageDescriptor()
+    stage.stage_id = stage_id
+    stage.stage_kind = stage_kind
+    stage.tensor_pipeline_id = tensor_pipeline_id
+    stage.output_surface = "viewport_stage"
+    stage
+
+fn default_render_runtime_profile() -> RenderRuntimeProfile with Pure:
+    let profile = RenderRuntimeProfile()
+    profile.viewport_renderer = default_render_stage("viewport_renderer", "main_view", "renderer_frame_tensor_pipeline")
+    profile.selection_overlay = default_render_stage("selection_overlay", "overlay", "renderer_frame_tensor_pipeline")
+    profile.material_preview = default_render_stage("material_preview", "preview", "renderer_frame_tensor_pipeline")
+
+    profile.lighting = LightingRuntimeDescriptor()
+    profile.lighting.lighting_mode = "hybrid_realtime"
+    profile.lighting.shadow_policy = "cascaded_or_virtual"
+    profile.lighting.probe_policy = "streamed"
+    profile

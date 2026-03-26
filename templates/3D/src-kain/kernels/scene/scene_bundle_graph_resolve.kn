@@ -1,0 +1,19 @@
+// SPIR-V scene bundle composition seed.
+
+shader compute scene_bundle_graph_resolve(id: UVec3) -> Vec4:
+    uniform scene_layers: StorageBuffer<Vec4> @0
+    uniform bundle_variants: StorageBuffer<Vec4> @1
+    uniform delivery_channels: StorageBuffer<Vec4> @2
+    uniform scene_bundle_records: StorageBuffer<Vec4> @3
+    let record_index = id.x
+    let layer_record = scene_layers[record_index]
+    let variant_record = bundle_variants[record_index]
+    let delivery_record = delivery_channels[record_index]
+    let output = vec4(
+        layer_record.x + variant_record.x,
+        layer_record.y + delivery_record.y,
+        variant_record.z + delivery_record.z,
+        1.0
+    )
+    scene_bundle_records[record_index] = output
+    return output

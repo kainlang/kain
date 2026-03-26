@@ -1,0 +1,19 @@
+// SPIR-V delivery materializer seed.
+
+shader compute delivery_batch_materialize_resolve(id: UVec3) -> Vec4:
+    uniform delivery_graph_nodes: StorageBuffer<Vec4> @0
+    uniform receipt_state: StorageBuffer<Vec4> @1
+    uniform channel_approval_state: StorageBuffer<Vec4> @2
+    uniform materialized_delivery_batches: StorageBuffer<Vec4> @3
+    let batch_index = id.x
+    let delivery_node = delivery_graph_nodes[batch_index]
+    let receipt = receipt_state[batch_index]
+    let approval = channel_approval_state[0]
+    let output = vec4(
+        delivery_node.x + receipt.x,
+        delivery_node.y + approval.y,
+        receipt.z + approval.z,
+        1.0
+    )
+    materialized_delivery_batches[batch_index] = output
+    return output

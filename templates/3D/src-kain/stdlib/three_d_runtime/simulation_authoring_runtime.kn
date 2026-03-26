@@ -1,0 +1,49 @@
+// Advanced solver-authoring contracts for coupled simulation graphs, checkpoints, and cache branches.
+
+struct SolverGraphDescriptor:
+    solver_graph_id: String
+    graph_kind: String
+    tensor_pipeline_id: String
+    checkpoint_policy: String
+
+struct CoupledDomainDescriptor:
+    domain_id: String
+    coupling_kind: String
+    stability_policy: String
+    branch_policy: String
+
+struct SimulationAuthoringRuntimeProfile:
+    solver_graph: SolverGraphDescriptor
+    cache_graph: SolverGraphDescriptor
+    cloth_fluid_coupling: CoupledDomainDescriptor
+    destruction_field_coupling: CoupledDomainDescriptor
+
+fn default_solver_graph_descriptor(
+    solver_graph_id: String,
+    graph_kind: String,
+    checkpoint_policy: String
+) -> SolverGraphDescriptor with Pure:
+    let descriptor = SolverGraphDescriptor()
+    descriptor.solver_graph_id = solver_graph_id
+    descriptor.graph_kind = graph_kind
+    descriptor.tensor_pipeline_id = "simulation_authoring_tensor_pipeline"
+    descriptor.checkpoint_policy = checkpoint_policy
+    descriptor
+
+fn default_simulation_authoring_runtime_profile() -> SimulationAuthoringRuntimeProfile with Pure:
+    let profile = SimulationAuthoringRuntimeProfile()
+    profile.solver_graph = default_solver_graph_descriptor("advanced_solver_graph", "multi_solver_dependency_graph", "checkpoint_and_resume")
+    profile.cache_graph = default_solver_graph_descriptor("simulation_cache_graph", "branchable_cache_dependency_graph", "fork_and_compare")
+
+    profile.cloth_fluid_coupling = CoupledDomainDescriptor()
+    profile.cloth_fluid_coupling.domain_id = "cloth_fluid_coupling"
+    profile.cloth_fluid_coupling.coupling_kind = "pressure_collision_and_wetmap_exchange"
+    profile.cloth_fluid_coupling.stability_policy = "substepped_gpu_solver"
+    profile.cloth_fluid_coupling.branch_policy = "checkpoint_branch_merge"
+
+    profile.destruction_field_coupling = CoupledDomainDescriptor()
+    profile.destruction_field_coupling.domain_id = "destruction_field_coupling"
+    profile.destruction_field_coupling.coupling_kind = "fracture_debris_smoke_and_force_fields"
+    profile.destruction_field_coupling.stability_policy = "energy_and_constraint_gated"
+    profile.destruction_field_coupling.branch_policy = "approval_or_metric_promoted"
+    profile

@@ -1,0 +1,59 @@
+// Manifest-driven build, artifact materialization, and deployment orchestration contracts.
+
+struct ArtifactGraphDescriptor:
+    graph_id: String
+    graph_kind: String
+    execution_policy: String
+    runtime_app_scope: String
+
+struct ArtifactOutputDescriptor:
+    output_id: String
+    output_kind: String
+    destination_root: String
+    delivery_policy: String
+
+struct AutomationQueueDescriptor:
+    queue_id: String
+    lane: String
+    scheduling_policy: String
+    tensor_pipeline_id: String
+
+struct OrchestrationRuntimeProfile:
+    build_graph: ArtifactGraphDescriptor
+    package_graph: ArtifactGraphDescriptor
+    deployment_graph: ArtifactGraphDescriptor
+    runtime_output: ArtifactOutputDescriptor
+    package_output: ArtifactOutputDescriptor
+    automation_queue: AutomationQueueDescriptor
+
+fn default_artifact_graph(graph_id: String, graph_kind: String, runtime_app_scope: String) -> ArtifactGraphDescriptor with Pure:
+    let descriptor = ArtifactGraphDescriptor()
+    descriptor.graph_id = graph_id
+    descriptor.graph_kind = graph_kind
+    descriptor.execution_policy = "manifest_driven_batched"
+    descriptor.runtime_app_scope = runtime_app_scope
+    descriptor
+
+fn default_artifact_output(output_id: String, output_kind: String, destination_root: String) -> ArtifactOutputDescriptor with Pure:
+    let descriptor = ArtifactOutputDescriptor()
+    descriptor.output_id = output_id
+    descriptor.output_kind = output_kind
+    descriptor.destination_root = destination_root
+    descriptor.delivery_policy = "materialize_and_register"
+    descriptor
+
+fn default_orchestration_runtime_profile() -> OrchestrationRuntimeProfile with Pure:
+    let profile = OrchestrationRuntimeProfile()
+    profile.build_graph = default_artifact_graph("runtime_build_graph", "runtime_materialization", "all_registered_runtime_apps")
+    profile.package_graph = default_artifact_graph("package_build_graph", "package_materialization", "packaging_and_plugin_apps")
+    profile.deployment_graph = default_artifact_graph("deployment_graph", "runtime_delivery", "selected_release_channels")
+
+    profile.runtime_output = default_artifact_output("runtime_output", "runtime_bundle", "generated/runtime")
+    profile.package_output = default_artifact_output("package_output", "package_bundle", "generated/packages")
+
+    profile.automation_queue = AutomationQueueDescriptor()
+    profile.automation_queue.queue_id = "artifact_automation_queue"
+    profile.automation_queue.lane = "orchestration"
+    profile.automation_queue.scheduling_policy = "batch_and_background_interactive"
+    profile.automation_queue.tensor_pipeline_id = "artifact_materialization_tensor_pipeline"
+    profile

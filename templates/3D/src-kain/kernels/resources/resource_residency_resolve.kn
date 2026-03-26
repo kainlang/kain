@@ -1,0 +1,11 @@
+// Resource-residency seed for virtual resources, streaming tiers, budget-aware residency, and delivery-visible memory governance.
+
+fn resource_residency_resolve() -> Void:
+    let residency_scope = "gpu_cpu_virtual_texture_volume_geometry_and_cache_residency"
+    let streaming_scope = "mip_tile_mesh_field_and_checkpoint_streaming_tiers"
+    let budget_scope = "frame_job_simulation_and_delivery_resource_budgets"
+    let eviction_scope = "priority_heat_and_authority_aware_resource_eviction"
+    residency_scope
+    streaming_scope
+    budget_scope
+    eviction_scope

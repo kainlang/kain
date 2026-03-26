@@ -2778,9 +2778,13 @@ dependencies = [
 name = "kain-host"
 version = "0.1.0"
 dependencies = [
+ "kain-c-ffi",
  "kain-core",
+ "kain-crate-ffi",
  "kain-driver",
  "kain-host-derive",
+ "kain-interop",
+ "kain-node",
  "kain-omni",
  "kain-python",
  "kain-reflect",

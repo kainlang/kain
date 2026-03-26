@@ -1,0 +1,19 @@
+// SPIR-V advanced solver-graph seed.
+
+shader compute simulation_solver_graph_resolve(id: UVec3) -> Vec4:
+    uniform solver_nodes: StorageBuffer<Vec4> @0
+    uniform coupling_edges: StorageBuffer<Vec4> @1
+    uniform checkpoint_state: StorageBuffer<Vec4> @2
+    uniform solved_graph_nodes: StorageBuffer<Vec4> @3
+    let node_index = id.x
+    let solver_node = solver_nodes[node_index]
+    let coupling_edge = coupling_edges[node_index]
+    let checkpoint = checkpoint_state[0]
+    let output = vec4(
+        solver_node.x + coupling_edge.x,
+        solver_node.y + checkpoint.y,
+        coupling_edge.z + checkpoint.z,
+        1.0
+    )
+    solved_graph_nodes[node_index] = output
+    return output

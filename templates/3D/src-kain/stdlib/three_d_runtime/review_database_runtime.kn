@@ -1,0 +1,47 @@
+// Persistent review database and evidence-indexing contracts for large production workflows.
+
+struct ReviewDatabaseDescriptor:
+    database_id: String
+    storage_kind: String
+    retention_policy: String
+    tensor_pipeline_id: String
+
+struct ReviewEvidenceDescriptor:
+    evidence_id: String
+    evidence_kind: String
+    indexing_policy: String
+
+struct ReviewQueryDescriptor:
+    query_id: String
+    query_kind: String
+    result_policy: String
+
+struct ReviewDatabaseRuntimeProfile:
+    review_database: ReviewDatabaseDescriptor
+    media_evidence: ReviewEvidenceDescriptor
+    annotation_evidence: ReviewEvidenceDescriptor
+    review_query: ReviewQueryDescriptor
+
+fn default_review_evidence(evidence_id: String, evidence_kind: String) -> ReviewEvidenceDescriptor with Pure:
+    let descriptor = ReviewEvidenceDescriptor()
+    descriptor.evidence_id = evidence_id
+    descriptor.evidence_kind = evidence_kind
+    descriptor.indexing_policy = "timeline_scene_and_asset_bound"
+    descriptor
+
+fn default_review_database_runtime_profile() -> ReviewDatabaseRuntimeProfile with Pure:
+    let profile = ReviewDatabaseRuntimeProfile()
+    profile.review_database = ReviewDatabaseDescriptor()
+    profile.review_database.database_id = "review_database"
+    profile.review_database.storage_kind = "workspace_or_stage_catalog"
+    profile.review_database.retention_policy = "snapshot_and_incremental_history"
+    profile.review_database.tensor_pipeline_id = "review_database_tensor_pipeline"
+
+    profile.media_evidence = default_review_evidence("media_evidence", "frame_sequence_clip_or_snapshot")
+    profile.annotation_evidence = default_review_evidence("annotation_evidence", "annotation_and_signoff_record")
+
+    profile.review_query = ReviewQueryDescriptor()
+    profile.review_query.query_id = "review_query"
+    profile.review_query.query_kind = "asset_shot_session_or_issue_query"
+    profile.review_query.result_policy = "ranked_timeline_and_scene_results"
+    profile

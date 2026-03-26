@@ -1,0 +1,6 @@
+// Replay capture seed for deterministic session recording, scrub indexes, and issue-repro bundles.
+
+kernel replay_timeline_capture_resolve:
+    stage = "replay_capture"
+    domain = "replay"
+    intent = "Resolve recorded frame, input, and checkpoint state into deterministic replay bundles and scrub-ready timelines."

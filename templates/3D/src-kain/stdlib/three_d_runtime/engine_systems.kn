@@ -1,0 +1,969 @@
+// Data-driven engine system contracts for the universal 3D template.
+
+struct RuntimeSystemDescriptor:
+    system_id: String
+    lane: String
+    enabled: Bool
+    update_frequency: String
+    tensor_pipeline_id: String
+    orchestration_mode: String
+
+struct RendererSystemBundle:
+    visibility_system: RuntimeSystemDescriptor
+    material_system: RuntimeSystemDescriptor
+    viewport_compositor: RuntimeSystemDescriptor
+    post_stack: RuntimeSystemDescriptor
+
+struct AssetSystemBundle:
+    import_queue: RuntimeSystemDescriptor
+    validation_queue: RuntimeSystemDescriptor
+    bake_queue: RuntimeSystemDescriptor
+    export_queue: RuntimeSystemDescriptor
+
+struct AnimationSystemBundle:
+    rig_solver: RuntimeSystemDescriptor
+    retarget_solver: RuntimeSystemDescriptor
+    timeline_runtime: RuntimeSystemDescriptor
+    mocap_runtime: RuntimeSystemDescriptor
+
+struct SimulationSystemBundle:
+    cloth: RuntimeSystemDescriptor
+    particles: RuntimeSystemDescriptor
+    fluids: RuntimeSystemDescriptor
+    destruction: RuntimeSystemDescriptor
+    terrain: RuntimeSystemDescriptor
+
+struct WorldSystemBundle:
+    partition_streamer: RuntimeSystemDescriptor
+    terrain_runtime: RuntimeSystemDescriptor
+    scatter_runtime: RuntimeSystemDescriptor
+    world_metrics: RuntimeSystemDescriptor
+
+struct EditorSystemBundle:
+    outliner: RuntimeSystemDescriptor
+    inspector: RuntimeSystemDescriptor
+    graph_editor: RuntimeSystemDescriptor
+    timeline: RuntimeSystemDescriptor
+    command_history: RuntimeSystemDescriptor
+
+struct ProceduralSystemBundle:
+    geometry_graph: RuntimeSystemDescriptor
+    scatter_graph: RuntimeSystemDescriptor
+    field_runtime: RuntimeSystemDescriptor
+
+struct GroomSystemBundle:
+    strand_builder: RuntimeSystemDescriptor
+    groom_brushes: RuntimeSystemDescriptor
+
+struct VolumeSystemBundle:
+    volume_runtime: RuntimeSystemDescriptor
+    volume_render: RuntimeSystemDescriptor
+
+struct PhotogrammetrySystemBundle:
+    scan_ingest: RuntimeSystemDescriptor
+    reconstruction: RuntimeSystemDescriptor
+
+struct AudioSystemBundle:
+    audio_graph: RuntimeSystemDescriptor
+    reactive_audio: RuntimeSystemDescriptor
+
+struct CollaborationSystemBundle:
+    session_sync: RuntimeSystemDescriptor
+    review_runtime: RuntimeSystemDescriptor
+
+struct PackagingSystemBundle:
+    plugin_packaging: RuntimeSystemDescriptor
+    extension_registry: RuntimeSystemDescriptor
+
+struct OrchestrationSystemBundle:
+    build_graph: RuntimeSystemDescriptor
+    package_graph: RuntimeSystemDescriptor
+    deployment_graph: RuntimeSystemDescriptor
+
+struct ConstraintSystemBundle:
+    rig_constraints: RuntimeSystemDescriptor
+    simulation_constraints: RuntimeSystemDescriptor
+    assembly_constraints: RuntimeSystemDescriptor
+
+struct BiomeSystemBundle:
+    biome_graph: RuntimeSystemDescriptor
+    ecosystem_graph: RuntimeSystemDescriptor
+    terrain_materials: RuntimeSystemDescriptor
+
+struct DestructionSystemBundle:
+    fracture_runtime: RuntimeSystemDescriptor
+    debris_runtime: RuntimeSystemDescriptor
+    cache_runtime: RuntimeSystemDescriptor
+
+struct ReviewSystemBundle:
+    annotation_runtime: RuntimeSystemDescriptor
+    review_capture: RuntimeSystemDescriptor
+    approval_runtime: RuntimeSystemDescriptor
+
+struct PublishingSystemBundle:
+    release_registry: RuntimeSystemDescriptor
+    package_delivery: RuntimeSystemDescriptor
+    review_drop_delivery: RuntimeSystemDescriptor
+
+struct RendererGraphSystemBundle:
+    frame_graph: RuntimeSystemDescriptor
+    lighting_graph: RuntimeSystemDescriptor
+    post_graph: RuntimeSystemDescriptor
+
+struct BehaviorSystemBundle:
+    tool_behaviors: RuntimeSystemDescriptor
+    gameplay_behaviors: RuntimeSystemDescriptor
+    automation_behaviors: RuntimeSystemDescriptor
+
+struct CadSystemBundle:
+    nurbs_modeler: RuntimeSystemDescriptor
+    mechanical_assembly: RuntimeSystemDescriptor
+    drafting_runtime: RuntimeSystemDescriptor
+
+struct RoboticsSystemBundle:
+    arm_kinematics: RuntimeSystemDescriptor
+    machine_kinematics: RuntimeSystemDescriptor
+    toolpath_runtime: RuntimeSystemDescriptor
+
+struct LiveSyncSystemBundle:
+    workspace_sync: RuntimeSystemDescriptor
+    runtime_sync: RuntimeSystemDescriptor
+    conflict_resolution: RuntimeSystemDescriptor
+
+struct CompositorSystemBundle:
+    realtime_compositor: RuntimeSystemDescriptor
+    sequence_finishing: RuntimeSystemDescriptor
+    color_finishing: RuntimeSystemDescriptor
+
+struct SceneExchangeSystemBundle:
+    usd_stage_runtime: RuntimeSystemDescriptor
+    layer_stack_runtime: RuntimeSystemDescriptor
+    resolver_runtime: RuntimeSystemDescriptor
+
+struct MetrologySystemBundle:
+    surface_probe: RuntimeSystemDescriptor
+    assembly_probe: RuntimeSystemDescriptor
+    tolerance_runtime: RuntimeSystemDescriptor
+
+struct FabricationSystemBundle:
+    machine_schedule: RuntimeSystemDescriptor
+    nesting_runtime: RuntimeSystemDescriptor
+    delivery_runtime: RuntimeSystemDescriptor
+
+struct ReviewDatabaseSystemBundle:
+    evidence_index: RuntimeSystemDescriptor
+    review_search: RuntimeSystemDescriptor
+    retention_runtime: RuntimeSystemDescriptor
+
+struct SceneSemanticsSystemBundle:
+    semantic_index: RuntimeSystemDescriptor
+    collection_runtime: RuntimeSystemDescriptor
+    variant_runtime: RuntimeSystemDescriptor
+
+struct QuerySystemBundle:
+    selection_query: RuntimeSystemDescriptor
+    scene_probe: RuntimeSystemDescriptor
+    viewport_picking: RuntimeSystemDescriptor
+
+struct RuntimeBundleSystemBundle:
+    native_bundle: RuntimeSystemDescriptor
+    hybrid_bundle: RuntimeSystemDescriptor
+    launch_registry: RuntimeSystemDescriptor
+
+struct MaterializationSystemBundle:
+    receipt_index: RuntimeSystemDescriptor
+    output_promotion: RuntimeSystemDescriptor
+    generated_output_registry: RuntimeSystemDescriptor
+
+struct AssetRegistrySystemBundle:
+    asset_lineage: RuntimeSystemDescriptor
+    residency_audit: RuntimeSystemDescriptor
+    provenance_registry: RuntimeSystemDescriptor
+
+struct CharacterSystemBundle:
+    facial_solver: RuntimeSystemDescriptor
+    rig_deformation: RuntimeSystemDescriptor
+    groom_binding: RuntimeSystemDescriptor
+
+struct VirtualProductionSystemBundle:
+    camera_tracking: RuntimeSystemDescriptor
+    led_volume_sync: RuntimeSystemDescriptor
+    take_recording: RuntimeSystemDescriptor
+
+struct GeospatialSystemBundle:
+    tile_streaming: RuntimeSystemDescriptor
+    coordinate_runtime: RuntimeSystemDescriptor
+    survey_alignment: RuntimeSystemDescriptor
+
+struct XrSystemBundle:
+    stereo_frame_runtime: RuntimeSystemDescriptor
+    spatial_input_runtime: RuntimeSystemDescriptor
+    immersive_ui_runtime: RuntimeSystemDescriptor
+
+struct NetworkingSystemBundle:
+    replication_runtime: RuntimeSystemDescriptor
+    authority_runtime: RuntimeSystemDescriptor
+    session_transport: RuntimeSystemDescriptor
+
+struct SequencingSystemBundle:
+    sequence_runtime: RuntimeSystemDescriptor
+    shot_runtime: RuntimeSystemDescriptor
+    editorial_runtime: RuntimeSystemDescriptor
+
+struct NavigationSystemBundle:
+    navmesh_runtime: RuntimeSystemDescriptor
+    crowd_runtime: RuntimeSystemDescriptor
+    path_query_runtime: RuntimeSystemDescriptor
+
+struct VehicleSystemBundle:
+    vehicle_dynamics_runtime: RuntimeSystemDescriptor
+    drivetrain_runtime: RuntimeSystemDescriptor
+    wheel_contact_runtime: RuntimeSystemDescriptor
+
+struct LightingSystemBundle:
+    lighting_rig_runtime: RuntimeSystemDescriptor
+    probe_bake_runtime: RuntimeSystemDescriptor
+    shadow_atlas_runtime: RuntimeSystemDescriptor
+
+struct BroadcastSystemBundle:
+    feed_router_runtime: RuntimeSystemDescriptor
+    rundown_runtime: RuntimeSystemDescriptor
+    overlay_mix_runtime: RuntimeSystemDescriptor
+
+struct EvaluationSystemBundle:
+    dependency_graph_runtime: RuntimeSystemDescriptor
+    scheduler_runtime: RuntimeSystemDescriptor
+    cache_runtime: RuntimeSystemDescriptor
+
+struct ViewportSystemBundle:
+    frame_packet_runtime: RuntimeSystemDescriptor
+    camera_runtime: RuntimeSystemDescriptor
+    overlay_runtime: RuntimeSystemDescriptor
+
+struct InteractionSystemBundle:
+    input_router_runtime: RuntimeSystemDescriptor
+    gizmo_runtime: RuntimeSystemDescriptor
+    tool_context_runtime: RuntimeSystemDescriptor
+
+struct PersistenceSystemBundle:
+    snapshot_runtime: RuntimeSystemDescriptor
+    session_persistence_runtime: RuntimeSystemDescriptor
+    recovery_runtime: RuntimeSystemDescriptor
+
+struct JobsSystemBundle:
+    queue_dispatch_runtime: RuntimeSystemDescriptor
+    worker_pool_runtime: RuntimeSystemDescriptor
+    receipt_runtime: RuntimeSystemDescriptor
+
+struct TelemetrySystemBundle:
+    frame_telemetry_runtime: RuntimeSystemDescriptor
+    budget_runtime: RuntimeSystemDescriptor
+    diagnostics_runtime: RuntimeSystemDescriptor
+
+struct SecuritySystemBundle:
+    capability_runtime: RuntimeSystemDescriptor
+    trust_zone_runtime: RuntimeSystemDescriptor
+    audit_runtime: RuntimeSystemDescriptor
+
+struct EntitySystemBundle:
+    entity_delta_runtime: RuntimeSystemDescriptor
+    component_schema_runtime: RuntimeSystemDescriptor
+    archetype_spawn_runtime: RuntimeSystemDescriptor
+
+struct PrefabSystemBundle:
+    prefab_compose_runtime: RuntimeSystemDescriptor
+    variant_patch_runtime: RuntimeSystemDescriptor
+    assembly_launch_runtime: RuntimeSystemDescriptor
+
+struct CommandSystemBundle:
+    command_replay_runtime: RuntimeSystemDescriptor
+    macro_runtime: RuntimeSystemDescriptor
+    tool_action_runtime: RuntimeSystemDescriptor
+
+struct StateMigrationSystemBundle:
+    state_schema_runtime: RuntimeSystemDescriptor
+    compatibility_runtime: RuntimeSystemDescriptor
+    migration_receipt_runtime: RuntimeSystemDescriptor
+
+struct WorkspaceLayoutSystemBundle:
+    workspace_layout_runtime: RuntimeSystemDescriptor
+    dock_graph_runtime: RuntimeSystemDescriptor
+    window_surface_runtime: RuntimeSystemDescriptor
+
+struct SceneSourceSystemBundle:
+    source_document_runtime: RuntimeSystemDescriptor
+    scene_class_runtime: RuntimeSystemDescriptor
+    scene_mount_runtime: RuntimeSystemDescriptor
+
+struct WidgetPrimitivesSystemBundle:
+    widget_primitive_runtime: RuntimeSystemDescriptor
+    widget_binding_runtime: RuntimeSystemDescriptor
+    overlay_chrome_runtime: RuntimeSystemDescriptor
+
+struct GraphMaterializationSystemBundle:
+    materialization_plan_runtime: RuntimeSystemDescriptor
+    receipt_runtime: RuntimeSystemDescriptor
+    provenance_runtime: RuntimeSystemDescriptor
+
+struct InputSystemBundle:
+    device_runtime: RuntimeSystemDescriptor
+    action_map_runtime: RuntimeSystemDescriptor
+    shortcut_layer_runtime: RuntimeSystemDescriptor
+
+struct CameraSystemBundle:
+    camera_rig_runtime: RuntimeSystemDescriptor
+    lens_profile_runtime: RuntimeSystemDescriptor
+    capture_route_runtime: RuntimeSystemDescriptor
+
+struct CacheSystemBundle:
+    cache_store_runtime: RuntimeSystemDescriptor
+    checkpoint_runtime: RuntimeSystemDescriptor
+    cache_lineage_runtime: RuntimeSystemDescriptor
+
+struct SceneObjectSystemBundle:
+    scene_object_graph_runtime: RuntimeSystemDescriptor
+    object_class_runtime: RuntimeSystemDescriptor
+    object_mutation_runtime: RuntimeSystemDescriptor
+
+struct NativeControlsSystemBundle:
+    inspector_control_runtime: RuntimeSystemDescriptor
+    outliner_control_runtime: RuntimeSystemDescriptor
+    timeline_control_runtime: RuntimeSystemDescriptor
+
+struct SchemaSystemBundle:
+    runtime_schema_runtime: RuntimeSystemDescriptor
+    interchange_schema_runtime: RuntimeSystemDescriptor
+    compatibility_schema_runtime: RuntimeSystemDescriptor
+
+struct PhysicsSystemBundle:
+    rigid_body_runtime: RuntimeSystemDescriptor
+    collision_runtime: RuntimeSystemDescriptor
+    joint_runtime: RuntimeSystemDescriptor
+
+struct ShaderSystemBundle:
+    shader_family_runtime: RuntimeSystemDescriptor
+    permutation_runtime: RuntimeSystemDescriptor
+    reflection_runtime: RuntimeSystemDescriptor
+
+struct ResourceSystemBundle:
+    residency_runtime: RuntimeSystemDescriptor
+    streaming_runtime: RuntimeSystemDescriptor
+    budget_runtime: RuntimeSystemDescriptor
+
+struct IdentitySystemBundle:
+    operator_identity_runtime: RuntimeSystemDescriptor
+    entitlement_runtime: RuntimeSystemDescriptor
+    session_authority_runtime: RuntimeSystemDescriptor
+
+struct CloudSystemBundle:
+    cloud_session_runtime: RuntimeSystemDescriptor
+    object_storage_runtime: RuntimeSystemDescriptor
+    burst_compute_runtime: RuntimeSystemDescriptor
+
+struct MarketplaceSystemBundle:
+    catalog_runtime: RuntimeSystemDescriptor
+    entitlement_runtime: RuntimeSystemDescriptor
+    promotion_runtime: RuntimeSystemDescriptor
+
+struct DataOpsSystemBundle:
+    dataset_registry_runtime: RuntimeSystemDescriptor
+    lineage_runtime: RuntimeSystemDescriptor
+    training_corpus_runtime: RuntimeSystemDescriptor
+
+struct FleetSystemBundle:
+    capacity_runtime: RuntimeSystemDescriptor
+    lease_runtime: RuntimeSystemDescriptor
+    dispatch_runtime: RuntimeSystemDescriptor
+
+fn realtime_system(system_id: String, lane: String, tensor_pipeline_id: String) -> RuntimeSystemDescriptor with Pure:
+    let descriptor = RuntimeSystemDescriptor()
+    descriptor.system_id = system_id
+    descriptor.lane = lane
+    descriptor.enabled = true
+    descriptor.update_frequency = "realtime"
+    descriptor.tensor_pipeline_id = tensor_pipeline_id
+    descriptor.orchestration_mode = "interactive"
+    descriptor
+
+fn batch_system(system_id: String, lane: String, tensor_pipeline_id: String) -> RuntimeSystemDescriptor with Pure:
+    let descriptor = RuntimeSystemDescriptor()
+    descriptor.system_id = system_id
+    descriptor.lane = lane
+    descriptor.enabled = true
+    descriptor.update_frequency = "batched"
+    descriptor.tensor_pipeline_id = tensor_pipeline_id
+    descriptor.orchestration_mode = "queued"
+    descriptor
+
+fn default_renderer_system_bundle() -> RendererSystemBundle with Pure:
+    let bundle = RendererSystemBundle()
+    bundle.visibility_system = realtime_system("visibility_cluster_cull", "render", "renderer_frame_tensor_pipeline")
+    bundle.material_system = realtime_system("material_layer_stack_tensor", "render", "renderer_frame_tensor_pipeline")
+    bundle.viewport_compositor = realtime_system("viewport_composite_tensor", "render", "renderer_frame_tensor_pipeline")
+    bundle.post_stack = realtime_system("post_stack", "render", "renderer_frame_tensor_pipeline")
+    bundle
+
+fn default_asset_system_bundle() -> AssetSystemBundle with Pure:
+    let bundle = AssetSystemBundle()
+    bundle.import_queue = batch_system("asset_import_queue", "assets", "photogrammetry_reconstruction_tensor_pipeline")
+    bundle.validation_queue = batch_system("asset_validation_queue", "assets", "")
+    bundle.bake_queue = batch_system("asset_bake_queue", "assets", "")
+    bundle.export_queue = batch_system("asset_export_queue", "assets", "")
+    bundle
+
+fn default_animation_system_bundle() -> AnimationSystemBundle with Pure:
+    let bundle = AnimationSystemBundle()
+    bundle.rig_solver = realtime_system("rig_skinning_pose_resolve", "animation", "animation_pose_tensor_pipeline")
+    bundle.retarget_solver = realtime_system("mocap_retarget_pose_tensor", "animation", "animation_pose_tensor_pipeline")
+    bundle.timeline_runtime = realtime_system("timeline_runtime", "animation", "")
+    bundle.mocap_runtime = realtime_system("mocap_runtime", "animation", "")
+    bundle
+
+fn default_simulation_system_bundle() -> SimulationSystemBundle with Pure:
+    let bundle = SimulationSystemBundle()
+    bundle.cloth = realtime_system("cloth_constraint_solver", "simulation", "cloth_live_tensor_pipeline")
+    bundle.particles = realtime_system("particle_advection_tensor", "simulation", "particle_fx_tensor_pipeline")
+    bundle.fluids = realtime_system("fluid_pressure_project", "simulation", "fluid_solver_tensor_pipeline")
+    bundle.destruction = realtime_system("fracture_cluster_resolve", "simulation", "destruction_authoring_tensor_pipeline")
+    bundle.terrain = realtime_system("terrain_clipmap_bake", "simulation", "world_streaming_tensor_pipeline")
+    bundle
+
+fn default_world_system_bundle() -> WorldSystemBundle with Pure:
+    let bundle = WorldSystemBundle()
+    bundle.partition_streamer = realtime_system("world_partition_visibility", "world", "world_streaming_tensor_pipeline")
+    bundle.terrain_runtime = realtime_system("terrain_clipmap_bake", "world", "world_streaming_tensor_pipeline")
+    bundle.scatter_runtime = realtime_system("procedural_field_scatter", "world", "procedural_authoring_tensor_pipeline")
+    bundle.world_metrics = realtime_system("world_metrics", "world", "")
+    bundle
+
+fn default_editor_system_bundle() -> EditorSystemBundle with Pure:
+    let bundle = EditorSystemBundle()
+    bundle.outliner = realtime_system("scene_outliner", "editor", "")
+    bundle.inspector = realtime_system("selection_inspector", "editor", "")
+    bundle.graph_editor = realtime_system("graph_runtime", "editor", "")
+    bundle.timeline = realtime_system("timeline_runtime", "editor", "")
+    bundle.command_history = realtime_system("command_history", "editor", "")
+    bundle
+
+fn default_procedural_system_bundle() -> ProceduralSystemBundle with Pure:
+    let bundle = ProceduralSystemBundle()
+    bundle.geometry_graph = realtime_system("procedural_geometry_graph", "procedural", "procedural_authoring_tensor_pipeline")
+    bundle.scatter_graph = realtime_system("procedural_field_scatter", "procedural", "procedural_authoring_tensor_pipeline")
+    bundle.field_runtime = realtime_system("procedural_field_runtime", "procedural", "procedural_authoring_tensor_pipeline")
+    bundle
+
+fn default_groom_system_bundle() -> GroomSystemBundle with Pure:
+    let bundle = GroomSystemBundle()
+    bundle.strand_builder = realtime_system("groom_strand_interpolate", "groom", "groom_authoring_tensor_pipeline")
+    bundle.groom_brushes = realtime_system("groom_brush_runtime", "groom", "groom_authoring_tensor_pipeline")
+    bundle
+
+fn default_volume_system_bundle() -> VolumeSystemBundle with Pure:
+    let bundle = VolumeSystemBundle()
+    bundle.volume_runtime = realtime_system("volumetric_fog_integrate", "volume", "volumetric_authoring_tensor_pipeline")
+    bundle.volume_render = realtime_system("volume_render_runtime", "volume", "volumetric_authoring_tensor_pipeline")
+    bundle
+
+fn default_photogrammetry_system_bundle() -> PhotogrammetrySystemBundle with Pure:
+    let bundle = PhotogrammetrySystemBundle()
+    bundle.scan_ingest = batch_system("scan_import_queue", "photogrammetry", "photogrammetry_reconstruction_tensor_pipeline")
+    bundle.reconstruction = batch_system("scan_reconstruction_fuse", "photogrammetry", "photogrammetry_reconstruction_tensor_pipeline")
+    bundle
+
+fn default_audio_system_bundle() -> AudioSystemBundle with Pure:
+    let bundle = AudioSystemBundle()
+    bundle.audio_graph = realtime_system("audio_graph_runtime", "audio", "audio_analysis_tensor_pipeline")
+    bundle.reactive_audio = realtime_system("audio_reactive_spectrum", "audio", "audio_analysis_tensor_pipeline")
+    bundle
+
+fn default_collaboration_system_bundle() -> CollaborationSystemBundle with Pure:
+    let bundle = CollaborationSystemBundle()
+    bundle.session_sync = realtime_system("collaboration_presence_resolve", "collaboration", "collaboration_sync_tensor_pipeline")
+    bundle.review_runtime = realtime_system("collaboration_review_runtime", "collaboration", "review_overlay_tensor_pipeline")
+    bundle
+
+fn default_packaging_system_bundle() -> PackagingSystemBundle with Pure:
+    let bundle = PackagingSystemBundle()
+    bundle.plugin_packaging = batch_system("plugin_packaging_runtime", "packaging", "")
+    bundle.extension_registry = batch_system("extension_registry", "packaging", "")
+    bundle
+
+fn default_orchestration_system_bundle() -> OrchestrationSystemBundle with Pure:
+    let bundle = OrchestrationSystemBundle()
+    bundle.build_graph = batch_system("artifact_materialization_resolve", "orchestration", "artifact_materialization_tensor_pipeline")
+    bundle.package_graph = batch_system("package_materialization", "orchestration", "artifact_materialization_tensor_pipeline")
+    bundle.deployment_graph = batch_system("distribution_delivery", "orchestration", "artifact_materialization_tensor_pipeline")
+    bundle
+
+fn default_constraint_system_bundle() -> ConstraintSystemBundle with Pure:
+    let bundle = ConstraintSystemBundle()
+    bundle.rig_constraints = realtime_system("constraint_jacobi_solve", "constraints", "constraint_solver_tensor_pipeline")
+    bundle.simulation_constraints = realtime_system("constraint_solver_runtime", "constraints", "constraint_solver_tensor_pipeline")
+    bundle.assembly_constraints = realtime_system("assembly_constraint_runtime", "constraints", "constraint_solver_tensor_pipeline")
+    bundle
+
+fn default_biome_system_bundle() -> BiomeSystemBundle with Pure:
+    let bundle = BiomeSystemBundle()
+    bundle.biome_graph = realtime_system("biome_ecosystem_resolve", "biome", "biome_world_tensor_pipeline")
+    bundle.ecosystem_graph = realtime_system("ecosystem_distribution_runtime", "biome", "biome_world_tensor_pipeline")
+    bundle.terrain_materials = realtime_system("terrain_material_runtime", "biome", "biome_world_tensor_pipeline")
+    bundle
+
+fn default_destruction_system_bundle() -> DestructionSystemBundle with Pure:
+    let bundle = DestructionSystemBundle()
+    bundle.fracture_runtime = realtime_system("fracture_cluster_resolve", "destruction", "destruction_authoring_tensor_pipeline")
+    bundle.debris_runtime = realtime_system("debris_runtime", "destruction", "destruction_authoring_tensor_pipeline")
+    bundle.cache_runtime = batch_system("destruction_cache_runtime", "destruction", "destruction_authoring_tensor_pipeline")
+    bundle
+
+fn default_review_system_bundle() -> ReviewSystemBundle with Pure:
+    let bundle = ReviewSystemBundle()
+    bundle.annotation_runtime = realtime_system("review_annotation_raster", "review", "review_overlay_tensor_pipeline")
+    bundle.review_capture = batch_system("review_capture_runtime", "review", "review_overlay_tensor_pipeline")
+    bundle.approval_runtime = batch_system("review_approval_runtime", "review", "")
+    bundle
+
+fn default_publishing_system_bundle() -> PublishingSystemBundle with Pure:
+    let bundle = PublishingSystemBundle()
+    bundle.release_registry = batch_system("release_registry_runtime", "publishing", "")
+    bundle.package_delivery = batch_system("package_delivery_runtime", "publishing", "")
+    bundle.review_drop_delivery = batch_system("review_drop_delivery_runtime", "publishing", "")
+    bundle
+
+fn default_renderer_graph_system_bundle() -> RendererGraphSystemBundle with Pure:
+    let bundle = RendererGraphSystemBundle()
+    bundle.frame_graph = realtime_system("renderer_graph_schedule", "renderer_graph", "renderer_graph_tensor_pipeline")
+    bundle.lighting_graph = realtime_system("lighting_graph_runtime", "renderer_graph", "renderer_graph_tensor_pipeline")
+    bundle.post_graph = realtime_system("post_graph_runtime", "renderer_graph", "renderer_graph_tensor_pipeline")
+    bundle
+
+fn default_behavior_system_bundle() -> BehaviorSystemBundle with Pure:
+    let bundle = BehaviorSystemBundle()
+    bundle.tool_behaviors = realtime_system("behavior_state_resolve", "behavior", "behavior_runtime_tensor_pipeline")
+    bundle.gameplay_behaviors = realtime_system("gameplay_behavior_runtime", "behavior", "behavior_runtime_tensor_pipeline")
+    bundle.automation_behaviors = realtime_system("automation_behavior_runtime", "behavior", "behavior_runtime_tensor_pipeline")
+    bundle
+
+fn default_cad_system_bundle() -> CadSystemBundle with Pure:
+    let bundle = CadSystemBundle()
+    bundle.nurbs_modeler = realtime_system("nurbs_surface_tessellate", "cad", "cad_surface_tensor_pipeline")
+    bundle.mechanical_assembly = realtime_system("mechanical_assembly_runtime", "cad", "cad_surface_tensor_pipeline")
+    bundle.drafting_runtime = batch_system("drafting_projection_runtime", "cad", "cad_surface_tensor_pipeline")
+    bundle
+
+fn default_robotics_system_bundle() -> RoboticsSystemBundle with Pure:
+    let bundle = RoboticsSystemBundle()
+    bundle.arm_kinematics = realtime_system("robot_arm_kinematics", "robotics", "robotics_toolpath_tensor_pipeline")
+    bundle.machine_kinematics = realtime_system("machine_kinematics_runtime", "robotics", "robotics_toolpath_tensor_pipeline")
+    bundle.toolpath_runtime = batch_system("toolpath_kinematics_resolve", "robotics", "robotics_toolpath_tensor_pipeline")
+    bundle
+
+fn default_live_sync_system_bundle() -> LiveSyncSystemBundle with Pure:
+    let bundle = LiveSyncSystemBundle()
+    bundle.workspace_sync = realtime_system("live_asset_delta_merge", "live_sync", "live_sync_tensor_pipeline")
+    bundle.runtime_sync = realtime_system("runtime_hot_reload_sync", "live_sync", "live_sync_tensor_pipeline")
+    bundle.conflict_resolution = realtime_system("sync_conflict_resolution", "live_sync", "live_sync_tensor_pipeline")
+    bundle
+
+fn default_compositor_system_bundle() -> CompositorSystemBundle with Pure:
+    let bundle = CompositorSystemBundle()
+    bundle.realtime_compositor = realtime_system("video_frame_compose", "compositor", "compositor_finishing_tensor_pipeline")
+    bundle.sequence_finishing = batch_system("sequence_finishing_runtime", "compositor", "compositor_finishing_tensor_pipeline")
+    bundle.color_finishing = batch_system("color_finishing_runtime", "compositor", "compositor_finishing_tensor_pipeline")
+    bundle
+
+fn default_scene_exchange_system_bundle() -> SceneExchangeSystemBundle with Pure:
+    let bundle = SceneExchangeSystemBundle()
+    bundle.usd_stage_runtime = batch_system("scene_exchange_stage_resolve", "scene_exchange", "scene_exchange_tensor_pipeline")
+    bundle.layer_stack_runtime = realtime_system("scene_exchange_layer_stack", "scene_exchange", "scene_exchange_tensor_pipeline")
+    bundle.resolver_runtime = batch_system("scene_exchange_asset_resolver", "scene_exchange", "scene_exchange_tensor_pipeline")
+    bundle
+
+fn default_metrology_system_bundle() -> MetrologySystemBundle with Pure:
+    let bundle = MetrologySystemBundle()
+    bundle.surface_probe = realtime_system("surface_deviation_resolve", "metrology", "metrology_inspection_tensor_pipeline")
+    bundle.assembly_probe = batch_system("assembly_inspection_probe", "metrology", "metrology_inspection_tensor_pipeline")
+    bundle.tolerance_runtime = batch_system("inspection_tolerance_runtime", "metrology", "metrology_inspection_tensor_pipeline")
+    bundle
+
+fn default_fabrication_system_bundle() -> FabricationSystemBundle with Pure:
+    let bundle = FabricationSystemBundle()
+    bundle.machine_schedule = batch_system("fabrication_schedule_resolve", "fabrication", "fabrication_scheduling_tensor_pipeline")
+    bundle.nesting_runtime = batch_system("fabrication_nesting_runtime", "fabrication", "fabrication_scheduling_tensor_pipeline")
+    bundle.delivery_runtime = batch_system("fabrication_delivery_runtime", "fabrication", "fabrication_scheduling_tensor_pipeline")
+    bundle
+
+fn default_review_database_system_bundle() -> ReviewDatabaseSystemBundle with Pure:
+    let bundle = ReviewDatabaseSystemBundle()
+    bundle.evidence_index = batch_system("review_evidence_index", "review_database", "review_database_tensor_pipeline")
+    bundle.review_search = realtime_system("review_database_search_runtime", "review_database", "review_database_tensor_pipeline")
+    bundle.retention_runtime = batch_system("review_database_retention_runtime", "review_database", "review_database_tensor_pipeline")
+    bundle
+
+fn default_scene_semantics_system_bundle() -> SceneSemanticsSystemBundle with Pure:
+    let bundle = SceneSemanticsSystemBundle()
+    bundle.semantic_index = realtime_system("scene_semantic_index_resolve", "scene_semantics", "scene_semantics_tensor_pipeline")
+    bundle.collection_runtime = realtime_system("scene_collection_runtime", "scene_semantics", "scene_semantics_tensor_pipeline")
+    bundle.variant_runtime = realtime_system("scene_variant_runtime", "scene_semantics", "scene_semantics_tensor_pipeline")
+    bundle
+
+fn default_query_system_bundle() -> QuerySystemBundle with Pure:
+    let bundle = QuerySystemBundle()
+    bundle.selection_query = realtime_system("selection_query_resolve", "query_selection", "query_selection_tensor_pipeline")
+    bundle.scene_probe = realtime_system("scene_probe_runtime", "query_selection", "query_selection_tensor_pipeline")
+    bundle.viewport_picking = realtime_system("viewport_picking_runtime", "query_selection", "query_selection_tensor_pipeline")
+    bundle
+
+fn default_runtime_bundle_system_bundle() -> RuntimeBundleSystemBundle with Pure:
+    let bundle = RuntimeBundleSystemBundle()
+    bundle.native_bundle = batch_system("runtime_bundle_assemble", "runtime_bundles", "runtime_bundle_tensor_pipeline")
+    bundle.hybrid_bundle = batch_system("hybrid_bundle_runtime", "runtime_bundles", "runtime_bundle_tensor_pipeline")
+    bundle.launch_registry = batch_system("runtime_bundle_registry", "runtime_bundles", "runtime_bundle_tensor_pipeline")
+    bundle
+
+fn default_materialization_system_bundle() -> MaterializationSystemBundle with Pure:
+    let bundle = MaterializationSystemBundle()
+    bundle.receipt_index = batch_system("materialization_receipt_index", "materialization", "materialization_receipt_tensor_pipeline")
+    bundle.output_promotion = batch_system("materialization_output_promotion", "materialization", "materialization_receipt_tensor_pipeline")
+    bundle.generated_output_registry = batch_system("generated_output_registry", "materialization", "materialization_receipt_tensor_pipeline")
+    bundle
+
+fn default_asset_registry_system_bundle() -> AssetRegistrySystemBundle with Pure:
+    let bundle = AssetRegistrySystemBundle()
+    bundle.asset_lineage = batch_system("asset_lineage_resolve", "asset_registry", "asset_registry_tensor_pipeline")
+    bundle.residency_audit = realtime_system("asset_residency_audit", "asset_registry", "asset_registry_tensor_pipeline")
+    bundle.provenance_registry = batch_system("package_provenance_runtime", "asset_registry", "asset_registry_tensor_pipeline")
+    bundle
+
+fn default_character_system_bundle() -> CharacterSystemBundle with Pure:
+    let bundle = CharacterSystemBundle()
+    bundle.facial_solver = realtime_system("facial_pose_solve", "character", "character_facial_tensor_pipeline")
+    bundle.rig_deformation = realtime_system("character_rig_runtime", "character", "character_facial_tensor_pipeline")
+    bundle.groom_binding = realtime_system("character_groom_binding", "character", "character_facial_tensor_pipeline")
+    bundle
+
+fn default_virtual_production_system_bundle() -> VirtualProductionSystemBundle with Pure:
+    let bundle = VirtualProductionSystemBundle()
+    bundle.camera_tracking = realtime_system("camera_tracking_runtime", "virtual_production", "virtual_production_stage_tensor_pipeline")
+    bundle.led_volume_sync = realtime_system("led_volume_sync", "virtual_production", "virtual_production_stage_tensor_pipeline")
+    bundle.take_recording = batch_system("take_recording_runtime", "virtual_production", "virtual_production_stage_tensor_pipeline")
+    bundle
+
+fn default_geospatial_system_bundle() -> GeospatialSystemBundle with Pure:
+    let bundle = GeospatialSystemBundle()
+    bundle.tile_streaming = realtime_system("geospatial_tile_resolve", "geospatial", "geospatial_stream_tensor_pipeline")
+    bundle.coordinate_runtime = realtime_system("geospatial_coordinate_runtime", "geospatial", "geospatial_stream_tensor_pipeline")
+    bundle.survey_alignment = batch_system("survey_alignment_runtime", "geospatial", "geospatial_stream_tensor_pipeline")
+    bundle
+
+fn default_xr_system_bundle() -> XrSystemBundle with Pure:
+    let bundle = XrSystemBundle()
+    bundle.stereo_frame_runtime = realtime_system("xr_stereo_frame_resolve", "xr", "xr_immersive_tensor_pipeline")
+    bundle.spatial_input_runtime = realtime_system("xr_spatial_input_runtime", "xr", "xr_immersive_tensor_pipeline")
+    bundle.immersive_ui_runtime = realtime_system("xr_immersive_ui_runtime", "xr", "xr_immersive_tensor_pipeline")
+    bundle
+
+fn default_networking_system_bundle() -> NetworkingSystemBundle with Pure:
+    let bundle = NetworkingSystemBundle()
+    bundle.replication_runtime = realtime_system("network_replication_resolve", "networking", "network_replication_tensor_pipeline")
+    bundle.authority_runtime = realtime_system("network_authority_runtime", "networking", "network_replication_tensor_pipeline")
+    bundle.session_transport = realtime_system("network_session_transport", "networking", "network_replication_tensor_pipeline")
+    bundle
+
+fn default_sequencing_system_bundle() -> SequencingSystemBundle with Pure:
+    let bundle = SequencingSystemBundle()
+    bundle.sequence_runtime = realtime_system("shot_sequence_timeline_resolve", "sequencing", "sequencing_timeline_tensor_pipeline")
+    bundle.shot_runtime = realtime_system("shot_clip_runtime", "sequencing", "sequencing_timeline_tensor_pipeline")
+    bundle.editorial_runtime = batch_system("editorial_conform_runtime", "sequencing", "sequencing_timeline_tensor_pipeline")
+    bundle
+
+fn default_navigation_system_bundle() -> NavigationSystemBundle with Pure:
+    let bundle = NavigationSystemBundle()
+    bundle.navmesh_runtime = batch_system("navigation_navmesh_corridor_resolve", "navigation", "navigation_runtime_tensor_pipeline")
+    bundle.crowd_runtime = realtime_system("navigation_crowd_runtime", "navigation", "navigation_runtime_tensor_pipeline")
+    bundle.path_query_runtime = realtime_system("navigation_path_query_runtime", "navigation", "navigation_runtime_tensor_pipeline")
+    bundle
+
+fn default_vehicle_system_bundle() -> VehicleSystemBundle with Pure:
+    let bundle = VehicleSystemBundle()
+    bundle.vehicle_dynamics_runtime = realtime_system("vehicle_dynamics_integrate", "vehicle", "vehicle_dynamics_tensor_pipeline")
+    bundle.drivetrain_runtime = realtime_system("vehicle_drivetrain_runtime", "vehicle", "vehicle_dynamics_tensor_pipeline")
+    bundle.wheel_contact_runtime = realtime_system("vehicle_wheel_contact_runtime", "vehicle", "vehicle_dynamics_tensor_pipeline")
+    bundle
+
+fn default_lighting_system_bundle() -> LightingSystemBundle with Pure:
+    let bundle = LightingSystemBundle()
+    bundle.lighting_rig_runtime = realtime_system("lighting_probe_grid_resolve", "lighting", "lighting_pipeline_tensor_pipeline")
+    bundle.probe_bake_runtime = batch_system("lighting_probe_bake_runtime", "lighting", "lighting_pipeline_tensor_pipeline")
+    bundle.shadow_atlas_runtime = realtime_system("lighting_shadow_atlas_runtime", "lighting", "lighting_pipeline_tensor_pipeline")
+    bundle
+
+fn default_broadcast_system_bundle() -> BroadcastSystemBundle with Pure:
+    let bundle = BroadcastSystemBundle()
+    bundle.feed_router_runtime = realtime_system("broadcast_program_mix_resolve", "broadcast", "broadcast_control_tensor_pipeline")
+    bundle.rundown_runtime = batch_system("broadcast_rundown_runtime", "broadcast", "broadcast_control_tensor_pipeline")
+    bundle.overlay_mix_runtime = realtime_system("broadcast_overlay_mix_runtime", "broadcast", "broadcast_control_tensor_pipeline")
+    bundle
+
+fn default_evaluation_system_bundle() -> EvaluationSystemBundle with Pure:
+    let bundle = EvaluationSystemBundle()
+    bundle.dependency_graph_runtime = realtime_system("scene_evaluation_schedule_resolve", "evaluation", "evaluation_graph_tensor_pipeline")
+    bundle.scheduler_runtime = realtime_system("evaluation_scheduler_runtime", "evaluation", "evaluation_graph_tensor_pipeline")
+    bundle.cache_runtime = batch_system("evaluation_cache_runtime", "evaluation", "evaluation_graph_tensor_pipeline")
+    bundle
+
+fn default_viewport_system_bundle() -> ViewportSystemBundle with Pure:
+    let bundle = ViewportSystemBundle()
+    bundle.frame_packet_runtime = realtime_system("viewport_frame_packet_resolve", "viewport", "viewport_frame_tensor_pipeline")
+    bundle.camera_runtime = realtime_system("viewport_camera_runtime", "viewport", "viewport_frame_tensor_pipeline")
+    bundle.overlay_runtime = realtime_system("viewport_overlay_runtime", "viewport", "viewport_frame_tensor_pipeline")
+    bundle
+
+fn default_interaction_system_bundle() -> InteractionSystemBundle with Pure:
+    let bundle = InteractionSystemBundle()
+    bundle.input_router_runtime = realtime_system("interaction_input_router", "interaction", "interaction_gizmo_tensor_pipeline")
+    bundle.gizmo_runtime = realtime_system("interaction_gizmo_resolve", "interaction", "interaction_gizmo_tensor_pipeline")
+    bundle.tool_context_runtime = realtime_system("interaction_tool_context", "interaction", "interaction_gizmo_tensor_pipeline")
+    bundle
+
+fn default_persistence_system_bundle() -> PersistenceSystemBundle with Pure:
+    let bundle = PersistenceSystemBundle()
+    bundle.snapshot_runtime = batch_system("persistence_snapshot_delta_resolve", "persistence", "persistence_snapshot_tensor_pipeline")
+    bundle.session_persistence_runtime = batch_system("workspace_session_persistence", "persistence", "persistence_snapshot_tensor_pipeline")
+    bundle.recovery_runtime = batch_system("runtime_recovery", "persistence", "persistence_snapshot_tensor_pipeline")
+    bundle
+
+fn default_jobs_system_bundle() -> JobsSystemBundle with Pure:
+    let bundle = JobsSystemBundle()
+    bundle.queue_dispatch_runtime = batch_system("job_queue_dispatch_resolve", "jobs", "jobs_dispatch_tensor_pipeline")
+    bundle.worker_pool_runtime = batch_system("runtime_worker_pool", "jobs", "jobs_dispatch_tensor_pipeline")
+    bundle.receipt_runtime = batch_system("job_materialization_receipts", "jobs", "jobs_dispatch_tensor_pipeline")
+    bundle
+
+fn default_telemetry_system_bundle() -> TelemetrySystemBundle with Pure:
+    let bundle = TelemetrySystemBundle()
+    bundle.frame_telemetry_runtime = realtime_system("telemetry_frame_profile_resolve", "telemetry", "telemetry_profile_tensor_pipeline")
+    bundle.budget_runtime = realtime_system("runtime_budget_policies", "telemetry", "telemetry_profile_tensor_pipeline")
+    bundle.diagnostics_runtime = batch_system("runtime_diagnostics", "telemetry", "telemetry_profile_tensor_pipeline")
+    bundle
+
+fn default_security_system_bundle() -> SecuritySystemBundle with Pure:
+    let bundle = SecuritySystemBundle()
+    bundle.capability_runtime = realtime_system("security_capability_policy_resolve", "security", "security_policy_tensor_pipeline")
+    bundle.trust_zone_runtime = batch_system("runtime_trust_zones", "security", "security_policy_tensor_pipeline")
+    bundle.audit_runtime = batch_system("security_audit_runtime", "security", "security_policy_tensor_pipeline")
+    bundle
+
+fn default_entity_system_bundle() -> EntitySystemBundle with Pure:
+    let bundle = EntitySystemBundle()
+    bundle.entity_delta_runtime = realtime_system("entity_component_delta_resolve", "entity", "entity_runtime_tensor_pipeline")
+    bundle.component_schema_runtime = realtime_system("entity_component_schema_runtime", "entity", "entity_runtime_tensor_pipeline")
+    bundle.archetype_spawn_runtime = realtime_system("entity_archetype_spawn_runtime", "entity", "entity_runtime_tensor_pipeline")
+    bundle
+
+fn default_prefab_system_bundle() -> PrefabSystemBundle with Pure:
+    let bundle = PrefabSystemBundle()
+    bundle.prefab_compose_runtime = batch_system("prefab_variant_compose", "prefab", "prefab_assembly_tensor_pipeline")
+    bundle.variant_patch_runtime = realtime_system("prefab_variant_patch_runtime", "prefab", "prefab_assembly_tensor_pipeline")
+    bundle.assembly_launch_runtime = batch_system("prefab_assembly_launch_runtime", "prefab", "prefab_assembly_tensor_pipeline")
+    bundle
+
+fn default_command_system_bundle() -> CommandSystemBundle with Pure:
+    let bundle = CommandSystemBundle()
+    bundle.command_replay_runtime = realtime_system("command_stream_replay_resolve", "commands", "command_runtime_tensor_pipeline")
+    bundle.macro_runtime = batch_system("command_macro_runtime", "commands", "command_runtime_tensor_pipeline")
+    bundle.tool_action_runtime = realtime_system("command_tool_action_runtime", "commands", "command_runtime_tensor_pipeline")
+    bundle
+
+fn default_state_migration_system_bundle() -> StateMigrationSystemBundle with Pure:
+    let bundle = StateMigrationSystemBundle()
+    bundle.state_schema_runtime = batch_system("state_schema_migration_resolve", "state_migration", "state_migration_tensor_pipeline")
+    bundle.compatibility_runtime = batch_system("state_compatibility_runtime", "state_migration", "state_migration_tensor_pipeline")
+    bundle.migration_receipt_runtime = batch_system("state_migration_receipt_runtime", "state_migration", "state_migration_tensor_pipeline")
+    bundle
+
+fn default_workspace_layout_system_bundle() -> WorkspaceLayoutSystemBundle with Pure:
+    let bundle = WorkspaceLayoutSystemBundle()
+    bundle.workspace_layout_runtime = realtime_system("workspace_layout_flow_resolve", "workspace_layout", "workspace_layout_tensor_pipeline")
+    bundle.dock_graph_runtime = realtime_system("workspace_dock_graph_runtime", "workspace_layout", "workspace_layout_tensor_pipeline")
+    bundle.window_surface_runtime = realtime_system("workspace_window_surface_runtime", "workspace_layout", "workspace_layout_tensor_pipeline")
+    bundle
+
+fn default_scene_source_system_bundle() -> SceneSourceSystemBundle with Pure:
+    let bundle = SceneSourceSystemBundle()
+    bundle.source_document_runtime = realtime_system("scene_source_document_resolve", "scene_source", "scene_source_tensor_pipeline")
+    bundle.scene_class_runtime = realtime_system("scene_class_runtime", "scene_source", "scene_source_tensor_pipeline")
+    bundle.scene_mount_runtime = realtime_system("scene_mount_runtime", "scene_source", "scene_source_tensor_pipeline")
+    bundle
+
+fn default_widget_primitives_system_bundle() -> WidgetPrimitivesSystemBundle with Pure:
+    let bundle = WidgetPrimitivesSystemBundle()
+    bundle.widget_primitive_runtime = realtime_system("widget_primitive_composition_resolve", "widget_primitives", "widget_primitives_tensor_pipeline")
+    bundle.widget_binding_runtime = realtime_system("widget_binding_runtime", "widget_primitives", "widget_primitives_tensor_pipeline")
+    bundle.overlay_chrome_runtime = realtime_system("widget_overlay_chrome_runtime", "widget_primitives", "widget_primitives_tensor_pipeline")
+    bundle
+
+fn default_graph_materialization_system_bundle() -> GraphMaterializationSystemBundle with Pure:
+    let bundle = GraphMaterializationSystemBundle()
+    bundle.materialization_plan_runtime = batch_system("graph_materialization_plan_resolve", "graph_materialization", "graph_materialization_tensor_pipeline")
+    bundle.receipt_runtime = batch_system("graph_materialization_receipt_runtime", "graph_materialization", "graph_materialization_tensor_pipeline")
+    bundle.provenance_runtime = batch_system("graph_materialization_provenance_runtime", "graph_materialization", "graph_materialization_tensor_pipeline")
+    bundle
+
+fn default_input_system_bundle() -> InputSystemBundle with Pure:
+    let bundle = InputSystemBundle()
+    bundle.device_runtime = realtime_system("input_device_runtime", "input", "input_action_tensor_pipeline")
+    bundle.action_map_runtime = realtime_system("input_action_map_resolve", "input", "input_action_tensor_pipeline")
+    bundle.shortcut_layer_runtime = realtime_system("shortcut_layer_runtime", "input", "input_action_tensor_pipeline")
+    bundle
+
+fn default_camera_system_bundle() -> CameraSystemBundle with Pure:
+    let bundle = CameraSystemBundle()
+    bundle.camera_rig_runtime = realtime_system("camera_rig_packet_resolve", "camera", "camera_rig_tensor_pipeline")
+    bundle.lens_profile_runtime = realtime_system("camera_lens_profile_runtime", "camera", "camera_rig_tensor_pipeline")
+    bundle.capture_route_runtime = realtime_system("camera_capture_route_runtime", "camera", "camera_rig_tensor_pipeline")
+    bundle
+
+fn default_cache_system_bundle() -> CacheSystemBundle with Pure:
+    let bundle = CacheSystemBundle()
+    bundle.cache_store_runtime = batch_system("runtime_cache_store", "cache", "cache_runtime_tensor_pipeline")
+    bundle.checkpoint_runtime = batch_system("runtime_checkpoint_store", "cache", "cache_runtime_tensor_pipeline")
+    bundle.cache_lineage_runtime = batch_system("cache_lineage_stream_resolve", "cache", "cache_runtime_tensor_pipeline")
+    bundle
+
+fn default_scene_object_system_bundle() -> SceneObjectSystemBundle with Pure:
+    let bundle = SceneObjectSystemBundle()
+    bundle.scene_object_graph_runtime = realtime_system("scene_object_graph_resolve", "scene_objects", "scene_object_tensor_pipeline")
+    bundle.object_class_runtime = realtime_system("scene_object_class_runtime", "scene_objects", "scene_object_tensor_pipeline")
+    bundle.object_mutation_runtime = realtime_system("scene_object_mutation_runtime", "scene_objects", "scene_object_tensor_pipeline")
+    bundle
+
+fn default_native_controls_system_bundle() -> NativeControlsSystemBundle with Pure:
+    let bundle = NativeControlsSystemBundle()
+    bundle.inspector_control_runtime = realtime_system("native_control_state_resolve", "native_controls", "native_controls_tensor_pipeline")
+    bundle.outliner_control_runtime = realtime_system("native_outliner_control_runtime", "native_controls", "native_controls_tensor_pipeline")
+    bundle.timeline_control_runtime = realtime_system("native_timeline_control_runtime", "native_controls", "native_controls_tensor_pipeline")
+    bundle
+
+fn default_schema_system_bundle() -> SchemaSystemBundle with Pure:
+    let bundle = SchemaSystemBundle()
+    bundle.runtime_schema_runtime = batch_system("schema_contract_index_resolve", "schemas", "schema_contract_tensor_pipeline")
+    bundle.interchange_schema_runtime = batch_system("interchange_schema_runtime", "schemas", "schema_contract_tensor_pipeline")
+    bundle.compatibility_schema_runtime = batch_system("schema_compatibility_runtime", "schemas", "schema_contract_tensor_pipeline")
+    bundle
+
+fn default_physics_system_bundle() -> PhysicsSystemBundle with Pure:
+    let bundle = PhysicsSystemBundle()
+    bundle.rigid_body_runtime = realtime_system("rigid_body_island_resolve", "physics", "physics_authoring_tensor_pipeline")
+    bundle.collision_runtime = realtime_system("physics_collision_runtime", "physics", "physics_authoring_tensor_pipeline")
+    bundle.joint_runtime = realtime_system("physics_joint_runtime", "physics", "physics_authoring_tensor_pipeline")
+    bundle
+
+fn default_shader_system_bundle() -> ShaderSystemBundle with Pure:
+    let bundle = ShaderSystemBundle()
+    bundle.shader_family_runtime = realtime_system("shader_permutation_schedule_resolve", "shader", "shader_permutation_tensor_pipeline")
+    bundle.permutation_runtime = batch_system("shader_program_variant_runtime", "shader", "shader_permutation_tensor_pipeline")
+    bundle.reflection_runtime = batch_system("shader_reflection_runtime", "shader", "shader_permutation_tensor_pipeline")
+    bundle
+
+fn default_resource_system_bundle() -> ResourceSystemBundle with Pure:
+    let bundle = ResourceSystemBundle()
+    bundle.residency_runtime = realtime_system("resource_residency_resolve", "resources", "resource_residency_tensor_pipeline")
+    bundle.streaming_runtime = realtime_system("resource_streaming_runtime", "resources", "resource_residency_tensor_pipeline")
+    bundle.budget_runtime = batch_system("resource_budget_runtime", "resources", "resource_residency_tensor_pipeline")
+    bundle
+
+fn default_identity_system_bundle() -> IdentitySystemBundle with Pure:
+    let bundle = IdentitySystemBundle()
+    bundle.operator_identity_runtime = realtime_system("identity_entitlement_resolve", "identity", "identity_entitlement_tensor_pipeline")
+    bundle.entitlement_runtime = batch_system("identity_role_entitlement_runtime", "identity", "identity_entitlement_tensor_pipeline")
+    bundle.session_authority_runtime = realtime_system("identity_session_authority_runtime", "identity", "identity_entitlement_tensor_pipeline")
+    bundle
+
+fn default_cloud_system_bundle() -> CloudSystemBundle with Pure:
+    let bundle = CloudSystemBundle()
+    bundle.cloud_session_runtime = realtime_system("cloud_session_burst_resolve", "cloud", "cloud_burst_tensor_pipeline")
+    bundle.object_storage_runtime = batch_system("cloud_object_storage_runtime", "cloud", "cloud_burst_tensor_pipeline")
+    bundle.burst_compute_runtime = batch_system("cloud_burst_compute_runtime", "cloud", "cloud_burst_tensor_pipeline")
+    bundle
+
+fn default_marketplace_system_bundle() -> MarketplaceSystemBundle with Pure:
+    let bundle = MarketplaceSystemBundle()
+    bundle.catalog_runtime = realtime_system("marketplace_catalog_resolve", "marketplace", "marketplace_catalog_tensor_pipeline")
+    bundle.entitlement_runtime = batch_system("marketplace_entitlement_runtime", "marketplace", "marketplace_catalog_tensor_pipeline")
+    bundle.promotion_runtime = batch_system("marketplace_promotion_runtime", "marketplace", "marketplace_catalog_tensor_pipeline")
+    bundle
+
+fn default_dataops_system_bundle() -> DataOpsSystemBundle with Pure:
+    let bundle = DataOpsSystemBundle()
+    bundle.dataset_registry_runtime = batch_system("dataops_dataset_registry_runtime", "dataops", "dataops_lineage_tensor_pipeline")
+    bundle.lineage_runtime = realtime_system("dataops_lineage_resolve", "dataops", "dataops_lineage_tensor_pipeline")
+    bundle.training_corpus_runtime = batch_system("dataops_training_corpus_runtime", "dataops", "dataops_lineage_tensor_pipeline")
+    bundle
+
+fn default_fleet_system_bundle() -> FleetSystemBundle with Pure:
+    let bundle = FleetSystemBundle()
+    bundle.capacity_runtime = realtime_system("fleet_capacity_dispatch_resolve", "fleet", "fleet_dispatch_tensor_pipeline")
+    bundle.lease_runtime = batch_system("fleet_worker_lease_runtime", "fleet", "fleet_dispatch_tensor_pipeline")
+    bundle.dispatch_runtime = batch_system("fleet_job_dispatch_runtime", "fleet", "fleet_dispatch_tensor_pipeline")
+    bundle
+
+struct ColorSystemBundle:
+    pipeline_runtime: RuntimeSystemDescriptor
+    display_runtime: RuntimeSystemDescriptor
+    look_runtime: RuntimeSystemDescriptor
+
+struct MediaSystemBundle:
+    clip_runtime: RuntimeSystemDescriptor
+    plate_runtime: RuntimeSystemDescriptor
+    transcode_runtime: RuntimeSystemDescriptor
+
+struct NarrativeSystemBundle:
+    branch_runtime: RuntimeSystemDescriptor
+    dialogue_runtime: RuntimeSystemDescriptor
+    objective_runtime: RuntimeSystemDescriptor
+
+struct HapticsSystemBundle:
+    device_runtime: RuntimeSystemDescriptor
+    feedback_runtime: RuntimeSystemDescriptor
+    force_profile_runtime: RuntimeSystemDescriptor
+
+struct UpdatesSystemBundle:
+    channel_runtime: RuntimeSystemDescriptor
+    patch_runtime: RuntimeSystemDescriptor
+    install_runtime: RuntimeSystemDescriptor
+
+fn default_color_system_bundle() -> ColorSystemBundle with Pure:
+    let bundle = ColorSystemBundle()
+    bundle.pipeline_runtime = realtime_system("color_pipeline_resolve", "color", "color_management_tensor_pipeline")
+    bundle.display_runtime = batch_system("color_display_profile_runtime", "color", "color_management_tensor_pipeline")
+    bundle.look_runtime = batch_system("color_look_transform_runtime", "color", "color_management_tensor_pipeline")
+    bundle
+
+fn default_media_system_bundle() -> MediaSystemBundle with Pure:
+    let bundle = MediaSystemBundle()
+    bundle.clip_runtime = realtime_system("media_plate_stream_resolve", "media", "media_pipeline_tensor_pipeline")
+    bundle.plate_runtime = realtime_system("media_plate_runtime", "media", "media_pipeline_tensor_pipeline")
+    bundle.transcode_runtime = batch_system("media_transcode_runtime", "media", "media_pipeline_tensor_pipeline")
+    bundle
+
+fn default_narrative_system_bundle() -> NarrativeSystemBundle with Pure:
+    let bundle = NarrativeSystemBundle()
+    bundle.branch_runtime = realtime_system("narrative_state_graph_resolve", "narrative", "narrative_state_tensor_pipeline")
+    bundle.dialogue_runtime = realtime_system("dialogue_runtime", "narrative", "narrative_state_tensor_pipeline")
+    bundle.objective_runtime = batch_system("objective_state_runtime", "narrative", "narrative_state_tensor_pipeline")
+    bundle
+
+fn default_haptics_system_bundle() -> HapticsSystemBundle with Pure:
+    let bundle = HapticsSystemBundle()
+    bundle.device_runtime = realtime_system("haptic_device_runtime", "haptics", "haptics_feedback_tensor_pipeline")
+    bundle.feedback_runtime = realtime_system("haptic_feedback_route_resolve", "haptics", "haptics_feedback_tensor_pipeline")
+    bundle.force_profile_runtime = batch_system("haptic_force_profile_runtime", "haptics", "haptics_feedback_tensor_pipeline")
+    bundle
+
+fn default_updates_system_bundle() -> UpdatesSystemBundle with Pure:
+    let bundle = UpdatesSystemBundle()
+    bundle.channel_runtime = batch_system("update_channel_manifest_resolve", "updates", "updates_channel_tensor_pipeline")
+    bundle.patch_runtime = batch_system("patch_bundle_runtime", "updates", "updates_channel_tensor_pipeline")
+    bundle.install_runtime = batch_system("install_route_runtime", "updates", "updates_channel_tensor_pipeline")
+    bundle

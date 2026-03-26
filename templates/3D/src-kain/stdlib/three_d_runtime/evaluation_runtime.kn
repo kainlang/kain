@@ -1,0 +1,40 @@
+// Evaluation graph, dependency scheduling, invalidation, and cache-lifetime contracts.
+
+struct EvaluationGraphDescriptor:
+    graph_id: String
+    graph_kind: String
+    invalidation_policy: String
+
+struct SchedulerDescriptor:
+    scheduler_id: String
+    queue_policy: String
+    checkpoint_policy: String
+
+struct EvaluationCacheDescriptor:
+    cache_id: String
+    residency_policy: String
+    replay_policy: String
+
+struct EvaluationRuntimeProfile:
+    evaluation_graph: EvaluationGraphDescriptor
+    scheduler: SchedulerDescriptor
+    cache: EvaluationCacheDescriptor
+
+fn default_evaluation_runtime_profile() -> EvaluationRuntimeProfile with Pure:
+    let profile = EvaluationRuntimeProfile()
+
+    profile.evaluation_graph = EvaluationGraphDescriptor()
+    profile.evaluation_graph.graph_id = "scene_evaluation_graph"
+    profile.evaluation_graph.graph_kind = "scene_operator_dependency_and_delivery_graph"
+    profile.evaluation_graph.invalidation_policy = "dirty_region_checkpoint_and_bundle_delta_aware"
+
+    profile.scheduler = SchedulerDescriptor()
+    profile.scheduler.scheduler_id = "evaluation_scheduler"
+    profile.scheduler.queue_policy = "interactive_realtime_batch_and_delivery_partitioned"
+    profile.scheduler.checkpoint_policy = "frame_shot_and_materialization_receipt_bound"
+
+    profile.cache = EvaluationCacheDescriptor()
+    profile.cache.cache_id = "evaluation_cache"
+    profile.cache.residency_policy = "cpu_gpu_streaming_and_bundle_checkpoint_mirrored"
+    profile.cache.replay_policy = "undo_redo_review_and_delivery_resumable"
+    profile

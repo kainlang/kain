@@ -1,0 +1,1326 @@
+[
+   {
+      "label" : "Runtime Materialization Graph",
+      "queue" : "artifact_automation_queue",
+      "id" : "runtime_materialization_graph",
+      "outputs" : [
+         "generated/runtime",
+         "generated/spv",
+         "generated/reflection"
+      ],
+      "graph_kind" : "runtime_artifact_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "workspace_presets.json",
+         "sources.json",
+         "gpu_kernels.json",
+         "tensor_pipelines.json"
+      ]
+   },
+   {
+      "label" : "Package Materialization Graph",
+      "id" : "package_materialization_graph",
+      "outputs" : [
+         "generated/packages",
+         "generated/distribution"
+      ],
+      "queue" : "artifact_automation_queue",
+      "inputs" : [
+         "runtime_apps.json",
+         "workspace_presets.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "package_artifact_graph"
+   },
+   {
+      "queue" : "artifact_automation_queue",
+      "outputs" : [
+         "generated/review",
+         "generated/distribution/review"
+      ],
+      "id" : "review_delivery_graph",
+      "label" : "Review Delivery Graph",
+      "graph_kind" : "review_capture_graph",
+      "inputs" : [
+         "ui_surfaces.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "queue" : "live_sync_queue",
+      "outputs" : [
+         "generated/sync",
+         "generated/runtime"
+      ],
+      "id" : "live_sync_materialization_graph",
+      "label" : "Live Sync Materialization Graph",
+      "graph_kind" : "live_sync_graph",
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "workspace_presets.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "inputs" : [
+         "runtime_apps.json",
+         "workspace_presets.json",
+         "distribution_channels.json",
+         "sources.json"
+      ],
+      "graph_kind" : "machine_delivery_graph",
+      "label" : "CAD Robotics Delivery Graph",
+      "id" : "cad_robotics_delivery_graph",
+      "outputs" : [
+         "generated/cad",
+         "generated/toolpaths",
+         "generated/distribution/machines"
+      ],
+      "queue" : "fabrication_delivery_queue"
+   },
+   {
+      "label" : "Scene Exchange Delivery Graph",
+      "queue" : "scene_exchange_queue",
+      "outputs" : [
+         "generated/exchange",
+         "generated/distribution/exchange"
+      ],
+      "id" : "scene_exchange_delivery_graph",
+      "graph_kind" : "scene_exchange_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "queue" : "review_database_queue",
+      "id" : "review_database_materialization_graph",
+      "outputs" : [
+         "generated/review-db",
+         "generated/distribution/review-db"
+      ],
+      "label" : "Review Database Materialization Graph",
+      "graph_kind" : "review_database_graph",
+      "inputs" : [
+         "ui_surfaces.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "inputs" : [
+         "runtime_apps.json",
+         "workspace_presets.json",
+         "build_graphs.json",
+         "distribution_channels.json",
+         "sources.json"
+      ],
+      "graph_kind" : "runtime_bundle_graph",
+      "label" : "Runtime Bundle Delivery Graph",
+      "outputs" : [
+         "generated/bundles",
+         "generated/distribution/bundles"
+      ],
+      "id" : "runtime_bundle_delivery_graph",
+      "queue" : "bundle_delivery_queue"
+   },
+   {
+      "label" : "Materialization Receipt Graph",
+      "outputs" : [
+         "generated/materialized",
+         "generated/distribution/materialized"
+      ],
+      "id" : "materialization_receipt_graph",
+      "queue" : "materialization_queue",
+      "inputs" : [
+         "build_graphs.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "materialization_receipt_graph"
+   },
+   {
+      "label" : "Workspace Preset Materialization Graph",
+      "outputs" : [
+         "generated/workspace-presets",
+         "generated/distribution/workspace-presets",
+         "generated/runtime-reflection/workspace-preset-receipts"
+      ],
+      "id" : "workspace_preset_materialization_graph",
+      "queue" : "workspace_preset_queue",
+      "inputs" : [
+         "workspace_presets.json",
+         "runtime_apps.json",
+         "build_graphs.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "workspace_preset_graph"
+   },
+   {
+      "label" : "Asset Registry Materialization Graph",
+      "id" : "asset_registry_materialization_graph",
+      "outputs" : [
+         "generated/asset-registry",
+         "generated/distribution/asset-registry"
+      ],
+      "queue" : "asset_registry_queue",
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "asset_registry_graph"
+   },
+   {
+      "graph_kind" : "character_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "workspace_presets.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "queue" : "character_delivery_queue",
+      "outputs" : [
+         "generated/character",
+         "generated/distribution/character"
+      ],
+      "id" : "character_delivery_graph",
+      "label" : "Character Delivery Graph"
+   },
+   {
+      "queue" : "stage_delivery_queue",
+      "outputs" : [
+         "generated/stage",
+         "generated/distribution/stage"
+      ],
+      "id" : "virtual_production_stage_graph",
+      "label" : "Virtual Production Stage Graph",
+      "graph_kind" : "virtual_production_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "graph_kind" : "geospatial_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "queue" : "geospatial_delivery_queue",
+      "id" : "geospatial_delivery_graph",
+      "outputs" : [
+         "generated/geospatial",
+         "generated/distribution/geospatial"
+      ],
+      "label" : "Geospatial Delivery Graph"
+   },
+   {
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "xr_graph",
+      "outputs" : [
+         "generated/xr",
+         "generated/distribution/xr"
+      ],
+      "id" : "xr_bundle_delivery_graph",
+      "queue" : "xr_delivery_queue",
+      "label" : "XR Bundle Delivery Graph"
+   },
+   {
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "network_graph",
+      "outputs" : [
+         "generated/network",
+         "generated/distribution/network"
+      ],
+      "id" : "network_replication_materialization_graph",
+      "queue" : "network_delivery_queue",
+      "label" : "Network Replication Materialization Graph"
+   },
+   {
+      "graph_kind" : "device_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "queue" : "device_delivery_queue",
+      "outputs" : [
+         "generated/device",
+         "generated/distribution/device"
+      ],
+      "id" : "device_control_materialization_graph",
+      "label" : "Device Control Materialization Graph"
+   },
+   {
+      "queue" : "runtime_reflection_queue",
+      "outputs" : [
+         "generated/runtime-reflection",
+         "generated/reflection"
+      ],
+      "id" : "runtime_reflection_materialization_graph",
+      "label" : "Runtime Reflection Materialization Graph",
+      "graph_kind" : "runtime_reflection_graph",
+      "inputs" : [
+         "sources.json",
+         "gpu_kernels.json",
+         "runtime_apps.json",
+         "workspace_presets.json",
+         "build_graphs.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "inputs" : [
+         "runtime_apps.json",
+         "ui_surfaces.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "lookdev_graph",
+      "label" : "Lookdev Review Delivery Graph",
+      "outputs" : [
+         "generated/lookdev",
+         "generated/distribution/lookdev"
+      ],
+      "id" : "lookdev_review_delivery_graph",
+      "queue" : "lookdev_delivery_queue"
+   },
+   {
+      "label" : "Simulation Authoring Materialization Graph",
+      "id" : "simulation_authoring_materialization_graph",
+      "outputs" : [
+         "generated/simulation-authoring",
+         "generated/distribution/simulation-authoring"
+      ],
+      "queue" : "simulation_authoring_queue",
+      "inputs" : [
+         "sources.json",
+         "gpu_kernels.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "simulation_authoring_graph"
+   },
+   {
+      "label" : "Delivery Materializer Graph",
+      "id" : "delivery_materializer_graph",
+      "outputs" : [
+         "generated/delivery",
+         "generated/distribution/delivery"
+      ],
+      "queue" : "delivery_materializer_queue",
+      "inputs" : [
+         "build_graphs.json",
+         "runtime_apps.json",
+         "workspace_presets.json",
+         "distribution_channels.json",
+         "sources.json"
+      ],
+      "graph_kind" : "delivery_materializer_graph"
+   },
+   {
+      "graph_kind" : "scene_bundle_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "queue" : "scene_bundle_queue",
+      "id" : "scene_bundle_delivery_graph",
+      "outputs" : [
+         "generated/scene-bundles",
+         "generated/distribution/scene-bundles"
+      ],
+      "label" : "Scene Bundle Delivery Graph"
+   },
+   {
+      "graph_kind" : "native_widget_graph",
+      "inputs" : [
+         "ui_surfaces.json",
+         "workspace_presets.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "queue" : "widget_schema_queue",
+      "id" : "native_widget_schema_graph",
+      "outputs" : [
+         "generated/widgets",
+         "generated/distribution/widgets"
+      ],
+      "label" : "Native Widget Schema Graph"
+   },
+   {
+      "label" : "Interchange Delivery Graph",
+      "id" : "interchange_delivery_graph",
+      "outputs" : [
+         "generated/interchange",
+         "generated/distribution/interchange"
+      ],
+      "queue" : "interchange_delivery_queue",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "interchange_graph"
+   },
+   {
+      "graph_kind" : "automation_recipe_graph",
+      "inputs" : [
+         "build_graphs.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "queue" : "automation_recipe_queue",
+      "outputs" : [
+         "generated/automation",
+         "generated/distribution/automation"
+      ],
+      "id" : "automation_recipe_graph",
+      "label" : "Automation Recipe Graph"
+   },
+   {
+      "graph_kind" : "knowledge_ops_graph",
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ],
+      "label" : "Knowledge Ops Materialization Graph",
+      "queue" : "knowledge_ops_queue",
+      "outputs" : [
+         "generated/knowledge",
+         "generated/distribution/knowledge"
+      ],
+      "id" : "knowledge_ops_materialization_graph"
+   },
+   {
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "sequencing_graph",
+      "label" : "Sequencing Delivery Graph",
+      "id" : "sequencing_delivery_graph",
+      "outputs" : [
+         "generated/sequencing",
+         "generated/distribution/sequencing"
+      ],
+      "queue" : "sequencing_delivery_queue"
+   },
+   {
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "navigation_graph",
+      "outputs" : [
+         "generated/navigation",
+         "generated/distribution/navigation"
+      ],
+      "id" : "navigation_delivery_graph",
+      "queue" : "navigation_delivery_queue",
+      "label" : "Navigation Delivery Graph"
+   },
+   {
+      "label" : "Vehicle Delivery Graph",
+      "outputs" : [
+         "generated/vehicle",
+         "generated/distribution/vehicle"
+      ],
+      "id" : "vehicle_delivery_graph",
+      "queue" : "vehicle_delivery_queue",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "vehicle_graph"
+   },
+   {
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "lighting_graph",
+      "label" : "Lighting Delivery Graph",
+      "outputs" : [
+         "generated/lighting",
+         "generated/distribution/lighting"
+      ],
+      "id" : "lighting_delivery_graph",
+      "queue" : "lighting_delivery_queue"
+   },
+   {
+      "queue" : "broadcast_delivery_queue",
+      "outputs" : [
+         "generated/broadcast",
+         "generated/distribution/broadcast"
+      ],
+      "id" : "broadcast_delivery_graph",
+      "label" : "Broadcast Delivery Graph",
+      "graph_kind" : "broadcast_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "id" : "evaluation_delivery_graph",
+      "outputs" : [
+         "generated/evaluation",
+         "generated/distribution/evaluation"
+      ],
+      "queue" : "evaluation_delivery_queue",
+      "label" : "Evaluation Delivery Graph",
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "evaluation_graph"
+   },
+   {
+      "inputs" : [
+         "ui_surfaces.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "viewport_graph",
+      "label" : "Viewport Delivery Graph",
+      "outputs" : [
+         "generated/viewport",
+         "generated/distribution/viewport"
+      ],
+      "id" : "viewport_delivery_graph",
+      "queue" : "viewport_delivery_queue"
+   },
+   {
+      "inputs" : [
+         "ui_surfaces.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "interaction_graph",
+      "outputs" : [
+         "generated/interaction",
+         "generated/distribution/interaction"
+      ],
+      "id" : "interaction_delivery_graph",
+      "queue" : "interaction_delivery_queue",
+      "label" : "Interaction Delivery Graph"
+   },
+   {
+      "label" : "Persistence Delivery Graph",
+      "queue" : "persistence_delivery_queue",
+      "outputs" : [
+         "generated/persistence",
+         "generated/distribution/persistence"
+      ],
+      "id" : "persistence_delivery_graph",
+      "graph_kind" : "persistence_graph",
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "graph_kind" : "jobs_graph",
+      "inputs" : [
+         "build_graphs.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "queue" : "jobs_dispatch_queue",
+      "id" : "jobs_dispatch_graph",
+      "outputs" : [
+         "generated/jobs",
+         "generated/distribution/jobs"
+      ],
+      "label" : "Jobs Dispatch Graph"
+   },
+   {
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "telemetry_graph",
+      "label" : "Telemetry Delivery Graph",
+      "id" : "telemetry_delivery_graph",
+      "outputs" : [
+         "generated/telemetry",
+         "generated/distribution/telemetry"
+      ],
+      "queue" : "telemetry_delivery_queue"
+   },
+   {
+      "queue" : "security_delivery_queue",
+      "id" : "security_delivery_graph",
+      "outputs" : [
+         "generated/security",
+         "generated/distribution/security"
+      ],
+      "label" : "Security Delivery Graph",
+      "graph_kind" : "security_graph",
+      "inputs" : [
+         "sources.json",
+         "distribution_channels.json",
+         "runtime_apps.json"
+      ]
+   },
+   {
+      "queue" : "entity_delivery_queue",
+      "outputs" : [
+         "generated/entity",
+         "generated/distribution/entity"
+      ],
+      "id" : "entity_runtime_delivery_graph",
+      "label" : "Entity Runtime Delivery Graph",
+      "graph_kind" : "entity_runtime_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "queue" : "prefab_delivery_queue",
+      "id" : "prefab_delivery_graph",
+      "outputs" : [
+         "generated/prefabs",
+         "generated/distribution/prefabs"
+      ],
+      "label" : "Prefab Delivery Graph",
+      "graph_kind" : "prefab_delivery_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "label" : "Command Receipt Graph",
+      "queue" : "command_receipt_queue",
+      "outputs" : [
+         "generated/commands",
+         "generated/distribution/commands"
+      ],
+      "id" : "command_receipt_graph",
+      "graph_kind" : "command_receipt_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "queue" : "state_migration_queue",
+      "id" : "state_migration_materialization_graph",
+      "outputs" : [
+         "generated/state-migration",
+         "generated/distribution/state-migration"
+      ],
+      "label" : "State Migration Materialization Graph",
+      "graph_kind" : "state_migration_graph",
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "graph_kind" : "workspace_layout_graph",
+      "inputs" : [
+         "ui_surfaces.json",
+         "runtime_apps.json",
+         "workspace_presets.json",
+         "distribution_channels.json"
+      ],
+      "label" : "Workspace Layout Registry Graph",
+      "queue" : "workspace_layout_queue",
+      "id" : "workspace_layout_registry_graph",
+      "outputs" : [
+         "generated/workspace-layouts",
+         "generated/distribution/workspace-layouts"
+      ]
+   },
+   {
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "gameplay_graph",
+      "label" : "Gameplay Delivery Graph",
+      "id" : "gameplay_delivery_graph",
+      "outputs" : [
+         "generated/gameplay",
+         "generated/distribution/gameplay"
+      ],
+      "queue" : "gameplay_delivery_queue"
+   },
+   {
+      "graph_kind" : "presentation_graph",
+      "inputs" : [
+         "ui_surfaces.json",
+         "runtime_apps.json",
+         "workspace_presets.json",
+         "distribution_channels.json"
+      ],
+      "queue" : "presentation_delivery_queue",
+      "id" : "presentation_delivery_graph",
+      "outputs" : [
+         "generated/presentation",
+         "generated/distribution/presentation"
+      ],
+      "label" : "Presentation Delivery Graph"
+   },
+   {
+      "graph_kind" : "replay_graph",
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ],
+      "label" : "Replay Delivery Graph",
+      "queue" : "replay_delivery_queue",
+      "outputs" : [
+         "generated/replay",
+         "generated/distribution/replay"
+      ],
+      "id" : "replay_delivery_graph"
+   },
+   {
+      "label" : "Localization Delivery Graph",
+      "outputs" : [
+         "generated/localization",
+         "generated/distribution/localization"
+      ],
+      "id" : "localization_delivery_graph",
+      "queue" : "localization_delivery_queue",
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "localization_graph"
+   },
+   {
+      "queue" : "streaming_delivery_queue",
+      "outputs" : [
+         "generated/streaming",
+         "generated/distribution/streaming"
+      ],
+      "id" : "streaming_delivery_graph",
+      "label" : "Streaming Delivery Graph",
+      "graph_kind" : "streaming_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "label" : "Point Cloud Delivery Graph",
+      "queue" : "point_cloud_delivery_queue",
+      "id" : "point_cloud_delivery_graph",
+      "outputs" : [
+         "generated/point-cloud",
+         "generated/distribution/point-cloud"
+      ],
+      "graph_kind" : "point_cloud_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "scene_source_graph",
+      "label" : "Scene Source Delivery Graph",
+      "outputs" : [
+         "generated/scene-source",
+         "generated/distribution/scene-source"
+      ],
+      "id" : "scene_source_delivery_graph",
+      "queue" : "scene_source_delivery_queue"
+   },
+   {
+      "inputs" : [
+         "ui_surfaces.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "widget_primitives_graph",
+      "id" : "widget_primitives_delivery_graph",
+      "outputs" : [
+         "generated/widget-primitives",
+         "generated/distribution/widget-primitives"
+      ],
+      "queue" : "widget_primitives_delivery_queue",
+      "label" : "Widget Primitives Delivery Graph"
+   },
+   {
+      "queue" : "graph_materialization_delivery_queue",
+      "outputs" : [
+         "generated/graph-materialization",
+         "generated/distribution/graph-materialization"
+      ],
+      "id" : "graph_materialization_delivery_graph",
+      "label" : "Graph Materialization Delivery Graph",
+      "graph_kind" : "graph_materialization_graph",
+      "inputs" : [
+         "build_graphs.json",
+         "runtime_apps.json",
+         "workspace_presets.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "label" : "Input Delivery Graph",
+      "queue" : "input_delivery_queue",
+      "id" : "input_delivery_graph",
+      "outputs" : [
+         "generated/input",
+         "generated/distribution/input"
+      ],
+      "graph_kind" : "input_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "camera_graph",
+      "label" : "Camera Delivery Graph",
+      "id" : "camera_delivery_graph",
+      "outputs" : [
+         "generated/camera",
+         "generated/distribution/camera"
+      ],
+      "queue" : "camera_delivery_queue"
+   },
+   {
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "cache_graph",
+      "label" : "Cache Delivery Graph",
+      "id" : "cache_delivery_graph",
+      "outputs" : [
+         "generated/cache",
+         "generated/distribution/cache"
+      ],
+      "queue" : "cache_delivery_queue"
+   },
+   {
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "scene_object_graph",
+      "label" : "Scene Object Delivery Graph",
+      "id" : "scene_object_delivery_graph",
+      "outputs" : [
+         "generated/scene-objects",
+         "generated/distribution/scene-objects"
+      ],
+      "queue" : "scene_object_delivery_queue"
+   },
+   {
+      "label" : "Native Controls Delivery Graph",
+      "queue" : "native_controls_delivery_queue",
+      "id" : "native_controls_delivery_graph",
+      "outputs" : [
+         "generated/native-controls",
+         "generated/distribution/native-controls"
+      ],
+      "graph_kind" : "native_controls_graph",
+      "inputs" : [
+         "ui_surfaces.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "id" : "schema_delivery_graph",
+      "outputs" : [
+         "generated/schemas",
+         "generated/distribution/schemas"
+      ],
+      "queue" : "schema_delivery_queue",
+      "label" : "Schema Delivery Graph",
+      "inputs" : [
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "schema_graph"
+   },
+   {
+      "label" : "Physics Delivery Graph",
+      "queue" : "physics_delivery_queue",
+      "outputs" : [
+         "generated/physics",
+         "generated/distribution/physics"
+      ],
+      "id" : "physics_delivery_graph",
+      "graph_kind" : "physics_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "shader_graph",
+      "outputs" : [
+         "generated/shaders",
+         "generated/distribution/shaders"
+      ],
+      "id" : "shader_delivery_graph",
+      "queue" : "shader_delivery_queue",
+      "label" : "Shader Delivery Graph"
+   },
+   {
+      "id" : "resource_delivery_graph",
+      "outputs" : [
+         "generated/resources",
+         "generated/distribution/resources"
+      ],
+      "queue" : "resource_delivery_queue",
+      "label" : "Resource Delivery Graph",
+      "inputs" : [
+         "sources.json",
+         "build_graphs.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "resource_graph"
+   },
+   {
+      "label" : "Material Source Delivery Graph",
+      "outputs" : [
+         "generated/material-source",
+         "generated/distribution/material-source"
+      ],
+      "id" : "material_source_delivery_graph",
+      "queue" : "material_source_delivery_queue",
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "material_source_graph"
+   },
+   {
+      "label" : "Editor Widget Delivery Graph",
+      "queue" : "editor_widget_delivery_queue",
+      "id" : "editor_widget_delivery_graph",
+      "outputs" : [
+         "generated/editor-widgets",
+         "generated/distribution/editor-widgets"
+      ],
+      "graph_kind" : "editor_widget_graph",
+      "inputs" : [
+         "ui_surfaces.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "queue" : "scene_mutation_delivery_queue",
+      "outputs" : [
+         "generated/scene-mutation",
+         "generated/distribution/scene-mutation"
+      ],
+      "id" : "scene_mutation_delivery_graph",
+      "label" : "Scene Mutation Delivery Graph",
+      "graph_kind" : "scene_mutation_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "id" : "render_delegation_delivery_graph",
+      "outputs" : [
+         "generated/render-delegation",
+         "generated/distribution/render-delegation"
+      ],
+      "queue" : "render_delegation_delivery_queue",
+      "label" : "Render Delegation Delivery Graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "render_delegation_graph"
+   },
+   {
+      "graph_kind" : "resource_reflection_graph",
+      "inputs" : [
+         "sources.json",
+         "build_graphs.json",
+         "distribution_channels.json"
+      ],
+      "queue" : "resource_reflection_delivery_queue",
+      "outputs" : [
+         "generated/resource-reflection",
+         "generated/distribution/resource-reflection"
+      ],
+      "id" : "resource_reflection_delivery_graph",
+      "label" : "Resource Reflection Delivery Graph"
+   },
+   {
+      "queue" : "runtime_compatibility_delivery_queue",
+      "id" : "runtime_compatibility_delivery_graph",
+      "outputs" : [
+         "generated/runtime-compatibility",
+         "generated/distribution/runtime-compatibility"
+      ],
+      "label" : "Runtime Compatibility Delivery Graph",
+      "graph_kind" : "runtime_compatibility_graph",
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "label" : "Mesh Delivery Graph",
+      "queue" : "mesh_delivery_queue",
+      "id" : "mesh_delivery_graph",
+      "outputs" : [
+         "generated/mesh",
+         "generated/distribution/mesh"
+      ],
+      "graph_kind" : "mesh_graph",
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "graph_kind" : "baking_graph",
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ],
+      "label" : "Baking Delivery Graph",
+      "queue" : "baking_delivery_queue",
+      "id" : "baking_delivery_graph",
+      "outputs" : [
+         "generated/baking",
+         "generated/distribution/baking"
+      ]
+   },
+   {
+      "graph_kind" : "scripting_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "label" : "Scripting Delivery Graph",
+      "queue" : "scripting_delivery_queue",
+      "id" : "scripting_delivery_graph",
+      "outputs" : [
+         "generated/scripting",
+         "generated/distribution/scripting"
+      ]
+   },
+   {
+      "graph_kind" : "ai_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "queue" : "ai_delivery_queue",
+      "outputs" : [
+         "generated/ai",
+         "generated/distribution/ai"
+      ],
+      "id" : "ai_delivery_graph",
+      "label" : "AI Delivery Graph"
+   },
+   {
+      "label" : "Modding Delivery Graph",
+      "queue" : "modding_delivery_queue",
+      "id" : "modding_delivery_graph",
+      "outputs" : [
+         "generated/modding",
+         "generated/distribution/modding"
+      ],
+      "graph_kind" : "modding_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "label" : "Identity Delivery Graph",
+      "queue" : "identity_delivery_queue",
+      "id" : "identity_delivery_graph",
+      "outputs" : [
+         "generated/identity",
+         "generated/distribution/identity"
+      ],
+      "graph_kind" : "identity_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "label" : "Cloud Delivery Graph",
+      "queue" : "cloud_delivery_queue",
+      "id" : "cloud_delivery_graph",
+      "outputs" : [
+         "generated/cloud",
+         "generated/distribution/cloud"
+      ],
+      "graph_kind" : "cloud_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "label" : "Marketplace Delivery Graph",
+      "id" : "marketplace_delivery_graph",
+      "outputs" : [
+         "generated/marketplace",
+         "generated/distribution/marketplace"
+      ],
+      "queue" : "marketplace_delivery_queue",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "marketplace_graph"
+   },
+   {
+      "label" : "DataOps Delivery Graph",
+      "outputs" : [
+         "generated/dataops",
+         "generated/distribution/dataops"
+      ],
+      "id" : "dataops_delivery_graph",
+      "queue" : "dataops_delivery_queue",
+      "inputs" : [
+         "sources.json",
+         "build_graphs.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "dataops_graph"
+   },
+   {
+      "graph_kind" : "fleet_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "label" : "Fleet Delivery Graph",
+      "queue" : "fleet_delivery_queue",
+      "outputs" : [
+         "generated/fleet",
+         "generated/distribution/fleet"
+      ],
+      "id" : "fleet_delivery_graph"
+   },
+   {
+      "id" : "rigging_delivery_graph",
+      "outputs" : [
+         "generated/rigging",
+         "generated/distribution/rigging"
+      ],
+      "queue" : "rigging_delivery_queue",
+      "label" : "Rigging Delivery Graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "rigging_graph"
+   },
+   {
+      "queue" : "deformation_delivery_queue",
+      "outputs" : [
+         "generated/deformation",
+         "generated/distribution/deformation"
+      ],
+      "id" : "deformation_delivery_graph",
+      "label" : "Deformation Delivery Graph",
+      "graph_kind" : "deformation_graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "painting_graph",
+      "outputs" : [
+         "generated/painting",
+         "generated/distribution/painting"
+      ],
+      "id" : "painting_delivery_graph",
+      "queue" : "painting_delivery_queue",
+      "label" : "Painting Delivery Graph"
+   },
+   {
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "uv_graph",
+      "label" : "UV Delivery Graph",
+      "outputs" : [
+         "generated/uv",
+         "generated/distribution/uv"
+      ],
+      "id" : "uv_delivery_graph",
+      "queue" : "uv_delivery_queue"
+   },
+   {
+      "queue" : "brush_delivery_queue",
+      "outputs" : [
+         "generated/brush",
+         "generated/distribution/brush"
+      ],
+      "id" : "brush_delivery_graph",
+      "label" : "Brush Delivery Graph",
+      "graph_kind" : "brush_graph",
+      "inputs" : [
+         "sources.json",
+         "runtime_apps.json",
+         "distribution_channels.json"
+      ]
+   },
+   {
+      "id" : "color_delivery_graph",
+      "outputs" : [
+         "generated/color",
+         "generated/distribution/color"
+      ],
+      "queue" : "color_delivery_queue",
+      "label" : "Color Delivery Graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "color_graph"
+   },
+   {
+      "id" : "media_delivery_graph",
+      "outputs" : [
+         "generated/media",
+         "generated/distribution/media"
+      ],
+      "queue" : "media_delivery_queue",
+      "label" : "Media Delivery Graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "media_graph"
+   },
+   {
+      "id" : "narrative_delivery_graph",
+      "outputs" : [
+         "generated/narrative",
+         "generated/distribution/narrative"
+      ],
+      "queue" : "narrative_delivery_queue",
+      "label" : "Narrative Delivery Graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "narrative_graph"
+   },
+   {
+      "id" : "haptics_delivery_graph",
+      "outputs" : [
+         "generated/haptics",
+         "generated/distribution/haptics"
+      ],
+      "queue" : "haptics_delivery_queue",
+      "label" : "Haptics Delivery Graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "haptics_graph"
+   },
+   {
+      "id" : "updates_delivery_graph",
+      "outputs" : [
+         "generated/updates",
+         "generated/distribution/updates"
+      ],
+      "queue" : "updates_delivery_queue",
+      "label" : "Updates Delivery Graph",
+      "inputs" : [
+         "runtime_apps.json",
+         "sources.json",
+         "distribution_channels.json"
+      ],
+      "graph_kind" : "updates_graph"
+   }
+]

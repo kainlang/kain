@@ -1,0 +1,19 @@
+// SPIR-V selection query resolution seed.
+
+shader compute selection_query_resolve(id: UVec3) -> Vec4:
+    uniform picking_rays: StorageBuffer<Vec4> @0
+    uniform selection_masks: StorageBuffer<Vec4> @1
+    uniform scene_bounds: StorageBuffer<Vec4> @2
+    uniform query_hits: StorageBuffer<Vec4> @3
+    let query_index = id.x
+    let ray = picking_rays[query_index]
+    let mask = selection_masks[query_index]
+    let bounds = scene_bounds[query_index]
+    let output = vec4(
+        ray.x + bounds.x,
+        ray.y + mask.y,
+        abs(bounds.z - mask.z),
+        1.0
+    )
+    query_hits[query_index] = output
+    return output

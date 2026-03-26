@@ -1,0 +1,36 @@
+// World partitioning, terrain, scatter, and large-scene streaming contracts.
+
+struct WorldSectorDescriptor:
+    sector_id: String
+    sector_kind: String
+    streaming_policy: String
+    residency_priority: String
+
+struct TerrainRuntimeDescriptor:
+    terrain_id: String
+    clipmap_pipeline_id: String
+    material_policy: String
+
+struct WorldRuntimeProfile:
+    primary_sector: WorldSectorDescriptor
+    secondary_sector: WorldSectorDescriptor
+    terrain: TerrainRuntimeDescriptor
+
+fn default_world_sector(sector_id: String, sector_kind: String) -> WorldSectorDescriptor with Pure:
+    let sector = WorldSectorDescriptor()
+    sector.sector_id = sector_id
+    sector.sector_kind = sector_kind
+    sector.streaming_policy = "distance_budget"
+    sector.residency_priority = "interactive"
+    sector
+
+fn default_world_runtime_profile() -> WorldRuntimeProfile with Pure:
+    let profile = WorldRuntimeProfile()
+    profile.primary_sector = default_world_sector("primary_sector", "playable_world")
+    profile.secondary_sector = default_world_sector("secondary_sector", "background_world")
+
+    profile.terrain = TerrainRuntimeDescriptor()
+    profile.terrain.terrain_id = "main_terrain"
+    profile.terrain.clipmap_pipeline_id = "world_streaming_tensor_pipeline"
+    profile.terrain.material_policy = "layered_heightfield"
+    profile

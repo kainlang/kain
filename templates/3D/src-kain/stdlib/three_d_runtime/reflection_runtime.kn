@@ -1,0 +1,68 @@
+// Runtime reflection contracts for schemas, kernels, bindings, and generated metadata.
+
+struct ReflectionCatalogDescriptor:
+    catalog_id: String
+    catalog_scope: String
+    export_root: String
+    tensor_pipeline_id: String
+
+struct ReflectionSurfaceDescriptor:
+    surface_id: String
+    surface_kind: String
+    query_policy: String
+    promotion_policy: String
+
+struct ReflectionRuntimeProfile:
+    schema_catalog: ReflectionCatalogDescriptor
+    gpu_catalog: ReflectionCatalogDescriptor
+    runtime_contract_catalog: ReflectionCatalogDescriptor
+    workspace_preset_catalog: ReflectionCatalogDescriptor
+    workspace_preset_receipt_catalog: ReflectionCatalogDescriptor
+    launch_profile_catalog: ReflectionCatalogDescriptor
+    build_graph_catalog: ReflectionCatalogDescriptor
+    distribution_receipt_catalog: ReflectionCatalogDescriptor
+    ui_binding_surface: ReflectionSurfaceDescriptor
+    bundle_introspection_surface: ReflectionSurfaceDescriptor
+    compatibility_query_surface: ReflectionSurfaceDescriptor
+
+fn default_reflection_catalog_descriptor(
+    catalog_id: String,
+    catalog_scope: String,
+    export_root: String
+) -> ReflectionCatalogDescriptor with Pure:
+    let descriptor = ReflectionCatalogDescriptor()
+    descriptor.catalog_id = catalog_id
+    descriptor.catalog_scope = catalog_scope
+    descriptor.export_root = export_root
+    descriptor.tensor_pipeline_id = "runtime_reflection_tensor_pipeline"
+    descriptor
+
+fn default_reflection_runtime_profile() -> ReflectionRuntimeProfile with Pure:
+    let profile = ReflectionRuntimeProfile()
+    profile.schema_catalog = default_reflection_catalog_descriptor("schema_reflection_catalog", "stdlib_runtime_and_contract_schema", "generated/runtime-reflection/schema")
+    profile.gpu_catalog = default_reflection_catalog_descriptor("gpu_reflection_catalog", "spirv_tensor_and_dispatch_metadata", "generated/runtime-reflection/gpu")
+    profile.runtime_contract_catalog = default_reflection_catalog_descriptor("runtime_contract_catalog", "ffi_ui_and_native_contract_metadata", "generated/runtime-reflection/contracts")
+    profile.workspace_preset_catalog = default_reflection_catalog_descriptor("workspace_preset_catalog", "workspace_preset_focus_lane_and_host_selection_metadata", "generated/runtime-reflection/workspace-presets")
+    profile.workspace_preset_receipt_catalog = default_reflection_catalog_descriptor("workspace_preset_receipt_catalog", "workspace_preset_materialization_receipts_and_delivery_metadata", "generated/runtime-reflection/workspace-preset-receipts")
+    profile.launch_profile_catalog = default_reflection_catalog_descriptor("launch_profile_catalog", "runtime_bundle_launch_profile_and_workspace_preset_binding_metadata", "generated/runtime-reflection/launch-profiles")
+    profile.build_graph_catalog = default_reflection_catalog_descriptor("build_graph_catalog", "build_graph_queue_output_and_promotion_metadata", "generated/runtime-reflection/build-graphs")
+    profile.distribution_receipt_catalog = default_reflection_catalog_descriptor("distribution_receipt_catalog", "distribution_channel_delivery_and_receipt_metadata", "generated/runtime-reflection/distribution")
+
+    profile.ui_binding_surface = ReflectionSurfaceDescriptor()
+    profile.ui_binding_surface.surface_id = "reflection_binding_surface"
+    profile.ui_binding_surface.surface_kind = "queryable_runtime_reflection_console"
+    profile.ui_binding_surface.query_policy = "manifest_and_generated_metadata"
+    profile.ui_binding_surface.promotion_policy = "schema_compatible"
+
+    profile.bundle_introspection_surface = ReflectionSurfaceDescriptor()
+    profile.bundle_introspection_surface.surface_id = "bundle_introspection_surface"
+    profile.bundle_introspection_surface.surface_kind = "workspace_preset_and_runtime_bundle_catalog_console"
+    profile.bundle_introspection_surface.query_policy = "runtime_apps_workspace_presets_launch_profiles_and_materialization_receipts"
+    profile.bundle_introspection_surface.promotion_policy = "bundle_compatible"
+
+    profile.compatibility_query_surface = ReflectionSurfaceDescriptor()
+    profile.compatibility_query_surface.surface_id = "compatibility_query_surface"
+    profile.compatibility_query_surface.surface_kind = "delivery_and_runtime_compatibility_query_console"
+    profile.compatibility_query_surface.query_policy = "build_graph_distribution_and_resource_compatibility_metadata"
+    profile.compatibility_query_surface.promotion_policy = "approval_and_schema_compatible"
+    profile

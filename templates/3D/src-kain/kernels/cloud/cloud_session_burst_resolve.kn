@@ -1,0 +1,14 @@
+// SPIR-V seed for cloud session placement, storage tier routing, and elastic compute burst packets.
+
+kernel cloud_session_burst_resolve:
+    stage = "compute"
+    domain = "cloud"
+    dispatch = [64, 1, 1]
+
+    input session_requests: Tensor
+    input storage_tiers: Tensor
+    input burst_capacity: Tensor
+    input budget_policies: Tensor
+
+    output resolved_cloud_sessions: Tensor
+    output burst_allocation_receipts: Tensor

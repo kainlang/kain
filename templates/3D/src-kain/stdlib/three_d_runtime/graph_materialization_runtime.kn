@@ -1,0 +1,97 @@
+// Direct graph-materialization contracts for turning authored source, manifests, and build graphs into resumable outputs.
+
+struct GraphMaterializationDescriptor:
+    graph_id: String
+    graph_kind: String
+    materialization_policy: String
+
+struct WorkspacePresetMaterializationInputsDescriptor:
+    workspace_preset_manifest: String
+    runtime_app_manifest: String
+    build_graph_manifest: String
+    distribution_manifest: String
+
+struct WorkspacePresetMaterializationOutputsDescriptor:
+    launch_export_root: String
+    receipt_output_root: String
+    reflection_output_root: String
+    distribution_output_root: String
+    bundle_receipt_root: String
+
+struct WorkspacePresetMaterializationConsumerDescriptor:
+    export_descriptor_id: String
+    launch_profile_id: String
+    receipt_descriptor_id: String
+    delivery_batch_id: String
+    delivery_registry_id: String
+    runtime_bundle_registry_id: String
+
+struct MaterializationReceiptDescriptor:
+    receipt_id: String
+    receipt_kind: String
+    promotion_policy: String
+
+struct ProvenanceCatalogDescriptor:
+    catalog_id: String
+    catalog_scope: String
+    retention_policy: String
+
+struct GraphMaterializationRuntimeProfile:
+    materialization_graph: GraphMaterializationDescriptor
+    workspace_preset_graph: GraphMaterializationDescriptor
+    workspace_preset_inputs: WorkspacePresetMaterializationInputsDescriptor
+    workspace_preset_outputs: WorkspacePresetMaterializationOutputsDescriptor
+    workspace_preset_consumer: WorkspacePresetMaterializationConsumerDescriptor
+    receipt_runtime: MaterializationReceiptDescriptor
+    workspace_preset_receipt_runtime: MaterializationReceiptDescriptor
+    provenance_catalog: ProvenanceCatalogDescriptor
+
+fn default_graph_materialization_runtime_profile() -> GraphMaterializationRuntimeProfile with Pure:
+    let profile = GraphMaterializationRuntimeProfile()
+
+    profile.materialization_graph = GraphMaterializationDescriptor()
+    profile.materialization_graph.graph_id = "direct_graph_materialization_runtime"
+    profile.materialization_graph.graph_kind = "source_manifest_kernel_and_delivery_graph_materializer"
+    profile.materialization_graph.materialization_policy = "resumable_approval_aware_and_channel_bound"
+
+    profile.workspace_preset_graph = GraphMaterializationDescriptor()
+    profile.workspace_preset_graph.graph_id = "workspace_preset_graph_materialization_runtime"
+    profile.workspace_preset_graph.graph_kind = "workspace_preset_launch_export_and_receipt_materializer"
+    profile.workspace_preset_graph.materialization_policy = "manifest_driven_runtime_bundle_and_workspace_layout_bound"
+
+    profile.workspace_preset_inputs = WorkspacePresetMaterializationInputsDescriptor()
+    profile.workspace_preset_inputs.workspace_preset_manifest = "manifests/workspace_presets.json"
+    profile.workspace_preset_inputs.runtime_app_manifest = "manifests/runtime_apps.json"
+    profile.workspace_preset_inputs.build_graph_manifest = "manifests/build_graphs.json"
+    profile.workspace_preset_inputs.distribution_manifest = "manifests/distribution_channels.json"
+
+    profile.workspace_preset_outputs = WorkspacePresetMaterializationOutputsDescriptor()
+    profile.workspace_preset_outputs.launch_export_root = "generated/workspace-presets/launch"
+    profile.workspace_preset_outputs.receipt_output_root = "generated/workspace-presets/receipts"
+    profile.workspace_preset_outputs.reflection_output_root = "generated/runtime-reflection/workspace-preset-receipts"
+    profile.workspace_preset_outputs.distribution_output_root = "generated/distribution/workspace-presets"
+    profile.workspace_preset_outputs.bundle_receipt_root = "generated/bundles/receipts"
+
+    profile.workspace_preset_consumer = WorkspacePresetMaterializationConsumerDescriptor()
+    profile.workspace_preset_consumer.export_descriptor_id = "workspace_preset_export_descriptor"
+    profile.workspace_preset_consumer.launch_profile_id = "runtime_bundle_launch_profile"
+    profile.workspace_preset_consumer.receipt_descriptor_id = "workspace_preset_materialization_receipts"
+    profile.workspace_preset_consumer.delivery_batch_id = "workspace_preset_delivery_batch"
+    profile.workspace_preset_consumer.delivery_registry_id = "workspace_preset_delivery_registry"
+    profile.workspace_preset_consumer.runtime_bundle_registry_id = "runtime_bundle_registry"
+
+    profile.receipt_runtime = MaterializationReceiptDescriptor()
+    profile.receipt_runtime.receipt_id = "direct_graph_materialization_receipt"
+    profile.receipt_runtime.receipt_kind = "artifact_provenance_resume_and_promotion_receipt"
+    profile.receipt_runtime.promotion_policy = "approval_gate_and_distribution_channel_bound"
+
+    profile.workspace_preset_receipt_runtime = MaterializationReceiptDescriptor()
+    profile.workspace_preset_receipt_runtime.receipt_id = "workspace_preset_materialization_receipt"
+    profile.workspace_preset_receipt_runtime.receipt_kind = "workspace_launch_bundle_and_preset_provenance_receipt"
+    profile.workspace_preset_receipt_runtime.promotion_policy = "workspace_gate_bundle_gate_and_distribution_channel_bound"
+
+    profile.provenance_catalog = ProvenanceCatalogDescriptor()
+    profile.provenance_catalog.catalog_id = "direct_materialization_provenance_catalog"
+    profile.provenance_catalog.catalog_scope = "runtime_spirv_reflection_workspace_preset_bundle_and_delivery_outputs"
+    profile.provenance_catalog.retention_policy = "project_release_and_audit_scoped"
+    profile

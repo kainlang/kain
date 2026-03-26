@@ -1,0 +1,27 @@
+// Live sync contracts for asset mirroring, runtime hot reload, and cross-workspace state propagation.
+
+struct SyncEndpointDescriptor:
+    endpoint_id: String
+    endpoint_kind: String
+    authority_policy: String
+    tensor_pipeline_id: String
+
+struct SyncRuntimeProfile:
+    local_workspace_sync: SyncEndpointDescriptor
+    remote_workspace_sync: SyncEndpointDescriptor
+    runtime_hot_reload_sync: SyncEndpointDescriptor
+
+fn default_sync_endpoint(endpoint_id: String, endpoint_kind: String, authority_policy: String) -> SyncEndpointDescriptor with Pure:
+    let descriptor = SyncEndpointDescriptor()
+    descriptor.endpoint_id = endpoint_id
+    descriptor.endpoint_kind = endpoint_kind
+    descriptor.authority_policy = authority_policy
+    descriptor.tensor_pipeline_id = "live_sync_tensor_pipeline"
+    descriptor
+
+fn default_live_sync_runtime_profile() -> SyncRuntimeProfile with Pure:
+    let profile = SyncRuntimeProfile()
+    profile.local_workspace_sync = default_sync_endpoint("local_workspace_sync", "workspace_mirror", "local_authority_with_merge")
+    profile.remote_workspace_sync = default_sync_endpoint("remote_workspace_sync", "remote_collaboration_mirror", "session_authority_with_conflict_resolution")
+    profile.runtime_hot_reload_sync = default_sync_endpoint("runtime_hot_reload_sync", "runtime_hot_reload_bridge", "host_capability_gated")
+    profile

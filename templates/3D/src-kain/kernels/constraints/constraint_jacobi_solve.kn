@@ -1,0 +1,19 @@
+// SPIR-V multi-domain constraint solver seed.
+
+shader compute constraint_jacobi_solve(id: UVec3) -> Vec4:
+    uniform constraint_frames: StorageBuffer<Vec4> @0
+    uniform constraint_weights: StorageBuffer<Vec4> @1
+    uniform target_frames: StorageBuffer<Vec4> @2
+    uniform solved_frames: StorageBuffer<Vec4> @3
+    let constraint_index = id.x
+    let frame = constraint_frames[constraint_index]
+    let weights = constraint_weights[constraint_index]
+    let target = target_frames[constraint_index]
+    let output = vec4(
+        frame.x + (target.x - frame.x) * weights.x,
+        frame.y + (target.y - frame.y) * weights.y,
+        frame.z + (target.z - frame.z) * weights.z,
+        1.0
+    )
+    solved_frames[constraint_index] = output
+    return output
