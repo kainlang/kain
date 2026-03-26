@@ -1,4 +1,5 @@
 pub mod combiner;
+pub mod config;
 pub mod extractor;
 pub mod math;
 pub mod model;
@@ -7,12 +8,16 @@ pub mod runtime;
 pub mod texture;
 pub mod viewer;
 
-use std::{env, path::PathBuf};
+use std::{env, path::{Path, PathBuf}};
 
+pub use config::{
+    load_host_config, Fast3dHostAction, Fast3dHostConfig, ResolvedFast3dHostAction,
+};
 pub use extractor::extract_sm64_title_face_scene;
 pub use runtime::Fast3dRuntime;
 pub use viewer::{launch_viewer, write_snapshot_png, OrbitControls};
 
+pub const KAIN_FAST3D_CONFIG_ENV: &str = "KAIN_FAST3D_CONFIG";
 pub const KAIN_FAST3D_MANIFEST_ENV: &str = "KAIN_FAST3D_MANIFEST";
 pub const KAIN_FAST3D_DEFAULT_MANIFEST: &str = "scene_manifest.json";
 pub const KAIN_FAST3D_DEFAULT_TITLE_FACE_MANIFEST: &str = "scene_manifest_title_face.json";
@@ -20,11 +25,25 @@ pub const KAIN_FAST3D_DEFAULT_TITLE_FACE_MANIFEST: &str = "scene_manifest_title_
 pub fn run_fast3d_cli() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = env::args().skip(1);
     let Some(first_argument) = args.next() else {
+        if let Some(config_path) = env::var_os(KAIN_FAST3D_CONFIG_ENV).map(PathBuf::from) {
+            return execute_host_config_path(&config_path);
+        }
         let manifest_path = resolve_default_manifest_path();
         let runtime = Fast3dRuntime::load_from_path(&manifest_path)?;
         launch_viewer(manifest_path, runtime)?;
         return Ok(());
     };
+
+    if first_argument == "--config" {
+        let config_path = args
+            .next()
+            .map(PathBuf::from)
+            .ok_or("expected path after --config")?;
+        if let Some(argument) = args.next() {
+            return Err(format!("unrecognized argument `{argument}` after --config").into());
+        }
+        return execute_host_config_path(&config_path);
+    }
 
     if first_argument == "--extract-sm64-title-face" {
         let sm64_root = args
@@ -87,4 +106,40 @@ fn resolve_default_manifest_path() -> PathBuf {
     env::var_os(KAIN_FAST3D_MANIFEST_ENV)
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(KAIN_FAST3D_DEFAULT_MANIFEST))
+}
+
+pub fn execute_host_config_path(config_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let config = load_host_config(config_path)?;
+    match config.resolve(config_path)? {
+        ResolvedFast3dHostAction::Viewer { manifest_path } => {
+            let runtime = Fast3dRuntime::load_from_path(&manifest_path)?;
+            launch_viewer(manifest_path, runtime)?;
+        }
+        ResolvedFast3dHostAction::Snapshot {
+            manifest_path,
+            output_path,
+            time_seconds,
+        } => {
+            let runtime = Fast3dRuntime::load_from_path(&manifest_path)?;
+            let frame = runtime.render_frame(time_seconds, &OrbitControls::default(), None)?;
+            write_snapshot_png(&output_path, &frame)?;
+            println!(
+                "Wrote Fast3D snapshot to {} ({}x{})",
+                output_path.display(),
+                frame.width,
+                frame.height
+            );
+        }
+        ResolvedFast3dHostAction::ExtractSm64TitleFace {
+            sm64_source_root,
+            manifest_output_path,
+        } => {
+            extract_sm64_title_face_scene(&sm64_source_root, &manifest_output_path)?;
+            println!(
+                "Wrote extracted SM64 title-face scene manifest to {}",
+                manifest_output_path.display()
+            );
+        }
+    }
+    Ok(())
 }

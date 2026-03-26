@@ -17,7 +17,7 @@ if not exist "outputs\sm64_fast3d_smoke_viewer.exe" (
         exit /b %EXIT_CODE%
     )
 )
-start "" "outputs\sm64_fast3d_smoke_viewer.exe" "scene_manifest_title_face.json"
+start "" "outputs\sm64_fast3d_smoke_viewer.exe" --config "host_configs\title_face_viewer.json"
 set "EXIT_CODE=%ERRORLEVEL%"
 popd
 exit /b %EXIT_CODE%

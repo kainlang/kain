@@ -5,6 +5,89 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=afb5793ce4bf8fe8 -->
+## 2026-03-26 16:02:26 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b424b6a`
+- Changed files: 17
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-fast3d-runtime/Cargo.toml`
+- [.M] `crates/kain-fast3d-runtime/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/README.md`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/capture_snapshot.bat`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/capture_title_face_snapshot.bat`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/extract_sm64_title_face.bat`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/launch_title_face_visual_exe.bat`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/launch_visual_exe.bat`
+- [??] `crates/kain-fast3d-runtime/src/config.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/smoke_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/smoke_viewer.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_extract.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_viewer.json`
+
+<!-- polytools-changelog:fingerprint=e2a17cafb2f9dcb2 -->
+## 2026-03-26 16:02:03 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b424b6a`
+- Changed files: 15
+- [.M] `crates/kain-fast3d-runtime/Cargo.toml`
+- [.M] `crates/kain-fast3d-runtime/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/README.md`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/capture_snapshot.bat`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/capture_title_face_snapshot.bat`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/extract_sm64_title_face.bat`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/launch_title_face_visual_exe.bat`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/launch_visual_exe.bat`
+- [??] `crates/kain-fast3d-runtime/src/config.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/smoke_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/smoke_viewer.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_extract.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_viewer.json`
+
+<!-- polytools-changelog:fingerprint=0b4e9ea9ec7a0234 -->
+## 2026-03-26 15:57:08 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b424b6a`
+- Changed files: 14
+- [.M] `crates/kain-fast3d-runtime/Cargo.toml`
+- [.M] `crates/kain-fast3d-runtime/src/lib.rs`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/README.md`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/capture_snapshot.bat`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/capture_title_face_snapshot.bat`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/extract_sm64_title_face.bat`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/launch_title_face_visual_exe.bat`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/launch_visual_exe.bat`
+- [??] `crates/kain-fast3d-runtime/src/config.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/smoke_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/smoke_viewer.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_extract.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_viewer.json`
+
+<!-- polytools-changelog:fingerprint=d0e018482193e23b -->
+## 2026-03-26 15:55:50 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b424b6a`
+- Changed files: 13
+- [.M] `crates/kain-fast3d-runtime/Cargo.toml`
+- [.M] `crates/kain-fast3d-runtime/src/lib.rs`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/capture_snapshot.bat`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/capture_title_face_snapshot.bat`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/extract_sm64_title_face.bat`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/launch_title_face_visual_exe.bat`
+- [.M] `smoketest/3D/sm64_fast3d_smoke/launch_visual_exe.bat`
+- [??] `crates/kain-fast3d-runtime/src/config.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/smoke_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/smoke_viewer.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_extract.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_snapshot.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/host_configs/title_face_viewer.json`
+
 <!-- polytools-changelog:fingerprint=f9c61a1b244b4f53 -->
 ## 2026-03-26 15:10:29 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

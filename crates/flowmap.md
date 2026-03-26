@@ -1,11 +1,11 @@
 # Code/Kain/crates Flow Map
 
 - Directory: `M:\Code\Kain\crates`
-- Generated (UTC): `2026-03-26T08:00:22.029185+00:00`
+- Generated (UTC): `2026-03-26T20:02:25.499306+00:00`
 - Languages: `JSON, JavaScript, Kain, Markdown, Rust, TOML, TypeScript`
-- Entry files: `kain-ui-native/src/main.rs, cli/src/main.rs, web/src/lib.rs, ue5/src/lib.rs`
+- Entry files: `kain-ui-native/src/main.rs, kain-fast3d-runtime/src/main.rs, cli/src/main.rs, web/src/lib.rs`
 - Manifests: `cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo`
-- Additional manifests omitted from markdown: `31`
+- Additional manifests omitted from markdown: `32`
 
 ```mermaid
 flowchart LR
@@ -17,9 +17,9 @@ flowchart LR
   dir_kain_3d["kain-3D"]
   dir_ue5_graphs["ue5-graphs"]
   file_kain_ui_native_src_main_rs["kain-ui-native/src/main.rs"]
+  file_kain_fast3d_runtime_src_main_rs["kain-fast3d-runtime/src/main.rs"]
   file_cli_src_main_rs["cli/src/main.rs"]
   file_web_src_lib_rs["web/src/lib.rs"]
-  file_ue5_src_lib_rs["ue5/src/lib.rs"]
   file_cli_src_fabric_rs["cli/src/fabric.rs"]
   file_cli_src_import_asm_rs["cli/src/import_asm.rs"]
   file_cli_src_import_c_rs["cli/src/import_c.rs"]
@@ -33,8 +33,8 @@ flowchart LR
   lane_node_ts_host_lane["Node / TS host lane"]
   lane_interop_ffi_lane["Interop / FFI lane"]
   dir_dir -->|entrypoint| file_cli_src_main_rs
+  dir_dir -->|entrypoint| file_kain_fast3d_runtime_src_main_rs
   dir_dir -->|entrypoint| file_kain_ui_native_src_main_rs
-  dir_dir -->|entrypoint| file_ue5_src_lib_rs
   dir_dir -->|entrypoint| file_web_src_lib_rs
   file_cli_src_import_c_rs -->|targets| lane_interop_ffi_lane
   file_cli_src_import_c_rs -->|targets| lane_web_wasm_lane
@@ -48,8 +48,6 @@ flowchart LR
   file_cli_src_main_rs -->|targets| lane_python_host_lane
   file_cli_src_main_rs -->|targets| lane_unreal_lane
   file_cli_src_main_rs -->|targets| lane_web_wasm_lane
-  file_ue5_src_lib_rs -->|targets| lane_node_ts_host_lane
-  file_ue5_src_lib_rs -->|targets| lane_unreal_lane
   file_web_src_lib_rs -->|targets| lane_web_wasm_lane
   file_cli_src_main_rs -->|imports| dir_cli
   file_cli_src_main_rs -->|imports| file_cli_src_fabric_rs
@@ -60,6 +58,8 @@ flowchart LR
   file_cli_src_main_rs -->|imports| file_cli_src_import_typescript_rs
   dir_dir -->|supports| file_cli_src_fabric_rs
   dir_dir -->|supports| file_cli_src_import_asm_rs
+  dir_dir -->|supports| file_cli_src_import_c_rs
+  dir_dir -->|supports| file_cli_src_import_crate_rs
 ```
 
 ## Manifest Summary
@@ -73,8 +73,8 @@ flowchart LR
 - `kain-core/Cargo.toml`: cargo, deps: 13
 - `kain-crate-ffi/Cargo.toml`: cargo, deps: 10
 - `kain-driver/Cargo.toml`: cargo, deps: 16
+- `kain-fast3d-runtime/Cargo.toml`: cargo, deps: 8
 - `kain-gpu-runtime/Cargo.toml`: cargo, deps: 6
-- `kain-host/Cargo.toml`: cargo, deps: 11
 
 ## Edge Legend
 - `entrypoint`: root directory to a main entry file or manifest.

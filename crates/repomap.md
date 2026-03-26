@@ -144,6 +144,19 @@ Companion artifacts:
             └── 📜 compute_residency.rs
             └── 📜 lib.rs
             └── 📜 native_app.rs
+    └── 📂 kain-fast3d-runtime
+        └── 📂 src
+            └── 📜 combiner.rs
+            └── 📜 config.rs
+            └── 📜 extractor.rs
+            └── 📜 lib.rs
+            └── 📜 main.rs
+            └── 📜 math.rs
+            └── 📜 model.rs
+            └── 📜 rasterizer.rs
+            └── 📜 runtime.rs
+            └── 📜 texture.rs
+            └── 📜 viewer.rs
     └── 📂 kain-gpu-runtime
         └── 📂 src
             └── 📜 bindings.rs

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at_utc": "2026-03-26T08:00:21.907678+00:00",
+  "generated_at_utc": "2026-03-26T20:02:25.323747+00:00",
   "display_name": "Code/Kain",
   "directory": "M:\\Code\\Kain",
   "summary": {
@@ -30,7 +30,7 @@
         "path": "Cargo.toml",
         "type": "cargo",
         "package_name": null,
-        "workspace_members": 42,
+        "workspace_members": 43,
         "dependency_count": 0
       },
       {
@@ -111,7 +111,7 @@
         "dependency_count": 25
       }
     ],
-    "manifest_count_total": 59,
+    "manifest_count_total": 60,
     "sampled_file_count": 220
   },
   "nodes": [

@@ -152,6 +152,7 @@ If the debug CLI is missing:
 - The SM64 import refresh workflow for that lane is now profile-driven and lives beside the smoke under `smoketest/3D/sm64_fast3d_smoke`. Use `refresh_sm64_import.bat` and `sm64_import_profile.render_us.json` instead of reconstructing long one-off `import-c` commands from memory.
 - The same smoke now has a title-face extraction lane. `extract_sm64_title_face.bat`, `launch_title_face_visual_exe.bat`, and `capture_title_face_snapshot.bat` are the quickest path to a compiled proof that uses real extracted Mario face geometry while keeping N64-specific semantics inside the adapter.
 - The adapter is no longer only a smoke-local runtime. The reusable host surface now lives in `crates/kain-fast3d-runtime`, while the smoke folder acts as a consumer that provides manifests, scripts, and validation assets.
+- Keep the Fast3D lane data-driven. Its host startup now flows through crate-owned config files and env hooks (`KAIN_FAST3D_CONFIG`, `KAIN_FAST3D_MANIFEST`, `KAIN_FAST3D_SM64_ROOT`) rather than widening Kain language semantics or shared runtime contracts for one experimental console adapter.
 
 ## Common Errors
 

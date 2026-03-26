@@ -9,7 +9,7 @@ if not exist "outputs\sm64_fast3d_smoke_viewer.exe" (
         exit /b %EXIT_CODE%
     )
 )
-"outputs\sm64_fast3d_smoke_viewer.exe" "scene_manifest.json" --snapshot "outputs\sm64_fast3d_snapshot.png" --time-seconds 1.8
+"outputs\sm64_fast3d_smoke_viewer.exe" --config "host_configs\smoke_snapshot.json"
 set "EXIT_CODE=%ERRORLEVEL%"
 popd
 exit /b %EXIT_CODE%

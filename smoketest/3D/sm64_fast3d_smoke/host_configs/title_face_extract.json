@@ -1,0 +1,5 @@
+{
+  "action": "extract_sm64_title_face",
+  "sm64_source_root": "${KAIN_FAST3D_SM64_ROOT}",
+  "manifest_output_path": "../scene_manifest_title_face.json"
+}

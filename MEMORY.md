@@ -65,12 +65,14 @@ Update:
 - the runtime now shades lit vertices after model transforms instead of before them, which matters for imported geometry because extracted display lists often need adapter-owned rotation and recentering before they resemble a camera-facing scene
 - dedicated helper scripts now build, extract, launch, and snapshot the title-face lane without touching shared renderer crates: `extract_sm64_title_face.bat`, `launch_title_face_visual_exe.bat`, and `capture_title_face_snapshot.bat`
 - the current title-face proof uses real extracted Mario face geometry and display-list structure, but still uses generated fallback title-card and facial textures because the external checkout does not ship the original extracted title-screen blobs or baserom assets
+- the backend crate now owns a data-driven host config contract (`viewer`, `snapshot`, `extract_sm64_title_face`), and the smoke scripts call that contract through `host_configs/*.json` plus env expansion instead of baking more ad hoc arguments into launcher scripts
 
 Why this matters:
 
 - it moves the SM64 lane from abstract adapter architecture into a repeatable compiled proof with a concrete screenshot path
 - it validated that the clean backend investment is not “teach shared `kain-3D` about N64,” but “teach the isolated adapter to parse a little more of the SM64 display-list dialect and texture/combine contract”
 - it surfaced a reusable runtime lesson: imported retro geometry often needs lighting to happen after adapter-space transforms, not at raw vertex-load time
+- it keeps the experiment honest about ownership: the crate can call into Kain-hosted power later, but the language and shared native runtime do not need SM64/Fast3D-specific semantics baked into them first
 
 What future work should preserve:
 

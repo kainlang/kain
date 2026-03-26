@@ -21,7 +21,13 @@ What it does today:
 Primary files:
 - `scene_manifest.json`
 - `scene_manifest_title_face.json`
+- `host_configs/smoke_viewer.json`
+- `host_configs/smoke_snapshot.json`
+- `host_configs/title_face_extract.json`
+- `host_configs/title_face_viewer.json`
+- `host_configs/title_face_snapshot.json`
 - `crates/kain-fast3d-runtime/src/lib.rs`
+- `crates/kain-fast3d-runtime/src/config.rs`
 - `crates/kain-fast3d-runtime/src/model.rs`
 - `crates/kain-fast3d-runtime/src/runtime.rs`
 - `crates/kain-fast3d-runtime/src/rasterizer.rs`
@@ -82,7 +88,9 @@ Current title-face reality:
 
 Native-hosting direction:
 - the backend adapter now lives in `crates/kain-fast3d-runtime`, which exposes the CLI/runtime entrypoint that the smoke scripts call
-- the crate supports an env-driven default manifest through `KAIN_FAST3D_MANIFEST`, which is the first clean step toward letting future native launchers host the adapter without the smoke folder being the runtime owner
+- the crate now supports a data-driven host config contract in `crates/kain-fast3d-runtime/src/config.rs`, with `viewer`, `snapshot`, and `extract_sm64_title_face` actions consumed from JSON or TOML
+- the smoke scripts now drive the backend crate through `host_configs/*.json` instead of hardcoding manifest/output arguments directly
+- env hooks like `KAIN_FAST3D_CONFIG`, `KAIN_FAST3D_MANIFEST`, and `KAIN_FAST3D_SM64_ROOT` are treated as host-launcher inputs, not language semantics
 
 Where Fabric fits cleanly:
 - keep display-list extraction and frame rendering in this isolated adapter lane
