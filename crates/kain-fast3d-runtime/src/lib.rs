@@ -1,6 +1,7 @@
 pub mod combiner;
 pub mod config;
 pub mod extractor;
+pub mod host_documents;
 pub mod math;
 pub mod model;
 pub mod rasterizer;
@@ -15,6 +16,7 @@ use std::{
 
 pub use config::{load_host_config, Fast3dHostAction, Fast3dHostConfig, ResolvedFast3dHostAction};
 pub use extractor::{extract_sm64_level_chunk_scene, extract_sm64_title_face_scene};
+pub use host_documents::{Fast3dGameplayStateDocument, Fast3dShaderOverrideDocument};
 pub use runtime::{Fast3dRuntime, FreeCameraPose, OrbitControls};
 pub use viewer::{launch_viewer, write_snapshot_png, FreeFlyControls};
 
@@ -31,7 +33,7 @@ pub fn run_fast3d_cli() -> Result<(), Box<dyn std::error::Error>> {
         }
         let manifest_path = resolve_default_manifest_path();
         let runtime = Fast3dRuntime::load_from_path(&manifest_path)?;
-        launch_viewer(manifest_path, runtime)?;
+        launch_viewer(manifest_path, runtime, None, None)?;
         return Ok(());
     };
 
@@ -135,7 +137,7 @@ pub fn run_fast3d_cli() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    launch_viewer(manifest_path, runtime)?;
+    launch_viewer(manifest_path, runtime, None, None)?;
     Ok(())
 }
 
@@ -150,20 +152,41 @@ pub fn execute_host_config_path(config_path: &Path) -> Result<(), Box<dyn std::e
     match config.resolve(config_path)? {
         ResolvedFast3dHostAction::Viewer {
             manifest_path,
-            gameplay_state_path: _,
-            shader_overrides_path: _,
+            gameplay_state_path,
+            shader_overrides_path,
         } => {
-            let runtime = Fast3dRuntime::load_from_path(&manifest_path)?;
-            launch_viewer(manifest_path, runtime)?;
+            let mut runtime = Fast3dRuntime::load_from_path(&manifest_path)?;
+            let gameplay_state = gameplay_state_path
+                .as_deref()
+                .map(Fast3dGameplayStateDocument::load_from_path)
+                .transpose()?;
+            let shader_overrides = shader_overrides_path
+                .as_deref()
+                .map(Fast3dShaderOverrideDocument::load_from_path)
+                .transpose()?;
+            if let Some(shader_overrides_document) = shader_overrides.as_ref() {
+                runtime.apply_shader_overrides(shader_overrides_document);
+            }
+            launch_viewer(manifest_path, runtime, gameplay_state, shader_overrides)?;
         }
         ResolvedFast3dHostAction::Snapshot {
             manifest_path,
             output_path,
             time_seconds,
-            gameplay_state_path: _,
-            shader_overrides_path: _,
+            gameplay_state_path,
+            shader_overrides_path,
         } => {
-            let runtime = Fast3dRuntime::load_from_path(&manifest_path)?;
+            let mut runtime = Fast3dRuntime::load_from_path(&manifest_path)?;
+            if let Some(gameplay_state_path) = gameplay_state_path.as_deref() {
+                let gameplay_state =
+                    Fast3dGameplayStateDocument::load_from_path(gameplay_state_path)?;
+                runtime.apply_gameplay_state(time_seconds, &gameplay_state);
+            }
+            if let Some(shader_overrides_path) = shader_overrides_path.as_deref() {
+                let shader_overrides =
+                    Fast3dShaderOverrideDocument::load_from_path(shader_overrides_path)?;
+                runtime.apply_shader_overrides(&shader_overrides);
+            }
             let frame = runtime.render_frame(time_seconds, &OrbitControls::default(), None)?;
             write_snapshot_png(&output_path, &frame)?;
             println!(

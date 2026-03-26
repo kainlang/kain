@@ -1,0 +1,53 @@
+{
+  "shaders": [
+    {
+      "name": "UiSurfaceSdf",
+      "stage": "compute",
+      "entry_point": "UiSurfaceSdf",
+      "inputs": [
+        {
+          "name": "id",
+          "ty": "UVec3"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "uv",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "rgba",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "LOCAL_SIZE_X",
+          "binding": 100,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "local_size"
+        },
+        {
+          "name": "LOCAL_SIZE_Y",
+          "binding": 101,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "local_size"
+        },
+        {
+          "name": "LOCAL_SIZE_Z",
+          "binding": 102,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "local_size"
+        }
+      ],
+      "output_type": "Vec4"
+    }
+  ]
+}

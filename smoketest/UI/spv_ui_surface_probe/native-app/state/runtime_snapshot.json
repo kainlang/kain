@@ -1,0 +1,203 @@
+{
+  "app_id": "ui.smoke.spv.ui.surface.probe",
+  "name": "UI Smoke - SPV UI Surface Probe",
+  "version": "0.1.0",
+  "window_title": "UI Smoke - SPV UI Surface Probe",
+  "root_component": "App",
+  "layout_id": "ui_smoke_spv_ui_surface_probe_shell",
+  "required_runtime_capabilities": [
+    "compiler.typed-program",
+    "data.continuous-stream",
+    "data.tensor-buffer",
+    "driver.native-app-bundle",
+    "gpu.compute",
+    "gpu.compute-dispatch",
+    "gpu.compute-plan",
+    "gpu.programs",
+    "interop.shared-buffer",
+    "memory.raw-ops",
+    "memory.raw-pointers",
+    "neural.node-plan",
+    "runtime.contract.bundle",
+    "ui.components",
+    "ui.runtime-bundle"
+  ],
+  "panels": [
+    {
+      "id": "runtime_surface",
+      "title": "UI Smoke - SPV UI Surface Probe",
+      "dock": "center",
+      "kind": "native-ui"
+    }
+  ],
+  "commands": [
+    {
+      "id": "runtime.reload",
+      "label": "Reload Runtime",
+      "surface": "titlebar",
+      "intent": "runtime.reload"
+    }
+  ],
+  "providers": [
+    {
+      "id": "native_runtime",
+      "label": "Native Runtime",
+      "transport": "in-process",
+      "profile_kind": "native-ui",
+      "supports_tools": true,
+      "supports_streaming": false,
+      "active": true,
+      "profile_configured": true,
+      "profile_keys": []
+    }
+  ],
+  "tools": [
+    {
+      "id": "compiler_typed-program",
+      "label": "compiler.typed-program",
+      "capability": "compiler.typed-program",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "data_continuous-stream",
+      "label": "data.continuous-stream",
+      "capability": "data.continuous-stream",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "data_tensor-buffer",
+      "label": "data.tensor-buffer",
+      "capability": "data.tensor-buffer",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "driver_native-app-bundle",
+      "label": "driver.native-app-bundle",
+      "capability": "driver.native-app-bundle",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "gpu_compute",
+      "label": "gpu.compute",
+      "capability": "gpu.compute",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "gpu_compute-dispatch",
+      "label": "gpu.compute-dispatch",
+      "capability": "gpu.compute-dispatch",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "gpu_compute-plan",
+      "label": "gpu.compute-plan",
+      "capability": "gpu.compute-plan",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "gpu_programs",
+      "label": "gpu.programs",
+      "capability": "gpu.programs",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "interop_shared-buffer",
+      "label": "interop.shared-buffer",
+      "capability": "interop.shared-buffer",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "memory_raw-ops",
+      "label": "memory.raw-ops",
+      "capability": "memory.raw-ops",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "memory_raw-pointers",
+      "label": "memory.raw-pointers",
+      "capability": "memory.raw-pointers",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "neural_node-plan",
+      "label": "neural.node-plan",
+      "capability": "neural.node-plan",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "runtime_contract_bundle",
+      "label": "runtime.contract.bundle",
+      "capability": "runtime.contract.bundle",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "ui_components",
+      "label": "ui.components",
+      "capability": "ui.components",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    },
+    {
+      "id": "ui_runtime-bundle",
+      "label": "ui.runtime-bundle",
+      "capability": "ui.runtime-bundle",
+      "approval": "workspace",
+      "decision": null,
+      "scope_decisions": []
+    }
+  ],
+  "sessions": {
+    "total_sessions": 1,
+    "active_provider": "native_runtime",
+    "recent_session_id": "native-app-session",
+    "recent_session_title": "UI Smoke - SPV UI Surface Probe"
+  },
+  "recent_sessions": [
+    {
+      "id": "native-app-session",
+      "title": "UI Smoke - SPV UI Surface Probe",
+      "provider_id": "native_runtime",
+      "status": "active",
+      "workspace_root": "m:\\Code\\Kain",
+      "updated_at": "2026-03-25T00:00:00Z",
+      "message_count": 1,
+      "last_message_role": "system",
+      "last_message_preview": "Native app materialization snapshot"
+    }
+  ],
+  "workspaces": [
+    {
+      "root": "m:\\Code\\Kain",
+      "session_count": 1,
+      "recent_session_title": "UI Smoke - SPV UI Surface Probe"
+    }
+  ],
+  "updated_at": "2026-03-25T00:00:00Z"
+}

@@ -3,6 +3,9 @@ use std::{collections::HashMap, fs, path::Path};
 use glam::Vec4Swizzles;
 
 use crate::combiner::CombinerState;
+use crate::host_documents::{
+    ActorAnimationDefinition, Fast3dGameplayStateDocument, Fast3dShaderOverrideDocument,
+};
 use crate::math::{
     camera_forward, matrix_from_rows, orbit_camera_position, vec2_from_array, vec3_from_array,
     vec4_from_rgba8, Float4, Matrix4,
@@ -57,6 +60,7 @@ pub struct Fast3dRuntime {
     /// When set, this matrix is pushed onto the model stack before entering that display list,
     /// binding live gameplay transform data to the rendered actor.
     actor_override_transforms: HashMap<String, Matrix4>,
+    display_list_material_overrides: HashMap<String, DisplayListMaterialOverride>,
 }
 
 impl Fast3dRuntime {
@@ -101,6 +105,7 @@ impl Fast3dRuntime {
             texture_segments,
             display_list_segments,
             actor_override_transforms: HashMap::new(),
+            display_list_material_overrides: HashMap::new(),
         })
     }
 
@@ -116,6 +121,48 @@ impl Fast3dRuntime {
     /// Remove an actor transform override, reverting to the manifest-embedded matrix.
     pub fn clear_actor_transform(&mut self, display_list_id: &str) {
         self.actor_override_transforms.remove(display_list_id);
+    }
+
+    pub fn clear_actor_transforms(&mut self) {
+        self.actor_override_transforms.clear();
+    }
+
+    pub fn apply_gameplay_state(&mut self, time_seconds: f32, gameplay: &Fast3dGameplayStateDocument) {
+        self.clear_actor_transforms();
+        for binding in &gameplay.actor_bindings {
+            let transform = match binding.animation {
+                ActorAnimationDefinition::None => Matrix4::IDENTITY,
+                ActorAnimationDefinition::SpinY {
+                    degrees_per_second,
+                } => Matrix4::from_rotation_y((degrees_per_second * time_seconds).to_radians()),
+                ActorAnimationDefinition::BobY {
+                    amplitude,
+                    cycles_per_second,
+                    base_height,
+                } => {
+                    let offset = base_height
+                        + amplitude
+                            * (time_seconds * cycles_per_second * std::f32::consts::TAU).sin();
+                    Matrix4::from_translation(glam::Vec3::new(0.0, offset, 0.0))
+                }
+            };
+            self.actor_override_transforms
+                .insert(binding.display_list_id.clone(), transform);
+        }
+    }
+
+    pub fn apply_shader_overrides(&mut self, overrides: &Fast3dShaderOverrideDocument) {
+        self.display_list_material_overrides.clear();
+        for override_entry in &overrides.display_list_overrides {
+            self.display_list_material_overrides.insert(
+                override_entry.display_list_id.clone(),
+                DisplayListMaterialOverride {
+                    combine_mode: override_entry.combine_mode,
+                    primitive_color: override_entry.primitive_color.map(vec4_from_rgba8),
+                    env_color: override_entry.env_color.map(vec4_from_rgba8),
+                },
+            );
+        }
     }
 
     /// Render a frame using an explicit free-fly/first-person camera pose instead of
@@ -213,6 +260,10 @@ impl Fast3dRuntime {
             .display_lists_by_id
             .get(display_list_id)
             .ok_or_else(|| format!("missing display list `{display_list_id}`"))?;
+        let saved_material_state = execution.save_material_state();
+        if let Some(material_override) = self.display_list_material_overrides.get(display_list_id) {
+            material_override.apply(execution);
+        }
 
         for command in &display_list.commands {
             match command {
@@ -368,6 +419,7 @@ impl Fast3dRuntime {
                 }
             }
         }
+        execution.restore_material_state(saved_material_state);
         Ok(())
     }
 
@@ -459,6 +511,48 @@ impl ExecutionState {
             });
         }
         Ok(())
+    }
+
+    fn save_material_state(&self) -> SavedMaterialState {
+        SavedMaterialState {
+            combine_mode: self.combine_mode,
+            primitive_color: self.primitive_color,
+            env_color: self.env_color,
+        }
+    }
+
+    fn restore_material_state(&mut self, saved: SavedMaterialState) {
+        self.combine_mode = saved.combine_mode;
+        self.primitive_color = saved.primitive_color;
+        self.env_color = saved.env_color;
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SavedMaterialState {
+    combine_mode: CombineMode,
+    primitive_color: Float4,
+    env_color: Float4,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct DisplayListMaterialOverride {
+    combine_mode: Option<CombineMode>,
+    primitive_color: Option<Float4>,
+    env_color: Option<Float4>,
+}
+
+impl DisplayListMaterialOverride {
+    fn apply(&self, execution: &mut ExecutionState) {
+        if let Some(combine_mode) = self.combine_mode {
+            execution.combine_mode = combine_mode;
+        }
+        if let Some(primitive_color) = self.primitive_color {
+            execution.primitive_color = primitive_color;
+        }
+        if let Some(env_color) = self.env_color {
+            execution.env_color = env_color;
+        }
     }
 }
 

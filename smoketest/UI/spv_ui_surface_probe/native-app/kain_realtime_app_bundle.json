@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "target": "rust",
+  "render": {
+    "scenes": [
+      {
+        "viewport_node": "surface.node.10",
+        "viewport_kind": "viewport3d",
+        "scene": "tensor_stream_probe",
+        "title": "Procedural Surface Preview",
+        "material_refs": [],
+        "shader_bundle_ref_keys": [
+          "shader::UiSurfaceSdf::compute"
+        ]
+      }
+    ],
+    "materials": []
+  },
+  "shader_bundle_refs": [
+    {
+      "key": "shader::UiSurfaceSdf::compute",
+      "shader": "UiSurfaceSdf",
+      "module_name": "UiSurfaceSdf",
+      "stage": "compute",
+      "entry_point": "main",
+      "source": "kain-core",
+      "execution_domain": "tensor-stream",
+      "workgroup_size": [
+        8,
+        8,
+        1
+      ],
+      "dispatch_size": [
+        256,
+        1,
+        1
+      ],
+      "resource_bindings": [
+        {
+          "key": "uv",
+          "type": "storage_buffer",
+          "stage": "compute",
+          "access": "read_write",
+          "slot": 0
+        },
+        {
+          "key": "rgba",
+          "type": "storage_buffer",
+          "stage": "compute",
+          "access": "read_write",
+          "slot": 1
+        }
+      ],
+      "tensor_bindings": [
+        {
+          "key": "uv",
+          "element_type": "vec4",
+          "shape": [
+            "dispatch.x"
+          ],
+          "role": "input",
+          "contract": "kain.shared.buffer"
+        },
+        {
+          "key": "rgba",
+          "element_type": "vec4",
+          "shape": [
+            "dispatch.x"
+          ],
+          "role": "output",
+          "contract": "kain.shared.buffer"
+        }
+      ],
+      "stream_bindings": [
+        {
+          "key": "uv",
+          "direction": "bidirectional",
+          "cadence": "continuous",
+          "contract": "kain.shared.buffer"
+        },
+        {
+          "key": "rgba",
+          "direction": "bidirectional",
+          "cadence": "continuous",
+          "contract": "kain.shared.buffer"
+        }
+      ],
+      "neural_nodes": [
+        {
+          "key": "ui_surface_sdf",
+          "op": "rounded_rect_surface",
+          "inputs": [
+            "uv"
+          ],
+          "outputs": [
+            "rgba"
+          ],
+          "stateful": false
+        }
+      ]
+    }
+  ],
+  "assets": [],
+  "tool_caps": [
+    "gpu.compute",
+    "gpu.compute-plan",
+    "gpu.shader",
+    "tool.graph",
+    "viewport.3d"
+  ],
+  "requirements": [
+    "data.continuous-stream",
+    "gpu.compute-dispatch",
+    "gpu.compute-plan",
+    "gpu.shader-bundles",
+    "host.native-ui",
+    "interop.shared-buffer",
+    "runtime.contract.bundle",
+    "scene.runtime-bundle",
+    "shader.bundle.metadata",
+    "viewport.presented-or-fallback"
+  ]
+}

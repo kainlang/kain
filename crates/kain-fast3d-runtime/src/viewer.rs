@@ -5,6 +5,7 @@ use std::{
 
 use eframe::egui;
 
+use crate::host_documents::{Fast3dGameplayStateDocument, Fast3dShaderOverrideDocument};
 use crate::model::CombineMode;
 use crate::rasterizer::RenderFrame;
 use crate::runtime::{Fast3dRuntime, FreeCameraPose, OrbitControls};
@@ -14,6 +15,8 @@ pub use crate::runtime::OrbitControls as OrbitControlsExport;
 pub fn launch_viewer(
     manifest_path: PathBuf,
     runtime: Fast3dRuntime,
+    gameplay_state: Option<Fast3dGameplayStateDocument>,
+    shader_overrides: Option<Fast3dShaderOverrideDocument>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -26,7 +29,12 @@ pub fn launch_viewer(
         &title,
         options,
         Box::new(move |_creation_context| {
-            Ok(Box::new(Fast3dViewerApp::new(manifest_path, runtime)))
+            Ok(Box::new(Fast3dViewerApp::new(
+                manifest_path,
+                runtime,
+                gameplay_state,
+                shader_overrides,
+            )))
         }),
     )?;
     Ok(())
@@ -85,12 +93,19 @@ struct Fast3dViewerApp {
     auto_rotate: bool,
     combine_override: Option<CombineMode>,
     latest_frame: Option<RenderFrame>,
+    gameplay_state: Option<Fast3dGameplayStateDocument>,
+    shader_overrides: Option<Fast3dShaderOverrideDocument>,
     /// Accumulated mouse drag this frame for free-fly look.
     drag_delta: egui::Vec2,
 }
 
 impl Fast3dViewerApp {
-    fn new(manifest_path: PathBuf, runtime: Fast3dRuntime) -> Self {
+    fn new(
+        manifest_path: PathBuf,
+        mut runtime: Fast3dRuntime,
+        gameplay_state: Option<Fast3dGameplayStateDocument>,
+        shader_overrides: Option<Fast3dShaderOverrideDocument>,
+    ) -> Self {
         // Seed free-fly start position from the manifest camera target + pull-back
         let camera = &runtime.manifest.camera;
         let start_position = [
@@ -98,6 +113,9 @@ impl Fast3dViewerApp {
             camera.target[1] + camera.orbit_height,
             camera.target[2] + camera.orbit_radius,
         ];
+        if let Some(shader_overrides_document) = shader_overrides.as_ref() {
+            runtime.apply_shader_overrides(shader_overrides_document);
+        }
         Self {
             manifest_path,
             runtime,
@@ -113,6 +131,8 @@ impl Fast3dViewerApp {
             auto_rotate: true,
             combine_override: None,
             latest_frame: None,
+            gameplay_state,
+            shader_overrides,
             drag_delta: egui::Vec2::ZERO,
         }
     }
@@ -220,7 +240,16 @@ impl Fast3dViewerApp {
         }
     }
 
-    fn render_current_frame(&self) -> Result<RenderFrame, String> {
+    fn render_current_frame(&mut self) -> Result<RenderFrame, String> {
+        if let Some(gameplay_state) = self.gameplay_state.as_ref() {
+            self.runtime
+                .apply_gameplay_state(self.elapsed_seconds, gameplay_state);
+        } else {
+            self.runtime.clear_actor_transforms();
+        }
+        if let Some(shader_overrides) = self.shader_overrides.as_ref() {
+            self.runtime.apply_shader_overrides(shader_overrides);
+        }
         match self.camera_mode {
             CameraMode::Orbit => {
                 self.runtime
@@ -333,6 +362,20 @@ impl eframe::App for Fast3dViewerApp {
                     ui.label(format!("pitch: {:.2}", self.orbit_controls.pitch_radians));
                     ui.label(format!("zoom delta: {:.2}", self.orbit_controls.zoom_delta));
                 }
+                ui.label(format!(
+                    "gameplay bindings: {}",
+                    self.gameplay_state
+                        .as_ref()
+                        .map(|document| document.actor_bindings.len())
+                        .unwrap_or(0)
+                ));
+                ui.label(format!(
+                    "material overrides: {}",
+                    self.shader_overrides
+                        .as_ref()
+                        .map(|document| document.display_list_overrides.len())
+                        .unwrap_or(0)
+                ));
                 if let Some(frame) = self.latest_frame.as_ref() {
                     ui.separator();
                     ui.label(format!("triangles submitted: {}", frame.stats.triangles_submitted));
