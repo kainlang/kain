@@ -5,6 +5,123 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=07ef203362a57169 -->
+## 2026-03-25 20:53:34 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b5af80a`
+- Changed files: 13
+- [.M] `crates/kain-c-ffi/src/lib.rs`
+- [.M] `crates/kain-c-ffi/src/model.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `runtime/README.md`
+- [.M] `runtime/conformance/02_service_registry/compile_test.sh`
+- [.M] `runtime/conformance/02_service_registry/test_service_registry.c`
+- [.M] `runtime/conformance/03_abi_startup_validation/compile_test.sh`
+- [.M] `runtime/conformance/03_abi_startup_validation/test_abi_startup_validation.c`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+
+<!-- polytools-changelog:fingerprint=576efbce61a8b01d -->
+## 2026-03-25 20:52:54 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b5af80a`
+- Changed files: 12
+- [.M] `crates/kain-c-ffi/src/model.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `runtime/README.md`
+- [.M] `runtime/conformance/02_service_registry/compile_test.sh`
+- [.M] `runtime/conformance/02_service_registry/test_service_registry.c`
+- [.M] `runtime/conformance/03_abi_startup_validation/compile_test.sh`
+- [.M] `runtime/conformance/03_abi_startup_validation/test_abi_startup_validation.c`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+
+<!-- polytools-changelog:fingerprint=bba5b10125d53297 -->
+## 2026-03-25 20:31:04 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b5af80a`
+- Changed files: 11
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `runtime/README.md`
+- [.M] `runtime/conformance/02_service_registry/compile_test.sh`
+- [.M] `runtime/conformance/02_service_registry/test_service_registry.c`
+- [.M] `runtime/conformance/03_abi_startup_validation/compile_test.sh`
+- [.M] `runtime/conformance/03_abi_startup_validation/test_abi_startup_validation.c`
+- [.M] `runtime/native/include/kain_runtime_graphics.h`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+
+<!-- polytools-changelog:fingerprint=b92d687e2faa41b4 -->
+## 2026-03-25 20:29:12 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b5af80a`
+- Changed files: 9
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `runtime/README.md`
+- [.M] `runtime/conformance/02_service_registry/compile_test.sh`
+- [.M] `runtime/conformance/02_service_registry/test_service_registry.c`
+- [.M] `runtime/conformance/03_abi_startup_validation/compile_test.sh`
+- [.M] `runtime/conformance/03_abi_startup_validation/test_abi_startup_validation.c`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+
+<!-- polytools-changelog:fingerprint=84a697bf5e5810ba -->
+## 2026-03-25 20:28:21 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b5af80a`
+- Changed files: 8
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `runtime/README.md`
+- [.M] `runtime/conformance/02_service_registry/compile_test.sh`
+- [.M] `runtime/conformance/02_service_registry/test_service_registry.c`
+- [.M] `runtime/conformance/03_abi_startup_validation/compile_test.sh`
+- [.M] `runtime/conformance/03_abi_startup_validation/test_abi_startup_validation.c`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+
+<!-- polytools-changelog:fingerprint=2fb234b1b9fa23d2 -->
+## 2026-03-25 20:28:01 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b5af80a`
+- Changed files: 7
+- [.M] `runtime/README.md`
+- [.M] `runtime/conformance/02_service_registry/compile_test.sh`
+- [.M] `runtime/conformance/02_service_registry/test_service_registry.c`
+- [.M] `runtime/conformance/03_abi_startup_validation/compile_test.sh`
+- [.M] `runtime/conformance/03_abi_startup_validation/test_abi_startup_validation.c`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+
+<!-- polytools-changelog:fingerprint=006b8601be6226be -->
+## 2026-03-25 20:27:48 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b5af80a`
+- Changed files: 6
+- [.M] `runtime/README.md`
+- [.M] `runtime/conformance/02_service_registry/compile_test.sh`
+- [.M] `runtime/conformance/02_service_registry/test_service_registry.c`
+- [.M] `runtime/conformance/03_abi_startup_validation/compile_test.sh`
+- [.M] `runtime/conformance/03_abi_startup_validation/test_abi_startup_validation.c`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+
+<!-- polytools-changelog:fingerprint=f425db775511811f -->
+## 2026-03-25 20:26:57 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b5af80a`
+- Changed files: 3
+- [.M] `runtime/conformance/02_service_registry/compile_test.sh`
+- [.M] `runtime/conformance/03_abi_startup_validation/compile_test.sh`
+- [.M] `runtime/native/src/core/kain_runtime_realtime.c`
+
 <!-- polytools-changelog:fingerprint=8a2e66e4ace3f6f8 -->
 ## 2026-03-25 20:26:34 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

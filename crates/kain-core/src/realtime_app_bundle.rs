@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 use crate::ast::{ComputeMetadata, ShaderStage, Type, COMPUTE_PLAN_CAPABILITY_KEY};
 use crate::{CompileTarget, TypedItem, TypedProgram, TypedShader};
 use kain_ui::{
-    UiBuildOutput, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference, UiValue,
+    UiBuildOutput, UiNode, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
+    UiValue,
 };
 
 pub const REALTIME_APP_BUNDLE_SCHEMA_VERSION: u32 = 1;
@@ -96,6 +97,42 @@ pub struct RealtimeShaderCanvasBinding {
     pub derived_format: Option<String>,
     pub renderer_preference: String,
     pub composition_mode: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub font_atlases: Vec<RealtimeShaderCanvasFontAtlas>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub text_runs: Vec<RealtimeShaderCanvasTextRun>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resource_bindings: Vec<RealtimeShaderCanvasResourceBinding>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RealtimeShaderCanvasFontAtlas {
+    pub key: String,
+    pub family: String,
+    pub glyphs: String,
+    pub cell_size_px: [u32; 2],
+    pub texture_size_px: [u32; 2],
+    pub columns: u32,
+    pub rows: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RealtimeShaderCanvasTextRun {
+    pub id: String,
+    pub text: String,
+    pub role: String,
+    pub atlas_key: String,
+    pub origin_px: [u32; 2],
+    pub color_token: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RealtimeShaderCanvasResourceBinding {
+    pub binding_name: String,
+    pub resource_kind: String,
+    pub source_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub atlas_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -248,18 +285,30 @@ fn collect_shader_canvas_bindings(
             let shader = surface.shader.as_ref()?;
             let resolved_shader_ref =
                 resolve_surface_shader_ref(shader.shader_ref.as_str(), shader_bundle_refs);
+            let (font_atlases, text_runs, resource_bindings) = output
+                .tree
+                .nodes
+                .get(&surface.node)
+                .map(|node| collect_shader_canvas_surface_resources(node, surface.title.as_deref()))
+                .unwrap_or_else(|| (Vec::new(), Vec::new(), Vec::new()));
             Some(RealtimeShaderCanvasBinding {
                 surface_id: surface.id.clone(),
                 shader_ref: shader.shader_ref.clone(),
                 shader_bundle_ref_key: resolved_shader_ref.as_ref().map(|entry| entry.key.clone()),
-                shader_name: resolved_shader_ref.as_ref().map(|entry| entry.shader.clone()),
+                shader_name: resolved_shader_ref
+                    .as_ref()
+                    .map(|entry| entry.shader.clone()),
                 module_name: resolved_shader_ref
                     .as_ref()
                     .map(|entry| entry.module_name.clone()),
                 stage: shader
                     .stage
                     .clone()
-                    .or_else(|| resolved_shader_ref.as_ref().map(|entry| entry.stage.clone()))
+                    .or_else(|| {
+                        resolved_shader_ref
+                            .as_ref()
+                            .map(|entry| entry.stage.clone())
+                    })
                     .unwrap_or_else(|| "fragment".to_string()),
                 entry_point: shader.entry_point.clone().or_else(|| {
                     resolved_shader_ref
@@ -271,12 +320,154 @@ fn collect_shader_canvas_bindings(
                     .to_string(),
                 composition_mode: surface_composition_mode_name(surface.composition_mode)
                     .to_string(),
+                font_atlases,
+                text_runs,
+                resource_bindings,
             })
         })
         .collect::<Vec<_>>();
 
     bindings.sort_by(|left, right| left.surface_id.cmp(&right.surface_id));
     bindings
+}
+
+fn collect_shader_canvas_surface_resources(
+    node: &UiNode,
+    surface_title: Option<&str>,
+) -> (
+    Vec<RealtimeShaderCanvasFontAtlas>,
+    Vec<RealtimeShaderCanvasTextRun>,
+    Vec<RealtimeShaderCanvasResourceBinding>,
+) {
+    let title_text = surface_title
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| node_prop_string(node, "title"));
+    let body_text = first_string_prop(node, &["text", "label", "caption", "subtitle"]);
+    let mut text_runs = Vec::new();
+    if let Some(title) = title_text {
+        text_runs.push(RealtimeShaderCanvasTextRun {
+            id: format!("node.{}.title", node.id.0),
+            text: title,
+            role: "title".to_string(),
+            atlas_key: String::new(),
+            origin_px: [16, 16],
+            color_token: "theme.text.default".to_string(),
+        });
+    }
+    if let Some(body) = body_text
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        text_runs.push(RealtimeShaderCanvasTextRun {
+            id: format!("node.{}.body", node.id.0),
+            text: body,
+            role: "body".to_string(),
+            atlas_key: String::new(),
+            origin_px: [16, 38],
+            color_token: "theme.text.muted".to_string(),
+        });
+    }
+
+    let mut font_atlases = Vec::new();
+    if !text_runs.is_empty() {
+        let atlas_key = format!("surface.node.{}.atlas.default", node.id.0);
+        let glyphs = collect_shader_canvas_glyphs(&text_runs);
+        let cell_width_px =
+            first_u32_prop(node, &["font_cell_width_px", "font_cell_px"]).unwrap_or(8);
+        let cell_height_px =
+            first_u32_prop(node, &["font_cell_height_px", "font_cell_px"]).unwrap_or(8);
+        let columns = glyphs.chars().count().max(1).min(16) as u32;
+        let rows = ((glyphs.chars().count().max(1) as u32) + columns - 1) / columns;
+        font_atlases.push(RealtimeShaderCanvasFontAtlas {
+            key: atlas_key.clone(),
+            family: first_string_prop(node, &["font_family", "font"])
+                .unwrap_or_else(|| "kain.builtin.bitmap_5x7".to_string()),
+            glyphs,
+            cell_size_px: [cell_width_px, cell_height_px],
+            texture_size_px: [cell_width_px * columns, cell_height_px * rows.max(1)],
+            columns,
+            rows: rows.max(1),
+        });
+        for run in &mut text_runs {
+            run.atlas_key = atlas_key.clone();
+        }
+    }
+
+    let mut resource_bindings = vec![
+        RealtimeShaderCanvasResourceBinding {
+            binding_name: "surface_uniforms".to_string(),
+            resource_kind: "uniform-buffer".to_string(),
+            source_kind: "runtime.surface.uniforms".to_string(),
+            atlas_key: None,
+        },
+        RealtimeShaderCanvasResourceBinding {
+            binding_name: "surface_storage".to_string(),
+            resource_kind: "storage-buffer".to_string(),
+            source_kind: "runtime.surface.storage".to_string(),
+            atlas_key: None,
+        },
+    ];
+    if let Some(atlas) = font_atlases.first() {
+        resource_bindings.push(RealtimeShaderCanvasResourceBinding {
+            binding_name: "font_atlas".to_string(),
+            resource_kind: "texture-2d".to_string(),
+            source_kind: "runtime.surface.font-atlas".to_string(),
+            atlas_key: Some(atlas.key.clone()),
+        });
+        resource_bindings.push(RealtimeShaderCanvasResourceBinding {
+            binding_name: "font_sampler".to_string(),
+            resource_kind: "sampler".to_string(),
+            source_kind: "runtime.surface.font-atlas".to_string(),
+            atlas_key: Some(atlas.key.clone()),
+        });
+    }
+
+    (font_atlases, text_runs, resource_bindings)
+}
+
+fn collect_shader_canvas_glyphs(text_runs: &[RealtimeShaderCanvasTextRun]) -> String {
+    let mut glyphs = vec![' ', '?'];
+    for run in text_runs {
+        for ch in run.text.chars() {
+            let normalized = normalize_shader_canvas_glyph(ch);
+            if !glyphs.contains(&normalized) {
+                glyphs.push(normalized);
+            }
+        }
+    }
+    glyphs.into_iter().collect()
+}
+
+fn normalize_shader_canvas_glyph(ch: char) -> char {
+    if ch.is_ascii() {
+        ch
+    } else {
+        '?'
+    }
+}
+
+fn node_prop_string(node: &UiNode, key: &str) -> Option<String> {
+    node.props
+        .get(key)
+        .and_then(UiValue::as_str)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn first_string_prop(node: &UiNode, keys: &[&str]) -> Option<String> {
+    keys.iter().find_map(|key| node_prop_string(node, key))
+}
+
+fn first_u32_prop(node: &UiNode, keys: &[&str]) -> Option<u32> {
+    keys.iter().find_map(|key| {
+        node.props.get(*key).and_then(|value| match value {
+            UiValue::Int(number) if *number >= 0 => Some(*number as u32),
+            UiValue::Float(number) if *number >= 0.0 => Some(*number as u32),
+            UiValue::String(number) => number.trim().parse::<u32>().ok(),
+            _ => None,
+        })
+    })
 }
 
 fn resolve_surface_shader_ref<'a>(
@@ -288,11 +479,14 @@ fn resolve_surface_shader_ref<'a>(
         return None;
     }
 
-    shader_bundle_refs.iter().find(|entry| entry.key == trimmed).or_else(|| {
-        shader_bundle_refs
-            .iter()
-            .find(|entry| entry.module_name == trimmed || entry.shader == trimmed)
-    })
+    shader_bundle_refs
+        .iter()
+        .find(|entry| entry.key == trimmed)
+        .or_else(|| {
+            shader_bundle_refs
+                .iter()
+                .find(|entry| entry.module_name == trimmed || entry.shader == trimmed)
+        })
 }
 
 fn surface_renderer_preference_name(renderer: UiSurfaceRendererPreference) -> &'static str {
@@ -651,8 +845,12 @@ fn ui_value_as_u32(value: &UiValue) -> Option<u32> {
     }
 }
 
-fn scene_prop_string(props: &std::collections::BTreeMap<String, UiValue>, key: &str) -> Option<String> {
-    props.get(key)
+fn scene_prop_string(
+    props: &std::collections::BTreeMap<String, UiValue>,
+    key: &str,
+) -> Option<String> {
+    props
+        .get(key)
         .and_then(UiValue::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -663,14 +861,16 @@ fn scene_prop_f32(
     props: &std::collections::BTreeMap<String, UiValue>,
     keys: &[&str],
 ) -> Option<f32> {
-    keys.iter().find_map(|key| props.get(*key).and_then(ui_value_as_f32))
+    keys.iter()
+        .find_map(|key| props.get(*key).and_then(ui_value_as_f32))
 }
 
 fn scene_prop_u32(
     props: &std::collections::BTreeMap<String, UiValue>,
     keys: &[&str],
 ) -> Option<u32> {
-    keys.iter().find_map(|key| props.get(*key).and_then(ui_value_as_u32))
+    keys.iter()
+        .find_map(|key| props.get(*key).and_then(ui_value_as_u32))
 }
 
 fn scene_prop_vec3(
@@ -1004,8 +1204,7 @@ component App():
             vec!["terrain".to_string()]
         );
         assert_eq!(
-            bundle.render.scenes[0].camera,
-            None,
+            bundle.render.scenes[0].camera, None,
             "legacy viewport bindings should stay sparse when no camera metadata is authored"
         );
         assert!(bundle
@@ -1060,13 +1259,14 @@ component App():
             realtime_app_bundle_from_json(json).expect("realtime bundle should deserialize");
         assert_eq!(bundle.render.scenes[0].scene, "magma_terraces");
         assert_eq!(
-            bundle.render.scenes[0].camera.as_ref().and_then(|camera| camera.position),
+            bundle.render.scenes[0]
+                .camera
+                .as_ref()
+                .and_then(|camera| camera.position),
             Some([8.0, 4.5, 16.0])
         );
         assert_eq!(
-            bundle
-                .render
-                .scenes[0]
+            bundle.render.scenes[0]
                 .presentation
                 .as_ref()
                 .and_then(|presentation| presentation.profile.as_deref()),
@@ -1155,7 +1355,7 @@ shader fragment hero_surface(uv: Vec2) -> Vec4:
 
 component App():
     render <panel>
-        <canvas title="Hero Surface" shader_ref="hero_surface" shader_stage="fragment" shader_format="spirv" />
+        <canvas title="Hero Surface" text="Fast lane" shader_ref="hero_surface" shader_stage="fragment" shader_format="spirv" />
     </panel>
 "#;
         let tokens = Lexer::new(source).tokenize().expect("tokens");
@@ -1168,14 +1368,20 @@ component App():
 
         let bundle = emit_realtime_app_bundle(&typed, Some(&ui), CompileTarget::Rust);
         assert_eq!(bundle.shader_canvases.len(), 1);
-        assert_eq!(bundle.shader_canvases[0].surface_id, "surface.node.2");
+        assert_eq!(bundle.shader_canvases[0].surface_id, "surface.node.1");
         assert_eq!(bundle.shader_canvases[0].shader_ref, "hero_surface");
         assert_eq!(
             bundle.shader_canvases[0].shader_bundle_ref_key.as_deref(),
             Some("shader::hero_surface::fragment")
         );
         assert_eq!(bundle.shader_canvases[0].composition_mode, "shader-canvas");
-        assert!(bundle.tool_caps.iter().any(|entry| entry == "ui.shader-canvas"));
+        assert_eq!(bundle.shader_canvases[0].font_atlases.len(), 1);
+        assert_eq!(bundle.shader_canvases[0].text_runs.len(), 2);
+        assert_eq!(bundle.shader_canvases[0].resource_bindings.len(), 4);
+        assert!(bundle
+            .tool_caps
+            .iter()
+            .any(|entry| entry == "ui.shader-canvas"));
         assert!(bundle
             .requirements
             .iter()
@@ -1289,11 +1495,3 @@ shader compute TensorBlend() -> Void:
             .any(|entry| entry == "gpu.compute-plan"));
     }
 }
-
-
-
-
-
-
-
-

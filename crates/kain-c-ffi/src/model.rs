@@ -107,6 +107,58 @@ pub struct BindingReport {
     pub source_fingerprints: Vec<FileFingerprint>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackagedBridgeBinaryArtifact {
+    pub file_name: String,
+    pub source_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HostBridgeModuleDescriptor {
+    pub module_id: String,
+    pub module_name: String,
+    pub provider: String,
+    pub lane: String,
+    pub abi_version: u32,
+    pub required_capability_mask: u32,
+    pub required_runtime_services: Vec<String>,
+    pub hot_reload_capable: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HostBridgeServiceDescriptor {
+    pub service_key: String,
+    pub service_name: String,
+    pub provider: String,
+    pub abi_version: u32,
+    pub capability_mask: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackagedBridgeSymbolDescriptor {
+    pub symbol_name: String,
+    pub exported_aliases: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackagedBridgeImport {
+    pub import_name: String,
+    pub module: HostBridgeModuleDescriptor,
+    pub services: Vec<HostBridgeServiceDescriptor>,
+    pub bridge_library: PackagedBridgeBinaryArtifact,
+    pub shared_library: Option<PackagedBridgeBinaryArtifact>,
+    pub binding_manifest_file_name: String,
+    pub binding_report_file_name: String,
+    pub symbols: Vec<PackagedBridgeSymbolDescriptor>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackagedBridgeManifest {
+    pub schema_version: String,
+    pub lane: String,
+    pub imports: Vec<PackagedBridgeImport>,
+}
+
 #[derive(Debug, Clone)]
 pub struct BridgeParam {
     pub name: String,
@@ -200,6 +252,7 @@ pub struct GeneratedArtifacts {
     pub report: BindingReport,
     pub report_text: String,
     pub manifest_json: String,
+    pub packaged_bridge_manifest_json: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -225,10 +278,12 @@ pub struct ImportCOutput {
     pub report_json_path: PathBuf,
     pub report_text_path: PathBuf,
     pub manifest_json_path: PathBuf,
+    pub packaged_bridge_manifest_path: PathBuf,
     pub bridge_manifest_path: PathBuf,
     pub bridge_source_path: PathBuf,
     pub dylib_path: Option<PathBuf>,
     pub canonical_module_source: String,
     pub prelude_source: String,
+    pub packaged_bridge_manifest: PackagedBridgeImport,
     pub cache_hit: bool,
 }

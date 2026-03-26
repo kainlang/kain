@@ -10,6 +10,29 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-25 - Viewport Camera And Presentation Defaults Became Bundle-Owned
+
+Viewport startup behavior stopped being mostly host-local inference and became a wider part of the realtime bundle contract.
+
+What changed:
+
+- `RealtimeSceneBinding` in `kain-core` now carries optional `camera` and `presentation` metadata for viewport scene bindings
+- authored viewport props like `camera.position.*`, `camera.target.*`, `camera.fov_y`, `viewport.profile`, `viewport.fog_density`, and `viewport.particle_budget` now serialize into the realtime bundle instead of disappearing after UI compilation
+- `kain-ui-native` now seeds each viewport surface from bundle-owned camera metadata, and hot reload only recenters when the authored scene or authored camera binding actually changes
+- the raw-native realtime sidecar parser now reads the same camera/presentation metadata, and the Win32 viewport host applies those values to initial camera pose, FOV, clip planes, profile defaults, fog density, and particle budget
+
+Why this matters:
+
+- it keeps viewport startup semantics in the compiler-emitted bundle family instead of leaving camera and presentation defaults split across two native hosts
+- it gives authored SPIR-V/3D smokes a richer contract surface than just `scene` string matching
+- it creates a better base for future work like camera rails, named presets, or host-agnostic cinematic startup behavior
+
+What future work should preserve:
+
+- keep bundle-owned viewport metadata optional and additive so older realtime bundles still load cleanly
+- let explicit operator env vars remain last-mile overrides, but do not let host-local hardcoded defaults become the primary source of viewport intent again
+- widen the shared bundle schema when new viewport semantics appear instead of teaching each host a separate camera or presentation dialect
+
 ## 2026-03-25 - Native Alpha Contract Spine Landed For Scene, Query, Inspection, And Ingestion
 
 The native runtime now has a dedicated Alpha-owned contract layer for the first blocker wave instead of leaving those concepts implicit in the Win32 viewport host.
@@ -45,6 +68,42 @@ Next serious move:
 - wire the new scene/query contracts into the Win32 viewport and native UI shell
 - build the first runtime-owned scene registry behind the opaque handles
 - then start Alpha Phase 2 with render-graph, residency, and compute-scheduling descriptors that reuse the same contract discipline
+
+## 2026-03-25 - Native Alpha Graphics Contracts Landed As Synthesized Render Graph, Residency, And Schedule Surfaces
+
+Alpha Phase 2 is now real in the native graphics bundle path instead of staying a wishlist item in planning docs.
+
+What changed:
+
+- `kain_runtime_graphics.h` now defines canonical render-graph, residency, and compute-schedule contract structs that live directly on `KainRuntimeGraphicsBundle`
+- `kain_runtime_realtime.c` now synthesizes those contracts from the current emitted graphics-bundle truth during bundle load, instead of leaving pass sequencing, resource residency, and cross-lane ordering implicit in host-local code
+- graphics validation now treats render graph, residency, and compute schedule as first-class readiness checks, and compute execution state now reports schedule counts and the primary schedule key
+- Alpha published a contract freeze for downstream work in `docs/kainplan/native-runtime-three-agent/alpha-phase2-contract-freeze.md`
+
+Why this matters:
+
+- it gives Delta a stable execution-facing contract family to consume instead of reverse-engineering the Win32 host path
+- it moves the native lane closer to the repo rule that host code should consume canonical contracts rather than inventing local orchestration models
+- it creates a bridge between current compiler outputs and future compiler-authored explicit render/residency/schedule tables without changing the public ABI again
+
+What is still incomplete:
+
+- the current render graph, residency bytes, and schedule barriers are synthesized heuristics, not compiler-authored explicit execution tables
+- runtime reflection is not yet widened enough to enumerate every residency resource and schedule node as a live inspection service
+- Delta has not consumed these contracts through the viewport, workspace, or editor shell yet
+
+What future work should preserve:
+
+- keep render graph, residency, and schedule semantics on the shared graphics bundle instead of growing a second execution model in platform-specific code
+- replace synthesized values with authored compiler truth by widening emitters, not by deleting the ABI surface
+- keep the Phase 2 freeze doc updated when any field becomes authoritative enough for Delta or Charlie to rely on
+
+Next serious move:
+
+- make the Win32/native UI lanes consume the new schedule and render graph contracts in their validation and startup flow
+- widen runtime inspection to expose residency resources and schedule steps through the Phase 1 reflection family
+- then move Alpha toward compiler-authored contract emission so synthesis becomes compatibility fallback instead of the primary source
+
 ## 2026-03-25 - Shader Canvas Became An Explicit Native UI Lane
 
 The native shader-canvas path stopped being only a best-effort surface heuristic and became an explicit bundle-driven lane.
@@ -80,13 +139,43 @@ Next serious move:
 - promote shader-canvas resource catalogs beyond the current built-in payloads into reusable bundle-driven image/buffer/font bindings
 - if direct SPIR-V execution becomes necessary for the next performance step, add it as another host adapter that still consumes the same shader-canvas bundle contract family
 
+## 2026-03-25 - Shader Canvas Text Contract Started Provisioning Real GPU Text Resources
+
+Shader canvas stopped being "shapes plus a generic payload" and gained the first real text/resource contract that native hosts can provision automatically.
+
+What changed:
+
+- `kain-core` now derives per-surface shader-canvas font atlas descriptors, text runs, and runtime resource bindings directly from UI node props instead of leaving text as an implicit future idea
+- `kain-ui-native` now carries those metadata structures through shader-surface resolution, folds them into the shader-surface signature, and exposes the counts in the on-surface diagnostics
+- presented shader surfaces now serialize a richer storage payload that includes shader-canvas header data plus atlas records, text-run records, atlas glyph bytes, and run text bytes
+- the native host now synthesizes a bitmap atlas texture from bundle metadata and binds that texture through the same shader-surface path that previously only uploaded a 1x1 fallback sample
+- focused validation confirmed the new bundle-emission contract in `kain-core`; the `kain-ui-native` validation path is still blocked by unrelated `kain-host`/`pyo3` build failures in the wider workspace
+
+Why this matters:
+
+- shader authors now have a real first-class lane for atlas-backed text and per-surface resource catalogs instead of a placeholder story
+- the host/runtime still consumes compiler-owned metadata rather than inventing a second renderer-local text schema
+- the design stays data-driven enough to grow toward multiple atlases, typed image resources, and richer shader-authored widgets without throwing away the retained UI model
+
+What is still incomplete:
+
+- the current atlas generator is intentionally simple and bitmap-based; it is a real GPU text resource path, not yet a high-quality font rasterization pipeline
+- the current host path provisions one atlas texture per surface callback path; it is not yet a shared atlas cache or a multi-atlas bindless resource system
+- direct SPIR-V execution for the UI lane is still future work; the current native host remains WGSL/WGPU-backed even though the bundle contract is SPIR-V-canonical
+
+What future work should preserve:
+
+- keep text/resource declarations in `RealtimeAppBundle.shader_canvases` so host provisioning stays compiler-owned and host-agnostic
+- widen the storage/texture contract in additive ways instead of replacing it with a renderer-local special case once richer text or image resources land
+- fix the unrelated `kain-host` validation blocker separately instead of weakening shader-canvas isolation to make workspace builds appear greener
+
 ## 2026-03-25 - Native Runtime Service Discovery Stopped Pretending The Runtime Was Smaller Than It Is
 
 The raw-native runtime now has one shared canonical service catalog in `runtime/native/src/core/kain_runtime_services.c` instead of splitting service truth across tiny contract-era registration helpers and scattered tests.
 
 What changed:
 
-- the native runtime service registry now registers the broader implemented surface, not just app host, input, viewport, glTF, UI bundle, and compute
+- the native runtime service registry now registers the broader implemented surface, including scene/runtime inspection and asset-ingestion lanes, not just app host, input, viewport, glTF, UI bundle, and compute
 - contract/service lookups now canonicalize legacy aliases like `native.app-host` and `native.compute` through the shared service layer
 - repeated registry population now refreshes in place instead of silently trying to duplicate service entries
 - service conformance tests now expect the fuller runtime catalog, including contract, reflection, actor, async, realtime, compatibility, and host bridge services
@@ -141,7 +230,7 @@ What is still incomplete:
 
 - the raw-native OpenGL viewport still renders profile-driven procedural geometry rather than the richer Rust `SceneCatalog` scene graph
 - no heavy validation was run in this pass yet; test execution remains gated on user approval per repo policy
-- `kerr_black_hole`, `retirement_demo`, and future authored scenes still use alias/profile approximation in the raw-native lane instead of one shared scene runtime
+- viewport camera and presentation metadata are now shared, but full raw-native geometry still comes from profile-driven procedural rendering instead of one shared scene runtime
 
 ## 2026-03-25 - SPV UI Smoke Landed As An Honest First Probe Instead Of A Fake UI Engine Claim
 

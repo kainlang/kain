@@ -52,7 +52,8 @@ clang \
     "$OUTPUT_DIR/kain_runtime_diagnostics.o" \
     "$OUTPUT_DIR/kain_runtime_services.o" \
     "$OUTPUT_DIR/kain_runtime_contract.o" \
-    "$OUTPUT_DIR/kain_runtime_win32_shared.o"
+    "$OUTPUT_DIR/kain_runtime_win32_shared.o" \
+    -lopengl32
 
 echo "✅ Compilation successful!"
 echo "Output: $OUTPUT_DIR/test_service_registry"

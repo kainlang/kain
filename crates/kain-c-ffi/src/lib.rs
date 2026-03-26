@@ -7,7 +7,9 @@ pub use config::{CFfiConfig, CLibraryConfig};
 pub use generate::{bridge_crate_name, BRIDGE_FORMAT_VERSION, BRIDGE_SYMBOL_NAME};
 pub use model::{
     ArtifactMode, BindingManifest, BindingReport, BindingReportEntry, ImportCOptions,
-    ImportCOutput, ItemKind, ItemStatus, PrepareContext, ResolvedCLibrary,
+    HostBridgeModuleDescriptor, HostBridgeServiceDescriptor, ImportCOutput, ItemKind,
+    ItemStatus, PackagedBridgeBinaryArtifact, PackagedBridgeImport, PackagedBridgeManifest,
+    PackagedBridgeSymbolDescriptor, PrepareContext, ResolvedCLibrary,
 };
 
 use extract::extract_binding_bundle;
@@ -40,6 +42,82 @@ pub fn register() {
     REGISTER_EXTENSION_ONCE.call_once(|| {
         register_env_extension("kain_c_ffi", apply_loaded_bridges);
     });
+}
+
+pub fn import_libraries_for_source(
+    source: &str,
+    options: &ImportCOptions,
+    prepare: &PrepareContext,
+) -> Result<Vec<ImportCOutput>, KainError> {
+    let imports = detect_c_library_imports(source);
+    let mut outputs = Vec::new();
+    for import_name in imports {
+        outputs.push(import_library(&import_name, options, prepare)?);
+    }
+    Ok(outputs)
+}
+
+pub fn load_prebuilt_bridge(dylib_path: &Path) -> Result<(), KainError> {
+    ensure_bridge_loaded(dylib_path)
+}
+
+pub fn shared_library_env_var(import_name: &str) -> String {
+    let mut suffix = String::with_capacity(import_name.len());
+    for ch in import_name.chars() {
+        match ch {
+            'A'..='Z' => suffix.push(ch),
+            'a'..='z' => suffix.push(ch.to_ascii_uppercase()),
+            '0'..='9' => suffix.push(ch),
+            _ => suffix.push('_'),
+        }
+    }
+    format!("KAIN_C_FFI_SHARED_LIB_{suffix}")
+}
+
+pub fn load_packaged_bridges_from_manifest(manifest_path: &Path) -> Result<usize, KainError> {
+    register();
+    let manifest_source = fs::read_to_string(manifest_path).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to read packaged C FFI manifest '{}': {err}",
+            manifest_path.display()
+        ))
+    })?;
+    let manifest: PackagedBridgeManifest =
+        serde_json::from_str(&manifest_source).map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to parse packaged C FFI manifest '{}': {err}",
+                manifest_path.display()
+            ))
+        })?;
+    let manifest_dir = manifest_path.parent().unwrap_or_else(|| Path::new("."));
+    let mut loaded = 0usize;
+
+    for import in manifest.imports {
+        if let Some(shared_library) = import.shared_library.as_ref() {
+            let shared_path =
+                resolve_packaged_bridge_artifact(manifest_dir, shared_library).ok_or_else(|| {
+                    KainError::runtime(format!(
+                        "Failed to resolve packaged shared library '{}' for C import '{}'",
+                        shared_library.file_name, import.import_name
+                    ))
+                })?;
+            std::env::set_var(shared_library_env_var(&import.import_name), &shared_path);
+        }
+
+        let bridge_path =
+            resolve_packaged_bridge_artifact(manifest_dir, &import.bridge_library).ok_or_else(
+                || {
+                    KainError::runtime(format!(
+                        "Failed to resolve packaged bridge library '{}' for C import '{}'",
+                        import.bridge_library.file_name, import.import_name
+                    ))
+                },
+            )?;
+        ensure_bridge_loaded(&bridge_path)?;
+        loaded += 1;
+    }
+
+    Ok(loaded)
 }
 
 pub fn import_library(
@@ -92,30 +170,25 @@ pub fn augment_source_for_runtime(
     target: CompileTarget,
     prepare: &PrepareContext,
 ) -> Result<String, KainError> {
-    let imports = detect_c_library_imports(source);
-    if imports.is_empty() {
+    let mode = artifact_mode_for_target(target).ok_or_else(|| {
+        KainError::runtime(
+            "C ABI FFI is currently available in Interpret, Test, and Rust/native packaging lanes",
+        )
+    })?;
+    let outputs = import_libraries_for_source(
+        source,
+        &ImportCOptions {
+            mode,
+            ..ImportCOptions::default()
+        },
+        prepare,
+    )?;
+    if outputs.is_empty() {
         return Ok(source.to_string());
-    }
-    if !matches!(target, CompileTarget::Interpret | CompileTarget::Test) {
-        return Err(KainError::runtime(
-            "C ABI FFI is only available in host-backed Kain execution lanes for now",
-        ));
     }
 
     let mut sections = Vec::new();
-    let mut seen = BTreeSet::new();
-    for import_name in imports {
-        if !seen.insert(import_name.clone()) {
-            continue;
-        }
-        let output = import_library(
-            &import_name,
-            &ImportCOptions {
-                mode: ArtifactMode::Both,
-                ..ImportCOptions::default()
-            },
-            prepare,
-        )?;
+    for output in outputs {
         sections.push(output.canonical_module_source);
     }
     sections.push(source.to_string());
@@ -143,6 +216,36 @@ fn apply_loaded_bridges(env: &mut Env) {
     let registry = LOADED_BRIDGES.read().expect("c ffi bridge registry read");
     for bridge in registry.values() {
         unsafe { (bridge.register)(env as *mut Env) };
+    }
+}
+
+fn resolve_packaged_bridge_artifact(
+    manifest_dir: &Path,
+    artifact: &PackagedBridgeBinaryArtifact,
+) -> Option<PathBuf> {
+    if let Some(current_exe_candidate) = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.join(&artifact.file_name)))
+        .filter(|path| path.exists())
+    {
+        return Some(current_exe_candidate);
+    }
+    let manifest_candidate = manifest_dir.join(&artifact.file_name);
+    if manifest_candidate.exists() {
+        return Some(manifest_candidate);
+    }
+    artifact
+        .source_path
+        .as_ref()
+        .map(PathBuf::from)
+        .filter(|path| path.exists())
+}
+
+fn artifact_mode_for_target(target: CompileTarget) -> Option<ArtifactMode> {
+    match target {
+        CompileTarget::Interpret | CompileTarget::Test => Some(ArtifactMode::Both),
+        CompileTarget::Rust => Some(ArtifactMode::Generate),
+        _ => None,
     }
 }
 

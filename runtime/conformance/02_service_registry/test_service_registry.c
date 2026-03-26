@@ -349,7 +349,7 @@ int test_required_service_validation(void) {
 
 int test_contract_integration(void) {
     KainServiceRegistry* registry;
-    const int expected_service_count = 18;
+    const int expected_service_count = 24;
     
     printf("\nTest 7: Contract Integration\n");
     
@@ -426,6 +426,16 @@ int test_contract_integration(void) {
         TEST_FAIL("host.bridge should be available");
         return 0;
     }
+
+    if (!kain_service_registry_is_available(registry, KAIN_SERVICE_KEY_SCENE_RUNTIME)) {
+        TEST_FAIL("scene.runtime should be available");
+        return 0;
+    }
+
+    if (!kain_service_registry_is_available(registry, KAIN_SERVICE_KEY_RUNTIME_INSPECTION)) {
+        TEST_FAIL("runtime.inspection should be available");
+        return 0;
+    }
     
     /* Test legacy service key mapping */
     if (!kain_runtime_contract_is_service_available("native.app-host")) {
@@ -440,6 +450,11 @@ int test_contract_integration(void) {
 
     if (!kain_runtime_contract_is_service_available("native.compute")) {
         TEST_FAIL("Legacy native.compute key should work");
+        return 0;
+    }
+
+    if (!kain_runtime_contract_is_service_available("native.scene")) {
+        TEST_FAIL("Legacy native.scene key should work");
         return 0;
     }
 

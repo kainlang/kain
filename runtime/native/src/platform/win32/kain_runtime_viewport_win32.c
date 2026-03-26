@@ -53,7 +53,9 @@ typedef struct {
     double pitch;
     double velocity_y;
     double world_ground_y;
+    double camera_near_clip;
     double camera_far_clip;
+    double camera_fov_y_degrees;
     int grounded;
     double total_time;
     double frame_delta;
@@ -64,6 +66,13 @@ typedef struct {
     LARGE_INTEGER prev_counter;
     KainNativeViewportSettings settings;
 } KainNativeViewportApp;
+
+static void kain_native_viewport_apply_profile_defaults(
+    KainNativeViewportSettings* settings,
+    const KainViewportProfile* profile
+);
+static void kain_native_viewport_apply_realtime_presentation(KainNativeViewportApp* app);
+static void kain_native_viewport_apply_realtime_camera(KainNativeViewportApp* app);
 
 static void kain_native_viewport_try_load_compiled_ui(KainNativeViewportApp* app) {
     if (!app) {
@@ -77,7 +86,11 @@ static void kain_native_viewport_try_load_compiled_ui(KainNativeViewportApp* app
 
     if (kain_ui_compiled_bundle_load_from_env(KAIN_UI_COMPILED_BUNDLE_ENV, &app->compiled_ui)) {
         if (!app->realtime_bundle.loaded && app->compiled_ui.primary_viewport_scene[0]) {
-            app->settings.profile = kain_find_viewport_profile(app->compiled_ui.primary_viewport_scene);
+            const KainViewportProfile* profile =
+                kain_find_viewport_profile(app->compiled_ui.primary_viewport_scene);
+            if (profile) {
+                kain_native_viewport_apply_profile_defaults(&app->settings, profile);
+            }
         }
     } else {
         kain_ui_compiled_bundle_init(&app->compiled_ui);
@@ -114,9 +127,10 @@ static void kain_native_viewport_try_load_realtime_bundle(KainNativeViewportApp*
         const KainViewportProfile* profile =
             kain_find_viewport_profile(app->realtime_bundle.primary_scene);
         if (profile) {
-            app->settings.profile = profile;
+            kain_native_viewport_apply_profile_defaults(&app->settings, profile);
         }
     }
+    kain_native_viewport_apply_realtime_presentation(app);
 }
 
 static void kain_native_viewport_try_load_graphics_bundle(KainNativeViewportApp* app) {
@@ -354,22 +368,194 @@ static KainNativeViewportSettings kain_load_viewport_settings(void) {
     const KainViewportProfile* profile = kain_find_viewport_profile(profile_name);
     kain_env_free(profile_name);
     settings.profile = profile;
-    settings.window_width = kain_env_int("KAIN_NATIVE_WINDOW_WIDTH", profile->default_width);
-    settings.window_height = kain_env_int("KAIN_NATIVE_WINDOW_HEIGHT", profile->default_height);
     settings.show_help = kain_env_flag("KAIN_NATIVE_SHOW_HELP", 1);
     settings.capture_mouse_on_launch = kain_env_flag("KAIN_NATIVE_CAPTURE_MOUSE", 1);
-    settings.particle_count = kain_env_int("KAIN_NATIVE_PARTICLE_COUNT", profile->particle_count);
-    settings.move_speed = kain_env_double("KAIN_NATIVE_MOVE_SPEED", profile->move_speed);
-    settings.sprint_multiplier = kain_env_double("KAIN_NATIVE_SPRINT_MULTIPLIER", profile->sprint_multiplier);
-    settings.jump_velocity = kain_env_double("KAIN_NATIVE_JUMP_VELOCITY", profile->jump_velocity);
-    settings.gravity = kain_env_double("KAIN_NATIVE_GRAVITY", profile->gravity);
-    settings.mouse_sensitivity = kain_env_double("KAIN_NATIVE_MOUSE_SENSITIVITY", profile->mouse_sensitivity);
-    settings.eye_height = kain_env_double("KAIN_NATIVE_EYE_HEIGHT", profile->eye_height);
-    settings.fog_density = kain_env_double("KAIN_NATIVE_FOG_DENSITY", profile->fog_density);
+    {
+        char* value = NULL;
+        value = kain_env_dup("KAIN_NATIVE_WINDOW_WIDTH");
+        settings.window_width = (value && value[0])
+            ? kain_env_int("KAIN_NATIVE_WINDOW_WIDTH", profile->default_width)
+            : profile->default_width;
+        kain_env_free(value);
+        value = kain_env_dup("KAIN_NATIVE_WINDOW_HEIGHT");
+        settings.window_height = (value && value[0])
+            ? kain_env_int("KAIN_NATIVE_WINDOW_HEIGHT", profile->default_height)
+            : profile->default_height;
+        kain_env_free(value);
+        value = kain_env_dup("KAIN_NATIVE_PARTICLE_COUNT");
+        settings.particle_count = (value && value[0])
+            ? kain_env_int("KAIN_NATIVE_PARTICLE_COUNT", profile->particle_count)
+            : profile->particle_count;
+        kain_env_free(value);
+        value = kain_env_dup("KAIN_NATIVE_MOVE_SPEED");
+        settings.move_speed = (value && value[0])
+            ? kain_env_double("KAIN_NATIVE_MOVE_SPEED", profile->move_speed)
+            : profile->move_speed;
+        kain_env_free(value);
+        value = kain_env_dup("KAIN_NATIVE_SPRINT_MULTIPLIER");
+        settings.sprint_multiplier = (value && value[0])
+            ? kain_env_double("KAIN_NATIVE_SPRINT_MULTIPLIER", profile->sprint_multiplier)
+            : profile->sprint_multiplier;
+        kain_env_free(value);
+        value = kain_env_dup("KAIN_NATIVE_JUMP_VELOCITY");
+        settings.jump_velocity = (value && value[0])
+            ? kain_env_double("KAIN_NATIVE_JUMP_VELOCITY", profile->jump_velocity)
+            : profile->jump_velocity;
+        kain_env_free(value);
+        value = kain_env_dup("KAIN_NATIVE_GRAVITY");
+        settings.gravity = (value && value[0])
+            ? kain_env_double("KAIN_NATIVE_GRAVITY", profile->gravity)
+            : profile->gravity;
+        kain_env_free(value);
+        value = kain_env_dup("KAIN_NATIVE_MOUSE_SENSITIVITY");
+        settings.mouse_sensitivity = (value && value[0])
+            ? kain_env_double("KAIN_NATIVE_MOUSE_SENSITIVITY", profile->mouse_sensitivity)
+            : profile->mouse_sensitivity;
+        kain_env_free(value);
+        value = kain_env_dup("KAIN_NATIVE_EYE_HEIGHT");
+        settings.eye_height = (value && value[0])
+            ? kain_env_double("KAIN_NATIVE_EYE_HEIGHT", profile->eye_height)
+            : profile->eye_height;
+        kain_env_free(value);
+        value = kain_env_dup("KAIN_NATIVE_FOG_DENSITY");
+        settings.fog_density = (value && value[0])
+            ? kain_env_double("KAIN_NATIVE_FOG_DENSITY", profile->fog_density)
+            : profile->fog_density;
+        kain_env_free(value);
+    }
     if (settings.window_width < 640) settings.window_width = 640;
     if (settings.window_height < 360) settings.window_height = 360;
     if (settings.particle_count < 24) settings.particle_count = 24;
     return settings;
+}
+
+static int kain_native_viewport_env_has_value(const char* name) {
+    char* value = kain_env_dup(name);
+    int has_value = value && value[0];
+    kain_env_free(value);
+    return has_value;
+}
+
+static void kain_native_viewport_apply_profile_defaults(
+    KainNativeViewportSettings* settings,
+    const KainViewportProfile* profile
+) {
+    if (!settings || !profile) {
+        return;
+    }
+    settings->profile = profile;
+    if (!kain_native_viewport_env_has_value("KAIN_NATIVE_WINDOW_WIDTH")) {
+        settings->window_width = profile->default_width;
+    }
+    if (!kain_native_viewport_env_has_value("KAIN_NATIVE_WINDOW_HEIGHT")) {
+        settings->window_height = profile->default_height;
+    }
+    if (!kain_native_viewport_env_has_value("KAIN_NATIVE_PARTICLE_COUNT")) {
+        settings->particle_count = profile->particle_count;
+    }
+    if (!kain_native_viewport_env_has_value("KAIN_NATIVE_MOVE_SPEED")) {
+        settings->move_speed = profile->move_speed;
+    }
+    if (!kain_native_viewport_env_has_value("KAIN_NATIVE_SPRINT_MULTIPLIER")) {
+        settings->sprint_multiplier = profile->sprint_multiplier;
+    }
+    if (!kain_native_viewport_env_has_value("KAIN_NATIVE_JUMP_VELOCITY")) {
+        settings->jump_velocity = profile->jump_velocity;
+    }
+    if (!kain_native_viewport_env_has_value("KAIN_NATIVE_GRAVITY")) {
+        settings->gravity = profile->gravity;
+    }
+    if (!kain_native_viewport_env_has_value("KAIN_NATIVE_MOUSE_SENSITIVITY")) {
+        settings->mouse_sensitivity = profile->mouse_sensitivity;
+    }
+    if (!kain_native_viewport_env_has_value("KAIN_NATIVE_EYE_HEIGHT")) {
+        settings->eye_height = profile->eye_height;
+    }
+    if (!kain_native_viewport_env_has_value("KAIN_NATIVE_FOG_DENSITY")) {
+        settings->fog_density = profile->fog_density;
+    }
+    if (settings->window_width < 640) settings->window_width = 640;
+    if (settings->window_height < 360) settings->window_height = 360;
+    if (settings->particle_count < 24) settings->particle_count = 24;
+}
+
+static void kain_native_viewport_apply_realtime_presentation(KainNativeViewportApp* app) {
+    const KainViewportProfile* profile = NULL;
+    if (!app || !app->realtime_bundle.loaded) {
+        return;
+    }
+    if (app->realtime_bundle.primary_presentation_has_profile) {
+        profile = kain_find_viewport_profile(app->realtime_bundle.primary_presentation_profile);
+        if (profile) {
+            kain_native_viewport_apply_profile_defaults(&app->settings, profile);
+        }
+    }
+    if (app->realtime_bundle.primary_presentation_has_fog_density &&
+        !kain_native_viewport_env_has_value("KAIN_NATIVE_FOG_DENSITY")) {
+        app->settings.fog_density =
+            app->realtime_bundle.primary_presentation_fog_density >= 0.0
+                ? app->realtime_bundle.primary_presentation_fog_density
+                : app->settings.fog_density;
+    }
+    if (app->realtime_bundle.primary_presentation_has_particle_budget &&
+        !kain_native_viewport_env_has_value("KAIN_NATIVE_PARTICLE_COUNT")) {
+        app->settings.particle_count = app->realtime_bundle.primary_presentation_particle_budget;
+        if (app->settings.particle_count < 24) {
+            app->settings.particle_count = 24;
+        }
+    }
+}
+
+static void kain_native_viewport_apply_realtime_camera(KainNativeViewportApp* app) {
+    double target_x;
+    double target_y;
+    double target_z;
+    double to_target_x;
+    double to_target_y;
+    double to_target_z;
+    double horizontal_distance;
+    if (!app || !app->realtime_bundle.loaded) {
+        return;
+    }
+    if (app->realtime_bundle.primary_camera_has_position) {
+        app->camera_x = app->realtime_bundle.primary_camera_position[0];
+        app->camera_y = app->realtime_bundle.primary_camera_position[1];
+        app->camera_z = app->realtime_bundle.primary_camera_position[2];
+    }
+    if (app->realtime_bundle.primary_camera_has_target) {
+        target_x = app->realtime_bundle.primary_camera_target[0];
+        target_y = app->realtime_bundle.primary_camera_target[1];
+        target_z = app->realtime_bundle.primary_camera_target[2];
+        to_target_x = target_x - app->camera_x;
+        to_target_y = target_y - app->camera_y;
+        to_target_z = target_z - app->camera_z;
+        horizontal_distance = sqrt((to_target_x * to_target_x) + (to_target_z * to_target_z));
+        if (horizontal_distance > 0.0001 || fabs(to_target_y) > 0.0001) {
+            app->yaw = atan2(to_target_x, -to_target_z);
+            app->pitch = atan2(to_target_y, horizontal_distance);
+            app->pitch = kain_clampd(app->pitch, -1.25, 1.25);
+        }
+    }
+    if (app->realtime_bundle.primary_camera_has_fov_y_degrees) {
+        app->camera_fov_y_degrees = kain_clampd(
+            app->realtime_bundle.primary_camera_fov_y_degrees,
+            1.0,
+            175.0
+        );
+    }
+    if (app->realtime_bundle.primary_camera_has_near_plane) {
+        app->camera_near_clip = kain_clampd(
+            app->realtime_bundle.primary_camera_near_plane,
+            0.001,
+            1000.0
+        );
+    }
+    if (app->realtime_bundle.primary_camera_has_far_plane) {
+        app->camera_far_clip = app->realtime_bundle.primary_camera_far_plane;
+    }
+    if (app->camera_far_clip <= app->camera_near_clip) {
+        app->camera_far_clip = app->camera_near_clip + 0.1;
+    }
 }
 
 static void kain_native_capture_mouse(KainNativeViewportApp* app, int capture) {
@@ -945,7 +1131,12 @@ static void kain_gl_render_frame(KainNativeViewportApp* app) {
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    kain_gl_perspective(72.0, (double)app->width / (double)app->height, 0.1, effective_far_clip);
+    kain_gl_perspective(
+        app->camera_fov_y_degrees,
+        (double)app->width / (double)app->height,
+        app->camera_near_clip,
+        effective_far_clip
+    );
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -1081,6 +1272,7 @@ static int kain_native_viewport_host_init(KainWin32AppHost* host, void* user_dat
         app->yaw = atan2(to_center_x, -to_center_z);
         app->pitch = -0.08;
     }
+    kain_native_viewport_apply_realtime_camera(app);
     if (app->settings.capture_mouse_on_launch) {
         kain_native_capture_mouse(app, 1);
     }
@@ -1260,7 +1452,9 @@ static void kain_run_native_viewport(double x, double y, const char* window_titl
     app.camera_z = 24.0 + y;
     app.yaw = 0.0;
     app.pitch = -0.14;
+    app.camera_near_clip = 0.1;
     app.camera_far_clip = 120.0;
+    app.camera_fov_y_degrees = 72.0;
     app.grounded = 1;
     if (app.compiled_ui.loaded && app.compiled_ui.window_title[0]) {
         resolved_window_title = app.compiled_ui.window_title;

@@ -85,6 +85,73 @@ static void kain_runtime_realtime_copy_cstr(char* out, size_t out_cap, const cha
     strncpy_s(out, out_cap, value, _TRUNCATE);
 }
 
+static int kain_runtime_graphics_text_equals_ci(const char* left, const char* right) {
+    if (!left || !right || !left[0] || !right[0]) {
+        return 0;
+    }
+    return _stricmp(left, right) == 0;
+}
+
+static int kain_runtime_graphics_inline_list_contains(
+    const char* list,
+    const char* value
+) {
+    const char* cursor;
+    size_t value_length;
+    if (!list || !value || !value[0]) {
+        return 0;
+    }
+    value_length = strlen(value);
+    cursor = list;
+    while (*cursor) {
+        const char* token_start = cursor;
+        const char* token_end = strstr(cursor, ", ");
+        size_t token_length;
+        if (!token_end) {
+            token_end = cursor + strlen(cursor);
+        }
+        token_length = (size_t)(token_end - token_start);
+        if (token_length == value_length &&
+            _strnicmp(token_start, value, value_length) == 0) {
+            return 1;
+        }
+        if (!*token_end) {
+            break;
+        }
+        cursor = token_end + 2;
+    }
+    return 0;
+}
+
+static void kain_runtime_graphics_append_inline(
+    char* out,
+    size_t out_cap,
+    const char* value
+) {
+    if (!out || out_cap == 0u || !value || !value[0]) {
+        return;
+    }
+    if (out[0]) {
+        strncat_s(out, out_cap, ", ", _TRUNCATE);
+    }
+    strncat_s(out, out_cap, value, _TRUNCATE);
+}
+
+static int kain_runtime_graphics_append_unique_key(
+    char* out,
+    size_t out_cap,
+    const char* value
+) {
+    if (!out || out_cap == 0u || !value || !value[0]) {
+        return 0;
+    }
+    if (kain_runtime_graphics_inline_list_contains(out, value)) {
+        return 0;
+    }
+    kain_runtime_graphics_append_inline(out, out_cap, value);
+    return 1;
+}
+
 static void kain_runtime_realtime_copy_string_value(
     const char* value_start,
     const char* scope_end,
@@ -570,6 +637,165 @@ static int kain_runtime_graphics_compute_neural_metadata_is_valid(
     return 1;
 }
 
+static KainRuntimeGraphicsPassKind kain_runtime_graphics_pass_kind_for_stage(
+    const char* stage
+) {
+    if (kain_runtime_graphics_text_equals_ci(stage, "compute")) {
+        return KAIN_RUNTIME_GRAPHICS_PASS_COMPUTE;
+    }
+    if (kain_runtime_graphics_text_equals_ci(stage, "present")) {
+        return KAIN_RUNTIME_GRAPHICS_PASS_PRESENT;
+    }
+    if (kain_runtime_graphics_text_equals_ci(stage, "transfer")) {
+        return KAIN_RUNTIME_GRAPHICS_PASS_TRANSFER;
+    }
+    if (stage && stage[0]) {
+        return KAIN_RUNTIME_GRAPHICS_PASS_RENDER;
+    }
+    return KAIN_RUNTIME_GRAPHICS_PASS_UNKNOWN;
+}
+
+static KainRuntimeGraphicsQueueKind kain_runtime_graphics_queue_kind_for_stage(
+    const char* stage
+) {
+    if (kain_runtime_graphics_text_equals_ci(stage, "compute")) {
+        return KAIN_RUNTIME_GRAPHICS_QUEUE_COMPUTE;
+    }
+    if (kain_runtime_graphics_text_equals_ci(stage, "present")) {
+        return KAIN_RUNTIME_GRAPHICS_QUEUE_PRESENT;
+    }
+    if (kain_runtime_graphics_text_equals_ci(stage, "transfer")) {
+        return KAIN_RUNTIME_GRAPHICS_QUEUE_TRANSFER;
+    }
+    if (stage && stage[0]) {
+        return KAIN_RUNTIME_GRAPHICS_QUEUE_GRAPHICS;
+    }
+    return KAIN_RUNTIME_GRAPHICS_QUEUE_UNKNOWN;
+}
+
+static KainRuntimeGraphicsResidencyKind kain_runtime_graphics_residency_kind_for_binding(
+    const KainRuntimeGraphicsBinding* binding
+) {
+    if (!binding) {
+        return KAIN_RUNTIME_GRAPHICS_RESIDENCY_UNKNOWN;
+    }
+    if (kain_runtime_graphics_text_equals_ci(binding->access, "write") ||
+        kain_runtime_graphics_text_equals_ci(binding->access, "read_write")) {
+        return KAIN_RUNTIME_GRAPHICS_RESIDENCY_GPU_ONLY;
+    }
+    if (kain_runtime_graphics_text_equals_ci(binding->resource_type, "uniform_buffer")) {
+        return KAIN_RUNTIME_GRAPHICS_RESIDENCY_CPU_TO_GPU;
+    }
+    if (kain_runtime_graphics_text_equals_ci(binding->access, "sample") ||
+        kain_runtime_graphics_text_equals_ci(binding->access, "read")) {
+        return KAIN_RUNTIME_GRAPHICS_RESIDENCY_CPU_TO_GPU;
+    }
+    return KAIN_RUNTIME_GRAPHICS_RESIDENCY_GPU_ONLY;
+}
+
+static unsigned long long kain_runtime_graphics_estimate_binding_bytes(
+    const KainRuntimeGraphicsBinding* binding,
+    const KainRuntimeGraphicsComputePlan* compute
+) {
+    unsigned long long dispatch_product = 1ull;
+    unsigned long long base_bytes = 256ull;
+    if (!binding) {
+        return 0ull;
+    }
+    if (compute && compute->loaded &&
+        compute->dispatch_size[0] > 0 &&
+        compute->dispatch_size[1] > 0 &&
+        compute->dispatch_size[2] > 0) {
+        dispatch_product =
+            (unsigned long long)compute->dispatch_size[0] *
+            (unsigned long long)compute->dispatch_size[1] *
+            (unsigned long long)compute->dispatch_size[2];
+    }
+    if (kain_runtime_graphics_text_equals_ci(binding->resource_type, "storage_buffer")) {
+        base_bytes = dispatch_product * 16ull;
+    } else if (kain_runtime_graphics_text_equals_ci(binding->resource_type, "sampled_texture")) {
+        base_bytes = 4096ull;
+    } else if (kain_runtime_graphics_text_equals_ci(binding->resource_type, "storage_texture")) {
+        base_bytes = dispatch_product * 8ull;
+    } else if (kain_runtime_graphics_text_equals_ci(binding->resource_type, "uniform_buffer")) {
+        base_bytes = 256ull;
+    }
+    if (kain_runtime_graphics_text_equals_ci(binding->access, "write")) {
+        base_bytes *= 2ull;
+    } else if (kain_runtime_graphics_text_equals_ci(binding->access, "read_write")) {
+        base_bytes *= 3ull;
+    }
+    return base_bytes;
+}
+
+static int kain_runtime_graphics_binding_is_read_access(
+    const KainRuntimeGraphicsBinding* binding
+) {
+    if (!binding) {
+        return 0;
+    }
+    return kain_runtime_graphics_text_equals_ci(binding->access, "read") ||
+        kain_runtime_graphics_text_equals_ci(binding->access, "sample") ||
+        kain_runtime_graphics_text_equals_ci(binding->access, "read_write");
+}
+
+static int kain_runtime_graphics_binding_is_write_access(
+    const KainRuntimeGraphicsBinding* binding
+) {
+    if (!binding) {
+        return 0;
+    }
+    return kain_runtime_graphics_text_equals_ci(binding->access, "write") ||
+        kain_runtime_graphics_text_equals_ci(binding->access, "read_write");
+}
+
+static int kain_runtime_graphics_collect_binding_keys(
+    const KainRuntimeGraphicsBinding* bindings,
+    int binding_count,
+    int include_reads,
+    int include_writes,
+    char* out,
+    size_t out_cap
+) {
+    int i;
+    int count = 0;
+    if (!out || out_cap == 0u) {
+        return 0;
+    }
+    out[0] = '\0';
+    if (!bindings || binding_count <= 0) {
+        return 0;
+    }
+    for (i = 0; i < binding_count; ++i) {
+        int include = 0;
+        if ((include_reads && kain_runtime_graphics_binding_is_read_access(&bindings[i])) ||
+            (include_writes && kain_runtime_graphics_binding_is_write_access(&bindings[i]))) {
+            include = 1;
+        }
+        if (include &&
+            kain_runtime_graphics_append_unique_key(out, out_cap, bindings[i].key)) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+static const KainRuntimeGraphicsBinding* kain_runtime_graphics_find_first_write_binding(
+    const KainRuntimeGraphicsBinding* bindings,
+    int binding_count
+) {
+    int i;
+    if (!bindings || binding_count <= 0) {
+        return NULL;
+    }
+    for (i = 0; i < binding_count; ++i) {
+        if (kain_runtime_graphics_binding_is_write_access(&bindings[i])) {
+            return &bindings[i];
+        }
+    }
+    return NULL;
+}
+
 static const char* kain_runtime_graphics_find_stage_object(
     const char* array_start,
     const char* array_end,
@@ -839,10 +1065,20 @@ int kain_runtime_realtime_load_from_json(const char* json, KainRuntimeRealtimeBu
     const char* shader_refs_end;
     const char* first_scene_start;
     const char* first_scene_end;
+    const char* camera_value;
+    const char* camera_end;
+    const char* camera_position_value;
+    const char* camera_position_end;
+    const char* camera_target_value;
+    const char* camera_target_end;
+    const char* presentation_value;
+    const char* presentation_end;
     const char* material_refs_value;
     const char* material_refs_end;
     const char* shader_keys_value;
     const char* shader_keys_end;
+    double camera_position_values[3] = {0.0, 0.0, 0.0};
+    double camera_target_values[3] = {0.0, 0.0, 0.0};
     if (!json || !bundle) {
         return 0;
     }
@@ -883,6 +1119,13 @@ int kain_runtime_realtime_load_from_json(const char* json, KainRuntimeRealtimeBu
                     kain_runtime_realtime_extract_string_field(
                         first_scene_start,
                         first_scene_end,
+                        "\"viewport_kind\"",
+                        bundle->primary_viewport_kind,
+                        sizeof(bundle->primary_viewport_kind)
+                    );
+                    kain_runtime_realtime_extract_string_field(
+                        first_scene_start,
+                        first_scene_end,
                         "\"scene\"",
                         bundle->primary_scene,
                         sizeof(bundle->primary_scene)
@@ -894,6 +1137,138 @@ int kain_runtime_realtime_load_from_json(const char* json, KainRuntimeRealtimeBu
                         bundle->primary_title,
                         sizeof(bundle->primary_title)
                     );
+
+                    camera_value = kain_runtime_realtime_find_value_start(
+                        first_scene_start,
+                        first_scene_end,
+                        "\"camera\""
+                    );
+                    if (camera_value && *camera_value == '{') {
+                        camera_end = kain_runtime_realtime_find_matching(
+                            camera_value,
+                            first_scene_end,
+                            '{',
+                            '}'
+                        );
+                        if (camera_end) {
+                            camera_position_value = kain_runtime_realtime_find_value_start(
+                                camera_value,
+                                camera_end,
+                                "\"position\""
+                            );
+                            if (camera_position_value && *camera_position_value == '[') {
+                                camera_position_end = kain_runtime_realtime_find_matching(
+                                    camera_position_value,
+                                    camera_end,
+                                    '[',
+                                    ']'
+                                );
+                                if (camera_position_end &&
+                                    kain_runtime_realtime_extract_number_array(
+                                        camera_position_value,
+                                        camera_position_end,
+                                        camera_position_values,
+                                        3
+                                    ) == 3) {
+                                    bundle->primary_camera_has_position = 1;
+                                    memcpy(
+                                        bundle->primary_camera_position,
+                                        camera_position_values,
+                                        sizeof(bundle->primary_camera_position)
+                                    );
+                                }
+                            }
+
+                            camera_target_value = kain_runtime_realtime_find_value_start(
+                                camera_value,
+                                camera_end,
+                                "\"target\""
+                            );
+                            if (camera_target_value && *camera_target_value == '[') {
+                                camera_target_end = kain_runtime_realtime_find_matching(
+                                    camera_target_value,
+                                    camera_end,
+                                    '[',
+                                    ']'
+                                );
+                                if (camera_target_end &&
+                                    kain_runtime_realtime_extract_number_array(
+                                        camera_target_value,
+                                        camera_target_end,
+                                        camera_target_values,
+                                        3
+                                    ) == 3) {
+                                    bundle->primary_camera_has_target = 1;
+                                    memcpy(
+                                        bundle->primary_camera_target,
+                                        camera_target_values,
+                                        sizeof(bundle->primary_camera_target)
+                                    );
+                                }
+                            }
+
+                            bundle->primary_camera_has_fov_y_degrees =
+                                kain_runtime_realtime_extract_double_field(
+                                    camera_value,
+                                    camera_end,
+                                    "\"fov_y_degrees\"",
+                                    &bundle->primary_camera_fov_y_degrees
+                                );
+                            bundle->primary_camera_has_near_plane =
+                                kain_runtime_realtime_extract_double_field(
+                                    camera_value,
+                                    camera_end,
+                                    "\"near_plane\"",
+                                    &bundle->primary_camera_near_plane
+                                );
+                            bundle->primary_camera_has_far_plane =
+                                kain_runtime_realtime_extract_double_field(
+                                    camera_value,
+                                    camera_end,
+                                    "\"far_plane\"",
+                                    &bundle->primary_camera_far_plane
+                                );
+                        }
+                    }
+
+                    presentation_value = kain_runtime_realtime_find_value_start(
+                        first_scene_start,
+                        first_scene_end,
+                        "\"presentation\""
+                    );
+                    if (presentation_value && *presentation_value == '{') {
+                        presentation_end = kain_runtime_realtime_find_matching(
+                            presentation_value,
+                            first_scene_end,
+                            '{',
+                            '}'
+                        );
+                        if (presentation_end) {
+                            kain_runtime_realtime_extract_string_field(
+                                presentation_value,
+                                presentation_end,
+                                "\"profile\"",
+                                bundle->primary_presentation_profile,
+                                sizeof(bundle->primary_presentation_profile)
+                            );
+                            bundle->primary_presentation_has_profile =
+                                bundle->primary_presentation_profile[0] != '\0';
+                            bundle->primary_presentation_has_fog_density =
+                                kain_runtime_realtime_extract_double_field(
+                                    presentation_value,
+                                    presentation_end,
+                                    "\"fog_density\"",
+                                    &bundle->primary_presentation_fog_density
+                                );
+                            bundle->primary_presentation_has_particle_budget =
+                                kain_runtime_realtime_extract_int_field(
+                                    presentation_value,
+                                    presentation_end,
+                                    "\"particle_budget\"",
+                                    &bundle->primary_presentation_particle_budget
+                                );
+                        }
+                    }
 
                     material_refs_value = kain_runtime_realtime_find_value_start(
                         first_scene_start,
@@ -1063,11 +1438,900 @@ int kain_runtime_realtime_load_for_current_process(
     return 0;
 }
 
+static int kain_runtime_graphics_render_graph_has_pass(
+    const KainRuntimeGraphicsRenderGraphContract* contract,
+    const char* key
+) {
+    int i;
+    if (!contract || !key || !key[0]) {
+        return 0;
+    }
+    for (i = 0; i < contract->pass_count; ++i) {
+        if (contract->passes[i].loaded &&
+            strcmp(contract->passes[i].key, key) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static KainRuntimeGraphicsResidencyResourceDescriptor*
+kain_runtime_graphics_find_residency_resource(
+    KainRuntimeGraphicsResidencyContract* contract,
+    const char* key
+) {
+    int i;
+    if (!contract || !key || !key[0]) {
+        return NULL;
+    }
+    for (i = 0; i < contract->resource_count; ++i) {
+        if (contract->resources[i].loaded &&
+            strcmp(contract->resources[i].key, key) == 0) {
+            return &contract->resources[i];
+        }
+    }
+    return NULL;
+}
+
+static const char* kain_runtime_graphics_descriptor_kind_for_binding(
+    const KainRuntimeGraphicsBinding* binding
+) {
+    if (!binding) {
+        return "resource";
+    }
+    if (kain_runtime_graphics_text_equals_ci(binding->resource_type, "storage_buffer")) {
+        return "storage_buffer";
+    }
+    if (kain_runtime_graphics_text_equals_ci(binding->resource_type, "storage_texture")) {
+        return "storage_texture";
+    }
+    if (kain_runtime_graphics_text_equals_ci(binding->resource_type, "sampled_texture")) {
+        return "sampled_texture";
+    }
+    if (kain_runtime_graphics_text_equals_ci(binding->resource_type, "uniform_buffer")) {
+        return "uniform_buffer";
+    }
+    return binding->resource_type[0] ? binding->resource_type : "resource";
+}
+
+static const char* kain_runtime_graphics_residency_role_for_binding(
+    const KainRuntimeGraphicsBinding* binding
+) {
+    if (!binding) {
+        return "resource";
+    }
+    if (kain_runtime_graphics_text_equals_ci(binding->access, "read")) {
+        return "required_input";
+    }
+    if (kain_runtime_graphics_text_equals_ci(binding->access, "sample")) {
+        return "sampled_input";
+    }
+    if (kain_runtime_graphics_text_equals_ci(binding->access, "write")) {
+        return "required_output";
+    }
+    if (kain_runtime_graphics_text_equals_ci(binding->access, "read_write")) {
+        return "scratch_state";
+    }
+    return "resource";
+}
+
+static void kain_runtime_graphics_merge_access_mode(
+    char* access_mode,
+    size_t access_mode_cap,
+    const char* incoming_access
+) {
+    if (!access_mode || access_mode_cap == 0u || !incoming_access || !incoming_access[0]) {
+        return;
+    }
+    if (!access_mode[0]) {
+        kain_runtime_realtime_copy_cstr(access_mode, access_mode_cap, incoming_access);
+        return;
+    }
+    if (kain_runtime_graphics_text_equals_ci(access_mode, incoming_access)) {
+        return;
+    }
+    kain_runtime_realtime_copy_cstr(access_mode, access_mode_cap, "read_write");
+}
+
+static void kain_runtime_graphics_collect_residency_resource_keys(
+    const KainRuntimeGraphicsResidencyContract* contract,
+    char* out,
+    size_t out_cap
+) {
+    int i;
+    if (!out || out_cap == 0u) {
+        return;
+    }
+    out[0] = '\0';
+    if (!contract) {
+        return;
+    }
+    for (i = 0; i < contract->resource_count; ++i) {
+        if (contract->resources[i].loaded) {
+            kain_runtime_graphics_append_unique_key(
+                out,
+                out_cap,
+                contract->resources[i].key
+            );
+        }
+    }
+}
+
+static void kain_runtime_graphics_add_residency_binding(
+    KainRuntimeGraphicsResidencyContract* contract,
+    const KainRuntimeGraphicsBinding* binding,
+    const KainRuntimeGraphicsComputePlan* compute
+) {
+    KainRuntimeGraphicsResidencyResourceDescriptor* resource;
+    unsigned long long estimated_bytes;
+    if (!contract || !binding || !binding->key[0]) {
+        return;
+    }
+    resource = kain_runtime_graphics_find_residency_resource(contract, binding->key);
+    if (!resource) {
+        if (contract->resource_count >= KAIN_RUNTIME_GRAPHICS_MAX_RESIDENCY_RESOURCES) {
+            return;
+        }
+        resource = &contract->resources[contract->resource_count++];
+        ZeroMemory(resource, sizeof(*resource));
+        resource->loaded = 1;
+        kain_runtime_realtime_copy_cstr(resource->key, sizeof(resource->key), binding->key);
+        kain_runtime_realtime_copy_cstr(
+            resource->descriptor_kind,
+            sizeof(resource->descriptor_kind),
+            kain_runtime_graphics_descriptor_kind_for_binding(binding)
+        );
+        kain_runtime_realtime_copy_cstr(resource->stage, sizeof(resource->stage), binding->stage);
+        resource->slot = binding->slot;
+        resource->gpu_resident = 1;
+    }
+    estimated_bytes = kain_runtime_graphics_estimate_binding_bytes(binding, compute);
+    kain_runtime_graphics_merge_access_mode(
+        resource->access_mode,
+        sizeof(resource->access_mode),
+        binding->access
+    );
+    if (!resource->residency_role[0] ||
+        kain_runtime_graphics_text_equals_ci(resource->residency_role, "required_input")) {
+        kain_runtime_realtime_copy_cstr(
+            resource->residency_role,
+            sizeof(resource->residency_role),
+            kain_runtime_graphics_residency_role_for_binding(binding)
+        );
+    }
+    if (!resource->stage[0]) {
+        kain_runtime_realtime_copy_cstr(resource->stage, sizeof(resource->stage), binding->stage);
+    }
+    if (estimated_bytes > resource->byte_length) {
+        resource->byte_length = estimated_bytes;
+    }
+    resource->residency_kind = kain_runtime_graphics_residency_kind_for_binding(binding);
+    resource->cpu_visible =
+        resource->residency_kind == KAIN_RUNTIME_GRAPHICS_RESIDENCY_CPU_TO_GPU ||
+        resource->residency_kind == KAIN_RUNTIME_GRAPHICS_RESIDENCY_READBACK;
+    resource->transient_resource =
+        kain_runtime_graphics_text_equals_ci(resource->residency_role, "scratch_state");
+}
+
+static int kain_runtime_graphics_count_schedule_queues(
+    const KainRuntimeGraphicsComputeSchedule* schedule
+) {
+    int seen_graphics = 0;
+    int seen_compute = 0;
+    int seen_transfer = 0;
+    int seen_present = 0;
+    int i;
+    if (!schedule) {
+        return 0;
+    }
+    for (i = 0; i < schedule->step_count; ++i) {
+        if (!schedule->steps[i].loaded) {
+            continue;
+        }
+        if (schedule->steps[i].queue == KAIN_RUNTIME_GRAPHICS_QUEUE_GRAPHICS) {
+            seen_graphics = 1;
+        } else if (schedule->steps[i].queue == KAIN_RUNTIME_GRAPHICS_QUEUE_COMPUTE) {
+            seen_compute = 1;
+        } else if (schedule->steps[i].queue == KAIN_RUNTIME_GRAPHICS_QUEUE_TRANSFER) {
+            seen_transfer = 1;
+        } else if (schedule->steps[i].queue == KAIN_RUNTIME_GRAPHICS_QUEUE_PRESENT) {
+            seen_present = 1;
+        }
+    }
+    return seen_graphics + seen_compute + seen_transfer + seen_present;
+}
+
+void kain_runtime_graphics_render_graph_init(KainRuntimeGraphicsRenderGraphContract* contract) {
+    if (!contract) {
+        return;
+    }
+    ZeroMemory(contract, sizeof(*contract));
+}
+
+void kain_runtime_graphics_residency_init(KainRuntimeGraphicsResidencyContract* contract) {
+    if (!contract) {
+        return;
+    }
+    ZeroMemory(contract, sizeof(*contract));
+}
+
+void kain_runtime_graphics_compute_schedule_init(KainRuntimeGraphicsComputeSchedule* schedule) {
+    if (!schedule) {
+        return;
+    }
+    ZeroMemory(schedule, sizeof(*schedule));
+}
+
+int kain_runtime_graphics_render_graph_is_valid(
+    const KainRuntimeGraphicsRenderGraphContract* contract
+) {
+    int i;
+    int has_attachment_consumer = 0;
+    int primary_pass_found = 0;
+    int requires_attachment = 0;
+    if (!contract || !contract->loaded ||
+        contract->pass_count <= 0 ||
+        contract->pass_count > KAIN_RUNTIME_GRAPHICS_MAX_RENDER_PASSES ||
+        contract->attachment_count < 0 ||
+        contract->attachment_count > KAIN_RUNTIME_GRAPHICS_MAX_RENDER_ATTACHMENTS ||
+        contract->dependency_count < 0 ||
+        contract->dependency_count > KAIN_RUNTIME_GRAPHICS_MAX_RENDER_DEPENDENCIES) {
+        return 0;
+    }
+    for (i = 0; i < contract->pass_count; ++i) {
+        const KainRuntimeGraphicsRenderPassDescriptor* pass = &contract->passes[i];
+        if (!pass->loaded || !pass->key[0] ||
+            pass->kind == KAIN_RUNTIME_GRAPHICS_PASS_UNKNOWN ||
+            pass->queue == KAIN_RUNTIME_GRAPHICS_QUEUE_UNKNOWN) {
+            return 0;
+        }
+        if (pass->kind == KAIN_RUNTIME_GRAPHICS_PASS_RENDER ||
+            pass->kind == KAIN_RUNTIME_GRAPHICS_PASS_PRESENT) {
+            requires_attachment = 1;
+        }
+        if (strcmp(pass->key, contract->primary_pass_key) == 0) {
+            primary_pass_found = 1;
+        }
+    }
+    for (i = 0; i < contract->attachment_count; ++i) {
+        const KainRuntimeGraphicsAttachmentDescriptor* attachment = &contract->attachments[i];
+        if (!attachment->loaded || !attachment->key[0] ||
+            attachment->kind == KAIN_RUNTIME_GRAPHICS_ATTACHMENT_UNKNOWN ||
+            attachment->lifetime == KAIN_RUNTIME_GRAPHICS_LIFETIME_UNKNOWN) {
+            return 0;
+        }
+        if (attachment->producer_pass[0] &&
+            !kain_runtime_graphics_render_graph_has_pass(contract, attachment->producer_pass)) {
+            return 0;
+        }
+        has_attachment_consumer = 1;
+    }
+    for (i = 0; i < contract->dependency_count; ++i) {
+        const KainRuntimeGraphicsRenderDependencyDescriptor* dependency =
+            &contract->dependencies[i];
+        if (!dependency->loaded ||
+            !dependency->from_pass[0] ||
+            !dependency->to_pass[0] ||
+            dependency->barrier_kind == KAIN_RUNTIME_GRAPHICS_BARRIER_UNKNOWN ||
+            !kain_runtime_graphics_render_graph_has_pass(contract, dependency->from_pass) ||
+            !kain_runtime_graphics_render_graph_has_pass(contract, dependency->to_pass)) {
+            return 0;
+        }
+    }
+    return primary_pass_found && (!requires_attachment || has_attachment_consumer);
+}
+
+int kain_runtime_graphics_residency_is_valid(
+    const KainRuntimeGraphicsResidencyContract* contract
+) {
+    int i;
+    if (!contract || !contract->loaded ||
+        contract->resource_count <= 0 ||
+        contract->resource_count > KAIN_RUNTIME_GRAPHICS_MAX_RESIDENCY_RESOURCES) {
+        return 0;
+    }
+    for (i = 0; i < contract->resource_count; ++i) {
+        const KainRuntimeGraphicsResidencyResourceDescriptor* resource =
+            &contract->resources[i];
+        if (!resource->loaded || !resource->key[0] ||
+            !resource->descriptor_kind[0] ||
+            !resource->access_mode[0] ||
+            !resource->residency_role[0] ||
+            resource->residency_kind == KAIN_RUNTIME_GRAPHICS_RESIDENCY_UNKNOWN ||
+            resource->slot < 0 ||
+            resource->byte_length <= 0ull) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int kain_runtime_graphics_compute_schedule_is_valid(
+    const KainRuntimeGraphicsComputeSchedule* schedule
+) {
+    int i;
+    int primary_step_found = 0;
+    if (!schedule || !schedule->loaded ||
+        schedule->step_count <= 0 ||
+        schedule->step_count > KAIN_RUNTIME_GRAPHICS_MAX_SCHEDULE_STEPS ||
+        schedule->barrier_count < 0 ||
+        schedule->barrier_count > KAIN_RUNTIME_GRAPHICS_MAX_SCHEDULE_BARRIERS) {
+        return 0;
+    }
+    for (i = 0; i < schedule->step_count; ++i) {
+        const KainRuntimeGraphicsScheduleStepDescriptor* step = &schedule->steps[i];
+        if (!step->loaded || !step->key[0] ||
+            step->queue == KAIN_RUNTIME_GRAPHICS_QUEUE_UNKNOWN) {
+            return 0;
+        }
+        if (step->dispatch_size[0] < 0 || step->dispatch_size[1] < 0 ||
+            step->dispatch_size[2] < 0 || step->workgroup_size[0] < 0 ||
+            step->workgroup_size[1] < 0 || step->workgroup_size[2] < 0) {
+            return 0;
+        }
+        if (strcmp(step->key, schedule->primary_step_key) == 0) {
+            primary_step_found = 1;
+        }
+    }
+    for (i = 0; i < schedule->barrier_count; ++i) {
+        const KainRuntimeGraphicsScheduleBarrierDescriptor* barrier =
+            &schedule->barriers[i];
+        if (!barrier->loaded || !barrier->key[0] ||
+            !barrier->from_step[0] || !barrier->to_step[0] ||
+            barrier->barrier_kind == KAIN_RUNTIME_GRAPHICS_BARRIER_UNKNOWN) {
+            return 0;
+        }
+    }
+    return primary_step_found;
+}
+
+static void kain_runtime_graphics_synthesize_render_graph(
+    KainRuntimeGraphicsBundle* bundle
+) {
+    KainRuntimeGraphicsRenderGraphContract* contract;
+    int has_render_scene;
+    int has_compute_plan;
+    const KainRuntimeGraphicsBinding* storage_output;
+    if (!bundle) {
+        return;
+    }
+    contract = &bundle->render_graph;
+    kain_runtime_graphics_render_graph_init(contract);
+    contract->loaded = 1;
+    contract->synthesized_from_bundle = 1;
+    has_render_scene = bundle->scene_count > 0 && bundle->primary_scene[0];
+    has_compute_plan =
+        bundle->shader_compute_ref_count > 0 &&
+        bundle->primary_compute.loaded &&
+        bundle->primary_compute.shader_key[0];
+
+    if (has_compute_plan && contract->pass_count < KAIN_RUNTIME_GRAPHICS_MAX_RENDER_PASSES) {
+        KainRuntimeGraphicsRenderPassDescriptor* pass =
+            &contract->passes[contract->pass_count++];
+        ZeroMemory(pass, sizeof(*pass));
+        pass->loaded = 1;
+        pass->kind = KAIN_RUNTIME_GRAPHICS_PASS_COMPUTE;
+        pass->queue = KAIN_RUNTIME_GRAPHICS_QUEUE_COMPUTE;
+        pass->async_capable = 1;
+        pass->read_count = kain_runtime_graphics_collect_binding_keys(
+            bundle->primary_compute.resource_bindings,
+            bundle->primary_compute.resource_binding_count,
+            1,
+            0,
+            pass->reads,
+            sizeof(pass->reads)
+        );
+        pass->write_count = kain_runtime_graphics_collect_binding_keys(
+            bundle->primary_compute.resource_bindings,
+            bundle->primary_compute.resource_binding_count,
+            0,
+            1,
+            pass->writes,
+            sizeof(pass->writes)
+        );
+        kain_runtime_realtime_copy_cstr(pass->key, sizeof(pass->key), "primary_compute");
+        kain_runtime_realtime_copy_cstr(
+            pass->label,
+            sizeof(pass->label),
+            bundle->primary_compute.module_name[0]
+                ? bundle->primary_compute.module_name
+                : "Primary Compute"
+        );
+        kain_runtime_realtime_copy_cstr(
+            pass->capture_hook,
+            sizeof(pass->capture_hook),
+            "compute_dispatch"
+        );
+        contract->capture_hook_count += 1;
+    }
+
+    if (has_render_scene && contract->pass_count < KAIN_RUNTIME_GRAPHICS_MAX_RENDER_PASSES) {
+        KainRuntimeGraphicsRenderPassDescriptor* pass =
+            &contract->passes[contract->pass_count++];
+        ZeroMemory(pass, sizeof(*pass));
+        pass->loaded = 1;
+        pass->kind = KAIN_RUNTIME_GRAPHICS_PASS_RENDER;
+        pass->queue = KAIN_RUNTIME_GRAPHICS_QUEUE_GRAPHICS;
+        pass->read_count = kain_runtime_graphics_collect_binding_keys(
+            bundle->primary_material.resource_bindings,
+            bundle->primary_material.resource_binding_count,
+            1,
+            0,
+            pass->reads,
+            sizeof(pass->reads)
+        );
+        kain_runtime_graphics_append_unique_key(
+            pass->writes,
+            sizeof(pass->writes),
+            "color_target"
+        );
+        kain_runtime_graphics_append_unique_key(
+            pass->writes,
+            sizeof(pass->writes),
+            "depth_target"
+        );
+        pass->write_count = 2;
+        kain_runtime_realtime_copy_cstr(pass->key, sizeof(pass->key), "primary_scene_render");
+        kain_runtime_realtime_copy_cstr(
+            pass->label,
+            sizeof(pass->label),
+            bundle->primary_title[0] ? bundle->primary_title : "Primary Scene Render"
+        );
+        kain_runtime_realtime_copy_cstr(
+            pass->capture_hook,
+            sizeof(pass->capture_hook),
+            "viewport_frame"
+        );
+        contract->capture_hook_count += 1;
+    }
+
+    if (has_render_scene && contract->pass_count < KAIN_RUNTIME_GRAPHICS_MAX_RENDER_PASSES) {
+        KainRuntimeGraphicsRenderPassDescriptor* pass =
+            &contract->passes[contract->pass_count++];
+        ZeroMemory(pass, sizeof(*pass));
+        pass->loaded = 1;
+        pass->kind = KAIN_RUNTIME_GRAPHICS_PASS_PRESENT;
+        pass->queue = KAIN_RUNTIME_GRAPHICS_QUEUE_PRESENT;
+        pass->read_count = 1;
+        pass->write_count = 1;
+        kain_runtime_realtime_copy_cstr(pass->key, sizeof(pass->key), "present");
+        kain_runtime_realtime_copy_cstr(pass->label, sizeof(pass->label), "Present Viewport");
+        kain_runtime_realtime_copy_cstr(pass->reads, sizeof(pass->reads), "color_target");
+        kain_runtime_realtime_copy_cstr(pass->writes, sizeof(pass->writes), "swapchain_target");
+        kain_runtime_realtime_copy_cstr(
+            pass->capture_hook,
+            sizeof(pass->capture_hook),
+            "present_swapchain"
+        );
+        contract->capture_hook_count += 1;
+    }
+
+    if (has_render_scene && contract->attachment_count + 3 <=
+        KAIN_RUNTIME_GRAPHICS_MAX_RENDER_ATTACHMENTS) {
+        KainRuntimeGraphicsAttachmentDescriptor* attachment;
+
+        attachment = &contract->attachments[contract->attachment_count++];
+        ZeroMemory(attachment, sizeof(*attachment));
+        attachment->loaded = 1;
+        attachment->kind = KAIN_RUNTIME_GRAPHICS_ATTACHMENT_COLOR;
+        attachment->lifetime = KAIN_RUNTIME_GRAPHICS_LIFETIME_FRAME_TRANSIENT;
+        attachment->transient_attachment = 1;
+        attachment->consumer_count = 2;
+        kain_runtime_realtime_copy_cstr(attachment->key, sizeof(attachment->key), "color_target");
+        kain_runtime_realtime_copy_cstr(attachment->format, sizeof(attachment->format), "rgba8_unorm");
+        kain_runtime_realtime_copy_cstr(
+            attachment->producer_pass,
+            sizeof(attachment->producer_pass),
+            "primary_scene_render"
+        );
+        kain_runtime_realtime_copy_cstr(
+            attachment->consumer_passes,
+            sizeof(attachment->consumer_passes),
+            "primary_scene_render, present"
+        );
+
+        attachment = &contract->attachments[contract->attachment_count++];
+        ZeroMemory(attachment, sizeof(*attachment));
+        attachment->loaded = 1;
+        attachment->kind = KAIN_RUNTIME_GRAPHICS_ATTACHMENT_DEPTH;
+        attachment->lifetime = KAIN_RUNTIME_GRAPHICS_LIFETIME_FRAME_TRANSIENT;
+        attachment->transient_attachment = 1;
+        attachment->consumer_count = 1;
+        kain_runtime_realtime_copy_cstr(attachment->key, sizeof(attachment->key), "depth_target");
+        kain_runtime_realtime_copy_cstr(attachment->format, sizeof(attachment->format), "depth24");
+        kain_runtime_realtime_copy_cstr(
+            attachment->producer_pass,
+            sizeof(attachment->producer_pass),
+            "primary_scene_render"
+        );
+        kain_runtime_realtime_copy_cstr(
+            attachment->consumer_passes,
+            sizeof(attachment->consumer_passes),
+            "primary_scene_render"
+        );
+
+        attachment = &contract->attachments[contract->attachment_count++];
+        ZeroMemory(attachment, sizeof(*attachment));
+        attachment->loaded = 1;
+        attachment->kind = KAIN_RUNTIME_GRAPHICS_ATTACHMENT_SWAPCHAIN;
+        attachment->lifetime = KAIN_RUNTIME_GRAPHICS_LIFETIME_IMPORTED;
+        attachment->consumer_count = 1;
+        kain_runtime_realtime_copy_cstr(
+            attachment->key,
+            sizeof(attachment->key),
+            "swapchain_target"
+        );
+        kain_runtime_realtime_copy_cstr(
+            attachment->format,
+            sizeof(attachment->format),
+            "bgra8_unorm"
+        );
+        kain_runtime_realtime_copy_cstr(
+            attachment->producer_pass,
+            sizeof(attachment->producer_pass),
+            "present"
+        );
+        kain_runtime_realtime_copy_cstr(
+            attachment->consumer_passes,
+            sizeof(attachment->consumer_passes),
+            "present"
+        );
+    }
+
+    storage_output = kain_runtime_graphics_find_first_write_binding(
+        bundle->primary_compute.resource_bindings,
+        bundle->primary_compute.resource_binding_count
+    );
+    if (storage_output &&
+        contract->attachment_count < KAIN_RUNTIME_GRAPHICS_MAX_RENDER_ATTACHMENTS) {
+        KainRuntimeGraphicsAttachmentDescriptor* attachment =
+            &contract->attachments[contract->attachment_count++];
+        ZeroMemory(attachment, sizeof(*attachment));
+        attachment->loaded = 1;
+        attachment->kind = KAIN_RUNTIME_GRAPHICS_ATTACHMENT_STORAGE;
+        attachment->lifetime = KAIN_RUNTIME_GRAPHICS_LIFETIME_PERSISTENT;
+        attachment->consumer_count = has_render_scene ? 2 : 1;
+        kain_runtime_realtime_copy_cstr(
+            attachment->key,
+            sizeof(attachment->key),
+            storage_output->key
+        );
+        kain_runtime_realtime_copy_cstr(
+            attachment->format,
+            sizeof(attachment->format),
+            storage_output->resource_type
+        );
+        kain_runtime_realtime_copy_cstr(
+            attachment->producer_pass,
+            sizeof(attachment->producer_pass),
+            "primary_compute"
+        );
+        kain_runtime_realtime_copy_cstr(
+            attachment->consumer_passes,
+            sizeof(attachment->consumer_passes),
+            has_render_scene ? "primary_compute, primary_scene_render" : "primary_compute"
+        );
+    }
+
+    if (has_compute_plan && has_render_scene &&
+        contract->dependency_count < KAIN_RUNTIME_GRAPHICS_MAX_RENDER_DEPENDENCIES) {
+        KainRuntimeGraphicsRenderDependencyDescriptor* dependency =
+            &contract->dependencies[contract->dependency_count++];
+        ZeroMemory(dependency, sizeof(*dependency));
+        dependency->loaded = 1;
+        dependency->barrier_kind = KAIN_RUNTIME_GRAPHICS_BARRIER_BUFFER;
+        kain_runtime_realtime_copy_cstr(
+            dependency->from_pass,
+            sizeof(dependency->from_pass),
+            "primary_compute"
+        );
+        kain_runtime_realtime_copy_cstr(
+            dependency->to_pass,
+            sizeof(dependency->to_pass),
+            "primary_scene_render"
+        );
+        kain_runtime_realtime_copy_cstr(
+            dependency->reason,
+            sizeof(dependency->reason),
+            "publish compute outputs to the render scene"
+        );
+    }
+
+    if (has_render_scene &&
+        contract->dependency_count < KAIN_RUNTIME_GRAPHICS_MAX_RENDER_DEPENDENCIES) {
+        KainRuntimeGraphicsRenderDependencyDescriptor* dependency =
+            &contract->dependencies[contract->dependency_count++];
+        ZeroMemory(dependency, sizeof(*dependency));
+        dependency->loaded = 1;
+        dependency->barrier_kind = KAIN_RUNTIME_GRAPHICS_BARRIER_TEXTURE;
+        kain_runtime_realtime_copy_cstr(
+            dependency->from_pass,
+            sizeof(dependency->from_pass),
+            "primary_scene_render"
+        );
+        kain_runtime_realtime_copy_cstr(
+            dependency->to_pass,
+            sizeof(dependency->to_pass),
+            "present"
+        );
+        kain_runtime_realtime_copy_cstr(
+            dependency->reason,
+            sizeof(dependency->reason),
+            "present rendered color output"
+        );
+    }
+
+    if (has_compute_plan) {
+        kain_runtime_realtime_copy_cstr(
+            contract->primary_pass_key,
+            sizeof(contract->primary_pass_key),
+            "primary_compute"
+        );
+    } else if (has_render_scene) {
+        kain_runtime_realtime_copy_cstr(
+            contract->primary_pass_key,
+            sizeof(contract->primary_pass_key),
+            "primary_scene_render"
+        );
+    }
+}
+
+static void kain_runtime_graphics_synthesize_residency(
+    KainRuntimeGraphicsBundle* bundle
+) {
+    KainRuntimeGraphicsResidencyContract* contract;
+    int i;
+    if (!bundle) {
+        return;
+    }
+    contract = &bundle->residency;
+    kain_runtime_graphics_residency_init(contract);
+    contract->loaded = 1;
+    contract->synthesized_from_bundle = 1;
+
+    for (i = 0; i < bundle->primary_material.resource_binding_count; ++i) {
+        kain_runtime_graphics_add_residency_binding(
+            contract,
+            &bundle->primary_material.resource_bindings[i],
+            NULL
+        );
+    }
+    for (i = 0; i < bundle->primary_compute.resource_binding_count; ++i) {
+        kain_runtime_graphics_add_residency_binding(
+            contract,
+            &bundle->primary_compute.resource_bindings[i],
+            &bundle->primary_compute
+        );
+    }
+
+    contract->async_stream_count = bundle->primary_compute.stream_binding_count;
+    contract->estimated_bytes = 0ull;
+    contract->transient_pool_count = 0;
+    contract->transient_pool_bytes = 0ull;
+    for (i = 0; i < contract->resource_count; ++i) {
+        contract->estimated_bytes += contract->resources[i].byte_length;
+        if (contract->resources[i].transient_resource) {
+            contract->resources[i].residency_kind =
+                KAIN_RUNTIME_GRAPHICS_RESIDENCY_TRANSIENT_POOL;
+            contract->transient_pool_count += 1;
+            contract->transient_pool_bytes += contract->resources[i].byte_length;
+        }
+    }
+}
+
+static void kain_runtime_graphics_synthesize_compute_schedule(
+    KainRuntimeGraphicsBundle* bundle
+) {
+    KainRuntimeGraphicsComputeSchedule* schedule;
+    int has_render_scene;
+    int has_compute_plan;
+    char residency_keys[KAIN_RUNTIME_GRAPHICS_MAX_INLINE];
+    if (!bundle) {
+        return;
+    }
+    schedule = &bundle->primary_schedule;
+    kain_runtime_graphics_compute_schedule_init(schedule);
+    schedule->loaded = 1;
+    schedule->synthesized_from_bundle = 1;
+    has_render_scene = bundle->scene_count > 0 && bundle->primary_scene[0];
+    has_compute_plan =
+        bundle->shader_compute_ref_count > 0 &&
+        bundle->primary_compute.loaded &&
+        bundle->primary_compute.shader_key[0];
+    kain_runtime_graphics_collect_residency_resource_keys(
+        &bundle->residency,
+        residency_keys,
+        sizeof(residency_keys)
+    );
+
+    if (bundle->residency.resource_count > 0 &&
+        schedule->step_count < KAIN_RUNTIME_GRAPHICS_MAX_SCHEDULE_STEPS) {
+        KainRuntimeGraphicsScheduleStepDescriptor* step =
+            &schedule->steps[schedule->step_count++];
+        ZeroMemory(step, sizeof(*step));
+        step->loaded = 1;
+        step->queue = KAIN_RUNTIME_GRAPHICS_QUEUE_TRANSFER;
+        step->async_capable = 1;
+        step->resource_count = bundle->residency.resource_count;
+        kain_runtime_realtime_copy_cstr(step->key, sizeof(step->key), "prepare_residency");
+        kain_runtime_realtime_copy_cstr(
+            step->label,
+            sizeof(step->label),
+            "Prepare Residency"
+        );
+        kain_runtime_realtime_copy_cstr(
+            step->resource_keys,
+            sizeof(step->resource_keys),
+            residency_keys
+        );
+    }
+
+    if (has_compute_plan &&
+        schedule->step_count < KAIN_RUNTIME_GRAPHICS_MAX_SCHEDULE_STEPS) {
+        KainRuntimeGraphicsScheduleStepDescriptor* step =
+            &schedule->steps[schedule->step_count++];
+        ZeroMemory(step, sizeof(*step));
+        step->loaded = 1;
+        step->queue = KAIN_RUNTIME_GRAPHICS_QUEUE_COMPUTE;
+        step->async_capable = 1;
+        step->resource_count = kain_runtime_graphics_collect_binding_keys(
+            bundle->primary_compute.resource_bindings,
+            bundle->primary_compute.resource_binding_count,
+            1,
+            1,
+            step->resource_keys,
+            sizeof(step->resource_keys)
+        );
+        step->dispatch_size[0] = bundle->primary_compute.dispatch_size[0];
+        step->dispatch_size[1] = bundle->primary_compute.dispatch_size[1];
+        step->dispatch_size[2] = bundle->primary_compute.dispatch_size[2];
+        step->workgroup_size[0] = bundle->primary_compute.workgroup_size[0];
+        step->workgroup_size[1] = bundle->primary_compute.workgroup_size[1];
+        step->workgroup_size[2] = bundle->primary_compute.workgroup_size[2];
+        kain_runtime_realtime_copy_cstr(step->key, sizeof(step->key), "primary_compute");
+        kain_runtime_realtime_copy_cstr(
+            step->label,
+            sizeof(step->label),
+            bundle->primary_compute.module_name[0]
+                ? bundle->primary_compute.module_name
+                : "Primary Compute"
+        );
+        kain_runtime_realtime_copy_cstr(
+            step->shader_key,
+            sizeof(step->shader_key),
+            bundle->primary_compute.shader_key
+        );
+        kain_runtime_realtime_copy_cstr(
+            schedule->primary_step_key,
+            sizeof(schedule->primary_step_key),
+            step->key
+        );
+    }
+
+    if (has_render_scene && has_compute_plan &&
+        schedule->step_count < KAIN_RUNTIME_GRAPHICS_MAX_SCHEDULE_STEPS) {
+        KainRuntimeGraphicsScheduleStepDescriptor* step =
+            &schedule->steps[schedule->step_count++];
+        ZeroMemory(step, sizeof(*step));
+        step->loaded = 1;
+        step->queue = KAIN_RUNTIME_GRAPHICS_QUEUE_GRAPHICS;
+        step->resource_count = kain_runtime_graphics_collect_binding_keys(
+            bundle->primary_material.resource_bindings,
+            bundle->primary_material.resource_binding_count,
+            1,
+            0,
+            step->resource_keys,
+            sizeof(step->resource_keys)
+        );
+        kain_runtime_realtime_copy_cstr(
+            step->key,
+            sizeof(step->key),
+            "publish_render_inputs"
+        );
+        kain_runtime_realtime_copy_cstr(
+            step->label,
+            sizeof(step->label),
+            "Publish Render Inputs"
+        );
+    }
+
+    if (bundle->residency.resource_count > 0 && has_compute_plan &&
+        schedule->barrier_count < KAIN_RUNTIME_GRAPHICS_MAX_SCHEDULE_BARRIERS) {
+        KainRuntimeGraphicsScheduleBarrierDescriptor* barrier =
+            &schedule->barriers[schedule->barrier_count++];
+        ZeroMemory(barrier, sizeof(*barrier));
+        barrier->loaded = 1;
+        barrier->barrier_kind = KAIN_RUNTIME_GRAPHICS_BARRIER_BUFFER;
+        kain_runtime_realtime_copy_cstr(
+            barrier->key,
+            sizeof(barrier->key),
+            "residency_to_compute"
+        );
+        kain_runtime_realtime_copy_cstr(
+            barrier->from_step,
+            sizeof(barrier->from_step),
+            "prepare_residency"
+        );
+        kain_runtime_realtime_copy_cstr(
+            barrier->to_step,
+            sizeof(barrier->to_step),
+            "primary_compute"
+        );
+        kain_runtime_realtime_copy_cstr(
+            barrier->resource_key,
+            sizeof(barrier->resource_key),
+            bundle->residency.resource_count > 0 ? bundle->residency.resources[0].key : ""
+        );
+        kain_runtime_realtime_copy_cstr(
+            barrier->reason,
+            sizeof(barrier->reason),
+            "stage residency before compute dispatch"
+        );
+    }
+
+    if (has_render_scene && has_compute_plan &&
+        schedule->barrier_count < KAIN_RUNTIME_GRAPHICS_MAX_SCHEDULE_BARRIERS) {
+        KainRuntimeGraphicsScheduleBarrierDescriptor* barrier =
+            &schedule->barriers[schedule->barrier_count++];
+        ZeroMemory(barrier, sizeof(*barrier));
+        barrier->loaded = 1;
+        barrier->barrier_kind = KAIN_RUNTIME_GRAPHICS_BARRIER_EXECUTION;
+        kain_runtime_realtime_copy_cstr(
+            barrier->key,
+            sizeof(barrier->key),
+            "compute_to_graphics"
+        );
+        kain_runtime_realtime_copy_cstr(
+            barrier->from_step,
+            sizeof(barrier->from_step),
+            "primary_compute"
+        );
+        kain_runtime_realtime_copy_cstr(
+            barrier->to_step,
+            sizeof(barrier->to_step),
+            "publish_render_inputs"
+        );
+        kain_runtime_realtime_copy_cstr(
+            barrier->resource_key,
+            sizeof(barrier->resource_key),
+            bundle->primary_compute.resource_binding_count > 0
+                ? bundle->primary_compute.resource_bindings[0].key
+                : ""
+        );
+        kain_runtime_realtime_copy_cstr(
+            barrier->reason,
+            sizeof(barrier->reason),
+            "publish compute outputs to graphics"
+        );
+    }
+
+    schedule->queue_count = kain_runtime_graphics_count_schedule_queues(schedule);
+    schedule->async_step_count = 0;
+    if (schedule->primary_step_key[0] == '\0' && schedule->step_count > 0) {
+        kain_runtime_realtime_copy_cstr(
+            schedule->primary_step_key,
+            sizeof(schedule->primary_step_key),
+            schedule->steps[0].key
+        );
+    }
+    if (schedule->step_count > 0) {
+        int i;
+        for (i = 0; i < schedule->step_count; ++i) {
+            if (schedule->steps[i].async_capable) {
+                schedule->async_step_count += 1;
+            }
+        }
+    }
+}
+
 void kain_runtime_graphics_init(KainRuntimeGraphicsBundle* bundle) {
     if (!bundle) {
         return;
     }
     ZeroMemory(bundle, sizeof(*bundle));
+    kain_runtime_graphics_render_graph_init(&bundle->render_graph);
+    kain_runtime_graphics_residency_init(&bundle->residency);
+    kain_runtime_graphics_compute_schedule_init(&bundle->primary_schedule);
 }
 
 void kain_runtime_graphics_validation_init(KainRuntimeGraphicsValidation* validation) {
@@ -1082,6 +2346,53 @@ static void kain_runtime_graphics_copy_summary(
     char* out,
     size_t out_cap
 ) {
+    char contract_summary[KAIN_RUNTIME_GRAPHICS_MAX_SUMMARY];
+    if (!out || out_cap == 0u) {
+        return;
+    }
+    out[0] = '\0';
+    if (!bundle) {
+        return;
+    }
+    kain_runtime_graphics_format_contract_summary(
+        bundle,
+        contract_summary,
+        sizeof(contract_summary)
+    );
+    snprintf(
+        out,
+        out_cap,
+        "schema %d | target %s | scenes %d | mats %d | shader refs v/f/c=%d/%d/%d | compute bind/t/s/n=%d/%d/%d/%d | viewport %s/%s | %s",
+        bundle->schema_version,
+        bundle->target[0] ? bundle->target : "unknown",
+        bundle->scene_count,
+        bundle->material_count,
+        bundle->shader_vertex_ref_count,
+        bundle->shader_fragment_ref_count,
+        bundle->shader_compute_ref_count,
+        bundle->primary_compute.resource_binding_count,
+        bundle->primary_compute.tensor_binding_count,
+        bundle->primary_compute.stream_binding_count,
+        bundle->primary_compute.neural_node_count,
+        bundle->primary_viewport_kind[0] ? bundle->primary_viewport_kind : "none",
+        bundle->primary_scene[0] ? bundle->primary_scene : "none",
+        contract_summary
+    );
+}
+
+void kain_runtime_graphics_format_summary(
+    const KainRuntimeGraphicsBundle* bundle,
+    char* out,
+    size_t out_cap
+) {
+    kain_runtime_graphics_copy_summary(bundle, out, out_cap);
+}
+
+void kain_runtime_graphics_format_contract_summary(
+    const KainRuntimeGraphicsBundle* bundle,
+    char* out,
+    size_t out_cap
+) {
     if (!out || out_cap == 0u) {
         return;
     }
@@ -1092,41 +2403,22 @@ static void kain_runtime_graphics_copy_summary(
     snprintf(
         out,
         out_cap,
-        "schema %d | target %s | scenes %d | materials %d | material bindings %d | shader refs %d (vertex %d fragment %d compute %d) | compute bindings %d | tensor bindings %d | stream bindings %d | neural nodes %d | domain %s | compute wg %d,%d,%d | compute dispatch %d,%d,%d | assets %d | caps %d | reqs %d | viewport %s/%s",
-        bundle->schema_version,
-        bundle->target[0] ? bundle->target : "unknown",
-        bundle->scene_count,
-        bundle->material_count,
-        bundle->primary_material.resource_binding_count,
-        bundle->shader_bundle_ref_count,
-        bundle->shader_vertex_ref_count,
-        bundle->shader_fragment_ref_count,
-        bundle->shader_compute_ref_count,
-        bundle->primary_compute.resource_binding_count,
-        bundle->primary_compute.tensor_binding_count,
-        bundle->primary_compute.stream_binding_count,
-        bundle->primary_compute.neural_node_count,
-        bundle->primary_compute.execution_domain[0] ? bundle->primary_compute.execution_domain : "none",
-        bundle->primary_compute.workgroup_size[0],
-        bundle->primary_compute.workgroup_size[1],
-        bundle->primary_compute.workgroup_size[2],
-        bundle->primary_compute.dispatch_size[0],
-        bundle->primary_compute.dispatch_size[1],
-        bundle->primary_compute.dispatch_size[2],
-        bundle->asset_count,
-        bundle->tool_cap_count,
-        bundle->requirement_count,
-        bundle->primary_viewport_kind[0] ? bundle->primary_viewport_kind : "none",
-        bundle->primary_scene[0] ? bundle->primary_scene : "none"
+        "graph p/a/d=%d/%d/%d %s | residency r/b=%d/%llu %s | schedule s/b=%d/%d %s",
+        bundle->render_graph.pass_count,
+        bundle->render_graph.attachment_count,
+        bundle->render_graph.dependency_count,
+        bundle->render_graph.primary_pass_key[0]
+            ? bundle->render_graph.primary_pass_key
+            : "none",
+        bundle->residency.resource_count,
+        bundle->residency.estimated_bytes,
+        bundle->residency.transient_pool_count > 0 ? "transient" : "stable",
+        bundle->primary_schedule.step_count,
+        bundle->primary_schedule.barrier_count,
+        bundle->primary_schedule.primary_step_key[0]
+            ? bundle->primary_schedule.primary_step_key
+            : "none"
     );
-}
-
-void kain_runtime_graphics_format_summary(
-    const KainRuntimeGraphicsBundle* bundle,
-    char* out,
-    size_t out_cap
-) {
-    kain_runtime_graphics_copy_summary(bundle, out, out_cap);
 }
 
 void kain_runtime_graphics_execution_state_init(KainRuntimeGraphicsExecutionState* state) {
@@ -1177,15 +2469,27 @@ int kain_runtime_graphics_execute_primary_compute(
     state->tensor_binding_count = bundle->primary_compute.tensor_binding_count;
     state->stream_binding_count = bundle->primary_compute.stream_binding_count;
     state->neural_node_count = bundle->primary_compute.neural_node_count;
+    state->schedule_step_count = bundle->primary_schedule.step_count;
+    state->schedule_barrier_count = bundle->primary_schedule.barrier_count;
+    kain_runtime_realtime_copy_cstr(
+        state->schedule_key,
+        sizeof(state->schedule_key),
+        bundle->primary_schedule.primary_step_key[0]
+            ? bundle->primary_schedule.primary_step_key
+            : "primary_compute"
+    );
     snprintf(
         state->summary,
         sizeof(state->summary),
-        "%s | dispatch %llux | tensor %d | stream %d | neural %d",
+        "%s | dispatch %llux | tensor %d | stream %d | neural %d | schedule %d/%d %s",
         bundle->primary_compute.execution_domain[0] ? bundle->primary_compute.execution_domain : "compute",
         dispatch_invocations,
         state->tensor_binding_count,
         state->stream_binding_count,
-        state->neural_node_count
+        state->neural_node_count,
+        state->schedule_step_count,
+        state->schedule_barrier_count,
+        state->schedule_key
     );
     return 1;
 }
@@ -1204,6 +2508,12 @@ int kain_runtime_graphics_validate_bundle(
     int tensor_metadata_valid;
     int stream_metadata_valid;
     int neural_metadata_valid;
+    int has_render_graph_contract;
+    int render_graph_valid;
+    int has_residency_contract;
+    int residency_valid;
+    int has_compute_schedule_contract;
+    int compute_schedule_valid;
     if (!bundle || !validation) {
         return 0;
     }
@@ -1231,6 +2541,16 @@ int kain_runtime_graphics_validate_bundle(
         (has_compute_plan && kain_runtime_graphics_compute_stream_metadata_is_valid(&bundle->primary_compute));
     neural_metadata_valid = !has_compute_artifacts ||
         (has_compute_plan && kain_runtime_graphics_compute_neural_metadata_is_valid(&bundle->primary_compute));
+    has_render_graph_contract = bundle->render_graph.loaded;
+    render_graph_valid = has_render_graph_contract &&
+        kain_runtime_graphics_render_graph_is_valid(&bundle->render_graph);
+    has_residency_contract = bundle->residency.loaded;
+    residency_valid = !has_compute_artifacts ||
+        (has_residency_contract && kain_runtime_graphics_residency_is_valid(&bundle->residency));
+    has_compute_schedule_contract = bundle->primary_schedule.loaded;
+    compute_schedule_valid = !has_compute_artifacts ||
+        (has_compute_schedule_contract &&
+         kain_runtime_graphics_compute_schedule_is_valid(&bundle->primary_schedule));
     validation->has_render_scene = has_render_scene;
     validation->has_viewport3d = has_viewport3d;
     validation->has_material_bindings = has_material_bindings;
@@ -1240,19 +2560,31 @@ int kain_runtime_graphics_validate_bundle(
     validation->tensor_metadata_valid = tensor_metadata_valid;
     validation->stream_metadata_valid = stream_metadata_valid;
     validation->neural_metadata_valid = neural_metadata_valid;
+    validation->has_render_graph_contract = has_render_graph_contract;
+    validation->render_graph_valid = render_graph_valid;
+    validation->has_residency_contract = has_residency_contract;
+    validation->residency_valid = residency_valid;
+    validation->has_compute_schedule_contract = has_compute_schedule_contract;
+    validation->compute_schedule_valid = compute_schedule_valid;
     validation->gl_lane_ready = bundle->loaded &&
         bundle->schema_version == 1 &&
         validation->target_is_llvm &&
         has_render_scene &&
         has_viewport3d &&
         material_binding_valid &&
+        render_graph_valid &&
+        residency_valid &&
         compute_plan_valid &&
+        compute_schedule_valid &&
         tensor_metadata_valid &&
         stream_metadata_valid &&
         neural_metadata_valid;
     validation->compute_metadata_valid = bundle->loaded &&
         bundle->schema_version == 1 &&
+        render_graph_valid &&
+        residency_valid &&
         compute_plan_valid &&
+        compute_schedule_valid &&
         tensor_metadata_valid &&
         stream_metadata_valid &&
         neural_metadata_valid;
@@ -1312,11 +2644,38 @@ int kain_runtime_graphics_validate_bundle(
         );
         return 0;
     }
+    if (!render_graph_valid) {
+        strncpy_s(
+            validation->reason,
+            sizeof(validation->reason),
+            "graphics bundle render graph contract is missing or invalid",
+            _TRUNCATE
+        );
+        return 0;
+    }
+    if (!residency_valid) {
+        strncpy_s(
+            validation->reason,
+            sizeof(validation->reason),
+            "graphics bundle residency contract is missing or invalid",
+            _TRUNCATE
+        );
+        return 0;
+    }
     if (!compute_plan_valid) {
         strncpy_s(
             validation->reason,
             sizeof(validation->reason),
             "graphics bundle is missing a valid compute dispatch plan",
+            _TRUNCATE
+        );
+        return 0;
+    }
+    if (!compute_schedule_valid) {
+        strncpy_s(
+            validation->reason,
+            sizeof(validation->reason),
+            "graphics bundle compute schedule contract is missing or invalid",
             _TRUNCATE
         );
         return 0;
@@ -1618,6 +2977,9 @@ int kain_runtime_graphics_load_from_json(const char* json, KainRuntimeGraphicsBu
         return 0;
     }
 
+    kain_runtime_graphics_synthesize_render_graph(bundle);
+    kain_runtime_graphics_synthesize_residency(bundle);
+    kain_runtime_graphics_synthesize_compute_schedule(bundle);
     bundle->loaded = 1;
     kain_runtime_realtime_copy_cstr(
         bundle->load_origin,

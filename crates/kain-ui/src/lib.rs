@@ -2179,7 +2179,7 @@ fn collect_native_projection_nodes(
         parent_id: parent_id.map(|value| value.0),
         depth,
         kind,
-        title,
+        title: title.clone(),
         text,
         tag,
         scene,
@@ -3120,3 +3120,4 @@ mod tests {
         );
     }
 }
+

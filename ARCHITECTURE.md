@@ -87,11 +87,21 @@ The native shader-canvas UI lane now follows this contract:
 
 - `kain-ui` owns authored semantic surfaces and shader-canvas intent on canvas-like nodes
 - `kain-core` emits explicit `shader_canvases` entries in `RealtimeAppBundle` so hosts do not have to rediscover shader-canvas bindings by guessing from local UI props
+- `kain-core` also emits first-class shader-canvas text resources per surface: font atlas descriptors, text runs, and declared runtime resource bindings
 - `kain-driver` materializes shader bundles and native app sidecars that keep shader-canvas metadata, shader refs, and native UI bundles aligned
 - `kain-ui-native` resolves shader canvases from realtime bundle metadata first and only falls back to surface-local shader refs when metadata is missing
+- `kain-ui-native` now turns the shader-canvas text contract into real GPU inputs by serializing atlas/text metadata into the surface storage buffer and synthesizing a host-provisioned bitmap atlas texture for shaders that bind textures
 - canonical native shader payload remains SPIR-V, while the current WGPU native host may consume derived WGSL or runtime-transpiled WGSL from the same bundle family
 
 The architecture rule here is the same as the viewport and compute lanes: shader-canvas execution can optimize presentation, but it must stay subordinate to compiler-owned bundle truth rather than inventing a renderer-local UI shader dialect.
+
+### Viewport Contract Lane
+
+Viewport startup intent now follows the same compiler-owned pattern:
+
+- `kain-core` emits `render.scenes` bindings with authored scene ids plus optional camera and presentation metadata
+- `kain-ui-native` and `runtime/native` consume those bundle defaults first and only fall back to local scene/profile defaults when the bundle leaves a field unspecified
+- scene ids, shader refs, camera presets, and presentation presets should travel together through the realtime bundle instead of being re-guessed independently by each host
 
 ## Important Folders By Intent
 
@@ -140,6 +150,7 @@ If the debug CLI is missing:
 - The native runtime is Windows-first today. Linux and macOS surfaces exist, but much of that lane is still stubbed or partial.
 - The compute pipeline is mid-transition from heuristic metadata to compiler-owned truth. When touching it, prefer extending bundle contracts over adding new runtime-only inference.
 - The native shader-canvas lane is SPIR-V-canonical at the bundle level, but the current WGPU host still resolves WGSL for execution. Do not mistake that compatibility bridge for permission to move shader-canvas truth out of the emitted bundles.
+- Focused `kain-ui-native` validation is currently blocked by unrelated `crates/kain-host/src/fabric.rs` compile errors around missing `pyo3` linkage and private `kain_python::PythonScopeState` access. Do not treat a blocked workspace build as evidence that the shader-canvas lane itself regressed.
 
 ## Template Packs
 

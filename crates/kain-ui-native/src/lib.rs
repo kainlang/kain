@@ -21,8 +21,10 @@ use kain_core::{
     build_ui_output_from_source, realtime_app_bundle_from_json, render_ui_output_debug,
     shader_artifact_bundle_from_json, CompiledMaterialDefinition, RealtimeAppBundle,
     RealtimeSceneBinding, RealtimeShaderBundleRef, RealtimeShaderCanvasBinding,
-    RealtimeViewportCameraBinding, RealtimeViewportPresentationBinding, ShaderArtifactBundle,
-    ShaderEntryPoint, ShaderResourceLayout,
+    RealtimeShaderCanvasFontAtlas, RealtimeShaderCanvasResourceBinding,
+    RealtimeShaderCanvasTextRun, RealtimeViewportCameraBinding,
+    RealtimeViewportPresentationBinding, ShaderArtifactBundle, ShaderEntryPoint,
+    ShaderResourceLayout,
 };
 use kain_ui::{
     ui_resolve_theme_for_node, ui_runtime_bundle_from_json, ui_runtime_bundle_from_output,
@@ -103,6 +105,43 @@ struct UiShaderSurfaceStoragePayload {
     _flags: [u32; 2],
     accent_rgba: [f32; 4],
     fill_rgba: [f32; 4],
+    text_run_count: u32,
+    font_atlas_count: u32,
+    resource_binding_count: u32,
+    atlas_glyph_bytes: u32,
+    text_utf8_bytes: u32,
+    surface_texture_width: u32,
+    surface_texture_height: u32,
+    _reserved: [u32; 1],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct UiShaderSurfaceFontAtlasRecord {
+    texture_size_px: [u32; 2],
+    cell_size_px: [u32; 2],
+    columns: u32,
+    rows: u32,
+    glyph_start: u32,
+    glyph_count: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct UiShaderSurfaceTextRunRecord {
+    origin_px: [f32; 2],
+    atlas_index: u32,
+    text_start: u32,
+    text_len: u32,
+    role_tag: u32,
+    _pad0: [u32; 3],
+    color_rgba: [f32; 4],
+}
+
+#[derive(Clone, Debug)]
+struct UiShaderSurfaceTexturePayload {
+    size_px: [u32; 2],
+    rgba8: Vec<u8>,
 }
 
 #[derive(Clone, Debug)]
@@ -2207,6 +2246,9 @@ struct ResolvedUiShaderSurface {
     shader_bundle_ref_key: Option<String>,
     wgsl_source: String,
     resource_layouts: Vec<ShaderResourceLayout>,
+    font_atlases: Vec<RealtimeShaderCanvasFontAtlas>,
+    text_runs: Vec<RealtimeShaderCanvasTextRun>,
+    resource_bindings: Vec<RealtimeShaderCanvasResourceBinding>,
     warning: Option<String>,
 }
 
@@ -2269,9 +2311,9 @@ struct PresentedShaderSurfaceGpuResources {
     bind_group: Option<wgpu::BindGroup>,
     uniform_buffer: Option<wgpu::Buffer>,
     storage_buffer: Option<wgpu::Buffer>,
-    fallback_texture: Option<wgpu::Texture>,
-    _fallback_texture_view: Option<wgpu::TextureView>,
-    _fallback_sampler: Option<wgpu::Sampler>,
+    surface_texture: Option<wgpu::Texture>,
+    _surface_texture_view: Option<wgpu::TextureView>,
+    _surface_sampler: Option<wgpu::Sampler>,
 }
 
 #[derive(Clone)]
@@ -2279,8 +2321,8 @@ struct PresentedShaderSurfaceFrame {
     signature: String,
     descriptor: ResolvedUiShaderSurface,
     uniforms: UiShaderSurfaceUniforms,
-    storage_payload: UiShaderSurfaceStoragePayload,
-    fallback_texture_rgba: [u8; 4],
+    storage_payload_bytes: Vec<u8>,
+    surface_texture: UiShaderSurfaceTexturePayload,
 }
 
 #[derive(Clone)]
@@ -2604,12 +2646,11 @@ impl KainUiNativeApp {
                         state.draw_data = None;
                     }
                 } else {
-                    surface.presented_state = Some(Arc::new(Mutex::new(
-                        PresentedViewportGpuState::new(
+                    surface.presented_state =
+                        Some(Arc::new(Mutex::new(PresentedViewportGpuState::new(
                             host.target_format,
                             self.shader_bundle.as_ref(),
-                        ),
-                    )));
+                        ))));
                 }
             } else {
                 surface.presented_state = None;
@@ -2694,17 +2735,13 @@ fn select_viewport_renderer(
     String,
     Option<PresentedViewportHost>,
 ) {
-    let presented_viewport_host = cc
-        .wgpu_render_state
-        .as_ref()
-        .map(|render_state| PresentedViewportHost {
-            target_format: render_state.target_format,
-        });
-    build_viewport_renderer(
-        runtime_settings,
-        presented_viewport_host,
-        shader_bundle,
-    )
+    let presented_viewport_host =
+        cc.wgpu_render_state
+            .as_ref()
+            .map(|render_state| PresentedViewportHost {
+                target_format: render_state.target_format,
+            });
+    build_viewport_renderer(runtime_settings, presented_viewport_host, shader_bundle)
 }
 
 fn build_viewport_renderer(
@@ -2939,9 +2976,9 @@ impl CallbackTrait for PresentedShaderSurfaceCallback {
             queue.write_buffer(buffer, 0, bytemuck::bytes_of(&frame.uniforms));
         }
         if let Some(buffer) = resources.storage_buffer.as_ref() {
-            queue.write_buffer(buffer, 0, bytemuck::bytes_of(&frame.storage_payload));
+            queue.write_buffer(buffer, 0, frame.storage_payload_bytes.as_slice());
         }
-        if let Some(texture) = resources.fallback_texture.as_ref() {
+        if let Some(texture) = resources.surface_texture.as_ref() {
             queue.write_texture(
                 wgpu::TexelCopyTextureInfo {
                     texture,
@@ -2949,15 +2986,15 @@ impl CallbackTrait for PresentedShaderSurfaceCallback {
                     origin: wgpu::Origin3d::ZERO,
                     aspect: wgpu::TextureAspect::All,
                 },
-                &frame.fallback_texture_rgba,
+                &frame.surface_texture.rgba8,
                 wgpu::TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(4),
-                    rows_per_image: Some(1),
+                    bytes_per_row: Some(4 * frame.surface_texture.size_px[0].max(1)),
+                    rows_per_image: Some(frame.surface_texture.size_px[1].max(1)),
                 },
                 wgpu::Extent3d {
-                    width: 1,
-                    height: 1,
+                    width: frame.surface_texture.size_px[0].max(1),
+                    height: frame.surface_texture.size_px[1].max(1),
                     depth_or_array_layers: 1,
                 },
             );
@@ -3059,17 +3096,17 @@ fn build_presented_shader_surface_resources(
         let storage_buffer = needs_storage_buffer.then(|| {
             device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("kain-ui-native-surface-storage"),
-                size: 4096,
+                size: frame.storage_payload_bytes.len().max(256) as u64,
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             })
         });
-        let fallback_texture = needs_texture.then(|| {
+        let surface_texture = needs_texture.then(|| {
             device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("kain-ui-native-surface-fallback-texture"),
+                label: Some("kain-ui-native-surface-texture"),
                 size: wgpu::Extent3d {
-                    width: 1,
-                    height: 1,
+                    width: frame.surface_texture.size_px[0].max(1),
+                    height: frame.surface_texture.size_px[1].max(1),
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
@@ -3080,12 +3117,12 @@ fn build_presented_shader_surface_resources(
                 view_formats: &[],
             })
         });
-        let fallback_texture_view = fallback_texture
+        let surface_texture_view = surface_texture
             .as_ref()
             .map(|texture| texture.create_view(&wgpu::TextureViewDescriptor::default()));
-        let fallback_sampler = needs_sampler.then(|| {
+        let surface_sampler = needs_sampler.then(|| {
             device.create_sampler(&wgpu::SamplerDescriptor {
-                label: Some("kain-ui-native-surface-fallback-sampler"),
+                label: Some("kain-ui-native-surface-sampler"),
                 mag_filter: wgpu::FilterMode::Linear,
                 min_filter: wgpu::FilterMode::Linear,
                 mipmap_filter: wgpu::FilterMode::Linear,
@@ -3140,9 +3177,9 @@ fn build_presented_shader_surface_resources(
                     });
                 }
                 Some(UiShaderBindingKind::Texture2d) => {
-                    let view = fallback_texture_view.as_ref().ok_or_else(|| {
-                        "shader surface fallback texture view was not created".to_string()
-                    })?;
+                    let view = surface_texture_view
+                        .as_ref()
+                        .ok_or_else(|| "shader surface texture view was not created".to_string())?;
                     bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
                         binding: layout.binding,
                         visibility: wgpu::ShaderStages::FRAGMENT,
@@ -3159,9 +3196,9 @@ fn build_presented_shader_surface_resources(
                     });
                 }
                 Some(UiShaderBindingKind::Sampler) => {
-                    let sampler = fallback_sampler.as_ref().ok_or_else(|| {
-                        "shader surface fallback sampler was not created".to_string()
-                    })?;
+                    let sampler = surface_sampler
+                        .as_ref()
+                        .ok_or_else(|| "shader surface sampler was not created".to_string())?;
                     bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
                         binding: layout.binding,
                         visibility: wgpu::ShaderStages::FRAGMENT,
@@ -3235,9 +3272,9 @@ fn build_presented_shader_surface_resources(
             bind_group,
             uniform_buffer,
             storage_buffer,
-            fallback_texture,
-            _fallback_texture_view: fallback_texture_view,
-            _fallback_sampler: fallback_sampler,
+            surface_texture,
+            _surface_texture_view: surface_texture_view,
+            _surface_sampler: surface_sampler,
         })
     }))
     .map_err(|_| {
@@ -3246,6 +3283,250 @@ fn build_presented_shader_surface_resources(
             frame.descriptor.shader_ref
         )
     })?
+}
+
+fn build_ui_shader_surface_storage_bytes(
+    header: &UiShaderSurfaceStoragePayload,
+    descriptor: &ResolvedUiShaderSurface,
+    theme: &NativeWidgetTheme,
+) -> Vec<u8> {
+    let mut atlas_records = Vec::new();
+    let mut atlas_glyph_bytes = Vec::new();
+    let mut atlas_indices = BTreeMap::new();
+
+    for (atlas_index, atlas) in descriptor.font_atlases.iter().enumerate() {
+        atlas_indices.insert(atlas.key.clone(), atlas_index as u32);
+        let glyph_text = sanitize_shader_canvas_text(&atlas.glyphs);
+        let glyph_start = atlas_glyph_bytes.len() as u32;
+        atlas_glyph_bytes.extend_from_slice(glyph_text.as_bytes());
+        atlas_records.push(UiShaderSurfaceFontAtlasRecord {
+            texture_size_px: atlas.texture_size_px,
+            cell_size_px: atlas.cell_size_px,
+            columns: atlas.columns,
+            rows: atlas.rows,
+            glyph_start,
+            glyph_count: glyph_text.len() as u32,
+        });
+    }
+
+    let mut text_records = Vec::new();
+    let mut text_bytes = Vec::new();
+    for run in &descriptor.text_runs {
+        let sanitized_text = sanitize_shader_canvas_text(&run.text);
+        let text_start = text_bytes.len() as u32;
+        text_bytes.extend_from_slice(sanitized_text.as_bytes());
+        text_records.push(UiShaderSurfaceTextRunRecord {
+            origin_px: [run.origin_px[0] as f32, run.origin_px[1] as f32],
+            atlas_index: atlas_indices
+                .get(&run.atlas_key)
+                .copied()
+                .unwrap_or_default(),
+            text_start,
+            text_len: sanitized_text.len() as u32,
+            role_tag: shader_canvas_text_role_tag(&run.role),
+            _pad0: [0; 3],
+            color_rgba: color32_to_rgba_f32(resolve_shader_canvas_text_color(
+                theme,
+                &run.color_token,
+                &run.role,
+            )),
+        });
+    }
+
+    let mut header = *header;
+    header.font_atlas_count = atlas_records.len() as u32;
+    header.text_run_count = text_records.len() as u32;
+    header.resource_binding_count = descriptor.resource_bindings.len() as u32;
+    header.atlas_glyph_bytes = atlas_glyph_bytes.len() as u32;
+    header.text_utf8_bytes = text_bytes.len() as u32;
+
+    let mut bytes = Vec::with_capacity(
+        std::mem::size_of::<UiShaderSurfaceStoragePayload>()
+            + (atlas_records.len() * std::mem::size_of::<UiShaderSurfaceFontAtlasRecord>())
+            + (text_records.len() * std::mem::size_of::<UiShaderSurfaceTextRunRecord>())
+            + atlas_glyph_bytes.len()
+            + text_bytes.len(),
+    );
+    bytes.extend_from_slice(bytemuck::bytes_of(&header));
+    if !atlas_records.is_empty() {
+        bytes.extend_from_slice(bytemuck::cast_slice(atlas_records.as_slice()));
+    }
+    if !text_records.is_empty() {
+        bytes.extend_from_slice(bytemuck::cast_slice(text_records.as_slice()));
+    }
+    bytes.extend_from_slice(&atlas_glyph_bytes);
+    bytes.extend_from_slice(&text_bytes);
+    bytes
+}
+
+fn build_ui_shader_surface_texture_payload(
+    descriptor: &ResolvedUiShaderSurface,
+    theme: &NativeWidgetTheme,
+) -> UiShaderSurfaceTexturePayload {
+    let Some(atlas) = descriptor.font_atlases.first() else {
+        return UiShaderSurfaceTexturePayload {
+            size_px: [1, 1],
+            rgba8: vec![
+                theme.accent.r(),
+                theme.accent.g(),
+                theme.accent.b(),
+                theme.accent.a(),
+            ],
+        };
+    };
+
+    let width = atlas.texture_size_px[0].max(1);
+    let height = atlas.texture_size_px[1].max(1);
+    let mut rgba8 = vec![0u8; (width * height * 4) as usize];
+    let cell_width = atlas.cell_size_px[0].max(1) as usize;
+    let cell_height = atlas.cell_size_px[1].max(1) as usize;
+    let glyph_offset_x = cell_width.saturating_sub(5) / 2;
+    let glyph_offset_y = cell_height.saturating_sub(7) / 2;
+
+    for (glyph_index, glyph) in atlas.glyphs.chars().enumerate() {
+        let columns = atlas.columns.max(1) as usize;
+        let cell_x = glyph_index % columns;
+        let cell_y = glyph_index / columns;
+        if cell_y >= atlas.rows.max(1) as usize {
+            continue;
+        }
+        let bitmap = bitmap_font_5x7(glyph);
+        for (row_index, row_bits) in bitmap.iter().enumerate() {
+            for column_index in 0..5 {
+                let mask = 1 << (4 - column_index);
+                if (row_bits & mask) == 0 {
+                    continue;
+                }
+                let px = (cell_x * cell_width) + glyph_offset_x + column_index;
+                let py = (cell_y * cell_height) + glyph_offset_y + row_index;
+                if px >= width as usize || py >= height as usize {
+                    continue;
+                }
+                let offset = ((py * width as usize) + px) * 4;
+                rgba8[offset] = 255;
+                rgba8[offset + 1] = 255;
+                rgba8[offset + 2] = 255;
+                rgba8[offset + 3] = 255;
+            }
+        }
+    }
+
+    UiShaderSurfaceTexturePayload {
+        size_px: [width, height],
+        rgba8,
+    }
+}
+
+fn resolve_shader_canvas_text_color(
+    theme: &NativeWidgetTheme,
+    color_token: &str,
+    role: &str,
+) -> Color32 {
+    let token = color_token.to_ascii_lowercase();
+    if token.contains("muted") {
+        theme.muted_color
+    } else if token.contains("accent") {
+        theme.accent
+    } else if token.contains("fill") || token.contains("surface") {
+        theme.canvas_fill
+    } else if token.contains("body") {
+        theme.body_color
+    } else if token.contains("title") || token.contains("default") {
+        theme.title_color
+    } else if role.eq_ignore_ascii_case("title") {
+        theme.title_color
+    } else {
+        theme.body_color
+    }
+}
+
+fn shader_canvas_text_role_tag(role: &str) -> u32 {
+    match role.trim().to_ascii_lowercase().as_str() {
+        "title" => 1,
+        "body" => 2,
+        "label" => 3,
+        "caption" => 4,
+        _ => 0,
+    }
+}
+
+fn sanitize_shader_canvas_text(text: &str) -> String {
+    text.chars().map(sanitize_shader_canvas_glyph).collect()
+}
+
+fn sanitize_shader_canvas_glyph(ch: char) -> char {
+    if ch.is_ascii() {
+        ch
+    } else {
+        '?'
+    }
+}
+
+fn bitmap_font_5x7(ch: char) -> [u8; 7] {
+    match if ch.is_ascii_lowercase() {
+        ch.to_ascii_uppercase()
+    } else {
+        ch
+    } {
+        'A' => [0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11],
+        'B' => [0x1E, 0x11, 0x11, 0x1E, 0x11, 0x11, 0x1E],
+        'C' => [0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E],
+        'D' => [0x1E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1E],
+        'E' => [0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F],
+        'F' => [0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10],
+        'G' => [0x0E, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0F],
+        'H' => [0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11],
+        'I' => [0x0E, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0E],
+        'J' => [0x01, 0x01, 0x01, 0x01, 0x11, 0x11, 0x0E],
+        'K' => [0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11],
+        'L' => [0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F],
+        'M' => [0x11, 0x1B, 0x15, 0x15, 0x11, 0x11, 0x11],
+        'N' => [0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11],
+        'O' => [0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E],
+        'P' => [0x1E, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x10],
+        'Q' => [0x0E, 0x11, 0x11, 0x11, 0x15, 0x12, 0x0D],
+        'R' => [0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11],
+        'S' => [0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E],
+        'T' => [0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04],
+        'U' => [0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E],
+        'V' => [0x11, 0x11, 0x11, 0x11, 0x11, 0x0A, 0x04],
+        'W' => [0x11, 0x11, 0x11, 0x15, 0x15, 0x15, 0x0A],
+        'X' => [0x11, 0x11, 0x0A, 0x04, 0x0A, 0x11, 0x11],
+        'Y' => [0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04],
+        'Z' => [0x1F, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1F],
+        '0' => [0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E],
+        '1' => [0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E],
+        '2' => [0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F],
+        '3' => [0x1E, 0x01, 0x01, 0x0E, 0x01, 0x01, 0x1E],
+        '4' => [0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02],
+        '5' => [0x1F, 0x10, 0x10, 0x1E, 0x01, 0x01, 0x1E],
+        '6' => [0x0E, 0x10, 0x10, 0x1E, 0x11, 0x11, 0x0E],
+        '7' => [0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08],
+        '8' => [0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E],
+        '9' => [0x0E, 0x11, 0x11, 0x0F, 0x01, 0x01, 0x0E],
+        '!' => [0x04, 0x04, 0x04, 0x04, 0x04, 0x00, 0x04],
+        '?' => [0x0E, 0x11, 0x01, 0x02, 0x04, 0x00, 0x04],
+        '.' => [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04],
+        ',' => [0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x08],
+        ':' => [0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00],
+        ';' => [0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x08],
+        '-' => [0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00],
+        '_' => [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F],
+        '+' => [0x00, 0x04, 0x04, 0x1F, 0x04, 0x04, 0x00],
+        '=' => [0x00, 0x1F, 0x00, 0x1F, 0x00, 0x00, 0x00],
+        '/' => [0x01, 0x02, 0x02, 0x04, 0x08, 0x08, 0x10],
+        '\\' => [0x10, 0x08, 0x08, 0x04, 0x02, 0x02, 0x01],
+        '(' => [0x02, 0x04, 0x08, 0x08, 0x08, 0x04, 0x02],
+        ')' => [0x08, 0x04, 0x02, 0x02, 0x02, 0x04, 0x08],
+        '[' => [0x0E, 0x08, 0x08, 0x08, 0x08, 0x08, 0x0E],
+        ']' => [0x0E, 0x02, 0x02, 0x02, 0x02, 0x02, 0x0E],
+        '<' => [0x02, 0x04, 0x08, 0x10, 0x08, 0x04, 0x02],
+        '>' => [0x08, 0x04, 0x02, 0x01, 0x02, 0x04, 0x08],
+        '"' => [0x0A, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00],
+        '\'' => [0x04, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00],
+        ' ' => [0x00; 7],
+        _ => [0x0E, 0x11, 0x01, 0x02, 0x04, 0x00, 0x04],
+    }
 }
 
 fn shader_binding_kind(layout: &ShaderResourceLayout) -> Option<UiShaderBindingKind> {
@@ -4296,7 +4577,15 @@ fn render_gpu_canvas_surface(
     let shader_payload = resolved_shader
         .as_ref()
         .ok()
-        .map(|descriptor| descriptor.canonical_native_payload.clone())
+        .map(|descriptor| {
+            format!(
+                "{} text:{} atlas:{} resources:{}",
+                descriptor.canonical_native_payload,
+                descriptor.text_runs.len(),
+                descriptor.font_atlases.len(),
+                descriptor.resource_bindings.len()
+            )
+        })
         .unwrap_or_else(|| "runtime-selected".to_string());
     let shader_binding_key = resolved_shader
         .as_ref()
@@ -4367,7 +4656,7 @@ fn render_gpu_canvas_surface(
                     };
                     let pointer_px = [hover.x - inner.left(), hover.y - inner.top()];
                     let (node_id_low, node_id_high) = split_node_id(node.id);
-                    let storage_payload = UiShaderSurfaceStoragePayload {
+                    let mut storage_payload = UiShaderSurfaceStoragePayload {
                         resolution: [width, height],
                         pointer_uv: pointer,
                         pointer_px,
@@ -4381,20 +4670,28 @@ fn render_gpu_canvas_surface(
                         _flags: [response.hovered() as u32, rendered_with_gpu as u32],
                         accent_rgba: color32_to_rgba_f32(theme.accent),
                         fill_rgba: color32_to_rgba_f32(theme.canvas_fill),
+                        text_run_count: 0,
+                        font_atlas_count: 0,
+                        resource_binding_count: 0,
+                        atlas_glyph_bytes: 0,
+                        text_utf8_bytes: 0,
+                        surface_texture_width: 1,
+                        surface_texture_height: 1,
+                        _reserved: [0; 1],
                     };
-                    let fallback_texture_rgba = [
-                        theme.accent.r(),
-                        theme.accent.g(),
-                        theme.accent.b(),
-                        theme.accent.a(),
-                    ];
+                    let surface_texture =
+                        build_ui_shader_surface_texture_payload(descriptor, theme);
+                    storage_payload.surface_texture_width = surface_texture.size_px[0];
+                    storage_payload.surface_texture_height = surface_texture.size_px[1];
+                    let storage_payload_bytes =
+                        build_ui_shader_surface_storage_bytes(&storage_payload, descriptor, theme);
                     if let Ok(mut gpu_state) = presented_state.lock() {
                         gpu_state.pending_frame = Some(PresentedShaderSurfaceFrame {
                             signature,
                             descriptor: descriptor.clone(),
                             uniforms,
-                            storage_payload,
-                            fallback_texture_rgba,
+                            storage_payload_bytes,
+                            surface_texture,
                         });
                     }
                     painter.add(egui::Shape::Callback(
@@ -4461,7 +4758,9 @@ fn render_gpu_canvas_surface(
             painter.text(
                 inner.left_top() + egui::vec2(14.0, 54.0),
                 egui::Align2::LEFT_TOP,
-                format!("stage: {shader_stage}  format: {shader_format}  payload: {shader_payload}"),
+                format!(
+                    "stage: {shader_stage}  format: {shader_format}  payload: {shader_payload}"
+                ),
                 egui::FontId::monospace(10.5),
                 theme.body_color,
             );
@@ -4532,7 +4831,8 @@ fn resolve_ui_shader_surface_from_catalog(
 
     let resolved_ref = runtime_canvas_binding
         .and_then(|entry| {
-            entry.shader_bundle_ref_key
+            entry
+                .shader_bundle_ref_key
                 .as_ref()
                 .and_then(|key| realtime_catalog.shader_refs_by_key.get(key))
                 .cloned()
@@ -4612,7 +4912,10 @@ fn resolve_ui_shader_surface_from_catalog(
             .and_then(|entry| entry.derived_format.clone())
             .or_else(|| runtime_canvas_binding.and_then(|entry| entry.derived_format.clone()))
             .unwrap_or_else(|| {
-                format!("{}-runtime", shader_bundle.canonical_native_payload.as_str())
+                format!(
+                    "{}-runtime",
+                    shader_bundle.canonical_native_payload.as_str()
+                )
             }),
         canonical_native_payload: shader_bundle.canonical_native_payload.as_str().to_string(),
         shader_bundle_ref_key: runtime_canvas_binding
@@ -4620,6 +4923,15 @@ fn resolve_ui_shader_surface_from_catalog(
             .or_else(|| resolved_ref.as_ref().map(|entry| entry.key.clone())),
         wgsl_source,
         resource_layouts,
+        font_atlases: runtime_canvas_binding
+            .map(|entry| entry.font_atlases.clone())
+            .unwrap_or_default(),
+        text_runs: runtime_canvas_binding
+            .map(|entry| entry.text_runs.clone())
+            .unwrap_or_default(),
+        resource_bindings: runtime_canvas_binding
+            .map(|entry| entry.resource_bindings.clone())
+            .unwrap_or_default(),
         warning,
     })
 }
@@ -4664,6 +4976,29 @@ fn shader_surface_signature(descriptor: &ResolvedUiShaderSurface) -> String {
     descriptor.canonical_native_payload.hash(&mut hasher);
     descriptor.shader_bundle_ref_key.hash(&mut hasher);
     descriptor.wgsl_source.hash(&mut hasher);
+    for atlas in &descriptor.font_atlases {
+        atlas.key.hash(&mut hasher);
+        atlas.family.hash(&mut hasher);
+        atlas.glyphs.hash(&mut hasher);
+        atlas.cell_size_px.hash(&mut hasher);
+        atlas.texture_size_px.hash(&mut hasher);
+        atlas.columns.hash(&mut hasher);
+        atlas.rows.hash(&mut hasher);
+    }
+    for run in &descriptor.text_runs {
+        run.id.hash(&mut hasher);
+        run.text.hash(&mut hasher);
+        run.role.hash(&mut hasher);
+        run.atlas_key.hash(&mut hasher);
+        run.origin_px.hash(&mut hasher);
+        run.color_token.hash(&mut hasher);
+    }
+    for binding in &descriptor.resource_bindings {
+        binding.binding_name.hash(&mut hasher);
+        binding.resource_kind.hash(&mut hasher);
+        binding.source_kind.hash(&mut hasher);
+        binding.atlas_key.hash(&mut hasher);
+    }
     format!(
         "{}:{}:{:016x}",
         descriptor.module_name,
@@ -5050,8 +5385,7 @@ fn render_viewport_surface(
                     });
             trace_runtime(format!("viewport: state_ready node={}", node.id.0));
             if surface.scene_name != scene_name
-                || surface.bundle_camera != binding.camera
-                || surface.bundle_presentation != binding.presentation
+                || surface.bundle_camera.as_ref() != binding.camera.as_ref()
             {
                 surface.scene_name = scene_name.clone();
                 surface.bundle_viewport_node = binding.viewport_node.clone();
@@ -5067,12 +5401,11 @@ fn render_viewport_surface(
                 surface.selected_instance_id = None;
                 surface.last_pick = None;
                 if let Some(host) = app.presented_viewport_host {
-                    surface.presented_state = Some(Arc::new(Mutex::new(
-                        PresentedViewportGpuState::new(
+                    surface.presented_state =
+                        Some(Arc::new(Mutex::new(PresentedViewportGpuState::new(
                             host.target_format,
                             app.shader_bundle.as_ref(),
-                        ),
-                    )));
+                        ))));
                 } else {
                     surface.presented_state = None;
                 }
@@ -5732,11 +6065,14 @@ fn prop_vec3(node: &UiNode, key_prefix: &str) -> Option<[f32; 3]> {
     ])
 }
 
-fn resolve_viewport_camera_binding_from_node(node: &UiNode) -> Option<RealtimeViewportCameraBinding> {
+fn resolve_viewport_camera_binding_from_node(
+    node: &UiNode,
+) -> Option<RealtimeViewportCameraBinding> {
     let camera = RealtimeViewportCameraBinding {
         position: prop_vec3(node, "camera.position"),
         target: prop_vec3(node, "camera.target"),
-        fov_y_degrees: prop_f32(node, "camera.fov_y_degrees").or_else(|| prop_f32(node, "camera.fov_y")),
+        fov_y_degrees: prop_f32(node, "camera.fov_y_degrees")
+            .or_else(|| prop_f32(node, "camera.fov_y")),
         near_plane: prop_f32(node, "camera.near_plane").or_else(|| prop_f32(node, "camera.near")),
         far_plane: prop_f32(node, "camera.far_plane").or_else(|| prop_f32(node, "camera.far")),
     };
@@ -5751,8 +6087,8 @@ fn resolve_viewport_camera_binding_from_node(node: &UiNode) -> Option<RealtimeVi
 fn resolve_viewport_presentation_binding_from_node(
     node: &UiNode,
 ) -> Option<RealtimeViewportPresentationBinding> {
-    let particle_budget = prop_i64(node, "viewport.particle_budget")
-        .and_then(|value| u32::try_from(value).ok());
+    let particle_budget =
+        prop_i64(node, "viewport.particle_budget").and_then(|value| u32::try_from(value).ok());
     let presentation = RealtimeViewportPresentationBinding {
         profile: prop_text(node, "viewport.profile").map(ToString::to_string),
         fog_density: prop_f32(node, "viewport.fog_density"),
@@ -6110,6 +6446,37 @@ mod tests {
                 derived_format: Some("wgsl".to_string()),
                 renderer_preference: "shader".to_string(),
                 composition_mode: "shader-canvas".to_string(),
+                font_atlases: vec![RealtimeShaderCanvasFontAtlas {
+                    key: "surface.hero.atlas.default".to_string(),
+                    family: "kain.builtin.bitmap_5x7".to_string(),
+                    glyphs: " HEROFASTLANE".to_string(),
+                    cell_size_px: [8, 8],
+                    texture_size_px: [96, 8],
+                    columns: 12,
+                    rows: 1,
+                }],
+                text_runs: vec![RealtimeShaderCanvasTextRun {
+                    id: "surface.hero.title".to_string(),
+                    text: "Hero Surface".to_string(),
+                    role: "title".to_string(),
+                    atlas_key: "surface.hero.atlas.default".to_string(),
+                    origin_px: [16, 16],
+                    color_token: "theme.text.default".to_string(),
+                }],
+                resource_bindings: vec![
+                    RealtimeShaderCanvasResourceBinding {
+                        binding_name: "surface_uniforms".to_string(),
+                        resource_kind: "uniform-buffer".to_string(),
+                        source_kind: "runtime.surface.uniforms".to_string(),
+                        atlas_key: None,
+                    },
+                    RealtimeShaderCanvasResourceBinding {
+                        binding_name: "font_atlas".to_string(),
+                        resource_kind: "texture-2d".to_string(),
+                        source_kind: "runtime.surface.font-atlas".to_string(),
+                        atlas_key: Some("surface.hero.atlas.default".to_string()),
+                    },
+                ],
             },
         );
         let shader_bundle = test_shader_artifact_bundle();
@@ -6132,6 +6499,9 @@ mod tests {
             Some("ui.hero_surface")
         );
         assert_eq!(resolved.resource_layouts.len(), 1);
+        assert_eq!(resolved.font_atlases.len(), 1);
+        assert_eq!(resolved.text_runs.len(), 1);
+        assert_eq!(resolved.resource_bindings.len(), 2);
         assert!(resolved.wgsl_source.contains("hero_main"));
         assert!(resolved.warning.is_none());
     }

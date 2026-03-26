@@ -188,27 +188,29 @@ Status: contracts landed in native headers, core helpers, service registration, 
 
 ## Phase 2: Alpha Graphics And Execution Contracts
 
-- [ ] 2.1 Define render-graph contract tables
+Status: graphics contract tables landed in the native graphics ABI and are now synthesized from current bundle truth inside `runtime/native/src/core/kain_runtime_realtime.c`. The current shape is intentionally honest: compiler-authored explicit tables are still future work, but the native runtime now exposes one canonical render-graph, residency, and compute-schedule surface instead of host-local orchestration.
+
+- [x] 2.1 Define render-graph contract tables
   - Add pass, dependency, attachment, lifetime, and capture-hook descriptors
   - Keep the first version minimal and sufficient for the shared vertical slice
   - _Owner: Alpha_
 
-- [ ] 2.2 Define native resource residency descriptors
+- [x] 2.2 Define native resource residency descriptors
   - Add typed descriptors for buffers, images, transient pools, streaming uploads, residency state, and budget inspection
   - Make these queryable through the runtime reflection surface
   - _Owner: Alpha_
 
-- [ ] 2.3 Define compute scheduling and synchronization contracts
+- [x] 2.3 Define compute scheduling and synchronization contracts
   - Add dispatch-chain, queue, barrier, and cross graphics/compute synchronization descriptors
   - Avoid host-local implicit sequencing
   - _Owner: Alpha_
 
-- [ ] 2.4 Wire the new contract descriptors into existing native runtime core files
+- [x] 2.4 Wire the new contract descriptors into existing native runtime core files
   - Extend current core runtime modules rather than creating a disconnected second runtime model
   - Prefer a narrow integration path through existing contract, services, reflection, graphics, and compatibility modules
   - _Owner: Alpha_
 
-- [ ] 2.5 Publish the Alpha contract freeze for Delta consumption
+- [x] 2.5 Publish the Alpha contract freeze for Delta consumption
   - Record the headers, structs, invariants, and anti-patterns Delta must build against
   - Mark any still-scaffolded fields honestly
   - _Owner: Alpha with Charlie recording_

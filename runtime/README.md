@@ -124,7 +124,7 @@ The runtime has a real contract and service model:
 
 Current limitation:
 
-- The shared service registry now exposes the broader implemented native runtime surface, including contract, reflection, actor, async, realtime, compatibility, and host bridge lanes. The remaining gap is narrower: legacy runtime contract masks still describe only the older startup-critical subset, so bundle-level service masks are not yet a complete mirror of the richer registry catalog.
+- The shared service registry now exposes the broader implemented native runtime surface, including scene/runtime inspection, asset ingestion, contract, reflection, actor, async, realtime, compatibility, and host bridge lanes. The remaining gap is narrower: legacy runtime contract masks still describe only the older startup-critical subset, so bundle-level service masks are not yet a complete mirror of the richer registry catalog.
 
 See [native/C_RUNTIME_CONTRACT_PIPELINE.md](./native/C_RUNTIME_CONTRACT_PIPELINE.md) for the contract-specific pipeline and maintenance rules.
 
