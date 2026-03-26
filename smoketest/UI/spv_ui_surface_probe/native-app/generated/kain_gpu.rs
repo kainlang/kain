@@ -93,7 +93,7 @@ pub mod kain_gpu_generated {
         pub bindings: &'static [BindingDesc],
     }
 
-    pub mod uisurfacesdf {
+    pub mod uisurfaceprobe {
         use super::{
             BindingDesc, BindingKind, BindingLayoutEntry, BuiltinInputParam, DispatchCall,
             DispatchSize, LocalSizeParam, Sampler2DParam, ShaderDesc, ShaderStage,
@@ -102,36 +102,24 @@ pub mod kain_gpu_generated {
 
         #[derive(Debug, Clone)]
         pub struct Params {
-            pub id: BuiltinInputParam,
-            pub uv: StorageBufferParam,
-            pub rgba: StorageBufferParam,
-            pub local_size_x: LocalSizeParam,
-            pub local_size_y: LocalSizeParam,
-            pub local_size_z: LocalSizeParam,
+            pub uv: BuiltinInputParam,
+            pub font_atlas: Sampler2DParam,
         }
 
         impl Default for Params {
             fn default() -> Self {
                 Self {
-                    id: BuiltinInputParam { name: "id", ty: "UVec3" },
-                    uv: StorageBufferParam { ty: "StorageBuffer<Vec4>", read_only: false },
-                    rgba: StorageBufferParam { ty: "StorageBuffer<Vec4>", read_only: false },
-                    local_size_x: LocalSizeParam { axis: "X", default_value: 8 },
-                    local_size_y: LocalSizeParam { axis: "Y", default_value: 8 },
-                    local_size_z: LocalSizeParam { axis: "Z", default_value: 1 },
+                    uv: BuiltinInputParam { name: "uv", ty: "Vec2" },
+                    font_atlas: Sampler2DParam { ty: "Sampler2D" },
                 }
             }
         }
 
         pub const BINDINGS: &[BindingDesc] = &[
-            BindingDesc { name: "uv", binding: 0, descriptor_set: 0, ty: "StorageBuffer<Vec4>", kind: BindingKind::StorageBuffer, },
-            BindingDesc { name: "rgba", binding: 1, descriptor_set: 0, ty: "StorageBuffer<Vec4>", kind: BindingKind::StorageBuffer, },
-            BindingDesc { name: "LOCAL_SIZE_X", binding: 100, descriptor_set: 0, ty: "UInt", kind: BindingKind::LocalSize, },
-            BindingDesc { name: "LOCAL_SIZE_Y", binding: 101, descriptor_set: 0, ty: "UInt", kind: BindingKind::LocalSize, },
-            BindingDesc { name: "LOCAL_SIZE_Z", binding: 102, descriptor_set: 0, ty: "UInt", kind: BindingKind::LocalSize, },
+            BindingDesc { name: "font_atlas", binding: 0, descriptor_set: 0, ty: "Sampler2D", kind: BindingKind::Sampler2D, },
         ];
 
-        pub const SHADER: ShaderDesc = ShaderDesc { name: "UiSurfaceSdf", stage: ShaderStage::Compute, entry_point: "UiSurfaceSdf", output_type: "Vec4", bindings: BINDINGS, };
+        pub const SHADER: ShaderDesc = ShaderDesc { name: "UiSurfaceProbe", stage: ShaderStage::Fragment, entry_point: "UiSurfaceProbe", output_type: "Vec4", bindings: BINDINGS, };
 
         pub fn descriptor() -> &'static ShaderDesc {
             &SHADER
@@ -151,8 +139,8 @@ pub mod kain_gpu_generated {
 
         pub fn dispatch<'a>(params: &'a Params, x: u32, y: u32, z: u32) -> DispatchCall<'a, Params> {
             DispatchCall {
-                entry_point: "UiSurfaceSdf",
-                stage: ShaderStage::Compute,
+                entry_point: "UiSurfaceProbe",
+                stage: ShaderStage::Fragment,
                 size: DispatchSize { x, y, z },
                 params,
             }
@@ -161,7 +149,7 @@ pub mod kain_gpu_generated {
 
     pub fn shaders() -> &'static [ShaderDesc] {
         &[
-            uisurfacesdf::SHADER,
+            uisurfaceprobe::SHADER,
         ]
     }
 }

@@ -14,6 +14,13 @@ primary_app = "kain_fabric_modeler"
 default_host = "native_ui"
 workspace_manifest = "config/app_manifest.json"
 
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "modeler_ops"
+header = "native/modeler_ops.h"
+shared_lib = "native/modeler_ops.dll"
+
 [manifests]
 app = "config/app_manifest.json"
 surfaces = "config/surfaces.json"

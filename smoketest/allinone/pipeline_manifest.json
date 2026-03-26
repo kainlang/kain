@@ -7,6 +7,7 @@
       "description": "Capture the active compiler, feature, and toolchain surface.",
       "working_directory": "../..",
       "args": ["doctor"],
+      "cleanup_paths": [],
       "expected_outputs": []
     },
     {
@@ -21,6 +22,10 @@
         "typescript_bridge.imported.kn",
         "--report-json",
         "typescript_import_report.json"
+      ],
+      "cleanup_paths": [
+        "outputs/import_ts/typescript_bridge.imported.kn",
+        "outputs/import_ts/typescript_import_report.json"
       ],
       "expected_outputs": [
         "outputs/import_ts/typescript_bridge.imported.kn",
@@ -38,6 +43,10 @@
         "--format",
         "6502-furby"
       ],
+      "cleanup_paths": [
+        "outputs/import_asm/generated",
+        "outputs/import_asm/Research"
+      ],
       "expected_outputs": [
         "outputs/import_asm/generated/furby_firmware.kn",
         "outputs/import_asm/generated/furby_map.json",
@@ -46,15 +55,110 @@
       ]
     },
     {
+      "id": "c_ffi_native_build",
+      "type": "process",
+      "description": "Build the dedicated C ABI bridge fixture for the standalone FFI smoke.",
+      "working_directory": "fixtures/c_ffi",
+      "executable": "clang",
+      "args": [
+        "-shared",
+        "-O2",
+        "native/beacon_math.c",
+        "-o",
+        "native/beacon_math.dll"
+      ],
+      "cleanup_paths": [
+        "fixtures/c_ffi/native/beacon_math.dll"
+      ],
+      "expected_outputs": [
+        "fixtures/c_ffi/native/beacon_math.dll"
+      ]
+    },
+    {
+      "id": "c_ffi_interpret",
+      "type": "kain",
+      "description": "Interpret a standalone use c::... smoke and emit C ABI bridge outputs.",
+      "working_directory": "fixtures/c_ffi",
+      "args": [
+        "smoke.kn",
+        "-t",
+        "interpret"
+      ],
+      "cleanup_paths": [
+        "outputs/c_ffi/beacon_signature.txt",
+        "outputs/c_ffi/beacon_report.txt",
+        "fixtures/c_ffi/.kain/cache/c_ffi"
+      ],
+      "expected_outputs": [
+        "outputs/c_ffi/beacon_signature.txt",
+        "outputs/c_ffi/beacon_report.txt"
+      ]
+    },
+    {
+      "id": "crate_import",
+      "type": "kain",
+      "description": "Run the explicit import-crate lane and capture generated Rust FFI bindings.",
+      "working_directory": "fixtures/crate_ffi",
+      "args": [
+        "import-crate",
+        "allinone_crate_lab",
+        "--mode",
+        "both",
+        "--crate-path",
+        "local_crate",
+        "--output",
+        "../../outputs/crate_ffi/generated",
+        "--report-json",
+        "../../outputs/crate_ffi/generated/allinone_crate_lab_report_override.json"
+      ],
+      "cleanup_paths": [
+        "outputs/crate_ffi/generated",
+        "fixtures/crate_ffi/.kain/cache/crate_ffi"
+      ],
+      "expected_outputs": [
+        "outputs/crate_ffi/generated/allinone_crate_lab.kn",
+        "outputs/crate_ffi/generated/allinone_crate_lab_prelude.kn",
+        "outputs/crate_ffi/generated/allinone_crate_lab_report.json",
+        "outputs/crate_ffi/generated/allinone_crate_lab_report.txt",
+        "outputs/crate_ffi/generated/allinone_crate_lab_report_override.json"
+      ]
+    },
+    {
+      "id": "crate_ffi_interpret",
+      "type": "kain",
+      "description": "Interpret a standalone use rust::... smoke and emit Rust crate FFI outputs.",
+      "working_directory": "fixtures/crate_ffi",
+      "args": [
+        "smoke.kn",
+        "-t",
+        "interpret"
+      ],
+      "cleanup_paths": [
+        "outputs/crate_ffi/cargo_wave.txt",
+        "outputs/crate_ffi/cargo_bridge_report.txt",
+        "fixtures/crate_ffi/.kain/cache/crate_ffi"
+      ],
+      "expected_outputs": [
+        "outputs/crate_ffi/cargo_wave.txt",
+        "outputs/crate_ffi/cargo_bridge_report.txt"
+      ]
+    },
+    {
       "id": "gpu_artifacts",
       "type": "kain",
       "description": "Emit paired SPIR-V, reflection, and Rust GPU host artifacts.",
-      "working_directory": "../..",
+      "working_directory": "fixtures/gpu",
       "args": [
         "gpu-artifacts",
-        "smoketest/allinone/fixtures/gpu/pipeline_shader.kn",
+        "pipeline_shader.kn",
         "--output",
-        "smoketest/allinone/outputs/gpu_artifacts/allinone_gpu"
+        "../../outputs/gpu_artifacts/allinone_gpu"
+      ],
+      "cleanup_paths": [
+        "outputs/gpu_artifacts/allinone_gpu.spv",
+        "outputs/gpu_artifacts/allinone_gpu.gpu.rs",
+        "outputs/gpu_artifacts/allinone_gpu.reflect.json",
+        "outputs/gpu_artifacts/allinone_gpu.shader_bundle.json"
       ],
       "expected_outputs": [
         "outputs/gpu_artifacts/allinone_gpu.spv",
@@ -66,13 +170,21 @@
     {
       "id": "omni_build",
       "type": "kain",
-      "description": "Stage TS, C, and ASM imports and emit omni multi-target outputs.",
-      "working_directory": ".",
+      "description": "Stage TS, C, and ASM imports and emit TypeScript, KainScript, shader, UE5, and GPU omni outputs.",
+      "working_directory": "fixtures/omni",
       "args": [
         "omni",
         "build",
         "--manifest",
-        "fixtures/omni/KAIN.omni.toml"
+        "KAIN.omni.toml"
+      ],
+      "cleanup_paths": [
+        "outputs/omni/staged",
+        "outputs/omni/dist",
+        "outputs/omni/ue5",
+        "outputs/omni/ue5_editor",
+        "outputs/omni/workspace",
+        "fixtures/omni/.kain/cache"
       ],
       "expected_outputs": [
         "outputs/omni/staged/omni_signal.kn",
@@ -95,13 +207,16 @@
       "id": "fabric_native_build",
       "type": "process",
       "description": "Build the local Fabric C ABI sidecar.",
-      "working_directory": ".",
+      "working_directory": "fixtures/fabric",
       "executable": "clang",
       "args": [
         "-shared",
         "-O2",
-        "fixtures/fabric/native/image_fx.c",
+        "native/image_fx.c",
         "-o",
+        "native/image_fx.dll"
+      ],
+      "cleanup_paths": [
         "fixtures/fabric/native/image_fx.dll"
       ],
       "expected_outputs": [
@@ -112,25 +227,30 @@
       "id": "fabric_validate",
       "type": "kain",
       "description": "Validate the combined Fabric manifest.",
-      "working_directory": ".",
+      "working_directory": "fixtures/fabric",
       "args": [
         "fabric",
         "validate",
         "--manifest",
-        "fixtures/fabric/KAIN.fabric.toml"
+        "KAIN.fabric.toml"
       ],
+      "cleanup_paths": [],
       "expected_outputs": []
     },
     {
       "id": "fabric_run",
       "type": "kain",
       "description": "Run the combined Fabric manifest across all local adapters.",
-      "working_directory": ".",
+      "working_directory": "fixtures/fabric",
       "args": [
         "fabric",
         "run",
         "--manifest",
-        "fixtures/fabric/KAIN.fabric.toml"
+        "KAIN.fabric.toml"
+      ],
+      "cleanup_paths": [
+        "outputs/fabric/reports",
+        "fixtures/fabric/.kain/cache"
       ],
       "expected_outputs": [
         "outputs/fabric/reports"
@@ -144,6 +264,10 @@
       "args": [
         "build",
         "--ue5"
+      ],
+      "cleanup_paths": [
+        "outputs/ue5/AllInOneUe5Smoke",
+        "fixtures/ue5/.kain/cache"
       ],
       "expected_outputs": [
         "outputs/ue5/AllInOneUe5Smoke/AllInOneUe5Smoke.uplugin"

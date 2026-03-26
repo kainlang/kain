@@ -85,9 +85,9 @@ kind = "shared_buffer"
 
 [[steps]]
 id = "node_publisher"
-runtime = "node"
-entry = "scripts/node_publish_summary.mjs"
-depends_on = ["model_seed", "native_brush", "topology_analyzer", "gpu_preview"]
+runtime = "kain"
+entry = "src/node_publisher.kn"
+depends_on = ["python_project_seed", "model_seed", "native_brush", "topology_analyzer", "gpu_preview"]
 
 [[steps.outputs]]
 name = "studio_summary"

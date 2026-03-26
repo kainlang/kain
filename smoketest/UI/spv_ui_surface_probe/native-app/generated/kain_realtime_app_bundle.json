@@ -2,122 +2,128 @@
   "schema_version": 1,
   "target": "rust",
   "render": {
-    "scenes": [
-      {
-        "viewport_node": "surface.node.10",
-        "viewport_kind": "viewport3d",
-        "scene": "tensor_stream_probe",
-        "title": "Procedural Surface Preview",
-        "material_refs": [],
-        "shader_bundle_ref_keys": [
-          "shader::UiSurfaceSdf::compute"
-        ]
-      }
-    ],
+    "scenes": [],
     "materials": []
   },
-  "shader_bundle_refs": [
+  "shader_canvases": [
     {
-      "key": "shader::UiSurfaceSdf::compute",
-      "shader": "UiSurfaceSdf",
-      "module_name": "UiSurfaceSdf",
-      "stage": "compute",
+      "surface_id": "surface.node.7",
+      "shader_ref": "UiSurfaceProbe",
+      "shader_bundle_ref_key": "shader::UiSurfaceProbe::fragment",
+      "shader_name": "UiSurfaceProbe",
+      "module_name": "UiSurfaceProbe",
+      "stage": "fragment",
       "entry_point": "main",
-      "source": "kain-core",
-      "execution_domain": "tensor-stream",
-      "workgroup_size": [
-        8,
-        8,
-        1
+      "derived_format": "spirv",
+      "renderer_preference": "shader",
+      "composition_mode": "shader-canvas",
+      "font_atlases": [
+        {
+          "key": "surface.node.7.atlas.default",
+          "family": "kain.default-ui-sans",
+          "asset_key": "font::assets/ui_smoke_default.ttf",
+          "encoding": "msdf-rgba",
+          "distance_range_px": 6,
+          "glyphs": " ?FasteUILnMSDlmpdivfrockg",
+          "cell_size_px": [
+            32,
+            32
+          ],
+          "texture_size_px": [
+            512,
+            64
+          ],
+          "columns": 16,
+          "rows": 2
+        }
       ],
-      "dispatch_size": [
-        256,
-        1,
-        1
+      "text_runs": [
+        {
+          "id": "node.7.title",
+          "text": "Fastest UI Lane",
+          "role": "title",
+          "atlas_key": "surface.node.7.atlas.default",
+          "origin_px": [
+            16,
+            16
+          ],
+          "color_token": "theme.text.default"
+        },
+        {
+          "id": "node.7.body",
+          "text": "MSDF atlas sampled live from packaged font assets",
+          "role": "body",
+          "atlas_key": "surface.node.7.atlas.default",
+          "origin_px": [
+            16,
+            38
+          ],
+          "color_token": "theme.text.muted"
+        }
       ],
       "resource_bindings": [
         {
-          "key": "uv",
-          "type": "storage_buffer",
-          "stage": "compute",
-          "access": "read_write",
-          "slot": 0
+          "binding_name": "surface_uniforms",
+          "resource_kind": "uniform-buffer",
+          "source_kind": "runtime.surface.uniforms"
         },
         {
-          "key": "rgba",
-          "type": "storage_buffer",
-          "stage": "compute",
-          "access": "read_write",
-          "slot": 1
-        }
-      ],
-      "tensor_bindings": [
-        {
-          "key": "uv",
-          "element_type": "vec4",
-          "shape": [
-            "dispatch.x"
-          ],
-          "role": "input",
-          "contract": "kain.shared.buffer"
+          "binding_name": "surface_storage",
+          "resource_kind": "storage-buffer",
+          "source_kind": "runtime.surface.storage"
         },
         {
-          "key": "rgba",
-          "element_type": "vec4",
-          "shape": [
-            "dispatch.x"
-          ],
-          "role": "output",
-          "contract": "kain.shared.buffer"
-        }
-      ],
-      "stream_bindings": [
-        {
-          "key": "uv",
-          "direction": "bidirectional",
-          "cadence": "continuous",
-          "contract": "kain.shared.buffer"
+          "binding_name": "font_atlas",
+          "resource_kind": "texture-2d",
+          "source_kind": "runtime.surface.font-atlas",
+          "atlas_key": "surface.node.7.atlas.default"
         },
         {
-          "key": "rgba",
-          "direction": "bidirectional",
-          "cadence": "continuous",
-          "contract": "kain.shared.buffer"
-        }
-      ],
-      "neural_nodes": [
-        {
-          "key": "ui_surface_sdf",
-          "op": "rounded_rect_surface",
-          "inputs": [
-            "uv"
-          ],
-          "outputs": [
-            "rgba"
-          ],
-          "stateful": false
+          "binding_name": "font_sampler",
+          "resource_kind": "sampler",
+          "source_kind": "runtime.surface.font-atlas",
+          "atlas_key": "surface.node.7.atlas.default"
         }
       ]
     }
   ],
-  "assets": [],
+  "shader_bundle_refs": [
+    {
+      "key": "shader::UiSurfaceProbe::fragment",
+      "shader": "UiSurfaceProbe",
+      "module_name": "UiSurfaceProbe",
+      "stage": "fragment",
+      "entry_point": "main",
+      "source": "kain-core",
+      "resource_bindings": [
+        {
+          "key": "font_atlas",
+          "type": "sampler2d",
+          "stage": "fragment",
+          "access": "sample",
+          "slot": 0
+        }
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "key": "font::assets/ui_smoke_default.ttf",
+      "kind": "font",
+      "source": "kain_asset_font__assets_ui_smoke_default_ttf.ttf"
+    }
+  ],
   "tool_caps": [
-    "gpu.compute",
-    "gpu.compute-plan",
     "gpu.shader",
     "tool.graph",
-    "viewport.3d"
+    "ui.shader-canvas"
   ],
   "requirements": [
-    "data.continuous-stream",
-    "gpu.compute-dispatch",
-    "gpu.compute-plan",
     "gpu.shader-bundles",
     "host.native-ui",
-    "interop.shared-buffer",
     "runtime.contract.bundle",
-    "scene.runtime-bundle",
     "shader.bundle.metadata",
-    "viewport.presented-or-fallback"
+    "ui.shader-canvas",
+    "ui.shader-canvas.presented-or-fallback"
   ]
 }

@@ -14,17 +14,24 @@ The runtime flow is:
 3. `gpu_compute` runs `FabricGpuCopy` through the Vulkan executor and writes the result into `dst`.
 4. Node reads the resulting shared buffer through canonical Fabric contract projection and returns a summary string.
 
-It also now has a native visual proof lane:
+It also now has a viewport-first native editor proof lane:
 
-- `build_visual_exe.ps1` reruns the Fabric manifest, reads the newest session report, generates `generated/main.generated.kn`, and packages a native executable under `visual-native-app/`.
-- `launch_visual_exe.bat` launches that packaged executable.
-- `capture_visual_demo.ps1` launches the executable, captures a screenshot into `generated/fabric_gpu_visual_showcase.png`, and closes the app again.
+- `build_visual_exe.ps1` reruns the Fabric manifest, reads the newest session report, generates `generated/main.generated.kn`, and packages a cleaner viewport-first native 3D editor shell under `visual-native-app/`.
+- The generated shell now uses a real SPIR-V shader-canvas surface inside the native UI bundle, so the editor chrome is backed by the same shader-canvas lane proven by `smoketest/UI/spv_ui_surface_probe`.
+- `build_visual_exe.ps1 -Release` does the same thing through an isolated release cargo target dir so the smoke can produce a durable demo artifact without fighting the workspace `target/`.
+- `launch_visual_exe.bat` launches `visual-native-app/fabric-studio-3d-editor.exe`.
+- `capture_visual_demo.ps1 -Release` maximizes the native editor window, captures the window bounds instead of the whole desktop, and writes `generated/fabric_gpu_visual_showcase.png`.
+
+Current caveat:
+
+- The generated native bundles do contain the viewport and SPIR-V shader-canvas surfaces, but the current Windows capture helper is still GDI-based and may miss GPU-backed client content in the screenshot even when the executable itself launches correctly. Treat the PNG as a shell-layout proof until the smoke grows a Windows Graphics Capture or equivalent GPU-aware screenshot path.
 
 Run:
 
 ```powershell
 cargo run -p cli --bin kain -- fabric validate --manifest smoketest/fabric/gpu_compute_convergence/KAIN.fabric.toml
 cargo run -p cli --bin kain -- fabric run --manifest smoketest/fabric/gpu_compute_convergence/KAIN.fabric.toml
-powershell -ExecutionPolicy Bypass -File smoketest/fabric/gpu_compute_convergence/build_visual_exe.ps1
-start smoketest/fabric/gpu_compute_convergence/visual-native-app/fabric-gpu-visual-showcase.exe
+powershell -ExecutionPolicy Bypass -File smoketest/fabric/gpu_compute_convergence/build_visual_exe.ps1 -Release
+start smoketest/fabric/gpu_compute_convergence/visual-native-app/fabric-studio-3d-editor.exe
+powershell -ExecutionPolicy Bypass -File smoketest/fabric/gpu_compute_convergence/capture_visual_demo.ps1 -Release
 ```

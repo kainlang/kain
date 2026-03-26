@@ -27,7 +27,7 @@ The app is organized so future agents can expand it as a real product surface:
 - The C helper owns the native brush mutation proof only.
 - The Rust crate owns topology and checksum-style reporting only.
 - The GPU shader owns preview buffer transformation only.
-- Node owns summary/export formatting only.
+- Node owns summary/export formatting, but it is currently invoked through a Kain bridge wrapper rather than as a direct Fabric runtime step.
 - The native runtime and native-ui lane consume the compiled app bundle; they must not become the semantic source of truth for the modeler.
 
 ## Main Files
@@ -52,7 +52,7 @@ The app is organized so future agents can expand it as a real product surface:
 
 `config/*.json -> scripts/materialize-shell.ps1 -> generated/main.generated.kn -> kain build native-ui`
 
-`python settings -> kain scene seed -> c brush mutation -> rust topology report -> gpu preview bake -> node summary`
+`python settings -> kain scene seed -> c brush mutation -> rust topology report -> gpu preview bake -> kain bridge -> node summary`
 
 The native shell and Fabric lane are related but separate on purpose: the shell is the operator surface, while Fabric is the authoring/orchestration spine behind project bootstrapping and derived outputs.
 
@@ -81,3 +81,4 @@ powershell -ExecutionPolicy Bypass -File apps/kain-fabric-modeler/scripts/build-
 - `native/modeler_ops.dll` must exist before the `c_abi` Fabric step can succeed.
 - `generated/main.generated.kn` is materialized output. If the shell and config drift, rerun `scripts/materialize-shell.ps1`.
 - If the GPU step works through direct shader compilation but not through Fabric, inspect the Fabric manifest inputs and the shared-buffer contracts first.
+- If the publish summary step fails with `ERR_MODULE_NOT_FOUND`, verify the repo-rooted helper path in `src/node_publisher.kn`.

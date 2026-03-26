@@ -72,6 +72,29 @@ function Ensure-ParentDirectory {
     }
 }
 
+function Remove-PathIfExists {
+    param([string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        return
+    }
+
+    Remove-Item -Path $Path -Recurse -Force
+}
+
+function Invoke-CleanupPaths {
+    param([object[]]$CleanupPaths)
+
+    foreach ($relativePath in $CleanupPaths) {
+        if ([string]::IsNullOrWhiteSpace([string]$relativePath)) {
+            continue
+        }
+
+        $absolutePath = Resolve-ExpectedPath -RelativePath $relativePath
+        Remove-PathIfExists -Path $absolutePath
+    }
+}
+
 function Invoke-LoggedCommand {
     param(
         [Parameter(Mandatory = $true)]
@@ -129,8 +152,8 @@ if (-not (Test-Path $LogsRoot)) {
 }
 
 $manifest = Get-Content -Raw -Path $ManifestPath | ConvertFrom-Json
-$resolvedKain = Resolve-Binary -Tool "kain"
-$resolvedClang = Resolve-Binary -Tool "clang"
+$resolvedKain = $null
+$resolvedClang = $null
 
 $allPipelines = @($manifest.pipelines)
 if ($Pipelines -and $Pipelines.Count -gt 0) {
@@ -152,10 +175,19 @@ foreach ($pipeline in $allPipelines) {
     $workingDirectory = Resolve-WorkingDirectory -RelativePath ([string]$pipeline.working_directory)
     $logPath = Join-Path $LogsRoot ("{0}.log" -f $label)
     $args = @($pipeline.args | ForEach-Object { [string]$_ })
+    Invoke-CleanupPaths -CleanupPaths @($pipeline.cleanup_paths)
     $executable = switch ([string]$pipeline.type) {
-        "kain" { $resolvedKain }
+        "kain" {
+            if (-not $resolvedKain) {
+                $resolvedKain = Resolve-Binary -Tool "kain"
+            }
+            $resolvedKain
+        }
         "process" {
             if ([string]$pipeline.executable -eq "clang") {
+                if (-not $resolvedClang) {
+                    $resolvedClang = Resolve-Binary -Tool "clang"
+                }
                 $resolvedClang
             } else {
                 Resolve-Binary -Tool ([string]$pipeline.executable)
@@ -246,12 +278,11 @@ foreach ($result in $results) {
     $markdown += "- exit_code: $($result.exit_code)"
     $markdown += "- duration_ms: $($result.duration_ms)"
     $markdown += "- log_path: $($result.log_path)"
-    $markdown += "- command: `$ $($result.command)`"
+    $markdown += '- command: `' + $result.command + '`'
     if ($result.expected_outputs.Count -gt 0) {
-        $markdown += "- expected outputs:"
         foreach ($output in $result.expected_outputs) {
             $exists = if ($output.exists) { "present" } else { "missing" }
-            $markdown += "  - [$exists] $($output.path)"
+            $markdown += "- output: [$exists] $($output.path)"
         }
     }
     $markdown += ""

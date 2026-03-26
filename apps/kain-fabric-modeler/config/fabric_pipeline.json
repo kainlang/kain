@@ -27,8 +27,8 @@
     },
     {
       "id": "node_publisher",
-      "runtime": "node",
-      "summary": "Builds the operator-facing publish/export summary."
+      "runtime": "kain",
+      "summary": "Builds the operator-facing publish/export summary through the Kain-to-Node bridge."
     }
   ]
 }

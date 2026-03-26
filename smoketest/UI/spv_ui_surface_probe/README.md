@@ -1,26 +1,27 @@
 # SPV UI Surface Probe
 
-This smoke is the honest first probe for "SPV-based UI" inside the current Kain repo.
+This smoke is the current native proof for Kain's shader-canvas UI lane.
 
 It deliberately combines:
 
-- a semantic UI shell with a `viewport3d` placeholder surface
-- an authored `shader compute` item intended to behave like a procedural UI canvas
-- explicit `comptime` compute metadata so the shader emits SPIR-V plus runtime sidecars
-- a direct `gpu-artifacts` helper so the `.spv` can be inspected without building the full native app lane first
+- a semantic UI shell authored in Kain
+- a real `<canvas>` surface that resolves through `RealtimeAppBundle.shader_canvases`
+- a fragment shader emitted as SPIR-V and consumed through the native shader bundle lane
+- a packaged relative `font_asset` that the native host turns into a packed MSDF atlas texture
+- a fragment preview that visibly samples the runtime-provided atlas instead of faking the path with CPU text drawing
 
-What this smoke proves today:
+What this smoke proves now:
 
-- Kain can author a UI-facing smoke that also emits SPIR-V artifacts
-- the compute plan can describe a procedural "surface" contract instead of a pure tensor math demo
-- native UI packaging can stage shader/runtime sidecars beside a desktop executable
+- Kain can author a shader-canvas surface directly in UI schema instead of falling back to a viewport placeholder
+- native app materialization resolves the smoke's relative `font_asset` from the authored source root and packages it beside the executable
+- the native host provisions the packaged font into the shader-canvas atlas cache and exposes it as a shader-readable texture
+- the shader-canvas executable path remains SPIR-V-canonical even while the current native host consumes WGSL/WGPU derivatives
 
-What this smoke does **not** prove yet:
+What this smoke still does **not** prove:
 
-- a real fullscreen-quad host that samples the SPIR-V output as the primary widget renderer
-- live pointer routing from the native host into the shader
-- text rendering via font atlas sampling
-- retained widget state fed back from GPU execution into the UI host
+- retained widget interaction fully round-tripping from GPU-authored state back into the semantic UI runtime
+- final editor-grade text layout, selection, caret, and shaping behavior
+- a Vulkan-first raw-SPIR-V host that bypasses the current WGSL/WGPU bridge
 
 Run:
 
@@ -29,14 +30,17 @@ run_all.bat
 build_native_exe.bat
 launch_native_exe.bat
 emit_gpu_artifacts.bat
-cargo run -q -p cli --bin kain -- smoketest/UI/spv_ui_surface_probe/smoke.kn -t interpret
-cargo run -q -p cli --bin kain -- smoketest/UI/spv_ui_surface_probe/smoke.kn -t test
 ```
+
+Notes:
+
+- `build_native_exe.bat` is the supported executable path for this smoke because it stages `assets/ui_smoke_default.ttf` from the local Windows font directory if the smoke asset is missing.
+- the schema visual for this smoke lives in `docs/shader_canvas_ui_schema.svg`
 
 Artifact inspection:
 
 - `emit_gpu_artifacts.bat` writes a `.spv`, Rust host wrapper, reflection JSON, and shader bundle JSON into `generated/spv_ui_surface_probe.*`
-- `build_native_exe.bat` materializes `native-app/` with the runtime-side packaging lane
+- `build_native_exe.bat` materializes `native-app/` with the packaged realtime font asset, native UI bundle, realtime bundle, and shader bundle sidecars
 
 ## Output Hygiene
 

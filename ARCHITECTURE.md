@@ -40,6 +40,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [crates](/M:/Code/Kain/crates): workspace crates
 - [runtime](/M:/Code/Kain/runtime): native runtime substrate, conformance, fixtures, and companion lanes
 - [smoketest](/M:/Code/Kain/smoketest): capability proof matrix for bridges, UI, 3D, and mixed runtimes
+- [smoketest/allinone](/M:/Code/Kain/smoketest/allinone): broad regression harness that replays importers, standalone FFI bridges, GPU artifacts, Omni, Fabric, and UE5 codegen into per-lane output folders
 - [docs](/M:/Code/Kain/docs): doctrine, plans, pipeline notes, validation notes, and research
 - [apps](/M:/Code/Kain/apps): first-class applications and prototypes
 - [apps/kain-fabric-modeler](/M:/Code/Kain/apps/kain-fabric-modeler): Fabric-first native 3D modeling app scaffold that converges Python, Kain, C ABI, Rust crate, GPU compute, Node, and native-ui packaging
@@ -97,6 +98,7 @@ The native shader-canvas UI lane now follows this contract:
 - `kain-driver` materializes shader bundles and native app sidecars that keep shader-canvas metadata, shader refs, native UI bundles, and packaged realtime font assets aligned, resolving relative realtime asset sources against the authored source root instead of the materialization working directory
 - `kain-ui-native` resolves shader canvases from realtime bundle metadata first and only falls back to surface-local shader refs when metadata is missing
 - `kain-ui-native` now turns the shader-canvas text contract into real GPU inputs by serializing atlas/text metadata into the surface storage buffer and synthesizing a host-provisioned packed atlas texture, preferring packaged realtime font assets first, then `ab_glyph` rasterization from data-driven system-font aliases, with bitmap fallback and cache reuse across repeated surfaces that share atlas content
+- `smoketest/UI/spv_ui_surface_probe` is the canonical native proof for this lane: it authors a real `<canvas>` node, packages a relative font asset, emits SPIR-V, and shows a fragment shader sampling the runtime-provided packed atlas texture
 - canonical native shader payload remains SPIR-V, while the current WGPU native host may consume derived WGSL or runtime-transpiled WGSL from the same bundle family
 
 The architecture rule here is the same as the viewport and compute lanes: shader-canvas execution can optimize presentation, but it must stay subordinate to compiler-owned bundle truth rather than inventing a renderer-local UI shader dialect.
@@ -136,6 +138,7 @@ Typical commands:
 - `kain fabric validate`
 - `kain fabric run`
 - `kain import-c`, `kain import-rust`, `kain import-ts`, `kain import-asm`, `kain import-crate`
+- `powershell -ExecutionPolicy Bypass -File smoketest/allinone/run_all.ps1`
 
 If the debug CLI is missing:
 
@@ -178,6 +181,7 @@ If the debug CLI is missing:
 - `kain fabric init --template polyglot` now emits a runnable local smoke-grade scaffold, including its local Rust crate manifest and native C fixture, instead of a validation-only placeholder.
 - Fabric host smoketests now use deterministic roots under `target/fab-init` and `target/fab-smoke`, preserving `.kain/cache` across separate `cargo test` invocations. If a rerun is still slow, the remaining wall time is usually Cargo recompilation rather than bridge cache misses inside the test body.
 - The generated polyglot scaffold also writes `FABRIC.README.md`; treat that file as the first-stop quickstart for the smoke-grade local pipeline shape.
+- `smoketest/allinone` is the broad regression umbrella for major CLI and bridge surfaces. Its runner is manifest-driven and clears each lane's generated outputs before rerun, so stale artifacts should not be treated as proof that a current codegen path still works.
 - For SM64/Fast3D research, Fabric should stay an optional post-extraction simulation lane that feeds buffers or textures into the adapter. Do not make display-list extraction or the base render loop depend on Fabric before the geometry and segment path is stable.
 
 ## Template Packs

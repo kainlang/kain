@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="128" y1="72" x2="1480" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#07111B"/>
+      <stop offset="1" stop-color="#15273A"/>
+    </linearGradient>
+    <linearGradient id="canvasGlow" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#3FD2FF"/>
+      <stop offset="1" stop-color="#7BFFC8"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#102033" stop-opacity="0.92"/>
+      <stop offset="1" stop-color="#1A2F48" stop-opacity="0.82"/>
+    </linearGradient>
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="14" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <style>
+      .title { font: 700 36px 'Segoe UI', sans-serif; fill: #EEF8FF; }
+      .subtitle { font: 500 18px 'Segoe UI', sans-serif; fill: #A8C3DB; }
+      .boxTitle { font: 700 22px 'Segoe UI', sans-serif; fill: #F6FBFF; }
+      .boxText { font: 500 16px 'Segoe UI', sans-serif; fill: #D5E7F5; }
+      .mono { font: 600 15px 'Consolas', 'Cascadia Code', monospace; fill: #7DEBFF; }
+      .note { font: 500 15px 'Segoe UI', sans-serif; fill: #9CB7CC; }
+      .label { font: 700 14px 'Segoe UI', sans-serif; fill: #FFD16A; letter-spacing: 0.08em; text-transform: uppercase; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="980" rx="28" fill="url(#bg)"/>
+  <circle cx="1330" cy="180" r="150" fill="#0F3A54" fill-opacity="0.32"/>
+  <circle cx="260" cy="800" r="220" fill="#143C59" fill-opacity="0.20"/>
+
+  <text x="80" y="88" class="title">Shader Canvas UI Schema</text>
+  <text x="80" y="124" class="subtitle">Smoke executable contract for packaged font assets, shader-canvas metadata, and native atlas-backed rendering.</text>
+
+  <rect x="72" y="176" width="454" height="230" rx="24" fill="url(#panel)" stroke="#294865"/>
+  <text x="104" y="220" class="label">Authored UI</text>
+  <text x="104" y="258" class="boxTitle">`smoke.kn`</text>
+  <text x="104" y="296" class="boxText">`component App()`</text>
+  <text x="104" y="326" class="boxText">`&lt;theme /&gt;`</text>
+  <text x="104" y="356" class="boxText">`&lt;panel /&gt;` + `&lt;graph /&gt;` context shells</text>
+  <text x="104" y="386" class="boxText">`&lt;canvas title="Fastest UI Lane"`</text>
+  <text x="104" y="416" class="boxText">`text="MSDF atlas sampled live..."`</text>
+  <text x="104" y="446" class="boxText">`shader_ref="UiSurfaceProbe"`</text>
+  <text x="104" y="476" class="boxText">`font_asset="assets/ui_smoke_default.ttf"`</text>
+
+  <rect x="572" y="176" width="454" height="230" rx="24" fill="url(#panel)" stroke="#294865"/>
+  <text x="604" y="220" class="label">Compiler Truth</text>
+  <text x="604" y="258" class="boxTitle">`RealtimeAppBundle.shader_canvases[]`</text>
+  <text x="604" y="296" class="boxText">surface id + shader ref + shader bundle ref key</text>
+  <text x="604" y="326" class="boxText">font atlas descriptor</text>
+  <text x="604" y="356" class="boxText">encoding: `msdf-rgba`</text>
+  <text x="604" y="386" class="boxText">distance range: `6px`</text>
+  <text x="604" y="416" class="boxText">text runs + runtime resource bindings</text>
+  <text x="604" y="446" class="boxText">asset key: `font::assets/ui_smoke_default.ttf`</text>
+
+  <rect x="1072" y="176" width="454" height="230" rx="24" fill="url(#panel)" stroke="#294865"/>
+  <text x="1104" y="220" class="label">Native Materialization</text>
+  <text x="1104" y="258" class="boxTitle">`build_native_exe.bat`</text>
+  <text x="1104" y="296" class="boxText">stages a Windows system font into smoke `assets/`</text>
+  <text x="1104" y="326" class="boxText">packages realtime bundle + shader bundle + font sidecar</text>
+  <text x="1104" y="356" class="boxText">keeps relative asset resolution source-root aware</text>
+  <text x="1104" y="386" class="boxText">produces `native-app/` smoketest executable output</text>
+
+  <path d="M526 290H572" stroke="#53D7FF" stroke-width="4" stroke-linecap="round"/>
+  <path d="M1026 290H1072" stroke="#53D7FF" stroke-width="4" stroke-linecap="round"/>
+  <polygon points="560,282 572,290 560,298" fill="#53D7FF"/>
+  <polygon points="1060,282 1072,290 1060,298" fill="#53D7FF"/>
+
+  <rect x="148" y="498" width="1304" height="346" rx="30" fill="#0A1725" stroke="#284562"/>
+  <text x="188" y="548" class="label">Runtime Surface</text>
+  <text x="188" y="590" class="boxTitle">Shader-canvas native presentation</text>
+
+  <rect x="196" y="636" width="860" height="162" rx="28" fill="#10263A" stroke="#326080"/>
+  <rect x="224" y="662" width="804" height="34" rx="17" fill="#19344B"/>
+  <rect x="242" y="726" width="766" height="40" rx="18" fill="url(#canvasGlow)" fill-opacity="0.18" stroke="url(#canvasGlow)" filter="url(#softGlow)"/>
+  <circle cx="952" cy="718" r="18" fill="#44D9FF" fill-opacity="0.65"/>
+  <circle cx="286" cy="748" r="12" fill="#FFD16A" fill-opacity="0.55"/>
+  <text x="252" y="686" class="mono">Shader canvas card surface</text>
+  <text x="256" y="752" class="mono">Packed MSDF atlas preview sampled in fragment shader</text>
+  <text x="256" y="781" class="note">The smoke shader displays the runtime atlas as a visible luminous strip inside the procedural panel.</text>
+
+  <rect x="1092" y="620" width="304" height="192" rx="24" fill="#112436" stroke="#326080"/>
+  <text x="1124" y="662" class="boxTitle">Bound GPU resources</text>
+  <text x="1124" y="700" class="boxText">Texture: packed font atlas</text>
+  <text x="1124" y="730" class="boxText">Sampler: linear filtering</text>
+  <text x="1124" y="760" class="boxText">Storage payload: atlas + text metadata</text>
+  <text x="1124" y="790" class="boxText">Shader source: SPIR-V canonical, WGSL host-consumed</text>
+
+  <path d="M1056 718H1092" stroke="#7BFFC8" stroke-width="4" stroke-linecap="round"/>
+  <polygon points="1080,710 1092,718 1080,726" fill="#7BFFC8"/>
+
+  <text x="188" y="892" class="subtitle">The smoke executable exercises the same lane future editor tools will use: authored canvas node -&gt; compiler-emitted shader canvas metadata -&gt; packaged font asset -&gt; native MSDF atlas -&gt; shader-visible texture.</text>
+</svg>

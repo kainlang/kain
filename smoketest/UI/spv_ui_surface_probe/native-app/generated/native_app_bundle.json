@@ -12,7 +12,7 @@
   },
   "output": {
     "tree": {
-      "root": 12,
+      "root": 13,
       "nodes": {
         "1": {
           "id": 1,
@@ -23,7 +23,7 @@
               "String": "title"
             },
             "text": {
-              "String": "Procedural UI surface, emitted as SPIR-V"
+              "String": "Shader canvas is now a first-class native UI lane."
             }
           },
           "children": [],
@@ -74,7 +74,7 @@
               "String": "caption"
             },
             "text": {
-              "String": "This smoke is the shortest path from Kain UI authoring to a shader-side surface concept. It is intentionally compute-driven today, not a finished fullscreen-quad renderer."
+              "String": "This smoke packages a real font asset, emits SPIR-V, builds a native executable, and samples the packed MSDF atlas inside the fragment shader."
             }
           },
           "children": [],
@@ -179,7 +179,7 @@
               "String": "caption"
             },
             "text": {
-              "String": "Host next: fullscreen quad, pointer uniforms, interaction data, font atlas uploads."
+              "String": "Host: native window, shader bundle, realtime bundle, packed font asset sidecar, canvas surface presentation."
             }
           },
           "children": [],
@@ -230,7 +230,7 @@
               "String": "caption"
             },
             "text": {
-              "String": "Client now: rounded-rect SDF-like canvas math authored in Kain and emitted through the GPU artifact pipeline."
+              "String": "Client: Kain fragment shader, atlas texture sampling, procedural panel composition, SPIR-V-canonical shader artifact output."
             }
           },
           "children": [],
@@ -281,7 +281,7 @@
               "String": "graph"
             },
             "title": {
-              "String": "Current Host / Client Split"
+              "String": "Host / Client Contract"
             }
           },
           "children": [
@@ -329,13 +329,45 @@
         "7": {
           "id": 7,
           "identity_key": null,
-          "kind": "Text",
+          "kind": {
+            "Element": "canvas"
+          },
           "props": {
-            "role": {
-              "String": "caption"
+            "font_asset": {
+              "String": "assets/ui_smoke_default.ttf"
+            },
+            "font_cell_height_px": {
+              "Int": 32
+            },
+            "font_cell_width_px": {
+              "Int": 32
+            },
+            "font_encoding": {
+              "String": "msdf-rgba"
+            },
+            "font_family": {
+              "String": "kain.default-ui-sans"
+            },
+            "font_msdf_range_px": {
+              "Int": 6
+            },
+            "shader_format": {
+              "String": "spirv"
+            },
+            "shader_ref": {
+              "String": "UiSurfaceProbe"
+            },
+            "shader_stage": {
+              "String": "fragment"
+            },
+            "tag": {
+              "String": "canvas"
             },
             "text": {
-              "String": "Text still needs a font atlas plus glyph layout buffers."
+              "String": "MSDF atlas sampled live from packaged font assets"
+            },
+            "title": {
+              "String": "Fastest UI Lane"
             }
           },
           "children": [],
@@ -370,7 +402,7 @@
             "values": {},
             "classes": [],
             "theme_scope": null,
-            "variant": "caption",
+            "variant": null,
             "states": []
           },
           "watches": [],
@@ -386,7 +418,7 @@
               "String": "caption"
             },
             "text": {
-              "String": "A true retained UI loop still belongs on the host side until the shader and runtime contract grows stronger data exchange."
+              "String": "A canvas node now survives all the way into the native runtime as a shader-canvas surface, not a viewport placeholder."
             }
           },
           "children": [],
@@ -431,18 +463,121 @@
         "9": {
           "id": 9,
           "identity_key": null,
+          "kind": "Text",
+          "props": {
+            "role": {
+              "String": "caption"
+            },
+            "text": {
+              "String": "Relative font assets resolve from the source root, get packaged beside the executable, and feed the native MSDF atlas cache."
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null,
+            "tab_group_id": null,
+            "tab_label": null,
+            "tab_order": null,
+            "tab_default_active": false,
+            "tab_closable": false
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": "caption",
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "10": {
+          "id": 10,
+          "identity_key": null,
+          "kind": "Text",
+          "props": {
+            "role": {
+              "String": "caption"
+            },
+            "text": {
+              "String": "The shader preview is not faking the lane with CPU text drawing: it samples the runtime-provided atlas texture inside the fragment shader."
+            }
+          },
+          "children": [],
+          "layout": {
+            "kind": "Flow",
+            "gap": 0.0,
+            "padding": 0.0,
+            "min_width": null,
+            "min_height": null,
+            "width": null,
+            "height": null,
+            "max_width": null,
+            "max_height": null,
+            "flex_grow": 0.0,
+            "flex_shrink": 1.0,
+            "align_items": "Start",
+            "justify_content": "Start",
+            "overflow_x": "Visible",
+            "overflow_y": "Visible",
+            "dock": null,
+            "split_ratio": null,
+            "resizable": false,
+            "persistent_layout_id": null,
+            "tab_group_id": null,
+            "tab_label": null,
+            "tab_order": null,
+            "tab_default_active": false,
+            "tab_closable": false
+          },
+          "style": {
+            "tokens": [],
+            "values": {},
+            "classes": [],
+            "theme_scope": null,
+            "variant": "caption",
+            "states": []
+          },
+          "watches": [],
+          "focus_scope": null,
+          "selection_scope": null
+        },
+        "11": {
+          "id": 11,
+          "identity_key": null,
           "kind": "Panel",
           "props": {
             "tag": {
               "String": "panel"
             },
             "title": {
-              "String": "Immediate Gotchas"
+              "String": "What This Smoke Proves"
             }
           },
           "children": [
-            7,
-            8
+            8,
+            9,
+            10
           ],
           "layout": {
             "kind": "FlexColumn",
@@ -482,62 +617,8 @@
           "focus_scope": null,
           "selection_scope": null
         },
-        "10": {
-          "id": 10,
-          "identity_key": null,
-          "kind": "Viewport3D",
-          "props": {
-            "scene": {
-              "String": "tensor_stream_probe"
-            },
-            "tag": {
-              "String": "viewport3d"
-            },
-            "title": {
-              "String": "Procedural Surface Preview"
-            }
-          },
-          "children": [],
-          "layout": {
-            "kind": "Absolute",
-            "gap": 0.0,
-            "padding": 0.0,
-            "min_width": null,
-            "min_height": null,
-            "width": null,
-            "height": null,
-            "max_width": null,
-            "max_height": null,
-            "flex_grow": 0.0,
-            "flex_shrink": 1.0,
-            "align_items": "Start",
-            "justify_content": "Start",
-            "overflow_x": "Visible",
-            "overflow_y": "Visible",
-            "dock": null,
-            "split_ratio": null,
-            "resizable": false,
-            "persistent_layout_id": null,
-            "tab_group_id": null,
-            "tab_label": null,
-            "tab_order": null,
-            "tab_default_active": false,
-            "tab_closable": false
-          },
-          "style": {
-            "tokens": [],
-            "values": {},
-            "classes": [],
-            "theme_scope": null,
-            "variant": null,
-            "states": []
-          },
-          "watches": [],
-          "focus_scope": null,
-          "selection_scope": null
-        },
-        "11": {
-          "id": 11,
+        "12": {
+          "id": 12,
           "identity_key": null,
           "kind": "Slot",
           "props": {
@@ -548,8 +629,8 @@
           "children": [
             3,
             6,
-            9,
-            10
+            7,
+            11
           ],
           "layout": {
             "kind": "FlexColumn",
@@ -589,15 +670,15 @@
           "focus_scope": null,
           "selection_scope": null
         },
-        "12": {
-          "id": 12,
+        "13": {
+          "id": 13,
           "identity_key": null,
           "kind": {
             "ComponentRef": "App"
           },
           "props": {},
           "children": [
-            11
+            12
           ],
           "layout": {
             "kind": "Flow",
@@ -651,7 +732,7 @@
                 "String": "title"
               },
               "text": {
-                "String": "Procedural UI surface, emitted as SPIR-V"
+                "String": "Shader canvas is now a first-class native UI lane."
               }
             },
             "children": [],
@@ -706,7 +787,7 @@
                 "String": "caption"
               },
               "text": {
-                "String": "This smoke is the shortest path from Kain UI authoring to a shader-side surface concept. It is intentionally compute-driven today, not a finished fullscreen-quad renderer."
+                "String": "This smoke packages a real font asset, emits SPIR-V, builds a native executable, and samples the packed MSDF atlas inside the fragment shader."
               }
             },
             "children": [],
@@ -828,7 +909,7 @@
                 "String": "caption"
               },
               "text": {
-                "String": "Host next: fullscreen quad, pointer uniforms, interaction data, font atlas uploads."
+                "String": "Host: native window, shader bundle, realtime bundle, packed font asset sidecar, canvas surface presentation."
               }
             },
             "children": [],
@@ -883,7 +964,7 @@
                 "String": "caption"
               },
               "text": {
-                "String": "Client now: rounded-rect SDF-like canvas math authored in Kain and emitted through the GPU artifact pipeline."
+                "String": "Client: Kain fragment shader, atlas texture sampling, procedural panel composition, SPIR-V-canonical shader artifact output."
               }
             },
             "children": [],
@@ -938,7 +1019,7 @@
                 "String": "graph"
               },
               "title": {
-                "String": "Current Host / Client Split"
+                "String": "Host / Client Contract"
               }
             },
             "children": [
@@ -999,13 +1080,45 @@
           "node": {
             "id": 7,
             "identity_key": null,
-            "kind": "Text",
+            "kind": {
+              "Element": "canvas"
+            },
             "props": {
-              "role": {
-                "String": "caption"
+              "font_asset": {
+                "String": "assets/ui_smoke_default.ttf"
+              },
+              "font_cell_height_px": {
+                "Int": 32
+              },
+              "font_cell_width_px": {
+                "Int": 32
+              },
+              "font_encoding": {
+                "String": "msdf-rgba"
+              },
+              "font_family": {
+                "String": "kain.default-ui-sans"
+              },
+              "font_msdf_range_px": {
+                "Int": 6
+              },
+              "shader_format": {
+                "String": "spirv"
+              },
+              "shader_ref": {
+                "String": "UiSurfaceProbe"
+              },
+              "shader_stage": {
+                "String": "fragment"
+              },
+              "tag": {
+                "String": "canvas"
               },
               "text": {
-                "String": "Text still needs a font atlas plus glyph layout buffers."
+                "String": "MSDF atlas sampled live from packaged font assets"
+              },
+              "title": {
+                "String": "Fastest UI Lane"
               }
             },
             "children": [],
@@ -1040,7 +1153,7 @@
               "values": {},
               "classes": [],
               "theme_scope": null,
-              "variant": "caption",
+              "variant": null,
               "states": []
             },
             "watches": [],
@@ -1060,7 +1173,7 @@
                 "String": "caption"
               },
               "text": {
-                "String": "A true retained UI loop still belongs on the host side until the shader and runtime contract grows stronger data exchange."
+                "String": "A canvas node now survives all the way into the native runtime as a shader-canvas surface, not a viewport placeholder."
               }
             },
             "children": [],
@@ -1109,18 +1222,129 @@
           "node": {
             "id": 9,
             "identity_key": null,
+            "kind": "Text",
+            "props": {
+              "role": {
+                "String": "caption"
+              },
+              "text": {
+                "String": "Relative font assets resolve from the source root, get packaged beside the executable, and feed the native MSDF atlas cache."
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null,
+              "tab_group_id": null,
+              "tab_label": null,
+              "tab_order": null,
+              "tab_default_active": false,
+              "tab_closable": false
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": "caption",
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 10,
+            "identity_key": null,
+            "kind": "Text",
+            "props": {
+              "role": {
+                "String": "caption"
+              },
+              "text": {
+                "String": "The shader preview is not faking the lane with CPU text drawing: it samples the runtime-provided atlas texture inside the fragment shader."
+              }
+            },
+            "children": [],
+            "layout": {
+              "kind": "Flow",
+              "gap": 0.0,
+              "padding": 0.0,
+              "min_width": null,
+              "min_height": null,
+              "width": null,
+              "height": null,
+              "max_width": null,
+              "max_height": null,
+              "flex_grow": 0.0,
+              "flex_shrink": 1.0,
+              "align_items": "Start",
+              "justify_content": "Start",
+              "overflow_x": "Visible",
+              "overflow_y": "Visible",
+              "dock": null,
+              "split_ratio": null,
+              "resizable": false,
+              "persistent_layout_id": null,
+              "tab_group_id": null,
+              "tab_label": null,
+              "tab_order": null,
+              "tab_default_active": false,
+              "tab_closable": false
+            },
+            "style": {
+              "tokens": [],
+              "values": {},
+              "classes": [],
+              "theme_scope": null,
+              "variant": "caption",
+              "states": []
+            },
+            "watches": [],
+            "focus_scope": null,
+            "selection_scope": null
+          }
+        }
+      },
+      {
+        "CreateNode": {
+          "node": {
+            "id": 11,
+            "identity_key": null,
             "kind": "Panel",
             "props": {
               "tag": {
                 "String": "panel"
               },
               "title": {
-                "String": "Immediate Gotchas"
+                "String": "What This Smoke Proves"
               }
             },
             "children": [
-              7,
-              8
+              8,
+              9,
+              10
             ],
             "layout": {
               "kind": "FlexColumn",
@@ -1164,75 +1388,18 @@
       },
       {
         "ReplaceChildren": {
-          "parent": 9,
+          "parent": 11,
           "children": [
-            7,
-            8
+            8,
+            9,
+            10
           ]
         }
       },
       {
         "CreateNode": {
           "node": {
-            "id": 10,
-            "identity_key": null,
-            "kind": "Viewport3D",
-            "props": {
-              "scene": {
-                "String": "tensor_stream_probe"
-              },
-              "tag": {
-                "String": "viewport3d"
-              },
-              "title": {
-                "String": "Procedural Surface Preview"
-              }
-            },
-            "children": [],
-            "layout": {
-              "kind": "Absolute",
-              "gap": 0.0,
-              "padding": 0.0,
-              "min_width": null,
-              "min_height": null,
-              "width": null,
-              "height": null,
-              "max_width": null,
-              "max_height": null,
-              "flex_grow": 0.0,
-              "flex_shrink": 1.0,
-              "align_items": "Start",
-              "justify_content": "Start",
-              "overflow_x": "Visible",
-              "overflow_y": "Visible",
-              "dock": null,
-              "split_ratio": null,
-              "resizable": false,
-              "persistent_layout_id": null,
-              "tab_group_id": null,
-              "tab_label": null,
-              "tab_order": null,
-              "tab_default_active": false,
-              "tab_closable": false
-            },
-            "style": {
-              "tokens": [],
-              "values": {},
-              "classes": [],
-              "theme_scope": null,
-              "variant": null,
-              "states": []
-            },
-            "watches": [],
-            "focus_scope": null,
-            "selection_scope": null
-          }
-        }
-      },
-      {
-        "CreateNode": {
-          "node": {
-            "id": 11,
+            "id": 12,
             "identity_key": null,
             "kind": "Slot",
             "props": {
@@ -1243,8 +1410,8 @@
             "children": [
               3,
               6,
-              9,
-              10
+              7,
+              11
             ],
             "layout": {
               "kind": "FlexColumn",
@@ -1288,26 +1455,26 @@
       },
       {
         "ReplaceChildren": {
-          "parent": 11,
+          "parent": 12,
           "children": [
             3,
             6,
-            9,
-            10
+            7,
+            11
           ]
         }
       },
       {
         "CreateNode": {
           "node": {
-            "id": 12,
+            "id": 13,
             "identity_key": null,
             "kind": {
               "ComponentRef": "App"
             },
             "props": {},
             "children": [
-              11
+              12
             ],
             "layout": {
               "kind": "Flow",
@@ -1351,15 +1518,15 @@
       },
       {
         "ReplaceChildren": {
-          "parent": 12,
+          "parent": 13,
           "children": [
-            11
+            12
           ]
         }
       },
       {
         "SetRoot": {
-          "id": 12
+          "id": 13
         }
       }
     ],
@@ -1383,8 +1550,8 @@
           "preserve_on_reload": true
         },
         {
-          "id": "animation.node.10",
-          "target": 10,
+          "id": "animation.node.7",
+          "target": 7,
           "property": "surface.opacity",
           "duration_ms": 180,
           "trigger": "Mount",
@@ -1397,21 +1564,26 @@
           "id": "surface.node.6",
           "kind": "Graph",
           "node": 6,
-          "title": "Current Host / Client Split",
+          "title": "Host / Client Contract",
           "renderer_preference": "auto",
           "composition_mode": "layered_gpu",
           "gpu_backing_required": true,
           "shader": null
         },
         {
-          "id": "surface.node.10",
-          "kind": "Viewport3D",
-          "node": 10,
-          "title": "Procedural Surface Preview",
-          "renderer_preference": "wgpu",
-          "composition_mode": "viewport",
+          "id": "surface.node.7",
+          "kind": "Canvas",
+          "node": 7,
+          "title": "Fastest UI Lane",
+          "renderer_preference": "shader",
+          "composition_mode": "shader_canvas",
           "gpu_backing_required": true,
-          "shader": null
+          "shader": {
+            "shader_ref": "UiSurfaceProbe",
+            "entry_point": null,
+            "stage": "fragment",
+            "derived_format": "spirv"
+          }
         }
       ],
       "scheduler": {
@@ -1433,9 +1605,9 @@
           },
           {
             "phase": "Animation",
-            "label": "animation-pass-node-10",
+            "label": "animation-pass-node-7",
             "target_nodes": [
-              10
+              7
             ]
           }
         ]
@@ -1459,7 +1631,7 @@
             }
           },
           {
-            "name": "widget.viewport3d.surface.mode",
+            "name": "widget.canvas.surface.mode",
             "category": "surface",
             "value": {
               "String": "canvas"
@@ -1476,7 +1648,7 @@
             "name": "theme.background.bottom",
             "category": "color",
             "value": {
-              "String": "#0d1827"
+              "String": "#132236"
             }
           },
           {
@@ -1531,14 +1703,14 @@
     }
   },
   "native_projection": {
-    "root_id": 12,
+    "root_id": 13,
     "primary_panel_title": "SPV UI Surface Probe",
-    "primary_viewport_title": "Procedural Surface Preview",
-    "primary_viewport_scene": "tensor_stream_probe",
+    "primary_viewport_title": null,
+    "primary_viewport_scene": null,
     "tab_groups": [],
     "nodes": [
       {
-        "id": 12,
+        "id": 13,
         "parent_id": null,
         "depth": 0,
         "kind": "ComponentRef",
@@ -1550,7 +1722,7 @@
         "dock_placement": null,
         "split_ratio": null,
         "resizable": false,
-        "persistent_layout_id": "node-12",
+        "persistent_layout_id": "node-13",
         "tab_group_id": null,
         "tab_label": null,
         "tab_order": null,
@@ -1560,8 +1732,8 @@
         "child_count": 1
       },
       {
-        "id": 11,
-        "parent_id": 12,
+        "id": 12,
+        "parent_id": 13,
         "depth": 1,
         "kind": "Slot",
         "title": null,
@@ -1572,7 +1744,7 @@
         "dock_placement": null,
         "split_ratio": null,
         "resizable": false,
-        "persistent_layout_id": "node-11",
+        "persistent_layout_id": "node-12",
         "tab_group_id": null,
         "tab_label": null,
         "tab_order": null,
@@ -1583,7 +1755,7 @@
       },
       {
         "id": 3,
-        "parent_id": 11,
+        "parent_id": 12,
         "depth": 2,
         "kind": "Panel",
         "title": "SPV UI Surface Probe",
@@ -1609,7 +1781,7 @@
         "depth": 3,
         "kind": "Text",
         "title": null,
-        "text": "Procedural UI surface, emitted as SPIR-V",
+        "text": "Shader canvas is now a first-class native UI lane.",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -1631,7 +1803,7 @@
         "depth": 3,
         "kind": "Text",
         "title": null,
-        "text": "This smoke is the shortest path from Kain UI authoring to a shader-side surface concept. It is intentionally compute-driven today, not a finished fullscreen-quad renderer.",
+        "text": "This smoke packages a real font asset, emits SPIR-V, builds a native executable, and samples the packed MSDF atlas inside the fragment shader.",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -1649,10 +1821,10 @@
       },
       {
         "id": 6,
-        "parent_id": 11,
+        "parent_id": 12,
         "depth": 2,
         "kind": "Graph",
-        "title": "Current Host / Client Split",
+        "title": "Host / Client Contract",
         "text": null,
         "tag": "graph",
         "scene": null,
@@ -1662,7 +1834,7 @@
         "resizable": false,
         "persistent_layout_id": "node-6",
         "tab_group_id": null,
-        "tab_label": "Current Host / Client Split",
+        "tab_label": "Host / Client Contract",
         "tab_order": null,
         "tab_default_active": false,
         "tab_closable": false,
@@ -1675,7 +1847,7 @@
         "depth": 3,
         "kind": "Text",
         "title": null,
-        "text": "Host next: fullscreen quad, pointer uniforms, interaction data, font atlas uploads.",
+        "text": "Host: native window, shader bundle, realtime bundle, packed font asset sidecar, canvas surface presentation.",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -1697,7 +1869,7 @@
         "depth": 3,
         "kind": "Text",
         "title": null,
-        "text": "Client now: rounded-rect SDF-like canvas math authored in Kain and emitted through the GPU artifact pipeline.",
+        "text": "Client: Kain fragment shader, atlas texture sampling, procedural panel composition, SPIR-V-canonical shader artifact output.",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -1714,35 +1886,13 @@
         "child_count": 0
       },
       {
-        "id": 9,
-        "parent_id": 11,
-        "depth": 2,
-        "kind": "Panel",
-        "title": "Immediate Gotchas",
-        "text": null,
-        "tag": "panel",
-        "scene": null,
-        "layout_kind": "FlexColumn",
-        "dock_placement": null,
-        "split_ratio": null,
-        "resizable": false,
-        "persistent_layout_id": "node-9",
-        "tab_group_id": null,
-        "tab_label": "Immediate Gotchas",
-        "tab_order": null,
-        "tab_default_active": false,
-        "tab_closable": false,
-        "tab_is_active": true,
-        "child_count": 2
-      },
-      {
         "id": 7,
-        "parent_id": 9,
-        "depth": 3,
-        "kind": "Text",
-        "title": null,
-        "text": "Text still needs a font atlas plus glyph layout buffers.",
-        "tag": null,
+        "parent_id": 12,
+        "depth": 2,
+        "kind": "Element",
+        "title": "Fastest UI Lane",
+        "text": "MSDF atlas sampled live from packaged font assets",
+        "tag": "canvas",
         "scene": null,
         "layout_kind": "Flow",
         "dock_placement": null,
@@ -1750,7 +1900,7 @@
         "resizable": false,
         "persistent_layout_id": "node-7",
         "tab_group_id": null,
-        "tab_label": null,
+        "tab_label": "Fastest UI Lane",
         "tab_order": null,
         "tab_default_active": false,
         "tab_closable": false,
@@ -1758,12 +1908,34 @@
         "child_count": 0
       },
       {
+        "id": 11,
+        "parent_id": 12,
+        "depth": 2,
+        "kind": "Panel",
+        "title": "What This Smoke Proves",
+        "text": null,
+        "tag": "panel",
+        "scene": null,
+        "layout_kind": "FlexColumn",
+        "dock_placement": null,
+        "split_ratio": null,
+        "resizable": false,
+        "persistent_layout_id": "node-11",
+        "tab_group_id": null,
+        "tab_label": "What This Smoke Proves",
+        "tab_order": null,
+        "tab_default_active": false,
+        "tab_closable": false,
+        "tab_is_active": true,
+        "child_count": 3
+      },
+      {
         "id": 8,
-        "parent_id": 9,
+        "parent_id": 11,
         "depth": 3,
         "kind": "Text",
         "title": null,
-        "text": "A true retained UI loop still belongs on the host side until the shader and runtime contract grows stronger data exchange.",
+        "text": "A canvas node now survives all the way into the native runtime as a shader-canvas surface, not a viewport placeholder.",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -1780,21 +1952,43 @@
         "child_count": 0
       },
       {
+        "id": 9,
+        "parent_id": 11,
+        "depth": 3,
+        "kind": "Text",
+        "title": null,
+        "text": "Relative font assets resolve from the source root, get packaged beside the executable, and feed the native MSDF atlas cache.",
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
+        "dock_placement": null,
+        "split_ratio": null,
+        "resizable": false,
+        "persistent_layout_id": "node-9",
+        "tab_group_id": null,
+        "tab_label": null,
+        "tab_order": null,
+        "tab_default_active": false,
+        "tab_closable": false,
+        "tab_is_active": true,
+        "child_count": 0
+      },
+      {
         "id": 10,
         "parent_id": 11,
-        "depth": 2,
-        "kind": "Viewport3D",
-        "title": "Procedural Surface Preview",
-        "text": null,
-        "tag": "viewport3d",
-        "scene": "tensor_stream_probe",
-        "layout_kind": "Absolute",
+        "depth": 3,
+        "kind": "Text",
+        "title": null,
+        "text": "The shader preview is not faking the lane with CPU text drawing: it samples the runtime-provided atlas texture inside the fragment shader.",
+        "tag": null,
+        "scene": null,
+        "layout_kind": "Flow",
         "dock_placement": null,
         "split_ratio": null,
         "resizable": false,
         "persistent_layout_id": "node-10",
         "tab_group_id": null,
-        "tab_label": "Procedural Surface Preview",
+        "tab_label": null,
         "tab_order": null,
         "tab_default_active": false,
         "tab_closable": false,

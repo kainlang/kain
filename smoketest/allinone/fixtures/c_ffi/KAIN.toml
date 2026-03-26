@@ -1,0 +1,15 @@
+[package]
+name = "allinone_c_ffi_smoke"
+version = "0.1.0"
+
+[build]
+entry = "smoke.kn"
+output = "../../outputs/c_ffi"
+targets = ["run", "test"]
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "allinone_beacon_math"
+header = "native/beacon_math.h"
+shared_lib = "native/beacon_math.dll"

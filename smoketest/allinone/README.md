@@ -8,8 +8,10 @@ It is meant to give one place where we can re-run the important codegen and brid
 
 - direct `kain import-ts`
 - direct `kain import-asm`
+- standalone C ABI FFI bridge smoke through `use c::...`
+- standalone Rust crate FFI smoke through `use rust::...` plus explicit `kain import-crate`
 - direct `kain gpu-artifacts`
-- `kain omni build` with staged TypeScript, C, and assembly imports plus multi-target output
+- `kain omni build` with staged TypeScript, C, and assembly imports plus TypeScript, KainScript, shader, GPU, and UE5 targets
 - `kain fabric validate` and `kain fabric run`
 - Fabric runtime adapters for `python`, `kain`, `gpu_compute`, `c_abi`, `rust_crate`, and `node`
 - `kain build --ue5` through a local minimal plugin packager lane
@@ -45,6 +47,8 @@ powershell -ExecutionPolicy Bypass -File .\smoketest\allinone\run_all.ps1 -StopO
 
 - `outputs/import_ts`
 - `outputs/import_asm`
+- `outputs/c_ffi`
+- `outputs/crate_ffi`
 - `outputs/gpu_artifacts`
 - `outputs/omni`
 - `outputs/fabric`
@@ -55,6 +59,8 @@ powershell -ExecutionPolicy Bypass -File .\smoketest\allinone\run_all.ps1 -StopO
 ## Notes
 
 - The runner prefers repo-local binaries first, then falls back to PATH.
+- The runner deletes lane-specific generated outputs before each command so stale files do not produce false green regressions.
 - The Fabric lane builds its local C sidecar with `clang` before `fabric run`.
 - The Omni lane deliberately stages TypeScript, C, and assembly imports even though the direct CLI lanes already validate those import commands on their own. That gives both standalone importer coverage and manifest-driven importer coverage.
+- The standalone `c_ffi` and `crate_ffi` fixtures mirror the durable repo-local smoke patterns, but keep their outputs under this folder so broad codegen regressions are easier to inspect in one place.
 - Generated artifacts in `outputs/` and `results/` are disposable.

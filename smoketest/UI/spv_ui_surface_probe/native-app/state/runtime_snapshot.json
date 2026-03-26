@@ -7,17 +7,10 @@
   "layout_id": "ui_smoke_spv_ui_surface_probe_shell",
   "required_runtime_capabilities": [
     "compiler.typed-program",
-    "data.continuous-stream",
-    "data.tensor-buffer",
     "driver.native-app-bundle",
-    "gpu.compute",
-    "gpu.compute-dispatch",
-    "gpu.compute-plan",
     "gpu.programs",
-    "interop.shared-buffer",
     "memory.raw-ops",
     "memory.raw-pointers",
-    "neural.node-plan",
     "runtime.contract.bundle",
     "ui.components",
     "ui.runtime-bundle"
@@ -61,22 +54,6 @@
       "scope_decisions": []
     },
     {
-      "id": "data_continuous-stream",
-      "label": "data.continuous-stream",
-      "capability": "data.continuous-stream",
-      "approval": "workspace",
-      "decision": null,
-      "scope_decisions": []
-    },
-    {
-      "id": "data_tensor-buffer",
-      "label": "data.tensor-buffer",
-      "capability": "data.tensor-buffer",
-      "approval": "workspace",
-      "decision": null,
-      "scope_decisions": []
-    },
-    {
       "id": "driver_native-app-bundle",
       "label": "driver.native-app-bundle",
       "capability": "driver.native-app-bundle",
@@ -85,41 +62,9 @@
       "scope_decisions": []
     },
     {
-      "id": "gpu_compute",
-      "label": "gpu.compute",
-      "capability": "gpu.compute",
-      "approval": "workspace",
-      "decision": null,
-      "scope_decisions": []
-    },
-    {
-      "id": "gpu_compute-dispatch",
-      "label": "gpu.compute-dispatch",
-      "capability": "gpu.compute-dispatch",
-      "approval": "workspace",
-      "decision": null,
-      "scope_decisions": []
-    },
-    {
-      "id": "gpu_compute-plan",
-      "label": "gpu.compute-plan",
-      "capability": "gpu.compute-plan",
-      "approval": "workspace",
-      "decision": null,
-      "scope_decisions": []
-    },
-    {
       "id": "gpu_programs",
       "label": "gpu.programs",
       "capability": "gpu.programs",
-      "approval": "workspace",
-      "decision": null,
-      "scope_decisions": []
-    },
-    {
-      "id": "interop_shared-buffer",
-      "label": "interop.shared-buffer",
-      "capability": "interop.shared-buffer",
       "approval": "workspace",
       "decision": null,
       "scope_decisions": []
@@ -136,14 +81,6 @@
       "id": "memory_raw-pointers",
       "label": "memory.raw-pointers",
       "capability": "memory.raw-pointers",
-      "approval": "workspace",
-      "decision": null,
-      "scope_decisions": []
-    },
-    {
-      "id": "neural_node-plan",
-      "label": "neural.node-plan",
-      "capability": "neural.node-plan",
       "approval": "workspace",
       "decision": null,
       "scope_decisions": []
@@ -185,7 +122,7 @@
       "title": "UI Smoke - SPV UI Surface Probe",
       "provider_id": "native_runtime",
       "status": "active",
-      "workspace_root": "m:\\Code\\Kain",
+      "workspace_root": "M:\\Code\\Kain",
       "updated_at": "2026-03-25T00:00:00Z",
       "message_count": 1,
       "last_message_role": "system",
@@ -194,7 +131,7 @@
   ],
   "workspaces": [
     {
-      "root": "m:\\Code\\Kain",
+      "root": "M:\\Code\\Kain",
       "session_count": 1,
       "recent_session_title": "UI Smoke - SPV UI Surface Probe"
     }

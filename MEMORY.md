@@ -10,6 +10,25 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-26 - All-In-One Cross-Pipeline Regression Harness Added Under smoketest/allinone
+
+The repo now has a single broad smoke folder that exercises the major Kain codegen and bridge surfaces without scattering outputs across unrelated older smokes.
+
+Update:
+
+- `smoketest/allinone` now owns a data-driven runner (`run_all.ps1` + `pipeline_manifest.json`) and self-contained fixtures for importers, standalone FFI bridges, GPU artifacts, Omni, Fabric, and UE5 packaging.
+- The harness explicitly covers `kain import-ts`, `kain import-asm`, standalone `use c::...` C ABI execution, explicit `kain import-crate`, standalone `use rust::...` crate FFI execution, `kain gpu-artifacts`, `kain omni build`, `kain fabric validate`, `kain fabric run`, and `kain build --ue5`.
+- Omni is the current explicit KainScript proof inside this umbrella. Its manifest emits `.ts`, `.ks`, shader, GPU artifact, UE5, and UE5 editor outputs from one staged entrypoint.
+- Each lane writes into its own dedicated folder under `smoketest/allinone/outputs`, and the runner writes machine-readable plus Markdown summaries under `smoketest/allinone/results`.
+- The runner now clears lane-specific outputs before execution so the harness is useful for regression work instead of silently passing on stale artifacts from an earlier good run.
+
+What future work should preserve:
+
+- keep this folder self-contained and repo-local; external folders like `M:\Code\Factory` are optional references, not runtime dependencies
+- extend coverage through new manifest entries and fixture folders rather than hardcoding more one-off logic into the PowerShell runner
+- keep per-lane outputs segregated so regressions are inspectable by surface (`import_ts`, `c_ffi`, `crate_ffi`, `omni`, `fabric`, `ue5`, and so on)
+- keep the clean-start behavior; broad smoke reruns should prove fresh artifacts, not just confirm that a previous run once succeeded
+
 ## 2026-03-26 - Kain Fabric Modeler App Scaffold Added Under /apps
 
 The repo now has a dedicated Fabric-first native modeling app scaffold at `apps/kain-fabric-modeler`.
@@ -109,7 +128,8 @@ Update:
 - `crates/gpu/src/codegen_hlsl.rs` now supports scalar constructor/cast calls (`Float`, `Int`, `UInt`, `Bool`) and assignment expressions. This is a global GPU backend fix, not a Fabric-only workaround.
 - `crates/kain-host/src/fabric.rs` now parses authored compute metadata from shader source, derives workgroup/dispatch and tensor/stream intent from that metadata, prefers resolved shared-buffer snapshot shapes over `[1]`, and infers storage-buffer access modes from declared compute roles instead of placeholder defaults.
 - The repo-local end-to-end smoke `smoketest/fabric/gpu_compute_convergence/KAIN.fabric.toml` now succeeds through `Python -> Kain -> GPU -> Node`.
-- The same smoke now owns a native visual proof lane: `build_visual_exe.ps1` reruns the Fabric session, projects the newest report into `generated/main.generated.kn` and `generated/visual_snapshot.json`, then packages `visual-native-app/fabric-gpu-visual-showcase.exe`. `capture_visual_demo.ps1` produces a screenshot artifact at `generated/fabric_gpu_visual_showcase.png`.
+- The same smoke now owns a native editor proof lane: `build_visual_exe.ps1` reruns the Fabric session, projects the newest report into `generated/main.generated.kn` and `generated/visual_snapshot.json`, and packages `visual-native-app/fabric-studio-3d-editor.exe` as a viewport-first 3D workbench shell with a real `viewport3d` center pane plus a native SPIR-V shader-canvas command surface. `build_visual_exe.ps1 -Release` uses an isolated smoke-local cargo target dir so release packaging does not fight the workspace-wide `target/` cache, and `capture_visual_demo.ps1 -Release` captures the maximized editor window into `generated/fabric_gpu_visual_showcase.png`.
+- The current capture helper now foregrounds the window and tries `PrintWindow`, but it is still fundamentally a GDI-era screenshot path. On Windows, GPU-backed viewport and shader-canvas content may remain absent from the captured PNG even when the realtime bundle clearly contains those surfaces and the executable launches. Preserve this distinction so future agents do not misdiagnose a capture limitation as a missing Fabric UI bundle or missing SPIR-V surface.
 
 ### What changed
 
@@ -132,7 +152,7 @@ Update:
 - **No Fabric-specific compute dialect** — the adapter uses the same `kain.shared.buffer` contract family as all other adapters
 - **Residency built from bundle metadata** — the adapter constructs residency entries from the `ShaderArtifactBundle.entry_points` and `resource_layouts`, not from a new `compute_plans` field. This avoids schema changes to `kain-core::ShaderArtifactBundle`.
 - **`ComputePlan` contract kind** — added as a forward-looking concept for steps whose output is dispatch metadata rather than raw data. In practice, most GPU compute steps will output `SharedBuffer` values.
-- **Visual proof stays report-driven** — the native showcase does not bypass Fabric or read ad hoc temp files. It is generated from the canonical Fabric session report and packaged through the existing `kain build native-ui` lane.
+- **Visual proof stays report-driven** — the native editor shell does not bypass Fabric or read ad hoc temp files. It is generated from the canonical Fabric session report and packaged through the existing `kain build native-ui` lane.
 
 ### What remains incomplete
 
@@ -443,6 +463,36 @@ Update:
 - `kain-ui-native` now resolves packaged realtime font assets relative to the loaded realtime bundle before falling back to system aliases, so font quality is no longer tied to host-local font installation for packaged apps
 - the packed multi-atlas texture contract, atlas-origin storage records, and per-app texture cache were preserved exactly, so the quality upgrade stayed under the existing shader-surface resource contract instead of inventing a second text path
 - the bitmap 5x7 rasterizer remains as compatibility fallback when neither a packaged asset nor a requested font alias can be resolved on the current machine
+
+## 2026-03-26 - Shader Canvas Smoke Became A Real Native Executable Proof
+
+The shader-canvas lane now has an honest end-to-end smoke that exercises the packaged-font and native atlas path instead of describing it abstractly.
+
+What changed:
+
+- `smoketest/UI/spv_ui_surface_probe/smoke.kn` stopped using the old viewport/compute placeholder shape and now authors a real `<canvas>` surface with `shader_ref="UiSurfaceProbe"`, SPIR-V fragment output, relative `font_asset`, and explicit MSDF atlas settings
+- the smoke fragment shader now samples the runtime-provided `font_atlas` texture directly, so the visual output proves the atlas resource is actually bound into the shader lane instead of only existing in bundle metadata
+- `build_native_exe.bat` now stages a smoke-local font file from the Windows font directory when needed, which gives the packaged relative-asset path a repeatable local bootstrap without checking a binary font into the repo
+- the smoke README now documents the executable proof accurately, and `docs/shader_canvas_ui_schema.svg` provides a durable visual reference for the authored UI -> compiler bundle -> packaged asset -> native shader-canvas flow
+- the rebuilt smoke native app now emits `kain_realtime_app_bundle.json` entries for `UiSurfaceProbe`, `font::assets/ui_smoke_default.ttf`, `msdf-rgba`, and canvas `text_runs`, plus a native bundle surface entry whose kind is `Canvas`
+
+Why this matters:
+
+- future work on shader-canvas text quality, resource catalogs, or host adapters now has a runnable executable proof instead of only unit tests and architecture notes
+- the repo now has one obvious place to validate the packed-font-asset + shader-atlas contract when someone changes `kain-core`, `kain-driver`, or `kain-ui-native`
+- the visual schema makes the host/client contract easier to communicate to future agents without re-reading the full implementation every time
+
+What future work should preserve:
+
+- keep the smoke using authored `<canvas>` semantics and compiler-emitted shader-canvas metadata rather than smuggling the proof back through a viewport or host-local demo path
+- keep packaged font assets relative to the smoke source tree so the source-root-aware resolution path remains part of the exercised contract
+- if the shader-canvas storage payload evolves, update the smoke and the schema visual together so the proof stays honest
+
+Next serious move:
+
+- add a launch-and-capture validation path for the smoke executable so we can archive a real rendered screenshot beside the schema SVG
+- widen the smoke from atlas preview sampling into true shader-side glyph reconstruction from the storage payload when the runtime text contract is ready for that step
+- once this smoke is stable, mirror the same contract in a more editor-like native tool shell so the performance path graduates from proof to daily driver
 
 ## 2026-03-25 - Fabric Python Execution Stopped Leaking Through Kain Host Internals
 

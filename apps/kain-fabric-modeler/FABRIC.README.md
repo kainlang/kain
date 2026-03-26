@@ -20,7 +20,7 @@ The Rust helper computes a topology-oriented summary over the seeded mesh stream
 The GPU compute step copies the preview stream through the Fabric GPU runtime to prove the compute lane is wired.
 
 6. `node_publisher`
-Node renders a publish/export-style summary from the upstream Fabric results.
+Kain calls the Node helper through the JavaScript bridge to render a publish/export-style summary from the upstream Fabric results.
 
 ## Quickstart
 

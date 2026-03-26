@@ -4,28 +4,114 @@
   "render": {
     "scenes": [
       {
-        "viewport_node": "surface.node.81",
+        "viewport_node": "surface.node.87",
         "viewport_kind": "viewport3d",
         "scene": "magma_terraces",
         "title": "Fabric Studio Viewport",
         "material_refs": [],
-        "shader_bundle_ref_keys": []
+        "shader_bundle_ref_keys": [
+          "shader::EditorHeroSurface::fragment"
+        ]
       }
     ],
     "materials": []
   },
-  "shader_bundle_refs": [],
+  "shader_canvases": [
+    {
+      "surface_id": "surface.node.76",
+      "shader_ref": "EditorHeroSurface",
+      "shader_bundle_ref_key": "shader::EditorHeroSurface::fragment",
+      "shader_name": "EditorHeroSurface",
+      "module_name": "EditorHeroSurface",
+      "stage": "fragment",
+      "entry_point": "main",
+      "derived_format": "spirv",
+      "renderer_preference": "shader",
+      "composition_mode": "shader-canvas",
+      "font_atlases": [
+        {
+          "key": "surface.node.76.atlas.default",
+          "family": "kain.default-ui-sans",
+          "encoding": "msdf-rgba",
+          "distance_range_px": 6,
+          "glyphs": " ?SPIR-VComandurfce",
+          "cell_size_px": [
+            8,
+            8
+          ],
+          "texture_size_px": [
+            128,
+            16
+          ],
+          "columns": 16,
+          "rows": 2
+        }
+      ],
+      "text_runs": [
+        {
+          "id": "node.76.title",
+          "text": "SPIR-V Command Surface",
+          "role": "title",
+          "atlas_key": "surface.node.76.atlas.default",
+          "origin_px": [
+            16,
+            16
+          ],
+          "color_token": "theme.text.default"
+        }
+      ],
+      "resource_bindings": [
+        {
+          "binding_name": "surface_uniforms",
+          "resource_kind": "uniform-buffer",
+          "source_kind": "runtime.surface.uniforms"
+        },
+        {
+          "binding_name": "surface_storage",
+          "resource_kind": "storage-buffer",
+          "source_kind": "runtime.surface.storage"
+        },
+        {
+          "binding_name": "font_atlas",
+          "resource_kind": "texture-2d",
+          "source_kind": "runtime.surface.font-atlas",
+          "atlas_key": "surface.node.76.atlas.default"
+        },
+        {
+          "binding_name": "font_sampler",
+          "resource_kind": "sampler",
+          "source_kind": "runtime.surface.font-atlas",
+          "atlas_key": "surface.node.76.atlas.default"
+        }
+      ]
+    }
+  ],
+  "shader_bundle_refs": [
+    {
+      "key": "shader::EditorHeroSurface::fragment",
+      "shader": "EditorHeroSurface",
+      "module_name": "EditorHeroSurface",
+      "stage": "fragment",
+      "entry_point": "main",
+      "source": "kain-core"
+    }
+  ],
   "assets": [],
   "tool_caps": [
+    "gpu.shader",
     "tool.graph",
     "tool.timeline",
+    "ui.shader-canvas",
     "viewport.3d"
   ],
   "requirements": [
+    "gpu.shader-bundles",
     "host.native-ui",
     "runtime.contract.bundle",
     "scene.runtime-bundle",
     "shader.bundle.metadata",
+    "ui.shader-canvas",
+    "ui.shader-canvas.presented-or-fallback",
     "viewport.presented-or-fallback"
   ]
 }

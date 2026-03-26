@@ -7,17 +7,10 @@
   "layout_id": "ui_smoke_spv_ui_surface_probe_shell",
   "required_runtime_capabilities": [
     "compiler.typed-program",
-    "data.continuous-stream",
-    "data.tensor-buffer",
     "driver.native-app-bundle",
-    "gpu.compute",
-    "gpu.compute-dispatch",
-    "gpu.compute-plan",
     "gpu.programs",
-    "interop.shared-buffer",
     "memory.raw-ops",
     "memory.raw-pointers",
-    "neural.node-plan",
     "runtime.contract.bundle",
     "ui.components",
     "ui.runtime-bundle"
@@ -34,7 +27,7 @@
     "runtime_contract": "kain_runtime_contract.json",
     "runtime_compatibility": "kain_runtime_compatibility.json",
     "realtime_bundle": "kain_realtime_app_bundle.json",
-    "shader_bundle": null
+    "shader_bundle": "kain_shader_bundle.json"
   },
   "host_bridges": [],
   "host_sidecars": []

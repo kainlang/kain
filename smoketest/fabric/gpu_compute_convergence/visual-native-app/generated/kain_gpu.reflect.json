@@ -1,0 +1,17 @@
+{
+  "shaders": [
+    {
+      "name": "EditorHeroSurface",
+      "stage": "fragment",
+      "entry_point": "EditorHeroSurface",
+      "inputs": [
+        {
+          "name": "uv",
+          "ty": "Vec2"
+        }
+      ],
+      "bindings": [],
+      "output_type": "Vec4"
+    }
+  ]
+}

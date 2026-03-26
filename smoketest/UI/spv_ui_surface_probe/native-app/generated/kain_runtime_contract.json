@@ -8,44 +8,14 @@
       "detail": "Typed frontend output is available for runtime packaging."
     },
     {
-      "key": "data.continuous-stream",
-      "source": "kain-core.shader",
-      "detail": "Compute shaders participate in continuous stream processing over GPU-visible buffers."
-    },
-    {
-      "key": "data.tensor-buffer",
-      "source": "kain-core.shader",
-      "detail": "Storage-buffer-backed compute lanes can carry tensor-oriented numeric payloads."
-    },
-    {
       "key": "driver.native-app-bundle",
       "source": "kain-driver",
       "detail": "Rust-hosted native app materialization is available."
     },
     {
-      "key": "gpu.compute",
-      "source": "kain-core.shader",
-      "detail": "Program declares compute shaders that should materialize as native compute plans."
-    },
-    {
-      "key": "gpu.compute-dispatch",
-      "source": "kain-core.shader",
-      "detail": "Compute workgroup and dispatch metadata is emitted for runtime consumption."
-    },
-    {
-      "key": "gpu.compute-plan",
-      "source": "kain-core.shader",
-      "detail": "Compute shaders author explicit workgroup, dispatch, tensor, stream, and neural-node plans in shader comptime metadata."
-    },
-    {
       "key": "gpu.programs",
       "source": "kain-core",
       "detail": "Program declares GPU or material-oriented items."
-    },
-    {
-      "key": "interop.shared-buffer",
-      "source": "kain-core.shader",
-      "detail": "Compute shaders use storage buffers that should flow through neutral shared-buffer contracts."
     },
     {
       "key": "memory.raw-ops",
@@ -56,11 +26,6 @@
       "key": "memory.raw-pointers",
       "source": "kain-core.low_level_memory",
       "detail": "Target accepts raw pointer lowering."
-    },
-    {
-      "key": "neural.node-plan",
-      "source": "kain-core.shader",
-      "detail": "Compute shaders emit experimental neural-node planning metadata for runtime orchestration."
     },
     {
       "key": "runtime.contract.bundle",
@@ -102,8 +67,8 @@
       "kind": "component"
     },
     {
-      "id": "shader:UiSurfaceSdf",
-      "name": "UiSurfaceSdf",
+      "id": "shader:UiSurfaceProbe",
+      "name": "UiSurfaceProbe",
       "kind": "shader"
     }
   ],

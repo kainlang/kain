@@ -5,6 +5,320 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=db0c7d5815f5fa12 -->
+## 2026-03-26 19:43:35 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1dd482e`
+- Changed files: 54
+- [.M] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/build_native_exe.bat`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/Cargo.lock`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/config/app_manifest.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.reflect.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_realtime_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_runtime_contract.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/lib.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_realtime_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_runtime_contract.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/smoke.kn`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/src/main.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/state/runtime_snapshot.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/smoke.kn`
+- [.M] `smoketest/allinone/README.md`
+- [.M] `smoketest/allinone/pipeline_manifest.json`
+- [.M] `smoketest/allinone/run_all.ps1`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.ps1`
+- [.M] `smoketest/fabric/gpu_compute_convergence/capture_visual_demo.ps1`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/templates/visual_showcase.template.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/config/app_manifest.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_realtime_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_runtime_contract.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/src/main.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/state/runtime_snapshot.json`
+- [??] `smoketest/UI/spv_ui_surface_probe/docs/shader_canvas_ui_schema.svg`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_asset_font__assets_ui_smoke_default_ttf.ttf`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/kain_asset_font__assets_ui_smoke_default_ttf.ttf`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [??] `smoketest/allinone/fixtures/c_ffi/KAIN.toml`
+- [??] `smoketest/allinone/fixtures/c_ffi/native/beacon_math.c`
+- [??] `smoketest/allinone/fixtures/c_ffi/native/beacon_math.h`
+- [??] `smoketest/allinone/fixtures/c_ffi/smoke.kn`
+- [??] `smoketest/allinone/fixtures/crate_ffi/KAIN.toml`
+- [??] `smoketest/allinone/fixtures/crate_ffi/local_crate/Cargo.toml`
+- [??] `smoketest/allinone/fixtures/crate_ffi/local_crate/src/lib.rs`
+- [??] `smoketest/allinone/fixtures/crate_ffi/smoke.kn`
+- [??] `smoketest/allinone/outputs/c_ffi/.gitkeep`
+- [??] `smoketest/allinone/outputs/crate_ffi/.gitkeep`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_gpu.reflect.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_gpu.rs`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_gpu.spv`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_shader_bundle.json`
+
+<!-- polytools-changelog:fingerprint=eb55a3c8a9a1e908 -->
+## 2026-03-26 19:43:13 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1dd482e`
+- Changed files: 55
+- [.M] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/build_native_exe.bat`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/Cargo.lock`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/config/app_manifest.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.reflect.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_realtime_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_runtime_contract.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/lib.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_realtime_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_runtime_contract.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/smoke.kn`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/src/main.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/state/runtime_snapshot.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/smoke.kn`
+- [.M] `smoketest/allinone/README.md`
+- [.M] `smoketest/allinone/pipeline_manifest.json`
+- [.M] `smoketest/allinone/run_all.ps1`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.ps1`
+- [.M] `smoketest/fabric/gpu_compute_convergence/capture_visual_demo.ps1`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/templates/visual_showcase.template.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/config/app_manifest.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_realtime_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_runtime_contract.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/src/main.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/state/runtime_snapshot.json`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+- [??] `smoketest/UI/spv_ui_surface_probe/docs/shader_canvas_ui_schema.svg`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_asset_font__assets_ui_smoke_default_ttf.ttf`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/kain_asset_font__assets_ui_smoke_default_ttf.ttf`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [??] `smoketest/allinone/fixtures/c_ffi/KAIN.toml`
+- [??] `smoketest/allinone/fixtures/c_ffi/native/beacon_math.c`
+- [??] `smoketest/allinone/fixtures/c_ffi/native/beacon_math.h`
+- [??] `smoketest/allinone/fixtures/c_ffi/smoke.kn`
+- [??] `smoketest/allinone/fixtures/crate_ffi/KAIN.toml`
+- [??] `smoketest/allinone/fixtures/crate_ffi/local_crate/Cargo.toml`
+- [??] `smoketest/allinone/fixtures/crate_ffi/local_crate/src/lib.rs`
+- [??] `smoketest/allinone/fixtures/crate_ffi/smoke.kn`
+- [??] `smoketest/allinone/outputs/c_ffi/.gitkeep`
+- [??] `smoketest/allinone/outputs/crate_ffi/.gitkeep`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_gpu.reflect.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_gpu.rs`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_gpu.spv`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_shader_bundle.json`
+
+<!-- polytools-changelog:fingerprint=4f939560390058a8 -->
+## 2026-03-26 19:42:34 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1dd482e`
+- Changed files: 54
+- [.M] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/build_native_exe.bat`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/Cargo.lock`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/config/app_manifest.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.reflect.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_realtime_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_runtime_contract.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/lib.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_realtime_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_runtime_contract.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/smoke.kn`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/src/main.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/state/runtime_snapshot.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/smoke.kn`
+- [.M] `smoketest/allinone/README.md`
+- [.M] `smoketest/allinone/pipeline_manifest.json`
+- [.M] `smoketest/allinone/run_all.ps1`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.ps1`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/templates/visual_showcase.template.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/config/app_manifest.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_realtime_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_runtime_contract.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/src/main.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/state/runtime_snapshot.json`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+- [??] `smoketest/UI/spv_ui_surface_probe/docs/shader_canvas_ui_schema.svg`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_asset_font__assets_ui_smoke_default_ttf.ttf`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/kain_asset_font__assets_ui_smoke_default_ttf.ttf`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [??] `smoketest/allinone/fixtures/c_ffi/KAIN.toml`
+- [??] `smoketest/allinone/fixtures/c_ffi/native/beacon_math.c`
+- [??] `smoketest/allinone/fixtures/c_ffi/native/beacon_math.h`
+- [??] `smoketest/allinone/fixtures/c_ffi/smoke.kn`
+- [??] `smoketest/allinone/fixtures/crate_ffi/KAIN.toml`
+- [??] `smoketest/allinone/fixtures/crate_ffi/local_crate/Cargo.toml`
+- [??] `smoketest/allinone/fixtures/crate_ffi/local_crate/src/lib.rs`
+- [??] `smoketest/allinone/fixtures/crate_ffi/smoke.kn`
+- [??] `smoketest/allinone/outputs/c_ffi/.gitkeep`
+- [??] `smoketest/allinone/outputs/crate_ffi/.gitkeep`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_gpu.reflect.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_gpu.rs`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_gpu.spv`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_shader_bundle.json`
+
+<!-- polytools-changelog:fingerprint=e7cba9e1043a7c8e -->
+## 2026-03-26 19:41:47 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1dd482e`
+- Changed files: 41
+- [.M] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/build_native_exe.bat`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/Cargo.lock`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/config/app_manifest.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.reflect.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_realtime_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_runtime_contract.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/lib.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_realtime_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_runtime_contract.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/smoke.kn`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/src/main.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/state/runtime_snapshot.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/smoke.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.ps1`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/templates/visual_showcase.template.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/config/app_manifest.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_realtime_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_runtime_contract.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/src/main.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/state/runtime_snapshot.json`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+- [??] `smoketest/UI/spv_ui_surface_probe/docs/shader_canvas_ui_schema.svg`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_asset_font__assets_ui_smoke_default_ttf.ttf`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/kain_asset_font__assets_ui_smoke_default_ttf.ttf`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_gpu.reflect.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_gpu.rs`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_gpu.spv`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_shader_bundle.json`
+
+<!-- polytools-changelog:fingerprint=855d35c906015230 -->
+## 2026-03-26 19:41:06 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1dd482e`
+- Changed files: 27
+- [.M] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/build_native_exe.bat`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/Cargo.lock`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/config/app_manifest.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.reflect.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_realtime_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_runtime_contract.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/lib.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_realtime_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_runtime_contract.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/smoke.kn`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/src/main.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/state/runtime_snapshot.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/smoke.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.ps1`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [.M] `smoketest/fabric/gpu_compute_convergence/templates/visual_showcase.template.kn`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+- [??] `smoketest/UI/spv_ui_surface_probe/docs/shader_canvas_ui_schema.svg`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_asset_font__assets_ui_smoke_default_ttf.ttf`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/kain_asset_font__assets_ui_smoke_default_ttf.ttf`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+
+<!-- polytools-changelog:fingerprint=eaff6bbb656c5956 -->
+## 2026-03-26 19:39:46 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1dd482e`
+- Changed files: 21
+- [.M] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/build_native_exe.bat`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/Cargo.lock`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/config/app_manifest.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.reflect.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_realtime_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_runtime_contract.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/lib.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/smoke.kn`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/src/main.rs`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/state/runtime_snapshot.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/smoke.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+- [??] `smoketest/UI/spv_ui_surface_probe/docs/shader_canvas_ui_schema.svg`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_asset_font__assets_ui_smoke_default_ttf.ttf`
+- [??] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+
+<!-- polytools-changelog:fingerprint=2375fdf0768be6df -->
+## 2026-03-26 19:38:10 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1dd482e`
+- Changed files: 5
+- [.M] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/build_native_exe.bat`
+- [.M] `smoketest/UI/spv_ui_surface_probe/smoke.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+
+<!-- polytools-changelog:fingerprint=626aa2aac8ec33e5 -->
+## 2026-03-26 19:35:28 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1dd482e`
+- Changed files: 2
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+
+<!-- polytools-changelog:fingerprint=46fbb75e22187db6 -->
+## 2026-03-26 19:34:46 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1dd482e`
+- Changed files: 1
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+
 <!-- polytools-changelog:fingerprint=21f1a814eb10ab12 -->
 ## 2026-03-26 19:33:35 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

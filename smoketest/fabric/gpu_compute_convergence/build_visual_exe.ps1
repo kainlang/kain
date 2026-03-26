@@ -202,7 +202,7 @@ try {
         }
 
         $StepCards.Add(@"
-            <panel scope="mission" variant="card" title="$(Escape-KainText $Step.id)">
+            <panel scope="studio" variant="step_card" title="$(Escape-KainText $Step.id)">
                 <text role="eyebrow">$(Escape-KainText ([string]$Step.runtime).ToUpperInvariant())</text>
                 <text role="metric">$(Escape-KainText ([string]$Step.status).ToUpperInvariant())</text>
                 <text role="caption">$(Get-StepDurationMs $Step) ms</text>
