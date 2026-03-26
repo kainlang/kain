@@ -5,6 +5,23 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=16f6157f0e18c46e -->
+## 2026-03-26 19:54:28 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `43c3b1eb`
+- Changed files: 11
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/templates/visual_showcase.template.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/config/app_manifest.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_realtime_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_runtime_contract.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/src/main.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/state/runtime_snapshot.json`
+
 <!-- polytools-changelog:fingerprint=db0c7d5815f5fa12 -->
 ## 2026-03-26 19:43:35 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

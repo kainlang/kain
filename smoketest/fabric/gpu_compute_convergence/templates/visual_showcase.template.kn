@@ -1,240 +1,73 @@
-shader fragment EditorHeroSurface(uv: Vec2) -> Vec4:
-    let centered_x = uv.x - 0.5
-    let centered_y = uv.y - 0.5
-    let radius = sqrt(centered_x * centered_x + centered_y * centered_y)
-    let horizon = clamp(1.0 - abs(uv.y - 0.42) * 4.8, 0.0, 1.0)
-    let sweep = sin(uv.x * 14.0 + uv.y * 5.0) * 0.5 + 0.5
-    let aurora = sin(uv.y * 28.0 - uv.x * 7.0) * 0.5 + 0.5
-    let orb_a = clamp(1.0 - sqrt((uv.x - 0.24) * (uv.x - 0.24) + (uv.y - 0.30) * (uv.y - 0.30)) * 5.0, 0.0, 1.0)
-    let orb_b = clamp(1.0 - sqrt((uv.x - 0.78) * (uv.x - 0.78) + (uv.y - 0.62) * (uv.y - 0.62)) * 4.8, 0.0, 1.0)
-    let scan = clamp(1.0 - abs(fract(uv.y * 24.0) - 0.5) * 11.0, 0.0, 1.0) * 0.05
-    let grid_x = clamp(1.0 - abs(fract(uv.x * 15.0) - 0.5) * 20.0, 0.0, 1.0) * 0.04
-    let grid_y = clamp(1.0 - abs(fract(uv.y * 10.0) - 0.5) * 20.0, 0.0, 1.0) * 0.03
-    let edge_glow = clamp(1.0 - radius * 1.35, 0.0, 1.0)
-
-    let base_r = 0.04 + horizon * 0.08 + sweep * 0.03
-    let base_g = 0.07 + horizon * 0.14 + aurora * 0.05
-    let base_b = 0.11 + horizon * 0.26 + sweep * 0.10
-
-    let light_r = orb_a * 0.16 + orb_b * 0.07 + edge_glow * 0.05
-    let light_g = orb_a * 0.10 + orb_b * 0.22 + edge_glow * 0.07
-    let light_b = orb_a * 0.18 + orb_b * 0.30 + edge_glow * 0.10
-
-    let final_r = base_r + light_r + scan + grid_x
-    let final_g = base_g + light_g + scan + grid_x + grid_y
-    let final_b = base_b + light_b + scan * 1.5 + grid_y
-
-    return vec4(final_r, final_g, final_b, 1.0)
-
 component App():
     render <slot>
-        <theme name="fabric_editor_showcase">
+        <theme name="fabric_viewport_showcase">
             <scope name="studio" selector="fabric-studio" />
             <token name="theme.chrome.topbar.visible" category="chrome" value={false} />
-            <token name="theme.spacing.scale" category="space" value={0.96} />
-            <token name="theme.radius.scale" category="surface" value={1.24} />
-            <token name="theme.typography.scale" category="type" value={1.02} />
+            <token name="theme.spacing.scale" category="space" value={0.92} />
+            <token name="theme.radius.scale" category="surface" value={1.12} />
             <token name="theme.background.top" category="color" value="#040913" />
-            <token name="theme.background.bottom" category="color" value="#0b1424" />
-            <token name="theme.surface.base" category="color" value="#0b1220" />
-            <token name="theme.surface.alt" category="color" value="#0f1726" />
-            <token name="theme.surface.raised" category="color" value="#132033" />
-            <token name="theme.surface.overlay" category="color" value="#09111def" />
-            <token name="theme.outline.soft" category="color" value="#16253a" />
-            <token name="theme.outline.bright" category="color" value="__ACCENT_PRIMARY__" />
+            <token name="theme.background.bottom" category="color" value="#091321" />
+            <token name="theme.surface.base" category="color" value="#07111d" />
+            <token name="theme.surface.alt" category="color" value="#0b1828" />
+            <token name="theme.surface.overlay" category="color" value="#08121ee6" />
             <token name="theme.accent.primary" category="color" value="__ACCENT_PRIMARY__" />
             <token name="theme.accent.soft" category="color" value="__ACCENT_SOFT__" />
             <token name="theme.highlight" category="color" value="__HIGHLIGHT__" />
             <token name="theme.text.default" category="color" value="#eef6ff" />
-            <token name="theme.text.muted" category="color" value="#91a5c2" />
+            <token name="theme.text.muted" category="color" value="#8fa7c5" />
             <token name="widget.panel.surface.mode" category="surface" value="glass" />
-            <token name="widget.canvas.surface.mode" category="surface" value="canvas" />
-            <token name="widget.inspector.surface.mode" category="surface" value="layered" />
-            <token name="widget.tree.surface.mode" category="surface" value="flat" />
-            <token name="widget.graph.surface.mode" category="surface" value="canvas" />
-            <token name="widget.timeline.surface.mode" category="surface" value="canvas" />
             <token name="widget.viewport3d.surface.mode" category="surface" value="canvas" />
 
             <variant scope="studio" name="shell_root">
                 <token name="surface.mode" category="surface" value="ghost" />
-                <token name="surface.padding" category="space" value={4} />
+                <token name="surface.padding" category="space" value={6} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
-            <variant scope="studio" name="rail">
-                <token name="surface.mode" category="surface" value="ghost" />
-                <token name="surface.padding" category="space" value={8} />
-                <token name="title.visible" category="state" value={false} />
-            </variant>
-            <variant scope="studio" name="sidebar">
-                <token name="surface.mode" category="surface" value="layered" />
-                <token name="surface.padding" category="space" value={10} />
-                <token name="title.visible" category="state" value={false} />
-            </variant>
-            <variant scope="studio" name="workspace">
-                <token name="surface.mode" category="surface" value="glass" />
-                <token name="surface.padding" category="space" value={10} />
-                <token name="title.visible" category="state" value={false} />
-            </variant>
-            <variant scope="studio" name="hero_surface">
-                <token name="surface.mode" category="surface" value="canvas" />
-                <token name="surface.padding" category="space" value={8} />
-                <token name="title.visible" category="state" value={false} />
-            </variant>
-            <variant scope="studio" name="strip">
+            <variant scope="studio" name="hud">
                 <token name="surface.mode" category="surface" value="ghost" />
                 <token name="surface.padding" category="space" value={6} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
-            <variant scope="studio" name="step_card">
+            <variant scope="studio" name="status">
                 <token name="surface.mode" category="surface" value="flat" />
                 <token name="surface.padding" category="space" value={8} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
 
-            <widget kind="panel" scope="studio" variant="rail">
+            <widget kind="panel" scope="studio" variant="hud">
                 <token name="density" category="layout" value="compact" />
             </widget>
-            <widget kind="panel" scope="studio" variant="sidebar">
+            <widget kind="panel" scope="studio" variant="status">
                 <token name="density" category="layout" value="compact" />
             </widget>
-            <widget kind="panel" scope="studio" variant="workspace">
-                <token name="density" category="layout" value="compact" />
-            </widget>
-            <widget kind="panel" scope="studio" variant="hero_surface">
-                <token name="density" category="layout" value="compact" />
-            </widget>
-            <widget kind="panel" scope="studio" variant="strip">
-                <token name="density" category="layout" value="compact" />
-            </widget>
-            <widget kind="panel" scope="studio" variant="step_card">
-                <token name="density" category="layout" value="compact" />
-            </widget>
-
-            <textvariant scope="studio" name="hero">
-                <token name="body.size" category="type" value={24} />
-            </textvariant>
         </theme>
 
-        <panel title="Fabric Studio" scope="studio" variant="shell_root" layout="dock" persistent_layout_id="fabric_gpu_editor_showcase" gap={10} padding={10}>
-            <panel title="Activity Rail" scope="studio" variant="rail" dock="left" split_ratio={0.045} min_width={68} max_width={82} resizable={true} layout="column" gap={8}>
-                <text role="eyebrow">FAB</text>
-                <text role="title">3D</text>
-                <text role="caption">VIEW</text>
-                <text role="caption">PIPE</text>
-                <text role="caption">GPU</text>
-                <text role="caption">NODE</text>
-            </panel>
-
-            <panel title="Explorer" scope="studio" variant="sidebar" dock="left" split_ratio={0.17} min_width={220} max_width={300} resizable={true} layout="column" gap={10}>
-                <panel title="Workspace" scope="studio" variant="strip" layout="column" gap={4}>
-                    <text role="eyebrow">FABRIC WORKSPACE</text>
-                    <text role="title">gpu_compute_convergence</text>
-                    <text role="caption">Session __SESSION_ID__</text>
-                    <text role="caption">Status __SESSION_STATUS__</text>
+        <panel title="Fabric Viewport" scope="studio" variant="shell_root" layout="column" gap={8} padding={8}>
+            <panel scope="studio" variant="hud" layout="row" gap={18}>
+                <panel scope="studio" variant="hud" layout="column" gap={2}>
+                    <text role="eyebrow">FABRIC GPU PROOF</text>
+                    <text role="title">magma_terraces</text>
+                    <text role="caption">__HERO_SUBTITLE__</text>
                 </panel>
-                <tree title="Pipeline Files">
-                    smoketest/fabric/gpu_compute_convergence/
-                    KAIN.fabric.toml
-                    scripts/python_step.py
-                    src/main.kn
-                    shaders/gpu_step.kn
-                    scripts/node_step.mjs
-                    generated/main.generated.kn
-                    generated/visual_snapshot.json
-                    visual-native-app/fabric-studio-3d-editor.exe
-                </tree>
-                <tree title="Live Session Artifacts">
-                    __REPORT_FILE__
-                    __EVENTS_FILE__
-                    __LOCK_FILE__
-                </tree>
-                <panel title="Runtime Mix" scope="studio" variant="step_card" layout="column" gap={4}>
+                <panel scope="studio" variant="hud" layout="column" gap={2}>
+                    <text role="eyebrow">SESSION</text>
+                    <text role="caption">__SESSION_ID__</text>
+                    <text role="caption">__SESSION_STATUS__ in __DURATION_MS__ ms</text>
+                </panel>
+                <panel scope="studio" variant="hud" layout="column" gap={2}>
                     <text role="eyebrow">RUNTIME MIX</text>
                     <text role="caption">__RUNTIME_COUNTS__</text>
-                    <text role="caption">report dir __REPORT_DIRECTORY__</text>
-                </panel>
-            </panel>
-
-            <panel title="Inspector" scope="studio" variant="sidebar" dock="right" split_ratio={0.18} min_width={248} max_width={320} resizable={true} layout="column" gap={10}>
-                <inspector title="Selection">
-                    Fabric session
-                    __SESSION_ID__
-                    duration __DURATION_MS__ ms
-                    summary __SUMMARY_INLINE__
-                </inspector>
-                <panel title="Pipeline Health" scope="studio" variant="strip" layout="column" gap={8}>
-__STEP_CARDS__
-                </panel>
-                <graph title="Node Verdict">
-                    <text role="caption">__SUMMARY_CAPTION__</text>
-                </graph>
-                <inspector title="GPU Signature">
-                    signature __GPU_SIGNATURE__
-                    bytes __GPU_BYTE_LENGTH__
-                    kain report __KAIN_REPORT__
-                </inspector>
-            </panel>
-
-            <panel title="Output" scope="studio" variant="sidebar" dock="bottom" split_ratio={0.17} min_height={150} max_height={240} resizable={true} layout="row" gap={10}>
-                <panel title="Fabric Console" scope="studio" variant="strip" layout="column" gap={4}>
-                    <text role="eyebrow">TERMINAL</text>
-                    <text role="caption">python_source succeeded</text>
-                    <text role="caption">kain_orchestrator succeeded</text>
-                    <text role="caption">gpu_enrich succeeded</text>
-                    <text role="caption">node_packager succeeded</text>
-                    <text role="caption">proof __SUMMARY_CAPTION__</text>
-                </panel>
-                <timeline title="Session Timeline">
-                    <text role="caption">report __REPORT_FILE__</text>
-                    <text role="caption">events __EVENTS_FILE__</text>
-                    <text role="caption">lock __LOCK_FILE__</text>
-                    <text role="caption">workspace __WORKSPACE_ROOT__</text>
-                </timeline>
-            </panel>
-
-            <panel title="Workbench" scope="studio" variant="workspace" dock="center" layout="dock" gap={10}>
-                <panel title="Workbench Header" scope="studio" variant="strip" dock="top" split_ratio={0.12} min_height={92} max_height={130} resizable={true} layout="row" gap={14}>
-                    <panel scope="studio" variant="strip" layout="column" gap={2}>
-                        <text role="eyebrow">LOCAL-FIRST FABRIC</text>
-                        <text role="hero" variant="hero">__HERO_TITLE__</text>
-                        <text role="caption">__HERO_SUBTITLE__</text>
-                    </panel>
-                    <panel scope="studio" variant="strip" layout="column" gap={2}>
-                        <text role="eyebrow">VIEWPORT TARGET</text>
-                        <text role="caption">magma_terraces</text>
-                        <text role="caption">runtime mix __RUNTIME_COUNTS__</text>
-                    </panel>
-                    <panel scope="studio" variant="strip" layout="column" gap={2}>
-                        <text role="eyebrow">BUILD ARTIFACT</text>
-                        <text role="caption">__EXECUTABLE_HINT__</text>
-                        <text role="caption">generated __GENERATED_SOURCE__</text>
-                    </panel>
-                </panel>
-
-                <panel title="Signal Surface" scope="studio" variant="hero_surface" dock="top" split_ratio={0.20} min_height={150} max_height={220} resizable={true} layout="column" gap={6}>
-                    <canvas title="SPIR-V Command Surface" shader_ref="EditorHeroSurface" shader_stage="fragment" shader_format="spirv" />
-                    <text role="caption">Compiled shader canvas driven by the native realtime bundle, not a fake overlay.</text>
-                </panel>
-
-                <panel title="Session Focus" scope="studio" variant="sidebar" dock="right" split_ratio={0.22} min_width={220} max_width={300} resizable={true} layout="column" gap={8}>
-                    <text role="eyebrow">SESSION FOCUS</text>
-                    <text role="title">__STEP_SUCCESS__ runtime lanes green</text>
-                    <text role="caption">duration __DURATION_MS__ ms</text>
                     <text role="caption">gpu bytes __GPU_BYTE_LENGTH__</text>
-                    <text role="caption">signature __GPU_SIGNATURE__</text>
-                    <graph title="Proof Signature">
-                        <text role="caption">__SUMMARY_CAPTION__</text>
-                    </graph>
                 </panel>
+            </panel>
 
-                <panel title="Viewport Stack" scope="studio" variant="workspace" dock="center" layout="column" gap={8}>
-                    <viewport3d title="Fabric Studio Viewport" scene="magma_terraces" />
-                    <panel title="Viewport Footer" scope="studio" variant="strip" layout="row" gap={14}>
-                        <text role="caption">Scene magma_terraces</text>
-                        <text role="caption">Fabric summary __SUMMARY_INLINE__</text>
-                        <text role="caption">GPU signature __GPU_SIGNATURE__</text>
-                    </panel>
-                </panel>
+            <viewport3d title="Fabric Studio Viewport" scene="magma_terraces" />
+
+            <panel scope="studio" variant="status" layout="row" gap={16}>
+                <text role="caption">scene magma_terraces</text>
+                <text role="caption">summary __SUMMARY_INLINE__</text>
+                <text role="caption">gpu signature __GPU_SIGNATURE__</text>
+                <text role="caption">artifact __EXECUTABLE_HINT__</text>
             </panel>
         </panel>
     </slot>

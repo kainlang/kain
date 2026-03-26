@@ -8,7 +8,6 @@
   "required_runtime_capabilities": [
     "compiler.typed-program",
     "driver.native-app-bundle",
-    "gpu.programs",
     "memory.raw-ops",
     "memory.raw-pointers",
     "runtime.contract.bundle",
@@ -27,7 +26,7 @@
     "runtime_contract": "kain_runtime_contract.json",
     "runtime_compatibility": "kain_runtime_compatibility.json",
     "realtime_bundle": "kain_realtime_app_bundle.json",
-    "shader_bundle": "kain_shader_bundle.json"
+    "shader_bundle": null
   },
   "host_bridges": [],
   "host_sidecars": []

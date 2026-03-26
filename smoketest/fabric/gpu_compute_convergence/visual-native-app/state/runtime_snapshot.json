@@ -8,7 +8,6 @@
   "required_runtime_capabilities": [
     "compiler.typed-program",
     "driver.native-app-bundle",
-    "gpu.programs",
     "memory.raw-ops",
     "memory.raw-pointers",
     "runtime.contract.bundle",
@@ -57,14 +56,6 @@
       "id": "driver_native-app-bundle",
       "label": "driver.native-app-bundle",
       "capability": "driver.native-app-bundle",
-      "approval": "workspace",
-      "decision": null,
-      "scope_decisions": []
-    },
-    {
-      "id": "gpu_programs",
-      "label": "gpu.programs",
-      "capability": "gpu.programs",
       "approval": "workspace",
       "decision": null,
       "scope_decisions": []

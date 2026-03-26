@@ -13,11 +13,6 @@
       "detail": "Rust-hosted native app materialization is available."
     },
     {
-      "key": "gpu.programs",
-      "source": "kain-core",
-      "detail": "Program declares GPU or material-oriented items."
-    },
-    {
       "key": "memory.raw-ops",
       "source": "kain-core.low_level_memory",
       "detail": "Target accepts raw memory operation lowering."
@@ -65,11 +60,6 @@
       "id": "component:App",
       "name": "App",
       "kind": "component"
-    },
-    {
-      "id": "shader:EditorHeroSurface",
-      "name": "EditorHeroSurface",
-      "kind": "shader"
     }
   ],
   "reflection": {
