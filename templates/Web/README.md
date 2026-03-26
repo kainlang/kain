@@ -2,37 +2,33 @@
 
 This folder is the repo-backed source for the Windows path `K:\templates\web`.
 
-The first serious pack in this lane is `universal/`, a no-Rust-required web
-template built around four rules:
+The universal pack is the current serious starter for Kain web work. It is built
+around four rules:
 
 1. Kain owns authored app intent, semantic UI preview, and orchestration.
-2. Node owns browser packaging, local serving, and actor-server runtime glue.
-3. themes, content, scenes, and experiences are manifest-driven instead of
-   copied into one-off starter code.
-4. repeated website boilerplate belongs in reusable stdlib wrappers or helper
-   runtimes, not in every template entrypoint.
+2. Node owns browser packaging, local serving, search APIs, and actor-server runtime glue.
+3. themes, content, scenes, and experiences are manifest-driven instead of copied into one-off starter code.
+4. repeated website boilerplate belongs in shared helper runtimes and stdlib wrappers, not in each new site.
 
 ## Current Pack
 
 - `template-pack.toml`
   - data-driven registry for the template pack surface
 - `universal/`
-  - one starter that can emit business, portfolio, immersive 3D, chat-heavy,
-    and actor-server-oriented sites from manifest switches
+  - one starter that can emit business, portfolio, immersive 3D, chat, actor-server, and hybrid sites from manifest switches
 
 ## What Universal Includes
 
-- a Kain UI native preview entrypoint for semantic surface authoring
-- a Kain entrypoint that builds the full experience matrix through Node FFI
-- a Kain entrypoint that reports actor-server topology
-- a Node helper runtime with zero third-party dependencies
+- Kain entrypoints for build orchestration, actor reporting, and semantic Kain UI preview
+- a shared Node helper runtime for manifest loading, HTML rendering, search, forms, feed/sitemap output, and local serving
 - manifest registries for themes, content, scenes, and experiences
-- a `package.json` script surface so users can build or serve without Rust or
-  Cargo
+- archetypes for business, portfolio, immersive 3D, chat, actor-server, and hybrid site modes
+- website systems for docs links, search, FAQ, pricing, testimonials, local form capture, actor routes, RSS, robots, and sitemap output
+- a `package.json` script surface so users can build or serve without Rust or Cargo
 
 ## Intent
 
-This folder is not meant to be a pile of isolated starters.
+This folder is not meant to become a pile of isolated starters.
 It is meant to become a reusable web systems layer for Kain:
 
 - static marketing sites
@@ -40,3 +36,4 @@ It is meant to become a reusable web systems layer for Kain:
 - immersive 3D storytelling shells
 - chat-first product surfaces
 - actor-based local web servers and realtime dashboards
+- hybrid sites that combine several of those modes in one deployable shell

@@ -41,16 +41,16 @@ component App():
         <panel title="Universal Web Template" scope="web_pack" variant="hero" layout="grid" columns={2} gap={18}>
             <slot layout="column" gap={12}>
                 <text role="eyebrow">Kain UI preview for the web pack</text>
-                <text role="hero" variant="hero">One manifest-driven starter for business sites, portfolio shells, 3D launches, chat experiences, and actor servers.</text>
-                <text role="muted">The browser lane uses Node FFI today, while this preview keeps semantic Kain UI authoring in the loop.</text>
+                <text role="hero" variant="hero">One manifest-driven starter for business sites, portfolio shells, 3D launches, chat experiences, docs/search hubs, and actor servers.</text>
+                <text role="muted">The browser lane still uses Node FFI today, while this preview keeps semantic Kain UI authoring in the loop and visible.</text>
                 <slot layout="row" gap={12}>
                     <panel scope="web_pack" variant="card">
-                        <text role="metric">5</text>
+                        <text role="metric">6</text>
                         <text role="caption">experience archetypes</text>
                     </panel>
                     <panel scope="web_pack" variant="card">
-                        <text role="metric">4</text>
-                        <text role="caption">manifest registries</text>
+                        <text role="metric">7</text>
+                        <text role="caption">artifacts per built site</text>
                     </panel>
                     <panel scope="web_pack" variant="card">
                         <text role="metric">0</text>
@@ -64,27 +64,27 @@ component App():
         <panel title="Archetypes" scope="web_pack" variant="section" layout="grid" columns={3} gap={14}>
             <panel scope="web_pack" variant="card">
                 <text role="title">Business</text>
-                <text role="caption">Launch pages, pricing stacks, proof rails, and CTA surfaces.</text>
+                <text role="caption">Launch pages, pricing stacks, proof rails, FAQ, docs links, and intake surfaces.</text>
             </panel>
             <panel scope="web_pack" variant="card">
                 <text role="title">Portfolio</text>
-                <text role="caption">Case-study grids, tag filtering, and narrative detail cards.</text>
+                <text role="caption">Case-study grids, tag filtering, search, and project-brief capture.</text>
             </panel>
             <panel scope="web_pack" variant="card">
                 <text role="title">Immersive 3D</text>
-                <text role="caption">Scene panels, layer maps, and product-story staging.</text>
+                <text role="caption">Scene panels, technical notes, release editions, and reservation intake.</text>
             </panel>
             <panel scope="web_pack" variant="card">
                 <text role="title">Chat</text>
-                <text role="caption">Seed transcripts, composer islands, and assistant response rails.</text>
+                <text role="caption">Seed transcripts, prompt rails, search, and escalation forms.</text>
             </panel>
             <panel scope="web_pack" variant="card">
                 <text role="title">Actor Server</text>
-                <text role="caption">Route manifests, actor meshes, and local HTTP serving.</text>
+                <text role="caption">Route manifests, actor meshes, control-room docs, and local runtime APIs.</text>
             </panel>
             <panel scope="web_pack" variant="card">
-                <text role="title">No Boilerplate Drift</text>
-                <text role="caption">Common runtime glue moved into stdlib wrappers and one helper runtime.</text>
+                <text role="title">Hybrid</text>
+                <text role="caption">The full-spectrum proving ground that mixes launch, 3D, chat, docs, search, and routes.</text>
             </panel>
         </panel>
 
@@ -95,11 +95,11 @@ component App():
             </panel>
             <panel scope="web_pack" variant="card">
                 <text role="title">Node FFI</text>
-                <text role="caption">Owns HTML packaging, browser islands, and local actor-aware serving.</text>
+                <text role="caption">Owns HTML packaging, browser islands, local serving, search endpoints, and form capture.</text>
             </panel>
             <panel scope="web_pack" variant="card">
                 <text role="title">Manifest Registries</text>
-                <text role="caption">Themes, content, scenes, and experiences stay data-driven.</text>
+                <text role="caption">Themes, content, scenes, and experiences stay data-driven and expand without boilerplate cloning.</text>
             </panel>
         </panel>
     </slot>

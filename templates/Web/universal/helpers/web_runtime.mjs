@@ -22,6 +22,16 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, JSON.stringify(value, null, 2));
 }
 
+function writeText(filePath, value) {
+  ensureDir(path.dirname(filePath));
+  fs.writeFileSync(filePath, value);
+}
+
+function appendText(filePath, value) {
+  ensureDir(path.dirname(filePath));
+  fs.appendFileSync(filePath, value);
+}
+
 function loadRegistry(appRoot, registryPath) {
   const fullPath = resolveFrom(appRoot, registryPath);
   const registry = readJson(fullPath);
@@ -34,24 +44,6 @@ function loadRegistry(appRoot, registryPath) {
   return entries;
 }
 
-export function loadJson(filePath) {
-  return readJson(path.resolve(filePath));
-}
-
-export function loadAppConfig(appManifestPath) {
-  const fullPath = path.resolve(appManifestPath);
-  const app = readJson(fullPath);
-  const rootDir = path.dirname(fullPath);
-  return {
-    app,
-    root_dir: rootDir,
-    themes: loadRegistry(rootDir, app.registries.themes),
-    content: loadRegistry(rootDir, app.registries.content),
-    scenes: loadRegistry(rootDir, app.registries.scenes),
-    experiences: loadRegistry(rootDir, app.registries.experiences)
-  };
-}
-
 function requireEntry(table, key, kind) {
   const value = table[key];
   if (!value) {
@@ -60,25 +52,63 @@ function requireEntry(table, key, kind) {
   return value;
 }
 
-function buildModel(appManifestPath, experienceId) {
-  const context = loadAppConfig(appManifestPath);
-  const selectedId = experienceId || context.app.default_experience;
-  const experience = requireEntry(context.experiences, selectedId, "experience");
-  const theme = requireEntry(context.themes, experience.theme, "theme");
-  const content = requireEntry(context.content, experience.content, "content");
-  const scene = requireEntry(context.scenes, experience.scene, "scene");
-  return {
-    context,
-    experience,
-    theme,
-    content,
-    scene,
-    output_dir: path.resolve(context.root_dir, context.app.output_root, experience.output_slug)
-  };
+function slugify(value) {
+  return String(value || "section")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function uniqueStrings(values) {
+  return [...new Set((values || []).filter(Boolean).map((value) => String(value)))];
+}
+
+function getByPath(rootValue, sourcePath, fallbackValue = undefined) {
+  if (!sourcePath) {
+    return rootValue ?? fallbackValue;
+  }
+  const segments = String(sourcePath)
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  let currentValue = rootValue;
+  for (const segment of segments) {
+    if (currentValue == null) {
+      return fallbackValue;
+    }
+    currentValue = currentValue[segment];
+  }
+  return currentValue == null ? fallbackValue : currentValue;
+}
+
+function getModelValue(model, sourcePath, fallbackValue = undefined) {
+  if (!sourcePath) {
+    return fallbackValue;
+  }
+  if (sourcePath === "theme") return model.theme;
+  if (sourcePath === "scene") return model.scene;
+  if (sourcePath === "experience") return model.experience;
+  if (sourcePath.startsWith("content.")) {
+    return getByPath(model.content, sourcePath.slice("content.".length), fallbackValue);
+  }
+  if (sourcePath.startsWith("scene.")) {
+    return getByPath(model.scene, sourcePath.slice("scene.".length), fallbackValue);
+  }
+  if (sourcePath.startsWith("theme.")) {
+    return getByPath(model.theme, sourcePath.slice("theme.".length), fallbackValue);
+  }
+  if (sourcePath.startsWith("experience.")) {
+    return getByPath(model.experience, sourcePath.slice("experience.".length), fallbackValue);
+  }
+  if (sourcePath.startsWith("app.")) {
+    return getByPath(model.context.app, sourcePath.slice("app.".length), fallbackValue);
+  }
+  return getByPath(model.content, sourcePath, fallbackValue);
 }
 
 function escapeHtml(value) {
-  return String(value)
+  return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -86,7 +116,7 @@ function escapeHtml(value) {
 }
 
 function renderActionButtons(actions) {
-  return actions
+  return (actions || [])
     .map(
       (action) =>
         `<a class="action ${escapeHtml(action.style || "primary")}" href="${escapeHtml(action.href || "#")}">${escapeHtml(action.label)}</a>`
@@ -94,8 +124,18 @@ function renderActionButtons(actions) {
     .join("");
 }
 
+function renderRichText(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => `<p>${escapeHtml(entry)}</p>`).join("");
+  }
+  if (typeof value === "string" && value.trim()) {
+    return `<p>${escapeHtml(value)}</p>`;
+  }
+  return "";
+}
+
 function renderMetrics(metrics) {
-  return metrics
+  return (metrics || [])
     .map(
       (metric) => `<article class="metric-card" data-kain-component="metric-card">
   <p class="metric-value" data-target-value="${escapeHtml(metric.value)}">${escapeHtml(metric.value)}</p>
@@ -106,7 +146,7 @@ function renderMetrics(metrics) {
 }
 
 function renderCards(cards) {
-  return cards
+  return (cards || [])
     .map(
       (card) => `<article class="feature-card">
   <p class="card-kicker">${escapeHtml(card.kicker || "")}</p>
@@ -118,16 +158,19 @@ function renderCards(cards) {
 }
 
 function renderPortfolio(entries) {
-  const tags = [...new Set(entries.flatMap((entry) => entry.tags || []))];
+  const tags = uniqueStrings((entries || []).flatMap((entry) => entry.tags || []));
   const buttons = tags
-    .map((tag, index) => `<button class="tag-filter" data-filter="${escapeHtml(tag)}"${index === 0 ? " data-active='true'" : ""}>${escapeHtml(tag)}</button>`)
+    .map(
+      (tag, index) =>
+        `<button class="tag-filter" data-filter="${escapeHtml(tag)}"${index === 0 ? ' data-active="true"' : ""}>${escapeHtml(tag)}</button>`
+    )
     .join("");
-  const cards = entries
+  const cards = (entries || [])
     .map(
       (entry) => `<article class="portfolio-card" data-tags="${escapeHtml((entry.tags || []).join(" "))}">
-  <p class="card-kicker">${escapeHtml(entry.year)}</p>
+  <p class="card-kicker">${escapeHtml(entry.year || entry.kicker || "")}</p>
   <h3>${escapeHtml(entry.title)}</h3>
-  <p>${escapeHtml(entry.summary)}</p>
+  <p>${escapeHtml(entry.summary || entry.body || "")}</p>
   <p class="portfolio-stack">${escapeHtml((entry.tags || []).join(" / "))}</p>
 </article>`
     )
@@ -136,10 +179,10 @@ function renderPortfolio(entries) {
 }
 
 function renderTimeline(items) {
-  return items
+  return (items || [])
     .map(
       (item) => `<article class="timeline-row">
-  <p class="timeline-label">${escapeHtml(item.phase)}</p>
+  <p class="timeline-label">${escapeHtml(item.phase || item.label || "")}</p>
   <div>
     <h3>${escapeHtml(item.title)}</h3>
     <p>${escapeHtml(item.body)}</p>
@@ -163,35 +206,35 @@ function renderScene(scene) {
     <div class="scene-core"></div>
     <div class="scene-ring"></div>
     <div class="scene-copy">
-      <p class="card-kicker">${escapeHtml(scene.kicker)}</p>
-      <h3>${escapeHtml(scene.title)}</h3>
-      <p>${escapeHtml(scene.summary)}</p>
+      <p class="card-kicker">${escapeHtml(scene.kicker || "")}</p>
+      <h3>${escapeHtml(scene.title || "")}</h3>
+      <p>${escapeHtml(scene.summary || "")}</p>
     </div>
   </div>
   <div class="scene-layers">${layers}</div>
 </section>`;
 }
 
-function renderChat(messages) {
-  const seed = messages
+function renderChat(messages, panel = {}) {
+  const seed = (messages || [])
     .map(
-      (message) => `<article class="chat-bubble ${escapeHtml(message.role)}">
-  <p class="chat-role">${escapeHtml(message.role)}</p>
+      (message) => `<article class="chat-bubble ${escapeHtml(message.role || "assistant")}">
+  <p class="chat-role">${escapeHtml(message.role || "assistant")}</p>
   <p>${escapeHtml(message.text)}</p>
 </article>`
     )
     .join("");
   return `<section class="chat-shell" data-kain-component="chat-lab">
   <div class="chat-seed">${seed}</div>
-  <form class="chat-form">
-    <input name="prompt" type="text" placeholder="Ask the site orchestrator for a launch plan" />
-    <button type="submit">Send</button>
+  <form class="chat-form" data-chat-endpoint="${escapeHtml(panel.endpoint || "/api/chat")}">
+    <input name="prompt" type="text" placeholder="${escapeHtml(panel.placeholder || "Ask the site orchestrator for a launch plan")}" />
+    <button type="submit">${escapeHtml(panel.button_label || "Send")}</button>
   </form>
 </section>`;
 }
 
 function renderActors(actors) {
-  return actors
+  return (actors || [])
     .map(
       (actor) => `<article class="actor-card">
   <h3>${escapeHtml(actor.name)}</h3>
@@ -203,45 +246,359 @@ function renderActors(actors) {
 }
 
 function renderRoutes(routes) {
-  return routes
+  return (routes || [])
     .map(
       (route) => `<article class="route-card">
-  <p class="card-kicker">${escapeHtml(route.method)}</p>
+  <p class="card-kicker">${escapeHtml(route.method || "GET")}</p>
   <h3>${escapeHtml(route.path)}</h3>
-  <p>${escapeHtml(route.purpose)}</p>
+  <p>${escapeHtml(route.purpose || route.handler || "")}</p>
 </article>`
     )
     .join("");
 }
 
-function renderSection(sectionId, model) {
-  const { content, scene } = model;
-  switch (sectionId) {
-    case "features":
-      return `<section class="panel"><p class="section-label">Systems</p><h2>Reusable launch systems</h2><div class="feature-grid">${renderCards(content.feature_cards || [])}</div></section>`;
-    case "story":
-      return `<section class="panel"><p class="section-label">Narrative</p><h2>Story rails</h2><div class="feature-grid">${renderCards(content.story_cards || [])}</div></section>`;
-    case "portfolio":
-      return `<section class="panel"><p class="section-label">Portfolio</p><h2>Case studies and work capsules</h2>${renderPortfolio(content.portfolio_entries || [])}</section>`;
-    case "timeline":
-      return `<section class="panel"><p class="section-label">Timeline</p><h2>Build sequence</h2><div class="timeline-list">${renderTimeline(content.timeline || [])}</div></section>`;
-    case "scene":
-      return `<section class="panel"><p class="section-label">Scene</p><h2>Immersive 3D block</h2>${renderScene(scene)}</section>`;
-    case "chat":
-      return `<section class="panel"><p class="section-label">Chat</p><h2>Conversation-first surface</h2>${renderChat(content.chat_seed || [])}</section>`;
-    case "actors":
-      return `<section class="panel"><p class="section-label">Actors</p><h2>Actor mesh</h2><div class="feature-grid">${renderActors(content.actor_roles || [])}</div></section>`;
-    case "server":
-      return `<section class="panel"><p class="section-label">Server</p><h2>Route contract</h2><div class="feature-grid">${renderRoutes(content.server_routes || [])}</div></section>`;
-    case "cta":
-      return `<section class="panel cta-panel"><p class="section-label">CTA</p><h2>${escapeHtml(content.cta.title)}</h2><p>${escapeHtml(content.cta.body)}</p><div class="action-row">${renderActionButtons(content.cta.actions || [])}</div></section>`;
-    default:
-      return "";
-  }
+function renderPricing(tiers) {
+  return `<div class="pricing-grid">${(tiers || [])
+    .map(
+      (tier) => `<article class="pricing-card">
+  <p class="card-kicker">${escapeHtml(tier.kicker || "")}</p>
+  <h3>${escapeHtml(tier.name)}</h3>
+  <p class="pricing-price">${escapeHtml(tier.price)}</p>
+  <p>${escapeHtml(tier.summary || "")}</p>
+  <ul class="pricing-list">${(tier.features || []).map((feature) => `<li>${escapeHtml(feature)}</li>`).join("")}</ul>
+  <div class="action-row">${renderActionButtons(tier.actions || [])}</div>
+</article>`
+    )
+    .join("")}</div>`;
 }
 
-function renderClientRuntime(model) {
+function renderTestimonials(entries) {
+  return `<div class="testimonial-grid">${(entries || [])
+    .map(
+      (entry) => `<article class="testimonial-card">
+  <p class="quote-mark">"</p>
+  <p>${escapeHtml(entry.quote)}</p>
+  <h3>${escapeHtml(entry.name)}</h3>
+  <p class="metric-label">${escapeHtml(entry.role || "")}</p>
+</article>`
+    )
+    .join("")}</div>`;
+}
+
+function renderFaq(items) {
+  return `<div class="faq-list" data-kain-component="faq-list">${(items || [])
+    .map(
+      (item, index) => `<article class="faq-item"${index === 0 ? ' data-open="true"' : ""}>
+  <button class="faq-question" type="button">${escapeHtml(item.question)}</button>
+  <div class="faq-answer">${renderRichText(item.answer)}</div>
+</article>`
+    )
+    .join("")}</div>`;
+}
+
+function renderLogoStrip(logos) {
+  return `<div class="logo-strip">${(logos || [])
+    .map(
+      (logo) => `<article class="logo-pill">
+  <span>${escapeHtml(logo.label || logo.name)}</span>
+  <span>${escapeHtml(logo.detail || "")}</span>
+</article>`
+    )
+    .join("")}</div>`;
+}
+
+function renderCommandLines(commands) {
+  return `<div class="command-grid">${(commands || [])
+    .map(
+      (command) => `<article class="command-card">
+  <p class="card-kicker">${escapeHtml(command.kicker || "Command")}</p>
+  <h3>${escapeHtml(command.title || command.command)}</h3>
+  <pre><code>${escapeHtml(command.command || "")}</code></pre>
+  <p>${escapeHtml(command.body || "")}</p>
+</article>`
+    )
+    .join("")}</div>`;
+}
+
+function renderLinkGroups(groups) {
+  return `<div class="link-grid">${(groups || [])
+    .map(
+      (group) => `<article class="link-card">
+  <p class="card-kicker">${escapeHtml(group.kicker || "")}</p>
+  <h3>${escapeHtml(group.title)}</h3>
+  <p>${escapeHtml(group.body || "")}</p>
+  <div class="link-list">${(group.links || [])
+    .map((link) => `<a class="inline-link" href="${escapeHtml(link.href || "#")}">${escapeHtml(link.label)}</a>`)
+    .join("")}</div>
+</article>`
+    )
+    .join("")}</div>`;
+}
+
+function renderDocsLinks(entries) {
+  return `<div class="docs-grid">${(entries || [])
+    .map(
+      (entry) => `<article class="doc-card">
+  <p class="card-kicker">${escapeHtml(entry.kicker || "Doc")}</p>
+  <h3>${escapeHtml(entry.title)}</h3>
+  <p>${escapeHtml(entry.summary || "")}</p>
+  <a class="inline-link" href="${escapeHtml(entry.href || "#")}">${escapeHtml(entry.label || "Open")}</a>
+</article>`
+    )
+    .join("")}</div>`;
+}
+
+function renderFormPanel(form) {
+  const fields = (form.fields || [])
+    .map((field) => {
+      if (field.type === "textarea") {
+        return `<label class="form-field">
+  <span>${escapeHtml(field.label)}</span>
+  <textarea name="${escapeHtml(field.name)}" rows="${escapeHtml(field.rows || 5)}" placeholder="${escapeHtml(field.placeholder || "")}"></textarea>
+</label>`;
+      }
+      return `<label class="form-field">
+  <span>${escapeHtml(field.label)}</span>
+  <input name="${escapeHtml(field.name)}" type="${escapeHtml(field.type || "text")}" placeholder="${escapeHtml(field.placeholder || "")}" />
+</label>`;
+    })
+    .join("");
+  return `<section class="form-panel" data-kain-component="form-panel">
+  <div class="form-copy">
+    <p class="card-kicker">${escapeHtml(form.kicker || "Intake")}</p>
+    <h3>${escapeHtml(form.title)}</h3>
+    <p>${escapeHtml(form.body || "")}</p>
+  </div>
+  <form data-form-id="${escapeHtml(form.id || "contact")}" action="${escapeHtml(form.action || `/api/forms/${form.id || "contact"}`)}">
+    <div class="form-grid">${fields}</div>
+    <div class="action-row">
+      <button class="action primary form-submit" type="submit">${escapeHtml(form.submit_label || "Submit")}</button>
+      <span class="form-status" aria-live="polite"></span>
+    </div>
+  </form>
+</section>`;
+}
+
+function renderSearchPanel(panel) {
+  return `<section class="search-panel" data-kain-component="search-panel">
+  <div class="form-copy">
+    <p class="card-kicker">${escapeHtml(panel.kicker || "Search")}</p>
+    <h3>${escapeHtml(panel.title || "Search the site system")}</h3>
+    <p>${escapeHtml(panel.body || "Query docs, sections, routes, and experience notes from one local index.")}</p>
+  </div>
+  <form class="search-form" data-search-endpoint="${escapeHtml(panel.endpoint || "/api/search")}">
+    <input name="query" type="text" placeholder="${escapeHtml(panel.placeholder || "search docs, routes, launches, actors...")}" />
+    <button type="submit">${escapeHtml(panel.button_label || "Search")}</button>
+  </form>
+  <div class="search-results"></div>
+</section>`;
+}
+
+function renderSectionIntro(section) {
+  const eyebrow = section.eyebrow || section.label || section.kicker;
+  const title = section.title;
+  const body = section.body;
+  return `${eyebrow ? `<p class="section-label">${escapeHtml(eyebrow)}</p>` : ""}${title ? `<h2>${escapeHtml(title)}</h2>` : ""}${body ? `<p class="section-copy">${escapeHtml(body)}</p>` : ""}`;
+}
+
+const LEGACY_SECTION_MAP = {
+  features: { kind: "card_grid", eyebrow: "Systems", title: "Reusable launch systems", source: "content.feature_cards" },
+  story: { kind: "card_grid", eyebrow: "Narrative", title: "Story rails", source: "content.story_cards" },
+  portfolio: { kind: "portfolio_grid", eyebrow: "Portfolio", title: "Case studies and work capsules", source: "content.portfolio_entries" },
+  timeline: { kind: "timeline", eyebrow: "Timeline", title: "Build sequence", source: "content.timeline" },
+  scene: { kind: "scene_spotlight", eyebrow: "Scene", title: "Immersive 3D block", source: "scene" },
+  chat: { kind: "chat_lab", eyebrow: "Chat", title: "Conversation-first surface", source: "content.chat_seed" },
+  actors: { kind: "actor_mesh", eyebrow: "Actors", title: "Actor mesh", source: "content.actor_roles" },
+  server: { kind: "route_grid", eyebrow: "Server", title: "Route contract", source: "content.server_routes" },
+  cta: { kind: "cta", eyebrow: "CTA", title_source: "content.cta.title", body_source: "content.cta.body", actions_source: "content.cta.actions" }
+};
+
+function normalizeSection(section, index) {
+  if (typeof section === "string") {
+    const mapped = LEGACY_SECTION_MAP[section] || { kind: "rich_text", title: section };
+    return {
+      id: slugify(section),
+      ...mapped
+    };
+  }
+  return {
+    id: section.id || slugify(section.title || section.kind || `section-${index + 1}`),
+    ...section
+  };
+}
+
+function renderSectionBlock(section, model) {
+  const normalized = normalizeSection(section, 0);
+  const kind = normalized.kind || "rich_text";
+  const introHtml = renderSectionIntro(normalized);
+  let bodyHtml = "";
+
+  if (kind === "metric_grid") {
+    bodyHtml = `<div class="metric-grid">${renderMetrics(getModelValue(model, normalized.source, []))}</div>`;
+  } else if (kind === "card_grid") {
+    bodyHtml = `<div class="feature-grid">${renderCards(getModelValue(model, normalized.source, []))}</div>`;
+  } else if (kind === "portfolio_grid") {
+    bodyHtml = renderPortfolio(getModelValue(model, normalized.source, []));
+  } else if (kind === "timeline") {
+    bodyHtml = `<div class="timeline-list">${renderTimeline(getModelValue(model, normalized.source, []))}</div>`;
+  } else if (kind === "scene_spotlight") {
+    bodyHtml = renderScene(getModelValue(model, normalized.source || "scene", model.scene));
+  } else if (kind === "chat_lab") {
+    bodyHtml = renderChat(getModelValue(model, normalized.source, []), normalized);
+  } else if (kind === "actor_mesh") {
+    bodyHtml = `<div class="feature-grid">${renderActors(getModelValue(model, normalized.source, []))}</div>`;
+  } else if (kind === "route_grid") {
+    bodyHtml = `<div class="feature-grid">${renderRoutes(getModelValue(model, normalized.source, []))}</div>`;
+  } else if (kind === "pricing") {
+    bodyHtml = renderPricing(getModelValue(model, normalized.source, []));
+  } else if (kind === "testimonials") {
+    bodyHtml = renderTestimonials(getModelValue(model, normalized.source, []));
+  } else if (kind === "faq") {
+    bodyHtml = renderFaq(getModelValue(model, normalized.source, []));
+  } else if (kind === "logo_strip") {
+    bodyHtml = renderLogoStrip(getModelValue(model, normalized.source, []));
+  } else if (kind === "command_lines") {
+    bodyHtml = renderCommandLines(getModelValue(model, normalized.source, []));
+  } else if (kind === "link_groups") {
+    bodyHtml = renderLinkGroups(getModelValue(model, normalized.source, []));
+  } else if (kind === "docs_grid") {
+    bodyHtml = renderDocsLinks(getModelValue(model, normalized.source, []));
+  } else if (kind === "form_panel") {
+    bodyHtml = renderFormPanel(getModelValue(model, normalized.source, {}));
+  } else if (kind === "search_panel") {
+    bodyHtml = renderSearchPanel(getModelValue(model, normalized.source, {}));
+  } else if (kind === "cta") {
+    const title = getModelValue(model, normalized.title_source, normalized.title || "");
+    const body = getModelValue(model, normalized.body_source, normalized.body || "");
+    const actions = getModelValue(model, normalized.actions_source, normalized.actions || []);
+    bodyHtml = `<section class="cta-panel">
+  <h2>${escapeHtml(title)}</h2>
+  <p>${escapeHtml(body)}</p>
+  <div class="action-row">${renderActionButtons(actions)}</div>
+</section>`;
+  } else {
+    bodyHtml = renderRichText(getModelValue(model, normalized.source, normalized.body || ""));
+  }
+
+  return `<section id="${escapeHtml(normalized.id)}" class="panel panel-${escapeHtml(kind)}">${introHtml}${bodyHtml}</section>`;
+}
+
+function buildDerivedSearchDocuments(model) {
+  const documents = [];
+  const pushDocument = (kind, title, summary, href) => {
+    if (!title && !summary) return;
+    documents.push({
+      kind,
+      title: title || kind,
+      summary: summary || "",
+      href: href || "#",
+      tags: []
+    });
+  };
+
+  for (const card of model.content.feature_cards || []) {
+    pushDocument("feature", card.title, card.body, "#systems");
+  }
+  for (const entry of model.content.portfolio_entries || []) {
+    documents.push({
+      kind: "portfolio",
+      title: entry.title,
+      summary: entry.summary || "",
+      href: "#work",
+      tags: entry.tags || []
+    });
+  }
+  for (const item of model.content.faq_items || []) {
+    pushDocument("faq", item.question, Array.isArray(item.answer) ? item.answer.join(" ") : item.answer, "#faq");
+  }
+  for (const route of model.content.server_routes || []) {
+    pushDocument("route", route.path, route.purpose, "#routes");
+  }
+  for (const actor of model.content.actor_roles || []) {
+    pushDocument("actor", actor.name, actor.responsibility, "#actors");
+  }
+  for (const doc of model.content.docs_links || []) {
+    documents.push({
+      kind: "doc",
+      title: doc.title,
+      summary: doc.summary || "",
+      href: doc.href || "#docs",
+      tags: doc.tags || []
+    });
+  }
+  return documents;
+}
+
+function buildSiteData(model) {
+  const configuredSearchDocuments = model.content.search_documents || [];
+  const searchDocuments = configuredSearchDocuments.length > 0
+    ? configuredSearchDocuments
+    : buildDerivedSearchDocuments(model);
+  const forms = Object.values(model.content.forms || {});
+  return {
+    experience_id: model.experience.id,
+    mode: model.experience.mode,
+    output_slug: model.experience.output_slug,
+    page_title: model.experience.page_title,
+    theme: model.theme,
+    scene: model.scene,
+    nav: model.content.nav || [],
+    forms,
+    actors: model.content.actor_roles || [],
+    routes: model.content.server_routes || [],
+    seo: {
+      base_url: model.context.app.site?.base_url || "https://example.com",
+      title: model.content.seo?.title || model.experience.page_title,
+      description:
+        model.content.seo?.description ||
+        model.context.app.site?.default_description ||
+        `${model.experience.page_title} built with the Kain universal web template.`,
+      image: model.content.seo?.image || model.context.app.site?.default_social_image || "/social-card.png"
+    },
+    search_documents: searchDocuments,
+    updates: model.content.news_items || model.content.timeline || [],
+    client_features: model.context.app.site_runtime.client_features || []
+  };
+}
+
+export function loadJson(filePath) {
+  return readJson(path.resolve(filePath));
+}
+
+export function loadAppConfig(appManifestPath) {
+  const fullPath = path.resolve(appManifestPath);
+  const app = readJson(fullPath);
+  const rootDir = path.dirname(fullPath);
+  return {
+    app,
+    root_dir: rootDir,
+    themes: loadRegistry(rootDir, app.registries.themes),
+    content: loadRegistry(rootDir, app.registries.content),
+    scenes: loadRegistry(rootDir, app.registries.scenes),
+    experiences: loadRegistry(rootDir, app.registries.experiences)
+  };
+}
+
+function buildModel(appManifestPath, experienceId) {
+  const context = loadAppConfig(appManifestPath);
+  const selectedId = experienceId || context.app.default_experience;
+  const experience = requireEntry(context.experiences, selectedId, "experience");
+  const theme = requireEntry(context.themes, experience.theme, "theme");
+  const content = requireEntry(context.content, experience.content, "content");
+  const scene = requireEntry(context.scenes, experience.scene, "scene");
+  return {
+    context,
+    experience,
+    theme,
+    content,
+    scene,
+    output_dir: path.resolve(context.root_dir, context.app.output_root, experience.output_slug)
+  };
+}
+
+function renderClientRuntime(model, siteData) {
   const chatSeed = JSON.stringify(model.content.chat_seed || []);
+  const searchDocuments = JSON.stringify(siteData.search_documents || []);
   return `<script>
 (() => {
   const metricCards = document.querySelectorAll('[data-kain-component="metric-card"] .metric-value');
@@ -262,10 +619,19 @@ function renderClientRuntime(model) {
   const filterRoot = document.querySelector('[data-kain-component="portfolio-filter"]');
   if (filterRoot) {
     const cards = [...document.querySelectorAll('.portfolio-card')];
-    for (const button of filterRoot.querySelectorAll('button')) {
+    const buttons = [...filterRoot.querySelectorAll('button')];
+    const firstButton = buttons[0];
+    if (firstButton) {
+      const firstTag = firstButton.dataset.filter || '';
+      for (const card of cards) {
+        const tags = card.dataset.tags || '';
+        card.style.display = tags.includes(firstTag) ? '' : 'none';
+      }
+    }
+    for (const button of buttons) {
       button.addEventListener('click', () => {
         const tag = button.dataset.filter || '';
-        for (const candidate of filterRoot.querySelectorAll('button')) candidate.removeAttribute('data-active');
+        for (const candidate of buttons) candidate.removeAttribute('data-active');
         button.setAttribute('data-active', 'true');
         for (const card of cards) {
           const tags = card.dataset.tags || '';
@@ -280,35 +646,111 @@ function renderClientRuntime(model) {
     const seed = ${chatSeed};
     const seedBox = chatRoot.querySelector('.chat-seed');
     const form = chatRoot.querySelector('.chat-form');
-    form?.addEventListener('submit', (event) => {
+    form?.addEventListener('submit', async (event) => {
       event.preventDefault();
       const input = form.querySelector('input[name="prompt"]');
       const prompt = input?.value?.trim();
       if (!prompt) return;
       seedBox.insertAdjacentHTML('beforeend', '<article class="chat-bubble user"><p class="chat-role">user</p><p>' + prompt.replaceAll('<', '&lt;') + '</p></article>');
-      const response = seed[(seed.length - 1) % Math.max(seed.length, 1)] || { text: 'Template runtime is ready for custom actor-backed chat flows.' };
-      seedBox.insertAdjacentHTML('beforeend', '<article class="chat-bubble assistant"><p class="chat-role">assistant</p><p>' + String(response.text).replaceAll('<', '&lt;') + '</p></article>');
+      const endpoint = form.getAttribute('data-chat-endpoint') || '/api/chat';
+      try {
+        const response = await fetch(endpoint + '?prompt=' + encodeURIComponent(prompt));
+        const payload = await response.json();
+        const text = payload.reply || payload.text || 'Template runtime is ready for custom actor-backed chat flows.';
+        seedBox.insertAdjacentHTML('beforeend', '<article class="chat-bubble assistant"><p class="chat-role">assistant</p><p>' + String(text).replaceAll('<', '&lt;') + '</p></article>');
+      } catch (error) {
+        const fallback = seed[(seed.length - 1) % Math.max(seed.length, 1)] || { text: 'Template runtime is ready for custom actor-backed chat flows.' };
+        seedBox.insertAdjacentHTML('beforeend', '<article class="chat-bubble assistant"><p class="chat-role">assistant</p><p>' + String(fallback.text).replaceAll('<', '&lt;') + '</p></article>');
+      }
       if (input) input.value = '';
+    });
+  }
+
+  for (const item of document.querySelectorAll('[data-kain-component="faq-list"] .faq-item')) {
+    const button = item.querySelector('.faq-question');
+    button?.addEventListener('click', () => {
+      if (item.getAttribute('data-open') === 'true') {
+        item.removeAttribute('data-open');
+      } else {
+        item.setAttribute('data-open', 'true');
+      }
+    });
+  }
+
+  for (const panel of document.querySelectorAll('[data-kain-component="form-panel"] form')) {
+    panel.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const status = panel.querySelector('.form-status');
+      const formData = new FormData(panel);
+      const payload = Object.fromEntries(formData.entries());
+      try {
+        const response = await fetch(panel.getAttribute('action') || '/api/forms/contact', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (status) status.textContent = result.message || 'Received';
+        panel.reset();
+      } catch (error) {
+        if (status) status.textContent = 'Local form handler unavailable';
+      }
+    });
+  }
+
+  const searchRoot = document.querySelector('[data-kain-component="search-panel"]');
+  if (searchRoot) {
+    const form = searchRoot.querySelector('.search-form');
+    const results = searchRoot.querySelector('.search-results');
+    const localIndex = ${searchDocuments};
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const input = form.querySelector('input[name="query"]');
+      const query = input?.value?.trim() || '';
+      if (!query) return;
+      let payload = { items: [] };
+      try {
+        const endpoint = form.getAttribute('data-search-endpoint') || '/api/search';
+        const response = await fetch(endpoint + '?q=' + encodeURIComponent(query));
+        payload = await response.json();
+      } catch (error) {
+        const lowered = query.toLowerCase();
+        payload.items = localIndex.filter((entry) => {
+          const haystack = [entry.title, entry.summary, ...(entry.tags || [])].join(' ').toLowerCase();
+          return haystack.includes(lowered);
+        }).slice(0, 6);
+      }
+      const items = payload.items || [];
+      results.innerHTML = items.map((entry) => '<article class="search-result"><p class="card-kicker">' + String(entry.kind || 'result').replaceAll('<', '&lt;') + '</p><h3>' + String(entry.title || '').replaceAll('<', '&lt;') + '</h3><p>' + String(entry.summary || '').replaceAll('<', '&lt;') + '</p></article>').join('');
     });
   }
 })();
 </script>`;
 }
 
-function renderDocument(model) {
+function renderDocument(model, siteData) {
   const { app, experience, theme, content } = {
     app: model.context.app,
     experience: model.experience,
     theme: model.theme,
     content: model.content
   };
-  const sections = (experience.sections || []).map((section) => renderSection(section, model)).join("");
+  const description = siteData.seo.description;
+  const canonicalUrl = `${siteData.seo.base_url.replace(/\/$/, "")}/${escapeHtml(experience.output_slug)}/`;
+  const sections = (experience.sections || []).map((section, index) => renderSectionBlock(normalizeSection(section, index), model)).join("");
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtml(experience.page_title)}</title>
+  <title>${escapeHtml(siteData.seo.title)}</title>
+  <meta name="description" content="${escapeHtml(description)}" />
+  <link rel="canonical" href="${canonicalUrl}" />
+  <meta property="og:title" content="${escapeHtml(siteData.seo.title)}" />
+  <meta property="og:description" content="${escapeHtml(description)}" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="${escapeHtml(siteData.seo.image)}" />
+  <meta name="theme-color" content="${escapeHtml(theme.accent)}" />
   <style>
     :root {
       color-scheme: dark;
@@ -326,14 +768,18 @@ function renderDocument(model) {
       --font-body: ${theme.font_body};
     }
     * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
     body {
       margin: 0;
       min-height: 100vh;
-      background: radial-gradient(circle at top, var(--bg-top), var(--bg-bottom) 68%);
+      background:
+        radial-gradient(circle at top, var(--bg-top), rgba(0, 0, 0, 0) 48%),
+        linear-gradient(180deg, var(--bg-top), var(--bg-bottom) 68%);
       color: var(--text);
       font-family: var(--font-body);
     }
     a { color: inherit; text-decoration: none; }
+    button, input, textarea { font: inherit; }
     .shell {
       width: min(96vw, 1380px);
       margin: 24px auto;
@@ -345,7 +791,7 @@ function renderDocument(model) {
       backdrop-filter: blur(16px);
     }
     .topbar, .action-row, .footer-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
-    .nav-links { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); }
+    .nav-links, .link-list { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); }
     .brand-kicker, .section-label, .card-kicker, .timeline-label, .chat-role, .actor-channel {
       margin: 0 0 8px;
       font-size: 11px;
@@ -359,7 +805,7 @@ function renderDocument(model) {
       gap: 18px;
       margin-top: 18px;
     }
-    .panel, .hero-card, .metric-card, .feature-card, .portfolio-card, .route-card, .actor-card, .timeline-row {
+    .panel, .hero-card, .metric-card, .feature-card, .portfolio-card, .route-card, .actor-card, .timeline-row, .pricing-card, .testimonial-card, .doc-card, .link-card, .command-card, .logo-pill, .search-result {
       border-radius: 24px;
       border: 1px solid var(--line);
       background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
@@ -371,15 +817,20 @@ function renderDocument(model) {
       letter-spacing: -0.04em;
     }
     .hero-title { font-size: clamp(2.4rem, 6vw, 5rem); max-width: 12ch; }
-    .hero-copy, .metric-label, .feature-card p, .portfolio-card p, .route-card p, .actor-card p, .timeline-row p, .footer-row { color: var(--muted); line-height: 1.5; }
-    .metric-grid, .feature-grid, .portfolio-grid {
+    .section-copy, .hero-copy, .metric-label, .feature-card p, .portfolio-card p, .route-card p, .actor-card p, .timeline-row p, .footer-row, .testimonial-card p, .doc-card p, .link-card p, .search-result p {
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .metric-grid, .feature-grid, .portfolio-grid, .docs-grid, .link-grid, .command-grid, .pricing-grid, .testimonial-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 14px;
     }
-    .metric-card, .feature-card, .portfolio-card, .route-card, .actor-card { padding: 16px; }
+    .metric-card, .feature-card, .portfolio-card, .route-card, .actor-card, .pricing-card, .testimonial-card, .doc-card, .link-card, .command-card, .search-result {
+      padding: 16px;
+    }
     .metric-value { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); color: var(--highlight); font-family: var(--font-display); }
-    .action {
+    .action, .chat-form button, .search-form button, .faq-question {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -387,8 +838,13 @@ function renderDocument(model) {
       padding: 0 16px;
       border-radius: 999px;
       border: 1px solid var(--line);
+      cursor: pointer;
     }
-    .action.primary { background: var(--accent); color: #06111a; border-color: transparent; }
+    .action.primary, .chat-form button, .search-form button {
+      background: var(--accent);
+      color: #06111a;
+      border-color: transparent;
+    }
     .action.secondary { background: rgba(255,255,255,0.04); }
     .scene-shell { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; }
     .scene-stage {
@@ -419,8 +875,8 @@ function renderDocument(model) {
       border-radius: 999px;
     }
     .scene-copy { position: absolute; left: 22px; bottom: 22px; max-width: 480px; }
-    .scene-layers { display: grid; gap: 10px; }
-    .scene-layer {
+    .scene-layers, .faq-list, .search-results { display: grid; gap: 10px; }
+    .scene-layer, .logo-pill, .faq-item {
       display: flex;
       justify-content: space-between;
       gap: 12px;
@@ -448,7 +904,7 @@ function renderDocument(model) {
       gap: 16px;
       padding: 16px;
     }
-    .chat-shell { display: grid; gap: 14px; }
+    .chat-shell, .form-panel, .search-panel { display: grid; gap: 14px; }
     .chat-seed { display: grid; gap: 10px; }
     .chat-bubble {
       padding: 14px 16px;
@@ -457,28 +913,62 @@ function renderDocument(model) {
       background: rgba(255,255,255,0.03);
     }
     .chat-bubble.user { border-color: rgba(255,255,255,0.18); }
-    .chat-form { display: flex; gap: 10px; flex-wrap: wrap; }
-    .chat-form input {
+    .chat-form, .search-form { display: flex; gap: 10px; flex-wrap: wrap; }
+    .chat-form input, .search-form input, .form-field input, .form-field textarea {
       flex: 1 1 320px;
       min-height: 46px;
-      padding: 0 14px;
+      padding: 12px 14px;
       border-radius: 16px;
       border: 1px solid var(--line);
       background: rgba(255,255,255,0.03);
       color: var(--text);
     }
-    .chat-form button {
-      min-height: 46px;
-      padding: 0 18px;
-      border-radius: 16px;
-      border: none;
-      background: var(--accent);
-      color: #06111a;
-      cursor: pointer;
-    }
     .footer-row { margin-top: 18px; color: var(--muted); }
+    .pricing-price { font-size: 2rem; margin: 8px 0 10px; font-family: var(--font-display); color: var(--highlight); }
+    .pricing-list {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      display: grid;
+      gap: 8px;
+    }
+    .quote-mark { font-size: 2.4rem; line-height: 1; color: var(--highlight); margin: 0 0 12px; }
+    .faq-item { display: grid; }
+    .faq-question {
+      justify-content: space-between;
+      width: 100%;
+      background: transparent;
+      color: var(--text);
+    }
+    .faq-answer { display: none; padding: 0 4px 8px; }
+    .faq-item[data-open="true"] .faq-answer { display: block; }
+    .inline-link { color: var(--accent-soft); }
+    .command-card pre {
+      margin: 0;
+      padding: 14px;
+      border-radius: 18px;
+      overflow-x: auto;
+      background: rgba(0,0,0,0.25);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .form-field {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+    }
+    .form-field textarea { min-height: 140px; resize: vertical; }
+    .form-status { min-height: 24px; color: var(--accent-soft); }
+    .search-results:empty::before {
+      content: "Search results will appear here.";
+      color: var(--muted);
+    }
     @media (max-width: 1080px) {
-      .hero-grid, .scene-shell, .metric-grid, .feature-grid, .portfolio-grid {
+      .hero-grid, .scene-shell, .metric-grid, .feature-grid, .portfolio-grid, .docs-grid, .link-grid, .command-grid, .pricing-grid, .testimonial-grid, .form-grid {
         grid-template-columns: 1fr;
       }
       .timeline-row { grid-template-columns: 1fr; }
@@ -513,7 +1003,7 @@ function renderDocument(model) {
       <span>${escapeHtml(content.footer)}</span>
     </footer>
   </main>
-  ${renderClientRuntime(model)}
+  ${renderClientRuntime(model, siteData)}
 </body>
 </html>`;
 }
@@ -527,35 +1017,107 @@ function buildSummary(model) {
     html_path: path.join(model.output_dir, "index.html"),
     manifest_path: path.join(model.output_dir, "site.manifest.json"),
     actor_server_path: path.join(model.output_dir, "actor-server.plan.json"),
-    server_port: model.context.app.site_runtime.default_port
+    site_data_path: path.join(model.output_dir, "site.data.json"),
+    sitemap_path: path.join(model.output_dir, "sitemap.xml"),
+    robots_path: path.join(model.output_dir, "robots.txt"),
+    feed_path: path.join(model.output_dir, "feed.xml"),
+    server_port: model.context.app.site_runtime.default_port,
+    output_dir: model.output_dir
   };
+}
+
+function buildSitemap(siteData) {
+  const url = `${siteData.seo.base_url.replace(/\/$/, "")}/${siteData.output_slug}/`;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${escapeHtml(url)}</loc>
+  </url>
+</urlset>
+`;
+}
+
+function buildRobots(siteData) {
+  return `User-agent: *\nAllow: /\nSitemap: ${siteData.seo.base_url.replace(/\/$/, "")}/${siteData.output_slug}/sitemap.xml\n`;
+}
+
+function buildFeed(siteData) {
+  const siteUrl = `${siteData.seo.base_url.replace(/\/$/, "")}/${siteData.output_slug}/`;
+  const items = (siteData.updates || [])
+    .slice(0, 8)
+    .map((entry, index) => {
+      const title = entry.title || entry.phase || `Update ${index + 1}`;
+      const description = entry.body || entry.summary || "";
+      return `<item><title>${escapeHtml(title)}</title><link>${escapeHtml(siteUrl)}</link><description>${escapeHtml(description)}</description></item>`;
+    })
+    .join("");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>${escapeHtml(siteData.page_title)}</title>
+    <link>${escapeHtml(siteUrl)}</link>
+    <description>${escapeHtml(siteData.seo.description)}</description>
+    ${items}
+  </channel>
+</rss>
+`;
 }
 
 export function buildExperience(appManifestPath, experienceId) {
   const model = buildModel(appManifestPath, experienceId);
-  const html = renderDocument(model);
+  const siteData = buildSiteData(model);
   const summary = buildSummary(model);
   return {
     ...summary,
-    html,
+    html: renderDocument(model, siteData),
     manifest: {
       experience: model.experience,
       theme: model.theme,
       content: model.content,
       scene: model.scene
     },
-    actor_server: buildActorServerPlan(appManifestPath, model.experience.id)
+    actor_server: buildActorServerPlan(appManifestPath, model.experience.id),
+    site_data: siteData,
+    sitemap_xml: buildSitemap(siteData),
+    robots_txt: buildRobots(siteData),
+    feed_xml: buildFeed(siteData)
   };
+}
+
+function buildApiRoutes(model, siteData) {
+  const builtInRoutes = [
+    { method: "GET", path: "/", purpose: "serves the experience shell", actor: "site_renderer" },
+    { method: "GET", path: "/site.data.json", purpose: "returns the flattened site data payload", actor: "site_renderer" },
+    { method: "GET", path: "/sitemap.xml", purpose: "returns sitemap output for the current experience", actor: "site_renderer" },
+    { method: "GET", path: "/robots.txt", purpose: "returns crawler policy", actor: "site_renderer" },
+    { method: "GET", path: "/feed.xml", purpose: "returns the local update feed", actor: "site_renderer" },
+    { method: "GET", path: "/api/runtime", purpose: "returns active runtime metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/routes", purpose: "returns the route contract", actor: "mesh_supervisor" },
+    { method: "GET", path: "/api/site", purpose: "returns site data and seo metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/search", purpose: "queries the local search document index", actor: "search_indexer" },
+    { method: "GET", path: "/api/chat", purpose: "returns chat seed messages or a local reply", actor: "chat_seed_router" },
+    { method: "GET", path: "/api/actors", purpose: "returns actor topology and role descriptions", actor: "mesh_supervisor" },
+    { method: "GET", path: "/healthz", purpose: "simple health response for local supervision", actor: "mesh_supervisor" }
+  ];
+  const formRoutes = (siteData.forms || []).map((form) => ({
+    method: "POST",
+    path: form.action || `/api/forms/${form.id}`,
+    purpose: form.body || `accepts submissions for ${form.title}`,
+    actor: "intake_collector"
+  }));
+  return [...builtInRoutes, ...formRoutes, ...(model.content.server_routes || [])];
 }
 
 export function buildActorServerPlan(appManifestPath, experienceId) {
   const model = buildModel(appManifestPath, experienceId);
+  const siteData = buildSiteData(model);
   return {
     id: model.experience.id,
     port: model.context.app.site_runtime.default_port,
     host: model.context.app.site_runtime.host,
-    routes: model.content.server_routes || [],
+    routes: buildApiRoutes(model, siteData),
     actors: model.content.actor_roles || [],
+    forms: siteData.forms || [],
     page_title: model.experience.page_title,
     output_slug: model.experience.output_slug
   };
@@ -570,8 +1132,32 @@ export function actorServerReport(appManifestPath, experienceId) {
     `port: ${plan.port}`,
     `route_count: ${plan.routes.length}`,
     `actor_count: ${plan.actors.length}`,
+    `form_count: ${plan.forms.length}`,
     `output_slug: ${plan.output_slug}`
   ].join("\n");
+}
+
+function buildCatalog(context, built) {
+  return {
+    template: context.app.name,
+    default_experience: context.app.default_experience,
+    output_root: context.app.output_root,
+    experiences: built.map((entry) => ({
+      id: entry.id,
+      mode: entry.mode,
+      output_slug: entry.output_slug,
+      page_title: entry.page_title,
+      files: {
+        html: path.basename(entry.html_path),
+        manifest: path.basename(entry.manifest_path),
+        actor_server: path.basename(entry.actor_server_path),
+        site_data: path.basename(entry.site_data_path),
+        sitemap: path.basename(entry.sitemap_path),
+        robots: path.basename(entry.robots_path),
+        feed: path.basename(entry.feed_path)
+      }
+    }))
+  };
 }
 
 export function buildMatrix(appManifestPath) {
@@ -582,9 +1168,10 @@ export function buildMatrix(appManifestPath) {
     default_experience: context.app.default_experience,
     output_root: context.app.output_root,
     experience_count: experiences.length,
-    artifact_count: experiences.length * 3 + 1,
+    artifact_count: experiences.length * 7 + 2,
     server_port: context.app.site_runtime.default_port,
-    experience_ids: experiences.map((entry) => entry.id)
+    experience_ids: experiences.map((entry) => entry.id),
+    client_features: context.app.site_runtime.client_features || []
   };
 }
 
@@ -596,19 +1183,25 @@ export function writeMatrix(appManifestPath) {
   const built = experienceIds.map((id) => buildExperience(appManifestPath, id));
   for (const entry of built) {
     ensureDir(path.dirname(entry.html_path));
-    fs.writeFileSync(entry.html_path, entry.html);
+    writeText(entry.html_path, entry.html);
     writeJson(entry.manifest_path, entry.manifest);
     writeJson(entry.actor_server_path, entry.actor_server);
+    writeJson(entry.site_data_path, entry.site_data);
+    writeText(entry.sitemap_path, entry.sitemap_xml);
+    writeText(entry.robots_path, entry.robots_txt);
+    writeText(entry.feed_path, entry.feed_xml);
   }
   const summary = {
     default_experience: context.app.default_experience,
     output_root: context.app.output_root,
     experience_count: built.length,
-    artifact_count: built.length * 3 + 1,
+    artifact_count: built.length * 7 + 2,
     server_port: context.app.site_runtime.default_port,
-    experience_ids: built.map((entry) => entry.id)
+    experience_ids: built.map((entry) => entry.id),
+    client_features: context.app.site_runtime.client_features || []
   };
   writeJson(path.join(outputRoot, "matrix.summary.json"), summary);
+  writeJson(path.join(outputRoot, "experience-catalog.json"), buildCatalog(context, built));
   return summary;
 }
 
@@ -622,32 +1215,129 @@ function sendHtml(response, html) {
   response.end(html);
 }
 
-function serveExperience(appManifestPath, experienceId) {
+function sendText(response, statusCode, payload, contentType) {
+  response.writeHead(statusCode, { "content-type": contentType });
+  response.end(payload);
+}
+
+function parseRequestBody(request) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    request.on("data", (chunk) => chunks.push(chunk));
+    request.on("end", () => {
+      const body = Buffer.concat(chunks).toString("utf8");
+      if (!body) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(body));
+      } catch (error) {
+        resolve({ raw: body });
+      }
+    });
+    request.on("error", reject);
+  });
+}
+
+function persistSubmission(bundle, formId, payload) {
+  const logPath = path.join(bundle.output_dir || path.dirname(bundle.html_path), "runtime", "submissions", `${formId}.jsonl`);
+  appendText(logPath, JSON.stringify({ received_at: new Date().toISOString(), payload }) + "\n");
+  return logPath;
+}
+
+async function serveExperience(appManifestPath, experienceId) {
   const bundle = buildExperience(appManifestPath, experienceId);
   const plan = bundle.actor_server;
-  const server = http.createServer((request, response) => {
-    const url = request.url || "/";
-    if (url === "/") {
+  const searchIndex = bundle.site_data.search_documents || [];
+  const chatSeed = bundle.manifest.content.chat_seed || [];
+  const formsByPath = new Map(
+    (bundle.site_data.forms || []).map((form) => [form.action || `/api/forms/${form.id}`, form])
+  );
+  const server = http.createServer(async (request, response) => {
+    const requestUrl = new URL(request.url || "/", `http://${plan.host}:${plan.port}`);
+    const pathname = requestUrl.pathname;
+    if (request.method === "GET" && pathname === "/") {
       sendHtml(response, bundle.html);
       return;
     }
-    if (url === "/api/runtime") {
+    if (request.method === "GET" && pathname === "/site.data.json") {
+      sendJson(response, 200, bundle.site_data);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/sitemap.xml") {
+      sendText(response, 200, bundle.sitemap_xml, "application/xml; charset=utf-8");
+      return;
+    }
+    if (request.method === "GET" && pathname === "/robots.txt") {
+      sendText(response, 200, bundle.robots_txt, "text/plain; charset=utf-8");
+      return;
+    }
+    if (request.method === "GET" && pathname === "/feed.xml") {
+      sendText(response, 200, bundle.feed_xml, "application/rss+xml; charset=utf-8");
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/runtime") {
       sendJson(response, 200, {
         experience: bundle.id,
         mode: bundle.mode,
-        page_title: bundle.page_title
+        page_title: bundle.page_title,
+        output_slug: bundle.output_slug
       });
       return;
     }
-    if (url === "/api/actors") {
+    if (request.method === "GET" && pathname === "/api/site") {
+      sendJson(response, 200, bundle.site_data);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/routes") {
+      sendJson(response, 200, plan.routes);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/actors") {
       sendJson(response, 200, plan);
       return;
     }
-    if (url === "/api/chat") {
-      sendJson(response, 200, bundle.manifest.content.chat_seed || []);
+    if (request.method === "GET" && pathname === "/api/chat") {
+      const prompt = requestUrl.searchParams.get("prompt");
+      if (!prompt) {
+        sendJson(response, 200, chatSeed);
+        return;
+      }
+      const seedText = chatSeed.map((entry) => entry.text).join(" ");
+      sendJson(response, 200, {
+        reply: `Local Kain web runtime received '${prompt}'. Current experience '${bundle.id}' exposes ${plan.routes.length} routes and ${plan.actors.length} actors. Seed context: ${seedText || "none configured"}.`
+      });
       return;
     }
-    sendJson(response, 404, { error: "not_found", path: url });
+    if (request.method === "GET" && pathname === "/api/search") {
+      const query = (requestUrl.searchParams.get("q") || "").trim().toLowerCase();
+      const items = !query
+        ? searchIndex.slice(0, 8)
+        : searchIndex.filter((entry) => {
+            const haystack = [entry.title, entry.summary, ...(entry.tags || [])].join(" ").toLowerCase();
+            return haystack.includes(query);
+          }).slice(0, 8);
+      sendJson(response, 200, { query, items });
+      return;
+    }
+    if (request.method === "GET" && pathname === "/healthz") {
+      sendJson(response, 200, { ok: true, experience: bundle.id, route_count: plan.routes.length });
+      return;
+    }
+    if (request.method === "POST" && formsByPath.has(pathname)) {
+      const form = formsByPath.get(pathname);
+      const payload = await parseRequestBody(request);
+      const logPath = persistSubmission(bundle, form.id, payload);
+      sendJson(response, 200, {
+        ok: true,
+        form_id: form.id,
+        message: `${form.title} submission captured`,
+        log_path: logPath
+      });
+      return;
+    }
+    sendJson(response, 404, { error: "not_found", path: pathname });
   });
   server.listen(plan.port, plan.host, () => {
     process.stdout.write(`kain-web runtime serving ${bundle.id} at http://${plan.host}:${plan.port}\n`);
@@ -664,11 +1354,19 @@ function runCli() {
     serveExperience(appManifestPath, experienceId);
     return;
   }
+  if (command === "experience") {
+    process.stdout.write(JSON.stringify(buildExperience(appManifestPath, experienceId), null, 2) + "\n");
+    return;
+  }
+  if (command === "actor-report") {
+    process.stdout.write(actorServerReport(appManifestPath, experienceId) + "\n");
+    return;
+  }
   if (command === "print") {
     process.stdout.write(JSON.stringify(buildMatrix(appManifestPath), null, 2) + "\n");
     return;
   }
-  process.stderr.write(`unknown command '${command}'. expected build, serve, or print\n`);
+  process.stderr.write(`unknown command '${command}'. expected build, serve, experience, actor-report, or print\n`);
   process.exitCode = 1;
 }
 

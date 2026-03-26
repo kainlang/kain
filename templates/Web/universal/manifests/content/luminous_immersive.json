@@ -1,52 +1,93 @@
 {
   "brand": "Luminous Port",
+  "seo": {
+    "title": "Luminous Port | Kain Immersive 3D Site",
+    "description": "Immersive lane for premium release sites with scene staging, technical breakdowns, editions, and intake flows.",
+    "image": "/social-luminous.png"
+  },
   "nav": [
     { "label": "World", "href": "#world" },
-    { "label": "Layers", "href": "#layers" },
-    { "label": "Edition", "href": "#edition" }
+    { "label": "System", "href": "#system" },
+    { "label": "Editions", "href": "#editions" },
+    { "label": "Start", "href": "#intake" }
   ],
   "hero": {
     "kicker": "Immersive 3D archetype",
     "title": "Stage premium product stories with a 3D-first shell.",
-    "body": "The immersive mode gives a dedicated scene block, feature pacing, and atmospheric chrome so a web page can behave like a teaser environment rather than a brochure.",
+    "body": "The immersive lane treats the page like an environment: scene spotlight, technical breakdown, editions, FAQ, and intake are all part of the same manifest system.",
     "actions": [
       { "label": "Open World", "href": "#world", "style": "primary" },
-      { "label": "Read Layer Map", "href": "#layers", "style": "secondary" }
+      { "label": "Read System", "href": "#system", "style": "secondary" }
     ]
   },
   "metrics": [
     { "value": "3D", "label": "scene-first storytelling lane" },
-    { "value": "06", "label": "layer descriptors" },
-    { "value": "01", "label": "runtime for site and scene shell" }
+    { "value": "04", "label": "scene layers staged" },
+    { "value": "07", "label": "build artifacts emitted" }
+  ],
+  "logos": [
+    { "label": "Scene", "detail": "layer-driven reveal" },
+    { "label": "Feed", "detail": "release notes output" },
+    { "label": "Form", "detail": "local reservation intake" },
+    { "label": "Command", "detail": "operator setup guidance" }
   ],
   "feature_cards": [
-    { "kicker": "Stage", "title": "Cinematic hero shell", "body": "Use atmospheric gradients, ring staging, and scene notes to set the tone." },
-    { "kicker": "Bridge", "title": "Ready for runtime adapters", "body": "The scene manifest keeps room for future WebGPU, canvas, or semantic UI web backends." },
-    { "kicker": "Narrate", "title": "Scene metadata is content", "body": "Layers, labels, and summaries are editable without changing the runtime." }
+    { "kicker": "Stage", "title": "Cinematic hero shell", "body": "Use atmosphere and scene notes to set the tone before conventional content blocks arrive." },
+    { "kicker": "Bridge", "title": "Runtime-ready descriptors", "body": "Scene manifests leave room for future web GPU or semantic UI adapters." },
+    { "kicker": "Narrate", "title": "Technical proof", "body": "Command snippets and edition notes make the release feel operational, not decorative." }
   ],
-  "story_cards": [
-    { "kicker": "Scene", "title": "Orbit chamber", "body": "A premium release deserves space to breathe before the copy grid takes over." },
-    { "kicker": "Motion", "title": "Progressive reveal", "body": "The starter is set up for future motion tracks and scene transitions." }
+  "testimonials": [
+    { "quote": "The immersive lane finally let us present a product release like an environment.", "name": "Edda Moss", "role": "Brand Director" },
+    { "quote": "The same system still handled docs, forms, and operator notes.", "name": "Rian Holt", "role": "Technical PM" }
   ],
-  "timeline": [
-    { "phase": "Frame", "title": "Define the reveal", "body": "Start with the atmosphere, not the CTA wall." },
-    { "phase": "Layer", "title": "Name the scene blocks", "body": "Keep the 3D narrative legible through authored layer descriptors." },
-    { "phase": "Convert", "title": "Add CTA after wonder", "body": "Sales surfaces land harder after the world is clear." }
+  "pricing_tiers": [
+    { "kicker": "Edition", "name": "Reveal", "price": "$0", "summary": "A cinematic landing reveal with scene rail and CTA.", "features": ["Scene spotlight", "Hero + metrics", "Feed output"], "actions": [{ "label": "Open reveal", "href": "#world", "style": "primary" }] },
+    { "kicker": "Edition", "name": "Collector", "price": "$299", "summary": "Premium release with docs, operator notes, and reservation intake.", "features": ["Edition section", "Command notes", "Form capture"], "actions": [{ "label": "Reserve", "href": "#intake", "style": "primary" }] }
   ],
+  "command_lines": [
+    { "kicker": "Serve", "title": "Preview the scene shell", "command": "npm run serve:3d", "body": "Boot the immersive site locally with API and form endpoints." },
+    { "kicker": "Build", "title": "Emit the release artifacts", "command": "npm run build", "body": "Generate the HTML, data, actor plan, sitemap, robots, and feed outputs." }
+  ],
+  "faq_items": [
+    { "question": "Is this a real 3D runtime?", "answer": ["Today the immersive lane is a scene-forward web shell with manifest room for richer browser adapters.", "It still uses Kain UI for native semantic preview." ] },
+    { "question": "Can I attach launch operations?", "answer": ["Yes. Command notes, feed output, and local forms are already included."] }
+  ],
+  "forms": {
+    "reservation": {
+      "id": "reservation",
+      "kicker": "Edition reservation",
+      "title": "Capture reservation intent",
+      "body": "Use the immersive lane to collect reservation or waitlist interest locally while the release stack is still forming.",
+      "submit_label": "Reserve slot",
+      "action": "/api/forms/reservation",
+      "fields": [
+        { "name": "name", "label": "Name", "type": "text", "placeholder": "Collector or buyer" },
+        { "name": "email", "label": "Email", "type": "email", "placeholder": "collector@example.com" },
+        { "name": "edition", "label": "Edition", "type": "text", "placeholder": "Reveal / Collector" },
+        { "name": "notes", "label": "Notes", "type": "textarea", "rows": 5, "placeholder": "Reservation notes or event goals" }
+      ]
+    }
+  },
   "chat_seed": [
-    { "role": "assistant", "text": "I can explain the scene layers, shader story, or technical stack behind the reveal." }
+    { "role": "assistant", "text": "I can explain the scene layers, operator setup, or release edition differences." }
   ],
   "actor_roles": [
-    { "name": "scene_director", "responsibility": "Chooses which world state the visitor enters.", "channel": "scene.state" }
+    { "name": "scene_director", "responsibility": "Chooses which world state the visitor enters.", "channel": "scene.state" },
+    { "name": "reservation_router", "responsibility": "Captures edition interest and local release notes.", "channel": "api.forms.reservation" }
   ],
   "server_routes": [
-    { "method": "GET", "path": "/api/runtime", "purpose": "returns scene metadata for browser adapters" }
+    { "method": "GET", "path": "/api/runtime", "purpose": "returns scene metadata for browser adapters" },
+    { "method": "POST", "path": "/api/forms/reservation", "purpose": "captures local reservation payloads" }
+  ],
+  "news_items": [
+    { "title": "Scene shell upgraded", "summary": "The immersive lane now ships feed and form surfaces." }
   ],
   "cta": {
-    "title": "Let the product feel expensive before the pricing section arrives.",
-    "body": "Use the immersive lane when the page itself needs to feel like an environment.",
+    "title": "Let the page feel expensive before the pricing section arrives.",
+    "body": "Use the immersive lane when the release site itself needs to feel like an environment.",
     "actions": [
-      { "label": "Serve Immersive Shell", "href": "#world", "style": "primary" }
+      { "label": "Open World", "href": "#world", "style": "primary" },
+      { "label": "Reserve", "href": "#intake", "style": "secondary" }
     ]
   },
   "footer": "immersive 3d experience"

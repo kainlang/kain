@@ -6,5 +6,22 @@
   "output_slug": "actor-mesh-foundry",
   "page_title": "Mesh Actor Ops",
   "eyebrow": "Actor Server Website",
-  "sections": ["features", "server", "actors", "chat", "scene", "cta"]
+  "sections": [
+    { "id": "routes", "kind": "route_grid", "eyebrow": "Routes", "title": "Route contract", "source": "content.server_routes" },
+    { "id": "actors", "kind": "actor_mesh", "eyebrow": "Actors", "title": "Actor mesh", "source": "content.actor_roles" },
+    { "id": "commands", "kind": "command_lines", "eyebrow": "Command", "title": "Runtime commands", "source": "content.command_lines" },
+    { "id": "search", "kind": "search_panel", "eyebrow": "Search", "title": "Search runtime notes", "source": "experience.search_panel" },
+    { "id": "docs", "kind": "docs_grid", "eyebrow": "Docs", "title": "Route and supervision docs", "source": "content.docs_links" },
+    { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Actor lane questions", "source": "content.faq_items" },
+    { "id": "intake", "kind": "form_panel", "eyebrow": "Request", "title": "Capture runtime change requests", "source": "content.forms.ops_request" },
+    { "id": "scene", "kind": "scene_spotlight", "eyebrow": "Control Room", "title": "Operational scene", "source": "scene" },
+    { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }
+  ],
+  "search_panel": {
+    "kicker": "Search",
+    "title": "Search routes, commands, and supervision docs",
+    "body": "The actor lane exposes its route and command surface through the same search API the browser uses.",
+    "placeholder": "search routes, commands, actors...",
+    "button_label": "Search"
+  }
 }

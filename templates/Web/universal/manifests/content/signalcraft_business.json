@@ -1,55 +1,107 @@
 {
   "brand": "Signalcraft Systems",
+  "seo": {
+    "title": "Signalcraft Systems | Kain Universal Business Site",
+    "description": "Manifest-driven launch system for product websites, pricing rails, docs links, search, and local intake flows.",
+    "image": "/social-signalcraft.png"
+  },
   "nav": [
-    { "label": "Platform", "href": "#platform" },
-    { "label": "Stories", "href": "#stories" },
+    { "label": "Systems", "href": "#systems" },
     { "label": "Pricing", "href": "#pricing" },
-    { "label": "Docs", "href": "#docs" }
+    { "label": "Proof", "href": "#proof" },
+    { "label": "FAQ", "href": "#faq" },
+    { "label": "Start", "href": "#intake" }
   ],
   "hero": {
     "kicker": "Business website archetype",
     "title": "Launch sites that read like software systems.",
-    "body": "Use one manifest-driven starter to ship landing pages, pricing rails, proof cards, and roadmap narratives without copy-pasting a front-end stack into every project.",
+    "body": "Use one Kain-owned starter to ship messaging, proof rails, pricing, docs, search, and intake without rebuilding the stack every time.",
     "actions": [
-      { "label": "Launch Product Story", "href": "#platform", "style": "primary" },
-      { "label": "Read Architecture", "href": "#docs", "style": "secondary" }
+      { "label": "Inspect Systems", "href": "#systems", "style": "primary" },
+      { "label": "Open Intake", "href": "#intake", "style": "secondary" }
     ]
   },
   "metrics": [
     { "value": "48h", "label": "from blank repo to launch surface" },
-    { "value": "12", "label": "reusable content blocks" },
-    { "value": "1x", "label": "manifest source of truth" }
+    { "value": "07", "label": "site artifacts emitted per experience" },
+    { "value": "01", "label": "manifest source of truth" }
+  ],
+  "logos": [
+    { "label": "Docs", "detail": "searchable launch notes" },
+    { "label": "Feeds", "detail": "rss and sitemap output" },
+    { "label": "Forms", "detail": "local intake capture" },
+    { "label": "Actors", "detail": "upgrade path for runtime logic" }
   ],
   "feature_cards": [
-    { "kicker": "Narrative", "title": "Hero + proof stack", "body": "Prominent launch messaging, CTAs, and social proof cards are already wired into the template." },
-    { "kicker": "Systems", "title": "Section registry", "body": "Feature rails, timelines, case studies, and pricing copy stay content-driven." },
-    { "kicker": "Runtime", "title": "Node packaging lane", "body": "The browser output builds through Node FFI instead of requiring Rust toolchains." }
+    { "kicker": "Narrative", "title": "Hero + proof stack", "body": "Prominent launch messaging, CTAs, and proof cards are already wired into the pack." },
+    { "kicker": "Systems", "title": "Section registry", "body": "Pricing, FAQs, docs links, and intake surfaces stay manifest-driven." },
+    { "kicker": "Runtime", "title": "No Rust requirement", "body": "Node FFI owns browser packaging and local serving while Kain stays in orchestration." }
   ],
   "story_cards": [
-    { "kicker": "Week 1", "title": "Theme system", "body": "Color, type, spacing, and chrome are isolated in theme manifests." },
-    { "kicker": "Week 2", "title": "Content schema", "body": "Sections and cards moved out of hand-authored page code." },
-    { "kicker": "Week 3", "title": "Artifact matrix", "body": "Each experience now writes HTML, manifest, and server-plan outputs." }
+    { "kicker": "Week 1", "title": "Theme system", "body": "Color, type, and chrome live in theme manifests instead of bespoke CSS per site." },
+    { "kicker": "Week 2", "title": "Artifact matrix", "body": "Each build emits HTML, site data, actor plans, feed, robots, and sitemap artifacts." },
+    { "kicker": "Week 3", "title": "Ops-ready intake", "body": "Lead capture and local route inspection are part of the starter rather than afterthoughts." }
   ],
-  "timeline": [
-    { "phase": "Plan", "title": "Pick the archetype", "body": "Choose business, portfolio, immersive, chat, or actor-server mode." },
-    { "phase": "Shape", "title": "Swap manifests", "body": "Replace theme, content, and scene entries instead of rewriting page code." },
-    { "phase": "Ship", "title": "Serve locally", "body": "Use the packaged Node runtime to inspect the exact artifact users will see." }
+  "pricing_tiers": [
+    { "kicker": "Starter", "name": "Launch Rail", "price": "$4k", "summary": "For a single product narrative with strong conversion plumbing.", "features": ["Hero + proof rails", "Pricing + FAQ", "Search + docs links"], "actions": [{ "label": "Book Rail", "href": "#intake", "style": "primary" }] },
+    { "kicker": "Growth", "name": "Operator Site", "price": "$9k", "summary": "For product teams that need richer sections, search, and actor-backed upgrades.", "features": ["Hybrid content sections", "Forms + route API", "Search documents"], "actions": [{ "label": "See Scope", "href": "#proof", "style": "secondary" }] },
+    { "kicker": "Custom", "name": "Launch System", "price": "Talk", "summary": "For premium launches that bridge docs, product surfaces, and immersive sections.", "features": ["3D staging ready", "Chat lane ready", "Actor runtime upgrade path"], "actions": [{ "label": "Start Intake", "href": "#intake", "style": "primary" }] }
   ],
+  "testimonials": [
+    { "quote": "The template stopped our launch pages from devolving into one-off frontend projects.", "name": "Ari Chen", "role": "Product Marketing Lead" },
+    { "quote": "The docs, pricing, and forms were already coherent on day one.", "name": "Mira Sol", "role": "Founder" },
+    { "quote": "The artifact model made review and iteration much faster.", "name": "Jon Park", "role": "Design Engineer" }
+  ],
+  "faq_items": [
+    { "question": "Do users need Rust or Cargo?", "answer": ["No. The template is built so browser packaging and local serving run through Node.", "Kain still owns the authored entrypoints and orchestration surface."] },
+    { "question": "Can this expand into docs or chat?", "answer": ["Yes. The business lane already shares runtime pieces with docs/search, chat, and actor-server experiences."] },
+    { "question": "What do builds emit?", "answer": ["Each experience writes HTML, a site manifest, actor plan, site data payload, sitemap, robots, and RSS feed."] }
+  ],
+  "docs_links": [
+    { "kicker": "Architecture", "title": "Site runtime contract", "summary": "How Kain, Node FFI, manifests, and output artifacts fit together.", "href": "#systems", "label": "Read runtime" },
+    { "kicker": "Guide", "title": "Launch customization flow", "summary": "Replace content and theme manifests before touching helper runtime code.", "href": "#proof", "label": "Open guide" },
+    { "kicker": "Ops", "title": "Local serving + intake", "summary": "Use the local route surface to inspect runtime metadata and form capture.", "href": "#intake", "label": "Open ops notes" }
+  ],
+  "link_groups": [
+    { "kicker": "Workflow", "title": "Operator links", "body": "Use the business lane as a base system, not a static mockup.", "links": [{ "label": "Open pricing", "href": "#pricing" }, { "label": "Read FAQ", "href": "#faq" }, { "label": "Start intake", "href": "#intake" }] }
+  ],
+  "forms": {
+    "contact": {
+      "id": "contact",
+      "kicker": "Start a build",
+      "title": "Capture the launch brief",
+      "body": "The local server persists submissions into the output folder so the site can behave like a real intake surface even before backend integration.",
+      "submit_label": "Capture brief",
+      "action": "/api/forms/contact",
+      "fields": [
+        { "name": "name", "label": "Name", "type": "text", "placeholder": "Operator name" },
+        { "name": "email", "label": "Email", "type": "email", "placeholder": "name@company.com" },
+        { "name": "site_mode", "label": "Site mode", "type": "text", "placeholder": "business / docs / launch" },
+        { "name": "brief", "label": "Brief", "type": "textarea", "rows": 5, "placeholder": "What should the site accomplish?" }
+      ]
+    }
+  },
   "chat_seed": [
-    { "role": "assistant", "text": "I can turn this starter into a SaaS launch site, docs hub, or campaign reveal." }
+    { "role": "assistant", "text": "I can route this starter into a product launch page, docs hub, or premium release surface." }
   ],
   "actor_roles": [
-    { "name": "campaign_router", "responsibility": "Routes visitors into the right launch flow.", "channel": "http.route" }
+    { "name": "campaign_router", "responsibility": "Routes visitors into the right launch flow.", "channel": "http.route" },
+    { "name": "intake_collector", "responsibility": "Captures and stores local launch briefs.", "channel": "api.forms.contact" }
   ],
   "server_routes": [
-    { "method": "GET", "path": "/", "purpose": "serve the marketing shell" }
+    { "method": "GET", "path": "/", "purpose": "serve the business shell" },
+    { "method": "GET", "path": "/api/site", "purpose": "returns site seo and navigation metadata" }
+  ],
+  "news_items": [
+    { "title": "Launch matrix output", "summary": "The business experience now emits feed and sitemap artifacts." },
+    { "title": "Search + intake added", "summary": "The pack includes local search and form capture for fast prototyping." }
   ],
   "cta": {
     "title": "Swap manifests, not frameworks.",
-    "body": "This starter is built to keep web products moving without rebuilding infrastructure every time.",
+    "body": "The business lane is meant to be a durable product-site system rather than a throwaway page scaffold.",
     "actions": [
-      { "label": "Open Registry", "href": "#docs", "style": "primary" },
-      { "label": "Serve Locally", "href": "#platform", "style": "secondary" }
+      { "label": "Start Intake", "href": "#intake", "style": "primary" },
+      { "label": "Read FAQ", "href": "#faq", "style": "secondary" }
     ]
   },
   "footer": "business launch experience"

@@ -1,0 +1,32 @@
+{
+  "mode": "hybrid",
+  "theme": "vector_cascade",
+  "content": "hybrid_command",
+  "scene": "signal_atrium",
+  "output_slug": "hybrid-command",
+  "page_title": "Hybrid Command",
+  "eyebrow": "Hybrid Website System",
+  "sections": [
+    { "id": "system", "kind": "logo_strip", "eyebrow": "Stack", "title": "Every lane in one shell", "source": "content.logos" },
+    { "id": "proof", "kind": "card_grid", "eyebrow": "System", "title": "Universal web systems", "source": "content.feature_cards" },
+    { "id": "scene", "kind": "scene_spotlight", "eyebrow": "Scene", "title": "Signal Atrium", "source": "scene" },
+    { "id": "work", "kind": "portfolio_grid", "eyebrow": "Proof", "title": "Example lane capsules", "source": "content.portfolio_entries" },
+    { "id": "pricing", "kind": "pricing", "eyebrow": "Lanes", "title": "Choose the stack depth", "source": "content.pricing_tiers" },
+    { "id": "voices", "kind": "testimonials", "eyebrow": "Proof", "title": "Why keep a hybrid lane", "source": "content.testimonials" },
+    { "id": "commands", "kind": "command_lines", "eyebrow": "Command", "title": "Operator commands", "source": "content.command_lines" },
+    { "id": "docs", "kind": "docs_grid", "eyebrow": "Docs", "title": "Runtime notes and route docs", "source": "content.docs_links" },
+    { "id": "chat", "kind": "chat_lab", "eyebrow": "Chat", "title": "Prompt the site system", "source": "content.chat_seed", "placeholder": "What kind of website should I build?", "button_label": "Ask" },
+    { "id": "search", "kind": "search_panel", "eyebrow": "Search", "title": "Search the hybrid system", "source": "experience.search_panel" },
+    { "id": "routes", "kind": "route_grid", "eyebrow": "Runtime", "title": "Actor-backed route contract", "source": "content.server_routes" },
+    { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Hybrid lane questions", "source": "content.faq_items" },
+    { "id": "intake", "kind": "form_panel", "eyebrow": "Intake", "title": "Describe the full site system", "source": "content.forms.hybrid_intake" },
+    { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }
+  ],
+  "search_panel": {
+    "kicker": "Search",
+    "title": "Search docs, lanes, prompts, and routes",
+    "body": "Hybrid Command keeps one local search index across launch, scene, chat, and actor surfaces.",
+    "placeholder": "search artifacts, routes, lanes, prompts...",
+    "button_label": "Search"
+  }
+}

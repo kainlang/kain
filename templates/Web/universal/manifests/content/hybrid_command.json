@@ -1,0 +1,122 @@
+{
+  "brand": "Hybrid Command",
+  "seo": {
+    "title": "Hybrid Command | Kain Universal Web System",
+    "description": "The full-spectrum Kain web archetype that mixes business launch, portfolio proof, immersive scene staging, chat, docs search, forms, and actor routes.",
+    "image": "/social-hybrid.png"
+  },
+  "nav": [
+    { "label": "System", "href": "#system" },
+    { "label": "Scene", "href": "#scene" },
+    { "label": "Proof", "href": "#proof" },
+    { "label": "Search", "href": "#search" },
+    { "label": "Routes", "href": "#routes" },
+    { "label": "Start", "href": "#intake" }
+  ],
+  "hero": {
+    "kicker": "Hybrid archetype",
+    "title": "One Kain starter for the full website stack.",
+    "body": "Hybrid Command is the kitchen-sink archetype: business messaging, portfolio proof, 3D staging, docs/search, chat, intake, and actor-backed local runtime all live in one manifest-driven system.",
+    "actions": [
+      { "label": "Inspect the stack", "href": "#system", "style": "primary" },
+      { "label": "Open intake", "href": "#intake", "style": "secondary" }
+    ]
+  },
+  "metrics": [
+    { "value": "06", "label": "archetypes in the pack" },
+    { "value": "07", "label": "artifacts per site" },
+    { "value": "12", "label": "systems exposed in one shell" }
+  ],
+  "logos": [
+    { "label": "Business", "detail": "launch narrative" },
+    { "label": "Portfolio", "detail": "selected work" },
+    { "label": "Immersive", "detail": "scene staging" },
+    { "label": "Chat", "detail": "prompt surfaces" },
+    { "label": "Search", "detail": "local docs index" },
+    { "label": "Actors", "detail": "runtime routes" }
+  ],
+  "feature_cards": [
+    { "kicker": "Site", "title": "Launch surfaces", "body": "Hero, proof, pricing, FAQ, docs, and intake come prewired." },
+    { "kicker": "Scene", "title": "3D staging", "body": "Scene manifests and spotlight sections give premium launches a serious visual lane." },
+    { "kicker": "Runtime", "title": "Actor-ready local server", "body": "Search, chat, route docs, form capture, and health endpoints ship together." }
+  ],
+  "portfolio_entries": [
+    { "year": "2026", "title": "Signalcraft Launch Rail", "summary": "Business narrative + docs + pricing system.", "tags": ["business", "launch"] },
+    { "year": "2026", "title": "Orbit Chat Surface", "summary": "Prompt-first local site with route-aware replies.", "tags": ["chat", "search"] },
+    { "year": "2026", "title": "Atrium Reveal", "summary": "Immersive release shell with operator notes.", "tags": ["3d", "premium"] }
+  ],
+  "pricing_tiers": [
+    { "kicker": "Lane", "name": "Site Core", "price": "$4k", "summary": "Business + proof + intake.", "features": ["Pricing", "FAQ", "Local forms"], "actions": [{ "label": "Open intake", "href": "#intake", "style": "primary" }] },
+    { "kicker": "Lane", "name": "Experience", "price": "$9k", "summary": "Scene, chat, and search layers added.", "features": ["Scene spotlight", "Search panel", "Chat lab"], "actions": [{ "label": "Inspect scene", "href": "#scene", "style": "secondary" }] },
+    { "kicker": "Lane", "name": "Operator", "price": "$15k", "summary": "Actor-backed local server and control plane.", "features": ["Route docs", "Actor mesh", "Health + forms"], "actions": [{ "label": "Inspect routes", "href": "#routes", "style": "primary" }] }
+  ],
+  "testimonials": [
+    { "quote": "This finally looks like a serious template lane instead of a demo starter.", "name": "Dana Roe", "role": "Platform Lead" },
+    { "quote": "The same pack now covers launch sites, docs, chat, and ops dashboards.", "name": "Ilan Cross", "role": "Founding Engineer" }
+  ],
+  "command_lines": [
+    { "kicker": "Serve", "title": "Run the hybrid experience", "command": "npm run serve:hybrid", "body": "Boot the full-spectrum runtime with scene, search, chat, route, and form surfaces." },
+    { "kicker": "Inspect", "title": "Print the hybrid experience payload", "command": "npm run experience:hybrid", "body": "Inspect the emitted site data and artifact bundle without opening the browser." }
+  ],
+  "docs_links": [
+    { "kicker": "Runtime", "title": "Artifact contract", "summary": "Every experience emits HTML, manifests, site data, feed, robots, and sitemap files.", "href": "#system", "label": "Read contract" },
+    { "kicker": "Docs", "title": "Search + prompts", "summary": "Docs search and chat prompts share one local site index.", "href": "#search", "label": "Open docs" },
+    { "kicker": "Ops", "title": "Actor route surface", "summary": "Hybrid exposes local JSON endpoints for routes, actors, and health.", "href": "#routes", "label": "Read routes" }
+  ],
+  "link_groups": [
+    { "kicker": "Jump", "title": "Hybrid quick links", "body": "Use the hybrid archetype to test every lane before splitting into a more focused site.", "links": [{ "label": "Open scene", "href": "#scene" }, { "label": "Try chat", "href": "#chat" }, { "label": "Search docs", "href": "#search" }, { "label": "Inspect routes", "href": "#routes" }] }
+  ],
+  "faq_items": [
+    { "question": "Why keep one hybrid archetype?", "answer": ["It is the proving ground for the whole website system.", "Use it to test content, scene, search, chat, and actor surfaces together before specializing."] },
+    { "question": "Does this still avoid Rust?", "answer": ["Yes. The end-user runtime path stays on Node while Kain owns the orchestrating entrypoints."] }
+  ],
+  "forms": {
+    "hybrid_intake": {
+      "id": "hybrid_intake",
+      "kicker": "Start a system",
+      "title": "Describe the website you need",
+      "body": "Capture the desired lane mix while the whole stack is still local and adjustable.",
+      "submit_label": "Capture intent",
+      "action": "/api/forms/hybrid_intake",
+      "fields": [
+        { "name": "name", "label": "Name", "type": "text", "placeholder": "Operator or studio" },
+        { "name": "email", "label": "Email", "type": "email", "placeholder": "hello@example.com" },
+        { "name": "lanes", "label": "Lanes", "type": "text", "placeholder": "business / 3d / chat / actors" },
+        { "name": "goal", "label": "Goal", "type": "textarea", "rows": 6, "placeholder": "What should the website system do end to end?" }
+      ]
+    }
+  },
+  "search_documents": [
+    { "kind": "system", "title": "Artifact contract", "summary": "Seven files emitted per experience.", "href": "#system", "tags": ["artifacts"] },
+    { "kind": "system", "title": "Scene spotlight", "summary": "Immersive 3D staging entry point.", "href": "#scene", "tags": ["3d"] },
+    { "kind": "system", "title": "Actor route surface", "summary": "JSON endpoints for actors, routes, search, and health.", "href": "#routes", "tags": ["actors", "runtime"] }
+  ],
+  "chat_seed": [
+    { "role": "assistant", "text": "Describe the kind of website you need and I will route you to the right lane mix." },
+    { "role": "assistant", "text": "Hybrid Command can explain pricing, routes, scene layers, and next build steps from one shell." }
+  ],
+  "actor_roles": [
+    { "name": "site_renderer", "responsibility": "Serves the hybrid shell and static artifacts.", "channel": "http.root" },
+    { "name": "prompt_router", "responsibility": "Routes chat prompts to the right lane or next action.", "channel": "api.chat" },
+    { "name": "search_indexer", "responsibility": "Queries the local docs and systems index.", "channel": "api.search" },
+    { "name": "mesh_supervisor", "responsibility": "Reports health, routes, and actor topology.", "channel": "api.actors" }
+  ],
+  "server_routes": [
+    { "method": "GET", "path": "/api/runtime", "purpose": "returns the active hybrid runtime metadata" },
+    { "method": "GET", "path": "/api/search", "purpose": "returns local docs and system search results" },
+    { "method": "GET", "path": "/api/routes", "purpose": "returns the hybrid route contract" },
+    { "method": "POST", "path": "/api/forms/hybrid_intake", "purpose": "captures a full-site intent payload locally" }
+  ],
+  "news_items": [
+    { "title": "Hybrid lane added", "summary": "The pack now ships a full-spectrum archetype to validate every major system together." }
+  ],
+  "cta": {
+    "title": "Start with the whole system, then specialize.",
+    "body": "Hybrid Command is the proving ground for the universal web pack.",
+    "actions": [
+      { "label": "Open intake", "href": "#intake", "style": "primary" },
+      { "label": "Inspect routes", "href": "#routes", "style": "secondary" }
+    ]
+  },
+  "footer": "hybrid experience"
+}

@@ -1,37 +1,69 @@
 {
   "brand": "Mesh Actor Ops",
+  "seo": {
+    "title": "Mesh Actor Ops | Kain Actor Server Site",
+    "description": "Actor-backed local site runtime with route contracts, command docs, search, FAQ, and control-room surfaces.",
+    "image": "/social-actors.png"
+  },
   "nav": [
     { "label": "Routes", "href": "#routes" },
     { "label": "Actors", "href": "#actors" },
-    { "label": "Control Room", "href": "#control" }
+    { "label": "Commands", "href": "#commands" },
+    { "label": "Search", "href": "#search" },
+    { "label": "Intake", "href": "#intake" }
   ],
   "hero": {
     "kicker": "Actor-server archetype",
     "title": "Ship a local actor mesh with a website attached.",
-    "body": "This mode treats the website as the presentation shell for a Node-hosted actor runtime. Routes, actors, and runtime state all come from manifests that Kain can inspect and write.",
+    "body": "This mode treats the website as the presentation shell for a Node-hosted actor runtime. Routes, actors, docs, commands, search, and intake are all in one manifest family.",
     "actions": [
-      { "label": "Serve Actor Mesh", "href": "#routes", "style": "primary" },
-      { "label": "Inspect Runtime", "href": "#actors", "style": "secondary" }
+      { "label": "Inspect Routes", "href": "#routes", "style": "primary" },
+      { "label": "Open Commands", "href": "#commands", "style": "secondary" }
     ]
   },
   "metrics": [
-    { "value": "05", "label": "HTTP routes templated" },
-    { "value": "04", "label": "actor roles scaffolded" },
-    { "value": "01", "label": "shared runtime helper" }
+    { "value": "12", "label": "runtime routes available" },
+    { "value": "05", "label": "actor roles scaffolded" },
+    { "value": "01", "label": "local runtime helper" }
   ],
   "feature_cards": [
     { "kicker": "Serve", "title": "Node-hosted runtime", "body": "Local HTTP serving is built into the helper with no external dependency surface." },
-    { "kicker": "Inspect", "title": "Actor topology as data", "body": "Route and actor definitions live in manifests and can be reported from Kain." },
+    { "kicker": "Inspect", "title": "Actor topology as data", "body": "Routes, actors, forms, and search documents are emitted as manifest-driven artifacts." },
     { "kicker": "Bridge", "title": "Kain stays in the loop", "body": "The website runtime is still driven through Kain entrypoints and stdlib wrappers." }
   ],
-  "story_cards": [
-    { "kicker": "Control", "title": "Presentation and runtime together", "body": "The page, APIs, and actor notes all belong to one template lane." },
-    { "kicker": "Extend", "title": "Ready for websocket or queue adapters", "body": "Add more runtime transports later without changing the manifest model." }
+  "command_lines": [
+    { "kicker": "Serve", "title": "Run the actor control room", "command": "npm run serve:actors", "body": "Start the local runtime with routes, actors, search, and form handlers." },
+    { "kicker": "Inspect", "title": "Print actor report", "command": "node ./helpers/web_runtime.mjs actor-report manifests/app.json actor_mesh_foundry", "body": "Read the actor topology from one report command." },
+    { "kicker": "Build", "title": "Emit runtime artifacts", "command": "npm run build", "body": "Write the site, route plans, feed, robots, and sitemap outputs." }
   ],
-  "timeline": [
-    { "phase": "Define", "title": "Name the actors", "body": "Treat responsibilities and channels as first-class design inputs." },
-    { "phase": "Route", "title": "Map the HTTP surface", "body": "Expose runtime, actor, and chat metadata through stable route manifests." },
-    { "phase": "Operate", "title": "Use the page as a control room", "body": "The website becomes an operational shell instead of a static brochure." }
+  "docs_links": [
+    { "kicker": "Ops", "title": "Route contract surface", "summary": "The actor lane publishes runtime, search, chat, route, and form endpoints by default.", "href": "#routes", "label": "Open route docs" },
+    { "kicker": "Guide", "title": "Local supervision model", "summary": "Health checks and JSON plans give the actor mesh a practical control plane.", "href": "#actors", "label": "Read supervision" }
+  ],
+  "faq_items": [
+    { "question": "Is this a real long-lived server lane?", "answer": ["Today the long-lived process is Node-hosted, but Kain owns the authored topology and reporting surface."] },
+    { "question": "Can I extend this with queues or sockets?", "answer": ["Yes. The actor lane is intentionally data-driven so more transports can land without rewriting the whole site pack."] }
+  ],
+  "forms": {
+    "ops_request": {
+      "id": "ops_request",
+      "kicker": "Ops request",
+      "title": "Capture a runtime change request",
+      "body": "Use the actor lane to collect route, actor, or supervision requests while the runtime is still local.",
+      "submit_label": "Capture request",
+      "action": "/api/forms/ops_request",
+      "fields": [
+        { "name": "owner", "label": "Owner", "type": "text", "placeholder": "Operator or team" },
+        { "name": "priority", "label": "Priority", "type": "text", "placeholder": "high / medium / low" },
+        { "name": "surface", "label": "Surface", "type": "text", "placeholder": "route / actor / search / chat" },
+        { "name": "request", "label": "Request", "type": "textarea", "rows": 5, "placeholder": "What should the actor mesh do next?" }
+      ]
+    }
+  },
+  "search_documents": [
+    { "kind": "route", "title": "/api/routes", "summary": "Return the full local route contract.", "href": "#routes", "tags": ["routes"] },
+    { "kind": "route", "title": "/api/actors", "summary": "Return actor topology, forms, and route metadata.", "href": "#actors", "tags": ["actors"] },
+    { "kind": "command", "title": "Run the actor control room", "summary": "Boot the local server with Node FFI.", "href": "#commands", "tags": ["ops"] }
   ],
   "chat_seed": [
     { "role": "assistant", "text": "I can describe the active routes, actor responsibilities, or next runtime extension points." }
@@ -40,19 +72,23 @@
     { "name": "site_renderer", "responsibility": "Serves the current HTML shell and supporting assets.", "channel": "http.root" },
     { "name": "runtime_reporter", "responsibility": "Returns build metadata for dashboards and probes.", "channel": "api.runtime" },
     { "name": "chat_seed_router", "responsibility": "Supplies prompt-ready assistant messages.", "channel": "api.chat" },
+    { "name": "search_indexer", "responsibility": "Queries the local docs and route index.", "channel": "api.search" },
     { "name": "mesh_supervisor", "responsibility": "Owns actor topology and health reporting.", "channel": "api.actors" }
   ],
   "server_routes": [
     { "method": "GET", "path": "/", "purpose": "serves the actor control-room shell" },
     { "method": "GET", "path": "/api/runtime", "purpose": "returns template runtime metadata" },
-    { "method": "GET", "path": "/api/actors", "purpose": "returns actor topology and route contracts" },
-    { "method": "GET", "path": "/api/chat", "purpose": "returns prompt seeds for assistant surfaces" }
+    { "method": "GET", "path": "/api/routes", "purpose": "returns route contract and server capabilities" },
+    { "method": "GET", "path": "/api/actors", "purpose": "returns actor topology and form definitions" },
+    { "method": "GET", "path": "/api/search", "purpose": "returns search results over route and command docs" },
+    { "method": "POST", "path": "/api/forms/ops_request", "purpose": "captures operator requests locally" }
   ],
   "cta": {
     "title": "Use one template to ship the website and the local control plane.",
-    "body": "This lane is for operator dashboards, local agents, and sites that need a process behind them.",
+    "body": "This lane is for operator dashboards, local agents, and sites that need a real process behind them.",
     "actions": [
-      { "label": "Start Actor Runtime", "href": "#routes", "style": "primary" }
+      { "label": "Inspect Routes", "href": "#routes", "style": "primary" },
+      { "label": "Capture Request", "href": "#intake", "style": "secondary" }
     ]
   },
   "footer": "actor-server experience"

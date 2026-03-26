@@ -5,6 +5,15 @@
   "scene": "luminous_grid",
   "output_slug": "immersive-luminous",
   "page_title": "Luminous Port",
-  "eyebrow": "3D Website",
-  "sections": ["features", "scene", "story", "timeline", "cta"]
+  "eyebrow": "Immersive 3D Website",
+  "sections": [
+    { "id": "world", "kind": "scene_spotlight", "eyebrow": "Scene", "title": "Immersive reveal", "source": "scene" },
+    { "id": "system", "kind": "card_grid", "eyebrow": "System", "title": "Release systems", "source": "content.feature_cards" },
+    { "id": "proof", "kind": "testimonials", "eyebrow": "Proof", "title": "Release reactions", "source": "content.testimonials" },
+    { "id": "editions", "kind": "pricing", "eyebrow": "Editions", "title": "Release editions", "source": "content.pricing_tiers" },
+    { "id": "commands", "kind": "command_lines", "eyebrow": "Command", "title": "Operator setup", "source": "content.command_lines" },
+    { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Immersive lane questions", "source": "content.faq_items" },
+    { "id": "intake", "kind": "form_panel", "eyebrow": "Reservation", "title": "Capture reservation intent", "source": "content.forms.reservation" },
+    { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }
+  ]
 }

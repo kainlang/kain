@@ -1,13 +1,18 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "kain_universal_web",
-  "default_experience": "business_launch",
+  "default_experience": "hybrid_command",
   "output_root": "outputs/sites",
   "registries": {
     "themes": "manifests/themes/registry.json",
     "content": "manifests/content/registry.json",
     "scenes": "manifests/scenes/registry.json",
     "experiences": "manifests/experiences/registry.json"
+  },
+  "site": {
+    "base_url": "https://example.com",
+    "default_description": "Universal Kain website template for launch pages, portfolios, immersive 3D experiences, chat-first products, and actor-backed web servers.",
+    "default_social_image": "/social-card.png"
   },
   "site_runtime": {
     "host": "127.0.0.1",
@@ -16,6 +21,9 @@
       "metric_card",
       "portfolio_filter",
       "chat_lab",
+      "faq_toggle",
+      "form_submit",
+      "search_panel",
       "actor_watch"
     ]
   },
@@ -25,7 +33,8 @@
       "portfolio_signal",
       "immersive_luminous",
       "chat_orbit",
-      "actor_mesh_foundry"
+      "actor_mesh_foundry",
+      "hybrid_command"
     ]
   }
 }

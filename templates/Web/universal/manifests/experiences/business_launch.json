@@ -6,5 +6,14 @@
   "output_slug": "business-launch",
   "page_title": "Signalcraft Systems",
   "eyebrow": "Business Website",
-  "sections": ["features", "story", "timeline", "scene", "cta"]
+  "sections": [
+    { "id": "systems", "kind": "logo_strip", "eyebrow": "Surface", "title": "Website systems already packed in", "source": "content.logos" },
+    { "id": "proof", "kind": "card_grid", "eyebrow": "Proof", "title": "Reusable launch systems", "source": "content.feature_cards" },
+    { "id": "pricing", "kind": "pricing", "eyebrow": "Pricing", "title": "Commercial rails", "source": "content.pricing_tiers" },
+    { "id": "social-proof", "kind": "testimonials", "eyebrow": "Voices", "title": "Operator proof", "source": "content.testimonials" },
+    { "id": "docs", "kind": "docs_grid", "eyebrow": "Docs", "title": "Launch docs and operator guides", "source": "content.docs_links" },
+    { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Common questions", "source": "content.faq_items" },
+    { "id": "intake", "kind": "form_panel", "eyebrow": "Intake", "title": "Start the launch", "source": "content.forms.contact" },
+    { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }
+  ]
 }

@@ -1,55 +1,84 @@
 {
   "brand": "Orbit Chat Lab",
+  "seo": {
+    "title": "Orbit Chat Lab | Kain Chat-First Site",
+    "description": "Conversation-first website lane with prompt surfaces, search, route-aware replies, FAQ, and intake wiring.",
+    "image": "/social-chat.png"
+  },
   "nav": [
-    { "label": "Prompt Studio", "href": "#chat" },
-    { "label": "Capabilities", "href": "#systems" },
-    { "label": "Flows", "href": "#flows" }
+    { "label": "Chat", "href": "#chat" },
+    { "label": "Systems", "href": "#systems" },
+    { "label": "Search", "href": "#search" },
+    { "label": "Start", "href": "#intake" }
   ],
   "hero": {
     "kicker": "Chat archetype",
     "title": "Conversation-first websites without collapsing into a chatbot widget.",
-    "body": "This lane treats chat as the page architecture: prompt seeds, response cards, action rails, and supporting systems all live inside the same manifest-driven shell.",
+    "body": "This lane treats chat as the page architecture: prompt seeds, route-aware replies, search, and form escalation all live in the same site runtime.",
     "actions": [
-      { "label": "Try Chat Lab", "href": "#chat", "style": "primary" },
-      { "label": "Read Flow Design", "href": "#flows", "style": "secondary" }
+      { "label": "Open Chat", "href": "#chat", "style": "primary" },
+      { "label": "Escalate", "href": "#intake", "style": "secondary" }
     ]
   },
   "metrics": [
-    { "value": "24/7", "label": "conversation-oriented entry point" },
+    { "value": "24/7", "label": "conversation-first entry point" },
     { "value": "05", "label": "seeded assistant messages" },
-    { "value": "02", "label": "supporting runtime APIs" }
+    { "value": "03", "label": "route-aware APIs" }
   ],
   "feature_cards": [
-    { "kicker": "Prompt", "title": "Seeded interactions", "body": "Start with curated prompts instead of an empty text box." },
-    { "kicker": "Route", "title": "Action-aware replies", "body": "Responses can point users toward docs, sales, portfolios, or live runtime state." },
-    { "kicker": "Escalate", "title": "Actor-ready backend", "body": "Chat surfaces can grow into actor-backed route and orchestration flows." }
+    { "kicker": "Prompt", "title": "Seeded interactions", "body": "Start with curated prompts instead of an empty chat box." },
+    { "kicker": "Route", "title": "Action-aware replies", "body": "The local runtime can explain routes, actors, and next actions instead of echoing canned text." },
+    { "kicker": "Escalate", "title": "Form handoff", "body": "Move directly from chat into a structured intake form when needed." }
   ],
-  "story_cards": [
-    { "kicker": "Surface", "title": "The whole site is the assistant", "body": "Not just a floating support button bolted onto a landing page." },
-    { "kicker": "Control", "title": "Keep the conversation data-driven", "body": "Prompts and responses belong in manifests, not in opaque browser code." }
+  "link_groups": [
+    { "kicker": "Modes", "title": "Suggested prompt rails", "body": "Use link clusters to pull visitors into better prompts faster.", "links": [{ "label": "Build me a launch site", "href": "#chat" }, { "label": "Show actor routes", "href": "#systems" }, { "label": "Search docs", "href": "#search" }] }
   ],
-  "timeline": [
-    { "phase": "Seed", "title": "Curate strong starting prompts", "body": "Guide the first interaction so the page teaches itself quickly." },
-    { "phase": "Map", "title": "Connect prompts to systems", "body": "Tie conversation into docs, products, portfolio, or route layers." },
-    { "phase": "Scale", "title": "Swap in actor-backed responses", "body": "Use the same shell when the backend moves beyond static seeds." }
+  "faq_items": [
+    { "question": "Is the assistant wired to a model?", "answer": ["The starter ships a local chat lane backed by seed data and route-aware local responses.", "Replace that endpoint later with a real backend or actor system."] },
+    { "question": "Can I search docs from the same shell?", "answer": ["Yes. The chat lane ships with a search panel and search document index."] }
+  ],
+  "forms": {
+    "handoff": {
+      "id": "handoff",
+      "kicker": "Escalate",
+      "title": "Turn chat into a handoff",
+      "body": "Use a structured form when the conversation should become a project brief or qualified lead.",
+      "submit_label": "Escalate handoff",
+      "action": "/api/forms/handoff",
+      "fields": [
+        { "name": "name", "label": "Name", "type": "text", "placeholder": "Who is asking?" },
+        { "name": "email", "label": "Email", "type": "email", "placeholder": "operator@example.com" },
+        { "name": "intent", "label": "Intent", "type": "text", "placeholder": "launch / docs / 3d / actor server" },
+        { "name": "context", "label": "Context", "type": "textarea", "rows": 5, "placeholder": "What should the assistant route next?" }
+      ]
+    }
+  },
+  "search_documents": [
+    { "kind": "prompt", "title": "Build me a launch site", "summary": "Route into business_launch content and pricing rails.", "href": "#chat", "tags": ["launch"] },
+    { "kind": "prompt", "title": "Show actor routes", "summary": "Route into actor mesh and route contract sections.", "href": "#systems", "tags": ["actors", "routes"] },
+    { "kind": "prompt", "title": "Search docs", "summary": "Open the search panel and query the local site index.", "href": "#search", "tags": ["docs", "search"] }
   ],
   "chat_seed": [
-    { "role": "assistant", "text": "Tell me what kind of site you want and I will route you to the right launch stack." },
-    { "role": "assistant", "text": "I can sketch a business homepage, a 3D campaign shell, or an actor-server dashboard." }
+    { "role": "assistant", "text": "Tell me what kind of site you want and I will route you to the right build lane." },
+    { "role": "assistant", "text": "I can sketch a business homepage, a 3D campaign shell, or an actor-server dashboard." },
+    { "role": "assistant", "text": "Ask about routes, docs, forms, or search and I will stay inside the local site system." }
   ],
   "actor_roles": [
     { "name": "prompt_router", "responsibility": "Matches user intent to the right site experience.", "channel": "chat.intent" },
-    { "name": "response_writer", "responsibility": "Builds next actions and summary cards.", "channel": "chat.response" }
+    { "name": "response_writer", "responsibility": "Builds next actions and summary cards.", "channel": "chat.response" },
+    { "name": "handoff_agent", "responsibility": "Converts a prompt thread into a structured intake record.", "channel": "api.forms.handoff" }
   ],
   "server_routes": [
-    { "method": "GET", "path": "/api/chat", "purpose": "returns starter chat payloads and seed messages" },
-    { "method": "GET", "path": "/api/runtime", "purpose": "returns active experience metadata" }
+    { "method": "GET", "path": "/api/chat", "purpose": "returns starter chat payloads and local prompt replies" },
+    { "method": "GET", "path": "/api/search", "purpose": "returns local search results" },
+    { "method": "POST", "path": "/api/forms/handoff", "purpose": "captures escalation requests" }
   ],
   "cta": {
     "title": "Start from a conversation, not a sitemap.",
-    "body": "Use the chat lane when prompt flow is the product surface.",
+    "body": "Use the chat lane when prompt flow is the product surface and escalation is part of the design.",
     "actions": [
-      { "label": "Open Prompt Studio", "href": "#chat", "style": "primary" }
+      { "label": "Open Chat", "href": "#chat", "style": "primary" },
+      { "label": "Escalate", "href": "#intake", "style": "secondary" }
     ]
   },
   "footer": "chat experience"

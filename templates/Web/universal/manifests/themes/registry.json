@@ -1,6 +1,7 @@
 {
   "entries": {
     "aurora_studio": "aurora_studio.json",
-    "ember_console": "ember_console.json"
+    "ember_console": "ember_console.json",
+    "vector_cascade": "vector_cascade.json"
   }
 }

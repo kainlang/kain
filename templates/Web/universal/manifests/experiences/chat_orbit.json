@@ -1,10 +1,25 @@
 {
   "mode": "chat",
-  "theme": "aurora_studio",
+  "theme": "ember_console",
   "content": "orbit_chat",
-  "scene": "luminous_grid",
+  "scene": "mesh_control_room",
   "output_slug": "chat-orbit",
   "page_title": "Orbit Chat Lab",
   "eyebrow": "Chat Website",
-  "sections": ["features", "chat", "timeline", "cta"]
+  "sections": [
+    { "id": "systems", "kind": "card_grid", "eyebrow": "System", "title": "Chat systems", "source": "content.feature_cards" },
+    { "id": "chat", "kind": "chat_lab", "eyebrow": "Chat", "title": "Prompt studio", "source": "content.chat_seed", "placeholder": "Describe the site you want built", "button_label": "Route" },
+    { "id": "search", "kind": "search_panel", "eyebrow": "Search", "title": "Search prompts and docs", "source": "experience.search_panel" },
+    { "id": "flows", "kind": "link_groups", "eyebrow": "Flows", "title": "Prompt rails", "source": "content.link_groups" },
+    { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Conversation lane questions", "source": "content.faq_items" },
+    { "id": "intake", "kind": "form_panel", "eyebrow": "Handoff", "title": "Escalate the conversation", "source": "content.forms.handoff" },
+    { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }
+  ],
+  "search_panel": {
+    "kicker": "Search",
+    "title": "Search prompt rails and system notes",
+    "body": "The chat lane shares one local site index with docs and route surfaces.",
+    "placeholder": "search prompts, routes, docs...",
+    "button_label": "Search"
+  }
 }

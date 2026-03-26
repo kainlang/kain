@@ -13,7 +13,9 @@ fn main() -> String:
     let report = report + "artifact_count: " + str(summary.artifact_count) + "\n"
     let report = report + "output_root: " + summary.output_root + "\n"
     let report = report + "server_port: " + str(summary.server_port) + "\n"
-    let report = report + "modes: business, portfolio, immersive3d, chat, actor_server"
+    let report = report + "client_features: metrics, portfolio filters, faq toggles, chat, search, forms\n"
+    let report = report + "outputs: html, manifest, actor-plan, site-data, sitemap, robots, feed\n"
+    let report = report + "modes: business, portfolio, immersive3d, chat, actor_server, hybrid"
 
     write_file(output_path("web_template_build.txt"), report + "\n")
     println(report)

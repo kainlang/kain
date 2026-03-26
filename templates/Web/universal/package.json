@@ -1,15 +1,19 @@
 {
   "name": "kain-universal-web",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node ./helpers/web_runtime.mjs build manifests/app.json",
     "print": "node ./helpers/web_runtime.mjs print manifests/app.json",
+    "experience:hybrid": "node ./helpers/web_runtime.mjs experience manifests/app.json hybrid_command",
+    "actor:hybrid": "node ./helpers/web_runtime.mjs actor-report manifests/app.json hybrid_command",
+    "serve:default": "node ./helpers/web_runtime.mjs serve manifests/app.json hybrid_command",
     "serve:business": "node ./helpers/web_runtime.mjs serve manifests/app.json business_launch",
     "serve:portfolio": "node ./helpers/web_runtime.mjs serve manifests/app.json portfolio_signal",
     "serve:3d": "node ./helpers/web_runtime.mjs serve manifests/app.json immersive_luminous",
     "serve:chat": "node ./helpers/web_runtime.mjs serve manifests/app.json chat_orbit",
-    "serve:actors": "node ./helpers/web_runtime.mjs serve manifests/app.json actor_mesh_foundry"
+    "serve:actors": "node ./helpers/web_runtime.mjs serve manifests/app.json actor_mesh_foundry",
+    "serve:hybrid": "node ./helpers/web_runtime.mjs serve manifests/app.json hybrid_command"
   }
 }
