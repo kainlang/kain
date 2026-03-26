@@ -5,6 +5,55 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=9aec20a2eb8c8855 -->
+## 2026-03-26 16:26:06 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `a729f4f8`
+- Changed files: 7
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/cli/src/rust_build.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-host/Cargo.toml`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+
+<!-- polytools-changelog:fingerprint=e77194a9cf38b7cc -->
+## 2026-03-26 16:25:40 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `a729f4f8`
+- Changed files: 6
+- [.M] `crates/cli/src/native_ui_build.rs`
+- [.M] `crates/cli/src/rust_build.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+
+<!-- polytools-changelog:fingerprint=3ca45b0bf210fbfe -->
+## 2026-03-26 16:25:30 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `a729f4f8`
+- Changed files: 3
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+
+<!-- polytools-changelog:fingerprint=fe0b92dc5fd88378 -->
+## 2026-03-26 16:24:47 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `a729f4f8`
+- Changed files: 2
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+
+<!-- polytools-changelog:fingerprint=e1bd7aba44f11ec0 -->
+## 2026-03-26 16:24:16 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `a729f4f8`
+- Changed files: 1
+- [.M] `crates/kain-driver/src/native_app.rs`
+
 <!-- polytools-changelog:fingerprint=afb5793ce4bf8fe8 -->
 ## 2026-03-26 16:02:26 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

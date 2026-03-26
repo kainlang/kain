@@ -2808,6 +2808,7 @@ dependencies = [
  "kain-core",
  "kain-crate-ffi",
  "kain-driver",
+ "kain-gpu-runtime",
  "kain-host-derive",
  "kain-interop",
  "kain-node",

@@ -62,6 +62,7 @@ pub enum FabricRuntimeKind {
     RustCrate,
     CAbi,
     Node,
+    GpuCompute,
 }
 
 impl FabricRuntimeKind {
@@ -72,6 +73,7 @@ impl FabricRuntimeKind {
             Self::RustCrate => "runtime.rust-crate",
             Self::CAbi => "runtime.c-abi",
             Self::Node => "runtime.node",
+            Self::GpuCompute => "runtime.gpu-compute",
         }
     }
 
@@ -82,6 +84,7 @@ impl FabricRuntimeKind {
             Self::RustCrate => "rust_crate",
             Self::CAbi => "c_abi",
             Self::Node => "node",
+            Self::GpuCompute => "gpu_compute",
         }
     }
 }
@@ -110,6 +113,10 @@ pub struct FabricStep {
     #[serde(default)]
     pub library: Option<PathBuf>,
     #[serde(default)]
+    pub shader_source: Option<PathBuf>,
+    #[serde(default)]
+    pub compute_key: Option<String>,
+    #[serde(default)]
     pub depends_on: Vec<String>,
     #[serde(default)]
     pub requires: Vec<FabricCapabilityRequirement>,
@@ -129,6 +136,7 @@ pub enum FabricContractKind {
     SharedBuffer,
     SharedImage,
     Value,
+    ComputePlan,
 }
 
 impl FabricContractKind {
@@ -137,6 +145,7 @@ impl FabricContractKind {
             Self::SharedBuffer => "contract.shared-buffer",
             Self::SharedImage => "contract.shared-image",
             Self::Value => "contract.value",
+            Self::ComputePlan => "contract.compute-plan",
         }
     }
 }
@@ -237,11 +246,23 @@ pub struct FabricSharedImageSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FabricComputeDispatchSnapshot {
+    pub compute_key: String,
+    pub dispatch_invocations: u64,
+    pub tensor_binding_count: usize,
+    pub stream_binding_count: usize,
+    pub neural_node_count: usize,
+    pub output_binding_count: usize,
+    pub total_output_bytes: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum FabricOutputPayloadSnapshot {
     Value { value: FabricValueSnapshot },
     SharedBuffer { buffer: FabricSharedBufferSnapshot },
     SharedImage { image: FabricSharedImageSnapshot },
+    ComputePlan { dispatch: FabricComputeDispatchSnapshot },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -274,9 +295,15 @@ pub struct FabricStepExecution {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub library: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shader_source: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compute_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub adapter: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolved_entry: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_shader_source: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolved_manifest_path: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -647,9 +674,11 @@ pub fn supported_local_fabric_capabilities() -> BTreeSet<String> {
         "runtime.rust-crate",
         "runtime.c-abi",
         "runtime.node",
+        "runtime.gpu-compute",
         "contract.value",
         "contract.shared-buffer",
         "contract.shared-image",
+        "contract.compute-plan",
     ]
     .into_iter()
     .map(str::to_string)
@@ -749,6 +778,20 @@ fn validate_step_shape(step: &FabricStep) -> OmniResult<()> {
             if step.entry.is_none() {
                 return Err(OmniError::Config(format!(
                     "Fabric step '{}' with runtime 'c_abi' must declare 'entry' so kain-host can run local glue against the imported library",
+                    step.id
+                )));
+            }
+        }
+        FabricRuntimeKind::GpuCompute => {
+            if step.shader_source.is_none() {
+                return Err(OmniError::Config(format!(
+                    "Fabric step '{}' with runtime 'gpu_compute' must declare 'shader_source' pointing to a .kn shader file",
+                    step.id
+                )));
+            }
+            if step.compute_key.as_ref().is_none_or(|k| k.trim().is_empty()) {
+                return Err(OmniError::Config(format!(
+                    "Fabric step '{}' with runtime 'gpu_compute' must declare 'compute_key'",
                     step.id
                 )));
             }

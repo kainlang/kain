@@ -222,6 +222,10 @@ impl FabricExecutor {
                     .library
                     .as_ref()
                     .map(|library| resolve_fabric_path(&session.workspace_root, library));
+                let resolved_shader_source = step
+                    .shader_source
+                    .as_ref()
+                    .map(|path| resolve_fabric_path(&session.workspace_root, path));
                 (
                     step.id.clone(),
                     FabricStepExecution {
@@ -232,8 +236,11 @@ impl FabricExecutor {
                         crate_name: step.crate_name.clone(),
                         manifest_path: step.manifest_path.clone(),
                         library: step.library.clone(),
+                        shader_source: step.shader_source.clone(),
+                        compute_key: step.compute_key.clone(),
                         adapter: None,
                         resolved_entry,
+                        resolved_shader_source,
                         resolved_manifest_path,
                         resolved_library,
                         depends_on: step.depends_on.clone(),

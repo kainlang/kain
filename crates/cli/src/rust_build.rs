@@ -6,8 +6,8 @@ use crate::{frontend_to_typed_program, CompileTarget};
 use kain_core::error::KainError;
 use kain_driver::{
     compile_native_app_bundle, discover_native_app_root_component, materialize_native_app_bundle,
-    NativeAppBundle, NativeAppBundleConfig, NativeAppMaterializationConfig,
-    NativeAppRuntimeDependency,
+    NativeAppBundle, NativeAppBundleConfig, NativeAppLauncherEntrypoint,
+    NativeAppMaterializationConfig, NativeAppRuntimeDependency,
 };
 
 #[cfg(feature = "sys")]
@@ -142,6 +142,8 @@ pub fn run_rust_build_pipeline(
                 build_executable: native_ui.build_executable,
                 release: native_ui.release,
                 executable_output_dir: native_ui.build_executable.then(|| output_root.clone()),
+                launcher_entrypoint: NativeAppLauncherEntrypoint::default(),
+                host_sidecars: Vec::new(),
             },
         )?;
         written.push(generated.project_dir);

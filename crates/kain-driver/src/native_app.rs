@@ -229,6 +229,8 @@ pub struct NativeAppMaterializationConfig {
     pub build_executable: bool,
     pub release: bool,
     pub executable_output_dir: Option<PathBuf>,
+    pub launcher_entrypoint: NativeAppLauncherEntrypoint,
+    pub host_sidecars: Vec<NativeAppHostSidecarBinding>,
 }
 
 #[derive(Debug, Clone)]
@@ -254,6 +256,7 @@ struct NativeAppManifest {
     manifests: NativeAppManifestPaths,
     runtime_sidecars: NativeAppRuntimeSidecars,
     host_bridges: Vec<kain_c_ffi::PackagedBridgeImport>,
+    host_sidecars: Vec<NativeAppManifestHostSidecar>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -268,6 +271,43 @@ struct NativeAppRuntimeSidecars {
     runtime_compatibility: String,
     realtime_bundle: String,
     shader_bundle: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NativeAppManifestHostSidecar {
+    packaged_file_name: String,
+    env_var: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct PackagedNativeAppHostSidecar {
+    packaged_file_name: String,
+    env_var: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NativeAppHostSidecarBinding {
+    pub source_path: PathBuf,
+    pub packaged_file_name: Option<String>,
+    pub env_var: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum NativeAppLauncherEntrypoint {
+    RunBundledAppJson {
+        function_name: String,
+    },
+    RunNoArgFunction {
+        function_name: String,
+    },
+}
+
+impl Default for NativeAppLauncherEntrypoint {
+    fn default() -> Self {
+        Self::RunBundledAppJson {
+            function_name: "run_bundled_app_json".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -546,6 +586,9 @@ impl DriverSession {
         let (packaged_c_ffi_imports, packaged_c_ffi_manifest_path, c_ffi_artifact_paths) =
             materialize_c_ffi_bridge_sidecars(source, &artifact_root)?;
         artifact_paths.extend(c_ffi_artifact_paths.iter().cloned());
+        let (packaged_host_sidecars, packaged_host_sidecar_paths) =
+            materialize_host_sidecars(&config.host_sidecars, &artifact_root)?;
+        artifact_paths.extend(packaged_host_sidecar_paths.iter().cloned());
 
         let primary_path = artifact_root.join(&bundle.rust.bundle.primary.suggested_file_name);
         fs::write(
@@ -573,6 +616,7 @@ impl DriverSession {
         let app_manifest = build_native_app_manifest(
             bundle,
             &packaged_c_ffi_imports,
+            &packaged_host_sidecars,
             packaged_c_ffi_manifest_path.as_deref(),
             &runtime_bundle_path,
             &runtime_contract_path,
@@ -644,11 +688,13 @@ impl DriverSession {
         let main_rs = render_main_rs(
             &runtime_bundle_include_path,
             &config.runtime_crate_name,
+            &config.launcher_entrypoint,
             runtime_bundle_file_name,
             realtime_bundle_file_name,
             compute_residency_file_name,
             shader_bundle_file_name.as_deref(),
             packaged_c_ffi_manifest_file_name.as_deref(),
+            &packaged_host_sidecars,
             packaged_c_ffi_manifest_path.is_some(),
         );
         fs::write(&main_rs_path, main_rs.as_bytes())
@@ -696,6 +742,12 @@ impl DriverSession {
                 packaged_c_ffi_manifest_path
                     .iter()
                     .chain(c_ffi_artifact_paths.iter())
+                    .filter_map(|path| path.file_name().and_then(OsStr::to_str))
+                    .filter(|file_name| !file_name.is_empty()),
+            );
+            runtime_sidecar_file_names.extend(
+                packaged_host_sidecar_paths
+                    .iter()
                     .filter_map(|path| path.file_name().and_then(OsStr::to_str))
                     .filter(|file_name| !file_name.is_empty()),
             );
@@ -811,11 +863,13 @@ fn render_manifest(
 fn render_main_rs(
     runtime_bundle_include_path: &Path,
     runtime_crate_name: &str,
+    launcher_entrypoint: &NativeAppLauncherEntrypoint,
     runtime_bundle_file_name: &str,
     realtime_bundle_file_name: &str,
     compute_residency_file_name: Option<&str>,
     shader_bundle_file_name: Option<&str>,
     c_ffi_manifest_file_name: Option<&str>,
+    host_sidecars: &[PackagedNativeAppHostSidecar],
     include_c_ffi_runtime: bool,
 ) -> String {
     let runtime_bundle_include_path =
@@ -826,6 +880,18 @@ fn render_main_rs(
     let compute_residency_env = compute_residency_file_name.map(rust_string_literal);
     let shader_bundle_env = shader_bundle_file_name.map(rust_string_literal);
     let c_ffi_manifest_env = c_ffi_manifest_file_name.map(rust_string_literal);
+    let host_sidecar_setters = host_sidecars
+        .iter()
+        .filter_map(|sidecar| {
+            sidecar.env_var.as_ref().map(|env_var| {
+                let file_name = rust_string_literal(&sidecar.packaged_file_name);
+                let env_var = rust_string_literal(env_var);
+                format!(
+                    "    if let Some(path) = resolve_runtime_sidecar({file_name}) {{\n        std::env::set_var({env_var}, &path);\n    }}\n"
+                )
+            })
+        })
+        .collect::<String>();
     let shader_bundle_setter = shader_bundle_env
         .as_deref()
         .map(|file_name| {
@@ -863,10 +929,78 @@ fn render_main_rs(
     } else {
         String::new()
     };
+    let (entrypoint_import, runtime_bundle_constant, native_ui_env_setters, entrypoint_call) =
+        match launcher_entrypoint {
+            NativeAppLauncherEntrypoint::RunBundledAppJson { function_name } => {
+                let function_name_literal = function_name.as_str();
+                (
+                    format!("use {runtime_module_name}::{function_name_literal};\n"),
+                    format!(
+                        "const KAIN_RUNTIME_BUNDLE: &str = include_str!({runtime_bundle_include_path});\n\n"
+                    ),
+                    format!(
+                        "    if let Some(path) = resolve_runtime_sidecar({runtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_RUNTIME_BUNDLE\", &path);\n    }}\n    if let Some(path) = resolve_runtime_sidecar({realtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_REALTIME_BUNDLE\", &path);\n    }}\n{compute_residency_setter}{shader_bundle_setter}"
+                    ),
+                    format!("{function_name_literal}(KAIN_RUNTIME_BUNDLE)"),
+                )
+            }
+            NativeAppLauncherEntrypoint::RunNoArgFunction { function_name } => {
+                let function_name_literal = function_name.as_str();
+                (
+                    format!("use {runtime_module_name}::{function_name_literal};\n"),
+                    String::new(),
+                    String::new(),
+                    format!("{function_name_literal}()"),
+                )
+            }
+        };
 
     format!(
-        "#![cfg_attr(all(target_os = \"windows\", not(debug_assertions)), windows_subsystem = \"windows\")]\n\nuse std::path::PathBuf;\n\n{c_ffi_import}use {runtime_module_name}::run_bundled_app_json;\n\nconst KAIN_RUNTIME_BUNDLE: &str = include_str!({runtime_bundle_include_path});\n\nfn resolve_runtime_sidecar(file_name: &str) -> Option<PathBuf> {{\n    if let Some(current_exe_candidate) = std::env::current_exe().ok().and_then(|exe| {{\n        exe.parent().map(|dir| dir.join(file_name)).filter(|path| path.exists())\n    }}) {{\n        return Some(current_exe_candidate);\n    }}\n    let manifest_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(\"generated\").join(file_name);\n    if manifest_candidate.exists() {{\n        return Some(manifest_candidate);\n    }}\n    None\n}}\n\nfn resolve_project_sidecar(file_name: &str, relative_source_path: &str) -> Option<PathBuf> {{\n    if let Some(runtime_sidecar) = resolve_runtime_sidecar(file_name) {{\n        return Some(runtime_sidecar);\n    }}\n    let project_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(relative_source_path);\n    if project_candidate.exists() {{\n        return Some(project_candidate);\n    }}\n    None\n}}\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n    if let Some(path) = resolve_runtime_sidecar({runtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_RUNTIME_BUNDLE\", &path);\n    }}\n    if let Some(path) = resolve_runtime_sidecar({realtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_REALTIME_BUNDLE\", &path);\n    }}\n{compute_residency_setter}{shader_bundle_setter}{c_ffi_loader}    if let Some(path) = resolve_project_sidecar({app_manifest_file_name}, {app_manifest_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_MANIFEST\", &path);\n    }}\n    if let Some(path) = resolve_project_sidecar({app_snapshot_file_name}, {app_snapshot_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_SNAPSHOT\", &path);\n    }}\n    run_bundled_app_json(KAIN_RUNTIME_BUNDLE)\n}}\n"
+        "#![cfg_attr(all(target_os = \"windows\", not(debug_assertions)), windows_subsystem = \"windows\")]\n\nuse std::path::PathBuf;\n\n{c_ffi_import}{entrypoint_import}\n{runtime_bundle_constant}fn resolve_runtime_sidecar(file_name: &str) -> Option<PathBuf> {{\n    if let Some(current_exe_candidate) = std::env::current_exe().ok().and_then(|exe| {{\n        exe.parent().map(|dir| dir.join(file_name)).filter(|path| path.exists())\n    }}) {{\n        return Some(current_exe_candidate);\n    }}\n    let manifest_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(\"generated\").join(file_name);\n    if manifest_candidate.exists() {{\n        return Some(manifest_candidate);\n    }}\n    None\n}}\n\nfn resolve_project_sidecar(file_name: &str, relative_source_path: &str) -> Option<PathBuf> {{\n    if let Some(runtime_sidecar) = resolve_runtime_sidecar(file_name) {{\n        return Some(runtime_sidecar);\n    }}\n    let project_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(relative_source_path);\n    if project_candidate.exists() {{\n        return Some(project_candidate);\n    }}\n    None\n}}\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n{native_ui_env_setters}{host_sidecar_setters}{c_ffi_loader}    if let Some(path) = resolve_project_sidecar({app_manifest_file_name}, {app_manifest_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_MANIFEST\", &path);\n    }}\n    if let Some(path) = resolve_project_sidecar({app_snapshot_file_name}, {app_snapshot_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_SNAPSHOT\", &path);\n    }}\n    {entrypoint_call}\n}}\n"
     )
+}
+
+fn materialize_host_sidecars(
+    host_sidecars: &[NativeAppHostSidecarBinding],
+    artifact_root: &Path,
+) -> Result<(Vec<PackagedNativeAppHostSidecar>, Vec<PathBuf>), KainError> {
+    let mut packaged_sidecars = Vec::new();
+    let mut packaged_paths = Vec::new();
+    for binding in host_sidecars {
+        if !binding.source_path.exists() {
+            return Err(KainError::runtime(format!(
+                "Native app host sidecar source '{}' does not exist",
+                binding.source_path.display()
+            )));
+        }
+        let packaged_file_name = binding
+            .packaged_file_name
+            .clone()
+            .or_else(|| {
+                binding
+                    .source_path
+                    .file_name()
+                    .and_then(OsStr::to_str)
+                    .map(ToOwned::to_owned)
+            })
+            .ok_or_else(|| {
+                KainError::runtime(format!(
+                    "Native app host sidecar '{}' does not resolve to a file name",
+                    binding.source_path.display()
+                ))
+            })?;
+        let destination = artifact_root.join(&packaged_file_name);
+        if binding.source_path != destination {
+            fs::copy(&binding.source_path, &destination)
+                .map_err(io_error("copy native app host sidecar"))?;
+        }
+        packaged_paths.push(destination);
+        packaged_sidecars.push(PackagedNativeAppHostSidecar {
+            packaged_file_name,
+            env_var: binding.env_var.clone(),
+        });
+    }
+    Ok((packaged_sidecars, packaged_paths))
 }
 
 fn materialize_realtime_assets(
@@ -1100,6 +1234,7 @@ fn materialize_c_ffi_bridge_sidecars(
 fn build_native_app_manifest(
     bundle: &NativeAppBundle,
     packaged_c_ffi_imports: &[kain_c_ffi::PackagedBridgeImport],
+    packaged_host_sidecars: &[PackagedNativeAppHostSidecar],
     packaged_c_ffi_manifest_path: Option<&Path>,
     runtime_bundle_path: &Path,
     runtime_contract_path: &Path,
@@ -1141,6 +1276,13 @@ fn build_native_app_manifest(
             shader_bundle: shader_bundle_path.map(|path| sidecar_file_name(path)),
         },
         host_bridges: packaged_c_ffi_imports.to_vec(),
+        host_sidecars: packaged_host_sidecars
+            .iter()
+            .map(|sidecar| NativeAppManifestHostSidecar {
+                packaged_file_name: sidecar.packaged_file_name.clone(),
+                env_var: sidecar.env_var.clone(),
+            })
+            .collect(),
     }
 }
 
@@ -1638,6 +1780,20 @@ mod tests {
 
     static TEST_CWD_LOCK: Mutex<()> = Mutex::new(());
 
+    fn native_ui_materialization_config(project_dir: PathBuf) -> NativeAppMaterializationConfig {
+        NativeAppMaterializationConfig {
+            project_dir,
+            runtime_crate_name: "kain-ui-native".to_string(),
+            runtime_dependency: NativeAppRuntimeDependency::Version("0.1.0".to_string()),
+            artifact_output_dir: PathBuf::from("generated"),
+            build_executable: false,
+            release: false,
+            executable_output_dir: None,
+            launcher_entrypoint: NativeAppLauncherEntrypoint::default(),
+            host_sidecars: Vec::new(),
+        }
+    }
+
     #[test]
     fn discover_root_component_prefers_app_when_present() {
         let source = r#"
@@ -1716,15 +1872,7 @@ component App():
         let materialized = materialize_native_app_bundle(
             source,
             &bundle,
-            &NativeAppMaterializationConfig {
-                project_dir: project_dir.clone(),
-                runtime_crate_name: "kain-ui-native".to_string(),
-                runtime_dependency: NativeAppRuntimeDependency::Version("0.1.0".to_string()),
-                artifact_output_dir: PathBuf::from("generated"),
-                build_executable: false,
-                release: false,
-                executable_output_dir: None,
-            },
+            &native_ui_materialization_config(project_dir.clone()),
         )
         .expect("materialization should succeed");
 
@@ -1789,15 +1937,7 @@ component App():
         let materialized = materialize_native_app_bundle(
             &source,
             &bundle,
-            &NativeAppMaterializationConfig {
-                project_dir: project_dir.clone(),
-                runtime_crate_name: "kain-ui-native".to_string(),
-                runtime_dependency: NativeAppRuntimeDependency::Version("0.1.0".to_string()),
-                artifact_output_dir: PathBuf::from("generated"),
-                build_executable: false,
-                release: false,
-                executable_output_dir: None,
-            },
+            &native_ui_materialization_config(project_dir.clone()),
         )
         .expect("materialization should succeed");
 
@@ -1920,15 +2060,7 @@ component App():
         let materialized = materialize_native_app_bundle(
             source,
             &bundle,
-            &NativeAppMaterializationConfig {
-                project_dir: project_dir.clone(),
-                runtime_crate_name: "kain-ui-native".to_string(),
-                runtime_dependency: NativeAppRuntimeDependency::Version("0.1.0".to_string()),
-                artifact_output_dir: PathBuf::from("generated"),
-                build_executable: false,
-                release: false,
-                executable_output_dir: None,
-            },
+            &native_ui_materialization_config(project_dir.clone()),
         )
         .expect("materialization should succeed");
 
@@ -2011,15 +2143,7 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
         let materialized = materialize_native_app_bundle(
             source,
             &bundle,
-            &NativeAppMaterializationConfig {
-                project_dir: project_dir.clone(),
-                runtime_crate_name: "kain-ui-native".to_string(),
-                runtime_dependency: NativeAppRuntimeDependency::Version("0.1.0".to_string()),
-                artifact_output_dir: PathBuf::from("generated"),
-                build_executable: false,
-                release: false,
-                executable_output_dir: None,
-            },
+            &native_ui_materialization_config(project_dir.clone()),
         )
         .expect("materialization should succeed");
 
@@ -2225,15 +2349,7 @@ component App():
             let materialized = materialize_native_app_bundle(
                 source,
                 &bundle,
-                &NativeAppMaterializationConfig {
-                    project_dir: project_dir.clone(),
-                    runtime_crate_name: "kain-ui-native".to_string(),
-                    runtime_dependency: NativeAppRuntimeDependency::Version("0.1.0".to_string()),
-                    artifact_output_dir: PathBuf::from("generated"),
-                    build_executable: false,
-                    release: false,
-                    executable_output_dir: None,
-                },
+                &native_ui_materialization_config(project_dir.clone()),
             )
             .expect("materialization should succeed");
 
@@ -2265,6 +2381,97 @@ component App():
         })();
         std::env::set_current_dir(previous_dir).expect("restore cwd");
         result.expect("c ffi native app packaging result");
+    }
+
+    #[test]
+    fn materialize_native_app_bundle_supports_generic_host_sidecars_for_custom_runtime() {
+        let temp = TempDir::new().expect("temp dir");
+        let project_dir = temp.path().join("native-app-fast3d");
+        let host_config_path = temp.path().join("fast3d_host.json");
+        let scene_manifest_path = temp.path().join("scene_manifest_title_face.json");
+        fs::write(
+            &host_config_path,
+            r#"{
+  "action": "snapshot",
+  "manifest_path": "scene_manifest_title_face.json",
+  "output_path": "native_host_snapshot.png",
+  "time_seconds": 0.0
+}"#,
+        )
+        .expect("host config");
+        fs::write(&scene_manifest_path, "{}").expect("scene manifest");
+        let source = r#"
+component App():
+    render <panel title="Fast3D Host" />
+"#;
+        let bundle = compile_native_app_bundle(
+            source,
+            &NativeAppBundleConfig {
+                source_file_name: Some("fast3d_host.kn".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("bundle should compile");
+
+        let materialized = materialize_native_app_bundle(
+            source,
+            &bundle,
+            &NativeAppMaterializationConfig {
+                project_dir: project_dir.clone(),
+                runtime_crate_name: "kain-fast3d-runtime".to_string(),
+                runtime_dependency: NativeAppRuntimeDependency::Version("0.1.0".to_string()),
+                artifact_output_dir: PathBuf::from("generated"),
+                build_executable: false,
+                release: false,
+                executable_output_dir: None,
+                launcher_entrypoint: NativeAppLauncherEntrypoint::RunNoArgFunction {
+                    function_name: "run_fast3d_cli".to_string(),
+                },
+                host_sidecars: vec![
+                    NativeAppHostSidecarBinding {
+                        source_path: host_config_path.clone(),
+                        packaged_file_name: Some("fast3d_host.json".to_string()),
+                        env_var: Some("KAIN_FAST3D_CONFIG".to_string()),
+                    },
+                    NativeAppHostSidecarBinding {
+                        source_path: scene_manifest_path.clone(),
+                        packaged_file_name: Some("scene_manifest_title_face.json".to_string()),
+                        env_var: None,
+                    },
+                ],
+            },
+        )
+        .expect("materialization should succeed");
+
+        let main_rs = fs::read_to_string(&materialized.main_rs_path).expect("main.rs");
+        assert!(main_rs.contains("run_fast3d_cli"));
+        assert!(main_rs.contains("KAIN_FAST3D_CONFIG"));
+        assert!(!main_rs.contains("run_bundled_app_json(KAIN_RUNTIME_BUNDLE)"));
+
+        let packaged_host_config = materialized
+            .artifact_paths
+            .iter()
+            .find(|path| path.file_name().and_then(OsStr::to_str) == Some("fast3d_host.json"))
+            .expect("packaged host config");
+        let packaged_scene_manifest = materialized
+            .artifact_paths
+            .iter()
+            .find(|path| {
+                path.file_name().and_then(OsStr::to_str) == Some("scene_manifest_title_face.json")
+            })
+            .expect("packaged scene manifest");
+        assert!(packaged_host_config.exists());
+        assert!(packaged_scene_manifest.exists());
+
+        let app_manifest_path = project_dir.join("config").join("app_manifest.json");
+        let app_manifest_json = fs::read_to_string(app_manifest_path).expect("app manifest");
+        assert!(app_manifest_json.contains("fast3d_host.json"));
+        assert!(app_manifest_json.contains("KAIN_FAST3D_CONFIG"));
+        assert!(app_manifest_json.contains("scene_manifest_title_face.json"));
+
+        let cargo_manifest =
+            fs::read_to_string(&materialized.manifest_path).expect("cargo manifest");
+        assert!(cargo_manifest.contains("kain-fast3d-runtime"));
     }
 
     fn compile_shared_library(source: &Path, output: &Path) {

@@ -49,8 +49,9 @@ pub use compute_residency::{
 #[cfg(feature = "sys")]
 pub use native_app::{
     compile_native_app_bundle, discover_native_app_root_component, materialize_native_app_bundle,
-    NativeAppBundle, NativeAppBundleConfig, NativeAppMaterializationConfig,
-    NativeAppMaterializedPaths, NativeAppMetadata, NativeAppRuntimeDependency,
+    NativeAppBundle, NativeAppBundleConfig, NativeAppHostSidecarBinding,
+    NativeAppLauncherEntrypoint, NativeAppMaterializationConfig, NativeAppMaterializedPaths,
+    NativeAppMetadata, NativeAppRuntimeDependency,
 };
 
 #[cfg(feature = "ue5")]

@@ -4,8 +4,9 @@ use std::path::{Component, Path, PathBuf};
 use kain_core::error::KainError;
 use kain_driver::{
     compile_native_app_bundle, discover_native_app_root_component, materialize_native_app_bundle,
-    NativeAppBundle, NativeAppBundleConfig, NativeAppMaterializationConfig,
-    NativeAppMaterializedPaths, NativeAppMetadata, NativeAppRuntimeDependency,
+    NativeAppBundle, NativeAppBundleConfig, NativeAppLauncherEntrypoint,
+    NativeAppMaterializationConfig, NativeAppMaterializedPaths, NativeAppMetadata,
+    NativeAppRuntimeDependency,
 };
 
 const DEFAULT_RUNTIME_CRATE_NAME: &str = "kain-ui-native";
@@ -137,6 +138,8 @@ pub fn run_native_ui_build_pipeline(
             build_executable: config.build_executable,
             release: config.release,
             executable_output_dir,
+            launcher_entrypoint: NativeAppLauncherEntrypoint::default(),
+            host_sidecars: Vec::new(),
         },
     )?;
 
