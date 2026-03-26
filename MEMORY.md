@@ -52,12 +52,14 @@ What changed:
 - `crates/kain-3D` now registers a dedicated `tensor_stream_probe` scene plus a small alias map for authored smoke names like `gpu_compute_surface_probe` and `spv_ui_surface_probe`
 - the Rust-native viewport host now threads the active `ShaderArtifactBundle` into both the readback renderer and the presented WGPU viewport path, and shader-bundle hot reload now refreshes existing viewport surface state instead of leaving old pipelines alive
 - the raw-native Win32 profile registry now has explicit alias-aware resolution and a `tensor_stream_probe` profile so compiled/realtime scene ids from the compiler lane map to a meaningful native profile instead of silently collapsing to the first entry
+- the raw-native OpenGL fallback lane now has first-class procedural scene branches for `tensor_stream_probe`, `retirement_demo`, and `kerr_black_hole`, with the tensor probe reacting to live compute execution phase/throughput instead of only showing the old generic city fallback
 
 Why this matters:
 
 - it closes a real cross-lane contract gap between compiler-authored 3D/SPIR-V intent and what the Rust-native and C-native runtime lanes actually render
 - shader-bundle hot reload is now honest for viewport rendering instead of only affecting auxiliary shader-surface paths
 - authored scene ids are becoming a shared contract surface instead of a lane-local convention
+- the native runtime is now a more serious proof lane for authored 3D/runtime identities instead of a single procedural world with renamed presets
 
 What future work should preserve:
 

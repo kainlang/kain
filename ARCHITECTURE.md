@@ -81,6 +81,18 @@ The current compute direction is:
 
 The architecture rule here is important: runtimes may execute the compute plan, but they must not become the source of truth for what that plan is.
 
+### Shader Canvas Lane
+
+The native shader-canvas UI lane now follows this contract:
+
+- `kain-ui` owns authored semantic surfaces and shader-canvas intent on canvas-like nodes
+- `kain-core` emits explicit `shader_canvases` entries in `RealtimeAppBundle` so hosts do not have to rediscover shader-canvas bindings by guessing from local UI props
+- `kain-driver` materializes shader bundles and native app sidecars that keep shader-canvas metadata, shader refs, and native UI bundles aligned
+- `kain-ui-native` resolves shader canvases from realtime bundle metadata first and only falls back to surface-local shader refs when metadata is missing
+- canonical native shader payload remains SPIR-V, while the current WGPU native host may consume derived WGSL or runtime-transpiled WGSL from the same bundle family
+
+The architecture rule here is the same as the viewport and compute lanes: shader-canvas execution can optimize presentation, but it must stay subordinate to compiler-owned bundle truth rather than inventing a renderer-local UI shader dialect.
+
 ## Important Folders By Intent
 
 - [runtime/native](/M:/Code/Kain/runtime/native): canonical C runtime and ABI/service floor
@@ -127,6 +139,7 @@ If the debug CLI is missing:
 - `generated/`, `target/`, `.kain`, runtime sidecars, and compiled smoke outputs are disposable unless explicitly archived under `docs/validation/` or `docs/recent/`.
 - The native runtime is Windows-first today. Linux and macOS surfaces exist, but much of that lane is still stubbed or partial.
 - The compute pipeline is mid-transition from heuristic metadata to compiler-owned truth. When touching it, prefer extending bundle contracts over adding new runtime-only inference.
+- The native shader-canvas lane is SPIR-V-canonical at the bundle level, but the current WGPU host still resolves WGSL for execution. Do not mistake that compatibility bridge for permission to move shader-canvas truth out of the emitted bundles.
 
 ## Template Packs
 
@@ -138,3 +151,4 @@ Key rules for this lane:
 - Node FFI owns browser packaging, local serving, and actor-server runtime glue.
 - themes, content, scenes, and experiences are registry-driven data, not scattered starter literals.
 - web template boilerplate should prefer reusable stdlib wrappers (`std::javascript::site_runtime`, `std::javascript::site_actor`) plus shared helper runtimes over copy-pasted starter code.
+

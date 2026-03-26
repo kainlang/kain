@@ -442,6 +442,37 @@ static void kain_gl_draw_box(double x, double y, double z, double sx, double sy,
     glPopMatrix();
 }
 
+static void kain_gl_draw_orbit_ring(double radius, double y, float r, float g, float b, float alpha) {
+    int segment;
+    glDisable(GL_LIGHTING);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glColor4f(r, g, b, alpha);
+    glBegin(GL_LINE_LOOP);
+    for (segment = 0; segment < 96; ++segment) {
+        double angle = ((double)segment / 96.0) * M_PI * 2.0;
+        glVertex3f((GLfloat)(cos(angle) * radius), (GLfloat)y, (GLfloat)(sin(angle) * radius));
+    }
+    glEnd();
+    glDisable(GL_BLEND);
+    glEnable(GL_LIGHTING);
+}
+
+static void kain_gl_draw_energy_spokes(double radius, double y, double time_seconds, const float color[3]) {
+    int spoke;
+    glDisable(GL_LIGHTING);
+    glColor4f(color[0], color[1], color[2], 0.72f);
+    glBegin(GL_LINES);
+    for (spoke = 0; spoke < 18; ++spoke) {
+        double angle = ((double)spoke / 18.0) * M_PI * 2.0 + (time_seconds * 0.35);
+        double inner_radius = radius * (0.42 + ((spoke % 3) * 0.09));
+        glVertex3f((GLfloat)(cos(angle) * inner_radius), (GLfloat)y, (GLfloat)(sin(angle) * inner_radius));
+        glVertex3f((GLfloat)(cos(angle) * radius), (GLfloat)y, (GLfloat)(sin(angle) * radius));
+    }
+    glEnd();
+    glEnable(GL_LIGHTING);
+}
+
 static int kain_viewport_profile_is(const KainViewportProfile* profile, const char* id) {
     if (!profile || !id || !id[0] || !profile->id || !profile->id[0]) {
         return 0;
@@ -485,9 +516,94 @@ static void kain_gl_render_scene_geometry(const KainNativeViewportApp* app) {
     int i;
     const KainViewportProfile* profile = app->settings.profile;
     double pulse = 0.5 + (sin(app->total_time * 1.7) * 0.5);
+    double compute_phase = app->compute_execution.executed ? app->compute_execution.phase : 0.0;
 
     if (app->world_asset.loaded) {
         kain_native_scene_asset_render(&app->world_asset);
+        return;
+    }
+
+    if (kain_viewport_profile_is(profile, "tensor_stream_probe")) {
+        int relay_index;
+        int lane_index;
+        double throughput_scale = app->compute_execution.executed
+            ? kain_clampd(app->compute_execution.throughput / 200000.0, 0.2, 1.0)
+            : 0.28;
+        double dispatch_extent = app->graphics_bundle.primary_compute.dispatch_size[0] > 0
+            ? kain_clampd((double)app->graphics_bundle.primary_compute.dispatch_size[0] / 8.0, 4.0, 12.0)
+            : 5.5;
+
+        kain_gl_draw_box(0.0, 0.45, 0.0, 12.0, 0.9, 12.0, 0.06f, 0.09f, 0.14f);
+        kain_gl_draw_box(0.0, 1.12, 0.0, 9.6, 0.10, 9.6, 0.14f, 0.20f, 0.30f);
+        kain_gl_draw_box(0.0, 0.82, 0.0, 1.1, 1.6 + compute_phase * 0.8, 1.1, profile->accent_a[0], profile->accent_a[1], profile->accent_a[2]);
+        kain_gl_draw_box(0.0, 2.35 + pulse * 0.45, 0.0, 2.6 + throughput_scale, 0.16, 2.6 + throughput_scale, profile->accent_b[0], profile->accent_b[1], profile->accent_b[2]);
+        kain_gl_draw_box(0.0, 1.85 + pulse * 0.18, 0.0, 1.4, 0.36, 1.4, 0.16f, 0.36f, 0.54f);
+
+        for (relay_index = 0; relay_index < 6; ++relay_index) {
+            double relay_angle = ((double)relay_index / 6.0) * M_PI * 2.0 + (compute_phase * 0.6);
+            double relay_radius = 4.6 + ((relay_index % 2) * 1.6);
+            double relay_x = cos(relay_angle) * relay_radius;
+            double relay_z = sin(relay_angle) * relay_radius;
+            double relay_height = 0.9 + ((relay_index % 3) * 0.45) + pulse * 0.22;
+            kain_gl_draw_box(relay_x, 0.7 + relay_height * 0.5, relay_z, 0.58, relay_height, 0.58, 0.20f, 0.32f, 0.50f);
+            kain_gl_draw_box(relay_x, 1.22 + relay_height, relay_z, 0.26, 0.12, 0.26, profile->accent_b[0], profile->accent_b[1], profile->accent_b[2]);
+        }
+
+        for (lane_index = 0; lane_index < 10; ++lane_index) {
+            double lane_t = ((double)lane_index / 9.0) * 2.0 - 1.0;
+            double lane_x = lane_t * dispatch_extent;
+            double lane_height = 0.35 + (sin(app->total_time * 2.2 + lane_index * 0.8 + compute_phase * 4.0) * 0.22 + 0.22);
+            kain_gl_draw_box(lane_x, 0.25 + lane_height, -3.6, 0.42, lane_height, 0.42, 0.18f, 0.50f, 0.68f);
+            kain_gl_draw_box(lane_x, 0.15 + lane_height * 0.5, 3.6, 0.34, lane_height * 0.75, 0.34, 0.92f, 0.78f, 0.28f);
+        }
+
+        kain_gl_draw_orbit_ring(3.8 + throughput_scale, 1.32 + pulse * 0.12, profile->accent_a[0], profile->accent_a[1], profile->accent_a[2], 0.84f);
+        kain_gl_draw_orbit_ring(5.6 + compute_phase * 1.4, 0.92, profile->accent_b[0], profile->accent_b[1], profile->accent_b[2], 0.46f);
+        kain_gl_draw_energy_spokes(5.8 + throughput_scale * 1.2, 1.02, app->total_time, profile->accent_a);
+        return;
+    }
+
+    if (kain_viewport_profile_is(profile, "retirement_demo")) {
+        int plinth;
+        kain_gl_draw_box(0.0, 0.4, 0.0, 9.0, 0.8, 9.0, 0.12f, 0.14f, 0.18f);
+        kain_gl_draw_box(0.0, 1.35, 0.0, 2.0, 2.0, 2.0, profile->accent_a[0], profile->accent_a[1], profile->accent_a[2]);
+        kain_gl_draw_box(-2.3, 0.72 + pulse * 0.18, 1.3, 0.9, 0.9, 0.9, profile->accent_b[0], profile->accent_b[1], profile->accent_b[2]);
+        kain_gl_draw_box(2.2, 1.05, -1.4, 1.0, 2.2, 1.0, 0.28f, 0.34f, 0.42f);
+        kain_gl_draw_box(2.2, 2.45, -1.4, 0.52, 0.16, 0.52, profile->accent_b[0], profile->accent_b[1], profile->accent_b[2]);
+
+        for (plinth = 0; plinth < 8; ++plinth) {
+            double angle = ((double)plinth / 8.0) * M_PI * 2.0 + 0.35;
+            double radius = 4.7;
+            double px = cos(angle) * radius;
+            double pz = sin(angle) * radius;
+            kain_gl_draw_box(px, 0.22, pz, 0.62, 0.44, 0.62, 0.16f, 0.18f, 0.22f);
+        }
+
+        kain_gl_draw_orbit_ring(4.4, 0.04, profile->accent_a[0], profile->accent_a[1], profile->accent_a[2], 0.36f);
+        return;
+    }
+
+    if (kain_viewport_profile_is(profile, "kerr_black_hole")) {
+        int shard;
+        double singularity_scale = 1.25 + compute_phase * 0.18;
+        kain_gl_draw_box(0.0, 0.2, 0.0, singularity_scale, singularity_scale, singularity_scale, 0.02f, 0.02f, 0.04f);
+        kain_gl_draw_orbit_ring(3.2 + pulse * 0.6, 0.12, profile->accent_b[0], profile->accent_b[1], profile->accent_b[2], 0.92f);
+        kain_gl_draw_orbit_ring(4.6 + pulse * 0.35, -0.04, profile->accent_a[0], profile->accent_a[1], profile->accent_a[2], 0.72f);
+        kain_gl_draw_orbit_ring(2.2 + compute_phase * 0.55, 0.0, 0.92f, 0.95f, 1.0f, 0.26f);
+        kain_gl_draw_energy_spokes(6.6, 0.08, app->total_time * 1.8, profile->accent_a);
+
+        for (shard = 0; shard < 10; ++shard) {
+            double angle = app->total_time * (0.18 + shard * 0.02) + shard * 0.62;
+            double radius = 6.0 + ((shard % 3) * 1.4);
+            double px = cos(angle) * radius;
+            double pz = sin(angle) * radius;
+            double py = sin(app->total_time * 0.9 + shard) * 0.6;
+            double scale = 0.24 + ((shard % 4) * 0.10);
+            kain_gl_draw_box(px, py, pz, scale, 0.08, scale * 2.4, 0.22f, 0.32f, 0.55f);
+        }
+
+        kain_gl_draw_box(0.0, 4.8 + pulse * 1.1, 0.0, 0.18, 3.8, 0.18, 0.44f, 0.72f, 1.00f);
+        kain_gl_draw_box(0.0, -4.8 - pulse * 1.1, 0.0, 0.18, 3.8, 0.18, 0.58f, 0.84f, 1.00f);
         return;
     }
 
@@ -583,6 +699,7 @@ static void kain_gl_render_scene_geometry(const KainNativeViewportApp* app) {
 static void kain_gl_render_particles(const KainNativeViewportApp* app) {
     int i;
     const KainViewportProfile* profile = app->settings.profile;
+    double compute_phase = app->compute_execution.executed ? app->compute_execution.phase : 0.0;
     glDisable(GL_LIGHTING);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -590,12 +707,43 @@ static void kain_gl_render_particles(const KainNativeViewportApp* app) {
     glBegin(GL_POINTS);
     for (i = 0; i < app->settings.particle_count; ++i) {
         double phase = ((double)i / (double)app->settings.particle_count) * M_PI * 2.0;
-        double ring = 5.0 + fmod((double)i * 0.37, 8.0);
-        double spin = app->total_time * (0.5 + ((i % 7) * 0.08));
-        double px = cos(phase + spin) * ring;
-        double py = 1.4 + fmod((double)i * 0.11 + app->total_time * 1.3, 5.0);
-        double pz = sin(phase - spin * 0.9) * ring;
-        float glow = 0.45f + (float)(0.45 * sin(app->total_time * 2.1 + i));
+        double ring;
+        double spin;
+        double px;
+        double py;
+        double pz;
+        float glow;
+
+        if (kain_viewport_profile_is(profile, "tensor_stream_probe")) {
+            ring = 2.8 + fmod((double)i * 0.21, 4.8) + compute_phase * 1.6;
+            spin = app->total_time * (0.9 + ((i % 5) * 0.12));
+            px = cos(phase + spin) * ring;
+            py = 0.8 + sin(app->total_time * 1.5 + i * 0.12 + compute_phase * 6.0) * 0.8;
+            pz = sin(phase - spin * 0.82) * (ring + 1.2);
+            glow = 0.52f + (float)(0.40 * sin(app->total_time * 2.8 + i + compute_phase * 8.0));
+        } else if (kain_viewport_profile_is(profile, "kerr_black_hole")) {
+            ring = 3.0 + fmod((double)i * 0.18, 10.0);
+            spin = app->total_time * (1.2 + ((i % 9) * 0.05));
+            px = cos(phase + spin) * ring;
+            py = sin(app->total_time * 0.7 + i * 0.3) * (0.35 + ((i % 4) * 0.18));
+            pz = sin(phase + spin * 1.18) * ring;
+            glow = 0.42f + (float)(0.52 * sin(app->total_time * 3.1 + i));
+        } else if (kain_viewport_profile_is(profile, "retirement_demo")) {
+            ring = 3.4 + fmod((double)i * 0.29, 5.2);
+            spin = app->total_time * (0.42 + ((i % 6) * 0.06));
+            px = cos(phase + spin) * ring;
+            py = 1.2 + fmod((double)i * 0.08 + app->total_time * 0.8, 3.2);
+            pz = sin(phase - spin * 0.76) * ring;
+            glow = 0.34f + (float)(0.32 * sin(app->total_time * 1.8 + i));
+        } else {
+            ring = 5.0 + fmod((double)i * 0.37, 8.0);
+            spin = app->total_time * (0.5 + ((i % 7) * 0.08));
+            px = cos(phase + spin) * ring;
+            py = 1.4 + fmod((double)i * 0.11 + app->total_time * 1.3, 5.0);
+            pz = sin(phase - spin * 0.9) * ring;
+            glow = 0.45f + (float)(0.45 * sin(app->total_time * 2.1 + i));
+        }
+
         if ((i & 1) == 0) {
             glColor4f(profile->accent_a[0], profile->accent_a[1], profile->accent_a[2], glow);
         } else {
@@ -760,7 +908,7 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
         : (app->runtime_contract.loaded
             ? (app->world_asset.loaded
                 ? "Runtime contract validated. City world is env-driven through KAIN_NATIVE_WORLD_ASSET."
-                : "Runtime contract validated. Use KAIN_NATIVE_SCENE_PROFILE to switch starforge / emberfall / luminous_port / magma_terraces / tensor_stream_probe.")
+                : "Runtime contract validated. Use KAIN_NATIVE_SCENE_PROFILE to switch starforge / emberfall / luminous_port / magma_terraces / tensor_stream_probe / retirement_demo / kerr_black_hole.")
             : "No runtime contract was loaded. Keep the *.runtime_contract.json sidecar beside the exe for native-lane validation.");
     kain_ui_compiled_overlay_render(&app->surface, app->width, app->height, &app->compiled_ui, &overlay_spec);
 }

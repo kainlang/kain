@@ -826,8 +826,8 @@ static const char* kain_runtime_contract_map_legacy_service_key(const char* lega
 /*
  * Check Service Availability via Registry
  *
- * Queries the service registry for service availability. Falls back to
- * legacy hardcoded checks if registry is not available.
+ * Queries the shared service registry for service availability and lazily
+ * populates the native runtime catalog on first use.
  */
 int kain_runtime_contract_is_service_available(const char* service_key) {
     KainServiceRegistry* registry;

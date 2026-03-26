@@ -5,7 +5,7 @@ static const KainViewportProfile g_kain_viewport_profiles[] = {
     {
         "starforge",
         "Starforge Port",
-        "retirement_demo",
+        "",
         {0.03f, 0.05f, 0.09f, 1.0f},
         {0.03f, 0.05f, 0.08f, 1.0f},
         {0.20f, 0.24f, 0.32f, 1.0f},
@@ -71,7 +71,7 @@ static const KainViewportProfile g_kain_viewport_profiles[] = {
     {
         "magma_terraces",
         "Magma Terraces",
-        "kerr_black_hole",
+        "",
         {0.06f, 0.03f, 0.02f, 1.0f},
         {0.09f, 0.04f, 0.03f, 1.0f},
         {0.26f, 0.12f, 0.08f, 1.0f},
@@ -111,6 +111,50 @@ static const KainViewportProfile g_kain_viewport_profiles[] = {
         1.78,
         0.016,
         220
+    },
+    {
+        "retirement_demo",
+        "Retirement Demo",
+        "",
+        {0.03f, 0.05f, 0.08f, 1.0f},
+        {0.10f, 0.13f, 0.18f, 1.0f},
+        {0.22f, 0.28f, 0.36f, 1.0f},
+        {0.92f, 0.96f, 1.00f, 1.0f},
+        {8.0f, 18.0f, -10.0f, 1.0f},
+        {0.12f, 0.63f, 0.98f},
+        {0.95f, 0.62f, 0.20f},
+        1366,
+        820,
+        8.6,
+        1.88,
+        6.5,
+        18.0,
+        0.0020,
+        1.76,
+        0.014,
+        156
+    },
+    {
+        "kerr_black_hole",
+        "Kerr Black Hole",
+        "",
+        {0.01f, 0.02f, 0.05f, 1.0f},
+        {0.00f, 0.00f, 0.01f, 1.0f},
+        {0.08f, 0.10f, 0.14f, 1.0f},
+        {0.28f, 0.42f, 0.95f, 1.0f},
+        {6.0f, 16.0f, -4.0f, 1.0f},
+        {0.25f, 0.55f, 1.00f},
+        {1.00f, 0.64f, 0.18f},
+        1680,
+        960,
+        9.8,
+        2.05,
+        6.9,
+        18.9,
+        0.0025,
+        1.82,
+        0.010,
+        236
     }
 };
 

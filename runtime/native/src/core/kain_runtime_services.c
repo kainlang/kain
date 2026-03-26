@@ -279,8 +279,6 @@ const char* kain_service_registry_canonicalize_key(const char* key) {
     return key;
 }
 
-/* Global service registry singleton */
-
 void kain_service_registry_init(KainServiceRegistry* registry) {
     if (!registry) {
         return;

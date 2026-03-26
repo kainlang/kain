@@ -86,6 +86,24 @@ struct UiShaderSurfaceUniforms {
     _pad: [f32; 8],
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct UiShaderSurfaceStoragePayload {
+    resolution: [f32; 2],
+    pointer_uv: [f32; 2],
+    pointer_px: [f32; 2],
+    surface_origin_px: [f32; 2],
+    time_seconds: f32,
+    frame_index: f32,
+    opacity: f32,
+    aspect_ratio: f32,
+    node_id_low: u32,
+    node_id_high: u32,
+    _flags: [u32; 2],
+    accent_rgba: [f32; 4],
+    fill_rgba: [f32; 4],
+}
+
 #[derive(Clone, Debug)]
 struct WatchedRuntimeFile {
     path: String,
@@ -465,6 +483,12 @@ impl RealtimeBundleCatalog {
                 .iter()
                 .cloned()
                 .map(|shader_ref| (shader_ref.key.clone(), shader_ref))
+                .collect(),
+            shader_canvases_by_surface: bundle
+                .shader_canvases
+                .iter()
+                .cloned()
+                .map(|binding| (binding.surface_id.clone(), binding))
                 .collect(),
         }
     }
@@ -2147,6 +2171,7 @@ struct RealtimeBundleCatalog {
     scenes_by_viewport: BTreeMap<String, RealtimeSceneBinding>,
     materials_by_id: BTreeMap<String, CompiledMaterialDefinition>,
     shader_refs_by_key: BTreeMap<String, RealtimeShaderBundleRef>,
+    shader_canvases_by_surface: BTreeMap<String, RealtimeShaderCanvasBinding>,
 }
 
 #[derive(Clone, Debug)]
@@ -2173,6 +2198,8 @@ struct ResolvedUiShaderSurface {
     fragment_entry_point: String,
     stage: String,
     derived_format: String,
+    canonical_native_payload: String,
+    shader_bundle_ref_key: Option<String>,
     wgsl_source: String,
     resource_layouts: Vec<ShaderResourceLayout>,
     warning: Option<String>,
@@ -2236,8 +2263,8 @@ struct PresentedShaderSurfaceGpuResources {
     pipeline: wgpu::RenderPipeline,
     bind_group: Option<wgpu::BindGroup>,
     uniform_buffer: Option<wgpu::Buffer>,
-    _storage_buffer: Option<wgpu::Buffer>,
-    _fallback_texture: Option<wgpu::Texture>,
+    storage_buffer: Option<wgpu::Buffer>,
+    fallback_texture: Option<wgpu::Texture>,
     _fallback_texture_view: Option<wgpu::TextureView>,
     _fallback_sampler: Option<wgpu::Sampler>,
 }
@@ -2247,6 +2274,8 @@ struct PresentedShaderSurfaceFrame {
     signature: String,
     descriptor: ResolvedUiShaderSurface,
     uniforms: UiShaderSurfaceUniforms,
+    storage_payload: UiShaderSurfaceStoragePayload,
+    fallback_texture_rgba: [u8; 4],
 }
 
 #[derive(Clone)]
@@ -2637,6 +2666,20 @@ fn apply_node_presentation_to_color(
     alpha_tint(color, presentation.opacity)
 }
 
+fn color32_to_rgba_f32(color: Color32) -> [f32; 4] {
+    [
+        color.r() as f32 / 255.0,
+        color.g() as f32 / 255.0,
+        color.b() as f32 / 255.0,
+        color.a() as f32 / 255.0,
+    ]
+}
+
+fn split_node_id(node_id: UiNodeId) -> (u32, u32) {
+    let raw = node_id.0;
+    (raw as u32, (raw >> 32) as u32)
+}
+
 fn select_viewport_renderer(
     runtime_settings: KainUiNativeRuntimeSettings,
     cc: &eframe::CreationContext<'_>,
@@ -2889,6 +2932,30 @@ impl CallbackTrait for PresentedShaderSurfaceCallback {
         };
         if let Some(buffer) = resources.uniform_buffer.as_ref() {
             queue.write_buffer(buffer, 0, bytemuck::bytes_of(&frame.uniforms));
+        }
+        if let Some(buffer) = resources.storage_buffer.as_ref() {
+            queue.write_buffer(buffer, 0, bytemuck::bytes_of(&frame.storage_payload));
+        }
+        if let Some(texture) = resources.fallback_texture.as_ref() {
+            queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                &frame.fallback_texture_rgba,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4),
+                    rows_per_image: Some(1),
+                },
+                wgpu::Extent3d {
+                    width: 1,
+                    height: 1,
+                    depth_or_array_layers: 1,
+                },
+            );
         }
         Vec::new()
     }
@@ -3162,8 +3229,8 @@ fn build_presented_shader_surface_resources(
             pipeline,
             bind_group,
             uniform_buffer,
-            _storage_buffer: storage_buffer,
-            _fallback_texture: fallback_texture,
+            storage_buffer,
+            fallback_texture,
             _fallback_texture_view: fallback_texture_view,
             _fallback_sampler: fallback_sampler,
         })
@@ -4221,6 +4288,16 @@ fn render_gpu_canvas_surface(
                 .and_then(|binding| binding.derived_format.clone())
         })
         .unwrap_or_else(|| "runtime-selected".to_string());
+    let shader_payload = resolved_shader
+        .as_ref()
+        .ok()
+        .map(|descriptor| descriptor.canonical_native_payload.clone())
+        .unwrap_or_else(|| "runtime-selected".to_string());
+    let shader_binding_key = resolved_shader
+        .as_ref()
+        .ok()
+        .and_then(|descriptor| descriptor.shader_bundle_ref_key.clone())
+        .unwrap_or_else(|| "surface-local".to_string());
     let descriptor_tag = format!(
         "{} / {}",
         surface_renderer_preference_label(surface.renderer_preference),
@@ -4272,21 +4349,47 @@ fn render_gpu_canvas_surface(
                         ((hover.x - inner.left()) / width).clamp(0.0, 1.0),
                         ((hover.y - inner.top()) / height).clamp(0.0, 1.0),
                     ];
+                    let time_seconds = app.start_time.elapsed().as_secs_f32();
+                    let frame_index = time_seconds / (app.frame_dt_seconds.max(1.0 / 240.0));
                     let uniforms = UiShaderSurfaceUniforms {
                         resolution: [width, height],
                         pointer,
-                        time_seconds: app.start_time.elapsed().as_secs_f32(),
+                        time_seconds,
                         opacity: presentation.opacity,
-                        frame_index: app.start_time.elapsed().as_secs_f32()
-                            / (app.frame_dt_seconds.max(1.0 / 240.0)),
+                        frame_index,
                         aspect_ratio: width / height,
                         _pad: [0.0; 8],
                     };
+                    let pointer_px = [hover.x - inner.left(), hover.y - inner.top()];
+                    let (node_id_low, node_id_high) = split_node_id(node.id);
+                    let storage_payload = UiShaderSurfaceStoragePayload {
+                        resolution: [width, height],
+                        pointer_uv: pointer,
+                        pointer_px,
+                        surface_origin_px: [inner.left(), inner.top()],
+                        time_seconds,
+                        frame_index,
+                        opacity: presentation.opacity,
+                        aspect_ratio: width / height,
+                        node_id_low,
+                        node_id_high,
+                        _flags: [response.hovered() as u32, rendered_with_gpu as u32],
+                        accent_rgba: color32_to_rgba_f32(theme.accent),
+                        fill_rgba: color32_to_rgba_f32(theme.canvas_fill),
+                    };
+                    let fallback_texture_rgba = [
+                        theme.accent.r(),
+                        theme.accent.g(),
+                        theme.accent.b(),
+                        theme.accent.a(),
+                    ];
                     if let Ok(mut gpu_state) = presented_state.lock() {
                         gpu_state.pending_frame = Some(PresentedShaderSurfaceFrame {
                             signature,
                             descriptor: descriptor.clone(),
                             uniforms,
+                            storage_payload,
+                            fallback_texture_rgba,
                         });
                     }
                     painter.add(egui::Shape::Callback(
@@ -4353,14 +4456,14 @@ fn render_gpu_canvas_surface(
             painter.text(
                 inner.left_top() + egui::vec2(14.0, 54.0),
                 egui::Align2::LEFT_TOP,
-                format!("stage: {shader_stage}  format: {shader_format}"),
+                format!("stage: {shader_stage}  format: {shader_format}  payload: {shader_payload}"),
                 egui::FontId::monospace(10.5),
                 theme.body_color,
             );
             painter.text(
                 inner.left_top() + egui::vec2(14.0, 72.0),
                 egui::Align2::LEFT_TOP,
-                format!("surface: {descriptor_tag}  host: {runtime_renderer}"),
+                format!("surface: {descriptor_tag}  host: {runtime_renderer}  ref: {shader_binding_key}"),
                 egui::FontId::monospace(10.0),
                 theme.muted_color,
             );
@@ -4408,21 +4511,28 @@ fn resolve_ui_shader_surface_from_catalog(
     realtime_catalog: &RealtimeBundleCatalog,
     shader_bundle: Option<&ShaderArtifactBundle>,
 ) -> Result<ResolvedUiShaderSurface, String> {
-    let binding = surface
-        .shader
-        .as_ref()
-        .ok_or_else(|| "surface did not declare a shader binding".to_string())?;
+    let runtime_canvas_binding = realtime_catalog.shader_canvases_by_surface.get(&surface.id);
+    let binding = surface.shader.as_ref();
     let shader_bundle =
         shader_bundle.ok_or_else(|| "no shader bundle is loaded for this runtime".to_string())?;
-    let shader_ref = binding.shader_ref.trim();
-    if shader_ref.is_empty() {
-        return Err("surface shader binding was empty".to_string());
-    }
+    let shader_ref = binding
+        .map(|entry| entry.shader_ref.trim())
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            runtime_canvas_binding
+                .map(|entry| entry.shader_ref.trim())
+                .filter(|value| !value.is_empty())
+        })
+        .ok_or_else(|| "surface shader binding was empty".to_string())?;
 
-    let resolved_ref = realtime_catalog
-        .shader_refs_by_key
-        .get(shader_ref)
-        .cloned()
+    let resolved_ref = runtime_canvas_binding
+        .and_then(|entry| {
+            entry.shader_bundle_ref_key
+                .as_ref()
+                .and_then(|key| realtime_catalog.shader_refs_by_key.get(key))
+                .cloned()
+        })
+        .or_else(|| realtime_catalog.shader_refs_by_key.get(shader_ref).cloned())
         .or_else(|| {
             realtime_catalog
                 .shader_refs_by_key
@@ -4434,22 +4544,22 @@ fn resolve_ui_shader_surface_from_catalog(
         });
 
     let mut warning = None;
-    let shader_name = resolved_ref
-        .as_ref()
-        .map(|entry| entry.shader.clone())
+    let shader_name = runtime_canvas_binding
+        .and_then(|entry| entry.shader_name.clone())
+        .or_else(|| resolved_ref.as_ref().map(|entry| entry.shader.clone()))
         .unwrap_or_else(|| shader_ref.to_string());
-    let module_name = resolved_ref
-        .as_ref()
-        .map(|entry| entry.module_name.clone())
+    let module_name = runtime_canvas_binding
+        .and_then(|entry| entry.module_name.clone())
+        .or_else(|| resolved_ref.as_ref().map(|entry| entry.module_name.clone()))
         .unwrap_or_else(|| shader_ref.to_string());
     let stage = binding
-        .stage
-        .clone()
+        .and_then(|entry| entry.stage.clone())
+        .or_else(|| runtime_canvas_binding.map(|entry| entry.stage.clone()))
         .or_else(|| resolved_ref.as_ref().map(|entry| entry.stage.clone()))
         .unwrap_or_else(|| "fragment".to_string());
     let fragment_entry_point = binding
-        .entry_point
-        .clone()
+        .and_then(|entry| entry.entry_point.clone())
+        .or_else(|| runtime_canvas_binding.and_then(|entry| entry.entry_point.clone()))
         .or_else(|| {
             resolved_ref
                 .as_ref()
@@ -4468,9 +4578,15 @@ fn resolve_ui_shader_surface_from_catalog(
         }
     };
 
+    if runtime_canvas_binding.is_none() {
+        warning = Some(format!(
+            "shader canvas `{}` was not registered in realtime metadata; using surface-local binding",
+            surface.id
+        ));
+    }
     if resolved_ref.is_none() {
         warning = Some(format!(
-            "shader ref `{shader_ref}` was not registered in realtime metadata; using module fallback"
+            "shader ref `{shader_ref}` was not registered in realtime shader refs; using module fallback"
         ));
     }
 
@@ -4488,9 +4604,15 @@ fn resolve_ui_shader_surface_from_catalog(
         fragment_entry_point,
         stage,
         derived_format: binding
-            .derived_format
-            .clone()
-            .unwrap_or_else(|| "wgsl-runtime".to_string()),
+            .and_then(|entry| entry.derived_format.clone())
+            .or_else(|| runtime_canvas_binding.and_then(|entry| entry.derived_format.clone()))
+            .unwrap_or_else(|| {
+                format!("{}-runtime", shader_bundle.canonical_native_payload.as_str())
+            }),
+        canonical_native_payload: shader_bundle.canonical_native_payload.as_str().to_string(),
+        shader_bundle_ref_key: runtime_canvas_binding
+            .and_then(|entry| entry.shader_bundle_ref_key.clone())
+            .or_else(|| resolved_ref.as_ref().map(|entry| entry.key.clone())),
         wgsl_source,
         resource_layouts,
         warning,
@@ -4534,6 +4656,8 @@ fn shader_surface_signature(descriptor: &ResolvedUiShaderSurface) -> String {
     descriptor.shader_name.hash(&mut hasher);
     descriptor.module_name.hash(&mut hasher);
     descriptor.fragment_entry_point.hash(&mut hasher);
+    descriptor.canonical_native_payload.hash(&mut hasher);
+    descriptor.shader_bundle_ref_key.hash(&mut hasher);
     descriptor.wgsl_source.hash(&mut hasher);
     format!(
         "{}:{}:{:016x}",
@@ -5873,6 +5997,21 @@ mod tests {
                 neural_nodes: Vec::new(),
             },
         );
+        realtime_catalog.shader_canvases_by_surface.insert(
+            "surface.hero".to_string(),
+            RealtimeShaderCanvasBinding {
+                surface_id: "surface.hero".to_string(),
+                shader_ref: "ui.hero_surface".to_string(),
+                shader_bundle_ref_key: Some("ui.hero_surface".to_string()),
+                shader_name: Some("hero_surface_fragment".to_string()),
+                module_name: Some("ui_hero_surface".to_string()),
+                stage: "fragment".to_string(),
+                entry_point: Some("hero_main".to_string()),
+                derived_format: Some("wgsl".to_string()),
+                renderer_preference: "shader".to_string(),
+                composition_mode: "shader-canvas".to_string(),
+            },
+        );
         let shader_bundle = test_shader_artifact_bundle();
 
         let resolved = resolve_ui_shader_surface_from_catalog(
@@ -5887,6 +6026,11 @@ mod tests {
         assert_eq!(resolved.module_name, "ui_hero_surface");
         assert_eq!(resolved.fragment_entry_point, "hero_main");
         assert_eq!(resolved.derived_format, "wgsl");
+        assert_eq!(resolved.canonical_native_payload, "wgsl");
+        assert_eq!(
+            resolved.shader_bundle_ref_key.as_deref(),
+            Some("ui.hero_surface")
+        );
         assert_eq!(resolved.resource_layouts.len(), 1);
         assert!(resolved.wgsl_source.contains("hero_main"));
         assert!(resolved.warning.is_none());
@@ -6011,4 +6155,3 @@ fn hero_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
         }
     }
 }
-
