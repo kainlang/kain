@@ -5,6 +5,8 @@
     "luminous_immersive": "luminous_immersive.json",
     "orbit_chat": "orbit_chat.json",
     "mesh_actor_ops": "mesh_actor_ops.json",
+    "atlas_docs": "atlas_docs.json",
+    "operator_foundry": "operator_foundry.json",
     "hybrid_command": "hybrid_command.json"
   }
 }

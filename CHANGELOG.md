@@ -5,6 +5,72 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=f584b0a27323c710 -->
+## 2026-03-26 00:23:55 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `63bed8b0`
+- Changed files: 9
+- [.M] `crates/cli/src/import_c.rs`
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/kain-c-ffi/src/lib.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+- [.M] `crates/repomap.md`
+- [??] `crates/cli/tests/fixtures/import_c/kain_runtime_clean.c`
+- [??] `crates/flowgraph.json`
+- [??] `crates/flowmap.md`
+
+<!-- polytools-changelog:fingerprint=9e3380d844937bca -->
+## 2026-03-26 00:02:14 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `63bed8b0`
+- Changed files: 8
+- [.M] `crates/cli/src/import_c.rs`
+- [.M] `crates/kain-c-ffi/src/lib.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+- [.M] `crates/repomap.md`
+- [??] `crates/cli/tests/fixtures/import_c/kain_runtime_clean.c`
+- [??] `crates/flowgraph.json`
+- [??] `crates/flowmap.md`
+
+<!-- polytools-changelog:fingerprint=c9d170d59d4b8449 -->
+## 2026-03-25 23:57:48 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `63bed8b0`
+- Changed files: 5
+- [.M] `crates/cli/src/import_c.rs`
+- [.M] `crates/kain-c-ffi/src/lib.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+- [??] `crates/cli/tests/fixtures/import_c/kain_runtime_clean.c`
+
+<!-- polytools-changelog:fingerprint=81a1648fc222e987 -->
+## 2026-03-25 23:55:08 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `63bed8b0`
+- Changed files: 4
+- [.M] `crates/cli/src/import_c.rs`
+- [.M] `crates/kain-c-ffi/src/lib.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+- [??] `crates/cli/tests/fixtures/import_c/kain_runtime_clean.c`
+
+<!-- polytools-changelog:fingerprint=c5df6e8d4cce1826 -->
+## 2026-03-25 23:53:06 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `63bed8b0`
+- Changed files: 3
+- [.M] `crates/cli/src/import_c.rs`
+- [.M] `crates/kain-c-ffi/src/lib.rs`
+- [??] `crates/cli/tests/fixtures/import_c/kain_runtime_clean.c`
+
+<!-- polytools-changelog:fingerprint=a8a6259d423ba4e6 -->
+## 2026-03-25 23:52:55 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `63bed8b0`
+- Changed files: 1
+- [.M] `crates/kain-c-ffi/src/lib.rs`
+
 <!-- polytools-changelog:fingerprint=ee26938d73577112 -->
 ## 2026-03-25 22:25:17 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

@@ -1,0 +1,14 @@
+{
+  "background_top": "#0c1022",
+  "background_bottom": "#130815",
+  "surface": "#161d34",
+  "surface_alt": "#1f2847",
+  "line": "rgba(150, 224, 255, 0.16)",
+  "accent": "#65f0c7",
+  "accent_soft": "#d3fff1",
+  "highlight": "#ffd479",
+  "text": "#f6fbff",
+  "muted": "#9eb0c9",
+  "font_display": "'Clash Display', 'Segoe UI Variable', sans-serif",
+  "font_body": "'Plus Jakarta Sans', 'Segoe UI Variable', sans-serif"
+}

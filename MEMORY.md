@@ -10,6 +10,30 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-25 - Fabric Polyglot Execution Became A Real Local-First Lane
+
+Fabric stopped being mostly a manifest validator plus partial executor and became a runnable local-first polyglot pipeline across every declared runtime kind.
+
+What changed:
+
+- `kain-host` now executes `kain`, `python`, `rust_crate`, `c_abi`, and `node` Fabric steps as real local runtime adapters instead of stopping after the Kain/Python lanes
+- Fabric step outputs now stay aligned with the canonical contract kinds through typed host payloads, so downstream steps consume named `value`, `shared_buffer`, and `shared_image` results instead of string-only placeholders
+- Python and Node Fabric glue now support mixed named outputs by returning a dict/object whose fields match the manifest output names, while shared payloads still remain host-owned canonical handles under the hood
+- `kain-omni`'s `kain fabric init --template polyglot` scaffold now emits the same smoke-grade local topology that the repo uses for end-to-end proof, including a local Rust crate manifest and native C fixture
+- the `cli` import-c self-hosting regression no longer depends on `M:\Code\Other\kainselfhosting\...`; it now uses a repo-local fixture, and the over-eager C-FFI target gating bug was fixed so non-C-import sources stop failing unrelated staging tests
+
+Why this matters:
+
+- Fabric now feels like a real execution layer inside the repo's existing architecture rather than a future-facing placeholder
+- the host/runtime split stayed honest: `kain-omni` still owns manifest schema and validation, while `kain-host` owns runtime execution and typed dependency plumbing
+- the default polyglot template is now a practical onboarding path instead of a manifest that validates but cannot prove the full local pipeline
+
+What future work should preserve:
+
+- keep Fabric contract truth anchored to the canonical interop payload kinds instead of growing a second output typing system
+- keep Python and Node on their normalized serialized-input lane for foreign values, but let the host keep ownership of the real shared buffer and image handles
+- keep polyglot smoke fixtures and generated templates close enough that one can continue serving as the proving ground for the other
+
 ## 2026-03-25 - Viewport Camera And Presentation Defaults Became Bundle-Owned
 
 Viewport startup behavior stopped being mostly host-local inference and became a wider part of the realtime bundle contract.

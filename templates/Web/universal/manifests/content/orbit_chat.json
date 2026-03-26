@@ -30,6 +30,24 @@
     { "kicker": "Route", "title": "Action-aware replies", "body": "The local runtime can explain routes, actors, and next actions instead of echoing canned text." },
     { "kicker": "Escalate", "title": "Form handoff", "body": "Move directly from chat into a structured intake form when needed." }
   ],
+  "prompt_presets": [
+    { "kicker": "Launch", "title": "Route to a business site", "prompt": "Build me a launch site with pricing and docs", "body": "Switch the conversation toward business messaging, pricing, and search.", "button_label": "Route launch" },
+    { "kicker": "Immersive", "title": "Route to a 3D site", "prompt": "Show me an immersive 3D campaign shell", "body": "Pivot toward scene-led storytelling and release surfaces.", "button_label": "Route 3D" },
+    { "kicker": "Ops", "title": "Route to actor server", "prompt": "I need an actor-based dashboard and route catalog", "body": "Pull the conversation toward routes, actors, and operator APIs.", "button_label": "Route ops" }
+  ],
+  "process_steps": [
+    { "title": "Seed the conversation", "body": "Start with intent-rich prompt cards instead of leaving visitors in an empty chat box." },
+    { "title": "Route to a lane", "body": "Use local prompt and keyword matching to move toward the right archetype or next action." },
+    { "title": "Escalate to a form", "body": "Convert a good conversation into a structured intake record without leaving the page." }
+  ],
+  "capability_matrix": {
+    "columns": ["Starter", "Extended", "Operator"],
+    "rows": [
+      { "label": "Prompt routing", "values": ["seeded", "intent-aware", "actor-backed"] },
+      { "label": "Search", "values": ["local index", "docs + prompts", "catalog + routes"] },
+      { "label": "Escalation", "values": ["single form", "handoff flow", "ops intake"] }
+    ]
+  },
   "link_groups": [
     { "kicker": "Modes", "title": "Suggested prompt rails", "body": "Use link clusters to pull visitors into better prompts faster.", "links": [{ "label": "Build me a launch site", "href": "#chat" }, { "label": "Show actor routes", "href": "#systems" }, { "label": "Search docs", "href": "#search" }] }
   ],

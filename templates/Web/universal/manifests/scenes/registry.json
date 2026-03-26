@@ -2,6 +2,8 @@
   "entries": {
     "luminous_grid": "luminous_grid.json",
     "mesh_control_room": "mesh_control_room.json",
+    "archive_spine": "archive_spine.json",
+    "command_spindle": "command_spindle.json",
     "signal_atrium": "signal_atrium.json"
   }
 }

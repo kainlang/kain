@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "name": "kain_universal_web",
   "default_experience": "hybrid_command",
   "output_root": "outputs/sites",
@@ -21,10 +21,14 @@
       "metric_card",
       "portfolio_filter",
       "chat_lab",
+      "prompt_deck",
       "faq_toggle",
       "form_submit",
       "search_panel",
-      "actor_watch"
+      "actor_watch",
+      "catalog_api",
+      "chat_stream",
+      "capability_matrix"
     ]
   },
   "build": {
@@ -34,6 +38,8 @@
       "immersive_luminous",
       "chat_orbit",
       "actor_mesh_foundry",
+      "knowledge_atlas",
+      "operator_foundry",
       "hybrid_command"
     ]
   }

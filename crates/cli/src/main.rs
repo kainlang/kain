@@ -2401,8 +2401,8 @@ fn runtime_search_roots() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        load_native_runtime_manifest, platform_link_libs, sanitize_runtime_name,
-        NativeRuntimeLinkManifest,
+        default_native_runtime_link_libs, load_native_runtime_manifest, platform_link_libs,
+        sanitize_runtime_name, unique_link_libs, NativeRuntimeLinkManifest,
     };
     use std::fs;
 
@@ -2451,10 +2451,14 @@ macos = ["Cocoa"]
         assert_eq!(resolved.defines, vec!["KAIN_TEST=1".to_string()]);
         assert_eq!(
             resolved.link_libs,
-            platform_link_libs(&NativeRuntimeLinkManifest {
-                windows: vec!["user32".to_string(), "gdi32".to_string()],
-                linux: vec!["m".to_string()],
-                macos: vec!["Cocoa".to_string()],
+            unique_link_libs({
+                let mut libs = default_native_runtime_link_libs();
+                libs.extend(platform_link_libs(&NativeRuntimeLinkManifest {
+                    windows: vec!["user32".to_string(), "gdi32".to_string()],
+                    linux: vec!["m".to_string()],
+                    macos: vec!["Cocoa".to_string()],
+                }));
+                libs
             })
         );
     }

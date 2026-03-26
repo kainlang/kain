@@ -985,36 +985,88 @@ fn register_fabric_extensions() {
     kain_c_ffi::register();
 }
 
+fn render_declared_output_struct(
+    struct_name: &str,
+    outputs: &[kain_omni::fabric::FabricOutputBinding],
+) -> Option<String> {
+    if outputs.len() <= 1 {
+        return None;
+    }
+
+    let mut lines = vec![format!("struct {struct_name}:")];
+    for output in outputs {
+        lines.push(format!("    {}: Any", output.name));
+    }
+    Some(lines.join("\n"))
+}
+
+fn render_python_output_projection(
+    struct_name: &str,
+    outputs: &[kain_omni::fabric::FabricOutputBinding],
+) -> String {
+    let fields = outputs
+        .iter()
+        .map(|output| {
+            let field_name = kain_string_literal(&output.name);
+            let value_expr = match output.kind {
+                FabricContractKind::Value => format!(
+                    "py_bridge_call(\"__kain_fabric_output_field\", [fabric_result, {field_name}])"
+                ),
+                FabricContractKind::SharedBuffer => format!(
+                    "py_bridge_shared_buffer(py_bridge_call_raw(\"__kain_fabric_output_field\", [fabric_result, {field_name}]))"
+                ),
+                FabricContractKind::SharedImage => format!(
+                    "py_bridge_shared_image(py_bridge_call_raw(\"__kain_fabric_output_field\", [fabric_result, {field_name}]))"
+                ),
+            };
+            format!("{}: {value_expr}", output.name)
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("return {struct_name} {{ {fields} }}")
+}
+
+fn render_node_output_projection(
+    struct_name: &str,
+    outputs: &[kain_omni::fabric::FabricOutputBinding],
+) -> String {
+    let fields = outputs
+        .iter()
+        .map(|output| {
+            let field_name = kain_string_literal(&output.name);
+            let value_expr = match output.kind {
+                FabricContractKind::Value => {
+                    format!("js_bridge_getattr(fabric_result, {field_name})")
+                }
+                FabricContractKind::SharedBuffer => format!(
+                    "js_web_shared_buffer(js_bridge_getattr_raw(fabric_result, {field_name}))"
+                ),
+                FabricContractKind::SharedImage => format!(
+                    "js_web_shared_image(js_bridge_getattr_raw(fabric_result, {field_name}))"
+                ),
+            };
+            format!("{}: {value_expr}", output.name)
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("return {struct_name} {{ {fields} }}")
+}
+
 fn render_python_harness(context: &FabricAdapterContext) -> Result<String, FabricFailureReason> {
     let runtime_call = python_call_expression(context)?;
+    let output_struct = render_declared_output_struct("FabricPythonOutputs", &context.step.outputs)
+        .map(|definition| format!("{definition}\n\n"))
+        .unwrap_or_default();
     Ok(format!(
-        "use std::python::bridge\n\nfn main() -> Any:\n    {runtime_call}\n"
+        "use std::python::bridge\n\n{output_struct}fn main() -> Any:\n    {runtime_call}\n"
     ))
 }
 
 fn python_call_expression(context: &FabricAdapterContext) -> Result<String, FabricFailureReason> {
-    if context.step.outputs.len() > 1
-        && context
-            .step
-            .outputs
-            .iter()
-            .any(|output| output.kind != FabricContractKind::Value)
-    {
-        return Err(fabric_failure(
-            "unsupported_python_output_shape",
-            format!(
-                "Fabric step '{}' uses runtime 'python' with multiple shared outputs. Return a single shared contract output or a plain value object.",
-                context.step.id
-            ),
-        ));
-    }
-
-    let single_output_kind = context
-        .step
-        .outputs
-        .first()
-        .map(|output| output.kind)
-        .unwrap_or(FabricContractKind::Value);
+    let multi_output_step = context.step.outputs.len() > 1;
+    let python_output_helper = kain_string_literal(
+        "def __kain_fabric_output_field(payload, name):\n    if isinstance(payload, dict):\n        return payload[name]\n    return getattr(payload, name)\n",
+    );
 
     if let Some(entry) = &context.step.entry {
         let resolved_entry = resolve_fabric_path(context.workspace_root, entry);
@@ -1026,20 +1078,34 @@ fn python_call_expression(context: &FabricAdapterContext) -> Result<String, Fabr
             .unwrap_or_else(|| "run".to_string());
         let exec_source = kain_string_literal(&source);
         let callable = kain_string_literal(&callable_name);
-        let result_expr = match single_output_kind {
-            FabricContractKind::Value => {
-                format!("py_bridge_call({callable}, [fabric_serialized_inputs])")
-            }
-            FabricContractKind::SharedBuffer => {
-                format!("py_bridge_shared_buffer(py_bridge_call_raw({callable}, [fabric_serialized_inputs]))")
-            }
-            FabricContractKind::SharedImage => {
-                format!("py_bridge_shared_image(py_bridge_call_raw({callable}, [fabric_serialized_inputs]))")
-            }
-        };
-        Ok(format!(
-            "py_bridge_exec({exec_source})\n    return {result_expr}"
-        ))
+        if multi_output_step {
+            let projection =
+                render_python_output_projection("FabricPythonOutputs", &context.step.outputs);
+            Ok(format!(
+                "py_bridge_exec({exec_source})\n    py_bridge_exec({python_output_helper})\n    let fabric_result = py_bridge_call_raw({callable}, [fabric_serialized_inputs])\n    {projection}"
+            ))
+        } else {
+            let single_output_kind = context
+                .step
+                .outputs
+                .first()
+                .map(|output| output.kind)
+                .unwrap_or(FabricContractKind::Value);
+            let result_expr = match single_output_kind {
+                FabricContractKind::Value => {
+                    format!("py_bridge_call({callable}, [fabric_serialized_inputs])")
+                }
+                FabricContractKind::SharedBuffer => {
+                    format!("py_bridge_shared_buffer(py_bridge_call_raw({callable}, [fabric_serialized_inputs]))")
+                }
+                FabricContractKind::SharedImage => {
+                    format!("py_bridge_shared_image(py_bridge_call_raw({callable}, [fabric_serialized_inputs]))")
+                }
+            };
+            Ok(format!(
+                "py_bridge_exec({exec_source})\n    return {result_expr}"
+            ))
+        }
     } else {
         let module_name = context.step.module.clone().ok_or_else(|| {
             fabric_failure(
@@ -1051,40 +1117,38 @@ fn python_call_expression(context: &FabricAdapterContext) -> Result<String, Fabr
             )
         })?;
         let module_literal = kain_string_literal(&module_name);
-        let result_expr = match single_output_kind {
-            FabricContractKind::Value => {
-                format!(
-                    "py_bridge_call_attr(py_bridge_require_module({module_literal}), \"run\", [fabric_serialized_inputs])"
-                )
-            }
-            FabricContractKind::SharedBuffer => format!(
-                "py_bridge_shared_buffer(py_bridge_call_attr_raw(py_bridge_require_module({module_literal}), \"run\", [fabric_serialized_inputs]))"
-            ),
-            FabricContractKind::SharedImage => format!(
-                "py_bridge_shared_image(py_bridge_call_attr_raw(py_bridge_require_module({module_literal}), \"run\", [fabric_serialized_inputs]))"
-            ),
-        };
-        Ok(format!("return {result_expr}"))
+        if multi_output_step {
+            let projection =
+                render_python_output_projection("FabricPythonOutputs", &context.step.outputs);
+            Ok(format!(
+                "py_bridge_exec({python_output_helper})\n    let fabric_module = py_bridge_require_module({module_literal})\n    let fabric_result = py_bridge_call_attr_raw(fabric_module, \"run\", [fabric_serialized_inputs])\n    {projection}"
+            ))
+        } else {
+            let single_output_kind = context
+                .step
+                .outputs
+                .first()
+                .map(|output| output.kind)
+                .unwrap_or(FabricContractKind::Value);
+            let result_expr = match single_output_kind {
+                FabricContractKind::Value => {
+                    format!(
+                        "py_bridge_call_attr(py_bridge_require_module({module_literal}), \"run\", [fabric_serialized_inputs])"
+                    )
+                }
+                FabricContractKind::SharedBuffer => format!(
+                    "py_bridge_shared_buffer(py_bridge_call_attr_raw(py_bridge_require_module({module_literal}), \"run\", [fabric_serialized_inputs]))"
+                ),
+                FabricContractKind::SharedImage => format!(
+                    "py_bridge_shared_image(py_bridge_call_attr_raw(py_bridge_require_module({module_literal}), \"run\", [fabric_serialized_inputs]))"
+                ),
+            };
+            Ok(format!("return {result_expr}"))
+        }
     }
 }
 
 fn render_node_harness(context: &FabricAdapterContext) -> Result<String, FabricFailureReason> {
-    if context.step.outputs.len() > 1
-        && context
-            .step
-            .outputs
-            .iter()
-            .any(|output| output.kind != FabricContractKind::Value)
-    {
-        return Err(fabric_failure(
-            "unsupported_node_output_shape",
-            format!(
-                "Fabric step '{}' uses runtime 'node' with multiple shared outputs. Return a single shared contract output or a plain value object.",
-                context.step.id
-            ),
-        ));
-    }
-
     let import_specifier = if let Some(entry) = &context.step.entry {
         let resolved_entry = resolve_fabric_path(context.workspace_root, entry);
         path_to_node_specifier(&resolved_entry)
@@ -1110,28 +1174,39 @@ fn render_node_harness(context: &FabricAdapterContext) -> Result<String, FabricF
         "run".to_string()
     };
 
-    let single_output_kind = context
-        .step
-        .outputs
-        .first()
-        .map(|output| output.kind)
-        .unwrap_or(FabricContractKind::Value);
     let import_literal = kain_string_literal(&import_specifier);
     let export_literal = kain_string_literal(&export_name);
-    let result_expr = match single_output_kind {
-        FabricContractKind::Value => {
-            format!("js_bridge_call_method(module_ref, {export_literal}, [fabric_serialized_inputs])")
-        }
-        FabricContractKind::SharedBuffer => format!(
-            "js_web_shared_buffer(js_bridge_call_method_raw(module_ref, {export_literal}, [fabric_serialized_inputs]))"
-        ),
-        FabricContractKind::SharedImage => format!(
-            "js_web_shared_image(js_bridge_call_method_raw(module_ref, {export_literal}, [fabric_serialized_inputs]))"
-        ),
+    let output_struct = render_declared_output_struct("FabricNodeOutputs", &context.step.outputs)
+        .map(|definition| format!("{definition}\n\n"))
+        .unwrap_or_default();
+    let runtime_lines = if context.step.outputs.len() > 1 {
+        let projection = render_node_output_projection("FabricNodeOutputs", &context.step.outputs);
+        format!(
+            "let module_ref = js_bridge_import({import_literal})\n    let fabric_result = js_bridge_call_method_raw(module_ref, {export_literal}, [fabric_serialized_inputs])\n    {projection}"
+        )
+    } else {
+        let single_output_kind = context
+            .step
+            .outputs
+            .first()
+            .map(|output| output.kind)
+            .unwrap_or(FabricContractKind::Value);
+        let result_expr = match single_output_kind {
+            FabricContractKind::Value => {
+                format!("js_bridge_call_method(module_ref, {export_literal}, [fabric_serialized_inputs])")
+            }
+            FabricContractKind::SharedBuffer => format!(
+                "js_web_shared_buffer(js_bridge_call_method_raw(module_ref, {export_literal}, [fabric_serialized_inputs]))"
+            ),
+            FabricContractKind::SharedImage => format!(
+                "js_web_shared_image(js_bridge_call_method_raw(module_ref, {export_literal}, [fabric_serialized_inputs]))"
+            ),
+        };
+        format!("let module_ref = js_bridge_import({import_literal})\n    return {result_expr}")
     };
 
     Ok(format!(
-        "use std::javascript::bridge\nuse std::javascript::web\n\nfn main() -> Any:\n    let module_ref = js_bridge_import({import_literal})\n    return {result_expr}\n"
+        "use std::javascript::bridge\nuse std::javascript::web\n\n{output_struct}fn main() -> Any:\n    {runtime_lines}\n"
     ))
 }
 
@@ -1483,6 +1558,136 @@ mod tests {
             result.step_results[0].outputs[0].declared_kind,
             FabricContractKind::Value
         );
+    }
+
+    #[test]
+    fn polyglot_init_template_executes_end_to_end() {
+        let dir = tempfile::tempdir().unwrap();
+        let init =
+            kain_omni::init_fabric_manifest(dir.path(), kain_omni::FabricTemplateKind::Polyglot)
+                .unwrap();
+        compile_fixture_shared_library(dir.path());
+
+        let result = execute_fabric_manifest_path(&init.manifest_path).unwrap();
+
+        assert_eq!(
+            result.status,
+            FabricSessionStatus::Succeeded,
+            "{}",
+            fs::read_to_string(&result.report_path).unwrap_or_else(|_| {
+                format!(
+                    "failed to read Fabric report at {}",
+                    result.report_path.display()
+                )
+            })
+        );
+        assert_eq!(result.step_results.len(), 5);
+        assert!(result
+            .step_results
+            .iter()
+            .all(|step| step.status == FabricStepStatus::Succeeded));
+        assert!(result
+            .step_results
+            .iter()
+            .any(|step| step.id == "python_source"));
+        assert!(result
+            .step_results
+            .iter()
+            .any(|step| step.id == "node_packager"));
+    }
+
+    #[test]
+    fn python_harness_supports_mixed_multi_output_steps() {
+        let step = FabricStep {
+            id: "python_bridge".to_string(),
+            runtime: FabricRuntimeKind::Python,
+            entry: None,
+            module: Some("fabric_python_bridge".to_string()),
+            crate_name: None,
+            manifest_path: None,
+            library: None,
+            depends_on: Vec::new(),
+            requires: Vec::new(),
+            outputs: vec![
+                kain_omni::fabric::FabricOutputBinding {
+                    name: "report".to_string(),
+                    kind: FabricContractKind::Value,
+                },
+                kain_omni::fabric::FabricOutputBinding {
+                    name: "image".to_string(),
+                    kind: FabricContractKind::SharedImage,
+                },
+                kain_omni::fabric::FabricOutputBinding {
+                    name: "snapshot".to_string(),
+                    kind: FabricContractKind::SharedBuffer,
+                },
+            ],
+        };
+        let manifest_root = Path::new("M:/Code/Kain");
+        let manifest_path = manifest_root.join("KAIN.fabric.toml");
+        let context = FabricAdapterContext {
+            manifest_path: &manifest_path,
+            manifest_root,
+            workspace_root: manifest_root,
+            session_directory: manifest_root,
+            step: &step,
+            fabric_inputs: Value::Unit,
+        };
+
+        let harness = render_python_harness(&context).unwrap();
+
+        assert!(harness.contains("struct FabricPythonOutputs:"));
+        assert!(harness.contains("__kain_fabric_output_field"));
+        assert!(harness.contains("py_bridge_call_attr_raw(fabric_module, \"run\""));
+        assert!(harness.contains("py_bridge_shared_image("));
+        assert!(harness.contains("py_bridge_shared_buffer("));
+    }
+
+    #[test]
+    fn node_harness_supports_mixed_multi_output_steps() {
+        let step = FabricStep {
+            id: "node_bridge".to_string(),
+            runtime: FabricRuntimeKind::Node,
+            entry: None,
+            module: Some("fabric_node_bridge".to_string()),
+            crate_name: None,
+            manifest_path: None,
+            library: None,
+            depends_on: Vec::new(),
+            requires: Vec::new(),
+            outputs: vec![
+                kain_omni::fabric::FabricOutputBinding {
+                    name: "report".to_string(),
+                    kind: FabricContractKind::Value,
+                },
+                kain_omni::fabric::FabricOutputBinding {
+                    name: "image".to_string(),
+                    kind: FabricContractKind::SharedImage,
+                },
+                kain_omni::fabric::FabricOutputBinding {
+                    name: "snapshot".to_string(),
+                    kind: FabricContractKind::SharedBuffer,
+                },
+            ],
+        };
+        let manifest_root = Path::new("M:/Code/Kain");
+        let manifest_path = manifest_root.join("KAIN.fabric.toml");
+        let context = FabricAdapterContext {
+            manifest_path: &manifest_path,
+            manifest_root,
+            workspace_root: manifest_root,
+            session_directory: manifest_root,
+            step: &step,
+            fabric_inputs: Value::Unit,
+        };
+
+        let harness = render_node_harness(&context).unwrap();
+
+        assert!(harness.contains("struct FabricNodeOutputs:"));
+        assert!(harness.contains("js_bridge_call_method_raw"));
+        assert!(harness.contains("js_bridge_getattr(fabric_result"));
+        assert!(harness.contains("js_web_shared_image("));
+        assert!(harness.contains("js_web_shared_buffer("));
     }
 
     #[test]

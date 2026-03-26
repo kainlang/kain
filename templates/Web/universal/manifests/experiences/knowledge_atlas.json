@@ -1,0 +1,27 @@
+{
+  "mode": "docs_hub",
+  "theme": "circuit_bloom",
+  "content": "atlas_docs",
+  "scene": "archive_spine",
+  "output_slug": "knowledge-atlas",
+  "page_title": "Atlas Knowledge Hub",
+  "eyebrow": "Knowledge Website",
+  "sections": [
+    { "id": "blueprints", "kind": "blueprint_grid", "eyebrow": "Blueprints", "title": "Knowledge system blueprints", "source": "content.blueprints" },
+    { "id": "capabilities", "kind": "capability_matrix", "eyebrow": "Capability", "title": "How the docs hub scales", "source": "content.capability_matrix" },
+    { "id": "process", "kind": "process_steps", "eyebrow": "Flow", "title": "How to run the knowledge surface", "source": "content.process_steps" },
+    { "id": "docs", "kind": "docs_grid", "eyebrow": "Docs", "title": "Core guides and runbooks", "source": "content.docs_links" },
+    { "id": "commands", "kind": "command_lines", "eyebrow": "Command", "title": "Useful commands", "source": "content.command_lines" },
+    { "id": "search", "kind": "search_panel", "eyebrow": "Search", "title": "Search docs, commands, and APIs", "source": "experience.search_panel" },
+    { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Knowledge lane questions", "source": "content.faq_items" },
+    { "id": "intake", "kind": "form_panel", "eyebrow": "Request", "title": "Capture docs gaps", "source": "content.forms.docs_request" },
+    { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }
+  ],
+  "search_panel": {
+    "kicker": "Search",
+    "title": "Search the knowledge system",
+    "body": "Use one local index across guides, commands, prompts, and route notes.",
+    "placeholder": "search docs, commands, apis...",
+    "button_label": "Search"
+  }
+}

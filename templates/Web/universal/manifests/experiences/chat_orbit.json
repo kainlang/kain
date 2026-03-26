@@ -8,7 +8,10 @@
   "eyebrow": "Chat Website",
   "sections": [
     { "id": "systems", "kind": "card_grid", "eyebrow": "System", "title": "Chat systems", "source": "content.feature_cards" },
+    { "id": "prompts", "kind": "prompt_deck", "eyebrow": "Prompts", "title": "Launch prompt rails", "source": "content.prompt_presets" },
     { "id": "chat", "kind": "chat_lab", "eyebrow": "Chat", "title": "Prompt studio", "source": "content.chat_seed", "placeholder": "Describe the site you want built", "button_label": "Route" },
+    { "id": "capabilities", "kind": "capability_matrix", "eyebrow": "Capability", "title": "Conversation systems", "source": "content.capability_matrix" },
+    { "id": "process", "kind": "process_steps", "eyebrow": "Flow", "title": "How chat becomes a site workflow", "source": "content.process_steps" },
     { "id": "search", "kind": "search_panel", "eyebrow": "Search", "title": "Search prompts and docs", "source": "experience.search_panel" },
     { "id": "flows", "kind": "link_groups", "eyebrow": "Flows", "title": "Prompt rails", "source": "content.link_groups" },
     { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Conversation lane questions", "source": "content.faq_items" },

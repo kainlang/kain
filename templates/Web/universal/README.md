@@ -21,7 +21,7 @@
 - `helpers/web_runtime.mjs`
   - manifest loader
   - HTML and client-island renderer
-  - local search, chat, forms, and route APIs
+  - local search, chat, prompt-deck, catalog, form, and route APIs
   - static artifact writer
   - actor-aware local HTTP server
 - `package.json`
@@ -47,6 +47,8 @@
 - `immersive_luminous`
 - `chat_orbit`
 - `actor_mesh_foundry`
+- `knowledge_atlas`
+- `operator_foundry`
 - `hybrid_command`
 
 ## Artifacts Emitted Per Experience
@@ -71,10 +73,20 @@ Use the Node-only scripts:
 
 ```powershell
 npm run build
+npm run catalog
 npm run serve:hybrid
+npm run serve:docs
+npm run serve:operator
 npm run experience:hybrid
 npm run actor:hybrid
 ```
 
 Switch to a TypeScript-aware helper runtime by changing `[node_ffi]` in
 `KAIN.toml` from `node` to `npx` with `tsx`.
+
+New reusable section kinds in this pass:
+
+- `prompt_deck`
+- `process_steps`
+- `capability_matrix`
+- `blueprint_grid`

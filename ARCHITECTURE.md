@@ -131,6 +131,9 @@ Typical commands:
 - `kain gpu-artifacts <file.kn> --output <dir>`
 - `kain selfhost phase1`
 - `kain omni build`
+- `kain fabric init --template polyglot`
+- `kain fabric validate`
+- `kain fabric run`
 - `kain import-c`, `kain import-rust`, `kain import-ts`, `kain import-asm`, `kain import-crate`
 
 If the debug CLI is missing:
@@ -149,7 +152,7 @@ If the debug CLI is missing:
 ## Common Errors
 
 - The root `README.md` is useful, but live source and the built CLI are the real source of truth.
-- Full workspace validation is not globally clean; a recurring blocker is the external self-hosting fixture under `M:\Code\Other\kainselfhosting\...`.
+- The `cli` suite no longer depends on the external self-hosting fixture under `M:\Code\Other\kainselfhosting\...`; the repo-local import-c fixture under `crates/cli/tests/fixtures/import_c` is the durable regression source now.
 - Large Windows test binaries can hit linker OOM pressure.
 - `generated/`, `target/`, `.kain`, runtime sidecars, and compiled smoke outputs are disposable unless explicitly archived under `docs/validation/` or `docs/recent/`.
 - The native runtime is Windows-first today. Linux and macOS surfaces exist, but much of that lane is still stubbed or partial.
@@ -158,7 +161,9 @@ If the debug CLI is missing:
 - Fabric Python execution should stay behind `kain-python` helpers. Do not make `kain-host` reach directly into `pyo3` imports or `PythonScopeState` internals when the Python lane can expose a narrower execution API.
 - Fabric runtime ownership is now split cleanly: `kain-omni` owns `KAIN.fabric.toml` schema/validation/report types, while `kain-host` owns local execution, dependency plumbing, and runtime adapter behavior.
 - Fabric step inputs now have two host-facing forms: raw `fabric_inputs` for Kain/C/Rust glue that needs canonical shared contract handles, and normalized `fabric_serialized_inputs` for Python/Node glue that cannot accept foreign host objects directly.
+- Fabric Python and Node steps now support mixed named outputs when they return a dict/object whose fields match the manifest's declared output names. Value outputs are normalized, while shared outputs still flow through canonical host-owned interop handles.
 - The durable end-to-end Fabric proof lives under `smoketest/fabric/polyglot_local`. It is the quickest repo-local example of Python -> Kain -> C ABI -> Rust crate -> Node execution with typed shared image/shared buffer flow.
+- `kain fabric init --template polyglot` now emits a runnable local smoke-grade scaffold, including its local Rust crate manifest and native C fixture, instead of a validation-only placeholder.
 
 ## Template Packs
 

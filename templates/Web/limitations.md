@@ -79,3 +79,25 @@ Current template approach:
 Requested upstream capability:
 
 - a Kain-owned browser asset/runtime lane that can materialize static assets, bundle client modules, and bind scene contracts into real browser rendering backends from the same authored source family
+
+### 8. Auth, payments, and persistent data contracts are still template-owned gaps
+
+Current template approach:
+
+- forms persist locally to JSONL during prototyping
+- operator routes, docs requests, and handoff flows stop at local helper-owned persistence
+
+Requested upstream capability:
+
+- first-class Kain-side contracts for authentication, payment intents, and persistent typed storage so serious product sites do not have to invent these on top of the helper runtime
+
+### 9. Streaming and socket-grade realtime flows are only lightly previewed
+
+Current template approach:
+
+- the helper runtime now exposes a basic server-sent-events preview route
+- there is no first-class Kain-owned websocket or browser realtime contract here yet
+
+Requested upstream capability:
+
+- a durable Kain runtime surface for streaming/browser session state so chat-heavy and operator-heavy sites can graduate from helper-owned previews to real realtime orchestration

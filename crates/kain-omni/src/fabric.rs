@@ -386,51 +386,52 @@ pub fn init_fabric_manifest(
             let src_dir = root.join("src");
             let scripts_dir = root.join("scripts");
             let native_dir = root.join("native");
+            let local_crate_dir = root.join("local_crate");
+            let local_crate_src_dir = local_crate_dir.join("src");
             fs::create_dir_all(&src_dir)?;
             fs::create_dir_all(&scripts_dir)?;
             fs::create_dir_all(&native_dir)?;
+            fs::create_dir_all(&local_crate_src_dir)?;
 
             let kain_entry = src_dir.join("main.kn");
-            write_if_missing(
-                &kain_entry,
-                "fn main() -> String:\n    println(\"kain fabric kain step\")\n    return \"fabric-kain-step\"\n",
-            )?;
+            write_if_missing(&kain_entry, POLYGLOT_KAIN_ENTRY)?;
             created_paths.push(kain_entry);
 
             let python_step = scripts_dir.join("python_step.py");
-            write_if_missing(
-                &python_step,
-                "def run(fabric_inputs):\n    return {\"status\": \"python-step-ready\", \"message\": \"provide a real Fabric fixture or local glue\"}\n",
-            )?;
+            write_if_missing(&python_step, POLYGLOT_PYTHON_STEP)?;
             created_paths.push(python_step);
 
             let node_step = scripts_dir.join("node_step.mjs");
-            write_if_missing(
-                &node_step,
-                "export function run(fabricInputs) {\n  return { status: 'node-step-ready', dependencies: Object.keys(fabricInputs ?? {}) };\n}\n",
-            )?;
+            write_if_missing(&node_step, POLYGLOT_NODE_STEP)?;
             created_paths.push(node_step);
 
             let rust_entry = src_dir.join("rust_step.kn");
-            write_if_missing(
-                &rust_entry,
-                "fn main() -> String:\n    return \"fabric-rust-step-placeholder\"\n",
-            )?;
+            write_if_missing(&rust_entry, POLYGLOT_RUST_ENTRY)?;
             created_paths.push(rust_entry);
 
             let native_entry = src_dir.join("native_step.kn");
-            write_if_missing(
-                &native_entry,
-                "fn main() -> String:\n    return \"fabric-native-step-placeholder\"\n",
-            )?;
+            write_if_missing(&native_entry, POLYGLOT_NATIVE_ENTRY)?;
             created_paths.push(native_entry);
 
-            let native_readme = native_dir.join("README.md");
-            write_if_missing(
-                &native_readme,
-                "# Native bridge placeholders\n\nPlace future C ABI libraries, bridge manifests, or compiled shared libraries here for Fabric sessions.\n",
-            )?;
-            created_paths.push(native_readme);
+            let kain_manifest = root.join("KAIN.toml");
+            write_if_missing(&kain_manifest, POLYGLOT_KAIN_MANIFEST)?;
+            created_paths.push(kain_manifest);
+
+            let local_crate_manifest = local_crate_dir.join("Cargo.toml");
+            write_if_missing(&local_crate_manifest, POLYGLOT_LOCAL_CRATE_MANIFEST)?;
+            created_paths.push(local_crate_manifest);
+
+            let local_crate_lib = local_crate_src_dir.join("lib.rs");
+            write_if_missing(&local_crate_lib, POLYGLOT_LOCAL_CRATE_LIB)?;
+            created_paths.push(local_crate_lib);
+
+            let native_header = native_dir.join("image_fx.h");
+            write_if_missing(&native_header, POLYGLOT_NATIVE_HEADER)?;
+            created_paths.push(native_header);
+
+            let native_source = native_dir.join("image_fx.c");
+            write_if_missing(&native_source, POLYGLOT_NATIVE_SOURCE)?;
+            created_paths.push(native_source);
         }
     }
 
@@ -785,6 +786,208 @@ fn default_report_directory() -> PathBuf {
     PathBuf::from(".kain/fabric/reports")
 }
 
+const POLYGLOT_KAIN_MANIFEST: &str = r#"[c_ffi]
+
+[[c_ffi.libraries]]
+name = "image_fx"
+header = "native/image_fx.h"
+shared_lib = "native/image_fx.dll"
+"#;
+
+const POLYGLOT_PYTHON_STEP: &str = r#"def run(fabric_inputs):
+    return {
+        "width": 6,
+        "height": 4,
+        "accent": 29,
+        "title": "fabric-local",
+    }
+"#;
+
+const POLYGLOT_NODE_STEP: &str = r#"export function run(fabricInputs) {
+  const report = fabricInputs.kain_orchestrator.report;
+  const analysis = fabricInputs.rust_analyzer.analysis;
+  const image = fabricInputs.native_filter.filtered_image;
+  const snapshot = fabricInputs.native_filter.snapshot;
+  return [
+    "<article data-fabric='local-first'>",
+    `<h1>${analysis}</h1>`,
+    `<p>${report}</p>`,
+    `<p>image=${image.width}x${image.height} channels=${image.channels}</p>`,
+    `<p>snapshot-bytes=${snapshot.byte_length}</p>`,
+    "</article>",
+  ].join("");
+}
+"#;
+
+const POLYGLOT_KAIN_ENTRY: &str = r#"use std::interop::bridge
+
+struct KainOutputs:
+    image: Any
+    report: String
+
+fn build_pixels(width: Int, height: Int, accent: Int) -> Array<Int>:
+    let bytes = []
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let base = (x * 17 + y * 23 + accent) % 255
+            bytes.push(base)
+            bytes.push((base + accent) % 255)
+            bytes.push((base + x + y) % 255)
+            bytes.push(255)
+            x = x + 1
+        y = y + 1
+    return bytes
+
+fn main() -> KainOutputs:
+    let settings = fabric_inputs.python_source.settings
+    let width = settings.width
+    let height = settings.height
+    let accent = settings.accent
+    let pixels = build_pixels(width, height, accent)
+    let image = interop_shared_image_from_bytes(
+        pixels,
+        width,
+        height,
+        4,
+        "HWC",
+        "rgba8",
+        "image/x-kain-raster",
+    )
+    let info = interop_shared_image_info(image)
+    let report = settings.title + ":" + str(info.width) + "x" + str(info.height) + ":" + str(accent)
+    return KainOutputs { image: image, report: report }
+"#;
+
+const POLYGLOT_NATIVE_ENTRY: &str = r#"use c::image_fx
+use std::interop::bridge
+
+struct NativeOutputs:
+    filtered_image: Any
+    snapshot: Any
+
+fn main() -> NativeOutputs:
+    let image = fabric_inputs.kain_orchestrator.image
+    let info = interop_shared_image_info(image)
+    let before_bytes = interop_shared_image_bytes(image)
+    let before_first_channel = before_bytes[0]
+    imagefx_halo_rgba(image, info.byte_length, 37)
+    let after_bytes = interop_shared_image_bytes(image)
+    assert(
+        before_first_channel != after_bytes[0],
+        "expected native image filter to mutate the shared image"
+    )
+    let bytes = interop_shared_image_bytes(image)
+    let snapshot = interop_shared_buffer_from_bytes(
+        bytes,
+        "u8",
+        [len(bytes)],
+        "rgba8",
+        "application/octet-stream",
+    )
+    return NativeOutputs { filtered_image: image, snapshot: snapshot }
+"#;
+
+const POLYGLOT_RUST_ENTRY: &str = r#"use rust::fabric_runtime_lab
+use std::interop::bridge
+
+fn main() -> String:
+    let snapshot = fabric_inputs.native_filter.snapshot
+    let snapshot_info = interop_shared_buffer_info(snapshot)
+    let bytes = interop_shared_buffer_bytes(snapshot)
+    let checksum = buffer_checksum(bytes)
+    return analysis_label(
+        snapshot_info.byte_length,
+        checksum,
+        fabric_inputs.kain_orchestrator.report,
+    )
+"#;
+
+const POLYGLOT_LOCAL_CRATE_MANIFEST: &str = r#"[package]
+name = "fabric_runtime_lab"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "fabric_runtime_lab"
+path = "src/lib.rs"
+
+[workspace]
+"#;
+
+const POLYGLOT_LOCAL_CRATE_LIB: &str = r#"pub fn buffer_checksum(bytes: Vec<i64>) -> i64 {
+    let mut total = 0i64;
+    for (index, value) in bytes.iter().enumerate() {
+        let weight = ((index as i64) % 19) + 3;
+        total = (total + value * weight + index as i64) % 1_000_003;
+    }
+    total
+}
+
+pub fn analysis_label(byte_length: i64, checksum: i64, upstream_report: String) -> String {
+    format!(
+        "rust-analysis:{}:checksum={}:{}",
+        byte_length, checksum, upstream_report
+    )
+}
+"#;
+
+const POLYGLOT_NATIVE_HEADER: &str = r#"#if defined(_WIN32)
+#define IMAGEFX_EXPORT __declspec(dllexport)
+#else
+#define IMAGEFX_EXPORT
+#endif
+
+#include <stddef.h>
+#include <stdint.h>
+
+IMAGEFX_EXPORT uint64_t imagefx_checksum(const uint8_t* pixels, size_t len);
+IMAGEFX_EXPORT void imagefx_halo_rgba(uint8_t* pixels, size_t len, int accent);
+IMAGEFX_EXPORT const char* imagefx_signature(int width, int height, uint64_t checksum);
+"#;
+
+const POLYGLOT_NATIVE_SOURCE: &str = r#"#include "image_fx.h"
+
+#include <stdio.h>
+
+static char G_SIGNATURE[128];
+
+uint64_t imagefx_checksum(const uint8_t* pixels, size_t len) {
+    uint64_t checksum = 1469598103934665603ull;
+    size_t index = 0;
+    while (index < len) {
+        checksum ^= (uint64_t)pixels[index];
+        checksum *= 1099511628211ull;
+        index += 1;
+    }
+    return checksum;
+}
+
+void imagefx_halo_rgba(uint8_t* pixels, size_t len, int accent) {
+    size_t index = 0;
+    while (index + 3 < len) {
+        pixels[index + 0] = (uint8_t)((pixels[index + 0] + accent) % 255);
+        pixels[index + 1] = (uint8_t)((pixels[index + 1] + (accent / 2)) % 255);
+        pixels[index + 2] = (uint8_t)(255 - pixels[index + 2]);
+        pixels[index + 3] = 255;
+        index += 4;
+    }
+}
+
+const char* imagefx_signature(int width, int height, uint64_t checksum) {
+    snprintf(
+        G_SIGNATURE,
+        sizeof(G_SIGNATURE),
+        "imagefx:%dx%d:%llu",
+        width,
+        height,
+        (unsigned long long)checksum
+    );
+    return G_SIGNATURE;
+}
+"#;
+
 fn local_manifest_template() -> FabricManifest {
     FabricManifest {
         version: FABRIC_SCHEMA_VERSION,
@@ -819,7 +1022,15 @@ fn local_manifest_template() -> FabricManifest {
 fn polyglot_manifest_template() -> FabricManifest {
     FabricManifest {
         version: FABRIC_SCHEMA_VERSION,
-        workspace: FabricWorkspace::default(),
+        workspace: FabricWorkspace {
+            root: PathBuf::from("."),
+            search_roots: vec![
+                PathBuf::from("src"),
+                PathBuf::from("scripts"),
+                PathBuf::from("native"),
+                PathBuf::from("local_crate"),
+            ],
+        },
         requires: vec![FabricCapabilityRequirement {
             key: "session.local".to_string(),
             version: 1,
@@ -835,14 +1046,10 @@ fn polyglot_manifest_template() -> FabricManifest {
                 manifest_path: None,
                 library: None,
                 depends_on: Vec::new(),
-                requires: vec![FabricCapabilityRequirement {
-                    key: "contract.shared-image".to_string(),
-                    version: 1,
-                    optional: false,
-                }],
+                requires: Vec::new(),
                 outputs: vec![FabricOutputBinding {
-                    name: "image".to_string(),
-                    kind: FabricContractKind::SharedImage,
+                    name: "settings".to_string(),
+                    kind: FabricContractKind::Value,
                 }],
             },
             FabricStep {
@@ -854,34 +1061,17 @@ fn polyglot_manifest_template() -> FabricManifest {
                 manifest_path: None,
                 library: None,
                 depends_on: vec!["python_source".to_string()],
-                requires: vec![FabricCapabilityRequirement {
-                    key: "contract.shared-image".to_string(),
-                    version: 1,
-                    optional: false,
-                }],
-                outputs: vec![FabricOutputBinding {
-                    name: "report".to_string(),
-                    kind: FabricContractKind::Value,
-                }],
-            },
-            FabricStep {
-                id: "rust_analyzer".to_string(),
-                runtime: FabricRuntimeKind::RustCrate,
-                entry: Some(PathBuf::from("src/rust_step.kn")),
-                module: None,
-                crate_name: Some("example_fabric_crate".to_string()),
-                manifest_path: Some(PathBuf::from("Cargo.toml")),
-                library: None,
-                depends_on: vec!["kain_orchestrator".to_string()],
-                requires: vec![FabricCapabilityRequirement {
-                    key: "contract.shared-buffer".to_string(),
-                    version: 1,
-                    optional: true,
-                }],
-                outputs: vec![FabricOutputBinding {
-                    name: "analysis".to_string(),
-                    kind: FabricContractKind::Value,
-                }],
+                requires: Vec::new(),
+                outputs: vec![
+                    FabricOutputBinding {
+                        name: "image".to_string(),
+                        kind: FabricContractKind::SharedImage,
+                    },
+                    FabricOutputBinding {
+                        name: "report".to_string(),
+                        kind: FabricContractKind::Value,
+                    },
+                ],
             },
             FabricStep {
                 id: "native_filter".to_string(),
@@ -891,15 +1081,32 @@ fn polyglot_manifest_template() -> FabricManifest {
                 crate_name: None,
                 manifest_path: None,
                 library: Some(PathBuf::from("native/image_fx.dll")),
-                depends_on: vec!["python_source".to_string()],
-                requires: vec![FabricCapabilityRequirement {
-                    key: "contract.shared-image".to_string(),
-                    version: 1,
-                    optional: false,
-                }],
+                depends_on: vec!["kain_orchestrator".to_string()],
+                requires: Vec::new(),
+                outputs: vec![
+                    FabricOutputBinding {
+                        name: "filtered_image".to_string(),
+                        kind: FabricContractKind::SharedImage,
+                    },
+                    FabricOutputBinding {
+                        name: "snapshot".to_string(),
+                        kind: FabricContractKind::SharedBuffer,
+                    },
+                ],
+            },
+            FabricStep {
+                id: "rust_analyzer".to_string(),
+                runtime: FabricRuntimeKind::RustCrate,
+                entry: Some(PathBuf::from("src/rust_step.kn")),
+                module: None,
+                crate_name: Some("fabric_runtime_lab".to_string()),
+                manifest_path: Some(PathBuf::from("local_crate/Cargo.toml")),
+                library: None,
+                depends_on: vec!["native_filter".to_string(), "kain_orchestrator".to_string()],
+                requires: Vec::new(),
                 outputs: vec![FabricOutputBinding {
-                    name: "filtered_image".to_string(),
-                    kind: FabricContractKind::SharedImage,
+                    name: "analysis".to_string(),
+                    kind: FabricContractKind::Value,
                 }],
             },
             FabricStep {
@@ -910,7 +1117,11 @@ fn polyglot_manifest_template() -> FabricManifest {
                 crate_name: None,
                 manifest_path: None,
                 library: None,
-                depends_on: vec!["kain_orchestrator".to_string(), "native_filter".to_string()],
+                depends_on: vec![
+                    "kain_orchestrator".to_string(),
+                    "native_filter".to_string(),
+                    "rust_analyzer".to_string(),
+                ],
                 requires: Vec::new(),
                 outputs: vec![FabricOutputBinding {
                     name: "html_bundle".to_string(),
@@ -940,11 +1151,24 @@ mod tests {
             .created_paths
             .iter()
             .any(|path| path.ends_with("src\\main.kn")));
-        assert!(manifest.steps.len() >= 3);
+        assert!(result
+            .created_paths
+            .iter()
+            .any(|path| path.ends_with("KAIN.toml")));
+        assert!(result
+            .created_paths
+            .iter()
+            .any(|path| path.ends_with("local_crate\\Cargo.toml")));
+        assert_eq!(manifest.steps.len(), 5);
         assert!(matches!(
             manifest.steps[0].runtime,
             FabricRuntimeKind::Python
         ));
+        assert_eq!(manifest.steps[0].outputs[0].name, "settings");
+        assert_eq!(
+            manifest.steps[3].crate_name.as_deref(),
+            Some("fabric_runtime_lab")
+        );
     }
 
     #[test]

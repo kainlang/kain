@@ -1,0 +1,317 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-03-26T04:09:23.074048+00:00",
+  "display_name": "Code/Kain",
+  "directory": "M:\\Code\\Kain",
+  "summary": {
+    "languages": [
+      "JSON",
+      "Markdown",
+      "Rust",
+      "TOML"
+    ],
+    "entry_files": [
+      "Cargo.toml",
+      "unreal/unrealmodding-main/Cargo.toml",
+      "apps/ZenDAW/Cargo.toml",
+      "unreal/unrealmodding-main/unreal_pak_cli/Cargo.toml"
+    ],
+    "related_files": [],
+    "subdirs": [
+      "crates",
+      "unreal",
+      "smoketest",
+      "runtime",
+      "apps",
+      "stdlib"
+    ],
+    "manifests": [
+      {
+        "path": "Cargo.toml",
+        "type": "cargo",
+        "package_name": null,
+        "workspace_members": 42,
+        "dependency_count": 0
+      },
+      {
+        "path": "apps/ZenDAW/Cargo.toml",
+        "type": "cargo",
+        "package_name": null,
+        "workspace_members": 8,
+        "dependency_count": 0
+      },
+      {
+        "path": "unreal/unrealmodding-main/Cargo.toml",
+        "type": "cargo",
+        "package_name": null,
+        "workspace_members": 16,
+        "dependency_count": 0
+      },
+      {
+        "path": "apps/kade-desktop/controller/Cargo.toml",
+        "type": "cargo",
+        "package_name": "kade-desktop-controller",
+        "workspace_members": 0,
+        "dependency_count": 5
+      },
+      {
+        "path": "labs/native_ui_viewport_smoke/native_ui_viewport_smoke-native-ui/Cargo.toml",
+        "type": "cargo",
+        "package_name": "native-ui-viewport-smoke",
+        "workspace_members": 0,
+        "dependency_count": 1
+      },
+      {
+        "path": "unreal/unrealmodding-main/dll_injector/Cargo.toml",
+        "type": "cargo",
+        "package_name": "dll_injector",
+        "workspace_members": 0,
+        "dependency_count": 0
+      },
+      {
+        "path": "unreal/unrealmodding-main/github_helpers/Cargo.toml",
+        "type": "cargo",
+        "package_name": "github_helpers",
+        "workspace_members": 0,
+        "dependency_count": 3
+      },
+      {
+        "path": "unreal/unrealmodding-main/unreal_asset/Cargo.toml",
+        "type": "cargo",
+        "package_name": "unreal_asset",
+        "workspace_members": 0,
+        "dependency_count": 8
+      },
+      {
+        "path": "unreal/unrealmodding-main/unreal_cpp_bootstrapper/Cargo.toml",
+        "type": "cargo",
+        "package_name": "unreal_cpp_bootstrapper",
+        "workspace_members": 0,
+        "dependency_count": 8
+      },
+      {
+        "path": "unreal/unrealmodding-main/unreal_helpers/Cargo.toml",
+        "type": "cargo",
+        "package_name": "unreal_helpers",
+        "workspace_members": 0,
+        "dependency_count": 6
+      },
+      {
+        "path": "unreal/unrealmodding-main/unreal_mod_integrator/Cargo.toml",
+        "type": "cargo",
+        "package_name": "unreal_mod_integrator",
+        "workspace_members": 0,
+        "dependency_count": 9
+      },
+      {
+        "path": "unreal/unrealmodding-main/unreal_mod_manager/Cargo.toml",
+        "type": "cargo",
+        "package_name": "unreal_mod_manager",
+        "workspace_members": 0,
+        "dependency_count": 25
+      }
+    ],
+    "manifest_count_total": 59,
+    "sampled_file_count": 220
+  },
+  "nodes": [
+    {
+      "id": "dir_dir",
+      "label": "Code/Kain",
+      "kind": "directory",
+      "path": "M:\\Code\\Kain"
+    },
+    {
+      "id": "dir_crates",
+      "label": "crates",
+      "kind": "subdir",
+      "path": "M:\\Code\\Kain\\crates"
+    },
+    {
+      "id": "dir_unreal",
+      "label": "unreal",
+      "kind": "subdir",
+      "path": "M:\\Code\\Kain\\unreal"
+    },
+    {
+      "id": "dir_smoketest",
+      "label": "smoketest",
+      "kind": "subdir",
+      "path": "M:\\Code\\Kain\\smoketest"
+    },
+    {
+      "id": "dir_runtime",
+      "label": "runtime",
+      "kind": "subdir",
+      "path": "M:\\Code\\Kain\\runtime"
+    },
+    {
+      "id": "dir_apps",
+      "label": "apps",
+      "kind": "subdir",
+      "path": "M:\\Code\\Kain\\apps"
+    },
+    {
+      "id": "dir_stdlib",
+      "label": "stdlib",
+      "kind": "subdir",
+      "path": "M:\\Code\\Kain\\stdlib"
+    },
+    {
+      "id": "file_cargo_toml",
+      "label": "Cargo.toml",
+      "kind": "file",
+      "path": "M:\\Code\\Kain\\Cargo.toml"
+    },
+    {
+      "id": "file_unreal_unrealmodding_main_cargo_toml",
+      "label": "unreal/unrealmodding-main/Cargo.toml",
+      "kind": "file",
+      "path": "M:\\Code\\Kain\\unreal\\unrealmodding-main\\Cargo.toml"
+    },
+    {
+      "id": "file_apps_zendaw_cargo_toml",
+      "label": "apps/ZenDAW/Cargo.toml",
+      "kind": "file",
+      "path": "M:\\Code\\Kain\\apps\\ZenDAW\\Cargo.toml"
+    },
+    {
+      "id": "file_unreal_unrealmodding_main_unreal_pak_cli_cargo_toml",
+      "label": "unreal/unrealmodding-main/unreal_pak_cli/Cargo.toml",
+      "kind": "file",
+      "path": "M:\\Code\\Kain\\unreal\\unrealmodding-main\\unreal_pak_cli\\Cargo.toml"
+    },
+    {
+      "id": "lane_gpu_shader_lane",
+      "label": "GPU / shader lane",
+      "kind": "lane"
+    },
+    {
+      "id": "lane_unreal_lane",
+      "label": "Unreal lane",
+      "kind": "lane"
+    },
+    {
+      "id": "lane_web_wasm_lane",
+      "label": "Web / WASM lane",
+      "kind": "lane"
+    },
+    {
+      "id": "lane_python_host_lane",
+      "label": "Python host lane",
+      "kind": "lane"
+    },
+    {
+      "id": "lane_node_ts_host_lane",
+      "label": "Node / TS host lane",
+      "kind": "lane"
+    },
+    {
+      "id": "lane_interop_ffi_lane",
+      "label": "Interop / FFI lane",
+      "kind": "lane"
+    }
+  ],
+  "edges": [
+    {
+      "from": "dir_dir",
+      "to": "file_apps_zendaw_cargo_toml",
+      "kind": "entrypoint"
+    },
+    {
+      "from": "dir_dir",
+      "to": "file_cargo_toml",
+      "kind": "entrypoint"
+    },
+    {
+      "from": "dir_dir",
+      "to": "file_unreal_unrealmodding_main_cargo_toml",
+      "kind": "entrypoint"
+    },
+    {
+      "from": "dir_dir",
+      "to": "file_unreal_unrealmodding_main_unreal_pak_cli_cargo_toml",
+      "kind": "entrypoint"
+    },
+    {
+      "from": "file_apps_zendaw_cargo_toml",
+      "to": "lane_gpu_shader_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cargo_toml",
+      "to": "lane_gpu_shader_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cargo_toml",
+      "to": "lane_interop_ffi_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cargo_toml",
+      "to": "lane_node_ts_host_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cargo_toml",
+      "to": "lane_python_host_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cargo_toml",
+      "to": "lane_unreal_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cargo_toml",
+      "to": "lane_web_wasm_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_unreal_unrealmodding_main_cargo_toml",
+      "to": "lane_unreal_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_unreal_unrealmodding_main_unreal_pak_cli_cargo_toml",
+      "to": "lane_unreal_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "dir_dir",
+      "to": "lane_unreal_lane",
+      "kind": "supports"
+    },
+    {
+      "from": "dir_dir",
+      "to": "dir_apps",
+      "kind": "contains"
+    },
+    {
+      "from": "dir_dir",
+      "to": "dir_crates",
+      "kind": "contains"
+    },
+    {
+      "from": "dir_dir",
+      "to": "dir_runtime",
+      "kind": "contains"
+    },
+    {
+      "from": "dir_dir",
+      "to": "dir_smoketest",
+      "kind": "contains"
+    },
+    {
+      "from": "dir_dir",
+      "to": "dir_stdlib",
+      "kind": "contains"
+    },
+    {
+      "from": "dir_dir",
+      "to": "dir_unreal",
+      "kind": "contains"
+    }
+  ]
+}

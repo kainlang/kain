@@ -1,0 +1,110 @@
+{
+  "brand": "Operator Foundry",
+  "seo": {
+    "title": "Operator Foundry | Kain Command And Ops Site",
+    "description": "Operator-dashboard archetype with actor meshes, route catalogs, prompt decks, capability matrices, and command-center flows.",
+    "image": "/social-operator.png"
+  },
+  "nav": [
+    { "label": "Prompts", "href": "#prompts" },
+    { "label": "Routes", "href": "#routes" },
+    { "label": "Actors", "href": "#actors" },
+    { "label": "Scene", "href": "#scene" },
+    { "label": "Request", "href": "#intake" }
+  ],
+  "hero": {
+    "kicker": "Operator hub archetype",
+    "title": "Build the command center and the website from one system.",
+    "body": "Operator Foundry is for runtime dashboards, route catalogs, prompt-driven tools, and actor-backed sites that still want polished web presentation.",
+    "actions": [
+      { "label": "Open prompts", "href": "#prompts", "style": "primary" },
+      { "label": "Inspect routes", "href": "#routes", "style": "secondary" }
+    ]
+  },
+  "metrics": [
+    { "value": "14", "label": "route and system surfaces" },
+    { "value": "04", "label": "actor roles scaffolded" },
+    { "value": "01", "label": "shared command runtime" }
+  ],
+  "prompt_presets": [
+    { "kicker": "Monitor", "title": "Health and route summary", "prompt": "Summarize the active routes and runtime health", "body": "Use this to turn the page into a control-room assistant.", "button_label": "Summarize health" },
+    { "kicker": "Deploy", "title": "Deployment checklist", "prompt": "What should I verify before deploying this site runtime?", "body": "Prompt for launch-critical checks and system readiness.", "button_label": "Ask deploy" },
+    { "kicker": "Route", "title": "Add a new actor route", "prompt": "Plan a new actor route for form intake and dashboards", "body": "Prompt toward route design and actor ownership.", "button_label": "Plan route" }
+  ],
+  "feature_cards": [
+    { "kicker": "Operate", "title": "Prompt-led control plane", "body": "Prompts, route docs, and actor metadata all live on the same surface." },
+    { "kicker": "Inspect", "title": "Catalog and route APIs", "body": "The operator lane exposes catalog, scene, forms, and search documents as local JSON APIs." },
+    { "kicker": "Extend", "title": "Actor-ready upgrade path", "body": "Route, form, and command surfaces are already shaped around an actor model." }
+  ],
+  "capability_matrix": {
+    "columns": ["Local", "Team", "Distributed"],
+    "rows": [
+      { "label": "Routing", "values": ["http routes", "catalog + forms", "actor mesh"] },
+      { "label": "Control", "values": ["prompt deck", "commands", "ops APIs"] },
+      { "label": "Observability", "values": ["healthz", "runtime JSON", "dashboard-ready"] }
+    ]
+  },
+  "process_steps": [
+    { "title": "Prompt the control plane", "body": "Let operators ask for health, route, or deployment guidance directly from the page." },
+    { "title": "Inspect the contracts", "body": "Read routes, forms, scene descriptors, and catalogs through local JSON endpoints." },
+    { "title": "Capture the next change", "body": "Persist route or dashboard requests locally before the permanent backend exists." }
+  ],
+  "command_lines": [
+    { "kicker": "Serve", "title": "Run the operator hub", "command": "npm run serve:operator", "body": "Boot the command-center archetype with prompts, routes, scene, and request capture." },
+    { "kicker": "Inspect", "title": "Print actor plan", "command": "npm run actor:plan", "body": "Dump the actor-server plan for the operator hub." },
+    { "kicker": "Catalog", "title": "Read the experience catalog", "command": "npm run catalog", "body": "Inspect how the operator experience relates to the rest of the pack." }
+  ],
+  "docs_links": [
+    { "kicker": "Ops", "title": "Route contract guide", "summary": "Read the built-in APIs for catalog, scene, forms, search docs, chat, and health.", "href": "#routes", "label": "Read routes" },
+    { "kicker": "Guide", "title": "Prompt deck usage", "summary": "Prompt cards are meant to become reusable operator workflows.", "href": "#prompts", "label": "Read prompts" }
+  ],
+  "faq_items": [
+    { "question": "Is this different from the actor-server archetype?", "answer": ["Yes. The actor archetype is a focused runtime/control-room page. Operator Foundry mixes prompts, route docs, catalogs, and presentation into a broader ops shell."] },
+    { "question": "Can this become a real dashboard later?", "answer": ["Yes. The section systems and API routes are already pointed at that outcome."] }
+  ],
+  "forms": {
+    "operator_request": {
+      "id": "operator_request",
+      "kicker": "Request",
+      "title": "Capture an operator workflow request",
+      "body": "Use this when the prompt deck reveals a missing route, actor, dashboard, or deployment workflow.",
+      "submit_label": "Capture workflow",
+      "action": "/api/forms/operator_request",
+      "fields": [
+        { "name": "owner", "label": "Owner", "type": "text", "placeholder": "Operator or team" },
+        { "name": "surface", "label": "Surface", "type": "text", "placeholder": "route / prompt / dashboard / deploy" },
+        { "name": "severity", "label": "Severity", "type": "text", "placeholder": "critical / high / medium" },
+        { "name": "details", "label": "Details", "type": "textarea", "rows": 6, "placeholder": "What should the operator hub do next?" }
+      ]
+    }
+  },
+  "search_documents": [
+    { "kind": "ops", "title": "Operator route contract", "summary": "Catalog, scene, route, and chat APIs in one archetype.", "href": "#routes", "tags": ["ops", "routes"] },
+    { "kind": "ops", "title": "Prompt-led control plane", "summary": "Use prompt decks to turn the page into an operator assistant.", "href": "#prompts", "tags": ["prompts"] },
+    { "kind": "ops", "title": "Capture workflow request", "summary": "Persist missing operator workflows locally.", "href": "#intake", "tags": ["intake"] }
+  ],
+  "chat_seed": [
+    { "role": "assistant", "text": "Ask for route summaries, deployment checks, actor plans, or new command workflows." }
+  ],
+  "actor_roles": [
+    { "name": "mesh_supervisor", "responsibility": "Reports actor topology, routes, and health.", "channel": "api.actors" },
+    { "name": "prompt_router", "responsibility": "Turns prompts into route, deploy, or runtime guidance.", "channel": "api.chat" },
+    { "name": "runtime_reporter", "responsibility": "Publishes catalog, scene, and runtime metadata.", "channel": "api.runtime" },
+    { "name": "intake_collector", "responsibility": "Captures workflow requests.", "channel": "api.forms.operator_request" }
+  ],
+  "server_routes": [
+    { "method": "GET", "path": "/api/catalog", "purpose": "returns experience catalog metadata" },
+    { "method": "GET", "path": "/api/scene", "purpose": "returns the operator scene descriptor" },
+    { "method": "GET", "path": "/api/chat/stream", "purpose": "returns a local chat streaming preview" },
+    { "method": "POST", "path": "/api/forms/operator_request", "purpose": "captures operator workflow requests locally" }
+  ],
+  "cta": {
+    "title": "Use one archetype to operate the system and explain it.",
+    "body": "Operator Foundry is for command-center websites, deployment dashboards, and serious tool-facing web shells.",
+    "actions": [
+      { "label": "Inspect routes", "href": "#routes", "style": "primary" },
+      { "label": "Capture request", "href": "#intake", "style": "secondary" }
+    ]
+  },
+  "footer": "operator experience"
+}

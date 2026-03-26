@@ -1,0 +1,410 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-03-26T04:09:23.406882+00:00",
+  "display_name": "Code/Kain/crates",
+  "directory": "M:\\Code\\Kain\\crates",
+  "summary": {
+    "languages": [
+      "JSON",
+      "JavaScript",
+      "Kain",
+      "Markdown",
+      "Rust",
+      "TOML",
+      "TypeScript"
+    ],
+    "entry_files": [
+      "kain-ui-native/src/main.rs",
+      "cli/src/main.rs",
+      "web/src/lib.rs",
+      "ue5/src/lib.rs"
+    ],
+    "related_files": [
+      "cli/src/fabric.rs",
+      "cli/src/import_asm.rs",
+      "cli/src/import_c.rs",
+      "cli/src/import_crate.rs",
+      "cli/src/import_rust.rs",
+      "cli/src/import_typescript.rs"
+    ],
+    "subdirs": [
+      "unreal",
+      "cli",
+      "kain-core",
+      "kain-asm",
+      "kain-3D",
+      "ue5-graphs"
+    ],
+    "manifests": [
+      {
+        "path": "browser/Cargo.toml",
+        "type": "cargo",
+        "package_name": "browser",
+        "workspace_members": 0,
+        "dependency_count": 4
+      },
+      {
+        "path": "cli/Cargo.toml",
+        "type": "cargo",
+        "package_name": "cli",
+        "workspace_members": 0,
+        "dependency_count": 39
+      },
+      {
+        "path": "gpu/Cargo.toml",
+        "type": "cargo",
+        "package_name": "gpu",
+        "workspace_members": 0,
+        "dependency_count": 4
+      },
+      {
+        "path": "kain-3D/Cargo.toml",
+        "type": "cargo",
+        "package_name": "kain-3d",
+        "workspace_members": 0,
+        "dependency_count": 7
+      },
+      {
+        "path": "kain-asm/Cargo.toml",
+        "type": "cargo",
+        "package_name": "kain-asm",
+        "workspace_members": 0,
+        "dependency_count": 12
+      },
+      {
+        "path": "kain-build/Cargo.toml",
+        "type": "cargo",
+        "package_name": "kain-build",
+        "workspace_members": 0,
+        "dependency_count": 1
+      },
+      {
+        "path": "kain-c-ffi/Cargo.toml",
+        "type": "cargo",
+        "package_name": "kain-c-ffi",
+        "workspace_members": 0,
+        "dependency_count": 12
+      },
+      {
+        "path": "kain-core/Cargo.toml",
+        "type": "cargo",
+        "package_name": "kain-core",
+        "workspace_members": 0,
+        "dependency_count": 13
+      },
+      {
+        "path": "kain-crate-ffi/Cargo.toml",
+        "type": "cargo",
+        "package_name": "kain-crate-ffi",
+        "workspace_members": 0,
+        "dependency_count": 10
+      },
+      {
+        "path": "kain-driver/Cargo.toml",
+        "type": "cargo",
+        "package_name": "kain-driver",
+        "workspace_members": 0,
+        "dependency_count": 16
+      },
+      {
+        "path": "kain-gpu-runtime/Cargo.toml",
+        "type": "cargo",
+        "package_name": "kain-gpu-runtime",
+        "workspace_members": 0,
+        "dependency_count": 6
+      },
+      {
+        "path": "kain-host/Cargo.toml",
+        "type": "cargo",
+        "package_name": "kain-host",
+        "workspace_members": 0,
+        "dependency_count": 11
+      }
+    ],
+    "manifest_count_total": 43,
+    "sampled_file_count": 220
+  },
+  "nodes": [
+    {
+      "id": "dir_dir",
+      "label": "Code/Kain/crates",
+      "kind": "directory",
+      "path": "M:\\Code\\Kain\\crates"
+    },
+    {
+      "id": "dir_unreal",
+      "label": "unreal",
+      "kind": "subdir",
+      "path": "M:\\Code\\Kain\\crates\\unreal"
+    },
+    {
+      "id": "dir_cli",
+      "label": "cli",
+      "kind": "subdir",
+      "path": "M:\\Code\\Kain\\crates\\cli"
+    },
+    {
+      "id": "dir_kain_core",
+      "label": "kain-core",
+      "kind": "subdir",
+      "path": "M:\\Code\\Kain\\crates\\kain-core"
+    },
+    {
+      "id": "dir_kain_asm",
+      "label": "kain-asm",
+      "kind": "subdir",
+      "path": "M:\\Code\\Kain\\crates\\kain-asm"
+    },
+    {
+      "id": "dir_kain_3d",
+      "label": "kain-3D",
+      "kind": "subdir",
+      "path": "M:\\Code\\Kain\\crates\\kain-3D"
+    },
+    {
+      "id": "dir_ue5_graphs",
+      "label": "ue5-graphs",
+      "kind": "subdir",
+      "path": "M:\\Code\\Kain\\crates\\ue5-graphs"
+    },
+    {
+      "id": "file_kain_ui_native_src_main_rs",
+      "label": "kain-ui-native/src/main.rs",
+      "kind": "file",
+      "path": "M:\\Code\\Kain\\crates\\kain-ui-native\\src\\main.rs"
+    },
+    {
+      "id": "file_cli_src_main_rs",
+      "label": "cli/src/main.rs",
+      "kind": "file",
+      "path": "M:\\Code\\Kain\\crates\\cli\\src\\main.rs"
+    },
+    {
+      "id": "file_web_src_lib_rs",
+      "label": "web/src/lib.rs",
+      "kind": "file",
+      "path": "M:\\Code\\Kain\\crates\\web\\src\\lib.rs"
+    },
+    {
+      "id": "file_ue5_src_lib_rs",
+      "label": "ue5/src/lib.rs",
+      "kind": "file",
+      "path": "M:\\Code\\Kain\\crates\\ue5\\src\\lib.rs"
+    },
+    {
+      "id": "file_cli_src_fabric_rs",
+      "label": "cli/src/fabric.rs",
+      "kind": "file",
+      "path": "M:\\Code\\Kain\\crates\\cli\\src\\fabric.rs"
+    },
+    {
+      "id": "file_cli_src_import_asm_rs",
+      "label": "cli/src/import_asm.rs",
+      "kind": "file",
+      "path": "M:\\Code\\Kain\\crates\\cli\\src\\import_asm.rs"
+    },
+    {
+      "id": "file_cli_src_import_c_rs",
+      "label": "cli/src/import_c.rs",
+      "kind": "file",
+      "path": "M:\\Code\\Kain\\crates\\cli\\src\\import_c.rs"
+    },
+    {
+      "id": "file_cli_src_import_crate_rs",
+      "label": "cli/src/import_crate.rs",
+      "kind": "file",
+      "path": "M:\\Code\\Kain\\crates\\cli\\src\\import_crate.rs"
+    },
+    {
+      "id": "file_cli_src_import_rust_rs",
+      "label": "cli/src/import_rust.rs",
+      "kind": "file",
+      "path": "M:\\Code\\Kain\\crates\\cli\\src\\import_rust.rs"
+    },
+    {
+      "id": "file_cli_src_import_typescript_rs",
+      "label": "cli/src/import_typescript.rs",
+      "kind": "file",
+      "path": "M:\\Code\\Kain\\crates\\cli\\src\\import_typescript.rs"
+    },
+    {
+      "id": "lane_gpu_shader_lane",
+      "label": "GPU / shader lane",
+      "kind": "lane"
+    },
+    {
+      "id": "lane_unreal_lane",
+      "label": "Unreal lane",
+      "kind": "lane"
+    },
+    {
+      "id": "lane_web_wasm_lane",
+      "label": "Web / WASM lane",
+      "kind": "lane"
+    },
+    {
+      "id": "lane_python_host_lane",
+      "label": "Python host lane",
+      "kind": "lane"
+    },
+    {
+      "id": "lane_node_ts_host_lane",
+      "label": "Node / TS host lane",
+      "kind": "lane"
+    },
+    {
+      "id": "lane_interop_ffi_lane",
+      "label": "Interop / FFI lane",
+      "kind": "lane"
+    }
+  ],
+  "edges": [
+    {
+      "from": "dir_dir",
+      "to": "file_cli_src_main_rs",
+      "kind": "entrypoint"
+    },
+    {
+      "from": "dir_dir",
+      "to": "file_kain_ui_native_src_main_rs",
+      "kind": "entrypoint"
+    },
+    {
+      "from": "dir_dir",
+      "to": "file_ue5_src_lib_rs",
+      "kind": "entrypoint"
+    },
+    {
+      "from": "dir_dir",
+      "to": "file_web_src_lib_rs",
+      "kind": "entrypoint"
+    },
+    {
+      "from": "file_cli_src_import_c_rs",
+      "to": "lane_interop_ffi_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cli_src_import_c_rs",
+      "to": "lane_web_wasm_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cli_src_import_crate_rs",
+      "to": "lane_interop_ffi_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cli_src_import_typescript_rs",
+      "to": "lane_gpu_shader_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cli_src_import_typescript_rs",
+      "to": "lane_interop_ffi_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cli_src_import_typescript_rs",
+      "to": "lane_node_ts_host_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cli_src_main_rs",
+      "to": "lane_gpu_shader_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cli_src_main_rs",
+      "to": "lane_interop_ffi_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cli_src_main_rs",
+      "to": "lane_node_ts_host_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cli_src_main_rs",
+      "to": "lane_python_host_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cli_src_main_rs",
+      "to": "lane_unreal_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cli_src_main_rs",
+      "to": "lane_web_wasm_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_ue5_src_lib_rs",
+      "to": "lane_node_ts_host_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_ue5_src_lib_rs",
+      "to": "lane_unreal_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_web_src_lib_rs",
+      "to": "lane_web_wasm_lane",
+      "kind": "targets"
+    },
+    {
+      "from": "file_cli_src_main_rs",
+      "to": "dir_cli",
+      "kind": "imports",
+      "evidence": "cli::{"
+    },
+    {
+      "from": "file_cli_src_main_rs",
+      "to": "file_cli_src_fabric_rs",
+      "kind": "imports",
+      "evidence": "cli::fabric"
+    },
+    {
+      "from": "file_cli_src_main_rs",
+      "to": "file_cli_src_import_asm_rs",
+      "kind": "imports",
+      "evidence": "cli::import_asm"
+    },
+    {
+      "from": "file_cli_src_main_rs",
+      "to": "file_cli_src_import_c_rs",
+      "kind": "imports",
+      "evidence": "cli::import_c"
+    },
+    {
+      "from": "file_cli_src_main_rs",
+      "to": "file_cli_src_import_crate_rs",
+      "kind": "imports",
+      "evidence": "cli::import_crate"
+    },
+    {
+      "from": "file_cli_src_main_rs",
+      "to": "file_cli_src_import_rust_rs",
+      "kind": "imports",
+      "evidence": "cli::import_rust"
+    },
+    {
+      "from": "file_cli_src_main_rs",
+      "to": "file_cli_src_import_typescript_rs",
+      "kind": "imports",
+      "evidence": "cli::import_typescript"
+    },
+    {
+      "from": "dir_dir",
+      "to": "file_cli_src_fabric_rs",
+      "kind": "supports"
+    },
+    {
+      "from": "dir_dir",
+      "to": "file_cli_src_import_asm_rs",
+      "kind": "supports"
+    }
+  ]
+}

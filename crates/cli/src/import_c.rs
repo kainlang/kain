@@ -1804,14 +1804,10 @@ mod tests {
 
     #[test]
     fn test_self_hosting_runtime_import_compiles_to_ts() {
-        let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .nth(3)
-            .expect("workspace root");
-        let input = workspace_root
-            .join("Other")
-            .join("kainselfhosting")
-            .join("runtime")
+        let input = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("fixtures")
+            .join("import_c")
             .join("kain_runtime_clean.c");
         assert!(
             input.exists(),

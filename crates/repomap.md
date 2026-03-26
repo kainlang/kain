@@ -1,5 +1,9 @@
 # Code/Kain/crates Folder Map
 
+Companion artifacts:
+- `flowmap.md` = human-readable architecture flow
+- `flowgraph.json` = machine-readable dependency graph
+
 ```text
 📂 Code/Kain/crates
     └── 📂 browser
@@ -14,6 +18,7 @@
                 └── 📂 codegen_validation
                     └── 📂 factory_profiles
                     └── 📂 sample_case
+                └── 📂 import_c
                 └── 📂 packager
                 └── 📂 preservation
     └── 📂 gpu

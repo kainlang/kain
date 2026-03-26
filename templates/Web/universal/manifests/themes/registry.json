@@ -2,6 +2,7 @@
   "entries": {
     "aurora_studio": "aurora_studio.json",
     "ember_console": "ember_console.json",
+    "circuit_bloom": "circuit_bloom.json",
     "vector_cascade": "vector_cascade.json"
   }
 }

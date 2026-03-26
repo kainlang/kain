@@ -18,10 +18,14 @@ supports = [
   "immersive_3d_site",
   "chat_site",
   "actor_server",
+  "docs_hub",
+  "operator_hub",
   "docs_search",
   "forms_intake",
   "seo_feed_outputs",
-  "hybrid_site"
+  "hybrid_site",
+  "prompt_routing",
+  "experience_catalog"
 ]
 stdlib_modules = [
   "std::javascript::site_runtime",

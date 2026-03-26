@@ -1,0 +1,23 @@
+{
+  "mode": "operator_hub",
+  "theme": "circuit_bloom",
+  "content": "operator_foundry",
+  "scene": "command_spindle",
+  "output_slug": "operator-foundry",
+  "page_title": "Operator Foundry",
+  "eyebrow": "Operator Website",
+  "sections": [
+    { "id": "prompts", "kind": "prompt_deck", "eyebrow": "Prompts", "title": "Operator prompt rails", "source": "content.prompt_presets" },
+    { "id": "systems", "kind": "card_grid", "eyebrow": "System", "title": "Operator systems", "source": "content.feature_cards" },
+    { "id": "capabilities", "kind": "capability_matrix", "eyebrow": "Capability", "title": "Operator surface depth", "source": "content.capability_matrix" },
+    { "id": "process", "kind": "process_steps", "eyebrow": "Flow", "title": "How to run the hub", "source": "content.process_steps" },
+    { "id": "commands", "kind": "command_lines", "eyebrow": "Command", "title": "Control-room commands", "source": "content.command_lines" },
+    { "id": "routes", "kind": "route_grid", "eyebrow": "Routes", "title": "Operator route contract", "source": "content.server_routes" },
+    { "id": "actors", "kind": "actor_mesh", "eyebrow": "Actors", "title": "Actor ownership", "source": "content.actor_roles" },
+    { "id": "scene", "kind": "scene_spotlight", "eyebrow": "Scene", "title": "Command spindle", "source": "scene" },
+    { "id": "docs", "kind": "docs_grid", "eyebrow": "Docs", "title": "Operational guides", "source": "content.docs_links" },
+    { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Operator lane questions", "source": "content.faq_items" },
+    { "id": "intake", "kind": "form_panel", "eyebrow": "Request", "title": "Capture operator workflow requests", "source": "content.forms.operator_request" },
+    { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }
+  ]
+}

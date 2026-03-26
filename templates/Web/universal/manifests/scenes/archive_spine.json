@@ -1,0 +1,10 @@
+{
+  "kicker": "Knowledge scene",
+  "title": "Archive spine",
+  "summary": "A layered reference environment for guides, commands, capabilities, and searchable notes.",
+  "layers": [
+    { "name": "guide stacks", "detail": "core knowledge rails and onboarding ladders" },
+    { "name": "query halo", "detail": "search-driven discovery and prompt lookup" },
+    { "name": "ops shelf", "detail": "command notes, intake, and route metadata" }
+  ]
+}

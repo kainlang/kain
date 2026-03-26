@@ -394,6 +394,66 @@ function renderSearchPanel(panel) {
 </section>`;
 }
 
+function renderProcessSteps(steps) {
+  return `<div class="process-grid">${(steps || [])
+    .map(
+      (step, index) => `<article class="process-card">
+  <p class="card-kicker">Step ${index + 1}</p>
+  <h3>${escapeHtml(step.title || step.name || `Step ${index + 1}`)}</h3>
+  <p>${escapeHtml(step.body || step.summary || "")}</p>
+</article>`
+    )
+    .join("")}</div>`;
+}
+
+function renderCapabilityMatrix(matrix) {
+  const columns = matrix?.columns || [];
+  const rows = matrix?.rows || [];
+  const header = columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("");
+  const body = rows
+    .map((row) => {
+      const cells = (row.values || [])
+        .map((value) => `<td>${escapeHtml(value)}</td>`)
+        .join("");
+      return `<tr><th>${escapeHtml(row.label || row.name || "")}</th>${cells}</tr>`;
+    })
+    .join("");
+  return `<div class="matrix-shell">
+  <table class="capability-matrix">
+    <thead>
+      <tr><th>Capability</th>${header}</tr>
+    </thead>
+    <tbody>${body}</tbody>
+  </table>
+</div>`;
+}
+
+function renderBlueprintGrid(blueprints) {
+  return `<div class="feature-grid">${(blueprints || [])
+    .map(
+      (entry) => `<article class="feature-card blueprint-card">
+  <p class="card-kicker">${escapeHtml(entry.kicker || "System")}</p>
+  <h3>${escapeHtml(entry.title || entry.name)}</h3>
+  <p>${escapeHtml(entry.body || entry.summary || "")}</p>
+  <p class="portfolio-stack">${escapeHtml((entry.owned_by || entry.tags || []).join(" / "))}</p>
+</article>`
+    )
+    .join("")}</div>`;
+}
+
+function renderPromptDeck(prompts) {
+  return `<div class="prompt-grid" data-kain-component="prompt-deck">${(prompts || [])
+    .map(
+      (entry) => `<article class="prompt-card">
+  <p class="card-kicker">${escapeHtml(entry.kicker || "Prompt")}</p>
+  <h3>${escapeHtml(entry.title || entry.prompt)}</h3>
+  <p>${escapeHtml(entry.body || entry.summary || "")}</p>
+  <button class="action secondary prompt-launch" type="button" data-prompt-value="${escapeHtml(entry.prompt || entry.title || "")}">${escapeHtml(entry.button_label || "Try prompt")}</button>
+</article>`
+    )
+    .join("")}</div>`;
+}
+
 function renderSectionIntro(section) {
   const eyebrow = section.eyebrow || section.label || section.kicker;
   const title = section.title;
@@ -467,6 +527,14 @@ function renderSectionBlock(section, model) {
     bodyHtml = renderFormPanel(getModelValue(model, normalized.source, {}));
   } else if (kind === "search_panel") {
     bodyHtml = renderSearchPanel(getModelValue(model, normalized.source, {}));
+  } else if (kind === "process_steps") {
+    bodyHtml = renderProcessSteps(getModelValue(model, normalized.source, []));
+  } else if (kind === "capability_matrix") {
+    bodyHtml = renderCapabilityMatrix(getModelValue(model, normalized.source, {}));
+  } else if (kind === "blueprint_grid") {
+    bodyHtml = renderBlueprintGrid(getModelValue(model, normalized.source, []));
+  } else if (kind === "prompt_deck") {
+    bodyHtml = renderPromptDeck(getModelValue(model, normalized.source, []));
   } else if (kind === "cta") {
     const title = getModelValue(model, normalized.title_source, normalized.title || "");
     const body = getModelValue(model, normalized.body_source, normalized.body || "");
@@ -526,6 +594,29 @@ function buildDerivedSearchDocuments(model) {
       tags: doc.tags || []
     });
   }
+  for (const step of model.content.process_steps || []) {
+    pushDocument("process", step.title, step.body, "#process");
+  }
+  for (const blueprint of model.content.blueprints || []) {
+    documents.push({
+      kind: "blueprint",
+      title: blueprint.title || blueprint.name,
+      summary: blueprint.body || blueprint.summary || "",
+      href: "#blueprints",
+      tags: blueprint.owned_by || blueprint.tags || []
+    });
+  }
+  if (model.content.capability_matrix?.rows) {
+    for (const row of model.content.capability_matrix.rows) {
+      documents.push({
+        kind: "capability",
+        title: row.label || row.name,
+        summary: (row.values || []).join(" | "),
+        href: "#capabilities",
+        tags: []
+      });
+    }
+  }
   return documents;
 }
 
@@ -557,8 +648,23 @@ function buildSiteData(model) {
     },
     search_documents: searchDocuments,
     updates: model.content.news_items || model.content.timeline || [],
-    client_features: model.context.app.site_runtime.client_features || []
+    client_features: model.context.app.site_runtime.client_features || [],
+    prompt_presets: model.content.prompt_presets || [],
+    blueprints: model.content.blueprints || [],
+    capability_matrix: model.content.capability_matrix || null
   };
+}
+
+function buildExperienceCatalogEntries(context) {
+  return Object.values(context.experiences).map((experience) => ({
+    id: experience.id,
+    mode: experience.mode,
+    page_title: experience.page_title,
+    output_slug: experience.output_slug,
+    theme: experience.theme,
+    content: experience.content,
+    scene: experience.scene
+  }));
 }
 
 export function loadJson(filePath) {
@@ -599,6 +705,7 @@ function buildModel(appManifestPath, experienceId) {
 function renderClientRuntime(model, siteData) {
   const chatSeed = JSON.stringify(model.content.chat_seed || []);
   const searchDocuments = JSON.stringify(siteData.search_documents || []);
+  const promptPresets = JSON.stringify(siteData.prompt_presets || []);
   return `<script>
 (() => {
   const metricCards = document.querySelectorAll('[data-kain-component="metric-card"] .metric-value');
@@ -644,11 +751,22 @@ function renderClientRuntime(model, siteData) {
   const chatRoot = document.querySelector('[data-kain-component="chat-lab"]');
   if (chatRoot) {
     const seed = ${chatSeed};
+    const promptPresets = ${promptPresets};
     const seedBox = chatRoot.querySelector('.chat-seed');
     const form = chatRoot.querySelector('.chat-form');
+    const input = form?.querySelector('input[name="prompt"]');
+    const promptButtons = [...document.querySelectorAll('[data-kain-component="prompt-deck"] [data-prompt-value]')];
+    for (const button of promptButtons) {
+      button.addEventListener('click', () => {
+        if (input) input.value = button.getAttribute('data-prompt-value') || '';
+        form?.requestSubmit();
+      });
+    }
+    if (input && promptPresets.length > 0 && !input.placeholder) {
+      input.placeholder = promptPresets[0].prompt || input.placeholder || '';
+    }
     form?.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const input = form.querySelector('input[name="prompt"]');
       const prompt = input?.value?.trim();
       if (!prompt) return;
       seedBox.insertAdjacentHTML('beforeend', '<article class="chat-bubble user"><p class="chat-role">user</p><p>' + prompt.replaceAll('<', '&lt;') + '</p></article>');
@@ -805,7 +923,7 @@ function renderDocument(model, siteData) {
       gap: 18px;
       margin-top: 18px;
     }
-    .panel, .hero-card, .metric-card, .feature-card, .portfolio-card, .route-card, .actor-card, .timeline-row, .pricing-card, .testimonial-card, .doc-card, .link-card, .command-card, .logo-pill, .search-result {
+    .panel, .hero-card, .metric-card, .feature-card, .portfolio-card, .route-card, .actor-card, .timeline-row, .pricing-card, .testimonial-card, .doc-card, .link-card, .command-card, .logo-pill, .search-result, .process-card, .prompt-card {
       border-radius: 24px;
       border: 1px solid var(--line);
       background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
@@ -821,14 +939,37 @@ function renderDocument(model, siteData) {
       color: var(--muted);
       line-height: 1.5;
     }
-    .metric-grid, .feature-grid, .portfolio-grid, .docs-grid, .link-grid, .command-grid, .pricing-grid, .testimonial-grid {
+    .metric-grid, .feature-grid, .portfolio-grid, .docs-grid, .link-grid, .command-grid, .pricing-grid, .testimonial-grid, .process-grid, .prompt-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 14px;
     }
-    .metric-card, .feature-card, .portfolio-card, .route-card, .actor-card, .pricing-card, .testimonial-card, .doc-card, .link-card, .command-card, .search-result {
+    .metric-card, .feature-card, .portfolio-card, .route-card, .actor-card, .pricing-card, .testimonial-card, .doc-card, .link-card, .command-card, .search-result, .process-card, .prompt-card {
       padding: 16px;
     }
+    .blueprint-card { min-height: 220px; }
+    .matrix-shell {
+      overflow-x: auto;
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.02);
+    }
+    .capability-matrix {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 720px;
+    }
+    .capability-matrix th, .capability-matrix td {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      text-align: left;
+    }
+    .capability-matrix th {
+      color: var(--text);
+      font-family: var(--font-display);
+      font-weight: 600;
+    }
+    .capability-matrix td { color: var(--muted); }
     .metric-value { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); color: var(--highlight); font-family: var(--font-display); }
     .action, .chat-form button, .search-form button, .faq-question {
       display: inline-flex;
@@ -951,6 +1092,11 @@ function renderDocument(model, siteData) {
       background: rgba(0,0,0,0.25);
       border: 1px solid rgba(255,255,255,0.06);
     }
+    .prompt-card {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
     .form-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1022,7 +1168,11 @@ function buildSummary(model) {
     robots_path: path.join(model.output_dir, "robots.txt"),
     feed_path: path.join(model.output_dir, "feed.xml"),
     server_port: model.context.app.site_runtime.default_port,
-    output_dir: model.output_dir
+    output_dir: model.output_dir,
+    route_count: (model.content.server_routes || []).length,
+    actor_count: (model.content.actor_roles || []).length,
+    form_count: Object.keys(model.content.forms || {}).length,
+    search_document_count: (model.content.search_documents || []).length
   };
 }
 
@@ -1084,6 +1234,40 @@ export function buildExperience(appManifestPath, experienceId) {
   };
 }
 
+export function buildCatalog(appManifestPath) {
+  const context = loadAppConfig(appManifestPath);
+  return {
+    template: context.app.name,
+    default_experience: context.app.default_experience,
+    output_root: context.app.output_root,
+    experiences: buildExperienceCatalogEntries(context)
+  };
+}
+
+function buildChatReply(bundle, plan, prompt) {
+  const lowered = String(prompt || "").toLowerCase();
+  const laneMatches = [
+    { keywords: ["business", "pricing", "marketing", "landing"], experience: "business_launch", label: "business launch" },
+    { keywords: ["portfolio", "case study", "work"], experience: "portfolio_signal", label: "portfolio" },
+    { keywords: ["3d", "immersive", "scene", "webgpu"], experience: "immersive_luminous", label: "immersive 3D" },
+    { keywords: ["chat", "assistant", "conversation", "prompt"], experience: "chat_orbit", label: "chat-first" },
+    { keywords: ["actor", "server", "route", "mesh"], experience: "actor_mesh_foundry", label: "actor server" },
+    { keywords: ["docs", "knowledge", "search", "guide"], experience: "knowledge_atlas", label: "knowledge hub" },
+    { keywords: ["command", "control", "realtime", "operations", "ops", "dashboard", "deploy"], experience: "operator_foundry", label: "operator hub" }
+  ];
+  const matchedLane = laneMatches.find((entry) => entry.keywords.some((keyword) => lowered.includes(keyword)));
+  const matchedPrompts = (bundle.site_data.prompt_presets || []).filter((entry) =>
+    [entry.title, entry.prompt, entry.body].join(" ").toLowerCase().includes(lowered)
+  );
+  const formIds = (bundle.site_data.forms || []).map((form) => form.id).join(", ") || "none";
+  const nextLane = matchedLane ? `${matchedLane.label} via '${matchedLane.experience}'` : `hybrid via '${bundle.id}'`;
+  const suggestedPrompt = matchedPrompts[0]?.prompt || null;
+  const routeCount = plan.routes.length;
+  const actorCount = plan.actors.length;
+  const suggestion = suggestedPrompt ? ` Suggested prompt: "${suggestedPrompt}".` : "";
+  return `Local Kain web runtime received '${prompt}'. Route this request through ${nextLane}. Current experience '${bundle.id}' exposes ${routeCount} routes, ${actorCount} actors, and forms [${formIds}].${suggestion}`;
+}
+
 function buildApiRoutes(model, siteData) {
   const builtInRoutes = [
     { method: "GET", path: "/", purpose: "serves the experience shell", actor: "site_renderer" },
@@ -1092,10 +1276,15 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/robots.txt", purpose: "returns crawler policy", actor: "site_renderer" },
     { method: "GET", path: "/feed.xml", purpose: "returns the local update feed", actor: "site_renderer" },
     { method: "GET", path: "/api/runtime", purpose: "returns active runtime metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/catalog", purpose: "returns the available experience catalog", actor: "runtime_reporter" },
     { method: "GET", path: "/api/routes", purpose: "returns the route contract", actor: "mesh_supervisor" },
     { method: "GET", path: "/api/site", purpose: "returns site data and seo metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/scene", purpose: "returns the current scene descriptor", actor: "site_renderer" },
+    { method: "GET", path: "/api/forms", purpose: "returns the available form contracts", actor: "intake_collector" },
+    { method: "GET", path: "/api/search/documents", purpose: "returns the local search document index", actor: "search_indexer" },
     { method: "GET", path: "/api/search", purpose: "queries the local search document index", actor: "search_indexer" },
     { method: "GET", path: "/api/chat", purpose: "returns chat seed messages or a local reply", actor: "chat_seed_router" },
+    { method: "GET", path: "/api/chat/stream", purpose: "returns a server-sent event preview for local chat pipelines", actor: "chat_seed_router" },
     { method: "GET", path: "/api/actors", purpose: "returns actor topology and role descriptions", actor: "mesh_supervisor" },
     { method: "GET", path: "/healthz", purpose: "simple health response for local supervision", actor: "mesh_supervisor" }
   ];
@@ -1118,6 +1307,7 @@ export function buildActorServerPlan(appManifestPath, experienceId) {
     routes: buildApiRoutes(model, siteData),
     actors: model.content.actor_roles || [],
     forms: siteData.forms || [],
+    catalog: buildExperienceCatalogEntries(model.context),
     page_title: model.experience.page_title,
     output_slug: model.experience.output_slug
   };
@@ -1137,7 +1327,7 @@ export function actorServerReport(appManifestPath, experienceId) {
   ].join("\n");
 }
 
-function buildCatalog(context, built) {
+function buildWrittenCatalog(context, built) {
   return {
     template: context.app.name,
     default_experience: context.app.default_experience,
@@ -1171,7 +1361,8 @@ export function buildMatrix(appManifestPath) {
     artifact_count: experiences.length * 7 + 2,
     server_port: context.app.site_runtime.default_port,
     experience_ids: experiences.map((entry) => entry.id),
-    client_features: context.app.site_runtime.client_features || []
+    client_features: context.app.site_runtime.client_features || [],
+    modes: experiences.map((entry) => entry.mode)
   };
 }
 
@@ -1198,10 +1389,11 @@ export function writeMatrix(appManifestPath) {
     artifact_count: built.length * 7 + 2,
     server_port: context.app.site_runtime.default_port,
     experience_ids: built.map((entry) => entry.id),
-    client_features: context.app.site_runtime.client_features || []
+    client_features: context.app.site_runtime.client_features || [],
+    modes: built.map((entry) => entry.mode)
   };
   writeJson(path.join(outputRoot, "matrix.summary.json"), summary);
-  writeJson(path.join(outputRoot, "experience-catalog.json"), buildCatalog(context, built));
+  writeJson(path.join(outputRoot, "experience-catalog.json"), buildWrittenCatalog(context, built));
   return summary;
 }
 
@@ -1290,8 +1482,20 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, bundle.site_data);
       return;
     }
+    if (request.method === "GET" && pathname === "/api/catalog") {
+      sendJson(response, 200, { experiences: plan.catalog, default_experience: bundle.id });
+      return;
+    }
     if (request.method === "GET" && pathname === "/api/routes") {
       sendJson(response, 200, plan.routes);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/scene") {
+      sendJson(response, 200, bundle.manifest.scene);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/forms") {
+      sendJson(response, 200, bundle.site_data.forms || []);
       return;
     }
     if (request.method === "GET" && pathname === "/api/actors") {
@@ -1304,10 +1508,22 @@ async function serveExperience(appManifestPath, experienceId) {
         sendJson(response, 200, chatSeed);
         return;
       }
-      const seedText = chatSeed.map((entry) => entry.text).join(" ");
-      sendJson(response, 200, {
-        reply: `Local Kain web runtime received '${prompt}'. Current experience '${bundle.id}' exposes ${plan.routes.length} routes and ${plan.actors.length} actors. Seed context: ${seedText || "none configured"}.`
+      sendJson(response, 200, { reply: buildChatReply(bundle, plan, prompt) });
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/chat/stream") {
+      response.writeHead(200, {
+        "content-type": "text/event-stream; charset=utf-8",
+        "cache-control": "no-cache",
+        connection: "keep-alive"
       });
+      response.write(`event: ready\n`);
+      response.write(`data: ${JSON.stringify({ experience: bundle.id, actors: plan.actors.length, routes: plan.routes.length })}\n\n`);
+      response.end();
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/search/documents") {
+      sendJson(response, 200, searchIndex);
       return;
     }
     if (request.method === "GET" && pathname === "/api/search") {
@@ -1354,8 +1570,16 @@ function runCli() {
     serveExperience(appManifestPath, experienceId);
     return;
   }
+  if (command === "catalog") {
+    process.stdout.write(JSON.stringify(buildCatalog(appManifestPath), null, 2) + "\n");
+    return;
+  }
   if (command === "experience") {
     process.stdout.write(JSON.stringify(buildExperience(appManifestPath, experienceId), null, 2) + "\n");
+    return;
+  }
+  if (command === "actor-plan") {
+    process.stdout.write(JSON.stringify(buildActorServerPlan(appManifestPath, experienceId), null, 2) + "\n");
     return;
   }
   if (command === "actor-report") {
@@ -1366,7 +1590,7 @@ function runCli() {
     process.stdout.write(JSON.stringify(buildMatrix(appManifestPath), null, 2) + "\n");
     return;
   }
-  process.stderr.write(`unknown command '${command}'. expected build, serve, experience, actor-report, or print\n`);
+  process.stderr.write(`unknown command '${command}'. expected build, serve, catalog, experience, actor-plan, actor-report, or print\n`);
   process.exitCode = 1;
 }
 

@@ -40,6 +40,29 @@
     { "kicker": "Scene", "title": "3D staging", "body": "Scene manifests and spotlight sections give premium launches a serious visual lane." },
     { "kicker": "Runtime", "title": "Actor-ready local server", "body": "Search, chat, route docs, form capture, and health endpoints ship together." }
   ],
+  "blueprints": [
+    { "kicker": "Authoring", "title": "Manifest registries", "body": "Themes, content, scenes, and experiences expand through data instead of copied app code.", "owned_by": ["kain", "registry"] },
+    { "kicker": "Runtime", "title": "Node FFI web lane", "body": "Serving, chat, search, and form capture stay outside Cargo while Kain remains the orchestrator.", "owned_by": ["node", "ffi"] },
+    { "kicker": "Preview", "title": "Semantic UI preview", "body": "Kain UI still owns the native preview surface and design intent loop.", "owned_by": ["kain-ui", "preview"] }
+  ],
+  "process_steps": [
+    { "title": "Pick the lane mix", "body": "Use hybrid when launch, search, prompts, 3D, and routes need to coexist." },
+    { "title": "Inspect the catalog", "body": "Route into the narrower business, portfolio, docs, chat, or operator experiences as needed." },
+    { "title": "Specialize from data", "body": "Move by editing manifests and reusable section systems before you touch helper runtime code." }
+  ],
+  "capability_matrix": {
+    "columns": ["Launch", "Knowledge", "Operations"],
+    "rows": [
+      { "label": "Content rails", "values": ["pricing + proof", "docs + search", "routes + commands"] },
+      { "label": "Interaction", "values": ["forms", "search", "chat + prompts"] },
+      { "label": "Runtime", "values": ["static build", "catalog APIs", "actor server"] }
+    ]
+  },
+  "prompt_presets": [
+    { "kicker": "Business", "title": "Business launch brief", "prompt": "Build a premium business launch site with docs and pricing", "body": "Move the hybrid lane toward business-first delivery.", "button_label": "Ask business" },
+    { "kicker": "Docs", "title": "Knowledge hub brief", "prompt": "Build a searchable docs and onboarding hub", "body": "Shift into knowledge-base and search-heavy flows.", "button_label": "Ask docs" },
+    { "kicker": "Ops", "title": "Operator hub brief", "prompt": "Build an actor-backed operator dashboard with commands", "body": "Route toward route catalogs, actors, and operator prompts.", "button_label": "Ask ops" }
+  ],
   "portfolio_entries": [
     { "year": "2026", "title": "Signalcraft Launch Rail", "summary": "Business narrative + docs + pricing system.", "tags": ["business", "launch"] },
     { "year": "2026", "title": "Orbit Chat Surface", "summary": "Prompt-first local site with route-aware replies.", "tags": ["chat", "search"] },

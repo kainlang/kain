@@ -168,21 +168,26 @@ pub fn augment_source_for_runtime(
     target: CompileTarget,
     prepare: &PrepareContext,
 ) -> Result<String, KainError> {
+    let imports = detect_c_library_imports(source);
+    if imports.is_empty() {
+        return Ok(source.to_string());
+    }
+
     let mode = artifact_mode_for_target(target).ok_or_else(|| {
         KainError::runtime(
             "C ABI FFI is currently available in Interpret, Test, and Rust/native packaging lanes",
         )
     })?;
-    let outputs = import_libraries_for_source(
-        source,
-        &ImportCOptions {
-            mode,
-            ..ImportCOptions::default()
-        },
-        prepare,
-    )?;
-    if outputs.is_empty() {
-        return Ok(source.to_string());
+    let mut outputs = Vec::with_capacity(imports.len());
+    for import_name in imports {
+        outputs.push(import_library(
+            &import_name,
+            &ImportCOptions {
+                mode,
+                ..ImportCOptions::default()
+            },
+            prepare,
+        )?);
     }
 
     let mut sections = Vec::new();

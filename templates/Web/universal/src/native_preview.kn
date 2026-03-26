@@ -41,11 +41,11 @@ component App():
         <panel title="Universal Web Template" scope="web_pack" variant="hero" layout="grid" columns={2} gap={18}>
             <slot layout="column" gap={12}>
                 <text role="eyebrow">Kain UI preview for the web pack</text>
-                <text role="hero" variant="hero">One manifest-driven starter for business sites, portfolio shells, 3D launches, chat experiences, docs/search hubs, and actor servers.</text>
+                <text role="hero" variant="hero">One manifest-driven starter for business sites, portfolio shells, docs/search hubs, 3D launches, chat experiences, operator dashboards, and actor servers.</text>
                 <text role="muted">The browser lane still uses Node FFI today, while this preview keeps semantic Kain UI authoring in the loop and visible.</text>
                 <slot layout="row" gap={12}>
                     <panel scope="web_pack" variant="card">
-                        <text role="metric">6</text>
+                        <text role="metric">8</text>
                         <text role="caption">experience archetypes</text>
                     </panel>
                     <panel scope="web_pack" variant="card">
@@ -83,8 +83,16 @@ component App():
                 <text role="caption">Route manifests, actor meshes, control-room docs, and local runtime APIs.</text>
             </panel>
             <panel scope="web_pack" variant="card">
+                <text role="title">Docs Hub</text>
+                <text role="caption">Knowledge bases, search panels, capability matrices, and onboarding flows.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Operator Hub</text>
+                <text role="caption">Prompt decks, route catalogs, actor meshes, capability matrices, and command-center flows.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
                 <text role="title">Hybrid</text>
-                <text role="caption">The full-spectrum proving ground that mixes launch, 3D, chat, docs, search, and routes.</text>
+                <text role="caption">The full-spectrum proving ground that mixes launch, 3D, chat, docs, search, routes, and operator surfaces.</text>
             </panel>
         </panel>
 
