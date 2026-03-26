@@ -1,5 +1,6 @@
 [
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "universal_3d_workbench",
     "label": "Universal 3D Workbench",
     "preset_kind": "workspace_lane",
@@ -9,6 +10,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "asset_pipeline_studio",
     "label": "Asset Pipeline Studio",
     "preset_kind": "workspace_lane",
@@ -18,6 +20,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "headless_build_orchestrator",
     "label": "Headless Build Orchestrator",
     "preset_kind": "workspace_lane",
@@ -27,6 +30,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "game_runtime_shell",
     "label": "Game Runtime Shell",
     "preset_kind": "workspace_lane",
@@ -36,6 +40,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "render_lab",
     "label": "Render Lab",
     "preset_kind": "workspace_lane",
@@ -45,6 +50,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "simulation_console",
     "label": "Simulation Console",
     "preset_kind": "workspace_lane",
@@ -54,6 +60,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "sculpt_studio",
     "label": "Sculpt Studio",
     "preset_kind": "workspace_lane",
@@ -63,6 +70,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "procedural_world_lab",
     "label": "Procedural World Lab",
     "preset_kind": "workspace_lane",
@@ -72,6 +80,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "volumetric_fx_lab",
     "label": "Volumetric FX Lab",
     "preset_kind": "workspace_lane",
@@ -81,6 +90,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "scan_ingest_lab",
     "label": "Scan Ingest Lab",
     "preset_kind": "workspace_lane",
@@ -90,6 +100,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "collaboration_review_stage",
     "label": "Collaboration Review Stage",
     "preset_kind": "workspace_lane",
@@ -99,6 +110,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "plugin_package_builder",
     "label": "Plugin Package Builder",
     "preset_kind": "workspace_lane",
@@ -108,6 +120,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "artifact_orchestration_studio",
     "label": "Artifact Orchestration Studio",
     "preset_kind": "workspace_lane",
@@ -117,6 +130,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "constraint_rig_lab",
     "label": "Constraint Rig Lab",
     "preset_kind": "workspace_lane",
@@ -126,6 +140,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "biome_world_studio",
     "label": "Biome World Studio",
     "preset_kind": "workspace_lane",
@@ -135,6 +150,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "destruction_authoring_lab",
     "label": "Destruction Authoring Lab",
     "preset_kind": "workspace_lane",
@@ -144,6 +160,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "review_annotation_stage",
     "label": "Review Annotation Stage",
     "preset_kind": "workspace_lane",
@@ -153,6 +170,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "release_publisher",
     "label": "Release Publisher",
     "preset_kind": "workspace_lane",
@@ -162,6 +180,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "renderer_graph_studio",
     "label": "Renderer Graph Studio",
     "preset_kind": "workspace_lane",
@@ -171,6 +190,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "behavior_authoring_lab",
     "label": "Behavior Authoring Lab",
     "preset_kind": "workspace_lane",
@@ -180,6 +200,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "cad_surface_studio",
     "label": "CAD Surface Studio",
     "preset_kind": "workspace_lane",
@@ -189,6 +210,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "robotics_toolpath_lab",
     "label": "Robotics Toolpath Lab",
     "preset_kind": "workspace_lane",
@@ -198,6 +220,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "live_sync_control_tower",
     "label": "Live Sync Control Tower",
     "preset_kind": "workspace_lane",
@@ -207,6 +230,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "compositor_finishing_studio",
     "label": "Compositor Finishing Studio",
     "preset_kind": "workspace_lane",
@@ -216,6 +240,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "scene_exchange_hub",
     "label": "Scene Exchange Hub",
     "preset_kind": "workspace_lane",
@@ -225,6 +250,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "metrology_inspection_lab",
     "label": "Metrology Inspection Lab",
     "preset_kind": "workspace_lane",
@@ -234,6 +260,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "fabrication_schedule_tower",
     "label": "Fabrication Schedule Tower",
     "preset_kind": "workspace_lane",
@@ -243,6 +270,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "review_database_console",
     "label": "Review Database Console",
     "preset_kind": "workspace_lane",
@@ -252,6 +280,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "scene_semantics_studio",
     "label": "Scene Semantics Studio",
     "preset_kind": "workspace_lane",
@@ -261,6 +290,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "query_selection_lab",
     "label": "Query Selection Lab",
     "preset_kind": "workspace_lane",
@@ -270,6 +300,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "runtime_bundle_manager",
     "label": "Runtime Bundle Manager",
     "preset_kind": "workspace_lane",
@@ -279,6 +310,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "materialization_control_center",
     "label": "Materialization Control Center",
     "preset_kind": "workspace_lane",
@@ -288,6 +320,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "asset_registry_console",
     "label": "Asset Registry Console",
     "preset_kind": "workspace_lane",
@@ -297,6 +330,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "character_facial_lab",
     "label": "Character Facial Lab",
     "preset_kind": "workspace_lane",
@@ -306,6 +340,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "virtual_production_stage",
     "label": "Virtual Production Stage",
     "preset_kind": "workspace_lane",
@@ -315,6 +350,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "geospatial_twin_studio",
     "label": "Geospatial Twin Studio",
     "preset_kind": "workspace_lane",
@@ -324,6 +360,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "xr_experience_lab",
     "label": "XR Experience Lab",
     "preset_kind": "workspace_lane",
@@ -333,6 +370,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "network_replication_console",
     "label": "Network Replication Console",
     "preset_kind": "workspace_lane",
@@ -342,6 +380,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "device_control_center",
     "label": "Device Control Center",
     "preset_kind": "workspace_lane",
@@ -351,6 +390,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "runtime_reflection_console",
     "label": "Runtime Reflection Console",
     "preset_kind": "workspace_lane",
@@ -360,6 +400,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "lookdev_review_stage",
     "label": "Lookdev Review Stage",
     "preset_kind": "workspace_lane",
@@ -369,6 +410,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "simulation_authoring_lab",
     "label": "Simulation Authoring Lab",
     "preset_kind": "workspace_lane",
@@ -378,6 +420,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "delivery_materializer_tower",
     "label": "Delivery Materializer Tower",
     "preset_kind": "workspace_lane",
@@ -387,6 +430,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "scene_bundle_studio",
     "label": "Scene Bundle Studio",
     "preset_kind": "workspace_lane",
@@ -396,6 +440,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "native_widget_designer",
     "label": "Native Widget Designer",
     "preset_kind": "workspace_lane",
@@ -405,6 +450,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "interchange_exchange_hub",
     "label": "Interchange Exchange Hub",
     "preset_kind": "workspace_lane",
@@ -414,6 +460,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "automation_recipe_tower",
     "label": "Automation Recipe Tower",
     "preset_kind": "workspace_lane",
@@ -423,6 +470,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "knowledge_ops_console",
     "label": "Knowledge Ops Console",
     "preset_kind": "workspace_lane",
@@ -432,6 +480,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "cinematic_sequence_studio",
     "label": "Cinematic Sequence Studio",
     "preset_kind": "workspace_lane",
@@ -441,6 +490,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "navigation_crowd_lab",
     "label": "Navigation Crowd Lab",
     "preset_kind": "workspace_lane",
@@ -450,6 +500,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "vehicle_dynamics_lab",
     "label": "Vehicle Dynamics Lab",
     "preset_kind": "workspace_lane",
@@ -459,6 +510,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "lighting_pipeline_stage",
     "label": "Lighting Pipeline Stage",
     "preset_kind": "workspace_lane",
@@ -468,6 +520,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "broadcast_control_room",
     "label": "Broadcast Control Room",
     "preset_kind": "workspace_lane",
@@ -477,6 +530,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "evaluation_graph_console",
     "label": "Evaluation Graph Console",
     "preset_kind": "workspace_lane",
@@ -486,6 +540,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "viewport_stack_studio",
     "label": "Viewport Stack Studio",
     "preset_kind": "workspace_lane",
@@ -495,6 +550,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "interaction_gizmo_lab",
     "label": "Interaction Gizmo Lab",
     "preset_kind": "workspace_lane",
@@ -504,6 +560,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "persistence_recovery_console",
     "label": "Persistence Recovery Console",
     "preset_kind": "workspace_lane",
@@ -513,6 +570,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "farm_job_control_tower",
     "label": "Farm Job Control Tower",
     "preset_kind": "workspace_lane",
@@ -522,6 +580,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "telemetry_budget_console",
     "label": "Telemetry Budget Console",
     "preset_kind": "workspace_lane",
@@ -531,6 +590,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "security_capability_console",
     "label": "Security Capability Console",
     "preset_kind": "workspace_lane",
@@ -540,6 +600,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "entity_archetype_studio",
     "label": "Entity Archetype Studio",
     "preset_kind": "workspace_lane",
@@ -549,6 +610,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "prefab_assembly_lab",
     "label": "Prefab Assembly Lab",
     "preset_kind": "workspace_lane",
@@ -558,6 +620,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "command_macro_console",
     "label": "Command Macro Console",
     "preset_kind": "workspace_lane",
@@ -567,6 +630,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "state_migration_console",
     "label": "State Migration Console",
     "preset_kind": "workspace_lane",
@@ -576,6 +640,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "workspace_layout_studio",
     "label": "Workspace Layout Studio",
     "preset_kind": "workspace_lane",
@@ -585,6 +650,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "gameplay_framework_lab",
     "label": "Gameplay Framework Lab",
     "preset_kind": "workspace_lane",
@@ -594,6 +660,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "presentation_shell_studio",
     "label": "Presentation Shell Studio",
     "preset_kind": "workspace_lane",
@@ -603,6 +670,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "replay_capture_console",
     "label": "Replay Capture Console",
     "preset_kind": "workspace_lane",
@@ -612,6 +680,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "localization_pipeline_hub",
     "label": "Localization Pipeline Hub",
     "preset_kind": "workspace_lane",
@@ -621,6 +690,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "remote_streaming_control_tower",
     "label": "Remote Streaming Control Tower",
     "preset_kind": "workspace_lane",
@@ -630,6 +700,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "point_cloud_lidar_studio",
     "label": "Point Cloud LiDAR Studio",
     "preset_kind": "workspace_lane",
@@ -639,6 +710,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "scene_source_studio",
     "label": "Scene Source Studio",
     "preset_kind": "workspace_lane",
@@ -648,6 +720,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "widget_primitives_lab",
     "label": "Widget Primitives Lab",
     "preset_kind": "workspace_lane",
@@ -657,6 +730,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "graph_materialization_tower",
     "label": "Graph Materialization Tower",
     "preset_kind": "workspace_lane",
@@ -666,6 +740,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "input_mapping_control_room",
     "label": "Input Mapping Control Room",
     "preset_kind": "workspace_lane",
@@ -675,6 +750,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "camera_rig_console",
     "label": "Camera Rig Console",
     "preset_kind": "workspace_lane",
@@ -684,6 +760,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "cache_runtime_center",
     "label": "Cache Runtime Center",
     "preset_kind": "workspace_lane",
@@ -693,6 +770,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "scene_object_studio",
     "label": "Scene Object Studio",
     "preset_kind": "workspace_lane",
@@ -702,6 +780,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "native_control_designer",
     "label": "Native Control Designer",
     "preset_kind": "workspace_lane",
@@ -711,6 +790,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "schema_contract_console",
     "label": "Schema Contract Console",
     "preset_kind": "workspace_lane",
@@ -720,6 +800,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "physics_authoring_lab",
     "label": "Physics Authoring Lab",
     "preset_kind": "workspace_lane",
@@ -729,6 +810,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "shader_permutation_studio",
     "label": "Shader Permutation Studio",
     "preset_kind": "workspace_lane",
@@ -738,6 +820,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "resource_residency_console",
     "label": "Resource Residency Console",
     "preset_kind": "workspace_lane",
@@ -747,6 +830,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "material_source_studio",
     "label": "Material Source Studio",
     "preset_kind": "workspace_lane",
@@ -756,6 +840,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "editor_widget_suite_designer",
     "label": "Editor Widget Suite Designer",
     "preset_kind": "workspace_lane",
@@ -765,6 +850,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "scene_mutation_console",
     "label": "Scene Mutation Console",
     "preset_kind": "workspace_lane",
@@ -774,6 +860,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "render_delegation_lab",
     "label": "Render Delegation Lab",
     "preset_kind": "workspace_lane",
@@ -783,6 +870,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "resource_reflection_console",
     "label": "Resource Reflection Console",
     "preset_kind": "workspace_lane",
@@ -792,6 +880,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "runtime_compatibility_hub",
     "label": "Runtime Compatibility Hub",
     "preset_kind": "workspace_lane",
@@ -801,6 +890,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "mesh_topology_studio",
     "label": "Mesh Topology Studio",
     "preset_kind": "workspace_lane",
@@ -810,6 +900,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "baking_pipeline_forge",
     "label": "Baking Pipeline Forge",
     "preset_kind": "workspace_lane",
@@ -819,6 +910,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "kainscript_runtime_tower",
     "label": "KainScript Runtime Tower",
     "preset_kind": "workspace_lane",
@@ -828,6 +920,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "ai_agent_director",
     "label": "AI Agent Director",
     "preset_kind": "workspace_lane",
@@ -837,6 +930,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "modding_registry_control",
     "label": "Modding Registry Control",
     "preset_kind": "workspace_lane",
@@ -846,6 +940,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "identity_access_console",
     "label": "Identity Access Console",
     "preset_kind": "workspace_lane",
@@ -855,6 +950,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "cloud_session_control_tower",
     "label": "Cloud Session Control Tower",
     "preset_kind": "workspace_lane",
@@ -864,6 +960,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "marketplace_registry_hub",
     "label": "Marketplace Registry Hub",
     "preset_kind": "workspace_lane",
@@ -873,6 +970,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "dataops_dataset_foundry",
     "label": "DataOps Dataset Foundry",
     "preset_kind": "workspace_lane",
@@ -882,6 +980,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "fleet_orchestration_tower",
     "label": "Fleet Orchestration Tower",
     "preset_kind": "workspace_lane",
@@ -891,6 +990,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "rigging_authoring_studio",
     "label": "Rigging Authoring Studio",
     "preset_kind": "workspace_lane",
@@ -900,6 +1000,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "deformation_stack_lab",
     "label": "Deformation Stack Lab",
     "preset_kind": "workspace_lane",
@@ -909,6 +1010,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "texture_paint_studio",
     "label": "Texture Paint Studio",
     "preset_kind": "workspace_lane",
@@ -918,6 +1020,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "uv_layout_workbench",
     "label": "UV Layout Workbench",
     "preset_kind": "workspace_lane",
@@ -927,6 +1030,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "brush_system_foundry",
     "label": "Brush System Foundry",
     "preset_kind": "workspace_lane",
@@ -936,6 +1040,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "color_management_control_room",
     "label": "Color Management Control Room",
     "preset_kind": "workspace_lane",
@@ -945,6 +1050,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "media_pipeline_stage",
     "label": "Media Pipeline Stage",
     "preset_kind": "workspace_lane",
@@ -954,6 +1060,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "narrative_state_studio",
     "label": "Narrative State Studio",
     "preset_kind": "workspace_lane",
@@ -963,6 +1070,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "haptics_routing_lab",
     "label": "Haptics Routing Lab",
     "preset_kind": "workspace_lane",
@@ -972,6 +1080,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "update_channel_registry",
     "label": "Update Channel Registry",
     "preset_kind": "workspace_lane",

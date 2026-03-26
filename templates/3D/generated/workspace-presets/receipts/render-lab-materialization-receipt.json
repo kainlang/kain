@@ -1,0 +1,24 @@
+{
+  "receipt_id": "render_lab_materialization_receipt_example",
+  "preset_id": "render_lab",
+  "build_graph_id": "workspace_preset_materialization_graph",
+  "distribution_channel_id": "workspace_preset_delivery_registry",
+  "launch_manifest_id": "render_lab_launch_manifest_example",
+  "promotion_state": "ready_for_distribution",
+  "tensor_pipeline_id": "workspace_preset_tensor_pipeline",
+  "materializer_kernel_id": "workspace_preset_launch_receipt_resolve",
+  "artifacts": [
+    {
+      "kind": "launch_manifest",
+      "path": "generated/workspace-presets/launch/render-lab-launch-manifest.json"
+    },
+    {
+      "kind": "delivery_receipt_schema",
+      "path": "generated/schemas/workspace-presets/receipts/schema.json"
+    }
+  ],
+  "timestamps": {
+    "materialized_at": "2026-03-26T04:40:00Z",
+    "promoted_at": "2026-03-26T04:41:00Z"
+  }
+}

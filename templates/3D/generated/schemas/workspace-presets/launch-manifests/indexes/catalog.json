@@ -1,0 +1,15 @@
+{
+  "index_id": "workspace_preset_launch_manifest_schema_index",
+  "schema_id": "workspace_preset_launch_manifest_schema",
+  "template_ids": [
+    "workspace_preset_launch_manifest_template_v1"
+  ],
+  "artifact_roots": [
+    "generated/workspace-presets/launch",
+    "generated/schemas/workspace-presets/launch-manifests"
+  ],
+  "reflection_catalogs": [
+    "workspace_preset_launch_schema_catalog",
+    "workspace_preset_launch_template_catalog"
+  ]
+}

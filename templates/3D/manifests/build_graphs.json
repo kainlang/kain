@@ -145,7 +145,21 @@
       "label" : "Workspace Preset Materialization Graph",
       "outputs" : [
          "generated/workspace-presets",
+         "generated/workspace-presets/launch",
+         "generated/workspace-presets/receipts",
          "generated/distribution/workspace-presets",
+         "generated/schemas/workspace-presets/launch-manifests",
+         "generated/schemas/workspace-presets/launch-manifests/templates",
+         "generated/schemas/workspace-presets/launch-manifests/indexes",
+         "generated/schemas/workspace-presets/receipts",
+         "generated/schemas/workspace-presets/receipts/templates",
+         "generated/schemas/workspace-presets/receipts/indexes",
+         "generated/runtime-reflection/workspace-presets",
+         "generated/runtime-reflection/workspace-preset-launch-schemas",
+         "generated/runtime-reflection/workspace-preset-launch-templates",
+         "generated/runtime-reflection/workspace-preset-receipt-schemas",
+         "generated/runtime-reflection/workspace-preset-receipt-templates",
+         "generated/runtime-reflection/workspace-preset-launch-receipt-bindings",
          "generated/runtime-reflection/workspace-preset-receipts"
       ],
       "id" : "workspace_preset_materialization_graph",
@@ -550,8 +564,16 @@
       "queue" : "jobs_dispatch_queue",
       "id" : "jobs_dispatch_graph",
       "outputs" : [
+         "generated/jobs/receipts",
+         "generated/jobs/retries",
          "generated/jobs",
-         "generated/distribution/jobs"
+         "generated/distribution/jobs",
+         "generated/schemas/jobs/receipts",
+         "generated/schemas/jobs/receipts/templates",
+         "generated/schemas/jobs/receipts/indexes",
+         "generated/runtime-reflection/jobs-receipt-schemas",
+         "generated/runtime-reflection/jobs-receipt-templates",
+         "generated/runtime-reflection/jobs-retry-ledgers"
       ],
       "label" : "Jobs Dispatch Graph"
    },

@@ -1,0 +1,26 @@
+{
+  "template_id": "workspace_preset_launch_manifest_template_v1",
+  "schema_id": "workspace_preset_launch_manifest_schema",
+  "manifest_id": "{{launch_manifest_id}}",
+  "preset_id": "{{preset_id}}",
+  "focus_lane": "{{focus_lane}}",
+  "runtime_app_id": "{{runtime_app_id}}",
+  "runtime_bundle_profile_id": "runtime_bundle_launch_profile",
+  "workspace_layout_runtime_id": "workspace_layout_runtime",
+  "tensor_pipeline_id": "workspace_preset_tensor_pipeline",
+  "delivery_registry_id": "workspace_preset_delivery_registry",
+  "artifacts": [
+    {
+      "kind": "launch_manifest_root",
+      "root": "generated/workspace-presets/launch"
+    },
+    {
+      "kind": "launch_schema_root",
+      "root": "generated/schemas/workspace-presets/launch-manifests"
+    }
+  ],
+  "layout_binding": {
+    "layout_profile": "{{layout_profile}}",
+    "dock_graph_id": "workspace_dock_graph_runtime"
+  }
+}

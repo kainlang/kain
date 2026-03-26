@@ -578,7 +578,8 @@
       "id" : "jobs_dispatch_tensor_pipeline",
       "domain" : "jobs",
       "passes" : [
-         "job_queue_dispatch_resolve"
+         "job_queue_dispatch_resolve",
+         "job_receipt_materialize"
       ],
       "label" : "Jobs Dispatch Tensor Pipeline",
       "priority" : "batch_or_deadline_driven",
@@ -653,6 +654,16 @@
       "residency" : "gpu_required",
       "priority" : "latency_critical",
       "label" : "Workspace Layout Tensor Pipeline"
+   },
+   {
+      "id" : "workspace_preset_tensor_pipeline",
+      "domain" : "workspace_preset",
+      "passes" : [
+         "workspace_preset_launch_receipt_resolve"
+      ],
+      "label" : "Workspace Preset Tensor Pipeline",
+      "priority" : "background_interactive_or_delivery_critical",
+      "residency" : "gpu_preferred"
    },
    {
       "label" : "Gameplay Framework Tensor Pipeline",

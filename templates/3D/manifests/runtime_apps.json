@@ -1,5 +1,6 @@
 [
   {
+    "source_id": "universal_3d_workbench_app",
     "outputs": [
       {
         "target": "ks",
@@ -22,6 +23,7 @@
     "namespace": "automation_recipe_tower"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "runtime_kind": "delivery_orchestration_suite",
     "outputs": [
       {
@@ -44,6 +46,7 @@
     "label": "Delivery Materializer Tower"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "host_kind": "native_ui",
     "outputs": [
       {
@@ -70,6 +73,7 @@
     "namespace": "artifact_orchestration_studio"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "plugin_package_builder",
     "outputs": [
       {
@@ -96,6 +100,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "label": "Release Publisher",
     "namespace": "release_publisher",
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
@@ -122,6 +127,7 @@
     "runtime_kind": "desktop_publisher"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
     "namespace": "headless_build_orchestrator",
     "label": "Headless Build Orchestrator",
@@ -140,6 +146,7 @@
     "id": "headless_build_orchestrator"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "host_kind": "native_ui",
     "outputs": [
       {
@@ -166,6 +173,7 @@
     "namespace": "asset_pipeline_studio"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "game_runtime_shell",
     "host_kind": "hybrid",
     "outputs": [
@@ -188,6 +196,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "label": "Runtime Bundle Manager",
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
     "namespace": "runtime_bundle_manager",
@@ -214,6 +223,7 @@
     "runtime_kind": "native_bundle_suite"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "label": "Character Facial Lab",
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
     "namespace": "character_facial_lab",
@@ -240,6 +250,7 @@
     "runtime_kind": "native_character_suite"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
     "namespace": "device_control_center",
     "label": "Device Control Center",
@@ -266,6 +277,7 @@
     "id": "device_control_center"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "scene_exchange_hub",
     "outputs": [
       {
@@ -292,6 +304,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "outputs": [
       {
         "target": "ks",
@@ -318,6 +331,7 @@
     "namespace": "fabrication_schedule_tower"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
     "namespace": "compositor_finishing_studio",
     "label": "Compositor Finishing Studio",
@@ -344,6 +358,7 @@
     "id": "compositor_finishing_studio"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "label": "Geospatial Twin Studio",
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
     "namespace": "geospatial_twin_studio",
@@ -370,6 +385,7 @@
     "runtime_kind": "native_geospatial_suite"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "runtime_kind": "native_inspection_suite",
     "host_kind": "native_ui",
     "outputs": [
@@ -396,6 +412,7 @@
     "label": "Metrology Inspection Lab"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
     "namespace": "knowledge_ops_console",
     "label": "Knowledge Ops Console",
@@ -422,6 +439,7 @@
     "id": "knowledge_ops_console"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "label": "Lookdev Review Stage",
     "namespace": "lookdev_review_stage",
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
@@ -448,6 +466,7 @@
     "runtime_kind": "native_lookdev_suite"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "id": "materialization_control_center",
     "host_kind": "native_ui",
     "outputs": [
@@ -474,6 +493,7 @@
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "label": "Network Replication Console",
     "namespace": "network_replication_console",
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
@@ -500,6 +520,7 @@
     "runtime_kind": "native_network_suite"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "runtime_kind": "native_query_suite",
     "id": "query_selection_lab",
     "host_kind": "native_ui",
@@ -526,6 +547,7 @@
     "label": "Query Selection Lab"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "host_kind": "native_ui",
     "outputs": [
       {
@@ -552,6 +574,7 @@
     "namespace": "runtime_reflection_console"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
     "namespace": "asset_registry_console",
     "label": "Asset Registry Console",
@@ -578,6 +601,7 @@
     "id": "asset_registry_console"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "label": "Collaboration Review Stage",
     "namespace": "collaboration_review_stage",
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
@@ -604,6 +628,7 @@
     "runtime_kind": "native_review_suite"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "outputs": [
       {
         "path": "generated/runtime/ks/scene_semantics_studio/main.ks",
@@ -630,6 +655,7 @@
     "namespace": "scene_semantics_studio"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "runtime_kind": "native_solver_suite",
     "id": "simulation_authoring_lab",
     "host_kind": "native_ui",
@@ -656,6 +682,7 @@
     "label": "Simulation Authoring Lab"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "namespace": "virtual_production_stage",
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
     "label": "Virtual Production Stage",
@@ -682,6 +709,7 @@
     "host_kind": "native_ui"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "namespace": "live_sync_control_tower",
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn",
     "label": "Live Sync Control Tower",
@@ -708,6 +736,7 @@
     ]
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "outputs": [
       {
         "path": "generated/runtime/ks/native_widget_designer/main.ks",
@@ -734,6 +763,7 @@
     "namespace": "native_widget_designer"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "runtime_kind": "native_workbench",
     "outputs": [
       {
@@ -764,6 +794,7 @@
     "label": "Universal 3D Workbench"
   },
   {
+    "source_id": "universal_3d_workbench_app",
     "label": "XR Experience Lab",
     "namespace": "xr_experience_lab",
     "source_path": "src-kain/apps/universal_3d_workbench/main.kn",

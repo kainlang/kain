@@ -1,0 +1,80 @@
+{
+    "descriptor_document_id":  "runtime_launch_readiness_descriptor_document",
+    "descriptor_path":  "generated/runtime-compatibility/descriptors/runtime_launch_readiness.json",
+    "descriptor_kind":  "launch_readiness",
+    "descriptor_id":  "runtime_launch_readiness",
+    "descriptor_scope":  "launch_profiles_operator_checks_fallback_routes_and_issue_receipts",
+    "policy":  {
+                   "name":  "gate_policy",
+                   "value":  "delivery_safe_and_audit_visible"
+               },
+    "runtime_links":  {
+                          "tensor_pipeline_id":  "runtime_compatibility_tensor_pipeline",
+                          "build_graph_id":  "runtime_compatibility_delivery_graph",
+                          "distribution_channel_id":  "runtime_compatibility_delivery_registry",
+                          "gpu_kernel_id":  "runtime_compatibility_resolve"
+                      },
+    "matrix_axes":  {
+                        "backend_kinds":  [
+                                              "hybrid",
+                                              "ks_runtime",
+                                              "native_ui"
+                                          ],
+                        "target_kinds":  [
+                                             "automation_recipe_suite",
+                                             "delivery_orchestration_suite",
+                                             "desktop_orchestrator",
+                                             "desktop_packager",
+                                             "desktop_publisher",
+                                             "desktop_script",
+                                             "desktop_tool_suite",
+                                             "hybrid_module",
+                                             "native_bundle_suite",
+                                             "native_character_suite",
+                                             "native_device_suite",
+                                             "native_exchange_suite",
+                                             "native_fabrication_suite",
+                                             "native_finishing_suite",
+                                             "native_geospatial_suite",
+                                             "native_inspection_suite",
+                                             "native_knowledge_suite",
+                                             "native_lookdev_suite",
+                                             "native_materialization_suite",
+                                             "native_network_suite",
+                                             "native_query_suite",
+                                             "native_reflection_suite",
+                                             "native_registry_suite",
+                                             "native_review_suite",
+                                             "native_scene_suite",
+                                             "native_solver_suite",
+                                             "native_stage_suite",
+                                             "native_sync_suite",
+                                             "native_widget_suite",
+                                             "native_workbench",
+                                             "native_xr_suite"
+                                         ],
+                        "feature_pack_tiers":  [
+                                                   "cross_surface_runtime",
+                                                   "immersive_native_bridge",
+                                                   "native_authoring_suite",
+                                                   "scripted_orchestration"
+                                               ],
+                        "budget_window_tiers":  [
+                                                    "balanced_runtime_budget_window",
+                                                    "batch_orchestration_budget_window",
+                                                    "desktop_interactive_budget_window",
+                                                    "gpu_and_streaming_budget_window"
+                                                ],
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts",
+                                               "wasm"
+                                           ]
+                    },
+    "artifact_roots":  [
+                           "generated/runtime-compatibility",
+                           "generated/distribution/runtime-compatibility"
+                       ]
+}

@@ -180,6 +180,13 @@ fn default_primary_surfaces() -> Array<WorkbenchSurfaceDescriptor> with Pure:
     workspace_presets.dock_region = "bottom"
     push(surfaces, workspace_presets)
 
+    let jobs_receipts = WorkbenchSurfaceDescriptor()
+    jobs_receipts.surface_id = "jobs_receipt_surface"
+    jobs_receipts.widget_kind = "Graph"
+    jobs_receipts.title = "Jobs Receipt Ledger"
+    jobs_receipts.dock_region = "bottom"
+    push(surfaces, jobs_receipts)
+
     let asset_registry = WorkbenchSurfaceDescriptor()
     asset_registry.surface_id = "asset_registry_surface"
     asset_registry.widget_kind = "Graph"

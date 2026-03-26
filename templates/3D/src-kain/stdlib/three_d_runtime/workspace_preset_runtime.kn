@@ -23,6 +23,14 @@ struct WorkspacePresetLaunchManifestDescriptor:
     runtime_bundle_profile_id: String
     workspace_layout_runtime_id: String
     tensor_pipeline_id: String
+    schema_emitter_id: String
+
+struct WorkspacePresetSchemaDescriptor:
+    schema_id: String
+    schema_version: String
+    schema_root: String
+    compatibility_policy: String
+    reflection_catalog_id: String
 
 struct WorkspacePresetRuntimeBindingDescriptor:
     binding_id: String
@@ -39,13 +47,16 @@ struct WorkspacePresetReceiptDescriptor:
     promotion_policy: String
     tensor_pipeline_id: String
     reflection_catalog_id: String
+    schema_emitter_id: String
 
 struct WorkspacePresetRuntimeProfile:
     preset_registry: WorkspacePresetRegistryDescriptor
     export_descriptor: WorkspacePresetExportDescriptor
     launch_manifest_descriptor: WorkspacePresetLaunchManifestDescriptor
+    launch_manifest_schema: WorkspacePresetSchemaDescriptor
     runtime_binding_descriptor: WorkspacePresetRuntimeBindingDescriptor
     receipt_descriptor: WorkspacePresetReceiptDescriptor
+    receipt_schema: WorkspacePresetSchemaDescriptor
     sculpt_shortcut: WorkspacePresetShortcutDescriptor
     render_shortcut: WorkspacePresetShortcutDescriptor
     review_shortcut: WorkspacePresetShortcutDescriptor
@@ -80,6 +91,14 @@ fn default_workspace_preset_runtime_profile() -> WorkspacePresetRuntimeProfile w
     profile.launch_manifest_descriptor.runtime_bundle_profile_id = "runtime_bundle_launch_profile"
     profile.launch_manifest_descriptor.workspace_layout_runtime_id = "workspace_layout_runtime"
     profile.launch_manifest_descriptor.tensor_pipeline_id = "workspace_preset_tensor_pipeline"
+    profile.launch_manifest_descriptor.schema_emitter_id = "workspace_preset_launch_manifest_schema_emitter"
+
+    profile.launch_manifest_schema = WorkspacePresetSchemaDescriptor()
+    profile.launch_manifest_schema.schema_id = "workspace_preset_launch_manifest_schema"
+    profile.launch_manifest_schema.schema_version = "1.0.0"
+    profile.launch_manifest_schema.schema_root = "generated/schemas/workspace-presets/launch-manifests"
+    profile.launch_manifest_schema.compatibility_policy = "workspace_preset_runtime_bundle_workspace_layout_and_host_kind_compatible"
+    profile.launch_manifest_schema.reflection_catalog_id = "workspace_preset_launch_schema_catalog"
 
     profile.runtime_binding_descriptor = WorkspacePresetRuntimeBindingDescriptor()
     profile.runtime_binding_descriptor.binding_id = "workspace_preset_runtime_binding_registry"
@@ -96,6 +115,14 @@ fn default_workspace_preset_runtime_profile() -> WorkspacePresetRuntimeProfile w
     profile.receipt_descriptor.promotion_policy = "workspace_owner_and_schema_compatible"
     profile.receipt_descriptor.tensor_pipeline_id = "workspace_preset_tensor_pipeline"
     profile.receipt_descriptor.reflection_catalog_id = "workspace_preset_receipt_catalog"
+    profile.receipt_descriptor.schema_emitter_id = "workspace_preset_delivery_receipt_schema_emitter"
+
+    profile.receipt_schema = WorkspacePresetSchemaDescriptor()
+    profile.receipt_schema.schema_id = "workspace_preset_delivery_receipt_schema"
+    profile.receipt_schema.schema_version = "1.0.0"
+    profile.receipt_schema.schema_root = "generated/schemas/workspace-presets/receipts"
+    profile.receipt_schema.compatibility_policy = "workspace_preset_delivery_channel_bundle_receipt_and_reflection_compatible"
+    profile.receipt_schema.reflection_catalog_id = "workspace_preset_receipt_schema_catalog"
 
     profile.sculpt_shortcut = default_workspace_preset_shortcut("sculpt_studio", "Sculpt Studio", "sculpt")
     profile.render_shortcut = default_workspace_preset_shortcut("render_lab", "Render Lab", "render")

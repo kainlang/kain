@@ -1,0 +1,16 @@
+{
+  "index_id": "workspace_preset_delivery_receipt_schema_index",
+  "schema_id": "workspace_preset_delivery_receipt_schema",
+  "template_ids": [
+    "workspace_preset_delivery_receipt_template_v1"
+  ],
+  "artifact_roots": [
+    "generated/workspace-presets/receipts",
+    "generated/schemas/workspace-presets/receipts"
+  ],
+  "reflection_catalogs": [
+    "workspace_preset_receipt_schema_catalog",
+    "workspace_preset_receipt_template_catalog",
+    "workspace_preset_receipt_catalog"
+  ]
+}

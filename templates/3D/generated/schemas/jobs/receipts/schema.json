@@ -1,0 +1,55 @@
+{
+  "schema_id": "jobs_delivery_receipt_schema",
+  "schema_version": "1.0.0",
+  "schema_scope": "jobs_dispatch_delivery_retry_and_promotion_receipt_contract",
+  "validation_policy": "gate_before_job_promotion_receipt_resume_or_worker_requeue",
+  "reflection_catalog_id": "jobs_receipt_schema_catalog",
+  "document_kind": "jobs_delivery_receipt_schema_bundle",
+  "fields": [
+    {
+      "name": "receipt_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "dispatch_graph_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "queue_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "job_state",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "promotion_state",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "retry_ledger_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "distribution_channel_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "artifacts",
+      "type": "array",
+      "required": true
+    },
+    {
+      "name": "timestamps",
+      "type": "object",
+      "required": true
+    }
+  ]
+}

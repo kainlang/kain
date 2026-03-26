@@ -1,0 +1,25 @@
+{
+  "template_id": "jobs_delivery_receipt_template_v1",
+  "schema_id": "jobs_delivery_receipt_schema",
+  "receipt_id": "{{job_receipt_id}}",
+  "dispatch_graph_id": "jobs_dispatch_graph",
+  "queue_id": "jobs_dispatch_queue",
+  "job_state": "{{job_state}}",
+  "promotion_state": "{{promotion_state}}",
+  "retry_ledger_id": "jobs_retry_ledger",
+  "distribution_channel_id": "jobs_delivery_registry",
+  "artifacts": [
+    {
+      "kind": "job_output_bundle",
+      "root": "generated/jobs"
+    },
+    {
+      "kind": "job_distribution_bundle",
+      "root": "generated/distribution/jobs"
+    }
+  ],
+  "timestamps": {
+    "submitted_at": "{{submitted_at}}",
+    "completed_at": "{{completed_at}}"
+  }
+}

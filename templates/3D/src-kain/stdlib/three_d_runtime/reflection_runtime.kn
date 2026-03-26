@@ -16,8 +16,17 @@ struct ReflectionRuntimeProfile:
     schema_catalog: ReflectionCatalogDescriptor
     gpu_catalog: ReflectionCatalogDescriptor
     runtime_contract_catalog: ReflectionCatalogDescriptor
+    resource_reflection_catalog: ReflectionCatalogDescriptor
     workspace_preset_catalog: ReflectionCatalogDescriptor
+    workspace_preset_launch_receipt_binding_catalog: ReflectionCatalogDescriptor
+    workspace_preset_launch_schema_catalog: ReflectionCatalogDescriptor
+    workspace_preset_launch_template_catalog: ReflectionCatalogDescriptor
+    workspace_preset_receipt_schema_catalog: ReflectionCatalogDescriptor
+    workspace_preset_receipt_template_catalog: ReflectionCatalogDescriptor
     workspace_preset_receipt_catalog: ReflectionCatalogDescriptor
+    jobs_receipt_schema_catalog: ReflectionCatalogDescriptor
+    jobs_receipt_template_catalog: ReflectionCatalogDescriptor
+    jobs_retry_ledger_catalog: ReflectionCatalogDescriptor
     launch_profile_catalog: ReflectionCatalogDescriptor
     build_graph_catalog: ReflectionCatalogDescriptor
     distribution_receipt_catalog: ReflectionCatalogDescriptor
@@ -42,8 +51,17 @@ fn default_reflection_runtime_profile() -> ReflectionRuntimeProfile with Pure:
     profile.schema_catalog = default_reflection_catalog_descriptor("schema_reflection_catalog", "stdlib_runtime_and_contract_schema", "generated/runtime-reflection/schema")
     profile.gpu_catalog = default_reflection_catalog_descriptor("gpu_reflection_catalog", "spirv_tensor_and_dispatch_metadata", "generated/runtime-reflection/gpu")
     profile.runtime_contract_catalog = default_reflection_catalog_descriptor("runtime_contract_catalog", "ffi_ui_and_native_contract_metadata", "generated/runtime-reflection/contracts")
+    profile.resource_reflection_catalog = default_reflection_catalog_descriptor("resource_reflection_catalog", "residency_streaming_budget_cache_and_delivery_resource_metadata", "generated/resource-reflection")
     profile.workspace_preset_catalog = default_reflection_catalog_descriptor("workspace_preset_catalog", "workspace_preset_focus_lane_and_host_selection_metadata", "generated/runtime-reflection/workspace-presets")
+    profile.workspace_preset_launch_receipt_binding_catalog = default_reflection_catalog_descriptor("workspace_preset_launch_receipt_binding_catalog", "workspace_preset_launch_receipt_schema_template_and_delivery_binding_metadata", "generated/runtime-reflection/workspace-preset-launch-receipt-bindings")
+    profile.workspace_preset_launch_schema_catalog = default_reflection_catalog_descriptor("workspace_preset_launch_schema_catalog", "workspace_preset_launch_manifest_schema_and_bundle_binding_metadata", "generated/runtime-reflection/workspace-preset-launch-schemas")
+    profile.workspace_preset_launch_template_catalog = default_reflection_catalog_descriptor("workspace_preset_launch_template_catalog", "workspace_preset_launch_manifest_template_and_index_metadata", "generated/runtime-reflection/workspace-preset-launch-templates")
+    profile.workspace_preset_receipt_schema_catalog = default_reflection_catalog_descriptor("workspace_preset_receipt_schema_catalog", "workspace_preset_delivery_receipt_schema_and_promotion_contract_metadata", "generated/runtime-reflection/workspace-preset-receipt-schemas")
+    profile.workspace_preset_receipt_template_catalog = default_reflection_catalog_descriptor("workspace_preset_receipt_template_catalog", "workspace_preset_delivery_receipt_template_and_index_metadata", "generated/runtime-reflection/workspace-preset-receipt-templates")
     profile.workspace_preset_receipt_catalog = default_reflection_catalog_descriptor("workspace_preset_receipt_catalog", "workspace_preset_materialization_receipts_and_delivery_metadata", "generated/runtime-reflection/workspace-preset-receipts")
+    profile.jobs_receipt_schema_catalog = default_reflection_catalog_descriptor("jobs_receipt_schema_catalog", "jobs_delivery_receipt_schema_and_retry_resume_contract_metadata", "generated/runtime-reflection/jobs-receipt-schemas")
+    profile.jobs_receipt_template_catalog = default_reflection_catalog_descriptor("jobs_receipt_template_catalog", "jobs_delivery_receipt_template_and_index_metadata", "generated/runtime-reflection/jobs-receipt-templates")
+    profile.jobs_retry_ledger_catalog = default_reflection_catalog_descriptor("jobs_retry_ledger_catalog", "jobs_retry_ledger_and_worker_requeue_metadata", "generated/runtime-reflection/jobs-retry-ledgers")
     profile.launch_profile_catalog = default_reflection_catalog_descriptor("launch_profile_catalog", "runtime_bundle_launch_profile_and_workspace_preset_binding_metadata", "generated/runtime-reflection/launch-profiles")
     profile.build_graph_catalog = default_reflection_catalog_descriptor("build_graph_catalog", "build_graph_queue_output_and_promotion_metadata", "generated/runtime-reflection/build-graphs")
     profile.distribution_receipt_catalog = default_reflection_catalog_descriptor("distribution_receipt_catalog", "distribution_channel_delivery_and_receipt_metadata", "generated/runtime-reflection/distribution")
@@ -63,6 +81,6 @@ fn default_reflection_runtime_profile() -> ReflectionRuntimeProfile with Pure:
     profile.compatibility_query_surface = ReflectionSurfaceDescriptor()
     profile.compatibility_query_surface.surface_id = "compatibility_query_surface"
     profile.compatibility_query_surface.surface_kind = "delivery_and_runtime_compatibility_query_console"
-    profile.compatibility_query_surface.query_policy = "build_graph_distribution_and_resource_compatibility_metadata"
+    profile.compatibility_query_surface.query_policy = "build_graph_distribution_resource_jobs_retry_and_receipt_schema_metadata"
     profile.compatibility_query_surface.promotion_policy = "approval_and_schema_compatible"
     profile

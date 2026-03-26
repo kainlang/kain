@@ -1,0 +1,88 @@
+{
+    "descriptor_document_id":  "resource_inspection_runtime_descriptor_document",
+    "descriptor_path":  "generated/resource-reflection/descriptors/resource_inspection_runtime.json",
+    "descriptor_kind":  "inspection_runtime",
+    "descriptor_id":  "resource_inspection_runtime",
+    "descriptor_scope":  "viewport_editor_jobs_telemetry_and_delivery_visible_resource_queries",
+    "export_root":  "generated/resource-reflection",
+    "source_path":  "src-kain/stdlib/three_d_runtime/resource_reflection_runtime.kn",
+    "policy":  {
+                   "name":  "query_policy",
+                   "value":  "manifest_contract_and_runtime_receipt_bound"
+               },
+    "runtime_links":  {
+                          "tensor_pipeline_id":  "resource_reflection_tensor_pipeline",
+                          "tensor_pipeline_domain":  "resource_reflection",
+                          "tensor_pipeline_priority":  "background_interactive_or_gate_critical",
+                          "tensor_pipeline_residency":  "gpu_preferred",
+                          "tensor_pipeline_pass_ids":  [
+                                                           "resource_reflection_catalog_resolve"
+                                                       ],
+                          "build_graph_id":  "resource_reflection_delivery_graph",
+                          "build_graph_queue":  "resource_reflection_delivery_queue",
+                          "build_graph_inputs":  [
+                                                     "sources.json",
+                                                     "build_graphs.json",
+                                                     "distribution_channels.json"
+                                                 ],
+                          "build_graph_outputs":  [
+                                                      "generated/resource-reflection",
+                                                      "generated/distribution/resource-reflection"
+                                                  ],
+                          "distribution_channel_id":  "resource_reflection_delivery_registry",
+                          "distribution_channel_kind":  "resource_reflection_delivery",
+                          "distribution_approval_policy":  "resource_reflection_gate",
+                          "distribution_artifact_roots":  [
+                                                              "generated/resource-reflection",
+                                                              "generated/distribution/resource-reflection"
+                                                          ]
+                      },
+    "kernel":  {
+                   "id":  "resource_reflection_catalog_resolve",
+                   "stage":  "resource_reflection",
+                   "entry":  "resource_reflection_catalog_resolve",
+                   "tensor_role":  "resource_reflection",
+                   "dispatch_shape":  [
+                                          32,
+                                          1,
+                                          1
+                                      ],
+                   "consumes":  [
+                                    "resource_catalogs",
+                                    "budget_receipts",
+                                    "device_windows",
+                                    "inspection_queries"
+                                ],
+                   "produces":  [
+                                    "resolved_resource_reflection_catalog",
+                                    "resource_query_receipts"
+                                ]
+               },
+    "contracts":  [
+                      {
+                          "contract_id":  "resource_reflection_runtime",
+                          "source_path":  "src-kain/stdlib/three_d_runtime/resource_reflection_runtime.kn"
+                      },
+                      {
+                          "contract_id":  "resource_runtime",
+                          "source_path":  "src-kain/stdlib/three_d_runtime/resource_runtime.kn"
+                      }
+                  ],
+    "linked_runtime_contract_entries":  [
+                                            {
+                                                "contract_id":  "resource_reflection_runtime",
+                                                "source_path":  "src-kain/stdlib/three_d_runtime/resource_reflection_runtime.kn"
+                                            },
+                                            {
+                                                "contract_id":  "resource_runtime",
+                                                "source_path":  "src-kain/stdlib/three_d_runtime/resource_runtime.kn"
+                                            }
+                                        ],
+    "linked_gpu_catalog_entries":  [
+
+                                   ],
+    "artifact_roots":  [
+                           "generated/resource-reflection",
+                           "generated/distribution/resource-reflection"
+                       ]
+}

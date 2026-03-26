@@ -434,6 +434,18 @@
       "binding" : "workspace_layout.runtime"
    },
    {
+      "binding" : "workspace_preset.runtime",
+      "id" : "workspace_preset_surface",
+      "title" : "Workspace Preset Catalog",
+      "widget" : "Graph"
+   },
+   {
+      "binding" : "jobs.receipts",
+      "id" : "jobs_receipt_surface",
+      "title" : "Jobs Receipt Ledger",
+      "widget" : "Graph"
+   },
+   {
       "binding" : "gameplay.runtime",
       "id" : "gameplay_surface",
       "title" : "Gameplay Framework Lab",

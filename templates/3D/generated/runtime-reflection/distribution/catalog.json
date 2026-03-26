@@ -1,0 +1,2541 @@
+{
+    "catalog_id":  "distribution_receipt_catalog",
+    "catalog_scope":  "distribution_channel_delivery_and_receipt_metadata",
+    "tensor_pipeline_id":  "runtime_reflection_tensor_pipeline",
+    "manifest_source":  "manifests/distribution_channels.json",
+    "channel_count":  87,
+    "entries":  [
+                    {
+                        "id":  "internal_workspace_registry",
+                        "label":  "Internal Workspace Registry",
+                        "channel_kind":  "workspace_registry",
+                        "approval_policy":  "workspace_owner_approval",
+                        "artifact_roots":  [
+                                               "generated/runtime",
+                                               "generated/packages"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "live_sync_materialization_graph",
+                                                    "package_materialization_graph",
+                                                    "runtime_materialization_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "review_drop",
+                        "label":  "Review Drop",
+                        "channel_kind":  "review_delivery",
+                        "approval_policy":  "review_lead_approval",
+                        "artifact_roots":  [
+                                               "generated/review",
+                                               "generated/distribution/review"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "review_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "public_release_catalog",
+                        "label":  "Public Release Catalog",
+                        "channel_kind":  "release_catalog",
+                        "approval_policy":  "release_gate",
+                        "artifact_roots":  [
+                                               "generated/distribution/public"
+                                           ],
+                        "linked_build_graphs":  [
+
+                                                ]
+                    },
+                    {
+                        "id":  "live_sync_mirror",
+                        "label":  "Live Sync Mirror",
+                        "channel_kind":  "workspace_sync",
+                        "approval_policy":  "session_authority_gate",
+                        "artifact_roots":  [
+                                               "generated/sync",
+                                               "generated/runtime"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "live_sync_materialization_graph",
+                                                    "runtime_materialization_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "machine_delivery_registry",
+                        "label":  "Machine Delivery Registry",
+                        "channel_kind":  "fabrication_delivery",
+                        "approval_policy":  "machine_program_approval",
+                        "artifact_roots":  [
+                                               "generated/cad",
+                                               "generated/toolpaths",
+                                               "generated/distribution/machines"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "cad_robotics_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "scene_exchange_registry",
+                        "label":  "Scene Exchange Registry",
+                        "channel_kind":  "scene_exchange_delivery",
+                        "approval_policy":  "exchange_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/exchange",
+                                               "generated/distribution/exchange"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "scene_exchange_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "review_database_registry",
+                        "label":  "Review Database Registry",
+                        "channel_kind":  "review_database_delivery",
+                        "approval_policy":  "review_data_retention_gate",
+                        "artifact_roots":  [
+                                               "generated/review-db",
+                                               "generated/distribution/review-db"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "review_database_materialization_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "runtime_bundle_registry",
+                        "label":  "Runtime Bundle Registry",
+                        "channel_kind":  "runtime_bundle_delivery",
+                        "approval_policy":  "bundle_gate",
+                        "artifact_roots":  [
+                                               "generated/bundles",
+                                               "generated/distribution/bundles"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "runtime_bundle_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "materialization_receipt_registry",
+                        "label":  "Materialization Receipt Registry",
+                        "channel_kind":  "materialization_delivery",
+                        "approval_policy":  "receipt_gate",
+                        "artifact_roots":  [
+                                               "generated/materialized",
+                                               "generated/distribution/materialized"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "materialization_receipt_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "workspace_preset_delivery_registry",
+                        "label":  "Workspace Preset Delivery Registry",
+                        "channel_kind":  "workspace_preset_delivery",
+                        "approval_policy":  "workspace_owner_and_schema_compatible",
+                        "artifact_roots":  [
+                                               "generated/workspace-presets",
+                                               "generated/workspace-presets/launch",
+                                               "generated/workspace-presets/receipts",
+                                               "generated/distribution/workspace-presets",
+                                               "generated/schemas/workspace-presets/launch-manifests",
+                                               "generated/schemas/workspace-presets/launch-manifests/templates",
+                                               "generated/schemas/workspace-presets/launch-manifests/indexes",
+                                               "generated/schemas/workspace-presets/receipts",
+                                               "generated/schemas/workspace-presets/receipts/templates",
+                                               "generated/schemas/workspace-presets/receipts/indexes",
+                                               "generated/runtime-reflection/workspace-presets",
+                                               "generated/runtime-reflection/workspace-preset-launch-schemas",
+                                               "generated/runtime-reflection/workspace-preset-launch-templates",
+                                               "generated/runtime-reflection/workspace-preset-receipt-schemas",
+                                               "generated/runtime-reflection/workspace-preset-receipt-templates",
+                                               "generated/runtime-reflection/workspace-preset-launch-receipt-bindings",
+                                               "generated/runtime-reflection/workspace-preset-receipts"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "workspace_preset_materialization_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "asset_registry_delivery",
+                        "label":  "Asset Registry Delivery",
+                        "channel_kind":  "asset_registry_delivery",
+                        "approval_policy":  "registry_curator_gate",
+                        "artifact_roots":  [
+                                               "generated/asset-registry",
+                                               "generated/distribution/asset-registry"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "asset_registry_materialization_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "character_delivery_registry",
+                        "label":  "Character Delivery Registry",
+                        "channel_kind":  "character_delivery",
+                        "approval_policy":  "character_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/character",
+                                               "generated/distribution/character"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "character_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "virtual_production_stage_registry",
+                        "label":  "Virtual Production Stage Registry",
+                        "channel_kind":  "virtual_production_delivery",
+                        "approval_policy":  "stage_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/stage",
+                                               "generated/distribution/stage"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "virtual_production_stage_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "geospatial_delivery_registry",
+                        "label":  "Geospatial Delivery Registry",
+                        "channel_kind":  "geospatial_delivery",
+                        "approval_policy":  "survey_authority_gate",
+                        "artifact_roots":  [
+                                               "generated/geospatial",
+                                               "generated/distribution/geospatial"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "geospatial_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "xr_delivery_registry",
+                        "label":  "XR Delivery Registry",
+                        "channel_kind":  "xr_delivery",
+                        "approval_policy":  "immersive_release_gate",
+                        "artifact_roots":  [
+                                               "generated/xr",
+                                               "generated/distribution/xr"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "xr_bundle_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "network_delivery_registry",
+                        "label":  "Network Delivery Registry",
+                        "channel_kind":  "network_delivery",
+                        "approval_policy":  "session_authority_gate",
+                        "artifact_roots":  [
+                                               "generated/network",
+                                               "generated/distribution/network"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "network_replication_materialization_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "device_delivery_registry",
+                        "label":  "Device Delivery Registry",
+                        "channel_kind":  "device_delivery",
+                        "approval_policy":  "device_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/device",
+                                               "generated/distribution/device"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "device_control_materialization_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "runtime_reflection_registry",
+                        "label":  "Runtime Reflection Registry",
+                        "channel_kind":  "runtime_reflection_delivery",
+                        "approval_policy":  "schema_compatibility_gate",
+                        "artifact_roots":  [
+                                               "generated/runtime-reflection",
+                                               "generated/reflection"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "runtime_materialization_graph",
+                                                    "runtime_reflection_materialization_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "lookdev_delivery_registry",
+                        "label":  "Lookdev Delivery Registry",
+                        "channel_kind":  "lookdev_delivery",
+                        "approval_policy":  "lookdev_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/lookdev",
+                                               "generated/distribution/lookdev"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "lookdev_review_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "simulation_authoring_registry",
+                        "label":  "Simulation Authoring Registry",
+                        "channel_kind":  "simulation_authoring_delivery",
+                        "approval_policy":  "simulation_director_gate",
+                        "artifact_roots":  [
+                                               "generated/simulation-authoring",
+                                               "generated/distribution/simulation-authoring"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "simulation_authoring_materialization_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "delivery_materializer_registry",
+                        "label":  "Delivery Materializer Registry",
+                        "channel_kind":  "delivery_materializer",
+                        "approval_policy":  "delivery_gate",
+                        "artifact_roots":  [
+                                               "generated/delivery",
+                                               "generated/distribution/delivery"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "delivery_materializer_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "scene_bundle_registry",
+                        "label":  "Scene Bundle Registry",
+                        "channel_kind":  "scene_bundle_delivery",
+                        "approval_policy":  "scene_bundle_gate",
+                        "artifact_roots":  [
+                                               "generated/scene-bundles",
+                                               "generated/distribution/scene-bundles"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "scene_bundle_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "widget_schema_registry",
+                        "label":  "Widget Schema Registry",
+                        "channel_kind":  "widget_schema_delivery",
+                        "approval_policy":  "widget_schema_gate",
+                        "artifact_roots":  [
+                                               "generated/widgets",
+                                               "generated/distribution/widgets"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "native_widget_schema_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "interchange_delivery_registry",
+                        "label":  "Interchange Delivery Registry",
+                        "channel_kind":  "interchange_delivery",
+                        "approval_policy":  "interchange_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/interchange",
+                                               "generated/distribution/interchange"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "interchange_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "automation_recipe_registry",
+                        "label":  "Automation Recipe Registry",
+                        "channel_kind":  "automation_delivery",
+                        "approval_policy":  "automation_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/automation",
+                                               "generated/distribution/automation"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "automation_recipe_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "knowledge_ops_registry",
+                        "label":  "Knowledge Ops Registry",
+                        "channel_kind":  "knowledge_delivery",
+                        "approval_policy":  "knowledge_curator_gate",
+                        "artifact_roots":  [
+                                               "generated/knowledge",
+                                               "generated/distribution/knowledge"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "knowledge_ops_materialization_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "sequencing_delivery_registry",
+                        "label":  "Sequencing Delivery Registry",
+                        "channel_kind":  "sequencing_delivery",
+                        "approval_policy":  "editorial_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/sequencing",
+                                               "generated/distribution/sequencing"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "sequencing_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "navigation_delivery_registry",
+                        "label":  "Navigation Delivery Registry",
+                        "channel_kind":  "navigation_delivery",
+                        "approval_policy":  "runtime_navigation_gate",
+                        "artifact_roots":  [
+                                               "generated/navigation",
+                                               "generated/distribution/navigation"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "navigation_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "vehicle_delivery_registry",
+                        "label":  "Vehicle Delivery Registry",
+                        "channel_kind":  "vehicle_delivery",
+                        "approval_policy":  "vehicle_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/vehicle",
+                                               "generated/distribution/vehicle"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "vehicle_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "lighting_delivery_registry",
+                        "label":  "Lighting Delivery Registry",
+                        "channel_kind":  "lighting_delivery",
+                        "approval_policy":  "lighting_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/lighting",
+                                               "generated/distribution/lighting"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "lighting_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "broadcast_delivery_registry",
+                        "label":  "Broadcast Delivery Registry",
+                        "channel_kind":  "broadcast_delivery",
+                        "approval_policy":  "broadcast_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/broadcast",
+                                               "generated/distribution/broadcast"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "broadcast_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "evaluation_delivery_registry",
+                        "label":  "Evaluation Delivery Registry",
+                        "channel_kind":  "evaluation_delivery",
+                        "approval_policy":  "evaluation_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/evaluation",
+                                               "generated/distribution/evaluation"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "evaluation_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "viewport_delivery_registry",
+                        "label":  "Viewport Delivery Registry",
+                        "channel_kind":  "viewport_delivery",
+                        "approval_policy":  "viewport_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/viewport",
+                                               "generated/distribution/viewport"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "viewport_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "interaction_delivery_registry",
+                        "label":  "Interaction Delivery Registry",
+                        "channel_kind":  "interaction_delivery",
+                        "approval_policy":  "interaction_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/interaction",
+                                               "generated/distribution/interaction"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "interaction_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "persistence_delivery_registry",
+                        "label":  "Persistence Delivery Registry",
+                        "channel_kind":  "persistence_delivery",
+                        "approval_policy":  "persistence_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/persistence",
+                                               "generated/distribution/persistence"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "persistence_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "jobs_delivery_registry",
+                        "label":  "Jobs Delivery Registry",
+                        "channel_kind":  "jobs_delivery",
+                        "approval_policy":  "job_dispatch_gate",
+                        "artifact_roots":  [
+                                               "generated/jobs/receipts",
+                                               "generated/jobs/retries",
+                                               "generated/jobs",
+                                               "generated/distribution/jobs",
+                                               "generated/schemas/jobs/receipts",
+                                               "generated/schemas/jobs/receipts/templates",
+                                               "generated/schemas/jobs/receipts/indexes"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "jobs_dispatch_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "telemetry_delivery_registry",
+                        "label":  "Telemetry Delivery Registry",
+                        "channel_kind":  "telemetry_delivery",
+                        "approval_policy":  "telemetry_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/telemetry",
+                                               "generated/distribution/telemetry"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "telemetry_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "security_delivery_registry",
+                        "label":  "Security Delivery Registry",
+                        "channel_kind":  "security_delivery",
+                        "approval_policy":  "security_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/security",
+                                               "generated/distribution/security"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "security_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "entity_delivery_registry",
+                        "label":  "Entity Delivery Registry",
+                        "channel_kind":  "entity_delivery",
+                        "approval_policy":  "entity_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/entity",
+                                               "generated/distribution/entity"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "entity_runtime_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "prefab_delivery_registry",
+                        "label":  "Prefab Delivery Registry",
+                        "channel_kind":  "prefab_delivery",
+                        "approval_policy":  "prefab_supervisor_gate",
+                        "artifact_roots":  [
+                                               "generated/prefabs",
+                                               "generated/distribution/prefabs"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "prefab_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "command_receipt_registry",
+                        "label":  "Command Receipt Registry",
+                        "channel_kind":  "command_delivery",
+                        "approval_policy":  "command_authority_gate",
+                        "artifact_roots":  [
+                                               "generated/commands",
+                                               "generated/distribution/commands"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "command_receipt_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "state_migration_registry",
+                        "label":  "State Migration Registry",
+                        "channel_kind":  "state_migration_delivery",
+                        "approval_policy":  "schema_compatibility_gate",
+                        "artifact_roots":  [
+                                               "generated/state-migration",
+                                               "generated/distribution/state-migration"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "state_migration_materialization_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "workspace_layout_registry",
+                        "label":  "Workspace Layout Registry",
+                        "channel_kind":  "workspace_layout_delivery",
+                        "approval_policy":  "workspace_layout_gate",
+                        "artifact_roots":  [
+                                               "generated/workspace-layouts",
+                                               "generated/distribution/workspace-layouts"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "workspace_layout_registry_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "gameplay_delivery_registry",
+                        "label":  "Gameplay Delivery Registry",
+                        "channel_kind":  "gameplay_delivery",
+                        "approval_policy":  "gameplay_authority_gate",
+                        "artifact_roots":  [
+                                               "generated/gameplay",
+                                               "generated/distribution/gameplay"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "gameplay_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "presentation_delivery_registry",
+                        "label":  "Presentation Delivery Registry",
+                        "channel_kind":  "presentation_delivery",
+                        "approval_policy":  "presentation_accessibility_gate",
+                        "artifact_roots":  [
+                                               "generated/presentation",
+                                               "generated/distribution/presentation"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "presentation_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "replay_delivery_registry",
+                        "label":  "Replay Delivery Registry",
+                        "channel_kind":  "replay_delivery",
+                        "approval_policy":  "replay_integrity_gate",
+                        "artifact_roots":  [
+                                               "generated/replay",
+                                               "generated/distribution/replay"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "replay_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "localization_delivery_registry",
+                        "label":  "Localization Delivery Registry",
+                        "channel_kind":  "localization_delivery",
+                        "approval_policy":  "locale_coverage_gate",
+                        "artifact_roots":  [
+                                               "generated/localization",
+                                               "generated/distribution/localization"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "localization_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "streaming_delivery_registry",
+                        "label":  "Streaming Delivery Registry",
+                        "channel_kind":  "streaming_delivery",
+                        "approval_policy":  "streaming_authority_gate",
+                        "artifact_roots":  [
+                                               "generated/streaming",
+                                               "generated/distribution/streaming"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "streaming_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "point_cloud_delivery_registry",
+                        "label":  "Point Cloud Delivery Registry",
+                        "channel_kind":  "point_cloud_delivery",
+                        "approval_policy":  "point_cloud_quality_gate",
+                        "artifact_roots":  [
+                                               "generated/point-cloud",
+                                               "generated/distribution/point-cloud"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "point_cloud_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "scene_source_delivery_registry",
+                        "label":  "Scene Source Delivery Registry",
+                        "channel_kind":  "scene_source_delivery",
+                        "approval_policy":  "scene_source_schema_gate",
+                        "artifact_roots":  [
+                                               "generated/scene-source",
+                                               "generated/distribution/scene-source"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "scene_source_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "widget_primitives_delivery_registry",
+                        "label":  "Widget Primitives Delivery Registry",
+                        "channel_kind":  "widget_primitives_delivery",
+                        "approval_policy":  "widget_primitive_schema_gate",
+                        "artifact_roots":  [
+                                               "generated/widget-primitives",
+                                               "generated/distribution/widget-primitives"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "widget_primitives_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "graph_materialization_delivery_registry",
+                        "label":  "Graph Materialization Delivery Registry",
+                        "channel_kind":  "graph_materialization_delivery",
+                        "approval_policy":  "graph_materialization_gate",
+                        "artifact_roots":  [
+                                               "generated/graph-materialization",
+                                               "generated/distribution/graph-materialization"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "graph_materialization_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "input_delivery_registry",
+                        "label":  "Input Delivery Registry",
+                        "channel_kind":  "input_delivery",
+                        "approval_policy":  "input_authority_gate",
+                        "artifact_roots":  [
+                                               "generated/input",
+                                               "generated/distribution/input"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "input_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "camera_delivery_registry",
+                        "label":  "Camera Delivery Registry",
+                        "channel_kind":  "camera_delivery",
+                        "approval_policy":  "camera_authority_gate",
+                        "artifact_roots":  [
+                                               "generated/camera",
+                                               "generated/distribution/camera"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "camera_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "cache_delivery_registry",
+                        "label":  "Cache Delivery Registry",
+                        "channel_kind":  "cache_delivery",
+                        "approval_policy":  "cache_integrity_gate",
+                        "artifact_roots":  [
+                                               "generated/cache",
+                                               "generated/distribution/cache"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "cache_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "scene_object_delivery_registry",
+                        "label":  "Scene Object Delivery Registry",
+                        "channel_kind":  "scene_object_delivery",
+                        "approval_policy":  "scene_object_authority_gate",
+                        "artifact_roots":  [
+                                               "generated/scene-objects",
+                                               "generated/distribution/scene-objects"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "scene_object_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "native_controls_delivery_registry",
+                        "label":  "Native Controls Delivery Registry",
+                        "channel_kind":  "native_controls_delivery",
+                        "approval_policy":  "native_controls_schema_gate",
+                        "artifact_roots":  [
+                                               "generated/native-controls",
+                                               "generated/distribution/native-controls"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "native_controls_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "schema_delivery_registry",
+                        "label":  "Schema Delivery Registry",
+                        "channel_kind":  "schema_delivery",
+                        "approval_policy":  "schema_compatibility_gate",
+                        "artifact_roots":  [
+                                               "generated/schemas",
+                                               "generated/distribution/schemas"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "schema_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "physics_delivery_registry",
+                        "label":  "Physics Delivery Registry",
+                        "channel_kind":  "physics_delivery",
+                        "approval_policy":  "physics_safety_gate",
+                        "artifact_roots":  [
+                                               "generated/physics",
+                                               "generated/distribution/physics"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "physics_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "shader_delivery_registry",
+                        "label":  "Shader Delivery Registry",
+                        "channel_kind":  "shader_delivery",
+                        "approval_policy":  "shader_compatibility_gate",
+                        "artifact_roots":  [
+                                               "generated/shaders",
+                                               "generated/distribution/shaders"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "shader_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "resource_delivery_registry",
+                        "label":  "Resource Delivery Registry",
+                        "channel_kind":  "resource_delivery",
+                        "approval_policy":  "resource_budget_gate",
+                        "artifact_roots":  [
+                                               "generated/resources",
+                                               "generated/distribution/resources"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "resource_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "material_source_delivery_registry",
+                        "label":  "Material Source Delivery Registry",
+                        "channel_kind":  "material_source_delivery",
+                        "approval_policy":  "material_source_schema_gate",
+                        "artifact_roots":  [
+                                               "generated/material-source",
+                                               "generated/distribution/material-source"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "material_source_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "editor_widget_delivery_registry",
+                        "label":  "Editor Widget Delivery Registry",
+                        "channel_kind":  "editor_widget_delivery",
+                        "approval_policy":  "editor_widget_schema_gate",
+                        "artifact_roots":  [
+                                               "generated/editor-widgets",
+                                               "generated/distribution/editor-widgets"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "editor_widget_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "scene_mutation_delivery_registry",
+                        "label":  "Scene Mutation Delivery Registry",
+                        "channel_kind":  "scene_mutation_delivery",
+                        "approval_policy":  "scene_mutation_authority_gate",
+                        "artifact_roots":  [
+                                               "generated/scene-mutation",
+                                               "generated/distribution/scene-mutation"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "scene_mutation_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "render_delegation_delivery_registry",
+                        "label":  "Render Delegation Delivery Registry",
+                        "channel_kind":  "render_delegation_delivery",
+                        "approval_policy":  "render_delegate_gate",
+                        "artifact_roots":  [
+                                               "generated/render-delegation",
+                                               "generated/distribution/render-delegation"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "render_delegation_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "resource_reflection_delivery_registry",
+                        "label":  "Resource Reflection Delivery Registry",
+                        "channel_kind":  "resource_reflection_delivery",
+                        "approval_policy":  "resource_reflection_gate",
+                        "artifact_roots":  [
+                                               "generated/resource-reflection",
+                                               "generated/distribution/resource-reflection"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "resource_reflection_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "runtime_compatibility_delivery_registry",
+                        "label":  "Runtime Compatibility Delivery Registry",
+                        "channel_kind":  "runtime_compatibility_delivery",
+                        "approval_policy":  "runtime_compatibility_gate",
+                        "artifact_roots":  [
+                                               "generated/runtime-compatibility",
+                                               "generated/distribution/runtime-compatibility"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "runtime_compatibility_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "mesh_delivery_registry",
+                        "label":  "Mesh Delivery Registry",
+                        "channel_kind":  "mesh_delivery",
+                        "approval_policy":  "mesh_integrity_gate",
+                        "artifact_roots":  [
+                                               "generated/mesh",
+                                               "generated/distribution/mesh"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "mesh_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "baking_delivery_registry",
+                        "label":  "Baking Delivery Registry",
+                        "channel_kind":  "baking_delivery",
+                        "approval_policy":  "bake_quality_gate",
+                        "artifact_roots":  [
+                                               "generated/baking",
+                                               "generated/distribution/baking"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "baking_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "scripting_delivery_registry",
+                        "label":  "Scripting Delivery Registry",
+                        "channel_kind":  "scripting_delivery",
+                        "approval_policy":  "script_sandbox_gate",
+                        "artifact_roots":  [
+                                               "generated/scripting",
+                                               "generated/distribution/scripting"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "scripting_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "ai_delivery_registry",
+                        "label":  "AI Delivery Registry",
+                        "channel_kind":  "ai_delivery",
+                        "approval_policy":  "ai_safety_gate",
+                        "artifact_roots":  [
+                                               "generated/ai",
+                                               "generated/distribution/ai"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "ai_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "modding_delivery_registry",
+                        "label":  "Modding Delivery Registry",
+                        "channel_kind":  "modding_delivery",
+                        "approval_policy":  "mod_registry_gate",
+                        "artifact_roots":  [
+                                               "generated/modding",
+                                               "generated/distribution/modding"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "modding_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "identity_delivery_registry",
+                        "label":  "Identity Delivery Registry",
+                        "channel_kind":  "identity_delivery",
+                        "approval_policy":  "identity_authority_gate",
+                        "artifact_roots":  [
+                                               "generated/identity",
+                                               "generated/distribution/identity"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "identity_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "cloud_delivery_registry",
+                        "label":  "Cloud Delivery Registry",
+                        "channel_kind":  "cloud_delivery",
+                        "approval_policy":  "cloud_cost_and_security_gate",
+                        "artifact_roots":  [
+                                               "generated/cloud",
+                                               "generated/distribution/cloud"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "cloud_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "marketplace_delivery_registry",
+                        "label":  "Marketplace Delivery Registry",
+                        "channel_kind":  "marketplace_delivery",
+                        "approval_policy":  "marketplace_license_gate",
+                        "artifact_roots":  [
+                                               "generated/marketplace",
+                                               "generated/distribution/marketplace"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "marketplace_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "dataops_delivery_registry",
+                        "label":  "DataOps Delivery Registry",
+                        "channel_kind":  "dataops_delivery",
+                        "approval_policy":  "dataops_governance_gate",
+                        "artifact_roots":  [
+                                               "generated/dataops",
+                                               "generated/distribution/dataops"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "dataops_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "fleet_delivery_registry",
+                        "label":  "Fleet Delivery Registry",
+                        "channel_kind":  "fleet_delivery",
+                        "approval_policy":  "fleet_capacity_gate",
+                        "artifact_roots":  [
+                                               "generated/fleet",
+                                               "generated/distribution/fleet"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "fleet_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "rigging_delivery_registry",
+                        "label":  "Rigging Delivery Registry",
+                        "channel_kind":  "rigging_delivery",
+                        "approval_policy":  "rigging_integrity_gate",
+                        "artifact_roots":  [
+                                               "generated/rigging",
+                                               "generated/distribution/rigging"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "rigging_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "deformation_delivery_registry",
+                        "label":  "Deformation Delivery Registry",
+                        "channel_kind":  "deformation_delivery",
+                        "approval_policy":  "deformation_validation_gate",
+                        "artifact_roots":  [
+                                               "generated/deformation",
+                                               "generated/distribution/deformation"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "deformation_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "painting_delivery_registry",
+                        "label":  "Painting Delivery Registry",
+                        "channel_kind":  "painting_delivery",
+                        "approval_policy":  "paint_color_and_license_gate",
+                        "artifact_roots":  [
+                                               "generated/painting",
+                                               "generated/distribution/painting"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "painting_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "uv_delivery_registry",
+                        "label":  "UV Delivery Registry",
+                        "channel_kind":  "uv_delivery",
+                        "approval_policy":  "uv_layout_quality_gate",
+                        "artifact_roots":  [
+                                               "generated/uv",
+                                               "generated/distribution/uv"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "uv_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "brush_delivery_registry",
+                        "label":  "Brush Delivery Registry",
+                        "channel_kind":  "brush_delivery",
+                        "approval_policy":  "brush_preset_trust_gate",
+                        "artifact_roots":  [
+                                               "generated/brush",
+                                               "generated/distribution/brush"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "brush_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "color_delivery_registry",
+                        "label":  "Color Delivery Registry",
+                        "channel_kind":  "color_delivery",
+                        "approval_policy":  "color_consistency_gate",
+                        "artifact_roots":  [
+                                               "generated/color",
+                                               "generated/distribution/color"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "color_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "media_delivery_registry",
+                        "label":  "Media Delivery Registry",
+                        "channel_kind":  "media_delivery",
+                        "approval_policy":  "media_timing_and_codec_gate",
+                        "artifact_roots":  [
+                                               "generated/media",
+                                               "generated/distribution/media"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "media_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "narrative_delivery_registry",
+                        "label":  "Narrative Delivery Registry",
+                        "channel_kind":  "narrative_delivery",
+                        "approval_policy":  "narrative_state_gate",
+                        "artifact_roots":  [
+                                               "generated/narrative",
+                                               "generated/distribution/narrative"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "narrative_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "haptics_delivery_registry",
+                        "label":  "Haptics Delivery Registry",
+                        "channel_kind":  "haptics_delivery",
+                        "approval_policy":  "haptics_safety_gate",
+                        "artifact_roots":  [
+                                               "generated/haptics",
+                                               "generated/distribution/haptics"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "haptics_delivery_graph"
+                                                ]
+                    },
+                    {
+                        "id":  "updates_delivery_registry",
+                        "label":  "Updates Delivery Registry",
+                        "channel_kind":  "updates_delivery",
+                        "approval_policy":  "update_compatibility_gate",
+                        "artifact_roots":  [
+                                               "generated/updates",
+                                               "generated/distribution/updates"
+                                           ],
+                        "linked_build_graphs":  [
+                                                    "updates_delivery_graph"
+                                                ]
+                    }
+                ],
+    "indexes":  {
+                    "by_channel_kind":  {
+                                            "ai_delivery":  [
+                                                                "ai_delivery_registry"
+                                                            ],
+                                            "asset_registry_delivery":  [
+                                                                            "asset_registry_delivery"
+                                                                        ],
+                                            "automation_delivery":  [
+                                                                        "automation_recipe_registry"
+                                                                    ],
+                                            "baking_delivery":  [
+                                                                    "baking_delivery_registry"
+                                                                ],
+                                            "broadcast_delivery":  [
+                                                                       "broadcast_delivery_registry"
+                                                                   ],
+                                            "brush_delivery":  [
+                                                                   "brush_delivery_registry"
+                                                               ],
+                                            "cache_delivery":  [
+                                                                   "cache_delivery_registry"
+                                                               ],
+                                            "camera_delivery":  [
+                                                                    "camera_delivery_registry"
+                                                                ],
+                                            "character_delivery":  [
+                                                                       "character_delivery_registry"
+                                                                   ],
+                                            "cloud_delivery":  [
+                                                                   "cloud_delivery_registry"
+                                                               ],
+                                            "color_delivery":  [
+                                                                   "color_delivery_registry"
+                                                               ],
+                                            "command_delivery":  [
+                                                                     "command_receipt_registry"
+                                                                 ],
+                                            "dataops_delivery":  [
+                                                                     "dataops_delivery_registry"
+                                                                 ],
+                                            "deformation_delivery":  [
+                                                                         "deformation_delivery_registry"
+                                                                     ],
+                                            "delivery_materializer":  [
+                                                                          "delivery_materializer_registry"
+                                                                      ],
+                                            "device_delivery":  [
+                                                                    "device_delivery_registry"
+                                                                ],
+                                            "editor_widget_delivery":  [
+                                                                           "editor_widget_delivery_registry"
+                                                                       ],
+                                            "entity_delivery":  [
+                                                                    "entity_delivery_registry"
+                                                                ],
+                                            "evaluation_delivery":  [
+                                                                        "evaluation_delivery_registry"
+                                                                    ],
+                                            "fabrication_delivery":  [
+                                                                         "machine_delivery_registry"
+                                                                     ],
+                                            "fleet_delivery":  [
+                                                                   "fleet_delivery_registry"
+                                                               ],
+                                            "gameplay_delivery":  [
+                                                                      "gameplay_delivery_registry"
+                                                                  ],
+                                            "geospatial_delivery":  [
+                                                                        "geospatial_delivery_registry"
+                                                                    ],
+                                            "graph_materialization_delivery":  [
+                                                                                   "graph_materialization_delivery_registry"
+                                                                               ],
+                                            "haptics_delivery":  [
+                                                                     "haptics_delivery_registry"
+                                                                 ],
+                                            "identity_delivery":  [
+                                                                      "identity_delivery_registry"
+                                                                  ],
+                                            "input_delivery":  [
+                                                                   "input_delivery_registry"
+                                                               ],
+                                            "interaction_delivery":  [
+                                                                         "interaction_delivery_registry"
+                                                                     ],
+                                            "interchange_delivery":  [
+                                                                         "interchange_delivery_registry"
+                                                                     ],
+                                            "jobs_delivery":  [
+                                                                  "jobs_delivery_registry"
+                                                              ],
+                                            "knowledge_delivery":  [
+                                                                       "knowledge_ops_registry"
+                                                                   ],
+                                            "lighting_delivery":  [
+                                                                      "lighting_delivery_registry"
+                                                                  ],
+                                            "localization_delivery":  [
+                                                                          "localization_delivery_registry"
+                                                                      ],
+                                            "lookdev_delivery":  [
+                                                                     "lookdev_delivery_registry"
+                                                                 ],
+                                            "marketplace_delivery":  [
+                                                                         "marketplace_delivery_registry"
+                                                                     ],
+                                            "material_source_delivery":  [
+                                                                             "material_source_delivery_registry"
+                                                                         ],
+                                            "materialization_delivery":  [
+                                                                             "materialization_receipt_registry"
+                                                                         ],
+                                            "media_delivery":  [
+                                                                   "media_delivery_registry"
+                                                               ],
+                                            "mesh_delivery":  [
+                                                                  "mesh_delivery_registry"
+                                                              ],
+                                            "modding_delivery":  [
+                                                                     "modding_delivery_registry"
+                                                                 ],
+                                            "narrative_delivery":  [
+                                                                       "narrative_delivery_registry"
+                                                                   ],
+                                            "native_controls_delivery":  [
+                                                                             "native_controls_delivery_registry"
+                                                                         ],
+                                            "navigation_delivery":  [
+                                                                        "navigation_delivery_registry"
+                                                                    ],
+                                            "network_delivery":  [
+                                                                     "network_delivery_registry"
+                                                                 ],
+                                            "painting_delivery":  [
+                                                                      "painting_delivery_registry"
+                                                                  ],
+                                            "persistence_delivery":  [
+                                                                         "persistence_delivery_registry"
+                                                                     ],
+                                            "physics_delivery":  [
+                                                                     "physics_delivery_registry"
+                                                                 ],
+                                            "point_cloud_delivery":  [
+                                                                         "point_cloud_delivery_registry"
+                                                                     ],
+                                            "prefab_delivery":  [
+                                                                    "prefab_delivery_registry"
+                                                                ],
+                                            "presentation_delivery":  [
+                                                                          "presentation_delivery_registry"
+                                                                      ],
+                                            "release_catalog":  [
+                                                                    "public_release_catalog"
+                                                                ],
+                                            "render_delegation_delivery":  [
+                                                                               "render_delegation_delivery_registry"
+                                                                           ],
+                                            "replay_delivery":  [
+                                                                    "replay_delivery_registry"
+                                                                ],
+                                            "resource_delivery":  [
+                                                                      "resource_delivery_registry"
+                                                                  ],
+                                            "resource_reflection_delivery":  [
+                                                                                 "resource_reflection_delivery_registry"
+                                                                             ],
+                                            "review_database_delivery":  [
+                                                                             "review_database_registry"
+                                                                         ],
+                                            "review_delivery":  [
+                                                                    "review_drop"
+                                                                ],
+                                            "rigging_delivery":  [
+                                                                     "rigging_delivery_registry"
+                                                                 ],
+                                            "runtime_bundle_delivery":  [
+                                                                            "runtime_bundle_registry"
+                                                                        ],
+                                            "runtime_compatibility_delivery":  [
+                                                                                   "runtime_compatibility_delivery_registry"
+                                                                               ],
+                                            "runtime_reflection_delivery":  [
+                                                                                "runtime_reflection_registry"
+                                                                            ],
+                                            "scene_bundle_delivery":  [
+                                                                          "scene_bundle_registry"
+                                                                      ],
+                                            "scene_exchange_delivery":  [
+                                                                            "scene_exchange_registry"
+                                                                        ],
+                                            "scene_mutation_delivery":  [
+                                                                            "scene_mutation_delivery_registry"
+                                                                        ],
+                                            "scene_object_delivery":  [
+                                                                          "scene_object_delivery_registry"
+                                                                      ],
+                                            "scene_source_delivery":  [
+                                                                          "scene_source_delivery_registry"
+                                                                      ],
+                                            "schema_delivery":  [
+                                                                    "schema_delivery_registry"
+                                                                ],
+                                            "scripting_delivery":  [
+                                                                       "scripting_delivery_registry"
+                                                                   ],
+                                            "security_delivery":  [
+                                                                      "security_delivery_registry"
+                                                                  ],
+                                            "sequencing_delivery":  [
+                                                                        "sequencing_delivery_registry"
+                                                                    ],
+                                            "shader_delivery":  [
+                                                                    "shader_delivery_registry"
+                                                                ],
+                                            "simulation_authoring_delivery":  [
+                                                                                  "simulation_authoring_registry"
+                                                                              ],
+                                            "state_migration_delivery":  [
+                                                                             "state_migration_registry"
+                                                                         ],
+                                            "streaming_delivery":  [
+                                                                       "streaming_delivery_registry"
+                                                                   ],
+                                            "telemetry_delivery":  [
+                                                                       "telemetry_delivery_registry"
+                                                                   ],
+                                            "updates_delivery":  [
+                                                                     "updates_delivery_registry"
+                                                                 ],
+                                            "uv_delivery":  [
+                                                                "uv_delivery_registry"
+                                                            ],
+                                            "vehicle_delivery":  [
+                                                                     "vehicle_delivery_registry"
+                                                                 ],
+                                            "viewport_delivery":  [
+                                                                      "viewport_delivery_registry"
+                                                                  ],
+                                            "virtual_production_delivery":  [
+                                                                                "virtual_production_stage_registry"
+                                                                            ],
+                                            "widget_primitives_delivery":  [
+                                                                               "widget_primitives_delivery_registry"
+                                                                           ],
+                                            "widget_schema_delivery":  [
+                                                                           "widget_schema_registry"
+                                                                       ],
+                                            "workspace_layout_delivery":  [
+                                                                              "workspace_layout_registry"
+                                                                          ],
+                                            "workspace_preset_delivery":  [
+                                                                              "workspace_preset_delivery_registry"
+                                                                          ],
+                                            "workspace_registry":  [
+                                                                       "internal_workspace_registry"
+                                                                   ],
+                                            "workspace_sync":  [
+                                                                   "live_sync_mirror"
+                                                               ],
+                                            "xr_delivery":  [
+                                                                "xr_delivery_registry"
+                                                            ]
+                                        },
+                    "by_approval_policy":  {
+                                               "ai_safety_gate":  [
+                                                                      "ai_delivery_registry"
+                                                                  ],
+                                               "automation_supervisor_gate":  [
+                                                                                  "automation_recipe_registry"
+                                                                              ],
+                                               "bake_quality_gate":  [
+                                                                         "baking_delivery_registry"
+                                                                     ],
+                                               "broadcast_supervisor_gate":  [
+                                                                                 "broadcast_delivery_registry"
+                                                                             ],
+                                               "brush_preset_trust_gate":  [
+                                                                               "brush_delivery_registry"
+                                                                           ],
+                                               "bundle_gate":  [
+                                                                   "runtime_bundle_registry"
+                                                               ],
+                                               "cache_integrity_gate":  [
+                                                                            "cache_delivery_registry"
+                                                                        ],
+                                               "camera_authority_gate":  [
+                                                                             "camera_delivery_registry"
+                                                                         ],
+                                               "character_supervisor_gate":  [
+                                                                                 "character_delivery_registry"
+                                                                             ],
+                                               "cloud_cost_and_security_gate":  [
+                                                                                    "cloud_delivery_registry"
+                                                                                ],
+                                               "color_consistency_gate":  [
+                                                                              "color_delivery_registry"
+                                                                          ],
+                                               "command_authority_gate":  [
+                                                                              "command_receipt_registry"
+                                                                          ],
+                                               "dataops_governance_gate":  [
+                                                                               "dataops_delivery_registry"
+                                                                           ],
+                                               "deformation_validation_gate":  [
+                                                                                   "deformation_delivery_registry"
+                                                                               ],
+                                               "delivery_gate":  [
+                                                                     "delivery_materializer_registry"
+                                                                 ],
+                                               "device_supervisor_gate":  [
+                                                                              "device_delivery_registry"
+                                                                          ],
+                                               "editor_widget_schema_gate":  [
+                                                                                 "editor_widget_delivery_registry"
+                                                                             ],
+                                               "editorial_supervisor_gate":  [
+                                                                                 "sequencing_delivery_registry"
+                                                                             ],
+                                               "entity_supervisor_gate":  [
+                                                                              "entity_delivery_registry"
+                                                                          ],
+                                               "evaluation_supervisor_gate":  [
+                                                                                  "evaluation_delivery_registry"
+                                                                              ],
+                                               "exchange_supervisor_gate":  [
+                                                                                "scene_exchange_registry"
+                                                                            ],
+                                               "fleet_capacity_gate":  [
+                                                                           "fleet_delivery_registry"
+                                                                       ],
+                                               "gameplay_authority_gate":  [
+                                                                               "gameplay_delivery_registry"
+                                                                           ],
+                                               "graph_materialization_gate":  [
+                                                                                  "graph_materialization_delivery_registry"
+                                                                              ],
+                                               "haptics_safety_gate":  [
+                                                                           "haptics_delivery_registry"
+                                                                       ],
+                                               "identity_authority_gate":  [
+                                                                               "identity_delivery_registry"
+                                                                           ],
+                                               "immersive_release_gate":  [
+                                                                              "xr_delivery_registry"
+                                                                          ],
+                                               "input_authority_gate":  [
+                                                                            "input_delivery_registry"
+                                                                        ],
+                                               "interaction_supervisor_gate":  [
+                                                                                   "interaction_delivery_registry"
+                                                                               ],
+                                               "interchange_supervisor_gate":  [
+                                                                                   "interchange_delivery_registry"
+                                                                               ],
+                                               "job_dispatch_gate":  [
+                                                                         "jobs_delivery_registry"
+                                                                     ],
+                                               "knowledge_curator_gate":  [
+                                                                              "knowledge_ops_registry"
+                                                                          ],
+                                               "lighting_supervisor_gate":  [
+                                                                                "lighting_delivery_registry"
+                                                                            ],
+                                               "locale_coverage_gate":  [
+                                                                            "localization_delivery_registry"
+                                                                        ],
+                                               "lookdev_supervisor_gate":  [
+                                                                               "lookdev_delivery_registry"
+                                                                           ],
+                                               "machine_program_approval":  [
+                                                                                "machine_delivery_registry"
+                                                                            ],
+                                               "marketplace_license_gate":  [
+                                                                                "marketplace_delivery_registry"
+                                                                            ],
+                                               "material_source_schema_gate":  [
+                                                                                   "material_source_delivery_registry"
+                                                                               ],
+                                               "media_timing_and_codec_gate":  [
+                                                                                   "media_delivery_registry"
+                                                                               ],
+                                               "mesh_integrity_gate":  [
+                                                                           "mesh_delivery_registry"
+                                                                       ],
+                                               "mod_registry_gate":  [
+                                                                         "modding_delivery_registry"
+                                                                     ],
+                                               "narrative_state_gate":  [
+                                                                            "narrative_delivery_registry"
+                                                                        ],
+                                               "native_controls_schema_gate":  [
+                                                                                   "native_controls_delivery_registry"
+                                                                               ],
+                                               "paint_color_and_license_gate":  [
+                                                                                    "painting_delivery_registry"
+                                                                                ],
+                                               "persistence_supervisor_gate":  [
+                                                                                   "persistence_delivery_registry"
+                                                                               ],
+                                               "physics_safety_gate":  [
+                                                                           "physics_delivery_registry"
+                                                                       ],
+                                               "point_cloud_quality_gate":  [
+                                                                                "point_cloud_delivery_registry"
+                                                                            ],
+                                               "prefab_supervisor_gate":  [
+                                                                              "prefab_delivery_registry"
+                                                                          ],
+                                               "presentation_accessibility_gate":  [
+                                                                                       "presentation_delivery_registry"
+                                                                                   ],
+                                               "receipt_gate":  [
+                                                                    "materialization_receipt_registry"
+                                                                ],
+                                               "registry_curator_gate":  [
+                                                                             "asset_registry_delivery"
+                                                                         ],
+                                               "release_gate":  [
+                                                                    "public_release_catalog"
+                                                                ],
+                                               "render_delegate_gate":  [
+                                                                            "render_delegation_delivery_registry"
+                                                                        ],
+                                               "replay_integrity_gate":  [
+                                                                             "replay_delivery_registry"
+                                                                         ],
+                                               "resource_budget_gate":  [
+                                                                            "resource_delivery_registry"
+                                                                        ],
+                                               "resource_reflection_gate":  [
+                                                                                "resource_reflection_delivery_registry"
+                                                                            ],
+                                               "review_data_retention_gate":  [
+                                                                                  "review_database_registry"
+                                                                              ],
+                                               "review_lead_approval":  [
+                                                                            "review_drop"
+                                                                        ],
+                                               "rigging_integrity_gate":  [
+                                                                              "rigging_delivery_registry"
+                                                                          ],
+                                               "runtime_compatibility_gate":  [
+                                                                                  "runtime_compatibility_delivery_registry"
+                                                                              ],
+                                               "runtime_navigation_gate":  [
+                                                                               "navigation_delivery_registry"
+                                                                           ],
+                                               "scene_bundle_gate":  [
+                                                                         "scene_bundle_registry"
+                                                                     ],
+                                               "scene_mutation_authority_gate":  [
+                                                                                     "scene_mutation_delivery_registry"
+                                                                                 ],
+                                               "scene_object_authority_gate":  [
+                                                                                   "scene_object_delivery_registry"
+                                                                               ],
+                                               "scene_source_schema_gate":  [
+                                                                                "scene_source_delivery_registry"
+                                                                            ],
+                                               "schema_compatibility_gate":  [
+                                                                                 "runtime_reflection_registry",
+                                                                                 "schema_delivery_registry",
+                                                                                 "state_migration_registry"
+                                                                             ],
+                                               "script_sandbox_gate":  [
+                                                                           "scripting_delivery_registry"
+                                                                       ],
+                                               "security_supervisor_gate":  [
+                                                                                "security_delivery_registry"
+                                                                            ],
+                                               "session_authority_gate":  [
+                                                                              "live_sync_mirror",
+                                                                              "network_delivery_registry"
+                                                                          ],
+                                               "shader_compatibility_gate":  [
+                                                                                 "shader_delivery_registry"
+                                                                             ],
+                                               "simulation_director_gate":  [
+                                                                                "simulation_authoring_registry"
+                                                                            ],
+                                               "stage_supervisor_gate":  [
+                                                                             "virtual_production_stage_registry"
+                                                                         ],
+                                               "streaming_authority_gate":  [
+                                                                                "streaming_delivery_registry"
+                                                                            ],
+                                               "survey_authority_gate":  [
+                                                                             "geospatial_delivery_registry"
+                                                                         ],
+                                               "telemetry_supervisor_gate":  [
+                                                                                 "telemetry_delivery_registry"
+                                                                             ],
+                                               "update_compatibility_gate":  [
+                                                                                 "updates_delivery_registry"
+                                                                             ],
+                                               "uv_layout_quality_gate":  [
+                                                                              "uv_delivery_registry"
+                                                                          ],
+                                               "vehicle_supervisor_gate":  [
+                                                                               "vehicle_delivery_registry"
+                                                                           ],
+                                               "viewport_supervisor_gate":  [
+                                                                                "viewport_delivery_registry"
+                                                                            ],
+                                               "widget_primitive_schema_gate":  [
+                                                                                    "widget_primitives_delivery_registry"
+                                                                                ],
+                                               "widget_schema_gate":  [
+                                                                          "widget_schema_registry"
+                                                                      ],
+                                               "workspace_layout_gate":  [
+                                                                             "workspace_layout_registry"
+                                                                         ],
+                                               "workspace_owner_and_schema_compatible":  [
+                                                                                             "workspace_preset_delivery_registry"
+                                                                                         ],
+                                               "workspace_owner_approval":  [
+                                                                                "internal_workspace_registry"
+                                                                            ]
+                                           },
+                    "by_artifact_root":  {
+                                             "generated/ai":  [
+                                                                  "ai_delivery_registry"
+                                                              ],
+                                             "generated/asset-registry":  [
+                                                                              "asset_registry_delivery"
+                                                                          ],
+                                             "generated/automation":  [
+                                                                          "automation_recipe_registry"
+                                                                      ],
+                                             "generated/baking":  [
+                                                                      "baking_delivery_registry"
+                                                                  ],
+                                             "generated/broadcast":  [
+                                                                         "broadcast_delivery_registry"
+                                                                     ],
+                                             "generated/brush":  [
+                                                                     "brush_delivery_registry"
+                                                                 ],
+                                             "generated/bundles":  [
+                                                                       "runtime_bundle_registry"
+                                                                   ],
+                                             "generated/cache":  [
+                                                                     "cache_delivery_registry"
+                                                                 ],
+                                             "generated/cad":  [
+                                                                   "machine_delivery_registry"
+                                                               ],
+                                             "generated/camera":  [
+                                                                      "camera_delivery_registry"
+                                                                  ],
+                                             "generated/character":  [
+                                                                         "character_delivery_registry"
+                                                                     ],
+                                             "generated/cloud":  [
+                                                                     "cloud_delivery_registry"
+                                                                 ],
+                                             "generated/color":  [
+                                                                     "color_delivery_registry"
+                                                                 ],
+                                             "generated/commands":  [
+                                                                        "command_receipt_registry"
+                                                                    ],
+                                             "generated/dataops":  [
+                                                                       "dataops_delivery_registry"
+                                                                   ],
+                                             "generated/deformation":  [
+                                                                           "deformation_delivery_registry"
+                                                                       ],
+                                             "generated/delivery":  [
+                                                                        "delivery_materializer_registry"
+                                                                    ],
+                                             "generated/device":  [
+                                                                      "device_delivery_registry"
+                                                                  ],
+                                             "generated/distribution/ai":  [
+                                                                               "ai_delivery_registry"
+                                                                           ],
+                                             "generated/distribution/asset-registry":  [
+                                                                                           "asset_registry_delivery"
+                                                                                       ],
+                                             "generated/distribution/automation":  [
+                                                                                       "automation_recipe_registry"
+                                                                                   ],
+                                             "generated/distribution/baking":  [
+                                                                                   "baking_delivery_registry"
+                                                                               ],
+                                             "generated/distribution/broadcast":  [
+                                                                                      "broadcast_delivery_registry"
+                                                                                  ],
+                                             "generated/distribution/brush":  [
+                                                                                  "brush_delivery_registry"
+                                                                              ],
+                                             "generated/distribution/bundles":  [
+                                                                                    "runtime_bundle_registry"
+                                                                                ],
+                                             "generated/distribution/cache":  [
+                                                                                  "cache_delivery_registry"
+                                                                              ],
+                                             "generated/distribution/camera":  [
+                                                                                   "camera_delivery_registry"
+                                                                               ],
+                                             "generated/distribution/character":  [
+                                                                                      "character_delivery_registry"
+                                                                                  ],
+                                             "generated/distribution/cloud":  [
+                                                                                  "cloud_delivery_registry"
+                                                                              ],
+                                             "generated/distribution/color":  [
+                                                                                  "color_delivery_registry"
+                                                                              ],
+                                             "generated/distribution/commands":  [
+                                                                                     "command_receipt_registry"
+                                                                                 ],
+                                             "generated/distribution/dataops":  [
+                                                                                    "dataops_delivery_registry"
+                                                                                ],
+                                             "generated/distribution/deformation":  [
+                                                                                        "deformation_delivery_registry"
+                                                                                    ],
+                                             "generated/distribution/delivery":  [
+                                                                                     "delivery_materializer_registry"
+                                                                                 ],
+                                             "generated/distribution/device":  [
+                                                                                   "device_delivery_registry"
+                                                                               ],
+                                             "generated/distribution/editor-widgets":  [
+                                                                                           "editor_widget_delivery_registry"
+                                                                                       ],
+                                             "generated/distribution/entity":  [
+                                                                                   "entity_delivery_registry"
+                                                                               ],
+                                             "generated/distribution/evaluation":  [
+                                                                                       "evaluation_delivery_registry"
+                                                                                   ],
+                                             "generated/distribution/exchange":  [
+                                                                                     "scene_exchange_registry"
+                                                                                 ],
+                                             "generated/distribution/fleet":  [
+                                                                                  "fleet_delivery_registry"
+                                                                              ],
+                                             "generated/distribution/gameplay":  [
+                                                                                     "gameplay_delivery_registry"
+                                                                                 ],
+                                             "generated/distribution/geospatial":  [
+                                                                                       "geospatial_delivery_registry"
+                                                                                   ],
+                                             "generated/distribution/graph-materialization":  [
+                                                                                                  "graph_materialization_delivery_registry"
+                                                                                              ],
+                                             "generated/distribution/haptics":  [
+                                                                                    "haptics_delivery_registry"
+                                                                                ],
+                                             "generated/distribution/identity":  [
+                                                                                     "identity_delivery_registry"
+                                                                                 ],
+                                             "generated/distribution/input":  [
+                                                                                  "input_delivery_registry"
+                                                                              ],
+                                             "generated/distribution/interaction":  [
+                                                                                        "interaction_delivery_registry"
+                                                                                    ],
+                                             "generated/distribution/interchange":  [
+                                                                                        "interchange_delivery_registry"
+                                                                                    ],
+                                             "generated/distribution/jobs":  [
+                                                                                 "jobs_delivery_registry"
+                                                                             ],
+                                             "generated/distribution/knowledge":  [
+                                                                                      "knowledge_ops_registry"
+                                                                                  ],
+                                             "generated/distribution/lighting":  [
+                                                                                     "lighting_delivery_registry"
+                                                                                 ],
+                                             "generated/distribution/localization":  [
+                                                                                         "localization_delivery_registry"
+                                                                                     ],
+                                             "generated/distribution/lookdev":  [
+                                                                                    "lookdev_delivery_registry"
+                                                                                ],
+                                             "generated/distribution/machines":  [
+                                                                                     "machine_delivery_registry"
+                                                                                 ],
+                                             "generated/distribution/marketplace":  [
+                                                                                        "marketplace_delivery_registry"
+                                                                                    ],
+                                             "generated/distribution/materialized":  [
+                                                                                         "materialization_receipt_registry"
+                                                                                     ],
+                                             "generated/distribution/material-source":  [
+                                                                                            "material_source_delivery_registry"
+                                                                                        ],
+                                             "generated/distribution/media":  [
+                                                                                  "media_delivery_registry"
+                                                                              ],
+                                             "generated/distribution/mesh":  [
+                                                                                 "mesh_delivery_registry"
+                                                                             ],
+                                             "generated/distribution/modding":  [
+                                                                                    "modding_delivery_registry"
+                                                                                ],
+                                             "generated/distribution/narrative":  [
+                                                                                      "narrative_delivery_registry"
+                                                                                  ],
+                                             "generated/distribution/native-controls":  [
+                                                                                            "native_controls_delivery_registry"
+                                                                                        ],
+                                             "generated/distribution/navigation":  [
+                                                                                       "navigation_delivery_registry"
+                                                                                   ],
+                                             "generated/distribution/network":  [
+                                                                                    "network_delivery_registry"
+                                                                                ],
+                                             "generated/distribution/painting":  [
+                                                                                     "painting_delivery_registry"
+                                                                                 ],
+                                             "generated/distribution/persistence":  [
+                                                                                        "persistence_delivery_registry"
+                                                                                    ],
+                                             "generated/distribution/physics":  [
+                                                                                    "physics_delivery_registry"
+                                                                                ],
+                                             "generated/distribution/point-cloud":  [
+                                                                                        "point_cloud_delivery_registry"
+                                                                                    ],
+                                             "generated/distribution/prefabs":  [
+                                                                                    "prefab_delivery_registry"
+                                                                                ],
+                                             "generated/distribution/presentation":  [
+                                                                                         "presentation_delivery_registry"
+                                                                                     ],
+                                             "generated/distribution/public":  [
+                                                                                   "public_release_catalog"
+                                                                               ],
+                                             "generated/distribution/render-delegation":  [
+                                                                                              "render_delegation_delivery_registry"
+                                                                                          ],
+                                             "generated/distribution/replay":  [
+                                                                                   "replay_delivery_registry"
+                                                                               ],
+                                             "generated/distribution/resource-reflection":  [
+                                                                                                "resource_reflection_delivery_registry"
+                                                                                            ],
+                                             "generated/distribution/resources":  [
+                                                                                      "resource_delivery_registry"
+                                                                                  ],
+                                             "generated/distribution/review":  [
+                                                                                   "review_drop"
+                                                                               ],
+                                             "generated/distribution/review-db":  [
+                                                                                      "review_database_registry"
+                                                                                  ],
+                                             "generated/distribution/rigging":  [
+                                                                                    "rigging_delivery_registry"
+                                                                                ],
+                                             "generated/distribution/runtime-compatibility":  [
+                                                                                                  "runtime_compatibility_delivery_registry"
+                                                                                              ],
+                                             "generated/distribution/scene-bundles":  [
+                                                                                          "scene_bundle_registry"
+                                                                                      ],
+                                             "generated/distribution/scene-mutation":  [
+                                                                                           "scene_mutation_delivery_registry"
+                                                                                       ],
+                                             "generated/distribution/scene-objects":  [
+                                                                                          "scene_object_delivery_registry"
+                                                                                      ],
+                                             "generated/distribution/scene-source":  [
+                                                                                         "scene_source_delivery_registry"
+                                                                                     ],
+                                             "generated/distribution/schemas":  [
+                                                                                    "schema_delivery_registry"
+                                                                                ],
+                                             "generated/distribution/scripting":  [
+                                                                                      "scripting_delivery_registry"
+                                                                                  ],
+                                             "generated/distribution/security":  [
+                                                                                     "security_delivery_registry"
+                                                                                 ],
+                                             "generated/distribution/sequencing":  [
+                                                                                       "sequencing_delivery_registry"
+                                                                                   ],
+                                             "generated/distribution/shaders":  [
+                                                                                    "shader_delivery_registry"
+                                                                                ],
+                                             "generated/distribution/simulation-authoring":  [
+                                                                                                 "simulation_authoring_registry"
+                                                                                             ],
+                                             "generated/distribution/stage":  [
+                                                                                  "virtual_production_stage_registry"
+                                                                              ],
+                                             "generated/distribution/state-migration":  [
+                                                                                            "state_migration_registry"
+                                                                                        ],
+                                             "generated/distribution/streaming":  [
+                                                                                      "streaming_delivery_registry"
+                                                                                  ],
+                                             "generated/distribution/telemetry":  [
+                                                                                      "telemetry_delivery_registry"
+                                                                                  ],
+                                             "generated/distribution/updates":  [
+                                                                                    "updates_delivery_registry"
+                                                                                ],
+                                             "generated/distribution/uv":  [
+                                                                               "uv_delivery_registry"
+                                                                           ],
+                                             "generated/distribution/vehicle":  [
+                                                                                    "vehicle_delivery_registry"
+                                                                                ],
+                                             "generated/distribution/viewport":  [
+                                                                                     "viewport_delivery_registry"
+                                                                                 ],
+                                             "generated/distribution/widget-primitives":  [
+                                                                                              "widget_primitives_delivery_registry"
+                                                                                          ],
+                                             "generated/distribution/widgets":  [
+                                                                                    "widget_schema_registry"
+                                                                                ],
+                                             "generated/distribution/workspace-layouts":  [
+                                                                                              "workspace_layout_registry"
+                                                                                          ],
+                                             "generated/distribution/workspace-presets":  [
+                                                                                              "workspace_preset_delivery_registry"
+                                                                                          ],
+                                             "generated/distribution/xr":  [
+                                                                               "xr_delivery_registry"
+                                                                           ],
+                                             "generated/editor-widgets":  [
+                                                                              "editor_widget_delivery_registry"
+                                                                          ],
+                                             "generated/entity":  [
+                                                                      "entity_delivery_registry"
+                                                                  ],
+                                             "generated/evaluation":  [
+                                                                          "evaluation_delivery_registry"
+                                                                      ],
+                                             "generated/exchange":  [
+                                                                        "scene_exchange_registry"
+                                                                    ],
+                                             "generated/fleet":  [
+                                                                     "fleet_delivery_registry"
+                                                                 ],
+                                             "generated/gameplay":  [
+                                                                        "gameplay_delivery_registry"
+                                                                    ],
+                                             "generated/geospatial":  [
+                                                                          "geospatial_delivery_registry"
+                                                                      ],
+                                             "generated/graph-materialization":  [
+                                                                                     "graph_materialization_delivery_registry"
+                                                                                 ],
+                                             "generated/haptics":  [
+                                                                       "haptics_delivery_registry"
+                                                                   ],
+                                             "generated/identity":  [
+                                                                        "identity_delivery_registry"
+                                                                    ],
+                                             "generated/input":  [
+                                                                     "input_delivery_registry"
+                                                                 ],
+                                             "generated/interaction":  [
+                                                                           "interaction_delivery_registry"
+                                                                       ],
+                                             "generated/interchange":  [
+                                                                           "interchange_delivery_registry"
+                                                                       ],
+                                             "generated/jobs":  [
+                                                                    "jobs_delivery_registry"
+                                                                ],
+                                             "generated/jobs/receipts":  [
+                                                                             "jobs_delivery_registry"
+                                                                         ],
+                                             "generated/jobs/retries":  [
+                                                                            "jobs_delivery_registry"
+                                                                        ],
+                                             "generated/knowledge":  [
+                                                                         "knowledge_ops_registry"
+                                                                     ],
+                                             "generated/lighting":  [
+                                                                        "lighting_delivery_registry"
+                                                                    ],
+                                             "generated/localization":  [
+                                                                            "localization_delivery_registry"
+                                                                        ],
+                                             "generated/lookdev":  [
+                                                                       "lookdev_delivery_registry"
+                                                                   ],
+                                             "generated/marketplace":  [
+                                                                           "marketplace_delivery_registry"
+                                                                       ],
+                                             "generated/materialized":  [
+                                                                            "materialization_receipt_registry"
+                                                                        ],
+                                             "generated/material-source":  [
+                                                                               "material_source_delivery_registry"
+                                                                           ],
+                                             "generated/media":  [
+                                                                     "media_delivery_registry"
+                                                                 ],
+                                             "generated/mesh":  [
+                                                                    "mesh_delivery_registry"
+                                                                ],
+                                             "generated/modding":  [
+                                                                       "modding_delivery_registry"
+                                                                   ],
+                                             "generated/narrative":  [
+                                                                         "narrative_delivery_registry"
+                                                                     ],
+                                             "generated/native-controls":  [
+                                                                               "native_controls_delivery_registry"
+                                                                           ],
+                                             "generated/navigation":  [
+                                                                          "navigation_delivery_registry"
+                                                                      ],
+                                             "generated/network":  [
+                                                                       "network_delivery_registry"
+                                                                   ],
+                                             "generated/packages":  [
+                                                                        "internal_workspace_registry"
+                                                                    ],
+                                             "generated/painting":  [
+                                                                        "painting_delivery_registry"
+                                                                    ],
+                                             "generated/persistence":  [
+                                                                           "persistence_delivery_registry"
+                                                                       ],
+                                             "generated/physics":  [
+                                                                       "physics_delivery_registry"
+                                                                   ],
+                                             "generated/point-cloud":  [
+                                                                           "point_cloud_delivery_registry"
+                                                                       ],
+                                             "generated/prefabs":  [
+                                                                       "prefab_delivery_registry"
+                                                                   ],
+                                             "generated/presentation":  [
+                                                                            "presentation_delivery_registry"
+                                                                        ],
+                                             "generated/reflection":  [
+                                                                          "runtime_reflection_registry"
+                                                                      ],
+                                             "generated/render-delegation":  [
+                                                                                 "render_delegation_delivery_registry"
+                                                                             ],
+                                             "generated/replay":  [
+                                                                      "replay_delivery_registry"
+                                                                  ],
+                                             "generated/resource-reflection":  [
+                                                                                   "resource_reflection_delivery_registry"
+                                                                               ],
+                                             "generated/resources":  [
+                                                                         "resource_delivery_registry"
+                                                                     ],
+                                             "generated/review":  [
+                                                                      "review_drop"
+                                                                  ],
+                                             "generated/review-db":  [
+                                                                         "review_database_registry"
+                                                                     ],
+                                             "generated/rigging":  [
+                                                                       "rigging_delivery_registry"
+                                                                   ],
+                                             "generated/runtime":  [
+                                                                       "internal_workspace_registry",
+                                                                       "live_sync_mirror"
+                                                                   ],
+                                             "generated/runtime-compatibility":  [
+                                                                                     "runtime_compatibility_delivery_registry"
+                                                                                 ],
+                                             "generated/runtime-reflection":  [
+                                                                                  "runtime_reflection_registry"
+                                                                              ],
+                                             "generated/runtime-reflection/workspace-preset-launch-receipt-bindings":  [
+                                                                                                                           "workspace_preset_delivery_registry"
+                                                                                                                       ],
+                                             "generated/runtime-reflection/workspace-preset-launch-schemas":  [
+                                                                                                                  "workspace_preset_delivery_registry"
+                                                                                                              ],
+                                             "generated/runtime-reflection/workspace-preset-launch-templates":  [
+                                                                                                                    "workspace_preset_delivery_registry"
+                                                                                                                ],
+                                             "generated/runtime-reflection/workspace-preset-receipts":  [
+                                                                                                            "workspace_preset_delivery_registry"
+                                                                                                        ],
+                                             "generated/runtime-reflection/workspace-preset-receipt-schemas":  [
+                                                                                                                   "workspace_preset_delivery_registry"
+                                                                                                               ],
+                                             "generated/runtime-reflection/workspace-preset-receipt-templates":  [
+                                                                                                                     "workspace_preset_delivery_registry"
+                                                                                                                 ],
+                                             "generated/runtime-reflection/workspace-presets":  [
+                                                                                                    "workspace_preset_delivery_registry"
+                                                                                                ],
+                                             "generated/scene-bundles":  [
+                                                                             "scene_bundle_registry"
+                                                                         ],
+                                             "generated/scene-mutation":  [
+                                                                              "scene_mutation_delivery_registry"
+                                                                          ],
+                                             "generated/scene-objects":  [
+                                                                             "scene_object_delivery_registry"
+                                                                         ],
+                                             "generated/scene-source":  [
+                                                                            "scene_source_delivery_registry"
+                                                                        ],
+                                             "generated/schemas":  [
+                                                                       "schema_delivery_registry"
+                                                                   ],
+                                             "generated/schemas/jobs/receipts":  [
+                                                                                     "jobs_delivery_registry"
+                                                                                 ],
+                                             "generated/schemas/jobs/receipts/indexes":  [
+                                                                                             "jobs_delivery_registry"
+                                                                                         ],
+                                             "generated/schemas/jobs/receipts/templates":  [
+                                                                                               "jobs_delivery_registry"
+                                                                                           ],
+                                             "generated/schemas/workspace-presets/launch-manifests":  [
+                                                                                                          "workspace_preset_delivery_registry"
+                                                                                                      ],
+                                             "generated/schemas/workspace-presets/launch-manifests/indexes":  [
+                                                                                                                  "workspace_preset_delivery_registry"
+                                                                                                              ],
+                                             "generated/schemas/workspace-presets/launch-manifests/templates":  [
+                                                                                                                    "workspace_preset_delivery_registry"
+                                                                                                                ],
+                                             "generated/schemas/workspace-presets/receipts":  [
+                                                                                                  "workspace_preset_delivery_registry"
+                                                                                              ],
+                                             "generated/schemas/workspace-presets/receipts/indexes":  [
+                                                                                                          "workspace_preset_delivery_registry"
+                                                                                                      ],
+                                             "generated/schemas/workspace-presets/receipts/templates":  [
+                                                                                                            "workspace_preset_delivery_registry"
+                                                                                                        ],
+                                             "generated/scripting":  [
+                                                                         "scripting_delivery_registry"
+                                                                     ],
+                                             "generated/security":  [
+                                                                        "security_delivery_registry"
+                                                                    ],
+                                             "generated/sequencing":  [
+                                                                          "sequencing_delivery_registry"
+                                                                      ],
+                                             "generated/shaders":  [
+                                                                       "shader_delivery_registry"
+                                                                   ],
+                                             "generated/simulation-authoring":  [
+                                                                                    "simulation_authoring_registry"
+                                                                                ],
+                                             "generated/stage":  [
+                                                                     "virtual_production_stage_registry"
+                                                                 ],
+                                             "generated/state-migration":  [
+                                                                               "state_migration_registry"
+                                                                           ],
+                                             "generated/streaming":  [
+                                                                         "streaming_delivery_registry"
+                                                                     ],
+                                             "generated/sync":  [
+                                                                    "live_sync_mirror"
+                                                                ],
+                                             "generated/telemetry":  [
+                                                                         "telemetry_delivery_registry"
+                                                                     ],
+                                             "generated/toolpaths":  [
+                                                                         "machine_delivery_registry"
+                                                                     ],
+                                             "generated/updates":  [
+                                                                       "updates_delivery_registry"
+                                                                   ],
+                                             "generated/uv":  [
+                                                                  "uv_delivery_registry"
+                                                              ],
+                                             "generated/vehicle":  [
+                                                                       "vehicle_delivery_registry"
+                                                                   ],
+                                             "generated/viewport":  [
+                                                                        "viewport_delivery_registry"
+                                                                    ],
+                                             "generated/widget-primitives":  [
+                                                                                 "widget_primitives_delivery_registry"
+                                                                             ],
+                                             "generated/widgets":  [
+                                                                       "widget_schema_registry"
+                                                                   ],
+                                             "generated/workspace-layouts":  [
+                                                                                 "workspace_layout_registry"
+                                                                             ],
+                                             "generated/workspace-presets":  [
+                                                                                 "workspace_preset_delivery_registry"
+                                                                             ],
+                                             "generated/workspace-presets/launch":  [
+                                                                                        "workspace_preset_delivery_registry"
+                                                                                    ],
+                                             "generated/workspace-presets/receipts":  [
+                                                                                          "workspace_preset_delivery_registry"
+                                                                                      ],
+                                             "generated/xr":  [
+                                                                  "xr_delivery_registry"
+                                                              ]
+                                         },
+                    "by_build_graph":  {
+                                           "ai_delivery_graph":  [
+                                                                     "ai_delivery_registry"
+                                                                 ],
+                                           "asset_registry_materialization_graph":  [
+                                                                                        "asset_registry_delivery"
+                                                                                    ],
+                                           "automation_recipe_graph":  [
+                                                                           "automation_recipe_registry"
+                                                                       ],
+                                           "baking_delivery_graph":  [
+                                                                         "baking_delivery_registry"
+                                                                     ],
+                                           "broadcast_delivery_graph":  [
+                                                                            "broadcast_delivery_registry"
+                                                                        ],
+                                           "brush_delivery_graph":  [
+                                                                        "brush_delivery_registry"
+                                                                    ],
+                                           "cache_delivery_graph":  [
+                                                                        "cache_delivery_registry"
+                                                                    ],
+                                           "cad_robotics_delivery_graph":  [
+                                                                               "machine_delivery_registry"
+                                                                           ],
+                                           "camera_delivery_graph":  [
+                                                                         "camera_delivery_registry"
+                                                                     ],
+                                           "character_delivery_graph":  [
+                                                                            "character_delivery_registry"
+                                                                        ],
+                                           "cloud_delivery_graph":  [
+                                                                        "cloud_delivery_registry"
+                                                                    ],
+                                           "color_delivery_graph":  [
+                                                                        "color_delivery_registry"
+                                                                    ],
+                                           "command_receipt_graph":  [
+                                                                         "command_receipt_registry"
+                                                                     ],
+                                           "dataops_delivery_graph":  [
+                                                                          "dataops_delivery_registry"
+                                                                      ],
+                                           "deformation_delivery_graph":  [
+                                                                              "deformation_delivery_registry"
+                                                                          ],
+                                           "delivery_materializer_graph":  [
+                                                                               "delivery_materializer_registry"
+                                                                           ],
+                                           "device_control_materialization_graph":  [
+                                                                                        "device_delivery_registry"
+                                                                                    ],
+                                           "editor_widget_delivery_graph":  [
+                                                                                "editor_widget_delivery_registry"
+                                                                            ],
+                                           "entity_runtime_delivery_graph":  [
+                                                                                 "entity_delivery_registry"
+                                                                             ],
+                                           "evaluation_delivery_graph":  [
+                                                                             "evaluation_delivery_registry"
+                                                                         ],
+                                           "fleet_delivery_graph":  [
+                                                                        "fleet_delivery_registry"
+                                                                    ],
+                                           "gameplay_delivery_graph":  [
+                                                                           "gameplay_delivery_registry"
+                                                                       ],
+                                           "geospatial_delivery_graph":  [
+                                                                             "geospatial_delivery_registry"
+                                                                         ],
+                                           "graph_materialization_delivery_graph":  [
+                                                                                        "graph_materialization_delivery_registry"
+                                                                                    ],
+                                           "haptics_delivery_graph":  [
+                                                                          "haptics_delivery_registry"
+                                                                      ],
+                                           "identity_delivery_graph":  [
+                                                                           "identity_delivery_registry"
+                                                                       ],
+                                           "input_delivery_graph":  [
+                                                                        "input_delivery_registry"
+                                                                    ],
+                                           "interaction_delivery_graph":  [
+                                                                              "interaction_delivery_registry"
+                                                                          ],
+                                           "interchange_delivery_graph":  [
+                                                                              "interchange_delivery_registry"
+                                                                          ],
+                                           "jobs_dispatch_graph":  [
+                                                                       "jobs_delivery_registry"
+                                                                   ],
+                                           "knowledge_ops_materialization_graph":  [
+                                                                                       "knowledge_ops_registry"
+                                                                                   ],
+                                           "lighting_delivery_graph":  [
+                                                                           "lighting_delivery_registry"
+                                                                       ],
+                                           "live_sync_materialization_graph":  [
+                                                                                   "internal_workspace_registry",
+                                                                                   "live_sync_mirror"
+                                                                               ],
+                                           "localization_delivery_graph":  [
+                                                                               "localization_delivery_registry"
+                                                                           ],
+                                           "lookdev_review_delivery_graph":  [
+                                                                                 "lookdev_delivery_registry"
+                                                                             ],
+                                           "marketplace_delivery_graph":  [
+                                                                              "marketplace_delivery_registry"
+                                                                          ],
+                                           "material_source_delivery_graph":  [
+                                                                                  "material_source_delivery_registry"
+                                                                              ],
+                                           "materialization_receipt_graph":  [
+                                                                                 "materialization_receipt_registry"
+                                                                             ],
+                                           "media_delivery_graph":  [
+                                                                        "media_delivery_registry"
+                                                                    ],
+                                           "mesh_delivery_graph":  [
+                                                                       "mesh_delivery_registry"
+                                                                   ],
+                                           "modding_delivery_graph":  [
+                                                                          "modding_delivery_registry"
+                                                                      ],
+                                           "narrative_delivery_graph":  [
+                                                                            "narrative_delivery_registry"
+                                                                        ],
+                                           "native_controls_delivery_graph":  [
+                                                                                  "native_controls_delivery_registry"
+                                                                              ],
+                                           "native_widget_schema_graph":  [
+                                                                              "widget_schema_registry"
+                                                                          ],
+                                           "navigation_delivery_graph":  [
+                                                                             "navigation_delivery_registry"
+                                                                         ],
+                                           "network_replication_materialization_graph":  [
+                                                                                             "network_delivery_registry"
+                                                                                         ],
+                                           "package_materialization_graph":  [
+                                                                                 "internal_workspace_registry"
+                                                                             ],
+                                           "painting_delivery_graph":  [
+                                                                           "painting_delivery_registry"
+                                                                       ],
+                                           "persistence_delivery_graph":  [
+                                                                              "persistence_delivery_registry"
+                                                                          ],
+                                           "physics_delivery_graph":  [
+                                                                          "physics_delivery_registry"
+                                                                      ],
+                                           "point_cloud_delivery_graph":  [
+                                                                              "point_cloud_delivery_registry"
+                                                                          ],
+                                           "prefab_delivery_graph":  [
+                                                                         "prefab_delivery_registry"
+                                                                     ],
+                                           "presentation_delivery_graph":  [
+                                                                               "presentation_delivery_registry"
+                                                                           ],
+                                           "render_delegation_delivery_graph":  [
+                                                                                    "render_delegation_delivery_registry"
+                                                                                ],
+                                           "replay_delivery_graph":  [
+                                                                         "replay_delivery_registry"
+                                                                     ],
+                                           "resource_delivery_graph":  [
+                                                                           "resource_delivery_registry"
+                                                                       ],
+                                           "resource_reflection_delivery_graph":  [
+                                                                                      "resource_reflection_delivery_registry"
+                                                                                  ],
+                                           "review_database_materialization_graph":  [
+                                                                                         "review_database_registry"
+                                                                                     ],
+                                           "review_delivery_graph":  [
+                                                                         "review_drop"
+                                                                     ],
+                                           "rigging_delivery_graph":  [
+                                                                          "rigging_delivery_registry"
+                                                                      ],
+                                           "runtime_bundle_delivery_graph":  [
+                                                                                 "runtime_bundle_registry"
+                                                                             ],
+                                           "runtime_compatibility_delivery_graph":  [
+                                                                                        "runtime_compatibility_delivery_registry"
+                                                                                    ],
+                                           "runtime_materialization_graph":  [
+                                                                                 "internal_workspace_registry",
+                                                                                 "live_sync_mirror",
+                                                                                 "runtime_reflection_registry"
+                                                                             ],
+                                           "runtime_reflection_materialization_graph":  [
+                                                                                            "runtime_reflection_registry"
+                                                                                        ],
+                                           "scene_bundle_delivery_graph":  [
+                                                                               "scene_bundle_registry"
+                                                                           ],
+                                           "scene_exchange_delivery_graph":  [
+                                                                                 "scene_exchange_registry"
+                                                                             ],
+                                           "scene_mutation_delivery_graph":  [
+                                                                                 "scene_mutation_delivery_registry"
+                                                                             ],
+                                           "scene_object_delivery_graph":  [
+                                                                               "scene_object_delivery_registry"
+                                                                           ],
+                                           "scene_source_delivery_graph":  [
+                                                                               "scene_source_delivery_registry"
+                                                                           ],
+                                           "schema_delivery_graph":  [
+                                                                         "schema_delivery_registry"
+                                                                     ],
+                                           "scripting_delivery_graph":  [
+                                                                            "scripting_delivery_registry"
+                                                                        ],
+                                           "security_delivery_graph":  [
+                                                                           "security_delivery_registry"
+                                                                       ],
+                                           "sequencing_delivery_graph":  [
+                                                                             "sequencing_delivery_registry"
+                                                                         ],
+                                           "shader_delivery_graph":  [
+                                                                         "shader_delivery_registry"
+                                                                     ],
+                                           "simulation_authoring_materialization_graph":  [
+                                                                                              "simulation_authoring_registry"
+                                                                                          ],
+                                           "state_migration_materialization_graph":  [
+                                                                                         "state_migration_registry"
+                                                                                     ],
+                                           "streaming_delivery_graph":  [
+                                                                            "streaming_delivery_registry"
+                                                                        ],
+                                           "telemetry_delivery_graph":  [
+                                                                            "telemetry_delivery_registry"
+                                                                        ],
+                                           "updates_delivery_graph":  [
+                                                                          "updates_delivery_registry"
+                                                                      ],
+                                           "uv_delivery_graph":  [
+                                                                     "uv_delivery_registry"
+                                                                 ],
+                                           "vehicle_delivery_graph":  [
+                                                                          "vehicle_delivery_registry"
+                                                                      ],
+                                           "viewport_delivery_graph":  [
+                                                                           "viewport_delivery_registry"
+                                                                       ],
+                                           "virtual_production_stage_graph":  [
+                                                                                  "virtual_production_stage_registry"
+                                                                              ],
+                                           "widget_primitives_delivery_graph":  [
+                                                                                    "widget_primitives_delivery_registry"
+                                                                                ],
+                                           "workspace_layout_registry_graph":  [
+                                                                                   "workspace_layout_registry"
+                                                                               ],
+                                           "workspace_preset_materialization_graph":  [
+                                                                                          "workspace_preset_delivery_registry"
+                                                                                      ],
+                                           "xr_bundle_delivery_graph":  [
+                                                                            "xr_delivery_registry"
+                                                                        ]
+                                       }
+                },
+    "artifact_roots":  [
+                           "generated/runtime-reflection/distribution"
+                       ],
+    "reflection_catalogs":  [
+                                "build_graph_catalog",
+                                "launch_profile_catalog"
+                            ]
+}

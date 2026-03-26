@@ -1,0 +1,26 @@
+{
+  "catalog_id": "workspace_preset_launch_template_catalog",
+  "catalog_scope": "workspace_preset_launch_manifest_template_and_index_metadata",
+  "tensor_pipeline_id": "runtime_reflection_tensor_pipeline",
+  "templates": [
+    {
+      "template_id": "workspace_preset_launch_manifest_template_v1",
+      "schema_id": "workspace_preset_launch_manifest_schema",
+      "template_path": "generated/schemas/workspace-presets/launch-manifests/templates/workspace-preset-launch-manifest.template.json",
+      "index_path": "generated/schemas/workspace-presets/launch-manifests/indexes/catalog.json",
+      "applies_to_presets": [
+        "sculpt_studio",
+        "render_lab",
+        "collaboration_review_stage"
+      ]
+    }
+  ],
+  "artifact_roots": [
+    "generated/schemas/workspace-presets/launch-manifests/templates",
+    "generated/schemas/workspace-presets/launch-manifests/indexes"
+  ],
+  "reflection_catalogs": [
+    "workspace_preset_launch_schema_catalog",
+    "workspace_preset_catalog"
+  ]
+}

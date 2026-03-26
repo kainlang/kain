@@ -13,18 +13,62 @@ struct WorkspacePresetMaterializationInputsDescriptor:
 
 struct WorkspacePresetMaterializationOutputsDescriptor:
     launch_export_root: String
+    launch_schema_root: String
+    launch_template_root: String
+    launch_index_root: String
     receipt_output_root: String
-    reflection_output_root: String
+    receipt_schema_root: String
+    receipt_template_root: String
+    receipt_index_root: String
+    preset_reflection_root: String
+    launch_schema_reflection_root: String
+    launch_template_reflection_root: String
+    receipt_schema_reflection_root: String
+    receipt_template_reflection_root: String
+    receipt_reflection_root: String
     distribution_output_root: String
     bundle_receipt_root: String
 
 struct WorkspacePresetMaterializationConsumerDescriptor:
     export_descriptor_id: String
+    materializer_kernel_id: String
+    launch_schema_id: String
+    launch_schema_emitter_id: String
     launch_profile_id: String
     receipt_descriptor_id: String
+    receipt_schema_id: String
+    receipt_schema_emitter_id: String
     delivery_batch_id: String
     delivery_registry_id: String
     runtime_bundle_registry_id: String
+
+struct JobsMaterializationInputsDescriptor:
+    build_graph_manifest: String
+    source_manifest: String
+    distribution_manifest: String
+
+struct JobsMaterializationOutputsDescriptor:
+    receipt_output_root: String
+    retry_ledger_root: String
+    receipt_schema_root: String
+    receipt_template_root: String
+    receipt_index_root: String
+    receipt_reflection_root: String
+    receipt_template_reflection_root: String
+    retry_reflection_root: String
+    distribution_output_root: String
+
+struct JobsMaterializationConsumerDescriptor:
+    queue_id: String
+    dispatch_graph_id: String
+    tensor_pipeline_id: String
+    materializer_kernel_id: String
+    receipt_descriptor_id: String
+    receipt_schema_id: String
+    receipt_schema_emitter_id: String
+    retry_ledger_id: String
+    delivery_batch_id: String
+    delivery_registry_id: String
 
 struct MaterializationReceiptDescriptor:
     receipt_id: String
@@ -42,6 +86,10 @@ struct GraphMaterializationRuntimeProfile:
     workspace_preset_inputs: WorkspacePresetMaterializationInputsDescriptor
     workspace_preset_outputs: WorkspacePresetMaterializationOutputsDescriptor
     workspace_preset_consumer: WorkspacePresetMaterializationConsumerDescriptor
+    jobs_graph: GraphMaterializationDescriptor
+    jobs_inputs: JobsMaterializationInputsDescriptor
+    jobs_outputs: JobsMaterializationOutputsDescriptor
+    jobs_consumer: JobsMaterializationConsumerDescriptor
     receipt_runtime: MaterializationReceiptDescriptor
     workspace_preset_receipt_runtime: MaterializationReceiptDescriptor
     provenance_catalog: ProvenanceCatalogDescriptor
@@ -67,18 +115,67 @@ fn default_graph_materialization_runtime_profile() -> GraphMaterializationRuntim
 
     profile.workspace_preset_outputs = WorkspacePresetMaterializationOutputsDescriptor()
     profile.workspace_preset_outputs.launch_export_root = "generated/workspace-presets/launch"
+    profile.workspace_preset_outputs.launch_schema_root = "generated/schemas/workspace-presets/launch-manifests"
+    profile.workspace_preset_outputs.launch_template_root = "generated/schemas/workspace-presets/launch-manifests/templates"
+    profile.workspace_preset_outputs.launch_index_root = "generated/schemas/workspace-presets/launch-manifests/indexes"
     profile.workspace_preset_outputs.receipt_output_root = "generated/workspace-presets/receipts"
-    profile.workspace_preset_outputs.reflection_output_root = "generated/runtime-reflection/workspace-preset-receipts"
+    profile.workspace_preset_outputs.receipt_schema_root = "generated/schemas/workspace-presets/receipts"
+    profile.workspace_preset_outputs.receipt_template_root = "generated/schemas/workspace-presets/receipts/templates"
+    profile.workspace_preset_outputs.receipt_index_root = "generated/schemas/workspace-presets/receipts/indexes"
+    profile.workspace_preset_outputs.preset_reflection_root = "generated/runtime-reflection/workspace-presets"
+    profile.workspace_preset_outputs.launch_schema_reflection_root = "generated/runtime-reflection/workspace-preset-launch-schemas"
+    profile.workspace_preset_outputs.launch_template_reflection_root = "generated/runtime-reflection/workspace-preset-launch-templates"
+    profile.workspace_preset_outputs.receipt_schema_reflection_root = "generated/runtime-reflection/workspace-preset-receipt-schemas"
+    profile.workspace_preset_outputs.receipt_template_reflection_root = "generated/runtime-reflection/workspace-preset-receipt-templates"
+    profile.workspace_preset_outputs.receipt_reflection_root = "generated/runtime-reflection/workspace-preset-receipts"
     profile.workspace_preset_outputs.distribution_output_root = "generated/distribution/workspace-presets"
     profile.workspace_preset_outputs.bundle_receipt_root = "generated/bundles/receipts"
 
     profile.workspace_preset_consumer = WorkspacePresetMaterializationConsumerDescriptor()
     profile.workspace_preset_consumer.export_descriptor_id = "workspace_preset_export_descriptor"
+    profile.workspace_preset_consumer.materializer_kernel_id = "workspace_preset_launch_receipt_resolve"
+    profile.workspace_preset_consumer.launch_schema_id = "workspace_preset_launch_manifest_schema"
+    profile.workspace_preset_consumer.launch_schema_emitter_id = "workspace_preset_launch_manifest_schema_emitter"
     profile.workspace_preset_consumer.launch_profile_id = "runtime_bundle_launch_profile"
     profile.workspace_preset_consumer.receipt_descriptor_id = "workspace_preset_materialization_receipts"
+    profile.workspace_preset_consumer.receipt_schema_id = "workspace_preset_delivery_receipt_schema"
+    profile.workspace_preset_consumer.receipt_schema_emitter_id = "workspace_preset_delivery_receipt_schema_emitter"
     profile.workspace_preset_consumer.delivery_batch_id = "workspace_preset_delivery_batch"
     profile.workspace_preset_consumer.delivery_registry_id = "workspace_preset_delivery_registry"
     profile.workspace_preset_consumer.runtime_bundle_registry_id = "runtime_bundle_registry"
+
+    profile.jobs_graph = GraphMaterializationDescriptor()
+    profile.jobs_graph.graph_id = "jobs_graph_materialization_runtime"
+    profile.jobs_graph.graph_kind = "jobs_receipt_schema_retry_ledger_and_distribution_materializer"
+    profile.jobs_graph.materialization_policy = "queue_bound_retry_safe_and_distribution_registry_aware"
+
+    profile.jobs_inputs = JobsMaterializationInputsDescriptor()
+    profile.jobs_inputs.build_graph_manifest = "manifests/build_graphs.json"
+    profile.jobs_inputs.source_manifest = "manifests/sources.json"
+    profile.jobs_inputs.distribution_manifest = "manifests/distribution_channels.json"
+
+    profile.jobs_outputs = JobsMaterializationOutputsDescriptor()
+    profile.jobs_outputs.receipt_output_root = "generated/jobs/receipts"
+    profile.jobs_outputs.retry_ledger_root = "generated/jobs/retries"
+    profile.jobs_outputs.receipt_schema_root = "generated/schemas/jobs/receipts"
+    profile.jobs_outputs.receipt_template_root = "generated/schemas/jobs/receipts/templates"
+    profile.jobs_outputs.receipt_index_root = "generated/schemas/jobs/receipts/indexes"
+    profile.jobs_outputs.receipt_reflection_root = "generated/runtime-reflection/jobs-receipt-schemas"
+    profile.jobs_outputs.receipt_template_reflection_root = "generated/runtime-reflection/jobs-receipt-templates"
+    profile.jobs_outputs.retry_reflection_root = "generated/runtime-reflection/jobs-retry-ledgers"
+    profile.jobs_outputs.distribution_output_root = "generated/distribution/jobs"
+
+    profile.jobs_consumer = JobsMaterializationConsumerDescriptor()
+    profile.jobs_consumer.queue_id = "jobs_dispatch_queue"
+    profile.jobs_consumer.dispatch_graph_id = "jobs_dispatch_graph"
+    profile.jobs_consumer.tensor_pipeline_id = "jobs_dispatch_tensor_pipeline"
+    profile.jobs_consumer.materializer_kernel_id = "job_receipt_materialize"
+    profile.jobs_consumer.receipt_descriptor_id = "job_materialization_receipts"
+    profile.jobs_consumer.receipt_schema_id = "jobs_delivery_receipt_schema"
+    profile.jobs_consumer.receipt_schema_emitter_id = "jobs_delivery_receipt_schema_emitter"
+    profile.jobs_consumer.retry_ledger_id = "jobs_retry_ledger"
+    profile.jobs_consumer.delivery_batch_id = "jobs_delivery_batch"
+    profile.jobs_consumer.delivery_registry_id = "jobs_delivery_registry"
 
     profile.receipt_runtime = MaterializationReceiptDescriptor()
     profile.receipt_runtime.receipt_id = "direct_graph_materialization_receipt"

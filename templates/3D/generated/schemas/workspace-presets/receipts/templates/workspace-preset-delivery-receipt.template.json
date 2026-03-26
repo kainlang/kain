@@ -1,0 +1,26 @@
+{
+  "template_id": "workspace_preset_delivery_receipt_template_v1",
+  "schema_id": "workspace_preset_delivery_receipt_schema",
+  "receipt_id": "{{workspace_preset_receipt_id}}",
+  "preset_id": "{{preset_id}}",
+  "build_graph_id": "workspace_preset_materialization_graph",
+  "distribution_channel_id": "workspace_preset_delivery_registry",
+  "launch_manifest_id": "{{launch_manifest_id}}",
+  "promotion_state": "{{promotion_state}}",
+  "tensor_pipeline_id": "workspace_preset_tensor_pipeline",
+  "materializer_kernel_id": "workspace_preset_launch_receipt_resolve",
+  "artifacts": [
+    {
+      "kind": "workspace_preset_root",
+      "root": "generated/workspace-presets"
+    },
+    {
+      "kind": "workspace_preset_distribution_root",
+      "root": "generated/distribution/workspace-presets"
+    }
+  ],
+  "timestamps": {
+    "materialized_at": "{{materialized_at}}",
+    "promoted_at": "{{promoted_at}}"
+  }
+}

@@ -1274,6 +1274,31 @@
       "entry" : "job_queue_dispatch_resolve"
    },
    {
+      "source_path" : "src-kain/kernels/jobs/job_receipt_materialize.kn",
+      "entry" : "job_receipt_materialize",
+      "tensor_role" : "jobs",
+      "consumes" : [
+         "resolved_job_dispatches",
+         "worker_capability_state",
+         "retry_resume_state",
+         "distribution_registry_state"
+      ],
+      "produces" : [
+         "materialized_job_receipts",
+         "emitted_receipt_templates",
+         "emitted_receipt_indexes",
+         "emitted_retry_ledgers",
+         "emitted_receipt_reflection"
+      ],
+      "dispatch_shape" : [
+         64,
+         1,
+         1
+      ],
+      "stage" : "job_receipt_materialization",
+      "id" : "job_receipt_materialize"
+   },
+   {
       "produces" : [
          "telemetry_budget_rollups"
       ],

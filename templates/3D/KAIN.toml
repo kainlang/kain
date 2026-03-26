@@ -1,6 +1,6 @@
 [package]
 name = "universal-kain-3d-template"
-version = "2.3.3"
+version = "2.3.17"
 authors = ["OpenAI Codex Automation"]
 description = "Universal Kain-first 3D runtime template for DCC suites, game engines, sculpting tools, simulation editors, scan labs, collaboration stages, publishing stacks, renderer graph studios, CAD tools, robotics consoles, character labs, virtual production stages, geospatial twins, XR shells, networked runtimes, runtime reflection consoles, device control centers, lookdev review stages, solver-authoring labs, delivery materializer towers, evaluation schedulers, viewport-control stacks, input and action-map systems, camera and capture rigs, cache and checkpoint stacks, scene-source authoring, widget-primitive systems, graph-materializer control rooms, persistence layers, farm/job orchestration, telemetry consoles, capability-policy surfaces, entity/archetype authoring studios, prefab assembly labs, command/macro consoles, state-migration control rooms, workspace-layout designers, gameplay/presentation shells, replay systems, localization pipelines, remote-streaming control towers, point-cloud studios, mesh and topology studios, baking pipelines, scripting runtimes, AI director stacks, modding registries, material-source authoring studios, editor-widget suites, scene-mutation consoles, render-delegation labs, resource-reflection consoles, runtime-compatibility hubs, rigging studios, deformation-stack labs, texture-paint suites, UV layout workbenches, brush-system foundries, color-management control rooms, media pipeline stages, narrative state studios, haptics routing labs, update-channel registries, and native desktop workbenches."
 
@@ -124,3 +124,4 @@ sources = "manifests/sources.json"
 ui_surfaces = "manifests/ui_surfaces.json"
 build_graphs = "manifests/build_graphs.json"
 distribution_channels = "manifests/distribution_channels.json"
+

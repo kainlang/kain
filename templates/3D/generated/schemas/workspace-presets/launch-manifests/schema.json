@@ -1,0 +1,65 @@
+{
+  "schema_id": "workspace_preset_launch_manifest_schema",
+  "schema_version": "1.0.0",
+  "schema_scope": "workspace_preset_launch_packet_bundle_binding_and_layout_contract",
+  "validation_policy": "gate_before_bundle_assembly_or_workspace_launch",
+  "reflection_catalog_id": "workspace_preset_launch_schema_catalog",
+  "document_kind": "workspace_preset_launch_manifest_schema_bundle",
+  "fields": [
+    {
+      "name": "manifest_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "preset_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "focus_lane",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "runtime_app_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "runtime_bundle_profile_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "workspace_layout_runtime_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "tensor_pipeline_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "schema_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "delivery_registry_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "artifacts",
+      "type": "array",
+      "required": true
+    },
+    {
+      "name": "layout_binding",
+      "type": "object",
+      "required": true
+    }
+  ]
+}

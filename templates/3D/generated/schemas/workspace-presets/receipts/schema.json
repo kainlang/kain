@@ -1,0 +1,60 @@
+{
+  "schema_id": "workspace_preset_delivery_receipt_schema",
+  "schema_version": "1.0.0",
+  "schema_scope": "workspace_preset_materialization_delivery_and_promotion_receipt_contract",
+  "validation_policy": "gate_before_delivery_reflection_or_receipt_promotion",
+  "reflection_catalog_id": "workspace_preset_receipt_schema_catalog",
+  "document_kind": "workspace_preset_delivery_receipt_schema_bundle",
+  "fields": [
+    {
+      "name": "receipt_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "preset_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "build_graph_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "distribution_channel_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "launch_manifest_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "promotion_state",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "tensor_pipeline_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "materializer_kernel_id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "artifacts",
+      "type": "array",
+      "required": true
+    },
+    {
+      "name": "timestamps",
+      "type": "object",
+      "required": true
+    }
+  ]
+}

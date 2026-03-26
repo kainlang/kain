@@ -1,0 +1,258 @@
+{
+    "descriptor_document_id":  "runtime_feature_pack_windows_descriptor_document",
+    "descriptor_path":  "generated/runtime-compatibility/descriptors/runtime_feature_pack_windows.json",
+    "descriptor_kind":  "feature_pack_windows",
+    "descriptor_id":  "runtime_feature_pack_windows",
+    "descriptor_scope":  "manifest_derived_feature_pack_and_budget_window_tiering",
+    "policy":  {
+                   "name":  "tier_policy",
+                   "value":  "manifest_derived_feature_pack_and_budget_window_tiering"
+               },
+    "runtime_links":  {
+                          "tensor_pipeline_id":  "runtime_compatibility_tensor_pipeline",
+                          "build_graph_id":  "runtime_compatibility_delivery_graph",
+                          "distribution_channel_id":  "runtime_compatibility_delivery_registry",
+                          "gpu_kernel_id":  "runtime_compatibility_resolve"
+                      },
+    "matrix_axes":  {
+                        "backend_kinds":  [
+                                              "hybrid",
+                                              "ks_runtime",
+                                              "native_ui"
+                                          ],
+                        "target_kinds":  [
+                                             "automation_recipe_suite",
+                                             "delivery_orchestration_suite",
+                                             "desktop_orchestrator",
+                                             "desktop_packager",
+                                             "desktop_publisher",
+                                             "desktop_script",
+                                             "desktop_tool_suite",
+                                             "hybrid_module",
+                                             "native_bundle_suite",
+                                             "native_character_suite",
+                                             "native_device_suite",
+                                             "native_exchange_suite",
+                                             "native_fabrication_suite",
+                                             "native_finishing_suite",
+                                             "native_geospatial_suite",
+                                             "native_inspection_suite",
+                                             "native_knowledge_suite",
+                                             "native_lookdev_suite",
+                                             "native_materialization_suite",
+                                             "native_network_suite",
+                                             "native_query_suite",
+                                             "native_reflection_suite",
+                                             "native_registry_suite",
+                                             "native_review_suite",
+                                             "native_scene_suite",
+                                             "native_solver_suite",
+                                             "native_stage_suite",
+                                             "native_sync_suite",
+                                             "native_widget_suite",
+                                             "native_workbench",
+                                             "native_xr_suite"
+                                         ],
+                        "feature_pack_tiers":  [
+                                                   "cross_surface_runtime",
+                                                   "immersive_native_bridge",
+                                                   "native_authoring_suite",
+                                                   "scripted_orchestration"
+                                               ],
+                        "budget_window_tiers":  [
+                                                    "balanced_runtime_budget_window",
+                                                    "batch_orchestration_budget_window",
+                                                    "desktop_interactive_budget_window",
+                                                    "gpu_and_streaming_budget_window"
+                                                ],
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts",
+                                               "wasm"
+                                           ]
+                    },
+    "feature_pack_windows":  [
+                                 {
+                                     "feature_pack_tier":  "cross_surface_runtime",
+                                     "budget_window_tiers":  [
+                                                                 "balanced_runtime_budget_window"
+                                                             ],
+                                     "matrix_cell_ids":  [
+                                                             "hybrid_hybrid_module_compatibility_cell"
+                                                         ],
+                                     "runtime_app_ids":  [
+                                                             "game_runtime_shell"
+                                                         ],
+                                     "backend_kinds":  [
+                                                           "hybrid"
+                                                       ],
+                                     "target_kinds":  [
+                                                          "hybrid_module"
+                                                      ],
+                                     "output_targets":  [
+                                                            "hybrid",
+                                                            "ts",
+                                                            "wasm"
+                                                        ]
+                                 },
+                                 {
+                                     "feature_pack_tier":  "immersive_native_bridge",
+                                     "budget_window_tiers":  [
+                                                                 "gpu_and_streaming_budget_window"
+                                                             ],
+                                     "matrix_cell_ids":  [
+                                                             "native_ui_native_workbench_compatibility_cell"
+                                                         ],
+                                     "runtime_app_ids":  [
+                                                             "universal_3d_workbench"
+                                                         ],
+                                     "backend_kinds":  [
+                                                           "native_ui"
+                                                       ],
+                                     "target_kinds":  [
+                                                          "native_workbench"
+                                                      ],
+                                     "output_targets":  [
+                                                            "hybrid",
+                                                            "js",
+                                                            "ks",
+                                                            "ts",
+                                                            "wasm"
+                                                        ]
+                                 },
+                                 {
+                                     "feature_pack_tier":  "native_authoring_suite",
+                                     "budget_window_tiers":  [
+                                                                 "desktop_interactive_budget_window"
+                                                             ],
+                                     "matrix_cell_ids":  [
+                                                             "native_ui_desktop_orchestrator_compatibility_cell",
+                                                             "native_ui_desktop_packager_compatibility_cell",
+                                                             "native_ui_desktop_publisher_compatibility_cell",
+                                                             "native_ui_desktop_tool_suite_compatibility_cell",
+                                                             "native_ui_native_bundle_suite_compatibility_cell",
+                                                             "native_ui_native_character_suite_compatibility_cell",
+                                                             "native_ui_native_device_suite_compatibility_cell",
+                                                             "native_ui_native_exchange_suite_compatibility_cell",
+                                                             "native_ui_native_fabrication_suite_compatibility_cell",
+                                                             "native_ui_native_finishing_suite_compatibility_cell",
+                                                             "native_ui_native_geospatial_suite_compatibility_cell",
+                                                             "native_ui_native_inspection_suite_compatibility_cell",
+                                                             "native_ui_native_knowledge_suite_compatibility_cell",
+                                                             "native_ui_native_lookdev_suite_compatibility_cell",
+                                                             "native_ui_native_materialization_suite_compatibility_cell",
+                                                             "native_ui_native_network_suite_compatibility_cell",
+                                                             "native_ui_native_query_suite_compatibility_cell",
+                                                             "native_ui_native_reflection_suite_compatibility_cell",
+                                                             "native_ui_native_registry_suite_compatibility_cell",
+                                                             "native_ui_native_review_suite_compatibility_cell",
+                                                             "native_ui_native_scene_suite_compatibility_cell",
+                                                             "native_ui_native_solver_suite_compatibility_cell",
+                                                             "native_ui_native_stage_suite_compatibility_cell",
+                                                             "native_ui_native_sync_suite_compatibility_cell",
+                                                             "native_ui_native_widget_suite_compatibility_cell",
+                                                             "native_ui_native_xr_suite_compatibility_cell"
+                                                         ],
+                                     "runtime_app_ids":  [
+                                                             "artifact_orchestration_studio",
+                                                             "asset_pipeline_studio",
+                                                             "asset_registry_console",
+                                                             "character_facial_lab",
+                                                             "collaboration_review_stage",
+                                                             "compositor_finishing_studio",
+                                                             "device_control_center",
+                                                             "fabrication_schedule_tower",
+                                                             "geospatial_twin_studio",
+                                                             "knowledge_ops_console",
+                                                             "live_sync_control_tower",
+                                                             "lookdev_review_stage",
+                                                             "materialization_control_center",
+                                                             "metrology_inspection_lab",
+                                                             "native_widget_designer",
+                                                             "network_replication_console",
+                                                             "plugin_package_builder",
+                                                             "query_selection_lab",
+                                                             "release_publisher",
+                                                             "runtime_bundle_manager",
+                                                             "runtime_reflection_console",
+                                                             "scene_exchange_hub",
+                                                             "scene_semantics_studio",
+                                                             "simulation_authoring_lab",
+                                                             "virtual_production_stage",
+                                                             "xr_experience_lab"
+                                                         ],
+                                     "backend_kinds":  [
+                                                           "native_ui"
+                                                       ],
+                                     "target_kinds":  [
+                                                          "desktop_orchestrator",
+                                                          "desktop_packager",
+                                                          "desktop_publisher",
+                                                          "desktop_tool_suite",
+                                                          "native_bundle_suite",
+                                                          "native_character_suite",
+                                                          "native_device_suite",
+                                                          "native_exchange_suite",
+                                                          "native_fabrication_suite",
+                                                          "native_finishing_suite",
+                                                          "native_geospatial_suite",
+                                                          "native_inspection_suite",
+                                                          "native_knowledge_suite",
+                                                          "native_lookdev_suite",
+                                                          "native_materialization_suite",
+                                                          "native_network_suite",
+                                                          "native_query_suite",
+                                                          "native_reflection_suite",
+                                                          "native_registry_suite",
+                                                          "native_review_suite",
+                                                          "native_scene_suite",
+                                                          "native_solver_suite",
+                                                          "native_stage_suite",
+                                                          "native_sync_suite",
+                                                          "native_widget_suite",
+                                                          "native_xr_suite"
+                                                      ],
+                                     "output_targets":  [
+                                                            "hybrid",
+                                                            "js",
+                                                            "ks",
+                                                            "ts"
+                                                        ]
+                                 },
+                                 {
+                                     "feature_pack_tier":  "scripted_orchestration",
+                                     "budget_window_tiers":  [
+                                                                 "batch_orchestration_budget_window"
+                                                             ],
+                                     "matrix_cell_ids":  [
+                                                             "ks_runtime_automation_recipe_suite_compatibility_cell",
+                                                             "ks_runtime_delivery_orchestration_suite_compatibility_cell",
+                                                             "ks_runtime_desktop_script_compatibility_cell"
+                                                         ],
+                                     "runtime_app_ids":  [
+                                                             "automation_recipe_tower",
+                                                             "delivery_materializer_tower",
+                                                             "headless_build_orchestrator"
+                                                         ],
+                                     "backend_kinds":  [
+                                                           "ks_runtime"
+                                                       ],
+                                     "target_kinds":  [
+                                                          "automation_recipe_suite",
+                                                          "delivery_orchestration_suite",
+                                                          "desktop_script"
+                                                      ],
+                                     "output_targets":  [
+                                                            "hybrid",
+                                                            "js",
+                                                            "ks"
+                                                        ]
+                                 }
+                             ],
+    "artifact_roots":  [
+                           "generated/runtime-compatibility",
+                           "generated/distribution/runtime-compatibility"
+                       ]
+}

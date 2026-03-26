@@ -1,0 +1,38 @@
+{
+    "catalog_id":  "schema_reflection_catalog",
+    "catalog_scope":  "stdlib_runtime_and_contract_schema",
+    "tensor_pipeline_id":  "runtime_reflection_tensor_pipeline",
+    "manifest_sources":  [
+                             "manifests/sources.json",
+                             "manifests/tensor_pipelines.json"
+                         ],
+    "entries":  [
+                    {
+                        "schema_id":  "workspace_preset_launch_manifest_schema",
+                        "schema_path":  "generated/schemas/workspace-presets/launch-manifests/schema.json",
+                        "template_path":  "generated/schemas/workspace-presets/launch-manifests/templates/workspace-preset-launch-manifest.template.json",
+                        "index_path":  "generated/schemas/workspace-presets/launch-manifests/indexes/catalog.json"
+                    },
+                    {
+                        "schema_id":  "workspace_preset_delivery_receipt_schema",
+                        "schema_path":  "generated/schemas/workspace-presets/receipts/schema.json",
+                        "template_path":  "generated/schemas/workspace-presets/receipts/templates/workspace-preset-delivery-receipt.template.json",
+                        "index_path":  "generated/schemas/workspace-presets/receipts/indexes/catalog.json"
+                    },
+                    {
+                        "schema_id":  "jobs_delivery_receipt_schema",
+                        "schema_path":  "generated/schemas/jobs/receipts/schema.json",
+                        "template_path":  "generated/schemas/jobs/receipts/templates/job-delivery-receipt.template.json",
+                        "index_path":  "generated/schemas/jobs/receipts/indexes/catalog.json"
+                    }
+                ],
+    "artifact_roots":  [
+                           "generated/schemas",
+                           "generated/runtime-reflection/schema"
+                       ],
+    "reflection_catalogs":  [
+                                "workspace_preset_launch_schema_catalog",
+                                "workspace_preset_receipt_schema_catalog",
+                                "jobs_receipt_schema_catalog"
+                            ]
+}

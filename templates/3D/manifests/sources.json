@@ -987,6 +987,14 @@
       "target" : "spirv"
    },
    {
+      "label" : "Job Receipt Materialize",
+      "source_path" : "src-kain/kernels/jobs/job_receipt_materialize.kn",
+      "compiled_path" : "generated/spv/jobs/job_receipt_materialize.spv",
+      "domain" : "jobs",
+      "id" : "job_receipt_materialize",
+      "target" : "spirv"
+   },
+   {
       "domain" : "telemetry",
       "compiled_path" : "generated/spv/telemetry/telemetry_frame_profile_resolve.spv",
       "id" : "telemetry_frame_profile_resolve",

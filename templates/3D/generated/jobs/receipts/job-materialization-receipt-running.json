@@ -1,0 +1,27 @@
+{
+  "receipt_id": "job_materialization_receipt_running",
+  "dispatch_graph_id": "jobs_dispatch_graph",
+  "queue_id": "jobs_dispatch_queue",
+  "job_state": "running",
+  "promotion_state": "waiting_for_completion",
+  "retry_ledger_id": "jobs_retry_ledger",
+  "distribution_channel_id": "jobs_delivery_registry",
+  "artifacts": [
+    {
+      "kind": "job_output_bundle",
+      "path": "generated/jobs"
+    },
+    {
+      "kind": "receipt_schema_bundle",
+      "path": "generated/schemas/jobs/receipts/schema.json"
+    },
+    {
+      "kind": "receipt_index_bundle",
+      "path": "generated/schemas/jobs/receipts/indexes/catalog.json"
+    }
+  ],
+  "timestamps": {
+    "submitted_at": "2026-03-26T03:45:00Z",
+    "completed_at": "2026-03-26T03:46:30Z"
+  }
+}

@@ -1,0 +1,2453 @@
+{
+    "catalog_id":  "gpu_reflection_catalog",
+    "catalog_scope":  "spirv_tensor_and_dispatch_metadata",
+    "tensor_pipeline_id":  "runtime_reflection_tensor_pipeline",
+    "manifest_source":  "manifests/gpu_kernels.json",
+    "kernel_count":  116,
+    "entries":  [
+                    {
+                        "id":  "visibility_cluster_cull",
+                        "stage":  "render_prepass",
+                        "tensor_role":  "cluster_visibility",
+                        "source_path":  "src-kain/kernels/render/visibility_cluster_cull.kn",
+                        "entry":  "visibility_cluster_cull",
+                        "dispatch_shape":  [
+                                               16,
+                                               16,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "camera_frustum",
+                                         "instance_bounds",
+                                         "lod_ranges"
+                                     ],
+                        "produces":  [
+                                         "visible_cluster_mask",
+                                         "draw_packet_counts"
+                                     ]
+                    },
+                    {
+                        "id":  "viewport_composite_tensor",
+                        "stage":  "post_present",
+                        "tensor_role":  "viewport_composite",
+                        "source_path":  "src-kain/kernels/render/viewport_composite_tensor.kn",
+                        "entry":  "viewport_composite_tensor",
+                        "dispatch_shape":  [
+                                               8,
+                                               8,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "hdr_color",
+                                         "ui_overlay",
+                                         "selection_outline",
+                                         "gizmo_overlay"
+                                     ],
+                        "produces":  [
+                                         "present_color"
+                                     ]
+                    },
+                    {
+                        "id":  "material_layer_stack_tensor",
+                        "stage":  "material_evaluation",
+                        "tensor_role":  "material_layers",
+                        "source_path":  "src-kain/kernels/material/material_layer_stack_tensor.kn",
+                        "entry":  "material_layer_stack_tensor",
+                        "dispatch_shape":  [
+                                               8,
+                                               8,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "material_layers",
+                                         "layer_masks",
+                                         "surface_inputs"
+                                     ],
+                        "produces":  [
+                                         "material_surface_tensor"
+                                     ]
+                    },
+                    {
+                        "id":  "sculpt_brush_tensor",
+                        "stage":  "tool_deformation",
+                        "tensor_role":  "surface_sculpt",
+                        "source_path":  "src-kain/kernels/sculpt/sculpt_brush_tensor.kn",
+                        "entry":  "sculpt_brush_tensor",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "vertex_positions",
+                                         "vertex_normals",
+                                         "brush_tensor",
+                                         "stroke_context"
+                                     ],
+                        "produces":  [
+                                         "deformed_positions",
+                                         "brush_energy"
+                                     ]
+                    },
+                    {
+                        "id":  "dyntopo_voxel_remesh",
+                        "stage":  "tool_topology",
+                        "tensor_role":  "dyntopo_remesh",
+                        "source_path":  "src-kain/kernels/sculpt/dyntopo_voxel_remesh.kn",
+                        "entry":  "dyntopo_voxel_remesh",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "surface_voxels",
+                                         "remesh_density",
+                                         "surface_velocity"
+                                     ],
+                        "produces":  [
+                                         "remeshed_surface_voxels",
+                                         "topology_metrics"
+                                     ]
+                    },
+                    {
+                        "id":  "rig_skinning_pose_resolve",
+                        "stage":  "animation_pose",
+                        "tensor_role":  "skinning",
+                        "source_path":  "src-kain/kernels/animation/rig_skinning_pose_resolve.kn",
+                        "entry":  "rig_skinning_pose_resolve",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "bone_matrices",
+                                         "vertex_weights",
+                                         "bind_pose_positions"
+                                     ],
+                        "produces":  [
+                                         "skinned_positions",
+                                         "pose_bounds"
+                                     ]
+                    },
+                    {
+                        "id":  "mocap_retarget_pose_tensor",
+                        "stage":  "animation_retarget",
+                        "tensor_role":  "mocap_retarget",
+                        "source_path":  "src-kain/kernels/animation/mocap_retarget_pose_tensor.kn",
+                        "entry":  "mocap_retarget_pose_tensor",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "source_pose",
+                                         "target_rig_map",
+                                         "retarget_constraints"
+                                     ],
+                        "produces":  [
+                                         "target_pose",
+                                         "retarget_metrics"
+                                     ]
+                    },
+                    {
+                        "id":  "cloth_constraint_solver",
+                        "stage":  "simulation",
+                        "tensor_role":  "cloth_solver",
+                        "source_path":  "src-kain/kernels/sim/cloth_constraint_solver.kn",
+                        "entry":  "cloth_constraint_solver",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "cloth_particles",
+                                         "cloth_constraints",
+                                         "collision_fields",
+                                         "time_step"
+                                     ],
+                        "produces":  [
+                                         "next_cloth_particles",
+                                         "solver_metrics"
+                                     ]
+                    },
+                    {
+                        "id":  "particle_advection_tensor",
+                        "stage":  "simulation_particles",
+                        "tensor_role":  "particle_advection",
+                        "source_path":  "src-kain/kernels/sim/particle_advection_tensor.kn",
+                        "entry":  "particle_advection_tensor",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "particle_positions",
+                                         "particle_velocity",
+                                         "force_field",
+                                         "time_step"
+                                     ],
+                        "produces":  [
+                                         "next_particle_positions",
+                                         "next_particle_velocity"
+                                     ]
+                    },
+                    {
+                        "id":  "fluid_pressure_project",
+                        "stage":  "simulation_fluid",
+                        "tensor_role":  "fluid_pressure",
+                        "source_path":  "src-kain/kernels/sim/fluid_pressure_project.kn",
+                        "entry":  "fluid_pressure_project",
+                        "dispatch_shape":  [
+                                               8,
+                                               8,
+                                               8
+                                           ],
+                        "consumes":  [
+                                         "fluid_velocity_grid",
+                                         "fluid_divergence_grid",
+                                         "boundary_mask"
+                                     ],
+                        "produces":  [
+                                         "projected_velocity_grid",
+                                         "pressure_grid"
+                                     ]
+                    },
+                    {
+                        "id":  "terrain_clipmap_bake",
+                        "stage":  "world_terrain",
+                        "tensor_role":  "terrain_clipmap",
+                        "source_path":  "src-kain/kernels/world/terrain_clipmap_bake.kn",
+                        "entry":  "terrain_clipmap_bake",
+                        "dispatch_shape":  [
+                                               16,
+                                               16,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "height_tiles",
+                                         "splat_tiles",
+                                         "clipmap_region"
+                                     ],
+                        "produces":  [
+                                         "terrain_lod_tiles",
+                                         "terrain_normals"
+                                     ]
+                    },
+                    {
+                        "id":  "world_partition_visibility",
+                        "stage":  "world_streaming",
+                        "tensor_role":  "world_partition",
+                        "source_path":  "src-kain/kernels/world/world_partition_visibility.kn",
+                        "entry":  "world_partition_visibility",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "streaming_sectors",
+                                         "camera_position",
+                                         "streaming_budget"
+                                     ],
+                        "produces":  [
+                                         "visible_sector_mask",
+                                         "resident_sector_requests"
+                                     ]
+                    },
+                    {
+                        "id":  "procedural_field_scatter",
+                        "stage":  "procedural_distribution",
+                        "tensor_role":  "procedural_scatter",
+                        "source_path":  "src-kain/kernels/procedural/procedural_field_scatter.kn",
+                        "entry":  "procedural_field_scatter",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "source_points",
+                                         "density_field",
+                                         "surface_frames"
+                                     ],
+                        "produces":  [
+                                         "scattered_instances"
+                                     ]
+                    },
+                    {
+                        "id":  "groom_strand_interpolate",
+                        "stage":  "groom_authoring",
+                        "tensor_role":  "strand_interpolation",
+                        "source_path":  "src-kain/kernels/groom/groom_strand_interpolate.kn",
+                        "entry":  "groom_strand_interpolate",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "guide_roots",
+                                         "guide_tangents",
+                                         "groom_controls"
+                                     ],
+                        "produces":  [
+                                         "strand_vertices"
+                                     ]
+                    },
+                    {
+                        "id":  "volumetric_fog_integrate",
+                        "stage":  "volume_render",
+                        "tensor_role":  "fog_integration",
+                        "source_path":  "src-kain/kernels/volume/volumetric_fog_integrate.kn",
+                        "entry":  "volumetric_fog_integrate",
+                        "dispatch_shape":  [
+                                               8,
+                                               8,
+                                               8
+                                           ],
+                        "consumes":  [
+                                         "density_grid",
+                                         "lighting_grid",
+                                         "phase_grid"
+                                     ],
+                        "produces":  [
+                                         "integrated_grid"
+                                     ]
+                    },
+                    {
+                        "id":  "scan_reconstruction_fuse",
+                        "stage":  "scan_reconstruction",
+                        "tensor_role":  "scan_fusion",
+                        "source_path":  "src-kain/kernels/scan/scan_reconstruction_fuse.kn",
+                        "entry":  "scan_reconstruction_fuse",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "camera_samples",
+                                         "depth_samples",
+                                         "confidence_grid"
+                                     ],
+                        "produces":  [
+                                         "fused_surface"
+                                     ]
+                    },
+                    {
+                        "id":  "audio_reactive_spectrum",
+                        "stage":  "audio_analysis",
+                        "tensor_role":  "reactive_audio",
+                        "source_path":  "src-kain/kernels/audio/audio_reactive_spectrum.kn",
+                        "entry":  "audio_reactive_spectrum",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "audio_frames",
+                                         "scene_metrics",
+                                         "reactive_controls"
+                                     ],
+                        "produces":  [
+                                         "spectrum_output"
+                                     ]
+                    },
+                    {
+                        "id":  "collaboration_presence_resolve",
+                        "stage":  "collaboration_sync",
+                        "tensor_role":  "presence_resolution",
+                        "source_path":  "src-kain/kernels/collab/collaboration_presence_resolve.kn",
+                        "entry":  "collaboration_presence_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "peer_cursor_state",
+                                         "peer_selection_state",
+                                         "session_latency_state"
+                                     ],
+                        "produces":  [
+                                         "resolved_presence"
+                                     ]
+                    },
+                    {
+                        "id":  "artifact_materialization_resolve",
+                        "stage":  "orchestration_materialization",
+                        "tensor_role":  "artifact_materialization",
+                        "source_path":  "src-kain/kernels/orchestration/artifact_materialization_resolve.kn",
+                        "entry":  "artifact_materialization_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "runtime_app_nodes",
+                                         "kernel_nodes",
+                                         "package_nodes"
+                                     ],
+                        "produces":  [
+                                         "materialization_plan"
+                                     ]
+                    },
+                    {
+                        "id":  "constraint_jacobi_solve",
+                        "stage":  "constraint_solve",
+                        "tensor_role":  "constraint_solver",
+                        "source_path":  "src-kain/kernels/constraints/constraint_jacobi_solve.kn",
+                        "entry":  "constraint_jacobi_solve",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "constraint_frames",
+                                         "constraint_weights",
+                                         "target_frames"
+                                     ],
+                        "produces":  [
+                                         "solved_frames"
+                                     ]
+                    },
+                    {
+                        "id":  "biome_ecosystem_resolve",
+                        "stage":  "biome_distribution",
+                        "tensor_role":  "biome_world",
+                        "source_path":  "src-kain/kernels/biome/biome_ecosystem_resolve.kn",
+                        "entry":  "biome_ecosystem_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "climate_field",
+                                         "terrain_field",
+                                         "ecosystem_controls"
+                                     ],
+                        "produces":  [
+                                         "biome_distribution"
+                                     ]
+                    },
+                    {
+                        "id":  "fracture_cluster_resolve",
+                        "stage":  "destruction_fracture",
+                        "tensor_role":  "destruction_authoring",
+                        "source_path":  "src-kain/kernels/destruction/fracture_cluster_resolve.kn",
+                        "entry":  "fracture_cluster_resolve",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "fracture_sites",
+                                         "impact_state",
+                                         "material_resistance"
+                                     ],
+                        "produces":  [
+                                         "fracture_clusters"
+                                     ]
+                    },
+                    {
+                        "id":  "review_annotation_raster",
+                        "stage":  "review_overlay",
+                        "tensor_role":  "review_overlay",
+                        "source_path":  "src-kain/kernels/review/review_annotation_raster.kn",
+                        "entry":  "review_annotation_raster",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "frame_annotations",
+                                         "scene_annotations",
+                                         "review_capture_state"
+                                     ],
+                        "produces":  [
+                                         "annotation_overlay"
+                                     ]
+                    },
+                    {
+                        "id":  "renderer_graph_schedule",
+                        "stage":  "renderer_graph_schedule",
+                        "tensor_role":  "renderer_graph",
+                        "source_path":  "src-kain/kernels/render/renderer_graph_schedule.kn",
+                        "entry":  "renderer_graph_schedule",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "render_pass_nodes",
+                                         "dependency_edges",
+                                         "frame_budget_state"
+                                     ],
+                        "produces":  [
+                                         "scheduled_passes"
+                                     ]
+                    },
+                    {
+                        "id":  "behavior_state_resolve",
+                        "stage":  "behavior_state",
+                        "tensor_role":  "behavior_runtime",
+                        "source_path":  "src-kain/kernels/behavior/behavior_state_resolve.kn",
+                        "entry":  "behavior_state_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "behavior_nodes",
+                                         "event_stream",
+                                         "state_memory"
+                                     ],
+                        "produces":  [
+                                         "resolved_behavior_state"
+                                     ]
+                    },
+                    {
+                        "id":  "nurbs_surface_tessellate",
+                        "stage":  "cad_surface_tessellation",
+                        "tensor_role":  "cad_surface",
+                        "source_path":  "src-kain/kernels/cad/nurbs_surface_tessellate.kn",
+                        "entry":  "nurbs_surface_tessellate",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "control_points",
+                                         "knot_vectors",
+                                         "tessellation_policy"
+                                     ],
+                        "produces":  [
+                                         "tessellated_surface"
+                                     ]
+                    },
+                    {
+                        "id":  "toolpath_kinematics_resolve",
+                        "stage":  "robotics_toolpath",
+                        "tensor_role":  "robotics_toolpath",
+                        "source_path":  "src-kain/kernels/robotics/toolpath_kinematics_resolve.kn",
+                        "entry":  "toolpath_kinematics_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "machine_joints",
+                                         "toolpath_segments",
+                                         "machine_limits"
+                                     ],
+                        "produces":  [
+                                         "resolved_toolpath_motion"
+                                     ]
+                    },
+                    {
+                        "id":  "live_asset_delta_merge",
+                        "stage":  "live_sync_merge",
+                        "tensor_role":  "live_sync",
+                        "source_path":  "src-kain/kernels/sync/live_asset_delta_merge.kn",
+                        "entry":  "live_asset_delta_merge",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "local_asset_state",
+                                         "remote_asset_state",
+                                         "sync_policy_state"
+                                     ],
+                        "produces":  [
+                                         "merged_asset_state"
+                                     ]
+                    },
+                    {
+                        "id":  "video_frame_compose",
+                        "stage":  "compositor_finishing",
+                        "tensor_role":  "compositor_finishing",
+                        "source_path":  "src-kain/kernels/compositor/video_frame_compose.kn",
+                        "entry":  "video_frame_compose",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "source_frames",
+                                         "overlay_frames",
+                                         "finishing_state"
+                                     ],
+                        "produces":  [
+                                         "composed_frames"
+                                     ]
+                    },
+                    {
+                        "id":  "scene_exchange_stage_resolve",
+                        "stage":  "scene_exchange_stage",
+                        "tensor_role":  "scene_exchange",
+                        "source_path":  "src-kain/kernels/exchange/scene_exchange_stage_resolve.kn",
+                        "entry":  "scene_exchange_stage_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "stage_layers",
+                                         "variant_state",
+                                         "resolver_state"
+                                     ],
+                        "produces":  [
+                                         "resolved_stage_payload"
+                                     ]
+                    },
+                    {
+                        "id":  "surface_deviation_resolve",
+                        "stage":  "metrology_inspection",
+                        "tensor_role":  "metrology_inspection",
+                        "source_path":  "src-kain/kernels/metrology/surface_deviation_resolve.kn",
+                        "entry":  "surface_deviation_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "measured_surface_samples",
+                                         "reference_surface_samples",
+                                         "tolerance_profile"
+                                     ],
+                        "produces":  [
+                                         "deviation_field"
+                                     ]
+                    },
+                    {
+                        "id":  "fabrication_schedule_resolve",
+                        "stage":  "fabrication_schedule",
+                        "tensor_role":  "fabrication_schedule",
+                        "source_path":  "src-kain/kernels/fabrication/fabrication_schedule_resolve.kn",
+                        "entry":  "fabrication_schedule_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "fabrication_jobs",
+                                         "machine_capacity",
+                                         "material_nesting_state"
+                                     ],
+                        "produces":  [
+                                         "fabrication_schedule"
+                                     ]
+                    },
+                    {
+                        "id":  "review_evidence_index",
+                        "stage":  "review_database_index",
+                        "tensor_role":  "review_database",
+                        "source_path":  "src-kain/kernels/review/review_evidence_index.kn",
+                        "entry":  "review_evidence_index",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "review_media_events",
+                                         "annotation_events",
+                                         "ranking_policy"
+                                     ],
+                        "produces":  [
+                                         "ranked_evidence_index"
+                                     ]
+                    },
+                    {
+                        "id":  "scene_semantic_index_resolve",
+                        "stage":  "scene_semantics_index",
+                        "tensor_role":  "scene_semantics",
+                        "source_path":  "src-kain/kernels/scene/scene_semantic_index_resolve.kn",
+                        "entry":  "scene_semantic_index_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "semantic_nodes",
+                                         "collection_state",
+                                         "variant_state"
+                                     ],
+                        "produces":  [
+                                         "semantic_index"
+                                     ]
+                    },
+                    {
+                        "id":  "selection_query_resolve",
+                        "stage":  "query_selection",
+                        "tensor_role":  "query_selection",
+                        "source_path":  "src-kain/kernels/query/selection_query_resolve.kn",
+                        "entry":  "selection_query_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "picking_rays",
+                                         "selection_masks",
+                                         "scene_bounds"
+                                     ],
+                        "produces":  [
+                                         "query_hits"
+                                     ]
+                    },
+                    {
+                        "id":  "runtime_bundle_assemble",
+                        "stage":  "runtime_bundle_assembly",
+                        "tensor_role":  "runtime_bundle",
+                        "source_path":  "src-kain/kernels/bundles/runtime_bundle_assemble.kn",
+                        "entry":  "runtime_bundle_assemble",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "runtime_targets",
+                                         "launch_profiles",
+                                         "bundle_policy"
+                                     ],
+                        "produces":  [
+                                         "assembled_bundle_state"
+                                     ]
+                    },
+                    {
+                        "id":  "materialization_receipt_index",
+                        "stage":  "materialization_receipt_index",
+                        "tensor_role":  "materialization",
+                        "source_path":  "src-kain/kernels/materialization/materialization_receipt_index.kn",
+                        "entry":  "materialization_receipt_index",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "build_intents",
+                                         "output_receipts",
+                                         "promotion_state"
+                                     ],
+                        "produces":  [
+                                         "indexed_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "asset_lineage_resolve",
+                        "stage":  "asset_lineage",
+                        "tensor_role":  "asset_registry",
+                        "source_path":  "src-kain/kernels/assets/asset_lineage_resolve.kn",
+                        "entry":  "asset_lineage_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "source_assets",
+                                         "derived_assets",
+                                         "dependency_graph"
+                                     ],
+                        "produces":  [
+                                         "lineage_edges"
+                                     ]
+                    },
+                    {
+                        "id":  "facial_pose_solve",
+                        "stage":  "character_facial_solve",
+                        "tensor_role":  "character_facial",
+                        "source_path":  "src-kain/kernels/character/facial_pose_solve.kn",
+                        "entry":  "facial_pose_solve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "facial_control_tensor",
+                                         "corrective_weights",
+                                         "wrinkle_mask_tensor"
+                                     ],
+                        "produces":  [
+                                         "facial_pose_tensor"
+                                     ]
+                    },
+                    {
+                        "id":  "led_volume_sync",
+                        "stage":  "virtual_production_stage_sync",
+                        "tensor_role":  "virtual_production",
+                        "source_path":  "src-kain/kernels/virtual_production/led_volume_sync.kn",
+                        "entry":  "led_volume_sync",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "camera_tracking_state",
+                                         "wall_playback_state",
+                                         "color_sync_state"
+                                     ],
+                        "produces":  [
+                                         "stage_sync_state"
+                                     ]
+                    },
+                    {
+                        "id":  "geospatial_tile_resolve",
+                        "stage":  "geospatial_tile_stream",
+                        "tensor_role":  "geospatial",
+                        "source_path":  "src-kain/kernels/geospatial/geospatial_tile_resolve.kn",
+                        "entry":  "geospatial_tile_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "visible_tile_coords",
+                                         "tile_metadata",
+                                         "survey_offsets"
+                                     ],
+                        "produces":  [
+                                         "resolved_tile_payload"
+                                     ]
+                    },
+                    {
+                        "id":  "xr_stereo_frame_resolve",
+                        "stage":  "xr_stereo_frame",
+                        "tensor_role":  "xr",
+                        "source_path":  "src-kain/kernels/xr/xr_stereo_frame_resolve.kn",
+                        "entry":  "xr_stereo_frame_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "stereo_views",
+                                         "head_pose_state",
+                                         "ui_composite_state"
+                                     ],
+                        "produces":  [
+                                         "stereo_frame_payload"
+                                     ]
+                    },
+                    {
+                        "id":  "network_replication_resolve",
+                        "stage":  "network_replication",
+                        "tensor_role":  "networking",
+                        "source_path":  "src-kain/kernels/networking/network_replication_resolve.kn",
+                        "entry":  "network_replication_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "local_entity_state",
+                                         "remote_entity_state",
+                                         "authority_state"
+                                     ],
+                        "produces":  [
+                                         "replicated_entity_state"
+                                     ]
+                    },
+                    {
+                        "id":  "device_frame_sync_resolve",
+                        "stage":  "device_runtime_sync",
+                        "tensor_role":  "device_runtime",
+                        "source_path":  "src-kain/kernels/device/device_frame_sync_resolve.kn",
+                        "entry":  "device_frame_sync_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "device_profiles",
+                                         "device_telemetry",
+                                         "authority_state"
+                                     ],
+                        "produces":  [
+                                         "synchronized_devices"
+                                     ]
+                    },
+                    {
+                        "id":  "runtime_schema_index_resolve",
+                        "stage":  "runtime_reflection_index",
+                        "tensor_role":  "runtime_reflection",
+                        "source_path":  "src-kain/kernels/reflection/runtime_schema_index_resolve.kn",
+                        "entry":  "runtime_schema_index_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "schema_records",
+                                         "gpu_records",
+                                         "contract_records"
+                                     ],
+                        "produces":  [
+                                         "indexed_reflection_records"
+                                     ]
+                    },
+                    {
+                        "id":  "lookdev_lighting_review_resolve",
+                        "stage":  "lookdev_review",
+                        "tensor_role":  "lookdev",
+                        "source_path":  "src-kain/kernels/lookdev/lookdev_lighting_review_resolve.kn",
+                        "entry":  "lookdev_lighting_review_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "lighting_rigs",
+                                         "material_variants",
+                                         "reference_scores"
+                                     ],
+                        "produces":  [
+                                         "reviewed_looks"
+                                     ]
+                    },
+                    {
+                        "id":  "simulation_solver_graph_resolve",
+                        "stage":  "simulation_authoring",
+                        "tensor_role":  "simulation_authoring",
+                        "source_path":  "src-kain/kernels/sim_authoring/simulation_solver_graph_resolve.kn",
+                        "entry":  "simulation_solver_graph_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "solver_nodes",
+                                         "coupling_edges",
+                                         "checkpoint_state"
+                                     ],
+                        "produces":  [
+                                         "solved_graph_nodes"
+                                     ]
+                    },
+                    {
+                        "id":  "delivery_batch_materialize_resolve",
+                        "stage":  "delivery_materialization",
+                        "tensor_role":  "delivery_materializer",
+                        "source_path":  "src-kain/kernels/delivery/delivery_batch_materialize_resolve.kn",
+                        "entry":  "delivery_batch_materialize_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "delivery_graph_nodes",
+                                         "receipt_state",
+                                         "channel_approval_state"
+                                     ],
+                        "produces":  [
+                                         "materialized_delivery_batches"
+                                     ]
+                    },
+                    {
+                        "id":  "scene_bundle_graph_resolve",
+                        "stage":  "scene_bundle_composition",
+                        "tensor_role":  "scene_bundles",
+                        "source_path":  "src-kain/kernels/scene/scene_bundle_graph_resolve.kn",
+                        "entry":  "scene_bundle_graph_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "scene_layers",
+                                         "bundle_variants",
+                                         "delivery_channels"
+                                     ],
+                        "produces":  [
+                                         "scene_bundle_records"
+                                     ]
+                    },
+                    {
+                        "id":  "widget_surface_layout_resolve",
+                        "stage":  "widget_surface_layout",
+                        "tensor_role":  "native_widgets",
+                        "source_path":  "src-kain/kernels/render/widget_surface_layout_resolve.kn",
+                        "entry":  "widget_surface_layout_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "widget_layout_nodes",
+                                         "viewport_overlay_nodes",
+                                         "binding_nodes"
+                                     ],
+                        "produces":  [
+                                         "composed_widget_layout"
+                                     ]
+                    },
+                    {
+                        "id":  "interchange_transcode_resolve",
+                        "stage":  "interchange_transcode",
+                        "tensor_role":  "interchange",
+                        "source_path":  "src-kain/kernels/exchange/interchange_transcode_resolve.kn",
+                        "entry":  "interchange_transcode_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "source_format_records",
+                                         "target_format_records",
+                                         "dependency_records"
+                                     ],
+                        "produces":  [
+                                         "transcoded_exchange_records"
+                                     ]
+                    },
+                    {
+                        "id":  "automation_recipe_schedule_resolve",
+                        "stage":  "automation_recipe_scheduling",
+                        "tensor_role":  "automation",
+                        "source_path":  "src-kain/kernels/orchestration/automation_recipe_schedule_resolve.kn",
+                        "entry":  "automation_recipe_schedule_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "recipe_nodes",
+                                         "trigger_nodes",
+                                         "approval_nodes"
+                                     ],
+                        "produces":  [
+                                         "scheduled_recipe_batches"
+                                     ]
+                    },
+                    {
+                        "id":  "knowledge_graph_index_resolve",
+                        "stage":  "knowledge_graph_index",
+                        "tensor_role":  "knowledge",
+                        "source_path":  "src-kain/kernels/reflection/knowledge_graph_index_resolve.kn",
+                        "entry":  "knowledge_graph_index_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "production_records",
+                                         "asset_records",
+                                         "operation_records"
+                                     ],
+                        "produces":  [
+                                         "indexed_knowledge_records"
+                                     ]
+                    },
+                    {
+                        "id":  "shot_sequence_timeline_resolve",
+                        "stage":  "sequencing_timeline",
+                        "tensor_role":  "sequencing",
+                        "source_path":  "src-kain/kernels/sequencing/shot_sequence_timeline_resolve.kn",
+                        "entry":  "shot_sequence_timeline_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "shot_clips",
+                                         "take_records",
+                                         "editorial_events"
+                                     ],
+                        "produces":  [
+                                         "resolved_sequence_frames"
+                                     ]
+                    },
+                    {
+                        "id":  "navigation_navmesh_corridor_resolve",
+                        "stage":  "navigation_runtime",
+                        "tensor_role":  "navigation",
+                        "source_path":  "src-kain/kernels/navigation/navigation_navmesh_corridor_resolve.kn",
+                        "entry":  "navigation_navmesh_corridor_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "navmesh_tiles",
+                                         "crowd_agents",
+                                         "avoidance_fields"
+                                     ],
+                        "produces":  [
+                                         "resolved_navigation_corridors"
+                                     ]
+                    },
+                    {
+                        "id":  "vehicle_dynamics_integrate",
+                        "stage":  "vehicle_dynamics",
+                        "tensor_role":  "vehicle",
+                        "source_path":  "src-kain/kernels/vehicle/vehicle_dynamics_integrate.kn",
+                        "entry":  "vehicle_dynamics_integrate",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "chassis_state",
+                                         "wheel_contact_state",
+                                         "drivetrain_state"
+                                     ],
+                        "produces":  [
+                                         "integrated_vehicle_state"
+                                     ]
+                    },
+                    {
+                        "id":  "lighting_probe_grid_resolve",
+                        "stage":  "lighting_pipeline",
+                        "tensor_role":  "lighting",
+                        "source_path":  "src-kain/kernels/lighting/lighting_probe_grid_resolve.kn",
+                        "entry":  "lighting_probe_grid_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "light_rigs",
+                                         "probe_grid_state",
+                                         "shadow_contexts"
+                                     ],
+                        "produces":  [
+                                         "resolved_lighting_probes"
+                                     ]
+                    },
+                    {
+                        "id":  "broadcast_program_mix_resolve",
+                        "stage":  "broadcast_control",
+                        "tensor_role":  "broadcast",
+                        "source_path":  "src-kain/kernels/broadcast/broadcast_program_mix_resolve.kn",
+                        "entry":  "broadcast_program_mix_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "program_feeds",
+                                         "rundown_state",
+                                         "overlay_state"
+                                     ],
+                        "produces":  [
+                                         "mixed_program_frames"
+                                     ]
+                    },
+                    {
+                        "id":  "scene_evaluation_schedule_resolve",
+                        "stage":  "scene_evaluation",
+                        "tensor_role":  "evaluation",
+                        "source_path":  "src-kain/kernels/evaluation/scene_evaluation_schedule_resolve.kn",
+                        "entry":  "scene_evaluation_schedule_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "dirty_regions",
+                                         "scene_dependencies",
+                                         "delivery_receipts"
+                                     ],
+                        "produces":  [
+                                         "evaluation_schedule_packets"
+                                     ]
+                    },
+                    {
+                        "id":  "viewport_frame_packet_resolve",
+                        "stage":  "viewport_frame_packets",
+                        "tensor_role":  "viewport",
+                        "source_path":  "src-kain/kernels/viewport/viewport_frame_packet_resolve.kn",
+                        "entry":  "viewport_frame_packet_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "renderer_resources",
+                                         "camera_state",
+                                         "overlay_channels"
+                                     ],
+                        "produces":  [
+                                         "viewport_frame_packets"
+                                     ]
+                    },
+                    {
+                        "id":  "interaction_gizmo_resolve",
+                        "stage":  "interaction_gizmo",
+                        "tensor_role":  "interaction",
+                        "source_path":  "src-kain/kernels/interaction/interaction_gizmo_resolve.kn",
+                        "entry":  "interaction_gizmo_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "input_events",
+                                         "tool_context",
+                                         "selection_state"
+                                     ],
+                        "produces":  [
+                                         "resolved_gizmo_state"
+                                     ]
+                    },
+                    {
+                        "id":  "persistence_snapshot_delta_resolve",
+                        "stage":  "persistence_snapshot_delta",
+                        "tensor_role":  "persistence",
+                        "source_path":  "src-kain/kernels/persistence/persistence_snapshot_delta_resolve.kn",
+                        "entry":  "persistence_snapshot_delta_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "scene_deltas",
+                                         "workspace_state",
+                                         "recovery_checkpoints"
+                                     ],
+                        "produces":  [
+                                         "snapshot_delta_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "job_queue_dispatch_resolve",
+                        "stage":  "job_queue_dispatch",
+                        "tensor_role":  "jobs",
+                        "source_path":  "src-kain/kernels/jobs/job_queue_dispatch_resolve.kn",
+                        "entry":  "job_queue_dispatch_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "job_requests",
+                                         "worker_capabilities",
+                                         "approval_channels"
+                                     ],
+                        "produces":  [
+                                         "resolved_job_dispatches"
+                                     ]
+                    },
+                    {
+                        "id":  "job_receipt_materialize",
+                        "stage":  "job_receipt_materialization",
+                        "tensor_role":  "jobs",
+                        "source_path":  "src-kain/kernels/jobs/job_receipt_materialize.kn",
+                        "entry":  "job_receipt_materialize",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "resolved_job_dispatches",
+                                         "worker_capability_state",
+                                         "retry_resume_state",
+                                         "distribution_registry_state"
+                                     ],
+                        "produces":  [
+                                         "materialized_job_receipts",
+                                         "emitted_receipt_templates",
+                                         "emitted_receipt_indexes",
+                                         "emitted_retry_ledgers",
+                                         "emitted_receipt_reflection"
+                                     ]
+                    },
+                    {
+                        "id":  "telemetry_frame_profile_resolve",
+                        "stage":  "telemetry_frame_profile",
+                        "tensor_role":  "telemetry",
+                        "source_path":  "src-kain/kernels/telemetry/telemetry_frame_profile_resolve.kn",
+                        "entry":  "telemetry_frame_profile_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "frame_samples",
+                                         "job_metrics",
+                                         "delivery_metrics"
+                                     ],
+                        "produces":  [
+                                         "telemetry_budget_rollups"
+                                     ]
+                    },
+                    {
+                        "id":  "security_capability_policy_resolve",
+                        "stage":  "security_capability_policy",
+                        "tensor_role":  "security",
+                        "source_path":  "src-kain/kernels/security/security_capability_policy_resolve.kn",
+                        "entry":  "security_capability_policy_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "capability_requests",
+                                         "trust_zone_state",
+                                         "audit_context"
+                                     ],
+                        "produces":  [
+                                         "resolved_capability_policies"
+                                     ]
+                    },
+                    {
+                        "id":  "entity_component_delta_resolve",
+                        "stage":  "scene_entity_runtime",
+                        "tensor_role":  "entity_delta",
+                        "source_path":  "src-kain/kernels/scene/entity_component_delta_resolve.kn",
+                        "entry":  "entity_component_delta_resolve",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "entity_component_state",
+                                         "mutation_commands",
+                                         "residency_budget"
+                                     ],
+                        "produces":  [
+                                         "resolved_entity_state",
+                                         "component_reflection_delta"
+                                     ]
+                    },
+                    {
+                        "id":  "prefab_variant_compose",
+                        "stage":  "prefab_assembly",
+                        "tensor_role":  "prefab_composition",
+                        "source_path":  "src-kain/kernels/scene/prefab_variant_compose.kn",
+                        "entry":  "prefab_variant_compose",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "prefab_layers",
+                                         "variant_selectors",
+                                         "assembly_context"
+                                     ],
+                        "produces":  [
+                                         "resolved_prefab_entities",
+                                         "launch_ready_prefab_bundle"
+                                     ]
+                    },
+                    {
+                        "id":  "command_stream_replay_resolve",
+                        "stage":  "command_runtime",
+                        "tensor_role":  "command_replay",
+                        "source_path":  "src-kain/kernels/orchestration/command_stream_replay_resolve.kn",
+                        "entry":  "command_stream_replay_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "command_stream",
+                                         "macro_context",
+                                         "tool_state",
+                                         "audit_policy"
+                                     ],
+                        "produces":  [
+                                         "resolved_command_state",
+                                         "command_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "state_schema_migration_resolve",
+                        "stage":  "state_migration",
+                        "tensor_role":  "state_migration",
+                        "source_path":  "src-kain/kernels/persistence/state_schema_migration_resolve.kn",
+                        "entry":  "state_schema_migration_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "source_state_schema",
+                                         "target_state_schema",
+                                         "snapshot_delta",
+                                         "compatibility_policy"
+                                     ],
+                        "produces":  [
+                                         "migrated_state_bundle",
+                                         "migration_receipt"
+                                     ]
+                    },
+                    {
+                        "id":  "workspace_layout_flow_resolve",
+                        "stage":  "workspace_layout",
+                        "tensor_role":  "workspace_layout",
+                        "source_path":  "src-kain/kernels/render/workspace_layout_flow_resolve.kn",
+                        "entry":  "workspace_layout_flow_resolve",
+                        "dispatch_shape":  [
+                                               32,
+                                               32,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "dock_graph_nodes",
+                                         "window_surface_state",
+                                         "focus_context",
+                                         "overlay_constraints"
+                                     ],
+                        "produces":  [
+                                         "resolved_workspace_layout",
+                                         "viewport_overlay_layout"
+                                     ]
+                    },
+                    {
+                        "id":  "workspace_preset_launch_receipt_resolve",
+                        "stage":  "workspace_preset_materialization",
+                        "tensor_role":  "workspace_preset",
+                        "source_path":  "src-kain/kernels/orchestration/workspace_preset_launch_receipt_resolve.kn",
+                        "entry":  "workspace_preset_launch_receipt_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "preset_manifest_entries",
+                                         "runtime_app_bindings",
+                                         "layout_binding_state",
+                                         "delivery_registry_state"
+                                     ],
+                        "produces":  [
+                                         "materialized_launch_manifests",
+                                         "workspace_preset_delivery_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "gameplay_state_resolve",
+                        "stage":  "gameplay_state",
+                        "tensor_role":  "gameplay",
+                        "source_path":  "src-kain/kernels/gameplay/gameplay_state_resolve.kn",
+                        "entry":  "gameplay_state_resolve",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "gameplay_rulesets",
+                                         "mission_state",
+                                         "event_queue",
+                                         "entity_runtime_state"
+                                     ],
+                        "produces":  [
+                                         "resolved_gameplay_state",
+                                         "runtime_rule_events"
+                                     ]
+                    },
+                    {
+                        "id":  "presentation_ui_route_resolve",
+                        "stage":  "presentation_shell",
+                        "tensor_role":  "presentation",
+                        "source_path":  "src-kain/kernels/presentation/presentation_ui_route_resolve.kn",
+                        "entry":  "presentation_ui_route_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "presentation_layouts",
+                                         "hud_state",
+                                         "accessibility_preferences",
+                                         "localized_copy"
+                                     ],
+                        "produces":  [
+                                         "resolved_presentation_routes",
+                                         "hud_overlay_packets"
+                                     ]
+                    },
+                    {
+                        "id":  "replay_timeline_capture_resolve",
+                        "stage":  "replay_capture",
+                        "tensor_role":  "replay",
+                        "source_path":  "src-kain/kernels/replay/replay_timeline_capture_resolve.kn",
+                        "entry":  "replay_timeline_capture_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "frame_state_history",
+                                         "input_stream",
+                                         "checkpoint_markers",
+                                         "issue_repro_tags"
+                                     ],
+                        "produces":  [
+                                         "replay_capture_bundle",
+                                         "scrub_index"
+                                     ]
+                    },
+                    {
+                        "id":  "localization_bundle_resolve",
+                        "stage":  "localization_bundle",
+                        "tensor_role":  "localization",
+                        "source_path":  "src-kain/kernels/localization/localization_bundle_resolve.kn",
+                        "entry":  "localization_bundle_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "locale_catalog",
+                                         "subtitle_tracks",
+                                         "audio_language_map",
+                                         "region_policy"
+                                     ],
+                        "produces":  [
+                                         "resolved_locale_bundle",
+                                         "localized_presentation_routes"
+                                     ]
+                    },
+                    {
+                        "id":  "remote_stream_session_resolve",
+                        "stage":  "remote_streaming",
+                        "tensor_role":  "streaming",
+                        "source_path":  "src-kain/kernels/streaming/remote_stream_session_resolve.kn",
+                        "entry":  "remote_stream_session_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "stream_session_state",
+                                         "quality_budget",
+                                         "operator_authority",
+                                         "viewport_frame_packets"
+                                     ],
+                        "produces":  [
+                                         "resolved_stream_routes",
+                                         "adaptive_stream_quality_plan"
+                                     ]
+                    },
+                    {
+                        "id":  "point_cloud_stream_resolve",
+                        "stage":  "point_cloud_stream",
+                        "tensor_role":  "point_cloud",
+                        "source_path":  "src-kain/kernels/point_cloud/point_cloud_stream_resolve.kn",
+                        "entry":  "point_cloud_stream_resolve",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "point_cloud_chunks",
+                                         "lidar_semantics",
+                                         "splat_view_state",
+                                         "decimation_policy"
+                                     ],
+                        "produces":  [
+                                         "resolved_point_cloud_view",
+                                         "segmented_point_cloud_index"
+                                     ]
+                    },
+                    {
+                        "id":  "scene_source_document_resolve",
+                        "stage":  "scene_source_documents",
+                        "tensor_role":  "scene_source",
+                        "source_path":  "src-kain/kernels/scene/scene_source_document_resolve.kn",
+                        "entry":  "scene_source_document_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "scene_source_documents",
+                                         "scene_classes",
+                                         "scene_mounts",
+                                         "launch_profiles"
+                                     ],
+                        "produces":  [
+                                         "resolved_scene_source_documents",
+                                         "scene_runtime_mount_packets"
+                                     ]
+                    },
+                    {
+                        "id":  "widget_primitive_composition_resolve",
+                        "stage":  "widget_primitive_composition",
+                        "tensor_role":  "widget_primitives",
+                        "source_path":  "src-kain/kernels/render/widget_primitive_composition_resolve.kn",
+                        "entry":  "widget_primitive_composition_resolve",
+                        "dispatch_shape":  [
+                                               32,
+                                               32,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "widget_primitive_nodes",
+                                         "widget_binding_nodes",
+                                         "overlay_chrome_nodes",
+                                         "workspace_focus_state"
+                                     ],
+                        "produces":  [
+                                         "resolved_widget_primitive_layout",
+                                         "overlay_chrome_packets"
+                                     ]
+                    },
+                    {
+                        "id":  "graph_materialization_plan_resolve",
+                        "stage":  "graph_materialization",
+                        "tensor_role":  "graph_materialization",
+                        "source_path":  "src-kain/kernels/orchestration/graph_materialization_plan_resolve.kn",
+                        "entry":  "graph_materialization_plan_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "build_graph_catalog",
+                                         "source_catalog",
+                                         "kernel_catalog",
+                                         "distribution_channels"
+                                     ],
+                        "produces":  [
+                                         "resolved_materialization_plan",
+                                         "materialization_provenance_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "input_action_map_resolve",
+                        "stage":  "input_action_mapping",
+                        "tensor_role":  "input",
+                        "source_path":  "src-kain/kernels/input/input_action_map_resolve.kn",
+                        "entry":  "input_action_map_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "input_devices",
+                                         "action_maps",
+                                         "shortcut_layers",
+                                         "workspace_context"
+                                     ],
+                        "produces":  [
+                                         "resolved_input_routes",
+                                         "active_action_packets"
+                                     ]
+                    },
+                    {
+                        "id":  "camera_rig_packet_resolve",
+                        "stage":  "camera_rig_packets",
+                        "tensor_role":  "camera",
+                        "source_path":  "src-kain/kernels/camera/camera_rig_packet_resolve.kn",
+                        "entry":  "camera_rig_packet_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "camera_rigs",
+                                         "lens_profiles",
+                                         "capture_routes",
+                                         "sequence_or_stage_context"
+                                     ],
+                        "produces":  [
+                                         "resolved_camera_packets",
+                                         "capture_route_packets"
+                                     ]
+                    },
+                    {
+                        "id":  "cache_lineage_stream_resolve",
+                        "stage":  "cache_lineage_streams",
+                        "tensor_role":  "cache",
+                        "source_path":  "src-kain/kernels/cache/cache_lineage_stream_resolve.kn",
+                        "entry":  "cache_lineage_stream_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "cache_stores",
+                                         "checkpoint_catalog",
+                                         "dependency_lineage",
+                                         "invalidation_events"
+                                     ],
+                        "produces":  [
+                                         "resolved_cache_streams",
+                                         "checkpoint_resume_packets"
+                                     ]
+                    },
+                    {
+                        "id":  "scene_object_graph_resolve",
+                        "stage":  "scene_object_graph",
+                        "tensor_role":  "scene_objects",
+                        "source_path":  "src-kain/kernels/scene/scene_object_graph_resolve.kn",
+                        "entry":  "scene_object_graph_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "scene_documents",
+                                         "object_classes",
+                                         "component_mounts",
+                                         "relationship_bindings"
+                                     ],
+                        "produces":  [
+                                         "resolved_scene_objects",
+                                         "scene_object_mutation_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "native_control_state_resolve",
+                        "stage":  "native_controls",
+                        "tensor_role":  "native_controls",
+                        "source_path":  "src-kain/kernels/ui/native_control_state_resolve.kn",
+                        "entry":  "native_control_state_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "widget_bindings",
+                                         "selection_state",
+                                         "layout_graph",
+                                         "focus_context"
+                                     ],
+                        "produces":  [
+                                         "resolved_control_state",
+                                         "control_layout_packets"
+                                     ]
+                    },
+                    {
+                        "id":  "schema_contract_index_resolve",
+                        "stage":  "schema_contracts",
+                        "tensor_role":  "schemas",
+                        "source_path":  "src-kain/kernels/schema/schema_contract_index_resolve.kn",
+                        "entry":  "schema_contract_index_resolve",
+                        "dispatch_shape":  [
+                                               32,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "runtime_contracts",
+                                         "interchange_schemas",
+                                         "compatibility_windows",
+                                         "validation_gates"
+                                     ],
+                        "produces":  [
+                                         "schema_catalog_index",
+                                         "schema_validation_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "rigid_body_island_resolve",
+                        "stage":  "physics_islands",
+                        "tensor_role":  "physics",
+                        "source_path":  "src-kain/kernels/physics/rigid_body_island_resolve.kn",
+                        "entry":  "rigid_body_island_resolve",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "rigid_bodies",
+                                         "collision_shapes",
+                                         "joint_constraints",
+                                         "time_step"
+                                     ],
+                        "produces":  [
+                                         "resolved_body_islands",
+                                         "physics_replay_packets"
+                                     ]
+                    },
+                    {
+                        "id":  "shader_permutation_schedule_resolve",
+                        "stage":  "shader_permutations",
+                        "tensor_role":  "shader",
+                        "source_path":  "src-kain/kernels/shader/shader_permutation_schedule_resolve.kn",
+                        "entry":  "shader_permutation_schedule_resolve",
+                        "dispatch_shape":  [
+                                               32,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "shader_families",
+                                         "material_keywords",
+                                         "program_layouts",
+                                         "platform_targets"
+                                     ],
+                        "produces":  [
+                                         "resolved_shader_permutations",
+                                         "shader_binding_layouts"
+                                     ]
+                    },
+                    {
+                        "id":  "resource_residency_resolve",
+                        "stage":  "resource_residency",
+                        "tensor_role":  "resources",
+                        "source_path":  "src-kain/kernels/resources/resource_residency_resolve.kn",
+                        "entry":  "resource_residency_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "resource_catalog",
+                                         "residency_requests",
+                                         "streaming_budget",
+                                         "eviction_events"
+                                     ],
+                        "produces":  [
+                                         "resolved_resource_residency",
+                                         "resource_budget_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "material_source_document_resolve",
+                        "stage":  "material_source_documents",
+                        "tensor_role":  "material_source",
+                        "source_path":  "src-kain/kernels/material/material_source_document_resolve.kn",
+                        "entry":  "material_source_document_resolve",
+                        "dispatch_shape":  [
+                                               32,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "material_source_documents",
+                                         "material_layer_blocks",
+                                         "shader_hook_maps",
+                                         "preview_requests"
+                                     ],
+                        "produces":  [
+                                         "resolved_material_source_documents",
+                                         "material_preview_compile_packets"
+                                     ]
+                    },
+                    {
+                        "id":  "editor_widget_suite_resolve",
+                        "stage":  "editor_widget_suite",
+                        "tensor_role":  "editor_widgets",
+                        "source_path":  "src-kain/kernels/ui/editor_widget_suite_resolve.kn",
+                        "entry":  "editor_widget_suite_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "widget_panes",
+                                         "widget_state",
+                                         "focus_routes",
+                                         "schema_bindings"
+                                     ],
+                        "produces":  [
+                                         "resolved_editor_widget_packets",
+                                         "editor_widget_state_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "scene_mutation_delta_resolve",
+                        "stage":  "scene_mutation",
+                        "tensor_role":  "scene_mutation",
+                        "source_path":  "src-kain/kernels/scene/scene_mutation_delta_resolve.kn",
+                        "entry":  "scene_mutation_delta_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "scene_commands",
+                                         "mutation_requests",
+                                         "relationship_deltas",
+                                         "replication_context"
+                                     ],
+                        "produces":  [
+                                         "resolved_scene_mutation_deltas",
+                                         "scene_mutation_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "render_delegate_packet_resolve",
+                        "stage":  "render_delegation",
+                        "tensor_role":  "render_delegation",
+                        "source_path":  "src-kain/kernels/render/render_delegate_packet_resolve.kn",
+                        "entry":  "render_delegate_packet_resolve",
+                        "dispatch_shape":  [
+                                               32,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "render_backends",
+                                         "frame_requests",
+                                         "presentation_targets",
+                                         "capture_routes"
+                                     ],
+                        "produces":  [
+                                         "resolved_render_delegate_packets",
+                                         "render_capture_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "resource_reflection_catalog_resolve",
+                        "stage":  "resource_reflection",
+                        "tensor_role":  "resource_reflection",
+                        "source_path":  "src-kain/kernels/reflection/resource_reflection_catalog_resolve.kn",
+                        "entry":  "resource_reflection_catalog_resolve",
+                        "dispatch_shape":  [
+                                               32,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "resource_catalogs",
+                                         "budget_receipts",
+                                         "device_windows",
+                                         "inspection_queries"
+                                     ],
+                        "produces":  [
+                                         "resolved_resource_reflection_catalog",
+                                         "resource_query_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "runtime_compatibility_resolve",
+                        "stage":  "runtime_compatibility",
+                        "tensor_role":  "runtime_compatibility",
+                        "source_path":  "src-kain/kernels/schema/runtime_compatibility_resolve.kn",
+                        "entry":  "runtime_compatibility_resolve",
+                        "dispatch_shape":  [
+                                               32,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "runtime_targets",
+                                         "compatibility_windows",
+                                         "launch_profiles",
+                                         "promotion_gates"
+                                     ],
+                        "produces":  [
+                                         "resolved_runtime_compatibility_matrix",
+                                         "launch_readiness_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "mesh_topology_cluster_resolve",
+                        "stage":  "mesh_topology",
+                        "tensor_role":  "mesh",
+                        "source_path":  "src-kain/kernels/mesh/mesh_topology_cluster_resolve.kn",
+                        "entry":  "mesh_topology_cluster_resolve",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "mesh_segments",
+                                         "topology_constraints",
+                                         "lod_targets",
+                                         "mutation_context"
+                                     ],
+                        "produces":  [
+                                         "resolved_mesh_clusters",
+                                         "mesh_topology_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "bake_atlas_schedule_resolve",
+                        "stage":  "bake_atlas",
+                        "tensor_role":  "baking",
+                        "source_path":  "src-kain/kernels/baking/bake_atlas_schedule_resolve.kn",
+                        "entry":  "bake_atlas_schedule_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "bake_targets",
+                                         "uv_charts",
+                                         "probe_sets",
+                                         "bake_budget"
+                                     ],
+                        "produces":  [
+                                         "resolved_bake_schedule",
+                                         "bake_receipt_packets"
+                                     ]
+                    },
+                    {
+                        "id":  "script_host_schedule_resolve",
+                        "stage":  "script_host",
+                        "tensor_role":  "scripting",
+                        "source_path":  "src-kain/kernels/scripting/script_host_schedule_resolve.kn",
+                        "entry":  "script_host_schedule_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "script_jobs",
+                                         "capability_policies",
+                                         "script_bindings",
+                                         "runtime_events"
+                                     ],
+                        "produces":  [
+                                         "resolved_script_schedule",
+                                         "script_execution_packets"
+                                     ]
+                    },
+                    {
+                        "id":  "agent_behavior_planner_resolve",
+                        "stage":  "ai_planning",
+                        "tensor_role":  "ai",
+                        "source_path":  "src-kain/kernels/ai/agent_behavior_planner_resolve.kn",
+                        "entry":  "agent_behavior_planner_resolve",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "agent_states",
+                                         "planner_goals",
+                                         "scene_semantics",
+                                         "nav_context"
+                                     ],
+                        "produces":  [
+                                         "resolved_agent_plans",
+                                         "ai_decision_packets"
+                                     ]
+                    },
+                    {
+                        "id":  "mod_package_mount_resolve",
+                        "stage":  "mod_mount",
+                        "tensor_role":  "modding",
+                        "source_path":  "src-kain/kernels/modding/mod_package_mount_resolve.kn",
+                        "entry":  "mod_package_mount_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "mod_packages",
+                                         "dependency_graph",
+                                         "trust_zones",
+                                         "channel_approvals"
+                                     ],
+                        "produces":  [
+                                         "resolved_mod_mounts",
+                                         "mod_registry_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "identity_entitlement_resolve",
+                        "stage":  "identity_resolution",
+                        "tensor_role":  "identity",
+                        "source_path":  "src-kain/kernels/identity/identity_entitlement_resolve.kn",
+                        "entry":  "identity_entitlement_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "operator_profiles",
+                                         "role_bindings",
+                                         "capability_policies",
+                                         "session_context"
+                                     ],
+                        "produces":  [
+                                         "resolved_entitlements",
+                                         "authority_transition_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "cloud_session_burst_resolve",
+                        "stage":  "cloud_session",
+                        "tensor_role":  "cloud",
+                        "source_path":  "src-kain/kernels/cloud/cloud_session_burst_resolve.kn",
+                        "entry":  "cloud_session_burst_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "session_requests",
+                                         "storage_tiers",
+                                         "burst_capacity",
+                                         "budget_policies"
+                                     ],
+                        "produces":  [
+                                         "resolved_cloud_sessions",
+                                         "burst_allocation_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "marketplace_catalog_resolve",
+                        "stage":  "marketplace_catalog",
+                        "tensor_role":  "marketplace",
+                        "source_path":  "src-kain/kernels/marketplace/marketplace_catalog_resolve.kn",
+                        "entry":  "marketplace_catalog_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "package_catalog",
+                                         "entitlement_windows",
+                                         "publication_channels",
+                                         "promotion_requests"
+                                     ],
+                        "produces":  [
+                                         "resolved_marketplace_catalog",
+                                         "marketplace_delivery_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "dataops_lineage_resolve",
+                        "stage":  "dataops_lineage",
+                        "tensor_role":  "dataops",
+                        "source_path":  "src-kain/kernels/dataops/dataops_lineage_resolve.kn",
+                        "entry":  "dataops_lineage_resolve",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "dataset_nodes",
+                                         "transform_edges",
+                                         "governance_rules",
+                                         "corpus_targets"
+                                     ],
+                        "produces":  [
+                                         "resolved_dataset_lineage",
+                                         "training_corpus_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "fleet_capacity_dispatch_resolve",
+                        "stage":  "fleet_dispatch",
+                        "tensor_role":  "fleet",
+                        "source_path":  "src-kain/kernels/fleet/fleet_capacity_dispatch_resolve.kn",
+                        "entry":  "fleet_capacity_dispatch_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "worker_pools",
+                                         "job_batches",
+                                         "capability_windows",
+                                         "failover_routes"
+                                     ],
+                        "produces":  [
+                                         "resolved_fleet_dispatch",
+                                         "fleet_lease_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "control_rig_solve_resolve",
+                        "stage":  "rigging_solve",
+                        "tensor_role":  "control_rig",
+                        "source_path":  "src-kain/kernels/rigging/control_rig_solve_resolve.kn",
+                        "entry":  "control_rig_solve_resolve",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "control_states",
+                                         "rig_hierarchy",
+                                         "constraint_rules",
+                                         "solve_context"
+                                     ],
+                        "produces":  [
+                                         "resolved_pose_packets",
+                                         "rig_solve_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "deformer_stack_resolve",
+                        "stage":  "deformation_stack",
+                        "tensor_role":  "deformer_stack",
+                        "source_path":  "src-kain/kernels/deformation/deformer_stack_resolve.kn",
+                        "entry":  "deformer_stack_resolve",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "source_surface",
+                                         "deformer_layers",
+                                         "corrective_targets",
+                                         "deformation_context"
+                                     ],
+                        "produces":  [
+                                         "resolved_surface_deformation",
+                                         "deformation_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "paint_layer_blend_tensor",
+                        "stage":  "paint_layer_evaluation",
+                        "tensor_role":  "paint_layers",
+                        "source_path":  "src-kain/kernels/painting/paint_layer_blend_tensor.kn",
+                        "entry":  "paint_layer_blend_tensor",
+                        "dispatch_shape":  [
+                                               8,
+                                               8,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "paint_layers",
+                                         "stroke_masks",
+                                         "canvas_inputs"
+                                     ],
+                        "produces":  [
+                                         "painted_canvas"
+                                     ]
+                    },
+                    {
+                        "id":  "uv_chart_pack_resolve",
+                        "stage":  "uv_layout",
+                        "tensor_role":  "uv_layout",
+                        "source_path":  "src-kain/kernels/uv/uv_chart_pack_resolve.kn",
+                        "entry":  "uv_chart_pack_resolve",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "uv_charts",
+                                         "packing_constraints",
+                                         "texel_density_targets",
+                                         "layout_context"
+                                     ],
+                        "produces":  [
+                                         "packed_uv_layout",
+                                         "uv_layout_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "brush_dab_accumulate_resolve",
+                        "stage":  "brush_stroke",
+                        "tensor_role":  "brush_engine",
+                        "source_path":  "src-kain/kernels/brush/brush_dab_accumulate_resolve.kn",
+                        "entry":  "brush_dab_accumulate_resolve",
+                        "dispatch_shape":  [
+                                               128,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "stylus_samples",
+                                         "brush_tip_fields",
+                                         "stroke_modulators",
+                                         "surface_context"
+                                     ],
+                        "produces":  [
+                                         "accumulated_dab_tensor",
+                                         "brush_stroke_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "color_pipeline_resolve",
+                        "stage":  "color_management",
+                        "tensor_role":  "color_management",
+                        "source_path":  "src-kain/kernels/color/color_pipeline_resolve.kn",
+                        "entry":  "color_pipeline_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "ocio_configs",
+                                         "display_profiles",
+                                         "look_transforms",
+                                         "frame_color_context"
+                                     ],
+                        "produces":  [
+                                         "resolved_color_routes",
+                                         "color_pipeline_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "media_plate_stream_resolve",
+                        "stage":  "media_pipeline",
+                        "tensor_role":  "media_pipeline",
+                        "source_path":  "src-kain/kernels/media/media_plate_stream_resolve.kn",
+                        "entry":  "media_plate_stream_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "media_clips",
+                                         "plate_context",
+                                         "decode_cache_state",
+                                         "sequence_timing"
+                                     ],
+                        "produces":  [
+                                         "resolved_media_streams",
+                                         "media_pipeline_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "narrative_state_graph_resolve",
+                        "stage":  "narrative_state",
+                        "tensor_role":  "narrative_state",
+                        "source_path":  "src-kain/kernels/narrative/narrative_state_graph_resolve.kn",
+                        "entry":  "narrative_state_graph_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "branch_graph",
+                                         "dialogue_state",
+                                         "objective_state",
+                                         "checkpoint_context"
+                                     ],
+                        "produces":  [
+                                         "resolved_narrative_state",
+                                         "narrative_state_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "haptic_feedback_route_resolve",
+                        "stage":  "haptics_feedback",
+                        "tensor_role":  "haptics_feedback",
+                        "source_path":  "src-kain/kernels/haptics/haptic_feedback_route_resolve.kn",
+                        "entry":  "haptic_feedback_route_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "device_profiles",
+                                         "feedback_events",
+                                         "force_profiles",
+                                         "tool_context"
+                                     ],
+                        "produces":  [
+                                         "resolved_feedback_routes",
+                                         "haptics_feedback_receipts"
+                                     ]
+                    },
+                    {
+                        "id":  "update_channel_manifest_resolve",
+                        "stage":  "updates_channel",
+                        "tensor_role":  "updates_channel",
+                        "source_path":  "src-kain/kernels/updates/update_channel_manifest_resolve.kn",
+                        "entry":  "update_channel_manifest_resolve",
+                        "dispatch_shape":  [
+                                               64,
+                                               1,
+                                               1
+                                           ],
+                        "consumes":  [
+                                         "channel_manifests",
+                                         "patch_catalog",
+                                         "compatibility_windows",
+                                         "install_context"
+                                     ],
+                        "produces":  [
+                                         "resolved_update_routes",
+                                         "update_delivery_receipts"
+                                     ]
+                    }
+                ],
+    "artifact_roots":  [
+                           "generated/spv",
+                           "generated/reflection",
+                           "generated/runtime-reflection/gpu"
+                       ],
+    "reflection_catalogs":  [
+                                "schema_reflection_catalog",
+                                "runtime_contract_catalog"
+                            ]
+}

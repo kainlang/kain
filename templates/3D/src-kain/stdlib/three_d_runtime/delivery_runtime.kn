@@ -16,9 +16,11 @@ struct DeliveryRuntimeProfile:
     runtime_delivery_graph: DeliveryGraphDescriptor
     review_delivery_graph: DeliveryGraphDescriptor
     workspace_preset_delivery_graph: DeliveryGraphDescriptor
+    jobs_delivery_graph: DeliveryGraphDescriptor
     promoted_batch: DeliveryBatchDescriptor
     resumable_batch: DeliveryBatchDescriptor
     workspace_preset_batch: DeliveryBatchDescriptor
+    jobs_batch: DeliveryBatchDescriptor
 
 fn default_delivery_graph_descriptor(
     graph_id: String,
@@ -37,6 +39,7 @@ fn default_delivery_runtime_profile() -> DeliveryRuntimeProfile with Pure:
     profile.runtime_delivery_graph = default_delivery_graph_descriptor("runtime_delivery_graph", "runtime_bundle_and_package_delivery", "resume_from_receipts")
     profile.review_delivery_graph = default_delivery_graph_descriptor("review_delivery_graph", "review_lookdev_and_stage_delivery", "resume_from_approvals")
     profile.workspace_preset_delivery_graph = default_delivery_graph_descriptor("workspace_preset_materialization_graph", "workspace_preset_export_and_launch_receipt_delivery", "resume_from_workspace_preset_receipts")
+    profile.jobs_delivery_graph = default_delivery_graph_descriptor("jobs_dispatch_graph", "jobs_receipt_retry_ledger_and_distribution_delivery", "resume_from_jobs_receipts_and_retry_ledger")
 
     profile.promoted_batch = DeliveryBatchDescriptor()
     profile.promoted_batch.batch_id = "promoted_delivery_batch"
@@ -55,4 +58,10 @@ fn default_delivery_runtime_profile() -> DeliveryRuntimeProfile with Pure:
     profile.workspace_preset_batch.batch_kind = "workspace_preset_manifest_export"
     profile.workspace_preset_batch.approval_policy = "workspace_owner_and_schema_compatible"
     profile.workspace_preset_batch.output_root = "generated/workspace-presets"
+
+    profile.jobs_batch = DeliveryBatchDescriptor()
+    profile.jobs_batch.batch_id = "jobs_delivery_batch"
+    profile.jobs_batch.batch_kind = "jobs_receipt_retry_ledger_and_distribution_audit"
+    profile.jobs_batch.approval_policy = "job_dispatch_gate"
+    profile.jobs_batch.output_root = "generated/jobs"
     profile

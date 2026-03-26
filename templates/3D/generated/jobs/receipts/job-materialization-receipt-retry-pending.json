@@ -1,0 +1,27 @@
+{
+  "receipt_id": "job_materialization_receipt_retry_pending",
+  "dispatch_graph_id": "jobs_dispatch_graph",
+  "queue_id": "jobs_dispatch_queue",
+  "job_state": "failed",
+  "promotion_state": "blocked_for_retry",
+  "retry_ledger_id": "jobs_retry_ledger",
+  "distribution_channel_id": "jobs_delivery_registry",
+  "artifacts": [
+    {
+      "kind": "job_output_bundle",
+      "path": "generated/jobs"
+    },
+    {
+      "kind": "receipt_schema_bundle",
+      "path": "generated/schemas/jobs/receipts/schema.json"
+    },
+    {
+      "kind": "retry_ledger_bundle",
+      "path": "generated/jobs/retries/jobs-retry-ledger.json"
+    }
+  ],
+  "timestamps": {
+    "submitted_at": "2026-03-26T03:50:00Z",
+    "completed_at": "2026-03-26T03:53:00Z"
+  }
+}

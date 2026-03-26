@@ -737,7 +737,7 @@ fn default_jobs_system_bundle() -> JobsSystemBundle with Pure:
     let bundle = JobsSystemBundle()
     bundle.queue_dispatch_runtime = batch_system("job_queue_dispatch_resolve", "jobs", "jobs_dispatch_tensor_pipeline")
     bundle.worker_pool_runtime = batch_system("runtime_worker_pool", "jobs", "jobs_dispatch_tensor_pipeline")
-    bundle.receipt_runtime = batch_system("job_materialization_receipts", "jobs", "jobs_dispatch_tensor_pipeline")
+    bundle.receipt_runtime = batch_system("job_receipt_materialize", "jobs", "jobs_dispatch_tensor_pipeline")
     bundle
 
 fn default_telemetry_system_bundle() -> TelemetrySystemBundle with Pure:
