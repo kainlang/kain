@@ -540,7 +540,7 @@ impl DriverSession {
         };
         let (packaged_c_ffi_imports, packaged_c_ffi_manifest_path, c_ffi_artifact_paths) =
             materialize_c_ffi_bridge_sidecars(source, &artifact_root)?;
-        artifact_paths.extend(c_ffi_artifact_paths);
+        artifact_paths.extend(c_ffi_artifact_paths.iter().cloned());
 
         let primary_path = artifact_root.join(&bundle.rust.bundle.primary.suggested_file_name);
         fs::write(
@@ -912,7 +912,10 @@ fn ensure_runtime_capability(
     capabilities: &mut Vec<RuntimeCapability>,
     capability: RuntimeCapability,
 ) {
-    if capabilities.iter().any(|existing| existing.key == capability.key) {
+    if capabilities
+        .iter()
+        .any(|existing| existing.key == capability.key)
+    {
         return;
     }
     capabilities.push(capability);
@@ -922,7 +925,10 @@ fn ensure_runtime_service_binding(
     bindings: &mut Vec<RuntimeServiceBinding>,
     binding: RuntimeServiceBinding,
 ) {
-    if bindings.iter().any(|existing| existing.service == binding.service) {
+    if bindings
+        .iter()
+        .any(|existing| existing.service == binding.service)
+    {
         return;
     }
     bindings.push(binding);
@@ -1017,7 +1023,9 @@ fn materialize_c_ffi_bridge_sidecars(
     fs::write(
         &packaged_manifest_path,
         serde_json::to_string_pretty(&packaged_manifest).map_err(|err| {
-            KainError::runtime(format!("Failed to serialize packaged C FFI manifest: {err}"))
+            KainError::runtime(format!(
+                "Failed to serialize packaged C FFI manifest: {err}"
+            ))
         })?,
     )
     .map_err(io_error("write packaged C FFI manifest"))?;
@@ -1271,7 +1279,8 @@ fn find_workspace_root_with_gpu_runtime() -> Option<PathBuf> {
 
     for mut dir in roots {
         for _ in 0..12 {
-            if dir.join("crates")
+            if dir
+                .join("crates")
                 .join("kain-gpu-runtime")
                 .join("Cargo.toml")
                 .exists()
@@ -1558,10 +1567,9 @@ fn io_error(context: &'static str) -> impl Fn(std::io::Error) -> KainError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kain_core::{
-        realtime_app_bundle_from_json, RuntimeReflectionPayload,
-    };
+    use kain_core::{realtime_app_bundle_from_json, RuntimeReflectionPayload};
     use kain_ui::{ui_runtime_bundle_from_json, validate_ui_runtime_bundle};
+    use std::path::Path;
     use std::process::Command;
     use std::sync::Mutex;
     use tempfile::TempDir;
@@ -1670,8 +1678,14 @@ component App():
         assert!(main_rs.contains("run_bundled_app_json"));
         assert!(main_rs.contains("KAIN_UI_NATIVE_RUNTIME_BUNDLE"));
         assert!(main_rs.contains("KAIN_UI_NATIVE_REALTIME_BUNDLE"));
-        assert!(project_dir.join("config").join("app_manifest.json").exists());
-        assert!(project_dir.join("state").join("runtime_snapshot.json").exists());
+        assert!(project_dir
+            .join("config")
+            .join("app_manifest.json")
+            .exists());
+        assert!(project_dir
+            .join("state")
+            .join("runtime_snapshot.json")
+            .exists());
         assert!(materialized
             .artifact_paths
             .iter()

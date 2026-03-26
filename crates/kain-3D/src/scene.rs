@@ -359,11 +359,20 @@ impl Default for SceneCatalog {
         scenes.insert(retirement_demo.name.clone(), retirement_demo);
         scenes.insert(kerr_black_hole.name.clone(), kerr_black_hole);
         let scene_aliases = BTreeMap::from([
-            ("gpu_compute_surface_probe".to_string(), "tensor_stream_probe".to_string()),
-            ("spv_ui_surface_probe".to_string(), "tensor_stream_probe".to_string()),
+            (
+                "gpu_compute_surface_probe".to_string(),
+                "tensor_stream_probe".to_string(),
+            ),
+            (
+                "spv_ui_surface_probe".to_string(),
+                "tensor_stream_probe".to_string(),
+            ),
             ("starforge".to_string(), "luminous_port".to_string()),
             ("emberfall".to_string(), "magma_terraces".to_string()),
-            ("ui_surface_probe".to_string(), "tensor_stream_probe".to_string()),
+            (
+                "ui_surface_probe".to_string(),
+                "tensor_stream_probe".to_string(),
+            ),
         ]);
 
         Self {
@@ -442,7 +451,8 @@ fn build_tensor_stream_probe_scene() -> SceneDescription {
 
     SceneDescription {
         name: "tensor_stream_probe".to_string(),
-        viewport_summary: "tensor stream probe | compute relay deck | spv runtime preview".to_string(),
+        viewport_summary: "tensor stream probe | compute relay deck | spv runtime preview"
+            .to_string(),
         background: BackgroundGradient {
             top: ColorRgb::new(0.03, 0.08, 0.14),
             bottom: ColorRgb::new(0.01, 0.02, 0.06),

@@ -23,17 +23,18 @@ pub fn stage_llvm_native_artifacts(
     output_path: &Path,
     root_component: Option<&str>,
 ) -> Result<LlvmNativeArtifactStage, String> {
-    let contract_bundle =
-        compile_runtime_contract_bundle(source, CompileTarget::Llvm).map_err(|err| err.to_string())?;
+    let contract_bundle = compile_runtime_contract_bundle(source, CompileTarget::Llvm)
+        .map_err(|err| err.to_string())?;
     let runtime_contract_path = runtime_contract_artifact_path(output_path);
     write_json_artifact(
         &runtime_contract_path,
-        &kain_core::runtime_contract_bundle_to_json(&contract_bundle).map_err(|err| err.to_string())?,
+        &kain_core::runtime_contract_bundle_to_json(&contract_bundle)
+            .map_err(|err| err.to_string())?,
         "runtime contract",
     )?;
 
-    let realtime_bundle =
-        compile_realtime_app_bundle(source, CompileTarget::Llvm, root_component).map_err(|err| err.to_string())?;
+    let realtime_bundle = compile_realtime_app_bundle(source, CompileTarget::Llvm, root_component)
+        .map_err(|err| err.to_string())?;
     let realtime_app_path = realtime_app_artifact_path(output_path);
     write_json_artifact(
         &realtime_app_path,
@@ -48,7 +49,9 @@ pub fn stage_llvm_native_artifacts(
     .map_err(|err| err.to_string())?;
     let compute_residency_path = compute_artifact_paths
         .iter()
-        .find(|path| path.file_name().and_then(|value| value.to_str()) == Some(COMPUTE_RESIDENCY_FILE_NAME))
+        .find(|path| {
+            path.file_name().and_then(|value| value.to_str()) == Some(COMPUTE_RESIDENCY_FILE_NAME)
+        })
         .cloned();
     let compute_residency_payload_paths = compute_artifact_paths
         .into_iter()
@@ -155,7 +158,12 @@ fn write_json_artifact(path: &Path, contents: &str, label: &str) -> Result<(), S
         })?;
     }
     fs::write(path, contents.as_bytes()).map_err(|err| {
-        format!("unable to write {} artifact {}: {}", label, path.display(), err)
+        format!(
+            "unable to write {} artifact {}: {}",
+            label,
+            path.display(),
+            err
+        )
     })?;
     Ok(())
 }
@@ -177,7 +185,12 @@ fn find_workspace_root_for_gpu_runtime() -> Option<PathBuf> {
     for root in roots {
         let mut cursor = root.clone();
         loop {
-            if cursor.join("crates").join("kain-gpu-runtime").join("Cargo.toml").exists() {
+            if cursor
+                .join("crates")
+                .join("kain-gpu-runtime")
+                .join("Cargo.toml")
+                .exists()
+            {
                 return Some(cursor);
             }
             if !cursor.pop() {

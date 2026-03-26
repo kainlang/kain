@@ -3,13 +3,12 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use kain_core::CompileTarget;
 use kain_core::runtime::Env;
+use kain_core::CompileTarget;
 use kain_omni::fabric::{
-    resolve_fabric_path, topological_step_order, unix_timestamp_ms,
-    write_fabric_json, FabricEventRecord, FabricExecutionResult, FabricManifest,
-    FabricRuntimeKind, FabricSessionStatus, FabricStep, FabricStepExecution, FabricStepStatus,
-    FabricValidationResult,
+    resolve_fabric_path, topological_step_order, unix_timestamp_ms, write_fabric_json,
+    FabricEventRecord, FabricExecutionResult, FabricManifest, FabricRuntimeKind,
+    FabricSessionStatus, FabricStep, FabricStepExecution, FabricStepStatus, FabricValidationResult,
 };
 use kain_omni::{OmniError, OmniResult};
 use pyo3::prelude::*;
@@ -76,7 +75,12 @@ impl FabricSession {
         })
     }
 
-    pub fn log_event(&mut self, kind: &str, step: Option<&FabricStep>, message: impl Into<String>) -> OmniResult<()> {
+    pub fn log_event(
+        &mut self,
+        kind: &str,
+        step: Option<&FabricStep>,
+        message: impl Into<String>,
+    ) -> OmniResult<()> {
         let timestamp_unix_ms = unix_timestamp_ms();
         self.event_writer.write(&FabricEventRecord {
             timestamp_unix_ms,
@@ -88,7 +92,13 @@ impl FabricSession {
         })
     }
 
-    pub fn log_step_event(&mut self, kind: &str, step: &FabricStep, status: FabricStepStatus, message: impl Into<String>) -> OmniResult<()> {
+    pub fn log_step_event(
+        &mut self,
+        kind: &str,
+        step: &FabricStep,
+        status: FabricStepStatus,
+        message: impl Into<String>,
+    ) -> OmniResult<()> {
         let timestamp_unix_ms = unix_timestamp_ms();
         self.event_writer.write(&FabricEventRecord {
             timestamp_unix_ms,
@@ -100,7 +110,10 @@ impl FabricSession {
         })
     }
 
-    pub fn finish(mut self, step_results: Vec<FabricStepExecution>) -> OmniResult<FabricExecutionResult> {
+    pub fn finish(
+        mut self,
+        step_results: Vec<FabricStepExecution>,
+    ) -> OmniResult<FabricExecutionResult> {
         let finished_unix_ms = unix_timestamp_ms();
         let status = if step_results
             .iter()
@@ -126,7 +139,11 @@ impl FabricSession {
             step_results,
         };
 
-        self.log_event("session_finished", None, format!("Fabric session finished with status {:?}", result.status))?;
+        self.log_event(
+            "session_finished",
+            None,
+            format!("Fabric session finished with status {:?}", result.status),
+        )?;
         write_fabric_json(&self.report_path, &result)?;
         write_fabric_json(&self.lock_path, &result)?;
         Ok(result)
@@ -140,10 +157,7 @@ pub struct FabricExecutor {
 impl FabricExecutor {
     pub fn new() -> Self {
         Self {
-            adapters: vec![
-                Box::new(KainAdapter),
-                Box::new(PythonAdapter),
-            ],
+            adapters: vec![Box::new(KainAdapter), Box::new(PythonAdapter)],
         }
     }
 
@@ -153,38 +167,64 @@ impl FabricExecutor {
 
     pub fn execute(&self, mut session: FabricSession) -> OmniResult<FabricExecutionResult> {
         let execution_order = topological_step_order(&session.manifest.steps)?;
-        let steps_by_id = session.manifest.steps.iter()
+        let steps_by_id = session
+            .manifest
+            .steps
+            .iter()
             .cloned()
             .map(|step| (step.id.clone(), step))
             .collect::<BTreeMap<_, _>>();
-        
-        let mut step_results = session.manifest.steps.iter()
-            .map(|step| (step.id.clone(), FabricStepExecution {
-                id: step.id.clone(),
-                runtime: step.runtime.clone(),
-                entry: step.entry.clone(),
-                depends_on: step.depends_on.clone(),
-                status: FabricStepStatus::Pending,
-                started_unix_ms: None,
-                finished_unix_ms: None,
-                output: None,
-                error: None,
-            }))
+
+        let mut step_results = session
+            .manifest
+            .steps
+            .iter()
+            .map(|step| {
+                (
+                    step.id.clone(),
+                    FabricStepExecution {
+                        id: step.id.clone(),
+                        runtime: step.runtime.clone(),
+                        entry: step.entry.clone(),
+                        depends_on: step.depends_on.clone(),
+                        status: FabricStepStatus::Pending,
+                        started_unix_ms: None,
+                        finished_unix_ms: None,
+                        output: None,
+                        error: None,
+                    },
+                )
+            })
             .collect::<BTreeMap<_, _>>();
 
         for step_id in &execution_order {
-            let step = steps_by_id.get(step_id).ok_or_else(|| OmniError::Config(format!("Fabric execution lost step definition for '{step_id}'")))?;
-            
-            let blocked_by = step.depends_on.iter()
-                .filter(|dep| step_results.get(*dep).is_some_and(|res| res.status != FabricStepStatus::Succeeded))
+            let step = steps_by_id.get(step_id).ok_or_else(|| {
+                OmniError::Config(format!(
+                    "Fabric execution lost step definition for '{step_id}'"
+                ))
+            })?;
+
+            let blocked_by = step
+                .depends_on
+                .iter()
+                .filter(|dep| {
+                    step_results
+                        .get(*dep)
+                        .is_some_and(|res| res.status != FabricStepStatus::Succeeded)
+                })
                 .cloned()
                 .collect::<Vec<_>>();
 
-            let step_result = step_results.get_mut(step_id).ok_or_else(|| OmniError::Config(format!("Fabric execution lost step state for '{step_id}'")))?;
+            let step_result = step_results.get_mut(step_id).ok_or_else(|| {
+                OmniError::Config(format!("Fabric execution lost step state for '{step_id}'"))
+            })?;
 
             if !blocked_by.is_empty() {
                 let finished_unix_ms = unix_timestamp_ms();
-                let message = format!("Blocked by incomplete dependencies: {}", blocked_by.join(", "));
+                let message = format!(
+                    "Blocked by incomplete dependencies: {}",
+                    blocked_by.join(", ")
+                );
                 step_result.status = FabricStepStatus::Blocked;
                 step_result.finished_unix_ms = Some(finished_unix_ms);
                 step_result.error = Some(message.clone());
@@ -194,32 +234,48 @@ impl FabricExecutor {
 
             let step_started_unix_ms = unix_timestamp_ms();
             step_result.started_unix_ms = Some(step_started_unix_ms);
-            session.log_step_event("step_started", step, FabricStepStatus::Pending, format!("Executing Fabric step '{}'", step.id))?;
+            session.log_step_event(
+                "step_started",
+                step,
+                FabricStepStatus::Pending,
+                format!("Executing Fabric step '{}'", step.id),
+            )?;
 
             let adapter = self.adapters.iter().find(|a| a.supports(&step.runtime));
-            
+
             match adapter {
-                Some(adapter) => {
-                    match adapter.execute(&session.workspace_root, step) {
-                        Ok(output) => {
-                            let finished_unix_ms = unix_timestamp_ms();
-                            step_result.status = FabricStepStatus::Succeeded;
-                            step_result.finished_unix_ms = Some(finished_unix_ms);
-                            step_result.output = Some(output);
-                            session.log_step_event("step_succeeded", step, FabricStepStatus::Succeeded, format!("Step '{}' completed", step.id))?;
-                        }
-                        Err(error) => {
-                            let finished_unix_ms = unix_timestamp_ms();
-                            step_result.status = FabricStepStatus::Failed;
-                            step_result.finished_unix_ms = Some(finished_unix_ms);
-                            step_result.error = Some(error.clone());
-                            session.log_step_event("step_failed", step, FabricStepStatus::Failed, error)?;
-                        }
+                Some(adapter) => match adapter.execute(&session.workspace_root, step) {
+                    Ok(output) => {
+                        let finished_unix_ms = unix_timestamp_ms();
+                        step_result.status = FabricStepStatus::Succeeded;
+                        step_result.finished_unix_ms = Some(finished_unix_ms);
+                        step_result.output = Some(output);
+                        session.log_step_event(
+                            "step_succeeded",
+                            step,
+                            FabricStepStatus::Succeeded,
+                            format!("Step '{}' completed", step.id),
+                        )?;
                     }
-                }
+                    Err(error) => {
+                        let finished_unix_ms = unix_timestamp_ms();
+                        step_result.status = FabricStepStatus::Failed;
+                        step_result.finished_unix_ms = Some(finished_unix_ms);
+                        step_result.error = Some(error.clone());
+                        session.log_step_event(
+                            "step_failed",
+                            step,
+                            FabricStepStatus::Failed,
+                            error,
+                        )?;
+                    }
+                },
                 None => {
                     let finished_unix_ms = unix_timestamp_ms();
-                    let error = format!("No adapter found for runtime '{}'", step.runtime.display_name());
+                    let error = format!(
+                        "No adapter found for runtime '{}'",
+                        step.runtime.display_name()
+                    );
                     step_result.status = FabricStepStatus::Failed;
                     step_result.finished_unix_ms = Some(finished_unix_ms);
                     step_result.error = Some(error.clone());
@@ -228,7 +284,8 @@ impl FabricExecutor {
             }
         }
 
-        let ordered_step_results = execution_order.into_iter()
+        let ordered_step_results = execution_order
+            .into_iter()
             .map(|id| step_results.remove(&id).unwrap())
             .collect();
 
@@ -249,10 +306,26 @@ impl FabricRuntimeAdapter for KainAdapter {
     }
 
     fn execute(&self, workspace_root: &Path, step: &FabricStep) -> Result<String, String> {
-        let entry = step.entry.as_ref().ok_or_else(|| format!("Fabric step '{}' is missing an entry path for runtime 'kain'", step.id))?;
+        let entry = step.entry.as_ref().ok_or_else(|| {
+            format!(
+                "Fabric step '{}' is missing an entry path for runtime 'kain'",
+                step.id
+            )
+        })?;
         let resolved_entry = resolve_fabric_path(workspace_root, entry);
-        let source = fs::read_to_string(&resolved_entry).map_err(|err| format!("Failed to read Kain Fabric entry '{}' for step '{}': {err}", resolved_entry.display(), step.id))?;
-        kain_driver::compile(&source, CompileTarget::Interpret).map_err(|err| format!("Kain Fabric step '{}' failed during execution: {err}", step.id))
+        let source = fs::read_to_string(&resolved_entry).map_err(|err| {
+            format!(
+                "Failed to read Kain Fabric entry '{}' for step '{}': {err}",
+                resolved_entry.display(),
+                step.id
+            )
+        })?;
+        kain_driver::compile(&source, CompileTarget::Interpret).map_err(|err| {
+            format!(
+                "Kain Fabric step '{}' failed during execution: {err}",
+                step.id
+            )
+        })
     }
 }
 
@@ -301,8 +374,11 @@ impl FabricRuntimeAdapter for PythonAdapter {
             if let Ok(run_fn) = scope_dict.get_item("run") {
                 if let Some(f) = run_fn {
                     if f.is_callable() {
-                        let result = f.call0().map_err(|err| format!("Python Error in run(): {err}"))?;
-                        let val = kain_python::py_to_value(result).map_err(|err| err.to_string())?;
+                        let result = f
+                            .call0()
+                            .map_err(|err| format!("Python Error in run(): {err}"))?;
+                        let val =
+                            kain_python::py_to_value(result).map_err(|err| err.to_string())?;
                         return Ok(format!("{val:?}"));
                     }
                 }

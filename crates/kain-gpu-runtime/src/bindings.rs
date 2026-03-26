@@ -60,35 +60,50 @@ impl ComputeBinding {
     pub fn storage_f32(values: &[f32]) -> Self {
         Self::new(
             GpuDescriptorKind::StorageBuffer,
-            values.iter().flat_map(|value| value.to_le_bytes()).collect(),
+            values
+                .iter()
+                .flat_map(|value| value.to_le_bytes())
+                .collect(),
         )
     }
 
     pub fn storage_u32(values: &[u32]) -> Self {
         Self::new(
             GpuDescriptorKind::StorageBuffer,
-            values.iter().flat_map(|value| value.to_le_bytes()).collect(),
+            values
+                .iter()
+                .flat_map(|value| value.to_le_bytes())
+                .collect(),
         )
     }
 
     pub fn storage_i32(values: &[i32]) -> Self {
         Self::new(
             GpuDescriptorKind::StorageBuffer,
-            values.iter().flat_map(|value| value.to_le_bytes()).collect(),
+            values
+                .iter()
+                .flat_map(|value| value.to_le_bytes())
+                .collect(),
         )
     }
 
     pub fn uniform_f32(values: &[f32]) -> Self {
         Self::new(
             GpuDescriptorKind::UniformBuffer,
-            values.iter().flat_map(|value| value.to_le_bytes()).collect(),
+            values
+                .iter()
+                .flat_map(|value| value.to_le_bytes())
+                .collect(),
         )
     }
 
     pub fn uniform_u32(values: &[u32]) -> Self {
         Self::new(
             GpuDescriptorKind::UniformBuffer,
-            values.iter().flat_map(|value| value.to_le_bytes()).collect(),
+            values
+                .iter()
+                .flat_map(|value| value.to_le_bytes())
+                .collect(),
         )
     }
 

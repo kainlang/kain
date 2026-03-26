@@ -16,10 +16,10 @@ use cli::rust_build;
 use cli::selfhost;
 use cli::{
     compile, detect_launcher_from_path, parse_compile_target, render_launcher_menu,
-    resolve_legacy_target_alias, should_show_launcher_menu, supported_targets_csv, target_extension,
-    CompileTarget, LauncherKind, BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY, BUILD_GIT_SHA,
-    BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE, BUILD_TARGET_TRIPLE, BUILD_UNIX_TIME,
-    LANGUAGE_NAME, VERSION,
+    resolve_legacy_target_alias, should_show_launcher_menu, supported_targets_csv,
+    target_extension, CompileTarget, LauncherKind, BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY,
+    BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE, BUILD_TARGET_TRIPLE,
+    BUILD_UNIX_TIME, LANGUAGE_NAME, VERSION,
 };
 use kain_crate_ffi::{ArtifactMode, ImportCrateOptions};
 use serde::Deserialize;
@@ -611,13 +611,22 @@ fn run_source(
                 );
 
                 if target == CompileTarget::Llvm {
-                    match llvm_native_stage::stage_llvm_native_artifacts(&source, &output_path, None)
-                    {
+                    match llvm_native_stage::stage_llvm_native_artifacts(
+                        &source,
+                        &output_path,
+                        None,
+                    ) {
                         Ok(staged) => {
-                            println!(" Runtime contract: {}", staged.runtime_contract_path.display());
+                            println!(
+                                " Runtime contract: {}",
+                                staged.runtime_contract_path.display()
+                            );
                             println!(" Realtime bundle: {}", staged.realtime_app_path.display());
                             if let Some(compute_residency_path) = staged.compute_residency_path {
-                                println!(" Compute residency: {}", compute_residency_path.display());
+                                println!(
+                                    " Compute residency: {}",
+                                    compute_residency_path.display()
+                                );
                             }
                             if let Some(shader_bundle_path) = staged.shader_bundle_path {
                                 println!(" Shader bundle: {}", shader_bundle_path.display());

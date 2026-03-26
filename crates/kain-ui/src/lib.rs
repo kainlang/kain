@@ -1718,7 +1718,10 @@ fn resolve_workspace_active_tabs(
 
     for (group_id, mut tabs) in grouped_tabs {
         if let Some(saved_layout_id) = persisted.and_then(|saved| saved.get(&group_id)) {
-            if tabs.iter().any(|(_, layout_id)| layout_id == saved_layout_id) {
+            if tabs
+                .iter()
+                .any(|(_, layout_id)| layout_id == saved_layout_id)
+            {
                 resolved.insert(group_id, saved_layout_id.clone());
                 continue;
             }
@@ -1748,9 +1751,9 @@ fn node_is_active_tab(tree: &UiTree, node: &UiNode, systems: &UiRuntimeSystems) 
         systems.workspace_layout.active_tabs.clone()
     };
 
-    active_tabs
-        .get(group_id)
-        .map_or(true, |active_layout_id| active_layout_id == &node_layout_id(node))
+    active_tabs.get(group_id).map_or(true, |active_layout_id| {
+        active_layout_id == &node_layout_id(node)
+    })
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2189,11 +2192,7 @@ fn collect_native_projection_nodes(
         resizable: node.layout.resizable,
         persistent_layout_id,
         tab_group_id: node.layout.tab_group_id.clone(),
-        tab_label: node
-            .layout
-            .tab_label
-            .clone()
-            .or_else(|| title.clone()),
+        tab_label: node.layout.tab_label.clone().or_else(|| title.clone()),
         tab_order: node.layout.tab_order,
         tab_default_active: node.layout.tab_default_active,
         tab_closable: node.layout.tab_closable,
@@ -2643,7 +2642,11 @@ mod tests {
 
         let mut build = builder.finish();
         assert_eq!(
-            build.systems.workspace_layout.active_tabs.get("center-tabs"),
+            build
+                .systems
+                .workspace_layout
+                .active_tabs
+                .get("center-tabs"),
             Some(&"materials-tab".to_string())
         );
 
@@ -2657,7 +2660,11 @@ mod tests {
             ui_apply_workspace_layout_snapshot(&mut build.tree, &mut build.systems, &snapshot);
         assert_eq!(applied, 4);
         assert_eq!(
-            build.systems.workspace_layout.active_tabs.get("center-tabs"),
+            build
+                .systems
+                .workspace_layout
+                .active_tabs
+                .get("center-tabs"),
             Some(&"materials-tab".to_string())
         );
     }
@@ -3120,4 +3127,3 @@ mod tests {
         );
     }
 }
-

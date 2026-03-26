@@ -6,9 +6,9 @@ mod model;
 pub use config::{CFfiConfig, CLibraryConfig};
 pub use generate::{bridge_crate_name, BRIDGE_FORMAT_VERSION, BRIDGE_SYMBOL_NAME};
 pub use model::{
-    ArtifactMode, BindingManifest, BindingReport, BindingReportEntry, ImportCOptions,
-    HostBridgeModuleDescriptor, HostBridgeServiceDescriptor, ImportCOutput, ItemKind,
-    ItemStatus, PackagedBridgeBinaryArtifact, PackagedBridgeImport, PackagedBridgeManifest,
+    ArtifactMode, BindingManifest, BindingReport, BindingReportEntry, HostBridgeModuleDescriptor,
+    HostBridgeServiceDescriptor, ImportCOptions, ImportCOutput, ItemKind, ItemStatus,
+    PackagedBridgeBinaryArtifact, PackagedBridgeImport, PackagedBridgeManifest,
     PackagedBridgeSymbolDescriptor, PrepareContext, ResolvedCLibrary,
 };
 
@@ -94,8 +94,8 @@ pub fn load_packaged_bridges_from_manifest(manifest_path: &Path) -> Result<usize
 
     for import in manifest.imports {
         if let Some(shared_library) = import.shared_library.as_ref() {
-            let shared_path =
-                resolve_packaged_bridge_artifact(manifest_dir, shared_library).ok_or_else(|| {
+            let shared_path = resolve_packaged_bridge_artifact(manifest_dir, shared_library)
+                .ok_or_else(|| {
                     KainError::runtime(format!(
                         "Failed to resolve packaged shared library '{}' for C import '{}'",
                         shared_library.file_name, import.import_name
@@ -104,15 +104,13 @@ pub fn load_packaged_bridges_from_manifest(manifest_path: &Path) -> Result<usize
             std::env::set_var(shared_library_env_var(&import.import_name), &shared_path);
         }
 
-        let bridge_path =
-            resolve_packaged_bridge_artifact(manifest_dir, &import.bridge_library).ok_or_else(
-                || {
-                    KainError::runtime(format!(
-                        "Failed to resolve packaged bridge library '{}' for C import '{}'",
-                        import.bridge_library.file_name, import.import_name
-                    ))
-                },
-            )?;
+        let bridge_path = resolve_packaged_bridge_artifact(manifest_dir, &import.bridge_library)
+            .ok_or_else(|| {
+                KainError::runtime(format!(
+                    "Failed to resolve packaged bridge library '{}' for C import '{}'",
+                    import.bridge_library.file_name, import.import_name
+                ))
+            })?;
         ensure_bridge_loaded(&bridge_path)?;
         loaded += 1;
     }
@@ -528,8 +526,11 @@ mod tests {
             "#if defined(_WIN32)\n#define BEACON_EXPORT __declspec(dllexport)\n#else\n#define BEACON_EXPORT\n#endif\nBEACON_EXPORT int beacon_add(int a, int b);\n",
         )
         .expect("header");
-        fs::write(&source_path, "#include \"beacon_math.h\"\nint beacon_add(int a, int b) { return a + b; }\n")
-            .expect("source");
+        fs::write(
+            &source_path,
+            "#include \"beacon_math.h\"\nint beacon_add(int a, int b) { return a + b; }\n",
+        )
+        .expect("source");
         compile_shared_library(&source_path, &dll_path);
         write_c_manifest(root, "beacon_math", &header_path, &dll_path);
 
@@ -562,8 +563,11 @@ mod tests {
             "#if defined(_WIN32)\n#define BEACON_EXPORT __declspec(dllexport)\n#else\n#define BEACON_EXPORT\n#endif\nBEACON_EXPORT int beacon_add(int a, int b);\n",
         )
         .expect("header");
-        fs::write(&source_path, "#include \"beacon_math.h\"\nint beacon_add(int a, int b) { return a + b; }\n")
-            .expect("source");
+        fs::write(
+            &source_path,
+            "#include \"beacon_math.h\"\nint beacon_add(int a, int b) { return a + b; }\n",
+        )
+        .expect("source");
         compile_shared_library(&source_path, &dll_path);
         write_c_manifest(root, "beacon_math", &header_path, &dll_path);
 

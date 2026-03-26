@@ -42,15 +42,15 @@ use gpu;
 use kain_sys_codegen as sys;
 
 #[cfg(feature = "sys")]
+pub use compute_residency::{
+    write_compute_residency_sidecars, ComputeResidencyBinding, ComputeResidencyBundle,
+    ComputeResidencyEntry, COMPUTE_RESIDENCY_ENV_VAR, COMPUTE_RESIDENCY_FILE_NAME,
+};
+#[cfg(feature = "sys")]
 pub use native_app::{
     compile_native_app_bundle, discover_native_app_root_component, materialize_native_app_bundle,
     NativeAppBundle, NativeAppBundleConfig, NativeAppMaterializationConfig,
     NativeAppMaterializedPaths, NativeAppMetadata, NativeAppRuntimeDependency,
-};
-#[cfg(feature = "sys")]
-pub use compute_residency::{
-    write_compute_residency_sidecars, ComputeResidencyBinding, ComputeResidencyBundle,
-    ComputeResidencyEntry, COMPUTE_RESIDENCY_ENV_VAR, COMPUTE_RESIDENCY_FILE_NAME,
 };
 
 #[cfg(feature = "ue5")]

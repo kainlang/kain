@@ -107,7 +107,10 @@ pub enum ComputeExecutorError {
     #[error("SPIR-V module {module_name} was not found in shader bundle {path}")]
     MissingSpirvModule { module_name: String, path: String },
     #[error("invalid hex payload for SPIR-V module {module_name}: {message}")]
-    InvalidSpirvHex { module_name: String, message: String },
+    InvalidSpirvHex {
+        module_name: String,
+        message: String,
+    },
     #[error("unsupported descriptor kind {value}")]
     UnsupportedDescriptorKind { value: String },
     #[error("unsupported access mode {value}")]
@@ -308,8 +311,11 @@ impl VulkanComputeExecutor {
         compute_residency_path: &Path,
         compute_key: &str,
     ) -> Result<GpuDispatchResult, ComputeExecutorError> {
-        let (spirv, request) =
-            dispatch_request_from_sidecars(shader_bundle_path, compute_residency_path, compute_key)?;
+        let (spirv, request) = dispatch_request_from_sidecars(
+            shader_bundle_path,
+            compute_residency_path,
+            compute_key,
+        )?;
         self.run_dispatch_request(&spirv, &request)
     }
 
@@ -407,7 +413,11 @@ impl VulkanComputeExecutor {
                 .allocate_descriptor_sets(&alloc_info)
                 .map_err(ComputeExecutorError::AllocateDescriptorSets)?[0];
 
-            let mut buffer_refs = request.bindings.iter().zip(buffers.iter()).collect::<Vec<_>>();
+            let mut buffer_refs = request
+                .bindings
+                .iter()
+                .zip(buffers.iter())
+                .collect::<Vec<_>>();
             buffer_refs.sort_by_key(|(binding, _)| binding.binding_slot);
             let buffer_infos: Vec<_> = buffer_refs
                 .iter()
@@ -500,7 +510,11 @@ impl VulkanComputeExecutor {
             }
 
             Ok(GpuDispatchResult {
-                dispatch_invocations: request.dispatch_size.iter().map(|value| *value as u64).product(),
+                dispatch_invocations: request
+                    .dispatch_size
+                    .iter()
+                    .map(|value| *value as u64)
+                    .product(),
                 output_bindings,
                 tensor_binding_count: request.tensor_binding_count,
                 stream_binding_count: request.stream_binding_count,
@@ -673,9 +687,7 @@ impl Drop for VulkanComputeExecutor {
 }
 
 #[no_mangle]
-pub extern "C" fn kain_gpu_runtime_create(
-    _config: *const GpuComputeExecutorConfig,
-) -> *mut c_void {
+pub extern "C" fn kain_gpu_runtime_create(_config: *const GpuComputeExecutorConfig) -> *mut c_void {
     match VulkanComputeExecutor::try_new() {
         Ok(executor) => Box::into_raw(Box::new(executor)) as *mut c_void,
         Err(_) => std::ptr::null_mut(),
@@ -733,7 +745,11 @@ pub extern "C" fn kain_gpu_runtime_dispatch_primary_compute(
         }
     };
 
-    match executor.dispatch_from_sidecars(&shader_bundle_path, &compute_residency_path, &compute_key) {
+    match executor.dispatch_from_sidecars(
+        &shader_bundle_path,
+        &compute_residency_path,
+        &compute_key,
+    ) {
         Ok(dispatch) => {
             result.status_code = 0;
             result.dispatch_invocations = dispatch.dispatch_invocations;
@@ -756,12 +772,11 @@ fn dispatch_request_from_sidecars(
     compute_residency_path: &Path,
     compute_key: &str,
 ) -> Result<(Vec<u8>, GpuDispatchRequest), ComputeExecutorError> {
-    let shader_bundle_json = fs::read_to_string(shader_bundle_path).map_err(|err| {
-        ComputeExecutorError::ReadFile {
+    let shader_bundle_json =
+        fs::read_to_string(shader_bundle_path).map_err(|err| ComputeExecutorError::ReadFile {
             path: shader_bundle_path.display().to_string(),
             message: err.to_string(),
-        }
-    })?;
+        })?;
     let shader_bundle = shader_artifact_bundle_from_json(&shader_bundle_json).map_err(|err| {
         ComputeExecutorError::ParseShaderBundle {
             path: shader_bundle_path.display().to_string(),
@@ -775,12 +790,13 @@ fn dispatch_request_from_sidecars(
             message: err.to_string(),
         }
     })?;
-    let residency: ComputeResidencyBundle = serde_json::from_str(&residency_json).map_err(|err| {
-        ComputeExecutorError::ParseComputeResidency {
-            path: compute_residency_path.display().to_string(),
-            message: err.to_string(),
-        }
-    })?;
+    let residency: ComputeResidencyBundle =
+        serde_json::from_str(&residency_json).map_err(|err| {
+            ComputeExecutorError::ParseComputeResidency {
+                path: compute_residency_path.display().to_string(),
+                message: err.to_string(),
+            }
+        })?;
     let entry = residency
         .compute_shaders
         .iter()
@@ -797,14 +813,15 @@ fn dispatch_request_from_sidecars(
             module_name: entry.module_name.clone(),
             path: shader_bundle_path.display().to_string(),
         })?;
-    let spirv = decode_hex(&module.bytes_hex).map_err(|message| {
-        ComputeExecutorError::InvalidSpirvHex {
+    let spirv =
+        decode_hex(&module.bytes_hex).map_err(|message| ComputeExecutorError::InvalidSpirvHex {
             module_name: entry.module_name.clone(),
             message,
-        }
-    })?;
+        })?;
 
-    let residency_root = compute_residency_path.parent().unwrap_or_else(|| Path::new("."));
+    let residency_root = compute_residency_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."));
     let mut bindings = Vec::with_capacity(entry.bindings.len());
     for binding in &entry.bindings {
         let payload_path = residency_root.join(&binding.payload_file);

@@ -98,7 +98,12 @@ fn print_execution_summary(result: &kain_omni::FabricExecutionResult) {
     }
     println!("Step results:");
     for step in &result.step_results {
-        println!("  - {} [{}]: {:?}", step.id, step.runtime.display_name(), step.status);
+        println!(
+            "  - {} [{}]: {:?}",
+            step.id,
+            step.runtime.display_name(),
+            step.status
+        );
     }
 }
 
@@ -176,8 +181,6 @@ mod tests {
             manifest: init.manifest_path,
         })
         .unwrap_err();
-        assert!(error
-            .to_string()
-            .contains("Fabric execution failed"));
+        assert!(error.to_string().contains("Fabric execution failed"));
     }
 }

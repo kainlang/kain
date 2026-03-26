@@ -154,7 +154,9 @@ fn build_compute_residency_bundle(realtime: &RealtimeAppBundle) -> Option<Comput
     })
 }
 
-fn build_binding_residency_entries(shader: &RealtimeShaderBundleRef) -> Vec<ComputeResidencyBinding> {
+fn build_binding_residency_entries(
+    shader: &RealtimeShaderBundleRef,
+) -> Vec<ComputeResidencyBinding> {
     shader
         .resource_bindings
         .iter()
@@ -179,8 +181,8 @@ fn build_binding_residency_entry(
         .map(|tensor| tensor.element_type.clone())
         .unwrap_or_else(|| fallback_element_type(binding).to_string());
     let element_size = element_size_for(&element_type);
-    let byte_length = element_size
-        .saturating_mul(shape.iter().copied().product::<i64>().max(1) as usize);
+    let byte_length =
+        element_size.saturating_mul(shape.iter().copied().product::<i64>().max(1) as usize);
 
     ComputeResidencyBinding {
         key: binding.key.clone(),
@@ -265,7 +267,8 @@ fn fallback_element_type(binding: &RealtimeResourceBinding) -> &'static str {
 }
 
 fn resolve_tensor_shape(shape: &[String], dispatch_size: [u32; 3]) -> Vec<i64> {
-    shape.iter()
+    shape
+        .iter()
         .map(|dim| match dim.as_str() {
             "dispatch.x" => dispatch_size[0] as i64,
             "dispatch.y" => dispatch_size[1] as i64,
@@ -354,7 +357,10 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
         );
         assert_eq!(main_bundle.compute_shaders[0].resource_binding_count, 2);
         assert_eq!(main_bundle.compute_shaders[0].bindings.len(), 2);
-        assert_eq!(main_bundle.compute_shaders[0].bindings[0].descriptor_kind, "storage_buffer");
+        assert_eq!(
+            main_bundle.compute_shaders[0].bindings[0].descriptor_kind,
+            "storage_buffer"
+        );
         assert_eq!(main_bundle.compute_shaders[0].bindings[0].shape, vec![1]);
         assert!(written.iter().any(|path| {
             path.file_name()

@@ -4220,7 +4220,10 @@ pub fn python_scope_state(env: &Env) -> KainResult<Arc<PythonScopeState>> {
         .ok_or_else(|| KainError::runtime("Python runtime is not registered for this environment"))
 }
 
-pub fn scope_dict_from_guard<'py>(py: Python<'py>, scope: &'py PyObject) -> KainResult<&'py PyDict> {
+pub fn scope_dict_from_guard<'py>(
+    py: Python<'py>,
+    scope: &'py PyObject,
+) -> KainResult<&'py PyDict> {
     scope
         .as_ref(py)
         .downcast::<PyDict>()

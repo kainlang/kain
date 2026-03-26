@@ -97,8 +97,8 @@ pub fn write_generated_artifacts(
             resolved.import_name
         ))
     })?;
-    let packaged_bridge_manifest_json =
-        serde_json::to_string_pretty(&packaged_bridge_manifest).map_err(|err| {
+    let packaged_bridge_manifest_json = serde_json::to_string_pretty(&packaged_bridge_manifest)
+        .map_err(|err| {
             KainError::runtime(format!(
                 "Failed to serialize packaged C FFI bridge manifest for '{}': {err}",
                 resolved.import_name
@@ -110,8 +110,11 @@ pub fn write_generated_artifacts(
     fs::write(&report_json_path, report_json).map_err(KainError::Io)?;
     fs::write(&report_text_path, &report_text).map_err(KainError::Io)?;
     fs::write(&manifest_json_path, &manifest_json).map_err(KainError::Io)?;
-    fs::write(&packaged_bridge_manifest_path, &packaged_bridge_manifest_json)
-        .map_err(KainError::Io)?;
+    fs::write(
+        &packaged_bridge_manifest_path,
+        &packaged_bridge_manifest_json,
+    )
+    .map_err(KainError::Io)?;
     fs::write(&bridge_manifest_path, render_bridge_manifest(resolved)).map_err(KainError::Io)?;
     fs::write(&bridge_source_path, &bridge_source).map_err(KainError::Io)?;
 
@@ -231,7 +234,10 @@ fn render_bridge_source(resolved: &ResolvedCLibrary, bundle: &BindingBundle) -> 
         .unwrap_or_default();
     let shared_lib_env_var = format!(
         "KAIN_C_FFI_SHARED_LIB_{}",
-        resolved.import_name.replace(|ch: char| !ch.is_ascii_alphanumeric(), "_").to_ascii_uppercase()
+        resolved
+            .import_name
+            .replace(|ch: char| !ch.is_ascii_alphanumeric(), "_")
+            .to_ascii_uppercase()
     );
 
     let mut output = String::new();
@@ -646,14 +652,18 @@ fn build_packaged_bridge_import(
     report_json_path: &Path,
 ) -> PackagedBridgeImport {
     let bridge_library_file_name = bridge_library_file_name(&resolved.import_name);
-    let shared_library = resolved.shared_lib_path.as_ref().map(|path| PackagedBridgeBinaryArtifact {
-        file_name: path
-            .file_name()
-            .and_then(|value| value.to_str())
-            .unwrap_or_default()
-            .to_string(),
-        source_path: Some(path.display().to_string()),
-    });
+    let shared_library =
+        resolved
+            .shared_lib_path
+            .as_ref()
+            .map(|path| PackagedBridgeBinaryArtifact {
+                file_name: path
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .unwrap_or_default()
+                    .to_string(),
+                source_path: Some(path.display().to_string()),
+            });
     let module_id = format!("bridge.c.{}", resolved.import_name.replace('_', "-"));
     let module_name = format!("C ABI Bridge {}", resolved.import_name);
     let mut services = vec![HostBridgeServiceDescriptor {
@@ -663,13 +673,18 @@ fn build_packaged_bridge_import(
         abi_version: 1,
         capability_mask: 0x1u32,
     }];
-    services.extend(bundle.functions.iter().map(|binding| HostBridgeServiceDescriptor {
-        service_key: format!("c.{}.symbol.{}", resolved.import_name, binding.symbol_name),
-        service_name: binding.symbol_name.clone(),
-        provider: "host.c".to_string(),
-        abi_version: 1,
-        capability_mask: 0x1u32,
-    }));
+    services.extend(
+        bundle
+            .functions
+            .iter()
+            .map(|binding| HostBridgeServiceDescriptor {
+                service_key: format!("c.{}.symbol.{}", resolved.import_name, binding.symbol_name),
+                service_name: binding.symbol_name.clone(),
+                provider: "host.c".to_string(),
+                abi_version: 1,
+                capability_mask: 0x1u32,
+            }),
+    );
 
     PackagedBridgeImport {
         import_name: resolved.import_name.clone(),

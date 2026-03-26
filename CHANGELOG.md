@@ -5,6 +5,33 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=9f4a1fd4f519e32c -->
+## 2026-03-25 21:02:01 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `ed867b44`
+- Changed files: 14
+- [.M] `crates/cli/src/fabric.rs`
+- [.M] `crates/cli/src/llvm_native_stage.rs`
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-c-ffi/src/generate.rs`
+- [.M] `crates/kain-c-ffi/src/lib.rs`
+- [.M] `crates/kain-driver/src/compute_residency.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-gpu-runtime/src/bindings.rs`
+- [.M] `crates/kain-gpu-runtime/src/executor.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `crates/kain-python/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=f870af056b7e0d9f -->
+## 2026-03-25 21:01:14 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `ed867b44`
+- Changed files: 1
+- [.M] `crates/kain-driver/src/native_app.rs`
+
 <!-- polytools-changelog:fingerprint=c08ccc1757bbfc96 -->
 ## 2026-03-25 20:56:19 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`
