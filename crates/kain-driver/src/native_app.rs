@@ -12,8 +12,9 @@ use kain_core::diagnostics::SpanMapper;
 use kain_core::error::KainError;
 use kain_core::{
     build_ui_output_from_source, realtime_app_bundle_to_json, runtime_contract_bundle_to_json,
-    CompileTarget, Lexer, Parser, RealtimeAppBundle, RuntimeCompatibilityMetadata,
-    RuntimeContractBundle, RuntimePlatformAvailabilityMetadata, RuntimeVersionRecord,
+    CompileTarget, Lexer, Parser, RealtimeAppBundle, RuntimeCapability,
+    RuntimeCompatibilityMetadata, RuntimeContractBundle, RuntimePlatformAvailabilityMetadata,
+    RuntimeServiceBinding, RuntimeVersionRecord,
 };
 use kain_ui::{
     ui_runtime_bundle_from_output, ui_runtime_bundle_to_json, UiBuildOutput, UiRuntimeBundle,
@@ -28,6 +29,11 @@ const NATIVE_APP_SHADER_BUNDLE_FILE_NAME: &str = "kain_shader_bundle.json";
 const NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME: &str = "kain_runtime_version.json";
 const NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME: &str = "kain_reflection_payload.json";
 const NATIVE_APP_WINDOWS_RUNTIME_DLL_FILE_NAME: &str = "kain_gpu_runtime.dll";
+const NATIVE_APP_C_FFI_PACKAGE_MANIFEST_FILE_NAME: &str = "kain_c_host_bridges.json";
+const NATIVE_APP_CONFIG_DIR_NAME: &str = "config";
+const NATIVE_APP_STATE_DIR_NAME: &str = "state";
+const NATIVE_APP_MANIFEST_FILE_NAME: &str = "app_manifest.json";
+const NATIVE_APP_RUNTIME_SNAPSHOT_FILE_NAME: &str = "runtime_snapshot.json";
 
 #[derive(Debug, Clone)]
 pub struct NativeAppBundleConfig {
@@ -235,6 +241,121 @@ pub struct NativeAppMaterializedPaths {
     pub executable_path: Option<PathBuf>,
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+struct NativeAppManifest {
+    app_id: String,
+    name: String,
+    version: String,
+    window_title: String,
+    root_component: String,
+    layout_id: String,
+    required_runtime_capabilities: Vec<String>,
+    target_outputs: Vec<String>,
+    manifests: NativeAppManifestPaths,
+    runtime_sidecars: NativeAppRuntimeSidecars,
+    host_bridges: Vec<kain_c_ffi::PackagedBridgeImport>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NativeAppManifestPaths {
+    host_bridges: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NativeAppRuntimeSidecars {
+    runtime_bundle: String,
+    runtime_contract: String,
+    runtime_compatibility: String,
+    realtime_bundle: String,
+    shader_bundle: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NativeAppRuntimeSnapshot {
+    app_id: String,
+    name: String,
+    version: String,
+    window_title: String,
+    root_component: String,
+    layout_id: String,
+    required_runtime_capabilities: Vec<String>,
+    panels: Vec<NativeAppRuntimePanel>,
+    commands: Vec<NativeAppRuntimeCommand>,
+    providers: Vec<NativeAppRuntimeProvider>,
+    tools: Vec<NativeAppRuntimeTool>,
+    sessions: NativeAppRuntimeSessions,
+    recent_sessions: Vec<NativeAppRuntimeRecentSession>,
+    workspaces: Vec<NativeAppRuntimeWorkspace>,
+    updated_at: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NativeAppRuntimePanel {
+    id: String,
+    title: String,
+    dock: String,
+    kind: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NativeAppRuntimeCommand {
+    id: String,
+    label: String,
+    surface: String,
+    intent: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NativeAppRuntimeProvider {
+    id: String,
+    label: String,
+    transport: String,
+    profile_kind: String,
+    supports_tools: bool,
+    supports_streaming: bool,
+    active: bool,
+    profile_configured: bool,
+    profile_keys: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NativeAppRuntimeTool {
+    id: String,
+    label: String,
+    capability: String,
+    approval: String,
+    decision: Option<String>,
+    scope_decisions: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NativeAppRuntimeSessions {
+    total_sessions: usize,
+    active_provider: String,
+    recent_session_id: String,
+    recent_session_title: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NativeAppRuntimeRecentSession {
+    id: String,
+    title: String,
+    provider_id: String,
+    status: String,
+    workspace_root: String,
+    updated_at: String,
+    message_count: usize,
+    last_message_role: String,
+    last_message_preview: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NativeAppRuntimeWorkspace {
+    root: String,
+    session_count: usize,
+    recent_session_title: String,
+}
+
 impl DriverSession {
     pub fn compile_native_app_bundle(
         &self,
@@ -295,6 +416,13 @@ impl DriverSession {
                 &runtime_contract.target,
             );
         }
+        let imported_c_libraries = kain_c_ffi::detect_c_library_imports(source);
+        if !imported_c_libraries.is_empty() {
+            ensure_native_c_ffi_runtime_contract_metadata(
+                &mut runtime_contract,
+                &imported_c_libraries,
+            );
+        }
 
         Ok(NativeAppBundle {
             metadata,
@@ -317,6 +445,10 @@ impl DriverSession {
         let project_dir = &config.project_dir;
         fs::create_dir_all(project_dir.join("src"))
             .map_err(io_error("create native app source directory"))?;
+        let config_dir = project_dir.join(NATIVE_APP_CONFIG_DIR_NAME);
+        let state_dir = project_dir.join(NATIVE_APP_STATE_DIR_NAME);
+        fs::create_dir_all(&config_dir).map_err(io_error("create native app config directory"))?;
+        fs::create_dir_all(&state_dir).map_err(io_error("create native app state directory"))?;
 
         let source_copy_path = project_dir.join(&bundle.metadata.source_file_name);
         fs::write(&source_copy_path, source.as_bytes())
@@ -406,6 +538,9 @@ impl DriverSession {
         } else {
             None
         };
+        let (packaged_c_ffi_imports, packaged_c_ffi_manifest_path, c_ffi_artifact_paths) =
+            materialize_c_ffi_bridge_sidecars(source, &artifact_root)?;
+        artifact_paths.extend(c_ffi_artifact_paths);
 
         let primary_path = artifact_root.join(&bundle.rust.bundle.primary.suggested_file_name);
         fs::write(
@@ -428,11 +563,46 @@ impl DriverSession {
             artifact_paths.push(spirv_path);
         }
 
+        let app_manifest_path = config_dir.join(NATIVE_APP_MANIFEST_FILE_NAME);
+        let runtime_snapshot_path = state_dir.join(NATIVE_APP_RUNTIME_SNAPSHOT_FILE_NAME);
+        let app_manifest = build_native_app_manifest(
+            bundle,
+            &packaged_c_ffi_imports,
+            packaged_c_ffi_manifest_path.as_deref(),
+            &runtime_bundle_path,
+            &runtime_contract_path,
+            &runtime_compatibility_path,
+            &realtime_bundle_path,
+            shader_bundle_path.as_ref(),
+        );
+        fs::write(
+            &app_manifest_path,
+            serde_json::to_string_pretty(&app_manifest).map_err(|err| {
+                KainError::runtime(format!("Failed to serialize native app manifest: {err}"))
+            })?,
+        )
+        .map_err(io_error("write native app manifest"))?;
+        artifact_paths.push(app_manifest_path.clone());
+
+        let runtime_snapshot = build_native_app_runtime_snapshot(bundle, &app_manifest);
+        fs::write(
+            &runtime_snapshot_path,
+            serde_json::to_string_pretty(&runtime_snapshot).map_err(|err| {
+                KainError::runtime(format!(
+                    "Failed to serialize native app runtime snapshot: {err}"
+                ))
+            })?,
+        )
+        .map_err(io_error("write native app runtime snapshot"))?;
+        artifact_paths.push(runtime_snapshot_path.clone());
+
         let manifest_path = project_dir.join("Cargo.toml");
         let manifest = render_manifest(
             &bundle.metadata.app_name,
             &config.runtime_crate_name,
             &config.runtime_dependency,
+            packaged_c_ffi_manifest_path.is_some(),
+            project_dir,
         );
         fs::write(&manifest_path, manifest.as_bytes())
             .map_err(io_error("write native app Cargo manifest"))?;
@@ -460,6 +630,12 @@ impl DriverSession {
                 .and_then(OsStr::to_str)
                 .map(ToOwned::to_owned)
         });
+        let packaged_c_ffi_manifest_file_name =
+            packaged_c_ffi_manifest_path.as_ref().and_then(|path| {
+                path.file_name()
+                    .and_then(OsStr::to_str)
+                    .map(ToOwned::to_owned)
+            });
         let main_rs = render_main_rs(
             &runtime_bundle_include_path,
             &config.runtime_crate_name,
@@ -467,6 +643,8 @@ impl DriverSession {
             realtime_bundle_file_name,
             compute_residency_file_name,
             shader_bundle_file_name.as_deref(),
+            packaged_c_ffi_manifest_file_name.as_deref(),
+            packaged_c_ffi_manifest_path.is_some(),
         );
         fs::write(&main_rs_path, main_rs.as_bytes())
             .map_err(io_error("write native app entrypoint"))?;
@@ -495,12 +673,20 @@ impl DriverSession {
                 NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME,
                 NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME,
                 NATIVE_APP_WINDOWS_RUNTIME_DLL_FILE_NAME,
+                NATIVE_APP_C_FFI_PACKAGE_MANIFEST_FILE_NAME,
             ];
             runtime_sidecar_file_names.extend(
                 compute_residency_paths
                     .iter()
                     .filter_map(|path| path.file_name().and_then(OsStr::to_str))
                     .filter(|file_name| *file_name != COMPUTE_RESIDENCY_FILE_NAME),
+            );
+            runtime_sidecar_file_names.extend(
+                packaged_c_ffi_manifest_path
+                    .iter()
+                    .chain(c_ffi_artifact_paths.iter())
+                    .filter_map(|path| path.file_name().and_then(OsStr::to_str))
+                    .filter(|file_name| !file_name.is_empty()),
             );
             copy_runtime_sidecars_to_executable_dir(
                 executable_path,
@@ -578,6 +764,8 @@ fn render_manifest(
     app_name: &str,
     runtime_crate_name: &str,
     runtime_dependency: &NativeAppRuntimeDependency,
+    include_c_ffi_runtime: bool,
+    project_dir: &Path,
 ) -> String {
     let dependency = match runtime_dependency {
         NativeAppRuntimeDependency::Path(path) => {
@@ -587,9 +775,23 @@ fn render_manifest(
             format!(r#"{{ version = "{version}" }}"#)
         }
     };
+    let c_ffi_dependency = include_c_ffi_runtime
+        .then(|| resolve_workspace_crate_dependency(project_dir, "kain-c-ffi"))
+        .transpose()
+        .ok()
+        .flatten()
+        .map(|dependency| match dependency {
+            NativeAppRuntimeDependency::Path(path) => {
+                format!("\nkain-c-ffi = {{ path = \"{}\" }}", path_for_toml(&path))
+            }
+            NativeAppRuntimeDependency::Version(version) => {
+                format!("\nkain-c-ffi = {{ version = \"{version}\" }}")
+            }
+        })
+        .unwrap_or_default();
 
     format!(
-        "[package]\nname = \"{app_name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n\n[dependencies]\n{runtime_crate_name} = {dependency}\n"
+        "[package]\nname = \"{app_name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n\n[dependencies]\n{runtime_crate_name} = {dependency}{c_ffi_dependency}\n"
     )
 }
 
@@ -600,6 +802,8 @@ fn render_main_rs(
     realtime_bundle_file_name: &str,
     compute_residency_file_name: Option<&str>,
     shader_bundle_file_name: Option<&str>,
+    c_ffi_manifest_file_name: Option<&str>,
+    include_c_ffi_runtime: bool,
 ) -> String {
     let runtime_bundle_include_path =
         rust_string_literal(&path_for_toml(runtime_bundle_include_path));
@@ -608,6 +812,7 @@ fn render_main_rs(
     let realtime_bundle_file_name = rust_string_literal(realtime_bundle_file_name);
     let compute_residency_env = compute_residency_file_name.map(rust_string_literal);
     let shader_bundle_env = shader_bundle_file_name.map(rust_string_literal);
+    let c_ffi_manifest_env = c_ffi_manifest_file_name.map(rust_string_literal);
     let shader_bundle_setter = shader_bundle_env
         .as_deref()
         .map(|file_name| {
@@ -624,14 +829,363 @@ fn render_main_rs(
             )
         })
         .unwrap_or_default();
+    let c_ffi_loader = if include_c_ffi_runtime {
+        c_ffi_manifest_env
+            .as_deref()
+            .map(|file_name| {
+                format!(
+                    "    if let Some(path) = resolve_runtime_sidecar({file_name}) {{\n        kain_c_ffi::load_packaged_bridges_from_manifest(&path)?;\n    }}\n"
+                )
+            })
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
     let app_manifest_file_name = rust_string_literal("app_manifest.json");
-    let app_snapshot_file_name = rust_string_literal("runtime_snapshot.json");
+    let app_snapshot_file_name = rust_string_literal(NATIVE_APP_RUNTIME_SNAPSHOT_FILE_NAME);
     let app_manifest_relative_path = rust_string_literal("../config/app_manifest.json");
     let app_snapshot_relative_path = rust_string_literal("../state/runtime_snapshot.json");
+    let c_ffi_import = if include_c_ffi_runtime {
+        "use kain_c_ffi;\n".to_string()
+    } else {
+        String::new()
+    };
 
     format!(
-        "#![cfg_attr(all(target_os = \"windows\", not(debug_assertions)), windows_subsystem = \"windows\")]\n\nuse std::path::PathBuf;\n\nuse {runtime_module_name}::run_bundled_app_json;\n\nconst KAIN_RUNTIME_BUNDLE: &str = include_str!({runtime_bundle_include_path});\n\nfn resolve_runtime_sidecar(file_name: &str) -> Option<PathBuf> {{\n    if let Some(current_exe_candidate) = std::env::current_exe().ok().and_then(|exe| {{\n        exe.parent().map(|dir| dir.join(file_name)).filter(|path| path.exists())\n    }}) {{\n        return Some(current_exe_candidate);\n    }}\n    let manifest_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(\"generated\").join(file_name);\n    if manifest_candidate.exists() {{\n        return Some(manifest_candidate);\n    }}\n    None\n}}\n\nfn resolve_project_sidecar(file_name: &str, relative_source_path: &str) -> Option<PathBuf> {{\n    if let Some(runtime_sidecar) = resolve_runtime_sidecar(file_name) {{\n        return Some(runtime_sidecar);\n    }}\n    let project_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(relative_source_path);\n    if project_candidate.exists() {{\n        return Some(project_candidate);\n    }}\n    None\n}}\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n    if let Some(path) = resolve_runtime_sidecar({runtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_RUNTIME_BUNDLE\", &path);\n    }}\n    if let Some(path) = resolve_runtime_sidecar({realtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_REALTIME_BUNDLE\", &path);\n    }}\n{compute_residency_setter}{shader_bundle_setter}    if let Some(path) = resolve_project_sidecar({app_manifest_file_name}, {app_manifest_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_MANIFEST\", &path);\n    }}\n    if let Some(path) = resolve_project_sidecar({app_snapshot_file_name}, {app_snapshot_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_SNAPSHOT\", &path);\n    }}\n    run_bundled_app_json(KAIN_RUNTIME_BUNDLE)\n}}\n"
+        "#![cfg_attr(all(target_os = \"windows\", not(debug_assertions)), windows_subsystem = \"windows\")]\n\nuse std::path::PathBuf;\n\n{c_ffi_import}use {runtime_module_name}::run_bundled_app_json;\n\nconst KAIN_RUNTIME_BUNDLE: &str = include_str!({runtime_bundle_include_path});\n\nfn resolve_runtime_sidecar(file_name: &str) -> Option<PathBuf> {{\n    if let Some(current_exe_candidate) = std::env::current_exe().ok().and_then(|exe| {{\n        exe.parent().map(|dir| dir.join(file_name)).filter(|path| path.exists())\n    }}) {{\n        return Some(current_exe_candidate);\n    }}\n    let manifest_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(\"generated\").join(file_name);\n    if manifest_candidate.exists() {{\n        return Some(manifest_candidate);\n    }}\n    None\n}}\n\nfn resolve_project_sidecar(file_name: &str, relative_source_path: &str) -> Option<PathBuf> {{\n    if let Some(runtime_sidecar) = resolve_runtime_sidecar(file_name) {{\n        return Some(runtime_sidecar);\n    }}\n    let project_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(relative_source_path);\n    if project_candidate.exists() {{\n        return Some(project_candidate);\n    }}\n    None\n}}\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {{\n    if let Some(path) = resolve_runtime_sidecar({runtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_RUNTIME_BUNDLE\", &path);\n    }}\n    if let Some(path) = resolve_runtime_sidecar({realtime_bundle_file_name}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_REALTIME_BUNDLE\", &path);\n    }}\n{compute_residency_setter}{shader_bundle_setter}{c_ffi_loader}    if let Some(path) = resolve_project_sidecar({app_manifest_file_name}, {app_manifest_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_MANIFEST\", &path);\n    }}\n    if let Some(path) = resolve_project_sidecar({app_snapshot_file_name}, {app_snapshot_relative_path}) {{\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_SNAPSHOT\", &path);\n    }}\n    run_bundled_app_json(KAIN_RUNTIME_BUNDLE)\n}}\n"
     )
+}
+
+fn ensure_native_c_ffi_runtime_contract_metadata(
+    runtime_contract: &mut RuntimeContractBundle,
+    imported_c_libraries: &[String],
+) {
+    ensure_runtime_capability(
+        &mut runtime_contract.required_capabilities,
+        RuntimeCapability {
+            key: "c.ffi".to_string(),
+            source: "kain-c-ffi".to_string(),
+            detail: Some(
+                "Program imports C ABI libraries that must be packaged and loaded through the native host bridge."
+                    .to_string(),
+            ),
+        },
+    );
+    ensure_runtime_capability(
+        &mut runtime_contract.required_capabilities,
+        RuntimeCapability {
+            key: "host.bridge".to_string(),
+            source: "kain-c-ffi".to_string(),
+            detail: Some(
+                "Native app materialization packages C bridge DLLs and shared libraries through the host bridge lane."
+                    .to_string(),
+            ),
+        },
+    );
+    ensure_runtime_service_binding(
+        &mut runtime_contract.service_bindings,
+        RuntimeServiceBinding {
+            service: "host.bridge".to_string(),
+            provider: "kain-c-ffi".to_string(),
+            lane: "rust-native".to_string(),
+        },
+    );
+    for import_name in imported_c_libraries {
+        ensure_runtime_service_binding(
+            &mut runtime_contract.service_bindings,
+            RuntimeServiceBinding {
+                service: format!("c.{import_name}.bridge"),
+                provider: "kain-c-ffi".to_string(),
+                lane: "rust-native".to_string(),
+            },
+        );
+    }
+    runtime_contract
+        .required_capabilities
+        .sort_by(|left, right| left.key.cmp(&right.key));
+    runtime_contract
+        .service_bindings
+        .sort_by(|left, right| left.service.cmp(&right.service));
+}
+
+fn ensure_runtime_capability(
+    capabilities: &mut Vec<RuntimeCapability>,
+    capability: RuntimeCapability,
+) {
+    if capabilities.iter().any(|existing| existing.key == capability.key) {
+        return;
+    }
+    capabilities.push(capability);
+}
+
+fn ensure_runtime_service_binding(
+    bindings: &mut Vec<RuntimeServiceBinding>,
+    binding: RuntimeServiceBinding,
+) {
+    if bindings.iter().any(|existing| existing.service == binding.service) {
+        return;
+    }
+    bindings.push(binding);
+}
+
+fn materialize_c_ffi_bridge_sidecars(
+    source: &str,
+    artifact_root: &Path,
+) -> Result<
+    (
+        Vec<kain_c_ffi::PackagedBridgeImport>,
+        Option<PathBuf>,
+        Vec<PathBuf>,
+    ),
+    KainError,
+> {
+    let prepare = kain_c_ffi::PrepareContext {
+        current_dir: std::env::current_dir().ok(),
+        manifest_path: None,
+    };
+    let outputs = kain_c_ffi::import_libraries_for_source(
+        source,
+        &kain_c_ffi::ImportCOptions {
+            mode: kain_c_ffi::ArtifactMode::Both,
+            ..kain_c_ffi::ImportCOptions::default()
+        },
+        &prepare,
+    )?;
+    if outputs.is_empty() {
+        return Ok((Vec::new(), None, Vec::new()));
+    }
+
+    let mut imports = Vec::new();
+    let mut artifact_paths = Vec::new();
+    for output in outputs {
+        let bridge_dylib_path = output.dylib_path.as_ref().ok_or_else(|| {
+            KainError::runtime(format!(
+                "C FFI import '{}' did not produce a bridge library for native packaging",
+                output.resolved.import_name
+            ))
+        })?;
+        let bridge_destination =
+            artifact_root.join(&output.packaged_bridge_manifest.bridge_library.file_name);
+        fs::copy(bridge_dylib_path, &bridge_destination)
+            .map_err(io_error("copy packaged C FFI bridge library"))?;
+        artifact_paths.push(bridge_destination);
+
+        let binding_manifest_destination = artifact_root.join(
+            output
+                .manifest_json_path
+                .file_name()
+                .and_then(OsStr::to_str)
+                .unwrap_or("c_ffi_binding_manifest.json"),
+        );
+        fs::copy(&output.manifest_json_path, &binding_manifest_destination)
+            .map_err(io_error("copy packaged C FFI binding manifest"))?;
+        artifact_paths.push(binding_manifest_destination);
+
+        let binding_report_destination = artifact_root.join(
+            output
+                .report_json_path
+                .file_name()
+                .and_then(OsStr::to_str)
+                .unwrap_or("c_ffi_report.json"),
+        );
+        fs::copy(&output.report_json_path, &binding_report_destination)
+            .map_err(io_error("copy packaged C FFI binding report"))?;
+        artifact_paths.push(binding_report_destination);
+
+        if let Some(shared_library) = output.packaged_bridge_manifest.shared_library.as_ref() {
+            let shared_source = output.resolved.shared_lib_path.as_ref().ok_or_else(|| {
+                KainError::runtime(format!(
+                    "C FFI import '{}' is missing a resolved shared library path",
+                    output.resolved.import_name
+                ))
+            })?;
+            let shared_destination = artifact_root.join(&shared_library.file_name);
+            fs::copy(shared_source, &shared_destination)
+                .map_err(io_error("copy packaged C FFI shared library"))?;
+            artifact_paths.push(shared_destination);
+        }
+
+        imports.push(output.packaged_bridge_manifest);
+    }
+
+    let packaged_manifest_path = artifact_root.join(NATIVE_APP_C_FFI_PACKAGE_MANIFEST_FILE_NAME);
+    let packaged_manifest = kain_c_ffi::PackagedBridgeManifest {
+        schema_version: "kain-c-ffi-runtime-v1".to_string(),
+        lane: "c".to_string(),
+        imports: imports.clone(),
+    };
+    fs::write(
+        &packaged_manifest_path,
+        serde_json::to_string_pretty(&packaged_manifest).map_err(|err| {
+            KainError::runtime(format!("Failed to serialize packaged C FFI manifest: {err}"))
+        })?,
+    )
+    .map_err(io_error("write packaged C FFI manifest"))?;
+    artifact_paths.push(packaged_manifest_path.clone());
+
+    Ok((imports, Some(packaged_manifest_path), artifact_paths))
+}
+
+fn build_native_app_manifest(
+    bundle: &NativeAppBundle,
+    packaged_c_ffi_imports: &[kain_c_ffi::PackagedBridgeImport],
+    packaged_c_ffi_manifest_path: Option<&Path>,
+    runtime_bundle_path: &Path,
+    runtime_contract_path: &Path,
+    runtime_compatibility_path: &Path,
+    realtime_bundle_path: &Path,
+    shader_bundle_path: Option<&PathBuf>,
+) -> NativeAppManifest {
+    let version = bundle
+        .runtime_version
+        .as_ref()
+        .map(|value| value.runtime_version_string.clone())
+        .unwrap_or_else(|| "0.1.0".to_string());
+    let required_runtime_capabilities = bundle
+        .runtime_contract
+        .required_capabilities
+        .iter()
+        .map(|capability| capability.key.clone())
+        .collect::<Vec<_>>();
+
+    NativeAppManifest {
+        app_id: bundle.metadata.app_name.replace('-', "."),
+        name: bundle.metadata.window_title.clone(),
+        version,
+        window_title: bundle.metadata.window_title.clone(),
+        root_component: bundle.metadata.root_component.clone(),
+        layout_id: format!("{}_shell", bundle.metadata.app_name.replace('-', "_")),
+        required_runtime_capabilities,
+        target_outputs: vec!["native-ui-bundle".to_string(), "native-exe".to_string()],
+        manifests: NativeAppManifestPaths {
+            host_bridges: packaged_c_ffi_manifest_path
+                .map(sidecar_file_name)
+                .unwrap_or_default(),
+        },
+        runtime_sidecars: NativeAppRuntimeSidecars {
+            runtime_bundle: sidecar_file_name(runtime_bundle_path),
+            runtime_contract: sidecar_file_name(runtime_contract_path),
+            runtime_compatibility: sidecar_file_name(runtime_compatibility_path),
+            realtime_bundle: sidecar_file_name(realtime_bundle_path),
+            shader_bundle: shader_bundle_path.map(|path| sidecar_file_name(path)),
+        },
+        host_bridges: packaged_c_ffi_imports.to_vec(),
+    }
+}
+
+fn build_native_app_runtime_snapshot(
+    bundle: &NativeAppBundle,
+    app_manifest: &NativeAppManifest,
+) -> NativeAppRuntimeSnapshot {
+    let updated_at = "2026-03-25T00:00:00Z".to_string();
+    NativeAppRuntimeSnapshot {
+        app_id: app_manifest.app_id.clone(),
+        name: app_manifest.name.clone(),
+        version: app_manifest.version.clone(),
+        window_title: bundle.metadata.window_title.clone(),
+        root_component: bundle.metadata.root_component.clone(),
+        layout_id: app_manifest.layout_id.clone(),
+        required_runtime_capabilities: app_manifest.required_runtime_capabilities.clone(),
+        panels: vec![NativeAppRuntimePanel {
+            id: "runtime_surface".to_string(),
+            title: bundle.metadata.window_title.clone(),
+            dock: "center".to_string(),
+            kind: "native-ui".to_string(),
+        }],
+        commands: vec![NativeAppRuntimeCommand {
+            id: "runtime.reload".to_string(),
+            label: "Reload Runtime".to_string(),
+            surface: "titlebar".to_string(),
+            intent: "runtime.reload".to_string(),
+        }],
+        providers: vec![NativeAppRuntimeProvider {
+            id: "native_runtime".to_string(),
+            label: "Native Runtime".to_string(),
+            transport: "in-process".to_string(),
+            profile_kind: "native-ui".to_string(),
+            supports_tools: true,
+            supports_streaming: false,
+            active: true,
+            profile_configured: true,
+            profile_keys: vec![],
+        }],
+        tools: bundle
+            .runtime_contract
+            .required_capabilities
+            .iter()
+            .map(|capability| NativeAppRuntimeTool {
+                id: capability.key.replace('.', "_"),
+                label: capability.key.clone(),
+                capability: capability.key.clone(),
+                approval: "workspace".to_string(),
+                decision: None,
+                scope_decisions: vec![],
+            })
+            .collect(),
+        sessions: NativeAppRuntimeSessions {
+            total_sessions: 1,
+            active_provider: "native_runtime".to_string(),
+            recent_session_id: "native-app-session".to_string(),
+            recent_session_title: bundle.metadata.window_title.clone(),
+        },
+        recent_sessions: vec![NativeAppRuntimeRecentSession {
+            id: "native-app-session".to_string(),
+            title: bundle.metadata.window_title.clone(),
+            provider_id: "native_runtime".to_string(),
+            status: "active".to_string(),
+            workspace_root: std::env::current_dir()
+                .ok()
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| ".".to_string()),
+            updated_at: updated_at.clone(),
+            message_count: 1,
+            last_message_role: "system".to_string(),
+            last_message_preview: "Native app materialization snapshot".to_string(),
+        }],
+        workspaces: vec![NativeAppRuntimeWorkspace {
+            root: std::env::current_dir()
+                .ok()
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| ".".to_string()),
+            session_count: 1,
+            recent_session_title: bundle.metadata.window_title.clone(),
+        }],
+        updated_at,
+    }
+}
+
+fn resolve_workspace_crate_dependency(
+    project_dir: &Path,
+    crate_name: &str,
+) -> Result<Option<NativeAppRuntimeDependency>, KainError> {
+    let workspace_root = resolve_driver_workspace_root()?;
+    let dependency_root = workspace_root.join("crates").join(crate_name);
+    if dependency_root.join("Cargo.toml").exists() {
+        let path =
+            relative_path_from_directory(project_dir, &dependency_root).unwrap_or(dependency_root);
+        return Ok(Some(NativeAppRuntimeDependency::Path(path)));
+    }
+    Ok(None)
+}
+
+fn resolve_driver_workspace_root() -> Result<PathBuf, KainError> {
+    let driver_manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    driver_manifest_dir
+        .parent()
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
+        .ok_or_else(|| {
+            KainError::runtime(
+                "Failed to derive the Kain workspace root from the kain-driver crate path",
+            )
+        })
+}
+
+fn sidecar_file_name(path: &Path) -> String {
+    path.file_name()
+        .and_then(OsStr::to_str)
+        .unwrap_or_default()
+        .to_string()
 }
 
 fn copy_runtime_sidecars_to_executable_dir(
@@ -1008,7 +1562,11 @@ mod tests {
         realtime_app_bundle_from_json, RuntimeReflectionPayload,
     };
     use kain_ui::{ui_runtime_bundle_from_json, validate_ui_runtime_bundle};
+    use std::process::Command;
+    use std::sync::Mutex;
     use tempfile::TempDir;
+
+    static TEST_CWD_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn discover_root_component_prefers_app_when_present() {
@@ -1112,6 +1670,8 @@ component App():
         assert!(main_rs.contains("run_bundled_app_json"));
         assert!(main_rs.contains("KAIN_UI_NATIVE_RUNTIME_BUNDLE"));
         assert!(main_rs.contains("KAIN_UI_NATIVE_REALTIME_BUNDLE"));
+        assert!(project_dir.join("config").join("app_manifest.json").exists());
+        assert!(project_dir.join("state").join("runtime_snapshot.json").exists());
         assert!(materialized
             .artifact_paths
             .iter()
@@ -1442,5 +2002,132 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
             assert_eq!(version.target_platforms, expected.target_platforms);
             assert_eq!(version.active_platforms, expected.active_platforms);
         }
+    }
+
+    #[test]
+    fn materialize_native_app_bundle_packages_c_ffi_bridges_for_native_ui() {
+        let _guard = TEST_CWD_LOCK.lock().expect("cwd lock");
+        let temp = TempDir::new().expect("temp dir");
+        let project_root = temp.path();
+        let project_dir = project_root.join("native-app-cffi");
+        let native_dir = project_root.join("native");
+        fs::create_dir_all(&native_dir).expect("native dir");
+
+        let header_path = native_dir.join("beacon_math.h");
+        let source_path = native_dir.join("beacon_math.c");
+        let dll_path = if cfg!(target_os = "windows") {
+            native_dir.join("beacon_math.dll")
+        } else if cfg!(target_os = "macos") {
+            native_dir.join("libbeacon_math.dylib")
+        } else {
+            native_dir.join("libbeacon_math.so")
+        };
+        fs::write(
+            &header_path,
+            "#if defined(_WIN32)\n#define BEACON_EXPORT __declspec(dllexport)\n#else\n#define BEACON_EXPORT\n#endif\nBEACON_EXPORT int beacon_add(int a, int b);\n",
+        )
+        .expect("header");
+        fs::write(
+            &source_path,
+            "#include \"beacon_math.h\"\nint beacon_add(int a, int b) { return a + b; }\n",
+        )
+        .expect("source");
+        compile_shared_library(&source_path, &dll_path);
+        fs::write(
+            project_root.join("KAIN.toml"),
+            format!(
+                "[c_ffi]\n\n[[c_ffi.libraries]]\nname = \"beacon_math\"\nheader = \"{}\"\nshared_lib = \"{}\"\n",
+                header_path
+                    .strip_prefix(project_root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/"),
+                dll_path
+                    .strip_prefix(project_root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/")
+            ),
+        )
+        .expect("manifest");
+
+        let previous_dir = std::env::current_dir().expect("current dir");
+        let result = (|| {
+            std::env::set_current_dir(project_root).expect("set cwd");
+            let source = r#"
+use c::beacon_math
+
+component App():
+    render <panel title="C FFI Native UI" />
+"#;
+            let bundle = compile_native_app_bundle(
+                source,
+                &NativeAppBundleConfig {
+                    source_file_name: Some("cffi_app.kn".to_string()),
+                    ..Default::default()
+                },
+            )
+            .expect("bundle should compile");
+
+            let materialized = materialize_native_app_bundle(
+                source,
+                &bundle,
+                &NativeAppMaterializationConfig {
+                    project_dir: project_dir.clone(),
+                    runtime_crate_name: "kain-ui-native".to_string(),
+                    runtime_dependency: NativeAppRuntimeDependency::Version("0.1.0".to_string()),
+                    artifact_output_dir: PathBuf::from("generated"),
+                    build_executable: false,
+                    release: false,
+                    executable_output_dir: None,
+                },
+            )
+            .expect("materialization should succeed");
+
+            assert!(bundle
+                .runtime_contract
+                .required_capabilities
+                .iter()
+                .any(|capability| capability.key == "c.ffi"));
+            assert!(bundle
+                .runtime_contract
+                .service_bindings
+                .iter()
+                .any(|binding| binding.service == "c.beacon_math.bridge"));
+            assert!(materialized
+                .artifact_paths
+                .iter()
+                .any(|path| path.ends_with(NATIVE_APP_C_FFI_PACKAGE_MANIFEST_FILE_NAME)));
+            assert!(materialized.artifact_paths.iter().any(|path| {
+                path.file_name()
+                    .and_then(|value| value.to_str())
+                    .is_some_and(|value| value.contains("kain_c_ffi_bridge_beacon_math"))
+            }));
+            let main_rs = fs::read_to_string(&materialized.main_rs_path).expect("main.rs");
+            assert!(main_rs.contains("load_packaged_bridges_from_manifest"));
+            let cargo_manifest =
+                fs::read_to_string(&materialized.manifest_path).expect("cargo manifest");
+            assert!(cargo_manifest.contains("kain-c-ffi"));
+        })();
+        std::env::set_current_dir(previous_dir).expect("restore cwd");
+        result.expect("c ffi native app packaging result");
+    }
+
+    fn compile_shared_library(source: &Path, output: &Path) {
+        let mut command = Command::new("clang");
+        if cfg!(target_os = "windows") {
+            command.args(["-shared", "-O2"]);
+        } else {
+            command.args(["-shared", "-fPIC", "-O2"]);
+        }
+        let status = command
+            .arg(source)
+            .arg("-o")
+            .arg(output)
+            .status()
+            .expect("clang should launch for native-app c ffi test");
+        assert!(status.success(), "clang should build C FFI shared library");
     }
 }

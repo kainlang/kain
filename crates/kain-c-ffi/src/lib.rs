@@ -512,7 +512,122 @@ mod tests {
             &PrepareContext::default(),
         )
         .expect_err("c bridge should reject JS codegen target");
-        assert!(error.to_string().contains("host-backed"));
+        assert!(error.to_string().contains("Interpret, Test, and Rust"));
+    }
+
+    #[test]
+    fn rust_target_prepares_generated_c_bridge_without_live_loading() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let native_dir = root.join("native");
+        fs::create_dir_all(&native_dir).expect("native dir");
+
+        let (header_path, source_path, dll_path) = c_fixture_paths(&native_dir);
+        fs::write(
+            &header_path,
+            "#if defined(_WIN32)\n#define BEACON_EXPORT __declspec(dllexport)\n#else\n#define BEACON_EXPORT\n#endif\nBEACON_EXPORT int beacon_add(int a, int b);\n",
+        )
+        .expect("header");
+        fs::write(&source_path, "#include \"beacon_math.h\"\nint beacon_add(int a, int b) { return a + b; }\n")
+            .expect("source");
+        compile_shared_library(&source_path, &dll_path);
+        write_c_manifest(root, "beacon_math", &header_path, &dll_path);
+
+        let augmented = augment_source_for_runtime(
+            "use c::beacon_math\nfn main() -> Int:\n    return beacon_add(2, 3)\n",
+            CompileTarget::Rust,
+            &PrepareContext {
+                current_dir: Some(root.to_path_buf()),
+                manifest_path: Some(root.join("KAIN.toml")),
+            },
+        )
+        .expect("rust target should accept generated c bridge bindings");
+
+        assert!(augmented.contains("mod c:"));
+        assert!(augmented.contains("beacon_add"));
+    }
+
+    #[test]
+    fn packaged_bridge_manifest_loads_prebuilt_bridge_from_copied_sidecars() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let native_dir = root.join("native");
+        let package_dir = root.join("package");
+        fs::create_dir_all(&native_dir).expect("native dir");
+        fs::create_dir_all(&package_dir).expect("package dir");
+
+        let (header_path, source_path, dll_path) = c_fixture_paths(&native_dir);
+        fs::write(
+            &header_path,
+            "#if defined(_WIN32)\n#define BEACON_EXPORT __declspec(dllexport)\n#else\n#define BEACON_EXPORT\n#endif\nBEACON_EXPORT int beacon_add(int a, int b);\n",
+        )
+        .expect("header");
+        fs::write(&source_path, "#include \"beacon_math.h\"\nint beacon_add(int a, int b) { return a + b; }\n")
+            .expect("source");
+        compile_shared_library(&source_path, &dll_path);
+        write_c_manifest(root, "beacon_math", &header_path, &dll_path);
+
+        let output = import_library(
+            "beacon_math",
+            &ImportCOptions {
+                mode: ArtifactMode::Both,
+                ..ImportCOptions::default()
+            },
+            &PrepareContext {
+                current_dir: Some(root.to_path_buf()),
+                manifest_path: Some(root.join("KAIN.toml")),
+            },
+        )
+        .expect("import library");
+        let bridge_dylib_path = output
+            .dylib_path
+            .as_ref()
+            .expect("live import should build bridge dylib");
+        let copied_bridge_path = package_dir.join(
+            output
+                .packaged_bridge_manifest
+                .bridge_library
+                .file_name
+                .as_str(),
+        );
+        let copied_shared_path = package_dir.join(
+            output
+                .packaged_bridge_manifest
+                .shared_library
+                .as_ref()
+                .expect("shared library descriptor")
+                .file_name
+                .as_str(),
+        );
+        fs::copy(bridge_dylib_path, &copied_bridge_path).expect("copy bridge dylib");
+        fs::copy(&dll_path, &copied_shared_path).expect("copy shared dll");
+
+        let packaged_manifest = PackagedBridgeManifest {
+            schema_version: "kain-c-ffi-runtime-v1".to_string(),
+            lane: "c".to_string(),
+            imports: vec![output.packaged_bridge_manifest.clone()],
+        };
+        let packaged_manifest_path = package_dir.join("kain_c_host_bridges.json");
+        fs::write(
+            &packaged_manifest_path,
+            serde_json::to_string_pretty(&packaged_manifest).expect("serialize manifest"),
+        )
+        .expect("write manifest");
+
+        let loaded = load_packaged_bridges_from_manifest(&packaged_manifest_path)
+            .expect("load packaged bridges");
+        assert_eq!(loaded, 1);
+        let env_key = shared_library_env_var("beacon_math");
+        let env_value = std::env::var(&env_key).expect("shared library env var");
+        assert!(
+            env_value.ends_with(
+                copied_shared_path
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .expect("shared file name")
+            ),
+            "shared library env var should point at copied package sidecar"
+        );
     }
 
     #[test]
@@ -688,5 +803,27 @@ mod tests {
             .status()
             .expect("clang should launch for c ffi smoke");
         assert!(status.success(), "clang should build test shared library");
+    }
+
+    fn write_c_manifest(root: &Path, import_name: &str, header_path: &Path, dll_path: &Path) {
+        fs::write(
+            root.join("KAIN.toml"),
+            format!(
+                "[c_ffi]\n\n[[c_ffi.libraries]]\nname = \"{import_name}\"\nheader = \"{}\"\nshared_lib = \"{}\"\n",
+                header_path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/"),
+                dll_path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/")
+            ),
+        )
+        .expect("manifest");
     }
 }

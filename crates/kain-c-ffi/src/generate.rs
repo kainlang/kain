@@ -1,6 +1,8 @@
 use crate::model::{
     BindingBundle, BindingManifest, BindingReport, BridgeParam, BridgeType, CFunctionBinding,
-    GeneratedArtifacts, ImportCOutput, ItemStatus, ResolvedCLibrary,
+    GeneratedArtifacts, HostBridgeModuleDescriptor, HostBridgeServiceDescriptor, ImportCOutput,
+    ItemStatus, PackagedBridgeBinaryArtifact, PackagedBridgeImport, PackagedBridgeManifest,
+    PackagedBridgeSymbolDescriptor, ResolvedCLibrary,
 };
 use heck::ToSnakeCase;
 use kain_core::error::KainError;
@@ -10,6 +12,7 @@ use std::path::{Path, PathBuf};
 pub const BRIDGE_FORMAT_VERSION: &str = "c-ffi-v1";
 pub const BRIDGE_SYMBOL_NAME: &[u8] = b"kain_register_bridge";
 pub const BINDING_MANIFEST_SCHEMA_VERSION: &str = "kain-c-ffi-manifest-v1";
+pub const PACKAGED_BRIDGE_MANIFEST_SCHEMA_VERSION: &str = "kain-c-ffi-runtime-v1";
 
 pub fn write_generated_artifacts(
     resolved: &ResolvedCLibrary,
@@ -34,9 +37,15 @@ pub fn write_generated_artifacts(
     let report_text_path = generated_dir.join(format!("{}_report.txt", resolved.import_name));
     let manifest_json_path =
         generated_dir.join(format!("{}_binding_manifest.json", resolved.import_name));
+    let packaged_bridge_manifest_path =
+        generated_dir.join(format!("{}_runtime_bridge.json", resolved.import_name));
     let bridge_manifest_path = bridge_dir.join("Cargo.toml");
     let bridge_source_path = bridge_dir.join("src").join("lib.rs");
-    let supported_targets = vec!["interpret".to_string(), "test".to_string()];
+    let supported_targets = vec![
+        "interpret".to_string(),
+        "rust".to_string(),
+        "test".to_string(),
+    ];
     let capabilities = collect_capabilities(bundle);
 
     let report = BindingReport {
@@ -67,6 +76,13 @@ pub fn write_generated_artifacts(
         generated_prelude: prelude_path.display().to_string(),
         entries: bundle.report_entries.clone(),
     };
+    let packaged_bridge_import =
+        build_packaged_bridge_import(resolved, bundle, &manifest_json_path, &report_json_path);
+    let packaged_bridge_manifest = PackagedBridgeManifest {
+        schema_version: PACKAGED_BRIDGE_MANIFEST_SCHEMA_VERSION.to_string(),
+        lane: "c".to_string(),
+        imports: vec![packaged_bridge_import.clone()],
+    };
 
     let report_json = serde_json::to_string_pretty(&report).map_err(|err| {
         KainError::runtime(format!(
@@ -81,12 +97,21 @@ pub fn write_generated_artifacts(
             resolved.import_name
         ))
     })?;
+    let packaged_bridge_manifest_json =
+        serde_json::to_string_pretty(&packaged_bridge_manifest).map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to serialize packaged C FFI bridge manifest for '{}': {err}",
+                resolved.import_name
+            ))
+        })?;
 
     fs::write(&canonical_module_path, &canonical_module_source).map_err(KainError::Io)?;
     fs::write(&prelude_path, &prelude_source).map_err(KainError::Io)?;
     fs::write(&report_json_path, report_json).map_err(KainError::Io)?;
     fs::write(&report_text_path, &report_text).map_err(KainError::Io)?;
     fs::write(&manifest_json_path, &manifest_json).map_err(KainError::Io)?;
+    fs::write(&packaged_bridge_manifest_path, &packaged_bridge_manifest_json)
+        .map_err(KainError::Io)?;
     fs::write(&bridge_manifest_path, render_bridge_manifest(resolved)).map_err(KainError::Io)?;
     fs::write(&bridge_source_path, &bridge_source).map_err(KainError::Io)?;
 
@@ -97,6 +122,7 @@ pub fn write_generated_artifacts(
         report,
         report_text,
         manifest_json,
+        packaged_bridge_manifest_json,
     };
 
     let output = ImportCOutput {
@@ -109,11 +135,13 @@ pub fn write_generated_artifacts(
         report_json_path,
         report_text_path,
         manifest_json_path,
+        packaged_bridge_manifest_path,
         bridge_manifest_path,
         bridge_source_path,
         dylib_path: None,
         canonical_module_source,
         prelude_source,
+        packaged_bridge_manifest: packaged_bridge_import,
         cache_hit: false,
     };
 
@@ -189,11 +217,22 @@ fn render_bridge_manifest(resolved: &ResolvedCLibrary) -> String {
 }
 
 fn render_bridge_source(resolved: &ResolvedCLibrary, bundle: &BindingBundle) -> String {
+    let shared_lib_file_name = resolved
+        .shared_lib_path
+        .as_ref()
+        .and_then(|value| value.file_name())
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_string();
     let shared_lib_path = resolved
         .shared_lib_path
         .as_ref()
         .map(|value| value.display().to_string())
         .unwrap_or_default();
+    let shared_lib_env_var = format!(
+        "KAIN_C_FFI_SHARED_LIB_{}",
+        resolved.import_name.replace(|ch: char| !ch.is_ascii_alphanumeric(), "_").to_ascii_uppercase()
+    );
 
     let mut output = String::new();
     output.push_str("use kain_core::error::KainError;\n");
@@ -201,10 +240,11 @@ fn render_bridge_source(resolved: &ResolvedCLibrary, bundle: &BindingBundle) -> 
     output.push_str("use kain_host::{FromKainValue, ToKainValue};\n");
     output.push_str("use libloading::{Library, Symbol};\n");
     output.push_str("use std::ffi::{c_void, CStr, CString};\n");
+    output.push_str("use std::path::PathBuf;\n");
     output.push_str("use std::sync::{Arc, RwLock};\n\n");
     output.push_str(&format!(
-        "const SHARED_LIB_PATH: &str = {:?};\n\n",
-        shared_lib_path
+        "const SHARED_LIB_PATH: &str = {:?};\nconst SHARED_LIB_FILE_NAME: &str = {:?};\nconst SHARED_LIB_ENV_VAR: &str = {:?};\n\n",
+        shared_lib_path, shared_lib_file_name, shared_lib_env_var
     ));
     output.push_str(
         r#"#[derive(Clone)]
@@ -321,6 +361,41 @@ fn extract_c_handle(
     }
 }
 
+fn resolve_shared_library_path() -> Result<PathBuf, KainError> {
+    if let Ok(explicit) = std::env::var(SHARED_LIB_ENV_VAR) {
+        let candidate = PathBuf::from(explicit);
+        if candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+    if !SHARED_LIB_FILE_NAME.is_empty() {
+        if let Some(current_exe_candidate) = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(|dir| dir.join(SHARED_LIB_FILE_NAME)))
+            .filter(|path| path.exists())
+        {
+            return Ok(current_exe_candidate);
+        }
+        let manifest_candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("generated")
+            .join(SHARED_LIB_FILE_NAME);
+        if manifest_candidate.exists() {
+            return Ok(manifest_candidate);
+        }
+    }
+    if !SHARED_LIB_PATH.is_empty() {
+        let configured = PathBuf::from(SHARED_LIB_PATH);
+        if configured.exists() {
+            return Ok(configured);
+        }
+    }
+    Err(KainError::runtime(format!(
+        "Failed to resolve packaged C shared library for {} (env: {})",
+        SHARED_LIB_FILE_NAME,
+        SHARED_LIB_ENV_VAR
+    )))
+}
+
 "#,
     );
 
@@ -366,8 +441,9 @@ fn render_bridge_wrapper(binding: &CFunctionBinding) -> String {
         binding.params.len()
     ));
     output.push_str("    }\n");
+    output.push_str("    let shared_library_path = resolve_shared_library_path()?;\n");
     output.push_str(
-        "    let library = unsafe { Library::new(SHARED_LIB_PATH) }\n        .map_err(|err| KainError::runtime(format!(\"Failed to load C shared library {}: {err}\", SHARED_LIB_PATH)))?;\n",
+        "    let library = unsafe { Library::new(&shared_library_path) }\n        .map_err(|err| KainError::runtime(format!(\"Failed to load C shared library {}: {err}\", shared_library_path.display())))?;\n",
     );
     output.push_str("    let mut iter = args.into_iter();\n");
     for (index, param) in binding.params.iter().enumerate() {
@@ -381,7 +457,7 @@ fn render_bridge_wrapper(binding: &CFunctionBinding) -> String {
         .join(", ");
     let ffi_return = binding.return_type.render_rust_ffi();
     output.push_str(&format!(
-        "    let symbol: Symbol<unsafe extern \"C\" fn({ffi_params}) -> {ffi_return}> = unsafe {{ library.get(&{:?}) }}\n        .map_err(|err| KainError::runtime(format!(\"Missing C symbol {{}} in {{}}: {{err}}\", {:?}, SHARED_LIB_PATH)))?;\n",
+        "    let symbol: Symbol<unsafe extern \"C\" fn({ffi_params}) -> {ffi_return}> = unsafe {{ library.get(&{:?}) }}\n        .map_err(|err| KainError::runtime(format!(\"Missing C symbol {{}} in {{}}: {{err}}\", {:?}, shared_library_path.display())))?;\n",
         format!("{}\0", binding.symbol_name).as_bytes(),
         binding.symbol_name
     ));
@@ -527,7 +603,12 @@ fn wrapper_name(emitted_name: &str) -> String {
 }
 
 fn collect_capabilities(bundle: &BindingBundle) -> Vec<String> {
-    let mut capabilities = vec!["binding-report".to_string(), "host-backed".to_string()];
+    let mut capabilities = vec![
+        "binding-report".to_string(),
+        "host-backed".to_string(),
+        "host-bridge".to_string(),
+        "native-packaged".to_string(),
+    ];
     if bundle.functions.iter().any(|binding| {
         binding
             .params
@@ -556,6 +637,91 @@ fn collect_capabilities(bundle: &BindingBundle) -> Vec<String> {
     capabilities.sort();
     capabilities.dedup();
     capabilities
+}
+
+fn build_packaged_bridge_import(
+    resolved: &ResolvedCLibrary,
+    bundle: &BindingBundle,
+    binding_manifest_path: &Path,
+    report_json_path: &Path,
+) -> PackagedBridgeImport {
+    let bridge_library_file_name = bridge_library_file_name(&resolved.import_name);
+    let shared_library = resolved.shared_lib_path.as_ref().map(|path| PackagedBridgeBinaryArtifact {
+        file_name: path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default()
+            .to_string(),
+        source_path: Some(path.display().to_string()),
+    });
+    let module_id = format!("bridge.c.{}", resolved.import_name.replace('_', "-"));
+    let module_name = format!("C ABI Bridge {}", resolved.import_name);
+    let mut services = vec![HostBridgeServiceDescriptor {
+        service_key: format!("c.{}.bridge", resolved.import_name),
+        service_name: format!("C ABI Bridge {}", resolved.import_name),
+        provider: "host.c".to_string(),
+        abi_version: 1,
+        capability_mask: 0x1u32,
+    }];
+    services.extend(bundle.functions.iter().map(|binding| HostBridgeServiceDescriptor {
+        service_key: format!("c.{}.symbol.{}", resolved.import_name, binding.symbol_name),
+        service_name: binding.symbol_name.clone(),
+        provider: "host.c".to_string(),
+        abi_version: 1,
+        capability_mask: 0x1u32,
+    }));
+
+    PackagedBridgeImport {
+        import_name: resolved.import_name.clone(),
+        module: HostBridgeModuleDescriptor {
+            module_id,
+            module_name,
+            provider: "host.c".to_string(),
+            lane: "c".to_string(),
+            abi_version: 1,
+            required_capability_mask: 0x1u32,
+            required_runtime_services: vec!["contract".to_string(), "host.bridge".to_string()],
+            hot_reload_capable: true,
+        },
+        services,
+        bridge_library: PackagedBridgeBinaryArtifact {
+            file_name: bridge_library_file_name,
+            source_path: None,
+        },
+        shared_library,
+        binding_manifest_file_name: binding_manifest_path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default()
+            .to_string(),
+        binding_report_file_name: report_json_path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default()
+            .to_string(),
+        symbols: bundle
+            .functions
+            .iter()
+            .map(|binding| PackagedBridgeSymbolDescriptor {
+                symbol_name: binding.symbol_name.clone(),
+                exported_aliases: binding.exported_aliases.clone(),
+            })
+            .collect(),
+    }
+}
+
+fn bridge_library_file_name(import_name: &str) -> String {
+    bridge_dynamic_library_file_name(&bridge_crate_name(import_name))
+}
+
+fn bridge_dynamic_library_file_name(crate_name: &str) -> String {
+    if cfg!(target_os = "windows") {
+        format!("{crate_name}.dll")
+    } else if cfg!(target_os = "macos") {
+        format!("lib{crate_name}.dylib")
+    } else {
+        format!("lib{crate_name}.so")
+    }
 }
 
 pub fn bridge_crate_name(import_name: &str) -> String {
