@@ -477,6 +477,7 @@ int test_startup_mismatch_detection(void) {
  */
 int test_global_registry_integration(void) {
     KainServiceRegistry* global_registry;
+    const int expected_service_count = 18;
     
     printf("Test 7: Global Service Registry Integration\n");
     
@@ -489,21 +490,40 @@ int test_global_registry_integration(void) {
     if (!global_registry->initialized) {
         TEST_FAIL("Global registry not initialized");
     }
+
+    kain_service_registry_init(global_registry);
     
     /* Populate with native services */
     kain_runtime_contract_populate_service_registry(global_registry);
     
-    if (global_registry->service_count == 0) {
-        TEST_FAIL("No services registered in global registry");
+    if (global_registry->service_count != expected_service_count) {
+        TEST_FAIL("Expected %d native runtime services, got %d",
+                  expected_service_count, global_registry->service_count);
     }
     
     /* Verify expected native services are available */
     if (!kain_service_registry_is_available(global_registry, KAIN_SERVICE_KEY_PLATFORM_APP_HOST)) {
-        printf("  Warning: platform.app-host not available\n");
+        TEST_FAIL("platform.app-host should be available");
     }
     
     if (!kain_service_registry_is_available(global_registry, KAIN_SERVICE_KEY_PLATFORM_INPUT)) {
-        printf("  Warning: platform.input not available\n");
+        TEST_FAIL("platform.input should be available");
+    }
+
+    if (!kain_service_registry_is_available(global_registry, KAIN_SERVICE_KEY_CONTRACT)) {
+        TEST_FAIL("contract should be available");
+    }
+
+    if (!kain_service_registry_is_available(global_registry, KAIN_SERVICE_KEY_ACTOR_RUNTIME)) {
+        TEST_FAIL("actor.runtime should be available");
+    }
+
+    if (!kain_service_registry_is_available(global_registry, KAIN_SERVICE_KEY_ASYNC_TIMERS)) {
+        TEST_FAIL("async.timers should be available");
+    }
+
+    if (!kain_service_registry_is_available(global_registry, KAIN_SERVICE_KEY_COMPATIBILITY)) {
+        TEST_FAIL("compatibility should be available");
     }
     
     printf("  Global registry services: %d\n", global_registry->service_count);

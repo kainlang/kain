@@ -10,6 +10,67 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-25 - Native Runtime Service Discovery Stopped Pretending The Runtime Was Smaller Than It Is
+
+The raw-native runtime now has one shared canonical service catalog in `runtime/native/src/core/kain_runtime_services.c` instead of splitting service truth across tiny contract-era registration helpers and scattered tests.
+
+What changed:
+
+- the native runtime service registry now registers the broader implemented surface, not just app host, input, viewport, glTF, UI bundle, and compute
+- contract/service lookups now canonicalize legacy aliases like `native.app-host` and `native.compute` through the shared service layer
+- repeated registry population now refreshes in place instead of silently trying to duplicate service entries
+- service conformance tests now expect the fuller runtime catalog, including contract, reflection, actor, async, realtime, compatibility, and host bridge services
+
+Why this matters:
+
+- startup validation, host integration, and diagnostics can now reason about the same runtime surface instead of each seeing a different partial picture
+- this narrows a long-standing honesty gap where the runtime had real subsystems but the registry still advertised a much smaller platform
+- future runtime features can extend one table-driven catalog rather than reintroducing scattered key checks and one-off registration paths
+
+What future work should preserve:
+
+- keep the service catalog in one shared runtime-owned place and make new services land there first
+- keep legacy alias support at the service layer, not duplicated in contract code and tests
+- distinguish clearly between the richer registry catalog and the still-smaller legacy contract service mask until the bundle contract itself is widened
+
+Next serious move:
+
+- widen compiler/driver-emitted runtime contract service masks so bundle-level startup metadata can express more of the same catalog the registry already exposes
+- align `runtime/native_runtime_metadata.json` and any downstream docs/fixtures with the richer service truth so machine-readable runtime metadata stops lagging behind the registry
+- consider introducing service-family level conformance checks for actor, async, reflection, and host bridge discovery instead of only presence checks
+
+## 2026-03-25 - 3D Scene IDs, Shader Bundles, And Raw-Native Profiles Were Re-Aligned
+
+The 3D/runtime lane had drifted into an awkward split:
+
+- authored UI/realtime bundles could name scenes like `tensor_stream_probe` and related SPIR-V smokes
+- `kain-ui-native` could load shader bundles from disk, but the presented WGPU viewport path still rebuilt pipelines from the baked default viewport shader
+- the raw-native Win32 runtime only understood a smaller hardcoded profile set, so newer authored scene ids degraded back to the default profile instead of resolving intentionally
+
+What changed:
+
+- `crates/kain-3D` now registers a dedicated `tensor_stream_probe` scene plus a small alias map for authored smoke names like `gpu_compute_surface_probe` and `spv_ui_surface_probe`
+- the Rust-native viewport host now threads the active `ShaderArtifactBundle` into both the readback renderer and the presented WGPU viewport path, and shader-bundle hot reload now refreshes existing viewport surface state instead of leaving old pipelines alive
+- the raw-native Win32 profile registry now has explicit alias-aware resolution and a `tensor_stream_probe` profile so compiled/realtime scene ids from the compiler lane map to a meaningful native profile instead of silently collapsing to the first entry
+
+Why this matters:
+
+- it closes a real cross-lane contract gap between compiler-authored 3D/SPIR-V intent and what the Rust-native and C-native runtime lanes actually render
+- shader-bundle hot reload is now honest for viewport rendering instead of only affecting auxiliary shader-surface paths
+- authored scene ids are becoming a shared contract surface instead of a lane-local convention
+
+What future work should preserve:
+
+- keep scene-name reconciliation data-driven through registries and aliases instead of scattering ad hoc fallback `if` checks across runtimes
+- keep `ShaderArtifactBundle` as the single shader payload contract for viewport/runtime consumption, even when a runtime still derives WGSL as a compatibility bridge
+- keep raw-native profiles as substrate-level runtime presentation presets, not the place where semantic scene truth is invented
+
+What is still incomplete:
+
+- the raw-native OpenGL viewport still renders profile-driven procedural geometry rather than the richer Rust `SceneCatalog` scene graph
+- no heavy validation was run in this pass yet; test execution remains gated on user approval per repo policy
+- `kerr_black_hole`, `retirement_demo`, and future authored scenes still use alias/profile approximation in the raw-native lane instead of one shared scene runtime
+
 ## 2026-03-25 - SPV UI Smoke Landed As An Honest First Probe Instead Of A Fake UI Engine Claim
 
 The repo now has a dedicated UI smoke for the "SPIR-V-based UI" direction under `smoketest/UI/spv_ui_surface_probe`.

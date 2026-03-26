@@ -760,7 +760,7 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
         : (app->runtime_contract.loaded
             ? (app->world_asset.loaded
                 ? "Runtime contract validated. City world is env-driven through KAIN_NATIVE_WORLD_ASSET."
-                : "Runtime contract validated. Use KAIN_NATIVE_SCENE_PROFILE to switch starforge / emberfall / luminous_port / magma_terraces.")
+                : "Runtime contract validated. Use KAIN_NATIVE_SCENE_PROFILE to switch starforge / emberfall / luminous_port / magma_terraces / tensor_stream_probe.")
             : "No runtime contract was loaded. Keep the *.runtime_contract.json sidecar beside the exe for native-lane validation.");
     kain_ui_compiled_overlay_render(&app->surface, app->width, app->height, &app->compiled_ui, &overlay_spec);
 }

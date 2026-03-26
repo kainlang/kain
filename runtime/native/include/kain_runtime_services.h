@@ -139,6 +139,18 @@ int kain_service_registry_register(
 );
 
 /*
+ * Register Service Descriptor
+ *
+ * Registers a fully-populated descriptor with the registry. This is useful
+ * for table-driven catalog population where the service metadata already
+ * exists in descriptor form.
+ */
+int kain_service_registry_register_descriptor(
+    KainServiceRegistry* registry,
+    const KainServiceDescriptor* descriptor
+);
+
+/*
  * Lookup Service by Key
  *
  * Finds a service by its key. Returns NULL if not found.
@@ -240,5 +252,25 @@ void kain_service_registry_print(const KainServiceRegistry* registry);
  * The registry is initialized on first access.
  */
 KainServiceRegistry* kain_service_registry_global(void);
+
+/*
+ * Canonicalize Service Key
+ *
+ * Maps legacy aliases onto stable canonical service keys. Returns the input
+ * key when no alias mapping is required.
+ */
+const char* kain_service_registry_canonicalize_key(const char* key);
+
+/*
+ * Register Native Runtime Services
+ *
+ * Populates the registry with the canonical native runtime service catalog.
+ * Existing entries are refreshed in place so repeated population is safe.
+ * Returns the number of catalog entries processed, or a negative value on
+ * failure.
+ */
+int kain_service_registry_register_native_runtime_services(
+    KainServiceRegistry* registry
+);
 
 #endif /* KAIN_RUNTIME_SERVICES_H */

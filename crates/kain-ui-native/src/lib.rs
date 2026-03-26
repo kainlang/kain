@@ -20,8 +20,8 @@ use kain_3d::{
 use kain_core::{
     build_ui_output_from_source, realtime_app_bundle_from_json, render_ui_output_debug,
     shader_artifact_bundle_from_json, CompiledMaterialDefinition, RealtimeAppBundle,
-    RealtimeSceneBinding, RealtimeShaderBundleRef, ShaderArtifactBundle, ShaderEntryPoint,
-    ShaderResourceLayout,
+    RealtimeSceneBinding, RealtimeShaderBundleRef, RealtimeShaderCanvasBinding,
+    ShaderArtifactBundle, ShaderEntryPoint, ShaderResourceLayout,
 };
 use kain_ui::{
     ui_resolve_theme_for_node, ui_runtime_bundle_from_json, ui_runtime_bundle_from_output,
@@ -2193,6 +2193,7 @@ struct PresentedViewportHost {
 
 struct PresentedViewportGpuState {
     target_format: wgpu::TextureFormat,
+    shader_bundle: Option<ShaderArtifactBundle>,
     resources: Option<PresentedViewportGpuResources>,
     prepared_frame: Option<PreparedWgpuFrame>,
     draw_data: Option<PresentedViewportDrawData>,
@@ -2487,6 +2488,7 @@ impl KainUiNativeApp {
                 Some((bundle, _)) => {
                     self.shader_bundle = Some(bundle);
                     self.shader_surfaces.clear();
+                    self.refresh_viewport_shader_bundle_state();
                     trace_runtime(format!("runtime_reload: refreshed shader bundle {path}"));
                 }
                 None => trace_runtime(format!(
@@ -2545,6 +2547,40 @@ impl KainUiNativeApp {
             report.animation_tracks_transferred,
             report.session_values_transferred,
         ));
+    }
+
+    fn refresh_viewport_shader_bundle_state(&mut self) {
+        let (renderer, active_renderer_label, presented_viewport_host) = build_viewport_renderer(
+            self.runtime_settings,
+            self.presented_viewport_host,
+            self.shader_bundle.as_ref(),
+        );
+        self.renderer = renderer;
+        self.active_renderer_label = active_renderer_label;
+        self.presented_viewport_host = presented_viewport_host;
+
+        for surface in self.viewport_surfaces.values_mut() {
+            surface.texture = None;
+            surface.last_render_at = None;
+            if let Some(host) = self.presented_viewport_host {
+                if let Some(presented_state) = surface.presented_state.as_ref() {
+                    if let Ok(mut state) = presented_state.lock() {
+                        state.replace_shader_bundle(self.shader_bundle.as_ref());
+                        state.prepared_frame = None;
+                        state.draw_data = None;
+                    }
+                } else {
+                    surface.presented_state = Some(Arc::new(Mutex::new(
+                        PresentedViewportGpuState::new(
+                            host.target_format,
+                            self.shader_bundle.as_ref(),
+                        ),
+                    )));
+                }
+            } else {
+                surface.presented_state = None;
+            }
+        }
     }
 }
 
@@ -2610,6 +2646,28 @@ fn select_viewport_renderer(
     String,
     Option<PresentedViewportHost>,
 ) {
+    let presented_viewport_host = cc
+        .wgpu_render_state
+        .as_ref()
+        .map(|render_state| PresentedViewportHost {
+            target_format: render_state.target_format,
+        });
+    build_viewport_renderer(
+        runtime_settings,
+        presented_viewport_host,
+        shader_bundle,
+    )
+}
+
+fn build_viewport_renderer(
+    runtime_settings: KainUiNativeRuntimeSettings,
+    presented_viewport_host: Option<PresentedViewportHost>,
+    shader_bundle: Option<&ShaderArtifactBundle>,
+) -> (
+    Box<dyn RenderBackend>,
+    String,
+    Option<PresentedViewportHost>,
+) {
     match runtime_settings.renderer {
         NativeRendererPreference::Glow => (
             Box::new(SoftwareRenderer::default()),
@@ -2630,12 +2688,6 @@ fn select_viewport_renderer(
             .unwrap_or_else(WgpuRenderer::new)
         {
             Ok(renderer) => {
-                let presented_viewport_host = cc
-                    .wgpu_render_state
-                    .as_ref()
-                    .map(|render_state| PresentedViewportHost {
-                        target_format: render_state.target_format,
-                    });
                 let active_renderer_label = if presented_viewport_host.is_some() {
                     "wgpu-surface".to_string()
                 } else {
@@ -2662,13 +2714,22 @@ fn select_viewport_renderer(
 }
 
 impl PresentedViewportGpuState {
-    fn new(target_format: wgpu::TextureFormat) -> Self {
+    fn new(
+        target_format: wgpu::TextureFormat,
+        shader_bundle: Option<&ShaderArtifactBundle>,
+    ) -> Self {
         Self {
             target_format,
+            shader_bundle: shader_bundle.cloned(),
             resources: None,
             prepared_frame: None,
             draw_data: None,
         }
+    }
+
+    fn replace_shader_bundle(&mut self, shader_bundle: Option<&ShaderArtifactBundle>) {
+        self.shader_bundle = shader_bundle.cloned();
+        self.resources = None;
     }
 }
 
@@ -2685,7 +2746,11 @@ impl CallbackTrait for PresentedViewportCallback {
             return Vec::new();
         };
         if state.resources.is_none() {
-            match build_presented_viewport_resources(device, state.target_format) {
+            match build_presented_viewport_resources(
+                device,
+                state.target_format,
+                state.shader_bundle.as_ref(),
+            ) {
                 Ok(resources) => state.resources = Some(resources),
                 Err(err) => {
                     trace_runtime(format!("viewport_presented: init_failed error={err}"));
@@ -3134,8 +3199,11 @@ fn shader_binding_kind(layout: &ShaderResourceLayout) -> Option<UiShaderBindingK
 fn build_presented_viewport_resources(
     device: &wgpu::Device,
     target_format: wgpu::TextureFormat,
+    shader_bundle: Option<&ShaderArtifactBundle>,
 ) -> Result<PresentedViewportGpuResources, String> {
-    let shader_bundle = default_viewport_shader_bundle();
+    let shader_bundle = shader_bundle
+        .cloned()
+        .unwrap_or_else(default_viewport_shader_bundle);
     let shader_source = wgsl_module_source(&shader_bundle, VIEWPORT_SHADER_MODULE_NAME)
         .map_err(|err| err.to_string())?;
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -4845,6 +4913,7 @@ fn render_viewport_surface(
                         presented_state: app.presented_viewport_host.map(|host| {
                             Arc::new(Mutex::new(PresentedViewportGpuState::new(
                                 host.target_format,
+                                app.shader_bundle.as_ref(),
                             )))
                         }),
                     });
@@ -4863,7 +4932,10 @@ fn render_viewport_surface(
                 surface.last_pick = None;
                 if let Some(host) = app.presented_viewport_host {
                     surface.presented_state = Some(Arc::new(Mutex::new(
-                        PresentedViewportGpuState::new(host.target_format),
+                        PresentedViewportGpuState::new(
+                            host.target_format,
+                            app.shader_bundle.as_ref(),
+                        ),
                     )));
                 } else {
                     surface.presented_state = None;
@@ -5939,3 +6011,4 @@ fn hero_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
         }
     }
 }
+

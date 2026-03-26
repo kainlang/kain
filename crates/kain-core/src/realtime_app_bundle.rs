@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::ast::{ComputeMetadata, ShaderStage, Type, COMPUTE_PLAN_CAPABILITY_KEY};
 use crate::{CompileTarget, TypedItem, TypedProgram, TypedShader};
-use kain_ui::{UiBuildOutput, UiSurfaceKind};
+use kain_ui::{
+    UiBuildOutput, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
+};
 
 pub const REALTIME_APP_BUNDLE_SCHEMA_VERSION: u32 = 1;
 
@@ -11,6 +13,8 @@ pub struct RealtimeAppBundle {
     pub schema_version: u32,
     pub target: String,
     pub render: RenderSceneBundle,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shader_canvases: Vec<RealtimeShaderCanvasBinding>,
     pub shader_bundle_refs: Vec<RealtimeShaderBundleRef>,
     pub assets: Vec<RealtimeAssetBinding>,
     pub tool_caps: Vec<String>,
@@ -45,6 +49,25 @@ pub struct CompiledMaterialInstance {
     pub material: String,
     pub scene: Option<String>,
     pub viewport_node: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RealtimeShaderCanvasBinding {
+    pub surface_id: String,
+    pub shader_ref: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shader_bundle_ref_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shader_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub module_name: Option<String>,
+    pub stage: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entry_point: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub derived_format: Option<String>,
+    pub renderer_preference: String,
+    pub composition_mode: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -120,14 +143,21 @@ pub fn emit_realtime_app_bundle(
     target: CompileTarget,
 ) -> RealtimeAppBundle {
     let shader_bundle_refs = collect_shader_bundle_refs(program);
+    let shader_canvases = collect_shader_canvas_bindings(ui_output, &shader_bundle_refs);
     let scenes = collect_scene_bindings(ui_output, &shader_bundle_refs);
     let materials = collect_materials(program, &scenes);
     let assets = collect_assets(ui_output);
     let has_explicit_compute_metadata = program_has_explicit_compute_metadata(program);
-    let tool_caps = collect_tool_caps(program, ui_output, has_explicit_compute_metadata);
+    let tool_caps = collect_tool_caps(
+        program,
+        ui_output,
+        &shader_canvases,
+        has_explicit_compute_metadata,
+    );
     let requirements = collect_requirements(
         target,
         &scenes,
+        &shader_canvases,
         &shader_bundle_refs,
         &tool_caps,
         has_explicit_compute_metadata,
@@ -137,6 +167,7 @@ pub fn emit_realtime_app_bundle(
         schema_version: REALTIME_APP_BUNDLE_SCHEMA_VERSION,
         target: compile_target_name(target).to_string(),
         render: RenderSceneBundle { scenes, materials },
+        shader_canvases,
         shader_bundle_refs,
         assets,
         tool_caps,
@@ -173,6 +204,87 @@ fn collect_shader_bundle_refs_into(items: &[TypedItem], output: &mut Vec<Realtim
     }
 }
 
+fn collect_shader_canvas_bindings(
+    ui_output: Option<&UiBuildOutput>,
+    shader_bundle_refs: &[RealtimeShaderBundleRef],
+) -> Vec<RealtimeShaderCanvasBinding> {
+    let Some(output) = ui_output else {
+        return Vec::new();
+    };
+
+    let mut bindings = output
+        .systems
+        .surfaces
+        .iter()
+        .filter_map(|surface| {
+            let shader = surface.shader.as_ref()?;
+            let resolved_shader_ref =
+                resolve_surface_shader_ref(shader.shader_ref.as_str(), shader_bundle_refs);
+            Some(RealtimeShaderCanvasBinding {
+                surface_id: surface.id.clone(),
+                shader_ref: shader.shader_ref.clone(),
+                shader_bundle_ref_key: resolved_shader_ref.as_ref().map(|entry| entry.key.clone()),
+                shader_name: resolved_shader_ref.as_ref().map(|entry| entry.shader.clone()),
+                module_name: resolved_shader_ref
+                    .as_ref()
+                    .map(|entry| entry.module_name.clone()),
+                stage: shader
+                    .stage
+                    .clone()
+                    .or_else(|| resolved_shader_ref.as_ref().map(|entry| entry.stage.clone()))
+                    .unwrap_or_else(|| "fragment".to_string()),
+                entry_point: shader.entry_point.clone().or_else(|| {
+                    resolved_shader_ref
+                        .as_ref()
+                        .map(|entry| entry.entry_point.clone())
+                }),
+                derived_format: shader.derived_format.clone(),
+                renderer_preference: surface_renderer_preference_name(surface.renderer_preference)
+                    .to_string(),
+                composition_mode: surface_composition_mode_name(surface.composition_mode)
+                    .to_string(),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    bindings.sort_by(|left, right| left.surface_id.cmp(&right.surface_id));
+    bindings
+}
+
+fn resolve_surface_shader_ref<'a>(
+    shader_ref: &str,
+    shader_bundle_refs: &'a [RealtimeShaderBundleRef],
+) -> Option<&'a RealtimeShaderBundleRef> {
+    let trimmed = shader_ref.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    shader_bundle_refs.iter().find(|entry| entry.key == trimmed).or_else(|| {
+        shader_bundle_refs
+            .iter()
+            .find(|entry| entry.module_name == trimmed || entry.shader == trimmed)
+    })
+}
+
+fn surface_renderer_preference_name(renderer: UiSurfaceRendererPreference) -> &'static str {
+    match renderer {
+        UiSurfaceRendererPreference::Auto => "auto",
+        UiSurfaceRendererPreference::Native => "native",
+        UiSurfaceRendererPreference::Dom => "dom",
+        UiSurfaceRendererPreference::Wgpu => "wgpu",
+        UiSurfaceRendererPreference::Shader => "shader",
+    }
+}
+
+fn surface_composition_mode_name(mode: UiSurfaceCompositionMode) -> &'static str {
+    match mode {
+        UiSurfaceCompositionMode::Host => "host",
+        UiSurfaceCompositionMode::LayeredGpu => "layered-gpu",
+        UiSurfaceCompositionMode::Viewport => "viewport",
+        UiSurfaceCompositionMode::ShaderCanvas => "shader-canvas",
+    }
+}
 fn shader_bundle_ref(shader: &TypedShader) -> RealtimeShaderBundleRef {
     let stage = shader_ref_stage_name(shader.ast.stage).to_string();
     let key = format!("shader::{}::{}", shader.ast.name, stage);
@@ -622,6 +734,7 @@ fn program_items_have_explicit_compute_metadata(items: &[TypedItem]) -> bool {
 fn collect_tool_caps(
     program: &TypedProgram,
     ui_output: Option<&UiBuildOutput>,
+    shader_canvases: &[RealtimeShaderCanvasBinding],
     has_explicit_compute_metadata: bool,
 ) -> Vec<String> {
     let mut caps = Vec::new();
@@ -651,6 +764,9 @@ fn collect_tool_caps(
             caps.push("tool.timeline".to_string());
         }
     }
+    if !shader_canvases.is_empty() {
+        caps.push("ui.shader-canvas".to_string());
+    }
 
     for item in &program.items {
         match item {
@@ -678,6 +794,7 @@ fn collect_tool_caps(
 fn collect_requirements(
     target: CompileTarget,
     scenes: &[RealtimeSceneBinding],
+    shader_canvases: &[RealtimeShaderCanvasBinding],
     shader_bundle_refs: &[RealtimeShaderBundleRef],
     tool_caps: &[String],
     has_explicit_compute_metadata: bool,
@@ -691,6 +808,10 @@ fn collect_requirements(
     ];
     if !shader_bundle_refs.is_empty() {
         requirements.push("gpu.shader-bundles".to_string());
+    }
+    if !shader_canvases.is_empty() {
+        requirements.push("ui.shader-canvas".to_string());
+        requirements.push("ui.shader-canvas.presented-or-fallback".to_string());
     }
     if has_compute_refs {
         requirements.push("gpu.compute-dispatch".to_string());
@@ -811,6 +932,40 @@ component App():
     }
 
     #[test]
+    fn emits_shader_canvas_bindings_for_native_runtime_consumers() {
+        let source = r#"
+shader fragment hero_surface(uv: Vec2) -> Vec4:
+    return vec4(uv.x, uv.y, 1.0, 1.0)
+
+component App():
+    render <panel>
+        <canvas title="Hero Surface" shader_ref="hero_surface" shader_stage="fragment" shader_format="spirv" />
+    </panel>
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let span_mapper = diagnostics::SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &span_mapper, "<input>")
+            .parse()
+            .expect("ast");
+        let typed = types::check(&ast, &span_mapper, "<input>").expect("typed");
+        let ui = build_ui_output_from_source(source, "App").expect("ui");
+
+        let bundle = emit_realtime_app_bundle(&typed, Some(&ui), CompileTarget::Rust);
+        assert_eq!(bundle.shader_canvases.len(), 1);
+        assert_eq!(bundle.shader_canvases[0].surface_id, "surface.node.2");
+        assert_eq!(bundle.shader_canvases[0].shader_ref, "hero_surface");
+        assert_eq!(
+            bundle.shader_canvases[0].shader_bundle_ref_key.as_deref(),
+            Some("shader::hero_surface::fragment")
+        );
+        assert_eq!(bundle.shader_canvases[0].composition_mode, "shader-canvas");
+        assert!(bundle.tool_caps.iter().any(|entry| entry == "ui.shader-canvas"));
+        assert!(bundle
+            .requirements
+            .iter()
+            .any(|entry| entry == "ui.shader-canvas.presented-or-fallback"));
+    }
+    #[test]
     fn emits_compute_bundle_metadata_for_native_runtime_consumers() {
         let source = r#"
 shader compute TensorBlend() -> Void:
@@ -918,3 +1073,11 @@ shader compute TensorBlend() -> Void:
             .any(|entry| entry == "gpu.compute-plan"));
     }
 }
+
+
+
+
+
+
+
+

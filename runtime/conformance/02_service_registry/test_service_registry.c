@@ -349,6 +349,7 @@ int test_required_service_validation(void) {
 
 int test_contract_integration(void) {
     KainServiceRegistry* registry;
+    const int expected_service_count = 18;
     
     printf("\nTest 7: Contract Integration\n");
     
@@ -358,13 +359,15 @@ int test_contract_integration(void) {
         TEST_FAIL("Failed to get global registry");
         return 0;
     }
+
+    kain_service_registry_init(registry);
     
     /* Populate with native services */
     kain_runtime_contract_populate_service_registry(registry);
     
-    if (registry->service_count != 5) {
-        printf("    Expected 5 services, got %d\n", registry->service_count);
-        TEST_FAIL("Should have 5 native services registered");
+    if (registry->service_count != expected_service_count) {
+        printf("    Expected %d services, got %d\n", expected_service_count, registry->service_count);
+        TEST_FAIL("Should have the full native runtime service catalog registered");
         return 0;
     }
     
@@ -393,6 +396,36 @@ int test_contract_integration(void) {
         TEST_FAIL("ui.bundle should be available");
         return 0;
     }
+
+    if (!kain_service_registry_is_available(registry, KAIN_SERVICE_KEY_CONTRACT)) {
+        TEST_FAIL("contract should be available");
+        return 0;
+    }
+
+    if (!kain_service_registry_is_available(registry, KAIN_SERVICE_KEY_REFLECTION)) {
+        TEST_FAIL("reflection should be available");
+        return 0;
+    }
+
+    if (!kain_service_registry_is_available(registry, KAIN_SERVICE_KEY_ACTOR_RUNTIME)) {
+        TEST_FAIL("actor.runtime should be available");
+        return 0;
+    }
+
+    if (!kain_service_registry_is_available(registry, KAIN_SERVICE_KEY_ASYNC_RUNTIME)) {
+        TEST_FAIL("async.runtime should be available");
+        return 0;
+    }
+
+    if (!kain_service_registry_is_available(registry, KAIN_SERVICE_KEY_ASSET_REALTIME)) {
+        TEST_FAIL("asset.realtime should be available");
+        return 0;
+    }
+
+    if (!kain_service_registry_is_available(registry, KAIN_SERVICE_KEY_HOST_BRIDGE)) {
+        TEST_FAIL("host.bridge should be available");
+        return 0;
+    }
     
     /* Test legacy service key mapping */
     if (!kain_runtime_contract_is_service_available("native.app-host")) {
@@ -402,6 +435,18 @@ int test_contract_integration(void) {
     
     if (!kain_runtime_contract_is_service_available("native.input")) {
         TEST_FAIL("Legacy native.input key should work");
+        return 0;
+    }
+
+    if (!kain_runtime_contract_is_service_available("native.compute")) {
+        TEST_FAIL("Legacy native.compute key should work");
+        return 0;
+    }
+
+    /* Re-population should refresh in place rather than duplicate entries. */
+    kain_runtime_contract_populate_service_registry(registry);
+    if (registry->service_count != expected_service_count) {
+        TEST_FAIL("Repeated population should keep service count stable");
         return 0;
     }
     

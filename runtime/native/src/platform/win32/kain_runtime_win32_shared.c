@@ -5,6 +5,7 @@ static const KainViewportProfile g_kain_viewport_profiles[] = {
     {
         "starforge",
         "Starforge Port",
+        "retirement_demo",
         {0.03f, 0.05f, 0.09f, 1.0f},
         {0.03f, 0.05f, 0.08f, 1.0f},
         {0.20f, 0.24f, 0.32f, 1.0f},
@@ -26,6 +27,7 @@ static const KainViewportProfile g_kain_viewport_profiles[] = {
     {
         "emberfall",
         "Emberfall Atrium",
+        "",
         {0.08f, 0.04f, 0.03f, 1.0f},
         {0.11f, 0.05f, 0.03f, 1.0f},
         {0.28f, 0.18f, 0.14f, 1.0f},
@@ -47,6 +49,7 @@ static const KainViewportProfile g_kain_viewport_profiles[] = {
     {
         "luminous_port",
         "Luminous Port",
+        "",
         {0.04f, 0.07f, 0.12f, 1.0f},
         {0.05f, 0.08f, 0.12f, 1.0f},
         {0.22f, 0.26f, 0.34f, 1.0f},
@@ -68,6 +71,7 @@ static const KainViewportProfile g_kain_viewport_profiles[] = {
     {
         "magma_terraces",
         "Magma Terraces",
+        "kerr_black_hole",
         {0.06f, 0.03f, 0.02f, 1.0f},
         {0.09f, 0.04f, 0.03f, 1.0f},
         {0.26f, 0.12f, 0.08f, 1.0f},
@@ -85,11 +89,77 @@ static const KainViewportProfile g_kain_viewport_profiles[] = {
         1.82,
         0.028,
         232
+    },
+    {
+        "tensor_stream_probe",
+        "Tensor Stream Probe",
+        "gpu_compute_surface_probe,spv_ui_surface_probe,ui_surface_probe",
+        {0.02f, 0.06f, 0.11f, 1.0f},
+        {0.02f, 0.05f, 0.10f, 1.0f},
+        {0.14f, 0.22f, 0.34f, 1.0f},
+        {0.78f, 0.92f, 1.00f, 1.0f},
+        {10.0f, 20.0f, -14.0f, 1.0f},
+        {0.18f, 0.84f, 1.00f},
+        {1.00f, 0.82f, 0.30f},
+        1600,
+        900,
+        9.2,
+        2.0,
+        6.7,
+        18.6,
+        0.0024,
+        1.78,
+        0.016,
+        220
     }
 };
 
 static const size_t g_kain_viewport_profile_count =
     sizeof(g_kain_viewport_profiles) / sizeof(g_kain_viewport_profiles[0]);
+
+static int kain_viewport_profile_matches_alias(const char* alias_list, const char* id) {
+    const char* cursor = alias_list;
+    size_t id_length;
+
+    if (!alias_list || !alias_list[0] || !id || !id[0]) {
+        return 0;
+    }
+
+    id_length = strlen(id);
+    while (*cursor) {
+        const char* token_start;
+        const char* token_end;
+        size_t token_length;
+
+        while (*cursor == ' ' || *cursor == ',' || *cursor == ';' || *cursor == '|') {
+            ++cursor;
+        }
+        if (!*cursor) {
+            break;
+        }
+
+        token_start = cursor;
+        token_end = cursor;
+        while (*token_end && *token_end != ',' && *token_end != ';' && *token_end != '|') {
+            ++token_end;
+        }
+        while (token_end > token_start && token_end[-1] == ' ') {
+            --token_end;
+        }
+
+        token_length = (size_t)(token_end - token_start);
+        if (token_length == id_length && _strnicmp(token_start, id, id_length) == 0) {
+            return 1;
+        }
+
+        cursor = token_end;
+        if (*cursor) {
+            ++cursor;
+        }
+    }
+
+    return 0;
+}
 
 char* kain_env_dup(const char* name) {
     char* value = NULL;
@@ -252,6 +322,11 @@ const KainViewportProfile* kain_find_viewport_profile(const char* id) {
     }
     for (index = 0; index < g_kain_viewport_profile_count; ++index) {
         if (_stricmp(g_kain_viewport_profiles[index].id, id) == 0) {
+            return &g_kain_viewport_profiles[index];
+        }
+    }
+    for (index = 0; index < g_kain_viewport_profile_count; ++index) {
+        if (kain_viewport_profile_matches_alias(g_kain_viewport_profiles[index].scene_aliases, id)) {
             return &g_kain_viewport_profiles[index];
         }
     }

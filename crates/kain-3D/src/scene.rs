@@ -342,23 +342,34 @@ impl TerrainSurface {
 pub struct SceneCatalog {
     pub default_scene: String,
     pub scenes: BTreeMap<String, SceneDescription>,
+    pub scene_aliases: BTreeMap<String, String>,
 }
 
 impl Default for SceneCatalog {
     fn default() -> Self {
+        let tensor_stream_probe = build_tensor_stream_probe_scene();
         let luminous_port = build_luminous_port_scene();
         let magma_terraces = build_magma_terraces_scene();
         let retirement_demo = build_retirement_demo_scene();
         let kerr_black_hole = build_kerr_black_hole_scene();
         let mut scenes = BTreeMap::new();
+        scenes.insert(tensor_stream_probe.name.clone(), tensor_stream_probe);
         scenes.insert(luminous_port.name.clone(), luminous_port);
         scenes.insert(magma_terraces.name.clone(), magma_terraces);
         scenes.insert(retirement_demo.name.clone(), retirement_demo);
         scenes.insert(kerr_black_hole.name.clone(), kerr_black_hole);
+        let scene_aliases = BTreeMap::from([
+            ("gpu_compute_surface_probe".to_string(), "tensor_stream_probe".to_string()),
+            ("spv_ui_surface_probe".to_string(), "tensor_stream_probe".to_string()),
+            ("starforge".to_string(), "luminous_port".to_string()),
+            ("emberfall".to_string(), "magma_terraces".to_string()),
+            ("ui_surface_probe".to_string(), "tensor_stream_probe".to_string()),
+        ]);
 
         Self {
             default_scene: "luminous_port".to_string(),
             scenes,
+            scene_aliases,
         }
     }
 }
@@ -367,7 +378,233 @@ impl SceneCatalog {
     pub fn scene(&self, name: &str) -> Option<&SceneDescription> {
         self.scenes
             .get(name)
+            .or_else(|| {
+                self.scene_aliases
+                    .get(name)
+                    .and_then(|canonical| self.scenes.get(canonical))
+            })
             .or_else(|| self.scenes.get(&self.default_scene))
+    }
+}
+
+fn build_tensor_stream_probe_scene() -> SceneDescription {
+    let mut meshes = BTreeMap::new();
+    meshes.insert("cube".to_string(), mesh_cube());
+    meshes.insert("floor".to_string(), mesh_plane());
+    meshes.insert("orb".to_string(), mesh_uv_sphere(6, 12));
+    meshes.insert("pyramid".to_string(), mesh_pyramid());
+
+    let mut materials = BTreeMap::new();
+    materials.insert(
+        "dock".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.08, 0.11, 0.17),
+            specular_color: ColorRgb::new(0.36, 0.48, 0.70),
+            ambient_strength: 0.32,
+            diffuse_strength: 0.84,
+            specular_strength: 0.20,
+            shininess: 12.0,
+        },
+    );
+    materials.insert(
+        "pulse_core".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.10, 0.78, 1.0),
+            specular_color: ColorRgb::new(0.92, 0.98, 1.0),
+            ambient_strength: 0.20,
+            diffuse_strength: 0.98,
+            specular_strength: 0.72,
+            shininess: 34.0,
+        },
+    );
+    materials.insert(
+        "signal".to_string(),
+        Material {
+            base_color: ColorRgb::new(1.0, 0.82, 0.28),
+            specular_color: ColorRgb::new(1.0, 0.96, 0.72),
+            ambient_strength: 0.16,
+            diffuse_strength: 0.96,
+            specular_strength: 0.36,
+            shininess: 20.0,
+        },
+    );
+    materials.insert(
+        "relay".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.24, 0.34, 0.54),
+            specular_color: ColorRgb::new(0.62, 0.76, 0.96),
+            ambient_strength: 0.24,
+            diffuse_strength: 0.90,
+            specular_strength: 0.32,
+            shininess: 18.0,
+        },
+    );
+
+    SceneDescription {
+        name: "tensor_stream_probe".to_string(),
+        viewport_summary: "tensor stream probe | compute relay deck | spv runtime preview".to_string(),
+        background: BackgroundGradient {
+            top: ColorRgb::new(0.03, 0.08, 0.14),
+            bottom: ColorRgb::new(0.01, 0.02, 0.06),
+        },
+        camera: Camera {
+            target: Vec3::new(0.0, 0.4, 0.0),
+            up: Vec3::UP,
+            orbit_radius: 7.4,
+            orbit_height: 2.2,
+            orbit_speed_radians_per_second: 0.28,
+            fov_y_degrees: 50.0,
+            near_plane: 0.05,
+            far_plane: 140.0,
+        },
+        lighting: LightingRig {
+            ambient_color: ColorRgb::new(0.74, 0.82, 1.0),
+            ambient_intensity: 0.30,
+            directional_lights: vec![
+                DirectionalLight {
+                    direction: Vec3::new(-0.35, -1.0, -0.42).normalize(),
+                    color: ColorRgb::new(0.74, 0.86, 1.0),
+                    intensity: 1.05,
+                },
+                DirectionalLight {
+                    direction: Vec3::new(0.58, -0.32, 0.26).normalize(),
+                    color: ColorRgb::new(0.20, 0.76, 1.0),
+                    intensity: 0.44,
+                },
+            ],
+            point_lights: vec![
+                PointLight {
+                    position: Vec3::new(0.0, 2.0, 0.0),
+                    color: ColorRgb::new(0.18, 0.86, 1.0),
+                    intensity: 1.45,
+                    range: 10.0,
+                },
+                PointLight {
+                    position: Vec3::new(-2.8, 1.0, 1.6),
+                    color: ColorRgb::new(1.0, 0.82, 0.30),
+                    intensity: 0.88,
+                    range: 9.0,
+                },
+                PointLight {
+                    position: Vec3::new(2.8, 1.1, -1.8),
+                    color: ColorRgb::new(0.52, 0.72, 1.0),
+                    intensity: 0.62,
+                    range: 9.0,
+                },
+            ],
+        },
+        meshes,
+        materials,
+        instances: vec![
+            SceneInstance {
+                id: "relay_deck".to_string(),
+                mesh: "floor".to_string(),
+                material: "dock".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(0.0, -1.0, 0.0))
+                    .with_scale(Vec3::new(6.0, 1.0, 6.0)),
+            },
+            SceneInstance {
+                id: "pulse_core".to_string(),
+                mesh: "orb".to_string(),
+                material: "pulse_core".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(0.0, 0.75, 0.0))
+                    .with_scale(Vec3::new(0.92, 0.92, 0.92)),
+            },
+            SceneInstance {
+                id: "signal_north".to_string(),
+                mesh: "pyramid".to_string(),
+                material: "signal".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(0.0, 0.12, -2.4))
+                    .with_scale(Vec3::new(0.74, 1.55, 0.74)),
+            },
+            SceneInstance {
+                id: "signal_south".to_string(),
+                mesh: "pyramid".to_string(),
+                material: "signal".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(0.0, 0.12, 2.4))
+                    .with_rotation(Vec3::new(0.0, 1.57, 0.0))
+                    .with_scale(Vec3::new(0.74, 1.55, 0.74)),
+            },
+            SceneInstance {
+                id: "relay_east".to_string(),
+                mesh: "cube".to_string(),
+                material: "relay".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(2.7, 0.2, 0.0))
+                    .with_rotation(Vec3::new(0.08, 0.34, 0.0))
+                    .with_scale(Vec3::new(0.48, 1.18, 0.48)),
+            },
+            SceneInstance {
+                id: "relay_west".to_string(),
+                mesh: "cube".to_string(),
+                material: "relay".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(-2.7, 0.2, 0.0))
+                    .with_rotation(Vec3::new(0.08, -0.34, 0.0))
+                    .with_scale(Vec3::new(0.48, 1.18, 0.48)),
+            },
+        ],
+        animations: vec![
+            SceneAnimation::Spin {
+                instance_id: "pulse_core".to_string(),
+                axis_radians_per_second: Vec3::new(0.0, 0.95, 0.10),
+            },
+            SceneAnimation::Bob {
+                instance_id: "pulse_core".to_string(),
+                amplitude: 0.24,
+                speed_radians_per_second: 1.6,
+            },
+            SceneAnimation::Spin {
+                instance_id: "relay_east".to_string(),
+                axis_radians_per_second: Vec3::new(0.0, 0.42, 0.04),
+            },
+            SceneAnimation::Spin {
+                instance_id: "relay_west".to_string(),
+                axis_radians_per_second: Vec3::new(0.0, -0.42, 0.04),
+            },
+        ],
+        particle_emitters: vec![
+            ParticleEmitter {
+                id: "tensor_ring".to_string(),
+                center: Vec3::new(0.0, 0.8, 0.0),
+                axis: Vec3::UP,
+                radial_range: [1.4, 3.6],
+                vertical_range: [-0.18, 0.24],
+                particle_size_range: [0.04, 0.12],
+                particle_count: 24,
+                orbit_radians_per_second: 0.92,
+                swirl: 0.42,
+                drift: Vec3::new(0.0, 0.18, 0.0),
+                color_start: ColorRgb::new(0.24, 0.88, 1.0),
+                color_end: ColorRgb::new(1.0, 0.84, 0.32),
+                emissive_strength: 0.52,
+                softness: 1.25,
+                depth_test: false,
+            },
+            ParticleEmitter {
+                id: "dispatch_lane".to_string(),
+                center: Vec3::new(0.0, 0.24, 0.0),
+                axis: Vec3::new(0.0, 0.15, 1.0).normalize(),
+                radial_range: [2.4, 4.9],
+                vertical_range: [-0.10, 0.28],
+                particle_size_range: [0.03, 0.08],
+                particle_count: 18,
+                orbit_radians_per_second: -0.68,
+                swirl: 0.20,
+                drift: Vec3::new(0.0, 0.06, 0.0),
+                color_start: ColorRgb::new(0.12, 0.58, 1.0),
+                color_end: ColorRgb::new(0.76, 0.92, 1.0),
+                emissive_strength: 0.38,
+                softness: 1.0,
+                depth_test: true,
+            },
+        ],
+        black_hole: None,
+        terrain_surfaces: Vec::new(),
     }
 }
 
@@ -1509,6 +1746,9 @@ mod tests {
     #[test]
     fn default_catalog_contains_black_hole_scene() {
         let catalog = SceneCatalog::default();
+        let tensor_stream_scene = catalog
+            .scene("tensor_stream_probe")
+            .expect("tensor stream probe scene should be registered");
         let default_scene = catalog
             .scene("luminous_port")
             .expect("luminous port scene should be registered");
@@ -1519,9 +1759,20 @@ mod tests {
             .scene("kerr_black_hole")
             .expect("black hole scene should be registered");
 
+        let compute_alias_scene = catalog
+            .scene("gpu_compute_surface_probe")
+            .expect("compute smoke alias should resolve");
+        let starforge_alias_scene = catalog
+            .scene("starforge")
+            .expect("starforge alias should resolve");
+
         assert_eq!(catalog.default_scene, "luminous_port");
+        assert_eq!(tensor_stream_scene.name, "tensor_stream_probe");
+        assert!(tensor_stream_scene.particle_emitters.len() >= 2);
         assert_eq!(default_scene.name, "luminous_port");
         assert!(default_scene.black_hole.is_none());
+        assert_eq!(compute_alias_scene.name, "tensor_stream_probe");
+        assert_eq!(starforge_alias_scene.name, "luminous_port");
         assert_eq!(magma_scene.name, "magma_terraces");
         assert!(magma_scene.particle_emitters.len() >= 4);
         assert!(!magma_scene.terrain_surfaces.is_empty());

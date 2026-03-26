@@ -5,6 +5,129 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=81beca51779783bd -->
+## 2026-03-25 20:11:03 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `5b312008`
+- Changed files: 13
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/README.md`
+- [.M] `runtime/conformance/02_service_registry/test_service_registry.c`
+- [.M] `runtime/conformance/03_abi_startup_validation/test_abi_startup_validation.c`
+- [.M] `runtime/native/include/kain_runtime_services.h`
+- [.M] `runtime/native/include/kain_runtime_win32.h`
+- [.M] `runtime/native/src/core/kain_runtime_contract.c`
+- [.M] `runtime/native/src/core/kain_runtime_services.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_win32_shared.c`
+- [??] `runtime/limitations.md`
+
+<!-- polytools-changelog:fingerprint=09dbd69c9dcc93fe -->
+## 2026-03-25 20:10:44 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `5b312008`
+- Changed files: 12
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/README.md`
+- [.M] `runtime/conformance/02_service_registry/test_service_registry.c`
+- [.M] `runtime/conformance/03_abi_startup_validation/test_abi_startup_validation.c`
+- [.M] `runtime/native/include/kain_runtime_services.h`
+- [.M] `runtime/native/include/kain_runtime_win32.h`
+- [.M] `runtime/native/src/core/kain_runtime_contract.c`
+- [.M] `runtime/native/src/core/kain_runtime_services.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_win32_shared.c`
+
+<!-- polytools-changelog:fingerprint=ee2ae6fdd0c56f71 -->
+## 2026-03-25 20:10:22 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `5b312008`
+- Changed files: 11
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/conformance/02_service_registry/test_service_registry.c`
+- [.M] `runtime/native/include/kain_runtime_services.h`
+- [.M] `runtime/native/include/kain_runtime_win32.h`
+- [.M] `runtime/native/src/core/kain_runtime_contract.c`
+- [.M] `runtime/native/src/core/kain_runtime_services.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_win32_shared.c`
+- [??] `runtime/limitations.md`
+
+<!-- polytools-changelog:fingerprint=1f0a7e0995cc36fc -->
+## 2026-03-25 20:09:16 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `5b312008`
+- Changed files: 9
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/native/include/kain_runtime_services.h`
+- [.M] `runtime/native/include/kain_runtime_win32.h`
+- [.M] `runtime/native/src/core/kain_runtime_services.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_win32_shared.c`
+- [??] `runtime/limitations.md`
+
+<!-- polytools-changelog:fingerprint=296b060b95d59bb0 -->
+## 2026-03-25 20:08:01 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `5b312008`
+- Changed files: 8
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/native/include/kain_runtime_services.h`
+- [.M] `runtime/native/include/kain_runtime_win32.h`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_win32_shared.c`
+- [??] `runtime/limitations.md`
+
+<!-- polytools-changelog:fingerprint=3e5010b29d0e476b -->
+## 2026-03-25 20:07:55 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `5b312008`
+- Changed files: 7
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/native/include/kain_runtime_services.h`
+- [.M] `runtime/native/include/kain_runtime_win32.h`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_win32_shared.c`
+- [??] `runtime/limitations.md`
+
+<!-- polytools-changelog:fingerprint=7a76537f8da6f962 -->
+## 2026-03-25 20:07:47 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `5b312008`
+- Changed files: 6
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/native/include/kain_runtime_services.h`
+- [.M] `runtime/native/include/kain_runtime_win32.h`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_win32_shared.c`
+- [??] `runtime/limitations.md`
+
+<!-- polytools-changelog:fingerprint=11c60730553de5e8 -->
+## 2026-03-25 20:05:16 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `5b312008`
+- Changed files: 2
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=c358154296b51562 -->
+## 2026-03-25 20:03:58 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `5b312008`
+- Changed files: 1
+- [.M] `crates/kain-3D/src/scene.rs`
+
 <!-- polytools-changelog:fingerprint=47506d39d5c644b5 -->
 ## 2026-03-25 18:42:49 -04:00 | workspace `kain` | branch `codex/delta`
 - Tracked roots: `crates`, `smoketest`, `runtime`

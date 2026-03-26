@@ -191,45 +191,7 @@ static int kain_runtime_contract_count_bits(unsigned int value) {
 }
 
 static const char* kain_runtime_contract_canonical_service_key(const char* service_key) {
-    if (!service_key || !service_key[0]) {
-        return service_key;
-    }
-#ifdef _WIN32
-    if (_stricmp(service_key, "native.app-host") == 0) {
-#else
-    if (strcasecmp(service_key, "native.app-host") == 0) {
-#endif
-        return KAIN_SERVICE_KEY_PLATFORM_APP_HOST;
-    }
-#ifdef _WIN32
-    if (_stricmp(service_key, "native.input") == 0) {
-#else
-    if (strcasecmp(service_key, "native.input") == 0) {
-#endif
-        return KAIN_SERVICE_KEY_PLATFORM_INPUT;
-    }
-#ifdef _WIN32
-    if (_stricmp(service_key, "native.viewport") == 0) {
-#else
-    if (strcasecmp(service_key, "native.viewport") == 0) {
-#endif
-        return KAIN_SERVICE_KEY_GFX_VIEWPORT;
-    }
-#ifdef _WIN32
-    if (_stricmp(service_key, "native.asset.gltf") == 0) {
-#else
-    if (strcasecmp(service_key, "native.asset.gltf") == 0) {
-#endif
-        return KAIN_SERVICE_KEY_ASSET_GLTF;
-    }
-#ifdef _WIN32
-    if (_stricmp(service_key, "native.ui.compiled-bundle") == 0) {
-#else
-    if (strcasecmp(service_key, "native.ui.compiled-bundle") == 0) {
-#endif
-        return KAIN_SERVICE_KEY_UI_BUNDLE;
-    }
-    return service_key;
+    return kain_service_registry_canonicalize_key(service_key);
 }
 
 static const KainRuntimeServiceSpec* kain_runtime_contract_find_service_spec(const char* key) {
@@ -846,83 +808,8 @@ void kain_runtime_contract_populate_service_registry(KainServiceRegistry* regist
     if (!registry) {
         return;
     }
-    
-    /* Register native.app-host service */
-    kain_service_registry_register(
-        registry,
-        KAIN_SERVICE_KEY_PLATFORM_APP_HOST,
-        "Native App Host",
-        "Win32 application host and window management",
-        KAIN_SERVICE_PROVIDER_PLATFORM_WIN32,
-        KAIN_SERVICE_STATUS_AVAILABLE,
-        KAIN_SERVICE_REQUIREMENT_REQUIRED,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        NULL
-    );
-    
-    /* Register native.input service */
-    kain_service_registry_register(
-        registry,
-        KAIN_SERVICE_KEY_PLATFORM_INPUT,
-        "Native Input",
-        "Win32 input capture and event handling",
-        KAIN_SERVICE_PROVIDER_PLATFORM_WIN32,
-        KAIN_SERVICE_STATUS_AVAILABLE,
-        KAIN_SERVICE_REQUIREMENT_REQUIRED,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        NULL
-    );
-    
-    /* Register native.viewport service */
-    kain_service_registry_register(
-        registry,
-        KAIN_SERVICE_KEY_GFX_VIEWPORT,
-        "Native Viewport",
-        "Win32 viewport host and OpenGL rendering",
-        KAIN_SERVICE_PROVIDER_PLATFORM_WIN32,
-        KAIN_SERVICE_STATUS_AVAILABLE,
-        KAIN_SERVICE_REQUIREMENT_REQUIRED,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        NULL
-    );
-    
-    /* Register native.asset.gltf service */
-    kain_service_registry_register(
-        registry,
-        KAIN_SERVICE_KEY_ASSET_GLTF,
-        "glTF Asset Loader",
-        "glTF 2.0 asset loading and parsing",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_SERVICE_STATUS_AVAILABLE,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        NULL
-    );
-    
-    /* Register native.ui.compiled-bundle service */
-    kain_service_registry_register(
-        registry,
-        KAIN_SERVICE_KEY_UI_BUNDLE,
-        "Compiled UI Bundle",
-        "Compiled UI bundle loading and overlay rendering",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_SERVICE_STATUS_AVAILABLE,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        NULL
-    );
 
-    kain_service_registry_register(
-        registry,
-        KAIN_SERVICE_KEY_GFX_COMPUTE,
-        "Compute Runtime",
-        "Compute pipeline validation, dispatch planning, and native runtime handoff",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_SERVICE_STATUS_AVAILABLE,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        NULL
-    );
+    kain_service_registry_register_native_runtime_services(registry);
 }
 
 /*
@@ -953,39 +840,13 @@ int kain_runtime_contract_is_service_available(const char* service_key) {
     /* Map legacy key to canonical key */
     canonical_key = kain_runtime_contract_map_legacy_service_key(service_key);
     
-    /* Try registry lookup first */
+    /* Ensure the canonical native catalog is visible to startup and host checks. */
     registry = kain_service_registry_global();
+    if (registry && registry->initialized && registry->service_count == 0) {
+        kain_runtime_contract_populate_service_registry(registry);
+    }
     if (registry && registry->initialized && registry->service_count > 0) {
         return kain_service_registry_is_available(registry, canonical_key);
-    }
-    
-    /* Fall back to legacy hardcoded checks */
-#ifdef _WIN32
-    if (_stricmp(service_key, "native.app-host") == 0 ||
-        _stricmp(service_key, "native.input") == 0 ||
-        _stricmp(service_key, "native.viewport") == 0 ||
-        _stricmp(service_key, "native.asset.gltf") == 0 ||
-        _stricmp(service_key, "native.ui.compiled-bundle") == 0 ||
-        _stricmp(service_key, KAIN_SERVICE_KEY_PLATFORM_APP_HOST) == 0 ||
-        _stricmp(service_key, KAIN_SERVICE_KEY_PLATFORM_INPUT) == 0 ||
-        _stricmp(service_key, KAIN_SERVICE_KEY_GFX_VIEWPORT) == 0 ||
-        _stricmp(service_key, KAIN_SERVICE_KEY_ASSET_GLTF) == 0 ||
-        _stricmp(service_key, KAIN_SERVICE_KEY_UI_BUNDLE) == 0 ||
-        _stricmp(service_key, KAIN_SERVICE_KEY_GFX_COMPUTE) == 0) {
-#else
-    if (strcasecmp(service_key, "native.app-host") == 0 ||
-        strcasecmp(service_key, "native.input") == 0 ||
-        strcasecmp(service_key, "native.viewport") == 0 ||
-        strcasecmp(service_key, "native.asset.gltf") == 0 ||
-        strcasecmp(service_key, "native.ui.compiled-bundle") == 0 ||
-        strcasecmp(service_key, KAIN_SERVICE_KEY_PLATFORM_APP_HOST) == 0 ||
-        strcasecmp(service_key, KAIN_SERVICE_KEY_PLATFORM_INPUT) == 0 ||
-        strcasecmp(service_key, KAIN_SERVICE_KEY_GFX_VIEWPORT) == 0 ||
-        strcasecmp(service_key, KAIN_SERVICE_KEY_ASSET_GLTF) == 0 ||
-        strcasecmp(service_key, KAIN_SERVICE_KEY_UI_BUNDLE) == 0 ||
-        strcasecmp(service_key, KAIN_SERVICE_KEY_GFX_COMPUTE) == 0) {
-#endif
-        return 1;
     }
     
     return 0;

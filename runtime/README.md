@@ -124,7 +124,7 @@ The runtime has a real contract and service model:
 
 Current limitation:
 
-- The compiled runtime surface is broader than the currently auto-populated service registry. The registry still centers mainly on app host, input, viewport, glTF, and compiled UI bundle services. That means the runtime implementation is ahead of the startup discovery model.
+- The shared service registry now exposes the broader implemented native runtime surface, including contract, reflection, actor, async, realtime, compatibility, and host bridge lanes. The remaining gap is narrower: legacy runtime contract masks still describe only the older startup-critical subset, so bundle-level service masks are not yet a complete mirror of the richer registry catalog.
 
 See [native/C_RUNTIME_CONTRACT_PIPELINE.md](./native/C_RUNTIME_CONTRACT_PIPELINE.md) for the contract-specific pipeline and maintenance rules.
 
@@ -147,7 +147,7 @@ Status legend used here:
 | Area | Status | What is present now | Main caveats |
 | --- | --- | --- | --- |
 | Core substrate | Strong | Allocation helpers, RC primitives, strings, arrays, maps, file I/O, sockets, queues, threads, diagnostics plumbing | Still not a full managed runtime or unified value model |
-| ABI/version/runtime contract | Partial | ABI versioning, runtime versioning, startup validation, strict-mode contract checks, service masks | The registry and metadata surface still lag some implemented subsystems |
+| ABI/version/runtime contract | Partial | ABI versioning, runtime versioning, startup validation, strict-mode contract checks, shared runtime service catalog, service masks | Legacy bundle service masks still cover a smaller subset than the full registry catalog |
 | Low-level memory ABI | Partial | `__kain_bind_local`, `__kain_addr_of`, pointer helpers, field/index helpers, load/store, alloc/realloc | `__kain_realloc(..., zeroed_new)` is not fully correct because allocation sizes are not tracked |
 | Reflection | Partial | JSON payload loading from string/path/env, schema version checks, type and item lookup, summary formatting | Minimal custom parser, fixed-size internals, not a rich runtime-wide type system |
 | Actor runtime | Partial | Spawn, mailbox send/receive, bounded mailbox behavior, registry, monitors, links, supervision, pooled scheduler, snapshots | No typed mailboxes, no selective receive, no distributed actors, deeper policy semantics still partial |

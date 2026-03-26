@@ -22,6 +22,7 @@ typedef LRESULT (*KainWin32AppMessageFn)(
 typedef struct {
     const char* id;
     const char* label;
+    const char* scene_aliases;
     float clear_color[4];
     float fog_color[4];
     float ambient_light[4];
