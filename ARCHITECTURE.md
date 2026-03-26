@@ -154,6 +154,7 @@ If the debug CLI is missing:
 - The adapter is no longer only a smoke-local runtime. The reusable host surface now lives in `crates/kain-fast3d-runtime`, while the smoke folder acts as a consumer that provides manifests, scripts, and validation assets.
 - Keep the Fast3D lane data-driven. Its host startup now flows through crate-owned config files and env hooks (`KAIN_FAST3D_CONFIG`, `KAIN_FAST3D_MANIFEST`, `KAIN_FAST3D_SM64_ROOT`) rather than widening Kain language semantics or shared runtime contracts for one experimental console adapter.
 - Native app launcher materialization now also supports generic host-sidecar packaging in `kain-driver`: generated launchers can copy arbitrary sidecars into the artifact/executable set, optionally export them as env vars, and switch between the default `run_bundled_app_json(...)` launcher path and a crate-owned no-arg entrypoint like `kain-fast3d-runtime::run_fast3d_cli()`. Preserve that mechanism as a generic host adapter capability, not a Fast3D-specific special case.
+- The Bob-omb Battlefield proof now uses the same host-sidecar path with three data files: the extracted scene manifest, a gameplay animation document, and a display-list shader-override document. Keep live actor binding and material experiments in these sidecars instead of adding SM64-specific semantics to `kain-core` or the shared runtime.
 
 ## Common Errors
 
@@ -164,6 +165,7 @@ If the debug CLI is missing:
 - The live SM64 decomp root currently sits at `M:\Code\Other\Research\sm64-master\sm64-master`, not the outer `sm64-master` folder. The older stale import reports pointed at the outer folder, which hid a real pathing mistake.
 - The native runtime is Windows-first today. Linux and macOS surfaces exist, but much of that lane is still stubbed or partial.
 - The compute pipeline is mid-transition from heuristic metadata to compiler-owned truth. When touching it, prefer extending bundle contracts over adding new runtime-only inference.
+- Frontend bridge registration must be target-scoped. Host/runtime extensions that are valid for `Interpret` or `Test` must not leak into shader artifact compilation or other non-host targets, or Fabric and direct driver paths will diverge.
 - The native shader-canvas lane is SPIR-V-canonical at the bundle level, but the current WGPU host still resolves WGSL for execution. Do not mistake that compatibility bridge for permission to move shader-canvas truth out of the emitted bundles.
 - Fabric Python execution should stay behind `kain-python` helpers. Do not make `kain-host` reach directly into `pyo3` imports or `PythonScopeState` internals when the Python lane can expose a narrower execution API.
 - Fabric runtime ownership is now split cleanly: `kain-omni` owns `KAIN.fabric.toml` schema/validation/report types, while `kain-host` owns local execution, dependency plumbing, and runtime adapter behavior.
@@ -171,6 +173,7 @@ If the debug CLI is missing:
 - Fabric Python and Node steps now support mixed named outputs when they return a dict/object whose fields match the manifest's declared output names. Shared outputs round-trip through the canonical host-owned interop contract family instead of falling back to string-only placeholders.
 - Missing declared Python/Node output fields now fail with structured Fabric errors keyed as `missing_output_field`, with `output_name` recorded in failure details. Preserve that contract surface when touching adapter execution or bridge helpers.
 - The durable end-to-end Fabric proof lives under `smoketest/fabric/polyglot_local`. It is the quickest repo-local example of Python -> Kain -> C ABI -> Rust crate -> Node execution with typed shared image/shared buffer flow.
+- The durable GPU Fabric proof lives under `smoketest/fabric/gpu_compute_convergence`. If a Fabric GPU step succeeds through `kain gpu-artifacts` but fails through `kain fabric run`, compare `kain-driver` target registration/augmentation behavior first, then inspect Fabric residency metadata and shared-buffer shape/access inference before blaming Vulkan.
 - `kain fabric init --template polyglot` now emits a runnable local smoke-grade scaffold, including its local Rust crate manifest and native C fixture, instead of a validation-only placeholder.
 - Fabric host smoketests now use deterministic roots under `target/fab-init` and `target/fab-smoke`, preserving `.kain/cache` across separate `cargo test` invocations. If a rerun is still slow, the remaining wall time is usually Cargo recompilation rather than bridge cache misses inside the test body.
 - The generated polyglot scaffold also writes `FABRIC.README.md`; treat that file as the first-stop quickstart for the smoke-grade local pipeline shape.

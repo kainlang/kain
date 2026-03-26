@@ -5,6 +5,81 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=29b9986255935652 -->
+## 2026-03-26 18:15:41 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `05356da2`
+- Changed files: 9
+- [.M] `crates/gpu/src/codegen_hlsl.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/KAIN.fabric.toml`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/scripts/node_step.mjs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/scripts/python_step.py`
+- [.M] `smoketest/fabric/gpu_compute_convergence/shaders/gpu_step.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/src/main.kn`
+
+<!-- polytools-changelog:fingerprint=b0c4fc02f3879fc0 -->
+## 2026-03-26 18:02:39 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `05356da2`
+- Changed files: 8
+- [.M] `crates/gpu/src/codegen_hlsl.rs`
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/KAIN.fabric.toml`
+- [.M] `smoketest/fabric/gpu_compute_convergence/scripts/node_step.mjs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/scripts/python_step.py`
+- [.M] `smoketest/fabric/gpu_compute_convergence/shaders/gpu_step.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/src/main.kn`
+
+<!-- polytools-changelog:fingerprint=f2fb51884e95131f -->
+## 2026-03-26 17:58:21 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `05356da2`
+- Changed files: 7
+- [.M] `crates/kain-driver/src/lib.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/KAIN.fabric.toml`
+- [.M] `smoketest/fabric/gpu_compute_convergence/scripts/node_step.mjs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/scripts/python_step.py`
+- [.M] `smoketest/fabric/gpu_compute_convergence/shaders/gpu_step.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/src/main.kn`
+
+<!-- polytools-changelog:fingerprint=38f83097a5eab82b -->
+## 2026-03-26 17:55:41 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `05356da2`
+- Changed files: 6
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/KAIN.fabric.toml`
+- [.M] `smoketest/fabric/gpu_compute_convergence/scripts/node_step.mjs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/scripts/python_step.py`
+- [.M] `smoketest/fabric/gpu_compute_convergence/shaders/gpu_step.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/src/main.kn`
+
+<!-- polytools-changelog:fingerprint=f3f8d9271278a403 -->
+## 2026-03-26 17:52:05 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `05356da2`
+- Changed files: 5
+- [.M] `smoketest/fabric/gpu_compute_convergence/KAIN.fabric.toml`
+- [.M] `smoketest/fabric/gpu_compute_convergence/scripts/node_step.mjs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/scripts/python_step.py`
+- [.M] `smoketest/fabric/gpu_compute_convergence/shaders/gpu_step.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/src/main.kn`
+
+<!-- polytools-changelog:fingerprint=21e7c41650573ba3 -->
+## 2026-03-26 17:49:35 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `05356da2`
+- Changed files: 4
+- [.M] `smoketest/fabric/gpu_compute_convergence/scripts/node_step.mjs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/scripts/python_step.py`
+- [.M] `smoketest/fabric/gpu_compute_convergence/shaders/gpu_step.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/src/main.kn`
+
 <!-- polytools-changelog:fingerprint=b9d12ddfab5ad963 -->
 ## 2026-03-26 17:48:45 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

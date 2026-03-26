@@ -14,6 +14,21 @@ It should preserve:
 
 The Fast3D runtime now supports loading and navigating real SM64 level geometry, not just Mario's title-screen face.
 
+Update:
+
+- `crates/kain-fast3d-runtime` now has explicit host-sidecar documents in `src/host_documents.rs` for live gameplay actor bindings and display-list material overrides. The viewer and host-config launcher both consume them.
+- `smoketest/3D/sm64_bob_level_chunk` now includes `gameplay_state.json`, `shader_overrides.json`, `viewer.json`, `snapshot.json`, and `host_configs/native_host_{viewer,snapshot}.json`. This makes the Bob proof data-driven end to end.
+- `crates/kain-driver/examples/materialize_fast3d_native_host.rs` now supports Bob packaging scenarios in addition to the original title-face smoke. The packaged Bob viewer executable is `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/sm64-bob-native-host-viewer.exe`.
+- Verified proof points:
+  - direct host-config snapshot writes `smoketest/3D/sm64_bob_level_chunk/outputs/sm64_bob_snapshot.png`
+  - packaged native-host snapshot writes `smoketest/3D/sm64_bob_level_chunk/outputs/native_host/sm64_bob_native_host_snapshot.png`
+  - the packaged Bob viewer launches through the generated native host with copied config/data sidecars
+
+What future work should preserve:
+
+- keep gameplay animation bindings and material override experiments in sidecar JSON documents so the Fast3D crate remains the owner of this console-specific lane
+- treat the current override path as a CPU-side proof only; the future GPU/Kain shader bridge should consume the same data model rather than replacing it with ad hoc code paths
+
 ### What changed
 
 #### kain-fast3d-runtime — extractor.rs
@@ -65,11 +80,19 @@ The Fast3D runtime now supports loading and navigating real SM64 level geometry,
 - Vertex count from the 30 display lists is sparse compared to full level; many display lists reference cross-segment data not available in the source C alone.
 - Shader override hook (wgpu pipeline from Kain SPIR-V) requires `shader vertex`/`shader fragment` emission in `kain-core` GPU backend.
 - Actor transform demo: a test that drives a named display list rotation from `elapsed_seconds` would prove the binding end-to-end.
-- Build `smoketest/fabric/gpu_compute_convergence/` smoketest (from prior session's next-steps list) is still outstanding.
+- The prior `smoketest/fabric/gpu_compute_convergence/` Fabric GPU smoke gap is now closed; see the 2026-03-26 Fabric GPU convergence entry below.
 
 ## 2026-03-26 - GPU Compute Pipeline Converged Into Fabric Executor
 
 The Tensor/Compute Pipeline and the Fabric Polyglot Executor now share a unified execution path. `gpu_compute` is a first-class Fabric runtime kind and `compute_plan` is a valid contract kind.
+
+Update:
+
+- The original Fabric `gpu_enrich` failure (`Unknown function: Float`) was not a Vulkan/runtime failure. It was a compile-path divergence between the normal `kain gpu-artifacts` lane and the Fabric GPU adapter.
+- `crates/kain-driver` now scopes frontend extension registration and source augmentation by target. Host/runtime bridge registration no longer leaks into shader artifact compilation.
+- `crates/gpu/src/codegen_hlsl.rs` now supports scalar constructor/cast calls (`Float`, `Int`, `UInt`, `Bool`) and assignment expressions. This is a global GPU backend fix, not a Fabric-only workaround.
+- `crates/kain-host/src/fabric.rs` now parses authored compute metadata from shader source, derives workgroup/dispatch and tensor/stream intent from that metadata, prefers resolved shared-buffer snapshot shapes over `[1]`, and infers storage-buffer access modes from declared compute roles instead of placeholder defaults.
+- The repo-local end-to-end smoke `smoketest/fabric/gpu_compute_convergence/KAIN.fabric.toml` now succeeds through `Python -> Kain -> GPU -> Node`.
 
 ### What changed
 
@@ -95,10 +118,10 @@ The Tensor/Compute Pipeline and the Fabric Polyglot Executor now share a unified
 
 ### What remains incomplete
 
-- **Residency shape inference**: binding shapes default to `[1]` when inferred from `resource_layouts`. Future work should propagate upstream tensor shapes or extract them from shader reflection.
-- **Workgroup/dispatch size**: currently hardcoded to `[8,1,1]`/`[1,1,1]`. Should be inferred from the compiled shader's `workgroup_size` metadata or declared in the Fabric manifest.
+- **Residency shape inference**: Fabric now prefers resolved upstream shared-buffer snapshot shapes and authored tensor-plan shapes. Reflection-only fallback still degrades to `[1]` when neither source is available.
+- **Workgroup/dispatch size**: Fabric now prefers authored compute metadata from the shader source. Bundle-driven reflection for these values is still the cleaner long-term source of truth.
 - **Dispatch reporting**: while `FabricComputeDispatchSnapshot` is defined and populated, it is not yet surfaced in the session report JSON flow.
-- **End-to-end integration proof**: no smoketest yet exercises the full `Python → Kain → GPU → Node` manifest. The compile-time wiring is complete; runtime validation requires a machine with Vulkan support.
+- **End-to-end integration proof**: the repo-local `gpu_compute_convergence` smoke now validates the full `Python -> Kain -> GPU -> Node` path on a Vulkan-capable machine. Keep it as the primary Fabric GPU regression target.
 
 ## 2026-03-26 - SM64 Fast3D Research Landed As An Isolated Smoketest Adapter Lane
 

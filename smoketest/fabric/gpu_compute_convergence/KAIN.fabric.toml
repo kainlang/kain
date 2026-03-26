@@ -40,7 +40,7 @@ kind = "value"
 id = "gpu_enrich"
 runtime = "gpu_compute"
 shader_source = "shaders/gpu_step.kn"
-compute_key = "FabricGpuAdd"
+compute_key = "FabricGpuCopy"
 depends_on = ["kain_orchestrator"]
 
 [[steps.outputs]]

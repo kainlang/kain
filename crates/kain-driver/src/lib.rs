@@ -206,15 +206,8 @@ impl DriverSession {
         source: &str,
         target: CompileTarget,
     ) -> Result<CheckedFrontend, KainError> {
-        kain_c_ffi::register();
-        kain_interop::register();
-        kain_node::register();
-        kain_python::register();
-        kain_crate_ffi::register();
-
-        let source = prepare_c_ffi_source(source, target)?;
-        let source = kain_node::prepare_source_for_runtime(&source, target)?;
-        let source = prepare_rust_ffi_source(&source, target)?;
+        register_frontend_extensions_for_target(target);
+        let source = prepare_frontend_source_for_target(source, target)?;
 
         let stdlib_source = stdlib::load_stdlib_for_target(target);
         let full_source = format!("{stdlib_source}\n{source}");
@@ -630,6 +623,37 @@ fn prepare_c_ffi_source(source: &str, target: CompileTarget) -> Result<String, K
         manifest_path: None,
     };
     kain_c_ffi::augment_source_for_runtime(source, target, &prepare)
+}
+
+fn register_frontend_extensions_for_target(target: CompileTarget) {
+    match target {
+        CompileTarget::Interpret | CompileTarget::Test => {
+            kain_interop::register();
+            kain_python::register();
+            kain_node::register();
+            kain_crate_ffi::register();
+            kain_c_ffi::register();
+        }
+        CompileTarget::Rust => {
+            kain_c_ffi::register();
+        }
+        _ => {}
+    }
+}
+
+fn prepare_frontend_source_for_target(
+    source: &str,
+    target: CompileTarget,
+) -> Result<String, KainError> {
+    match target {
+        CompileTarget::Interpret | CompileTarget::Test => {
+            let source = prepare_c_ffi_source(source, target)?;
+            let source = kain_node::prepare_source_for_runtime(&source, target)?;
+            prepare_rust_ffi_source(&source, target)
+        }
+        CompileTarget::Rust => prepare_c_ffi_source(source, target),
+        _ => Ok(source.to_string()),
+    }
 }
 
 fn find_target_spec_by_alias(alias: &str) -> Option<&'static TargetSpec> {
@@ -1246,5 +1270,43 @@ shader compute sample_gpu_kernel(id: UVec3) -> Vec4:
             .contains("\"canonical_native_payload\": \"spirv\""));
         assert!(output.bundle_json.contains("\"spirv_modules\""));
         assert!(output.derived_hlsl.is_some());
+    }
+
+    #[cfg(all(feature = "gpu", feature = "sys"))]
+    #[test]
+    fn compile_shader_artifact_bundle_after_host_frontend_compile_keeps_scalar_casts() {
+        let session = DriverSession::default();
+        session
+            .frontend_to_typed_program(
+                r#"
+fn main() -> Int:
+    return 7
+"#,
+                CompileTarget::Interpret,
+            )
+            .expect("interpret frontend should compile before shader compile");
+
+        let output = session
+            .compile_shader_artifact_bundle(
+                r#"
+shader compute stream_pulse(id: UVec3) -> Vec4:
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let i = id.x
+    let sample = src[i]
+    let pulse = sample + Float(i) * 0.125
+    dst[i] = pulse
+    return vec4(pulse, pulse * 0.5, 1.0 - pulse, 1.0)
+"#,
+            )
+            .expect("shader compile should not inherit host-only frontend state");
+
+        assert_eq!(output.bundle.canonical_native_payload, ShaderArtifactFormat::Spirv);
+        assert_eq!(output.bundle.entry_points.len(), 1);
+        assert_eq!(output.bundle.entry_points[0].stage, "compute");
     }
 }

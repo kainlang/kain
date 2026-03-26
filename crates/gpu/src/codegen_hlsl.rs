@@ -441,6 +441,11 @@ fn emit_expr(ctx: &mut HLSLContext, expr: &Expr) -> KainResult<(String, String)>
                 ))
             }
         }
+        Expr::Assign { target, value, .. } => {
+            let (target_code, target_ty) = emit_expr(ctx, target)?;
+            let (value_code, _) = emit_expr(ctx, value)?;
+            Ok((format!("{target_code} = {value_code}"), target_ty))
+        }
         Expr::Field { object, field, .. } => {
             let (obj_code, _) = emit_expr(ctx, object)?;
 
@@ -512,6 +517,24 @@ fn emit_function_call(
     args: &[kain_core::ast::CallArg],
 ) -> KainResult<(String, String)> {
     match name {
+        // Scalar constructors/casts
+        "float" | "Float" if args.len() == 1 => {
+            let (code, _) = emit_expr(ctx, &args[0].value)?;
+            Ok((format!("float({code})"), "float".to_string()))
+        }
+        "int" | "Int" if args.len() == 1 => {
+            let (code, _) = emit_expr(ctx, &args[0].value)?;
+            Ok((format!("int({code})"), "int".to_string()))
+        }
+        "uint" | "UInt" if args.len() == 1 => {
+            let (code, _) = emit_expr(ctx, &args[0].value)?;
+            Ok((format!("uint({code})"), "uint".to_string()))
+        }
+        "bool" | "Bool" if args.len() == 1 => {
+            let (code, _) = emit_expr(ctx, &args[0].value)?;
+            Ok((format!("bool({code})"), "bool".to_string()))
+        }
+
         // Vector constructors
         "vec2" | "Vec2" => {
             let mut arg_codes = Vec::new();

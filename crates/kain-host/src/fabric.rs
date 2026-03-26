@@ -9,8 +9,12 @@ use kain_c_ffi::{
     import_library, ArtifactMode as CArtifactMode, ImportCOptions,
     PrepareContext as CPrepareContext,
 };
+use kain_core::diagnostics::SpanMapper;
 use kain_core::runtime::{self, Env, Value};
-use kain_core::CompileTarget;
+use kain_core::{
+    CompileTarget, ComputeMetadata, ComputeStreamPlan, ComputeTensorPlan, Item, Lexer, Parser,
+    ShaderStage,
+};
 use kain_crate_ffi::{
     import_crate, ArtifactMode as RustArtifactMode, ImportCrateOptions,
     PrepareContext as RustPrepareContext,
@@ -349,6 +353,7 @@ impl FabricExecutor {
                         session_directory: &session.session_directory,
                         step,
                         fabric_inputs,
+                        resolved_inputs: &resolved_inputs,
                     };
                     match adapter.execute(&context) {
                         Ok(raw_value) => match map_declared_outputs(step, raw_value) {
@@ -452,6 +457,7 @@ struct FabricAdapterContext<'a> {
     session_directory: &'a Path,
     step: &'a FabricStep,
     fabric_inputs: Value,
+    resolved_inputs: &'a [FabricResolvedInputRecord],
 }
 
 #[derive(Clone)]
@@ -750,8 +756,8 @@ impl FabricRuntimeAdapter for GpuComputeAdapter {
             )
         })?;
 
-        // Compile shader source to get SPIR-V + artifact bundle
-        register_fabric_extensions();
+        // Let kain-driver own GPU compile-time registration so Fabric does not
+        // double-register bridge extensions and diverge from `kain gpu-artifacts`.
         let session = kain_driver::DriverSession::default();
         let artifact_output = session
             .compile_shader_artifact_bundle(&shader_text)
@@ -768,9 +774,14 @@ impl FabricRuntimeAdapter for GpuComputeAdapter {
             )
         })?;
 
-        // Build compute residency from artifact bundle metadata + upstream shared-buffer inputs
-        let residency =
-            build_compute_residency_from_artifact(context, compute_key, &artifact_output.bundle)?;
+        // Build compute residency from artifact bundle metadata plus authored compute plan details.
+        let compute_metadata = parse_compute_metadata_for_shader(&shader_text, compute_key)?;
+        let residency = build_compute_residency_from_artifact(
+            context,
+            compute_key,
+            &artifact_output.bundle,
+            compute_metadata.as_ref(),
+        )?;
         let residency_json = serde_json::to_string_pretty(&residency).map_err(|err| {
             fabric_failure(
                 "residency_serialize_failed",
@@ -928,6 +939,7 @@ fn build_compute_residency_from_artifact(
     context: &FabricAdapterContext,
     compute_key: &str,
     bundle: &kain_core::ShaderArtifactBundle,
+    compute_metadata: Option<&ComputeMetadata>,
 ) -> Result<FabricComputeResidency, FabricFailureReason> {
     // Find a matching entry point — the compute_key is typically "shader::Name::compute"
     let entry = bundle
@@ -963,27 +975,44 @@ fn build_compute_residency_from_artifact(
         .filter(|layout| layout.shader == entry.shader)
         .collect();
 
+    let workgroup_size = compute_metadata
+        .and_then(|metadata| metadata.workgroup_size)
+        .unwrap_or([8, 1, 1]);
+    let dispatch_size = compute_metadata
+        .map(|metadata| metadata.dispatch_size)
+        .unwrap_or([1, 1, 1]);
+    let stream_plans = compute_metadata.and_then(|metadata| metadata.stream_plans.as_ref());
     let mut bindings = Vec::new();
     for layout in &layouts {
         let descriptor_kind = match layout.kind.as_str() {
             "storage_buffer" | "read_write" => "storage_buffer",
             _ => "uniform_buffer",
         };
-        let access_mode = match layout.kind.as_str() {
-            "read_write" => "read_write",
-            "write" => "write",
-            _ => "read",
-        };
-        let payload_file = format!(
-            "{}_binding_{}.bin",
-            context.step.id, layout.binding
+        let access_mode = infer_compute_binding_access_mode(
+            compute_metadata,
+            stream_plans,
+            &layout.name,
+            layout.kind.as_str(),
         );
+        let payload_file = format!("{}_binding_{}.bin", context.step.id, layout.binding);
+        let element_type = infer_element_type_from_layout(&layout.ty);
+        let inferred_shape = resolve_upstream_binding_shape(context, &layout.name, &element_type)
+            .or_else(|| {
+                compute_metadata.and_then(|metadata| {
+                    metadata
+                        .tensor_plans
+                        .iter()
+                        .find(|plan| plan.key == layout.name)
+                        .map(resolve_tensor_plan_shape)
+                })
+            })
+            .unwrap_or_else(|| vec![1]);
         bindings.push(FabricComputeResidencyBinding {
             key: layout.name.clone(),
             contract: "kain.shared.buffer".to_string(),
             descriptor_kind: descriptor_kind.to_string(),
-            element_type: infer_element_type_from_layout(&layout.ty),
-            shape: vec![1],
+            element_type,
+            shape: inferred_shape,
             strides: vec![1],
             access_mode: access_mode.to_string(),
             slot: layout.binding,
@@ -997,14 +1026,123 @@ fn build_compute_residency_from_artifact(
             key: compute_key.to_string(),
             module_name: entry.module_name.clone(),
             entry_point: entry.entry_point.clone(),
-            workgroup_size: Some([8, 1, 1]),
-            dispatch_size: Some([1, 1, 1]),
+            workgroup_size: Some(workgroup_size),
+            dispatch_size: Some(dispatch_size),
             tensor_binding_count: 0,
-            stream_binding_count: 0,
-            neural_node_count: 0,
+            stream_binding_count: stream_plans.map(|plans| plans.len()).unwrap_or(0),
+            neural_node_count: compute_metadata
+                .map(|metadata| metadata.neural_node_plans.len())
+                .unwrap_or(0),
             bindings,
         }],
     })
+}
+
+fn parse_compute_metadata_for_shader(
+    shader_source: &str,
+    compute_key: &str,
+) -> Result<Option<ComputeMetadata>, FabricFailureReason> {
+    let tokens = Lexer::new(shader_source).tokenize().map_err(|err| {
+        fabric_failure(
+            "shader_metadata_tokenize_failed",
+            format!("Fabric compute metadata tokenization failed: {err}"),
+        )
+    })?;
+    let span_mapper = SpanMapper::new(shader_source);
+    let program = Parser::new(&tokens, &span_mapper, "<fabric-gpu-shader>")
+        .parse()
+        .map_err(|err| {
+            fabric_failure(
+                "shader_metadata_parse_failed",
+                format!("Fabric compute metadata parse failed: {err}"),
+            )
+        })?;
+    let shader_name = compute_key
+        .strip_prefix("shader::")
+        .and_then(|value| value.strip_suffix("::compute"))
+        .unwrap_or(compute_key);
+    let shader = program
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Shader(shader)
+                if matches!(shader.stage, ShaderStage::Compute)
+                    && (shader.name == shader_name || shader.name == compute_key) =>
+            {
+                Some(shader)
+            }
+            _ => None,
+        })
+        .ok_or_else(|| {
+            fabric_failure(
+                "shader_metadata_missing_entry",
+                format!(
+                    "Fabric compute metadata could not find compute shader '{}' in source",
+                    compute_key
+                ),
+            )
+        })?;
+    shader.explicit_compute_metadata().map_err(|err| {
+        fabric_failure(
+            "shader_metadata_invalid",
+            format!(
+                "Fabric compute metadata for '{}' is invalid: {err}",
+                shader.name
+            ),
+        )
+    })
+}
+
+fn infer_compute_binding_access_mode(
+    compute_metadata: Option<&ComputeMetadata>,
+    stream_plans: Option<&Vec<ComputeStreamPlan>>,
+    binding_name: &str,
+    layout_kind: &str,
+) -> String {
+    if let Some(stream_plans) = stream_plans {
+        if let Some(plan) = stream_plans.iter().find(|plan| plan.key == binding_name) {
+            return match plan.direction.as_str() {
+                "egress" | "output" => "write".to_string(),
+                "bidirectional" | "duplex" | "read_write" => "read_write".to_string(),
+                _ => "read".to_string(),
+            };
+        }
+    }
+    if let Some(metadata) = compute_metadata {
+        if let Some(plan) = metadata
+            .tensor_plans
+            .iter()
+            .find(|plan| plan.key == binding_name)
+        {
+            return match plan.role.as_str() {
+                "output" | "egress" => "write".to_string(),
+                "state" | "scratch" | "read_write" | "inout" => "read_write".to_string(),
+                _ => "read".to_string(),
+            };
+        }
+        if metadata
+            .neural_node_plans
+            .iter()
+            .any(|plan| plan.outputs.iter().any(|output| output == binding_name))
+        {
+            return "write".to_string();
+        }
+    }
+    match layout_kind {
+        "read_write" => "read_write".to_string(),
+        "write" => "write".to_string(),
+        _ => "read".to_string(),
+    }
+}
+
+fn resolve_tensor_plan_shape(plan: &ComputeTensorPlan) -> Vec<i64> {
+    plan.shape
+        .iter()
+        .map(|dimension| match dimension.as_str() {
+            "dispatch.x" | "dispatch.y" | "dispatch.z" => 1,
+            _ => dimension.parse::<i64>().unwrap_or(1),
+        })
+        .collect()
 }
 
 fn infer_element_type_from_layout(ty: &str) -> String {
@@ -1039,6 +1177,34 @@ fn resolve_upstream_binding_bytes(
         }
     }
     None
+}
+
+fn resolve_upstream_binding_shape(
+    context: &FabricAdapterContext,
+    binding_key: &str,
+    element_type: &str,
+) -> Option<Vec<i64>> {
+    for input in context.resolved_inputs {
+        if input.output_name != binding_key {
+            continue;
+        }
+        if let FabricOutputPayloadSnapshot::SharedBuffer { buffer } = &input.payload {
+            if !buffer.shape.is_empty() {
+                return Some(buffer.shape.clone());
+            }
+        }
+    }
+
+    let bytes = resolve_upstream_binding_bytes(context, binding_key)?;
+    let element_size = match element_type {
+        "u8" | "i8" | "bool" => 1usize,
+        "u16" | "i16" => 2usize,
+        "u32" | "i32" | "f32" => 4usize,
+        "u64" | "i64" | "f64" => 8usize,
+        _ => 4usize,
+    };
+    let element_count = (bytes.len() / element_size.max(1)).max(1) as i64;
+    Some(vec![element_count])
 }
 
 fn zero_fill_binding(shape: &[i64], element_type: &str) -> Vec<u8> {
@@ -1885,8 +2051,12 @@ fn optional_string_value(value: Option<String>) -> Value {
 }
 
 fn path_to_node_specifier(path: &Path) -> String {
-    let rendered = path.display().to_string().replace('\\', "/");
-    if path.is_absolute() {
+    let normalized_path = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let mut rendered = normalized_path.display().to_string().replace('\\', "/");
+    if let Some(stripped) = rendered.strip_prefix("//?/") {
+        rendered = stripped.to_string();
+    }
+    if normalized_path.is_absolute() {
         if rendered.starts_with("//") {
             format!("file:{rendered}")
         } else {
@@ -2075,6 +2245,8 @@ mod tests {
             crate_name: None,
             manifest_path: None,
             library: None,
+            shader_source: None,
+            compute_key: None,
             depends_on: Vec::new(),
             requires: Vec::new(),
             outputs: vec![
@@ -2101,6 +2273,7 @@ mod tests {
             session_directory: manifest_root,
             step: &step,
             fabric_inputs: Value::Unit,
+            resolved_inputs: &[],
         };
 
         let harness = render_python_harness(&context).unwrap();
@@ -2124,6 +2297,8 @@ mod tests {
             crate_name: None,
             manifest_path: None,
             library: None,
+            shader_source: None,
+            compute_key: None,
             depends_on: Vec::new(),
             requires: Vec::new(),
             outputs: vec![
@@ -2150,6 +2325,7 @@ mod tests {
             session_directory: manifest_root,
             step: &step,
             fabric_inputs: Value::Unit,
+            resolved_inputs: &[],
         };
 
         let harness = render_node_harness(&context).unwrap();
@@ -2200,6 +2376,194 @@ mod tests {
             "scripts/consumer.mjs",
             "export function run(fabricInputs) {\n  const image = fabricInputs.seed.image;\n  const snapshot = fabricInputs.seed.snapshot;\n  if (image.contract !== 'kain.shared.image') throw new Error('expected shared image contract');\n  if (snapshot.contract !== 'kain.shared.buffer') throw new Error('expected shared buffer contract');\n  if (!(image.bytes instanceof Uint8Array)) throw new Error('expected typed image bytes');\n  if (!(snapshot.bytes instanceof Uint8Array)) throw new Error('expected typed buffer bytes');\n  return `${image.bytes.constructor.name}:${image.width}:${snapshot.element_type}:${snapshot.bytes[2]}`;\n}\n",
             "Uint8Array:1:u8:30",
+        );
+    }
+
+    #[test]
+    fn gpu_compute_residency_prefers_compute_metadata_and_resolved_input_shapes() {
+        let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        let shader_path =
+            repo_root.join("smoketest/fabric/gpu_compute_convergence/shaders/gpu_step.kn");
+        let shader_text = fs::read_to_string(&shader_path).expect("read gpu fabric shader");
+        let bundle = kain_driver::DriverSession::default()
+            .compile_shader_artifact_bundle(&shader_text)
+            .expect("compile shader artifact bundle");
+        let compute_key = "shader::FabricGpuCopy::compute";
+        let compute_metadata = parse_compute_metadata_for_shader(&shader_text, compute_key)
+            .expect("parse compute metadata");
+
+        let step = FabricStep {
+            id: "gpu_enrich".to_string(),
+            runtime: FabricRuntimeKind::GpuCompute,
+            entry: None,
+            module: None,
+            crate_name: None,
+            manifest_path: None,
+            library: None,
+            shader_source: Some(shader_path.clone()),
+            compute_key: Some(compute_key.to_string()),
+            depends_on: vec!["kain_orchestrator".to_string()],
+            requires: Vec::new(),
+            outputs: vec![kain_omni::fabric::FabricOutputBinding {
+                name: "dst".to_string(),
+                kind: FabricContractKind::SharedBuffer,
+            }],
+        };
+        let manifest_root = repo_root.join("smoketest/fabric/gpu_compute_convergence");
+        let manifest_path = manifest_root.join("KAIN.fabric.toml");
+        let resolved_inputs = vec![
+            FabricResolvedInputRecord {
+                from_step_id: "kain_orchestrator".to_string(),
+                output_name: "src".to_string(),
+                declared_kind: FabricContractKind::SharedBuffer,
+                payload: FabricOutputPayloadSnapshot::SharedBuffer {
+                    buffer: kain_omni::fabric::FabricSharedBufferSnapshot {
+                        contract: "kain.shared.buffer".to_string(),
+                        byte_length: 32,
+                        element_type: "f32".to_string(),
+                        element_size: 4,
+                        shape: vec![8],
+                        strides: vec![1],
+                        format: None,
+                        mime_type: None,
+                        source_runtime: "kain".to_string(),
+                        source_backend: None,
+                        ownership: "shared".to_string(),
+                        labels: Vec::new(),
+                    },
+                },
+            },
+            FabricResolvedInputRecord {
+                from_step_id: "kain_orchestrator".to_string(),
+                output_name: "dst".to_string(),
+                declared_kind: FabricContractKind::SharedBuffer,
+                payload: FabricOutputPayloadSnapshot::SharedBuffer {
+                    buffer: kain_omni::fabric::FabricSharedBufferSnapshot {
+                        contract: "kain.shared.buffer".to_string(),
+                        byte_length: 32,
+                        element_type: "f32".to_string(),
+                        element_size: 4,
+                        shape: vec![8],
+                        strides: vec![1],
+                        format: None,
+                        mime_type: None,
+                        source_runtime: "kain".to_string(),
+                        source_backend: None,
+                        ownership: "shared".to_string(),
+                        labels: Vec::new(),
+                    },
+                },
+            },
+        ];
+        let context = FabricAdapterContext {
+            manifest_path: &manifest_path,
+            manifest_root: &manifest_root,
+            workspace_root: &manifest_root,
+            session_directory: &manifest_root,
+            step: &step,
+            fabric_inputs: Value::Unit,
+            resolved_inputs: &resolved_inputs,
+        };
+
+        let residency = build_compute_residency_from_artifact(
+            &context,
+            compute_key,
+            &bundle.bundle,
+            compute_metadata.as_ref(),
+        )
+        .expect("build compute residency");
+
+        assert_eq!(residency.compute_shaders.len(), 1);
+        let shader = &residency.compute_shaders[0];
+        assert_eq!(shader.workgroup_size, Some([8, 1, 1]));
+        assert_eq!(shader.dispatch_size, Some([8, 1, 1]));
+
+        let src_binding = shader
+            .bindings
+            .iter()
+            .find(|binding| binding.key == "src")
+            .expect("src binding");
+        assert_eq!(src_binding.shape, vec![8]);
+        assert_eq!(src_binding.access_mode, "read");
+
+        let dst_binding = shader
+            .bindings
+            .iter()
+            .find(|binding| binding.key == "dst")
+            .expect("dst binding");
+        assert_eq!(dst_binding.shape, vec![8]);
+        assert_eq!(dst_binding.access_mode, "write");
+    }
+
+    #[test]
+    fn gpu_compute_convergence_fixture_executes_python_kain_gpu_node() {
+        let fixture_dir = tempfile::tempdir().expect("temp gpu fabric fixture");
+        let fixture_root = fixture_dir.path();
+        copy_fixture(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .join("smoketest")
+                .join("fabric")
+                .join("gpu_compute_convergence")
+                .as_path(),
+            fixture_root,
+        );
+
+        let result = execute_fabric_manifest_path(&fixture_root.join("KAIN.fabric.toml")).unwrap();
+
+        assert_eq!(
+            result.status,
+            FabricSessionStatus::Succeeded,
+            "{}",
+            fs::read_to_string(&result.report_path).unwrap_or_else(|_| {
+                format!(
+                    "failed to read Fabric report at {}",
+                    result.report_path.display()
+                )
+            })
+        );
+        assert_eq!(result.step_results.len(), 4);
+        assert!(result
+            .step_results
+            .iter()
+            .all(|step| step.status == FabricStepStatus::Succeeded));
+        assert!(result
+            .step_results
+            .iter()
+            .any(|step| step.runtime == FabricRuntimeKind::Python));
+        assert!(result
+            .step_results
+            .iter()
+            .any(|step| step.runtime == FabricRuntimeKind::Kain));
+        assert!(result
+            .step_results
+            .iter()
+            .any(|step| step.runtime == FabricRuntimeKind::GpuCompute));
+        assert!(result
+            .step_results
+            .iter()
+            .any(|step| step.runtime == FabricRuntimeKind::Node));
+
+        let node_step = result
+            .step_results
+            .iter()
+            .find(|step| step.id == "node_packager")
+            .expect("node step");
+        let output = node_step.outputs.first().expect("node output");
+        let FabricOutputPayloadSnapshot::Value { value } = &output.payload else {
+            panic!("expected node summary value");
+        };
+        assert_eq!(
+            value.json.as_ref().and_then(|json| json.as_str()),
+            Some("gpu-fabric-convergence:1:1:7|gpu=1,2,3,4,0,0,0,0|bytes=32")
         );
     }
 
