@@ -22,7 +22,7 @@
   - manifest loader
   - HTML and client-island renderer
   - client bundler (Preact + Three.js) for React/TypeScript-esque islands
-  - local search, chat, prompt-deck, catalog, app/auth/commerce/data/realtime, form, and route APIs
+  - local search, chat, prompt-deck, catalog, app/auth/commerce/data/realtime, session, uploads, analytics, form, and route APIs
   - static artifact writer
   - actor-aware local HTTP + SSE + WebSocket server
 - `package.json`
@@ -120,7 +120,10 @@ New reusable section kinds in this pass:
 - `blueprint_grid`
 - `app_shell`
 - `auth_panel`
+- `auth_session`
 - `commerce_stack`
 - `integration_grid`
 - `realtime_channels`
 - `data_collections`
+- `uploads_lab`
+- `analytics_lab`

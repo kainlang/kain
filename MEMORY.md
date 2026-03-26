@@ -58,6 +58,25 @@ What future work should preserve:
 - keep display-list extraction isolated from shared `kain-3D` contracts until the repo is ready to generalize that command-stream shape
 - use Fabric only after extraction is stable, as an optional simulation lane that writes buffers or textures back into the adapter, not as a prerequisite for the base SM64 port path
 
+Update:
+
+- the smoke now has a real extractor entrypoint in `smoketest/3D/sm64_fast3d_smoke/local_crate/src/extractor.rs` that reads `actors/mario/model.inc.c`, parses light groups, vertex arrays, display lists, and a small SM64 combine-mode subset, and emits `scene_manifest_title_face.json`
+- the runtime now shades lit vertices after model transforms instead of before them, which matters for imported geometry because extracted display lists often need adapter-owned rotation and recentering before they resemble a camera-facing scene
+- dedicated helper scripts now build, extract, launch, and snapshot the title-face lane without touching shared renderer crates: `extract_sm64_title_face.bat`, `launch_title_face_visual_exe.bat`, and `capture_title_face_snapshot.bat`
+- the current title-face proof uses real extracted Mario face geometry and display-list structure, but still uses generated fallback title-card and facial textures because the external checkout does not ship the original extracted title-screen blobs or baserom assets
+
+Why this matters:
+
+- it moves the SM64 lane from abstract adapter architecture into a repeatable compiled proof with a concrete screenshot path
+- it validated that the clean backend investment is not “teach shared `kain-3D` about N64,” but “teach the isolated adapter to parse a little more of the SM64 display-list dialect and texture/combine contract”
+- it surfaced a reusable runtime lesson: imported retro geometry often needs lighting to happen after adapter-space transforms, not at raw vertex-load time
+
+What future work should preserve:
+
+- keep widening the extractor and combiner mapping inside the smoke lane before promoting any semantics into shared crates
+- prefer exact texture and segment extraction over inventing more fallback art once the required assets are available
+- if Goddard/title-screen parity becomes the goal, add that as another extractor target beside the current face smoke instead of replacing the simpler model-inc proof
+
 ## 2026-03-25 - Fabric Polyglot Execution Became A Real Local-First Lane
 
 Fabric stopped being mostly a manifest validator plus partial executor and became a runnable local-first polyglot pipeline across every declared runtime kind.

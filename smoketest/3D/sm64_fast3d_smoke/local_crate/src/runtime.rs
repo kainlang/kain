@@ -9,6 +9,7 @@ use crate::math::{
 };
 use crate::model::{
     CombineMode, DisplayListCommand, DisplayListDefinition, Fast3dSmokeManifest, Fast3dVertex,
+    LightGroupDefinition,
     SegmentBindingKind,
 };
 use crate::rasterizer::{Framebuffer, RenderFrame, RenderStats, ScreenVertex};
@@ -38,6 +39,7 @@ pub struct Fast3dRuntime {
     pub manifest: Fast3dSmokeManifest,
     display_lists_by_id: HashMap<String, DisplayListDefinition>,
     textures_by_id: HashMap<String, TextureImage>,
+    light_groups_by_id: HashMap<String, LightGroupState>,
     texture_segments: HashMap<u8, String>,
     display_list_segments: HashMap<u8, String>,
 }
@@ -52,6 +54,16 @@ impl Fast3dRuntime {
             .map(|display_list| (display_list.id.clone(), display_list.clone()))
             .collect::<HashMap<_, _>>();
         let textures_by_id = build_texture_catalog(&manifest.textures)?;
+        let light_groups_by_id = manifest
+            .light_groups
+            .iter()
+            .map(|light_group| {
+                (
+                    light_group.id.clone(),
+                    LightGroupState::from_definition(light_group),
+                )
+            })
+            .collect::<HashMap<_, _>>();
 
         let mut texture_segments = HashMap::new();
         let mut display_list_segments = HashMap::new();
@@ -70,6 +82,7 @@ impl Fast3dRuntime {
             manifest,
             display_lists_by_id,
             textures_by_id,
+            light_groups_by_id,
             texture_segments,
             display_list_segments,
         })
@@ -104,7 +117,8 @@ impl Fast3dRuntime {
         orbit_controls: &OrbitControls,
     ) -> Matrix4 {
         let camera = self.manifest.camera;
-        let yaw = time_seconds * self.manifest.auto_rotation_radians_per_second
+        let yaw = camera.initial_yaw_radians
+            + time_seconds * self.manifest.auto_rotation_radians_per_second
             + orbit_controls.yaw_radians;
         let radius = (camera.orbit_radius + orbit_controls.zoom_delta).max(1.25);
         let target = vec3_from_array(camera.target);
@@ -113,7 +127,7 @@ impl Fast3dRuntime {
             radius,
             camera.orbit_height,
             yaw,
-            orbit_controls.pitch_radians,
+            camera.initial_pitch_radians + orbit_controls.pitch_radians,
         );
         let view = Matrix4::look_at_rh(position, target, glam::Vec3::Y);
         let aspect_ratio =
@@ -177,9 +191,27 @@ impl Fast3dRuntime {
                             .last()
                             .ok_or("matrix stack unexpectedly empty")?;
                         let screen_vertices = [
-                            self.project_vertex(left, current_model, view_projection, framebuffer)?,
-                            self.project_vertex(middle, current_model, view_projection, framebuffer)?,
-                            self.project_vertex(right, current_model, view_projection, framebuffer)?,
+                            self.project_vertex(
+                                left,
+                                execution.current_light_group,
+                                current_model,
+                                view_projection,
+                                framebuffer,
+                            )?,
+                            self.project_vertex(
+                                middle,
+                                execution.current_light_group,
+                                current_model,
+                                view_projection,
+                                framebuffer,
+                            )?,
+                            self.project_vertex(
+                                right,
+                                execution.current_light_group,
+                                current_model,
+                                view_projection,
+                                framebuffer,
+                            )?,
                         ];
                         let texture = execution
                             .bound_texture
@@ -245,6 +277,14 @@ impl Fast3dRuntime {
                 DisplayListCommand::SetEnvColor { color } => {
                     execution.env_color = vec4_from_rgba8(*color);
                 }
+                DisplayListCommand::SetLightGroup { light_group_id } => {
+                    let light_group = self
+                        .light_groups_by_id
+                        .get(light_group_id)
+                        .copied()
+                        .ok_or_else(|| format!("missing light group `{light_group_id}`"))?;
+                    execution.current_light_group = Some(light_group);
+                }
             }
         }
         Ok(())
@@ -253,6 +293,7 @@ impl Fast3dRuntime {
     fn project_vertex(
         &self,
         vertex: LoadedVertex,
+        current_light_group: Option<LightGroupState>,
         model_matrix: Matrix4,
         view_projection: &Matrix4,
         framebuffer: &Framebuffer,
@@ -266,13 +307,21 @@ impl Fast3dRuntime {
         let x = (ndc.x * 0.5 + 0.5) * framebuffer.width as f32;
         let y = (1.0 - (ndc.y * 0.5 + 0.5)) * framebuffer.height as f32;
         let inv_w = 1.0 / clip.w;
+        let color = vertex
+            .normal
+            .zip(current_light_group)
+            .map(|(normal, light_group)| {
+                let transformed_normal = (model_matrix * normal.extend(0.0)).xyz().normalize_or_zero();
+                light_group.shade_world_normal(transformed_normal, vertex.base_color.w)
+            })
+            .unwrap_or(vertex.base_color);
         Ok(ScreenVertex {
             x,
             y,
             depth: ndc.z,
             inv_w,
             uv_over_w: vertex.uv * inv_w,
-            color_over_w: vertex.color * inv_w,
+            color_over_w: color * inv_w,
         })
     }
 }
@@ -281,7 +330,8 @@ impl Fast3dRuntime {
 struct LoadedVertex {
     position: glam::Vec3,
     uv: glam::Vec2,
-    color: Float4,
+    base_color: Float4,
+    normal: Option<glam::Vec3>,
 }
 
 #[derive(Clone, Debug)]
@@ -292,6 +342,7 @@ struct ExecutionState {
     combine_mode: CombineMode,
     primitive_color: Float4,
     env_color: Float4,
+    current_light_group: Option<LightGroupState>,
 }
 
 impl ExecutionState {
@@ -303,6 +354,7 @@ impl ExecutionState {
             combine_mode: CombineMode::TextureVertex,
             primitive_color: vec4_from_rgba8([255, 255, 255, 255]),
             env_color: vec4_from_rgba8([255, 255, 255, 255]),
+            current_light_group: None,
         }
     }
 
@@ -319,10 +371,41 @@ impl ExecutionState {
             self.vertex_cache[start + index] = Some(LoadedVertex {
                 position: vec3_from_array(vertex.position),
                 uv: vec2_from_array(vertex.uv),
-                color: vec4_from_rgba8(vertex.color),
+                base_color: vec4_from_rgba8(vertex.color),
+                normal: vertex.normal.map(vec3_from_array),
             });
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct LightGroupState {
+    ambient_color: Float4,
+    diffuse_color: Float4,
+    direction: glam::Vec3,
+}
+
+impl LightGroupState {
+    fn from_definition(definition: &LightGroupDefinition) -> Self {
+        Self {
+            ambient_color: vec4_from_rgba8(definition.ambient_color),
+            diffuse_color: vec4_from_rgba8(definition.diffuse_color),
+            direction: vec3_from_array(definition.direction).normalize_or_zero(),
+        }
+    }
+
+    fn shade_world_normal(&self, normal: glam::Vec3, alpha: f32) -> Float4 {
+        let normal = normal.normalize_or_zero();
+        let diffuse_strength = normal.dot(self.direction).max(0.0);
+        let shaded_rgb =
+            self.ambient_color.truncate() + self.diffuse_color.truncate() * diffuse_strength;
+        glam::Vec4::new(
+            shaded_rgb.x.clamp(0.0, 1.0),
+            shaded_rgb.y.clamp(0.0, 1.0),
+            shaded_rgb.z.clamp(0.0, 1.0),
+            alpha,
+        )
     }
 }
 

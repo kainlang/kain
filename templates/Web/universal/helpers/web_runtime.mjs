@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import http from "node:http";
+import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -38,6 +39,15 @@ function writeBinary(filePath, value) {
 function appendText(filePath, value) {
   ensureDir(path.dirname(filePath));
   fs.appendFileSync(filePath, value);
+}
+
+function readJsonIfExists(filePath, fallbackValue) {
+  if (!fs.existsSync(filePath)) return fallbackValue;
+  try {
+    return readJson(filePath);
+  } catch {
+    return fallbackValue;
+  }
 }
 
 function getClientBundleConfig(app) {
@@ -596,6 +606,20 @@ function renderAuthPanel(auth) {
 </section>`;
 }
 
+function renderAuthSession(auth) {
+  return `<section class="auth-session-shell">
+  <article class="hero-card">
+    <p class="section-label">Session</p>
+    <h3>${escapeHtml(auth?.session_title || "Local session preview")}</h3>
+    <p class="section-copy">${escapeHtml(
+      auth?.session_body ||
+        "This is a local-only session endpoint so chat, uploads, and operator surfaces can bind identity without needing a full auth provider yet."
+    )}</p>
+  </article>
+  <div data-kain-island="auth-session" data-site-data="site.data.json"></div>
+</section>`;
+}
+
 function renderCommerceStack(commerce) {
   return `<div class="pricing-grid">${(commerce?.offers || [])
     .map(
@@ -611,6 +635,32 @@ function renderCommerceStack(commerce) {
 </article>`
     )
     .join("")}</div>`;
+}
+
+function renderUploadsLab(uploads) {
+  return `<section class="uploads-shell">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(uploads?.kicker || "Uploads")}</p>
+    <h3>${escapeHtml(uploads?.title || "File uploads (base64 local runtime)")}</h3>
+    <p class="section-copy">${escapeHtml(
+      uploads?.body || "Use this lane to capture images, attachments, or proofs before wiring a real storage backend."
+    )}</p>
+  </article>
+  <div data-kain-island="uploads" data-site-data="site.data.json"></div>
+</section>`;
+}
+
+function renderAnalyticsLab(analytics) {
+  return `<section class="analytics-shell">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(analytics?.kicker || "Analytics")}</p>
+    <h3>${escapeHtml(analytics?.title || "Local analytics events")}</h3>
+    <p class="section-copy">${escapeHtml(
+      analytics?.body || "Capture client events into JSONL so operator lanes can reason about usage before integrating external analytics."
+    )}</p>
+  </article>
+  <div data-kain-island="analytics" data-site-data="site.data.json"></div>
+</section>`;
 }
 
 function renderDataCollections(collections) {
@@ -731,8 +781,14 @@ function renderSectionBlock(section, model) {
     bodyHtml = renderRealtimeChannels(getModelValue(model, normalized.source, []));
   } else if (kind === "auth_panel") {
     bodyHtml = renderAuthPanel(getModelValue(model, normalized.source, {}));
+  } else if (kind === "auth_session") {
+    bodyHtml = renderAuthSession(getModelValue(model, normalized.source, {}));
   } else if (kind === "commerce_stack") {
     bodyHtml = renderCommerceStack(getModelValue(model, normalized.source, {}));
+  } else if (kind === "uploads_lab") {
+    bodyHtml = renderUploadsLab(getModelValue(model, normalized.source, {}));
+  } else if (kind === "analytics_lab") {
+    bodyHtml = renderAnalyticsLab(getModelValue(model, normalized.source, {}));
   } else if (kind === "data_collections") {
     bodyHtml = renderDataCollections(getModelValue(model, normalized.source, []));
   } else if (kind === "app_shell") {
@@ -920,6 +976,8 @@ function buildSiteData(model) {
     capability_matrix: model.content.capability_matrix || null,
     auth: model.content.auth || null,
     commerce: model.content.commerce || null,
+    uploads: model.content.uploads || null,
+    analytics: model.content.analytics || null,
     app_modules: model.content.app_modules || [],
     integrations: model.content.integrations || [],
     realtime_channels: model.content.realtime_channels || [],
@@ -1591,6 +1649,19 @@ function buildSystemContract(model, siteData, actorServerPlan) {
       chat: { http: "/api/chat", sse: "/api/chat/stream", ws: "/ws/chat" },
       realtime: { sse: "/api/realtime/stream", ws: "/ws/realtime" }
     },
+    sessions: {
+      me: "/api/auth/session",
+      login: "/api/auth/session/login",
+      logout: "/api/auth/session/logout"
+    },
+    uploads: {
+      upload: "/api/uploads",
+      serve_prefix: "/uploads/"
+    },
+    analytics: {
+      event: "/api/analytics/event",
+      events: "/api/analytics/events"
+    },
     auth: siteData.auth || null,
     commerce: siteData.commerce || null,
     app_modules: siteData.app_modules || [],
@@ -1609,6 +1680,9 @@ function buildUiSchema(model, siteData) {
     if (kind === "realtime_channels") return "realtime";
     if (kind === "scene_spotlight") return "scene";
     if (kind === "chat_lab") return "chat";
+    if (kind === "auth_session") return "auth-session";
+    if (kind === "uploads_lab") return "uploads";
+    if (kind === "analytics_lab") return "analytics";
     return null;
   };
 
@@ -1649,7 +1723,13 @@ function buildUiSchema(model, siteData) {
               ? { stream: "/api/realtime/stream", ws: "/ws/realtime" }
               : island === "scene"
                 ? { scene: "/api/scene" }
-                : { app: "/api/app" }
+                : island === "auth-session"
+                  ? { me: "/api/auth/session", login: "/api/auth/session/login", logout: "/api/auth/session/logout" }
+                  : island === "uploads"
+                    ? { upload: "/api/uploads", serve_prefix: "/uploads/" }
+                    : island === "analytics"
+                      ? { event: "/api/analytics/event", events: "/api/analytics/events" }
+                      : { app: "/api/app" }
         };
       }).filter(Boolean)
     },
@@ -1770,9 +1850,16 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/chat/stream", purpose: "returns a server-sent event preview for local chat pipelines", actor: "chat_seed_router" },
     { method: "GET", path: "/api/app", purpose: "returns the app module manifest for react-like workspace shells", actor: "runtime_reporter" },
     { method: "GET", path: "/api/auth", purpose: "returns authentication strategy metadata", actor: "auth_gateway" },
+    { method: "GET", path: "/api/auth/session", purpose: "returns the current session identity (cookie-backed)", actor: "auth_gateway" },
+    { method: "POST", path: "/api/auth/session/login", purpose: "creates a local session identity (dev-only)", actor: "auth_gateway" },
+    { method: "POST", path: "/api/auth/session/logout", purpose: "clears the active session identity", actor: "auth_gateway" },
     { method: "GET", path: "/api/commerce", purpose: "returns sellable offers and membership metadata", actor: "commerce_orchestrator" },
     { method: "GET", path: "/api/data", purpose: "returns typed collection and persistence metadata", actor: "data_keeper" },
     { method: "GET", path: "/api/integrations", purpose: "returns upstream system connectors and transports", actor: "integration_router" },
+    { method: "POST", path: "/api/uploads", purpose: "accepts base64 uploads and persists them under the runtime folder", actor: "upload_gate" },
+    { method: "GET", path: "/uploads/*", purpose: "serves uploaded files from the runtime uploads folder (local server only)", actor: "upload_gate" },
+    { method: "POST", path: "/api/analytics/event", purpose: "captures client analytics events to JSONL", actor: "analytics_sentinel" },
+    { method: "GET", path: "/api/analytics/events", purpose: "returns recent analytics events (local server only)", actor: "analytics_sentinel" },
     { method: "GET", path: "/api/realtime", purpose: "returns live channel descriptors and event cadence", actor: "signal_broker" },
     { method: "GET", path: "/api/realtime/stream", purpose: "returns a server-sent event preview for realtime channels", actor: "signal_broker" },
     { method: "WS", path: "/ws/realtime", purpose: "websocket stream for realtime channels", actor: "signal_broker" },
@@ -1975,6 +2062,109 @@ function persistSubmission(bundle, formId, payload) {
   return logPath;
 }
 
+function runtimeRootForBundle(bundle) {
+  return path.join(bundle.output_dir || path.dirname(bundle.html_path), "runtime");
+}
+
+function parseCookies(headerValue) {
+  const out = new Map();
+  const raw = String(headerValue || "");
+  if (!raw.trim()) return out;
+  for (const part of raw.split(";")) {
+    const [name, ...rest] = part.split("=");
+    const key = String(name || "").trim();
+    if (!key) continue;
+    out.set(key, decodeURIComponent(rest.join("=").trim() || ""));
+  }
+  return out;
+}
+
+function formatSetCookie(name, value, options = {}) {
+  const encodedValue = encodeURIComponent(String(value ?? ""));
+  const segments = [`${name}=${encodedValue}`];
+  segments.push(`Path=${options.path || "/"}`);
+  if (options.httpOnly !== false) segments.push("HttpOnly");
+  if (options.sameSite) segments.push(`SameSite=${options.sameSite}`);
+  if (options.maxAgeSeconds != null) segments.push(`Max-Age=${Number(options.maxAgeSeconds)}`);
+  if (options.secure === true) segments.push("Secure");
+  return segments.join("; ");
+}
+
+function sanitizedFileName(value) {
+  return String(value || "upload.bin")
+    .replaceAll(/[^a-zA-Z0-9._-]+/g, "-")
+    .replaceAll(/-+/g, "-")
+    .replaceAll(/^-+|-+$/g, "")
+    .slice(0, 96) || "upload.bin";
+}
+
+function persistAnalyticsEvent(bundle, eventPayload) {
+  const root = runtimeRootForBundle(bundle);
+  const logPath = path.join(root, "analytics", "events.jsonl");
+  const entry = { received_at: new Date().toISOString(), ...eventPayload };
+  appendText(logPath, JSON.stringify(entry) + "\n");
+  return { logPath, entry };
+}
+
+function persistUpload(bundle, uploadPayload) {
+  const root = runtimeRootForBundle(bundle);
+  const today = new Date().toISOString().slice(0, 10);
+  const folder = path.join(root, "uploads", today);
+  ensureDir(folder);
+
+  const fileName = sanitizedFileName(uploadPayload.filename || uploadPayload.name || "upload.bin");
+  const id = crypto.randomUUID();
+  const storedName = `${id}-${fileName}`;
+  const absPath = path.join(folder, storedName);
+
+  const rawBase64 = String(uploadPayload.content_base64 || uploadPayload.base64 || "");
+  const base64 = rawBase64.includes(",") ? rawBase64.split(",").slice(1).join(",") : rawBase64;
+  const bytes = Buffer.from(base64, "base64");
+  writeBinary(absPath, bytes);
+
+  const relativeHref = `/uploads/${today}/${storedName}`;
+  return {
+    abs_path: absPath,
+    href: relativeHref,
+    byte_length: bytes.byteLength,
+    content_type: String(uploadPayload.content_type || uploadPayload.type || "application/octet-stream"),
+    filename: fileName
+  };
+}
+
+function loadSessionStore(bundle) {
+  const storePath = path.join(runtimeRootForBundle(bundle), "auth", "sessions.json");
+  const store = readJsonIfExists(storePath, { sessions: {} });
+  return { storePath, store };
+}
+
+function saveSessionStore(storePath, store) {
+  writeJson(storePath, store);
+}
+
+function createSession(bundle, payload) {
+  const { storePath, store } = loadSessionStore(bundle);
+  const sessionId = crypto.randomUUID();
+  store.sessions = store.sessions || {};
+  store.sessions[sessionId] = {
+    id: sessionId,
+    created_at: new Date().toISOString(),
+    email: payload.email || null,
+    invite_code: payload.invite_code || null,
+    roles: payload.roles || []
+  };
+  saveSessionStore(storePath, store);
+  return store.sessions[sessionId];
+}
+
+function getSession(bundle, request) {
+  const cookies = parseCookies(request.headers.cookie);
+  const sessionId = cookies.get("kain_session_id") || null;
+  if (!sessionId) return null;
+  const { store } = loadSessionStore(bundle);
+  return store.sessions?.[sessionId] || null;
+}
+
 async function serveExperience(appManifestPath, experienceId) {
   const context = loadAppConfig(appManifestPath);
   const clientBundle = ensureClientBundle(context, { force: false });
@@ -2066,6 +2256,31 @@ async function serveExperience(appManifestPath, experienceId) {
     }
     if (request.method === "GET" && pathname === "/api/auth") {
       sendJson(response, 200, bundle.site_data.auth || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/auth/session") {
+      sendJson(response, 200, { ok: true, session: getSession(bundle, request) });
+      return;
+    }
+    if (request.method === "POST" && pathname === "/api/auth/session/login") {
+      const payload = await parseRequestBody(request);
+      const email = String(payload.email || "").trim();
+      if (!email) {
+        sendJson(response, 400, { ok: false, error: "missing_email" });
+        return;
+      }
+      const session = createSession(bundle, {
+        email,
+        invite_code: payload.invite_code || null,
+        roles: Array.isArray(payload.roles) ? payload.roles : []
+      });
+      response.setHeader("set-cookie", formatSetCookie("kain_session_id", session.id, { sameSite: "Lax", httpOnly: true }));
+      sendJson(response, 200, { ok: true, session });
+      return;
+    }
+    if (request.method === "POST" && pathname === "/api/auth/session/logout") {
+      response.setHeader("set-cookie", formatSetCookie("kain_session_id", "", { sameSite: "Lax", httpOnly: true, maxAgeSeconds: 0 }));
+      sendJson(response, 200, { ok: true });
       return;
     }
     if (request.method === "GET" && pathname === "/api/commerce") {
@@ -2173,6 +2388,74 @@ async function serveExperience(appManifestPath, experienceId) {
             return haystack.includes(query);
           }).slice(0, 8);
       sendJson(response, 200, { query, items });
+      return;
+    }
+    if (request.method === "POST" && pathname === "/api/analytics/event") {
+      const payload = await parseRequestBody(request);
+      const eventName = String(payload.name || payload.event || "").trim();
+      if (!eventName) {
+        sendJson(response, 400, { ok: false, error: "missing_event_name" });
+        return;
+      }
+      const { logPath, entry } = persistAnalyticsEvent(bundle, {
+        name: eventName,
+        properties: payload.properties || {},
+        path: payload.path || null,
+        client_at: payload.client_at || null,
+        session: getSession(bundle, request)
+      });
+      sendJson(response, 200, { ok: true, event: entry, log_path: logPath });
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/analytics/events") {
+      const limit = Math.min(Math.max(Number(requestUrl.searchParams.get("limit") || 30), 1), 200);
+      const logPath = path.join(runtimeRootForBundle(bundle), "analytics", "events.jsonl");
+      const entries = [];
+      if (fs.existsSync(logPath)) {
+        const lines = fs.readFileSync(logPath, "utf8").trim().split("\n").filter(Boolean);
+        for (const line of lines.slice(-limit)) {
+          try {
+            entries.push(JSON.parse(line));
+          } catch {
+            entries.push({ received_at: null, raw: line });
+          }
+        }
+      }
+      sendJson(response, 200, { ok: true, items: entries });
+      return;
+    }
+    if (request.method === "POST" && pathname === "/api/uploads") {
+      const payload = await parseRequestBody(request);
+      const maxBytes = 10 * 1024 * 1024;
+      const rawBase64 = String(payload.content_base64 || payload.base64 || "");
+      const base64 = rawBase64.includes(",") ? rawBase64.split(",").slice(1).join(",") : rawBase64;
+      if (!base64.trim()) {
+        sendJson(response, 400, { ok: false, error: "missing_content_base64" });
+        return;
+      }
+      const approxBytes = Math.floor((base64.length * 3) / 4);
+      if (approxBytes > maxBytes) {
+        sendJson(response, 413, { ok: false, error: "payload_too_large", max_bytes: maxBytes });
+        return;
+      }
+      const stored = persistUpload(bundle, payload);
+      sendJson(response, 200, { ok: true, file: stored });
+      return;
+    }
+    if (request.method === "GET" && pathname.startsWith("/uploads/")) {
+      const relative = pathname.slice("/uploads/".length);
+      const normalized = path.normalize(relative).replace(/^([/\\\\])+/, "");
+      const uploadsRoot = path.join(runtimeRootForBundle(bundle), "uploads");
+      const filePath = path.resolve(uploadsRoot, normalized);
+      if (!filePath.startsWith(path.resolve(uploadsRoot))) {
+        sendJson(response, 403, { error: "forbidden" });
+        return;
+      }
+      if (!fs.existsSync(filePath)) {
+        sendJson(response, 404, { error: "not_found" });
+        return;
+      }
+      sendFile(response, filePath, contentTypeForPath(filePath));
       return;
     }
     if (request.method === "GET" && pathname === "/healthz") {

@@ -19,6 +19,48 @@ export type KainRealtimeChannel = {
   tags?: string[] | null;
 };
 
+export type KainAuthMethod = {
+  label: string;
+  detail?: string | null;
+  scope?: string | null;
+  status?: string | null;
+};
+
+export type KainAuthDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  session_title?: string | null;
+  session_body?: string | null;
+  methods?: KainAuthMethod[] | null;
+};
+
+export type KainCommerceOffer = {
+  kicker?: string | null;
+  cadence?: string | null;
+  name: string;
+  price?: string | null;
+  summary?: string | null;
+  features?: string[] | null;
+  actions?: { label: string; href: string; style?: string }[] | null;
+};
+
+export type KainCommerceDescriptor = {
+  offers?: KainCommerceOffer[] | null;
+};
+
+export type KainUploadsDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+};
+
+export type KainAnalyticsDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+};
+
 export type KainSceneLayer = {
   title?: string | null;
   summary?: string | null;
@@ -45,6 +87,10 @@ export type KainSiteData = {
   realtime_channels?: KainRealtimeChannel[];
   chat_seed?: KainChatSeedMessage[];
   scene?: KainSceneDescriptor;
+  auth?: KainAuthDescriptor | null;
+  commerce?: KainCommerceDescriptor | null;
+  uploads?: KainUploadsDescriptor | null;
+  analytics?: KainAnalyticsDescriptor | null;
 };
 
 export function resolveAgainstLocation(relativeOrAbsolute: string): string {
@@ -66,4 +112,3 @@ export async function fetchJson<T>(url: string): Promise<T> {
 export async function loadSiteData(siteDataPath: string): Promise<KainSiteData> {
   return fetchJson<KainSiteData>(resolveAgainstLocation(siteDataPath));
 }
-

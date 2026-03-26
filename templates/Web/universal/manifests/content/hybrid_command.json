@@ -9,8 +9,11 @@
     { "label": "System", "href": "#system" },
     { "label": "App", "href": "#app" },
     { "label": "Auth", "href": "#auth" },
+    { "label": "Session", "href": "#session" },
     { "label": "Commerce", "href": "#commerce" },
     { "label": "Realtime", "href": "#realtime" },
+    { "label": "Uploads", "href": "#uploads" },
+    { "label": "Analytics", "href": "#analytics" },
     { "label": "Scene", "href": "#scene" },
     { "label": "Proof", "href": "#proof" },
     { "label": "Search", "href": "#search" },
@@ -58,6 +61,8 @@
     "kicker": "Identity",
     "title": "Auth flows stay in the template contract.",
     "body": "The universal pack now carries sign-in, invite, and membership strategy metadata as first-class site data instead of hiding it in page-specific code.",
+    "session_title": "Local session endpoints",
+    "session_body": "The web runtime includes a dev-only cookie session so uploads, chat, and operator lanes can bind identity without a provider yet.",
     "methods": [
       { "label": "Passwordless email", "detail": "Low-friction link sign-in for product and member surfaces.", "scope": "member", "status": "template-ready" },
       { "label": "Invite codes", "detail": "Private launches and gated operator rooms.", "scope": "operator", "status": "template-ready" },
@@ -84,6 +89,16 @@
     { "name": "site_intakes", "schema": "lead.capture.v1", "retention": "jsonl-local", "actor": "intake_collector", "purpose": "Stores launch, commerce, and operator interest payloads." },
     { "name": "prompt_sessions", "schema": "chat.session.v1", "retention": "ephemeral-local", "actor": "prompt_router", "purpose": "Keeps lightweight local prompt handoff state for chat-first flows." }
   ],
+  "uploads": {
+    "kicker": "Uploads",
+    "title": "Capture files before picking storage.",
+    "body": "The universal runtime accepts base64 uploads and stores them under the local runtime folder. Bind this to S3/R2/GCS later via the same contract."
+  },
+  "analytics": {
+    "kicker": "Analytics",
+    "title": "Capture events into JSONL.",
+    "body": "Emit local analytics events so operator dashboards can reason about usage before integrating external analytics."
+  },
   "process_steps": [
     { "title": "Pick the lane mix", "body": "Use hybrid when launch, search, prompts, 3D, and routes need to coexist." },
     { "title": "Inspect the catalog", "body": "Route into the narrower business, portfolio, docs, chat, or operator experiences as needed." },
@@ -164,6 +179,8 @@
     { "name": "search_indexer", "responsibility": "Queries the local docs and systems index.", "channel": "api.search" },
     { "name": "mesh_supervisor", "responsibility": "Reports health, routes, and actor topology.", "channel": "api.actors" },
     { "name": "auth_gateway", "responsibility": "Publishes authentication strategy metadata to app and member surfaces.", "channel": "api.auth" },
+    { "name": "upload_gate", "responsibility": "Captures uploads and persists them under the local runtime folder.", "channel": "api.uploads" },
+    { "name": "analytics_sentinel", "responsibility": "Captures analytics events and exposes local event logs for operator surfaces.", "channel": "api.analytics" },
     { "name": "commerce_orchestrator", "responsibility": "Publishes offer and handoff metadata for pricing and checkout flows.", "channel": "api.commerce" },
     { "name": "signal_broker", "responsibility": "Publishes live channel metadata for realtime dashboards and chat.", "channel": "api.realtime" }
   ],
@@ -172,9 +189,16 @@
     { "method": "GET", "path": "/api/search", "purpose": "returns local docs and system search results" },
     { "method": "GET", "path": "/api/app", "purpose": "returns app shell module metadata" },
     { "method": "GET", "path": "/api/auth", "purpose": "returns auth strategy metadata" },
+    { "method": "GET", "path": "/api/auth/session", "purpose": "returns the active cookie-backed session identity" },
+    { "method": "POST", "path": "/api/auth/session/login", "purpose": "creates a local session identity (dev-only)" },
+    { "method": "POST", "path": "/api/auth/session/logout", "purpose": "clears the local session identity" },
     { "method": "GET", "path": "/api/commerce", "purpose": "returns offer and membership metadata" },
     { "method": "GET", "path": "/api/realtime", "purpose": "returns realtime channel metadata" },
     { "method": "GET", "path": "/api/routes", "purpose": "returns the hybrid route contract" },
+    { "method": "POST", "path": "/api/uploads", "purpose": "captures a base64 file upload to the local runtime folder" },
+    { "method": "GET", "path": "/uploads/*", "purpose": "serves uploaded files while the local server is running" },
+    { "method": "POST", "path": "/api/analytics/event", "purpose": "captures a local analytics event to JSONL" },
+    { "method": "GET", "path": "/api/analytics/events", "purpose": "returns recent analytics events (local server only)" },
     { "method": "POST", "path": "/api/forms/hybrid_intake", "purpose": "captures a full-site intent payload locally" }
   ],
   "news_items": [

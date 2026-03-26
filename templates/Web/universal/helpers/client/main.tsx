@@ -2,11 +2,14 @@ import { h, render } from "preact";
 
 import { loadSiteData } from "./lib/kain_site_data";
 import { AppShellIsland } from "./islands/AppShellIsland";
+import { AnalyticsLabIsland } from "./islands/AnalyticsLabIsland";
+import { AuthSessionIsland } from "./islands/AuthSessionIsland";
 import { ChatLabIsland } from "./islands/ChatLabIsland";
 import { RealtimeChannelsIsland } from "./islands/RealtimeChannelsIsland";
 import { SceneViewportIsland } from "./islands/SceneViewportIsland";
+import { UploadsLabIsland } from "./islands/UploadsLabIsland";
 
-type IslandKind = "app-shell" | "chat" | "realtime" | "scene";
+type IslandKind = "app-shell" | "chat" | "realtime" | "scene" | "auth-session" | "uploads" | "analytics";
 
 type IslandTarget = {
   node: HTMLElement;
@@ -44,6 +47,18 @@ async function mountTarget(target: IslandTarget) {
   }
   if (target.kind === "chat") {
     render(<ChatLabIsland seed={siteData.chat_seed || []} />, target.node);
+    return;
+  }
+  if (target.kind === "auth-session") {
+    render(<AuthSessionIsland />, target.node);
+    return;
+  }
+  if (target.kind === "uploads") {
+    render(<UploadsLabIsland />, target.node);
+    return;
+  }
+  if (target.kind === "analytics") {
+    render(<AnalyticsLabIsland />, target.node);
   }
 }
 
