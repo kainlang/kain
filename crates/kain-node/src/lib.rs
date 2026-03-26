@@ -88,6 +88,12 @@ function fromWire(value) {
     if (typeof value.__kain_js_ref === 'number') return registry.get(value.__kain_js_ref);
     const out = {};
     for (const [key, entry] of Object.entries(value)) out[key] = fromWire(entry);
+    if (
+      (out.contract === 'kain.shared.buffer' || out.contract === 'kain.shared.image') &&
+      Array.isArray(out.bytes)
+    ) {
+      out.bytes = Uint8Array.from(out.bytes);
+    }
     return out;
   }
   return value;
@@ -118,6 +124,9 @@ function utf8View(text) {
 
 function bufferView(target) {
   if (target == null) return null;
+  if (Array.isArray(target)) {
+    return Uint8Array.from(target);
+  }
   if (ArrayBuffer.isView(target)) {
     return new Uint8Array(target.buffer, target.byteOffset, target.byteLength);
   }
@@ -128,6 +137,47 @@ function bufferView(target) {
     return new Uint8Array(target.buffer, target.byteOffset, target.byteLength);
   }
   return null;
+}
+
+function normalizeBufferPayload(target) {
+  const direct = bufferView(target);
+  if (direct) {
+    let kind = 'buffer';
+    if (ArrayBuffer.isView(target)) {
+      kind = target.constructor && target.constructor.name ? target.constructor.name : 'TypedArray';
+    } else if (target instanceof ArrayBuffer) {
+      kind = 'ArrayBuffer';
+    } else if (typeof Buffer !== 'undefined' && Buffer.isBuffer(target)) {
+      kind = 'Buffer';
+    }
+    return {
+      kind,
+      dtype: 'u8',
+      byte_length: direct.byteLength,
+      length: 'length' in Object(target) ? Number(target.length) : direct.byteLength,
+      bytes: direct,
+    };
+  }
+  if (!target || typeof target !== 'object') {
+    throw new Error(`unsupported buffer payload: ${typeof target}`);
+  }
+  const bytes = bufferView(target.bytes ?? target.buffer ?? target.data ?? null);
+  if (!bytes) {
+    throw new Error(`target is not buffer-like: ${typeof target}`);
+  }
+  const length = Number(
+    target.length ?? (Array.isArray(target.shape) && target.shape.length > 0 ? target.shape[0] : bytes.byteLength)
+  );
+  return {
+    kind: typeof target.kind === 'string' ? target.kind : 'buffer',
+    dtype:
+      typeof target.element_type === 'string' ? target.element_type :
+      typeof target.dtype === 'string' ? target.dtype :
+      'u8',
+    byte_length: bytes.byteLength,
+    length: Number.isFinite(length) ? length : bytes.byteLength,
+    bytes,
+  };
 }
 
 function inferExtension(mimeType, fallback) {
@@ -293,46 +343,17 @@ async function handleRequest(message) {
       return toWire(awaited, Boolean(message.raw));
     }
     case 'buffer_info': {
-      const target = resolveTarget(message.target);
-      if (target == null) throw new Error('buffer_info target is null');
-      let view = null;
-      let kind = 'unknown';
-      let dtype = 'u8';
-      if (ArrayBuffer.isView(target)) {
-        view = new Uint8Array(target.buffer, target.byteOffset, target.byteLength);
-        kind = target.constructor && target.constructor.name ? target.constructor.name : 'TypedArray';
-        dtype = kind.toLowerCase();
-      } else if (target instanceof ArrayBuffer) {
-        view = new Uint8Array(target);
-        kind = 'ArrayBuffer';
-        dtype = 'u8';
-      } else if (typeof Buffer !== 'undefined' && Buffer.isBuffer(target)) {
-        view = new Uint8Array(target.buffer, target.byteOffset, target.byteLength);
-        kind = 'Buffer';
-        dtype = 'u8';
-      } else {
-        throw new Error(`target is not buffer-like: ${typeof target}`);
-      }
+      const payload = normalizeBufferPayload(resolveTarget(message.target));
       return {
-        kind,
-        dtype,
-        byte_length: view.byteLength,
-        length: 'length' in target ? Number(target.length) : view.byteLength,
+        kind: payload.kind,
+        dtype: payload.dtype,
+        byte_length: payload.byte_length,
+        length: payload.length,
       };
     }
     case 'buffer_bytes': {
-      const target = resolveTarget(message.target);
-      if (target == null) throw new Error('buffer_bytes target is null');
-      if (ArrayBuffer.isView(target)) {
-        return Array.from(new Uint8Array(target.buffer, target.byteOffset, target.byteLength));
-      }
-      if (target instanceof ArrayBuffer) {
-        return Array.from(new Uint8Array(target));
-      }
-      if (typeof Buffer !== 'undefined' && Buffer.isBuffer(target)) {
-        return Array.from(target.values());
-      }
-      throw new Error(`target is not buffer-like: ${typeof target}`);
+      const payload = normalizeBufferPayload(resolveTarget(message.target));
+      return Array.from(payload.bytes);
     }
     case 'document_info': {
       const payload = normalizeDocumentPayload(resolveTarget(message.target));
@@ -1072,6 +1093,10 @@ fn value_to_wire(value: &Value) -> KainResult<JsonValue> {
                     "__kain_js_ref": reference.id,
                     "label": reference.label,
                 }))
+            } else if let Ok(buffer) = object.clone().downcast::<KainSharedBuffer>() {
+                Ok(shared_buffer_to_wire(buffer.as_ref()))
+            } else if let Ok(image) = object.clone().downcast::<KainSharedImage>() {
+                Ok(shared_image_to_wire(image.as_ref()))
             } else {
                 Err(KainError::runtime(
                     "JavaScript bridge cannot serialize foreign host objects".to_string(),
@@ -1080,6 +1105,46 @@ fn value_to_wire(value: &Value) -> KainResult<JsonValue> {
         }
         other => Ok(JsonValue::String(other.to_string())),
     }
+}
+
+fn shared_buffer_to_wire(buffer: &KainSharedBuffer) -> JsonValue {
+    json!({
+        "contract": "kain.shared.buffer",
+        "byte_length": buffer.byte_length(),
+        "element_type": buffer.metadata.element_type,
+        "element_size": buffer.metadata.element_size,
+        "shape": buffer.metadata.shape,
+        "strides": buffer.metadata.strides,
+        "format": buffer.metadata.format,
+        "mime_type": buffer.metadata.mime_type,
+        "source_runtime": buffer.metadata.source_runtime,
+        "source_backend": buffer.metadata.source_backend,
+        "ownership": buffer.metadata.ownership,
+        "labels": buffer.metadata.labels,
+        "bytes": buffer.bytes(),
+    })
+}
+
+fn shared_image_to_wire(image: &KainSharedImage) -> JsonValue {
+    json!({
+        "contract": "kain.shared.image",
+        "byte_length": image.buffer.byte_length(),
+        "representation": image.metadata.representation,
+        "width": image.metadata.width,
+        "height": image.metadata.height,
+        "channels": image.metadata.channels,
+        "layout": image.metadata.layout,
+        "pixel_format": image.metadata.pixel_format,
+        "mime_type": image.metadata.mime_type,
+        "row_stride": image.metadata.row_stride,
+        "color_space": image.metadata.color_space,
+        "alpha_mode": image.metadata.alpha_mode,
+        "source_runtime": image.metadata.source_runtime,
+        "source_backend": image.metadata.source_backend,
+        "ownership": image.metadata.ownership,
+        "labels": image.metadata.labels,
+        "bytes": image.bytes(),
+    })
 }
 
 fn wire_to_value(value: &JsonValue) -> KainResult<Value> {
@@ -1524,6 +1589,38 @@ fn main():
                 assert!(matches!(values[2], Value::Int(42)));
             }
             other => panic!("expected Array([6, 6, 42]), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn javascript_bridge_projects_shared_contracts_as_typed_payloads() {
+        let result = interpret_source(
+            r#"
+use std::javascript::bridge
+use std::interop::bridge
+
+fn main():
+    js_exec("globalThis.inspectSharedContracts = (image, snapshot) => [image.contract, image.bytes instanceof Uint8Array, image.bytes[2], snapshot.contract, snapshot.bytes instanceof Uint8Array, snapshot.bytes[1]]")
+    let image = interop_shared_image_from_bytes([1, 2, 3, 4], 1, 1, 4, "HWC", "rgba8", "image/x-kain-raster")
+    let snapshot = interop_shared_buffer_from_bytes([9, 8, 7, 6], "u8", [4], "bytes", "application/octet-stream")
+    return js_call("inspectSharedContracts", [image, snapshot])
+"#,
+        );
+
+        match result {
+            Value::Array(values) => {
+                let values = values.read().unwrap();
+                assert_eq!(values.len(), 6);
+                assert!(matches!(&values[0], Value::String(value) if value == "kain.shared.image"));
+                assert!(matches!(values[1], Value::Bool(true)));
+                assert!(matches!(values[2], Value::Int(3)));
+                assert!(
+                    matches!(&values[3], Value::String(value) if value == "kain.shared.buffer")
+                );
+                assert!(matches!(values[4], Value::Bool(true)));
+                assert!(matches!(values[5], Value::Int(8)));
+            }
+            other => panic!("expected shared contract inspection array, got {other:?}"),
         }
     }
 

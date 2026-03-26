@@ -1435,6 +1435,259 @@ fn kain_geometry_from_py_owned_native(env: &mut Env, args: Vec<Value>) -> KainRe
     )
 }
 
+fn shared_buffer_to_python_object(
+    py: Python<'_>,
+    buffer: &KainSharedBuffer,
+) -> KainResult<PyObject> {
+    let dict = PyDict::new(py);
+    dict.set_item("contract", "kain.shared.buffer")
+        .map_err(|err| KainError::runtime(format!("shared buffer export error: {err}")))?;
+    dict.set_item("byte_length", buffer.byte_length() as i64)
+        .map_err(|err| KainError::runtime(format!("shared buffer export error: {err}")))?;
+    dict.set_item("element_type", buffer.metadata.element_type.clone())
+        .map_err(|err| KainError::runtime(format!("shared buffer export error: {err}")))?;
+    dict.set_item("element_size", buffer.metadata.element_size)
+        .map_err(|err| KainError::runtime(format!("shared buffer export error: {err}")))?;
+    dict.set_item(
+        "shape",
+        PyList::new(py, buffer.metadata.shape.iter().copied()),
+    )
+    .map_err(|err| KainError::runtime(format!("shared buffer export error: {err}")))?;
+    dict.set_item(
+        "strides",
+        PyList::new(py, buffer.metadata.strides.iter().copied()),
+    )
+    .map_err(|err| KainError::runtime(format!("shared buffer export error: {err}")))?;
+    dict.set_item(
+        "format",
+        buffer
+            .metadata
+            .format
+            .clone()
+            .map(|value| value.into_py(py))
+            .unwrap_or_else(|| py.None()),
+    )
+    .map_err(|err| KainError::runtime(format!("shared buffer export error: {err}")))?;
+    dict.set_item(
+        "mime_type",
+        buffer
+            .metadata
+            .mime_type
+            .clone()
+            .map(|value| value.into_py(py))
+            .unwrap_or_else(|| py.None()),
+    )
+    .map_err(|err| KainError::runtime(format!("shared buffer export error: {err}")))?;
+    dict.set_item("source_runtime", buffer.metadata.source_runtime.clone())
+        .map_err(|err| KainError::runtime(format!("shared buffer export error: {err}")))?;
+    dict.set_item(
+        "source_backend",
+        buffer
+            .metadata
+            .source_backend
+            .clone()
+            .map(|value| value.into_py(py))
+            .unwrap_or_else(|| py.None()),
+    )
+    .map_err(|err| KainError::runtime(format!("shared buffer export error: {err}")))?;
+    dict.set_item("ownership", buffer.metadata.ownership.clone())
+        .map_err(|err| KainError::runtime(format!("shared buffer export error: {err}")))?;
+    dict.set_item("labels", PyList::new(py, buffer.metadata.labels.iter()))
+        .map_err(|err| KainError::runtime(format!("shared buffer export error: {err}")))?;
+    dict.set_item("bytes", PyByteArray::new(py, &buffer.bytes()))
+        .map_err(|err| KainError::runtime(format!("shared buffer export error: {err}")))?;
+    Ok(dict.into())
+}
+
+fn shared_image_to_python_object(py: Python<'_>, image: &KainSharedImage) -> KainResult<PyObject> {
+    let dict = PyDict::new(py);
+    dict.set_item("contract", "kain.shared.image")
+        .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    dict.set_item("byte_length", image.buffer.byte_length() as i64)
+        .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    dict.set_item("representation", image.metadata.representation.clone())
+        .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    dict.set_item("width", image.metadata.width)
+        .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    dict.set_item("height", image.metadata.height)
+        .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    dict.set_item("channels", image.metadata.channels)
+        .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    dict.set_item("layout", image.metadata.layout.clone())
+        .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    dict.set_item("pixel_format", image.metadata.pixel_format.clone())
+        .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    dict.set_item("mime_type", image.metadata.mime_type.clone())
+        .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    dict.set_item("row_stride", image.metadata.row_stride)
+        .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    dict.set_item("color_space", image.metadata.color_space.clone())
+        .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    dict.set_item("alpha_mode", image.metadata.alpha_mode.clone())
+        .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    dict.set_item("source_runtime", image.metadata.source_runtime.clone())
+        .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    dict.set_item(
+        "source_backend",
+        image
+            .metadata
+            .source_backend
+            .clone()
+            .map(|value| value.into_py(py))
+            .unwrap_or_else(|| py.None()),
+    )
+    .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    dict.set_item("ownership", image.metadata.ownership.clone())
+        .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    dict.set_item("labels", PyList::new(py, image.metadata.labels.iter()))
+        .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    dict.set_item("bytes", PyByteArray::new(py, &image.bytes()))
+        .map_err(|err| KainError::runtime(format!("shared image export error: {err}")))?;
+    Ok(dict.into())
+}
+
+fn python_contract_field<'py>(target: &'py PyAny, name: &str) -> Option<&'py PyAny> {
+    if let Ok(dict) = target.downcast::<PyDict>() {
+        return dict.get_item(name).ok().flatten();
+    }
+    target.getattr(name).ok()
+}
+
+fn python_contract_string(target: &PyAny, name: &str) -> KainResult<Option<String>> {
+    let Some(value) = python_contract_field(target, name) else {
+        return Ok(None);
+    };
+    if value.is_none() {
+        return Ok(None);
+    }
+    value.extract::<String>().map(Some).map_err(|err| {
+        KainError::runtime(format!(
+            "shared contract field '{name}' must be a string: {err}"
+        ))
+    })
+}
+
+fn python_contract_int(target: &PyAny, name: &str) -> KainResult<Option<i64>> {
+    let Some(value) = python_contract_field(target, name) else {
+        return Ok(None);
+    };
+    if value.is_none() {
+        return Ok(None);
+    }
+    value.extract::<i64>().map(Some).map_err(|err| {
+        KainError::runtime(format!(
+            "shared contract field '{name}' must be an int: {err}"
+        ))
+    })
+}
+
+fn python_contract_int_list(target: &PyAny, name: &str) -> KainResult<Option<Vec<i64>>> {
+    let Some(value) = python_contract_field(target, name) else {
+        return Ok(None);
+    };
+    if value.is_none() {
+        return Ok(None);
+    }
+    value.extract::<Vec<i64>>().map(Some).map_err(|err| {
+        KainError::runtime(format!(
+            "shared contract field '{name}' must be a list of ints: {err}"
+        ))
+    })
+}
+
+fn python_contract_string_list(target: &PyAny, name: &str) -> KainResult<Option<Vec<String>>> {
+    let Some(value) = python_contract_field(target, name) else {
+        return Ok(None);
+    };
+    if value.is_none() {
+        return Ok(None);
+    }
+    value.extract::<Vec<String>>().map(Some).map_err(|err| {
+        KainError::runtime(format!(
+            "shared contract field '{name}' must be a list of strings: {err}"
+        ))
+    })
+}
+
+fn python_contract_bytes(target: &PyAny, fn_name: &str) -> KainResult<Vec<u8>> {
+    let value = python_contract_field(target, "bytes").ok_or_else(|| {
+        KainError::runtime(format!(
+            "{fn_name}: shared contract object is missing bytes"
+        ))
+    })?;
+    python_bytes_to_vec(value)
+}
+
+fn shared_buffer_from_python_contract(target: &PyAny) -> KainResult<Option<Arc<KainSharedBuffer>>> {
+    let Some(contract) = python_contract_string(target, "contract")? else {
+        return Ok(None);
+    };
+    if contract != "kain.shared.buffer" {
+        return Ok(None);
+    }
+    let bytes = python_contract_bytes(target, "kain_shared_buffer_from_py")?;
+    let element_type =
+        python_contract_string(target, "element_type")?.unwrap_or_else(|| "u8".to_string());
+    let element_size = python_contract_int(target, "element_size")?.unwrap_or(1);
+    let shape =
+        python_contract_int_list(target, "shape")?.unwrap_or_else(|| vec![bytes.len() as i64]);
+    let strides =
+        python_contract_int_list(target, "strides")?.unwrap_or_else(|| vec![element_size.max(1)]);
+    Ok(Some(KainSharedBuffer::owned(
+        SharedBufferMetadata {
+            element_type,
+            element_size: element_size.max(1),
+            shape,
+            strides,
+            format: python_contract_string(target, "format")?,
+            mime_type: python_contract_string(target, "mime_type")?,
+            source_runtime: python_contract_string(target, "source_runtime")?
+                .unwrap_or_else(|| "python".to_string()),
+            source_backend: python_contract_string(target, "source_backend")?,
+            ownership: python_contract_string(target, "ownership")?
+                .unwrap_or_else(|| "owned".to_string()),
+            labels: python_contract_string_list(target, "labels")?.unwrap_or_default(),
+        },
+        bytes,
+    )))
+}
+
+fn shared_image_from_python_contract(target: &PyAny) -> KainResult<Option<Arc<KainSharedImage>>> {
+    let Some(contract) = python_contract_string(target, "contract")? else {
+        return Ok(None);
+    };
+    if contract != "kain.shared.image" {
+        return Ok(None);
+    }
+    let bytes = python_contract_bytes(target, "kain_shared_image_from_py")?;
+    Ok(Some(KainSharedImage::owned(
+        SharedImageMetadata {
+            representation: python_contract_string(target, "representation")?
+                .unwrap_or_else(|| "encoded".to_string()),
+            width: python_contract_int(target, "width")?.unwrap_or(0),
+            height: python_contract_int(target, "height")?.unwrap_or(0),
+            channels: python_contract_int(target, "channels")?.unwrap_or(0),
+            layout: python_contract_string(target, "layout")?.unwrap_or_default(),
+            pixel_format: python_contract_string(target, "pixel_format")?
+                .unwrap_or_else(|| "encoded".to_string()),
+            mime_type: python_contract_string(target, "mime_type")?
+                .unwrap_or_else(|| "application/octet-stream".to_string()),
+            row_stride: python_contract_int(target, "row_stride")?.unwrap_or(0),
+            color_space: python_contract_string(target, "color_space")?
+                .unwrap_or_else(|| "srgb".to_string()),
+            alpha_mode: python_contract_string(target, "alpha_mode")?
+                .unwrap_or_else(|| "opaque".to_string()),
+            source_runtime: python_contract_string(target, "source_runtime")?
+                .unwrap_or_else(|| "python".to_string()),
+            source_backend: python_contract_string(target, "source_backend")?,
+            ownership: python_contract_string(target, "ownership")?
+                .unwrap_or_else(|| "owned".to_string()),
+            labels: python_contract_string_list(target, "labels")?.unwrap_or_default(),
+        },
+        bytes,
+    )?))
+}
+
 fn kain_shared_buffer_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
     if args.len() != 1 {
         return Err(KainError::runtime(
@@ -1447,6 +1700,9 @@ fn kain_shared_buffer_from_py_native(env: &mut Env, args: Vec<Value>) -> KainRes
         let scope = state.scope.read().unwrap();
         let scope_dict = scope_dict_from_guard(py, &scope)?;
         let target = resolve_python_target(py, scope_dict, &args[0])?;
+        if let Some(buffer) = shared_buffer_from_python_contract(target.as_ref(py))? {
+            return Ok(shared_buffer_value(buffer));
+        }
         let metadata = resolve_payload_metadata(py, target.as_ref(py))?;
         let bytes = python_bytes_to_vec(export_payload_bytes(py, target.as_ref(py))?.as_ref(py))?;
         let buffer = KainSharedBuffer::owned(
@@ -1488,6 +1744,9 @@ fn kain_shared_image_from_py_native(env: &mut Env, args: Vec<Value>) -> KainResu
         let scope = state.scope.read().unwrap();
         let scope_dict = scope_dict_from_guard(py, &scope)?;
         let target = resolve_python_target(py, scope_dict, &args[0])?;
+        if let Some(image) = shared_image_from_python_contract(target.as_ref(py))? {
+            return Ok(shared_image_value(image));
+        }
         let metadata = resolve_payload_metadata(py, target.as_ref(py))?;
         let info = build_image_info(&metadata)?;
         let fields = struct_fields_from_value(info);
@@ -4009,6 +4268,12 @@ fn extract_python_object(value: &Value, py: Python<'_>) -> KainResult<PyObject> 
     if let Some(view) = value.downcast_host_object::<PythonTensorView>() {
         return Ok(view.object.clone_ref(py));
     }
+    if let Some(buffer) = value.downcast_host_object::<KainSharedBuffer>() {
+        return shared_buffer_to_python_object(py, buffer.as_ref());
+    }
+    if let Some(image) = value.downcast_host_object::<KainSharedImage>() {
+        return shared_image_to_python_object(py, image.as_ref());
+    }
     if let Some(image) = value.downcast_host_object::<KainNativeImage>() {
         return export_native_image_pyobject(py, image.as_ref(), "numpy");
     }
@@ -4322,6 +4587,38 @@ mod tests {
         assert!(stdlib.functions.contains_key("kain_geometry_to_py"));
         assert!(stdlib.functions.contains_key("kain_shared_buffer_from_py"));
         assert!(stdlib.functions.contains_key("kain_shared_image_from_py"));
+    }
+
+    #[test]
+    fn python_bridge_projects_shared_contracts_as_bytearrays() {
+        let result = interpret_source(
+            r#"
+use std::python::bridge
+use std::interop::bridge
+
+fn main():
+    py_exec("def inspect_shared_contracts(image, snapshot):\n    return [image['contract'], isinstance(image['bytes'], bytearray), image['bytes'][2], snapshot['contract'], isinstance(snapshot['bytes'], bytearray), snapshot['bytes'][1]]")
+    let image = interop_shared_image_from_bytes([1, 2, 3, 4], 1, 1, 4, "HWC", "rgba8", "image/x-kain-raster")
+    let snapshot = interop_shared_buffer_from_bytes([9, 8, 7, 6], "u8", [4], "bytes", "application/octet-stream")
+    return py_call("inspect_shared_contracts", [image, snapshot])
+"#,
+        );
+
+        match result {
+            Value::Array(values) => {
+                let values = values.read().unwrap();
+                assert_eq!(values.len(), 6);
+                assert!(matches!(&values[0], Value::String(value) if value == "kain.shared.image"));
+                assert!(matches!(values[1], Value::Bool(true)));
+                assert!(matches!(values[2], Value::Int(3)));
+                assert!(
+                    matches!(&values[3], Value::String(value) if value == "kain.shared.buffer")
+                );
+                assert!(matches!(values[4], Value::Bool(true)));
+                assert!(matches!(values[5], Value::Int(8)));
+            }
+            other => panic!("expected shared contract inspection array, got {other:?}"),
+        }
     }
 
     #[test]

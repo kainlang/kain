@@ -95,7 +95,7 @@ The native shader-canvas UI lane now follows this contract:
 - `kain-core` also emits first-class shader-canvas text resources per surface: font atlas descriptors, text runs, and declared runtime resource bindings
 - `kain-driver` materializes shader bundles and native app sidecars that keep shader-canvas metadata, shader refs, and native UI bundles aligned
 - `kain-ui-native` resolves shader canvases from realtime bundle metadata first and only falls back to surface-local shader refs when metadata is missing
-- `kain-ui-native` now turns the shader-canvas text contract into real GPU inputs by serializing atlas/text metadata into the surface storage buffer and synthesizing a host-provisioned packed bitmap atlas texture, with cache reuse across repeated surfaces that share atlas content
+- `kain-ui-native` now turns the shader-canvas text contract into real GPU inputs by serializing atlas/text metadata into the surface storage buffer and synthesizing a host-provisioned packed atlas texture, preferring `ab_glyph` rasterization from data-driven system-font aliases with bitmap fallback and cache reuse across repeated surfaces that share atlas content
 - canonical native shader payload remains SPIR-V, while the current WGPU native host may consume derived WGSL or runtime-transpiled WGSL from the same bundle family
 
 The architecture rule here is the same as the viewport and compute lanes: shader-canvas execution can optimize presentation, but it must stay subordinate to compiler-owned bundle truth rather than inventing a renderer-local UI shader dialect.

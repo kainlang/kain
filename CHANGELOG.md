@@ -5,6 +5,77 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=574ad2ee885c5dc7 -->
+## 2026-03-26 01:55:08 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `dbdbc45b`
+- Changed files: 8
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `crates/kain-node/src/lib.rs`
+- [.M] `crates/kain-python/src/lib.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/repomap.md`
+
+<!-- polytools-changelog:fingerprint=cec9794841a77f32 -->
+## 2026-03-26 01:54:41 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `dbdbc45b`
+- Changed files: 6
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `crates/kain-node/src/lib.rs`
+- [.M] `crates/kain-python/src/lib.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/repomap.md`
+
+<!-- polytools-changelog:fingerprint=98fd253d8292c00c -->
+## 2026-03-26 01:35:47 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `dbdbc45b`
+- Changed files: 5
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `crates/kain-node/src/lib.rs`
+- [.M] `crates/kain-python/src/lib.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=1b1769a48fbafc38 -->
+## 2026-03-26 01:34:41 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `dbdbc45b`
+- Changed files: 4
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-node/src/lib.rs`
+- [.M] `crates/kain-python/src/lib.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=fda8ac445b53d60c -->
+## 2026-03-26 01:32:55 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `dbdbc45b`
+- Changed files: 3
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-node/src/lib.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=b1ae3bdc10326e3c -->
+## 2026-03-26 01:31:45 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `dbdbc45b`
+- Changed files: 2
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=a42852c65a0c7e8a -->
+## 2026-03-26 01:30:45 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `dbdbc45b`
+- Changed files: 1
+- [.M] `crates/kain-ui-native/src/lib.rs`
+
 <!-- polytools-changelog:fingerprint=3ff703d7bbdd46db -->
 ## 2026-03-26 01:26:40 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

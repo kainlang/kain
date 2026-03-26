@@ -7,6 +7,10 @@
   },
   "nav": [
     { "label": "System", "href": "#system" },
+    { "label": "App", "href": "#app" },
+    { "label": "Auth", "href": "#auth" },
+    { "label": "Commerce", "href": "#commerce" },
+    { "label": "Realtime", "href": "#realtime" },
     { "label": "Scene", "href": "#scene" },
     { "label": "Proof", "href": "#proof" },
     { "label": "Search", "href": "#search" },
@@ -23,9 +27,9 @@
     ]
   },
   "metrics": [
-    { "value": "06", "label": "archetypes in the pack" },
-    { "value": "07", "label": "artifacts per site" },
-    { "value": "12", "label": "systems exposed in one shell" }
+    { "value": "11", "label": "archetypes in the pack" },
+    { "value": "09", "label": "artifacts per site" },
+    { "value": "18", "label": "systems exposed in one shell" }
   ],
   "logos": [
     { "label": "Business", "detail": "launch narrative" },
@@ -44,6 +48,41 @@
     { "kicker": "Authoring", "title": "Manifest registries", "body": "Themes, content, scenes, and experiences expand through data instead of copied app code.", "owned_by": ["kain", "registry"] },
     { "kicker": "Runtime", "title": "Node FFI web lane", "body": "Serving, chat, search, and form capture stay outside Cargo while Kain remains the orchestrator.", "owned_by": ["node", "ffi"] },
     { "kicker": "Preview", "title": "Semantic UI preview", "body": "Kain UI still owns the native preview surface and design intent loop.", "owned_by": ["kain-ui", "preview"] }
+  ],
+  "app_modules": [
+    { "name": "Launch workspace", "route": "/workspace/launch", "summary": "Hero, pricing, proof, and CTA composition for business-style delivery.", "tags": ["launch", "workspace"] },
+    { "name": "Knowledge workspace", "route": "/workspace/knowledge", "summary": "Docs search, onboarding rails, and artifact notes.", "tags": ["docs", "search"] },
+    { "name": "Operator workspace", "route": "/workspace/operator", "summary": "Route contracts, actor topology, and command surfaces.", "tags": ["ops", "actors"] }
+  ],
+  "auth": {
+    "kicker": "Identity",
+    "title": "Auth flows stay in the template contract.",
+    "body": "The universal pack now carries sign-in, invite, and membership strategy metadata as first-class site data instead of hiding it in page-specific code.",
+    "methods": [
+      { "label": "Passwordless email", "detail": "Low-friction link sign-in for product and member surfaces.", "scope": "member", "status": "template-ready" },
+      { "label": "Invite codes", "detail": "Private launches and gated operator rooms.", "scope": "operator", "status": "template-ready" },
+      { "label": "SSO bridge", "detail": "Enterprise-ready connector shape for external identity providers.", "scope": "enterprise", "status": "manifest-contract" }
+    ]
+  },
+  "commerce": {
+    "offers": [
+      { "kicker": "Starter", "cadence": "one-time", "name": "Launch system", "price": "$4k", "summary": "Launch, proof, intake, and docs setup.", "features": ["Hero + proof rails", "Forms", "Search-ready docs"], "actions": [{ "label": "Start launch", "href": "#intake", "style": "primary" }] },
+      { "kicker": "Growth", "cadence": "project", "name": "Experience system", "price": "$9k", "summary": "Adds scene, chat, and workspace modules.", "features": ["Scene spotlight", "Prompt deck", "App shell"], "actions": [{ "label": "Inspect app", "href": "#app", "style": "secondary" }] },
+      { "kicker": "Ops", "cadence": "retainer", "name": "Realtime command system", "price": "$15k", "summary": "Operator lanes with route and stream metadata.", "features": ["Realtime channels", "Actor mesh", "System contract"], "actions": [{ "label": "Inspect realtime", "href": "#realtime", "style": "primary" }] }
+    ]
+  },
+  "integrations": [
+    { "name": "CRM bridge", "category": "sales", "detail": "Capture launch and commerce leads into an external CRM.", "transport": "http webhook", "status": "template-ready" },
+    { "name": "Docs sync", "category": "knowledge", "detail": "Mirror docs summaries into the local search index.", "transport": "json import", "status": "template-ready" },
+    { "name": "Ops bus", "category": "operations", "detail": "Feed route and actor summaries to external dashboards.", "transport": "sse preview", "status": "preview" }
+  ],
+  "realtime_channels": [
+    { "name": "Launch pulse", "protocol": "sse", "cadence": "burst", "producer": "prompt_router", "consumers": ["launch workspace"], "summary": "Push staged launch-state updates into the workspace shell." },
+    { "name": "Operator watch", "protocol": "sse", "cadence": "steady", "producer": "mesh_supervisor", "consumers": ["operator workspace"], "summary": "Broadcast actor and route state changes for control-room surfaces." }
+  ],
+  "data_collections": [
+    { "name": "site_intakes", "schema": "lead.capture.v1", "retention": "jsonl-local", "actor": "intake_collector", "purpose": "Stores launch, commerce, and operator interest payloads." },
+    { "name": "prompt_sessions", "schema": "chat.session.v1", "retention": "ephemeral-local", "actor": "prompt_router", "purpose": "Keeps lightweight local prompt handoff state for chat-first flows." }
   ],
   "process_steps": [
     { "title": "Pick the lane mix", "body": "Use hybrid when launch, search, prompts, 3D, and routes need to coexist." },
@@ -110,9 +149,10 @@
     }
   },
   "search_documents": [
-    { "kind": "system", "title": "Artifact contract", "summary": "Seven files emitted per experience.", "href": "#system", "tags": ["artifacts"] },
+    { "kind": "system", "title": "Artifact contract", "summary": "Nine files emitted per experience.", "href": "#system", "tags": ["artifacts"] },
     { "kind": "system", "title": "Scene spotlight", "summary": "Immersive 3D staging entry point.", "href": "#scene", "tags": ["3d"] },
-    { "kind": "system", "title": "Actor route surface", "summary": "JSON endpoints for actors, routes, search, and health.", "href": "#routes", "tags": ["actors", "runtime"] }
+    { "kind": "system", "title": "Actor route surface", "summary": "JSON endpoints for actors, routes, search, and health.", "href": "#routes", "tags": ["actors", "runtime"] },
+    { "kind": "system", "title": "UI schema", "summary": "React-like layout metadata for app-shell composition.", "href": "#app", "tags": ["ui", "app"] }
   ],
   "chat_seed": [
     { "role": "assistant", "text": "Describe the kind of website you need and I will route you to the right lane mix." },
@@ -122,11 +162,18 @@
     { "name": "site_renderer", "responsibility": "Serves the hybrid shell and static artifacts.", "channel": "http.root" },
     { "name": "prompt_router", "responsibility": "Routes chat prompts to the right lane or next action.", "channel": "api.chat" },
     { "name": "search_indexer", "responsibility": "Queries the local docs and systems index.", "channel": "api.search" },
-    { "name": "mesh_supervisor", "responsibility": "Reports health, routes, and actor topology.", "channel": "api.actors" }
+    { "name": "mesh_supervisor", "responsibility": "Reports health, routes, and actor topology.", "channel": "api.actors" },
+    { "name": "auth_gateway", "responsibility": "Publishes authentication strategy metadata to app and member surfaces.", "channel": "api.auth" },
+    { "name": "commerce_orchestrator", "responsibility": "Publishes offer and handoff metadata for pricing and checkout flows.", "channel": "api.commerce" },
+    { "name": "signal_broker", "responsibility": "Publishes live channel metadata for realtime dashboards and chat.", "channel": "api.realtime" }
   ],
   "server_routes": [
     { "method": "GET", "path": "/api/runtime", "purpose": "returns the active hybrid runtime metadata" },
     { "method": "GET", "path": "/api/search", "purpose": "returns local docs and system search results" },
+    { "method": "GET", "path": "/api/app", "purpose": "returns app shell module metadata" },
+    { "method": "GET", "path": "/api/auth", "purpose": "returns auth strategy metadata" },
+    { "method": "GET", "path": "/api/commerce", "purpose": "returns offer and membership metadata" },
+    { "method": "GET", "path": "/api/realtime", "purpose": "returns realtime channel metadata" },
     { "method": "GET", "path": "/api/routes", "purpose": "returns the hybrid route contract" },
     { "method": "POST", "path": "/api/forms/hybrid_intake", "purpose": "captures a full-site intent payload locally" }
   ],

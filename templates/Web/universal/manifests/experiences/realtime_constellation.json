@@ -1,0 +1,23 @@
+{
+  "mode": "realtime",
+  "theme": "signal_meridian",
+  "content": "realtime_constellation",
+  "scene": "stream_mesh",
+  "output_slug": "realtime-constellation",
+  "page_title": "Realtime Constellation",
+  "eyebrow": "Realtime Website System",
+  "sections": [
+    { "id": "realtime", "kind": "realtime_channels", "eyebrow": "Realtime", "title": "Signal channel previews", "source": "content.realtime_channels" },
+    { "id": "capabilities", "kind": "capability_matrix", "eyebrow": "Capability", "title": "How chat, ops, and knowledge mix", "source": "content.capability_matrix" },
+    { "id": "integrations", "kind": "integration_grid", "eyebrow": "Integrations", "title": "Live adapters and imports", "source": "content.integrations" },
+    { "id": "data", "kind": "data_collections", "eyebrow": "Data", "title": "Typed event collections", "source": "content.data_collections" },
+    { "id": "scene", "kind": "scene_spotlight", "eyebrow": "Scene", "title": "Stream Mesh", "source": "scene" },
+    { "id": "commands", "kind": "command_lines", "eyebrow": "Commands", "title": "Realtime operator commands", "source": "content.command_lines" },
+    { "id": "prompts", "kind": "prompt_deck", "eyebrow": "Prompts", "title": "Route the live system by prompt", "source": "content.prompt_presets" },
+    { "id": "chat", "kind": "chat_lab", "eyebrow": "Chat", "title": "Prompt the realtime lane", "source": "content.chat_seed", "placeholder": "What kind of live website do you need?", "button_label": "Ask" },
+    { "id": "actors", "kind": "actor_mesh", "eyebrow": "Actors", "title": "Realtime actor mesh", "source": "content.actor_roles" },
+    { "id": "routes", "kind": "route_grid", "eyebrow": "Runtime", "title": "Realtime routes", "source": "content.server_routes" },
+    { "id": "intake", "kind": "form_panel", "eyebrow": "Intake", "title": "Describe the live flow", "source": "content.forms.realtime_intake" },
+    { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }
+  ]
+}

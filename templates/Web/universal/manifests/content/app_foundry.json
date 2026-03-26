@@ -1,0 +1,125 @@
+{
+  "brand": "App Foundry",
+  "seo": {
+    "title": "App Foundry | Kain Product App Template",
+    "description": "A Kain web archetype for product apps, member workspaces, auth strategy, integrations, and typed local data collections.",
+    "image": "/social-app-foundry.png"
+  },
+  "nav": [
+    { "label": "Modules", "href": "#modules" },
+    { "label": "Auth", "href": "#auth" },
+    { "label": "Data", "href": "#data" },
+    { "label": "Integrations", "href": "#integrations" },
+    { "label": "Routes", "href": "#routes" }
+  ],
+  "hero": {
+    "kicker": "Product app archetype",
+    "title": "Build workspace-style websites without leaving the Kain pack.",
+    "body": "App Foundry is the universal pack's product-app lane: app modules, auth strategies, data collections, prompts, and actor routes stay manifest-driven and Rust-free for the end user.",
+    "actions": [
+      { "label": "Inspect modules", "href": "#modules", "style": "primary" },
+      { "label": "Open setup", "href": "#setup", "style": "secondary" }
+    ]
+  },
+  "metrics": [
+    { "value": "05", "label": "workspace modules" },
+    { "value": "03", "label": "auth strategies" },
+    { "value": "04", "label": "integration lanes" }
+  ],
+  "logos": [
+    { "label": "Workspace", "detail": "module shell" },
+    { "label": "Identity", "detail": "member access" },
+    { "label": "Data", "detail": "typed collections" },
+    { "label": "Actors", "detail": "runtime contracts" }
+  ],
+  "feature_cards": [
+    { "kicker": "UI", "title": "React-like shell metadata", "body": "App Foundry emits a UI schema that keeps module layout and form contracts inspectable." },
+    { "kicker": "Identity", "title": "Auth stays data-driven", "body": "Passwordless, invite, and SSO strategy surfaces live in manifest data." },
+    { "kicker": "Runtime", "title": "Routes stay actor-ready", "body": "Workspace routes, app metadata, and setup forms are available over local APIs." }
+  ],
+  "app_modules": [
+    { "name": "Overview", "route": "/workspace/overview", "summary": "Launch metrics, latest records, and onboarding summary.", "tags": ["workspace", "overview"] },
+    { "name": "Customers", "route": "/workspace/customers", "summary": "Member/customer collection view and segment definitions.", "tags": ["crm", "members"] },
+    { "name": "Docs", "route": "/workspace/docs", "summary": "Searchable product docs and prompt cards.", "tags": ["docs", "search"] },
+    { "name": "Operations", "route": "/workspace/ops", "summary": "Route health and actor topology for operators.", "tags": ["ops", "actors"] },
+    { "name": "Settings", "route": "/workspace/settings", "summary": "Auth providers, integration endpoints, and feature flags.", "tags": ["settings", "auth"] }
+  ],
+  "auth": {
+    "kicker": "Identity",
+    "title": "Member and operator access strategy",
+    "body": "App Foundry carries auth metadata for product teams that need private workspaces, guest seats, and enterprise entry points.",
+    "methods": [
+      { "label": "Passwordless email", "detail": "Fast sign-in for customers and operators.", "scope": "member", "status": "template-ready" },
+      { "label": "Invite + seat grants", "detail": "Control access to private workspaces and beta lanes.", "scope": "operator", "status": "template-ready" },
+      { "label": "Enterprise SSO", "detail": "Connector shape for SAML/OIDC handoff.", "scope": "enterprise", "status": "manifest-contract" }
+    ]
+  },
+  "data_collections": [
+    { "name": "customers", "schema": "customer.record.v1", "retention": "jsonl-local", "actor": "data_keeper", "purpose": "Stores member/customer summaries during local-first prototyping." },
+    { "name": "workspace_events", "schema": "workspace.event.v1", "retention": "rolling-local", "actor": "signal_broker", "purpose": "Captures operator and onboarding events for app dashboards." },
+    { "name": "auth_audits", "schema": "auth.audit.v1", "retention": "append-only-local", "actor": "auth_gateway", "purpose": "Tracks sign-in strategy and invite actions." }
+  ],
+  "integrations": [
+    { "name": "Billing sync", "category": "finance", "detail": "Push customer tiers and plan metadata to billing providers.", "transport": "http webhook", "status": "template-ready" },
+    { "name": "CRM sync", "category": "sales", "detail": "Mirror customer and lead changes to a CRM.", "transport": "json export", "status": "template-ready" },
+    { "name": "Docs importer", "category": "knowledge", "detail": "Feeds docs summaries into the app workspace and local search index.", "transport": "json import", "status": "template-ready" },
+    { "name": "Alert bridge", "category": "ops", "detail": "Routes local operator events into external alert tooling.", "transport": "sse preview", "status": "preview" }
+  ],
+  "process_steps": [
+    { "title": "Pick the workspace modules", "body": "Start with Overview, Customers, Docs, Operations, and Settings, then trim or extend from data." },
+    { "title": "Choose auth posture", "body": "Use passwordless, invites, and enterprise SSO metadata together when the product has mixed audiences." },
+    { "title": "Attach typed collections", "body": "Define local-first collections before adding heavier persistence." }
+  ],
+  "prompt_presets": [
+    { "kicker": "Workspace", "title": "App workspace brief", "prompt": "Build a member workspace with docs and billing setup", "body": "Routes toward overview, docs, and billing module setup.", "button_label": "Ask workspace" },
+    { "kicker": "Identity", "title": "Auth brief", "prompt": "Design auth and invite flows for a private product app", "body": "Routes toward auth strategy and operator access setup.", "button_label": "Ask auth" }
+  ],
+  "docs_links": [
+    { "kicker": "Schema", "title": "UI schema contract", "summary": "Each app build emits a UI schema for module and form composition.", "href": "#modules", "label": "Open schema" },
+    { "kicker": "Runtime", "title": "Auth + data APIs", "summary": "Inspect app, auth, and data collection metadata over local APIs.", "href": "#routes", "label": "Inspect APIs" }
+  ],
+  "command_lines": [
+    { "kicker": "Serve", "title": "Run the app archetype", "command": "npm run serve:app", "body": "Boot the product-app runtime shell with auth, data, and integration APIs." },
+    { "kicker": "Inspect", "title": "Inspect the app system contract", "command": "npm run contract:app", "body": "Print the app system contract and module/auth/data metadata." }
+  ],
+  "chat_seed": [
+    { "role": "assistant", "text": "Describe the product app you need and I will map it to modules, auth, and data collections." }
+  ],
+  "forms": {
+    "app_setup": {
+      "id": "app_setup",
+      "kicker": "Setup",
+      "title": "Describe the product workspace",
+      "body": "Capture audience, modules, and integrations for the app shell.",
+      "submit_label": "Capture app setup",
+      "action": "/api/forms/app_setup",
+      "fields": [
+        { "name": "product", "label": "Product", "type": "text", "placeholder": "Workspace or app name" },
+        { "name": "audience", "label": "Audience", "type": "text", "placeholder": "members / operators / enterprise" },
+        { "name": "modules", "label": "Modules", "type": "textarea", "rows": 5, "placeholder": "Overview, Docs, Customers..." }
+      ]
+    }
+  },
+  "actor_roles": [
+    { "name": "site_renderer", "responsibility": "Serves the product app shell.", "channel": "http.root" },
+    { "name": "auth_gateway", "responsibility": "Publishes auth strategy metadata.", "channel": "api.auth" },
+    { "name": "data_keeper", "responsibility": "Publishes collection metadata and setup state.", "channel": "api.data" },
+    { "name": "integration_router", "responsibility": "Publishes integration metadata.", "channel": "api.integrations" }
+  ],
+  "server_routes": [
+    { "method": "GET", "path": "/api/app", "purpose": "returns app module metadata" },
+    { "method": "GET", "path": "/api/auth", "purpose": "returns auth strategy metadata" },
+    { "method": "GET", "path": "/api/data", "purpose": "returns typed collection metadata" },
+    { "method": "GET", "path": "/api/integrations", "purpose": "returns integration metadata" },
+    { "method": "POST", "path": "/api/forms/app_setup", "purpose": "captures product app setup input locally" }
+  ],
+  "cta": {
+    "title": "Start with the app shell contract, then plug in runtime specifics.",
+    "body": "App Foundry is the fastest lane to a serious product workspace template without forcing Rust on the user.",
+    "actions": [
+      { "label": "Open setup", "href": "#setup", "style": "primary" },
+      { "label": "Inspect modules", "href": "#modules", "style": "secondary" }
+    ]
+  },
+  "footer": "app archetype"
+}

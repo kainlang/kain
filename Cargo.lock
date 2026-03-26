@@ -2921,6 +2921,7 @@ dependencies = [
 name = "kain-ui-native"
 version = "0.1.0"
 dependencies = [
+ "ab_glyph",
  "bytemuck",
  "eframe",
  "egui-wgpu",

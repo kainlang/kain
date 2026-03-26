@@ -382,7 +382,7 @@ fn collect_shader_canvas_surface_resources(
         font_atlases.push(RealtimeShaderCanvasFontAtlas {
             key: atlas_key.clone(),
             family: first_string_prop(node, &["font_family", "font"])
-                .unwrap_or_else(|| "kain.builtin.bitmap_5x7".to_string()),
+                .unwrap_or_else(|| "kain.default-ui-sans".to_string()),
             glyphs,
             cell_size_px: [cell_width_px, cell_height_px],
             texture_size_px: [cell_width_px * columns, cell_height_px * rows.max(1)],

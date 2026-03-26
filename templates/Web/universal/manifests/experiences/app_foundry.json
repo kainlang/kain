@@ -1,0 +1,22 @@
+{
+  "mode": "app_shell",
+  "theme": "signal_meridian",
+  "content": "app_foundry",
+  "scene": "workspace_ribbon",
+  "output_slug": "app-foundry",
+  "page_title": "App Foundry",
+  "eyebrow": "Product App System",
+  "sections": [
+    { "id": "modules", "kind": "app_shell", "eyebrow": "Modules", "title": "Workspace modules", "source": "content.app_modules" },
+    { "id": "auth", "kind": "auth_panel", "eyebrow": "Auth", "title": "Access posture", "source": "content.auth" },
+    { "id": "data", "kind": "data_collections", "eyebrow": "Data", "title": "Typed local collections", "source": "content.data_collections" },
+    { "id": "integrations", "kind": "integration_grid", "eyebrow": "Integrations", "title": "Connectors and transports", "source": "content.integrations" },
+    { "id": "scene", "kind": "scene_spotlight", "eyebrow": "Scene", "title": "Workspace Ribbon", "source": "scene" },
+    { "id": "process", "kind": "process_steps", "eyebrow": "Flow", "title": "How to shape the app shell", "source": "content.process_steps" },
+    { "id": "prompts", "kind": "prompt_deck", "eyebrow": "Prompts", "title": "Prompt the product lane", "source": "content.prompt_presets" },
+    { "id": "docs", "kind": "docs_grid", "eyebrow": "Docs", "title": "Contracts and runtime notes", "source": "content.docs_links" },
+    { "id": "routes", "kind": "route_grid", "eyebrow": "Runtime", "title": "App routes", "source": "content.server_routes" },
+    { "id": "setup", "kind": "form_panel", "eyebrow": "Setup", "title": "Describe the product workspace", "source": "content.forms.app_setup" },
+    { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }
+  ]
+}

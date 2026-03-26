@@ -8,6 +8,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
+use ab_glyph::{point, Font, FontArc, ScaleFont};
 use eframe::egui::{self, Align, Color32, Frame, Layout, RichText, Stroke, Vec2};
 use egui_wgpu::{self, CallbackTrait, ScreenDescriptor};
 use kain_3d::{
@@ -52,7 +53,10 @@ const KAIN_UI_NATIVE_SHADER_BUNDLE_ENV: &str = "KAIN_UI_NATIVE_SHADER_BUNDLE";
 const KAIN_UI_NATIVE_APP_MANIFEST_ENV: &str = "KAIN_UI_NATIVE_APP_MANIFEST";
 const KAIN_UI_NATIVE_APP_SNAPSHOT_ENV: &str = "KAIN_UI_NATIVE_APP_SNAPSHOT";
 const UI_SHADER_SURFACE_VERTEX_ENTRY: &str = "kain_ui_surface_vs_main";
+const SHADER_CANVAS_BITMAP_FONT_FAMILY: &str = "kain.builtin.bitmap_5x7";
+const SHADER_CANVAS_DEFAULT_FONT_FAMILY: &str = "kain.default-ui-sans";
 const UI_SHADER_SURFACE_FULLSCREEN_VERTEX_WGSL: &str = r#"
+
 struct KainUiSurfaceVertexOut {
     @builtin(position) position: vec4<f32>,
     @location(0) uv: vec2<f32>,
@@ -76,6 +80,58 @@ fn kain_ui_surface_vs_main(@builtin(vertex_index) vertex_index: u32) -> KainUiSu
     return output;
 }
 "#;
+
+struct ShaderCanvasFontFamilySpec {
+    aliases: &'static [&'static str],
+    path_candidates: &'static [&'static str],
+}
+
+const SHADER_CANVAS_FONT_FAMILY_SPECS: &[ShaderCanvasFontFamilySpec] = &[
+    ShaderCanvasFontFamilySpec {
+        aliases: &[
+            SHADER_CANVAS_DEFAULT_FONT_FAMILY,
+            "system-ui",
+            "ui-sans",
+            "sans",
+            "sans-serif",
+            "segoe ui",
+            "arial",
+            "dejavu sans",
+            "noto sans",
+            "liberation sans",
+        ],
+        path_candidates: &[
+            "C:\\Windows\\Fonts\\segoeui.ttf",
+            "C:\\Windows\\Fonts\\arial.ttf",
+            "C:\\Windows\\Fonts\\calibri.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+            "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "/System/Library/Fonts/Supplemental/Helvetica.ttc",
+        ],
+    },
+    ShaderCanvasFontFamilySpec {
+        aliases: &[
+            "kain.default-ui-mono",
+            "ui-mono",
+            "mono",
+            "monospace",
+            "consolas",
+            "cascadia mono",
+            "dejavu sans mono",
+            "liberation mono",
+        ],
+        path_candidates: &[
+            "C:\\Windows\\Fonts\\consola.ttf",
+            "C:\\Windows\\Fonts\\CascadiaMono.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            "/usr/share/fonts/truetype/liberation2/LiberationMono-Regular.ttf",
+            "/System/Library/Fonts/SFNSMono.ttf",
+            "/System/Library/Fonts/Supplemental/Menlo.ttc",
+        ],
+    },
+];
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -3452,6 +3508,174 @@ fn build_ui_shader_surface_texture_payload(
 }
 
 fn rasterize_shader_surface_font_atlas(atlas: &RealtimeShaderCanvasFontAtlas) -> Vec<u8> {
+    if let Some(font) = try_load_shader_canvas_font(&atlas.family) {
+        return rasterize_shader_surface_font_atlas_with_ab_glyph(atlas, &font);
+    }
+
+    rasterize_shader_surface_font_atlas_bitmap(atlas)
+}
+
+fn try_load_shader_canvas_font(family: &str) -> Option<FontArc> {
+    let normalized_family = normalize_shader_canvas_font_family(family);
+    if normalized_family.is_empty()
+        || normalized_family
+            == normalize_shader_canvas_font_family(SHADER_CANVAS_BITMAP_FONT_FAMILY)
+    {
+        return None;
+    }
+
+    for candidate in shader_canvas_font_candidate_paths(family) {
+        let Ok(bytes) = fs::read(&candidate) else {
+            continue;
+        };
+        let Ok(font) = FontArc::try_from_vec(bytes) else {
+            continue;
+        };
+        return Some(font);
+    }
+
+    None
+}
+
+fn shader_canvas_font_candidate_paths(family: &str) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    let trimmed_family = family.trim();
+    if trimmed_family.is_empty() {
+        return candidates;
+    }
+
+    let requested_path = PathBuf::from(trimmed_family);
+    if requested_path.exists() {
+        candidates.push(requested_path);
+    }
+
+    let normalized_family = normalize_shader_canvas_font_family(trimmed_family);
+    for spec in SHADER_CANVAS_FONT_FAMILY_SPECS {
+        if !spec
+            .aliases
+            .iter()
+            .any(|alias| normalize_shader_canvas_font_family(alias) == normalized_family)
+        {
+            continue;
+        }
+
+        for candidate in spec.path_candidates {
+            let candidate_path = PathBuf::from(candidate);
+            if !candidates
+                .iter()
+                .any(|existing| existing == &candidate_path)
+            {
+                candidates.push(candidate_path);
+            }
+        }
+        break;
+    }
+
+    candidates
+}
+
+fn normalize_shader_canvas_font_family(family: &str) -> String {
+    family
+        .trim()
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .flat_map(|ch| ch.to_lowercase())
+        .collect()
+}
+
+fn rasterize_shader_surface_font_atlas_with_ab_glyph(
+    atlas: &RealtimeShaderCanvasFontAtlas,
+    font: &FontArc,
+) -> Vec<u8> {
+    let width = atlas.texture_size_px[0].max(1);
+    let height = atlas.texture_size_px[1].max(1);
+    let mut rgba8 = vec![0u8; (width * height * 4) as usize];
+    let cell_width = atlas.cell_size_px[0].max(1) as usize;
+    let cell_height = atlas.cell_size_px[1].max(1) as usize;
+    let glyph_scale_px = (cell_width.min(cell_height) as f32 * 0.82).max(8.0);
+    let scaled_font = font.as_scaled(glyph_scale_px);
+    let fallback_glyph = font.glyph_id('?');
+
+    for (glyph_index, glyph) in atlas.glyphs.chars().enumerate() {
+        let columns = atlas.columns.max(1) as usize;
+        let cell_x = glyph_index % columns;
+        let cell_y = glyph_index / columns;
+        if cell_y >= atlas.rows.max(1) as usize {
+            continue;
+        }
+
+        let glyph_id = font.glyph_id(glyph);
+        let mut template_outline =
+            outline_shader_canvas_glyph(&scaled_font, glyph_id, glyph_scale_px, point(0.0, 0.0));
+        let resolved_glyph_id = if template_outline.is_some() {
+            glyph_id
+        } else {
+            template_outline = outline_shader_canvas_glyph(
+                &scaled_font,
+                fallback_glyph,
+                glyph_scale_px,
+                point(0.0, 0.0),
+            );
+            fallback_glyph
+        };
+        let Some(template_outline) = template_outline else {
+            continue;
+        };
+        let template_bounds = template_outline.px_bounds();
+        let glyph_width = (template_bounds.max.x - template_bounds.min.x).max(1.0);
+        let glyph_height = (template_bounds.max.y - template_bounds.min.y).max(1.0);
+        let position = point(
+            cell_x as f32 * cell_width as f32 + ((cell_width as f32 - glyph_width).max(0.0) * 0.5)
+                - template_bounds.min.x,
+            cell_y as f32 * cell_height as f32
+                + ((cell_height as f32 - glyph_height).max(0.0) * 0.5)
+                - template_bounds.min.y,
+        );
+        let Some(outlined_glyph) =
+            outline_shader_canvas_glyph(&scaled_font, resolved_glyph_id, glyph_scale_px, position)
+        else {
+            continue;
+        };
+        let glyph_bounds = outlined_glyph.px_bounds();
+        outlined_glyph.draw(|glyph_x, glyph_y, coverage| {
+            let px = glyph_bounds.min.x.floor() as i32 + glyph_x as i32;
+            let py = glyph_bounds.min.y.floor() as i32 + glyph_y as i32;
+            if px < 0 || py < 0 {
+                return;
+            }
+            let px = px as usize;
+            let py = py as usize;
+            if px >= width as usize || py >= height as usize {
+                return;
+            }
+            let coverage_u8 = (coverage.clamp(0.0, 1.0) * 255.0).round() as u8;
+            if coverage_u8 == 0 {
+                return;
+            }
+            let offset = ((py * width as usize) + px) * 4;
+            rgba8[offset] = 255;
+            rgba8[offset + 1] = 255;
+            rgba8[offset + 2] = 255;
+            rgba8[offset + 3] = rgba8[offset + 3].max(coverage_u8);
+        });
+    }
+
+    rgba8
+}
+
+fn outline_shader_canvas_glyph(
+    scaled_font: &ab_glyph::PxScaleFont<&FontArc>,
+    glyph_id: ab_glyph::GlyphId,
+    glyph_scale_px: f32,
+    position: ab_glyph::Point,
+) -> Option<ab_glyph::OutlinedGlyph> {
+    ScaleFont::outline_glyph(
+        scaled_font,
+        glyph_id.with_scale_and_position(glyph_scale_px, position),
+    )
+}
+
+fn rasterize_shader_surface_font_atlas_bitmap(atlas: &RealtimeShaderCanvasFontAtlas) -> Vec<u8> {
     let width = atlas.texture_size_px[0].max(1);
     let height = atlas.texture_size_px[1].max(1);
     let mut rgba8 = vec![0u8; (width * height * 4) as usize];

@@ -9,10 +9,45 @@ Companion artifacts:
     └── 📂 browser
         └── 📂 pkg
         └── 📂 src
+            └── 📜 lib.rs
     └── 📂 cli
         └── 📂 src
             └── 📂 bin
+                └── 📜 kn.rs
+            └── 📜 error.rs
+            └── 📜 fabric.rs
+            └── 📜 gpu_artifacts.rs
+            └── 📜 import_asm.rs
+            └── 📜 import_c.rs
+            └── 📜 import_crate.rs
+            └── 📜 import_rust.rs
+            └── 📜 import_typescript.rs
+            └── 📜 import_usf.rs
+            └── 📜 lib.rs
+            └── 📜 llvm_native_stage.rs
+            └── 📜 lsp.rs
+            └── 📜 main.rs
+            └── 📜 native_ui_build.rs
+            └── 📜 omni.rs
             └── 📂 packager
+                └── 📜 build.rs
+                └── 📜 build_cs_gen.rs
+                └── 📜 codegen.rs
+                └── 📜 config.rs
+                └── 📜 cpp_validator.rs
+                └── 📜 dependencies.rs
+                └── 📜 inject.rs
+                └── 📜 material_gen.rs
+                └── 📜 mod.rs
+                └── 📜 plugin_layout.rs
+                └── 📜 post_process.rs
+                └── 📜 registry.rs
+                └── 📜 registry_writer.rs
+                └── 📜 ue5_pipeline.rs
+                └── 📜 uplugin_gen.rs
+            └── 📜 rust_build.rs
+            └── 📜 selfhost.rs
+            └── 📜 selfhost_report.rs
         └── 📂 tests
             └── 📂 fixtures
                 └── 📂 codegen_validation
@@ -23,10 +58,24 @@ Companion artifacts:
                 └── 📂 preservation
     └── 📂 gpu
         └── 📂 src
+            └── 📜 codegen_hlsl.rs
+            └── 📜 codegen_spirv.rs
+            └── 📜 lib.rs
         └── 📂 tests
     └── 📂 kain-3D
         └── 📂 src
+            └── 📜 authoring.rs
+            └── 📜 host.rs
+            └── 📜 interaction.rs
+            └── 📜 lib.rs
+            └── 📜 math.rs
+            └── 📜 prelude.rs
+            └── 📜 renderer.rs
+            └── 📜 scene.rs
+            └── 📜 shader_bundle.rs
             └── 📂 shaders
+                └── 📜 viewport_surface.wgsl
+            └── 📜 wgpu_renderer.rs
     └── 📂 kain-asm
         └── 📂 generated
         └── 📂 Research
@@ -35,190 +84,496 @@ Companion artifacts:
         └── 📂 src
             └── 📂 dialects
                 └── 📂 furby_6502
+                    └── 📜 mod.rs
                 └── 📂 gameboy_lr35902
+                    └── 📜 mod.rs
+                └── 📜 mod.rs
                 └── 📂 z80
+                    └── 📜 mod.rs
+            └── 📜 error.rs
+            └── 📜 lib.rs
     └── 📂 kain-build
         └── 📂 src
+            └── 📜 lib.rs
     └── 📂 kain-c-ffi
         └── 📂 src
+            └── 📜 config.rs
+            └── 📜 extract.rs
+            └── 📜 generate.rs
+            └── 📜 lib.rs
+            └── 📜 model.rs
     └── 📂 kain-core
         └── 📂 src
+            └── 📜 asm_ir.rs
+            └── 📜 ast.rs
+            └── 📜 comptime.rs
+            └── 📜 diagnostic_registry.rs
+            └── 📜 diagnostics.rs
+            └── 📜 effects.rs
+            └── 📜 error.rs
+            └── 📜 language_features.rs
+            └── 📜 lexer.rs
+            └── 📜 lib.rs
+            └── 📜 low_level_abi.rs
+            └── 📜 low_level_memory.rs
+            └── 📜 low_level_memory_metadata.rs
+            └── 📜 monomorphize.rs
+            └── 📜 parser.rs
+            └── 📜 realtime_app_bundle.rs
+            └── 📜 runtime.rs
+            └── 📜 runtime_contract.rs
+            └── 📜 shader_analysis.rs
+            └── 📜 shader_artifact.rs
+            └── 📜 span.rs
+            └── 📜 stdlib.rs
+            └── 📜 stdlib_tests.rs
+            └── 📜 types.rs
+            └── 📜 ui.rs
         └── 📂 tests
             └── 📂 fixtures
     └── 📂 kain-crate-ffi
         └── 📂 src
+            └── 📜 config.rs
+            └── 📜 extract.rs
+            └── 📜 generate.rs
+            └── 📜 lib.rs
+            └── 📜 model.rs
+            └── 📜 resolve.rs
     └── 📂 kain-driver
         └── 📂 src
+            └── 📜 compute_residency.rs
+            └── 📜 lib.rs
+            └── 📜 native_app.rs
     └── 📂 kain-gpu-runtime
         └── 📂 src
+            └── 📜 bindings.rs
+            └── 📜 executor.rs
+            └── 📜 lib.rs
     └── 📂 kain-host
         └── 📂 src
+            └── 📜 fabric.rs
+            └── 📜 lib.rs
         └── 📂 tests
     └── 📂 kain-host-derive
         └── 📂 src
+            └── 📜 lib.rs
     └── 📂 kain-import
         └── 📂 src
             └── 📂 c
+                └── 📜 mod.rs
+                └── 📜 parser.rs
+                └── 📜 transformer.rs
+                └── 📜 types.rs
             └── 📂 common
+                └── 📜 c_registry.rs
+                └── 📜 identifier_registry.rs
+                └── 📜 language_schema.rs
+                └── 📜 mod.rs
+                └── 📜 preprocessor.rs
+                └── 📜 type_mapper.rs
             └── 📂 cpp
+                └── 📜 mod.rs
+            └── 📜 lib.rs
             └── 📂 rust
+                └── 📜 mod.rs
+                └── 📜 parser.rs
+                └── 📜 selfhost.rs
+                └── 📜 transformer.rs
+                └── 📜 types.rs
             └── 📂 typescript
+                └── 📜 mod.rs
+                └── 📜 parser.rs
+                └── 📜 transformer.rs
+                └── 📜 types.rs
             └── 📂 usf
+                └── 📜 mod.rs
+                └── 📜 preprocessor.rs
+                └── 📜 README.md
+                └── 📜 transformer.rs
         └── 📂 tests
             └── 📂 abi_corpus
                 └── 📂 fixtures
     └── 📂 kain-interop
         └── 📂 src
+            └── 📜 lib.rs
     └── 📂 kain-node
         └── 📂 src
+            └── 📜 lib.rs
     └── 📂 kain-omni
         └── 📂 src
+            └── 📜 fabric.rs
+            └── 📜 lib.rs
     └── 📂 kain-python
         └── 📂 src
+            └── 📜 lib.rs
     └── 📂 kain-reflect
         └── 📂 src
+            └── 📜 lib.rs
     └── 📂 kain-sdk
         └── 📂 src
+            └── 📜 lib.rs
     └── 📂 kain-selfhost
         └── 📂 src
+            └── 📜 artifacts.rs
+            └── 📜 blockers.rs
+            └── 📜 lane.rs
+            └── 📜 lib.rs
+            └── 📜 pathing.rs
+            └── 📜 preflight.rs
+            └── 📜 report.rs
+            └── 📜 rules.rs
+            └── 📜 taxonomy.rs
     └── 📂 kain-sys-codegen
         └── 📂 src
             └── 📂 codegen_cpp
+                └── 📜 mod.rs
             └── 📂 codegen_llvm
                 └── 📂 archive
+                    └── 📜 mod2.rs
+                └── 📜 mod.rs
             └── 📂 codegen_rust
+                └── 📜 artifact_bundle.rs
+                └── 📜 gpu_artifacts.rs
+                └── 📜 gpu_host.rs
+                └── 📜 mod.rs
+            └── 📜 lib.rs
         └── 📂 tests
     └── 📂 kain-ui
         └── 📂 src
+            └── 📜 lib.rs
         └── 📂 tests
     └── 📂 kain-ui-native
         └── 📂 src
+            └── 📜 lib.rs
+            └── 📜 main.rs
     └── 📂 ue5
         └── 📂 src
+            └── 📜 async_task_codegen.rs
+            └── 📜 async_task_ir.rs
+            └── 📜 blueprint_codegen.rs
+            └── 📜 blueprint_ir.rs
+            └── 📜 codegen_ue5.rs
+            └── 📜 lib.rs
+            └── 📜 network_sync_codegen.rs
+            └── 📜 network_sync_ir.rs
+            └── 📜 state_machine_codegen.rs
+            └── 📜 state_machine_ir.rs
             └── 📂 ue5
+                └── 📜 context.rs
+                └── 📜 editor_attributes.rs
+                └── 📜 engine_knowledge.rs
+                └── 📜 kain_markers.rs
+                └── 📜 logging.rs
+                └── 📜 metadata_hotreload.rs
+                └── 📜 metadata_validation.rs
+                └── 📜 mod.rs
+                └── 📜 module_graph.rs
+                └── 📜 naming.rs
+                └── 📜 oracle.rs
+                └── 📜 project.rs
+                └── 📜 resolver.rs
+                └── 📜 stdlib_resolver.rs
+                └── 📜 syntax.rs
                 └── 📂 templates
+                    └── 📜 header_preamble.jinja
+                    └── 📜 source_preamble.jinja
                     └── 📂 templates
+                        └── 📜 header_preamble.jinja
+                        └── 📜 source_preamble.jinja
+                        └── 📜 uclass_header.jinja
+                    └── 📜 uclass_header.jinja
+                └── 📜 templates.rs
+                └── 📜 traits.rs
+                └── 📜 types.rs
+                └── 📜 uht_rules.rs
+                └── 📜 validation_rules.rs
+                └── 📜 virtual_obligations.rs
+                └── 📜 widget_registry.rs
         └── 📂 tests
             └── 📂 fixtures
     └── 📂 ue5-asset-utils
         └── 📂 src
+            └── 📜 engine_target.rs
+            └── 📜 import_builder.rs
+            └── 📜 lib.rs
+            └── 📜 property_converter.rs
+            └── 📜 property_types.rs
     └── 📂 ue5-blueprints
         └── 📂 src
+            └── 📜 conversion.rs
+            └── 📜 error.rs
+            └── 📜 factory.rs
+            └── 📜 ir.rs
+            └── 📜 kismet.rs
+            └── 📜 lib.rs
+            └── 📜 writer.rs
     └── 📂 ue5-config
         └── 📂 src
+            └── 📜 blueprint_accessor_codegen.rs
+            └── 📜 config_ir.rs
+            └── 📜 cvar_codegen.rs
+            └── 📜 developer_settings_codegen.rs
+            └── 📜 ini_file_generator.rs
+            └── 📜 lib.rs
+            └── 📜 parser.rs
             └── 📂 templates
+                └── 📜 developer_settings.cpp.jinja
+                └── 📜 developer_settings.h.jinja
+                └── 📜 ini_section.jinja
         └── 📂 tests
     └── 📂 ue5-editor
         └── 📂 src
+            └── 📜 data_asset_writer.rs
             └── 📂 editor
+                └── 📜 asset_editor_ir.rs
+                └── 📜 assets.rs
+                └── 📜 codegen.rs
+                └── 📜 details.rs
+                └── 📜 editor_module_codegen.rs
+                └── 📜 editor_module_ir.rs
+                └── 📜 mod.rs
+                └── 📜 reactive.rs
+                └── 📜 slate.rs
+                └── 📜 style.rs
+                └── 📜 viewport.rs
+            └── 📜 lib.rs
     └── 📂 ue5-gas
         └── 📂 docs
         └── 📂 examples
         └── 📂 src
+            └── 📜 ability_codegen.rs
+            └── 📜 ability_ir.rs
+            └── 📜 attribute_set_codegen.rs
+            └── 📜 attribute_set_ir.rs
+            └── 📜 cue_codegen.rs
+            └── 📜 cue_ir.rs
+            └── 📜 effect_codegen.rs
+            └── 📜 effect_ir.rs
+            └── 📜 lib.rs
+            └── 📜 tags_codegen.rs
+            └── 📜 tags_ir.rs
+            └── 📜 target_codegen.rs
+            └── 📜 target_ir.rs
+            └── 📜 task_codegen.rs
+            └── 📜 task_ir.rs
         └── 📂 tests
     └── 📂 ue5-graphs
         └── 📂 examples
-        └── 📂 referencepatterns
-            └── 📂 AutoSizeComments
-                └── 📂 Source
-                    └── 📂 AutoSizeComments
-            └── 📂 BaconCombatGraph
-                └── 📂 Source
-                    └── 📂 AnimationDrivenSystem
-                    └── 📂 BaconContextAbility
-                    └── 📂 ComboGraphASC
-                    └── 📂 ComboGraphEditor
-                    └── 📂 ComboGraphRuntime
-            └── 📂 BlueprintNodesTheme1
-                └── 📂 Source
-                    └── 📂 CrystalNode
-            └── 📂 DialogueNodeGraph
-                └── 📂 Source
-                    └── 📂 DialogAssetEditor
-                    └── 📂 DialogAssetEditorRuntime
-                    └── 📂 QuestAssetEditor
-                    └── 📂 ThirdParty
-            └── 📂 LogicNodeGraph
-                └── 📂 Source
-                    └── 📂 SMAssetTools
-                    └── 📂 SMContentEditor
-                    └── 📂 SMExtendedEditor
-                    └── 📂 SMExtendedRuntime
-                    └── 📂 SMPreviewEditor
-                    └── 📂 SMSearch
-                    └── 📂 SMSystem
-                    └── 📂 SMSystemEditor
-                    └── 📂 SMTests
-                    └── 📂 SMUtilityLauncher
-            └── 📂 NarrativeNodeGraph
-                └── 📂 Narrative
-                    └── 📂 Private
-                    └── 📂 Public
-                └── 📂 NarrativeDialogueEditor
-                    └── 📂 Private
-                    └── 📂 Public
-                └── 📂 NarrativeQuestEditor
-                    └── 📂 Private
-                    └── 📂 Public
-            └── 📂 PaperZD
-                └── 📂 Source
-                    └── 📂 PaperZD
-                    └── 📂 PaperZDEditor
-            └── 📂 VoxelPluginPro
-                └── 📂 Shaders
-                    └── 📂 Private
-                └── 📂 Source
-                    └── 📂 ThirdParty
-                    └── 📂 Voxel
-                    └── 📂 VoxelEditor
-                    └── 📂 VoxelEditorDefault
-                    └── 📂 VoxelExamples
-                    └── 📂 VoxelGraph
-                    └── 📂 VoxelGraphEditor
-                    └── 📂 VoxelHelpers
         └── 📂 src
+            └── 📜 ast_converter.rs
+            └── 📜 binary_serializer.rs
+            └── 📜 error.rs
+            └── 📜 factory_generator.rs
+            └── 📜 graph_ir.rs
+            └── 📜 lib.rs
+            └── 📜 node_types.rs
             └── 📂 runtime_codegen
+                └── 📜 asset_gen.rs
+                └── 📜 graph_data_gen.rs
+                └── 📜 instance_gen.rs
+                └── 📜 mod.rs
+                └── 📜 node_data_gen.rs
+            └── 📜 runtime_converter.rs
+            └── 📜 runtime_ir.rs
+            └── 📜 schema_builder.rs
         └── 📂 tests
     └── 📂 ue5-materials
         └── 📂 src
+            └── 📜 ast_converter.rs
             └── 📂 bin
+                └── 📜 uasset_scan.rs
+            └── 📜 lib.rs
+            └── 📜 material_factory.rs
+            └── 📜 material_function_builder.rs
+            └── 📜 material_graph.rs
+            └── 📜 material_nodes.rs
+            └── 📜 material_serializer.rs
         └── 📂 tests
     └── 📂 ue5-shaders
         └── 📂 src
+            └── 📜 codegen_usf.rs
+            └── 📜 lib.rs
+            └── 📜 pod_mirror.rs
+            └── 📜 shader_knowledge.rs
+            └── 📜 type_mapping.rs
+            └── 📜 validation.rs
     └── 📂 unreal
         └── 📂 unreal_asset
             └── 📂 src
+                └── 📜 ac7.rs
+                └── 📜 asset.rs
+                └── 📜 asset_archive_writer.rs
+                └── 📜 asset_data.rs
+                └── 📜 fengineversion.rs
+                └── 📜 lib.rs
+                └── 📜 package_file_summary.rs
             └── 📂 vendor
         └── 📂 unreal_asset_base
             └── 📂 src
                 └── 📂 compression
+                    └── 📜 mod.rs
                 └── 📂 containers
+                    └── 📜 chain.rs
                     └── 📂 indexed_map
+                        └── 📜 entry.rs
+                        └── 📜 mod.rs
+                    └── 📜 mod.rs
+                    └── 📜 name_map.rs
+                    └── 📜 shared_resource.rs
+                └── 📜 crc.rs
+                └── 📜 custom_version.rs
+                └── 📜 engine_version.rs
+                └── 📜 enums.rs
+                └── 📜 error.rs
+                └── 📜 flags.rs
+                └── 📜 import.rs
+                └── 📜 lib.rs
+                └── 📜 object_version.rs
                 └── 📂 reader
+                    └── 📜 archive_reader.rs
+                    └── 📜 archive_trait.rs
+                    └── 📜 archive_writer.rs
+                    └── 📜 mod.rs
+                    └── 📜 raw_reader.rs
+                    └── 📜 raw_writer.rs
                 └── 📂 types
+                    └── 📜 fname.rs
+                    └── 📜 mod.rs
+                    └── 📜 movie.rs
+                    └── 📜 vector.rs
                 └── 📂 unversioned
+                    └── 📜 ancestry.rs
+                    └── 📜 header.rs
+                    └── 📜 mod.rs
                     └── 📂 oodle
+                        └── 📜 mod.rs
                     └── 📂 properties
+                        └── 📜 array_property.rs
+                        └── 📜 enum_property.rs
+                        └── 📜 map_property.rs
+                        └── 📜 mod.rs
+                        └── 📜 set_property.rs
+                        └── 📜 shallow_property.rs
+                        └── 📜 struct_property.rs
+                    └── 📜 usmap_reader.rs
+                    └── 📜 usmap_writer.rs
         └── 📂 unreal_asset_exports
             └── 📂 src
+                └── 📜 base_export.rs
+                └── 📜 class_export.rs
+                └── 📜 data_table_export.rs
+                └── 📜 enum_export.rs
+                └── 📜 function_export.rs
+                └── 📜 level_export.rs
+                └── 📜 lib.rs
+                └── 📜 normal_export.rs
                 └── 📂 properties
+                    └── 📜 fproperty.rs
+                    └── 📜 mod.rs
+                    └── 📜 uproperty.rs
+                └── 📜 property_export.rs
+                └── 📜 raw_export.rs
+                └── 📜 string_table_export.rs
+                └── 📜 struct_export.rs
+                └── 📜 user_defined_struct_export.rs
+                └── 📜 world_export.rs
         └── 📂 unreal_asset_kismet
             └── 📂 src
+                └── 📜 lib.rs
         └── 📂 unreal_asset_proc_macro
             └── 📂 src
+                └── 📜 fname_container.rs
+                └── 📜 lib.rs
         └── 📂 unreal_asset_properties
             └── 📂 src
+                └── 📜 array_property.rs
+                └── 📜 cloth_lod_property.rs
+                └── 📜 color_property.rs
+                └── 📜 date_property.rs
+                └── 📜 delegate_property.rs
+                └── 📜 empty_property.rs
+                └── 📜 enum_property.rs
+                └── 📜 float_range_property.rs
+                └── 📜 font_character_property.rs
                 └── 📂 game_framework
+                    └── 📜 mod.rs
+                    └── 📜 unique_net_id_property.rs
+                └── 📜 gameplay_tag_container_property.rs
+                └── 📜 guid_property.rs
+                └── 📜 int_property.rs
+                └── 📜 lib.rs
+                └── 📜 map_property.rs
+                └── 📜 material_input_property.rs
                 └── 📂 movies
+                    └── 📜 enums.rs
+                    └── 📜 mod.rs
+                    └── 📜 movie_scene_eval_template_ptr_property.rs
+                    └── 📜 movie_scene_evaluation.rs
+                    └── 📜 movie_scene_evaluation_field_entity_tree_property.rs
+                    └── 📜 movie_scene_evaluation_key_property.rs
+                    └── 📜 movie_scene_event_parameters_property.rs
+                    └── 📜 movie_scene_float_channel_property.rs
+                    └── 📜 movie_scene_float_value_property.rs
+                    └── 📜 movie_scene_frame_range_property.rs
+                    └── 📜 movie_scene_segment_property.rs
+                    └── 📜 movie_scene_sequence_id_property.rs
+                    └── 📜 movie_scene_sequence_instance_data_ptr_property.rs
+                    └── 📜 movie_scene_sub_sequence_tree_property.rs
+                    └── 📜 movie_scene_track_field_data_property.rs
+                    └── 📜 movie_scene_track_identifier_property.rs
+                    └── 📜 movie_scene_track_implementation_ptr_property.rs
+                    └── 📜 section_evaluation_data_tree_property.rs
                 └── 📂 niagara
+                    └── 📜 mod.rs
+                    └── 📜 niagara_variable_property.rs
+                └── 📜 object_property.rs
+                └── 📜 per_platform_property.rs
+                └── 📜 raw_struct_property.rs
+                └── 📜 rich_curve_key_property.rs
+                └── 📜 sampler_property.rs
+                └── 📜 set_property.rs
                 └── 📂 slate_core
+                    └── 📜 font_data_property.rs
+                    └── 📜 mod.rs
+                └── 📜 smart_name_property.rs
+                └── 📜 soft_path_property.rs
+                └── 📜 str_property.rs
+                └── 📜 struct_property.rs
+                └── 📜 unknown_property.rs
+                └── 📜 vector_property.rs
+                └── 📜 view_target_blend_property.rs
+                └── 📜 world_tile_property.rs
         └── 📂 unreal_asset_registry
             └── 📂 src
+                └── 📜 lib.rs
+                └── 📜 name_table_reader.rs
+                └── 📜 name_table_writer.rs
                 └── 📂 objects
+                    └── 📜 asset_bundle_data.rs
+                    └── 📜 asset_data.rs
+                    └── 📜 asset_package_data.rs
+                    └── 📜 depends_node.rs
+                    └── 📜 md5_hash.rs
+                    └── 📜 mod.rs
+                    └── 📜 store.rs
         └── 📂 unreal_helpers
             └── 📂 src
+                └── 📜 bitvec_ext.rs
+                └── 📜 error.rs
+                └── 📜 guid.rs
+                └── 📜 lib.rs
+                └── 📜 path.rs
+                └── 📜 read_ext.rs
+                └── 📜 write_ext.rs
             └── 📂 tests
     └── 📂 web
         └── 📂 generated
         └── 📂 src
+            └── 📜 c_runtime_shims.rs
+            └── 📜 codegen_hybrid.rs
+            └── 📜 codegen_js.rs
+            └── 📜 codegen_ks.rs
+            └── 📜 codegen_ts.rs
+            └── 📜 codegen_wasm.rs
+            └── 📜 lib.rs
 ```

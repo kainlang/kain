@@ -1,0 +1,14 @@
+{
+  "background_top": "#190f08",
+  "background_bottom": "#26140c",
+  "surface": "#2c1b14",
+  "surface_alt": "#39241d",
+  "line": "rgba(255,226,191,0.14)",
+  "accent": "#ffb85c",
+  "accent_soft": "#ffe8bf",
+  "highlight": "#ff6f61",
+  "text": "#fff7f0",
+  "muted": "#d1b39c",
+  "font_display": "Clash Display, Segoe UI, sans-serif",
+  "font_body": "Manrope, Segoe UI, sans-serif"
+}

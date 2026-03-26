@@ -15,16 +15,16 @@ around four rules:
 - `template-pack.toml`
   - data-driven registry for the template pack surface
 - `universal/`
-  - one starter that can emit business, portfolio, immersive 3D, chat, docs, operator, actor-server, and hybrid sites from manifest switches
+  - one starter that can emit business, portfolio, immersive 3D, chat, docs, operator, actor-server, app-shell, commerce, realtime, and hybrid sites from manifest switches
 
 ## What Universal Includes
 
 - Kain entrypoints for build orchestration, actor reporting, and semantic Kain UI preview
 - a shared Node helper runtime for manifest loading, HTML rendering, search, forms, feed/sitemap output, and local serving
 - manifest registries for themes, content, scenes, and experiences
-- archetypes for business, portfolio, immersive 3D, chat, actor-server, and hybrid site modes
-- website systems for docs links, search, FAQ, pricing, testimonials, prompt decks, capability matrices, blueprint grids, local form capture, actor routes, RSS, robots, and sitemap output
-- runtime APIs for catalog, scene descriptors, forms, search documents, chat, streaming previews, and health probes
+- archetypes for business, portfolio, immersive 3D, chat, docs, operator, app-shell, commerce, realtime, actor-server, and hybrid site modes
+- website systems for docs links, search, FAQ, pricing, testimonials, prompt decks, capability matrices, blueprint grids, app modules, auth strategy, commerce offers, data collections, realtime channels, local form capture, actor routes, RSS, robots, and sitemap output
+- runtime APIs for catalog, scene descriptors, forms, search documents, chat, streaming previews, auth, commerce, integrations, data collections, UI schema, and full system contracts
 - a `package.json` script surface so users can build or serve without Rust or Cargo
 
 ## Intent
@@ -39,4 +39,6 @@ It is meant to become a reusable web systems layer for Kain:
 - docs, onboarding, and searchable knowledge hubs
 - operator dashboards and command-center shells
 - actor-based local web servers and realtime dashboards
+- product-app shells and member portals
+- commerce funnels, offer stacks, and membership handoff surfaces
 - hybrid sites that combine several of those modes in one deployable shell

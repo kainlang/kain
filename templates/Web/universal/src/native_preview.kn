@@ -45,11 +45,11 @@ component App():
                 <text role="muted">The browser lane still uses Node FFI today, while this preview keeps semantic Kain UI authoring in the loop and visible.</text>
                 <slot layout="row" gap={12}>
                     <panel scope="web_pack" variant="card">
-                        <text role="metric">8</text>
+                        <text role="metric">11</text>
                         <text role="caption">experience archetypes</text>
                     </panel>
                     <panel scope="web_pack" variant="card">
-                        <text role="metric">7</text>
+                        <text role="metric">9</text>
                         <text role="caption">artifacts per built site</text>
                     </panel>
                     <panel scope="web_pack" variant="card">
@@ -94,6 +94,18 @@ component App():
                 <text role="title">Hybrid</text>
                 <text role="caption">The full-spectrum proving ground that mixes launch, 3D, chat, docs, search, routes, and operator surfaces.</text>
             </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">App Shell</text>
+                <text role="caption">Workspace modules, auth strategies, integrations, and typed data collections for SaaS-style products.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Commerce</text>
+                <text role="caption">Offer stacks, membership/auth flows, fulfillment integrations, and intake to checkout handoff.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Realtime</text>
+                <text role="caption">Signal channels, incident streams, operator prompts, and actor-backed live route surfaces.</text>
+            </panel>
         </panel>
 
         <panel title="System Layout" scope="web_pack" variant="section" layout="column" gap={12}>
@@ -103,7 +115,7 @@ component App():
             </panel>
             <panel scope="web_pack" variant="card">
                 <text role="title">Node FFI</text>
-                <text role="caption">Owns HTML packaging, browser islands, local serving, search endpoints, and form capture.</text>
+                <text role="caption">Owns HTML packaging, browser islands, local serving, search endpoints, auth/commerce metadata, realtime previews, and form capture.</text>
             </panel>
             <panel scope="web_pack" variant="card">
                 <text role="title">Manifest Registries</text>

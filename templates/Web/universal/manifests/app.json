@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "name": "kain_universal_web",
   "default_experience": "hybrid_command",
   "output_root": "outputs/sites",
@@ -28,7 +28,13 @@
       "actor_watch",
       "catalog_api",
       "chat_stream",
-      "capability_matrix"
+      "capability_matrix",
+      "app_shell",
+      "auth_panel",
+      "commerce_stack",
+      "realtime_channels",
+      "system_contract",
+      "ui_schema"
     ]
   },
   "build": {
@@ -40,7 +46,10 @@
       "actor_mesh_foundry",
       "knowledge_atlas",
       "operator_foundry",
-      "hybrid_command"
+      "hybrid_command",
+      "app_foundry",
+      "commerce_signal",
+      "realtime_constellation"
     ]
   }
 }

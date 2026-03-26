@@ -1,0 +1,10 @@
+{
+  "kicker": "Product workspace scene",
+  "title": "Workspace Ribbon",
+  "summary": "A modular product shell that ties operator navigation, auth checkpoints, and typed collections into one workspace ribbon.",
+  "layers": [
+    { "name": "Navigation rail", "detail": "Workspace switching for launch, knowledge, and operator modules" },
+    { "name": "Identity gate", "detail": "Auth strategy and invite surfaces for members and operators" },
+    { "name": "Collection spine", "detail": "Typed local collections for leads, sessions, and records" }
+  ]
+}

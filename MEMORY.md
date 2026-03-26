@@ -198,6 +198,12 @@ What future work should preserve:
 - widen the storage/texture contract in additive ways instead of replacing it with a renderer-local special case once richer text or image resources land
 - keep the Fabric/Python boundary narrow by exposing execution helpers from `kain-python` instead of letting `kain-host` depend on `pyo3` imports or private Python scope internals
 
+Update:
+
+- `kain-ui-native` now prefers `ab_glyph` rasterization for shader-canvas font atlases and resolves that through a small data-driven registry of system-font aliases and candidate paths, with `kain.default-ui-sans` as the default emitted atlas family from `kain-core`
+- the packed multi-atlas texture contract, atlas-origin storage records, and per-app texture cache were preserved exactly, so the quality upgrade stayed under the existing shader-surface resource contract instead of inventing a second text path
+- the bitmap 5x7 rasterizer remains as compatibility fallback when the requested font alias cannot be resolved on the current machine
+
 ## 2026-03-25 - Fabric Python Execution Stopped Leaking Through Kain Host Internals
 
 The `kain-host` Fabric runtime no longer reaches directly into Python implementation details just to execute a Python step.

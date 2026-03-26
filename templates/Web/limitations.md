@@ -101,3 +101,14 @@ Current template approach:
 Requested upstream capability:
 
 - a durable Kain runtime surface for streaming/browser session state so chat-heavy and operator-heavy sites can graduate from helper-owned previews to real realtime orchestration
+
+### 10. React-like component state and routing contracts are still helper-owned schemas
+
+Current template approach:
+
+- `ui.schema.json` and app module manifests describe component layout, form counts, and workspace routes
+- browser interactivity still lives in helper-authored JS islands instead of Kain-authored browser components
+
+Requested upstream capability:
+
+- a first-class Kain-authored component and routing lane for the web so React/TypeScript-style application shells can be expressed semantically and lowered without helper-owned island code

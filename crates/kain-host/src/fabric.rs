@@ -1092,7 +1092,7 @@ fn python_call_expression(context: &FabricAdapterContext) -> Result<String, Fabr
             let projection =
                 render_python_output_projection("FabricPythonOutputs", &context.step.outputs);
             Ok(format!(
-                "py_bridge_exec({exec_source})\n    py_bridge_exec({python_output_helper})\n    let fabric_result = py_bridge_call_raw({callable}, [fabric_serialized_inputs])\n    {projection}"
+                "py_bridge_exec({exec_source})\n    py_bridge_exec({python_output_helper})\n    let fabric_result = py_bridge_call_raw({callable}, [fabric_inputs])\n    {projection}"
             ))
         } else {
             let single_output_kind = context
@@ -1103,13 +1103,17 @@ fn python_call_expression(context: &FabricAdapterContext) -> Result<String, Fabr
                 .unwrap_or(FabricContractKind::Value);
             let result_expr = match single_output_kind {
                 FabricContractKind::Value => {
-                    format!("py_bridge_call({callable}, [fabric_serialized_inputs])")
+                    format!("py_bridge_call({callable}, [fabric_inputs])")
                 }
                 FabricContractKind::SharedBuffer => {
-                    format!("py_bridge_shared_buffer(py_bridge_call_raw({callable}, [fabric_serialized_inputs]))")
+                    format!(
+                        "py_bridge_shared_buffer(py_bridge_call_raw({callable}, [fabric_inputs]))"
+                    )
                 }
                 FabricContractKind::SharedImage => {
-                    format!("py_bridge_shared_image(py_bridge_call_raw({callable}, [fabric_serialized_inputs]))")
+                    format!(
+                        "py_bridge_shared_image(py_bridge_call_raw({callable}, [fabric_inputs]))"
+                    )
                 }
             };
             Ok(format!(
@@ -1131,7 +1135,7 @@ fn python_call_expression(context: &FabricAdapterContext) -> Result<String, Fabr
             let projection =
                 render_python_output_projection("FabricPythonOutputs", &context.step.outputs);
             Ok(format!(
-                "py_bridge_exec({python_output_helper})\n    let fabric_module = py_bridge_require_module({module_literal})\n    let fabric_result = py_bridge_call_attr_raw(fabric_module, \"run\", [fabric_serialized_inputs])\n    {projection}"
+                "py_bridge_exec({python_output_helper})\n    let fabric_module = py_bridge_require_module({module_literal})\n    let fabric_result = py_bridge_call_attr_raw(fabric_module, \"run\", [fabric_inputs])\n    {projection}"
             ))
         } else {
             let single_output_kind = context
@@ -1143,14 +1147,14 @@ fn python_call_expression(context: &FabricAdapterContext) -> Result<String, Fabr
             let result_expr = match single_output_kind {
                 FabricContractKind::Value => {
                     format!(
-                        "py_bridge_call_attr(py_bridge_require_module({module_literal}), \"run\", [fabric_serialized_inputs])"
+                        "py_bridge_call_attr(py_bridge_require_module({module_literal}), \"run\", [fabric_inputs])"
                     )
                 }
                 FabricContractKind::SharedBuffer => format!(
-                    "py_bridge_shared_buffer(py_bridge_call_attr_raw(py_bridge_require_module({module_literal}), \"run\", [fabric_serialized_inputs]))"
+                    "py_bridge_shared_buffer(py_bridge_call_attr_raw(py_bridge_require_module({module_literal}), \"run\", [fabric_inputs]))"
                 ),
                 FabricContractKind::SharedImage => format!(
-                    "py_bridge_shared_image(py_bridge_call_attr_raw(py_bridge_require_module({module_literal}), \"run\", [fabric_serialized_inputs]))"
+                    "py_bridge_shared_image(py_bridge_call_attr_raw(py_bridge_require_module({module_literal}), \"run\", [fabric_inputs]))"
                 ),
             };
             Ok(format!("return {result_expr}"))
@@ -1192,7 +1196,7 @@ fn render_node_harness(context: &FabricAdapterContext) -> Result<String, FabricF
     let runtime_lines = if context.step.outputs.len() > 1 {
         let projection = render_node_output_projection("FabricNodeOutputs", &context.step.outputs);
         format!(
-            "let module_ref = js_bridge_import({import_literal})\n    let fabric_result = js_bridge_call_method_raw(module_ref, {export_literal}, [fabric_serialized_inputs])\n    {projection}"
+            "let module_ref = js_bridge_import({import_literal})\n    let fabric_result = js_bridge_call_method_raw(module_ref, {export_literal}, [fabric_inputs])\n    {projection}"
         )
     } else {
         let single_output_kind = context
@@ -1203,13 +1207,13 @@ fn render_node_harness(context: &FabricAdapterContext) -> Result<String, FabricF
             .unwrap_or(FabricContractKind::Value);
         let result_expr = match single_output_kind {
             FabricContractKind::Value => {
-                format!("js_bridge_call_method(module_ref, {export_literal}, [fabric_serialized_inputs])")
+                format!("js_bridge_call_method(module_ref, {export_literal}, [fabric_inputs])")
             }
             FabricContractKind::SharedBuffer => format!(
-                "js_web_shared_buffer(js_bridge_call_method_raw(module_ref, {export_literal}, [fabric_serialized_inputs]))"
+                "js_web_shared_buffer(js_bridge_call_method_raw(module_ref, {export_literal}, [fabric_inputs]))"
             ),
             FabricContractKind::SharedImage => format!(
-                "js_web_shared_image(js_bridge_call_method_raw(module_ref, {export_literal}, [fabric_serialized_inputs]))"
+                "js_web_shared_image(js_bridge_call_method_raw(module_ref, {export_literal}, [fabric_inputs]))"
             ),
         };
         format!("let module_ref = js_bridge_import({import_literal})\n    return {result_expr}")
@@ -1612,11 +1616,12 @@ mod tests {
 
     #[test]
     fn polyglot_init_template_executes_end_to_end() {
-        let dir = tempfile::tempdir().unwrap();
+        let fixture_root = stable_fabric_test_root("fab-init");
+        prepare_fabric_test_workspace(&fixture_root);
         let init =
-            kain_omni::init_fabric_manifest(dir.path(), kain_omni::FabricTemplateKind::Polyglot)
+            kain_omni::init_fabric_manifest(&fixture_root, kain_omni::FabricTemplateKind::Polyglot)
                 .unwrap();
-        compile_fixture_shared_library(dir.path());
+        compile_fixture_shared_library(&fixture_root);
 
         let result = execute_fabric_manifest_path(&init.manifest_path).unwrap();
 
@@ -1689,6 +1694,8 @@ mod tests {
         assert!(harness.contains("struct FabricPythonOutputs:"));
         assert!(harness.contains("__kain_fabric_output_field"));
         assert!(harness.contains("py_bridge_call_attr_raw(fabric_module, \"run\""));
+        assert!(harness.contains("[fabric_inputs]"));
+        assert!(!harness.contains("fabric_serialized_inputs"));
         assert!(harness.contains("py_bridge_shared_image("));
         assert!(harness.contains("py_bridge_shared_buffer("));
     }
@@ -1735,6 +1742,8 @@ mod tests {
 
         assert!(harness.contains("struct FabricNodeOutputs:"));
         assert!(harness.contains("js_bridge_call_method_raw"));
+        assert!(harness.contains("[fabric_inputs]"));
+        assert!(!harness.contains("fabric_serialized_inputs"));
         assert!(harness.contains("__kain_fabric_missing_output__:report"));
         assert!(harness.contains("js_bridge_hasattr(fabric_result"));
         assert!(harness.contains("js_bridge_getattr(fabric_result"));
@@ -1761,11 +1770,29 @@ mod tests {
     }
 
     #[test]
+    fn python_step_consumes_shared_inputs_via_fabric_inputs() {
+        assert_runtime_consumes_canonical_shared_inputs(
+            FabricRuntimeKind::Python,
+            "scripts/consumer.py",
+            "def run(fabric_inputs):\n    image = fabric_inputs[\"seed\"][\"image\"]\n    snapshot = fabric_inputs[\"seed\"][\"snapshot\"]\n    assert image[\"contract\"] == \"kain.shared.image\"\n    assert snapshot[\"contract\"] == \"kain.shared.buffer\"\n    assert isinstance(image[\"bytes\"], bytearray)\n    assert isinstance(snapshot[\"bytes\"], bytearray)\n    return f\"{type(image['bytes']).__name__}:{image['width']}:{snapshot['element_type']}:{snapshot['bytes'][2]}\"\n",
+            "bytearray:1:u8:30",
+        );
+    }
+
+    #[test]
+    fn node_step_consumes_shared_inputs_via_fabric_inputs() {
+        assert_runtime_consumes_canonical_shared_inputs(
+            FabricRuntimeKind::Node,
+            "scripts/consumer.mjs",
+            "export function run(fabricInputs) {\n  const image = fabricInputs.seed.image;\n  const snapshot = fabricInputs.seed.snapshot;\n  if (image.contract !== 'kain.shared.image') throw new Error('expected shared image contract');\n  if (snapshot.contract !== 'kain.shared.buffer') throw new Error('expected shared buffer contract');\n  if (!(image.bytes instanceof Uint8Array)) throw new Error('expected typed image bytes');\n  if (!(snapshot.bytes instanceof Uint8Array)) throw new Error('expected typed buffer bytes');\n  return `${image.bytes.constructor.name}:${image.width}:${snapshot.element_type}:${snapshot.bytes[2]}`;\n}\n",
+            "Uint8Array:1:u8:30",
+        );
+    }
+
+    #[test]
     fn polyglot_fixture_executes_all_runtime_kinds() {
-        let fixture_root = short_fixture_root();
-        if fixture_root.exists() {
-            let _ = fs::remove_dir_all(&fixture_root);
-        }
+        let fixture_root = stable_fabric_test_root("fab-smoke");
+        prepare_fabric_test_workspace(&fixture_root);
         copy_fixture(
             Path::new(env!("CARGO_MANIFEST_DIR"))
                 .parent()
@@ -1832,8 +1859,6 @@ mod tests {
             .outputs
             .iter()
             .any(|output| output.declared_kind == FabricContractKind::SharedBuffer));
-
-        let _ = fs::remove_dir_all(&fixture_root);
     }
 
     fn compile_fixture_shared_library(fixture_root: &Path) {
@@ -1883,14 +1908,42 @@ mod tests {
         }
     }
 
-    fn short_fixture_root() -> PathBuf {
+    fn stable_fabric_test_root(label: &str) -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
             .parent()
             .unwrap()
             .join("target")
-            .join(format!("fabric-smoke-{}", std::process::id()))
+            .join(format!("{label}-{}", std::process::id()))
+    }
+
+    fn prepare_fabric_test_workspace(root: &Path) {
+        fs::create_dir_all(root).expect("create fabric test root");
+        clear_directory_except(root, Some(".kain"));
+        let kain_dir = root.join(".kain");
+        if kain_dir.exists() {
+            clear_directory_except(&kain_dir, Some("cache"));
+        }
+    }
+
+    fn clear_directory_except(root: &Path, preserved_name: Option<&str>) {
+        for entry in fs::read_dir(root).expect("read test workspace") {
+            let entry = entry.expect("workspace entry");
+            let path = entry.path();
+            if preserved_name
+                .map(|name| entry.file_name().to_string_lossy() == name)
+                .unwrap_or(false)
+            {
+                continue;
+            }
+            let entry_type = entry.file_type().expect("workspace entry type");
+            if entry_type.is_dir() {
+                fs::remove_dir_all(path).expect("remove workspace directory");
+            } else {
+                fs::remove_file(path).expect("remove workspace file");
+            }
+        }
     }
 
     fn assert_missing_output_failure(runtime: FabricRuntimeKind, entry: &str, source: &str) {
@@ -1927,6 +1980,54 @@ mod tests {
         assert_eq!(
             details.get("runtime").and_then(JsonValue::as_str),
             Some(runtime.display_name())
+        );
+    }
+
+    fn assert_runtime_consumes_canonical_shared_inputs(
+        runtime: FabricRuntimeKind,
+        entry: &str,
+        source: &str,
+        expected_report: &str,
+    ) {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let seed_path = dir.path().join("src/seed.kn");
+        fs::create_dir_all(seed_path.parent().expect("seed parent")).expect("create seed parent");
+        fs::write(
+            &seed_path,
+            "use std::interop::bridge\n\nstruct SeedOutputs:\n    image: Any\n    snapshot: Any\n\nfn main() -> SeedOutputs:\n    let image = interop_shared_image_from_bytes([1, 2, 3, 4], 1, 1, 4, \"HWC\", \"rgba8\", \"image/x-kain-raster\")\n    let snapshot = interop_shared_buffer_from_bytes([10, 20, 30, 40], \"u8\", [4], \"bytes\", \"application/octet-stream\")\n    return SeedOutputs { image: image, snapshot: snapshot }\n",
+        )
+        .expect("write seed source");
+
+        let entry_path = dir.path().join(entry);
+        fs::create_dir_all(entry_path.parent().expect("entry parent"))
+            .expect("create entry parent");
+        fs::write(&entry_path, source).expect("write consumer source");
+
+        let manifest_path = dir.path().join("KAIN.fabric.toml");
+        fs::write(
+            &manifest_path,
+            format!(
+                "version = 1\n\n[workspace]\nroot = \".\"\nsearch_roots = [\"src\", \"scripts\"]\n\n[[requires]]\nkey = \"session.local\"\nversion = 1\noptional = false\n\n[[steps]]\nid = \"seed\"\nruntime = \"kain\"\nentry = \"src/seed.kn\"\n\n[[steps.outputs]]\nname = \"image\"\nkind = \"shared_image\"\n\n[[steps.outputs]]\nname = \"snapshot\"\nkind = \"shared_buffer\"\n\n[[steps]]\nid = \"consumer\"\nruntime = \"{}\"\nentry = \"{}\"\ndepends_on = [\"seed\"]\n\n[[steps.outputs]]\nname = \"report\"\nkind = \"value\"\n",
+                runtime.display_name(),
+                entry.replace('\\', "/"),
+            ),
+        )
+        .expect("write manifest");
+
+        let result = execute_fabric_manifest_path(&manifest_path).expect("execute manifest");
+        assert_eq!(result.status, FabricSessionStatus::Succeeded);
+        let consumer_step = result
+            .step_results
+            .iter()
+            .find(|step| step.id == "consumer")
+            .expect("consumer step");
+        let output = consumer_step.outputs.first().expect("consumer output");
+        let FabricOutputPayloadSnapshot::Value { value } = &output.payload else {
+            panic!("expected consumer value output");
+        };
+        assert_eq!(
+            value.json.as_ref().and_then(|json| json.as_str()),
+            Some(expected_report)
         );
     }
 }

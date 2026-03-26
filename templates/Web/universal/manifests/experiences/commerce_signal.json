@@ -1,0 +1,21 @@
+{
+  "mode": "commerce",
+  "theme": "market_afterglow",
+  "content": "commerce_signal",
+  "scene": "market_orbit",
+  "output_slug": "commerce-signal",
+  "page_title": "Commerce Signal",
+  "eyebrow": "Commerce Website System",
+  "sections": [
+    { "id": "offers", "kind": "commerce_stack", "eyebrow": "Offers", "title": "Offer and membership stack", "source": "content.commerce" },
+    { "id": "auth", "kind": "auth_panel", "eyebrow": "Auth", "title": "Buyer and member access", "source": "content.auth" },
+    { "id": "integrations", "kind": "integration_grid", "eyebrow": "Integrations", "title": "Checkout and fulfillment connectors", "source": "content.integrations" },
+    { "id": "data", "kind": "data_collections", "eyebrow": "Data", "title": "Buyer and membership collections", "source": "content.data_collections" },
+    { "id": "scene", "kind": "scene_spotlight", "eyebrow": "Scene", "title": "Market Orbit", "source": "scene" },
+    { "id": "voices", "kind": "testimonials", "eyebrow": "Proof", "title": "Why this commerce lane exists", "source": "content.testimonials" },
+    { "id": "process", "kind": "process_steps", "eyebrow": "Flow", "title": "How to use the commerce lane", "source": "content.process_steps" },
+    { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Common commerce questions", "source": "content.faq_items" },
+    { "id": "intake", "kind": "form_panel", "eyebrow": "Intake", "title": "Describe the commerce flow", "source": "content.forms.commerce_intake" },
+    { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }
+  ]
+}

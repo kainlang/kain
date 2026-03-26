@@ -3,6 +3,8 @@
     "aurora_studio": "aurora_studio.json",
     "ember_console": "ember_console.json",
     "circuit_bloom": "circuit_bloom.json",
-    "vector_cascade": "vector_cascade.json"
+    "vector_cascade": "vector_cascade.json",
+    "signal_meridian": "signal_meridian.json",
+    "market_afterglow": "market_afterglow.json"
   }
 }

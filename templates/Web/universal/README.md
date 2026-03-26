@@ -21,7 +21,7 @@
 - `helpers/web_runtime.mjs`
   - manifest loader
   - HTML and client-island renderer
-  - local search, chat, prompt-deck, catalog, form, and route APIs
+  - local search, chat, prompt-deck, catalog, app/auth/commerce/data/realtime, form, and route APIs
   - static artifact writer
   - actor-aware local HTTP server
 - `package.json`
@@ -50,6 +50,9 @@
 - `knowledge_atlas`
 - `operator_foundry`
 - `hybrid_command`
+- `app_foundry`
+- `commerce_signal`
+- `realtime_constellation`
 
 ## Artifacts Emitted Per Experience
 
@@ -57,6 +60,8 @@
 - `site.manifest.json`
 - `actor-server.plan.json`
 - `site.data.json`
+- `system.contract.json`
+- `ui.schema.json`
 - `sitemap.xml`
 - `robots.txt`
 - `feed.xml`
@@ -77,8 +82,13 @@ npm run catalog
 npm run serve:hybrid
 npm run serve:docs
 npm run serve:operator
+npm run serve:app
+npm run serve:commerce
+npm run serve:realtime
 npm run experience:hybrid
 npm run actor:hybrid
+npm run contract:hybrid
+npm run ui:hybrid
 ```
 
 Switch to a TypeScript-aware helper runtime by changing `[node_ffi]` in
@@ -90,3 +100,9 @@ New reusable section kinds in this pass:
 - `process_steps`
 - `capability_matrix`
 - `blueprint_grid`
+- `app_shell`
+- `auth_panel`
+- `commerce_stack`
+- `integration_grid`
+- `realtime_channels`
+- `data_collections`

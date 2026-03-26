@@ -1,0 +1,14 @@
+{
+  "background_top": "#07141a",
+  "background_bottom": "#081b2a",
+  "surface": "#0f2431",
+  "surface_alt": "#153244",
+  "line": "rgba(156,244,255,0.14)",
+  "accent": "#63e9ff",
+  "accent_soft": "#cbfbff",
+  "highlight": "#7bf0b0",
+  "text": "#f4fdff",
+  "muted": "#92b9c4",
+  "font_display": "Sora, Segoe UI, sans-serif",
+  "font_body": "IBM Plex Sans, Segoe UI, sans-serif"
+}
