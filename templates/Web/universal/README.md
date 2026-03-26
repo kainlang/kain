@@ -22,6 +22,7 @@
   - manifest loader
   - HTML and client-island renderer
   - client bundler (Preact + Three.js) for React/TypeScript-esque islands
+  - KainScript (`.ks`) support in the client bundle loader
   - local search, chat, prompt-deck, catalog, app/auth/commerce/data/realtime, session, uploads, analytics, form, and route APIs
   - static artifact writer
   - actor-aware local HTTP + SSE + WebSocket server
@@ -112,6 +113,11 @@ Client bundle only:
 npm run bundle:client
 ```
 
+KainScript support:
+
+- `helpers/client/lib/kain_script_bridge.ks` is a sample KainScript module used by the client bundle.
+- `.ks` files are bundled alongside TS/TSX without requiring Rust tooling.
+
 Switch to a TypeScript-aware helper runtime by changing `[node_ffi]` in
 `KAIN.toml` from `node` to `npx` with `tsx`.
 
@@ -130,3 +136,7 @@ New reusable section kinds in this pass:
 - `data_collections`
 - `uploads_lab`
 - `analytics_lab`
+- `card_grid` with `content.chat_personas`
+- `card_grid` with `content.chat_modes`
+- `process_steps` with `content.actor_playbooks`
+- `card_grid` with `content.actor_tools`

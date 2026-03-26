@@ -29,9 +29,13 @@
     { "id": "docs", "kind": "docs_grid", "eyebrow": "Docs", "title": "Runtime notes and route docs", "source": "content.docs_links" },
     { "id": "blog", "kind": "blog_roll", "eyebrow": "Blog", "title": "System notes", "source": "content.blog_posts" },
     { "id": "prompts", "kind": "prompt_deck", "eyebrow": "Prompts", "title": "Route the system by prompt", "source": "content.prompt_presets" },
+    { "id": "personas", "kind": "card_grid", "eyebrow": "Personas", "title": "Hybrid chat personas", "source": "content.chat_personas" },
+    { "id": "chat-modes", "kind": "card_grid", "eyebrow": "Modes", "title": "Conversation modes", "source": "content.chat_modes" },
     { "id": "chat", "kind": "chat_lab", "eyebrow": "Chat", "title": "Prompt the site system", "source": "content.chat_seed", "placeholder": "What kind of website should I build?", "button_label": "Ask" },
     { "id": "search", "kind": "search_panel", "eyebrow": "Search", "title": "Search the hybrid system", "source": "experience.search_panel" },
     { "id": "routes", "kind": "route_grid", "eyebrow": "Runtime", "title": "Actor-backed route contract", "source": "content.server_routes" },
+    { "id": "playbooks", "kind": "process_steps", "eyebrow": "Playbooks", "title": "Operator playbooks", "source": "content.actor_playbooks" },
+    { "id": "tools", "kind": "card_grid", "eyebrow": "Tools", "title": "Actor tools", "source": "content.actor_tools" },
     { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Hybrid lane questions", "source": "content.faq_items" },
     { "id": "intake", "kind": "form_panel", "eyebrow": "Intake", "title": "Describe the full site system", "source": "content.forms.hybrid_intake" },
     { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }

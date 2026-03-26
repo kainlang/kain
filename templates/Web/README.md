@@ -22,6 +22,7 @@ around four rules:
 - Kain entrypoints for build orchestration, actor reporting, and semantic Kain UI preview
 - a shared Node helper runtime for manifest loading, HTML rendering, search, forms, feed/sitemap output, and local serving
 - a bundled client-islands lane (Preact + Three.js) so React/TypeScript-style UI and real WebGL scenes ship without Rust
+- KainScript (`.ks`) support inside the client bundle so JS + JSDoc modules can sit beside TSX islands
 - manifest registries for themes, content, scenes, and experiences
 - archetypes for business, portfolio, immersive 3D, chat, docs, operator, app-shell, commerce, realtime, actor-server, and hybrid site modes
 - website systems for docs links, search, FAQ, pricing, testimonials, prompt decks, capability matrices, blueprint grids, app modules, auth strategy, commerce offers, data collections, realtime channels, local form capture, actor routes, RSS, robots, and sitemap output

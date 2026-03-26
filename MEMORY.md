@@ -10,6 +10,39 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-26 - GPU Compute Pipeline Converged Into Fabric Executor
+
+The Tensor/Compute Pipeline and the Fabric Polyglot Executor now share a unified execution path. `gpu_compute` is a first-class Fabric runtime kind and `compute_plan` is a valid contract kind.
+
+### What changed
+
+#### kain-omni (manifest schema layer)
+- `FabricRuntimeKind::GpuCompute` added — requires `shader_source` and `compute_key` fields on `FabricStep`
+- `FabricContractKind::ComputePlan` added with its own `FabricComputeDispatchSnapshot` for session reports
+- Step shape validation enforces compute-specific field presence
+- Capability registry includes `runtime.gpu-compute` and `contract.compute-plan`
+
+#### kain-host (executor layer)
+- `GpuComputeAdapter` registered in `FabricExecutor::new()` (6th adapter slot)
+- Adapter flow: read shader → `compile_shader_artifact_bundle` → build residency from bundle entry_points/resource_layouts → write sidecars → `VulkanComputeExecutor::dispatch_from_sidecars` → map output bindings to `KainSharedBuffer` values
+- Upstream shared-buffer inputs flow through `resolve_upstream_binding_bytes` into binding payloads
+- `normalize_contract_value` and `snapshot_contract_value` extended for `ComputePlan`
+- All Python/Node harness match arms extended for `ComputePlan`
+- `kain-gpu-runtime` and `serde` added as dependencies
+
+### Design decisions
+
+- **No Fabric-specific compute dialect** — the adapter uses the same `kain.shared.buffer` contract family as all other adapters
+- **Residency built from bundle metadata** — the adapter constructs residency entries from the `ShaderArtifactBundle.entry_points` and `resource_layouts`, not from a new `compute_plans` field. This avoids schema changes to `kain-core::ShaderArtifactBundle`.
+- **`ComputePlan` contract kind** — added as a forward-looking concept for steps whose output is dispatch metadata rather than raw data. In practice, most GPU compute steps will output `SharedBuffer` values.
+
+### What remains incomplete
+
+- **Residency shape inference**: binding shapes default to `[1]` when inferred from `resource_layouts`. Future work should propagate upstream tensor shapes or extract them from shader reflection.
+- **Workgroup/dispatch size**: currently hardcoded to `[8,1,1]`/`[1,1,1]`. Should be inferred from the compiled shader's `workgroup_size` metadata or declared in the Fabric manifest.
+- **Dispatch reporting**: while `FabricComputeDispatchSnapshot` is defined and populated, it is not yet surfaced in the session report JSON flow.
+- **End-to-end integration proof**: no smoketest yet exercises the full `Python → Kain → GPU → Node` manifest. The compile-time wiring is complete; runtime validation requires a machine with Vulkan support.
+
 ## 2026-03-26 - SM64 Fast3D Research Landed As An Isolated Smoketest Adapter Lane
 
 The first serious SM64/Fast3D proof did not go into `crates/kain-3D`. It landed as a dedicated adapter smoke under `smoketest/3D/sm64_fast3d_smoke`.

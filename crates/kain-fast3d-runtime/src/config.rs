@@ -17,15 +17,30 @@ pub struct Fast3dHostConfig {
 pub enum Fast3dHostAction {
     Viewer {
         manifest_path: String,
+        #[serde(default)]
+        gameplay_state_path: Option<String>,
+        #[serde(default)]
+        shader_overrides_path: Option<String>,
     },
     Snapshot {
         manifest_path: String,
         output_path: String,
         #[serde(default)]
         time_seconds: f32,
+        #[serde(default)]
+        gameplay_state_path: Option<String>,
+        #[serde(default)]
+        shader_overrides_path: Option<String>,
     },
     ExtractSm64TitleFace {
         sm64_source_root: String,
+        manifest_output_path: String,
+    },
+    ExtractSm64LevelChunk {
+        sm64_source_root: String,
+        level_name: String,
+        #[serde(default = "default_area_id")]
+        area_id: u32,
         manifest_output_path: String,
     },
 }
@@ -34,16 +49,30 @@ pub enum Fast3dHostAction {
 pub enum ResolvedFast3dHostAction {
     Viewer {
         manifest_path: PathBuf,
+        gameplay_state_path: Option<PathBuf>,
+        shader_overrides_path: Option<PathBuf>,
     },
     Snapshot {
         manifest_path: PathBuf,
         output_path: PathBuf,
         time_seconds: f32,
+        gameplay_state_path: Option<PathBuf>,
+        shader_overrides_path: Option<PathBuf>,
     },
     ExtractSm64TitleFace {
         sm64_source_root: PathBuf,
         manifest_output_path: PathBuf,
     },
+    ExtractSm64LevelChunk {
+        sm64_source_root: PathBuf,
+        level_name: String,
+        area_id: u32,
+        manifest_output_path: PathBuf,
+    },
+}
+
+fn default_area_id() -> u32 {
+    1
 }
 
 pub fn load_host_config(
@@ -70,17 +99,39 @@ impl Fast3dHostConfig {
     pub fn resolve(&self, config_path: &Path) -> Result<ResolvedFast3dHostAction, String> {
         let base_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
         match &self.action {
-            Fast3dHostAction::Viewer { manifest_path } => Ok(ResolvedFast3dHostAction::Viewer {
+            Fast3dHostAction::Viewer {
+                manifest_path,
+                gameplay_state_path,
+                shader_overrides_path,
+            } => Ok(ResolvedFast3dHostAction::Viewer {
                 manifest_path: resolve_config_path(manifest_path, base_dir)?,
+                gameplay_state_path: resolve_optional_config_path(
+                    gameplay_state_path.as_deref(),
+                    base_dir,
+                )?,
+                shader_overrides_path: resolve_optional_config_path(
+                    shader_overrides_path.as_deref(),
+                    base_dir,
+                )?,
             }),
             Fast3dHostAction::Snapshot {
                 manifest_path,
                 output_path,
                 time_seconds,
+                gameplay_state_path,
+                shader_overrides_path,
             } => Ok(ResolvedFast3dHostAction::Snapshot {
                 manifest_path: resolve_config_path(manifest_path, base_dir)?,
                 output_path: resolve_config_path(output_path, base_dir)?,
                 time_seconds: *time_seconds,
+                gameplay_state_path: resolve_optional_config_path(
+                    gameplay_state_path.as_deref(),
+                    base_dir,
+                )?,
+                shader_overrides_path: resolve_optional_config_path(
+                    shader_overrides_path.as_deref(),
+                    base_dir,
+                )?,
             }),
             Fast3dHostAction::ExtractSm64TitleFace {
                 sm64_source_root,
@@ -89,8 +140,29 @@ impl Fast3dHostConfig {
                 sm64_source_root: resolve_config_path(sm64_source_root, base_dir)?,
                 manifest_output_path: resolve_config_path(manifest_output_path, base_dir)?,
             }),
+            Fast3dHostAction::ExtractSm64LevelChunk {
+                sm64_source_root,
+                level_name,
+                area_id,
+                manifest_output_path,
+            } => Ok(ResolvedFast3dHostAction::ExtractSm64LevelChunk {
+                sm64_source_root: resolve_config_path(sm64_source_root, base_dir)?,
+                level_name: level_name.clone(),
+                area_id: *area_id,
+                manifest_output_path: resolve_config_path(manifest_output_path, base_dir)?,
+            }),
         }
     }
+}
+
+fn resolve_optional_config_path(
+    raw_value: Option<&str>,
+    base_dir: &Path,
+) -> Result<Option<PathBuf>, String> {
+    raw_value
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| resolve_config_path(value, base_dir))
+        .transpose()
 }
 
 fn resolve_config_path(raw_value: &str, base_dir: &Path) -> Result<PathBuf, String> {

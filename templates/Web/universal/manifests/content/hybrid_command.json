@@ -119,6 +119,16 @@
     { "kicker": "Docs", "title": "Knowledge hub brief", "prompt": "Build a searchable docs and onboarding hub", "body": "Shift into knowledge-base and search-heavy flows.", "button_label": "Ask docs" },
     { "kicker": "Ops", "title": "Operator hub brief", "prompt": "Build an actor-backed operator dashboard with commands", "body": "Route toward route catalogs, actors, and operator prompts.", "button_label": "Ask ops" }
   ],
+  "chat_personas": [
+    { "kicker": "Persona", "title": "Hybrid Conductor", "body": "Balances launch, docs, chat, and operator lanes while keeping the plan coherent." },
+    { "kicker": "Persona", "title": "Scene Producer", "body": "Turns scene descriptors into narrative beats and 3D staging guidance." },
+    { "kicker": "Persona", "title": "Ops Steward", "body": "Routes runtime questions to the right actor, form, or command lane." }
+  ],
+  "chat_modes": [
+    { "kicker": "Mode", "title": "Full-stack brief", "body": "Captures launch, scene, docs, and runtime needs in one pass." },
+    { "kicker": "Mode", "title": "Catalog navigator", "body": "Routes into the most relevant archetype without losing context." },
+    { "kicker": "Mode", "title": "Escalation handoff", "body": "Moves complex requests into structured intake forms." }
+  ],
   "portfolio_entries": [
     { "year": "2026", "title": "Signalcraft Launch Rail", "summary": "Business narrative + docs + pricing system.", "tags": ["business", "launch"] },
     { "year": "2026", "title": "Orbit Chat Surface", "summary": "Prompt-first local site with route-aware replies.", "tags": ["chat", "search"] },
@@ -185,6 +195,16 @@
     { "name": "analytics_sentinel", "responsibility": "Captures analytics events and exposes local event logs for operator surfaces.", "channel": "api.analytics" },
     { "name": "commerce_orchestrator", "responsibility": "Publishes offer and handoff metadata for pricing and checkout flows.", "channel": "api.commerce" },
     { "name": "signal_broker", "responsibility": "Publishes live channel metadata for realtime dashboards and chat.", "channel": "api.realtime" }
+  ],
+  "actor_playbooks": [
+    { "kicker": "Playbook", "title": "Hybrid launch checklist", "body": "Validate launch, scene, chat, and operator surfaces before go-live." },
+    { "kicker": "Playbook", "title": "Ops escalation", "body": "Promote high-signal prompts into the operator intake flow." },
+    { "kicker": "Playbook", "title": "Realtime briefing", "body": "Summarize channel status and actor ownership for live updates." }
+  ],
+  "actor_tools": [
+    { "kicker": "Tool", "title": "Experience router", "body": "Map prompts to the most relevant archetype and output slug." },
+    { "kicker": "Tool", "title": "Form intake queue", "body": "Aggregate submissions from hybrid intake and chat escalation forms." },
+    { "kicker": "Tool", "title": "Search indexer", "body": "Rebuild the local search document list after content updates." }
   ],
   "server_routes": [
     { "method": "GET", "path": "/api/runtime", "purpose": "returns the active hybrid runtime metadata" },

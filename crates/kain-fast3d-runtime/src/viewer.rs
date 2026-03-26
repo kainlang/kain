@@ -5,14 +5,15 @@ use std::{
 
 use eframe::egui;
 
-use crate::model::CombineMode;
+use crate::model::{CameraControllerMode, CombineMode};
 use crate::rasterizer::RenderFrame;
-use crate::runtime::Fast3dRuntime;
+use crate::runtime::{Fast3dRuntime, RuntimeFrameBindings};
 pub use crate::runtime::OrbitControls;
 
 pub fn launch_viewer(
     manifest_path: PathBuf,
     runtime: Fast3dRuntime,
+    runtime_bindings: RuntimeFrameBindings,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -25,7 +26,11 @@ pub fn launch_viewer(
         &title,
         options,
         Box::new(move |_creation_context| {
-            Ok(Box::new(Fast3dViewerApp::new(manifest_path, runtime)))
+            Ok(Box::new(Fast3dViewerApp::new(
+                manifest_path,
+                runtime,
+                runtime_bindings,
+            )))
         }),
     )?;
     Ok(())
@@ -54,20 +59,27 @@ struct Fast3dViewerApp {
     auto_rotate: bool,
     combine_override: Option<CombineMode>,
     latest_frame: Option<RenderFrame>,
+    runtime_bindings: RuntimeFrameBindings,
 }
 
 impl Fast3dViewerApp {
-    fn new(manifest_path: PathBuf, runtime: Fast3dRuntime) -> Self {
+    fn new(
+        manifest_path: PathBuf,
+        runtime: Fast3dRuntime,
+        runtime_bindings: RuntimeFrameBindings,
+    ) -> Self {
+        let orbit_controls = runtime.default_camera_controls();
         Self {
             manifest_path,
             runtime,
-            orbit_controls: OrbitControls::default(),
+            orbit_controls,
             frame_texture: None,
             last_frame_started_at: Instant::now(),
             elapsed_seconds: 1.8,
             auto_rotate: true,
             combine_override: None,
             latest_frame: None,
+            runtime_bindings,
         }
     }
 
@@ -93,22 +105,80 @@ impl Fast3dViewerApp {
                 self.cycle_combine_override();
             }
             if input.key_pressed(egui::Key::R) {
-                self.orbit_controls = OrbitControls::default();
+                self.orbit_controls = self.runtime.default_camera_controls();
                 self.elapsed_seconds = 0.0;
             }
-            if input.key_down(egui::Key::ArrowLeft) || input.key_down(egui::Key::A) {
-                self.orbit_controls.yaw_radians -= delta_seconds * 1.75;
-            }
-            if input.key_down(egui::Key::ArrowRight) || input.key_down(egui::Key::D) {
-                self.orbit_controls.yaw_radians += delta_seconds * 1.75;
-            }
-            if input.key_down(egui::Key::ArrowUp) || input.key_down(egui::Key::W) {
-                self.orbit_controls.pitch_radians =
-                    (self.orbit_controls.pitch_radians + delta_seconds * 1.25).clamp(-0.9, 0.9);
-            }
-            if input.key_down(egui::Key::ArrowDown) || input.key_down(egui::Key::S) {
-                self.orbit_controls.pitch_radians =
-                    (self.orbit_controls.pitch_radians - delta_seconds * 1.25).clamp(-0.9, 0.9);
+            match self.runtime.manifest.camera.controller_mode {
+                CameraControllerMode::Orbit => {
+                    if input.key_down(egui::Key::ArrowLeft) || input.key_down(egui::Key::A) {
+                        self.orbit_controls.yaw_radians -= delta_seconds * 1.75;
+                    }
+                    if input.key_down(egui::Key::ArrowRight) || input.key_down(egui::Key::D) {
+                        self.orbit_controls.yaw_radians += delta_seconds * 1.75;
+                    }
+                    if input.key_down(egui::Key::ArrowUp) || input.key_down(egui::Key::W) {
+                        self.orbit_controls.pitch_radians =
+                            (self.orbit_controls.pitch_radians + delta_seconds * 1.25)
+                                .clamp(-0.9, 0.9);
+                    }
+                    if input.key_down(egui::Key::ArrowDown) || input.key_down(egui::Key::S) {
+                        self.orbit_controls.pitch_radians =
+                            (self.orbit_controls.pitch_radians - delta_seconds * 1.25)
+                                .clamp(-0.9, 0.9);
+                    }
+                }
+                CameraControllerMode::Fly => {
+                    if input.key_down(egui::Key::ArrowLeft) {
+                        self.orbit_controls.yaw_radians -=
+                            delta_seconds * self.runtime.manifest.camera.look_speed;
+                    }
+                    if input.key_down(egui::Key::ArrowRight) {
+                        self.orbit_controls.yaw_radians +=
+                            delta_seconds * self.runtime.manifest.camera.look_speed;
+                    }
+                    if input.key_down(egui::Key::ArrowUp) {
+                        self.orbit_controls.pitch_radians =
+                            (self.orbit_controls.pitch_radians
+                                + delta_seconds * self.runtime.manifest.camera.look_speed)
+                                .clamp(-1.45, 1.45);
+                    }
+                    if input.key_down(egui::Key::ArrowDown) {
+                        self.orbit_controls.pitch_radians =
+                            (self.orbit_controls.pitch_radians
+                                - delta_seconds * self.runtime.manifest.camera.look_speed)
+                                .clamp(-1.45, 1.45);
+                    }
+                    let mut position = glam::Vec3::from_array(
+                        self.orbit_controls
+                            .fly_position
+                            .unwrap_or(self.runtime.manifest.camera.free_position),
+                    );
+                    let forward = crate::math::camera_forward(
+                        self.orbit_controls.yaw_radians,
+                        self.orbit_controls.pitch_radians,
+                    );
+                    let right = forward.cross(glam::Vec3::Y).normalize_or_zero();
+                    let move_speed = self.runtime.manifest.camera.move_speed * delta_seconds;
+                    if input.key_down(egui::Key::W) {
+                        position += forward * move_speed;
+                    }
+                    if input.key_down(egui::Key::S) {
+                        position -= forward * move_speed;
+                    }
+                    if input.key_down(egui::Key::A) {
+                        position -= right * move_speed;
+                    }
+                    if input.key_down(egui::Key::D) {
+                        position += right * move_speed;
+                    }
+                    if input.key_down(egui::Key::Q) {
+                        position.y -= move_speed;
+                    }
+                    if input.key_down(egui::Key::E) {
+                        position.y += move_speed;
+                    }
+                    self.orbit_controls.fly_position = Some(position.to_array());
+                }
             }
             let scroll_delta = input.raw_scroll_delta.y;
             if scroll_delta.abs() > f32::EPSILON {
@@ -143,6 +213,7 @@ impl eframe::App for Fast3dViewerApp {
         match self.runtime.render_frame(
             self.elapsed_seconds,
             &self.orbit_controls,
+            Some(&self.runtime_bindings),
             self.combine_override,
         ) {
             Ok(frame) => {
@@ -167,8 +238,18 @@ impl eframe::App for Fast3dViewerApp {
                 ui.monospace(self.manifest_path.display().to_string());
                 ui.separator();
                 ui.label("Controls");
-                ui.label("WASD / arrows: orbit camera");
-                ui.label("Mouse wheel: zoom");
+                match self.runtime.manifest.camera.controller_mode {
+                    CameraControllerMode::Orbit => {
+                        ui.label("WASD / arrows: orbit camera");
+                        ui.label("Mouse wheel: zoom");
+                    }
+                    CameraControllerMode::Fly => {
+                        ui.label("WASD: move");
+                        ui.label("Q/E: descend / ascend");
+                        ui.label("Arrows: look");
+                        ui.label("Mouse wheel: speed-relative zoom bias");
+                    }
+                }
                 ui.label("Space: pause auto-rotation");
                 ui.label("C: cycle combiner override");
                 ui.label("R: reset camera and time");
@@ -184,6 +265,12 @@ impl eframe::App for Fast3dViewerApp {
                 ui.label(format!("yaw: {:.2}", self.orbit_controls.yaw_radians));
                 ui.label(format!("pitch: {:.2}", self.orbit_controls.pitch_radians));
                 ui.label(format!("zoom delta: {:.2}", self.orbit_controls.zoom_delta));
+                if let Some(position) = self.orbit_controls.fly_position {
+                    ui.label(format!(
+                        "fly position: [{:.2}, {:.2}, {:.2}]",
+                        position[0], position[1], position[2]
+                    ));
+                }
                 if let Some(frame) = self.latest_frame.as_ref() {
                     ui.separator();
                     ui.label(format!(

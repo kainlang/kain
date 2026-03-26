@@ -56,3 +56,30 @@ pub fn orbit_camera_position(
         target.z + yaw_radians.sin() * horizontal_radius,
     )
 }
+
+pub fn transform_from_trs(
+    translation: [f32; 3],
+    rotation_degrees: [f32; 3],
+    scale: [f32; 3],
+) -> Matrix4 {
+    let translation = vec3_from_array(translation);
+    let rotation_radians = vec3_from_array(rotation_degrees).to_radians();
+    let rotation = Matrix4::from_euler(
+        glam::EulerRot::XYZ,
+        rotation_radians.x,
+        rotation_radians.y,
+        rotation_radians.z,
+    );
+    Matrix4::from_translation(translation)
+        * rotation
+        * Matrix4::from_scale(vec3_from_array(scale))
+}
+
+pub fn camera_forward(yaw_radians: f32, pitch_radians: f32) -> Float3 {
+    Float3::new(
+        yaw_radians.cos() * pitch_radians.cos(),
+        pitch_radians.sin(),
+        yaw_radians.sin() * pitch_radians.cos(),
+    )
+    .normalize_or_zero()
+}

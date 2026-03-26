@@ -9,7 +9,8 @@ use regex::Regex;
 
 use crate::model::{
     CameraConfig, CombineMode, DisplayListCommand, DisplayListDefinition, Fast3dSmokeManifest,
-    Fast3dVertex, LightGroupDefinition, ResolutionConfig, TextureDefinition, TextureSource,
+    Fast3dVertex, LightGroupDefinition, ResolutionConfig, SegmentBinding, SegmentBindingKind,
+    TextureDefinition, TextureSource,
 };
 
 const MARIO_FACE_MODEL_PATH: &str = "actors/mario/model.inc.c";
@@ -17,6 +18,305 @@ const TITLE_FACE_ROTATION_Y_RADIANS: f32 = -std::f32::consts::FRAC_PI_2;
 const TITLE_FACE_TARGET_WIDTH: f32 = 2.35;
 const TITLE_FACE_TARGET_HEIGHT: f32 = 2.1;
 const TITLE_FACE_TARGET_CENTER: [f32; 3] = [1.8, -0.05, 0.3];
+
+/// N64 units to normalized world units. SM64 uses 1 unit ≈ 1 cm;
+/// Bob-omb Battlefield spans ≈ ±40,000 units, so divide by 500 to get ≈ ±80 world units.
+const LEVEL_N64_UNIT_SCALE: f32 = 1.0 / 500.0;
+
+/// Extract a full SM64 level chunk from the decompiled source tree.
+///
+/// Reads all `model.inc.c` files under `levels/{level_name}/areas/{area_id}/{sub_id}/`
+/// for the given area, merges them into a single manifest, and writes it to `manifest_out`.
+///
+/// Positions are normalized from N64 integer units to world units via `LEVEL_N64_UNIT_SCALE`.
+///
+/// Textures are placeholder checkerboards since real textures require ROM extraction.
+/// UV scale is set to render-reasonable values across the geometry.
+pub fn extract_sm64_level_chunk_scene(
+    sm64_root: &Path,
+    level_name: &str,
+    area_id: u32,
+    manifest_out: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let level_dir = sm64_root.join("levels").join(level_name);
+    if !level_dir.exists() {
+        return Err(format!(
+            "SM64 level directory not found: {}",
+            level_dir.display()
+        )
+        .into());
+    }
+
+    let area_dir = level_dir.join("areas").join(area_id.to_string());
+    if !area_dir.exists() {
+        return Err(format!(
+            "SM64 level area directory not found: {}",
+            area_dir.display()
+        )
+        .into());
+    }
+
+    // Collect all sub-area model.inc.c files (areas/{area}/{1}/{model.inc.c}, etc.)
+    let mut model_paths: Vec<std::path::PathBuf> = Vec::new();
+    let mut sub_id = 1u32;
+    loop {
+        let candidate = area_dir.join(sub_id.to_string()).join("model.inc.c");
+        if candidate.exists() {
+            model_paths.push(candidate);
+            sub_id += 1;
+        } else {
+            break;
+        }
+    }
+
+    if model_paths.is_empty() {
+        return Err(format!(
+            "No model.inc.c files found under {}: expected files at {}",
+            area_dir.display(),
+            area_dir.join("1/model.inc.c").display()
+        )
+        .into());
+    }
+
+    // Merge all model files into unified lookup tables
+    let mut all_vertex_arrays: HashMap<String, Vec<ParsedVertex>> = HashMap::new();
+    let mut all_display_lists: HashMap<String, Vec<ParsedGfxCommand>> = HashMap::new();
+    let mut all_light_groups: HashMap<String, ParsedLightGroup> = HashMap::new();
+    let mut root_display_list_names: Vec<String> = Vec::new();
+
+    for (model_index, model_path) in model_paths.iter().enumerate() {
+        let model_text = fs::read_to_string(model_path).map_err(|err| {
+            format!("Failed to read {}: {}", model_path.display(), err)
+        })?;
+
+        let vertex_arrays = parse_vertex_arrays(&model_text)?;
+        let display_lists = parse_display_lists(&model_text)?;
+        let light_groups = parse_light_groups(&model_text)?;
+
+        all_vertex_arrays.extend(vertex_arrays);
+        all_light_groups.extend(light_groups);
+
+        // Identify the "root" display list for this sub-area model:
+        // it is the last Gfx[] that is not called by any other in this file
+        let called_in_this_file: HashSet<String> = display_lists
+            .values()
+            .flat_map(|cmds| {
+                cmds.iter().filter_map(|cmd| {
+                    if let ParsedGfxCommand::DisplayList(name) = cmd {
+                        Some(name.clone())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
+        let mut local_roots: Vec<String> = display_lists
+            .keys()
+            .filter(|name| !called_in_this_file.contains(*name))
+            .cloned()
+            .collect();
+        local_roots.sort();
+
+        all_display_lists.extend(display_lists);
+
+        if local_roots.is_empty() {
+            // Fallback: use any display list from this model file
+            if let Some(first_key) = all_display_lists
+                .keys()
+                .filter(|k| k.contains(&format!("seg7")))
+                .cloned()
+                .next()
+            {
+                root_display_list_names.push(first_key);
+            }
+        } else {
+            root_display_list_names.push(local_roots[0].clone());
+        }
+
+        let _ = model_index; // suppress unused warning
+    }
+
+    // Convert all parsed display lists to manifest format, scaling positions
+    let mut extracted_display_lists: Vec<DisplayListDefinition> = Vec::new();
+    for (dl_name, parsed_commands) in &all_display_lists {
+        let commands =
+            convert_display_list_commands_scaled(parsed_commands, &all_display_lists, &all_vertex_arrays)?;
+        extracted_display_lists.push(DisplayListDefinition {
+            id: dl_name.clone(),
+            commands,
+        });
+    }
+    extracted_display_lists.sort_by(|a, b| a.id.cmp(&b.id));
+
+    // Build the root display list that calls all sub-area roots
+    let root_id = format!("{}_area{}_root", level_name, area_id);
+    let mut root_commands: Vec<DisplayListCommand> = Vec::new();
+    for sub_root in &root_display_list_names {
+        if all_display_lists.contains_key(sub_root) {
+            root_commands.push(DisplayListCommand::CallDisplayList {
+                display_list_id: sub_root.clone(),
+            });
+        }
+    }
+    extracted_display_lists.insert(
+        0,
+        DisplayListDefinition {
+            id: root_id.clone(),
+            commands: root_commands,
+        },
+    );
+
+    // Build light groups
+    let light_groups: Vec<LightGroupDefinition> = all_light_groups
+        .iter()
+        .map(|(name, parsed)| LightGroupDefinition {
+            id: name.clone(),
+            ambient_color: parsed.ambient_color,
+            diffuse_color: parsed.diffuse_color,
+            direction: parsed.direction,
+        })
+        .collect();
+
+    // Build placeholder checkerboard textures (one per distinct light group color family)
+    let textures: Vec<TextureDefinition> = vec![
+        TextureDefinition {
+            id: "level_ground".to_string(),
+            source: TextureSource::Checkerboard {
+                width: 64,
+                height: 64,
+                cell_size: 8,
+                color_a: [100, 160, 70, 255],
+                color_b: [80, 135, 55, 255],
+            },
+        },
+        TextureDefinition {
+            id: "level_rock".to_string(),
+            source: TextureSource::Checkerboard {
+                width: 64,
+                height: 64,
+                cell_size: 16,
+                color_a: [160, 140, 110, 255],
+                color_b: [130, 115, 85, 255],
+            },
+        },
+    ];
+
+    let manifest = Fast3dSmokeManifest {
+        title: format!(
+            "SM64 {} Area {} Level Chunk",
+            level_name.to_uppercase(),
+            area_id
+        ),
+        root_display_list: root_id,
+        resolution: ResolutionConfig {
+            width: 1280,
+            height: 720,
+        },
+        clear_color: [100, 160, 220, 255],
+        camera: CameraConfig {
+            target: [0.0, 5.0, 0.0],
+            orbit_radius: 80.0,
+            orbit_height: 30.0,
+            initial_yaw_radians: 0.0,
+            initial_pitch_radians: -0.3,
+            fov_y_degrees: 60.0,
+            near_plane: 0.5,
+            far_plane: 2000.0,
+        },
+        auto_rotation_radians_per_second: 0.08,
+        segment_bindings: Vec::new(),
+        light_groups,
+        textures,
+        display_lists: extracted_display_lists,
+    };
+
+    if let Some(parent) = manifest_out.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent)?;
+        }
+    }
+    fs::write(manifest_out, serde_json::to_string_pretty(&manifest)?)?;
+    Ok(())
+}
+
+/// Convert parsed GFX commands to manifest format, scaling all vertex positions
+/// from N64 integer units to world units via `LEVEL_N64_UNIT_SCALE`.
+fn convert_display_list_commands_scaled(
+    parsed_commands: &[ParsedGfxCommand],
+    parsed_display_lists: &HashMap<String, Vec<ParsedGfxCommand>>,
+    parsed_vertex_arrays: &HashMap<String, Vec<ParsedVertex>>,
+) -> Result<Vec<DisplayListCommand>, String> {
+    let mut commands = Vec::new();
+    for parsed_command in parsed_commands {
+        match parsed_command {
+            ParsedGfxCommand::Vertex {
+                vertex_array_name,
+                count,
+                slot,
+            } => {
+                let parsed_vertices = parsed_vertex_arrays
+                    .get(vertex_array_name)
+                    .ok_or_else(|| format!("missing vertex array `{vertex_array_name}`"))?;
+                let vertices = parsed_vertices
+                    .iter()
+                    .take(*count)
+                    .map(|vertex| Fast3dVertex {
+                        position: [
+                            vertex.position[0] * LEVEL_N64_UNIT_SCALE,
+                            vertex.position[1] * LEVEL_N64_UNIT_SCALE,
+                            vertex.position[2] * LEVEL_N64_UNIT_SCALE,
+                        ],
+                        uv: [
+                            vertex.uv_raw[0] / (32.0 * 64.0),
+                            vertex.uv_raw[1] / (32.0 * 64.0),
+                        ],
+                        color: [255, 255, 255, 255],
+                        normal: Some(vertex.normal),
+                    })
+                    .collect::<Vec<_>>();
+                commands.push(DisplayListCommand::LoadVertices {
+                    slot: *slot,
+                    vertices,
+                });
+            }
+            ParsedGfxCommand::TwoTriangles(left, right) => {
+                commands.push(DisplayListCommand::DrawTriangles {
+                    triangles: vec![*left, *right],
+                });
+            }
+            ParsedGfxCommand::OneTriangle(triangle) => {
+                commands.push(DisplayListCommand::DrawTriangles {
+                    triangles: vec![*triangle],
+                });
+            }
+            ParsedGfxCommand::DisplayList(display_list_name) => {
+                if !parsed_display_lists.contains_key(display_list_name) {
+                    // Skip orphaned display list references — level data often references
+                    // display lists from other segments that are not in this source file
+                    continue;
+                }
+                commands.push(DisplayListCommand::CallDisplayList {
+                    display_list_id: display_list_name.clone(),
+                });
+            }
+            ParsedGfxCommand::SetTexture(texture_name) => {
+                commands.push(DisplayListCommand::BindTexture {
+                    texture_id: texture_name.clone(),
+                });
+            }
+            ParsedGfxCommand::SetCombineMode(mode) => {
+                commands.push(DisplayListCommand::SetCombineMode { mode: *mode });
+            }
+            ParsedGfxCommand::SetLightGroup(light_group_name) => {
+                commands.push(DisplayListCommand::SetLightGroup {
+                    light_group_id: light_group_name.clone(),
+                });
+            }
+        }
+    }
+    Ok(commands)
+}
+
 
 #[derive(Clone, Copy, Debug)]
 struct ParsedVertex {

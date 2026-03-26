@@ -9,11 +9,23 @@ pub fn js_site_load_app(path: String) -> Any:
 pub fn js_site_build_experience(path: String, experience_id: String) -> Any:
     return js_bridge_call_method(js_site_runtime(), "buildExperience", [path, experience_id])
 
+pub fn js_site_catalog(path: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "buildCatalog", [path])
+
 pub fn js_site_build_matrix(path: String) -> Any:
     return js_bridge_call_method(js_site_runtime(), "buildMatrix", [path])
 
 pub fn js_site_write_matrix(path: String) -> Any:
     return js_bridge_call_method(js_site_runtime(), "writeMatrix", [path])
+
+pub fn js_site_actor_plan(path: String, experience_id: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "buildActorServerPlan", [path, experience_id])
+
+pub fn js_site_system_contract(path: String, experience_id: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "buildSiteSystemContract", [path, experience_id])
+
+pub fn js_site_ui_schema(path: String, experience_id: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "buildExperienceUiSchema", [path, experience_id])
 
 pub fn js_site_actor_report(path: String, experience_id: String) -> String:
     return js_bridge_call_method(js_site_runtime(), "actorServerReport", [path, experience_id])

@@ -71,6 +71,17 @@ pub fn build_texture_catalog(
                 height: *height,
                 pixels: build_mario_sideburn(*width, *height),
             },
+            TextureSource::GeneratedNamedTile {
+                width,
+                height,
+                label,
+                color_a,
+                color_b,
+            } => TextureImage {
+                width: *width,
+                height: *height,
+                pixels: build_named_tile(*width, *height, label, *color_a, *color_b),
+            },
         };
         if catalog.insert(texture.id.clone(), image).is_some() {
             return Err(format!("duplicate texture id `{}`", texture.id));
@@ -278,6 +289,36 @@ fn build_mario_sideburn(width: u32, height: u32) -> Vec<[u8; 4]> {
             }
         }
     }
+    pixels
+}
+
+fn build_named_tile(
+    width: u32,
+    height: u32,
+    label: &str,
+    color_a: [u8; 4],
+    color_b: [u8; 4],
+) -> Vec<[u8; 4]> {
+    let mut pixels = build_checkerboard(width, height, 8, color_a, color_b);
+    let text_color = [246, 240, 220, 255];
+    let sanitized = label
+        .rsplit('_')
+        .next()
+        .unwrap_or(label)
+        .chars()
+        .take(8)
+        .collect::<String>()
+        .to_uppercase();
+    draw_scaled_text(
+        &mut pixels,
+        width,
+        height,
+        4,
+        height.saturating_sub(20),
+        1,
+        &sanitized,
+        text_color,
+    );
     pixels
 }
 

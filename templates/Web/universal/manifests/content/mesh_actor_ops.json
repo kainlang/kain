@@ -75,6 +75,16 @@
     { "name": "search_indexer", "responsibility": "Queries the local docs and route index.", "channel": "api.search" },
     { "name": "mesh_supervisor", "responsibility": "Owns actor topology and health reporting.", "channel": "api.actors" }
   ],
+  "actor_playbooks": [
+    { "kicker": "Playbook", "title": "Route outage response", "body": "Validate the route catalog, notify the mesh supervisor, and publish a temporary fallback route." },
+    { "kicker": "Playbook", "title": "Chat escalation", "body": "Promote high-signal prompts into the intake queue and tag the responsible actor." },
+    { "kicker": "Playbook", "title": "Index refresh", "body": "Regenerate search documents after route or actor updates land." }
+  ],
+  "actor_tools": [
+    { "kicker": "Tool", "title": "Route catalog diff", "body": "Compare current route contract against the previous release." },
+    { "kicker": "Tool", "title": "Actor duty roster", "body": "Visualize actor ownership, escalation channels, and on-call rotation." },
+    { "kicker": "Tool", "title": "Runtime probe", "body": "Ping /healthz and /api/runtime to surface system state." }
+  ],
   "server_routes": [
     { "method": "GET", "path": "/", "purpose": "serves the actor control-room shell" },
     { "method": "GET", "path": "/api/runtime", "purpose": "returns template runtime metadata" },

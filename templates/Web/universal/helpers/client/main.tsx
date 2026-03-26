@@ -1,6 +1,7 @@
 import { h, render } from "preact";
 
 import { loadSiteData } from "./lib/kain_site_data";
+import { kainScriptTagline } from "./lib/kain_script_bridge.ks";
 import { AppShellIsland } from "./islands/AppShellIsland";
 import { AnalyticsLabIsland } from "./islands/AnalyticsLabIsland";
 import { AuthSessionIsland } from "./islands/AuthSessionIsland";
@@ -63,6 +64,10 @@ async function mountTarget(target: IslandTarget) {
 }
 
 async function mountAll() {
+  const root = document.documentElement;
+  if (root) {
+    root.setAttribute("data-kain-script", kainScriptTagline());
+  }
   const targets = getIslandTargets();
   if (!targets.length) return;
   await Promise.allSettled(targets.map((target) => mountTarget(target)));

@@ -4,8 +4,8 @@ use glam::Vec4Swizzles;
 
 use crate::combiner::CombinerState;
 use crate::math::{
-    matrix_from_rows, orbit_camera_position, vec2_from_array, vec3_from_array, vec4_from_rgba8,
-    Float4, Matrix4,
+    camera_forward, matrix_from_rows, orbit_camera_position, vec2_from_array, vec3_from_array,
+    vec4_from_rgba8, Float4, Matrix4,
 };
 use crate::model::{
     CombineMode, DisplayListCommand, DisplayListDefinition, Fast3dSmokeManifest, Fast3dVertex,
@@ -13,6 +13,18 @@ use crate::model::{
 };
 use crate::rasterizer::{Framebuffer, RenderFrame, RenderStats, ScreenVertex};
 use crate::texture::{build_texture_catalog, TextureImage};
+
+/// First-person or free-fly camera pose for direct injection via `render_frame_with_pose`.
+/// Decouples the camera from the manifest's orbit model entirely.
+#[derive(Clone, Copy, Debug)]
+pub struct FreeCameraPose {
+    pub position: [f32; 3],
+    pub yaw_radians: f32,
+    pub pitch_radians: f32,
+    pub fov_y_degrees: f32,
+    pub near_plane: f32,
+    pub far_plane: f32,
+}
 
 const FAST3D_VERTEX_CACHE_CAPACITY: usize = 64;
 
@@ -41,6 +53,10 @@ pub struct Fast3dRuntime {
     light_groups_by_id: HashMap<String, LightGroupState>,
     texture_segments: HashMap<u8, String>,
     display_list_segments: HashMap<u8, String>,
+    /// Per-actor transform overrides, keyed by display list ID.
+    /// When set, this matrix is pushed onto the model stack before entering that display list,
+    /// binding live gameplay transform data to the rendered actor.
+    actor_override_transforms: HashMap<String, Matrix4>,
 }
 
 impl Fast3dRuntime {
@@ -84,7 +100,52 @@ impl Fast3dRuntime {
             light_groups_by_id,
             texture_segments,
             display_list_segments,
+            actor_override_transforms: HashMap::new(),
         })
+    }
+
+    /// Bind a gameplay transform to a named display list (actor).
+    /// On every call to `render_frame` or `render_frame_with_pose`, this matrix is pushed
+    /// onto the model stack before entering that display list, overriding its manifest-embedded
+    /// position. This is how gameplay physics state maps to a rendered actor's position.
+    pub fn set_actor_transform(&mut self, display_list_id: &str, transform: [[f32; 4]; 4]) {
+        self.actor_override_transforms
+            .insert(display_list_id.to_string(), matrix_from_rows(transform));
+    }
+
+    /// Remove an actor transform override, reverting to the manifest-embedded matrix.
+    pub fn clear_actor_transform(&mut self, display_list_id: &str) {
+        self.actor_override_transforms.remove(display_list_id);
+    }
+
+    /// Render a frame using an explicit free-fly/first-person camera pose instead of
+    /// the manifest's orbit camera. Used by `FreeFlyControls` in the viewer.
+    pub fn render_frame_with_pose(
+        &self,
+        pose: &FreeCameraPose,
+        combine_override: Option<CombineMode>,
+    ) -> Result<RenderFrame, String> {
+        let resolution = self.manifest.resolution;
+        let mut framebuffer = Framebuffer::new(
+            resolution.width,
+            resolution.height,
+            self.manifest.clear_color,
+        );
+        let mut stats = RenderStats::default();
+        let view_projection = build_free_camera_view_projection(
+            pose,
+            resolution.width as f32 / resolution.height as f32,
+        );
+        let mut execution = ExecutionState::new();
+        self.execute_display_list(
+            &self.manifest.root_display_list,
+            &view_projection,
+            combine_override,
+            &mut execution,
+            &mut framebuffer,
+            &mut stats,
+        )?;
+        Ok(framebuffer.finish(stats))
     }
 
     pub fn render_frame(
@@ -242,14 +303,36 @@ impl Fast3dRuntime {
                     execution.bound_texture = Some(texture_id.clone());
                 }
                 DisplayListCommand::CallDisplayList { display_list_id } => {
-                    self.execute_display_list(
-                        display_list_id,
-                        view_projection,
-                        combine_override,
-                        execution,
-                        framebuffer,
-                        stats,
-                    )?;
+                    // Check for a gameplay-driven actor transform override.
+                    // If present, push the override matrix before entering the sub-list so
+                    // every vertex in that display list renders in the overridden world position.
+                    if let Some(&override_matrix) =
+                        self.actor_override_transforms.get(display_list_id)
+                    {
+                        let parent = *execution
+                            .matrix_stack
+                            .last()
+                            .ok_or("matrix stack unexpectedly empty")?;
+                        execution.matrix_stack.push(parent * override_matrix);
+                        self.execute_display_list(
+                            display_list_id,
+                            view_projection,
+                            combine_override,
+                            execution,
+                            framebuffer,
+                            stats,
+                        )?;
+                        execution.matrix_stack.pop();
+                    } else {
+                        self.execute_display_list(
+                            display_list_id,
+                            view_projection,
+                            combine_override,
+                            execution,
+                            framebuffer,
+                            stats,
+                        )?;
+                    }
                 }
                 DisplayListCommand::CallDisplayListSegment { segment_id } => {
                     let target = self
@@ -407,6 +490,21 @@ impl LightGroupState {
             alpha,
         )
     }
+}
+
+/// Build a view-projection matrix from a free-fly camera pose.
+/// Uses yaw/pitch to compute a look-at forward vector; does not orbit around a target.
+fn build_free_camera_view_projection(pose: &FreeCameraPose, aspect_ratio: f32) -> Matrix4 {
+    let position = vec3_from_array(pose.position);
+    let forward = camera_forward(pose.yaw_radians, pose.pitch_radians);
+    let view = Matrix4::look_at_rh(position, position + forward, glam::Vec3::Y);
+    let projection = Matrix4::perspective_rh(
+        pose.fov_y_degrees.to_radians(),
+        aspect_ratio,
+        pose.near_plane,
+        pose.far_plane,
+    );
+    projection * view
 }
 
 #[cfg(test)]

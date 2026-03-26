@@ -6,6 +6,8 @@ pub struct CombinerState {
     pub mode: CombineMode,
     pub primitive_color: Float4,
     pub env_color: Float4,
+    pub color_multiplier: Float4,
+    pub emissive_add: Float4,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -25,7 +27,7 @@ impl CompiledCombiner {
         primitive_color: Float4,
         env_color: Float4,
     ) -> Float4 {
-        match self.mode {
+        let shaded = match self.mode {
             CombineMode::Texture => texture_color,
             CombineMode::TextureVertex => texture_color * vertex_color,
             CombineMode::TexturePrimitive => texture_color * primitive_color,
@@ -33,6 +35,7 @@ impl CompiledCombiner {
             CombineMode::TextureEnvMix => texture_color * 0.55 + env_color * 0.45,
             CombineMode::Primitive => primitive_color,
             CombineMode::Vertex => vertex_color,
-        }
+        };
+        shaded * self.color_multiplier + self.emissive_add
     }
 }

@@ -94,6 +94,16 @@
     { "name": "runtime_reporter", "responsibility": "Publishes catalog, scene, and runtime metadata.", "channel": "api.runtime" },
     { "name": "intake_collector", "responsibility": "Captures workflow requests.", "channel": "api.forms.operator_request" }
   ],
+  "actor_playbooks": [
+    { "kicker": "Playbook", "title": "Deployment readiness", "body": "Verify catalog, scene, search, and health endpoints before a release." },
+    { "kicker": "Playbook", "title": "Prompt escalation", "body": "Route high-signal prompts into the operator intake queue with context." },
+    { "kicker": "Playbook", "title": "Route expansion", "body": "Add new actor routes when the prompt deck reveals missing workflows." }
+  ],
+  "actor_tools": [
+    { "kicker": "Tool", "title": "Catalog inspector", "body": "Diff experience metadata and output slugs across the pack." },
+    { "kicker": "Tool", "title": "Ops prompt replay", "body": "Re-run prompt presets against the chat lane for regression checks." },
+    { "kicker": "Tool", "title": "Actor inventory", "body": "Track actor roles, channels, and escalation ownership." }
+  ],
   "server_routes": [
     { "method": "GET", "path": "/api/catalog", "purpose": "returns experience catalog metadata" },
     { "method": "GET", "path": "/api/scene", "purpose": "returns the operator scene descriptor" },

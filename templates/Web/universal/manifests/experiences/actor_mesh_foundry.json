@@ -9,6 +9,8 @@
   "sections": [
     { "id": "routes", "kind": "route_grid", "eyebrow": "Routes", "title": "Route contract", "source": "content.server_routes" },
     { "id": "actors", "kind": "actor_mesh", "eyebrow": "Actors", "title": "Actor mesh", "source": "content.actor_roles" },
+    { "id": "playbooks", "kind": "process_steps", "eyebrow": "Playbooks", "title": "Operator playbooks", "source": "content.actor_playbooks" },
+    { "id": "tools", "kind": "card_grid", "eyebrow": "Tools", "title": "Actor tools", "source": "content.actor_tools" },
     { "id": "commands", "kind": "command_lines", "eyebrow": "Command", "title": "Runtime commands", "source": "content.command_lines" },
     { "id": "search", "kind": "search_panel", "eyebrow": "Search", "title": "Search runtime notes", "source": "experience.search_panel" },
     { "id": "docs", "kind": "docs_grid", "eyebrow": "Docs", "title": "Route and supervision docs", "source": "content.docs_links" },

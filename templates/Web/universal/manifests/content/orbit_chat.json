@@ -35,6 +35,16 @@
     { "kicker": "Immersive", "title": "Route to a 3D site", "prompt": "Show me an immersive 3D campaign shell", "body": "Pivot toward scene-led storytelling and release surfaces.", "button_label": "Route 3D" },
     { "kicker": "Ops", "title": "Route to actor server", "prompt": "I need an actor-based dashboard and route catalog", "body": "Pull the conversation toward routes, actors, and operator APIs.", "button_label": "Route ops" }
   ],
+  "chat_personas": [
+    { "kicker": "Persona", "title": "Orbit Navigator", "body": "Routes each request to the right site archetype, surfaces next actions, and keeps the conversation anchored to live routes." },
+    { "kicker": "Persona", "title": "Launch Strategist", "body": "Turns prompt fragments into launch copy, pricing tiers, and onboarding steps without leaving the chat surface." },
+    { "kicker": "Persona", "title": "Operator Conductor", "body": "Translates chat into actor tasks, route plans, and handoff forms for live operators." }
+  ],
+  "chat_modes": [
+    { "kicker": "Mode", "title": "Brief Builder", "body": "Captures intent, constraints, and tone into a structured brief from a single conversation." },
+    { "kicker": "Mode", "title": "System Planner", "body": "Builds a system-level plan: routes, actors, integrations, and data collections." },
+    { "kicker": "Mode", "title": "Escalation Gate", "body": "Routes high-signal prompts into forms, operator queues, or realtime channels." }
+  ],
   "process_steps": [
     { "title": "Seed the conversation", "body": "Start with intent-rich prompt cards instead of leaving visitors in an empty chat box." },
     { "title": "Route to a lane", "body": "Use local prompt and keyword matching to move toward the right archetype or next action." },

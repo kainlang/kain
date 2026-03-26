@@ -199,7 +199,7 @@ function ensureClientBundle(context, options = {}) {
     jsxFactory: "h",
     jsxFragment: "Fragment",
     logLevel: "silent",
-    loader: { ".ts": "ts", ".tsx": "tsx" }
+    loader: { ".ts": "ts", ".tsx": "tsx", ".ks": "js" }
   });
 
   writeJson(paths.meta_file_abs, {
@@ -1022,6 +1022,15 @@ function buildDerivedSearchDocuments(model) {
   for (const actor of model.content.actor_roles || []) {
     pushDocument("actor", actor.name, actor.responsibility, "#actors");
   }
+  for (const persona of model.content.chat_personas || []) {
+    pushDocument("persona", persona.title || persona.name, persona.body || persona.summary || "", "#personas");
+  }
+  for (const mode of model.content.chat_modes || []) {
+    pushDocument("chat-mode", mode.title || mode.name, mode.body || mode.summary || "", "#chat-modes");
+  }
+  for (const playbook of model.content.actor_playbooks || []) {
+    pushDocument("playbook", playbook.title || playbook.name, playbook.body || playbook.summary || "", "#playbooks");
+  }
   for (const doc of model.content.docs_links || []) {
     documents.push({
       kind: "doc",
@@ -1242,6 +1251,10 @@ function buildSiteData(model) {
     })),
     client_features: model.context.app.site_runtime.client_features || [],
     prompt_presets: model.content.prompt_presets || [],
+    chat_personas: model.content.chat_personas || [],
+    chat_modes: model.content.chat_modes || [],
+    actor_playbooks: model.content.actor_playbooks || [],
+    actor_tools: model.content.actor_tools || [],
     blueprints: model.content.blueprints || [],
     capability_matrix: model.content.capability_matrix || null,
     auth: model.content.auth || null,
@@ -2377,6 +2390,10 @@ export function buildActorServerPlan(appManifestPath, experienceId) {
     host: model.context.app.site_runtime.host,
     routes: buildApiRoutes(model, siteData),
     actors: model.content.actor_roles || [],
+    actor_playbooks: siteData.actor_playbooks || [],
+    actor_tools: siteData.actor_tools || [],
+    chat_personas: siteData.chat_personas || [],
+    chat_modes: siteData.chat_modes || [],
     forms: siteData.forms || [],
     auth: siteData.auth || null,
     commerce: siteData.commerce || null,
