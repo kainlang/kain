@@ -50,6 +50,7 @@ pub fn run(command: FabricCommand) -> KainResult<()> {
             for created in &result.created_paths {
                 println!("  - {}", created.display());
             }
+            print_init_guidance(&result, template);
             Ok(())
         }
         FabricCommand::Validate { manifest } => {
@@ -71,6 +72,18 @@ pub fn run(command: FabricCommand) -> KainResult<()> {
             }
         }
     }
+}
+
+fn print_init_guidance(result: &kain_omni::fabric::FabricInitResult, template: FabricTemplateArg) {
+    if !matches!(template, FabricTemplateArg::Polyglot) {
+        return;
+    }
+    let guide_path = result
+        .manifest_path
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."))
+        .join("FABRIC.README.md");
+    println!("Quickstart guide: {}", guide_path.display());
 }
 
 fn print_validation_summary(result: &kain_omni::FabricValidationResult) {

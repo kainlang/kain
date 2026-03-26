@@ -414,7 +414,7 @@ pub fn init_fabric_manifest(
             created_paths.push(native_entry);
 
             let kain_manifest = root.join("KAIN.toml");
-            write_if_missing(&kain_manifest, POLYGLOT_KAIN_MANIFEST)?;
+            write_if_missing(&kain_manifest, &render_polyglot_kain_manifest())?;
             created_paths.push(kain_manifest);
 
             let local_crate_manifest = local_crate_dir.join("Cargo.toml");
@@ -432,6 +432,10 @@ pub fn init_fabric_manifest(
             let native_source = native_dir.join("image_fx.c");
             write_if_missing(&native_source, POLYGLOT_NATIVE_SOURCE)?;
             created_paths.push(native_source);
+
+            let readme = root.join("FABRIC.README.md");
+            write_if_missing(&readme, &render_polyglot_readme())?;
+            created_paths.push(readme);
         }
     }
 
@@ -786,14 +790,6 @@ fn default_report_directory() -> PathBuf {
     PathBuf::from(".kain/fabric/reports")
 }
 
-const POLYGLOT_KAIN_MANIFEST: &str = r#"[c_ffi]
-
-[[c_ffi.libraries]]
-name = "image_fx"
-header = "native/image_fx.h"
-shared_lib = "native/image_fx.dll"
-"#;
-
 const POLYGLOT_PYTHON_STEP: &str = r#"def run(fabric_inputs):
     return {
         "width": 6,
@@ -988,6 +984,40 @@ const char* imagefx_signature(int width, int height, uint64_t checksum) {
 }
 "#;
 
+fn polyglot_native_library_name() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "image_fx.dll"
+    } else if cfg!(target_os = "macos") {
+        "libimage_fx.dylib"
+    } else {
+        "libimage_fx.so"
+    }
+}
+
+fn polyglot_native_compile_command() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "clang -shared -O2 native/image_fx.c -o native/image_fx.dll"
+    } else if cfg!(target_os = "macos") {
+        "clang -shared -O2 native/image_fx.c -o native/libimage_fx.dylib"
+    } else {
+        "clang -shared -O2 -fPIC native/image_fx.c -o native/libimage_fx.so"
+    }
+}
+
+fn render_polyglot_kain_manifest() -> String {
+    format!(
+        "[c_ffi]\n\n[[c_ffi.libraries]]\nname = \"image_fx\"\nheader = \"native/image_fx.h\"\nshared_lib = \"native/{}\"\n",
+        polyglot_native_library_name()
+    )
+}
+
+fn render_polyglot_readme() -> String {
+    format!(
+        "# Fabric Polyglot Starter\n\nThis scaffold mirrors `smoketest/fabric/polyglot_local` and is meant to be runnable as a local-first proof, not just a validation example.\n\n## Pipeline Shape\n\n- `python_source` produces settings\n- `kain_orchestrator` builds a shared image and report\n- `native_filter` mutates the shared image and snapshots bytes through the C ABI lane\n- `rust_analyzer` computes a report from the shared buffer snapshot\n- `node_packager` renders the final HTML bundle\n\n## Quickstart\n\n1. Build the native library:\n   `{}`\n2. Validate the manifest:\n   `kain fabric validate --manifest KAIN.fabric.toml`\n3. Run the pipeline:\n   `kain fabric run --manifest KAIN.fabric.toml`\n\nFabric reports land under `.kain/fabric/reports/<session>/` with `report.json`, `session.lock.json`, and `events.jsonl`.\n",
+        polyglot_native_compile_command()
+    )
+}
+
 fn local_manifest_template() -> FabricManifest {
     FabricManifest {
         version: FABRIC_SCHEMA_VERSION,
@@ -1080,7 +1110,10 @@ fn polyglot_manifest_template() -> FabricManifest {
                 module: Some("image_fx".to_string()),
                 crate_name: None,
                 manifest_path: None,
-                library: Some(PathBuf::from("native/image_fx.dll")),
+                library: Some(PathBuf::from(format!(
+                    "native/{}",
+                    polyglot_native_library_name()
+                ))),
                 depends_on: vec!["kain_orchestrator".to_string()],
                 requires: Vec::new(),
                 outputs: vec![
@@ -1158,13 +1191,27 @@ mod tests {
         assert!(result
             .created_paths
             .iter()
+            .any(|path| path.ends_with("FABRIC.README.md")));
+        assert!(result
+            .created_paths
+            .iter()
             .any(|path| path.ends_with("local_crate\\Cargo.toml")));
+        let readme = fs::read_to_string(dir.path().join("FABRIC.README.md")).unwrap();
+        assert!(readme.contains("smoketest/fabric/polyglot_local"));
+        assert!(readme.contains("kain fabric run --manifest KAIN.fabric.toml"));
         assert_eq!(manifest.steps.len(), 5);
         assert!(matches!(
             manifest.steps[0].runtime,
             FabricRuntimeKind::Python
         ));
         assert_eq!(manifest.steps[0].outputs[0].name, "settings");
+        assert_eq!(
+            manifest.steps[2].library.as_deref(),
+            Some(Path::new(&format!(
+                "native/{}",
+                polyglot_native_library_name()
+            )))
+        );
         assert_eq!(
             manifest.steps[3].crate_name.as_deref(),
             Some("fabric_runtime_lab")

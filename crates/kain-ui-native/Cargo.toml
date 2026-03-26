@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ab_glyph = "0.2"
 bytemuck = { workspace = true }
 eframe = { version = "0.31", features = ["wgpu"] }
 egui-wgpu = "0.31"

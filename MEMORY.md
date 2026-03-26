@@ -34,6 +34,11 @@ What future work should preserve:
 - keep Python and Node on their normalized serialized-input lane for foreign values, but let the host keep ownership of the real shared buffer and image handles
 - keep polyglot smoke fixtures and generated templates close enough that one can continue serving as the proving ground for the other
 
+Update:
+
+- Python and Node multi-output steps now fail with a structured `missing_output_field` Fabric error when a declared output field is absent, so downstream debugging no longer depends on raw bridge exception text
+- `kain fabric init --template polyglot` now writes `FABRIC.README.md` alongside the runnable scaffold so the generated project itself explains the smoke-grade pipeline shape and quickstart commands
+
 ## 2026-03-25 - Viewport Camera And Presentation Defaults Became Bundle-Owned
 
 Viewport startup behavior stopped being mostly host-local inference and became a wider part of the realtime bundle contract.

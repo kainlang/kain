@@ -1,0 +1,39 @@
+{
+  "catalog_id": "workspace_preset_receipt_schema_catalog",
+  "catalog_scope": "workspace_preset_delivery_receipt_schema_and_promotion_contract_metadata",
+  "tensor_pipeline_id": "runtime_reflection_tensor_pipeline",
+  "export_root": "generated/runtime-reflection/workspace-preset-receipt-schemas",
+  "source_manifests": [
+    "manifests/workspace_presets.json",
+    "manifests/build_graphs.json",
+    "manifests/distribution_channels.json"
+  ],
+  "schema": {
+    "schema_id": "workspace_preset_delivery_receipt_schema",
+    "schema_version": "1.0.0",
+    "document_kind": "workspace_preset_delivery_receipt_schema_bundle",
+    "schema_path": "generated/schemas/workspace-presets/receipts/schema.json",
+    "schema_root": "generated/schemas/workspace-presets/receipts",
+    "template_root": "generated/schemas/workspace-presets/receipts/templates",
+    "index_root": "generated/schemas/workspace-presets/receipts/indexes",
+    "reflection_catalog_id": "workspace_preset_receipt_schema_catalog",
+    "validation_policy": "gate_before_delivery_reflection_or_receipt_promotion"
+  },
+  "consumers": [
+    "workspace_preset_materialization_receipts",
+    "workspace_preset_launch_receipt_resolve",
+    "workspace_preset_tensor_pipeline",
+    "workspace_preset_delivery_registry"
+  ],
+  "documents": [
+    "generated/schemas/workspace-presets/receipts/schema.json",
+    "generated/schemas/workspace-presets/receipts/templates/workspace-preset-delivery-receipt.template.json",
+    "generated/schemas/workspace-presets/receipts/indexes/catalog.json",
+    "generated/workspace-presets/receipts/workspace-preset-materialization-receipt.json"
+  ],
+  "generated_at": "2026-03-26T05:16:50Z",
+  "notes": [
+    "Receipt schema reflection now ships with the template so downstream delivery and promotion tools can validate receipts without rehydrating descriptors.",
+    "Keeps schema, template, index, and emitted receipt example aligned with the workspace_preset_launch_receipt_resolve kernel contract."
+  ]
+}

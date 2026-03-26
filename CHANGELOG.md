@@ -5,6 +5,40 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=3ff703d7bbdd46db -->
+## 2026-03-26 01:26:40 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `6c5d5e79`
+- Changed files: 4
+- [.M] `crates/cli/src/fabric.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+- [.M] `crates/kain-ui-native/Cargo.toml`
+
+<!-- polytools-changelog:fingerprint=863c27e9b1aac06a -->
+## 2026-03-26 01:12:34 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `6c5d5e79`
+- Changed files: 3
+- [.M] `crates/cli/src/fabric.rs`
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+
+<!-- polytools-changelog:fingerprint=c80d9c4d3dfb3be4 -->
+## 2026-03-26 01:12:21 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `6c5d5e79`
+- Changed files: 2
+- [.M] `crates/kain-host/src/fabric.rs`
+- [.M] `crates/kain-omni/src/fabric.rs`
+
+<!-- polytools-changelog:fingerprint=0f013818b9b149fc -->
+## 2026-03-26 01:12:04 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `6c5d5e79`
+- Changed files: 1
+- [.M] `crates/kain-host/src/fabric.rs`
+
 <!-- polytools-changelog:fingerprint=8c2ea3089a0e8a93 -->
 ## 2026-03-26 00:57:19 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

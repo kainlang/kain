@@ -1030,6 +1030,14 @@ fn render_node_output_projection(
     struct_name: &str,
     outputs: &[kain_omni::fabric::FabricOutputBinding],
 ) -> String {
+    let assertions = outputs
+        .iter()
+        .map(|output| {
+            let field_name = kain_string_literal(&output.name);
+            let marker = kain_string_literal(&fabric_missing_output_marker(&output.name));
+            format!("assert(js_bridge_hasattr(fabric_result, {field_name}), {marker})")
+        })
+        .collect::<Vec<_>>();
     let fields = outputs
         .iter()
         .map(|output| {
@@ -1049,7 +1057,9 @@ fn render_node_output_projection(
         })
         .collect::<Vec<_>>()
         .join(", ");
-    format!("return {struct_name} {{ {fields} }}")
+    let mut lines = assertions;
+    lines.push(format!("return {struct_name} {{ {fields} }}"));
+    lines.join("\n    ")
 }
 
 fn render_python_harness(context: &FabricAdapterContext) -> Result<String, FabricFailureReason> {
@@ -1064,9 +1074,9 @@ fn render_python_harness(context: &FabricAdapterContext) -> Result<String, Fabri
 
 fn python_call_expression(context: &FabricAdapterContext) -> Result<String, FabricFailureReason> {
     let multi_output_step = context.step.outputs.len() > 1;
-    let python_output_helper = kain_string_literal(
-        "def __kain_fabric_output_field(payload, name):\n    if isinstance(payload, dict):\n        return payload[name]\n    return getattr(payload, name)\n",
-    );
+    let python_output_helper = kain_string_literal(&format!(
+        "def __kain_fabric_output_field(payload, name):\n    try:\n        if isinstance(payload, dict):\n            return payload[name]\n        return getattr(payload, name)\n    except KeyError:\n        raise KeyError(\"{FABRIC_MISSING_OUTPUT_MARKER}:\" + str(name))\n    except AttributeError:\n        raise AttributeError(\"{FABRIC_MISSING_OUTPUT_MARKER}:\" + str(name))\n"
+    ));
 
     if let Some(entry) = &context.step.entry {
         let resolved_entry = resolve_fabric_path(context.workspace_root, entry);
@@ -1486,6 +1496,12 @@ fn kain_string_literal(value: &str) -> String {
     rendered
 }
 
+const FABRIC_MISSING_OUTPUT_MARKER: &str = "__kain_fabric_missing_output__";
+
+fn fabric_missing_output_marker(output_name: &str) -> String {
+    format!("{FABRIC_MISSING_OUTPUT_MARKER}:{output_name}")
+}
+
 fn strip_runtime_module_import(source: &str, lane: &str, module_name: &str) -> String {
     let expected = format!("use {lane}::{module_name}");
     let mut kept_lines = Vec::new();
@@ -1512,14 +1528,48 @@ fn runtime_bridge_failure(
     code: impl Into<String>,
     err: impl std::fmt::Display,
 ) -> FabricFailureReason {
+    let rendered = err.to_string();
+    if let Some(failure) = structured_missing_output_failure(step, &rendered) {
+        return failure;
+    }
     FabricFailureReason {
         code: code.into(),
-        message: format!("Fabric step '{}' failed: {err}", step.id),
+        message: format!("Fabric step '{}' failed: {rendered}", step.id),
         details: Some(json!({
             "step_id": step.id,
             "runtime": step.runtime.display_name(),
         })),
     }
+}
+
+fn structured_missing_output_failure(
+    step: &FabricStep,
+    message: &str,
+) -> Option<FabricFailureReason> {
+    let marker_index = message.find(FABRIC_MISSING_OUTPUT_MARKER)?;
+    let marker = &message[marker_index..];
+    let output_name = marker
+        .strip_prefix(FABRIC_MISSING_OUTPUT_MARKER)?
+        .strip_prefix(':')?
+        .chars()
+        .take_while(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.'))
+        .collect::<String>();
+    if output_name.is_empty() {
+        return None;
+    }
+    Some(FabricFailureReason {
+        code: "missing_output_field".to_string(),
+        message: format!(
+            "Fabric step '{}' did not return required output field '{}'",
+            step.id, output_name
+        ),
+        details: Some(json!({
+            "step_id": step.id,
+            "runtime": step.runtime.display_name(),
+            "output_name": output_name,
+            "declared_outputs": step.outputs.iter().map(|output| output.name.clone()).collect::<Vec<_>>(),
+        })),
+    })
 }
 
 #[cfg(test)]
@@ -1685,9 +1735,29 @@ mod tests {
 
         assert!(harness.contains("struct FabricNodeOutputs:"));
         assert!(harness.contains("js_bridge_call_method_raw"));
+        assert!(harness.contains("__kain_fabric_missing_output__:report"));
+        assert!(harness.contains("js_bridge_hasattr(fabric_result"));
         assert!(harness.contains("js_bridge_getattr(fabric_result"));
         assert!(harness.contains("js_web_shared_image("));
         assert!(harness.contains("js_web_shared_buffer("));
+    }
+
+    #[test]
+    fn python_missing_output_field_reports_structured_failure() {
+        assert_missing_output_failure(
+            FabricRuntimeKind::Python,
+            "scripts/python_missing.py",
+            "def run(fabric_inputs):\n    return {\"report\": \"only-one\"}\n",
+        );
+    }
+
+    #[test]
+    fn node_missing_output_field_reports_structured_failure() {
+        assert_missing_output_failure(
+            FabricRuntimeKind::Node,
+            "scripts/node_missing.mjs",
+            "export function run(fabricInputs) {\n  return { report: \"only-one\" };\n}\n",
+        );
     }
 
     #[test]
@@ -1821,5 +1891,42 @@ mod tests {
             .unwrap()
             .join("target")
             .join(format!("fabric-smoke-{}", std::process::id()))
+    }
+
+    fn assert_missing_output_failure(runtime: FabricRuntimeKind, entry: &str, source: &str) {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let entry_path = dir.path().join(entry);
+        fs::create_dir_all(entry_path.parent().expect("entry parent"))
+            .expect("create entry parent");
+        fs::write(&entry_path, source).expect("write step source");
+
+        let manifest_path = dir.path().join("KAIN.fabric.toml");
+        fs::write(
+            &manifest_path,
+            format!(
+                "version = 1\n\n[workspace]\nroot = \".\"\nsearch_roots = [\"scripts\"]\n\n[[requires]]\nkey = \"session.local\"\nversion = 1\noptional = false\n\n[[steps]]\nid = \"bridge_step\"\nruntime = \"{}\"\nentry = \"{}\"\n\n[[steps.outputs]]\nname = \"report\"\nkind = \"value\"\n\n[[steps.outputs]]\nname = \"missing\"\nkind = \"value\"\n",
+                runtime.display_name(),
+                entry.replace('\\', "/"),
+            ),
+        )
+        .expect("write manifest");
+
+        let result = execute_fabric_manifest_path(&manifest_path).expect("execute manifest");
+        assert_eq!(result.status, FabricSessionStatus::Failed);
+        let step = result.step_results.first().expect("step result");
+        assert_eq!(step.status, FabricStepStatus::Failed);
+        let error = step.error.as_ref().expect("missing step failure");
+        assert_eq!(error.code, "missing_output_field");
+        assert!(error.message.contains("bridge_step"));
+        assert!(error.message.contains("missing"));
+        let details = error.details.as_ref().expect("failure details");
+        assert_eq!(
+            details.get("output_name").and_then(JsonValue::as_str),
+            Some("missing")
+        );
+        assert_eq!(
+            details.get("runtime").and_then(JsonValue::as_str),
+            Some(runtime.display_name())
+        );
     }
 }
