@@ -25,7 +25,11 @@ supports = [
   "seo_feed_outputs",
   "hybrid_site",
   "prompt_routing",
-  "experience_catalog"
+  "experience_catalog",
+  "react_like_islands",
+  "webgl_scene",
+  "sse_streaming",
+  "websocket_runtime"
 ]
 stdlib_modules = [
   "std::javascript::site_runtime",

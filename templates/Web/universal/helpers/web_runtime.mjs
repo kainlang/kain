@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import http from "node:http";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+
+const require = createRequire(import.meta.url);
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -27,9 +30,93 @@ function writeText(filePath, value) {
   fs.writeFileSync(filePath, value);
 }
 
+function writeBinary(filePath, value) {
+  ensureDir(path.dirname(filePath));
+  fs.writeFileSync(filePath, value);
+}
+
 function appendText(filePath, value) {
   ensureDir(path.dirname(filePath));
   fs.appendFileSync(filePath, value);
+}
+
+function getClientBundleConfig(app) {
+  const config = app.client_bundle || null;
+  if (!config || config.enabled !== true) {
+    return null;
+  }
+  return {
+    entry: config.entry || "helpers/client/main.tsx",
+    out_dir: config.out_dir || "client",
+    out_file: config.out_file || "kain-client.bundle.js",
+    format: config.format || "esm",
+    target: config.target || "es2022",
+    minify: config.minify === true
+  };
+}
+
+function getClientBundlePaths(context) {
+  const config = getClientBundleConfig(context.app);
+  if (!config) return null;
+  const outDirAbs = path.resolve(context.root_dir, context.app.output_root, config.out_dir);
+  const outFileAbs = path.resolve(outDirAbs, config.out_file);
+  const metaFileAbs = path.resolve(outDirAbs, `${config.out_file}.meta.json`);
+  return {
+    config,
+    out_dir_abs: outDirAbs,
+    out_file_abs: outFileAbs,
+    meta_file_abs: metaFileAbs,
+    href_from_experience: `../${config.out_dir}/${config.out_file}`,
+    href_from_server_root: `/client/${config.out_file}`
+  };
+}
+
+function ensureClientBundle(context, options = {}) {
+  const paths = getClientBundlePaths(context);
+  if (!paths) return null;
+  ensureDir(paths.out_dir_abs);
+  const shouldRebuild = options.force === true || !fs.existsSync(paths.out_file_abs);
+  if (!shouldRebuild) {
+    return paths;
+  }
+
+  let esbuild;
+  try {
+    esbuild = require("esbuild");
+  } catch (error) {
+    throw new Error(
+      `client bundle is enabled but 'esbuild' is missing. Run 'npm install' in the template first. (${error?.message || error})`
+    );
+  }
+
+  const entryAbs = path.resolve(context.root_dir, paths.config.entry);
+  const startedAt = new Date().toISOString();
+
+  esbuild.buildSync({
+    entryPoints: [entryAbs],
+    bundle: true,
+    platform: "browser",
+    format: paths.config.format,
+    target: paths.config.target,
+    outfile: paths.out_file_abs,
+    sourcemap: false,
+    minify: paths.config.minify,
+    jsxFactory: "h",
+    jsxFragment: "Fragment",
+    logLevel: "silent",
+    loader: { ".ts": "ts", ".tsx": "tsx" }
+  });
+
+  writeJson(paths.meta_file_abs, {
+    schema_version: 1,
+    generated_at: startedAt,
+    entry: paths.config.entry,
+    out_file: path.basename(paths.out_file_abs),
+    format: paths.config.format,
+    target: paths.config.target
+  });
+
+  return paths;
 }
 
 function loadRegistry(appRoot, registryPath) {
@@ -212,6 +299,7 @@ function renderScene(scene) {
     </div>
   </div>
   <div class="scene-layers">${layers}</div>
+  <div data-kain-island="scene" data-site-data="site.data.json"></div>
 </section>`;
 }
 
@@ -230,6 +318,7 @@ function renderChat(messages, panel = {}) {
     <input name="prompt" type="text" placeholder="${escapeHtml(panel.placeholder || "Ask the site orchestrator for a launch plan")}" />
     <button type="submit">${escapeHtml(panel.button_label || "Send")}</button>
   </form>
+  <div data-kain-island="chat" data-site-data="site.data.json"></div>
 </section>`;
 }
 
@@ -468,7 +557,7 @@ function renderIntegrationGrid(integrations) {
 }
 
 function renderRealtimeChannels(channels) {
-  return `<div class="timeline-list">${(channels || [])
+  const list = `<div class="timeline-list">${(channels || [])
     .map(
       (channel) => `<article class="timeline-row realtime-row">
   <p class="timeline-label">${escapeHtml(channel.protocol || channel.cadence || "Stream")}</p>
@@ -480,6 +569,10 @@ function renderRealtimeChannels(channels) {
 </article>`
     )
     .join("")}</div>`;
+  return `<section class="realtime-shell">
+  ${list}
+  <div data-kain-island="realtime" data-site-data="site.data.json"></div>
+</section>`;
 }
 
 function renderAuthPanel(auth) {
@@ -547,6 +640,7 @@ function renderAppShell(modules) {
   return `<section class="app-shell">
   <div class="logo-pill"><span>React-esque UI lanes</span><span>manifest + island contract</span></div>
   <div class="feature-grid">${cards}</div>
+  <div data-kain-island="app-shell" data-site-data="site.data.json"></div>
 </section>`;
 }
 
@@ -788,6 +882,7 @@ function buildSiteData(model) {
     ? configuredSearchDocuments
     : buildDerivedSearchDocuments(model);
   const forms = Object.values(model.content.forms || {});
+  const clientBundle = getClientBundlePaths(model.context);
   return {
     experience_id: model.experience.id,
     mode: model.experience.mode,
@@ -795,6 +890,15 @@ function buildSiteData(model) {
     page_title: model.experience.page_title,
     theme: model.theme,
     scene: model.scene,
+    client_bundle: clientBundle
+      ? {
+          enabled: true,
+          href: clientBundle.href_from_experience,
+          server_href: clientBundle.href_from_server_root,
+          out_dir: clientBundle.config.out_dir,
+          out_file: clientBundle.config.out_file
+        }
+      : { enabled: false },
     nav: model.content.nav || [],
     forms,
     actors: model.content.actor_roles || [],
@@ -842,10 +946,12 @@ export function loadJson(filePath) {
 export function loadAppConfig(appManifestPath) {
   const fullPath = path.resolve(appManifestPath);
   const app = readJson(fullPath);
-  const rootDir = path.dirname(fullPath);
+  const manifestDir = path.dirname(fullPath);
+  const rootDir = path.basename(manifestDir).toLowerCase() === "manifests" ? path.dirname(manifestDir) : manifestDir;
   return {
     app,
     root_dir: rootDir,
+    manifest_dir: manifestDir,
     themes: loadRegistry(rootDir, app.registries.themes),
     content: loadRegistry(rootDir, app.registries.content),
     scenes: loadRegistry(rootDir, app.registries.scenes),
@@ -1266,6 +1372,86 @@ function renderDocument(model, siteData) {
       align-content: start;
     }
     .auth-shell, .app-shell { display: grid; gap: 14px; }
+    .kain-island {
+      border-radius: 24px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(0, 0, 0, 0.22);
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+    }
+    .kain-island-header { display: grid; gap: 6px; }
+    .kain-island-eyebrow {
+      margin: 0;
+      font-size: 10px;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: var(--accent-soft);
+    }
+    .kain-island-title {
+      margin: 0;
+      font-family: var(--font-display);
+      letter-spacing: -0.03em;
+    }
+    .kain-island-copy {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .kain-island-body { display: grid; gap: 14px; }
+    .kain-island-tabs { display: flex; gap: 10px; flex-wrap: wrap; }
+    .kain-island-tab {
+      min-height: 38px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .kain-island-tab.active { background: var(--accent); color: #06111a; border-color: transparent; }
+    .kain-island-panel { border-radius: 18px; border: 1px solid rgba(255,255,255,0.08); padding: 14px; }
+    .kain-island-panel-kicker { margin: 0 0 6px; color: var(--accent-soft); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; }
+    .kain-island-panel-title { margin: 0; font-family: var(--font-display); }
+    .kain-island-panel-copy { margin: 8px 0 0; color: var(--muted); line-height: 1.5; }
+    .kain-island-panel-tags { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
+    .kain-island-panel-hint { margin-top: 12px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .kain-island-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .kain-island-actions button {
+      min-height: 38px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .kain-island-actions button:disabled { opacity: 0.6; cursor: default; }
+    .kain-island-status { color: var(--muted); font-size: 12px; }
+    .kain-realtime-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .kain-realtime-card { border-radius: 18px; border: 1px solid rgba(255,255,255,0.08); padding: 14px; }
+    .kain-realtime-kicker { margin: 0 0 6px; color: var(--accent-soft); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; }
+    .kain-realtime-title { margin: 0; font-family: var(--font-display); }
+    .kain-realtime-copy { margin: 8px 0 0; color: var(--muted); line-height: 1.5; }
+    .kain-realtime-meta { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
+    .kain-chat-log { max-height: 320px; overflow: auto; display: grid; gap: 10px; padding-right: 6px; }
+    .kain-chat-bubble { border-radius: 18px; border: 1px solid rgba(255,255,255,0.08); padding: 12px 14px; }
+    .kain-chat-bubble.user { background: rgba(255,255,255,0.02); }
+    .kain-chat-bubble.assistant { background: rgba(90, 228, 255, 0.06); }
+    .kain-chat-role { margin: 0 0 6px; color: var(--accent-soft); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; }
+    .kain-chat-text { margin: 0; color: var(--muted); line-height: 1.5; white-space: pre-wrap; }
+    .kain-chat-form { display: flex; gap: 10px; align-items: center; }
+    .kain-chat-form input {
+      flex: 1;
+      min-height: 44px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(0,0,0,0.25);
+      color: var(--text);
+      padding: 0 14px;
+    }
+    .kain-chat-form button { min-height: 44px; padding: 0 16px; border-radius: 999px; }
+    .kain-scene-mount { min-height: 320px; border-radius: 22px; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; }
     .realtime-row { align-items: start; }
     .integration-card, .auth-card, .data-card, .app-module-card, .commerce-card { min-height: 220px; }
     .form-grid {
@@ -1320,6 +1506,7 @@ function renderDocument(model, siteData) {
       <span>${escapeHtml(content.footer)}</span>
     </footer>
   </main>
+  ${siteData.client_bundle?.enabled ? `<script type="module" src="${escapeHtml(siteData.client_bundle.href)}" data-kain-client-bundle="true"></script>` : ""}
   ${renderClientRuntime(model, siteData)}
 </body>
 </html>`;
@@ -1395,9 +1582,14 @@ function buildSystemContract(model, siteData, actorServerPlan) {
       output_slug: model.experience.output_slug,
       page_title: model.experience.page_title
     },
+    client_bundle: siteData.client_bundle || { enabled: false },
     ui_preview: {
       native_preview_entrypoint: "src/native_preview.kn",
       client_features: siteData.client_features || []
+    },
+    streaming: {
+      chat: { http: "/api/chat", sse: "/api/chat/stream", ws: "/ws/chat" },
+      realtime: { sse: "/api/realtime/stream", ws: "/ws/realtime" }
     },
     auth: siteData.auth || null,
     commerce: siteData.commerce || null,
@@ -1412,19 +1604,55 @@ function buildSystemContract(model, siteData, actorServerPlan) {
 }
 
 function buildUiSchema(model, siteData) {
+  const islandKindForSectionKind = (kind) => {
+    if (kind === "app_shell") return "app-shell";
+    if (kind === "realtime_channels") return "realtime";
+    if (kind === "scene_spotlight") return "scene";
+    if (kind === "chat_lab") return "chat";
+    return null;
+  };
+
   return {
-    schema_version: 1,
+    schema_version: 2,
     experience_id: model.experience.id,
     page_title: model.experience.page_title,
+    react_like_runtime: {
+      engine: "preact",
+      bundler: "esbuild",
+      island_attribute: "data-kain-island",
+      site_data_path: "site.data.json",
+      client_bundle: siteData.client_bundle || { enabled: false }
+    },
     sections: (model.experience.sections || []).map((section, index) => {
       const normalized = normalizeSection(section, index);
+      const island = islandKindForSectionKind(normalized.kind || "rich_text");
       return {
         id: normalized.id,
         kind: normalized.kind || "rich_text",
         title: normalized.title || null,
-        source: normalized.source || null
+        source: normalized.source || null,
+        island
       };
     }),
+    island_contract: {
+      mount_points: (model.experience.sections || []).map((section, index) => {
+        const normalized = normalizeSection(section, index);
+        const island = islandKindForSectionKind(normalized.kind || "rich_text");
+        if (!island) return null;
+        return {
+          section_id: normalized.id,
+          island_kind: island,
+          site_data: "site.data.json",
+          server_endpoints: island === "chat"
+            ? { chat: "/api/chat", stream: "/api/chat/stream", ws: "/ws/chat" }
+            : island === "realtime"
+              ? { stream: "/api/realtime/stream", ws: "/ws/realtime" }
+              : island === "scene"
+                ? { scene: "/api/scene" }
+                : { app: "/api/app" }
+        };
+      }).filter(Boolean)
+    },
     components: {
       hero: {
         actions: (model.content.hero?.actions || []).length
@@ -1538,6 +1766,7 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/search/documents", purpose: "returns the local search document index", actor: "search_indexer" },
     { method: "GET", path: "/api/search", purpose: "queries the local search document index", actor: "search_indexer" },
     { method: "GET", path: "/api/chat", purpose: "returns chat seed messages or a local reply", actor: "chat_seed_router" },
+    { method: "POST", path: "/api/chat", purpose: "accepts a prompt payload and returns a local reply", actor: "chat_seed_router" },
     { method: "GET", path: "/api/chat/stream", purpose: "returns a server-sent event preview for local chat pipelines", actor: "chat_seed_router" },
     { method: "GET", path: "/api/app", purpose: "returns the app module manifest for react-like workspace shells", actor: "runtime_reporter" },
     { method: "GET", path: "/api/auth", purpose: "returns authentication strategy metadata", actor: "auth_gateway" },
@@ -1546,11 +1775,28 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/integrations", purpose: "returns upstream system connectors and transports", actor: "integration_router" },
     { method: "GET", path: "/api/realtime", purpose: "returns live channel descriptors and event cadence", actor: "signal_broker" },
     { method: "GET", path: "/api/realtime/stream", purpose: "returns a server-sent event preview for realtime channels", actor: "signal_broker" },
+    { method: "WS", path: "/ws/realtime", purpose: "websocket stream for realtime channels", actor: "signal_broker" },
+    { method: "WS", path: "/ws/chat", purpose: "websocket message lane for chat experiments", actor: "chat_seed_router" },
     { method: "GET", path: "/api/system.contract.json", purpose: "returns the complete website system contract", actor: "runtime_reporter" },
     { method: "GET", path: "/api/ui.schema.json", purpose: "returns the UI composition schema", actor: "runtime_reporter" },
     { method: "GET", path: "/api/actors", purpose: "returns actor topology and role descriptions", actor: "mesh_supervisor" },
     { method: "GET", path: "/healthz", purpose: "simple health response for local supervision", actor: "mesh_supervisor" }
   ];
+
+  if (siteData.client_bundle?.enabled && siteData.client_bundle.out_file) {
+    builtInRoutes.push({
+      method: "GET",
+      path: `/client/${siteData.client_bundle.out_file}`,
+      purpose: "serves the bundled Preact + Three.js client islands",
+      actor: "site_renderer"
+    });
+    builtInRoutes.push({
+      method: "GET",
+      path: `/client/${siteData.client_bundle.out_file}.meta.json`,
+      purpose: "serves metadata for the bundled client islands",
+      actor: "site_renderer"
+    });
+  }
   const formRoutes = (siteData.forms || []).map((form) => ({
     method: "POST",
     path: form.action || `/api/forms/${form.id}`,
@@ -1623,17 +1869,19 @@ function buildWrittenCatalog(context, built) {
 
 export function buildMatrix(appManifestPath) {
   const context = loadAppConfig(appManifestPath);
+  const clientBundleEnabled = Boolean(getClientBundlePaths(context));
   const experienceIds = context.app.build.experiences || Object.keys(context.experiences);
   const experiences = experienceIds.map((id) => buildExperience(appManifestPath, id));
   return {
     default_experience: context.app.default_experience,
     output_root: context.app.output_root,
     experience_count: experiences.length,
-    artifact_count: experiences.length * 9 + 2,
+    artifact_count: experiences.length * 9 + 2 + (clientBundleEnabled ? 2 : 0),
     server_port: context.app.site_runtime.default_port,
     experience_ids: experiences.map((entry) => entry.id),
     client_features: context.app.site_runtime.client_features || [],
-    modes: experiences.map((entry) => entry.mode)
+    modes: experiences.map((entry) => entry.mode),
+    client_bundle: clientBundleEnabled ? { enabled: true } : { enabled: false }
   };
 }
 
@@ -1641,6 +1889,7 @@ export function writeMatrix(appManifestPath) {
   const context = loadAppConfig(appManifestPath);
   const outputRoot = path.resolve(context.root_dir, context.app.output_root);
   ensureDir(outputRoot);
+  ensureClientBundle(context, { force: false });
   const experienceIds = context.app.build.experiences || Object.keys(context.experiences);
   const built = experienceIds.map((id) => buildExperience(appManifestPath, id));
   for (const entry of built) {
@@ -1659,7 +1908,7 @@ export function writeMatrix(appManifestPath) {
     default_experience: context.app.default_experience,
     output_root: context.app.output_root,
     experience_count: built.length,
-    artifact_count: built.length * 9 + 2,
+    artifact_count: built.length * 9 + 2 + (getClientBundlePaths(context) ? 2 : 0),
     server_port: context.app.site_runtime.default_port,
     experience_ids: built.map((entry) => entry.id),
     client_features: context.app.site_runtime.client_features || [],
@@ -1683,6 +1932,21 @@ function sendHtml(response, html) {
 function sendText(response, statusCode, payload, contentType) {
   response.writeHead(statusCode, { "content-type": contentType });
   response.end(payload);
+}
+
+function sendFile(response, filePath, contentType) {
+  const payload = fs.readFileSync(filePath);
+  response.writeHead(200, { "content-type": contentType });
+  response.end(payload);
+}
+
+function contentTypeForPath(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === ".js" || ext === ".mjs") return "text/javascript; charset=utf-8";
+  if (ext === ".json") return "application/json; charset=utf-8";
+  if (ext === ".map") return "application/json; charset=utf-8";
+  if (ext === ".css") return "text/css; charset=utf-8";
+  return "application/octet-stream";
 }
 
 function parseRequestBody(request) {
@@ -1712,6 +1976,8 @@ function persistSubmission(bundle, formId, payload) {
 }
 
 async function serveExperience(appManifestPath, experienceId) {
+  const context = loadAppConfig(appManifestPath);
+  const clientBundle = ensureClientBundle(context, { force: false });
   const bundle = buildExperience(appManifestPath, experienceId);
   const plan = bundle.actor_server;
   const searchIndex = bundle.site_data.search_documents || [];
@@ -1722,6 +1988,21 @@ async function serveExperience(appManifestPath, experienceId) {
   const server = http.createServer(async (request, response) => {
     const requestUrl = new URL(request.url || "/", `http://${plan.host}:${plan.port}`);
     const pathname = requestUrl.pathname;
+    if (request.method === "GET" && pathname.startsWith("/client/") && clientBundle) {
+      const relative = pathname.slice("/client/".length);
+      const normalized = path.normalize(relative).replace(/^([/\\\\])+/, "");
+      const filePath = path.resolve(clientBundle.out_dir_abs, normalized);
+      if (!filePath.startsWith(path.resolve(clientBundle.out_dir_abs))) {
+        sendJson(response, 403, { error: "forbidden" });
+        return;
+      }
+      if (!fs.existsSync(filePath)) {
+        sendJson(response, 404, { error: "not_found" });
+        return;
+      }
+      sendFile(response, filePath, contentTypeForPath(filePath));
+      return;
+    }
     if (request.method === "GET" && pathname === "/") {
       sendHtml(response, bundle.html);
       return;
@@ -1816,15 +2097,49 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, { reply: buildChatReply(bundle, plan, prompt) });
       return;
     }
+    if (request.method === "POST" && pathname === "/api/chat") {
+      const payload = await parseRequestBody(request);
+      const prompt = payload.prompt || payload.message || payload.text;
+      if (!prompt) {
+        sendJson(response, 200, { reply: "missing prompt" });
+        return;
+      }
+      sendJson(response, 200, { reply: buildChatReply(bundle, plan, String(prompt)) });
+      return;
+    }
     if (request.method === "GET" && pathname === "/api/chat/stream") {
       response.writeHead(200, {
         "content-type": "text/event-stream; charset=utf-8",
         "cache-control": "no-cache",
         connection: "keep-alive"
       });
+      const prompt = (requestUrl.searchParams.get("prompt") || "").trim();
       response.write(`event: ready\n`);
       response.write(`data: ${JSON.stringify({ experience: bundle.id, actors: plan.actors.length, routes: plan.routes.length })}\n\n`);
-      response.end();
+      if (!prompt) {
+        response.write(`event: seed\n`);
+        response.write(`data: ${JSON.stringify(chatSeed)}\n\n`);
+        response.write(`event: done\n`);
+        response.write(`data: ok\n\n`);
+        response.end();
+        return;
+      }
+      const reply = buildChatReply(bundle, plan, prompt);
+      const tokens = String(reply).split(/(\s+)/).filter((token) => token.length > 0);
+      let index = 0;
+      const interval = setInterval(() => {
+        if (index >= tokens.length) {
+          clearInterval(interval);
+          response.write(`event: done\n`);
+          response.write(`data: ok\n\n`);
+          response.end();
+          return;
+        }
+        const token = tokens[index++];
+        response.write(`event: token\n`);
+        response.write(`data: ${token.replaceAll("\n", " ")}\n\n`);
+      }, 35);
+      request.on("close", () => clearInterval(interval));
       return;
     }
     if (request.method === "GET" && pathname === "/api/realtime/stream") {
@@ -1833,9 +2148,16 @@ async function serveExperience(appManifestPath, experienceId) {
         "cache-control": "no-cache",
         connection: "keep-alive"
       });
+      const channels = bundle.site_data.realtime_channels || [];
       response.write(`event: channels\n`);
-      response.write(`data: ${JSON.stringify({ channels: bundle.site_data.realtime_channels || [] })}\n\n`);
-      response.end();
+      response.write(`data: ${JSON.stringify({ channels, tick: 0, at: new Date().toISOString() })}\n\n`);
+      let tick = 0;
+      const interval = setInterval(() => {
+        tick += 1;
+        response.write(`event: tick\n`);
+        response.write(`data: ${JSON.stringify({ channels, tick, at: new Date().toISOString() })}\n\n`);
+      }, 1400);
+      request.on("close", () => clearInterval(interval));
       return;
     }
     if (request.method === "GET" && pathname === "/api/search/documents") {
@@ -1871,6 +2193,60 @@ async function serveExperience(appManifestPath, experienceId) {
     }
     sendJson(response, 404, { error: "not_found", path: pathname });
   });
+
+  const wsRuntime = (() => {
+    try {
+      return require("ws");
+    } catch {
+      return null;
+    }
+  })();
+
+  if (wsRuntime?.WebSocketServer) {
+    const wss = new wsRuntime.WebSocketServer({ noServer: true });
+    server.on("upgrade", (request, socket, head) => {
+      try {
+        const requestUrl = new URL(request.url || "/", "http://localhost");
+        if (requestUrl.pathname !== "/ws/realtime" && requestUrl.pathname !== "/ws/chat") {
+          socket.destroy();
+          return;
+        }
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit("connection", ws, requestUrl);
+        });
+      } catch {
+        socket.destroy();
+      }
+    });
+
+    wss.on("connection", (ws, requestUrl) => {
+      if (requestUrl.pathname === "/ws/realtime") {
+        const channels = bundle.site_data.realtime_channels || [];
+        let tick = 0;
+        ws.send(JSON.stringify({ event: "channels", channels, tick, at: new Date().toISOString() }));
+        const interval = setInterval(() => {
+          tick += 1;
+          ws.send(JSON.stringify({ event: "tick", channels, tick, at: new Date().toISOString() }));
+        }, 1200);
+        ws.on("close", () => clearInterval(interval));
+        return;
+      }
+
+      if (requestUrl.pathname === "/ws/chat") {
+        ws.send(JSON.stringify({ event: "ready", experience: bundle.id }));
+        ws.on("message", (raw) => {
+          try {
+            const payload = JSON.parse(String(raw || "{}"));
+            const prompt = String(payload.prompt || payload.message || "");
+            const reply = buildChatReply(bundle, plan, prompt);
+            ws.send(JSON.stringify({ event: "reply", reply }));
+          } catch {
+            ws.send(JSON.stringify({ event: "error", error: "invalid_payload" }));
+          }
+        });
+      }
+    });
+  }
   server.listen(plan.port, plan.host, () => {
     process.stdout.write(`kain-web runtime serving ${bundle.id} at http://${plan.host}:${plan.port}\n`);
   });
@@ -1878,6 +2254,12 @@ async function serveExperience(appManifestPath, experienceId) {
 
 function runCli() {
   const [command = "print", appManifestPath = "manifests/app.json", experienceId] = process.argv.slice(2);
+  if (command === "bundle-client") {
+    const context = loadAppConfig(appManifestPath);
+    const result = ensureClientBundle(context, { force: true });
+    process.stdout.write(JSON.stringify({ ok: true, bundle: result?.href_from_server_root || null }, null, 2) + "\n");
+    return;
+  }
   if (command === "build") {
     process.stdout.write(JSON.stringify(writeMatrix(appManifestPath), null, 2) + "\n");
     return;
@@ -1914,7 +2296,7 @@ function runCli() {
     process.stdout.write(JSON.stringify(buildMatrix(appManifestPath), null, 2) + "\n");
     return;
   }
-  process.stderr.write(`unknown command '${command}'. expected build, serve, catalog, experience, actor-plan, system-contract, ui-schema, actor-report, or print\n`);
+  process.stderr.write(`unknown command '${command}'. expected bundle-client, build, serve, catalog, experience, actor-plan, system-contract, ui-schema, actor-report, or print\n`);
   process.exitCode = 1;
 }
 

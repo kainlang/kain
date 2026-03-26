@@ -148,6 +148,8 @@ If the debug CLI is missing:
 - Do not invent lane-specific shader, UI, or compute metadata when compiler-owned bundles already exist.
 - Prefer data-driven capabilities, manifests, registries, and bundle metadata over scattered string checks and host-local assumptions.
 - Preserve the distinction between authored language semantics, importer behavior, and backend/runtime support.
+- Platform- or console-specific render-command experiments should start as isolated adapter lanes under `smoketest/` or another dedicated adapter crate before any shared `kain-3D` contract is widened. The new `smoketest/3D/sm64_fast3d_smoke` is the pattern: it owns its own manifest, segment registry, display-list interpreter, and combiner logic instead of baking N64-specific assumptions into the common scene/material API too early.
+- The SM64 import refresh workflow for that lane is now profile-driven and lives beside the smoke under `smoketest/3D/sm64_fast3d_smoke`. Use `refresh_sm64_import.bat` and `sm64_import_profile.render_us.json` instead of reconstructing long one-off `import-c` commands from memory.
 
 ## Common Errors
 
@@ -155,6 +157,7 @@ If the debug CLI is missing:
 - The `cli` suite no longer depends on the external self-hosting fixture under `M:\Code\Other\kainselfhosting\...`; the repo-local import-c fixture under `crates/cli/tests/fixtures/import_c` is the durable regression source now.
 - Large Windows test binaries can hit linker OOM pressure.
 - `generated/`, `target/`, `.kain`, runtime sidecars, and compiled smoke outputs are disposable unless explicitly archived under `docs/validation/` or `docs/recent/`.
+- The live SM64 decomp root currently sits at `M:\Code\Other\Research\sm64-master\sm64-master`, not the outer `sm64-master` folder. The older stale import reports pointed at the outer folder, which hid a real pathing mistake.
 - The native runtime is Windows-first today. Linux and macOS surfaces exist, but much of that lane is still stubbed or partial.
 - The compute pipeline is mid-transition from heuristic metadata to compiler-owned truth. When touching it, prefer extending bundle contracts over adding new runtime-only inference.
 - The native shader-canvas lane is SPIR-V-canonical at the bundle level, but the current WGPU host still resolves WGSL for execution. Do not mistake that compatibility bridge for permission to move shader-canvas truth out of the emitted bundles.
@@ -166,6 +169,7 @@ If the debug CLI is missing:
 - The durable end-to-end Fabric proof lives under `smoketest/fabric/polyglot_local`. It is the quickest repo-local example of Python -> Kain -> C ABI -> Rust crate -> Node execution with typed shared image/shared buffer flow.
 - `kain fabric init --template polyglot` now emits a runnable local smoke-grade scaffold, including its local Rust crate manifest and native C fixture, instead of a validation-only placeholder.
 - The generated polyglot scaffold also writes `FABRIC.README.md`; treat that file as the first-stop quickstart for the smoke-grade local pipeline shape.
+- For SM64/Fast3D research, Fabric should stay an optional post-extraction simulation lane that feeds buffers or textures into the adapter. Do not make display-list extraction or the base render loop depend on Fabric before the geometry and segment path is stable.
 
 ## Template Packs
 

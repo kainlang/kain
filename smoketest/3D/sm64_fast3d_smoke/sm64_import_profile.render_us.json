@@ -1,0 +1,41 @@
+{
+  "source_root": "M:\\Code\\Other\\Research\\sm64-master\\sm64-master",
+  "output_stem": "sm64_render_subset",
+  "include_paths": [
+    ".",
+    "include",
+    "include/libc",
+    "src"
+  ],
+  "defines": [
+    "TARGET_N64=1",
+    "_LANGUAGE_C",
+    "VERSION_US=1",
+    "F3D_OLD=1",
+    "NON_MATCHING=1",
+    "AVOID_UB=1"
+  ],
+  "include_filters": [
+    "actors",
+    "levels",
+    "src/game",
+    "src/engine",
+    "src/buffers",
+    "include"
+  ],
+  "exclude_filters": [
+    "assets",
+    "asm",
+    "bin",
+    "build",
+    "data",
+    "doxygen",
+    "enhancements",
+    "lib",
+    "rsp",
+    "sound",
+    "text",
+    "tools",
+    "src/pc"
+  ]
+}

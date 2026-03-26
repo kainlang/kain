@@ -1,10 +1,11 @@
 {
   "name": "kain-universal-web",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node ./helpers/web_runtime.mjs build manifests/app.json",
+    "bundle:client": "node ./helpers/web_runtime.mjs bundle-client manifests/app.json",
+    "build": "node ./helpers/web_runtime.mjs bundle-client manifests/app.json && node ./helpers/web_runtime.mjs build manifests/app.json",
     "print": "node ./helpers/web_runtime.mjs print manifests/app.json",
     "catalog": "node ./helpers/web_runtime.mjs catalog manifests/app.json",
     "experience:hybrid": "node ./helpers/web_runtime.mjs experience manifests/app.json hybrid_command",
@@ -33,5 +34,14 @@
     "serve:docs": "node ./helpers/web_runtime.mjs serve manifests/app.json knowledge_atlas",
     "serve:operator": "node ./helpers/web_runtime.mjs serve manifests/app.json operator_foundry",
     "serve:hybrid": "node ./helpers/web_runtime.mjs serve manifests/app.json hybrid_command"
+  },
+  "dependencies": {
+    "preact": "^10.27.2",
+    "three": "^0.174.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.10",
+    "typescript": "^5.8.2"
   }
 }

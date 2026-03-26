@@ -5,6 +5,181 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=26866e05c8a43544 -->
+## 2026-03-26 03:39:32 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `2be1ef57`
+- Changed files: 25
+- [??] `smoketest/3D/sm64_fast3d_smoke/KAIN.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/README.md`
+- [??] `smoketest/3D/sm64_fast3d_smoke/build_visual_exe.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/capture_snapshot.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/launch_visual_exe.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/Cargo.lock`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/Cargo.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/combiner.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/main.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/math.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/model.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/rasterizer.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/runtime.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/texture.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/viewer.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/sm64_fast3d_snapshot.png`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/sm64_fast3d_snapshot_angle.png`
+- [??] `smoketest/3D/sm64_fast3d_smoke/refresh_sm64_import.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/refresh_sm64_import.ps1`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_all.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_interpret.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_test.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/scene_manifest.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/sm64_import_profile.render_us.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/smoke.kn`
+
+<!-- polytools-changelog:fingerprint=57f95753f62a9262 -->
+## 2026-03-26 03:16:27 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `2be1ef57`
+- Changed files: 22
+- [??] `smoketest/3D/sm64_fast3d_smoke/KAIN.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/README.md`
+- [??] `smoketest/3D/sm64_fast3d_smoke/build_visual_exe.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/capture_snapshot.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/launch_visual_exe.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/Cargo.lock`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/Cargo.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/combiner.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/main.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/math.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/model.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/rasterizer.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/runtime.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/texture.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/viewer.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/sm64_fast3d_snapshot.png`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/sm64_fast3d_snapshot_angle.png`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_all.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_interpret.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_test.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/scene_manifest.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/smoke.kn`
+
+<!-- polytools-changelog:fingerprint=3f75256392bd4bec -->
+## 2026-03-26 03:13:24 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `2be1ef57`
+- Changed files: 21
+- [??] `smoketest/3D/sm64_fast3d_smoke/KAIN.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/README.md`
+- [??] `smoketest/3D/sm64_fast3d_smoke/build_visual_exe.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/capture_snapshot.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/launch_visual_exe.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/Cargo.lock`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/Cargo.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/combiner.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/main.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/math.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/model.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/rasterizer.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/runtime.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/texture.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/viewer.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/outputs/sm64_fast3d_snapshot.png`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_all.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_interpret.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_test.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/scene_manifest.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/smoke.kn`
+
+<!-- polytools-changelog:fingerprint=89675bf7f81fcf1a -->
+## 2026-03-26 03:11:19 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `2be1ef57`
+- Changed files: 20
+- [??] `smoketest/3D/sm64_fast3d_smoke/KAIN.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/README.md`
+- [??] `smoketest/3D/sm64_fast3d_smoke/build_visual_exe.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/capture_snapshot.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/launch_visual_exe.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/Cargo.lock`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/Cargo.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/combiner.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/main.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/math.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/model.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/rasterizer.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/runtime.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/texture.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/viewer.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_all.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_interpret.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_test.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/scene_manifest.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/smoke.kn`
+
+<!-- polytools-changelog:fingerprint=2667c283d49b09da -->
+## 2026-03-26 03:10:53 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `2be1ef57`
+- Changed files: 19
+- [??] `smoketest/3D/sm64_fast3d_smoke/KAIN.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/README.md`
+- [??] `smoketest/3D/sm64_fast3d_smoke/build_visual_exe.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/capture_snapshot.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/launch_visual_exe.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/Cargo.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/combiner.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/main.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/math.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/model.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/rasterizer.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/runtime.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/texture.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/viewer.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_all.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_interpret.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_test.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/scene_manifest.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/smoke.kn`
+
+<!-- polytools-changelog:fingerprint=17880f6dac4ae8db -->
+## 2026-03-26 03:09:32 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `2be1ef57`
+- Changed files: 16
+- [??] `smoketest/3D/sm64_fast3d_smoke/KAIN.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/README.md`
+- [??] `smoketest/3D/sm64_fast3d_smoke/build_visual_exe.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/capture_snapshot.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/launch_visual_exe.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/Cargo.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/combiner.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/main.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/math.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/model.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/local_crate/src/texture.rs`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_all.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_interpret.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_test.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/scene_manifest.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/smoke.kn`
+
+<!-- polytools-changelog:fingerprint=2ea07b78bb4d60eb -->
+## 2026-03-26 03:07:30 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `2be1ef57`
+- Changed files: 10
+- [??] `smoketest/3D/sm64_fast3d_smoke/KAIN.toml`
+- [??] `smoketest/3D/sm64_fast3d_smoke/README.md`
+- [??] `smoketest/3D/sm64_fast3d_smoke/build_visual_exe.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/capture_snapshot.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/launch_visual_exe.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_all.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_interpret.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/run_test.bat`
+- [??] `smoketest/3D/sm64_fast3d_smoke/scene_manifest.json`
+- [??] `smoketest/3D/sm64_fast3d_smoke/smoke.kn`
+
 <!-- polytools-changelog:fingerprint=574ad2ee885c5dc7 -->
 ## 2026-03-26 01:55:08 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

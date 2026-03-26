@@ -1,0 +1,13 @@
+[package]
+name = "sm64_fast3d_smoke_viewer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+eframe = { version = "0.31", features = ["wgpu"] }
+glam = "0.29"
+png = "0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[workspace]

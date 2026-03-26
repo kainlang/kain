@@ -50,7 +50,7 @@ component App():
                     </panel>
                     <panel scope="web_pack" variant="card">
                         <text role="metric">9</text>
-                        <text role="caption">artifacts per built site</text>
+                        <text role="caption">artifacts per site (+client bundle)</text>
                     </panel>
                     <panel scope="web_pack" variant="card">
                         <text role="metric">0</text>

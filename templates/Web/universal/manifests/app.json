@@ -34,8 +34,21 @@
       "commerce_stack",
       "realtime_channels",
       "system_contract",
-      "ui_schema"
+      "ui_schema",
+      "preact_islands",
+      "scene_webgl",
+      "chat_sse_tokens",
+      "realtime_sse_ticks",
+      "realtime_ws"
     ]
+  },
+  "client_bundle": {
+    "enabled": true,
+    "entry": "helpers/client/main.tsx",
+    "out_dir": "client",
+    "out_file": "kain-client.bundle.js",
+    "format": "esm",
+    "target": "es2022"
   },
   "build": {
     "experiences": [

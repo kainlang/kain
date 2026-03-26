@@ -21,9 +21,10 @@
 - `helpers/web_runtime.mjs`
   - manifest loader
   - HTML and client-island renderer
+  - client bundler (Preact + Three.js) for React/TypeScript-esque islands
   - local search, chat, prompt-deck, catalog, app/auth/commerce/data/realtime, form, and route APIs
   - static artifact writer
-  - actor-aware local HTTP server
+  - actor-aware local HTTP + SSE + WebSocket server
 - `package.json`
   - Node scripts for build, inspect, and local serving
 
@@ -66,7 +67,18 @@
 - `robots.txt`
 - `feed.xml`
 
+## Shared Artifacts (Written Once Per Build)
+
+- `../client/kain-client.bundle.js`
+- `../client/kain-client.bundle.js.meta.json`
+
 ## Typical Usage
+
+Install dependencies:
+
+```powershell
+npm install
+```
 
 Use the Kain entrypoint:
 
@@ -89,6 +101,12 @@ npm run experience:hybrid
 npm run actor:hybrid
 npm run contract:hybrid
 npm run ui:hybrid
+```
+
+Client bundle only:
+
+```powershell
+npm run bundle:client
 ```
 
 Switch to a TypeScript-aware helper runtime by changing `[node_ffi]` in

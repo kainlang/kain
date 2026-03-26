@@ -1,0 +1,17 @@
+fn smoke_output(name: String) -> String:
+    return "outputs/" + name
+
+test manifest_exists:
+    assert(file_exists("scene_manifest.json"), "expected scene manifest to exist")
+
+fn main() -> String:
+    let report_path = smoke_output("sm64_fast3d_smoke_report.txt")
+    let report = "SM64 Fast3D smoke\n"
+    let report = report + "manifest: scene_manifest.json\n"
+    let report = report + "viewer_crate: local_crate\n"
+    let report = report + "build_hint: build_visual_exe.bat\n"
+    let report = report + "launch_hint: launch_visual_exe.bat\n"
+    let report = report + "snapshot_hint: capture_snapshot.bat"
+    write_file(report_path, report + "\n")
+    println(report)
+    return report

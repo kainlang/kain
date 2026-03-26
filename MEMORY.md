@@ -10,6 +10,54 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-26 - SM64 Fast3D Research Landed As An Isolated Smoketest Adapter Lane
+
+The first serious SM64/Fast3D proof did not go into `crates/kain-3D`. It landed as a dedicated adapter smoke under `smoketest/3D/sm64_fast3d_smoke`.
+
+What changed:
+
+- a standalone local Rust crate now owns a manifest-driven Fast3D-style viewer executable with its own display-list model, segment registry, matrix stack, texture generation, software rasterizer, and small combiner compiler
+- the smoke manifest (`scene_manifest.json`) is data-driven on purpose: textures, segments, display lists, and commands live in smoke data instead of being hardcoded into the viewer binary
+- the crate supports a headless `--snapshot` mode in addition to the native viewer window, which makes it possible to validate the lane without requiring an interactive desktop loop
+- helper scripts now build the release viewer, launch the native executable, and emit a snapshot into the smoke outputs folder
+
+Why this matters:
+
+- it gives the repo a real place to explore SM64-style native port architecture without prematurely widening the shared `kain-3D` scene/material contract
+- it creates a concrete adapter target that future `sm64_all.kn` extraction work can emit into, instead of requiring the core renderer to understand raw N64 display-list semantics immediately
+- it keeps the architecture honest about current shared-renderer limits: `kain-3D` does not yet expose UV-textured materials or console-style combiner contracts as first-class shared API, so the Fast3D lane should stay isolated until the generalized contract is clearer
+
+What future work should preserve:
+
+- keep SM64/N64-specific display-list, segment, and combiner semantics in the adapter lane until the repo is ready to define a genuinely reusable textured command-stream contract
+- treat the manifest format as the source of truth for this smoke lane so extractors, converters, or importers can target one stable shape
+- keep snapshot-capable validation in the lane even if a richer real-time viewer or native runtime integration arrives later
+
+Next serious move:
+
+- add an extractor stage that can lower selected imported `sm64_all.kn` geometry/display-list data into this manifest format
+- widen the adapter with more Fast3D commands, texture formats, and matrix behaviors before attempting direct runtime/native hosting
+- once the adapter proves the semantics, decide which parts deserve promotion into shared compiler/runtime contracts versus remaining console-specific tooling
+
+Update:
+
+- the stale SM64 import problem was partly a bad source root: the live decomp currently lives under `M:\Code\Other\Research\sm64-master\sm64-master`
+- a repeatable refresh lane now lives beside the smoke as `refresh_sm64_import.ps1`, `refresh_sm64_import.bat`, and `sm64_import_profile.render_us.json`
+- the refreshed staged import proved that normal C under `src/game`, `src/engine`, and related folders is increasingly workable through `import-c`, while most `actors/*/geo.inc.c`, `actors/*/model.inc.c`, `levels/**/model.inc.c`, and many behavior `.inc.c` files still fail because their macro-expanded form is not normal C after preprocessing
+- the profile-driven refresh currently imports `573` files with the render-facing US/Fast3D-old subset and fails `1556`, with the biggest failure groups under `levels`, `actors`, and `src/game/behaviors`
+
+Why this matters:
+
+- it separates two different problems that were easy to conflate: stale pathing versus importer limits on inc-style display-list dialects
+- it gives the repo a stable way to refresh the imported subset whenever the external decomp changes, instead of letting one dated generated folder become folklore
+- it clarifies the clean next move for direct SM64 rendering: build an extractor or importer extension aimed at geo/model/collision inc assets instead of trying to stuff those N64 macro dialects straight into the shared Kain pipeline
+
+What future work should preserve:
+
+- keep the SM64 import recipe data-driven and colocated with the Fast3D smoke so it stays aligned with the adapter it feeds
+- keep display-list extraction isolated from shared `kain-3D` contracts until the repo is ready to generalize that command-stream shape
+- use Fabric only after extraction is stable, as an optional simulation lane that writes buffers or textures back into the adapter, not as a prerequisite for the base SM64 port path
+
 ## 2026-03-25 - Fabric Polyglot Execution Became A Real Local-First Lane
 
 Fabric stopped being mostly a manifest validator plus partial executor and became a runnable local-first polyglot pipeline across every declared runtime kind.

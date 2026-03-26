@@ -42,7 +42,8 @@ Requested upstream capability:
 
 Current template approach:
 
-- the browser runtime hydrates metric cards, filters, FAQ, chat, search, and forms with a small JS island layer
+- the universal pack now ships a bundled island lane (TypeScript + Preact) for app shells, chat, realtime, and WebGL scenes
+- baseline hydration (metrics, filters, FAQ, forms, search) still lives in helper-authored browser scripts
 
 Requested upstream capability:
 
@@ -73,8 +74,8 @@ Requested upstream capability:
 
 Current template approach:
 
-- the immersive lane uses scene descriptors and stylized HTML/CSS shells
-- there is no first-class Kain-managed browser asset graph, bundler contract, or WebGPU/WebGL scene backend here yet
+- the pack now exposes a first real WebGL lane via a bundled Three.js scene island driven by the manifest scene descriptor
+- the bundler is still helper-owned (Node + esbuild) and not yet a first-class Kain compiler/runtime surface
 
 Requested upstream capability:
 
@@ -95,8 +96,8 @@ Requested upstream capability:
 
 Current template approach:
 
-- the helper runtime now exposes a basic server-sent-events preview route
-- there is no first-class Kain-owned websocket or browser realtime contract here yet
+- the helper runtime exposes SSE routes that tick continuously plus websocket endpoints (`/ws/realtime`, `/ws/chat`) for local previews
+- the realtime/socket layer is still Node-owned; Kain inspects and authors the contract through manifests and FFI
 
 Requested upstream capability:
 
@@ -106,8 +107,8 @@ Requested upstream capability:
 
 Current template approach:
 
-- `ui.schema.json` and app module manifests describe component layout, form counts, and workspace routes
-- browser interactivity still lives in helper-authored JS islands instead of Kain-authored browser components
+- `ui.schema.json` and app module manifests describe component layout and workspace routes
+- Preact islands provide a ready-to-go React/TypeScript-esque runtime, but the component model is still not authored semantically in Kain UI IR yet
 
 Requested upstream capability:
 
