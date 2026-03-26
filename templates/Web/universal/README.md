@@ -140,3 +140,12 @@ New reusable section kinds in this pass:
 - `card_grid` with `content.chat_modes`
 - `process_steps` with `content.actor_playbooks`
 - `card_grid` with `content.actor_tools`
+- `status_board`
+- `roadmap_timeline`
+- `team_grid`
+- `partner_grid`
+- `press_kit`
+- `careers_list`
+- `support_grid`
+- `security_grid`
+- `legal_links`

@@ -1,5 +1,5 @@
 {
-  "includes": ["blog_shared"],
+  "includes": ["blog_shared", "web_systems_core"],
   "brand": "Operator Foundry",
   "seo": {
     "title": "Operator Foundry | Kain Command And Ops Site",

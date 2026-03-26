@@ -1,4 +1,5 @@
 {
+  "includes": ["web_systems_core"],
   "brand": "Mesh Actor Ops",
   "seo": {
     "title": "Mesh Actor Ops | Kain Actor Server Site",
@@ -103,3 +104,4 @@
   },
   "footer": "actor-server experience"
 }
+

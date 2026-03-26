@@ -429,6 +429,184 @@ function renderCards(cards) {
     .join("");
 }
 
+function renderTeamGrid(members) {
+  return `<div class="team-grid">${(members || [])
+    .map(
+      (member) => `<article class="team-card">
+  <p class="card-kicker">${escapeHtml(member.focus || member.role || "Team")}</p>
+  <h3>${escapeHtml(member.name || "Team member")}</h3>
+  <p>${escapeHtml(member.summary || "")}</p>
+  <p class="portfolio-stack">${escapeHtml(member.role || "")}</p>
+</article>`
+    )
+    .join("")}</div>`;
+}
+
+function renderPartnerGrid(partners) {
+  return `<div class="feature-grid">${(partners || [])
+    .map(
+      (partner) => `<article class="feature-card partner-card">
+  <p class="card-kicker">${escapeHtml(partner.category || "Partner")}</p>
+  <h3>${escapeHtml(partner.name || "Partner")}</h3>
+  <p>${escapeHtml(partner.detail || partner.summary || "")}</p>
+  ${partner.href ? `<a class="inline-link" href="${escapeHtml(partner.href)}">View</a>` : ""}
+</article>`
+    )
+    .join("")}</div>`;
+}
+
+function renderSupportGrid(channels) {
+  return `<div class="support-grid">${(channels || [])
+    .map(
+      (channel) => `<article class="support-card">
+  <p class="card-kicker">${escapeHtml(channel.availability || "Support")}</p>
+  <h3>${escapeHtml(channel.name || "Support channel")}</h3>
+  <p>${escapeHtml(channel.detail || "")}</p>
+  ${channel.href ? `<a class="inline-link" href="${escapeHtml(channel.href)}">Open</a>` : ""}
+</article>`
+    )
+    .join("")}</div>`;
+}
+
+function renderCareersList(careers) {
+  const roles = careers?.roles || [];
+  return `<section class="careers-shell">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(careers?.kicker || "Careers")}</p>
+    <h3>${escapeHtml(careers?.title || "Open roles")}</h3>
+    <p class="section-copy">${escapeHtml(careers?.body || "")}</p>
+  </article>
+  <div class="career-grid">${roles
+    .map(
+      (role) => `<article class="career-card">
+  <p class="card-kicker">${escapeHtml(role.type || "Role")}</p>
+  <h3>${escapeHtml(role.title || "Role")}</h3>
+  <p>${escapeHtml(role.summary || "")}</p>
+  <p class="portfolio-stack">${escapeHtml([role.location, ...(role.tags || [])].filter(Boolean).join(" / "))}</p>
+  ${role.href ? `<a class="inline-link" href="${escapeHtml(role.href)}">Open role</a>` : ""}
+</article>`
+    )
+    .join("")}</div>
+</section>`;
+}
+
+function renderStatusBoard(status) {
+  const services = status?.services || [];
+  const incidents = status?.incidents || [];
+  const serviceCards = services
+    .map(
+      (service) => `<article class="status-card" data-status="${escapeHtml(service.status || "")}">
+  <p class="card-kicker">${escapeHtml(service.status || "status")}</p>
+  <h3>${escapeHtml(service.name || "service")}</h3>
+  <p>${escapeHtml(service.detail || "")}</p>
+  <p class="portfolio-stack">${escapeHtml(service.uptime || "")}</p>
+</article>`
+    )
+    .join("");
+  const incidentList = incidents.length
+    ? `<div class="timeline-list">${incidents
+        .map(
+          (incident) => `<article class="timeline-row status-incident">
+  <p class="timeline-label">${escapeHtml(incident.phase || incident.label || "Incident")}</p>
+  <div>
+    <h3>${escapeHtml(incident.title || "")}</h3>
+    <p>${escapeHtml(incident.body || incident.summary || "")}</p>
+  </div>
+</article>`
+        )
+        .join("")}</div>`
+    : `<p class="section-copy">No incidents recorded.</p>`;
+  return `<section class="status-board">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(status?.kicker || "Status")}</p>
+    <h3>${escapeHtml(status?.title || "Runtime status")}</h3>
+    <p class="section-copy">${escapeHtml(status?.summary || "")}</p>
+  </article>
+  <div class="status-grid">${serviceCards}</div>
+  <div class="status-incidents">
+    <p class="section-label">Incidents</p>
+    ${incidentList}
+  </div>
+  <div data-kain-island="status" data-site-data="site.data.json"></div>
+</section>`;
+}
+
+function renderPressKit(press) {
+  const assets = (press?.assets || [])
+    .map(
+      (asset) => `<article class="feature-card press-card">
+  <p class="card-kicker">${escapeHtml(asset.detail || "Asset")}</p>
+  <h3>${escapeHtml(asset.label || "Press asset")}</h3>
+  ${asset.href ? `<a class="inline-link" href="${escapeHtml(asset.href)}">Download</a>` : ""}
+</article>`
+    )
+    .join("");
+  const contacts = (press?.contacts || [])
+    .map(
+      (contact) => `<article class="feature-card press-card">
+  <p class="card-kicker">${escapeHtml(contact.role || "Contact")}</p>
+  <h3>${escapeHtml(contact.name || "Press")}</h3>
+  <p>${escapeHtml(contact.email || "")}</p>
+</article>`
+    )
+    .join("");
+  return `<section class="press-kit">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(press?.kicker || "Press")}</p>
+    <h3>${escapeHtml(press?.title || "Press kit")}</h3>
+    <p class="section-copy">${escapeHtml(press?.body || "")}</p>
+  </article>
+  <div class="feature-grid">${assets}</div>
+  ${contacts ? `<div class="feature-grid">${contacts}</div>` : ""}
+</section>`;
+}
+
+function renderSecurityGrid(security) {
+  return `<section class="security-shell">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(security?.kicker || "Security")}</p>
+    <h3>${escapeHtml(security?.title || "Security controls")}</h3>
+    <p class="section-copy">${escapeHtml(security?.body || "")}</p>
+  </article>
+  <div class="feature-grid">${(security?.controls || [])
+    .map(
+      (control) => `<article class="feature-card security-card">
+  <p class="card-kicker">${escapeHtml(control.status || "control")}</p>
+  <h3>${escapeHtml(control.title || "Control")}</h3>
+  <p>${escapeHtml(control.detail || "")}</p>
+</article>`
+    )
+    .join("")}</div>
+</section>`;
+}
+
+function renderRoadmapTimeline(items) {
+  return `<div class="timeline-list">${(items || [])
+    .map(
+      (item) => `<article class="timeline-row roadmap-row">
+  <p class="timeline-label">${escapeHtml([item.phase, item.eta].filter(Boolean).join(" / "))}</p>
+  <div>
+    <h3>${escapeHtml(item.title || "")}</h3>
+    <p>${escapeHtml(item.body || item.summary || "")}</p>
+  </div>
+</article>`
+    )
+    .join("")}</div>`;
+}
+
+function renderLegalLinks(entries) {
+  return `<div class="legal-grid">${(entries || [])
+    .map(
+      (entry) => `<article class="doc-card legal-card">
+  <p class="card-kicker">${escapeHtml(entry.kicker || "Policy")}</p>
+  <h3>${escapeHtml(entry.title || "Policy")}</h3>
+  <p>${escapeHtml(entry.summary || "")}</p>
+  <a class="inline-link" href="${escapeHtml(entry.href || "#")}">${escapeHtml(entry.label || "Read")}</a>
+</article>`
+    )
+    .join("")}</div>`;
+}
+
 function renderPortfolio(entries) {
   const tags = uniqueStrings((entries || []).flatMap((entry) => entry.tags || []));
   const buttons = tags
@@ -912,10 +1090,20 @@ function renderSectionBlock(section, model) {
     bodyHtml = `<div class="metric-grid">${renderMetrics(getModelValue(model, normalized.source, []))}</div>`;
   } else if (kind === "card_grid") {
     bodyHtml = `<div class="feature-grid">${renderCards(getModelValue(model, normalized.source, []))}</div>`;
+  } else if (kind === "team_grid") {
+    bodyHtml = renderTeamGrid(getModelValue(model, normalized.source, []));
+  } else if (kind === "partner_grid") {
+    bodyHtml = renderPartnerGrid(getModelValue(model, normalized.source, []));
+  } else if (kind === "support_grid") {
+    bodyHtml = renderSupportGrid(getModelValue(model, normalized.source, []));
   } else if (kind === "portfolio_grid") {
     bodyHtml = renderPortfolio(getModelValue(model, normalized.source, []));
   } else if (kind === "timeline") {
     bodyHtml = `<div class="timeline-list">${renderTimeline(getModelValue(model, normalized.source, []))}</div>`;
+  } else if (kind === "roadmap_timeline") {
+    bodyHtml = renderRoadmapTimeline(getModelValue(model, normalized.source, []));
+  } else if (kind === "status_board") {
+    bodyHtml = renderStatusBoard(getModelValue(model, normalized.source, {}));
   } else if (kind === "scene_spotlight") {
     bodyHtml = renderScene(getModelValue(model, normalized.source || "scene", model.scene));
   } else if (kind === "chat_lab") {
@@ -940,6 +1128,14 @@ function renderSectionBlock(section, model) {
     bodyHtml = renderDocsLinks(getModelValue(model, normalized.source, []));
   } else if (kind === "blog_roll") {
     bodyHtml = renderBlogRoll(buildBlogPosts(model));
+  } else if (kind === "press_kit") {
+    bodyHtml = renderPressKit(getModelValue(model, normalized.source, {}));
+  } else if (kind === "security_grid") {
+    bodyHtml = renderSecurityGrid(getModelValue(model, normalized.source, {}));
+  } else if (kind === "legal_links") {
+    bodyHtml = renderLegalLinks(getModelValue(model, normalized.source, []));
+  } else if (kind === "careers_list") {
+    bodyHtml = renderCareersList(getModelValue(model, normalized.source, {}));
   } else if (kind === "form_panel") {
     bodyHtml = renderFormPanel(getModelValue(model, normalized.source, {}));
   } else if (kind === "search_panel") {
@@ -1117,6 +1313,96 @@ function buildDerivedSearchDocuments(model) {
       tags: [offer.kicker, offer.cadence].filter(Boolean)
     });
   }
+  for (const service of model.content.status?.services || []) {
+    documents.push({
+      kind: "status",
+      title: service.name,
+      summary: service.detail || "",
+      href: "#status",
+      tags: [service.status, service.uptime].filter(Boolean)
+    });
+  }
+  for (const incident of model.content.status?.incidents || []) {
+    documents.push({
+      kind: "incident",
+      title: incident.title,
+      summary: incident.body || incident.summary || "",
+      href: "#status",
+      tags: [incident.phase, incident.started_at, incident.resolved_at].filter(Boolean)
+    });
+  }
+  for (const milestone of model.content.roadmap || []) {
+    documents.push({
+      kind: "roadmap",
+      title: milestone.title,
+      summary: milestone.body || milestone.summary || "",
+      href: "#roadmap",
+      tags: [milestone.phase, milestone.eta].filter(Boolean)
+    });
+  }
+  for (const member of model.content.team_members || []) {
+    documents.push({
+      kind: "team",
+      title: member.name,
+      summary: member.summary || "",
+      href: "#team",
+      tags: [member.role, member.focus].filter(Boolean)
+    });
+  }
+  for (const role of model.content.careers?.roles || []) {
+    documents.push({
+      kind: "career",
+      title: role.title,
+      summary: role.summary || "",
+      href: "#careers",
+      tags: [role.location, role.type, ...(role.tags || [])].filter(Boolean)
+    });
+  }
+  for (const channel of model.content.support_channels || []) {
+    documents.push({
+      kind: "support",
+      title: channel.name,
+      summary: channel.detail || "",
+      href: "#support",
+      tags: [channel.availability].filter(Boolean)
+    });
+  }
+  for (const policy of model.content.legal || []) {
+    documents.push({
+      kind: "legal",
+      title: policy.title,
+      summary: policy.summary || "",
+      href: "#legal",
+      tags: [policy.kicker].filter(Boolean)
+    });
+  }
+  for (const control of model.content.security?.controls || []) {
+    documents.push({
+      kind: "security",
+      title: control.title,
+      summary: control.detail || "",
+      href: "#security",
+      tags: [control.status].filter(Boolean)
+    });
+  }
+  for (const partner of model.content.partners || []) {
+    documents.push({
+      kind: "partner",
+      title: partner.name,
+      summary: partner.detail || partner.summary || "",
+      href: "#partners",
+      tags: [partner.category].filter(Boolean)
+    });
+  }
+  for (const asset of model.content.press_kit?.assets || []) {
+    documents.push({
+      kind: "press",
+      title: asset.label,
+      summary: asset.detail || "",
+      href: "#press",
+      tags: []
+    });
+  }
   for (const post of model.content.blog_posts || []) {
     const slug = post.slug || slugify(post.title || post.id || "post");
     documents.push({
@@ -1264,7 +1550,16 @@ function buildSiteData(model) {
     app_modules: model.content.app_modules || [],
     integrations: model.content.integrations || [],
     realtime_channels: model.content.realtime_channels || [],
-    data_collections: model.content.data_collections || []
+    data_collections: model.content.data_collections || [],
+    status: model.content.status || null,
+    roadmap: model.content.roadmap || [],
+    team_members: model.content.team_members || [],
+    partners: model.content.partners || [],
+    press_kit: model.content.press_kit || null,
+    careers: model.content.careers || null,
+    support_channels: model.content.support_channels || [],
+    legal: model.content.legal || [],
+    security: model.content.security || null
   };
 }
 
@@ -1541,7 +1836,7 @@ function renderDocument(model, siteData, options = {}) {
       gap: 18px;
       margin-top: 18px;
     }
-    .panel, .hero-card, .metric-card, .feature-card, .portfolio-card, .route-card, .actor-card, .timeline-row, .pricing-card, .testimonial-card, .doc-card, .link-card, .command-card, .logo-pill, .search-result, .process-card, .prompt-card {
+    .panel, .hero-card, .metric-card, .feature-card, .portfolio-card, .route-card, .actor-card, .timeline-row, .pricing-card, .testimonial-card, .doc-card, .link-card, .command-card, .logo-pill, .search-result, .process-card, .prompt-card, .team-card, .support-card, .status-card, .career-card, .legal-card, .press-card, .partner-card, .security-card {
       border-radius: 24px;
       border: 1px solid var(--line);
       background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
@@ -1557,14 +1852,20 @@ function renderDocument(model, siteData, options = {}) {
       color: var(--muted);
       line-height: 1.5;
     }
-    .metric-grid, .feature-grid, .portfolio-grid, .docs-grid, .link-grid, .command-grid, .pricing-grid, .testimonial-grid, .process-grid, .prompt-grid {
+    .metric-grid, .feature-grid, .portfolio-grid, .docs-grid, .link-grid, .command-grid, .pricing-grid, .testimonial-grid, .process-grid, .prompt-grid, .team-grid, .support-grid, .status-grid, .career-grid, .legal-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 14px;
     }
-    .metric-card, .feature-card, .portfolio-card, .route-card, .actor-card, .pricing-card, .testimonial-card, .doc-card, .link-card, .command-card, .search-result, .process-card, .prompt-card {
+    .metric-card, .feature-card, .portfolio-card, .route-card, .actor-card, .pricing-card, .testimonial-card, .doc-card, .link-card, .command-card, .search-result, .process-card, .prompt-card, .team-card, .support-card, .status-card, .career-card, .legal-card, .press-card, .partner-card, .security-card {
       padding: 16px;
     }
+    .status-card[data-status="operational"] { border-color: rgba(90, 228, 255, 0.5); }
+    .status-card[data-status="degraded"] { border-color: rgba(255, 209, 102, 0.6); }
+    .status-card[data-status="outage"] { border-color: rgba(255, 107, 107, 0.7); }
+    .status-board, .careers-shell, .press-kit, .security-shell { display: grid; gap: 16px; }
+    .status-incidents { display: grid; gap: 12px; }
+    .career-card .portfolio-stack, .support-card .portfolio-stack { color: var(--muted); font-size: 12px; }
     .blueprint-card { min-height: 220px; }
     .matrix-shell {
       overflow-x: auto;
@@ -1803,6 +2104,13 @@ function renderDocument(model, siteData, options = {}) {
       color: var(--text);
       cursor: pointer;
     }
+    .kain-status-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .kain-status-card { border-radius: 16px; border: 1px solid rgba(255,255,255,0.08); padding: 12px; }
+    .kain-status-card.operational { border-color: rgba(90, 228, 255, 0.5); }
+    .kain-status-card.degraded { border-color: rgba(255, 209, 102, 0.6); }
+    .kain-status-card.outage { border-color: rgba(255, 107, 107, 0.7); }
+    .kain-status-label { margin: 0 0 6px; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent-soft); }
+    .kain-status-meta { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
     .kain-island-actions button:disabled { opacity: 0.6; cursor: default; }
     .kain-island-status { color: var(--muted); font-size: 12px; }
     .kain-realtime-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -1848,7 +2156,7 @@ function renderDocument(model, siteData, options = {}) {
       color: var(--muted);
     }
     @media (max-width: 1080px) {
-      .hero-grid, .scene-shell, .metric-grid, .feature-grid, .portfolio-grid, .docs-grid, .link-grid, .command-grid, .pricing-grid, .testimonial-grid, .form-grid {
+      .hero-grid, .scene-shell, .metric-grid, .feature-grid, .portfolio-grid, .docs-grid, .link-grid, .command-grid, .pricing-grid, .testimonial-grid, .form-grid, .team-grid, .support-grid, .status-grid, .career-grid, .legal-grid {
         grid-template-columns: 1fr;
       }
       .timeline-row { grid-template-columns: 1fr; }
@@ -2037,12 +2345,30 @@ function buildSystemContract(model, siteData, actorServerPlan) {
       event: "/api/analytics/event",
       events: "/api/analytics/events"
     },
+    status: "/api/status",
+    roadmap: "/api/roadmap",
+    support: "/api/support",
+    legal: "/api/legal",
+    security: "/api/security",
+    team: "/api/team",
+    partners: "/api/partners",
+    press: "/api/press",
+    careers: "/api/careers",
     auth: siteData.auth || null,
     commerce: siteData.commerce || null,
     app_modules: siteData.app_modules || [],
     integrations: siteData.integrations || [],
     realtime_channels: siteData.realtime_channels || [],
     data_collections: siteData.data_collections || [],
+    status_data: siteData.status || null,
+    roadmap_items: siteData.roadmap || [],
+    support_channels: siteData.support_channels || [],
+    legal: siteData.legal || [],
+    security: siteData.security || null,
+    team_members: siteData.team_members || [],
+    partners: siteData.partners || [],
+    press_kit: siteData.press_kit || null,
+    careers: siteData.careers || null,
     routes: actorServerPlan.routes,
     actors: actorServerPlan.actors,
     forms: actorServerPlan.forms
@@ -2055,6 +2381,7 @@ function buildUiSchema(model, siteData) {
     if (kind === "realtime_channels") return "realtime";
     if (kind === "scene_spotlight") return "scene";
     if (kind === "chat_lab") return "chat";
+    if (kind === "status_board") return "status";
     if (kind === "auth_session") return "auth-session";
     if (kind === "uploads_lab") return "uploads";
     if (kind === "analytics_lab") return "analytics";
@@ -2098,6 +2425,8 @@ function buildUiSchema(model, siteData) {
               ? { stream: "/api/realtime/stream", ws: "/ws/realtime" }
               : island === "scene"
                 ? { scene: "/api/scene" }
+                : island === "status"
+                  ? { status: "/api/status" }
                 : island === "auth-session"
                   ? { me: "/api/auth/session", login: "/api/auth/session/login", logout: "/api/auth/session/logout" }
                   : island === "uploads"
@@ -2126,7 +2455,13 @@ function buildUiSchema(model, siteData) {
         name: entry.name,
         category: entry.category || null,
         transport: entry.transport || null
-      }))
+      })),
+      status_services: (siteData.status?.services || []).length,
+      roadmap_items: (siteData.roadmap || []).length,
+      support_channels: (siteData.support_channels || []).length,
+      team_members: (siteData.team_members || []).length,
+      careers: (siteData.careers?.roles || []).length,
+      legal_links: (siteData.legal || []).length
     }
   };
 }
@@ -2339,6 +2674,15 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/commerce", purpose: "returns sellable offers and membership metadata", actor: "commerce_orchestrator" },
     { method: "GET", path: "/api/data", purpose: "returns typed collection and persistence metadata", actor: "data_keeper" },
     { method: "GET", path: "/api/integrations", purpose: "returns upstream system connectors and transports", actor: "integration_router" },
+    { method: "GET", path: "/api/status", purpose: "returns status board metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/roadmap", purpose: "returns roadmap milestones", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/support", purpose: "returns support channels", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/legal", purpose: "returns legal and policy links", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/security", purpose: "returns security control metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/team", purpose: "returns team metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/partners", purpose: "returns partner metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/press", purpose: "returns press kit metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/careers", purpose: "returns careers metadata", actor: "runtime_reporter" },
     { method: "POST", path: "/api/uploads", purpose: "accepts base64 uploads and persists them under the runtime folder", actor: "upload_gate" },
     { method: "GET", path: "/uploads/*", purpose: "serves uploaded files from the runtime uploads folder (local server only)", actor: "upload_gate" },
     { method: "POST", path: "/api/analytics/event", purpose: "captures client analytics events to JSONL", actor: "analytics_sentinel" },
@@ -2401,6 +2745,15 @@ export function buildActorServerPlan(appManifestPath, experienceId) {
     integrations: siteData.integrations || [],
     realtime_channels: siteData.realtime_channels || [],
     data_collections: siteData.data_collections || [],
+    status: siteData.status || null,
+    roadmap: siteData.roadmap || [],
+    support_channels: siteData.support_channels || [],
+    legal: siteData.legal || [],
+    security: siteData.security || null,
+    team_members: siteData.team_members || [],
+    partners: siteData.partners || [],
+    press_kit: siteData.press_kit || null,
+    careers: siteData.careers || null,
     catalog: buildExperienceCatalogEntries(model.context),
     page_title: model.experience.page_title,
     output_slug: model.experience.output_slug
@@ -2837,6 +3190,42 @@ async function serveExperience(appManifestPath, experienceId) {
     }
     if (request.method === "GET" && pathname === "/api/integrations") {
       sendJson(response, 200, bundle.site_data.integrations || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/status") {
+      sendJson(response, 200, bundle.site_data.status || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/roadmap") {
+      sendJson(response, 200, bundle.site_data.roadmap || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/support") {
+      sendJson(response, 200, bundle.site_data.support_channels || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/legal") {
+      sendJson(response, 200, bundle.site_data.legal || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/security") {
+      sendJson(response, 200, bundle.site_data.security || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/team") {
+      sendJson(response, 200, bundle.site_data.team_members || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/partners") {
+      sendJson(response, 200, bundle.site_data.partners || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/press") {
+      sendJson(response, 200, bundle.site_data.press_kit || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/careers") {
+      sendJson(response, 200, bundle.site_data.careers || {});
       return;
     }
     if (request.method === "GET" && pathname === "/api/realtime") {

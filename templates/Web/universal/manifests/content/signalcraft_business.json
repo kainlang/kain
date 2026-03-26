@@ -1,5 +1,5 @@
 {
-  "includes": ["blog_shared"],
+  "includes": ["blog_shared", "web_systems_core"],
   "brand": "Signalcraft Systems",
   "seo": {
     "title": "Signalcraft Systems | Kain Universal Business Site",

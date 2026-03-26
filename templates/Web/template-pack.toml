@@ -29,7 +29,15 @@ supports = [
   "react_like_islands",
   "webgl_scene",
   "sse_streaming",
-  "websocket_runtime"
+  "websocket_runtime",
+  "status_page",
+  "roadmap",
+  "support_center",
+  "legal_policies",
+  "careers_page",
+  "press_kit",
+  "security_posture",
+  "partner_grid"
 ]
 stdlib_modules = [
   "std::javascript::site_runtime",

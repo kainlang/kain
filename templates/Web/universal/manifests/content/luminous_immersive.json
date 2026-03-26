@@ -1,4 +1,5 @@
 {
+  "includes": ["web_systems_core"],
   "brand": "Luminous Port",
   "seo": {
     "title": "Luminous Port | Kain Immersive 3D Site",
@@ -92,3 +93,4 @@
   },
   "footer": "immersive 3d experience"
 }
+

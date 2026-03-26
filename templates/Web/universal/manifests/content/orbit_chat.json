@@ -1,4 +1,5 @@
 {
+  "includes": ["web_systems_core"],
   "brand": "Orbit Chat Lab",
   "seo": {
     "title": "Orbit Chat Lab | Kain Chat-First Site",
@@ -111,3 +112,4 @@
   },
   "footer": "chat experience"
 }
+

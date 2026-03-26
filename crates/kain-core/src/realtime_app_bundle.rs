@@ -455,7 +455,10 @@ fn collect_shader_canvas_surface_resources(
 }
 
 fn shader_canvas_font_atlas_default_encoding_for_family(family: &str) -> String {
-    if family.trim().eq_ignore_ascii_case("kain.builtin.bitmap_5x7") {
+    if family
+        .trim()
+        .eq_ignore_ascii_case("kain.builtin.bitmap_5x7")
+    {
         "bitmap-alpha".to_string()
     } else {
         default_shader_canvas_font_atlas_encoding()

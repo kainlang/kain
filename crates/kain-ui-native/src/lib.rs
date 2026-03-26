@@ -11,9 +11,6 @@ use std::{
 use ab_glyph::{point, Font, FontArc, ScaleFont};
 use eframe::egui::{self, Align, Color32, Frame, Layout, RichText, Stroke, Vec2};
 use egui_wgpu::{self, CallbackTrait, ScreenDescriptor};
-use mint::Vector2;
-use msdf::{GlyphLoader, MSDFConfig, Projection, SDFTrait};
-use ttf_parser::Face;
 use kain_3d::{
     default_viewport_shader_bundle, prepare_wgpu_frame, wgsl_module_source, CameraPose,
     CpuPickingService, GizmoVertex, GpuVertex, ManipulatorMode, ParticleVertex, PickingHit,
@@ -39,6 +36,9 @@ use kain_ui::{
     UiSurfaceRendererPreference, UiThemeRegistry, UiTree, UiValue, UiWidgetKind,
     UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
 };
+use mint::Vector2;
+use msdf::{GlyphLoader, MSDFConfig, Projection, SDFTrait};
+use ttf_parser::Face;
 use wgpu::util::DeviceExt;
 
 pub const KAIN_UI_NATIVE_RUNTIME_BUNDLE_SCHEMA_VERSION: u32 = UI_RUNTIME_BUNDLE_SCHEMA_VERSION;
@@ -3525,45 +3525,55 @@ fn build_ui_shader_surface_texture_payload(
     if descriptor.font_atlases.is_empty() {
         return UiShaderSurfaceTexturePayload {
             size_px: [1, 1],
-            atlas_origins_px: Vec::new(),
+            atlases: Vec::new(),
             rgba8: Arc::from(vec![255, 255, 255, 255]),
         };
     }
 
-    let packed_width = descriptor
+    let rasterized_atlases = descriptor
         .font_atlases
+        .iter()
+        .map(|atlas| {
+            rasterize_shader_surface_font_atlas(
+                atlas,
+                descriptor
+                    .font_asset_sources_by_key
+                    .get(&atlas.key)
+                    .map(String::as_str),
+            )
+        })
+        .collect::<Vec<_>>();
+    let packed_width = rasterized_atlases
         .iter()
         .map(|atlas| atlas.texture_size_px[0].max(1))
         .max()
         .unwrap_or(1);
-    let packed_height = descriptor
-        .font_atlases
+    let packed_height = rasterized_atlases
         .iter()
         .map(|atlas| atlas.texture_size_px[1].max(1))
         .sum::<u32>()
         .max(1);
     let mut rgba8 = vec![0u8; (packed_width * packed_height * 4) as usize];
-    let mut atlas_origins_px = Vec::with_capacity(descriptor.font_atlases.len());
+    let mut atlases = Vec::with_capacity(rasterized_atlases.len());
     let mut atlas_y = 0u32;
 
-    for atlas in &descriptor.font_atlases {
-        let atlas_width = atlas.texture_size_px[0].max(1);
-        let atlas_height = atlas.texture_size_px[1].max(1);
-        let atlas_rgba = rasterize_shader_surface_font_atlas(
-            atlas,
-            descriptor
-                .font_asset_sources_by_key
-                .get(&atlas.key)
-                .map(String::as_str),
-        );
-        atlas_origins_px.push([0, atlas_y]);
+    for rasterized_atlas in &rasterized_atlases {
+        let atlas_width = rasterized_atlas.texture_size_px[0].max(1);
+        let atlas_height = rasterized_atlas.texture_size_px[1].max(1);
+        atlases.push(UiShaderSurfaceTextureAtlasPayload {
+            origin_px: [0, atlas_y],
+            texture_size_px: rasterized_atlas.texture_size_px,
+            encoding_tag: shader_canvas_font_atlas_encoding_tag(&rasterized_atlas.encoding),
+            distance_range_px: rasterized_atlas.distance_range_px,
+        });
 
         for row in 0..atlas_height as usize {
             let src_offset = row * atlas_width as usize * 4;
             let dst_offset = (((atlas_y as usize + row) * packed_width as usize) * 4) as usize;
             let dst_end = dst_offset + atlas_width as usize * 4;
-            rgba8[dst_offset..dst_end]
-                .copy_from_slice(&atlas_rgba[src_offset..src_offset + atlas_width as usize * 4]);
+            rgba8[dst_offset..dst_end].copy_from_slice(
+                &rasterized_atlas.rgba8[src_offset..src_offset + atlas_width as usize * 4],
+            );
         }
 
         atlas_y += atlas_height;
@@ -3571,7 +3581,7 @@ fn build_ui_shader_surface_texture_payload(
 
     UiShaderSurfaceTexturePayload {
         size_px: [packed_width, packed_height],
-        atlas_origins_px,
+        atlases,
         rgba8: Arc::from(rgba8),
     }
 }
@@ -3579,20 +3589,34 @@ fn build_ui_shader_surface_texture_payload(
 fn rasterize_shader_surface_font_atlas(
     atlas: &RealtimeShaderCanvasFontAtlas,
     asset_source: Option<&str>,
-) -> Vec<u8> {
-    if let Some(font) = try_load_shader_canvas_font(asset_source, &atlas.family) {
-        return rasterize_shader_surface_font_atlas_with_ab_glyph(atlas, &font);
+) -> RasterizedShaderCanvasFontAtlas {
+    if let Some(loaded_font) = try_load_shader_canvas_font(asset_source, &atlas.family) {
+        if shader_canvas_font_atlas_prefers_mtsdf(atlas) {
+            if let Some(mtsdf_atlas) =
+                rasterize_shader_surface_font_atlas_with_mtsdf(atlas, &loaded_font)
+            {
+                return mtsdf_atlas;
+            }
+        }
+
+        return rasterize_shader_surface_font_atlas_with_ab_glyph(atlas, &loaded_font.font);
     }
 
     rasterize_shader_surface_font_atlas_bitmap(atlas)
 }
 
-fn try_load_shader_canvas_font(asset_source: Option<&str>, family: &str) -> Option<FontArc> {
+fn try_load_shader_canvas_font(
+    asset_source: Option<&str>,
+    family: &str,
+) -> Option<LoadedShaderCanvasFont> {
     if let Some(asset_source) = asset_source {
         let asset_path = PathBuf::from(asset_source);
         if let Ok(bytes) = fs::read(&asset_path) {
-            if let Ok(font) = FontArc::try_from_vec(bytes) {
-                return Some(font);
+            if let Ok(font) = FontArc::try_from_vec(bytes.clone()) {
+                return Some(LoadedShaderCanvasFont {
+                    font,
+                    ttf_bytes: Arc::from(bytes),
+                });
             }
         }
     }
@@ -3609,10 +3633,13 @@ fn try_load_shader_canvas_font(asset_source: Option<&str>, family: &str) -> Opti
         let Ok(bytes) = fs::read(&candidate) else {
             continue;
         };
-        let Ok(font) = FontArc::try_from_vec(bytes) else {
+        let Ok(font) = FontArc::try_from_vec(bytes.clone()) else {
             continue;
         };
-        return Some(font);
+        return Some(LoadedShaderCanvasFont {
+            font,
+            ttf_bytes: Arc::from(bytes),
+        });
     }
 
     None
@@ -3664,10 +3691,120 @@ fn normalize_shader_canvas_font_family(family: &str) -> String {
         .collect()
 }
 
+fn shader_canvas_font_atlas_encoding_tag(encoding: &str) -> u32 {
+    match encoding.trim().to_ascii_lowercase().as_str() {
+        SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA => {
+            SHADER_CANVAS_FONT_ATLAS_ENCODING_TAG_BITMAP_ALPHA
+        }
+        SHADER_CANVAS_FONT_ATLAS_ENCODING_ALPHA_COVERAGE => {
+            SHADER_CANVAS_FONT_ATLAS_ENCODING_TAG_ALPHA_COVERAGE
+        }
+        SHADER_CANVAS_FONT_ATLAS_ENCODING_MTSDF_RGBA => {
+            SHADER_CANVAS_FONT_ATLAS_ENCODING_TAG_MTSDF_RGBA
+        }
+        _ => SHADER_CANVAS_FONT_ATLAS_ENCODING_TAG_UNKNOWN,
+    }
+}
+
+fn shader_canvas_font_atlas_prefers_mtsdf(atlas: &RealtimeShaderCanvasFontAtlas) -> bool {
+    atlas
+        .encoding
+        .eq_ignore_ascii_case(SHADER_CANVAS_FONT_ATLAS_ENCODING_MTSDF_RGBA)
+        && !atlas
+            .family
+            .trim()
+            .eq_ignore_ascii_case(SHADER_CANVAS_BITMAP_FONT_FAMILY)
+}
+
+fn rasterize_shader_surface_font_atlas_with_mtsdf(
+    atlas: &RealtimeShaderCanvasFontAtlas,
+    loaded_font: &LoadedShaderCanvasFont,
+) -> Option<RasterizedShaderCanvasFontAtlas> {
+    let face = Face::from_slice(loaded_font.ttf_bytes.as_ref(), 0).ok()?;
+    let width = atlas.texture_size_px[0].max(1);
+    let height = atlas.texture_size_px[1].max(1);
+    let mut rgba8 = vec![0u8; (width * height * 4) as usize];
+    let cell_width = atlas.cell_size_px[0].max(1);
+    let cell_height = atlas.cell_size_px[1].max(1);
+    let range_px = atlas.distance_range_px.max(1) as f64;
+    let msdf_config = MSDFConfig::default();
+    let fallback_glyph = face.glyph_index('?');
+
+    for (glyph_index, glyph) in atlas.glyphs.chars().enumerate() {
+        let columns = atlas.columns.max(1) as usize;
+        let cell_x = glyph_index % columns;
+        let cell_y = glyph_index / columns;
+        if cell_y >= atlas.rows.max(1) as usize || glyph.is_whitespace() {
+            continue;
+        }
+
+        let Some(glyph_id) = face.glyph_index(glyph).or(fallback_glyph) else {
+            continue;
+        };
+        let Some(glyph_bounds) = face.glyph_bounding_box(glyph_id) else {
+            continue;
+        };
+        let Ok(shape) = face.load_shape(glyph_id) else {
+            continue;
+        };
+        let colored_shape = shape.color_edges_simple(3.0);
+        let glyph_width = (glyph_bounds.x_max - glyph_bounds.x_min).max(1) as f64;
+        let glyph_height = (glyph_bounds.y_max - glyph_bounds.y_min).max(1) as f64;
+        let padding = range_px.min((cell_width.min(cell_height) as f64 * 0.45).max(1.0));
+        let drawable_width = (cell_width as f64 - (padding * 2.0)).max(1.0);
+        let drawable_height = (cell_height as f64 - (padding * 2.0)).max(1.0);
+        let scale = (drawable_width / glyph_width)
+            .min(drawable_height / glyph_height)
+            .max(1.0 / 2048.0);
+        let projection = Projection {
+            scale: Vector2 {
+                x: scale,
+                y: -scale,
+            },
+            translation: Vector2 {
+                x: padding + ((drawable_width - (glyph_width * scale)).max(0.0) * 0.5)
+                    - glyph_bounds.x_min as f64 * scale,
+                y: padding
+                    + ((drawable_height - (glyph_height * scale)).max(0.0) * 0.5)
+                    + glyph_bounds.y_max as f64 * scale,
+            },
+        };
+        let mtsdf = colored_shape.generate_mtsdf(
+            cell_width,
+            cell_height,
+            range_px,
+            &projection,
+            &msdf_config,
+        );
+        let mtsdf_image = mtsdf.to_image();
+        for (pixel_index, pixel) in mtsdf_image.as_raw().chunks_exact(4).enumerate() {
+            let local_x = (pixel_index as u32 % cell_width) as usize;
+            let local_y = (pixel_index as u32 / cell_width) as usize;
+            let px = (cell_x * cell_width as usize) + local_x;
+            let py = (cell_y * cell_height as usize) + local_y;
+            if px >= width as usize || py >= height as usize {
+                continue;
+            }
+            let offset = ((py * width as usize) + px) * 4;
+            rgba8[offset] = shader_canvas_sdf_sample_to_u8(pixel[0]);
+            rgba8[offset + 1] = shader_canvas_sdf_sample_to_u8(pixel[1]);
+            rgba8[offset + 2] = shader_canvas_sdf_sample_to_u8(pixel[2]);
+            rgba8[offset + 3] = shader_canvas_sdf_sample_to_u8(pixel[3]);
+        }
+    }
+
+    Some(RasterizedShaderCanvasFontAtlas {
+        texture_size_px: [width, height],
+        encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_MTSDF_RGBA.to_string(),
+        distance_range_px: atlas.distance_range_px.max(1),
+        rgba8,
+    })
+}
+
 fn rasterize_shader_surface_font_atlas_with_ab_glyph(
     atlas: &RealtimeShaderCanvasFontAtlas,
     font: &FontArc,
-) -> Vec<u8> {
+) -> RasterizedShaderCanvasFontAtlas {
     let width = atlas.texture_size_px[0].max(1);
     let height = atlas.texture_size_px[1].max(1);
     let mut rgba8 = vec![0u8; (width * height * 4) as usize];
@@ -3741,7 +3878,12 @@ fn rasterize_shader_surface_font_atlas_with_ab_glyph(
         });
     }
 
-    rgba8
+    RasterizedShaderCanvasFontAtlas {
+        texture_size_px: [width, height],
+        encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_ALPHA_COVERAGE.to_string(),
+        distance_range_px: 0,
+        rgba8,
+    }
 }
 
 fn outline_shader_canvas_glyph(
@@ -3756,7 +3898,9 @@ fn outline_shader_canvas_glyph(
     )
 }
 
-fn rasterize_shader_surface_font_atlas_bitmap(atlas: &RealtimeShaderCanvasFontAtlas) -> Vec<u8> {
+fn rasterize_shader_surface_font_atlas_bitmap(
+    atlas: &RealtimeShaderCanvasFontAtlas,
+) -> RasterizedShaderCanvasFontAtlas {
     let width = atlas.texture_size_px[0].max(1);
     let height = atlas.texture_size_px[1].max(1);
     let mut rgba8 = vec![0u8; (width * height * 4) as usize];
@@ -3793,7 +3937,16 @@ fn rasterize_shader_surface_font_atlas_bitmap(atlas: &RealtimeShaderCanvasFontAt
         }
     }
 
-    rgba8
+    RasterizedShaderCanvasFontAtlas {
+        texture_size_px: [width, height],
+        encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA.to_string(),
+        distance_range_px: 0,
+        rgba8,
+    }
+}
+
+fn shader_canvas_sdf_sample_to_u8(sample: f32) -> u8 {
+    (sample.clamp(0.0, 1.0) * 255.0).round() as u8
 }
 
 fn resolve_shader_canvas_text_color(

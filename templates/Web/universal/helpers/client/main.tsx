@@ -8,9 +8,18 @@ import { AuthSessionIsland } from "./islands/AuthSessionIsland";
 import { ChatLabIsland } from "./islands/ChatLabIsland";
 import { RealtimeChannelsIsland } from "./islands/RealtimeChannelsIsland";
 import { SceneViewportIsland } from "./islands/SceneViewportIsland";
+import { StatusWatchIsland } from "./islands/StatusWatchIsland";
 import { UploadsLabIsland } from "./islands/UploadsLabIsland";
 
-type IslandKind = "app-shell" | "chat" | "realtime" | "scene" | "auth-session" | "uploads" | "analytics";
+type IslandKind =
+  | "app-shell"
+  | "chat"
+  | "realtime"
+  | "scene"
+  | "status"
+  | "auth-session"
+  | "uploads"
+  | "analytics";
 
 type IslandTarget = {
   node: HTMLElement;
@@ -44,6 +53,10 @@ async function mountTarget(target: IslandTarget) {
   }
   if (target.kind === "scene") {
     render(<SceneViewportIsland scene={siteData.scene || null} />, target.node);
+    return;
+  }
+  if (target.kind === "status") {
+    render(<StatusWatchIsland status={siteData.status || null} />, target.node);
     return;
   }
   if (target.kind === "chat") {

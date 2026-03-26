@@ -25,7 +25,7 @@ around four rules:
 - KainScript (`.ks`) support inside the client bundle so JS + JSDoc modules can sit beside TSX islands
 - manifest registries for themes, content, scenes, and experiences
 - archetypes for business, portfolio, immersive 3D, chat, docs, operator, app-shell, commerce, realtime, actor-server, and hybrid site modes
-- website systems for docs links, search, FAQ, pricing, testimonials, prompt decks, capability matrices, blueprint grids, app modules, auth strategy, commerce offers, data collections, realtime channels, local form capture, actor routes, RSS, robots, and sitemap output
+- website systems for docs links, search, FAQ, pricing, testimonials, prompt decks, capability matrices, blueprint grids, app modules, auth strategy, commerce offers, data collections, realtime channels, local form capture, actor routes, status boards, roadmaps, team/career panels, press kits, support lanes, legal policies, security controls, RSS, robots, and sitemap output
 - runtime APIs for catalog, scene descriptors, forms, search documents, chat, streaming previews, auth, commerce, integrations, data collections, UI schema, and full system contracts
 - runtime APIs for cookie sessions, base64 uploads, and local analytics events (JSONL) to support chat-heavy and operator-heavy sites
 - a `package.json` script surface so users can build or serve without Rust or Cargo

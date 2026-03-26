@@ -1,5 +1,5 @@
 {
-  "includes": ["blog_shared"],
+  "includes": ["blog_shared", "web_systems_core"],
   "brand": "Spectrum Portfolio",
   "seo": {
     "title": "Spectrum Portfolio | Kain Universal Portfolio Site",

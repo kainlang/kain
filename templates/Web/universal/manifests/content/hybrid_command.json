@@ -1,5 +1,5 @@
 {
-  "includes": ["blog_shared"],
+  "includes": ["blog_shared", "web_systems_core"],
   "brand": "Hybrid Command",
   "seo": {
     "title": "Hybrid Command | Kain Universal Web System",

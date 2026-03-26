@@ -1,0 +1,186 @@
+{
+  "status": {
+    "kicker": "Status",
+    "title": "Runtime service status",
+    "summary": "Local runtime health, incident notes, and service ownership for the web pack.",
+    "updated_at": "2026-03-26T20:30:00Z",
+    "services": [
+      {
+        "name": "site_renderer",
+        "status": "operational",
+        "detail": "Static page and asset emission",
+        "uptime": "99.99%"
+      },
+      {
+        "name": "search_indexer",
+        "status": "operational",
+        "detail": "Local docs and artifact search",
+        "uptime": "99.95%"
+      },
+      {
+        "name": "chat_seed_router",
+        "status": "degraded",
+        "detail": "Streaming preview in local SSE only",
+        "uptime": "99.4%"
+      },
+      {
+        "name": "signal_broker",
+        "status": "operational",
+        "detail": "Realtime SSE/WS preview channels",
+        "uptime": "99.92%"
+      }
+    ],
+    "incidents": [
+      {
+        "phase": "Resolved",
+        "title": "Chat stream preview reconnect loop",
+        "body": "Resolved by keeping SSE tokens buffered before UI mount.",
+        "started_at": "2026-03-24T16:12:00Z",
+        "resolved_at": "2026-03-24T19:08:00Z"
+      }
+    ]
+  },
+  "roadmap": [
+    {
+      "phase": "Now",
+      "title": "Status + support lanes",
+      "body": "Ship status board, support channels, and incident lanes into the universal pack.",
+      "eta": "Q2 2026"
+    },
+    {
+      "phase": "Next",
+      "title": "Component contract lift",
+      "body": "Lift app shell modules into a richer UI schema contract for React-like lanes.",
+      "eta": "Q3 2026"
+    },
+    {
+      "phase": "Later",
+      "title": "Native web runtime lane",
+      "body": "Replace helper-owned bundles with a first-class Kain web runtime backend.",
+      "eta": "Q4 2026"
+    }
+  ],
+  "team_members": [
+    {
+      "name": "Avery Lin",
+      "role": "Experience Director",
+      "summary": "Owns launch narratives and story rails.",
+      "focus": "business + immersive"
+    },
+    {
+      "name": "Riley Noor",
+      "role": "Runtime Lead",
+      "summary": "Owns actor routes, search, and streaming previews.",
+      "focus": "actors + realtime"
+    },
+    {
+      "name": "Kai Morgan",
+      "role": "UI Systems",
+      "summary": "Owns UI schema contracts and app shell modules.",
+      "focus": "react-like lanes"
+    }
+  ],
+  "partners": [
+    {
+      "name": "Kain Integrations",
+      "category": "platform",
+      "detail": "Local runtime adapters and JS bridges.",
+      "href": "#integrations"
+    },
+    {
+      "name": "Atlas Docs",
+      "category": "knowledge",
+      "detail": "Docs sync and search indexing contracts.",
+      "href": "#docs"
+    }
+  ],
+  "press_kit": {
+    "kicker": "Press",
+    "title": "Press and media kit",
+    "body": "Logos, launch story, and background assets ready for reuse.",
+    "assets": [
+      { "label": "Brand overview", "detail": "Logo, usage, and palette", "href": "#" },
+      { "label": "Launch deck", "detail": "Narrative summary", "href": "#" },
+      { "label": "Screenshots", "detail": "Interface and 3D scenes", "href": "#" }
+    ],
+    "contacts": [
+      { "name": "Press Desk", "role": "Media", "email": "press@example.com" }
+    ]
+  },
+  "careers": {
+    "kicker": "Careers",
+    "title": "Join the web systems team",
+    "body": "These roles keep the universal web pack expanding without regressions.",
+    "roles": [
+      {
+        "title": "Systems Designer",
+        "location": "Remote",
+        "type": "Full-time",
+        "summary": "Owns cross-lane component systems and UI schema cohesion.",
+        "href": "#",
+        "tags": ["ui", "design-systems"]
+      },
+      {
+        "title": "Runtime Engineer",
+        "location": "Remote",
+        "type": "Contract",
+        "summary": "Expands actor routes, status, and streaming lanes.",
+        "href": "#",
+        "tags": ["runtime", "node"]
+      }
+    ]
+  },
+  "support_channels": [
+    {
+      "name": "Launch intake",
+      "detail": "Capture new build requests and briefs.",
+      "availability": "24/7",
+      "href": "#intake"
+    },
+    {
+      "name": "Docs and search",
+      "detail": "Knowledge base requests and indexing questions.",
+      "availability": "Business hours",
+      "href": "#docs"
+    },
+    {
+      "name": "Operator lane",
+      "detail": "Actor routes, realtime, and ops surfaces.",
+      "availability": "On-call",
+      "href": "#routes"
+    }
+  ],
+  "legal": [
+    {
+      "kicker": "Policy",
+      "title": "Privacy policy",
+      "summary": "Local runtime data capture and retention overview.",
+      "href": "/legal/privacy",
+      "label": "Read policy"
+    },
+    {
+      "kicker": "Policy",
+      "title": "Terms of service",
+      "summary": "Template usage and responsibility outline.",
+      "href": "/legal/terms",
+      "label": "Read terms"
+    },
+    {
+      "kicker": "Policy",
+      "title": "Security posture",
+      "summary": "Baseline security practices and controls.",
+      "href": "/legal/security",
+      "label": "Read security"
+    }
+  ],
+  "security": {
+    "kicker": "Security",
+    "title": "Security controls",
+    "body": "Contract-ready security metadata for operator and client review.",
+    "controls": [
+      { "title": "Rate limiting", "detail": "Local enforcement on API routes", "status": "template-ready" },
+      { "title": "Audit trails", "detail": "JSONL capture for auth + analytics", "status": "template-ready" },
+      { "title": "Session isolation", "detail": "Cookie-backed local sessions", "status": "template-ready" }
+    ]
+  }
+}

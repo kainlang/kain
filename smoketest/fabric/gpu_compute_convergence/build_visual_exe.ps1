@@ -101,11 +101,16 @@ $SnapshotPath = Join-Path $GeneratedRoot "visual_snapshot.json"
 $NativeAppRoot = Join-Path $SmokeRoot "visual-native-app"
 $ExpectedExecutableName = "fabric-studio-3d-editor.exe"
 $ReportsRoot = Join-Path $SmokeRoot ".kain\fabric\reports"
+$NativeCargoTargetDir = Join-Path $SmokeRoot ".kain\native-ui-target"
 
 New-Item -ItemType Directory -Force -Path $GeneratedRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $NativeCargoTargetDir | Out-Null
 
 Push-Location $RepoRoot
 try {
+    $PreviousCargoTargetDir = $env:CARGO_TARGET_DIR
+    $env:CARGO_TARGET_DIR = $NativeCargoTargetDir
+
     if (-not $SkipFabricRun) {
         & cargo run -q -p cli --bin kain -- fabric run --manifest $ManifestRelativePath
         if ($LASTEXITCODE -ne 0) {
@@ -312,5 +317,11 @@ try {
     Write-Host "  Snapshot: $RelativeSnapshotPath"
 }
 finally {
+    if ($null -ne $PreviousCargoTargetDir) {
+        $env:CARGO_TARGET_DIR = $PreviousCargoTargetDir
+    }
+    else {
+        Remove-Item Env:CARGO_TARGET_DIR -ErrorAction SilentlyContinue
+    }
     Pop-Location
 }

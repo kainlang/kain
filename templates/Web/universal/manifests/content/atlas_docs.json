@@ -1,5 +1,5 @@
 {
-  "includes": ["blog_shared"],
+  "includes": ["blog_shared", "web_systems_core"],
   "brand": "Atlas Knowledge Hub",
   "seo": {
     "title": "Atlas Knowledge Hub | Kain Docs And Search Site",

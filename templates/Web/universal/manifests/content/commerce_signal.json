@@ -1,4 +1,5 @@
 {
+  "includes": ["web_systems_core"],
   "brand": "Commerce Signal",
   "seo": {
     "title": "Commerce Signal | Kain Commerce Template",
@@ -115,3 +116,4 @@
   },
   "footer": "commerce archetype"
 }
+

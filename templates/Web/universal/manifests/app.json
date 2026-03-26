@@ -34,6 +34,7 @@
       "auth_session",
       "commerce_stack",
       "realtime_channels",
+      "status_watch",
       "system_contract",
       "ui_schema",
       "uploads_lab",
