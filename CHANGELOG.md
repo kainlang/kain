@@ -5,6 +5,56 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=6bb47af42cd91b4d -->
+## 2026-03-26 19:05:09 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `63f6c589`
+- Changed files: 20
+- [??] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.bat`
+- [??] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.ps1`
+- [??] `smoketest/fabric/gpu_compute_convergence/capture_visual_demo.ps1`
+- [??] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [??] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/launch_visual_exe.bat`
+- [??] `smoketest/fabric/gpu_compute_convergence/templates/visual_showcase.template.kn`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/Cargo.lock`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/Cargo.toml`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/config/app_manifest.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_realtime_app_bundle.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_reflection_payload.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_runtime_compatibility.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_runtime_contract.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_runtime_version.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/lib.rs`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/src/main.rs`
+- [??] `smoketest/fabric/gpu_compute_convergence/visual-native-app/state/runtime_snapshot.json`
+
+<!-- polytools-changelog:fingerprint=3c2a89cac9907333 -->
+## 2026-03-26 19:04:18 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `63f6c589`
+- Changed files: 7
+- [??] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.bat`
+- [??] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.ps1`
+- [??] `smoketest/fabric/gpu_compute_convergence/capture_visual_demo.ps1`
+- [??] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [??] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [??] `smoketest/fabric/gpu_compute_convergence/launch_visual_exe.bat`
+- [??] `smoketest/fabric/gpu_compute_convergence/templates/visual_showcase.template.kn`
+
+<!-- polytools-changelog:fingerprint=5270c78364e55da6 -->
+## 2026-03-26 19:03:12 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `63f6c589`
+- Changed files: 5
+- [??] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.bat`
+- [??] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.ps1`
+- [??] `smoketest/fabric/gpu_compute_convergence/capture_visual_demo.ps1`
+- [??] `smoketest/fabric/gpu_compute_convergence/launch_visual_exe.bat`
+- [??] `smoketest/fabric/gpu_compute_convergence/templates/visual_showcase.template.kn`
+
 <!-- polytools-changelog:fingerprint=29b9986255935652 -->
 ## 2026-03-26 18:15:41 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

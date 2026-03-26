@@ -1,0 +1,33 @@
+{
+  "app_id": "fabric.gpu.visual.showcase",
+  "name": "Fabric GPU Visual Showcase",
+  "version": "0.1.0",
+  "window_title": "Fabric GPU Visual Showcase",
+  "root_component": "App",
+  "layout_id": "fabric_gpu_visual_showcase_shell",
+  "required_runtime_capabilities": [
+    "compiler.typed-program",
+    "driver.native-app-bundle",
+    "memory.raw-ops",
+    "memory.raw-pointers",
+    "runtime.contract.bundle",
+    "ui.components",
+    "ui.runtime-bundle"
+  ],
+  "target_outputs": [
+    "native-ui-bundle",
+    "native-exe"
+  ],
+  "manifests": {
+    "host_bridges": ""
+  },
+  "runtime_sidecars": {
+    "runtime_bundle": "native_app_bundle.json",
+    "runtime_contract": "kain_runtime_contract.json",
+    "runtime_compatibility": "kain_runtime_compatibility.json",
+    "realtime_bundle": "kain_realtime_app_bundle.json",
+    "shader_bundle": null
+  },
+  "host_bridges": [],
+  "host_sidecars": []
+}

@@ -1,0 +1,172 @@
+component App():
+    render <slot layout="column" gap={18} padding={18} overflow_y="scroll">
+        <theme name="fabric_visual_showcase">
+            <scope name="mission" selector="fabric-mission" />
+            <token name="theme.chrome.topbar.visible" category="chrome" value={false} />
+            <token name="theme.spacing.scale" category="space" value={1.08} />
+            <token name="theme.radius.scale" category="surface" value={1.18} />
+            <token name="theme.typography.scale" category="type" value={1.05} />
+            <token name="theme.background.top" category="color" value="#050913" />
+            <token name="theme.background.bottom" category="color" value="#0c1730" />
+            <token name="theme.surface.base" category="color" value="#0f1c37" />
+            <token name="theme.surface.alt" category="color" value="#14264a" />
+            <token name="theme.surface.raised" category="color" value="#1b315d" />
+            <token name="theme.surface.overlay" category="color" value="#091220dd" />
+            <token name="theme.accent.primary" category="color" value="#469cd8" />
+            <token name="theme.accent.soft" category="color" value="#a2e0f4" />
+            <token name="theme.highlight" category="color" value="#ffc860" />
+            <token name="theme.text.default" category="color" value="#f5fbff" />
+            <token name="theme.text.muted" category="color" value="#98b4d4" />
+            <token name="widget.panel.surface.mode" category="surface" value="glass" />
+            <token name="widget.viewport3d.surface.mode" category="surface" value="canvas" />
+            <variant scope="mission" name="nav">
+                <token name="surface.mode" category="surface" value="ghost" />
+            </variant>
+            <variant scope="mission" name="hero">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="accent.color" category="color" value="#469cd8" />
+            </variant>
+            <variant scope="mission" name="section">
+                <token name="surface.mode" category="surface" value="layered" />
+            </variant>
+            <variant scope="mission" name="card">
+                <token name="surface.mode" category="surface" value="flat" />
+            </variant>
+            <widget kind="panel" scope="mission" variant="nav">
+                <token name="density" category="layout" value="compact" />
+                <token name="surface.padding" category="space" value={10} />
+            </widget>
+            <widget kind="panel" scope="mission" variant="hero">
+                <token name="density" category="layout" value="compact" />
+                <token name="surface.padding" category="space" value={18} />
+            </widget>
+            <widget kind="panel" scope="mission" variant="section">
+                <token name="surface.padding" category="space" value={16} />
+            </widget>
+            <widget kind="panel" scope="mission" variant="card">
+                <token name="surface.padding" category="space" value={14} />
+            </widget>
+            <textvariant scope="mission" name="hero">
+                <token name="body.size" category="type" value={33} />
+            </textvariant>
+        </theme>
+
+        <panel scope="mission" variant="nav" layout="row" gap={14} class="compact">
+            <slot layout="column" gap={3}>
+                <text role="eyebrow">LOCAL-FIRST FABRIC</text>
+                <text role="caption">Python -> Kain -> GPU -> Node native proof artifact</text>
+            </slot>
+            <slot layout="row" gap={10}>
+                <text role="caption">Session session-1774566265603-2624</text>
+                <text role="caption">Status SUCCEEDED</text>
+                <text role="caption">Runtime mix python=1 | kain=1 | gpu_compute=1 | node=1</text>
+            </slot>
+        </panel>
+
+        <panel title="Fabric Hero" scope="mission" variant="hero" layout="grid" columns={2} gap={18}>
+            <slot layout="column" gap={12}>
+                <text role="eyebrow">Mission Control</text>
+                <text role="hero" variant="hero">All four runtime lanes converged in 776 ms.</text>
+                <text role="muted">Final node proof: gpu-fabric-convergence:1:1:7|gpu=1,2,3,4,0,0,0,0|bytes=32</text>
+                <slot layout="row" gap={12}>
+                    <panel scope="mission" variant="card">
+                        <text role="metric">4/4</text>
+                        <text role="caption">steps green</text>
+                    </panel>
+                    <panel scope="mission" variant="card">
+                        <text role="metric">776 ms</text>
+                        <text role="caption">session duration</text>
+                    </panel>
+                    <panel scope="mission" variant="card">
+                        <text role="metric">32</text>
+                        <text role="caption">GPU bytes</text>
+                    </panel>
+                </slot>
+                <panel scope="mission" variant="card" title="Node Verdict">
+                    <text role="title">Node returned the final signed summary.</text>
+                    <text role="caption">gpu-fabric-convergence:1:1:7|gpu=1,2,3,4,0,0,0,0|bytes=32</text>
+                </panel>
+            </slot>
+            <viewport3d title="Luminous Port" scene="luminous_port" />
+        </panel>
+
+        <panel title="Execution Lanes" scope="mission" variant="section" layout="grid" columns={4} gap={14}>
+            <panel scope="mission" variant="card" title="python_source">
+                <text role="eyebrow">PYTHON</text>
+                <text role="metric">SUCCEEDED</text>
+                <text role="caption">54 ms</text>
+                <text role="caption">Outputs: settings</text>
+            </panel>
+            <panel scope="mission" variant="card" title="kain_orchestrator">
+                <text role="eyebrow">KAIN</text>
+                <text role="metric">SUCCEEDED</text>
+                <text role="caption">4 ms</text>
+                <text role="caption">Outputs: src, dst, report</text>
+            </panel>
+            <panel scope="mission" variant="card" title="gpu_enrich">
+                <text role="eyebrow">GPU_COMPUTE</text>
+                <text role="metric">SUCCEEDED</text>
+                <text role="caption">600 ms</text>
+                <text role="caption">Outputs: dst</text>
+            </panel>
+            <panel scope="mission" variant="card" title="node_packager">
+                <text role="eyebrow">NODE</text>
+                <text role="metric">SUCCEEDED</text>
+                <text role="caption">117 ms</text>
+                <text role="caption">Outputs: summary</text>
+            </panel>
+        </panel>
+
+        <panel title="GPU Signature" scope="mission" variant="section" layout="grid" columns={2} gap={16}>
+            <graph title="Output Signature">
+                <text role="title">1,2,3,4,0,0,0,0</text>
+                <text role="caption">Derived from the real Fabric node summary after the Vulkan compute lane completed.</text>
+                <text role="caption">Kain report gpu-fabric-convergence:1:1:7</text>
+            </graph>
+            <timeline title="Runtime Provenance">
+                <text role="caption">Report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774566265603-2624/report.json</text>
+                <text role="caption">Events smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774566265603-2624/events.jsonl</text>
+                <text role="caption">Lock smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774566265603-2624/session.lock.json</text>
+                <text role="caption">Workspace smoketest/fabric/gpu_compute_convergence</text>
+            </timeline>
+        </panel>
+
+        <panel title="Why This Matters" scope="mission" variant="section" layout="column" gap={12}>
+            <panel scope="mission" variant="card">
+                <text role="title">A real local-first polyglot session</text>
+                <text role="caption">The executable you are looking at was generated after rerunning the Fabric manifest, reading the resulting session report, and baking the live status, summary, and provenance into this native UI surface.</text>
+            </panel>
+            <slot layout="row" gap={12} overflow_x="scroll">
+                <panel scope="mission" variant="card" min_width={250}>
+                    <text role="title">Python</text>
+                    <text role="caption">Emits scalar settings that seed the lane.</text>
+                </panel>
+                <panel scope="mission" variant="card" min_width={250}>
+                    <text role="title">Kain</text>
+                    <text role="caption">Creates typed shared buffers and the orchestration report.</text>
+                </panel>
+                <panel scope="mission" variant="card" min_width={250}>
+                    <text role="title">GPU</text>
+                    <text role="caption">Runs through the Vulkan compute adapter and writes the result into shared memory.</text>
+                </panel>
+                <panel scope="mission" variant="card" min_width={250}>
+                    <text role="title">Node</text>
+                    <text role="caption">Consumes the GPU-enriched buffer and returns the final proof string.</text>
+                </panel>
+            </slot>
+        </panel>
+
+        <panel title="Proof Files" scope="mission" variant="section" layout="column" gap={12} max_height={250} overflow_y="scroll">
+            <panel scope="mission" variant="card"><text role="caption">Visual snapshot JSON: smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json</text></panel>
+            <panel scope="mission" variant="card"><text role="caption">Generated Kain UI source: smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn</text></panel>
+            <panel scope="mission" variant="card"><text role="caption">Executable output: smoketest/fabric/gpu_compute_convergence/visual-native-app</text></panel>
+            <panel scope="mission" variant="card"><text role="caption">Report directory: smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774566265603-2624</text></panel>
+        </panel>
+
+        <panel title="Footer" scope="mission" variant="nav" layout="row" gap={16}>
+            <text role="caption">Fabric GPU Visual Showcase</text>
+            <text role="caption">Report-backed</text>
+            <text role="caption">Native executable</text>
+            <text role="caption">Local-first</text>
+        </panel>
+    </slot>

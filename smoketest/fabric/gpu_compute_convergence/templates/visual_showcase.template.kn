@@ -1,0 +1,149 @@
+component App():
+    render <slot layout="column" gap={18} padding={18} overflow_y="scroll">
+        <theme name="fabric_visual_showcase">
+            <scope name="mission" selector="fabric-mission" />
+            <token name="theme.chrome.topbar.visible" category="chrome" value={false} />
+            <token name="theme.spacing.scale" category="space" value={1.08} />
+            <token name="theme.radius.scale" category="surface" value={1.18} />
+            <token name="theme.typography.scale" category="type" value={1.05} />
+            <token name="theme.background.top" category="color" value="#050913" />
+            <token name="theme.background.bottom" category="color" value="#0c1730" />
+            <token name="theme.surface.base" category="color" value="#0f1c37" />
+            <token name="theme.surface.alt" category="color" value="#14264a" />
+            <token name="theme.surface.raised" category="color" value="#1b315d" />
+            <token name="theme.surface.overlay" category="color" value="#091220dd" />
+            <token name="theme.accent.primary" category="color" value="__ACCENT_PRIMARY__" />
+            <token name="theme.accent.soft" category="color" value="__ACCENT_SOFT__" />
+            <token name="theme.highlight" category="color" value="__HIGHLIGHT__" />
+            <token name="theme.text.default" category="color" value="#f5fbff" />
+            <token name="theme.text.muted" category="color" value="#98b4d4" />
+            <token name="widget.panel.surface.mode" category="surface" value="glass" />
+            <token name="widget.viewport3d.surface.mode" category="surface" value="canvas" />
+            <variant scope="mission" name="nav">
+                <token name="surface.mode" category="surface" value="ghost" />
+            </variant>
+            <variant scope="mission" name="hero">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="accent.color" category="color" value="__ACCENT_PRIMARY__" />
+            </variant>
+            <variant scope="mission" name="section">
+                <token name="surface.mode" category="surface" value="layered" />
+            </variant>
+            <variant scope="mission" name="card">
+                <token name="surface.mode" category="surface" value="flat" />
+            </variant>
+            <widget kind="panel" scope="mission" variant="nav">
+                <token name="density" category="layout" value="compact" />
+                <token name="surface.padding" category="space" value={10} />
+            </widget>
+            <widget kind="panel" scope="mission" variant="hero">
+                <token name="density" category="layout" value="compact" />
+                <token name="surface.padding" category="space" value={18} />
+            </widget>
+            <widget kind="panel" scope="mission" variant="section">
+                <token name="surface.padding" category="space" value={16} />
+            </widget>
+            <widget kind="panel" scope="mission" variant="card">
+                <token name="surface.padding" category="space" value={14} />
+            </widget>
+            <textvariant scope="mission" name="hero">
+                <token name="body.size" category="type" value={33} />
+            </textvariant>
+        </theme>
+
+        <panel scope="mission" variant="nav" layout="row" gap={14} class="compact">
+            <slot layout="column" gap={3}>
+                <text role="eyebrow">LOCAL-FIRST FABRIC</text>
+                <text role="caption">Python -> Kain -> GPU -> Node native proof artifact</text>
+            </slot>
+            <slot layout="row" gap={10}>
+                <text role="caption">Session __SESSION_ID__</text>
+                <text role="caption">Status __SESSION_STATUS__</text>
+                <text role="caption">Runtime mix __RUNTIME_COUNTS__</text>
+            </slot>
+        </panel>
+
+        <panel title="Fabric Hero" scope="mission" variant="hero" layout="grid" columns={2} gap={18}>
+            <slot layout="column" gap={12}>
+                <text role="eyebrow">Mission Control</text>
+                <text role="hero" variant="hero">__HERO_TITLE__</text>
+                <text role="muted">__HERO_SUBTITLE__</text>
+                <slot layout="row" gap={12}>
+                    <panel scope="mission" variant="card">
+                        <text role="metric">__STEP_SUCCESS__</text>
+                        <text role="caption">steps green</text>
+                    </panel>
+                    <panel scope="mission" variant="card">
+                        <text role="metric">__DURATION_MS__ ms</text>
+                        <text role="caption">session duration</text>
+                    </panel>
+                    <panel scope="mission" variant="card">
+                        <text role="metric">__GPU_BYTE_LENGTH__</text>
+                        <text role="caption">GPU bytes</text>
+                    </panel>
+                </slot>
+                <panel scope="mission" variant="card" title="Node Verdict">
+                    <text role="title">__SUMMARY_TITLE__</text>
+                    <text role="caption">__SUMMARY_CAPTION__</text>
+                </panel>
+            </slot>
+            <viewport3d title="Luminous Port" scene="luminous_port" />
+        </panel>
+
+        <panel title="Execution Lanes" scope="mission" variant="section" layout="grid" columns={4} gap={14}>
+__STEP_CARDS__
+        </panel>
+
+        <panel title="GPU Signature" scope="mission" variant="section" layout="grid" columns={2} gap={16}>
+            <graph title="Output Signature">
+                <text role="title">__GPU_SIGNATURE__</text>
+                <text role="caption">Derived from the real Fabric node summary after the Vulkan compute lane completed.</text>
+                <text role="caption">Kain report __KAIN_REPORT__</text>
+            </graph>
+            <timeline title="Runtime Provenance">
+                <text role="caption">Report __REPORT_FILE__</text>
+                <text role="caption">Events __EVENTS_FILE__</text>
+                <text role="caption">Lock __LOCK_FILE__</text>
+                <text role="caption">Workspace __WORKSPACE_ROOT__</text>
+            </timeline>
+        </panel>
+
+        <panel title="Why This Matters" scope="mission" variant="section" layout="column" gap={12}>
+            <panel scope="mission" variant="card">
+                <text role="title">A real local-first polyglot session</text>
+                <text role="caption">The executable you are looking at was generated after rerunning the Fabric manifest, reading the resulting session report, and baking the live status, summary, and provenance into this native UI surface.</text>
+            </panel>
+            <slot layout="row" gap={12} overflow_x="scroll">
+                <panel scope="mission" variant="card" min_width={250}>
+                    <text role="title">Python</text>
+                    <text role="caption">Emits scalar settings that seed the lane.</text>
+                </panel>
+                <panel scope="mission" variant="card" min_width={250}>
+                    <text role="title">Kain</text>
+                    <text role="caption">Creates typed shared buffers and the orchestration report.</text>
+                </panel>
+                <panel scope="mission" variant="card" min_width={250}>
+                    <text role="title">GPU</text>
+                    <text role="caption">Runs through the Vulkan compute adapter and writes the result into shared memory.</text>
+                </panel>
+                <panel scope="mission" variant="card" min_width={250}>
+                    <text role="title">Node</text>
+                    <text role="caption">Consumes the GPU-enriched buffer and returns the final proof string.</text>
+                </panel>
+            </slot>
+        </panel>
+
+        <panel title="Proof Files" scope="mission" variant="section" layout="column" gap={12} max_height={250} overflow_y="scroll">
+            <panel scope="mission" variant="card"><text role="caption">Visual snapshot JSON: __SNAPSHOT_FILE__</text></panel>
+            <panel scope="mission" variant="card"><text role="caption">Generated Kain UI source: __GENERATED_SOURCE__</text></panel>
+            <panel scope="mission" variant="card"><text role="caption">Executable output: __EXECUTABLE_HINT__</text></panel>
+            <panel scope="mission" variant="card"><text role="caption">Report directory: __REPORT_DIRECTORY__</text></panel>
+        </panel>
+
+        <panel title="Footer" scope="mission" variant="nav" layout="row" gap={16}>
+            <text role="caption">Fabric GPU Visual Showcase</text>
+            <text role="caption">Report-backed</text>
+            <text role="caption">Native executable</text>
+            <text role="caption">Local-first</text>
+        </panel>
+    </slot>
