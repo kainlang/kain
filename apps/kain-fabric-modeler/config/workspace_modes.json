@@ -1,0 +1,34 @@
+{
+  "modes": [
+    {
+      "id": "model",
+      "label": "Model Core",
+      "summary": "Poly modeling, kitbashing, and scene assembly."
+    },
+    {
+      "id": "sculpt",
+      "label": "Sculpt Forge",
+      "summary": "Brush-heavy form work, voxel remesh, and high frequency detail."
+    },
+    {
+      "id": "surfacing",
+      "label": "Surface Graph",
+      "summary": "Material layering, shader previews, and lookdev iteration."
+    },
+    {
+      "id": "uv_paint",
+      "label": "UV And Paint",
+      "summary": "UV layout, texture projection, and paint layer review."
+    },
+    {
+      "id": "rig_pose",
+      "label": "Rig And Pose",
+      "summary": "Rig controls, deformation checks, and pose-space sculpt review."
+    },
+    {
+      "id": "review_publish",
+      "label": "Review And Publish",
+      "summary": "Topology review, export summaries, and materialization receipts."
+    }
+  ]
+}

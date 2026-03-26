@@ -1,0 +1,63 @@
+[project]
+entry = "entry.kn"
+build_dir = "../../outputs/omni/workspace"
+
+[import_resolution]
+inline_kain_imports = true
+search_roots = []
+
+[[imports]]
+path = "imports/omni_signal.ts"
+language = "typescript"
+output = "../../outputs/omni/staged/omni_signal.kn"
+
+[[imports]]
+path = "imports/omni_math.h"
+language = "c"
+output = "../../outputs/omni/staged/omni_math.kn"
+
+[[imports]]
+path = "imports/omni_firmware.asm"
+language = "asm"
+asm_format = "6502-furby"
+output = "../../outputs/omni/staged/omni_firmware.kn"
+
+[[targets]]
+kind = "ts"
+output = "../../outputs/omni/dist/allinone_omni.ts"
+
+[[targets]]
+kind = "ks"
+output = "../../outputs/omni/dist/allinone_omni.ks"
+
+[[targets]]
+kind = "hlsl"
+output = "../../outputs/omni/dist/allinone_omni.hlsl"
+
+[[targets]]
+kind = "usf"
+output = "../../outputs/omni/dist/allinone_omni.usf"
+
+[[targets]]
+kind = "spirv"
+output = "../../outputs/omni/dist/allinone_omni.spv"
+
+[[targets]]
+kind = "gpu_artifacts"
+output = "../../outputs/omni/dist/allinone_omni_gpu"
+
+[[targets]]
+kind = "rust_bundle"
+output = "../../outputs/omni/dist/allinone_omni_bundle.rs"
+
+[targets.rust_bundle]
+output = "../../outputs/omni/dist/gpu_bundle"
+artifacts = ["source", "shader_host", "shader_reflection", "spirv"]
+
+[[targets]]
+kind = "ue5"
+output = "../../outputs/omni/ue5/AllInOneOmni/Source/AllInOneOmni/Public/AllInOneOmni.h"
+
+[[targets]]
+kind = "ue5_editor"
+output = "../../outputs/omni/ue5_editor/AllInOneOmniEditor/Source/AllInOneOmniEditor/Public/AllInOneOmniEditor.h"

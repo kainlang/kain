@@ -1,0 +1,75 @@
+{
+  "layout": "dock",
+  "surfaces": [
+    {
+      "id": "viewport_stage",
+      "title": "Viewport Stage",
+      "dock": "center",
+      "kind": "viewport3d",
+      "summary": "Primary model editing viewport backed by the native runtime lane."
+    },
+    {
+      "id": "scene_outliner",
+      "title": "Scene Outliner",
+      "dock": "left",
+      "kind": "tree",
+      "summary": "Hierarchy navigation for scene objects, kits, and fabrication groups."
+    },
+    {
+      "id": "asset_browser",
+      "title": "Asset Browser",
+      "dock": "left",
+      "kind": "tree",
+      "summary": "Mesh, material, shader, brush, and package browsing."
+    },
+    {
+      "id": "selection_inspector",
+      "title": "Selection Inspector",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Transforms, topology, metadata, and material assignment."
+    },
+    {
+      "id": "tool_shelf",
+      "title": "Tool Shelf",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Model, sculpt, retopo, UV, paint, and review tools."
+    },
+    {
+      "id": "material_graph",
+      "title": "Material Graph",
+      "dock": "bottom",
+      "kind": "graph",
+      "summary": "Surface graph authoring and shader routing."
+    },
+    {
+      "id": "procedural_stack",
+      "title": "Procedural Stack",
+      "dock": "bottom",
+      "kind": "graph",
+      "summary": "Procedural modifiers, instancing, and generation layers."
+    },
+    {
+      "id": "topology_console",
+      "title": "Topology Console",
+      "dock": "bottom",
+      "kind": "graph",
+      "summary": "Topology metrics, retopo hints, and mesh health reporting."
+    },
+    {
+      "id": "fabric_timeline",
+      "title": "Fabric Timeline",
+      "dock": "bottom",
+      "kind": "timeline",
+      "summary": "Fabric step execution and report flow."
+    },
+    {
+      "id": "publish_summary",
+      "title": "Publish Summary",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Export readiness, delivery notes, and bundle summary."
+    }
+  ]
+}

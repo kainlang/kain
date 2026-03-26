@@ -11,6 +11,16 @@ use std::{
 use ab_glyph::{point, Font, FontArc, ScaleFont};
 use eframe::egui::{self, Align, Color32, Frame, Layout, RichText, Stroke, Vec2};
 use egui_wgpu::{self, CallbackTrait, ScreenDescriptor};
+use fdsm::{
+    bezier::scanline::FillRule,
+    generate::generate_mtsdf,
+    render::correct_sign_mtsdf,
+    shape::Shape,
+    transform::Transform,
+};
+use fdsm_ttf_parser::{load_shape_from_face, ttf_parser::Face};
+use image::RgbaImage;
+use nalgebra::{Affine2, Similarity2, Vector2};
 use kain_3d::{
     default_viewport_shader_bundle, prepare_wgpu_frame, wgsl_module_source, CameraPose,
     CpuPickingService, GizmoVertex, GpuVertex, ManipulatorMode, ParticleVertex, PickingHit,
@@ -36,9 +46,6 @@ use kain_ui::{
     UiSurfaceRendererPreference, UiThemeRegistry, UiTree, UiValue, UiWidgetKind,
     UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
 };
-use mint::Vector2;
-use msdf::{GlyphLoader, MSDFConfig, Projection, SDFTrait};
-use ttf_parser::Face;
 use wgpu::util::DeviceExt;
 
 pub const KAIN_UI_NATIVE_RUNTIME_BUNDLE_SCHEMA_VERSION: u32 = UI_RUNTIME_BUNDLE_SCHEMA_VERSION;
@@ -138,8 +145,7 @@ const SHADER_CANVAS_FONT_FAMILY_SPECS: &[ShaderCanvasFontFamilySpec] = &[
 
 const SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA: &str = "bitmap-alpha";
 const SHADER_CANVAS_FONT_ATLAS_ENCODING_ALPHA_COVERAGE: &str = "alpha-coverage";
-const SHADER_CANVAS_FONT_ATLAS_ENCODING_MTSDF_RGBA: &str = "mtsdf-rgba";
-const SHADER_CANVAS_DEFAULT_MTSDF_DISTANCE_RANGE_PX: u32 = 6;
+const SHADER_CANVAS_FONT_ATLAS_ENCODING_MTSDF_RGBA: &str = "msdf-rgba";
 const SHADER_CANVAS_FONT_ATLAS_ENCODING_TAG_UNKNOWN: u32 = 0;
 const SHADER_CANVAS_FONT_ATLAS_ENCODING_TAG_BITMAP_ALPHA: u32 = 1;
 const SHADER_CANVAS_FONT_ATLAS_ENCODING_TAG_ALPHA_COVERAGE: u32 = 2;
@@ -3720,14 +3726,13 @@ fn rasterize_shader_surface_font_atlas_with_mtsdf(
     atlas: &RealtimeShaderCanvasFontAtlas,
     loaded_font: &LoadedShaderCanvasFont,
 ) -> Option<RasterizedShaderCanvasFontAtlas> {
-    let face = Face::from_slice(loaded_font.ttf_bytes.as_ref(), 0).ok()?;
+    let face = Face::parse(loaded_font.ttf_bytes.as_ref(), 0).ok()?;
     let width = atlas.texture_size_px[0].max(1);
     let height = atlas.texture_size_px[1].max(1);
     let mut rgba8 = vec![0u8; (width * height * 4) as usize];
     let cell_width = atlas.cell_size_px[0].max(1);
     let cell_height = atlas.cell_size_px[1].max(1);
     let range_px = atlas.distance_range_px.max(1) as f64;
-    let msdf_config = MSDFConfig::default();
     let fallback_glyph = face.glyph_index('?');
 
     for (glyph_index, glyph) in atlas.glyphs.chars().enumerate() {
@@ -3744,52 +3749,44 @@ fn rasterize_shader_surface_font_atlas_with_mtsdf(
         let Some(glyph_bounds) = face.glyph_bounding_box(glyph_id) else {
             continue;
         };
-        let Ok(shape) = face.load_shape(glyph_id) else {
+        let Some(mut shape) = load_shape_from_face(&face, glyph_id) else {
             continue;
         };
-        let colored_shape = shape.color_edges_simple(3.0);
         let glyph_width = (glyph_bounds.x_max - glyph_bounds.x_min).max(1) as f64;
         let glyph_height = (glyph_bounds.y_max - glyph_bounds.y_min).max(1) as f64;
         let padding = range_px.min((cell_width.min(cell_height) as f64 * 0.45).max(1.0));
         let drawable_width = (cell_width as f64 - (padding * 2.0)).max(1.0);
         let drawable_height = (cell_height as f64 - (padding * 2.0)).max(1.0);
-        let scale = (drawable_width / glyph_width)
-            .min(drawable_height / glyph_height)
-            .max(1.0 / 2048.0);
-        let projection = Projection {
-            scale: Vector2 {
-                x: scale,
-                y: -scale,
-            },
-            translation: Vector2 {
-                x: padding + ((drawable_width - (glyph_width * scale)).max(0.0) * 0.5)
-                    - glyph_bounds.x_min as f64 * scale,
-                y: padding
-                    + ((drawable_height - (glyph_height * scale)).max(0.0) * 0.5)
-                    + glyph_bounds.y_max as f64 * scale,
-            },
-        };
-        let mtsdf = colored_shape.generate_mtsdf(
-            cell_width,
-            cell_height,
-            range_px,
-            &projection,
-            &msdf_config,
-        );
-        let mtsdf_image = mtsdf.to_image();
-        for (pixel_index, pixel) in mtsdf_image.as_raw().chunks_exact(4).enumerate() {
-            let local_x = (pixel_index as u32 % cell_width) as usize;
-            let local_y = (pixel_index as u32 / cell_width) as usize;
-            let px = (cell_x * cell_width as usize) + local_x;
-            let py = (cell_y * cell_height as usize) + local_y;
+        let shrinkage = (glyph_width / drawable_width)
+            .max(glyph_height / drawable_height)
+            .max(1.0);
+        let glyph_width_px = glyph_width / shrinkage;
+        let glyph_height_px = glyph_height / shrinkage;
+        let transformation = nalgebra::convert::<_, Affine2<f64>>(Similarity2::new(
+            Vector2::new(
+                padding + ((drawable_width - glyph_width_px).max(0.0) * 0.5)
+                    - glyph_bounds.x_min as f64 / shrinkage,
+                padding + ((drawable_height - glyph_height_px).max(0.0) * 0.5)
+                    - glyph_bounds.y_min as f64 / shrinkage,
+            ),
+            0.0,
+            1.0 / shrinkage,
+        ));
+        shape.transform(&transformation);
+        let colored_shape = Shape::edge_coloring_simple(shape, 0.03, 69441337420);
+        let prepared_colored_shape = colored_shape.prepare();
+        let mut mtsdf = RgbaImage::new(cell_width, cell_height);
+        generate_mtsdf(&prepared_colored_shape, range_px, &mut mtsdf);
+        correct_sign_mtsdf(&mut mtsdf, &prepared_colored_shape, FillRule::Nonzero);
+        for (local_x, local_y, pixel) in mtsdf.enumerate_pixels() {
+            let px = (cell_x * cell_width as usize) + local_x as usize;
+            let py = (cell_y * cell_height as usize)
+                + (cell_height.saturating_sub(1).saturating_sub(local_y)) as usize;
             if px >= width as usize || py >= height as usize {
                 continue;
             }
             let offset = ((py * width as usize) + px) * 4;
-            rgba8[offset] = shader_canvas_sdf_sample_to_u8(pixel[0]);
-            rgba8[offset + 1] = shader_canvas_sdf_sample_to_u8(pixel[1]);
-            rgba8[offset + 2] = shader_canvas_sdf_sample_to_u8(pixel[2]);
-            rgba8[offset + 3] = shader_canvas_sdf_sample_to_u8(pixel[3]);
+            rgba8[offset..offset + 4].copy_from_slice(&pixel.0);
         }
     }
 
@@ -3945,9 +3942,6 @@ fn rasterize_shader_surface_font_atlas_bitmap(
     }
 }
 
-fn shader_canvas_sdf_sample_to_u8(sample: f32) -> u8 {
-    (sample.clamp(0.0, 1.0) * 255.0).round() as u8
-}
 
 fn resolve_shader_canvas_text_color(
     theme: &NativeWidgetTheme,
@@ -7021,6 +7015,8 @@ mod tests {
                         key: "surface.hero.atlas.default".to_string(),
                         family: "kain.builtin.bitmap_5x7".to_string(),
                         asset_key: None,
+                        encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA.to_string(),
+                        distance_range_px: 0,
                         glyphs: " HEROFASTLANE".to_string(),
                         cell_size_px: [8, 8],
                         texture_size_px: [96, 8],
@@ -7031,6 +7027,8 @@ mod tests {
                         key: "surface.hero.atlas.metrics".to_string(),
                         family: "kain.builtin.bitmap_5x7".to_string(),
                         asset_key: None,
+                        encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA.to_string(),
+                        distance_range_px: 0,
                         glyphs: "0123456789".to_string(),
                         cell_size_px: [8, 8],
                         texture_size_px: [80, 8],
@@ -7112,6 +7110,8 @@ mod tests {
                 key: "atlas.primary".to_string(),
                 family: "kain.builtin.bitmap_5x7".to_string(),
                 asset_key: None,
+                        encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA.to_string(),
+                        distance_range_px: 0,
                 glyphs: "ABC".to_string(),
                 cell_size_px: [8, 8],
                 texture_size_px: [24, 8],
@@ -7122,6 +7122,8 @@ mod tests {
                 key: "atlas.metrics".to_string(),
                 family: "kain.builtin.bitmap_5x7".to_string(),
                 asset_key: None,
+                        encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA.to_string(),
+                        distance_range_px: 0,
                 glyphs: "123456".to_string(),
                 cell_size_px: [8, 8],
                 texture_size_px: [48, 8],
@@ -7152,7 +7154,14 @@ mod tests {
         let payload = build_ui_shader_surface_texture_payload(&descriptor);
 
         assert_eq!(payload.size_px, [48, 16]);
-        assert_eq!(payload.atlas_origins_px, vec![[0, 0], [0, 8]]);
+        assert_eq!(
+            payload
+                .atlases
+                .iter()
+                .map(|atlas| atlas.origin_px)
+                .collect::<Vec<_>>(),
+            vec![[0, 0], [0, 8]]
+        );
         assert_eq!(payload.rgba8.len(), (48 * 16 * 4) as usize);
     }
 
@@ -7176,6 +7185,8 @@ mod tests {
                     key: "atlas.primary".to_string(),
                     family: "kain.builtin.bitmap_5x7".to_string(),
                     asset_key: None,
+                        encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA.to_string(),
+                        distance_range_px: 0,
                     glyphs: "ABC".to_string(),
                     cell_size_px: [8, 8],
                     texture_size_px: [24, 8],
@@ -7186,6 +7197,8 @@ mod tests {
                     key: "atlas.metrics".to_string(),
                     family: "kain.builtin.bitmap_5x7".to_string(),
                     asset_key: None,
+                        encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA.to_string(),
+                        distance_range_px: 0,
                     glyphs: "123456".to_string(),
                     cell_size_px: [8, 8],
                     texture_size_px: [48, 8],
@@ -7205,7 +7218,15 @@ mod tests {
 
         assert_eq!(cache.len(), 1);
         assert_eq!(first.size_px, second.size_px);
-        assert_eq!(first.atlas_origins_px, second.atlas_origins_px);
+        assert_eq!(first.atlases.len(), second.atlases.len());
+        assert_eq!(
+            first.atlases.iter().map(|atlas| atlas.origin_px).collect::<Vec<_>>(),
+            second
+                .atlases
+                .iter()
+                .map(|atlas| atlas.origin_px)
+                .collect::<Vec<_>>()
+        );
         assert!(Arc::ptr_eq(&first.rgba8, &second.rgba8));
     }
 

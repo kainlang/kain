@@ -1,0 +1,160 @@
+{
+  "libraries": [
+    {
+      "id": "render_runtime",
+      "label": "Render Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/render_runtime.kn"
+    },
+    {
+      "id": "scene_runtime",
+      "label": "Scene Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/scene_runtime.kn"
+    },
+    {
+      "id": "editor_runtime",
+      "label": "Editor Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/editor_runtime.kn"
+    },
+    {
+      "id": "ui_workbench",
+      "label": "UI Workbench",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/ui_workbench.kn"
+    },
+    {
+      "id": "workspace_preset_runtime",
+      "label": "Workspace Preset Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/workspace_preset_runtime.kn"
+    },
+    {
+      "id": "procedural_runtime",
+      "label": "Procedural Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/procedural_runtime.kn"
+    },
+    {
+      "id": "material_runtime",
+      "label": "Material Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/material_runtime.kn"
+    },
+    {
+      "id": "shader_runtime",
+      "label": "Shader Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/shader_runtime.kn"
+    },
+    {
+      "id": "viewport_runtime",
+      "label": "Viewport Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/viewport_runtime.kn"
+    },
+    {
+      "id": "interaction_runtime",
+      "label": "Interaction Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/interaction_runtime.kn"
+    },
+    {
+      "id": "physics_runtime",
+      "label": "Physics Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/physics_runtime.kn"
+    },
+    {
+      "id": "mesh_runtime",
+      "label": "Mesh Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/mesh_runtime.kn"
+    },
+    {
+      "id": "baking_runtime",
+      "label": "Baking Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/baking_runtime.kn"
+    },
+    {
+      "id": "rigging_runtime",
+      "label": "Rigging Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/rigging_runtime.kn"
+    },
+    {
+      "id": "deformation_runtime",
+      "label": "Deformation Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/deformation_runtime.kn"
+    },
+    {
+      "id": "painting_runtime",
+      "label": "Painting Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/painting_runtime.kn"
+    },
+    {
+      "id": "uv_runtime",
+      "label": "UV Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/uv_runtime.kn"
+    },
+    {
+      "id": "brush_runtime",
+      "label": "Brush Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/brush_runtime.kn"
+    },
+    {
+      "id": "resource_runtime",
+      "label": "Resource Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/resource_runtime.kn"
+    },
+    {
+      "id": "materialization_runtime",
+      "label": "Materialization Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/materialization_runtime.kn"
+    },
+    {
+      "id": "runtime_bundle_runtime",
+      "label": "Runtime Bundle Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/runtime_bundle_runtime.kn"
+    },
+    {
+      "id": "reflection_runtime",
+      "label": "Reflection Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/reflection_runtime.kn"
+    },
+    {
+      "id": "telemetry_runtime",
+      "label": "Telemetry Runtime",
+      "category": "runtime-pack",
+      "source": "templates/3D/src-kain/stdlib/three_d_runtime/telemetry_runtime.kn"
+    },
+    {
+      "id": "fabric_python_bridge",
+      "label": "Fabric Python Bridge",
+      "category": "runtime-bridge",
+      "source": "crates/kain-python"
+    },
+    {
+      "id": "fabric_node_bridge",
+      "label": "Fabric Node Bridge",
+      "category": "runtime-bridge",
+      "source": "crates/kain-node"
+    },
+    {
+      "id": "fabric_host_executor",
+      "label": "Fabric Host Executor",
+      "category": "runtime-bridge",
+      "source": "crates/kain-host/src/fabric.rs"
+    }
+  ]
+}

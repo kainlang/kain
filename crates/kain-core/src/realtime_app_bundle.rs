@@ -123,7 +123,7 @@ pub struct RealtimeShaderCanvasFontAtlas {
 }
 
 fn default_shader_canvas_font_atlas_encoding() -> String {
-    "mtsdf-rgba".to_string()
+    "msdf-rgba".to_string()
 }
 
 fn default_shader_canvas_font_atlas_distance_range_px() -> u32 {

@@ -42,6 +42,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [smoketest](/M:/Code/Kain/smoketest): capability proof matrix for bridges, UI, 3D, and mixed runtimes
 - [docs](/M:/Code/Kain/docs): doctrine, plans, pipeline notes, validation notes, and research
 - [apps](/M:/Code/Kain/apps): first-class applications and prototypes
+- [apps/kain-fabric-modeler](/M:/Code/Kain/apps/kain-fabric-modeler): Fabric-first native 3D modeling app scaffold that converges Python, Kain, C ABI, Rust crate, GPU compute, Node, and native-ui packaging
 - [stdlib](/M:/Code/Kain/stdlib): runtime support and standard library data
 - [testing](/M:/Code/Kain/testing): test infrastructure and fixtures
 

@@ -91,7 +91,7 @@ component App():
                 <panel title="Workspace" scope="studio" variant="metric" layout="column" gap={6}>
                     <text role="eyebrow">FABRIC WORKSPACE</text>
                     <text role="title">gpu_compute_convergence</text>
-                    <text role="caption">Session session-1774567027713-165412</text>
+                    <text role="caption">Session session-1774567939641-142480</text>
                     <text role="caption">Status SUCCEEDED</text>
                 </panel>
                 <tree title="Pipeline Files">
@@ -113,18 +113,18 @@ component App():
                     runtime mix python=1 | kain=1 | gpu_compute=1 | node=1
                 </tree>
                 <tree title="Artifacts">
-                    smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/report.json
-                    smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/events.jsonl
-                    smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/session.lock.json
+                    smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/report.json
+                    smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/events.jsonl
+                    smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/session.lock.json
                 </tree>
             </panel>
 
             <panel title="Inspector" scope="studio" variant="inspector" dock="right" split_ratio={0.22} min_width={280} max_width={380} resizable={true} layout="column" gap={12}>
                 <inspector title="Selection">
                     Fabric session
-                    session-1774567027713-165412
+                    session-1774567939641-142480
                     runtime lanes converged
-                    duration 1242 ms
+                    duration 1151 ms
                     summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32
                 </inspector>
                 <inspector title="Node Verdict">
@@ -152,34 +152,34 @@ component App():
                     <text role="caption">proof gpu-fabric-convergence:1:1:7|gpu=1,2,3,4,0,0,0,0|bytes=32</text>
                 </panel>
                 <timeline title="Session Timeline">
-                    <text role="caption">report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/report.json</text>
-                    <text role="caption">events smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/events.jsonl</text>
-                    <text role="caption">lock smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/session.lock.json</text>
+                    <text role="caption">report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/report.json</text>
+                    <text role="caption">events smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/events.jsonl</text>
+                    <text role="caption">lock smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/session.lock.json</text>
                     <text role="caption">workspace smoketest/fabric/gpu_compute_convergence</text>
                 </timeline>
                 <panel title="Lane Status" scope="studio" variant="metric" layout="grid" columns={2} gap={10}>
             <panel scope="mission" variant="card" title="python_source">
                 <text role="eyebrow">PYTHON</text>
                 <text role="metric">SUCCEEDED</text>
-                <text role="caption">152 ms</text>
+                <text role="caption">129 ms</text>
                 <text role="caption">Outputs: settings</text>
             </panel>
             <panel scope="mission" variant="card" title="kain_orchestrator">
                 <text role="eyebrow">KAIN</text>
                 <text role="metric">SUCCEEDED</text>
-                <text role="caption">8 ms</text>
+                <text role="caption">7 ms</text>
                 <text role="caption">Outputs: src, dst, report</text>
             </panel>
             <panel scope="mission" variant="card" title="gpu_enrich">
                 <text role="eyebrow">GPU_COMPUTE</text>
                 <text role="metric">SUCCEEDED</text>
-                <text role="caption">891 ms</text>
+                <text role="caption">918 ms</text>
                 <text role="caption">Outputs: dst</text>
             </panel>
             <panel scope="mission" variant="card" title="node_packager">
                 <text role="eyebrow">NODE</text>
                 <text role="metric">SUCCEEDED</text>
-                <text role="caption">187 ms</text>
+                <text role="caption">95 ms</text>
                 <text role="caption">Outputs: summary</text>
             </panel>
                 </panel>
@@ -188,7 +188,7 @@ component App():
             <panel title="Viewport" scope="studio" variant="editor" dock="center" tab_group_id="editor-tabs" tab_label="Viewport" tab_order={0} tab_default_active={true} layout="column" gap={12}>
                 <panel title="Editor Header" scope="studio" variant="metric" layout="row" gap={12}>
                     <panel scope="studio" variant="metric"><text role="title">4/4</text><text role="caption">lanes green</text></panel>
-                    <panel scope="studio" variant="metric"><text role="title">1242 ms</text><text role="caption">session duration</text></panel>
+                    <panel scope="studio" variant="metric"><text role="title">1151 ms</text><text role="caption">session duration</text></panel>
                     <panel scope="studio" variant="metric"><text role="title">32</text><text role="caption">GPU bytes</text></panel>
                     <panel scope="studio" variant="metric"><text role="title">SUCCEEDED</text><text role="caption">fabric status</text></panel>
                 </panel>
@@ -203,32 +203,32 @@ component App():
             <panel title="Fabric Graph" scope="studio" variant="editor" dock="center" tab_group_id="editor-tabs" tab_label="Fabric Graph" tab_order={1} tab_closable={true} layout="column" gap={12}>
                 <panel title="Mission Control" scope="studio" variant="metric" layout="column" gap={8}>
                     <text role="eyebrow">LOCAL-FIRST FABRIC</text>
-                    <text role="hero" variant="hero">All four runtime lanes converged in 1242 ms.</text>
+                    <text role="hero" variant="hero">All four runtime lanes converged in 1151 ms.</text>
                     <text role="muted">Final node proof: gpu-fabric-convergence:1:1:7|gpu=1,2,3,4,0,0,0,0|bytes=32</text>
                 </panel>
                 <panel title="Execution Topology" scope="studio" variant="metric" layout="grid" columns={4} gap={10}>
             <panel scope="mission" variant="card" title="python_source">
                 <text role="eyebrow">PYTHON</text>
                 <text role="metric">SUCCEEDED</text>
-                <text role="caption">152 ms</text>
+                <text role="caption">129 ms</text>
                 <text role="caption">Outputs: settings</text>
             </panel>
             <panel scope="mission" variant="card" title="kain_orchestrator">
                 <text role="eyebrow">KAIN</text>
                 <text role="metric">SUCCEEDED</text>
-                <text role="caption">8 ms</text>
+                <text role="caption">7 ms</text>
                 <text role="caption">Outputs: src, dst, report</text>
             </panel>
             <panel scope="mission" variant="card" title="gpu_enrich">
                 <text role="eyebrow">GPU_COMPUTE</text>
                 <text role="metric">SUCCEEDED</text>
-                <text role="caption">891 ms</text>
+                <text role="caption">918 ms</text>
                 <text role="caption">Outputs: dst</text>
             </panel>
             <panel scope="mission" variant="card" title="node_packager">
                 <text role="eyebrow">NODE</text>
                 <text role="metric">SUCCEEDED</text>
-                <text role="caption">187 ms</text>
+                <text role="caption">95 ms</text>
                 <text role="caption">Outputs: summary</text>
             </panel>
                 </panel>
@@ -269,9 +269,9 @@ component App():
                 </panel>
                 <panel title="Properties" scope="studio" variant="metric" layout="column" gap={8}>
                     <inspector title="Fabric Session Properties">
-                        session session-1774567027713-165412
+                        session session-1774567939641-142480
                         status SUCCEEDED
-                        report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/report.json
+                        report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/report.json
                         summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32
                     </inspector>
                 </panel>

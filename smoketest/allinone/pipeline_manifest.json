@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "pipelines": [
+    {
+      "id": "doctor",
+      "type": "kain",
+      "description": "Capture the active compiler, feature, and toolchain surface.",
+      "working_directory": "../..",
+      "args": ["doctor"],
+      "expected_outputs": []
+    },
+    {
+      "id": "import_ts",
+      "type": "kain",
+      "description": "Exercise the direct TypeScript import pipeline.",
+      "working_directory": "outputs/import_ts",
+      "args": [
+        "import-ts",
+        "../../fixtures/import_ts/typescript_bridge.ts",
+        "--output",
+        "typescript_bridge.imported.kn",
+        "--report-json",
+        "typescript_import_report.json"
+      ],
+      "expected_outputs": [
+        "outputs/import_ts/typescript_bridge.imported.kn",
+        "outputs/import_ts/typescript_import_report.json"
+      ]
+    },
+    {
+      "id": "import_asm",
+      "type": "kain",
+      "description": "Exercise the direct assembly import pipeline.",
+      "working_directory": "outputs/import_asm",
+      "args": [
+        "import-asm",
+        "../../fixtures/import_asm/firmware_seed.asm",
+        "--format",
+        "6502-furby"
+      ],
+      "expected_outputs": [
+        "outputs/import_asm/generated/furby_firmware.kn",
+        "outputs/import_asm/generated/furby_map.json",
+        "outputs/import_asm/Research/furby/furby_canonical.asm",
+        "outputs/import_asm/Research/furby/furby_recovery_report.json"
+      ]
+    },
+    {
+      "id": "gpu_artifacts",
+      "type": "kain",
+      "description": "Emit paired SPIR-V, reflection, and Rust GPU host artifacts.",
+      "working_directory": "../..",
+      "args": [
+        "gpu-artifacts",
+        "smoketest/allinone/fixtures/gpu/pipeline_shader.kn",
+        "--output",
+        "smoketest/allinone/outputs/gpu_artifacts/allinone_gpu"
+      ],
+      "expected_outputs": [
+        "outputs/gpu_artifacts/allinone_gpu.spv",
+        "outputs/gpu_artifacts/allinone_gpu.gpu.rs",
+        "outputs/gpu_artifacts/allinone_gpu.reflect.json",
+        "outputs/gpu_artifacts/allinone_gpu.shader_bundle.json"
+      ]
+    },
+    {
+      "id": "omni_build",
+      "type": "kain",
+      "description": "Stage TS, C, and ASM imports and emit omni multi-target outputs.",
+      "working_directory": ".",
+      "args": [
+        "omni",
+        "build",
+        "--manifest",
+        "fixtures/omni/KAIN.omni.toml"
+      ],
+      "expected_outputs": [
+        "outputs/omni/staged/omni_signal.kn",
+        "outputs/omni/staged/omni_math.kn",
+        "outputs/omni/staged/omni_firmware.kn",
+        "outputs/omni/dist/allinone_omni.ts",
+        "outputs/omni/dist/allinone_omni.ks",
+        "outputs/omni/dist/allinone_omni.hlsl",
+        "outputs/omni/dist/allinone_omni.usf",
+        "outputs/omni/dist/allinone_omni.spv",
+        "outputs/omni/dist/gpu_bundle/entry.rs",
+        "outputs/omni/dist/gpu_bundle/entry.gpu.rs",
+        "outputs/omni/dist/gpu_bundle/entry.reflect.json",
+        "outputs/omni/dist/gpu_bundle/entry.spv",
+        "outputs/omni/ue5/AllInOneOmni/Source/AllInOneOmni/Public/AllInOneOmni.h",
+        "outputs/omni/ue5_editor/AllInOneOmniEditor/Source/AllInOneOmniEditor/Public/AllInOneOmniEditor.h"
+      ]
+    },
+    {
+      "id": "fabric_native_build",
+      "type": "process",
+      "description": "Build the local Fabric C ABI sidecar.",
+      "working_directory": ".",
+      "executable": "clang",
+      "args": [
+        "-shared",
+        "-O2",
+        "fixtures/fabric/native/image_fx.c",
+        "-o",
+        "fixtures/fabric/native/image_fx.dll"
+      ],
+      "expected_outputs": [
+        "fixtures/fabric/native/image_fx.dll"
+      ]
+    },
+    {
+      "id": "fabric_validate",
+      "type": "kain",
+      "description": "Validate the combined Fabric manifest.",
+      "working_directory": ".",
+      "args": [
+        "fabric",
+        "validate",
+        "--manifest",
+        "fixtures/fabric/KAIN.fabric.toml"
+      ],
+      "expected_outputs": []
+    },
+    {
+      "id": "fabric_run",
+      "type": "kain",
+      "description": "Run the combined Fabric manifest across all local adapters.",
+      "working_directory": ".",
+      "args": [
+        "fabric",
+        "run",
+        "--manifest",
+        "fixtures/fabric/KAIN.fabric.toml"
+      ],
+      "expected_outputs": [
+        "outputs/fabric/reports"
+      ]
+    },
+    {
+      "id": "ue5_packager",
+      "type": "kain",
+      "description": "Run the local minimal UE5 plugin packager lane.",
+      "working_directory": "fixtures/ue5",
+      "args": [
+        "build",
+        "--ue5"
+      ],
+      "expected_outputs": [
+        "outputs/ue5/AllInOneUe5Smoke/AllInOneUe5Smoke.uplugin"
+      ]
+    }
+  ]
+}

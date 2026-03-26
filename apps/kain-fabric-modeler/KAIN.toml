@@ -1,0 +1,23 @@
+[package]
+name = "kain-fabric-modeler"
+version = "0.1.0"
+authors = ["OpenAI Codex"]
+description = "Fabric-first 3D modeling workbench for the Kain native-ui and native runtime lanes."
+
+[build]
+entry = "generated/main.generated.kn"
+output = "outputs"
+targets = ["run", "ks", "ts", "js", "hybrid"]
+
+[runtime]
+primary_app = "kain_fabric_modeler"
+default_host = "native_ui"
+workspace_manifest = "config/app_manifest.json"
+
+[manifests]
+app = "config/app_manifest.json"
+surfaces = "config/surfaces.json"
+workspace_modes = "config/workspace_modes.json"
+library_catalog = "config/library_catalog.json"
+tools = "config/tool_catalog.json"
+fabric_pipeline = "config/fabric_pipeline.json"

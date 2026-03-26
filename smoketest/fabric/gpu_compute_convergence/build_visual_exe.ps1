@@ -102,6 +102,7 @@ $NativeAppRoot = Join-Path $SmokeRoot "visual-native-app"
 $ExpectedExecutableName = "fabric-studio-3d-editor.exe"
 $ReportsRoot = Join-Path $SmokeRoot ".kain\fabric\reports"
 $NativeCargoTargetDir = Join-Path $SmokeRoot ".kain\native-ui-target"
+$NativeManifestPath = Join-Path $NativeAppRoot "Cargo.toml"
 
 New-Item -ItemType Directory -Force -Path $GeneratedRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $NativeCargoTargetDir | Out-Null
@@ -291,12 +292,26 @@ try {
         "smoketest/fabric/gpu_compute_convergence/visual-native-app"
     )
     if ($Release) {
-        $BuildArguments += "--release"
+        $BuildArguments += "--bundle-only"
     }
 
     & cargo @BuildArguments
     if ($LASTEXITCODE -ne 0) {
         throw "Native UI build failed for the Fabric visual showcase."
+    }
+
+    if ($Release) {
+        & cargo build --manifest-path $NativeManifestPath --release
+        if ($LASTEXITCODE -ne 0) {
+            throw "Release cargo build failed for the Fabric visual showcase."
+        }
+
+        $ManualReleaseExecutable = Join-Path $NativeCargoTargetDir "release\$ExpectedExecutableName"
+        if (-not (Test-Path $ManualReleaseExecutable)) {
+            throw "Release cargo build succeeded but no executable was found at $ManualReleaseExecutable."
+        }
+
+        Copy-Item -Path $ManualReleaseExecutable -Destination (Join-Path $NativeAppRoot $ExpectedExecutableName) -Force
     }
 
     $ExecutablePath = Get-ChildItem -Path $NativeAppRoot -Filter $ExpectedExecutableName -File -ErrorAction SilentlyContinue | Select-Object -First 1

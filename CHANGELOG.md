@@ -5,6 +5,297 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=21f1a814eb10ab12 -->
+## 2026-03-26 19:33:35 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d00d8604`
+- Changed files: 48
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/Cargo.toml`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.ps1`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/Cargo.lock`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/Cargo.toml`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/config/app_manifest.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/state/runtime_snapshot.json`
+- [??] `smoketest/allinone/README.md`
+- [??] `smoketest/allinone/fixtures/fabric/KAIN.fabric.toml`
+- [??] `smoketest/allinone/fixtures/fabric/KAIN.toml`
+- [??] `smoketest/allinone/fixtures/fabric/local_crate/Cargo.toml`
+- [??] `smoketest/allinone/fixtures/fabric/local_crate/src/lib.rs`
+- [??] `smoketest/allinone/fixtures/fabric/native/image_fx.c`
+- [??] `smoketest/allinone/fixtures/fabric/native/image_fx.h`
+- [??] `smoketest/allinone/fixtures/fabric/scripts/node_step.mjs`
+- [??] `smoketest/allinone/fixtures/fabric/scripts/python_step.py`
+- [??] `smoketest/allinone/fixtures/fabric/shaders/gpu_step.kn`
+- [??] `smoketest/allinone/fixtures/fabric/src/main.kn`
+- [??] `smoketest/allinone/fixtures/fabric/src/native_step.kn`
+- [??] `smoketest/allinone/fixtures/fabric/src/rust_step.kn`
+- [??] `smoketest/allinone/fixtures/gpu/pipeline_shader.kn`
+- [??] `smoketest/allinone/fixtures/import_asm/firmware_seed.asm`
+- [??] `smoketest/allinone/fixtures/import_ts/typescript_bridge.ts`
+- [??] `smoketest/allinone/fixtures/omni/KAIN.omni.toml`
+- [??] `smoketest/allinone/fixtures/omni/entry.kn`
+- [??] `smoketest/allinone/fixtures/omni/imports/omni_firmware.asm`
+- [??] `smoketest/allinone/fixtures/omni/imports/omni_math.h`
+- [??] `smoketest/allinone/fixtures/omni/imports/omni_signal.ts`
+- [??] `smoketest/allinone/fixtures/ue5/KAIN.toml`
+- [??] `smoketest/allinone/fixtures/ue5/src/main.kn`
+- [??] `smoketest/allinone/outputs/.gitkeep`
+- [??] `smoketest/allinone/outputs/fabric/.gitkeep`
+- [??] `smoketest/allinone/outputs/gpu_artifacts/.gitkeep`
+- [??] `smoketest/allinone/outputs/import_asm/.gitkeep`
+- [??] `smoketest/allinone/outputs/import_ts/.gitkeep`
+- [??] `smoketest/allinone/outputs/logs/.gitkeep`
+- [??] `smoketest/allinone/outputs/omni/.gitkeep`
+- [??] `smoketest/allinone/outputs/ue5/.gitkeep`
+- [??] `smoketest/allinone/pipeline_manifest.json`
+- [??] `smoketest/allinone/results/.gitkeep`
+- [??] `smoketest/allinone/run_all.bat`
+- [??] `smoketest/allinone/run_all.ps1`
+
+<!-- polytools-changelog:fingerprint=2fe51553c858c547 -->
+## 2026-03-26 19:33:25 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d00d8604`
+- Changed files: 46
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/Cargo.toml`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.ps1`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/Cargo.lock`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/Cargo.toml`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/config/app_manifest.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/state/runtime_snapshot.json`
+- [??] `smoketest/allinone/README.md`
+- [??] `smoketest/allinone/fixtures/fabric/KAIN.fabric.toml`
+- [??] `smoketest/allinone/fixtures/fabric/KAIN.toml`
+- [??] `smoketest/allinone/fixtures/fabric/local_crate/Cargo.toml`
+- [??] `smoketest/allinone/fixtures/fabric/local_crate/src/lib.rs`
+- [??] `smoketest/allinone/fixtures/fabric/native/image_fx.c`
+- [??] `smoketest/allinone/fixtures/fabric/native/image_fx.h`
+- [??] `smoketest/allinone/fixtures/fabric/scripts/node_step.mjs`
+- [??] `smoketest/allinone/fixtures/fabric/scripts/python_step.py`
+- [??] `smoketest/allinone/fixtures/fabric/shaders/gpu_step.kn`
+- [??] `smoketest/allinone/fixtures/fabric/src/main.kn`
+- [??] `smoketest/allinone/fixtures/fabric/src/native_step.kn`
+- [??] `smoketest/allinone/fixtures/fabric/src/rust_step.kn`
+- [??] `smoketest/allinone/fixtures/gpu/pipeline_shader.kn`
+- [??] `smoketest/allinone/fixtures/import_asm/firmware_seed.asm`
+- [??] `smoketest/allinone/fixtures/import_ts/typescript_bridge.ts`
+- [??] `smoketest/allinone/fixtures/omni/KAIN.omni.toml`
+- [??] `smoketest/allinone/fixtures/omni/entry.kn`
+- [??] `smoketest/allinone/fixtures/omni/imports/omni_firmware.asm`
+- [??] `smoketest/allinone/fixtures/omni/imports/omni_math.h`
+- [??] `smoketest/allinone/fixtures/omni/imports/omni_signal.ts`
+- [??] `smoketest/allinone/outputs/.gitkeep`
+- [??] `smoketest/allinone/outputs/fabric/.gitkeep`
+- [??] `smoketest/allinone/outputs/gpu_artifacts/.gitkeep`
+- [??] `smoketest/allinone/outputs/import_asm/.gitkeep`
+- [??] `smoketest/allinone/outputs/import_ts/.gitkeep`
+- [??] `smoketest/allinone/outputs/logs/.gitkeep`
+- [??] `smoketest/allinone/outputs/omni/.gitkeep`
+- [??] `smoketest/allinone/outputs/ue5/.gitkeep`
+- [??] `smoketest/allinone/pipeline_manifest.json`
+- [??] `smoketest/allinone/results/.gitkeep`
+- [??] `smoketest/allinone/run_all.bat`
+- [??] `smoketest/allinone/run_all.ps1`
+
+<!-- polytools-changelog:fingerprint=f14a84665fd37f5d -->
+## 2026-03-26 19:32:10 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d00d8604`
+- Changed files: 34
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/Cargo.toml`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.ps1`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/Cargo.lock`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/Cargo.toml`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/config/app_manifest.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/state/runtime_snapshot.json`
+- [??] `smoketest/allinone/README.md`
+- [??] `smoketest/allinone/fixtures/gpu/pipeline_shader.kn`
+- [??] `smoketest/allinone/fixtures/import_asm/firmware_seed.asm`
+- [??] `smoketest/allinone/fixtures/import_ts/typescript_bridge.ts`
+- [??] `smoketest/allinone/fixtures/omni/KAIN.omni.toml`
+- [??] `smoketest/allinone/fixtures/omni/entry.kn`
+- [??] `smoketest/allinone/fixtures/omni/imports/omni_firmware.asm`
+- [??] `smoketest/allinone/fixtures/omni/imports/omni_math.h`
+- [??] `smoketest/allinone/fixtures/omni/imports/omni_signal.ts`
+- [??] `smoketest/allinone/outputs/.gitkeep`
+- [??] `smoketest/allinone/outputs/fabric/.gitkeep`
+- [??] `smoketest/allinone/outputs/gpu_artifacts/.gitkeep`
+- [??] `smoketest/allinone/outputs/import_asm/.gitkeep`
+- [??] `smoketest/allinone/outputs/import_ts/.gitkeep`
+- [??] `smoketest/allinone/outputs/logs/.gitkeep`
+- [??] `smoketest/allinone/outputs/omni/.gitkeep`
+- [??] `smoketest/allinone/outputs/ue5/.gitkeep`
+- [??] `smoketest/allinone/pipeline_manifest.json`
+- [??] `smoketest/allinone/results/.gitkeep`
+- [??] `smoketest/allinone/run_all.bat`
+- [??] `smoketest/allinone/run_all.ps1`
+
+<!-- polytools-changelog:fingerprint=592796dbf2dbc8ed -->
+## 2026-03-26 19:31:53 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d00d8604`
+- Changed files: 29
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/Cargo.toml`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.ps1`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/Cargo.lock`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/Cargo.toml`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/config/app_manifest.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/state/runtime_snapshot.json`
+- [??] `smoketest/allinone/README.md`
+- [??] `smoketest/allinone/fixtures/gpu/pipeline_shader.kn`
+- [??] `smoketest/allinone/fixtures/import_asm/firmware_seed.asm`
+- [??] `smoketest/allinone/fixtures/import_ts/typescript_bridge.ts`
+- [??] `smoketest/allinone/outputs/.gitkeep`
+- [??] `smoketest/allinone/outputs/fabric/.gitkeep`
+- [??] `smoketest/allinone/outputs/gpu_artifacts/.gitkeep`
+- [??] `smoketest/allinone/outputs/import_asm/.gitkeep`
+- [??] `smoketest/allinone/outputs/import_ts/.gitkeep`
+- [??] `smoketest/allinone/outputs/logs/.gitkeep`
+- [??] `smoketest/allinone/outputs/omni/.gitkeep`
+- [??] `smoketest/allinone/outputs/ue5/.gitkeep`
+- [??] `smoketest/allinone/pipeline_manifest.json`
+- [??] `smoketest/allinone/results/.gitkeep`
+- [??] `smoketest/allinone/run_all.bat`
+- [??] `smoketest/allinone/run_all.ps1`
+
+<!-- polytools-changelog:fingerprint=a9bee33c8812e6c6 -->
+## 2026-03-26 19:31:47 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d00d8604`
+- Changed files: 28
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/Cargo.toml`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/Cargo.lock`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/Cargo.toml`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/config/app_manifest.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/state/runtime_snapshot.json`
+- [??] `smoketest/allinone/README.md`
+- [??] `smoketest/allinone/fixtures/gpu/pipeline_shader.kn`
+- [??] `smoketest/allinone/fixtures/import_asm/firmware_seed.asm`
+- [??] `smoketest/allinone/fixtures/import_ts/typescript_bridge.ts`
+- [??] `smoketest/allinone/outputs/.gitkeep`
+- [??] `smoketest/allinone/outputs/fabric/.gitkeep`
+- [??] `smoketest/allinone/outputs/gpu_artifacts/.gitkeep`
+- [??] `smoketest/allinone/outputs/import_asm/.gitkeep`
+- [??] `smoketest/allinone/outputs/import_ts/.gitkeep`
+- [??] `smoketest/allinone/outputs/logs/.gitkeep`
+- [??] `smoketest/allinone/outputs/omni/.gitkeep`
+- [??] `smoketest/allinone/outputs/ue5/.gitkeep`
+- [??] `smoketest/allinone/pipeline_manifest.json`
+- [??] `smoketest/allinone/results/.gitkeep`
+- [??] `smoketest/allinone/run_all.bat`
+- [??] `smoketest/allinone/run_all.ps1`
+
+<!-- polytools-changelog:fingerprint=c665b9471fe08b8b -->
+## 2026-03-26 19:30:40 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d00d8604`
+- Changed files: 27
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/Cargo.toml`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/Cargo.lock`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/Cargo.toml`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/config/app_manifest.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/state/runtime_snapshot.json`
+- [??] `smoketest/allinone/README.md`
+- [??] `smoketest/allinone/fixtures/gpu/pipeline_shader.kn`
+- [??] `smoketest/allinone/fixtures/import_asm/firmware_seed.asm`
+- [??] `smoketest/allinone/fixtures/import_ts/typescript_bridge.ts`
+- [??] `smoketest/allinone/outputs/.gitkeep`
+- [??] `smoketest/allinone/outputs/fabric/.gitkeep`
+- [??] `smoketest/allinone/outputs/gpu_artifacts/.gitkeep`
+- [??] `smoketest/allinone/outputs/import_asm/.gitkeep`
+- [??] `smoketest/allinone/outputs/import_ts/.gitkeep`
+- [??] `smoketest/allinone/outputs/logs/.gitkeep`
+- [??] `smoketest/allinone/outputs/omni/.gitkeep`
+- [??] `smoketest/allinone/outputs/ue5/.gitkeep`
+- [??] `smoketest/allinone/pipeline_manifest.json`
+- [??] `smoketest/allinone/results/.gitkeep`
+- [??] `smoketest/allinone/run_all.bat`
+
+<!-- polytools-changelog:fingerprint=1fa05209c5ed13c5 -->
+## 2026-03-26 19:25:29 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d00d8604`
+- Changed files: 12
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/Cargo.toml`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/Cargo.lock`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/Cargo.toml`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/config/app_manifest.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/state/runtime_snapshot.json`
+
+<!-- polytools-changelog:fingerprint=a63b2b185774b2ec -->
+## 2026-03-26 19:24:45 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d00d8604`
+- Changed files: 7
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui-native/Cargo.toml`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+
+<!-- polytools-changelog:fingerprint=60537a6f43a801c0 -->
+## 2026-03-26 19:24:19 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d00d8604`
+- Changed files: 6
+- [.M] `crates/kain-ui-native/Cargo.toml`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+
 <!-- polytools-changelog:fingerprint=8d903d5f878213b0 -->
 ## 2026-03-26 19:19:04 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

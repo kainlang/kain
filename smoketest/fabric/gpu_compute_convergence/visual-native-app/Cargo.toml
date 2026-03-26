@@ -1,5 +1,5 @@
 [package]
-name = "fabric-gpu-visual-showcase"
+name = "fabric-studio-3d-editor"
 version = "0.1.0"
 edition = "2021"
 

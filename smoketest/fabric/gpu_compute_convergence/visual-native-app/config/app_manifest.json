@@ -1,10 +1,10 @@
 {
-  "app_id": "fabric.gpu.visual.showcase",
-  "name": "Fabric GPU Visual Showcase",
+  "app_id": "fabric.studio.3d.editor",
+  "name": "Fabric Studio 3D Editor",
   "version": "0.1.0",
-  "window_title": "Fabric GPU Visual Showcase",
+  "window_title": "Fabric Studio 3D Editor",
   "root_component": "App",
-  "layout_id": "fabric_gpu_visual_showcase_shell",
+  "layout_id": "fabric_studio_3d_editor_shell",
   "required_runtime_capabilities": [
     "compiler.typed-program",
     "driver.native-app-bundle",

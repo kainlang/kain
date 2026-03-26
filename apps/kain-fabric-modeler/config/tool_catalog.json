@@ -1,0 +1,44 @@
+{
+  "tools": [
+    {
+      "id": "select",
+      "label": "Select",
+      "summary": "Selection, hierarchy filtering, and transform handoff."
+    },
+    {
+      "id": "extrude",
+      "label": "Extrude",
+      "summary": "Poly modeling and shell generation."
+    },
+    {
+      "id": "boolean",
+      "label": "Boolean",
+      "summary": "Destructive and non-destructive mesh cutting."
+    },
+    {
+      "id": "sculpt_clay",
+      "label": "Clay Sculpt",
+      "summary": "Brush-based form building with native preview stamping."
+    },
+    {
+      "id": "voxel_remesh",
+      "label": "Voxel Remesh",
+      "summary": "Topology reset and sculpt mesh cleanup."
+    },
+    {
+      "id": "uv_pack",
+      "label": "UV Pack",
+      "summary": "Chart packing and texel density review."
+    },
+    {
+      "id": "material_paint",
+      "label": "Material Paint",
+      "summary": "Mask, ID, and layer authoring."
+    },
+    {
+      "id": "publish_bundle",
+      "label": "Publish Bundle",
+      "summary": "Fabric summary, bundle materialization, and export review."
+    }
+  ]
+}

@@ -10,6 +10,22 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-26 - Kain Fabric Modeler App Scaffold Added Under /apps
+
+The repo now has a dedicated Fabric-first native modeling app scaffold at `apps/kain-fabric-modeler`.
+
+Update:
+
+- The new app is intentionally split into config-driven shell registries, a `KAIN.fabric.toml` execution graph, Kain-authored Fabric glue, a C ABI brush helper, a Rust topology helper crate, a GPU preview shader, and native-ui materialization scripts.
+- The Fabric app uses every current repo-local runtime kind that the new executor supports in one place: `python`, `kain`, `c_abi`, `rust_crate`, `gpu_compute`, and `node`.
+- The native shell is not the source of truth. `generated/main.generated.kn` is materialized from app config, while Fabric remains the orchestration spine for authoring/bootstrap outputs.
+
+What future work should preserve:
+
+- keep shell presentation data-driven through `config/*.json` instead of letting the generated shell become the only editable surface
+- keep Kain as the owner of modeling semantics and Fabric as the owner of runtime graph execution
+- keep the narrow C and Rust helpers as replaceable proof adapters rather than letting them absorb editor semantics
+
 ## 2026-03-26 - SM64 Level Chunk Extract + Navigate + Actor Transform + Shader Override Architecture
 
 The Fast3D runtime now supports loading and navigating real SM64 level geometry, not just Mario's title-screen face.

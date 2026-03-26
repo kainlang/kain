@@ -9,11 +9,12 @@ bytemuck = { workspace = true }
 eframe = { version = "0.31", features = ["wgpu"] }
 egui-wgpu = "0.31"
 kain-3d = { path = "../kain-3D" }
+fdsm = "0.8.0"
+fdsm-ttf-parser = "0.2.0"
+image = { version = "0.25.6", default-features = false }
 kain-core = { path = "../kain-core" }
 kain-ui = { path = "../kain-ui" }
-mint = "0.5.9"
-msdf = "0.2.1"
+nalgebra = "0.34.1"
 serde = { workspace = true }
 serde_json = { workspace = true }
-ttf-parser = "0.15.2"
 wgpu = { workspace = true }

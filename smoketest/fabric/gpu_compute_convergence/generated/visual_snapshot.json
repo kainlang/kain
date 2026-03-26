@@ -1,8 +1,8 @@
 {
-    "session_id":  "session-1774567027713-165412",
+    "session_id":  "session-1774567939641-142480",
     "status":  "succeeded",
     "summary":  "gpu-fabric-convergence:1:1:7|gpu=1,2,3,4,0,0,0,0|bytes=32",
-    "duration_ms":  1242,
+    "duration_ms":  1151,
     "gpu_signature":  "1,2,3,4,0,0,0,0",
     "gpu_byte_length":  32,
     "runtime_counts":  [
@@ -11,9 +11,9 @@
                            "gpu_compute=1",
                            "node=1"
                        ],
-    "report_path":  "smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/report.json",
-    "events_path":  "smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/events.jsonl",
-    "lock_path":  "smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/session.lock.json",
+    "report_path":  "smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/report.json",
+    "events_path":  "smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/events.jsonl",
+    "lock_path":  "smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/session.lock.json",
     "generated_source":  "smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn",
     "visual_native_app_root":  "smoketest/fabric/gpu_compute_convergence/visual-native-app",
     "steps":  [
@@ -21,14 +21,14 @@
                       "id":  "python_source",
                       "runtime":  "python",
                       "status":  "succeeded",
-                      "duration_ms":  152,
+                      "duration_ms":  129,
                       "outputs":  "settings"
                   },
                   {
                       "id":  "kain_orchestrator",
                       "runtime":  "kain",
                       "status":  "succeeded",
-                      "duration_ms":  8,
+                      "duration_ms":  7,
                       "outputs":  [
                                       "src",
                                       "dst",
@@ -39,14 +39,14 @@
                       "id":  "gpu_enrich",
                       "runtime":  "gpu_compute",
                       "status":  "succeeded",
-                      "duration_ms":  891,
+                      "duration_ms":  918,
                       "outputs":  "dst"
                   },
                   {
                       "id":  "node_packager",
                       "runtime":  "node",
                       "status":  "succeeded",
-                      "duration_ms":  187,
+                      "duration_ms":  95,
                       "outputs":  "summary"
                   }
               ]

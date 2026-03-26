@@ -1,0 +1,35 @@
+{
+  "app_id": "kain.fabric.modeler",
+  "name": "Kain Fabric Modeler",
+  "version": "0.1.0",
+  "window_title": "Kain Fabric Modeler",
+  "root_component": "App",
+  "layout_id": "kain_fabric_modeler_shell",
+  "manifests": {
+    "surfaces": "config/surfaces.json",
+    "workspace_modes": "config/workspace_modes.json",
+    "library_catalog": "config/library_catalog.json",
+    "tools": "config/tool_catalog.json",
+    "fabric_pipeline": "config/fabric_pipeline.json"
+  },
+  "required_runtime_capabilities": [
+    "ui.runtime",
+    "actor.runtime",
+    "async.runtime",
+    "host.bridge",
+    "reflection",
+    "gfx.viewport",
+    "scene.runtime",
+    "scene.query",
+    "scene.mutation",
+    "asset.gltf",
+    "asset.realtime",
+    "ui.bundle",
+    "device.reflection"
+  ],
+  "target_outputs": [
+    "fabric-report",
+    "native-ui-bundle",
+    "native-exe"
+  ]
+}

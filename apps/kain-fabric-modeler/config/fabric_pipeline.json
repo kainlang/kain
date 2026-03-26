@@ -1,0 +1,34 @@
+{
+  "steps": [
+    {
+      "id": "python_project_seed",
+      "runtime": "python",
+      "summary": "Seeds project defaults, viewport sizing, brush accent, and mesh counts."
+    },
+    {
+      "id": "model_seed",
+      "runtime": "kain",
+      "summary": "Authors the scene seed, mesh stream, preview image, and scene report."
+    },
+    {
+      "id": "native_brush",
+      "runtime": "c_abi",
+      "summary": "Uses the native helper to stamp the preview and emit a brush snapshot."
+    },
+    {
+      "id": "topology_analyzer",
+      "runtime": "rust_crate",
+      "summary": "Computes topology-facing checksums and health reporting."
+    },
+    {
+      "id": "gpu_preview",
+      "runtime": "gpu_compute",
+      "summary": "Runs the preview stream through the Fabric GPU path."
+    },
+    {
+      "id": "node_publisher",
+      "runtime": "node",
+      "summary": "Builds the operator-facing publish/export summary."
+    }
+  ]
+}

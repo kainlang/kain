@@ -739,7 +739,7 @@
               "String": "caption"
             },
             "text": {
-              "String": "Session session-1774567027713-165412"
+              "String": "Session session-1774567939641-142480"
             }
           },
           "children": [],
@@ -1096,7 +1096,7 @@
           "kind": "Text",
           "props": {
             "text": {
-              "String": "smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/report.json smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/events.jsonl smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/session.lock.json "
+              "String": "smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/report.json smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/events.jsonl smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/session.lock.json "
             }
           },
           "children": [],
@@ -1253,7 +1253,7 @@
           "kind": "Text",
           "props": {
             "text": {
-              "String": "Fabric session session-1774567027713-165412 runtime lanes converged duration 1242 ms summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32 "
+              "String": "Fabric session session-1774567939641-142480 runtime lanes converged duration 1151 ms summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32 "
             }
           },
           "children": [],
@@ -2080,7 +2080,7 @@
               "String": "caption"
             },
             "text": {
-              "String": "report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/report.json"
+              "String": "report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/report.json"
             }
           },
           "children": [],
@@ -2131,7 +2131,7 @@
               "String": "caption"
             },
             "text": {
-              "String": "events smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/events.jsonl"
+              "String": "events smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/events.jsonl"
             }
           },
           "children": [],
@@ -2182,7 +2182,7 @@
               "String": "caption"
             },
             "text": {
-              "String": "lock smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/session.lock.json"
+              "String": "lock smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/session.lock.json"
             }
           },
           "children": [],
@@ -2442,7 +2442,7 @@
               "String": "caption"
             },
             "text": {
-              "String": "152 ms"
+              "String": "129 ms"
             }
           },
           "children": [],
@@ -2702,7 +2702,7 @@
               "String": "caption"
             },
             "text": {
-              "String": "8 ms"
+              "String": "7 ms"
             }
           },
           "children": [],
@@ -2962,7 +2962,7 @@
               "String": "caption"
             },
             "text": {
-              "String": "891 ms"
+              "String": "918 ms"
             }
           },
           "children": [],
@@ -3222,7 +3222,7 @@
               "String": "caption"
             },
             "text": {
-              "String": "187 ms"
+              "String": "95 ms"
             }
           },
           "children": [],
@@ -3647,7 +3647,7 @@
               "String": "title"
             },
             "text": {
-              "String": "1242 ms"
+              "String": "1151 ms"
             }
           },
           "children": [],
@@ -4530,7 +4530,7 @@
               "String": "hero"
             },
             "text": {
-              "String": "All four runtime lanes converged in 1242 ms."
+              "String": "All four runtime lanes converged in 1151 ms."
             }
           },
           "children": [],
@@ -4789,7 +4789,7 @@
               "String": "caption"
             },
             "text": {
-              "String": "152 ms"
+              "String": "129 ms"
             }
           },
           "children": [],
@@ -5049,7 +5049,7 @@
               "String": "caption"
             },
             "text": {
-              "String": "8 ms"
+              "String": "7 ms"
             }
           },
           "children": [],
@@ -5309,7 +5309,7 @@
               "String": "caption"
             },
             "text": {
-              "String": "891 ms"
+              "String": "918 ms"
             }
           },
           "children": [],
@@ -5569,7 +5569,7 @@
               "String": "caption"
             },
             "text": {
-              "String": "187 ms"
+              "String": "95 ms"
             }
           },
           "children": [],
@@ -6513,7 +6513,7 @@
           "kind": "Text",
           "props": {
             "text": {
-              "String": "session session-1774567027713-165412 status SUCCEEDED report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/report.json summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32 "
+              "String": "session session-1774567939641-142480 status SUCCEEDED report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/report.json summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32 "
             }
           },
           "children": [],
@@ -7712,7 +7712,7 @@
                 "String": "caption"
               },
               "text": {
-                "String": "Session session-1774567027713-165412"
+                "String": "Session session-1774567939641-142480"
               }
             },
             "children": [],
@@ -8124,7 +8124,7 @@
             "kind": "Text",
             "props": {
               "text": {
-                "String": "smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/report.json smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/events.jsonl smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/session.lock.json "
+                "String": "smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/report.json smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/events.jsonl smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/session.lock.json "
               }
             },
             "children": [],
@@ -8312,7 +8312,7 @@
             "kind": "Text",
             "props": {
               "text": {
-                "String": "Fabric session session-1774567027713-165412 runtime lanes converged duration 1242 ms summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32 "
+                "String": "Fabric session session-1774567939641-142480 runtime lanes converged duration 1151 ms summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32 "
               }
             },
             "children": [],
@@ -9259,7 +9259,7 @@
                 "String": "caption"
               },
               "text": {
-                "String": "report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/report.json"
+                "String": "report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/report.json"
               }
             },
             "children": [],
@@ -9314,7 +9314,7 @@
                 "String": "caption"
               },
               "text": {
-                "String": "events smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/events.jsonl"
+                "String": "events smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/events.jsonl"
               }
             },
             "children": [],
@@ -9369,7 +9369,7 @@
                 "String": "caption"
               },
               "text": {
-                "String": "lock smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/session.lock.json"
+                "String": "lock smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/session.lock.json"
               }
             },
             "children": [],
@@ -9660,7 +9660,7 @@
                 "String": "caption"
               },
               "text": {
-                "String": "152 ms"
+                "String": "129 ms"
               }
             },
             "children": [],
@@ -9951,7 +9951,7 @@
                 "String": "caption"
               },
               "text": {
-                "String": "8 ms"
+                "String": "7 ms"
               }
             },
             "children": [],
@@ -10242,7 +10242,7 @@
                 "String": "caption"
               },
               "text": {
-                "String": "891 ms"
+                "String": "918 ms"
               }
             },
             "children": [],
@@ -10533,7 +10533,7 @@
                 "String": "caption"
               },
               "text": {
-                "String": "187 ms"
+                "String": "95 ms"
               }
             },
             "children": [],
@@ -11031,7 +11031,7 @@
                 "String": "title"
               },
               "text": {
-                "String": "1242 ms"
+                "String": "1151 ms"
               }
             },
             "children": [],
@@ -12040,7 +12040,7 @@
                 "String": "hero"
               },
               "text": {
-                "String": "All four runtime lanes converged in 1242 ms."
+                "String": "All four runtime lanes converged in 1151 ms."
               }
             },
             "children": [],
@@ -12329,7 +12329,7 @@
                 "String": "caption"
               },
               "text": {
-                "String": "152 ms"
+                "String": "129 ms"
               }
             },
             "children": [],
@@ -12620,7 +12620,7 @@
                 "String": "caption"
               },
               "text": {
-                "String": "8 ms"
+                "String": "7 ms"
               }
             },
             "children": [],
@@ -12911,7 +12911,7 @@
                 "String": "caption"
               },
               "text": {
-                "String": "891 ms"
+                "String": "918 ms"
               }
             },
             "children": [],
@@ -13202,7 +13202,7 @@
                 "String": "caption"
               },
               "text": {
-                "String": "187 ms"
+                "String": "95 ms"
               }
             },
             "children": [],
@@ -14316,7 +14316,7 @@
             "kind": "Text",
             "props": {
               "text": {
-                "String": "session session-1774567027713-165412 status SUCCEEDED report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/report.json summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32 "
+                "String": "session session-1774567939641-142480 status SUCCEEDED report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/report.json summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32 "
               }
             },
             "children": [],
@@ -15946,7 +15946,7 @@
         "depth": 5,
         "kind": "Text",
         "title": null,
-        "text": "Session session-1774567027713-165412",
+        "text": "Session session-1774567939641-142480",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -16100,7 +16100,7 @@
         "depth": 5,
         "kind": "Text",
         "title": null,
-        "text": "smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/report.json smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/events.jsonl smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/session.lock.json ",
+        "text": "smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/report.json smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/events.jsonl smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/session.lock.json ",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -16166,7 +16166,7 @@
         "depth": 5,
         "kind": "Text",
         "title": null,
-        "text": "Fabric session session-1774567027713-165412 runtime lanes converged duration 1242 ms summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32 ",
+        "text": "Fabric session session-1774567939641-142480 runtime lanes converged duration 1151 ms summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32 ",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -16518,7 +16518,7 @@
         "depth": 5,
         "kind": "Text",
         "title": null,
-        "text": "report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/report.json",
+        "text": "report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/report.json",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -16540,7 +16540,7 @@
         "depth": 5,
         "kind": "Text",
         "title": null,
-        "text": "events smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/events.jsonl",
+        "text": "events smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/events.jsonl",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -16562,7 +16562,7 @@
         "depth": 5,
         "kind": "Text",
         "title": null,
-        "text": "lock smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/session.lock.json",
+        "text": "lock smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/session.lock.json",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -16694,7 +16694,7 @@
         "depth": 6,
         "kind": "Text",
         "title": null,
-        "text": "152 ms",
+        "text": "129 ms",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -16804,7 +16804,7 @@
         "depth": 6,
         "kind": "Text",
         "title": null,
-        "text": "8 ms",
+        "text": "7 ms",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -16914,7 +16914,7 @@
         "depth": 6,
         "kind": "Text",
         "title": null,
-        "text": "891 ms",
+        "text": "918 ms",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -17024,7 +17024,7 @@
         "depth": 6,
         "kind": "Text",
         "title": null,
-        "text": "187 ms",
+        "text": "95 ms",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -17200,7 +17200,7 @@
         "depth": 6,
         "kind": "Text",
         "title": null,
-        "text": "1242 ms",
+        "text": "1151 ms",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -17552,7 +17552,7 @@
         "depth": 5,
         "kind": "Text",
         "title": null,
-        "text": "All four runtime lanes converged in 1242 ms.",
+        "text": "All four runtime lanes converged in 1151 ms.",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -17684,7 +17684,7 @@
         "depth": 6,
         "kind": "Text",
         "title": null,
-        "text": "152 ms",
+        "text": "129 ms",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -17794,7 +17794,7 @@
         "depth": 6,
         "kind": "Text",
         "title": null,
-        "text": "8 ms",
+        "text": "7 ms",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -17904,7 +17904,7 @@
         "depth": 6,
         "kind": "Text",
         "title": null,
-        "text": "891 ms",
+        "text": "918 ms",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -18014,7 +18014,7 @@
         "depth": 6,
         "kind": "Text",
         "title": null,
-        "text": "187 ms",
+        "text": "95 ms",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
@@ -18410,7 +18410,7 @@
         "depth": 6,
         "kind": "Text",
         "title": null,
-        "text": "session session-1774567027713-165412 status SUCCEEDED report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/report.json summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32 ",
+        "text": "session session-1774567939641-142480 status SUCCEEDED report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567939641-142480/report.json summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32 ",
         "tag": null,
         "scene": null,
         "layout_kind": "Flow",
