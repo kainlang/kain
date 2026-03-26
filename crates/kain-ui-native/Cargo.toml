@@ -11,6 +11,9 @@ egui-wgpu = "0.31"
 kain-3d = { path = "../kain-3D" }
 kain-core = { path = "../kain-core" }
 kain-ui = { path = "../kain-ui" }
+mint = "0.5.9"
+msdf = "0.2.1"
 serde = { workspace = true }
 serde_json = { workspace = true }
+ttf-parser = "0.15.2"
 wgpu = { workspace = true }

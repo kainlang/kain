@@ -4,10 +4,10 @@
   "render": {
     "scenes": [
       {
-        "viewport_node": "surface.node.81",
+        "viewport_node": "surface.node.26",
         "viewport_kind": "viewport3d",
-        "scene": "magma_terraces",
-        "title": "Fabric Studio Viewport",
+        "scene": "luminous_port",
+        "title": "Luminous Port",
         "material_refs": [],
         "shader_bundle_ref_keys": []
       }

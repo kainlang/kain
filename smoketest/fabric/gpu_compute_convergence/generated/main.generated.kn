@@ -1,172 +1,280 @@
 component App():
-    render <slot layout="column" gap={18} padding={18} overflow_y="scroll">
-        <theme name="fabric_visual_showcase">
-            <scope name="mission" selector="fabric-mission" />
+    render <slot>
+        <theme name="fabric_editor_showcase">
+            <scope name="studio" selector="fabric-studio" />
             <token name="theme.chrome.topbar.visible" category="chrome" value={false} />
-            <token name="theme.spacing.scale" category="space" value={1.08} />
-            <token name="theme.radius.scale" category="surface" value={1.18} />
-            <token name="theme.typography.scale" category="type" value={1.05} />
+            <token name="theme.spacing.scale" category="space" value={1.02} />
+            <token name="theme.radius.scale" category="surface" value={1.06} />
+            <token name="theme.typography.scale" category="type" value={1.02} />
             <token name="theme.background.top" category="color" value="#050913" />
-            <token name="theme.background.bottom" category="color" value="#0c1730" />
-            <token name="theme.surface.base" category="color" value="#0f1c37" />
-            <token name="theme.surface.alt" category="color" value="#14264a" />
-            <token name="theme.surface.raised" category="color" value="#1b315d" />
-            <token name="theme.surface.overlay" category="color" value="#091220dd" />
+            <token name="theme.background.bottom" category="color" value="#0a1427" />
+            <token name="theme.surface.base" category="color" value="#0d1628" />
+            <token name="theme.surface.alt" category="color" value="#101d33" />
+            <token name="theme.surface.raised" category="color" value="#142440" />
+            <token name="theme.surface.overlay" category="color" value="#091120f2" />
+            <token name="theme.outline.soft" category="color" value="#1c3356" />
+            <token name="theme.outline.bright" category="color" value="#469cd8" />
             <token name="theme.accent.primary" category="color" value="#469cd8" />
             <token name="theme.accent.soft" category="color" value="#a2e0f4" />
             <token name="theme.highlight" category="color" value="#ffc860" />
-            <token name="theme.text.default" category="color" value="#f5fbff" />
-            <token name="theme.text.muted" category="color" value="#98b4d4" />
+            <token name="theme.text.default" category="color" value="#f3f8ff" />
+            <token name="theme.text.muted" category="color" value="#94aac6" />
             <token name="widget.panel.surface.mode" category="surface" value="glass" />
+            <token name="widget.inspector.surface.mode" category="surface" value="layered" />
+            <token name="widget.tree.surface.mode" category="surface" value="flat" />
+            <token name="widget.graph.surface.mode" category="surface" value="canvas" />
+            <token name="widget.timeline.surface.mode" category="surface" value="canvas" />
             <token name="widget.viewport3d.surface.mode" category="surface" value="canvas" />
-            <variant scope="mission" name="nav">
+            <variant scope="studio" name="shell_root">
                 <token name="surface.mode" category="surface" value="ghost" />
+                <token name="surface.padding" category="space" value={6} />
+                <token name="title.visible" category="state" value={false} />
             </variant>
-            <variant scope="mission" name="hero">
-                <token name="surface.mode" category="surface" value="glass" />
-                <token name="accent.color" category="color" value="#469cd8" />
-            </variant>
-            <variant scope="mission" name="section">
-                <token name="surface.mode" category="surface" value="layered" />
-            </variant>
-            <variant scope="mission" name="card">
+            <variant scope="studio" name="activity">
                 <token name="surface.mode" category="surface" value="flat" />
-            </variant>
-            <widget kind="panel" scope="mission" variant="nav">
-                <token name="density" category="layout" value="compact" />
                 <token name="surface.padding" category="space" value={10} />
-            </widget>
-            <widget kind="panel" scope="mission" variant="hero">
-                <token name="density" category="layout" value="compact" />
-                <token name="surface.padding" category="space" value={18} />
-            </widget>
-            <widget kind="panel" scope="mission" variant="section">
-                <token name="surface.padding" category="space" value={16} />
-            </widget>
-            <widget kind="panel" scope="mission" variant="card">
+            </variant>
+            <variant scope="studio" name="sidebar">
+                <token name="surface.mode" category="surface" value="layered" />
+                <token name="surface.padding" category="space" value={12} />
+            </variant>
+            <variant scope="studio" name="editor">
+                <token name="surface.mode" category="surface" value="glass" />
                 <token name="surface.padding" category="space" value={14} />
+            </variant>
+            <variant scope="studio" name="inspector">
+                <token name="surface.mode" category="surface" value="layered" />
+                <token name="surface.padding" category="space" value={12} />
+            </variant>
+            <variant scope="studio" name="terminal">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.padding" category="space" value={12} />
+            </variant>
+            <variant scope="studio" name="metric">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.padding" category="space" value={12} />
+            </variant>
+            <widget kind="panel" scope="studio" variant="activity">
+                <token name="density" category="layout" value="compact" />
             </widget>
-            <textvariant scope="mission" name="hero">
-                <token name="body.size" category="type" value={33} />
+            <widget kind="panel" scope="studio" variant="sidebar">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="panel" scope="studio" variant="editor">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="panel" scope="studio" variant="inspector">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="panel" scope="studio" variant="terminal">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="panel" scope="studio" variant="metric">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <textvariant scope="studio" name="hero">
+                <token name="body.size" category="type" value={28} />
             </textvariant>
         </theme>
 
-        <panel scope="mission" variant="nav" layout="row" gap={14} class="compact">
-            <slot layout="column" gap={3}>
-                <text role="eyebrow">LOCAL-FIRST FABRIC</text>
-                <text role="caption">Python -> Kain -> GPU -> Node native proof artifact</text>
-            </slot>
-            <slot layout="row" gap={10}>
-                <text role="caption">Session session-1774566265603-2624</text>
-                <text role="caption">Status SUCCEEDED</text>
-                <text role="caption">Runtime mix python=1 | kain=1 | gpu_compute=1 | node=1</text>
-            </slot>
-        </panel>
+        <panel title="Fabric Studio" scope="studio" variant="shell_root" layout="dock" persistent_layout_id="fabric_gpu_editor_showcase" gap={12} padding={12}>
+            <panel title="Activity Rail" scope="studio" variant="activity" dock="left" split_ratio={0.05} min_width={72} max_width={90} resizable={true} layout="column" gap={10}>
+                <text role="eyebrow">STUDIO</text>
+                <panel scope="studio" variant="metric"><text role="title">EXPL</text></panel>
+                <panel scope="studio" variant="metric"><text role="title">SEARCH</text></panel>
+                <panel scope="studio" variant="metric"><text role="title">FAB</text></panel>
+                <panel scope="studio" variant="metric"><text role="title">GPU</text></panel>
+                <panel scope="studio" variant="metric"><text role="title">NODE</text></panel>
+            </panel>
 
-        <panel title="Fabric Hero" scope="mission" variant="hero" layout="grid" columns={2} gap={18}>
-            <slot layout="column" gap={12}>
-                <text role="eyebrow">Mission Control</text>
-                <text role="hero" variant="hero">All four runtime lanes converged in 776 ms.</text>
-                <text role="muted">Final node proof: gpu-fabric-convergence:1:1:7|gpu=1,2,3,4,0,0,0,0|bytes=32</text>
-                <slot layout="row" gap={12}>
-                    <panel scope="mission" variant="card">
-                        <text role="metric">4/4</text>
-                        <text role="caption">steps green</text>
-                    </panel>
-                    <panel scope="mission" variant="card">
-                        <text role="metric">776 ms</text>
-                        <text role="caption">session duration</text>
-                    </panel>
-                    <panel scope="mission" variant="card">
-                        <text role="metric">32</text>
-                        <text role="caption">GPU bytes</text>
-                    </panel>
-                </slot>
-                <panel scope="mission" variant="card" title="Node Verdict">
-                    <text role="title">Node returned the final signed summary.</text>
-                    <text role="caption">gpu-fabric-convergence:1:1:7|gpu=1,2,3,4,0,0,0,0|bytes=32</text>
+            <panel title="Explorer" scope="studio" variant="sidebar" dock="left" split_ratio={0.20} min_width={250} max_width={360} resizable={true} layout="column" gap={12}>
+                <panel title="Workspace" scope="studio" variant="metric" layout="column" gap={6}>
+                    <text role="eyebrow">FABRIC WORKSPACE</text>
+                    <text role="title">gpu_compute_convergence</text>
+                    <text role="caption">Session session-1774567027713-165412</text>
+                    <text role="caption">Status SUCCEEDED</text>
                 </panel>
-            </slot>
-            <viewport3d title="Luminous Port" scene="luminous_port" />
-        </panel>
+                <tree title="Pipeline Files">
+                    smoketest/fabric/gpu_compute_convergence/
+                    KAIN.fabric.toml
+                    scripts/python_step.py
+                    src/main.kn
+                    shaders/gpu_step.kn
+                    scripts/node_step.mjs
+                    generated/main.generated.kn
+                    generated/visual_snapshot.json
+                    visual-native-app/fabric-studio-3d-editor.exe
+                </tree>
+                <tree title="Runtime Lanes">
+                    python_source
+                    kain_orchestrator
+                    gpu_enrich
+                    node_packager
+                    runtime mix python=1 | kain=1 | gpu_compute=1 | node=1
+                </tree>
+                <tree title="Artifacts">
+                    smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/report.json
+                    smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/events.jsonl
+                    smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/session.lock.json
+                </tree>
+            </panel>
 
-        <panel title="Execution Lanes" scope="mission" variant="section" layout="grid" columns={4} gap={14}>
+            <panel title="Inspector" scope="studio" variant="inspector" dock="right" split_ratio={0.22} min_width={280} max_width={380} resizable={true} layout="column" gap={12}>
+                <inspector title="Selection">
+                    Fabric session
+                    session-1774567027713-165412
+                    runtime lanes converged
+                    duration 1242 ms
+                    summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32
+                </inspector>
+                <inspector title="Node Verdict">
+                    gpu-fabric-convergence:1:1:7|gpu=1,2,3,4,0,0,0,0|bytes=32
+                </inspector>
+                <inspector title="GPU Signature">
+                    signature 1,2,3,4,0,0,0,0
+                    bytes 32
+                    kain report gpu-fabric-convergence:1:1:7
+                </inspector>
+                <inspector title="Build Artifact">
+                    smoketest/fabric/gpu_compute_convergence/visual-native-app
+                    release-ready native UI bundle
+                    report-driven generated source
+                </inspector>
+            </panel>
+
+            <panel title="Output" scope="studio" variant="terminal" dock="bottom" split_ratio={0.24} min_height={190} max_height={320} resizable={true} layout="row" gap={12}>
+                <panel title="Fabric Console" scope="studio" variant="metric" layout="column" gap={6}>
+                    <text role="eyebrow">TERMINAL</text>
+                    <text role="caption">python_source succeeded</text>
+                    <text role="caption">kain_orchestrator succeeded</text>
+                    <text role="caption">gpu_enrich succeeded</text>
+                    <text role="caption">node_packager succeeded</text>
+                    <text role="caption">proof gpu-fabric-convergence:1:1:7|gpu=1,2,3,4,0,0,0,0|bytes=32</text>
+                </panel>
+                <timeline title="Session Timeline">
+                    <text role="caption">report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/report.json</text>
+                    <text role="caption">events smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/events.jsonl</text>
+                    <text role="caption">lock smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/session.lock.json</text>
+                    <text role="caption">workspace smoketest/fabric/gpu_compute_convergence</text>
+                </timeline>
+                <panel title="Lane Status" scope="studio" variant="metric" layout="grid" columns={2} gap={10}>
             <panel scope="mission" variant="card" title="python_source">
                 <text role="eyebrow">PYTHON</text>
                 <text role="metric">SUCCEEDED</text>
-                <text role="caption">54 ms</text>
+                <text role="caption">152 ms</text>
                 <text role="caption">Outputs: settings</text>
             </panel>
             <panel scope="mission" variant="card" title="kain_orchestrator">
                 <text role="eyebrow">KAIN</text>
                 <text role="metric">SUCCEEDED</text>
-                <text role="caption">4 ms</text>
+                <text role="caption">8 ms</text>
                 <text role="caption">Outputs: src, dst, report</text>
             </panel>
             <panel scope="mission" variant="card" title="gpu_enrich">
                 <text role="eyebrow">GPU_COMPUTE</text>
                 <text role="metric">SUCCEEDED</text>
-                <text role="caption">600 ms</text>
+                <text role="caption">891 ms</text>
                 <text role="caption">Outputs: dst</text>
             </panel>
             <panel scope="mission" variant="card" title="node_packager">
                 <text role="eyebrow">NODE</text>
                 <text role="metric">SUCCEEDED</text>
-                <text role="caption">117 ms</text>
+                <text role="caption">187 ms</text>
                 <text role="caption">Outputs: summary</text>
             </panel>
-        </panel>
-
-        <panel title="GPU Signature" scope="mission" variant="section" layout="grid" columns={2} gap={16}>
-            <graph title="Output Signature">
-                <text role="title">1,2,3,4,0,0,0,0</text>
-                <text role="caption">Derived from the real Fabric node summary after the Vulkan compute lane completed.</text>
-                <text role="caption">Kain report gpu-fabric-convergence:1:1:7</text>
-            </graph>
-            <timeline title="Runtime Provenance">
-                <text role="caption">Report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774566265603-2624/report.json</text>
-                <text role="caption">Events smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774566265603-2624/events.jsonl</text>
-                <text role="caption">Lock smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774566265603-2624/session.lock.json</text>
-                <text role="caption">Workspace smoketest/fabric/gpu_compute_convergence</text>
-            </timeline>
-        </panel>
-
-        <panel title="Why This Matters" scope="mission" variant="section" layout="column" gap={12}>
-            <panel scope="mission" variant="card">
-                <text role="title">A real local-first polyglot session</text>
-                <text role="caption">The executable you are looking at was generated after rerunning the Fabric manifest, reading the resulting session report, and baking the live status, summary, and provenance into this native UI surface.</text>
+                </panel>
             </panel>
-            <slot layout="row" gap={12} overflow_x="scroll">
-                <panel scope="mission" variant="card" min_width={250}>
-                    <text role="title">Python</text>
-                    <text role="caption">Emits scalar settings that seed the lane.</text>
-                </panel>
-                <panel scope="mission" variant="card" min_width={250}>
-                    <text role="title">Kain</text>
-                    <text role="caption">Creates typed shared buffers and the orchestration report.</text>
-                </panel>
-                <panel scope="mission" variant="card" min_width={250}>
-                    <text role="title">GPU</text>
-                    <text role="caption">Runs through the Vulkan compute adapter and writes the result into shared memory.</text>
-                </panel>
-                <panel scope="mission" variant="card" min_width={250}>
-                    <text role="title">Node</text>
-                    <text role="caption">Consumes the GPU-enriched buffer and returns the final proof string.</text>
-                </panel>
-            </slot>
-        </panel>
 
-        <panel title="Proof Files" scope="mission" variant="section" layout="column" gap={12} max_height={250} overflow_y="scroll">
-            <panel scope="mission" variant="card"><text role="caption">Visual snapshot JSON: smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json</text></panel>
-            <panel scope="mission" variant="card"><text role="caption">Generated Kain UI source: smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn</text></panel>
-            <panel scope="mission" variant="card"><text role="caption">Executable output: smoketest/fabric/gpu_compute_convergence/visual-native-app</text></panel>
-            <panel scope="mission" variant="card"><text role="caption">Report directory: smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774566265603-2624</text></panel>
-        </panel>
+            <panel title="Viewport" scope="studio" variant="editor" dock="center" tab_group_id="editor-tabs" tab_label="Viewport" tab_order={0} tab_default_active={true} layout="column" gap={12}>
+                <panel title="Editor Header" scope="studio" variant="metric" layout="row" gap={12}>
+                    <panel scope="studio" variant="metric"><text role="title">4/4</text><text role="caption">lanes green</text></panel>
+                    <panel scope="studio" variant="metric"><text role="title">1242 ms</text><text role="caption">session duration</text></panel>
+                    <panel scope="studio" variant="metric"><text role="title">32</text><text role="caption">GPU bytes</text></panel>
+                    <panel scope="studio" variant="metric"><text role="title">SUCCEEDED</text><text role="caption">fabric status</text></panel>
+                </panel>
+                <viewport3d title="Fabric Studio Viewport" scene="magma_terraces" />
+                <panel title="Viewport Footer" scope="studio" variant="metric" layout="row" gap={10}>
+                    <text role="caption">Scene magma_terraces</text>
+                    <text role="caption">Fabric summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32</text>
+                    <text role="caption">GPU signature 1,2,3,4,0,0,0,0</text>
+                </panel>
+            </panel>
 
-        <panel title="Footer" scope="mission" variant="nav" layout="row" gap={16}>
-            <text role="caption">Fabric GPU Visual Showcase</text>
-            <text role="caption">Report-backed</text>
-            <text role="caption">Native executable</text>
-            <text role="caption">Local-first</text>
+            <panel title="Fabric Graph" scope="studio" variant="editor" dock="center" tab_group_id="editor-tabs" tab_label="Fabric Graph" tab_order={1} tab_closable={true} layout="column" gap={12}>
+                <panel title="Mission Control" scope="studio" variant="metric" layout="column" gap={8}>
+                    <text role="eyebrow">LOCAL-FIRST FABRIC</text>
+                    <text role="hero" variant="hero">All four runtime lanes converged in 1242 ms.</text>
+                    <text role="muted">Final node proof: gpu-fabric-convergence:1:1:7|gpu=1,2,3,4,0,0,0,0|bytes=32</text>
+                </panel>
+                <panel title="Execution Topology" scope="studio" variant="metric" layout="grid" columns={4} gap={10}>
+            <panel scope="mission" variant="card" title="python_source">
+                <text role="eyebrow">PYTHON</text>
+                <text role="metric">SUCCEEDED</text>
+                <text role="caption">152 ms</text>
+                <text role="caption">Outputs: settings</text>
+            </panel>
+            <panel scope="mission" variant="card" title="kain_orchestrator">
+                <text role="eyebrow">KAIN</text>
+                <text role="metric">SUCCEEDED</text>
+                <text role="caption">8 ms</text>
+                <text role="caption">Outputs: src, dst, report</text>
+            </panel>
+            <panel scope="mission" variant="card" title="gpu_enrich">
+                <text role="eyebrow">GPU_COMPUTE</text>
+                <text role="metric">SUCCEEDED</text>
+                <text role="caption">891 ms</text>
+                <text role="caption">Outputs: dst</text>
+            </panel>
+            <panel scope="mission" variant="card" title="node_packager">
+                <text role="eyebrow">NODE</text>
+                <text role="metric">SUCCEEDED</text>
+                <text role="caption">187 ms</text>
+                <text role="caption">Outputs: summary</text>
+            </panel>
+                </panel>
+                <panel title="Signal Deck" layout="row" gap={12}>
+                    <graph title="Runtime Mix">
+                        <text role="caption">python=1 | kain=1 | gpu_compute=1 | node=1</text>
+                    </graph>
+                    <graph title="Proof Signature">
+                        <text role="caption">1,2,3,4,0,0,0,0</text>
+                    </graph>
+                    <graph title="Node Summary">
+                        <text role="caption">gpu-fabric-convergence:1:1:7|gpu=1,2,3,4,0,0,0,0|bytes=32</text>
+                    </graph>
+                </panel>
+            </panel>
+
+            <panel title="Scene Data" scope="studio" variant="editor" dock="center" tab_group_id="editor-tabs" tab_label="Scene Data" tab_order={2} tab_closable={true} layout="row" gap={12}>
+                <panel title="Scene Graph" scope="studio" variant="metric" layout="column" gap={8}>
+                    <tree title="Scene Graph">
+                        world_root
+                        environment
+                        magma_terraces
+                        camera_rig
+                        fabric_overlay
+                        runtime_badges
+                        session_trace
+                    </tree>
+                </panel>
+                <panel title="Asset Browser" scope="studio" variant="metric" layout="column" gap={8}>
+                    <tree title="Asset Browser">
+                        reports/report.json
+                        reports/events.jsonl
+                        reports/session.lock.json
+                        generated/main.generated.kn
+                        visual-native-app/native_app_bundle.json
+                        visual-native-app/kain_gpu_runtime.dll
+                    </tree>
+                </panel>
+                <panel title="Properties" scope="studio" variant="metric" layout="column" gap={8}>
+                    <inspector title="Fabric Session Properties">
+                        session session-1774567027713-165412
+                        status SUCCEEDED
+                        report smoketest/fabric/gpu_compute_convergence/.kain/fabric/reports/session-1774567027713-165412/report.json
+                        summary gpu-fabric-convergence:1:1:7 | gpu=1,2,3,4,0,0,0,0 | bytes=32
+                    </inspector>
+                </panel>
+            </panel>
         </panel>
     </slot>

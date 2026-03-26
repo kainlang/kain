@@ -111,11 +111,23 @@ pub struct RealtimeShaderCanvasFontAtlas {
     pub family: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub asset_key: Option<String>,
+    #[serde(default = "default_shader_canvas_font_atlas_encoding")]
+    pub encoding: String,
+    #[serde(default = "default_shader_canvas_font_atlas_distance_range_px")]
+    pub distance_range_px: u32,
     pub glyphs: String,
     pub cell_size_px: [u32; 2],
     pub texture_size_px: [u32; 2],
     pub columns: u32,
     pub rows: u32,
+}
+
+fn default_shader_canvas_font_atlas_encoding() -> String {
+    "mtsdf-rgba".to_string()
+}
+
+fn default_shader_canvas_font_atlas_distance_range_px() -> u32 {
+    6
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -384,13 +396,21 @@ fn collect_shader_canvas_surface_resources(
             first_u32_prop(node, &["font_cell_height_px", "font_cell_px"]).unwrap_or(8);
         let columns = glyphs.chars().count().max(1).min(16) as u32;
         let rows = ((glyphs.chars().count().max(1) as u32) + columns - 1) / columns;
+        let family = first_string_prop(node, &["font_family", "font"])
+            .unwrap_or_else(|| "kain.default-ui-sans".to_string());
+        let encoding = first_string_prop(node, &["font_encoding", "font_atlas_encoding"])
+            .unwrap_or_else(|| shader_canvas_font_atlas_default_encoding_for_family(&family));
+        let distance_range_px =
+            first_u32_prop(node, &["font_distance_range_px", "font_msdf_range_px"])
+                .unwrap_or_else(default_shader_canvas_font_atlas_distance_range_px);
         font_atlases.push(RealtimeShaderCanvasFontAtlas {
             key: atlas_key.clone(),
-            family: first_string_prop(node, &["font_family", "font"])
-                .unwrap_or_else(|| "kain.default-ui-sans".to_string()),
+            family,
             asset_key: font_asset_source
                 .as_deref()
                 .map(|source| realtime_asset_key("font", source)),
+            encoding,
+            distance_range_px,
             glyphs,
             cell_size_px: [cell_width_px, cell_height_px],
             texture_size_px: [cell_width_px * columns, cell_height_px * rows.max(1)],
@@ -432,6 +452,14 @@ fn collect_shader_canvas_surface_resources(
     }
 
     (font_atlases, text_runs, resource_bindings)
+}
+
+fn shader_canvas_font_atlas_default_encoding_for_family(family: &str) -> String {
+    if family.trim().eq_ignore_ascii_case("kain.builtin.bitmap_5x7") {
+        "bitmap-alpha".to_string()
+    } else {
+        default_shader_canvas_font_atlas_encoding()
+    }
 }
 
 fn collect_shader_canvas_glyphs(text_runs: &[RealtimeShaderCanvasTextRun]) -> String {

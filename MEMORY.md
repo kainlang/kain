@@ -93,6 +93,7 @@ Update:
 - `crates/gpu/src/codegen_hlsl.rs` now supports scalar constructor/cast calls (`Float`, `Int`, `UInt`, `Bool`) and assignment expressions. This is a global GPU backend fix, not a Fabric-only workaround.
 - `crates/kain-host/src/fabric.rs` now parses authored compute metadata from shader source, derives workgroup/dispatch and tensor/stream intent from that metadata, prefers resolved shared-buffer snapshot shapes over `[1]`, and infers storage-buffer access modes from declared compute roles instead of placeholder defaults.
 - The repo-local end-to-end smoke `smoketest/fabric/gpu_compute_convergence/KAIN.fabric.toml` now succeeds through `Python -> Kain -> GPU -> Node`.
+- The same smoke now owns a native visual proof lane: `build_visual_exe.ps1` reruns the Fabric session, projects the newest report into `generated/main.generated.kn` and `generated/visual_snapshot.json`, then packages `visual-native-app/fabric-gpu-visual-showcase.exe`. `capture_visual_demo.ps1` produces a screenshot artifact at `generated/fabric_gpu_visual_showcase.png`.
 
 ### What changed
 
@@ -115,13 +116,14 @@ Update:
 - **No Fabric-specific compute dialect** — the adapter uses the same `kain.shared.buffer` contract family as all other adapters
 - **Residency built from bundle metadata** — the adapter constructs residency entries from the `ShaderArtifactBundle.entry_points` and `resource_layouts`, not from a new `compute_plans` field. This avoids schema changes to `kain-core::ShaderArtifactBundle`.
 - **`ComputePlan` contract kind** — added as a forward-looking concept for steps whose output is dispatch metadata rather than raw data. In practice, most GPU compute steps will output `SharedBuffer` values.
+- **Visual proof stays report-driven** — the native showcase does not bypass Fabric or read ad hoc temp files. It is generated from the canonical Fabric session report and packaged through the existing `kain build native-ui` lane.
 
 ### What remains incomplete
 
 - **Residency shape inference**: Fabric now prefers resolved upstream shared-buffer snapshot shapes and authored tensor-plan shapes. Reflection-only fallback still degrades to `[1]` when neither source is available.
 - **Workgroup/dispatch size**: Fabric now prefers authored compute metadata from the shader source. Bundle-driven reflection for these values is still the cleaner long-term source of truth.
 - **Dispatch reporting**: while `FabricComputeDispatchSnapshot` is defined and populated, it is not yet surfaced in the session report JSON flow.
-- **End-to-end integration proof**: the repo-local `gpu_compute_convergence` smoke now validates the full `Python -> Kain -> GPU -> Node` path on a Vulkan-capable machine. Keep it as the primary Fabric GPU regression target.
+- **End-to-end integration proof**: the repo-local `gpu_compute_convergence` smoke now validates the full `Python -> Kain -> GPU -> Node` path on a Vulkan-capable machine, and its companion native showcase makes that proof inspectable as a real local executable. Keep it as the primary Fabric GPU regression target.
 
 ## 2026-03-26 - SM64 Fast3D Research Landed As An Isolated Smoketest Adapter Lane
 

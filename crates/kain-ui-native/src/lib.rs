@@ -11,6 +11,9 @@ use std::{
 use ab_glyph::{point, Font, FontArc, ScaleFont};
 use eframe::egui::{self, Align, Color32, Frame, Layout, RichText, Stroke, Vec2};
 use egui_wgpu::{self, CallbackTrait, ScreenDescriptor};
+use mint::Vector2;
+use msdf::{GlyphLoader, MSDFConfig, Projection, SDFTrait};
+use ttf_parser::Face;
 use kain_3d::{
     default_viewport_shader_bundle, prepare_wgpu_frame, wgsl_module_source, CameraPose,
     CpuPickingService, GizmoVertex, GpuVertex, ManipulatorMode, ParticleVertex, PickingHit,
@@ -133,6 +136,37 @@ const SHADER_CANVAS_FONT_FAMILY_SPECS: &[ShaderCanvasFontFamilySpec] = &[
     },
 ];
 
+const SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA: &str = "bitmap-alpha";
+const SHADER_CANVAS_FONT_ATLAS_ENCODING_ALPHA_COVERAGE: &str = "alpha-coverage";
+const SHADER_CANVAS_FONT_ATLAS_ENCODING_MTSDF_RGBA: &str = "mtsdf-rgba";
+const SHADER_CANVAS_DEFAULT_MTSDF_DISTANCE_RANGE_PX: u32 = 6;
+const SHADER_CANVAS_FONT_ATLAS_ENCODING_TAG_UNKNOWN: u32 = 0;
+const SHADER_CANVAS_FONT_ATLAS_ENCODING_TAG_BITMAP_ALPHA: u32 = 1;
+const SHADER_CANVAS_FONT_ATLAS_ENCODING_TAG_ALPHA_COVERAGE: u32 = 2;
+const SHADER_CANVAS_FONT_ATLAS_ENCODING_TAG_MTSDF_RGBA: u32 = 3;
+
+#[derive(Clone)]
+struct LoadedShaderCanvasFont {
+    font: FontArc,
+    ttf_bytes: Arc<[u8]>,
+}
+
+#[derive(Clone, Debug)]
+struct UiShaderSurfaceTextureAtlasPayload {
+    origin_px: [u32; 2],
+    texture_size_px: [u32; 2],
+    encoding_tag: u32,
+    distance_range_px: u32,
+}
+
+#[derive(Clone, Debug)]
+struct RasterizedShaderCanvasFontAtlas {
+    texture_size_px: [u32; 2],
+    encoding: String,
+    distance_range_px: u32,
+    rgba8: Vec<u8>,
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct UiShaderSurfaceUniforms {
@@ -179,6 +213,8 @@ struct UiShaderSurfaceFontAtlasRecord {
     cell_size_px: [u32; 2],
     columns: u32,
     rows: u32,
+    encoding_tag: u32,
+    distance_range_px: u32,
     glyph_start: u32,
     glyph_count: u32,
 }
@@ -198,7 +234,7 @@ struct UiShaderSurfaceTextRunRecord {
 #[derive(Clone, Debug)]
 struct UiShaderSurfaceTexturePayload {
     size_px: [u32; 2],
-    atlas_origins_px: Vec<[u32; 2]>,
+    atlases: Vec<UiShaderSurfaceTextureAtlasPayload>,
     rgba8: Arc<[u8]>,
 }
 
@@ -3376,16 +3412,23 @@ fn build_ui_shader_surface_storage_bytes(
         let glyph_text = sanitize_shader_canvas_text(&atlas.glyphs);
         let glyph_start = atlas_glyph_bytes.len() as u32;
         atlas_glyph_bytes.extend_from_slice(glyph_text.as_bytes());
+        let rasterized_atlas = surface_texture.atlases.get(atlas_index);
         atlas_records.push(UiShaderSurfaceFontAtlasRecord {
-            atlas_origin_px: surface_texture
-                .atlas_origins_px
-                .get(atlas_index)
-                .copied()
+            atlas_origin_px: rasterized_atlas
+                .map(|entry| entry.origin_px)
                 .unwrap_or([0, 0]),
-            texture_size_px: atlas.texture_size_px,
+            texture_size_px: rasterized_atlas
+                .map(|entry| entry.texture_size_px)
+                .unwrap_or(atlas.texture_size_px),
             cell_size_px: atlas.cell_size_px,
             columns: atlas.columns,
             rows: atlas.rows,
+            encoding_tag: rasterized_atlas
+                .map(|entry| entry.encoding_tag)
+                .unwrap_or(shader_canvas_font_atlas_encoding_tag(&atlas.encoding)),
+            distance_range_px: rasterized_atlas
+                .map(|entry| entry.distance_range_px)
+                .unwrap_or(atlas.distance_range_px),
             glyph_start,
             glyph_count: glyph_text.len() as u32,
         });
@@ -3461,6 +3504,8 @@ fn shader_surface_texture_payload_signature(descriptor: &ResolvedUiShaderSurface
         atlas.key.hash(&mut hasher);
         atlas.family.hash(&mut hasher);
         atlas.asset_key.hash(&mut hasher);
+        atlas.encoding.hash(&mut hasher);
+        atlas.distance_range_px.hash(&mut hasher);
         atlas.glyphs.hash(&mut hasher);
         atlas.cell_size_px.hash(&mut hasher);
         atlas.texture_size_px.hash(&mut hasher);
@@ -5349,6 +5394,8 @@ fn shader_surface_signature(descriptor: &ResolvedUiShaderSurface) -> String {
     for atlas in &descriptor.font_atlases {
         atlas.key.hash(&mut hasher);
         atlas.family.hash(&mut hasher);
+        atlas.encoding.hash(&mut hasher);
+        atlas.distance_range_px.hash(&mut hasher);
         atlas.glyphs.hash(&mut hasher);
         atlas.cell_size_px.hash(&mut hasher);
         atlas.texture_size_px.hash(&mut hasher);

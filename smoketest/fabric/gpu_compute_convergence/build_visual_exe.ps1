@@ -99,6 +99,7 @@ $TemplatePath = Join-Path $SmokeRoot "templates\visual_showcase.template.kn"
 $GeneratedSourcePath = Join-Path $GeneratedRoot "main.generated.kn"
 $SnapshotPath = Join-Path $GeneratedRoot "visual_snapshot.json"
 $NativeAppRoot = Join-Path $SmokeRoot "visual-native-app"
+$ExpectedExecutableName = "fabric-studio-3d-editor.exe"
 $ReportsRoot = Join-Path $SmokeRoot ".kain\fabric\reports"
 
 New-Item -ItemType Directory -Force -Path $GeneratedRoot | Out-Null
@@ -219,6 +220,7 @@ try {
         "__GPU_BYTE_LENGTH__" = [string]$GpuByteLength
         "__SUMMARY_TITLE__" = Escape-KainText $SummaryTitle
         "__SUMMARY_CAPTION__" = Escape-KainText $SummaryCaption
+        "__SUMMARY_INLINE__" = Escape-KainText ($SummaryCaption.Replace("|", " | "))
         "__GPU_SIGNATURE__" = Escape-KainText $GpuSignature
         "__KAIN_REPORT__" = Escape-KainText $KainReport
         "__REPORT_FILE__" = Escape-KainText $RelativeReportPath
@@ -277,9 +279,9 @@ try {
         "native-ui",
         "smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn",
         "--app-name",
-        "fabric_gpu_visual_showcase",
+        "fabric_studio_3d_editor",
         "--window-title",
-        "Fabric GPU Visual Showcase",
+        "Fabric Studio 3D Editor",
         "-o",
         "smoketest/fabric/gpu_compute_convergence/visual-native-app"
     )
@@ -292,7 +294,12 @@ try {
         throw "Native UI build failed for the Fabric visual showcase."
     }
 
-    $ExecutablePath = Get-ChildItem -Path $NativeAppRoot -Filter *.exe -File | Select-Object -First 1
+    $ExecutablePath = Get-ChildItem -Path $NativeAppRoot -Filter $ExpectedExecutableName -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $ExecutablePath) {
+        $ExecutablePath = Get-ChildItem -Path $NativeAppRoot -Filter *.exe -File |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1
+    }
     if ($null -eq $ExecutablePath) {
         throw "The native UI build finished without producing an executable in $NativeAppRoot."
     }
