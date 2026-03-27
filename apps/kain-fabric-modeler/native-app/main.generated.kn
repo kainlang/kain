@@ -16,14 +16,25 @@ component App():
             <token name="theme.radius.scale" category="radius" value={1.08} />
         </theme>
         <panel title="Kain Fabric Modeler" layout="dock" persistent_layout_id="kain_fabric_modeler_shell" gap={18} padding={18}>
-            <panel title="Workspace Modes" dock="left" split_ratio={0.22} min_width={260} max_width={380} resizable={true} gap={12}>
-                <inspector title="Mode Rail">
+            <panel title="Session Rail" dock="left" split_ratio={0.24} min_width={280} max_width={420} resizable={true} gap={12}>
+                <inspector title="Workspace Modes">
                     <text role="body">{"Model Core | Poly modeling, kitbashing, and scene assembly."}</text>
                     <text role="body">{"Sculpt Forge | Brush-heavy form work, voxel remesh, and high frequency detail."}</text>
                     <text role="body">{"Surface Graph | Material layering, shader previews, and lookdev iteration."}</text>
                     <text role="body">{"UV And Paint | UV layout, texture projection, and paint layer review."}</text>
                     <text role="body">{"Rig And Pose | Rig controls, deformation checks, and pose-space sculpt review."}</text>
                     <text role="body">{"Review And Publish | Topology review, export summaries, and materialization receipts."}</text>
+                </inspector>
+                <inspector title="Command Surface">
+                    <text role="body">{"Bootstrap Project | project.bootstrap | Seeds the canonical project, scene, preview, and publish session state."}</text>
+                    <text role="body">{"Switch Workspace | workspace.switch_mode | Moves the operator into a different workspace mode and marks downstream inspectors for refresh."}</text>
+                    <text role="body">{"Activate Tool | tool.activate | Changes the active authoring tool and updates the live tool preset context."}</text>
+                    <text role="body">{"Set Selection | selection.set | Replaces the live entity selection and updates inspector read models."}</text>
+                    <text role="body">{"Frame Selection | viewport.frame_selection | Repositions the active camera around the current selection without mutating resources."}</text>
+                    <text role="body">{"Apply Brush | mesh.brush_apply | Applies a sculpt stroke, invalidates preview/topology state, and schedules the brush intent lane."}</text>
+                    <text role="body">{"Rebake Preview | preview.rebake | Refreshes the GPU preview resources for the current session state."}</text>
+                    <text role="body">{"Refresh Topology | analysis.topology_refresh | Runs the topology report intent against the current mesh resources."}</text>
+                    <text role="body">{"Refresh Publish Summary | publish.summary_refresh | Recomputes the publish summary artifact from the latest reports and resources."}</text>
                 </inspector>
                 <inspector title="Imported Runtime Packs">
                     <text role="body">{"Render Runtime | runtime-pack"}</text>
@@ -47,13 +58,13 @@ component App():
                     <graph title="Procedural Stack" />
                     <timeline title="Fabric Timeline" />
                 </panel>
-                <panel title="Pipeline Consoles" layout="row" gap={12}>
+                <panel title="State Projection" layout="row" gap={12}>
+                    <graph title="Intent Queue" />
                     <graph title="Topology Console" />
-                    <graph title="Artifact Orchestration" />
                     <graph title="Publish Summary" />
                 </panel>
             </panel>
-            <panel title="Authoring Rails" dock="right" split_ratio={0.24} min_width={300} max_width={420} resizable={true} gap={12}>
+            <panel title="Authoring Rails" dock="right" split_ratio={0.26} min_width={320} max_width={460} resizable={true} gap={12}>
                 <inspector title="Surface Registry">
                     <text role="body">{"Viewport Stage | viewport3d | Primary model editing viewport backed by the native runtime lane."}</text>
                     <text role="body">{"Scene Outliner | tree | Hierarchy navigation for scene objects, kits, and fabrication groups."}</text>
@@ -76,6 +87,22 @@ component App():
                     <text role="body">{"Material Paint | Mask, ID, and layer authoring."}</text>
                     <text role="body">{"Publish Bundle | Fabric summary, bundle materialization, and export review."}</text>
                 </inspector>
+                <inspector title="Intent Library">
+                    <text role="body">{"Project Bootstrap | fabric/intents/project_bootstrap.fabric.toml | produces 4 targets"}</text>
+                    <text role="body">{"Brush Apply | fabric/intents/brush_apply.fabric.toml | produces 1 targets"}</text>
+                    <text role="body">{"Preview Rebake | fabric/intents/preview_rebake.fabric.toml | produces 2 targets"}</text>
+                    <text role="body">{"Topology Refresh | fabric/intents/topology_refresh.fabric.toml | produces 0 targets"}</text>
+                    <text role="body">{"Publish Summary Refresh | fabric/intents/publish_summary.fabric.toml | produces 1 targets"}</text>
+                </inspector>
+                <inspector title="Resource Registry">
+                    <text role="body">{"mesh://scene/main/entity/cube_01 | shared_buffer | Primary scene mesh stream authored by the Kain seed step."}</text>
+                    <text role="body">{"buffer://preview/source | shared_buffer | Source preview buffer passed into the GPU compute preview lane."}</text>
+                    <text role="body">{"buffer://preview/destination | shared_buffer | Destination preview buffer populated by the GPU preview bake."}</text>
+                    <text role="body">{"image://preview/baked | shared_image | Baked preview image projected into the viewport and publish inspectors."}</text>
+                    <text role="body">{"buffer://brush/latest_stamp | shared_buffer | Latest brush stamp buffer emitted by the native helper."}</text>
+                </inspector>
+            </panel>
+            <panel title="Runtime Telemetry" dock="bottom" split_ratio={0.25} min_height={200} max_height={340} resizable={true} layout="row" gap={12}>
                 <inspector title="Fabric Pipeline">
                     <text role="body">{"python_project_seed | python | Seeds project defaults, viewport sizing, brush accent, and mesh counts."}</text>
                     <text role="body">{"model_seed | kain | Authors the scene seed, mesh stream, preview image, and scene report."}</text>
@@ -84,8 +111,12 @@ component App():
                     <text role="body">{"gpu_preview | gpu_compute | Runs the preview stream through the Fabric GPU path."}</text>
                     <text role="body">{"node_publisher | kain | Builds the operator-facing publish/export summary through the Kain-to-Node bridge."}</text>
                 </inspector>
-            </panel>
-            <panel title="Runtime Telemetry" dock="bottom" split_ratio={0.24} min_height={190} max_height={320} resizable={true} layout="row" gap={12}>
+                <inspector title="Session Truth">
+                    <text role="body">{"Canonical session document lives in session/session_schema.kn"}</text>
+                    <text role="body">{"Reducers mark dirty state before heavy work executes"}</text>
+                    <text role="body">{"Intent planner maps commands into reusable Fabric graphs"}</text>
+                    <text role="body">{"Resource and report stores project back into the native runtime snapshot"}</text>
+                </inspector>
                 <inspector title="Capabilities">
                     <text role="body">{"ui.runtime"}</text>
                     <text role="body">{"actor.runtime"}</text>
@@ -100,11 +131,6 @@ component App():
                     <text role="body">{"asset.realtime"}</text>
                     <text role="body">{"ui.bundle"}</text>
                     <text role="body">{"device.reflection"}</text>
-                </inspector>
-                <inspector title="Delivery Notes">
-                    <text role="body">{"Fabric owns orchestration."}</text>
-                    <text role="body">{"Kain owns modeler semantics."}</text>
-                    <text role="body">{"Native UI consumes generated bundle truth."}</text>
                 </inspector>
             </panel>
         </panel>

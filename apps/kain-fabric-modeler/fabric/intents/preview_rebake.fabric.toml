@@ -1,0 +1,52 @@
+version = 1
+
+[workspace]
+root = "."
+search_roots = ["src", "scripts", "shaders"]
+
+[[requires]]
+key = "session.local"
+version = 1
+optional = false
+
+[[steps]]
+id = "python_project_seed"
+runtime = "python"
+entry = "scripts/python_project_seed.py"
+
+[[steps.outputs]]
+name = "project_settings"
+kind = "value"
+
+[[steps]]
+id = "model_seed"
+runtime = "kain"
+entry = "src/main.kn"
+depends_on = ["python_project_seed"]
+
+[[steps.outputs]]
+name = "preview_src"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "preview_dst"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "preview_image"
+kind = "shared_image"
+
+[[steps]]
+id = "gpu_preview"
+runtime = "gpu_compute"
+shader_source = "shaders/preview_bake.kn"
+compute_key = "ModelerPreviewBake"
+depends_on = ["model_seed"]
+
+[[steps.outputs]]
+name = "preview_dst"
+kind = "shared_buffer"
+
+[reports]
+directory = ".kain/fabric/reports"
+emit_jsonl_events = true

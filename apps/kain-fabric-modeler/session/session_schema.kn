@@ -1,0 +1,98 @@
+struct CommandEnvelope:
+    id: String
+    kind: String
+    scope: String
+    issued_at: String
+    payload_summary: String
+    workspace_mode: String
+    selection_summary: String
+
+struct ProjectState:
+    project_id: String
+    project_name: String
+    schema_version: Int
+
+struct WorkspaceState:
+    active_mode: String
+    layout_id: String
+    available_modes: Array<String>
+
+struct ToolState:
+    active_tool: String
+    clay_radius: Int
+    clay_strength_percent: Int
+
+struct SelectionState:
+    entity_ids: Array<String>
+    subobject_ids: Array<String>
+
+struct ViewportState:
+    camera_id: String
+    gizmo_mode: String
+    shading_mode: String
+    width: Int
+    height: Int
+
+struct DirtyState:
+    preview_dirty: Bool
+    topology_dirty: Bool
+    publish_summary_dirty: Bool
+    session_needs_save: Bool
+
+struct JobState:
+    latest_fabric_session_id: String
+    latest_fabric_status: String
+    active_intents: Array<String>
+
+struct SessionDocument:
+    project: ProjectState
+    workspace: WorkspaceState
+    tooling: ToolState
+    selection: SelectionState
+    viewport: ViewportState
+    dirty: DirtyState
+    jobs: JobState
+
+fn default_workspace_modes() -> Array<String>:
+    return ["model", "sculpt", "surfacing", "uv_paint", "rig_pose", "review_publish"]
+
+fn default_session_document() -> SessionDocument:
+    return SessionDocument {
+        project: ProjectState {
+            project_id: "fabric-modeler",
+            project_name: "Kain Fabric Modeler",
+            schema_version: 1
+        },
+        workspace: WorkspaceState {
+            active_mode: "model",
+            layout_id: "kain_fabric_modeler_shell",
+            available_modes: default_workspace_modes()
+        },
+        tooling: ToolState {
+            active_tool: "select",
+            clay_radius: 32,
+            clay_strength_percent: 65
+        },
+        selection: SelectionState {
+            entity_ids: ["entity/cube_01"],
+            subobject_ids: []
+        },
+        viewport: ViewportState {
+            camera_id: "camera/main",
+            gizmo_mode: "translate",
+            shading_mode: "lit",
+            width: 1440,
+            height: 900
+        },
+        dirty: DirtyState {
+            preview_dirty: false,
+            topology_dirty: false,
+            publish_summary_dirty: false,
+            session_needs_save: false
+        },
+        jobs: JobState {
+            latest_fabric_session_id: "",
+            latest_fabric_status: "idle",
+            active_intents: []
+        }
+    }

@@ -1,0 +1,61 @@
+version = 1
+
+[workspace]
+root = "."
+search_roots = ["src", "scripts", "native", "local_crate"]
+
+[[requires]]
+key = "session.local"
+version = 1
+optional = false
+
+[[steps]]
+id = "python_project_seed"
+runtime = "python"
+entry = "scripts/python_project_seed.py"
+
+[[steps.outputs]]
+name = "project_settings"
+kind = "value"
+
+[[steps]]
+id = "model_seed"
+runtime = "kain"
+entry = "src/main.kn"
+depends_on = ["python_project_seed"]
+
+[[steps.outputs]]
+name = "mesh_stream"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "scene_report"
+kind = "value"
+
+[[steps]]
+id = "native_brush"
+runtime = "c_abi"
+entry = "src/native_step.kn"
+module = "modeler_ops"
+library = "native/modeler_ops.dll"
+depends_on = ["python_project_seed", "model_seed"]
+
+[[steps.outputs]]
+name = "signature"
+kind = "value"
+
+[[steps]]
+id = "topology_analyzer"
+runtime = "rust_crate"
+entry = "src/rust_step.kn"
+crate_name = "fabric_modeler_runtime"
+manifest_path = "local_crate/Cargo.toml"
+depends_on = ["model_seed", "native_brush"]
+
+[[steps.outputs]]
+name = "topology_report"
+kind = "value"
+
+[reports]
+directory = ".kain/fabric/reports"
+emit_jsonl_events = true

@@ -33,7 +33,9 @@ The modeler now has an explicit app-state middle layer:
     - `session/session_schema.kn` defines the canonical live session document.
     - `config/command_registry.json` defines the legal command surface.
     - `session/reducers.kn` performs immediate semantic state updates.
+    - `session/derived_state.kn` materializes operator-facing read models.
     - `session/intent_planner.kn` maps commands and dirty resources to Fabric intents.
+    - `state/runtime_snapshot.json` projects the session/resource/report truth for the native runtime.
 
     ## Quickstart
 
@@ -42,6 +44,7 @@ The modeler now has an explicit app-state middle layer:
 powershell -ExecutionPolicy Bypass -File apps/kain-fabric-modeler/scripts/build-native-library.ps1
 cargo run -p cli --bin kain -- fabric validate --manifest apps/kain-fabric-modeler/KAIN.fabric.toml
 cargo run -p cli --bin kain -- fabric run --manifest apps/kain-fabric-modeler/KAIN.fabric.toml
+powershell -ExecutionPolicy Bypass -File apps/kain-fabric-modeler/scripts/materialize-session-state.ps1
 ```
 
 The native shell is separate:

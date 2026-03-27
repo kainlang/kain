@@ -1,0 +1,51 @@
+struct CommandHandlerDefinition:
+    command_id: String
+    reducer_key: String
+    planner_key: String
+    requires_selection_context: Bool
+
+fn default_command_handlers() -> Array<CommandHandlerDefinition>:
+    return [
+        CommandHandlerDefinition {
+            command_id: "project.bootstrap",
+            reducer_key: "bootstrap",
+            planner_key: "bootstrap",
+            requires_selection_context: false
+        },
+        CommandHandlerDefinition {
+            command_id: "workspace.switch_mode",
+            reducer_key: "workspace_switch",
+            planner_key: "workspace_switch",
+            requires_selection_context: false
+        },
+        CommandHandlerDefinition {
+            command_id: "tool.activate",
+            reducer_key: "tool_activate",
+            planner_key: "tool_activate",
+            requires_selection_context: false
+        },
+        CommandHandlerDefinition {
+            command_id: "selection.set",
+            reducer_key: "selection_set",
+            planner_key: "selection_set",
+            requires_selection_context: false
+        },
+        CommandHandlerDefinition {
+            command_id: "mesh.apply_brush",
+            reducer_key: "mesh_brush_apply",
+            planner_key: "mesh_brush_apply",
+            requires_selection_context: true
+        },
+        CommandHandlerDefinition {
+            command_id: "analysis.refresh_topology",
+            reducer_key: "analysis_refresh_topology",
+            planner_key: "analysis_refresh_topology",
+            requires_selection_context: false
+        },
+        CommandHandlerDefinition {
+            command_id: "publish.refresh_summary",
+            reducer_key: "publish_refresh_summary",
+            planner_key: "publish_refresh_summary",
+            requires_selection_context: false
+        }
+    ]

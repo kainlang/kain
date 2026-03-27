@@ -13,9 +13,14 @@
     "command_registry": "config/command_registry.json",
     "fabric_pipeline": "config/fabric_pipeline.json",
     "fabric_intents": "config/fabric_intents.json",
+    "resource_kinds": "config/resource_kinds.json",
     "session_schema": "session/session_schema.kn",
     "session_reducers": "session/reducers.kn",
-    "session_intent_planner": "session/intent_planner.kn"
+    "session_derived_state": "session/derived_state.kn",
+    "session_command_handlers": "session/command_handlers.kn",
+    "session_intent_planner": "session/intent_planner.kn",
+    "session_resource_registry": "session/resource_registry.kn",
+    "session_report_registry": "session/report_registry.kn"
   },
 
   "required_runtime_capabilities": [

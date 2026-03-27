@@ -1,0 +1,98 @@
+version = 1
+
+[workspace]
+root = "."
+search_roots = ["src", "scripts", "native", "local_crate", "shaders"]
+
+[[requires]]
+key = "session.local"
+version = 1
+optional = false
+
+[[steps]]
+id = "python_project_seed"
+runtime = "python"
+entry = "scripts/python_project_seed.py"
+
+[[steps.outputs]]
+name = "project_settings"
+kind = "value"
+
+[[steps]]
+id = "model_seed"
+runtime = "kain"
+entry = "src/main.kn"
+depends_on = ["python_project_seed"]
+
+[[steps.outputs]]
+name = "mesh_stream"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "preview_src"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "preview_dst"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "preview_image"
+kind = "shared_image"
+
+[[steps.outputs]]
+name = "scene_report"
+kind = "value"
+
+[[steps]]
+id = "native_brush"
+runtime = "c_abi"
+entry = "src/native_step.kn"
+module = "modeler_ops"
+library = "native/modeler_ops.dll"
+depends_on = ["python_project_seed", "model_seed"]
+
+[[steps.outputs]]
+name = "brush_snapshot"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "signature"
+kind = "value"
+
+[[steps]]
+id = "topology_analyzer"
+runtime = "rust_crate"
+entry = "src/rust_step.kn"
+crate_name = "fabric_modeler_runtime"
+manifest_path = "local_crate/Cargo.toml"
+depends_on = ["model_seed", "native_brush"]
+
+[[steps.outputs]]
+name = "topology_report"
+kind = "value"
+
+[[steps]]
+id = "gpu_preview"
+runtime = "gpu_compute"
+shader_source = "shaders/preview_bake.kn"
+compute_key = "ModelerPreviewBake"
+depends_on = ["model_seed"]
+
+[[steps.outputs]]
+name = "preview_dst"
+kind = "shared_buffer"
+
+[[steps]]
+id = "node_publisher"
+runtime = "kain"
+entry = "src/node_publisher.kn"
+depends_on = ["python_project_seed", "model_seed", "native_brush", "topology_analyzer", "gpu_preview"]
+
+[[steps.outputs]]
+name = "studio_summary"
+kind = "value"
+
+[reports]
+directory = ".kain/fabric/reports"
+emit_jsonl_events = true

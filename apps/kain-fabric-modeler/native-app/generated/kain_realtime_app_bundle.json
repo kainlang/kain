@@ -4,7 +4,7 @@
   "render": {
     "scenes": [
       {
-        "viewport_node": "surface.node.22",
+        "viewport_node": "surface.node.32",
         "viewport_kind": "viewport3d",
         "scene": "modeler_scene",
         "title": "Viewport Stage",

@@ -5,36 +5,36 @@ This file captures durable design context for `M:/Code/Kain/apps/kain-fabric-mod
 
 What changed:
 
-    - Added `session/session_schema.kn` as the canonical live session/project state document for the modeler app.
-    - Added `session/reducers.kn` to turn app commands into immediate semantic state updates and resource invalidation.
-    - Added `session/intent_planner.kn` to map commands plus dirty resources into reusable Fabric intents.
-    - Added `config/command_registry.json` as the app-owned command surface.
-    - Added `config/fabric_intents.json` plus `fabric/intents/*.fabric.toml` so interactive work can target subgraphs instead of only the monolithic bootstrap pipeline.
-    - Registered the new session/intent manifests through `KAIN.toml` and `config/app_manifest.json`.
-    - Updated project architecture docs so future agents understand that the shell, session core, and Fabric intent layer now form one continuous app substrate.
+- Added `config/command_registry.json`, `config/fabric_intents.json`, and `config/resource_kinds.json` as the data-driven command, intent, and resource contracts.
+- Added `session/session_schema.kn`, `session/reducers.kn`, `session/derived_state.kn`, `session/command_handlers.kn`, `session/intent_planner.kn`, `session/resource_registry.kn`, and `session/report_registry.kn` as the missing middle between shell interactions and Fabric execution.
+- Added `fabric/intents/project_bootstrap.fabric.toml`, `fabric/intents/brush_apply.fabric.toml`, `fabric/intents/preview_rebake.fabric.toml`, `fabric/intents/topology_refresh.fabric.toml`, and `fabric/intents/publish_summary.fabric.toml` so interactive work has reusable intent graphs instead of only the monolithic bootstrap manifest.
+- Added `scripts/materialize-session-state.ps1` and updated the build flow so the app now projects config plus the latest Fabric report into `state/runtime_snapshot.json`.
+- Updated the shell materializer and docs so the native bundle, session core, and Fabric intent library read as one connected architecture.
 
     Why this matters:
 
-        - The app now has a real "missing middle" between the generated shell and Fabric execution.
-        - Interactive authoring can be modeled as commands and planned intents instead of ad hoc script coupling.
-        - Future work like undo/redo, persistent session restore, and live viewport/inspector refresh now has a clear home.
+- The app now has a real "missing middle" between the generated shell and Fabric execution.
+- Interactive authoring can be modeled as commands and planned intents instead of ad hoc script coupling.
+- The native executable now has a proper runtime-sidecar projection path for session, resource, report, and job truth.
+- Future work like undo/redo, persistent session restore, and live viewport/inspector refresh now has a clear home.
 
-        Design decisions to preserve:
+Design decisions to preserve:
 
-            - `KAIN.fabric.toml` stays the bootstrap/full-pipeline truth, while `fabric/intents/*.fabric.toml` owns reusable interactive subgraphs.
-            - `session/session_schema.kn` is the canonical live truth for app state; Fabric reports and native shell widgets are projections over that state.
-            - Reducers should stay lightweight and semantic, while heavy mutation/analysis/publish work remains Fabric-owned.
-            - Command and intent registries stay data-driven in `config/` so the app can expose/automate behavior without hardcoding everything into the shell.
+- `KAIN.fabric.toml` stays the bootstrap/full-pipeline truth, while `fabric/intents/*.fabric.toml` owns reusable interactive subgraphs.
+- `session/session_schema.kn` is the canonical live truth for app state; Fabric reports and native shell widgets are projections over that state.
+- `state/runtime_snapshot.json` is a projection artifact, not a competing source of truth.
+- Reducers should stay lightweight and semantic, while heavy mutation/analysis/publish work remains Fabric-owned.
+- Command, intent, and resource registries stay data-driven in `config/` so the app can expose and automate behavior without hardcoding everything into the shell.
 
-            Current risks:
+Current risks:
 
-                - The new Kain session files are foundational scaffolding and have not been validated against the live compiler yet.
-                - Intent manifests currently mirror the existing deterministic seed pipeline; true mesh mutation and persistence workers still need deeper runtime support.
-                - Selection payload parsing and reducer helpers assume string-based command payload projection for now.
+- The new Kain session files are foundational contracts and were added ahead of a true host loop that executes them directly.
+- Intent manifests still mirror deterministic seed data rather than true scene mutation receipts and persisted project deltas.
+- The session materializer currently projects from the latest Fabric report and manifest defaults; it does not yet ingest live shell command traffic.
 
-                Recommended next step:
+Recommended next step:
 
-                    - Wire a real controller/host loop that emits commands from shell interactions, runs reducers/planners, executes intents, then projects resulting session/resource/report state back into the native UI.
+- Wire a real controller or host loop that emits commands from shell interactions, runs reducers and planners, executes the selected Fabric intent, then rewrites `state/runtime_snapshot.json` from the resulting session/resource/report stores.
 
                     ## 2026-03-26 - Initial Fabric-Native Modeling Workbench Landed
 

@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "resource_kinds": [
+    {
+      "id": "scene.primary_mesh",
+      "output_name": "mesh_stream",
+      "resource_uri": "mesh://scene/main/entity/cube_01",
+      "kind": "shared_buffer",
+      "storage": "resource_store",
+      "producer_step": "model_seed",
+      "summary": "Primary scene mesh stream authored by the Kain seed step."
+    },
+    {
+      "id": "preview.source_buffer",
+      "output_name": "preview_src",
+      "resource_uri": "buffer://preview/source",
+      "kind": "shared_buffer",
+      "storage": "resource_store",
+      "producer_step": "model_seed",
+      "summary": "Source preview buffer passed into the GPU compute preview lane."
+    },
+    {
+      "id": "preview.destination_buffer",
+      "output_name": "preview_dst",
+      "resource_uri": "buffer://preview/destination",
+      "kind": "shared_buffer",
+      "storage": "resource_store",
+      "producer_step": "gpu_preview",
+      "summary": "Destination preview buffer populated by the GPU preview bake."
+    },
+    {
+      "id": "preview.baked_image",
+      "output_name": "preview_image",
+      "resource_uri": "image://preview/baked",
+      "kind": "shared_image",
+      "storage": "resource_store",
+      "producer_step": "model_seed",
+      "summary": "Baked preview image projected into the viewport and publish inspectors."
+    },
+    {
+      "id": "brush.latest_stamp",
+      "output_name": "brush_snapshot",
+      "resource_uri": "buffer://brush/latest_stamp",
+      "kind": "shared_buffer",
+      "storage": "resource_store",
+      "producer_step": "native_brush",
+      "summary": "Latest brush stamp buffer emitted by the native helper."
+    }
+  ]
+}

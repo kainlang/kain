@@ -127,3 +127,19 @@ Keep only if clearly marked compatibility:
 - If Vector and Forge disagree on whether a concept is compile-time truth or runtime-derived state, work stops until the boundary is resolved.
 - Delta cannot solve missing semantics by shipping prettier host-only widgets.
 - Slate/UE work must not begin from `UiNativeProjection` as if it were the target ABI.
+
+## Choke Point Checklist (Phase Ownership)
+
+This is the explicit mapping of the known choke points to phases so work does not drift.
+
+- `kain-core/src/ui.rs` lowering gaps: Phase 2 (Vector) with Phase 3 (Forge) consumption.
+- Event placeholder strings: Phase 2.
+- Heuristic `UiRuntimeSystems` synthesis (`ui_runtime_systems_from_tree`): Phase 3 (runtime consumes emitted truth; synthesis becomes legacy-only).
+- `RealtimeAppBundle` narrowness and surface truth dependency: Phase 2 emits stable surface truth; Phase 3 makes runtime authoritative; Phase 4 ensures native host does not invent missing surface meaning.
+- `UiNativeProjection` flattening: Phase 1 freezes it as compatibility-only; Phase 5 extracts a true adapter contract so Slate/UE does not depend on the projection.
+
+## Versioning And Compatibility Policy (Do Not Wing This)
+
+- Any change that removes or repurposes `UiNativeProjection` must be treated as a schema/ABI migration because non-Rust consumers depend on its serialized tags.
+- `ui_runtime_systems_from_tree` must remain callable for legacy bundles until Sweep retires the old smokes, but new authored UI must emit runtime systems explicitly (no new dependence on inference).
+- `RealtimeAppBundle` should remain schema-stable and focused on realtime surfaces. If new UI semantics need to cross the boundary, they belong in the UI runtime bundle or a dedicated UI contract bundle, not by expanding `RealtimeAppBundle` into a "kitchen sink."

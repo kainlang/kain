@@ -6,7 +6,7 @@
 - Swarm Status: active
 - Swarm Owner: Sovereign
 - Created At: 2026-03-26 21:24 EDT
-- Updated At: 2026-03-27 01:26 EDT
+- Updated At: 2026-03-27 05:46 EDT
 - Completion Rule: When every lane is done or cancelled, Sovereign moves this file into ./Swarm/completed/.
 
 ## Objectives
@@ -63,9 +63,9 @@
 ## Lane: Atlas
 
 - Role: Architecture mapping, subsystem boundaries, migration design, and backend split strategy.
-- Status: in_progress
+- Status: done
 - Claimed By: Atlas
-- Claimed At: 2026-03-27 01:22 EDT
+- Claimed At: 2026-03-27 05:42 EDT
 - Depends On: Sovereign
 - Deliverables:
   - `docs/kainplan/ui_slate_x100/current_state_map.md`
@@ -73,11 +73,11 @@
   - `docs/kainplan/ui_slate_x100/migration_phases.md`
   - `docs/kainplan/ui_slate_x100/backend_boundary_matrix.md`
 - Task List:
-  - [ ] Inventory the current ownership split across `crates/kain-core/src/ui.rs`, `crates/kain-ui`, `crates/kain-ui-native`, `crates/kain-driver`, and UE/editor-facing crates.
-  - [ ] Identify every place where host code is currently leaking product chrome, debug posture, or renderer-local semantics into normal app behavior.
-  - [ ] Define the target subsystem boundaries for semantic IR, runtime graph, authoring contracts, widget registry, paint system, backend capability tables, and devtools.
-  - [ ] Propose a staged migration that keeps the compiler-owned bundle model intact while widening semantics enough for Slate-class tooling surfaces.
-  - [ ] Specify the eventual adapter boundary for a real `kain-ui-slate` or UE editor integration path so backend work does not get trapped inside egui-specific assumptions.
+  - [x] Inventory the current ownership split across `crates/kain-core/src/ui.rs`, `crates/kain-ui`, `crates/kain-ui-native`, `crates/kain-driver`, and UE/editor-facing crates.
+  - [x] Identify every place where host code is currently leaking product chrome, debug posture, or renderer-local semantics into normal app behavior.
+  - [x] Define the target subsystem boundaries for semantic IR, runtime graph, authoring contracts, widget registry, paint system, backend capability tables, and devtools.
+  - [x] Propose a staged migration that keeps the compiler-owned bundle model intact while widening semantics enough for Slate-class tooling surfaces.
+  - [x] Specify the eventual adapter boundary for a real `kain-ui-slate` or UE editor integration path so backend work does not get trapped inside egui-specific assumptions.
 - Notes:
   - Atlas should treat `crates/kain-ui/NORTH_STAR_SPEC.md` as intent, then translate it into implementation-ready repo boundaries.
 
@@ -172,6 +172,8 @@
   - Aegis can begin once the Sovereign kickoff exists; Atlas output will refine, not unlock, the acceptance draft.
   - 2026-03-27 01:22 EDT: Claim started. First pass covers the acceptance gate, backend capability matrix, and regression plan with platform-level rejection criteria.
   - 2026-03-27 01:26 EDT: Published `acceptance_matrix.md`, `backend_capability_matrix.md`, and `regression_plan.md`. The gate now explicitly rejects screenshot-only wins, host-owned semantics, silent fallback, and default debug contamination.
+  - 2026-03-27 05:42 EDT: Atlas lane resumed after prior worker hit a usage limit; continuing the same lane claim.
+  - 2026-03-27 05:46 EDT: Updated Atlas deliverables with explicit choke-point mapping (`kain-core` lowering gaps, placeholder event lowering, heuristic runtime systems, realtime bundle surface truth dependency, and `UiNativeProjection` ABI risk) plus a concrete backend boundary matrix and phased migration order.
 
 ## Lane: Scribe
 

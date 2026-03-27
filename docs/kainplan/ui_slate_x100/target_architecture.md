@@ -1,127 +1,129 @@
 # Atlas Target Architecture
 
-- Goal: Keep compiler-owned UI semantics authoritative while making the runtime and backend boundaries strong enough for native, web, and future Slate/UE adapters.
+- Goal: keep compiler-owned UI semantics authoritative while making runtime and backend boundaries strong enough for native, web, and future Slate/UE adapters.
+
+This doc is the boundary contract that Forge, Vector, Delta, and future Slate/UE work must follow.
 
 ## Non-Negotiable Rules
 
-- `kain-core` defines authored UI meaning.
-- `kain-ui` defines runtime graph behavior and patch planning.
-- Backends consume semantic contracts. They do not create product meaning.
+- `kain-core` defines authored UI meaning and emits backend-neutral semantic truth.
+- `kain-ui` defines runtime graph behavior, invalidation, scheduling, and patch planning.
+- Backends consume semantic contracts. They do not create product meaning, posture, or chrome.
 - Debug/devtools surfaces are opt-in and contractually separate from product UI.
 - Native convenience projections are compatibility artifacts, not the long-term ABI.
+
+## Choke Point Fixes (What Must Change Architecturally)
+
+These are the minimum architectural corrections required to meet the acceptance bar.
+
+1. Stop lowering events to placeholder strings.
+   - Replace `"[event:click]"` props with typed event routes that include handler identity and (when applicable) transaction/command linkage.
+2. Stop flattening component state into props.
+   - Replace `state.<name>` props with compiler-emitted signal/state declarations plus runtime-owned state storage.
+3. Stop letting `kain-ui` infer primary runtime semantics from tree shape.
+   - `ui_runtime_systems_from_tree` becomes compatibility-only; new authored UI must emit runtime systems explicitly.
+4. Isolate `UiNativeProjection` so it cannot become the cross-backend ABI.
+   - Keep it for current native/C consumers, but treat it as a native adapter sidecar or explicit compatibility section, not the semantic contract.
+5. Keep `RealtimeAppBundle` focused on realtime render surfaces, but make it consume compiler-emitted surface truth.
+   - Surface identity and capabilities must originate from compiler/runtime contracts, not prop scanning and heuristic inference.
 
 ## Target Subsystem Boundaries
 
 | Subsystem | Target owner | Must own | Must not own |
 | --- | --- | --- | --- |
-| Authoring contracts | `kain-core` | UI syntax, typed semantic IR, widget schema ids, state/command/event/focus/selection/paint/motion authoring contracts, emitted bundle truth | Host widget behavior, egui/Slate specifics, runtime inspector UI, bundle-time heuristic synthesis |
-| Semantic IR emission | `kain-core` | Fully typed UI bundle sections for runtime graph, widget registry references, paint primitives, motion tracks, event routes, command surfaces, workspace persistence ids, fallback requirements | Native projection DTOs as the source of truth |
-| Runtime graph | `kain-ui` | Retained nodes, signal values, computed invalidation, transactions, focus graph, selection model, scheduler, hot reload transfer, workspace layout state | Parsing JSX, interpreting components, backend-specific chrome decisions |
-| Patch planner | `kain-ui` | Backend-agnostic `UiPatch` generation, runtime mutation semantics, fallback negotiation entry points | Direct egui/DOM/Slate rendering |
-| Widget registry schema | `kain-core` contract plus backend tables | Semantic widget families, property/event schema, capability ids, backend-neutral fallback categories | Backend-only widget meaning hidden behind generic tags |
-| Paint and motion system | `kain-core` contract; `kain-ui` runtime playback state | Semantic paints, layers, gradients, masks, blur, transitions, authored animation intent, runtime playback state | Renderer-local one-off paint hacks as the only implementation path |
-| Backend capability tables | Shared schema in `kain-ui`; backend-provided data in adapters | Capability ids, required/optional fallback declarations, explicit unsupported-state reporting | Silent degradation or renderer-private feature flags |
-| Native adapter | `kain-ui-native` | Translation from semantic nodes/patches/surfaces into egui/wgpu/native windowing, capability declarations, opt-in devtools host | Default app chrome, runtime snapshot-driven product framing, semantic truth |
-| Slate / UE adapter | future `kain-ui-slate` plus `crates/ue5` metadata | Translation from semantic bundles into Slate widget trees, docking integration, editor event mapping, UE-specific capability declarations | Authoring truth, runtime semantics invented in UE-only metadata |
-| Devtools | Separate opt-in contract consumed by adapters | Semantic tree inspector, patch log viewer, runtime diagnostics, backend capability report | Default product shell framing |
+| Authoring syntax + typing | `kain-core` | UI syntax, parsing/typing, schema ids, typed semantic IR | Any host widget behavior, egui/Slate specifics |
+| UI semantic IR emission | `kain-core` | Emitted UI bundle truth: widget identities, typed props, event routes, command surfaces/defs, focus/selection scopes, workspace layout intent, paint/motion intent, schema-driven widget contracts, capability requirements | Native-only DTO projections used as "the truth" |
+| Runtime graph | `kain-ui` | Retained nodes, stable node identity, state/signal storage, computed invalidation, transaction log, focus graph, selection model, scheduler, workspace layout state, hot reload transfer, fallback resolution | JSX execution, component interpretation, backend-specific chrome decisions |
+| Patch planner | `kain-ui` | Backend-agnostic `UiPatch` generation from runtime mutations and scheduler phases | Direct egui/DOM/Slate rendering |
+| Backend capability model | Shared schema in `kain-ui`; backend-provided data in adapters | Capability ids, fallback categories/policies, explicit unsupported-state reporting | Silent degradation, backend-private feature flags with no declared contract |
+| Paint + motion | `kain-core` contract; `kain-ui` runtime playback | Semantic paint primitives and motion intent; runtime playback state and scheduling | Backend-local rendering hacks as the only way to express authored visuals |
+| Realtime surfaces | `kain-ui` runtime (surface registry) + `kain-core` contract (surface authoring) | Surface ids, kinds, shader bindings, composition intent, GPU backing requirements | Treating viewports as "just a tag" with semantics invented in the host |
+| Native adapter | `kain-ui-native` | Translation from retained nodes/patches/surfaces into egui/wgpu/native windowing; capability publication; opt-in devtools host | Default topbar/inspector injection, product posture decisions, runtime snapshot driven app identity, semantics invented behind `product_shell` switches |
+| Slate/UE adapter | future `kain-ui-slate` plus `crates/ue5` metadata | Translation from semantic bundles into Slate widget trees; docking integration; editor event mapping; UE-specific capability declarations and mapping tables | Authoring truth, runtime semantics invented by UE metadata |
+| Packaging | `kain-driver` | Packaging emitted bundles/sidecars and manifest wiring | Driver-generated product chrome or default commands presented as authored UI |
+| Devtools | Separate opt-in contract consumed by adapters | Semantic tree inspector, patch log, runtime diagnostics, capability reports | Default product shell framing |
 
 ## Recommended Dependency Direction
 
-`kain-core -> emitted semantic UI bundle -> kain-ui runtime graph -> backend adapters`
+`kain-core (authoring + emission) -> kain-ui (runtime graph + patches) -> backend adapters (native/web/slate)`
 
 Supporting lanes:
 
-- `kain-driver` packages emitted bundles and sidecars.
-- `crates/ue5` supplies extracted backend metadata for the Slate/UE adapter.
-- Devtools read runtime state through explicit devtools contracts, not product-shell fields.
+- `kain-driver` packages emitted bundles and declared sidecars.
+- `crates/ue5` supplies extracted backend metadata (properties/events/slots) for Slate mapping.
+- Devtools read runtime state via explicit devtools contracts, not by smuggling product-shell fields into runtime sidecars.
 
-## Target Runtime Boundary
+## Target Bundle Boundaries (Do Not Mix These)
 
-### `kain-core`
+### `UiRuntimeBundle` (backend-neutral)
 
-Should emit:
+Owned by: `kain-ui` (schema), emitted by `kain-core`, executed by `kain-ui`, consumed by adapters.
 
-- semantic widget identities
-- typed event routes
-- typed command definitions
-- focus and selection scope declarations
-- workspace layout identities and docking intent
-- paint primitives and motion tracks
-- schema-driven inspector/table/menu/property-grid contracts
-- backend-neutral capability requirements
+Must contain:
 
-Should stop owning:
+- retained semantic tree (or a stable runtime graph representation)
+- compiler-emitted runtime systems (events, commands, focus/selection scopes, workspace layout intent, paint/motion intent, schema widgets)
+- backend capability requirements and explicit fallback expectations
 
-- `VNode`
-- backend profile tables
-- runtime component instance snapshots
-- stringified event placeholders like `[event:click]`
+Must not contain:
 
-### `kain-ui`
+- native-only projections that other backends will be forced to follow
+- driver-generated product chrome metadata
 
-Should consume emitted semantic truth and own:
+### `UiNativeProjection` (compatibility-only)
 
-- runtime graph state
-- invalidation and scheduler behavior
-- transaction logs
-- workspace layout snapshot/apply rules
-- patch planning
-- hot reload state transfer
-- fallback resolution against backend capability tables
+Owned by: native adapter compatibility layer.
 
-Compatibility inference can remain temporarily, but only as a migration path behind explicit legacy markers.
+Facts on the ground:
 
-### `kain-ui-native`
+- It is already treated as stable for non-Rust consumers (parity fixture guards its serialized tags).
 
-Should become:
+Target:
 
-- an adapter and renderer
-- a capability publisher
-- an opt-in devtools host when explicitly enabled
+- keep it available for current native/C loaders
+- isolate it so it cannot become the semantic contract for Slate/UE or web
 
-It should not:
+### `RealtimeAppBundle` (realtime render surface bundle)
 
-- show a topbar by default unless authored
-- emit root/component labels into product shells
-- derive app identity from a runtime snapshot sidecar
-- switch semantic widget behavior based on hidden host mode
+Owned by: `kain-core` schema today.
 
-### Future `kain-ui-slate`
+Target:
 
-Should consume the same runtime bundle and patch/event contracts as native.
+- remain focused on scenes/materials/shader-canvas bindings/assets/requirements
+- consume compiler/runtime-emitted surface truth (stable `surface_id`, surface kind, shader binding) rather than heuristic or prop-based discovery as the primary source of identity
 
-`crates/ue5` should remain a backend data source for:
+### Native runtime snapshot sidecar (devtools only)
 
-- Slate widget properties
-- delegate signatures
-- slot/composition rules
-- editor attribute lowering metadata
+Target:
 
-It should not define what a Kain inspector, command palette, or dock transaction means.
+- if it exists, it is opt-in devtools metadata only
+- it must not define product mode posture, default topbar commands, or app identity
 
-## Devtools Split
+## Adapter Boundary For Future `kain-ui-slate`
 
-Target split:
+`kain-ui-slate` (future crate) must:
 
-- Product bundle: semantic UI, runtime systems, backend capability requirements.
-- Devtools bundle or mode: semantic tree view, patch log, runtime diagnostics, backend capability report, artifact watch status.
+- consume the same `UiRuntimeBundle` + `UiPatch` streams as native
+- use `crates/ue5` registries for mapping Slate widget classes/properties/events/slots
+- publish backend capabilities through the shared capability table schema
 
-The runtime may expose both, but adapters must not merge them by default.
+`kain-ui-slate` must not:
+
+- consume `UiNativeProjection` as if it were the semantic IR
+- invent a parallel semantic model in UE land
 
 ## Migration-Safe Compatibility Layers
 
-These can survive temporarily:
+These can exist temporarily, but must be visibly marked as compatibility-only in code and docs:
 
-- `UiNativeProjection` as a compatibility projection for current native host consumers.
-- `ui_runtime_systems_from_tree(...)` as a legacy synthesis pass for old authored trees.
-- runtime snapshot sidecars only for opt-in devtools mode.
-
-These should not define the final architecture.
+- `UiNativeProjection`
+- `ui_runtime_systems_from_tree(...)`
+- driver-emitted runtime snapshot chrome (only when devtools mode is enabled)
 
 ## Explicit Anti-Goals
 
 - Do not move more UI meaning into `kain-ui-native` because it is the easiest place to ship visuals.
 - Do not let `UiNativeProjection` become the canonical cross-backend ABI.
-- Do not encode Slate-only widget semantics in compiler authoring.
 - Do not keep stringified event placeholders as the event contract.
-- Do not keep driver-generated runtime snapshot chrome as default app identity.
+- Do not keep driver-generated runtime snapshot chrome as default app identity or product posture.
+- Do not begin Slate/UE work by reverse engineering native host behavior.

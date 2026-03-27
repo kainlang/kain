@@ -1,0 +1,98 @@
+struct ReducerOutcome:
+    next_workspace_mode: String
+    next_active_tool: String
+    selection_summary: String
+    preview_dirty: Bool
+    topology_dirty: Bool
+    publish_summary_dirty: Bool
+    queued_intents: Array<String>
+    session_needs_save: Bool
+
+fn reduce_command(command_kind: String, payload_summary: String, current_tool: String, current_mode: String) -> ReducerOutcome:
+    if command_kind == "workspace.switch_mode":
+        return ReducerOutcome {
+            next_workspace_mode: payload_summary,
+            next_active_tool: current_tool,
+            selection_summary: "workspace mode updated",
+            preview_dirty: true,
+            topology_dirty: false,
+            publish_summary_dirty: false,
+            queued_intents: ["preview.rebake"],
+            session_needs_save: true
+        }
+    if command_kind == "tool.activate":
+        return ReducerOutcome {
+            next_workspace_mode: current_mode,
+            next_active_tool: payload_summary,
+            selection_summary: "tool context updated",
+            preview_dirty: false,
+            topology_dirty: false,
+            publish_summary_dirty: false,
+            queued_intents: [],
+            session_needs_save: false
+        }
+    if command_kind == "selection.set":
+        return ReducerOutcome {
+            next_workspace_mode: current_mode,
+            next_active_tool: current_tool,
+            selection_summary: payload_summary,
+            preview_dirty: false,
+            topology_dirty: false,
+            publish_summary_dirty: false,
+            queued_intents: [],
+            session_needs_save: false
+        }
+    if command_kind == "mesh.apply_brush":
+        return ReducerOutcome {
+            next_workspace_mode: current_mode,
+            next_active_tool: current_tool,
+            selection_summary: "brush stroke queued",
+            preview_dirty: true,
+            topology_dirty: true,
+            publish_summary_dirty: true,
+            queued_intents: ["mesh.brush_apply", "preview.rebake", "analysis.topology_refresh", "publish.summary_refresh"],
+            session_needs_save: true
+        }
+    if command_kind == "analysis.refresh_topology":
+        return ReducerOutcome {
+            next_workspace_mode: current_mode,
+            next_active_tool: current_tool,
+            selection_summary: "topology refresh requested",
+            preview_dirty: false,
+            topology_dirty: true,
+            publish_summary_dirty: true,
+            queued_intents: ["analysis.topology_refresh", "publish.summary_refresh"],
+            session_needs_save: false
+        }
+    if command_kind == "publish.refresh_summary":
+        return ReducerOutcome {
+            next_workspace_mode: current_mode,
+            next_active_tool: current_tool,
+            selection_summary: "publish refresh requested",
+            preview_dirty: false,
+            topology_dirty: false,
+            publish_summary_dirty: true,
+            queued_intents: ["publish.summary_refresh"],
+            session_needs_save: false
+        }
+    if command_kind == "preview.rebake":
+        return ReducerOutcome {
+            next_workspace_mode: current_mode,
+            next_active_tool: current_tool,
+            selection_summary: "preview rebake requested",
+            preview_dirty: true,
+            topology_dirty: false,
+            publish_summary_dirty: false,
+            queued_intents: ["preview.rebake"],
+            session_needs_save: false
+        }
+    return ReducerOutcome {
+        next_workspace_mode: current_mode,
+        next_active_tool: current_tool,
+        selection_summary: "no reducer change",
+        preview_dirty: false,
+        topology_dirty: false,
+        publish_summary_dirty: false,
+        queued_intents: [],
+        session_needs_save: false
+    }

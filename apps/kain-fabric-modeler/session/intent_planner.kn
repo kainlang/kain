@@ -1,0 +1,56 @@
+struct PlannedIntent:
+    intent_id: String
+    reason: String
+    priority: Int
+    debounce_ms: Int
+
+struct IntentPlan:
+    command_kind: String
+    intents: Array<PlannedIntent>
+
+fn plan_for_command(command_kind: String, preview_dirty: Bool, topology_dirty: Bool, publish_summary_dirty: Bool) -> IntentPlan:
+    if command_kind == "project.bootstrap":
+        return IntentPlan {
+            command_kind: command_kind,
+            intents: [
+                PlannedIntent {
+                    intent_id: "project.bootstrap",
+                    reason: "bootstrap requested",
+                    priority: 100,
+                    debounce_ms: 0
+                }
+            ]
+        }
+    let intents = []
+    if command_kind == "mesh.apply_brush":
+        intents.push(PlannedIntent {
+            intent_id: "mesh.brush_apply",
+            reason: "brush stroke mutates live mesh preview",
+            priority: 90,
+            debounce_ms: 0
+        })
+    if preview_dirty:
+        intents.push(PlannedIntent {
+            intent_id: "preview.rebake",
+            reason: "preview resources are marked dirty",
+            priority: 70,
+            debounce_ms: 16
+        })
+    if topology_dirty:
+        intents.push(PlannedIntent {
+            intent_id: "analysis.topology_refresh",
+            reason: "topology report is marked dirty",
+            priority: 60,
+            debounce_ms: 120
+        })
+    if publish_summary_dirty:
+        intents.push(PlannedIntent {
+            intent_id: "publish.summary_refresh",
+            reason: "publish summary artifact is marked dirty",
+            priority: 40,
+            debounce_ms: 0
+        })
+    return IntentPlan {
+        command_kind: command_kind,
+        intents: intents
+    }

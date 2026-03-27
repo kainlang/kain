@@ -1,0 +1,34 @@
+struct DerivedStateSummary:
+    selection_summary: String
+    preview_state: String
+    topology_state: String
+    publish_state: String
+    publish_ready: Bool
+    requires_preview_rebake: Bool
+
+fn selection_summary_for_count(count: Int) -> String:
+    if count == 0:
+        return "nothing selected"
+    if count == 1:
+        return "1 entity selected"
+    return str(count) + " entities selected"
+
+fn materialize_derived_state(selection_count: Int, preview_dirty: Bool, topology_dirty: Bool, publish_summary_dirty: Bool, latest_fabric_status: String) -> DerivedStateSummary:
+    let preview_state = "ready"
+    if preview_dirty:
+        preview_state = "stale"
+    let topology_state = "ready"
+    if topology_dirty:
+        topology_state = "warning"
+    let publish_state = "ready"
+    if publish_summary_dirty:
+        publish_state = "stale"
+    let publish_ready = latest_fabric_status == "succeeded" and not preview_dirty and not topology_dirty and not publish_summary_dirty
+    return DerivedStateSummary {
+        selection_summary: selection_summary_for_count(selection_count),
+        preview_state: preview_state,
+        topology_state: topology_state,
+        publish_state: publish_state,
+        publish_ready: publish_ready,
+        requires_preview_rebake: preview_dirty
+    }
