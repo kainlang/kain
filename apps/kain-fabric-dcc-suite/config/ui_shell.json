@@ -4,29 +4,29 @@
   "shell_chrome": {
     "brand": {
       "eyebrow": "KAIN FABRIC SUITE",
-      "title": "Fabric-owned global studio shell",
-      "summary": "Global chrome, workspace navigation, command spotlight, and runtime status stay above the authored workbench pages."
+      "title": "Fabric cockpit shell",
+      "summary": "Navigation, command launch, and runtime telemetry stay fused into one operator cockpit above every authored workbench lane."
     },
     "menu_items": [
       {
         "label": "File",
-        "summary": "Bootstrap, ingest, and publish the active suite state."
+        "summary": "Bootstrap, ingest, and publish."
       },
       {
         "label": "Edit",
-        "summary": "Selection, tool routing, and gizmo ownership."
+        "summary": "Selection, tools, and gizmos."
       },
       {
         "label": "View",
-        "summary": "Workspace lanes, dock layout, and inspector emphasis."
+        "summary": "Lanes, docks, and layout."
       },
       {
         "label": "Jobs",
-        "summary": "Fabric sessions, automation jobs, and runtime packs."
+        "summary": "Sessions, jobs, and packs."
       },
       {
         "label": "Help",
-        "summary": "Reports, extension seams, and operator guidance."
+        "summary": "Reports and guidance."
       }
     ],
     "status_items": [
@@ -53,6 +53,30 @@
         "label": "Packs",
         "metric_source": "runtime_pack_count",
         "caption": "runtime packs projected"
+      },
+      {
+        "id": "command_count",
+        "label": "Commands",
+        "metric_source": "command_count",
+        "caption": "global shell actions"
+      },
+      {
+        "id": "pipeline_step_count",
+        "label": "Pipeline",
+        "metric_source": "pipeline_step_count",
+        "caption": "fabric runtime steps"
+      },
+      {
+        "id": "automation_job_count",
+        "label": "Jobs",
+        "metric_source": "automation_job_count",
+        "caption": "scheduled automations"
+      },
+      {
+        "id": "extension_seam_count",
+        "label": "Seams",
+        "metric_source": "extension_seam_count",
+        "caption": "known bridge seams"
       }
     ],
     "command_spotlight": {
@@ -70,12 +94,27 @@
     "workspace_switcher": {
       "eyebrow": "Workspace Switcher",
       "title": "Global lane navigation",
-      "summary": "Each chip mirrors an authored workbench page. The host can style this later as real tab chrome without inventing a second workspace schema."
+      "summary": "Each lane chip mirrors an authored workbench page so the shell keeps one workspace model instead of inventing separate host tabs."
+    },
+    "system_rack": {
+      "eyebrow": "System Rack",
+      "title": "Fabric runtime telemetry",
+      "summary": "Core registry scale and known seams stay visible in shell chrome so the workbench pages can stay focused on authoring surfaces.",
+      "status_item_ids": [
+        "command_count",
+        "pipeline_step_count",
+        "automation_job_count",
+        "extension_seam_count"
+      ],
+      "notes": [
+        "shell telemetry should read like instrumentation, not like a second inspector rail",
+        "registry counts and bridge seams belong in persistent chrome because they shape operator trust across every lane"
+      ]
     },
     "operator_notes": {
       "eyebrow": "Operator Context",
       "title": "Shell system guidance",
-      "summary": "The shell chrome should feel persistent and global. Workbench pages should feel like modules mounted inside the same editor, not separate generated demos.",
+      "summary": "The cockpit should feel like one durable editor frame. Workbench pages should read like mounted subsystems, not isolated demo cards.",
       "notes": [
         "command spotlight remains shell-owned so operators can bootstrap, switch lanes, preview, and publish without hunting through page-local inspectors",
         "workspace chips mirror authored page descriptors and should be the future landing zone for semantic top-tab rendering in the native host",

@@ -4,22 +4,22 @@ component App():
             <scope name="dcc_shell" selector="kain-fabric-dcc-suite" />
             <token name="theme.chrome.topbar.visible" category="state" value={false} />
             <token name="theme.chrome.inspector.visible" category="state" value={false} />
-            <token name="theme.spacing.scale" category="space" value={1.02} />
-            <token name="theme.radius.scale" category="radius" value={1.1} />
+            <token name="theme.spacing.scale" category="space" value={0.96} />
+            <token name="theme.radius.scale" category="radius" value={0.72} />
             <token name="theme.typography.scale" category="type" value={1.05} />
-            <token name="theme.background.top" category="color" value="#07111a" />
-            <token name="theme.background.bottom" category="color" value="#0d1b25" />
-            <token name="theme.surface.default" category="color" value="#11212d" />
-            <token name="theme.surface.alt" category="color" value="#172a38" />
-            <token name="theme.surface.raised" category="color" value="#22384a" />
-            <token name="theme.surface.overlay" category="color" value="#0a1620e6" />
-            <token name="theme.outline.soft" category="color" value="#335267" />
-            <token name="theme.outline.bright" category="color" value="#6dd3c7" />
-            <token name="theme.accent.primary" category="color" value="#ff8c42" />
-            <token name="theme.accent.soft" category="color" value="#ffd29c" />
-            <token name="theme.highlight" category="color" value="#52c7ea" />
-            <token name="theme.text.default" category="color" value="#eef7fb" />
-            <token name="theme.text.muted" category="color" value="#9fb5c4" />
+            <token name="theme.background.top" category="color" value="#050a11" />
+            <token name="theme.background.bottom" category="color" value="#0a121b" />
+            <token name="theme.surface.default" category="color" value="#0f1823" />
+            <token name="theme.surface.alt" category="color" value="#162231" />
+            <token name="theme.surface.raised" category="color" value="#223241" />
+            <token name="theme.surface.overlay" category="color" value="#08111ae8" />
+            <token name="theme.outline.soft" category="color" value="#314556" />
+            <token name="theme.outline.bright" category="color" value="#8fc6d6" />
+            <token name="theme.accent.primary" category="color" value="#d78a32" />
+            <token name="theme.accent.soft" category="color" value="#f1c78e" />
+            <token name="theme.highlight" category="color" value="#74b8d8" />
+            <token name="theme.text.default" category="color" value="#e7eff5" />
+            <token name="theme.text.muted" category="color" value="#93a5b2" />
             <token name="widget.panel.surface.stroke" category="color" value="#00000000" />
             <token name="widget.inspector.surface.mode" category="surface" value="ghost" />
             <token name="widget.tree.surface.mode" category="surface" value="ghost" />
@@ -29,41 +29,51 @@ component App():
             <variant scope="dcc_shell" name="shell_root">
                 <token name="title.visible" category="state" value={false} />
                 <token name="surface.mode" category="surface" value="ghost" />
-                <token name="surface.padding" category="space" value={6} />
+                <token name="surface.padding" category="space" value={4} />
             </variant>
             <variant scope="dcc_shell" name="topbar">
+                <token name="surface.mode" category="surface" value="ghost" />
+                <token name="surface.padding" category="space" value={6} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="topbar_frame">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.padding" category="space" value={10} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="brand_console">
                 <token name="surface.mode" category="surface" value="glass" />
                 <token name="surface.padding" category="space" value={12} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
-            <variant scope="dcc_shell" name="topbar_brand">
-                <token name="surface.mode" category="surface" value="glass" />
-                <token name="surface.padding" category="space" value={14} />
-                <token name="title.visible" category="state" value={false} />
-            </variant>
-            <variant scope="dcc_shell" name="topbar_menu">
-                <token name="surface.mode" category="surface" value="ghost" />
+            <variant scope="dcc_shell" name="menu_rack">
+                <token name="surface.mode" category="surface" value="layered" />
                 <token name="surface.padding" category="space" value={8} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
-            <variant scope="dcc_shell" name="topbar_status_strip">
-                <token name="surface.mode" category="surface" value="ghost" />
-                <token name="surface.padding" category="space" value={6} />
+            <variant scope="dcc_shell" name="menu_pill">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.padding" category="space" value={8} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="status_rack">
+                <token name="surface.mode" category="surface" value="layered" />
+                <token name="surface.padding" category="space" value={8} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="metric_pill">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.padding" category="space" value={8} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
             <variant scope="dcc_shell" name="context_strip">
                 <token name="surface.mode" category="surface" value="ghost" />
-                <token name="surface.padding" category="space" value={4} />
+                <token name="surface.padding" category="space" value={2} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
-            <variant scope="dcc_shell" name="context_block">
-                <token name="surface.mode" category="surface" value="layered" />
-                <token name="surface.padding" category="space" value={12} />
-                <token name="title.visible" category="state" value={false} />
-            </variant>
-            <variant scope="dcc_shell" name="command_spotlight">
+            <variant scope="dcc_shell" name="workspace_strip">
                 <token name="surface.mode" category="surface" value="glass" />
-                <token name="surface.padding" category="space" value={12} />
+                <token name="surface.padding" category="space" value={10} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
             <variant scope="dcc_shell" name="workspace_chip">
@@ -76,45 +86,65 @@ component App():
                 <token name="surface.padding" category="space" value={10} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
+            <variant scope="dcc_shell" name="command_spotlight">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.padding" category="space" value={12} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
             <variant scope="dcc_shell" name="spotlight_card">
                 <token name="surface.mode" category="surface" value="flat" />
                 <token name="surface.padding" category="space" value={10} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
+            <variant scope="dcc_shell" name="system_rack">
+                <token name="surface.mode" category="surface" value="layered" />
+                <token name="surface.padding" category="space" value={10} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="operator_console">
+                <token name="surface.mode" category="surface" value="layered" />
+                <token name="surface.padding" category="space" value={10} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
             <variant scope="dcc_shell" name="page">
                 <token name="surface.mode" category="surface" value="ghost" />
-                <token name="surface.padding" category="space" value={6} />
+                <token name="surface.padding" category="space" value={4} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
             <variant scope="dcc_shell" name="hero_card">
                 <token name="surface.mode" category="surface" value="glass" />
-                <token name="surface.padding" category="space" value={16} />
+                <token name="surface.padding" category="space" value={14} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
             <variant scope="dcc_shell" name="quiet_card">
                 <token name="surface.mode" category="surface" value="flat" />
-                <token name="surface.padding" category="space" value={10} />
+                <token name="surface.padding" category="space" value={8} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
             <variant scope="dcc_shell" name="status_card">
                 <token name="surface.mode" category="surface" value="accent" />
+                <token name="surface.padding" category="space" value={8} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="viewport_frame">
+                <token name="surface.mode" category="surface" value="glass" />
                 <token name="surface.padding" category="space" value={10} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
             <variant scope="dcc_shell" name="surface_card">
                 <token name="surface.mode" category="surface" value="glass" />
-                <token name="surface.padding" category="space" value={12} />
+                <token name="surface.padding" category="space" value={10} />
             </variant>
             <textvariant scope="dcc_shell" name="hero">
-                <token name="body.size" category="type" value={30} />
+                <token name="body.size" category="type" value={26} />
             </textvariant>
-            <widget kind="panel" scope="dcc_shell" variant="topbar_menu">
+            <widget kind="panel" scope="dcc_shell" variant="menu_rack">
                 <token name="density" category="layout" value="compact" />
             </widget>
-            <widget kind="panel" scope="dcc_shell" variant="topbar_status_strip">
+            <widget kind="panel" scope="dcc_shell" variant="status_rack">
                 <token name="density" category="layout" value="compact" />
             </widget>
-            <widget kind="panel" scope="dcc_shell" variant="context_block">
+            <widget kind="panel" scope="dcc_shell" variant="system_rack">
                 <token name="density" category="layout" value="compact" />
             </widget>
             <widget kind="panel" scope="dcc_shell" variant="workspace_chip">
@@ -132,53 +162,83 @@ component App():
             <widget kind="panel" scope="dcc_shell" variant="surface_card">
                 <token name="density" category="layout" value="compact" />
             </widget>
+            <widget kind="panel" scope="dcc_shell" variant="menu_pill">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="panel" scope="dcc_shell" variant="metric_pill">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="panel" scope="dcc_shell" variant="operator_console">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="panel" scope="dcc_shell" variant="viewport_frame">
+                <token name="density" category="layout" value="compact" />
+            </widget>
         </theme>
         <panel title="Kain Fabric DCC Suite" scope="dcc_shell" variant="shell_root" layout="column" gap={10}>
-            <panel title="Global Top Bar" scope="dcc_shell" variant="topbar" layout="grid" columns={3} gap={10}>
+            <panel title="Global Top Bar" scope="dcc_shell" variant="topbar" layout="column" gap={8}>
                 <panel title="Brand" scope="dcc_shell" variant="topbar_brand" layout="column" gap={4}>
                     <text role="eyebrow">{"KAIN FABRIC SUITE"}</text>
-                    <text role="title">{"Fabric-owned global studio shell"}</text>
-                    <text role="caption">{"Global chrome, workspace navigation, command spotlight, and runtime status stay above the authored workbench pages."}</text>
+                    <text role="title">{"Fabric cockpit shell"}</text>
+                    <text role="caption">{"Navigation, command launch, and runtime telemetry stay fused into one operator cockpit above every authored workbench lane."}</text>
                 </panel>
-                <panel title="Menus" scope="dcc_shell" variant="topbar_menu" layout="column" gap={6}>
+                <panel title="Chrome Row" scope="dcc_shell" variant="context_strip" layout="grid" columns={2} gap={8}>
+                    <panel title="Menus" scope="dcc_shell" variant="topbar_menu" layout="column" gap={6}>
                     <text role="eyebrow">{"SHELL MENUS"}</text>
                     <text role="caption">{"Global editor menus stay visible above every lane."}</text>
-                    <slot layout="row" gap={6} overflow_x="scroll">
-                        <panel title="File" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
-                            <text role="title">{"File"}</text>
-                        </panel>
-                        <panel title="Edit" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
-                            <text role="title">{"Edit"}</text>
-                        </panel>
-                        <panel title="View" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
-                            <text role="title">{"View"}</text>
-                        </panel>
-                        <panel title="Jobs" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
-                            <text role="title">{"Jobs"}</text>
-                        </panel>
-                        <panel title="Help" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
-                            <text role="title">{"Help"}</text>
-                        </panel>
-                    </slot>
-                </panel>
-                <panel title="Status" scope="dcc_shell" variant="topbar_status_strip" layout="column" gap={6}>
-                    <text role="eyebrow">{"RUNTIME STATUS"}</text>
-                    <panel title="Status Metrics" scope="dcc_shell" variant="topbar_status_strip" layout="grid" columns={4} gap={8}>
-                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2} min_width={120}>
-                            <text role="metric">{"SUCCEEDED"}</text>
-                            <text role="caption">{"latest pipeline session"}</text>
-                        </panel>
-                        <panel title="Workspaces" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
-                            <text role="metric">{"7"}</text>
-                            <text role="caption">{"authored page lanes"}</text>
-                        </panel>
-                        <panel title="Surfaces" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
-                            <text role="metric">{"18"}</text>
-                            <text role="caption">{"registered shell surfaces"}</text>
-                        </panel>
-                        <panel title="Packs" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
-                            <text role="metric">{"15"}</text>
-                            <text role="caption">{"runtime packs projected"}</text>
+                        <slot layout="row" gap={6} overflow_x="scroll">
+                            <panel title="File" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
+                                <text role="title">{"File"}</text>
+                            </panel>
+                            <panel title="Edit" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
+                                <text role="title">{"Edit"}</text>
+                            </panel>
+                            <panel title="View" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
+                                <text role="title">{"View"}</text>
+                            </panel>
+                            <panel title="Jobs" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
+                                <text role="title">{"Jobs"}</text>
+                            </panel>
+                            <panel title="Help" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
+                                <text role="title">{"Help"}</text>
+                            </panel>
+                        </slot>
+                    </panel>
+                    <panel title="Status" scope="dcc_shell" variant="topbar_status_strip" layout="column" gap={6}>
+                        <text role="eyebrow">{"RUNTIME STATUS"}</text>
+                        <panel title="Status Metrics" scope="dcc_shell" variant="topbar_status_strip" layout="grid" columns={8} gap={8}>
+                            <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2} min_width={120}>
+                                <text role="metric">{"SUCCEEDED"}</text>
+                                <text role="caption">{"latest pipeline session"}</text>
+                            </panel>
+                            <panel title="Workspaces" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
+                                <text role="metric">{"7"}</text>
+                                <text role="caption">{"authored page lanes"}</text>
+                            </panel>
+                            <panel title="Surfaces" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
+                                <text role="metric">{"18"}</text>
+                                <text role="caption">{"registered shell surfaces"}</text>
+                            </panel>
+                            <panel title="Packs" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
+                                <text role="metric">{"15"}</text>
+                                <text role="caption">{"runtime packs projected"}</text>
+                            </panel>
+                            <panel title="Commands" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
+                                <text role="metric">{"22"}</text>
+                                <text role="caption">{"global shell actions"}</text>
+                            </panel>
+                            <panel title="Pipeline" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
+                                <text role="metric">{"12"}</text>
+                                <text role="caption">{"fabric runtime steps"}</text>
+                            </panel>
+                            <panel title="Jobs" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
+                                <text role="metric">{"8"}</text>
+                                <text role="caption">{"scheduled automations"}</text>
+                            </panel>
+                            <panel title="Seams" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
+                                <text role="metric">{"0"}</text>
+                                <text role="caption">{"known bridge seams"}</text>
+                            </panel>
                         </panel>
                     </panel>
                 </panel>
@@ -187,7 +247,7 @@ component App():
                 <panel title="Global lane navigation" scope="dcc_shell" variant="context_block" layout="column" gap={8}>
                     <text role="eyebrow">{"Workspace Switcher"}</text>
                     <text role="title">{"Global lane navigation"}</text>
-                    <text role="caption">{"Each chip mirrors an authored workbench page. The host can style this later as real tab chrome without inventing a second workspace schema."}</text>
+                    <text role="caption">{"Each lane chip mirrors an authored workbench page so the shell keeps one workspace model instead of inventing separate host tabs."}</text>
                     <slot layout="row" gap={8} overflow_x="scroll">
                         <panel title="Scene Assembly" scope="dcc_shell" variant="workspace_chip_active" layout="column" gap={3} min_width={170}>
                             <text role="eyebrow">{"SCENE"}</text>
@@ -267,7 +327,7 @@ component App():
                     <panel title="Shell system guidance" scope="dcc_shell" variant="context_block" layout="column" gap={6}>
                         <text role="eyebrow">{"Operator Context"}</text>
                         <text role="title">{"Shell system guidance"}</text>
-                        <text role="caption">{"The shell chrome should feel persistent and global. Workbench pages should feel like modules mounted inside the same editor, not separate generated demos."}</text>
+                        <text role="caption">{"The cockpit should feel like one durable editor frame. Workbench pages should read like mounted subsystems, not isolated demo cards."}</text>
                         <text role="caption">{"command spotlight remains shell-owned so operators can bootstrap, switch lanes, preview, and publish without hunting through page-local inspectors"}</text>
                         <text role="caption">{"workspace chips mirror authored page descriptors and should be the future landing zone for semantic top-tab rendering in the native host"}</text>
                         <text role="caption">{"runtime status, registry counts, and extension seam warnings belong in shell chrome so lane pages can stay focused on authored work"}</text>

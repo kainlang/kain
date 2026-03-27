@@ -592,7 +592,7 @@
                                                                "solver_profile":  "cloth_preview"
                                                            },
                                             "render":  {
-                                                           "camera_id":  "camera/shot_closeup",
+                                                           "camera_id":  "camera/shot_lifecycle_verify_2",
                                                            "view_transform":  "acescg",
                                                            "render_profile":  "viewport_quality",
                                                            "aov_set":  "beauty_plus_utility"
@@ -645,7 +645,7 @@
                                             "active_tool_label":  "material_layer_paint",
                                             "selection_summary":  "1 entity selected",
                                             "gizmo_summary":  "translate | world | snap off",
-                                            "queued_intent_count":  2,
+                                            "queued_intent_count":  0,
                                             "latest_fabric_status":  "succeeded"
                                         },
                             "command_registry":  [
@@ -1552,29 +1552,14 @@
                                                     }
                                                 ],
                             "intent_queue":  [
-                                                 {
-                                                     "id":  "material.bake_preview",
-                                                     "reason":  "material layer stack changed",
-                                                     "priority":  70,
-                                                     "debounce_ms":  16,
-                                                     "status":  "succeeded",
-                                                     "source_command_id":  "c49a2a15-97a9-4d56-9218-5cb6b43bb9db"
-                                                 },
-                                                 {
-                                                     "id":  "render.preview",
-                                                     "reason":  "render preview requested",
-                                                     "priority":  60,
-                                                     "debounce_ms":  16,
-                                                     "status":  "succeeded",
-                                                     "source_command_id":  "7403b2b0-8a59-4370-be04-279e1df93471"
-                                                 }
+
                                              ],
                             "latest_command":  {
-                                                   "id":  "7403b2b0-8a59-4370-be04-279e1df93471",
+                                                   "id":  "e704dc47-1d83-40d5-95ab-13b652f250ff",
                                                    "kind":  "render.preview",
-                                                   "issued_at":  "2026-03-27T22:33:17Z",
+                                                   "issued_at":  "2026-03-27T22:41:11Z",
                                                    "payload":  {
-                                                                   "camera_id":  "camera/shot_closeup"
+                                                                   "camera_id":  "camera/shot_lifecycle_verify_2"
                                                                }
                                                },
                             "latest_fabric_run":  {
@@ -1597,12 +1582,12 @@
                                                                                    "  - runtime.kain",
                                                                                    "  - runtime.python",
                                                                                    "  - session.local",
-                                                                                   "Session: session-1774650837231-180024",
+                                                                                   "Session: session-1774651275361-149700",
                                                                                    "Status: Succeeded",
-                                                                                   "Session directory: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024",
-                                                                                   "Report: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\report.json",
-                                                                                   "Lock: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\session.lock.json",
-                                                                                   "Events: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\events.jsonl",
+                                                                                   "Session directory: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774651275361-149700",
+                                                                                   "Report: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774651275361-149700\\report.json",
+                                                                                   "Lock: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774651275361-149700\\session.lock.json",
+                                                                                   "Events: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774651275361-149700\\events.jsonl",
                                                                                    "Step results:",
                                                                                    "  - python_suite_bootstrap [python]: Succeeded",
                                                                                    "    outputs: 1",
@@ -1624,47 +1609,6 @@
                                                                                        "manifest":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\fabric\\intents\\render_preview.fabric.toml",
                                                                                        "exit_code":  0
                                                                                    }
-                                                                               ],
-                                                                               [
-                                                                                   " KAIN Compiler v0.1.0 (build 1774557219)",
-                                                                                   "Fabric manifest: apps/kain-fabric-dcc-suite/fabric/intents/material_bake.fabric.toml",
-                                                                                   "Steps: 6",
-                                                                                   "Runtimes:",
-                                                                                   "  - gpu_compute: 1",
-                                                                                   "  - kain: 4",
-                                                                                   "  - python: 1",
-                                                                                   "Required capabilities:",
-                                                                                   "  - contract.shared-buffer",
-                                                                                   "  - contract.value",
-                                                                                   "  - runtime.gpu-compute",
-                                                                                   "  - runtime.kain",
-                                                                                   "  - runtime.python",
-                                                                                   "  - session.local",
-                                                                                   "Session: session-1774650839144-151836",
-                                                                                   "Status: Succeeded",
-                                                                                   "Session directory: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836",
-                                                                                   "Report: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\report.json",
-                                                                                   "Lock: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\session.lock.json",
-                                                                                   "Events: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\events.jsonl",
-                                                                                   "Step results:",
-                                                                                   "  - python_suite_bootstrap [python]: Succeeded",
-                                                                                   "    outputs: 1",
-                                                                                   "  - dcc_suite_seed [kain]: Succeeded",
-                                                                                   "    outputs: 4",
-                                                                                   "  - material_authoring_projection [kain]: Succeeded",
-                                                                                   "    outputs: 1",
-                                                                                   "  - svg_material_mask_projection [kain]: Succeeded",
-                                                                                   "    outputs: 1",
-                                                                                   "  - gpu_material_preview [gpu_compute]: Succeeded",
-                                                                                   "    outputs: 1",
-                                                                                   "  - material_texture_export_projection [kain]: Succeeded",
-                                                                                   "    outputs: 1",
-                                                                                   {
-                                                                                       "id":  "material.bake_preview",
-                                                                                       "status":  "succeeded",
-                                                                                       "manifest":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\fabric\\intents\\material_bake.fabric.toml",
-                                                                                       "exit_code":  0
-                                                                                   }
                                                                                ]
                                                                            ]
                                                   },
@@ -1672,8 +1616,8 @@
                                            "status":  "ready",
                                            "command_queue_path":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\state\\command_queue.jsonl",
                                            "session_document_path":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\state\\session_document.json",
-                                           "processed_command_count":  2,
-                                           "last_processed_at":  "2026-03-27T22:34:00Z",
+                                           "processed_command_count":  4,
+                                           "last_processed_at":  "2026-03-27T22:41:16Z",
                                            "last_processed_batch_count":  1,
                                            "dispatcher_mode":  "queue-pass+fabric-hot-path",
                                            "last_fabric_results":  [
@@ -1692,12 +1636,12 @@
                                                                            "  - runtime.kain",
                                                                            "  - runtime.python",
                                                                            "  - session.local",
-                                                                           "Session: session-1774650837231-180024",
+                                                                           "Session: session-1774651275361-149700",
                                                                            "Status: Succeeded",
-                                                                           "Session directory: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024",
-                                                                           "Report: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\report.json",
-                                                                           "Lock: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\session.lock.json",
-                                                                           "Events: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\events.jsonl",
+                                                                           "Session directory: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774651275361-149700",
+                                                                           "Report: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774651275361-149700\\report.json",
+                                                                           "Lock: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774651275361-149700\\session.lock.json",
+                                                                           "Events: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774651275361-149700\\events.jsonl",
                                                                            "Step results:",
                                                                            "  - python_suite_bootstrap [python]: Succeeded",
                                                                            "    outputs: 1",
@@ -1719,49 +1663,30 @@
                                                                                "manifest":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\fabric\\intents\\render_preview.fabric.toml",
                                                                                "exit_code":  0
                                                                            }
-                                                                       ],
-                                                                       [
-                                                                           " KAIN Compiler v0.1.0 (build 1774557219)",
-                                                                           "Fabric manifest: apps/kain-fabric-dcc-suite/fabric/intents/material_bake.fabric.toml",
-                                                                           "Steps: 6",
-                                                                           "Runtimes:",
-                                                                           "  - gpu_compute: 1",
-                                                                           "  - kain: 4",
-                                                                           "  - python: 1",
-                                                                           "Required capabilities:",
-                                                                           "  - contract.shared-buffer",
-                                                                           "  - contract.value",
-                                                                           "  - runtime.gpu-compute",
-                                                                           "  - runtime.kain",
-                                                                           "  - runtime.python",
-                                                                           "  - session.local",
-                                                                           "Session: session-1774650839144-151836",
-                                                                           "Status: Succeeded",
-                                                                           "Session directory: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836",
-                                                                           "Report: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\report.json",
-                                                                           "Lock: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\session.lock.json",
-                                                                           "Events: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\events.jsonl",
-                                                                           "Step results:",
-                                                                           "  - python_suite_bootstrap [python]: Succeeded",
-                                                                           "    outputs: 1",
-                                                                           "  - dcc_suite_seed [kain]: Succeeded",
-                                                                           "    outputs: 4",
-                                                                           "  - material_authoring_projection [kain]: Succeeded",
-                                                                           "    outputs: 1",
-                                                                           "  - svg_material_mask_projection [kain]: Succeeded",
-                                                                           "    outputs: 1",
-                                                                           "  - gpu_material_preview [gpu_compute]: Succeeded",
-                                                                           "    outputs: 1",
-                                                                           "  - material_texture_export_projection [kain]: Succeeded",
-                                                                           "    outputs: 1",
-                                                                           {
-                                                                               "id":  "material.bake_preview",
-                                                                               "status":  "succeeded",
-                                                                               "manifest":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\fabric\\intents\\material_bake.fabric.toml",
-                                                                               "exit_code":  0
-                                                                           }
                                                                        ]
-                                                                   ]
+                                                                   ],
+                                           "pending_intents":  [
+
+                                                               ],
+                                           "running_intents":  [
+
+                                                               ],
+                                           "recent_intents":  [
+                                                                  {
+                                                                      "id":  "render.preview",
+                                                                      "status":  "succeeded",
+                                                                      "source_command_id":  "e704dc47-1d83-40d5-95ab-13b652f250ff",
+                                                                      "debounce_ms":  16,
+                                                                      "updated_at":  "2026-03-27T22:41:16Z"
+                                                                  },
+                                                                  {
+                                                                      "id":  "render.preview",
+                                                                      "status":  "succeeded",
+                                                                      "source_command_id":  "0a3ed54f-52f4-47b2-9e9f-cc8df9fc81fc",
+                                                                      "debounce_ms":  16,
+                                                                      "updated_at":  "2026-03-27T22:40:31Z"
+                                                                  }
+                                                              ]
                                        },
                             "extension_seams":  [
                                                     "material lane still projects authoring receipts rather than a true native painter runtime",

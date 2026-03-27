@@ -76,7 +76,7 @@
                        "solver_profile":  "cloth_preview"
                    },
     "render":  {
-                   "camera_id":  "camera/shot_closeup",
+                   "camera_id":  "camera/shot_lifecycle_verify_2",
                    "view_transform":  "acescg",
                    "render_profile":  "viewport_quality",
                    "aov_set":  "beauty_plus_utility"

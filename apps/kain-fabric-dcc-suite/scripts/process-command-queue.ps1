@@ -48,17 +48,46 @@ function New-Intent {
         debounce_ms = $DebounceMs
         status = "queued"
         source_command_id = $SourceCommandId
+        enqueued_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    }
+}
+
+function Get-ElapsedMillisecondsSinceIso {
+    param([string]$IsoTimestamp)
+
+    if ([string]::IsNullOrWhiteSpace($IsoTimestamp)) {
+        return [double]::PositiveInfinity
+    }
+
+    try {
+        $then = [DateTimeOffset]::Parse($IsoTimestamp)
+        return (([DateTimeOffset]::UtcNow) - $then).TotalMilliseconds
+    }
+    catch {
+        return [double]::PositiveInfinity
     }
 }
 
 function Add-IntentIfMissing {
     param(
         [System.Collections.ArrayList]$IntentQueue,
-        $Intent
+        $Intent,
+        $Bridge
     )
 
     foreach ($existing in $IntentQueue) {
         if ($existing.id -eq $Intent.id) {
+            return
+        }
+    }
+
+    foreach ($recentIntent in @($Bridge.recent_intents)) {
+        if ([string]$recentIntent.id -ne [string]$Intent.id) {
+            continue
+        }
+
+        $elapsedMs = Get-ElapsedMillisecondsSinceIso -IsoTimestamp ([string]$recentIntent.updated_at)
+        if ($elapsedMs -lt [int]$Intent.debounce_ms) {
             return
         }
     }
@@ -195,22 +224,23 @@ Ensure-StateDocuments -ResolvedAppRoot $AppRoot
 $RuntimeSnapshot = Get-JsonDocument -Path $SnapshotPath
 $SessionDocument = Get-JsonDocument -Path $SessionPath
 $IntentGraphLookup = Get-IntentGraphLookup -ConfigPath $IntentConfigPath
+$Bridge = $RuntimeSnapshot.dcc_suite_state.bridge
+Ensure-BridgeProperty -Bridge $Bridge -Name processed_command_count -Value 0
+Ensure-BridgeProperty -Bridge $Bridge -Name last_processed_at -Value $null
+Ensure-BridgeProperty -Bridge $Bridge -Name last_processed_batch_count -Value 0
+Ensure-BridgeProperty -Bridge $Bridge -Name dispatcher_mode -Value "queue-pass"
+Ensure-BridgeProperty -Bridge $Bridge -Name last_fabric_results -Value @()
+Ensure-BridgeProperty -Bridge $Bridge -Name pending_intents -Value @()
+Ensure-BridgeProperty -Bridge $Bridge -Name running_intents -Value @()
+Ensure-BridgeProperty -Bridge $Bridge -Name recent_intents -Value @()
 
 if (-not (Test-Path $CommandQueuePath)) {
     Set-Content -Path $CommandQueuePath -Value ""
 }
 
 $IntentQueue = New-Object System.Collections.ArrayList
-foreach ($existingIntent in @($RuntimeSnapshot.dcc_suite_state.intent_queue)) {
-    $null = $IntentQueue.Add([ordered]@{
-        id = [string]$existingIntent.id
-        reason = [string]$existingIntent.reason
-        priority = [int]$existingIntent.priority
-        debounce_ms = [int]$existingIntent.debounce_ms
-        status = if ($null -eq $existingIntent.status) { "queued" } else { [string]$existingIntent.status }
-        source_command_id = [string]$existingIntent.source_command_id
-    })
-}
+$Bridge.pending_intents = @()
+$Bridge.running_intents = @()
 
 $ProcessedCount = 0
 $LatestCommand = $RuntimeSnapshot.dcc_suite_state.latest_command
@@ -384,18 +414,46 @@ foreach ($rawLine in $RawLines) {
 }
 
 $ExecutedFabricResults = New-Object System.Collections.ArrayList
+$RunningIntents = New-Object System.Collections.ArrayList
+$CompletedIntents = New-Object System.Collections.ArrayList
+$PendingIntents = New-Object System.Collections.ArrayList
+
 if ($ExecuteFabricHotPath -and @($IntentQueue).Count -gt 0) {
     $hotPathIntentIds = @("material.bake_preview", "render.preview")
     $sortedIntents = @($IntentQueue | Sort-Object priority -Descending)
     foreach ($intent in $sortedIntents) {
-        if ($hotPathIntentIds -notcontains [string]$intent.id) {
+        if ($hotPathIntentIds -contains [string]$intent.id) {
+            $intent.status = "running"
+            $null = $RunningIntents.Add([ordered]@{
+                id = [string]$intent.id
+                status = "running"
+                source_command_id = [string]$intent.source_command_id
+                updated_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            })
+
+            $graphPath = $IntentGraphLookup[[string]$intent.id]
+            $result = Invoke-FabricIntent -RepoRoot $RepoRoot -AppRoot $AppRoot -GraphPath $graphPath -IntentId ([string]$intent.id)
+            $null = $ExecutedFabricResults.Add($result)
+            $intent.status = [string]$result.status
+            $null = $CompletedIntents.Add([ordered]@{
+                id = [string]$intent.id
+                status = [string]$result.status
+                source_command_id = [string]$intent.source_command_id
+                debounce_ms = [int]$intent.debounce_ms
+                updated_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            })
             continue
         }
 
-        $graphPath = $IntentGraphLookup[[string]$intent.id]
-        $result = Invoke-FabricIntent -RepoRoot $RepoRoot -AppRoot $AppRoot -GraphPath $graphPath -IntentId ([string]$intent.id)
-        $null = $ExecutedFabricResults.Add($result)
-        $intent.status = [string]$result.status
+        $null = $PendingIntents.Add([ordered]@{
+            id = [string]$intent.id
+            reason = [string]$intent.reason
+            priority = [int]$intent.priority
+            debounce_ms = [int]$intent.debounce_ms
+            status = "queued"
+            source_command_id = [string]$intent.source_command_id
+            updated_at = [string]$intent.enqueued_at
+        })
     }
 
     if (@($ExecutedFabricResults).Count -gt 0) {
@@ -407,17 +465,26 @@ if ($ExecuteFabricHotPath -and @($IntentQueue).Count -gt 0) {
     }
 }
 else {
-    $SessionDocument.jobs.latest_fabric_status = if (@($IntentQueue).Count -gt 0) { "queued" } else { [string]$SessionDocument.jobs.latest_fabric_status }
+    foreach ($intent in @($IntentQueue | Sort-Object priority -Descending)) {
+        $null = $PendingIntents.Add([ordered]@{
+            id = [string]$intent.id
+            reason = [string]$intent.reason
+            priority = [int]$intent.priority
+            debounce_ms = [int]$intent.debounce_ms
+            status = "queued"
+            source_command_id = [string]$intent.source_command_id
+            updated_at = [string]$intent.enqueued_at
+        })
+    }
+    $SessionDocument.jobs.latest_fabric_status = if (@($PendingIntents).Count -gt 0) { "queued" } else { [string]$SessionDocument.jobs.latest_fabric_status }
 }
 
-$SessionDocument.jobs.active_intents = @($IntentQueue | Where-Object { $_.status -eq "queued" } | ForEach-Object { $_.id })
+$Bridge.pending_intents = @($PendingIntents)
+$Bridge.running_intents = @()
+$existingRecentIntents = @($Bridge.recent_intents)
+$Bridge.recent_intents = @($CompletedIntents + $existingRecentIntents | Select-Object -First 20)
 
-$Bridge = $RuntimeSnapshot.dcc_suite_state.bridge
-Ensure-BridgeProperty -Bridge $Bridge -Name processed_command_count -Value 0
-Ensure-BridgeProperty -Bridge $Bridge -Name last_processed_at -Value $null
-Ensure-BridgeProperty -Bridge $Bridge -Name last_processed_batch_count -Value 0
-Ensure-BridgeProperty -Bridge $Bridge -Name dispatcher_mode -Value "queue-pass"
-Ensure-BridgeProperty -Bridge $Bridge -Name last_fabric_results -Value @()
+$SessionDocument.jobs.active_intents = @($PendingIntents | ForEach-Object { $_.id })
 
 $Bridge.processed_command_count = [int]$Bridge.processed_command_count + $ProcessedCount
 $Bridge.last_processed_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -432,7 +499,7 @@ $RuntimeSnapshot.dcc_suite_state.latest_fabric_run = [ordered]@{
     hot_path_results = @($ExecutedFabricResults)
 }
 
-Update-DerivedState -RuntimeSnapshot $RuntimeSnapshot -SessionDocument $SessionDocument -IntentQueue $IntentQueue -LatestCommand $LatestCommand
+Update-DerivedState -RuntimeSnapshot $RuntimeSnapshot -SessionDocument $SessionDocument -IntentQueue $PendingIntents -LatestCommand $LatestCommand
 
 Set-JsonFile -Path $SessionPath -Value $SessionDocument -Depth 16
 Set-JsonFile -Path $SnapshotPath -Value $RuntimeSnapshot -Depth 24

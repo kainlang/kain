@@ -20,12 +20,12 @@
     {
       "name": "theme.spacing.scale",
       "category": "space",
-      "value": 1.02
+      "value": 0.96
     },
     {
       "name": "theme.radius.scale",
       "category": "radius",
-      "value": 1.1
+      "value": 0.72
     },
     {
       "name": "theme.typography.scale",
@@ -35,67 +35,67 @@
     {
       "name": "theme.background.top",
       "category": "color",
-      "value": "#07111a"
+      "value": "#050a11"
     },
     {
       "name": "theme.background.bottom",
       "category": "color",
-      "value": "#0d1b25"
+      "value": "#0a121b"
     },
     {
       "name": "theme.surface.default",
       "category": "color",
-      "value": "#11212d"
+      "value": "#0f1823"
     },
     {
       "name": "theme.surface.alt",
       "category": "color",
-      "value": "#172a38"
+      "value": "#162231"
     },
     {
       "name": "theme.surface.raised",
       "category": "color",
-      "value": "#22384a"
+      "value": "#223241"
     },
     {
       "name": "theme.surface.overlay",
       "category": "color",
-      "value": "#0a1620e6"
+      "value": "#08111ae8"
     },
     {
       "name": "theme.outline.soft",
       "category": "color",
-      "value": "#335267"
+      "value": "#314556"
     },
     {
       "name": "theme.outline.bright",
       "category": "color",
-      "value": "#6dd3c7"
+      "value": "#8fc6d6"
     },
     {
       "name": "theme.accent.primary",
       "category": "color",
-      "value": "#ff8c42"
+      "value": "#d78a32"
     },
     {
       "name": "theme.accent.soft",
       "category": "color",
-      "value": "#ffd29c"
+      "value": "#f1c78e"
     },
     {
       "name": "theme.highlight",
       "category": "color",
-      "value": "#52c7ea"
+      "value": "#74b8d8"
     },
     {
       "name": "theme.text.default",
       "category": "color",
-      "value": "#eef7fb"
+      "value": "#e7eff5"
     },
     {
       "name": "theme.text.muted",
       "category": "color",
-      "value": "#9fb5c4"
+      "value": "#93a5b2"
     },
     {
       "name": "widget.panel.surface.stroke",
@@ -146,13 +146,55 @@
         {
           "name": "surface.padding",
           "category": "space",
-          "value": 6
+          "value": 4
         }
       ]
     },
     {
       "scope": "dcc_shell",
       "name": "topbar",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "ghost"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 6
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "topbar_frame",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "glass"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 10
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "brand_console",
       "tokens": [
         {
           "name": "surface.mode",
@@ -173,33 +215,12 @@
     },
     {
       "scope": "dcc_shell",
-      "name": "topbar_brand",
+      "name": "menu_rack",
       "tokens": [
         {
           "name": "surface.mode",
           "category": "surface",
-          "value": "glass"
-        },
-        {
-          "name": "surface.padding",
-          "category": "space",
-          "value": 14
-        },
-        {
-          "name": "title.visible",
-          "category": "state",
-          "value": false
-        }
-      ]
-    },
-    {
-      "scope": "dcc_shell",
-      "name": "topbar_menu",
-      "tokens": [
-        {
-          "name": "surface.mode",
-          "category": "surface",
-          "value": "ghost"
+          "value": "layered"
         },
         {
           "name": "surface.padding",
@@ -215,17 +236,59 @@
     },
     {
       "scope": "dcc_shell",
-      "name": "topbar_status_strip",
+      "name": "menu_pill",
       "tokens": [
         {
           "name": "surface.mode",
           "category": "surface",
-          "value": "ghost"
+          "value": "flat"
         },
         {
           "name": "surface.padding",
           "category": "space",
-          "value": 6
+          "value": 8
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "status_rack",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "layered"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 8
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "metric_pill",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "flat"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 8
         },
         {
           "name": "title.visible",
@@ -246,7 +309,7 @@
         {
           "name": "surface.padding",
           "category": "space",
-          "value": 4
+          "value": 2
         },
         {
           "name": "title.visible",
@@ -257,28 +320,7 @@
     },
     {
       "scope": "dcc_shell",
-      "name": "context_block",
-      "tokens": [
-        {
-          "name": "surface.mode",
-          "category": "surface",
-          "value": "layered"
-        },
-        {
-          "name": "surface.padding",
-          "category": "space",
-          "value": 12
-        },
-        {
-          "name": "title.visible",
-          "category": "state",
-          "value": false
-        }
-      ]
-    },
-    {
-      "scope": "dcc_shell",
-      "name": "command_spotlight",
+      "name": "workspace_strip",
       "tokens": [
         {
           "name": "surface.mode",
@@ -288,7 +330,7 @@
         {
           "name": "surface.padding",
           "category": "space",
-          "value": 12
+          "value": 10
         },
         {
           "name": "title.visible",
@@ -341,12 +383,75 @@
     },
     {
       "scope": "dcc_shell",
+      "name": "command_spotlight",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "glass"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 12
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
       "name": "spotlight_card",
       "tokens": [
         {
           "name": "surface.mode",
           "category": "surface",
           "value": "flat"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 10
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "system_rack",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "layered"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 10
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "operator_console",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "layered"
         },
         {
           "name": "surface.padding",
@@ -372,7 +477,7 @@
         {
           "name": "surface.padding",
           "category": "space",
-          "value": 6
+          "value": 4
         },
         {
           "name": "title.visible",
@@ -393,7 +498,7 @@
         {
           "name": "surface.padding",
           "category": "space",
-          "value": 16
+          "value": 14
         },
         {
           "name": "title.visible",
@@ -414,7 +519,7 @@
         {
           "name": "surface.padding",
           "category": "space",
-          "value": 10
+          "value": 8
         },
         {
           "name": "title.visible",
@@ -431,6 +536,27 @@
           "name": "surface.mode",
           "category": "surface",
           "value": "accent"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 8
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "viewport_frame",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "glass"
         },
         {
           "name": "surface.padding",
@@ -456,7 +582,7 @@
         {
           "name": "surface.padding",
           "category": "space",
-          "value": 12
+          "value": 10
         }
       ]
     }
@@ -469,7 +595,7 @@
         {
           "name": "body.size",
           "category": "type",
-          "value": 30
+          "value": 26
         }
       ]
     }
@@ -478,7 +604,7 @@
     {
       "kind": "panel",
       "scope": "dcc_shell",
-      "variant": "topbar_menu",
+      "variant": "menu_rack",
       "tokens": [
         {
           "name": "density",
@@ -490,7 +616,7 @@
     {
       "kind": "panel",
       "scope": "dcc_shell",
-      "variant": "topbar_status_strip",
+      "variant": "status_rack",
       "tokens": [
         {
           "name": "density",
@@ -502,7 +628,7 @@
     {
       "kind": "panel",
       "scope": "dcc_shell",
-      "variant": "context_block",
+      "variant": "system_rack",
       "tokens": [
         {
           "name": "density",
@@ -563,6 +689,54 @@
       "kind": "panel",
       "scope": "dcc_shell",
       "variant": "surface_card",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "menu_pill",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "metric_pill",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "operator_console",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "viewport_frame",
       "tokens": [
         {
           "name": "density",

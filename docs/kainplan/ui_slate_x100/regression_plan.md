@@ -121,6 +121,7 @@ Validate that legacy failures stay dead.
 - Start each packaged showcase in default mode and assert no debug chrome is visible.
 - Disable selected backend capabilities intentionally and verify fallback behavior remains explicit.
 - Attempt to reproduce known contamination patterns: host badges, root labels, debug-first status panels, smoke-local post-processing, and hidden widget-state ownership.
+- Attempt to author new shells from the documented contracts alone; fail if LLM or human authors still need backend archaeology to avoid the same blocky toy-shell result.
 - Fail on any reintroduction.
 
 ## Baseline Governance

@@ -6,7 +6,7 @@
 - Swarm Status: active
 - Swarm Owner: Sovereign
 - Created At: 2026-03-26 21:24 EDT
-- Updated At: 2026-03-27 05:46 EDT
+- Updated At: 2026-03-27 18:39 EDT
 - Completion Rule: When every lane is done or cancelled, Sovereign moves this file into ./Swarm/completed/.
 
 ## Objectives
@@ -24,6 +24,7 @@
 - Do not let `kain-ui-native` remain the implicit source of app chrome, widget identity, or debug behavior. Default app mode must be product mode, not inspector mode.
 - Keep the system native-first and tooling-first as stated in `crates/kain-ui/NORTH_STAR_SPEC.md`.
 - Prefer data-driven registries for widget capabilities, event routes, paint primitives, backend support, and style mappings over scattered string switches.
+- LLM legibility is a first-class design requirement. Authoring, runtime data, widget registries, and paint/motion contracts must be explicit enough that a strong model can understand and extend the system without backend archaeology.
 - Separate debug tooling from product UI explicitly. Semantic tree inspectors, patch logs, and runtime diagnostics must not contaminate normal packaged apps by default.
 - Avoid smoke-local hacks. New demos should prove reusable platform capability, not one-off custom drawing paths that bypass the semantic model.
 - Preserve backward migration strategy where feasible, but do not protect weak abstractions if they block the target architecture.
@@ -84,9 +85,9 @@
 ## Lane: Forge
 
 - Role: Core semantic runtime lane for retained graph behavior, reactivity, scheduler depth, and mutation semantics.
-- Status: blocked
-- Claimed By: unclaimed
-- Claimed At: unclaimed
+- Status: in_progress
+- Claimed By: Forge
+- Claimed At: 2026-03-27 18:39 EDT
 - Depends On: Atlas
 - Deliverables:
   - `kain-ui` runtime expansion for signal/dependency tracking, invalidation, transactions, and command-ready node state
@@ -101,14 +102,14 @@
   - [ ] Keep performance and inspectability first-class: every new runtime subsystem should remain explainable and backend-agnostic.
 - Notes:
   - Forge owns the semantic execution model, not parser syntax and not host chrome.
-  - Blocked until Atlas publishes target subsystem boundaries.
+  - 2026-03-27 18:35 EDT: Atlas is done. Forge is unblocked and should treat the Atlas target architecture plus the LLM-legibility rule as hard constraints.
 
 ## Lane: Vector
 
 - Role: Authoring contracts, parser/lowering, schema-driven UI, and compiler-emitted bundle truth.
-- Status: blocked
-- Claimed By: unclaimed
-- Claimed At: unclaimed
+- Status: in_progress
+- Claimed By: Vector
+- Claimed At: 2026-03-27 18:39 EDT
 - Depends On: Atlas
 - Deliverables:
   - `docs/kainplan/ui_slate_x100/authoring_contract.md`
@@ -124,7 +125,7 @@
   - [ ] Preserve the distinction between semantic truth and backend lowering, especially for future Slate and web adapters.
 - Notes:
   - Vector owns author-facing expressiveness and emitted truth. It should delete parser pain, not hide it behind host sugar.
-  - Blocked until Atlas publishes target subsystem boundaries.
+  - 2026-03-27 18:35 EDT: Atlas is done. Vector is unblocked and should optimize for explicit, LLM-legible authoring and bundle contracts instead of terse prop soup.
 
 ## Lane: Delta
 
@@ -234,3 +235,5 @@
 - 2026-03-27 00:09 EDT: The active acceptance bar now requires authored product mode by default, explicit debug/devtools separation, deeper compiler-owned interaction semantics, richer paint/motion contracts, and three clearly distinct showcase-grade native apps.
 - 2026-03-27 00:09 EDT: Phase order is now fixed as Architecture -> Semantic Runtime + Authoring -> Native Host Reset + Visual Proof -> Acceptance Gate + Retrofit -> Durable Docs.
 - 2026-03-27 00:09 EDT: Delta may inventory and remove host contamination immediately, but substantial widget/chrome realization must follow Forge/Vector contract alignment rather than inventing backend-local semantics.
+- 2026-03-27 18:35 EDT: LLM-legible-by-construction is now a platform rule. If the system is so opaque that strong models keep collapsing into the same toy-block shell, the design is failing even before human ergonomics are considered.
+- 2026-03-27 18:35 EDT: Atlas is complete. Forge and Vector are unblocked to define runtime and authoring contracts that are explicit enough for both humans and LLMs to extend without backend archaeology.

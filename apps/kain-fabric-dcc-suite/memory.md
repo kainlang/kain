@@ -233,3 +233,37 @@ Current risk:
 Next recommended step:
 
 - Replace the file-based queue with a true host/session dispatcher that can consume commands continuously, debounce intent scheduling, and hand the queued intents directly to Fabric execution without a full rematerialize cycle.
+
+## 2026-03-27 (Later Again) - Persistent Dispatcher + Fabric Hot Path Landed
+
+- Extended `scripts/process-command-queue.ps1` with `-ExecuteFabricHotPath` and `-RegenerateShell` so queued intents can now trigger direct Fabric runs from the control loop instead of stopping at JSON state mutation.
+- Added `scripts/dispatcher-loop.ps1` as the first persistent polling dispatcher for `state/command_queue.jsonl`.
+- The hot path currently executes the most important lookdev intents first: `material.bake_preview` and `render.preview`.
+- The dispatcher updates `dcc_suite_state.bridge` and `latest_fabric_run` inside `state/runtime_snapshot.json` so the runtime side can inspect what was executed, not just what was planned.
+- Verified two real flows:
+  - `material.paint_layer` -> queued `material.bake_preview` -> direct Fabric run succeeded
+  - queued `render.preview` through the dispatcher loop -> direct Fabric execution succeeded, and the runtime snapshot recorded `queue-pass+fabric-hot-path`
+
+Important design decision:
+
+- The first persistent dispatcher stays in PowerShell and continues to drive Fabric through the repo CLI. That is intentionally boring and explicit: it proves the control-loop contract before moving the dispatcher into a deeper runtime host lane.
+
+Current risk:
+
+- Intent lifecycle is now much healthier, but the dispatcher is still a polling PowerShell host. The next real leap is pushing the lifecycle into a continuously running host/session layer with explicit acknowledgements instead of depending on repeated script invocations.
+
+Next recommended step:
+
+- Add per-intent acknowledgement ids and a host-owned dispatcher state machine so the native runtime can own pending/running/completed transitions directly while Fabric remains the heavy execution backend.
+
+## 2026-03-27 (Lifecycle Pass) - Intent Eviction + Debounce Landed
+
+- Stopped hydrating the pending intent queue from `runtime_snapshot.json`; queued commands are now the source of truth for new work.
+- Added explicit bridge lifecycle buckets under `dcc_suite_state.bridge`: `pending_intents`, `running_intents`, and `recent_intents`.
+- Added debounce-aware scheduling in `Add-IntentIfMissing`, using recent completed intent timestamps so hot-path intents do not immediately reschedule themselves.
+- Hot-path execution now records completed intent receipts in `recent_intents` and leaves `pending_intents` / `running_intents` empty after synchronous success.
+- Verified the original stale-backlog bug is fixed: queueing only `render.preview` now runs only `render.preview` and no longer resurrects `material.bake_preview` from prior snapshot state.
+
+Important design decision:
+
+- The runtime snapshot is now treated as an observability mirror for dispatcher state, not the durable backlog source. That is the right contract if the native host will eventually own dispatching.

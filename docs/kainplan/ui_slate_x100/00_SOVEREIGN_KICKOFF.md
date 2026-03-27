@@ -17,6 +17,7 @@ The target is a platform where:
 - native/editor tooling surfaces are first-class instead of awkward demos
 - different apps can feel radically different without escaping the semantic model
 - debug tooling is powerful but fully separated from normal product presentation
+- the system is explicit enough that strong LLMs can inspect, author, and extend UI without getting lost in backend-local quirks
 
 ## Current Failure Modes To Eliminate
 
@@ -41,6 +42,12 @@ The overhaul is only successful if all of the following are true.
 - `.kn` authoring supports first-class reactive state, derived values, event routes, command dispatch, focus scopes, selection scopes, and transactions.
 - Paint and motion become semantic contracts, not host-only tricks: gradients, images, layered surfaces, masks, blur, transitions, and authored animations must flow through emitted bundles.
 - Schema-driven UI becomes first-class for inspectors, property grids, tables, menus, and tool metadata views.
+
+### 2B. LLM-Legible By Construction
+
+- Authoring and runtime truth must be explicit enough that a strong model can inspect the codebase and understand how a UI works without tracing hidden backend heuristics.
+- Core UI behavior must not depend on opaque prop strings, smoke-specific drawing branches, or backend-owned fallback magic.
+- Widget, paint, motion, command, and schema systems should be driven by named contracts and registries rather than ad hoc literal combinations that make authored UIs collapse into the same shape.
 
 ### 3. Widget Depth Reaches Serious Desktop/Editor Territory
 
