@@ -4,22 +4,22 @@ component App():
             <scope name="dcc_shell" selector="kain-fabric-dcc-suite" />
             <token name="theme.chrome.topbar.visible" category="state" value={false} />
             <token name="theme.chrome.inspector.visible" category="state" value={false} />
-            <token name="theme.spacing.scale" category="space" value={1.02} />
-            <token name="theme.radius.scale" category="radius" value={1.1} />
+            <token name="theme.spacing.scale" category="space" value={0.96} />
+            <token name="theme.radius.scale" category="radius" value={0.72} />
             <token name="theme.typography.scale" category="type" value={1.05} />
-            <token name="theme.background.top" category="color" value="#07111a" />
-            <token name="theme.background.bottom" category="color" value="#0d1b25" />
-            <token name="theme.surface.default" category="color" value="#11212d" />
-            <token name="theme.surface.alt" category="color" value="#172a38" />
-            <token name="theme.surface.raised" category="color" value="#22384a" />
-            <token name="theme.surface.overlay" category="color" value="#0a1620e6" />
-            <token name="theme.outline.soft" category="color" value="#335267" />
-            <token name="theme.outline.bright" category="color" value="#6dd3c7" />
-            <token name="theme.accent.primary" category="color" value="#ff8c42" />
-            <token name="theme.accent.soft" category="color" value="#ffd29c" />
-            <token name="theme.highlight" category="color" value="#52c7ea" />
-            <token name="theme.text.default" category="color" value="#eef7fb" />
-            <token name="theme.text.muted" category="color" value="#9fb5c4" />
+            <token name="theme.background.top" category="color" value="#050a11" />
+            <token name="theme.background.bottom" category="color" value="#0a121b" />
+            <token name="theme.surface.default" category="color" value="#0f1823" />
+            <token name="theme.surface.alt" category="color" value="#162231" />
+            <token name="theme.surface.raised" category="color" value="#223241" />
+            <token name="theme.surface.overlay" category="color" value="#08111ae8" />
+            <token name="theme.outline.soft" category="color" value="#314556" />
+            <token name="theme.outline.bright" category="color" value="#8fc6d6" />
+            <token name="theme.accent.primary" category="color" value="#d78a32" />
+            <token name="theme.accent.soft" category="color" value="#f1c78e" />
+            <token name="theme.highlight" category="color" value="#74b8d8" />
+            <token name="theme.text.default" category="color" value="#e7eff5" />
+            <token name="theme.text.muted" category="color" value="#93a5b2" />
             <token name="widget.panel.surface.stroke" category="color" value="#00000000" />
             <token name="widget.inspector.surface.mode" category="surface" value="ghost" />
             <token name="widget.tree.surface.mode" category="surface" value="ghost" />
@@ -29,41 +29,51 @@ component App():
             <variant scope="dcc_shell" name="shell_root">
                 <token name="title.visible" category="state" value={false} />
                 <token name="surface.mode" category="surface" value="ghost" />
-                <token name="surface.padding" category="space" value={6} />
+                <token name="surface.padding" category="space" value={4} />
             </variant>
             <variant scope="dcc_shell" name="topbar">
+                <token name="surface.mode" category="surface" value="ghost" />
+                <token name="surface.padding" category="space" value={6} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="topbar_frame">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.padding" category="space" value={10} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="brand_console">
                 <token name="surface.mode" category="surface" value="glass" />
                 <token name="surface.padding" category="space" value={12} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
-            <variant scope="dcc_shell" name="topbar_brand">
-                <token name="surface.mode" category="surface" value="glass" />
-                <token name="surface.padding" category="space" value={14} />
-                <token name="title.visible" category="state" value={false} />
-            </variant>
-            <variant scope="dcc_shell" name="topbar_menu">
-                <token name="surface.mode" category="surface" value="ghost" />
+            <variant scope="dcc_shell" name="menu_rack">
+                <token name="surface.mode" category="surface" value="layered" />
                 <token name="surface.padding" category="space" value={8} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
-            <variant scope="dcc_shell" name="topbar_status_strip">
-                <token name="surface.mode" category="surface" value="ghost" />
-                <token name="surface.padding" category="space" value={6} />
+            <variant scope="dcc_shell" name="menu_pill">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.padding" category="space" value={8} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="status_rack">
+                <token name="surface.mode" category="surface" value="layered" />
+                <token name="surface.padding" category="space" value={8} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="metric_pill">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.padding" category="space" value={8} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
             <variant scope="dcc_shell" name="context_strip">
                 <token name="surface.mode" category="surface" value="ghost" />
-                <token name="surface.padding" category="space" value={4} />
+                <token name="surface.padding" category="space" value={2} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
-            <variant scope="dcc_shell" name="context_block">
-                <token name="surface.mode" category="surface" value="layered" />
-                <token name="surface.padding" category="space" value={12} />
-                <token name="title.visible" category="state" value={false} />
-            </variant>
-            <variant scope="dcc_shell" name="command_spotlight">
+            <variant scope="dcc_shell" name="workspace_strip">
                 <token name="surface.mode" category="surface" value="glass" />
-                <token name="surface.padding" category="space" value={12} />
+                <token name="surface.padding" category="space" value={10} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
             <variant scope="dcc_shell" name="workspace_chip">
@@ -76,45 +86,65 @@ component App():
                 <token name="surface.padding" category="space" value={10} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
+            <variant scope="dcc_shell" name="command_spotlight">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.padding" category="space" value={12} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
             <variant scope="dcc_shell" name="spotlight_card">
                 <token name="surface.mode" category="surface" value="flat" />
                 <token name="surface.padding" category="space" value={10} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
+            <variant scope="dcc_shell" name="system_rack">
+                <token name="surface.mode" category="surface" value="layered" />
+                <token name="surface.padding" category="space" value={10} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="operator_console">
+                <token name="surface.mode" category="surface" value="layered" />
+                <token name="surface.padding" category="space" value={10} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
             <variant scope="dcc_shell" name="page">
                 <token name="surface.mode" category="surface" value="ghost" />
-                <token name="surface.padding" category="space" value={6} />
+                <token name="surface.padding" category="space" value={4} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
             <variant scope="dcc_shell" name="hero_card">
                 <token name="surface.mode" category="surface" value="glass" />
-                <token name="surface.padding" category="space" value={16} />
+                <token name="surface.padding" category="space" value={14} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
             <variant scope="dcc_shell" name="quiet_card">
                 <token name="surface.mode" category="surface" value="flat" />
-                <token name="surface.padding" category="space" value={10} />
+                <token name="surface.padding" category="space" value={8} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
             <variant scope="dcc_shell" name="status_card">
                 <token name="surface.mode" category="surface" value="accent" />
+                <token name="surface.padding" category="space" value={8} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="viewport_frame">
+                <token name="surface.mode" category="surface" value="glass" />
                 <token name="surface.padding" category="space" value={10} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
             <variant scope="dcc_shell" name="surface_card">
                 <token name="surface.mode" category="surface" value="glass" />
-                <token name="surface.padding" category="space" value={12} />
+                <token name="surface.padding" category="space" value={10} />
             </variant>
             <textvariant scope="dcc_shell" name="hero">
-                <token name="body.size" category="type" value={30} />
+                <token name="body.size" category="type" value={26} />
             </textvariant>
-            <widget kind="panel" scope="dcc_shell" variant="topbar_menu">
+            <widget kind="panel" scope="dcc_shell" variant="menu_rack">
                 <token name="density" category="layout" value="compact" />
             </widget>
-            <widget kind="panel" scope="dcc_shell" variant="topbar_status_strip">
+            <widget kind="panel" scope="dcc_shell" variant="status_rack">
                 <token name="density" category="layout" value="compact" />
             </widget>
-            <widget kind="panel" scope="dcc_shell" variant="context_block">
+            <widget kind="panel" scope="dcc_shell" variant="system_rack">
                 <token name="density" category="layout" value="compact" />
             </widget>
             <widget kind="panel" scope="dcc_shell" variant="workspace_chip">
@@ -132,131 +162,180 @@ component App():
             <widget kind="panel" scope="dcc_shell" variant="surface_card">
                 <token name="density" category="layout" value="compact" />
             </widget>
+            <widget kind="panel" scope="dcc_shell" variant="menu_pill">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="panel" scope="dcc_shell" variant="metric_pill">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="panel" scope="dcc_shell" variant="operator_console">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="panel" scope="dcc_shell" variant="viewport_frame">
+                <token name="density" category="layout" value="compact" />
+            </widget>
         </theme>
         <panel title="Kain Fabric DCC Suite" scope="dcc_shell" variant="shell_root" layout="column" gap={10}>
-            <panel title="Global Top Bar" scope="dcc_shell" variant="topbar" layout="grid" columns={3} gap={10}>
-                <panel title="Brand" scope="dcc_shell" variant="topbar_brand" layout="column" gap={4}>
-                    <text role="eyebrow">{"KAIN FABRIC SUITE"}</text>
-                    <text role="title">{"Fabric-owned global studio shell"}</text>
-                    <text role="caption">{"Global chrome, workspace navigation, command spotlight, and runtime status stay above the authored workbench pages."}</text>
-                </panel>
-                <panel title="Menus" scope="dcc_shell" variant="topbar_menu" layout="column" gap={6}>
-                    <text role="eyebrow">{"SHELL MENUS"}</text>
-                    <text role="caption">{"Global editor menus stay visible above every lane."}</text>
-                    <slot layout="row" gap={6} overflow_x="scroll">
-                        <panel title="File" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
-                            <text role="title">{"File"}</text>
-                        </panel>
-                        <panel title="Edit" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
-                            <text role="title">{"Edit"}</text>
-                        </panel>
-                        <panel title="View" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
-                            <text role="title">{"View"}</text>
-                        </panel>
-                        <panel title="Jobs" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
-                            <text role="title">{"Jobs"}</text>
-                        </panel>
-                        <panel title="Help" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
-                            <text role="title">{"Help"}</text>
-                        </panel>
-                    </slot>
-                </panel>
-                <panel title="Status" scope="dcc_shell" variant="topbar_status_strip" layout="column" gap={6}>
-                    <text role="eyebrow">{"RUNTIME STATUS"}</text>
-                    <panel title="Status Metrics" scope="dcc_shell" variant="topbar_status_strip" layout="grid" columns={4} gap={8}>
-                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2} min_width={120}>
-                            <text role="metric">{"SUCCEEDED"}</text>
-                            <text role="caption">{"latest pipeline session"}</text>
-                        </panel>
-                        <panel title="Workspaces" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
-                            <text role="metric">{"7"}</text>
-                            <text role="caption">{"authored page lanes"}</text>
-                        </panel>
-                        <panel title="Surfaces" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
-                            <text role="metric">{"18"}</text>
-                            <text role="caption">{"registered shell surfaces"}</text>
-                        </panel>
-                        <panel title="Packs" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
-                            <text role="metric">{"15"}</text>
-                            <text role="caption">{"runtime packs projected"}</text>
+            <panel title="Global Top Bar" scope="dcc_shell" variant="topbar" layout="column" gap={8}>
+                <panel title="Top Bar Frame" scope="dcc_shell" variant="topbar_frame" layout="grid" columns={2} gap={8}>
+                    <panel title="Brand Console" scope="dcc_shell" variant="brand_console" layout="column" gap={3} min_width={340}>
+                        <text role="eyebrow">{"KAIN FABRIC SUITE"}</text>
+                        <text role="title">{"Fabric cockpit shell"}</text>
+                        <text role="caption">{"Navigation, command launch, and runtime telemetry stay fused into one operator cockpit above every authored workbench lane."}</text>
+                    </panel>
+                    <panel title="Status Rack" scope="dcc_shell" variant="status_rack" layout="column" gap={6}>
+                        <text role="eyebrow">{"RUNTIME STATUS"}</text>
+                        <text role="caption">{"Live session scale and pipeline health for the active shell."}</text>
+                        <panel title="Status Metrics" scope="dcc_shell" variant="status_rack" layout="grid" columns={4} gap={8}>
+                            <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2} min_width={112}>
+                                <text role="eyebrow">{"FABRIC"}</text>
+                                <text role="metric">{"SUCCEEDED"}</text>
+                                <text role="caption">{"latest pipeline session"}</text>
+                            </panel>
+                            <panel title="Workspaces" scope="dcc_shell" variant="metric_pill" layout="column" gap={2} min_width={112}>
+                                <text role="eyebrow">{"WORKSPACES"}</text>
+                                <text role="metric">{"7"}</text>
+                                <text role="caption">{"authored page lanes"}</text>
+                            </panel>
+                            <panel title="Surfaces" scope="dcc_shell" variant="metric_pill" layout="column" gap={2} min_width={112}>
+                                <text role="eyebrow">{"SURFACES"}</text>
+                                <text role="metric">{"18"}</text>
+                                <text role="caption">{"registered shell surfaces"}</text>
+                            </panel>
+                            <panel title="Packs" scope="dcc_shell" variant="metric_pill" layout="column" gap={2} min_width={112}>
+                                <text role="eyebrow">{"PACKS"}</text>
+                                <text role="metric">{"15"}</text>
+                                <text role="caption">{"runtime packs projected"}</text>
+                            </panel>
+                            <panel title="Commands" scope="dcc_shell" variant="metric_pill" layout="column" gap={2} min_width={112}>
+                                <text role="eyebrow">{"COMMANDS"}</text>
+                                <text role="metric">{"22"}</text>
+                                <text role="caption">{"global shell actions"}</text>
+                            </panel>
+                            <panel title="Pipeline" scope="dcc_shell" variant="metric_pill" layout="column" gap={2} min_width={112}>
+                                <text role="eyebrow">{"PIPELINE"}</text>
+                                <text role="metric">{"12"}</text>
+                                <text role="caption">{"fabric runtime steps"}</text>
+                            </panel>
+                            <panel title="Jobs" scope="dcc_shell" variant="metric_pill" layout="column" gap={2} min_width={112}>
+                                <text role="eyebrow">{"JOBS"}</text>
+                                <text role="metric">{"8"}</text>
+                                <text role="caption">{"scheduled automations"}</text>
+                            </panel>
+                            <panel title="Seams" scope="dcc_shell" variant="metric_pill" layout="column" gap={2} min_width={112}>
+                                <text role="eyebrow">{"SEAMS"}</text>
+                                <text role="metric">{"0"}</text>
+                                <text role="caption">{"known bridge seams"}</text>
+                            </panel>
                         </panel>
                     </panel>
                 </panel>
+                <panel title="Menu Rack" scope="dcc_shell" variant="menu_rack" layout="column" gap={6}>
+                    <text role="eyebrow">{"SHELL MENUS"}</text>
+                    <text role="caption">{"Global editor commands stay mounted in the same cockpit frame across every lane."}</text>
+                    <slot layout="row" gap={6} overflow_x="scroll">
+                        <panel title="File" scope="dcc_shell" variant="menu_pill" layout="column" gap={1} min_width={120}>
+                            <text role="eyebrow">{"MENU"}</text>
+                            <text role="title">{"File"}</text>
+                            <text role="caption">{"Bootstrap, ingest, and publish."}</text>
+                        </panel>
+                        <panel title="Edit" scope="dcc_shell" variant="menu_pill" layout="column" gap={1} min_width={120}>
+                            <text role="eyebrow">{"MENU"}</text>
+                            <text role="title">{"Edit"}</text>
+                            <text role="caption">{"Selection, tools, and gizmos."}</text>
+                        </panel>
+                        <panel title="View" scope="dcc_shell" variant="menu_pill" layout="column" gap={1} min_width={120}>
+                            <text role="eyebrow">{"MENU"}</text>
+                            <text role="title">{"View"}</text>
+                            <text role="caption">{"Lanes, docks, and layout."}</text>
+                        </panel>
+                        <panel title="Jobs" scope="dcc_shell" variant="menu_pill" layout="column" gap={1} min_width={120}>
+                            <text role="eyebrow">{"MENU"}</text>
+                            <text role="title">{"Jobs"}</text>
+                            <text role="caption">{"Sessions, jobs, and packs."}</text>
+                        </panel>
+                        <panel title="Help" scope="dcc_shell" variant="menu_pill" layout="column" gap={1} min_width={120}>
+                            <text role="eyebrow">{"MENU"}</text>
+                            <text role="title">{"Help"}</text>
+                            <text role="caption">{"Reports and guidance."}</text>
+                        </panel>
+                    </slot>
+                </panel>
             </panel>
             <panel title="Shell Context Strip" scope="dcc_shell" variant="context_strip" layout="column" gap={10}>
-                <panel title="Global lane navigation" scope="dcc_shell" variant="context_block" layout="column" gap={8}>
+                <panel title="Global lane navigation" scope="dcc_shell" variant="workspace_strip" layout="column" gap={8}>
                     <text role="eyebrow">{"Workspace Switcher"}</text>
                     <text role="title">{"Global lane navigation"}</text>
-                    <text role="caption">{"Each chip mirrors an authored workbench page. The host can style this later as real tab chrome without inventing a second workspace schema."}</text>
+                    <text role="caption">{"Each lane chip mirrors an authored workbench page so the shell keeps one workspace model instead of inventing separate host tabs."}</text>
                     <slot layout="row" gap={8} overflow_x="scroll">
-                        <panel title="Scene Assembly" scope="dcc_shell" variant="workspace_chip_active" layout="column" gap={3} min_width={170}>
+                        <panel title="Scene Assembly" scope="dcc_shell" variant="workspace_chip_active" layout="column" gap={2} min_width={156}>
                             <text role="eyebrow">{"SCENE"}</text>
                             <text role="title">{"Scene Assembly"}</text>
                             <text role="caption">{"Scene graph authoring, set dressing, layout, and asset placement."}</text>
                         </panel>
-                        <panel title="Sculpt And Model" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={170}>
+                        <panel title="Sculpt And Model" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={156}>
                             <text role="eyebrow">{"MODEL"}</text>
                             <text role="title">{"Sculpt And Model"}</text>
                             <text role="caption">{"Poly modeling, sculpt strokes, remesh, and topology shaping."}</text>
                         </panel>
-                        <panel title="Material And Lookdev" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={170}>
+                        <panel title="Material And Lookdev" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={156}>
                             <text role="eyebrow">{"LOOKDEV"}</text>
                             <text role="title">{"Material And Lookdev"}</text>
                             <text role="caption">{"PBR texture sets, paint layers, SVG masks, smart materials, and export presets."}</text>
                         </panel>
-                        <panel title="Rig And Animation" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={170}>
+                        <panel title="Rig And Animation" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={156}>
                             <text role="eyebrow">{"RIG"}</text>
                             <text role="title">{"Rig And Animation"}</text>
                             <text role="caption">{"Rig graphs, deformation checks, clips, retargeting, and blocking."}</text>
                         </panel>
-                        <panel title="Simulation And FX" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={170}>
+                        <panel title="Simulation And FX" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={156}>
                             <text role="eyebrow">{"SIM"}</text>
                             <text role="title">{"Simulation And FX"}</text>
                             <text role="caption">{"Caches, solvers, scene events, and reproducible simulation jobs."}</text>
                         </panel>
-                        <panel title="Render And Composite" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={170}>
+                        <panel title="Render And Composite" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={156}>
                             <text role="eyebrow">{"RENDER"}</text>
                             <text role="title">{"Render And Composite"}</text>
                             <text role="caption">{"Viewport renders, frame products, AOV assembly, and compositor rebuilds."}</text>
                         </panel>
-                        <panel title="Publish And Automation" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={170}>
+                        <panel title="Publish And Automation" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={156}>
                             <text role="eyebrow">{"PUBLISH"}</text>
                             <text role="title">{"Publish And Automation"}</text>
                             <text role="caption">{"Package review, delivery reports, automation jobs, and runtime pack promotion."}</text>
                         </panel>
                     </slot>
                 </panel>
-                <panel title="Shell Context Blocks" scope="dcc_shell" variant="context_strip" layout="grid" columns={2} gap={10}>
+                <panel title="Shell Context Blocks" scope="dcc_shell" variant="context_strip" layout="grid" columns={3} gap={10}>
                     <panel title="Global operator quick-actions" scope="dcc_shell" variant="command_spotlight" layout="column" gap={8}>
                         <text role="eyebrow">{"Command Spotlight"}</text>
                         <text role="title">{"Global operator quick-actions"}</text>
                         <text role="caption">{"These are the shell-level commands that should stay one gesture away no matter which workbench is active."}</text>
                         <slot layout="row" gap={8} overflow_x="scroll">
-                            <panel title="Bootstrap Suite" scope="dcc_shell" variant="spotlight_card" layout="column" gap={4} min_width={220}>
+                            <panel title="Bootstrap Suite" scope="dcc_shell" variant="spotlight_card" layout="column" gap={3} min_width={196}>
                                 <text role="eyebrow">{"SURFACE TITLEBAR"}</text>
                                 <text role="title">{"Bootstrap Suite"}</text>
                                 <text role="caption">{"intent project.bootstrap"}</text>
                                 <text role="body">{"Seeds the canonical scene, asset, preview, tensor, and publish session state."}</text>
                             </panel>
-                            <panel title="Switch Workspace" scope="dcc_shell" variant="spotlight_card" layout="column" gap={4} min_width={220}>
+                            <panel title="Switch Workspace" scope="dcc_shell" variant="spotlight_card" layout="column" gap={3} min_width={196}>
                                 <text role="eyebrow">{"SURFACE WORKSPACE_MODE_RAIL"}</text>
                                 <text role="title">{"Switch Workspace"}</text>
                                 <text role="caption">{"intent workspace.switch_mode"}</text>
                                 <text role="body">{"Moves the operator into a different DCC lane and marks downstream surfaces for refresh."}</text>
                             </panel>
-                            <panel title="Render Preview" scope="dcc_shell" variant="spotlight_card" layout="column" gap={4} min_width={220}>
+                            <panel title="Render Preview" scope="dcc_shell" variant="spotlight_card" layout="column" gap={3} min_width={196}>
                                 <text role="eyebrow">{"SURFACE RENDER_LOUNGE"}</text>
                                 <text role="title">{"Render Preview"}</text>
                                 <text role="caption">{"intent render.preview"}</text>
                                 <text role="body">{"Stages a preview render refresh and updates render-facing reports."}</text>
                             </panel>
-                            <panel title="Package Publish" scope="dcc_shell" variant="spotlight_card" layout="column" gap={4} min_width={220}>
+                            <panel title="Package Publish" scope="dcc_shell" variant="spotlight_card" layout="column" gap={3} min_width={196}>
                                 <text role="eyebrow">{"SURFACE PUBLISH_CONSOLE"}</text>
                                 <text role="title">{"Package Publish"}</text>
                                 <text role="caption">{"intent publish.package"}</text>
                                 <text role="body">{"Builds the publish summary and package receipts for operator review."}</text>
                             </panel>
-                            <panel title="Tensor Infer Step" scope="dcc_shell" variant="spotlight_card" layout="column" gap={4} min_width={220}>
+                            <panel title="Tensor Infer Step" scope="dcc_shell" variant="spotlight_card" layout="column" gap={3} min_width={196}>
                                 <text role="eyebrow">{"SURFACE JOBS_MONITOR"}</text>
                                 <text role="title">{"Tensor Infer Step"}</text>
                                 <text role="caption">{"intent tensor.infer_step"}</text>
@@ -264,10 +343,39 @@ component App():
                             </panel>
                         </slot>
                     </panel>
-                    <panel title="Shell system guidance" scope="dcc_shell" variant="context_block" layout="column" gap={6}>
+                    <panel title="Fabric runtime telemetry" scope="dcc_shell" variant="system_rack" layout="column" gap={8}>
+                        <text role="eyebrow">{"System Rack"}</text>
+                        <text role="title">{"Fabric runtime telemetry"}</text>
+                        <text role="caption">{"Core registry scale and known seams stay visible in shell chrome so the workbench pages can stay focused on authoring surfaces."}</text>
+                        <panel title="System Metrics" scope="dcc_shell" variant="system_rack" layout="grid" columns={2} gap={8}>
+                            <panel title="Commands" scope="dcc_shell" variant="metric_pill" layout="column" gap={2} min_width={112}>
+                                <text role="eyebrow">{"COMMANDS"}</text>
+                                <text role="metric">{"22"}</text>
+                                <text role="caption">{"global shell actions"}</text>
+                            </panel>
+                            <panel title="Pipeline" scope="dcc_shell" variant="metric_pill" layout="column" gap={2} min_width={112}>
+                                <text role="eyebrow">{"PIPELINE"}</text>
+                                <text role="metric">{"12"}</text>
+                                <text role="caption">{"fabric runtime steps"}</text>
+                            </panel>
+                            <panel title="Jobs" scope="dcc_shell" variant="metric_pill" layout="column" gap={2} min_width={112}>
+                                <text role="eyebrow">{"JOBS"}</text>
+                                <text role="metric">{"8"}</text>
+                                <text role="caption">{"scheduled automations"}</text>
+                            </panel>
+                            <panel title="Seams" scope="dcc_shell" variant="metric_pill" layout="column" gap={2} min_width={112}>
+                                <text role="eyebrow">{"SEAMS"}</text>
+                                <text role="metric">{"0"}</text>
+                                <text role="caption">{"known bridge seams"}</text>
+                            </panel>
+                        </panel>
+                        <text role="caption">{"shell telemetry should read like instrumentation, not like a second inspector rail"}</text>
+                        <text role="caption">{"registry counts and bridge seams belong in persistent chrome because they shape operator trust across every lane"}</text>
+                    </panel>
+                    <panel title="Shell system guidance" scope="dcc_shell" variant="operator_console" layout="column" gap={6}>
                         <text role="eyebrow">{"Operator Context"}</text>
                         <text role="title">{"Shell system guidance"}</text>
-                        <text role="caption">{"The shell chrome should feel persistent and global. Workbench pages should feel like modules mounted inside the same editor, not separate generated demos."}</text>
+                        <text role="caption">{"The cockpit should feel like one durable editor frame. Workbench pages should read like mounted subsystems, not isolated demo cards."}</text>
                         <text role="caption">{"command spotlight remains shell-owned so operators can bootstrap, switch lanes, preview, and publish without hunting through page-local inspectors"}</text>
                         <text role="caption">{"workspace chips mirror authored page descriptors and should be the future landing zone for semantic top-tab rendering in the native host"}</text>
                         <text role="caption">{"runtime status, registry counts, and extension seam warnings belong in shell chrome so lane pages can stay focused on authored work"}</text>
@@ -276,7 +384,7 @@ component App():
             </panel>
             <panel title="Workbench Pages" scope="dcc_shell" variant="page" layout="column" gap={12}>
             <panel title="Scene Assembly Workbench" scope="dcc_shell" variant="page" layout="dock" gap={14} persistent_layout_id="dcc_page_scene_assembly" tab_group_id="dcc-workspaces" tab_label="Scene" tab_order={0} tab_default_active={true}>
-                <panel title="Navigator" dock="left" split_ratio={0.22} min_width={270} max_width={380} resizable={true} layout="column" gap={12}>
+                <panel title="Lane Console" dock="left" split_ratio={0.18} min_width={250} max_width={340} resizable={true} layout="column" gap={10}>
                     <panel title="Hero" scope="dcc_shell" variant="hero_card" layout="column" gap={6}>
                         <text role="eyebrow">{"SCENE ASSEMBLY"}</text>
                         <text role="hero">{"Scene-first assembly and ingest mission control"}</text>
@@ -298,22 +406,28 @@ component App():
                     </tree>
                 </panel>
                 <panel title="Workbench Stage" dock="center" layout="column" gap={12}>
-                    <panel title="Status Deck" layout="grid" columns={3} gap={10}>
-                        <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                    <panel title="Viewport Frame" scope="dcc_shell" variant="viewport_frame" layout="column" gap={10}>
+                        <panel title="Cockpit Strip" layout="grid" columns={4} gap={8}>
+                            <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
                             <text role="metric">{"Scene Assembly"}</text>
                             <text role="caption">{"focus Scene Graph"}</text>
-                        </panel>
-                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
+                            </panel>
+                            <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
                             <text role="metric">{"SUCCEEDED"}</text>
                             <text role="caption">{"intent routes 4"}</text>
-                        </panel>
-                        <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            </panel>
+                            <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
                             <text role="metric">{"1"}</text>
                             <text role="caption">{"runtime packs online"}</text>
+                            </panel>
+                            <panel title="Commands" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"4"}</text>
+                            <text role="caption">{"quick actions armed"}</text>
+                            </panel>
                         </panel>
+                        <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
                     </panel>
-                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
-                    <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
+                    <panel title="Surface Deck" layout="grid" columns={3} gap={10}>
                         <panel title="Scene Graph" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
                             <text role="eyebrow">{"TREE"}</text>
                             <text role="caption">{"Hierarchy, collections, instancing groups, and publish roots."}</text>
@@ -335,7 +449,7 @@ component App():
                         </panel>
                     </panel>
                 </panel>
-                <panel title="Inspector Rail" dock="right" split_ratio={0.25} min_width={320} max_width={460} resizable={true} layout="column" gap={12}>
+                <panel title="Inspector Rail" dock="right" split_ratio={0.22} min_width={300} max_width={420} resizable={true} layout="column" gap={10}>
                     <inspector title="Intent Routes">
                         <text role="body">{"Bootstrap Suite | fabric/intents/bootstrap.fabric.toml"}</text>
                         <text role="body">{"Asset Ingest | fabric/intents/asset_ingest.fabric.toml"}</text>
@@ -364,7 +478,7 @@ component App():
                         </inspector>
                     </panel>
                 </panel>
-                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.24} min_height={220} max_height={360} resizable={true} layout="column" gap={12}>
+                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.2} min_height={180} max_height={320} resizable={true} layout="column" gap={10}>
                     <panel title="Execution Surfaces" layout="grid" columns={2} gap={10}>
                         <panel title="Animation Timeline" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
                             <text role="eyebrow">{"TIMELINE"}</text>
@@ -382,7 +496,7 @@ component App():
                 </panel>
             </panel>
             <panel title="Sculpt And Modeling Forge" scope="dcc_shell" variant="page" layout="dock" gap={14} persistent_layout_id="dcc_page_sculpt_model" tab_group_id="dcc-workspaces" tab_label="Model" tab_order={1}>
-                <panel title="Navigator" dock="left" split_ratio={0.22} min_width={270} max_width={380} resizable={true} layout="column" gap={12}>
+                <panel title="Lane Console" dock="left" split_ratio={0.18} min_width={250} max_width={340} resizable={true} layout="column" gap={10}>
                     <panel title="Hero" scope="dcc_shell" variant="hero_card" layout="column" gap={6}>
                         <text role="eyebrow">{"SCULPT AND MODEL"}</text>
                         <text role="hero">{"Viewport-dominant modeling and sculpt layout"}</text>
@@ -405,22 +519,28 @@ component App():
                     </tree>
                 </panel>
                 <panel title="Workbench Stage" dock="center" layout="column" gap={12}>
-                    <panel title="Status Deck" layout="grid" columns={3} gap={10}>
-                        <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                    <panel title="Viewport Frame" scope="dcc_shell" variant="viewport_frame" layout="column" gap={10}>
+                        <panel title="Cockpit Strip" layout="grid" columns={4} gap={8}>
+                            <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
                             <text role="metric">{"Sculpt And Model"}</text>
                             <text role="caption">{"focus Viewport Stage"}</text>
-                        </panel>
-                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
+                            </panel>
+                            <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
                             <text role="metric">{"SUCCEEDED"}</text>
                             <text role="caption">{"intent routes 4"}</text>
-                        </panel>
-                        <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            </panel>
+                            <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
                             <text role="metric">{"1"}</text>
                             <text role="caption">{"runtime packs online"}</text>
+                            </panel>
+                            <panel title="Commands" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"4"}</text>
+                            <text role="caption">{"quick actions armed"}</text>
+                            </panel>
                         </panel>
+                        <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
                     </panel>
-                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
-                    <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
+                    <panel title="Surface Deck" layout="grid" columns={3} gap={10}>
                         <panel title="Scene Graph" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
                             <text role="eyebrow">{"TREE"}</text>
                             <text role="caption">{"Hierarchy, collections, instancing groups, and publish roots."}</text>
@@ -440,7 +560,7 @@ component App():
                         </panel>
                     </panel>
                 </panel>
-                <panel title="Inspector Rail" dock="right" split_ratio={0.25} min_width={320} max_width={460} resizable={true} layout="column" gap={12}>
+                <panel title="Inspector Rail" dock="right" split_ratio={0.22} min_width={300} max_width={420} resizable={true} layout="column" gap={10}>
                     <inspector title="Intent Routes">
                         <text role="body">{"Sculpt Stroke | fabric/intents/sculpt_stroke.fabric.toml"}</text>
                         <text role="body">{"Topology Rebuild | fabric/intents/topology_rebuild.fabric.toml"}</text>
@@ -469,7 +589,7 @@ component App():
                         </inspector>
                     </panel>
                 </panel>
-                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.24} min_height={220} max_height={360} resizable={true} layout="column" gap={12}>
+                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.2} min_height={180} max_height={320} resizable={true} layout="column" gap={10}>
                     <panel title="Execution Surfaces" layout="grid" columns={2} gap={10}>
                         <panel title="Rig Graph" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
                             <text role="eyebrow">{"GRAPH"}</text>
@@ -487,7 +607,7 @@ component App():
                 </panel>
             </panel>
             <panel title="Material And Lookdev Studio" scope="dcc_shell" variant="page" layout="dock" gap={14} persistent_layout_id="dcc_page_material_lookdev" tab_group_id="dcc-workspaces" tab_label="Lookdev" tab_order={2}>
-                <panel title="Navigator" dock="left" split_ratio={0.22} min_width={270} max_width={380} resizable={true} layout="column" gap={12}>
+                <panel title="Lane Console" dock="left" split_ratio={0.18} min_width={250} max_width={340} resizable={true} layout="column" gap={10}>
                     <panel title="Hero" scope="dcc_shell" variant="hero_card" layout="column" gap={6}>
                         <text role="eyebrow">{"MATERIAL AND LOOKDEV"}</text>
                         <text role="hero">{"Painter-style material authoring with SVG and packed export lanes"}</text>
@@ -510,22 +630,28 @@ component App():
                     </tree>
                 </panel>
                 <panel title="Workbench Stage" dock="center" layout="column" gap={12}>
-                    <panel title="Status Deck" layout="grid" columns={3} gap={10}>
-                        <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                    <panel title="Viewport Frame" scope="dcc_shell" variant="viewport_frame" layout="column" gap={10}>
+                        <panel title="Cockpit Strip" layout="grid" columns={4} gap={8}>
+                            <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
                             <text role="metric">{"Material And Lookdev"}</text>
                             <text role="caption">{"focus Material Graph"}</text>
-                        </panel>
-                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
+                            </panel>
+                            <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
                             <text role="metric">{"SUCCEEDED"}</text>
                             <text role="caption">{"intent routes 4"}</text>
-                        </panel>
-                        <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            </panel>
+                            <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
                             <text role="metric">{"1"}</text>
                             <text role="caption">{"runtime packs online"}</text>
+                            </panel>
+                            <panel title="Commands" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"5"}</text>
+                            <text role="caption">{"quick actions armed"}</text>
+                            </panel>
                         </panel>
+                        <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
                     </panel>
-                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
-                    <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
+                    <panel title="Surface Deck" layout="grid" columns={3} gap={10}>
                         <panel title="Material Graph" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
                             <text role="eyebrow">{"GRAPH"}</text>
                             <text role="caption">{"Shading, texture-routing, anchor points, and smart material composition."}</text>
@@ -543,7 +669,7 @@ component App():
                         </panel>
                     </panel>
                 </panel>
-                <panel title="Inspector Rail" dock="right" split_ratio={0.25} min_width={320} max_width={460} resizable={true} layout="column" gap={12}>
+                <panel title="Inspector Rail" dock="right" split_ratio={0.22} min_width={300} max_width={420} resizable={true} layout="column" gap={10}>
                     <inspector title="Intent Routes">
                         <text role="body">{"Material Bake | fabric/intents/material_bake.fabric.toml"}</text>
                         <text role="body">{"Material Export | fabric/intents/material_bake.fabric.toml"}</text>
@@ -579,7 +705,7 @@ component App():
                         </inspector>
                     </panel>
                 </panel>
-                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.24} min_height={220} max_height={360} resizable={true} layout="column" gap={12}>
+                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.2} min_height={180} max_height={320} resizable={true} layout="column" gap={10}>
                     <panel title="Execution Surfaces" layout="grid" columns={2} gap={10}>
                         <panel title="Compositor Stack" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
                             <text role="eyebrow">{"GRAPH"}</text>
@@ -597,7 +723,7 @@ component App():
                 </panel>
             </panel>
             <panel title="Rig And Animation Bench" scope="dcc_shell" variant="page" layout="dock" gap={14} persistent_layout_id="dcc_page_rig_anim" tab_group_id="dcc-workspaces" tab_label="Rig" tab_order={3}>
-                <panel title="Navigator" dock="left" split_ratio={0.22} min_width={270} max_width={380} resizable={true} layout="column" gap={12}>
+                <panel title="Lane Console" dock="left" split_ratio={0.18} min_width={250} max_width={340} resizable={true} layout="column" gap={10}>
                     <panel title="Hero" scope="dcc_shell" variant="hero_card" layout="column" gap={6}>
                         <text role="eyebrow">{"RIG AND ANIMATION"}</text>
                         <text role="hero">{"Graph, timeline, and deformation review in one bench"}</text>
@@ -618,22 +744,28 @@ component App():
                     </tree>
                 </panel>
                 <panel title="Workbench Stage" dock="center" layout="column" gap={12}>
-                    <panel title="Status Deck" layout="grid" columns={3} gap={10}>
-                        <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                    <panel title="Viewport Frame" scope="dcc_shell" variant="viewport_frame" layout="column" gap={10}>
+                        <panel title="Cockpit Strip" layout="grid" columns={4} gap={8}>
+                            <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
                             <text role="metric">{"Rig And Animation"}</text>
                             <text role="caption">{"focus Rig Graph"}</text>
-                        </panel>
-                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
+                            </panel>
+                            <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
                             <text role="metric">{"SUCCEEDED"}</text>
                             <text role="caption">{"intent routes 3"}</text>
-                        </panel>
-                        <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            </panel>
+                            <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
                             <text role="metric">{"1"}</text>
                             <text role="caption">{"runtime packs online"}</text>
+                            </panel>
+                            <panel title="Commands" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"3"}</text>
+                            <text role="caption">{"quick actions armed"}</text>
+                            </panel>
                         </panel>
+                        <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
                     </panel>
-                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
-                    <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
+                    <panel title="Surface Deck" layout="grid" columns={3} gap={10}>
                         <panel title="Rig Graph" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
                             <text role="eyebrow">{"GRAPH"}</text>
                             <text role="caption">{"Control rigs, constraints, deformation layers, and sync reports."}</text>
@@ -651,7 +783,7 @@ component App():
                         </panel>
                     </panel>
                 </panel>
-                <panel title="Inspector Rail" dock="right" split_ratio={0.25} min_width={320} max_width={460} resizable={true} layout="column" gap={12}>
+                <panel title="Inspector Rail" dock="right" split_ratio={0.22} min_width={300} max_width={420} resizable={true} layout="column" gap={10}>
                     <inspector title="Intent Routes">
                         <text role="body">{"Rig Sync | fabric/intents/rig_sync.fabric.toml"}</text>
                         <text role="body">{"Render Preview | fabric/intents/render_preview.fabric.toml"}</text>
@@ -679,7 +811,7 @@ component App():
                         </inspector>
                     </panel>
                 </panel>
-                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.24} min_height={220} max_height={360} resizable={true} layout="column" gap={12}>
+                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.2} min_height={180} max_height={320} resizable={true} layout="column" gap={10}>
                     <panel title="Execution Surfaces" layout="grid" columns={2} gap={10}>
                         <panel title="Simulation Board" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
                             <text role="eyebrow">{"GRAPH"}</text>
@@ -697,7 +829,7 @@ component App():
                 </panel>
             </panel>
             <panel title="Simulation And FX Board" scope="dcc_shell" variant="page" layout="dock" gap={14} persistent_layout_id="dcc_page_sim_fx" tab_group_id="dcc-workspaces" tab_label="Sim" tab_order={4}>
-                <panel title="Navigator" dock="left" split_ratio={0.22} min_width={270} max_width={380} resizable={true} layout="column" gap={12}>
+                <panel title="Lane Console" dock="left" split_ratio={0.18} min_width={250} max_width={340} resizable={true} layout="column" gap={10}>
                     <panel title="Hero" scope="dcc_shell" variant="hero_card" layout="column" gap={6}>
                         <text role="eyebrow">{"SIMULATION AND FX"}</text>
                         <text role="hero">{"Plan, cache, and review simulation work as a first-class lane"}</text>
@@ -717,22 +849,28 @@ component App():
                     </tree>
                 </panel>
                 <panel title="Workbench Stage" dock="center" layout="column" gap={12}>
-                    <panel title="Status Deck" layout="grid" columns={3} gap={10}>
-                        <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                    <panel title="Viewport Frame" scope="dcc_shell" variant="viewport_frame" layout="column" gap={10}>
+                        <panel title="Cockpit Strip" layout="grid" columns={4} gap={8}>
+                            <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
                             <text role="metric">{"Simulation And FX"}</text>
                             <text role="caption">{"focus Simulation Board"}</text>
-                        </panel>
-                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
+                            </panel>
+                            <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
                             <text role="metric">{"SUCCEEDED"}</text>
                             <text role="caption">{"intent routes 4"}</text>
-                        </panel>
-                        <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            </panel>
+                            <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
                             <text role="metric">{"1"}</text>
                             <text role="caption">{"runtime packs online"}</text>
+                            </panel>
+                            <panel title="Commands" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"3"}</text>
+                            <text role="caption">{"quick actions armed"}</text>
+                            </panel>
                         </panel>
+                        <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
                     </panel>
-                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
-                    <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
+                    <panel title="Surface Deck" layout="grid" columns={3} gap={10}>
                         <panel title="Simulation Board" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
                             <text role="eyebrow">{"GRAPH"}</text>
                             <text role="caption">{"Cache plans, solver dependencies, and replay diagnostics."}</text>
@@ -750,7 +888,7 @@ component App():
                         </panel>
                     </panel>
                 </panel>
-                <panel title="Inspector Rail" dock="right" split_ratio={0.25} min_width={320} max_width={460} resizable={true} layout="column" gap={12}>
+                <panel title="Inspector Rail" dock="right" split_ratio={0.22} min_width={300} max_width={420} resizable={true} layout="column" gap={10}>
                     <inspector title="Intent Routes">
                         <text role="body">{"Simulation Tick | fabric/intents/sim_tick.fabric.toml"}</text>
                         <text role="body">{"Render Preview | fabric/intents/render_preview.fabric.toml"}</text>
@@ -772,7 +910,7 @@ component App():
                         </inspector>
                     </panel>
                 </panel>
-                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.24} min_height={220} max_height={360} resizable={true} layout="column" gap={12}>
+                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.2} min_height={180} max_height={320} resizable={true} layout="column" gap={10}>
                     <panel title="Execution Surfaces" layout="grid" columns={2} gap={10}>
                         <panel title="Animation Timeline" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
                             <text role="eyebrow">{"TIMELINE"}</text>
@@ -790,7 +928,7 @@ component App():
                 </panel>
             </panel>
             <panel title="Render And Composite Control Room" scope="dcc_shell" variant="page" layout="dock" gap={14} persistent_layout_id="dcc_page_render_comp" tab_group_id="dcc-workspaces" tab_label="Render" tab_order={5}>
-                <panel title="Navigator" dock="left" split_ratio={0.22} min_width={270} max_width={380} resizable={true} layout="column" gap={12}>
+                <panel title="Lane Console" dock="left" split_ratio={0.18} min_width={250} max_width={340} resizable={true} layout="column" gap={10}>
                     <panel title="Hero" scope="dcc_shell" variant="hero_card" layout="column" gap={6}>
                         <text role="eyebrow">{"RENDER AND COMPOSITE"}</text>
                         <text role="hero">{"Review renders, composite plans, and final publish risk in one control room"}</text>
@@ -811,22 +949,28 @@ component App():
                     </tree>
                 </panel>
                 <panel title="Workbench Stage" dock="center" layout="column" gap={12}>
-                    <panel title="Status Deck" layout="grid" columns={3} gap={10}>
-                        <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                    <panel title="Viewport Frame" scope="dcc_shell" variant="viewport_frame" layout="column" gap={10}>
+                        <panel title="Cockpit Strip" layout="grid" columns={4} gap={8}>
+                            <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
                             <text role="metric">{"Render And Composite"}</text>
                             <text role="caption">{"focus Render Lounge"}</text>
-                        </panel>
-                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
+                            </panel>
+                            <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
                             <text role="metric">{"SUCCEEDED"}</text>
                             <text role="caption">{"intent routes 3"}</text>
-                        </panel>
-                        <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            </panel>
+                            <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
                             <text role="metric">{"1"}</text>
                             <text role="caption">{"runtime packs online"}</text>
+                            </panel>
+                            <panel title="Commands" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"3"}</text>
+                            <text role="caption">{"quick actions armed"}</text>
+                            </panel>
                         </panel>
+                        <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
                     </panel>
-                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
-                    <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
+                    <panel title="Surface Deck" layout="grid" columns={3} gap={10}>
                         <panel title="Render Lounge" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
                             <text role="eyebrow">{"GRAPH"}</text>
                             <text role="caption">{"Render products, preview budgets, frame queues, and AOV targets."}</text>
@@ -846,7 +990,7 @@ component App():
                         </panel>
                     </panel>
                 </panel>
-                <panel title="Inspector Rail" dock="right" split_ratio={0.25} min_width={320} max_width={460} resizable={true} layout="column" gap={12}>
+                <panel title="Inspector Rail" dock="right" split_ratio={0.22} min_width={300} max_width={420} resizable={true} layout="column" gap={10}>
                     <inspector title="Intent Routes">
                         <text role="body">{"Render Preview | fabric/intents/render_preview.fabric.toml"}</text>
                         <text role="body">{"Compositor Rebuild | fabric/intents/compositor_rebuild.fabric.toml"}</text>
@@ -874,7 +1018,7 @@ component App():
                         </inspector>
                     </panel>
                 </panel>
-                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.24} min_height={220} max_height={360} resizable={true} layout="column" gap={12}>
+                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.2} min_height={180} max_height={320} resizable={true} layout="column" gap={10}>
                     <panel title="Execution Surfaces" layout="grid" columns={2} gap={10}>
                         <panel title="Animation Timeline" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
                             <text role="eyebrow">{"TIMELINE"}</text>
@@ -892,7 +1036,7 @@ component App():
                 </panel>
             </panel>
             <panel title="Publish And Automation Command Deck" scope="dcc_shell" variant="page" layout="dock" gap={14} persistent_layout_id="dcc_page_publish_automation" tab_group_id="dcc-workspaces" tab_label="Publish" tab_order={6}>
-                <panel title="Navigator" dock="left" split_ratio={0.22} min_width={270} max_width={380} resizable={true} layout="column" gap={12}>
+                <panel title="Lane Console" dock="left" split_ratio={0.18} min_width={250} max_width={340} resizable={true} layout="column" gap={10}>
                     <panel title="Hero" scope="dcc_shell" variant="hero_card" layout="column" gap={6}>
                         <text role="eyebrow">{"PUBLISH AND AUTOMATION"}</text>
                         <text role="hero">{"Delivery, receipts, automation, and tensor readiness under one publish deck"}</text>
@@ -913,22 +1057,28 @@ component App():
                     </tree>
                 </panel>
                 <panel title="Workbench Stage" dock="center" layout="column" gap={12}>
-                    <panel title="Status Deck" layout="grid" columns={3} gap={10}>
-                        <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                    <panel title="Viewport Frame" scope="dcc_shell" variant="viewport_frame" layout="column" gap={10}>
+                        <panel title="Cockpit Strip" layout="grid" columns={4} gap={8}>
+                            <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
                             <text role="metric">{"Publish And Automation"}</text>
                             <text role="caption">{"focus Publish Console"}</text>
-                        </panel>
-                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
+                            </panel>
+                            <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
                             <text role="metric">{"SUCCEEDED"}</text>
                             <text role="caption">{"intent routes 3"}</text>
-                        </panel>
-                        <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            </panel>
+                            <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
                             <text role="metric">{"1"}</text>
                             <text role="caption">{"runtime packs online"}</text>
+                            </panel>
+                            <panel title="Commands" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"4"}</text>
+                            <text role="caption">{"quick actions armed"}</text>
+                            </panel>
                         </panel>
+                        <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
                     </panel>
-                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
-                    <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
+                    <panel title="Surface Deck" layout="grid" columns={3} gap={10}>
                         <panel title="Publish Console" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
                             <text role="eyebrow">{"INSPECTOR"}</text>
                             <text role="caption">{"Packages, receipts, validators, deliverables, and client-facing summaries."}</text>
@@ -950,7 +1100,7 @@ component App():
                         </panel>
                     </panel>
                 </panel>
-                <panel title="Inspector Rail" dock="right" split_ratio={0.25} min_width={320} max_width={460} resizable={true} layout="column" gap={12}>
+                <panel title="Inspector Rail" dock="right" split_ratio={0.22} min_width={300} max_width={420} resizable={true} layout="column" gap={10}>
                     <inspector title="Intent Routes">
                         <text role="body">{"Publish Package | fabric/intents/publish_package.fabric.toml"}</text>
                         <text role="body">{"Tensor Train Step | fabric/intents/tensor_train_step.fabric.toml"}</text>
@@ -971,7 +1121,7 @@ component App():
                         </inspector>
                     </panel>
                 </panel>
-                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.24} min_height={220} max_height={360} resizable={true} layout="column" gap={12}>
+                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.2} min_height={180} max_height={320} resizable={true} layout="column" gap={10}>
                     <panel title="Execution Surfaces" layout="grid" columns={2} gap={10}>
                         <panel title="Jobs Monitor" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
                             <text role="eyebrow">{"TIMELINE"}</text>

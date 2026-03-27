@@ -38,6 +38,7 @@ The scaffold is split into seven durable ownership layers:
 - The native C helper owns only a narrow sculpt signature and report seam over GPU output.
 - The local Rust crate owns graph, topology, and rig health analysis only.
 - The GPU shader layer owns sculpt heightfield evaluation, material preview bake, export channel packing, render preview lighting, compositor tone mapping, and staged shader-library expansion for viewport and smart-material work.
+- The app owns the `dcc_suite_scene` viewport intent and startup-session semantics, while the shared `crates/kain-3D` scene catalog currently owns the temporary procedural realization of the startup mesh, floor, backdrop, and studio light rig until a first-class mesh asset contract lands.
 - The native shell may emit command events and host the bridge loop, but it still must not become the semantic owner of workspace lanes, command routing, or session truth. Session truth remains the document projected from app-owned schema plus reducers.
 
 ## Main Files
@@ -156,4 +157,5 @@ powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/buil
 - `state/runtime_snapshot.json` must satisfy `crates/kain-ui-native`'s `NativeAppRuntimeSnapshot` schema. If the snapshot shape drifts, the host will silently fail to hot-reload it.
 - `scripts/materialize-session-state.ps1` is now responsible for seeding both app-root and `native-app/state` sidecars. If one copy is missing, the bridge loop will still run, but only the existing sidecar roots will stay synchronized.
 - `config/gizmo_registry.json` is now part of the viewport contract. If gizmo defaults or hotkeys change, rerun `scripts/materialize-shell.ps1` and rebuild the native UI bundle so the realtime viewport sees the new metadata.
+- The DCC suite now expects `dcc_suite_scene` to resolve through the shared `crates/kain-3D` scene catalog. If that scene id changes on the app side, update the shared scene catalog or the viewport will silently fall back to another catalog scene.
 - The tensor manifests intentionally report readiness and plan state even when `torch` is unavailable. That is not a bug in the scaffold; it is the current extension seam.

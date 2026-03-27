@@ -156,12 +156,12 @@ $SessionDocument = [ordered]@{
         drag_trigger = "ctrl_primary_drag"
     }
     selection = [ordered]@{
-        entity_ids = @("entity/root_stage")
+        entity_ids = @("entity/blender_startup_cube")
         subobject_ids = @()
     }
     scene = [ordered]@{
-        active_document_id = "scene/main"
-        active_collection_id = "collection/environment"
+        active_document_id = "scene/dcc_suite_startup"
+        active_collection_id = "collection/startup_stage"
         active_variant = "lookdev"
     }
     ingest = [ordered]@{
@@ -197,7 +197,7 @@ $SessionDocument = [ordered]@{
         solver_profile = "cloth_preview"
     }
     render = [ordered]@{
-        camera_id = "camera/shot_main"
+        camera_id = "camera/startup_authoring"
         view_transform = "acescg"
         render_profile = "viewport_quality"
         aov_set = "beauty_plus_utility"

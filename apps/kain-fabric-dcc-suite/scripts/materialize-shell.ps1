@@ -66,6 +66,22 @@ function Join-Lines {
     return ($Lines -join "`n")
 }
 
+function ConvertTo-KnSafeId {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return "item"
+    }
+
+    $normalized = $Value.ToLowerInvariant() -replace "[^a-z0-9]+", "_"
+    $normalized = $normalized.Trim("_")
+    if ([string]::IsNullOrWhiteSpace($normalized)) {
+        return "item"
+    }
+
+    return $normalized
+}
+
 function Add-Line {
     param(
         [System.Collections.Generic.List[string]]$Target,

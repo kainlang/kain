@@ -835,6 +835,7 @@ fn shade_pixel(
     let ambient =
         lighting.ambient_color.to_vec3() * lighting.ambient_intensity * material.ambient_strength;
     let mut color = material.base_color.to_vec3().component_mul(ambient);
+    color += shade_hemisphere_fill(material, lighting, world_normal);
 
     for light in &lighting.directional_lights {
         color += shade_directional(material, world_normal, view_direction, light);
@@ -849,6 +850,11 @@ fn shade_pixel(
             light,
         );
     }
+
+    let fresnel = (1.0 - world_normal.dot(view_direction).max(0.0)).powf(4.5);
+    color += material.specular_color.to_vec3()
+        * fresnel
+        * (0.035 + material.specular_strength * 0.14);
 
     let rim =
         (1.0 - world_normal.dot(view_direction).max(0.0)).powf(2.0) * config.rim_light_strength;
@@ -882,7 +888,8 @@ fn shade_directional(
     let specular = world_normal
         .dot(halfway)
         .max(0.0)
-        .powf(material.shininess.max(1.0));
+        .powf(material.shininess.max(1.0))
+        * (0.35 + 0.65 * diffuse);
 
     material
         .base_color
@@ -916,12 +923,12 @@ fn shade_point(
     let light_direction = to_light / distance;
     let attenuation = (1.0 - (distance / light.range)).powi(2);
     let diffuse = world_normal.dot(light_direction).max(0.0);
-    let reflected =
-        (world_normal * (2.0 * world_normal.dot(light_direction)) - light_direction).normalize();
-    let specular = reflected
-        .dot(view_direction)
+    let halfway = (light_direction + view_direction).normalize();
+    let specular = halfway
+        .dot(world_normal)
         .max(0.0)
-        .powf(material.shininess.max(1.0));
+        .powf(material.shininess.max(1.0))
+        * (0.35 + 0.65 * diffuse);
 
     material
         .base_color
@@ -939,6 +946,20 @@ fn shade_point(
             * attenuation
             * light.intensity
             * material.specular_strength
+}
+
+fn shade_hemisphere_fill(
+    material: &Material,
+    lighting: &LightingRig,
+    world_normal: Vec3,
+) -> Vec3 {
+    let up_mix = (world_normal.y * 0.5 + 0.5).clamp(0.0, 1.0);
+    let sky_color = lighting.ambient_color.to_vec3() * (lighting.ambient_intensity * 0.75 + 0.12);
+    let ground_color = Vec3::new(0.05, 0.05, 0.06) + material.base_color.to_vec3() * 0.06;
+    let fill_color = ground_color * (1.0 - up_mix) + sky_color * up_mix;
+    fill_color
+        .component_mul(material.base_color.to_vec3())
+        * ((0.10 + lighting.ambient_intensity * 0.22) * (0.45 + material.diffuse_strength * 0.55))
 }
 
 fn draw_line(

@@ -364,12 +364,14 @@ pub struct SceneCatalog {
 
 impl Default for SceneCatalog {
     fn default() -> Self {
+        let dcc_suite_scene = build_dcc_suite_scene();
         let tensor_stream_probe = build_tensor_stream_probe_scene();
         let luminous_port = build_luminous_port_scene();
         let magma_terraces = build_magma_terraces_scene();
         let retirement_demo = build_retirement_demo_scene();
         let kerr_black_hole = build_kerr_black_hole_scene();
         let mut scenes = BTreeMap::new();
+        scenes.insert(dcc_suite_scene.name.clone(), dcc_suite_scene);
         scenes.insert(tensor_stream_probe.name.clone(), tensor_stream_probe);
         scenes.insert(luminous_port.name.clone(), luminous_port);
         scenes.insert(magma_terraces.name.clone(), magma_terraces);
@@ -386,6 +388,10 @@ impl Default for SceneCatalog {
             ),
             ("starforge".to_string(), "luminous_port".to_string()),
             ("emberfall".to_string(), "magma_terraces".to_string()),
+            (
+                "dcc_authoring_startup".to_string(),
+                "dcc_suite_scene".to_string(),
+            ),
             (
                 "ui_surface_probe".to_string(),
                 "tensor_stream_probe".to_string(),
@@ -410,6 +416,135 @@ impl SceneCatalog {
                     .and_then(|canonical| self.scenes.get(canonical))
             })
             .or_else(|| self.scenes.get(&self.default_scene))
+    }
+}
+
+fn build_dcc_suite_scene() -> SceneDescription {
+    let mut meshes = BTreeMap::new();
+    meshes.insert("cube".to_string(), mesh_cube());
+    meshes.insert("floor".to_string(), mesh_plane());
+
+    let mut materials = BTreeMap::new();
+    materials.insert(
+        "startup_cube_default".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.73, 0.74, 0.78),
+            specular_color: ColorRgb::new(0.98, 0.99, 1.0),
+            ambient_strength: 0.20,
+            diffuse_strength: 1.0,
+            specular_strength: 0.72,
+            shininess: 52.0,
+        },
+    );
+    materials.insert(
+        "studio_floor".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.18, 0.19, 0.22),
+            specular_color: ColorRgb::new(0.42, 0.44, 0.50),
+            ambient_strength: 0.24,
+            diffuse_strength: 0.82,
+            specular_strength: 0.14,
+            shininess: 10.0,
+        },
+    );
+    materials.insert(
+        "studio_backdrop".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.26, 0.27, 0.31),
+            specular_color: ColorRgb::new(0.56, 0.58, 0.64),
+            ambient_strength: 0.22,
+            diffuse_strength: 0.76,
+            specular_strength: 0.10,
+            shininess: 12.0,
+        },
+    );
+
+    SceneDescription {
+        name: "dcc_suite_scene".to_string(),
+        viewport_summary:
+            "dcc startup scene | default blender cube | studio clay authoring light rig"
+                .to_string(),
+        background: BackgroundGradient {
+            top: ColorRgb::new(0.16, 0.18, 0.23),
+            bottom: ColorRgb::new(0.05, 0.06, 0.08),
+        },
+        camera: Camera {
+            target: Vec3::new(0.0, 0.15, 0.0),
+            up: Vec3::UP,
+            orbit_radius: 7.8,
+            orbit_height: 3.1,
+            orbit_speed_radians_per_second: 0.0,
+            fov_y_degrees: 42.0,
+            near_plane: 0.05,
+            far_plane: 140.0,
+        },
+        lighting: LightingRig {
+            ambient_color: ColorRgb::new(0.78, 0.82, 0.92),
+            ambient_intensity: 0.22,
+            directional_lights: vec![
+                DirectionalLight {
+                    direction: Vec3::new(-0.44, -1.0, -0.28).normalize(),
+                    color: ColorRgb::new(1.0, 0.97, 0.92),
+                    intensity: 1.18,
+                },
+                DirectionalLight {
+                    direction: Vec3::new(0.62, -0.55, 0.42).normalize(),
+                    color: ColorRgb::new(0.44, 0.58, 0.96),
+                    intensity: 0.34,
+                },
+            ],
+            point_lights: vec![
+                PointLight {
+                    position: Vec3::new(3.2, 3.8, 3.1),
+                    color: ColorRgb::new(1.0, 0.78, 0.58),
+                    intensity: 1.05,
+                    range: 12.0,
+                },
+                PointLight {
+                    position: Vec3::new(-3.8, 2.4, -4.2),
+                    color: ColorRgb::new(0.46, 0.72, 1.0),
+                    intensity: 0.88,
+                    range: 15.0,
+                },
+                PointLight {
+                    position: Vec3::new(0.0, 5.2, -1.6),
+                    color: ColorRgb::new(0.92, 0.96, 1.0),
+                    intensity: 0.46,
+                    range: 14.0,
+                },
+            ],
+        },
+        meshes,
+        materials,
+        instances: vec![
+            SceneInstance {
+                id: "blender_startup_cube".to_string(),
+                mesh: "cube".to_string(),
+                material: "startup_cube_default".to_string(),
+                transform: Transform::identity(),
+            },
+            SceneInstance {
+                id: "studio_floor".to_string(),
+                mesh: "floor".to_string(),
+                material: "studio_floor".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(0.0, -1.0, 0.0))
+                    .with_scale(Vec3::new(7.5, 1.0, 7.5)),
+            },
+            SceneInstance {
+                id: "studio_backdrop".to_string(),
+                mesh: "floor".to_string(),
+                material: "studio_backdrop".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(0.0, 2.35, -6.2))
+                    .with_rotation(Vec3::new(-1.5707964, 0.0, 0.0))
+                    .with_scale(Vec3::new(7.5, 1.0, 4.6)),
+            },
+        ],
+        animations: Vec::new(),
+        particle_emitters: Vec::new(),
+        black_hole: None,
+        terrain_surfaces: Vec::new(),
     }
 }
 
@@ -2029,6 +2164,9 @@ mod tests {
     #[test]
     fn default_catalog_contains_black_hole_scene() {
         let catalog = SceneCatalog::default();
+        let dcc_suite_scene = catalog
+            .scene("dcc_suite_scene")
+            .expect("dcc suite startup scene should be registered");
         let tensor_stream_scene = catalog
             .scene("tensor_stream_probe")
             .expect("tensor stream probe scene should be registered");
@@ -2048,14 +2186,24 @@ mod tests {
         let starforge_alias_scene = catalog
             .scene("starforge")
             .expect("starforge alias should resolve");
+        let dcc_alias_scene = catalog
+            .scene("dcc_authoring_startup")
+            .expect("dcc startup alias should resolve");
 
         assert_eq!(catalog.default_scene, "luminous_port");
+        assert_eq!(dcc_suite_scene.name, "dcc_suite_scene");
+        assert_eq!(dcc_suite_scene.instances.len(), 3);
+        assert!(dcc_suite_scene
+            .instances
+            .iter()
+            .any(|instance| instance.id == "blender_startup_cube"));
         assert_eq!(tensor_stream_scene.name, "tensor_stream_probe");
         assert!(tensor_stream_scene.particle_emitters.len() >= 2);
         assert_eq!(default_scene.name, "luminous_port");
         assert!(default_scene.black_hole.is_none());
         assert_eq!(compute_alias_scene.name, "tensor_stream_probe");
         assert_eq!(starforge_alias_scene.name, "luminous_port");
+        assert_eq!(dcc_alias_scene.name, "dcc_suite_scene");
         assert_eq!(magma_scene.name, "magma_terraces");
         assert!(magma_scene.instances.len() >= 150);
         assert!(magma_scene.particle_emitters.len() >= 8);

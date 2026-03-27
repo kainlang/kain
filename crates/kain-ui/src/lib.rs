@@ -4,12 +4,16 @@
 //! focuses on semantic nodes, retained tree state, renderer capability tables,
 //! and patch streams instead of a virtual DOM-first execution model.
 
+mod runtime_execution;
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::{Error as IoError, ErrorKind},
 };
 
 use serde::{Deserialize, Serialize};
+
+pub use runtime_execution::*;
 
 /// Stable identifier for a node within a retained UI tree.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

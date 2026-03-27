@@ -5,6 +5,43 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=f98cbc93f82c63ab -->
+## 2026-03-27 18:47:42 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `391501e0`
+- Changed files: 5
+- [.M] `crates/kain-3D/src/renderer.rs`
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-3D/src/shaders/viewport_surface.wgsl`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [??] `crates/kain-ui/src/runtime_execution.rs`
+
+<!-- polytools-changelog:fingerprint=5f718f35b840d78c -->
+## 2026-03-27 18:46:26 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `391501e0`
+- Changed files: 4
+- [.M] `crates/kain-3D/src/renderer.rs`
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-3D/src/shaders/viewport_surface.wgsl`
+- [.M] `crates/kain-ui/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=547fb5355b90586e -->
+## 2026-03-27 18:45:24 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `391501e0`
+- Changed files: 3
+- [.M] `crates/kain-3D/src/renderer.rs`
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-3D/src/shaders/viewport_surface.wgsl`
+
+<!-- polytools-changelog:fingerprint=218a30885cc8be8a -->
+## 2026-03-27 18:44:32 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `391501e0`
+- Changed files: 1
+- [.M] `crates/kain-3D/src/scene.rs`
+
 <!-- polytools-changelog:fingerprint=55bffe0c94734c06 -->
 ## 2026-03-27 18:20:33 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

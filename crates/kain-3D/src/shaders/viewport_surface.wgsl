@@ -118,7 +118,10 @@ fn directional_light(
     let to_light = normalize(-light_direction);
     let diffuse = max(dot(normal, to_light), 0.0) * diffuse_strength;
     let halfway = normalize(to_light + view_direction);
-    let specular = pow(max(dot(normal, halfway), 0.0), max(shininess, 1.0)) * specular_strength;
+    let specular =
+        pow(max(dot(normal, halfway), 0.0), max(shininess, 1.0)) *
+        specular_strength *
+        (0.35 + 0.65 * diffuse);
     return ((base_color * diffuse) + (specular_color * specular)) * light_color * intensity;
 }
 
@@ -141,9 +144,44 @@ fn point_light(
     let direction = to_light / distance;
     let attenuation = pow(max(1.0 - (distance / max(range, 0.001)), 0.0), 2.0);
     let diffuse = max(dot(normal, direction), 0.0) * diffuse_strength;
-    let reflected = normalize((normal * (2.0 * dot(normal, direction))) - direction);
-    let specular = pow(max(dot(reflected, view_direction), 0.0), max(shininess, 1.0)) * specular_strength;
+    let halfway = normalize(direction + view_direction);
+    let specular =
+        pow(max(dot(normal, halfway), 0.0), max(shininess, 1.0)) *
+        specular_strength *
+        (0.35 + 0.65 * diffuse);
     return ((base_color * diffuse) + (specular_color * specular)) * light_color * intensity * attenuation;
+}
+
+fn hemisphere_fill(
+    normal: vec3<f32>,
+    base_color: vec3<f32>,
+    diffuse_strength: f32,
+) -> vec3<f32> {
+    let up_mix = clamp(normal.y * 0.5 + 0.5, 0.0, 1.0);
+    let sky_color = scene.background_top.xyz * 1.1 + scene.ambient_color_intensity.xyz * 0.18;
+    let ground_color = scene.background_bottom.xyz * 0.95 + base_color * 0.06;
+    let fill_color = ground_color * (1.0 - up_mix) + sky_color * up_mix;
+    let fill_strength = (0.10 + scene.ambient_color_intensity.w * 0.22) * (0.45 + diffuse_strength * 0.55);
+    return fill_color * base_color * fill_strength;
+}
+
+fn fresnel_rim(
+    normal: vec3<f32>,
+    view_direction: vec3<f32>,
+    specular_color: vec3<f32>,
+    specular_strength: f32,
+) -> vec3<f32> {
+    let fresnel = pow(1.0 - max(dot(normal, view_direction), 0.0), 4.5);
+    return specular_color * fresnel * (0.035 + specular_strength * 0.14);
+}
+
+fn tone_map_aces(color: vec3<f32>) -> vec3<f32> {
+    let a = 2.51;
+    let b = 0.03;
+    let c = 2.43;
+    let d = 0.59;
+    let e = 0.14;
+    return clamp((color * (a * color + vec3<f32>(b))) / (color * (c * color + vec3<f32>(d)) + vec3<f32>(e)), vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
 @fragment
@@ -155,6 +193,13 @@ fn scene_fs_main(input: SceneVertexOutput) -> @location(0) vec4<f32> {
         scene.ambient_color_intensity.w *
         input.base_color *
         input.ambient_strength;
+    color += hemisphere_fill(normal, input.base_color, input.diffuse_strength);
+    color += fresnel_rim(
+        normal,
+        view_direction,
+        input.specular_color,
+        input.specular_strength,
+    );
 
     for (var index: u32 = 0u; index < scene.counts.x; index = index + 1u) {
         let light_direction = scene.directional_directions[index];
@@ -199,7 +244,7 @@ fn scene_fs_main(input: SceneVertexOutput) -> @location(0) vec4<f32> {
         color = color * (1.0 - fog_factor) + scene.fog_color_density.xyz * fog_factor;
     }
 
-    return vec4<f32>(clamp(color, vec3<f32>(0.0), vec3<f32>(1.0)), 1.0);
+    return vec4<f32>(tone_map_aces(max(color, vec3<f32>(0.0))), 1.0);
 }
 
 @fragment

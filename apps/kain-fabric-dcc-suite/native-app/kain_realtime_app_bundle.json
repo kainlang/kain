@@ -4,7 +4,7 @@
   "render": {
     "scenes": [
       {
-        "viewport_node": "surface.node.133",
+        "viewport_node": "surface.node.191",
         "viewport_kind": "viewport3d",
         "scene": "dcc_suite_scene",
         "title": "Viewport Stage",
@@ -32,7 +32,7 @@
         }
       },
       {
-        "viewport_node": "surface.node.210",
+        "viewport_node": "surface.node.272",
         "viewport_kind": "viewport3d",
         "scene": "dcc_suite_scene",
         "title": "Viewport Stage",
@@ -60,7 +60,7 @@
         }
       },
       {
-        "viewport_node": "surface.node.286",
+        "viewport_node": "surface.node.352",
         "viewport_kind": "viewport3d",
         "scene": "dcc_suite_scene",
         "title": "Viewport Stage",
@@ -88,7 +88,7 @@
         }
       },
       {
-        "viewport_node": "surface.node.364",
+        "viewport_node": "surface.node.434",
         "viewport_kind": "viewport3d",
         "scene": "dcc_suite_scene",
         "title": "Viewport Stage",
@@ -116,7 +116,7 @@
         }
       },
       {
-        "viewport_node": "surface.node.435",
+        "viewport_node": "surface.node.509",
         "viewport_kind": "viewport3d",
         "scene": "dcc_suite_scene",
         "title": "Viewport Stage",
@@ -144,7 +144,7 @@
         }
       },
       {
-        "viewport_node": "surface.node.503",
+        "viewport_node": "surface.node.581",
         "viewport_kind": "viewport3d",
         "scene": "dcc_suite_scene",
         "title": "Viewport Stage",
@@ -172,7 +172,7 @@
         }
       },
       {
-        "viewport_node": "surface.node.576",
+        "viewport_node": "surface.node.658",
         "viewport_kind": "viewport3d",
         "scene": "dcc_suite_scene",
         "title": "Viewport Stage",

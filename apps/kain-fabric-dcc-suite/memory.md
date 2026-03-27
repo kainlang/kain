@@ -2,6 +2,25 @@
 
 This file preserves the durable design intent for `apps/kain-fabric-dcc-suite`.
 
+## 2026-03-27 (Latest) - DCC Startup Viewport Scene And Renderer Quality Pass
+
+- Added a dedicated shared viewport scene named `dcc_suite_scene` in `crates/kain-3D` so the app no longer points at an undefined scene id and falls back to unrelated demo content.
+- The startup scene now boots with a Blender-style default cube at world origin plus a floor, backdrop, authored camera framing, and a neutral studio light rig instead of a generic toy-like primitive stack.
+- Upgraded the shared viewport shading path in `crates/kain-3D` with hemisphere fill, fresnel, softer highlight gating, and ACES-style tonemapping so the default viewport reads closer to a DCC clay-review look than a flat demo renderer.
+- Aligned the app-owned Kain seed document plus session defaults so the startup scene, active camera, and initial selection all describe the same authored cube-first opening state.
+
+Important design decision:
+
+- The app still owns the scene id and startup semantics, but the actual temporary mesh realization lives in the shared `kain-3D` scene catalog for now. That keeps the viewport path reusable across hosts while the app decides its durable mesh asset contract.
+
+Current risk:
+
+- The default cube is now a much better viewport bootstrap, but it is still procedural runtime geometry rather than a first-class app-owned mesh document with editable topology, asset provenance, and serializer support.
+
+Next recommended step:
+
+- Replace the shared procedural startup mesh with a true app-owned mesh/resource contract that can represent imported assets, authored primitives, and future sculpt/topology edits without relying on scene-catalog-only geometry.
+
 ## 2026-03-27 (Later) - Live Command Session Host Bridge Landed
 
 - Replaced the old minimal runtime snapshot materializer with a host-compatible snapshot plus live `session_document.json` and `command_queue.jsonl` seed flow in `scripts/materialize-session-state.ps1`.
