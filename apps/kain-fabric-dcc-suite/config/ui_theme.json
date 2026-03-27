@@ -146,13 +146,13 @@
         {
           "name": "surface.padding",
           "category": "space",
-          "value": 8
+          "value": 6
         }
       ]
     },
     {
       "scope": "dcc_shell",
-      "name": "masthead",
+      "name": "topbar",
       "tokens": [
         {
           "name": "surface.mode",
@@ -162,7 +162,196 @@
         {
           "name": "surface.padding",
           "category": "space",
-          "value": 16
+          "value": 12
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "topbar_brand",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "glass"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 14
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "topbar_menu",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "ghost"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 8
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "topbar_status_strip",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "ghost"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 6
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "context_strip",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "ghost"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 4
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "context_block",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "layered"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 12
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "command_spotlight",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "glass"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 12
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "workspace_chip",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "flat"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 10
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "workspace_chip_active",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "accent"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 10
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "spotlight_card",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "flat"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 10
         },
         {
           "name": "title.visible",
@@ -183,7 +372,7 @@
         {
           "name": "surface.padding",
           "category": "space",
-          "value": 8
+          "value": 6
         },
         {
           "name": "title.visible",
@@ -280,12 +469,84 @@
         {
           "name": "body.size",
           "category": "type",
-          "value": 32
+          "value": 30
         }
       ]
     }
   ],
   "widget_defaults": [
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "topbar_menu",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "topbar_status_strip",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "context_block",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "workspace_chip",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "workspace_chip_active",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "spotlight_card",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    },
     {
       "kind": "panel",
       "scope": "dcc_shell",

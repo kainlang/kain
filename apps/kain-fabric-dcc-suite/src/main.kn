@@ -9,6 +9,9 @@ struct DccSuiteSeedOutputs:
     preview_dst: Any
     preview_image: Any
     tensor_features: Any
+    sculpt_heightfield_src: Any
+    sculpt_brush_params: Any
+    sculpt_delta: Any
     session_report: String
 
 fn push_f32_demo(bytes: Array<Int>, value: Int) -> Void:
@@ -35,6 +38,12 @@ fn push_f32_demo(bytes: Array<Int>, value: Int) -> Void:
     bytes.push(128)
     bytes.push(64)
 
+fn push_u32(bytes: Array<Int>, value: Int) -> Void:
+    bytes.push(value % 256)
+    bytes.push((value / 256) % 256)
+    bytes.push((value / 65536) % 256)
+    bytes.push((value / 16777216) % 256)
+
 fn build_preview_stream(count: Int, accent: Int) -> Array<Int>:
     let bytes = []
     let index = 0
@@ -52,6 +61,14 @@ fn build_zero_stream(count: Int) -> Array<Int>:
         bytes.push(0)
         bytes.push(0)
         bytes.push(0)
+        index = index + 1
+    return bytes
+
+fn build_zero_u32_stream(count: Int) -> Array<Int>:
+    let bytes = []
+    let index = 0
+    while index < count:
+        push_u32(bytes, 0)
         index = index + 1
     return bytes
 
@@ -81,6 +98,41 @@ fn build_tensor_features(count: Int, accent: Int) -> Array<Int>:
         index = index + 1
     return bytes
 
+fn build_sculpt_heightfield_stream(settings: Any) -> Array<Int>:
+    let bytes = []
+    let resolution = settings.sculpt_grid_resolution
+    let sample_count = settings.sculpt_sample_count
+    let height_min = settings.sculpt_height_min_milli
+    let height_max = settings.sculpt_height_max_milli
+    let raw_span = height_max - height_min
+    let height_span = if raw_span > 0 { raw_span } else { 1 }
+    let index = 0
+    while index < sample_count:
+        let x = index % resolution
+        let y = index / resolution
+        let ramp = ((x * 31) + (y * 17) + settings.brush_accent * 13) % 1000
+        let height_value = height_min + ((height_span * ramp) / 999)
+        push_u32(bytes, height_value)
+        index = index + 1
+    return bytes
+
+fn build_sculpt_brush_params(settings: Any) -> Array<Int>:
+    let bytes = []
+    push_u32(bytes, settings.sculpt_grid_resolution)
+    push_u32(bytes, settings.sculpt_sample_count)
+    push_u32(bytes, settings.sculpt_center_x_milli)
+    push_u32(bytes, settings.sculpt_center_y_milli)
+    push_u32(bytes, settings.sculpt_radius_milli)
+    push_u32(bytes, settings.sculpt_strength_milli)
+    push_u32(bytes, settings.sculpt_falloff_milli)
+    if settings.sculpt_invert:
+        push_u32(bytes, 1)
+    else:
+        push_u32(bytes, 0)
+    push_u32(bytes, settings.sculpt_height_min_milli)
+    push_u32(bytes, settings.sculpt_height_max_milli)
+    return bytes
+
 fn build_scene_graph_document(settings: Any) -> String:
     return "scene-graph:" + settings.project_name + ":workspace=" + settings.workspace_mode + ":packs=" + str(settings.runtime_pack_count)
 
@@ -94,7 +146,7 @@ fn build_svg_mask_document(settings: Any) -> String:
     return "svg-mask:" + settings.project_name + ":documents=3:anchors=" + str(settings.runtime_pack_count + 2) + ":motifs=trim+decal+stencil"
 
 fn build_session_report(settings: Any) -> String:
-    return "session-report:" + settings.project_name + ":preview=" + str(settings.preview_count) + ":tensor=" + str(settings.tensor_feature_count) + ":pbr=7:svg=3"
+    return "session-report:" + settings.project_name + ":preview=" + str(settings.preview_count) + ":tensor=" + str(settings.tensor_feature_count) + ":sculpt-grid=" + str(settings.sculpt_grid_resolution) + ":pbr=7:svg=3"
 
 fn main() -> DccSuiteSeedOutputs:
     let settings = fabric_inputs.python_suite_bootstrap.project_settings
@@ -102,6 +154,9 @@ fn main() -> DccSuiteSeedOutputs:
     let preview_dst_bytes = build_zero_stream(settings.preview_count)
     let preview_pixels = build_preview_pixels(8, 8, settings.brush_accent)
     let tensor_bytes = build_tensor_features(settings.tensor_feature_count, settings.brush_accent)
+    let sculpt_heightfield_bytes = build_sculpt_heightfield_stream(settings)
+    let sculpt_brush_param_bytes = build_sculpt_brush_params(settings)
+    let sculpt_delta_bytes = build_zero_u32_stream(settings.sculpt_sample_count)
     let preview_src = interop_shared_buffer_from_bytes(
         preview_src_bytes,
         "f32",
@@ -132,6 +187,27 @@ fn main() -> DccSuiteSeedOutputs:
         "f32",
         "application/octet-stream"
     )
+    let sculpt_heightfield_src = interop_shared_buffer_from_bytes(
+        sculpt_heightfield_bytes,
+        "u32",
+        [settings.sculpt_sample_count],
+        "u32",
+        "application/octet-stream"
+    )
+    let sculpt_brush_params = interop_shared_buffer_from_bytes(
+        sculpt_brush_param_bytes,
+        "u32",
+        [10],
+        "u32",
+        "application/octet-stream"
+    )
+    let sculpt_delta = interop_shared_buffer_from_bytes(
+        sculpt_delta_bytes,
+        "u32",
+        [settings.sculpt_sample_count],
+        "u32",
+        "application/octet-stream"
+    )
     return DccSuiteSeedOutputs {
         scene_graph_document: build_scene_graph_document(settings),
         asset_catalog_document: build_asset_catalog_document(settings),
@@ -141,5 +217,8 @@ fn main() -> DccSuiteSeedOutputs:
         preview_dst: preview_dst,
         preview_image: preview_image,
         tensor_features: tensor_features,
+        sculpt_heightfield_src: sculpt_heightfield_src,
+        sculpt_brush_params: sculpt_brush_params,
+        sculpt_delta: sculpt_delta,
         session_report: build_session_report(settings)
     }

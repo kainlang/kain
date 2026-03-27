@@ -1,7 +1,7 @@
 version = 1
 
 [workspace]
-root = "."
+root = "../.."
 search_roots = ["src", "scripts", "shaders"]
 
 [[requires]]
@@ -65,10 +65,10 @@ name = "svg_mask_report"
 kind = "value"
 
 [[steps]]
-id = "gpu_material_preview"
+id = "gpu_render_preview"
 runtime = "gpu_compute"
-shader_source = "shaders/material_bake_preview.kn"
-compute_key = "DccSuiteMaterialBakePreview"
+shader_source = "shaders/render_preview_lighting.kn"
+compute_key = "DccSuiteRenderPreviewLighting"
 depends_on = ["dcc_suite_seed", "material_authoring_projection", "svg_material_mask_projection"]
 
 [[steps.outputs]]
@@ -84,7 +84,7 @@ depends_on = [
     "dcc_suite_seed",
     "material_authoring_projection",
     "svg_material_mask_projection",
-    "gpu_material_preview"
+    "gpu_render_preview"
 ]
 
 [[steps.outputs]]
@@ -94,13 +94,13 @@ kind = "value"
 [[steps]]
 id = "render_preview_projection"
 runtime = "kain"
-entry = "src/session_projection.kn"
+entry = "src/render_preview_projection.kn"
 depends_on = [
     "python_suite_bootstrap",
     "dcc_suite_seed",
     "material_authoring_projection",
     "svg_material_mask_projection",
-    "gpu_material_preview",
+    "gpu_render_preview",
     "material_texture_export_projection"
 ]
 

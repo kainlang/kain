@@ -1,0 +1,137 @@
+{
+  "shader_catalog": [
+    {
+      "id": "material_bake_preview",
+      "lane": "material_lookdev",
+      "status": "wired",
+      "shader_source": "shaders/material_bake_preview.kn",
+      "compute_key": "DccSuiteMaterialBakePreview",
+      "primary_manifests": [
+        "fabric/intents/material_bake.fabric.toml"
+      ],
+      "inputs": ["preview_src"],
+      "outputs": ["preview_dst"],
+      "summary": "Baseline material preview bake over the shared preview buffers after authored PBR and SVG mask receipts are projected."
+    },
+    {
+      "id": "material_layer_blend_preview",
+      "lane": "material_lookdev",
+      "status": "staged_library",
+      "shader_source": "shaders/material_layer_blend_preview.kn",
+      "compute_key": "DccSuiteMaterialLayerBlendPreview",
+      "primary_manifests": [
+        "fabric/intents/material_bake.fabric.toml",
+        "fabric/intents/render_preview.fabric.toml"
+      ],
+      "inputs": ["preview_src"],
+      "outputs": ["preview_dst"],
+      "summary": "Previews fill, paint, and procedural layer weighting before the final material bake resolves packed outputs."
+    },
+    {
+      "id": "svg_mask_raster",
+      "lane": "material_lookdev",
+      "status": "staged_library",
+      "shader_source": "shaders/svg_mask_raster.kn",
+      "compute_key": "DccSuiteSvgMaskRaster",
+      "primary_manifests": [
+        "fabric/intents/material_bake.fabric.toml"
+      ],
+      "inputs": ["preview_src"],
+      "outputs": ["preview_dst"],
+      "summary": "Turns authored SVG mask intent into atlas-like weights suitable for preview, trim, and decal evaluation."
+    },
+    {
+      "id": "smart_material_resolve",
+      "lane": "material_lookdev",
+      "status": "staged_library",
+      "shader_source": "shaders/smart_material_resolve.kn",
+      "compute_key": "DccSuiteSmartMaterialResolve",
+      "primary_manifests": [
+        "fabric/intents/material_bake.fabric.toml",
+        "fabric/intents/publish_package.fabric.toml"
+      ],
+      "inputs": ["preview_src"],
+      "outputs": ["preview_dst"],
+      "summary": "Resolves smart material response curves, wear weighting, and cavity-style accents before export packing."
+    },
+    {
+      "id": "material_channel_pack",
+      "lane": "material_lookdev",
+      "status": "wired",
+      "shader_source": "shaders/material_channel_pack.kn",
+      "compute_key": "DccSuiteMaterialChannelPack",
+      "primary_manifests": [
+        "fabric/intents/publish_package.fabric.toml"
+      ],
+      "inputs": ["preview_src"],
+      "outputs": ["preview_dst"],
+      "summary": "Packs preview-derived channels into export-oriented values for metal-rough, ORM, height, and emissive delivery."
+    },
+    {
+      "id": "viewport_lighting_preview",
+      "lane": "scene_assembly",
+      "status": "staged_library",
+      "shader_source": "shaders/viewport_lighting_preview.kn",
+      "compute_key": "DccSuiteViewportLightingPreview",
+      "primary_manifests": [
+        "fabric/intents/render_preview.fabric.toml"
+      ],
+      "inputs": ["preview_src"],
+      "outputs": ["preview_dst"],
+      "summary": "Supports the main authoring viewport with a balanced lookdev treatment closer to a real DCC stage than a raw scalar buffer view."
+    },
+    {
+      "id": "render_preview_lighting",
+      "lane": "render_comp",
+      "status": "wired",
+      "shader_source": "shaders/render_preview_lighting.kn",
+      "compute_key": "DccSuiteRenderPreviewLighting",
+      "primary_manifests": [
+        "fabric/intents/render_preview.fabric.toml"
+      ],
+      "inputs": ["preview_src"],
+      "outputs": ["preview_dst"],
+      "summary": "Produces a render-facing preview signal tuned for AOV inspection, lookdev review, and downstream report generation."
+    },
+    {
+      "id": "render_aov_pack",
+      "lane": "render_comp",
+      "status": "staged_library",
+      "shader_source": "shaders/render_aov_pack.kn",
+      "compute_key": "DccSuiteRenderAovPack",
+      "primary_manifests": [
+        "fabric/intents/render_preview.fabric.toml",
+        "fabric/intents/compositor_rebuild.fabric.toml"
+      ],
+      "inputs": ["preview_src"],
+      "outputs": ["preview_dst"],
+      "summary": "Builds preview-friendly AOV-like channels for lighting, utility, and review surfaces before compositor assembly."
+    },
+    {
+      "id": "compositor_tone_map",
+      "lane": "render_comp",
+      "status": "wired",
+      "shader_source": "shaders/compositor_tone_map.kn",
+      "compute_key": "DccSuiteCompositorToneMap",
+      "primary_manifests": [
+        "fabric/intents/compositor_rebuild.fabric.toml"
+      ],
+      "inputs": ["preview_src"],
+      "outputs": ["preview_dst"],
+      "summary": "Applies final-review style tonemapping and contrast shaping for the compositor rebuild lane."
+    },
+    {
+      "id": "compositor_id_matte",
+      "lane": "render_comp",
+      "status": "staged_library",
+      "shader_source": "shaders/compositor_id_matte.kn",
+      "compute_key": "DccSuiteCompositorIdMatte",
+      "primary_manifests": [
+        "fabric/intents/compositor_rebuild.fabric.toml"
+      ],
+      "inputs": ["preview_src"],
+      "outputs": ["preview_dst"],
+      "summary": "Generates stable ID- and utility-style matte weights for comp graph inspection and selective rebuild work."
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+use std::interop::bridge
+
+fn app_state_root() -> String:
+    return "apps/kain-fabric-dcc-suite/state"
+
+fn render_preview_report_path() -> String:
+    return app_state_root() + "/render_preview_report.json"
+
+fn build_render_preview_report_json(settings: Any, preview_buffer: Any, material_summary: String, svg_summary: String, export_summary: String) -> String:
+    let preview_info = interop_shared_buffer_info(preview_buffer)
+    let preview_sample_count = preview_info.shape[0]
+    let aov_count = settings.runtime_pack_count + 2
+
+    let json = "{\n"
+    let json = json + "  \"kind\": \"render_preview_report\",\n"
+    let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
+    let json = json + "  \"workspace_mode\": \"" + settings.workspace_mode + "\",\n"
+    let json = json + "  \"render_profile\": \"lookdev_review_balanced\",\n"
+    let json = json + "  \"gpu_step\": \"gpu_render_preview\",\n"
+    let json = json + "  \"preview_buffer_bytes\": " + str(preview_info.byte_length) + ",\n"
+    let json = json + "  \"preview_sample_count\": " + str(preview_sample_count) + ",\n"
+    let json = json + "  \"aov_count\": " + str(aov_count) + ",\n"
+    let json = json + "  \"upstream_material_summary\": \"" + material_summary + "\",\n"
+    let json = json + "  \"upstream_svg_summary\": \"" + svg_summary + "\",\n"
+    let json = json + "  \"upstream_export_summary\": \"" + export_summary + "\"\n"
+    let json = json + "}\n"
+    return json
+
+fn main() -> String:
+    let settings = fabric_inputs.python_suite_bootstrap.project_settings
+    let preview_buffer = fabric_inputs.gpu_render_preview.preview_dst
+    let material_summary = fabric_inputs.material_authoring_projection.material_authoring_report
+    let svg_summary = fabric_inputs.svg_material_mask_projection.svg_mask_report
+    let export_summary = fabric_inputs.material_texture_export_projection.material_texture_export_report
+    let report_json = build_render_preview_report_json(settings, preview_buffer, material_summary, svg_summary, export_summary)
+
+    write_file(render_preview_report_path(), report_json)
+
+    return "render-preview:" + settings.workspace_mode + ":bytes=" + str(interop_shared_buffer_info(preview_buffer).byte_length) + ":aov=" + str(settings.runtime_pack_count + 2)

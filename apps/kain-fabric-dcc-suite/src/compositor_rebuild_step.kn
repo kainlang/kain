@@ -1,10 +1,13 @@
+use std::interop::bridge
+
 fn app_state_root() -> String:
     return "apps/kain-fabric-dcc-suite/state"
 
 fn compositor_rebuild_report_path() -> String:
     return app_state_root() + "/compositor_rebuild_report.json"
 
-fn build_compositor_report_json(settings: Any, plan_summary: String) -> String:
+fn build_compositor_report_json(settings: Any, plan_summary: String, composite_preview: Any) -> String:
+    let preview_info = interop_shared_buffer_info(composite_preview)
     let assembled_layers = settings.runtime_pack_count + 3
     let pass_count = settings.preview_count + 2
     let output_surfaces = settings.tensor_feature_count + 1
@@ -16,6 +19,9 @@ fn build_compositor_report_json(settings: Any, plan_summary: String) -> String:
     let json = json + "  \"assembled_layers\": " + str(assembled_layers) + ",\n"
     let json = json + "  \"pass_count\": " + str(pass_count) + ",\n"
     let json = json + "  \"output_surfaces\": " + str(output_surfaces) + ",\n"
+    let json = json + "  \"gpu_step\": \"gpu_compositor_tone_map\",\n"
+    let json = json + "  \"preview_buffer_bytes\": " + str(preview_info.byte_length) + ",\n"
+    let json = json + "  \"preview_sample_count\": " + str(preview_info.shape[0]) + ",\n"
     let json = json + "  \"plan_summary\": \"" + plan_summary + "\"\n"
     let json = json + "}\n"
     return json
@@ -23,8 +29,9 @@ fn build_compositor_report_json(settings: Any, plan_summary: String) -> String:
 fn main() -> String:
     let settings = fabric_inputs.python_suite_bootstrap.project_settings
     let plan_summary = fabric_inputs.compositor_projection.compositor_rebuild_plan
-    let report_json = build_compositor_report_json(settings, plan_summary)
+    let composite_preview = fabric_inputs.gpu_compositor_tone_map.preview_dst
+    let report_json = build_compositor_report_json(settings, plan_summary, composite_preview)
 
     write_file(compositor_rebuild_report_path(), report_json)
 
-    return "compositor-report:" + settings.workspace_mode + ":layers=" + str(settings.runtime_pack_count + 3) + ":passes=" + str(settings.preview_count + 2)
+    return "compositor-report:" + settings.workspace_mode + ":layers=" + str(settings.runtime_pack_count + 3) + ":passes=" + str(settings.preview_count + 2) + ":bytes=" + str(interop_shared_buffer_info(composite_preview).byte_length)

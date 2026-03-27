@@ -1,0 +1,27 @@
+shader compute DccSuiteSmartMaterialResolve(id: UVec3) -> Vec4:
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    comptime:
+        let compute = (
+            [8, 1, 1],
+            [
+                ("src", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("dst", "f32", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("dcc_suite_smart_material_resolve", "smart_material_resolve", ["src"], ["dst"], false),
+            ],
+        )
+
+    let index = id.x
+    let source_value = src[index]
+    let cavity_response = (source_value * 0.14) + 0.09
+    let edge_response = (source_value * 0.19) + 0.11
+    let dirt_response = (source_value * 0.12) + 0.07
+    let resolved_value = source_value + cavity_response + edge_response + dirt_response
+    dst[index] = resolved_value
+    return vec4(resolved_value, cavity_response, edge_response, dirt_response)

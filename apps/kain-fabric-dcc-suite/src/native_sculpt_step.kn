@@ -2,24 +2,35 @@ use c::dcc_suite_ops
 use std::interop::bridge
 
 struct NativeSculptOutputs:
-    sculpt_delta: Any
     sculpt_signature: String
+    sculpt_report: String
+
+fn sculpt_checksum(bytes: Array<Int>) -> Int:
+    let checksum = 0
+    let index = 0
+    while index < len(bytes):
+        checksum = (checksum + bytes[index] * ((index % 17) + 3)) % 1000003
+        index = index + 1
+    return checksum
+
+fn count_active_samples(bytes: Array<Int>) -> Int:
+    let active = 0
+    let index = 0
+    while index + 3 < len(bytes):
+        if bytes[index] > 0 || bytes[index + 1] > 0 || bytes[index + 2] > 0 || bytes[index + 3] > 0:
+            active = active + 1
+        index = index + 4
+    return active
 
 fn main() -> NativeSculptOutputs:
     let settings = fabric_inputs.python_suite_bootstrap.project_settings
-    let preview = fabric_inputs.dcc_suite_seed.preview_image
-    let preview_info = interop_shared_image_info(preview)
-    dcc_suite_apply_sculpt_stamp(preview, preview_info.byte_length, settings.brush_accent)
-    let bytes = interop_shared_image_bytes(preview)
-    let sculpt_delta = interop_shared_buffer_from_bytes(
-        bytes,
-        "u8",
-        [len(bytes)],
-        "rgba8",
-        "application/octet-stream"
-    )
-    let sculpt_signature = dcc_suite_signature(preview_info.width, preview_info.height, settings.brush_accent)
+    let sculpt_delta = fabric_inputs.gpu_sculpt_displacement.sculpt_delta
+    let sculpt_bytes = interop_shared_buffer_bytes(sculpt_delta)
+    let checksum = sculpt_checksum(sculpt_bytes)
+    let active_samples = count_active_samples(sculpt_bytes)
+    let sculpt_signature = dcc_suite_sculpt_signature(settings.sculpt_grid_resolution, checksum, settings.brush_accent)
+    let sculpt_report = dcc_suite_sculpt_report(settings.sculpt_grid_resolution, active_samples, checksum, settings.brush_accent)
     return NativeSculptOutputs {
-        sculpt_delta: sculpt_delta,
-        sculpt_signature: sculpt_signature
+        sculpt_signature: sculpt_signature,
+        sculpt_report: sculpt_report
     }

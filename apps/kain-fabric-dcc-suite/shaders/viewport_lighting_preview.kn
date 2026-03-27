@@ -1,0 +1,27 @@
+shader compute DccSuiteViewportLightingPreview(id: UVec3) -> Vec4:
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    comptime:
+        let compute = (
+            [8, 1, 1],
+            [
+                ("src", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("dst", "f32", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("dcc_suite_viewport_lighting_preview", "viewport_lighting_preview", ["src"], ["dst"], false),
+            ],
+        )
+
+    let index = id.x
+    let source_value = src[index]
+    let diffuse_term = (source_value * 0.41) + 0.16
+    let rim_term = (source_value * 0.13) + 0.09
+    let stage_fill_term = (source_value * 0.18) + 0.06
+    let lit_value = diffuse_term + rim_term + stage_fill_term
+    dst[index] = lit_value
+    return vec4(lit_value, diffuse_term, rim_term, stage_fill_term)

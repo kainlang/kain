@@ -23,6 +23,23 @@ Next recommended step:
 
 - Replace the current material export and preview seams with a real native painter runtime or Rust/WGPU baking service that consumes the authored texture-set and SVG receipts as execution truth.
 
+## 2026-03-27 (Later) - Fabric Root Alignment And Full Suite Validation
+
+- Reviewed the root `README.md` and `FABRIC.md` doctrine and aligned the app-local Fabric notes with the repo-wide model: explicit manifest DAG ownership, `value` outputs for contracts and receipts, and `shared_*` outputs only for hot payload lanes.
+- Corrected the lane manifests under `fabric/intents/` so the affected graphs resolve `[workspace].root = "../.."` from the app root rather than from `fabric/intents/`. This prevents interactive intent graphs from silently resolving scripts, sources, shaders, or state receipts against the wrong cwd.
+- Re-ran `cargo run -p cli --bin kain -- fabric validate --manifest apps/kain-fabric-dcc-suite/KAIN.fabric.toml` successfully from `M:/Code/Kain`.
+- Re-ran `cargo run -p cli --bin kain -- fabric run --manifest apps/kain-fabric-dcc-suite/KAIN.fabric.toml` successfully from `M:/Code/Kain`, including the painter material chain `material_authoring_projection -> svg_material_mask_projection -> gpu_material_preview -> material_texture_export_projection`.
+- Re-materialized `state/runtime_snapshot.json` and `state/session_document.json` so the shell-facing state reflects the verified Fabric session.
+
+Current durable state:
+
+- The broad suite and the painter-style material lane both execute end-to-end under the real Fabric runner, not just under static manifest inspection.
+- The app still uses orchestration-grade material receipts rather than a true native brush, sparse texture, or GPU baking runtime.
+
+Next recommended step:
+
+- Build the next execution layer as a real painter service that consumes the current material and SVG receipts directly, instead of leaving preview and export as the terminal implementation.
+
 ## 2026-03-27 - Flagship Fabric DCC Suite Scaffold Added
 
 The repo now has a flagship DCC suite scaffold under `apps/kain-fabric-dcc-suite`.

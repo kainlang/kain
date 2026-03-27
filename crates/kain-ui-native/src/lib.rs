@@ -5,7 +5,7 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use ab_glyph::{point, Font, FontArc, ScaleFont};
@@ -64,6 +64,7 @@ const KAIN_UI_NATIVE_REALTIME_BUNDLE_ENV: &str = "KAIN_UI_NATIVE_REALTIME_BUNDLE
 const KAIN_UI_NATIVE_SHADER_BUNDLE_ENV: &str = "KAIN_UI_NATIVE_SHADER_BUNDLE";
 const KAIN_UI_NATIVE_APP_MANIFEST_ENV: &str = "KAIN_UI_NATIVE_APP_MANIFEST";
 const KAIN_UI_NATIVE_APP_SNAPSHOT_ENV: &str = "KAIN_UI_NATIVE_APP_SNAPSHOT";
+const KAIN_UI_NATIVE_COMMAND_BRIDGE_ENV: &str = "KAIN_UI_NATIVE_COMMAND_BRIDGE";
 const UI_SHADER_SURFACE_VERTEX_ENTRY: &str = "kain_ui_surface_vs_main";
 const SHADER_CANVAS_BITMAP_FONT_FAMILY: &str = "kain.builtin.bitmap_5x7";
 const SHADER_CANVAS_DEFAULT_FONT_FAMILY: &str = "kain.default-ui-sans";
@@ -277,6 +278,8 @@ struct NativeAppRuntimeSnapshot {
     recent_sessions: Vec<NativeAppRuntimeRecentSession>,
     workspaces: Vec<NativeAppRuntimeWorkspace>,
     updated_at: String,
+    #[serde(default)]
+    dcc_suite_state: Option<NativeAppRuntimeDccSuiteState>,
 }
 
 #[derive(Clone, Debug, serde::Deserialize)]
@@ -351,6 +354,140 @@ struct NativeAppRuntimeWorkspace {
     root: String,
     session_count: usize,
     recent_session_title: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+struct NativeAppRuntimeDccSuiteState {
+    #[serde(default)]
+    session: NativeAppRuntimeDccSuiteSession,
+    #[serde(default)]
+    derived: NativeAppRuntimeDccSuiteDerivedState,
+    #[serde(default)]
+    latest_command: Option<NativeAppRuntimeBridgeCommandRecord>,
+    #[serde(default)]
+    bridge: NativeAppRuntimeBridgeStatus,
+}
+
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+struct NativeAppRuntimeDccSuiteSession {
+    #[serde(default)]
+    workspace: NativeAppRuntimeDccWorkspaceState,
+    #[serde(default)]
+    tooling: NativeAppRuntimeDccToolingState,
+    #[serde(default)]
+    gizmo: NativeAppRuntimeDccGizmoState,
+    #[serde(default)]
+    animation: NativeAppRuntimeDccAnimationState,
+    #[serde(default)]
+    dirty: NativeAppRuntimeDccDirtyState,
+}
+
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+struct NativeAppRuntimeDccWorkspaceState {
+    #[serde(default)]
+    active_mode: String,
+}
+
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+struct NativeAppRuntimeDccToolingState {
+    #[serde(default)]
+    active_tool: String,
+}
+
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+struct NativeAppRuntimeDccGizmoState {
+    #[serde(default)]
+    mode: String,
+    #[serde(default)]
+    space: String,
+    #[serde(default)]
+    snap_enabled: bool,
+}
+
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+struct NativeAppRuntimeDccAnimationState {
+    #[serde(default)]
+    frame: i64,
+}
+
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+struct NativeAppRuntimeDccDirtyState {
+    #[serde(default)]
+    asset_dirty: bool,
+    #[serde(default)]
+    sculpt_dirty: bool,
+    #[serde(default)]
+    topology_dirty: bool,
+    #[serde(default)]
+    material_dirty: bool,
+    #[serde(default)]
+    rig_dirty: bool,
+    #[serde(default)]
+    animation_dirty: bool,
+    #[serde(default)]
+    simulation_dirty: bool,
+    #[serde(default)]
+    render_dirty: bool,
+    #[serde(default)]
+    compositor_dirty: bool,
+    #[serde(default)]
+    publish_dirty: bool,
+    #[serde(default)]
+    tensor_dirty: bool,
+    #[serde(default)]
+    session_needs_save: bool,
+}
+
+impl NativeAppRuntimeDccDirtyState {
+    fn active_count(&self) -> usize {
+        [
+            self.asset_dirty,
+            self.sculpt_dirty,
+            self.topology_dirty,
+            self.material_dirty,
+            self.rig_dirty,
+            self.animation_dirty,
+            self.simulation_dirty,
+            self.render_dirty,
+            self.compositor_dirty,
+            self.publish_dirty,
+            self.tensor_dirty,
+            self.session_needs_save,
+        ]
+        .into_iter()
+        .filter(|value| *value)
+        .count()
+    }
+}
+
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+struct NativeAppRuntimeDccSuiteDerivedState {
+    #[serde(default)]
+    active_mode_label: String,
+    #[serde(default)]
+    active_tool_label: String,
+    #[serde(default)]
+    gizmo_summary: String,
+}
+
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+struct NativeAppRuntimeBridgeStatus {
+    #[serde(default)]
+    status: String,
+    #[serde(default)]
+    command_queue_path: String,
+    #[serde(default)]
+    processed_command_count: usize,
+}
+
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+struct NativeAppRuntimeBridgeCommandRecord {
+    #[serde(default)]
+    command_id: String,
+    #[serde(default)]
+    label: String,
+    #[serde(default)]
+    requested_at: String,
 }
 
 pub const KAIN_UI_NATIVE_DEMO_SOURCE: &str = r#"
@@ -554,6 +691,35 @@ fn load_runtime_snapshot_from_env() -> Option<(NativeAppRuntimeSnapshot, String)
     serde_json::from_str(&json)
         .ok()
         .map(|snapshot| (snapshot, path))
+}
+
+fn bridge_timestamp_string() -> String {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .to_string()
+}
+
+fn emit_runtime_command_to_bridge(
+    bridge_path: &str,
+    command: &NativeAppRuntimeCommand,
+) -> Result<(), String> {
+    let payload = serde_json::json!({
+        "command_id": command.id,
+        "label": command.label,
+        "intent": command.intent,
+        "surface": command.surface,
+        "source": "kain-ui-native",
+        "requested_at": bridge_timestamp_string(),
+    });
+    let line = serde_json::to_string(&payload).map_err(|err| err.to_string())?;
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(bridge_path)
+        .map_err(|err| err.to_string())?;
+    writeln!(file, "{line}").map_err(|err| err.to_string())
 }
 
 fn file_modified_at(path: &str) -> Option<SystemTime> {
@@ -2770,6 +2936,7 @@ struct KainUiNativeApp {
     output: UiBuildOutput,
     debug_tree: String,
     app_manifest_path: Option<String>,
+    command_bridge_path: Option<String>,
     app_runtime_snapshot: Option<NativeAppRuntimeSnapshot>,
     scene_catalog: SceneCatalog,
     realtime_catalog: RealtimeBundleCatalog,
@@ -2815,6 +2982,7 @@ impl KainUiNativeApp {
         let realtime_bundle = load_realtime_bundle_from_env();
         let shader_bundle = load_shader_bundle_from_env();
         let app_manifest_path = env_var_trimmed(KAIN_UI_NATIVE_APP_MANIFEST_ENV);
+        let command_bridge_path = env_var_trimmed(KAIN_UI_NATIVE_COMMAND_BRIDGE_ENV);
         let runtime_snapshot = load_runtime_snapshot_from_env();
         let realtime_bundle_origin = realtime_bundle.as_ref().map(|(_, path)| path.clone());
         let shader_bundle_origin = shader_bundle.as_ref().map(|(_, path)| path.clone());
@@ -2834,7 +3002,7 @@ impl KainUiNativeApp {
             shader_bundle.as_ref().map(|(bundle, _)| bundle),
         );
         trace_runtime(format!(
-            "app_new: title={} root={} boot_mode={} renderer={} effective_renderer={} inspector={} viewports={} runtime_bundle={} realtime_bundle={} shader_bundle={} app_manifest={} runtime_snapshot={}",
+            "app_new: title={} root={} boot_mode={} renderer={} effective_renderer={} inspector={} viewports={} runtime_bundle={} realtime_bundle={} shader_bundle={} app_manifest={} command_bridge={} runtime_snapshot={}",
             config.window_title,
             config.root_component,
             boot_mode.label(),
@@ -2850,6 +3018,7 @@ impl KainUiNativeApp {
                 .as_deref()
                 .unwrap_or("<none>"),
             app_manifest_path.as_deref().unwrap_or("<none>"),
+            command_bridge_path.as_deref().unwrap_or("<none>"),
             runtime_snapshot_origin.as_deref().unwrap_or("<none>"),
         ));
         let debug_tree = render_ui_output_debug(&output);
@@ -2859,6 +3028,7 @@ impl KainUiNativeApp {
             output,
             debug_tree,
             app_manifest_path,
+            command_bridge_path,
             app_runtime_snapshot: runtime_snapshot.map(|(snapshot, _)| snapshot),
             scene_catalog: SceneCatalog::default(),
             realtime_catalog,
@@ -2876,6 +3046,224 @@ impl KainUiNativeApp {
             frame_dt_seconds: 1.0 / 60.0,
             boot_mode,
         }
+    }
+
+    fn emit_runtime_command(&self, command: &NativeAppRuntimeCommand) {
+        let Some(bridge_path) = self.command_bridge_path.as_deref() else {
+            trace_runtime(format!(
+                "command_bridge: skipped {} because {} is unset",
+                command.id, KAIN_UI_NATIVE_COMMAND_BRIDGE_ENV
+            ));
+            return;
+        };
+        match emit_runtime_command_to_bridge(bridge_path, command) {
+            Ok(()) => trace_runtime(format!(
+                "command_bridge: queued {} -> {}",
+                command.id, bridge_path
+            )),
+            Err(err) => trace_runtime(format!(
+                "command_bridge: failed {} -> {} error={}",
+                command.id, bridge_path, err
+            )),
+        }
+    }
+
+    fn render_runtime_command_bar(
+        &self,
+        ui: &mut egui::Ui,
+        app_theme: &NativeAppTheme,
+        snapshot: &NativeAppRuntimeSnapshot,
+    ) {
+        if snapshot.commands.is_empty() {
+            return;
+        }
+
+        let bridge_ready = self.command_bridge_path.is_some();
+        let latest_command_id = snapshot
+            .dcc_suite_state
+            .as_ref()
+            .and_then(|state| state.latest_command.as_ref())
+            .map(|command| command.command_id.as_str());
+        let latest_command_label = snapshot
+            .dcc_suite_state
+            .as_ref()
+            .and_then(|state| state.latest_command.as_ref())
+            .map(|command| {
+                if command.label.is_empty() {
+                    command.command_id.as_str()
+                } else {
+                    command.label.as_str()
+                }
+            })
+            .unwrap_or("none");
+
+        ui.add_space(8.0);
+        ui.horizontal_wrapped(|ui| {
+            Frame::new()
+                .fill(alpha_tint(app_theme.palette.surface_overlay, 0.82))
+                .stroke(Stroke::new(1.0, app_theme.palette.outline_soft))
+                .corner_radius(app_theme.metrics.radius_medium)
+                .inner_margin(app_theme.metrics.tight_padding)
+                .show(ui, |ui| {
+                    ui.label(
+                        RichText::new(if bridge_ready {
+                            format!("bridge live | latest {latest_command_label}")
+                        } else {
+                            format!(
+                                "bridge offline | set {}",
+                                KAIN_UI_NATIVE_COMMAND_BRIDGE_ENV
+                            )
+                        })
+                        .size(app_theme.typography.small)
+                        .color(app_theme.palette.text_muted),
+                    );
+                });
+
+            for command in &snapshot.commands {
+                let is_latest = latest_command_id.is_some_and(|id| id == command.id);
+                let fill = if is_latest {
+                    alpha_tint(app_theme.palette.accent, 0.22)
+                } else {
+                    alpha_tint(app_theme.palette.surface_overlay, 0.78)
+                };
+                let stroke = if is_latest {
+                    app_theme.palette.accent_soft
+                } else {
+                    app_theme.palette.outline_soft
+                };
+                let button = egui::Button::new(
+                    RichText::new(&command.label)
+                        .size(app_theme.typography.small)
+                        .color(if bridge_ready {
+                            app_theme.palette.text
+                        } else {
+                            app_theme.palette.text_muted
+                        }),
+                )
+                .fill(fill)
+                .stroke(Stroke::new(1.0, stroke))
+                .corner_radius(app_theme.metrics.radius_medium)
+                .min_size(egui::vec2(92.0, 28.0));
+                if ui.add_enabled(bridge_ready, button).clicked() {
+                    self.emit_runtime_command(command);
+                }
+            }
+        });
+    }
+
+    fn render_dcc_session_badges(
+        &self,
+        ui: &mut egui::Ui,
+        app_theme: &NativeAppTheme,
+        snapshot: &NativeAppRuntimeSnapshot,
+    ) {
+        let Some(dcc_state) = snapshot.dcc_suite_state.as_ref() else {
+            return;
+        };
+
+        let active_mode = if !dcc_state.derived.active_mode_label.is_empty() {
+            dcc_state.derived.active_mode_label.as_str()
+        } else {
+            dcc_state.session.workspace.active_mode.as_str()
+        };
+        let active_tool = if !dcc_state.derived.active_tool_label.is_empty() {
+            dcc_state.derived.active_tool_label.as_str()
+        } else {
+            dcc_state.session.tooling.active_tool.as_str()
+        };
+        let gizmo_summary = if !dcc_state.derived.gizmo_summary.is_empty() {
+            dcc_state.derived.gizmo_summary.as_str()
+        } else {
+            ""
+        };
+        let dirty_count = dcc_state.session.dirty.active_count();
+        let bridge_summary = format!(
+            "{} | {} commands",
+            if dcc_state.bridge.status.is_empty() {
+                "ready"
+            } else {
+                dcc_state.bridge.status.as_str()
+            },
+            dcc_state.bridge.processed_command_count
+        );
+
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
+            let mut show_badge = |label: String, fill: Color32, stroke: Color32, text: Color32| {
+                Frame::new()
+                    .fill(fill)
+                    .stroke(Stroke::new(1.0, stroke))
+                    .corner_radius(app_theme.metrics.radius_medium)
+                    .inner_margin(app_theme.metrics.tight_padding)
+                    .show(ui, |ui| {
+                        ui.label(
+                            RichText::new(label)
+                                .size(app_theme.typography.small)
+                                .color(text),
+                        );
+                    });
+            };
+
+            if !active_mode.is_empty() {
+                show_badge(
+                    format!("mode {active_mode}"),
+                    alpha_tint(app_theme.palette.surface_overlay, 0.92),
+                    app_theme.palette.outline_soft,
+                    app_theme.palette.text,
+                );
+            }
+            if !active_tool.is_empty() {
+                show_badge(
+                    format!("tool {active_tool}"),
+                    alpha_tint(app_theme.palette.highlight, 0.12),
+                    app_theme.palette.highlight,
+                    app_theme.palette.highlight,
+                );
+            }
+            if !gizmo_summary.is_empty() {
+                show_badge(
+                    format!("gizmo {gizmo_summary}"),
+                    alpha_tint(app_theme.palette.accent, 0.12),
+                    app_theme.palette.accent_soft,
+                    app_theme.palette.accent_soft,
+                );
+            } else if !dcc_state.session.gizmo.mode.is_empty() || !dcc_state.session.gizmo.space.is_empty()
+            {
+                show_badge(
+                    format!(
+                        "gizmo {} | {} | snap {}",
+                        dcc_state.session.gizmo.mode,
+                        dcc_state.session.gizmo.space,
+                        if dcc_state.session.gizmo.snap_enabled {
+                            "on"
+                        } else {
+                            "off"
+                        }
+                    ),
+                    alpha_tint(app_theme.palette.accent, 0.12),
+                    app_theme.palette.accent_soft,
+                    app_theme.palette.accent_soft,
+                );
+            }
+            show_badge(
+                format!("frame {}", dcc_state.session.animation.frame),
+                alpha_tint(app_theme.palette.surface_overlay, 0.92),
+                app_theme.palette.outline_soft,
+                app_theme.palette.text_muted,
+            );
+            show_badge(
+                format!("dirty {dirty_count}"),
+                alpha_tint(app_theme.palette.warning, 0.14),
+                app_theme.palette.warning,
+                app_theme.palette.warning,
+            );
+            show_badge(
+                bridge_summary,
+                alpha_tint(app_theme.palette.surface_overlay, 0.92),
+                app_theme.palette.outline_soft,
+                app_theme.palette.text_muted,
+            );
+        });
     }
 
     fn poll_runtime_reloads(&mut self) {
@@ -4719,9 +5107,13 @@ impl eframe::App for KainUiNativeApp {
                                                     .size(app_theme.typography.small)
                                                     .color(app_theme.palette.text_muted),
                                                 );
-                                            });
+                                        });
                                     });
                                 });
+                            }
+                            if let Some(snapshot) = &self.app_runtime_snapshot {
+                                self.render_dcc_session_badges(ui, &app_theme, snapshot);
+                                self.render_runtime_command_bar(ui, &app_theme, snapshot);
                             }
                         });
                 });

@@ -1,7 +1,7 @@
 version = 1
 
 [workspace]
-root = "."
+root = "../.."
 search_roots = ["src", "scripts", "native", "local_crate", "shaders"]
 
 [[requires]]
@@ -25,8 +25,51 @@ entry = "src/main.kn"
 depends_on = ["python_suite_bootstrap"]
 
 [[steps.outputs]]
+name = "scene_graph_document"
+kind = "value"
+
+[[steps.outputs]]
+name = "material_authoring_document"
+kind = "value"
+
+[[steps.outputs]]
+name = "svg_mask_document"
+kind = "value"
+
+[[steps.outputs]]
+name = "preview_src"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "preview_dst"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "sculpt_heightfield_src"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "sculpt_brush_params"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "sculpt_delta"
+kind = "shared_buffer"
+
+[[steps.outputs]]
 name = "session_report"
 kind = "value"
+
+[[steps]]
+id = "gpu_sculpt_displacement"
+runtime = "gpu_compute"
+shader_source = "shaders/sculpt_heightfield_apply.kn"
+compute_key = "DccSuiteGpuSculptStroke"
+depends_on = ["dcc_suite_seed"]
+
+[[steps.outputs]]
+name = "sculpt_delta"
+kind = "shared_buffer"
 
 [[steps]]
 id = "material_authoring_projection"
@@ -54,10 +97,14 @@ runtime = "c_abi"
 entry = "src/native_sculpt_step.kn"
 module = "dcc_suite_ops"
 library = "native/dcc_suite_ops.dll"
-depends_on = ["python_suite_bootstrap", "dcc_suite_seed"]
+depends_on = ["python_suite_bootstrap", "gpu_sculpt_displacement"]
 
 [[steps.outputs]]
 name = "sculpt_signature"
+kind = "value"
+
+[[steps.outputs]]
+name = "sculpt_report"
 kind = "value"
 
 [[steps]]
@@ -66,7 +113,7 @@ runtime = "rust_crate"
 entry = "src/rust_graph_step.kn"
 crate_name = "fabric_dcc_suite_runtime"
 manifest_path = "local_crate/Cargo.toml"
-depends_on = ["dcc_suite_seed", "native_sculpt_kernel"]
+depends_on = ["dcc_suite_seed", "gpu_sculpt_displacement", "native_sculpt_kernel"]
 
 [[steps.outputs]]
 name = "topology_report"
@@ -126,6 +173,7 @@ entry = "src/node_publish_bridge.kn"
 depends_on = [
     "python_suite_bootstrap",
     "dcc_suite_seed",
+    "gpu_sculpt_displacement",
     "material_authoring_projection",
     "svg_material_mask_projection",
     "native_sculpt_kernel",

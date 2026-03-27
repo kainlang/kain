@@ -1,0 +1,16 @@
+{
+  "grid_resolution": 32,
+  "sample_count": 1024,
+  "brush": {
+    "center_x_milli": 500,
+    "center_y_milli": 500,
+    "radius_milli": 260,
+    "strength_milli": 180,
+    "falloff_milli": 620,
+    "invert": false
+  },
+  "height_range": {
+    "min_milli": 120,
+    "max_milli": 1480
+  }
+}

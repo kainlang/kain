@@ -1,16 +1,25 @@
 # Fabric Notes
 
-`apps/kain-fabric-dcc-suite/KAIN.fabric.toml` is the broad scaffold pipeline for the suite.
+`apps/kain-fabric-dcc-suite/KAIN.fabric.toml` is the suite's canonical cross-runtime Fabric graph.
+
+The graph follows the root Kain Fabric model:
+
+- use `value` outputs for authored contracts, reports, and routing receipts
+- use `shared_buffer` and `shared_image` only for hot preview and tensor payloads
+- keep semantic ownership in Kain/session/config and let Fabric express the explicit DAG
 
 Current top-level step ownership:
 
-- `python_suite_bootstrap`: seeds app and session defaults plus lane counts
-- `dcc_suite_seed`: authors scene, asset, preview, tensor, and session bootstrap artifacts
+- `python_suite_bootstrap`: seeds app defaults, preview sizing, runtime-pack counts, and session-local hints
+- `dcc_suite_seed`: authors the scene graph, asset catalog, material authoring document, SVG mask document, preview payloads, tensor features, and session bootstrap report
+- `material_authoring_projection`: projects painter-style texture-set, layer-stack, and export-preset receipts from session truth
+- `svg_material_mask_projection`: projects SVG mask stack and vector decal receipts for the material lane
 - `native_sculpt_kernel`: proves a native sculpt and mutation seam
 - `rig_graph_analysis`: proves a Rust-owned graph and topology seam
 - `tensor_train_stage`: emits tensor training readiness and plan summaries
 - `tensor_infer_stage`: emits tensor inference readiness and plan summaries
-- `gpu_material_preview`: proves GPU compute preview and material bake flow
+- `gpu_material_preview`: runs the GPU preview after the material and SVG projections have materialized
+- `material_texture_export_projection`: emits packed PBR texture export receipts for downstream runtimes and publishing
 - `publish_suite_report`: emits publish and report output through the Kain-to-Node bridge
 
-The intent manifests under `fabric/intents/` are the lane-local reusable graphs the session planner should schedule for interactive work.
+The intent manifests under `fabric/intents/` are the lane-local reusable graphs the session planner should schedule for interactive work. Those manifests should resolve `[workspace].root = "../.."` so scripts, source, shaders, and state receipts stay anchored to the app root instead of the `fabric/intents/` folder.

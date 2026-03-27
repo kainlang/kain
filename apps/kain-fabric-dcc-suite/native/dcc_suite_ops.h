@@ -13,8 +13,8 @@
 extern "C" {
 #endif
 
-DCC_SUITE_EXPORT void dcc_suite_apply_sculpt_stamp(uint8_t* pixels, size_t len, int accent);
-DCC_SUITE_EXPORT const char* dcc_suite_signature(int width, int height, int accent);
+DCC_SUITE_EXPORT const char* dcc_suite_sculpt_signature(int grid_resolution, int checksum, int accent);
+DCC_SUITE_EXPORT const char* dcc_suite_sculpt_report(int grid_resolution, int active_samples, int checksum, int accent);
 
 #ifdef __cplusplus
 }

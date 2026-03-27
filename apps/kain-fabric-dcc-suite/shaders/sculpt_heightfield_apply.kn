@@ -1,0 +1,61 @@
+shader compute DccSuiteGpuSculptStroke(id: UVec3) -> Vec4:
+    uniform sculpt_heightfield_src: StorageBuffer<UInt> @0
+    uniform sculpt_brush_params: StorageBuffer<UInt> @1
+    uniform sculpt_delta: StorageBuffer<UInt> @2
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    comptime:
+        let compute = (
+            [8, 1, 1],
+            [
+                ("sculpt_heightfield_src", "u32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("sculpt_brush_params", "u32", [10], "input", "kain.shared.buffer"),
+                ("sculpt_delta", "u32", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("dcc_suite_gpu_sculpt_stroke", "apply_heightfield_stroke", ["sculpt_heightfield_src", "sculpt_brush_params"], ["sculpt_delta"], false),
+            ],
+        )
+
+    let sample_index = id.x
+    let sample_count = sculpt_brush_params[1]
+    if sample_index >= sample_count:
+        return vec4(0.0, 0.0, 0.0, 1.0)
+
+    let grid_resolution = sculpt_brush_params[0]
+    let grid_x = sample_index % grid_resolution
+    let grid_y = sample_index / grid_resolution
+    let resolution_span = Float(grid_resolution) - 1.0
+    let x = Float(grid_x) / resolution_span
+    let y = Float(grid_y) / resolution_span
+    let center_x = Float(sculpt_brush_params[2]) / 1000.0
+    let center_y = Float(sculpt_brush_params[3]) / 1000.0
+    let radius = Float(sculpt_brush_params[4]) / 1000.0
+    let strength = Float(sculpt_brush_params[5]) / 1000.0
+    let falloff = Float(sculpt_brush_params[6]) / 1000.0
+    let invert = sculpt_brush_params[7] > UInt(0)
+    let height_min = Float(sculpt_brush_params[8])
+    let height_max = Float(sculpt_brush_params[9])
+    let height_span = clamp(height_max - height_min, 1.0, 1000000.0)
+    let source_height = Float(sculpt_heightfield_src[sample_index])
+    let dx = x - center_x
+    let dy = y - center_y
+    let distance = sqrt(dx * dx + dy * dy)
+
+    if distance > radius:
+        sculpt_delta[sample_index] = UInt(source_height)
+        return vec4(source_height / height_max, 0.0, 0.0, 1.0)
+
+    let normalized_distance = clamp(distance / radius, 0.0, 1.0)
+    let brush_weight = pow(1.0 - normalized_distance, 1.0 + falloff * 3.0)
+    let signed_strength = height_span * strength * brush_weight
+    let displaced_height = if invert {
+        source_height - signed_strength
+    } else {
+        source_height + signed_strength
+    }
+    let clamped_height = clamp(displaced_height, height_min, height_max)
+    sculpt_delta[sample_index] = UInt(clamped_height)
+    return vec4(clamped_height / height_max, brush_weight, strength, 1.0)

@@ -2,7 +2,7 @@ version = 1
 
 [workspace]
 root = "../.."
-search_roots = ["src", "scripts"]
+search_roots = ["src", "scripts", "shaders"]
 
 [[requires]]
 key = "session.local"
@@ -63,10 +63,21 @@ name = "compositor_rebuild_plan"
 kind = "value"
 
 [[steps]]
+id = "gpu_compositor_tone_map"
+runtime = "gpu_compute"
+shader_source = "shaders/compositor_tone_map.kn"
+compute_key = "DccSuiteCompositorToneMap"
+depends_on = ["dcc_suite_seed", "compositor_projection"]
+
+[[steps.outputs]]
+name = "preview_dst"
+kind = "shared_buffer"
+
+[[steps]]
 id = "compositor_assembly"
 runtime = "kain"
 entry = "src/compositor_rebuild_step.kn"
-depends_on = ["python_suite_bootstrap", "compositor_projection"]
+depends_on = ["python_suite_bootstrap", "compositor_projection", "gpu_compositor_tone_map"]
 
 [[steps.outputs]]
 name = "compositor_rebuild_report"
