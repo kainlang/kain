@@ -23,10 +23,11 @@ use image::RgbaImage;
 use nalgebra::{Affine2, Similarity2, Vector2};
 use kain_3d::{
     default_viewport_shader_bundle, prepare_wgpu_frame, wgsl_module_source, CameraPose,
-    CpuPickingService, GizmoVertex, GpuVertex, ManipulatorMode, ParticleVertex, PickingHit,
-    PickingQuery, PickingRay, PreparedWgpuFrame, RenderBackend, RenderResolution, RenderStats,
-    RenderViewSettings, SceneCatalog, SceneDescription, SceneUniforms, SoftwareRenderer,
-    Transform as SceneTransform, Vec3, WgpuRenderer, VIEWPORT_SHADER_MODULE_NAME,
+    CpuPickingService, GizmoVertex, GpuVertex, ManipulatorMode, ManipulatorSpace,
+    ParticleVertex, PickingHit, PickingQuery, PickingRay, PreparedWgpuFrame, RenderBackend,
+    RenderResolution, RenderStats, RenderViewSettings, SceneCatalog, SceneDescription,
+    SceneUniforms, SoftwareRenderer, Transform as SceneTransform, Vec3, WgpuRenderer,
+    VIEWPORT_SHADER_MODULE_NAME,
 };
 use kain_core::{
     build_ui_output_from_source, realtime_app_bundle_from_json, render_ui_output_debug,
@@ -34,8 +35,9 @@ use kain_core::{
     RealtimeAssetBinding, RealtimeSceneBinding, RealtimeShaderBundleRef,
     RealtimeShaderCanvasBinding, RealtimeShaderCanvasFontAtlas,
     RealtimeShaderCanvasResourceBinding, RealtimeShaderCanvasTextRun,
-    RealtimeViewportCameraBinding, RealtimeViewportPresentationBinding, ShaderArtifactBundle,
-    ShaderEntryPoint, ShaderResourceLayout,
+    RealtimeViewportCameraBinding, RealtimeViewportGizmoBinding,
+    RealtimeViewportPresentationBinding, ShaderArtifactBundle, ShaderEntryPoint,
+    ShaderResourceLayout,
 };
 use kain_ui::{
     ui_resolve_theme_for_node, ui_runtime_bundle_from_json, ui_runtime_bundle_from_output,
@@ -2313,6 +2315,8 @@ struct ViewportSurfaceState {
     last_stats: RenderStats,
     selected_instance_id: Option<String>,
     manipulator_mode: ManipulatorMode,
+    manipulator_space: ManipulatorSpace,
+    snap_enabled: bool,
     last_pick: Option<PickingHit>,
     instance_transform_overrides: BTreeMap<String, SceneTransform>,
     active_manipulation: Option<ViewportManipulatorState>,
@@ -2465,6 +2469,9 @@ struct ViewportCameraController {
 struct ViewportInputSnapshot {
     scroll_delta_y: f32,
     pointer_delta: Vec2,
+    modifier_ctrl: bool,
+    modifier_alt: bool,
+    pressed_hotkeys: BTreeSet<String>,
     move_forward: bool,
     move_backward: bool,
     move_right: bool,
@@ -2472,11 +2479,21 @@ struct ViewportInputSnapshot {
     move_up: bool,
     move_down: bool,
     speed_boost: bool,
-    manipulate_modifier: bool,
     recenter: bool,
-    gizmo_translate: bool,
-    gizmo_rotate: bool,
-    gizmo_scale: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ViewportManipulatorDragTrigger {
+    PrimaryDrag,
+    CtrlPrimaryDrag,
+    AltPrimaryDrag,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ViewportGizmoSnapSettings {
+    translation_step: Option<f32>,
+    rotation_step_radians: Option<f32>,
+    scale_step: Option<f32>,
 }
 
 impl ViewportCameraController {
@@ -2530,6 +2547,221 @@ impl ViewportCameraController {
     fn recenter(&mut self, pose: &CameraPose) {
         *self = Self::from_pose(pose);
     }
+}
+
+fn default_viewport_gizmo_binding() -> RealtimeViewportGizmoBinding {
+    RealtimeViewportGizmoBinding {
+        profile_id: Some("viewport.default".to_string()),
+        visible: Some(true),
+        default_mode: Some("translate".to_string()),
+        default_space: Some("world".to_string()),
+        drag_trigger: Some("ctrl_primary_drag".to_string()),
+        selection_required: Some(true),
+        translate_hotkey: Some("T".to_string()),
+        rotate_hotkey: Some("R".to_string()),
+        scale_hotkey: Some("Y".to_string()),
+        cycle_space_hotkey: Some("U".to_string()),
+        toggle_snap_hotkey: Some("I".to_string()),
+        translate_snap_units: Some(0.5),
+        rotate_snap_degrees: Some(15.0),
+        scale_snap_percent: Some(10.0),
+        snap_default_enabled: Some(false),
+    }
+}
+
+fn resolved_viewport_gizmo_binding(
+    presentation: Option<&RealtimeViewportPresentationBinding>,
+) -> RealtimeViewportGizmoBinding {
+    let mut resolved = default_viewport_gizmo_binding();
+    let Some(gizmo) = presentation.and_then(|presentation| presentation.gizmo.as_ref()) else {
+        return resolved;
+    };
+    if gizmo.profile_id.is_some() {
+        resolved.profile_id = gizmo.profile_id.clone();
+    }
+    if gizmo.visible.is_some() {
+        resolved.visible = gizmo.visible;
+    }
+    if gizmo.default_mode.is_some() {
+        resolved.default_mode = gizmo.default_mode.clone();
+    }
+    if gizmo.default_space.is_some() {
+        resolved.default_space = gizmo.default_space.clone();
+    }
+    if gizmo.drag_trigger.is_some() {
+        resolved.drag_trigger = gizmo.drag_trigger.clone();
+    }
+    if gizmo.selection_required.is_some() {
+        resolved.selection_required = gizmo.selection_required;
+    }
+    if gizmo.translate_hotkey.is_some() {
+        resolved.translate_hotkey = gizmo.translate_hotkey.clone();
+    }
+    if gizmo.rotate_hotkey.is_some() {
+        resolved.rotate_hotkey = gizmo.rotate_hotkey.clone();
+    }
+    if gizmo.scale_hotkey.is_some() {
+        resolved.scale_hotkey = gizmo.scale_hotkey.clone();
+    }
+    if gizmo.cycle_space_hotkey.is_some() {
+        resolved.cycle_space_hotkey = gizmo.cycle_space_hotkey.clone();
+    }
+    if gizmo.toggle_snap_hotkey.is_some() {
+        resolved.toggle_snap_hotkey = gizmo.toggle_snap_hotkey.clone();
+    }
+    if gizmo.translate_snap_units.is_some() {
+        resolved.translate_snap_units = gizmo.translate_snap_units;
+    }
+    if gizmo.rotate_snap_degrees.is_some() {
+        resolved.rotate_snap_degrees = gizmo.rotate_snap_degrees;
+    }
+    if gizmo.scale_snap_percent.is_some() {
+        resolved.scale_snap_percent = gizmo.scale_snap_percent;
+    }
+    if gizmo.snap_default_enabled.is_some() {
+        resolved.snap_default_enabled = gizmo.snap_default_enabled;
+    }
+    resolved
+}
+
+fn manipulator_mode_from_binding_value(value: Option<&str>) -> ManipulatorMode {
+    match value.unwrap_or("translate").trim().to_ascii_lowercase().as_str() {
+        "rotate" => ManipulatorMode::Rotate,
+        "scale" => ManipulatorMode::Scale,
+        _ => ManipulatorMode::Translate,
+    }
+}
+
+fn manipulator_space_from_binding_value(value: Option<&str>) -> ManipulatorSpace {
+    match value.unwrap_or("world").trim().to_ascii_lowercase().as_str() {
+        "local" => ManipulatorSpace::Local,
+        _ => ManipulatorSpace::World,
+    }
+}
+
+fn manipulator_mode_label(mode: ManipulatorMode) -> &'static str {
+    match mode {
+        ManipulatorMode::Translate => "translate",
+        ManipulatorMode::Rotate => "rotate",
+        ManipulatorMode::Scale => "scale",
+    }
+}
+
+fn manipulator_space_label(space: ManipulatorSpace) -> &'static str {
+    match space {
+        ManipulatorSpace::World => "world",
+        ManipulatorSpace::Local => "local",
+    }
+}
+
+fn viewport_drag_trigger_from_binding_value(value: Option<&str>) -> ViewportManipulatorDragTrigger {
+    match value.unwrap_or("ctrl_primary_drag").trim().to_ascii_lowercase().as_str() {
+        "primary_drag" => ViewportManipulatorDragTrigger::PrimaryDrag,
+        "alt_primary_drag" => ViewportManipulatorDragTrigger::AltPrimaryDrag,
+        _ => ViewportManipulatorDragTrigger::CtrlPrimaryDrag,
+    }
+}
+
+fn viewport_drag_trigger_active(
+    input: &ViewportInputSnapshot,
+    drag_trigger: ViewportManipulatorDragTrigger,
+) -> bool {
+    match drag_trigger {
+        ViewportManipulatorDragTrigger::PrimaryDrag => true,
+        ViewportManipulatorDragTrigger::CtrlPrimaryDrag => input.modifier_ctrl,
+        ViewportManipulatorDragTrigger::AltPrimaryDrag => input.modifier_alt,
+    }
+}
+
+fn viewport_drag_trigger_label(drag_trigger: ViewportManipulatorDragTrigger) -> &'static str {
+    match drag_trigger {
+        ViewportManipulatorDragTrigger::PrimaryDrag => "drag",
+        ViewportManipulatorDragTrigger::CtrlPrimaryDrag => "ctrl+drag",
+        ViewportManipulatorDragTrigger::AltPrimaryDrag => "alt+drag",
+    }
+}
+
+fn viewport_hotkey_label(value: Option<&str>, fallback: &str) -> String {
+    value.map(str::trim)
+        .filter(|token| !token.is_empty())
+        .map(|token| token.to_ascii_uppercase())
+        .unwrap_or_else(|| fallback.to_string())
+}
+
+fn normalize_viewport_hotkey_token(value: &str) -> Option<String> {
+    let normalized = value.trim().to_ascii_uppercase();
+    (!normalized.is_empty()).then_some(normalized)
+}
+
+fn viewport_hotkey_pressed(input: &ViewportInputSnapshot, hotkey: Option<&str>) -> bool {
+    hotkey
+        .and_then(normalize_viewport_hotkey_token)
+        .is_some_and(|token| input.pressed_hotkeys.contains(&token))
+}
+
+fn capture_viewport_pressed_hotkeys(input: &egui::InputState) -> BTreeSet<String> {
+    const VIEWPORT_HOTKEYS: &[(egui::Key, &str)] = &[
+        (egui::Key::A, "A"),
+        (egui::Key::B, "B"),
+        (egui::Key::C, "C"),
+        (egui::Key::D, "D"),
+        (egui::Key::E, "E"),
+        (egui::Key::F, "F"),
+        (egui::Key::G, "G"),
+        (egui::Key::H, "H"),
+        (egui::Key::I, "I"),
+        (egui::Key::J, "J"),
+        (egui::Key::K, "K"),
+        (egui::Key::L, "L"),
+        (egui::Key::M, "M"),
+        (egui::Key::N, "N"),
+        (egui::Key::O, "O"),
+        (egui::Key::P, "P"),
+        (egui::Key::Q, "Q"),
+        (egui::Key::R, "R"),
+        (egui::Key::S, "S"),
+        (egui::Key::T, "T"),
+        (egui::Key::U, "U"),
+        (egui::Key::V, "V"),
+        (egui::Key::W, "W"),
+        (egui::Key::X, "X"),
+        (egui::Key::Y, "Y"),
+        (egui::Key::Z, "Z"),
+    ];
+    VIEWPORT_HOTKEYS
+        .iter()
+        .filter_map(|(key, label)| input.key_pressed(*key).then_some((*label).to_string()))
+        .collect()
+}
+
+fn viewport_gizmo_snap_settings(binding: &RealtimeViewportGizmoBinding) -> ViewportGizmoSnapSettings {
+    ViewportGizmoSnapSettings {
+        translation_step: binding.translate_snap_units.filter(|value| *value > f32::EPSILON),
+        rotation_step_radians: binding
+            .rotate_snap_degrees
+            .filter(|value| value.abs() > f32::EPSILON)
+            .map(f32::to_radians),
+        scale_step: binding
+            .scale_snap_percent
+            .filter(|value| value.abs() > f32::EPSILON)
+            .map(|value| value / 100.0),
+    }
+}
+
+fn round_to_step(value: f32, step: f32) -> f32 {
+    if step.abs() <= f32::EPSILON {
+        value
+    } else {
+        (value / step).round() * step
+    }
+}
+
+fn snap_vec3(value: Vec3, step: f32) -> Vec3 {
+    Vec3::new(
+        round_to_step(value.x, step),
+        round_to_step(value.y, step),
+        round_to_step(value.z, step),
+    )
 }
 
 struct KainUiNativeApp {
@@ -6152,6 +6384,7 @@ fn render_viewport_surface(
                 return;
             };
             trace_runtime(format!("viewport: resolved scene node={}", node.id.0));
+            let initial_gizmo_binding = resolved_viewport_gizmo_binding(binding.presentation.as_ref());
             let surface =
                 app.viewport_surfaces
                     .entry(node.id)
@@ -6168,7 +6401,15 @@ fn render_viewport_surface(
                         last_render_at: None,
                         last_stats: RenderStats::default(),
                         selected_instance_id: None,
-                        manipulator_mode: ManipulatorMode::Translate,
+                        manipulator_mode: manipulator_mode_from_binding_value(
+                            initial_gizmo_binding.default_mode.as_deref(),
+                        ),
+                        manipulator_space: manipulator_space_from_binding_value(
+                            initial_gizmo_binding.default_space.as_deref(),
+                        ),
+                        snap_enabled: initial_gizmo_binding
+                            .snap_default_enabled
+                            .unwrap_or(false),
                         last_pick: None,
                         instance_transform_overrides: BTreeMap::new(),
                         active_manipulation: None,
@@ -6182,6 +6423,7 @@ fn render_viewport_surface(
             trace_runtime(format!("viewport: state_ready node={}", node.id.0));
             if surface.scene_name != scene_name
                 || surface.bundle_camera.as_ref() != binding.camera.as_ref()
+                || surface.bundle_presentation.as_ref() != binding.presentation.as_ref()
             {
                 surface.scene_name = scene_name.clone();
                 surface.bundle_viewport_node = binding.viewport_node.clone();
@@ -6198,6 +6440,14 @@ fn render_viewport_surface(
                 surface.last_pick = None;
                 surface.instance_transform_overrides.clear();
                 surface.active_manipulation = None;
+                let reset_gizmo_binding =
+                    resolved_viewport_gizmo_binding(binding.presentation.as_ref());
+                surface.manipulator_mode =
+                    manipulator_mode_from_binding_value(reset_gizmo_binding.default_mode.as_deref());
+                surface.manipulator_space = manipulator_space_from_binding_value(
+                    reset_gizmo_binding.default_space.as_deref(),
+                );
+                surface.snap_enabled = reset_gizmo_binding.snap_default_enabled.unwrap_or(false);
                 if let Some(host) = app.presented_viewport_host {
                     surface.presented_state =
                         Some(Arc::new(Mutex::new(PresentedViewportGpuState::new(
@@ -6215,11 +6465,15 @@ fn render_viewport_surface(
                 surface.bundle_presentation = binding.presentation.clone();
                 surface.bundle_warning = binding.warning.clone();
             }
+            let gizmo_binding = resolved_viewport_gizmo_binding(surface.bundle_presentation.as_ref());
+            let drag_trigger =
+                viewport_drag_trigger_from_binding_value(gizmo_binding.drag_trigger.as_deref());
             sync_viewport_input(
                 &app.viewport_input,
                 response,
                 &reference_pose,
                 &mut surface.controller,
+                drag_trigger,
                 app.frame_dt_seconds,
             );
             apply_viewport_grounding(
@@ -6237,29 +6491,57 @@ fn render_viewport_surface(
                 &app.viewport_input,
                 elapsed_seconds,
                 &surface.controller.pose(&reference_pose),
+                &gizmo_binding,
                 surface,
             );
             if response.hovered() || response.has_focus() {
-                if app.viewport_input.gizmo_translate {
+                if viewport_hotkey_pressed(
+                    &app.viewport_input,
+                    gizmo_binding.translate_hotkey.as_deref(),
+                ) {
                     surface.manipulator_mode = ManipulatorMode::Translate;
-                } else if app.viewport_input.gizmo_rotate {
+                } else if viewport_hotkey_pressed(
+                    &app.viewport_input,
+                    gizmo_binding.rotate_hotkey.as_deref(),
+                ) {
                     surface.manipulator_mode = ManipulatorMode::Rotate;
-                } else if app.viewport_input.gizmo_scale {
+                } else if viewport_hotkey_pressed(
+                    &app.viewport_input,
+                    gizmo_binding.scale_hotkey.as_deref(),
+                ) {
                     surface.manipulator_mode = ManipulatorMode::Scale;
+                }
+                if viewport_hotkey_pressed(
+                    &app.viewport_input,
+                    gizmo_binding.cycle_space_hotkey.as_deref(),
+                ) {
+                    surface.manipulator_space = match surface.manipulator_space {
+                        ManipulatorSpace::World => ManipulatorSpace::Local,
+                        ManipulatorSpace::Local => ManipulatorSpace::World,
+                    };
+                }
+                if viewport_hotkey_pressed(
+                    &app.viewport_input,
+                    gizmo_binding.toggle_snap_hotkey.as_deref(),
+                ) {
+                    surface.snap_enabled = !surface.snap_enabled;
                 }
             }
             let active_camera = surface.controller.pose(&reference_pose);
             let render_view = RenderViewSettings {
                 camera: Some(active_camera),
                 selected_instance_id: surface.selected_instance_id.clone(),
-                manipulator_mode: Some(surface.manipulator_mode),
+                manipulator_mode: gizmo_binding
+                    .visible
+                    .unwrap_or(true)
+                    .then_some(surface.manipulator_mode),
                 fog_density: surface
                     .bundle_presentation
                     .as_ref()
                     .and_then(|presentation| presentation.fog_density),
                 instance_transform_overrides: surface.instance_transform_overrides.clone(),
             };
-            if response.clicked() && !app.viewport_input.manipulate_modifier {
+            if response.clicked() && !viewport_drag_trigger_active(&app.viewport_input, drag_trigger) {
                 if let Some(pointer_pos) = response.interact_pointer_pos() {
                     if inner_rect.contains(pointer_pos) {
                         let relative = pointer_pos - inner_rect.min;
@@ -6522,9 +6804,11 @@ fn render_viewport_surface(
                 overlay_rect.min + egui::vec2(10.0, 61.0),
                 egui::Align2::LEFT_TOP,
                 format!(
-                    "selection: {}  |  gizmo: {:?}",
+                    "selection: {}  |  gizmo: {}/{}  |  snap: {}",
                     surface.selected_instance_id.as_deref().unwrap_or("none"),
-                    surface.manipulator_mode
+                    manipulator_mode_label(surface.manipulator_mode),
+                    manipulator_space_label(surface.manipulator_space),
+                    if surface.snap_enabled { "on" } else { "off" }
                 ),
                 egui::FontId::monospace(10.5),
                 app_theme.palette.text_muted,
@@ -6585,13 +6869,21 @@ fn render_viewport_surface(
             }
             let controls_rect = egui::Rect::from_min_size(
                 egui::pos2(inner_rect.left() + 12.0, inner_rect.bottom() - 38.0),
-                Vec2::new(420.0, 26.0),
+                Vec2::new(620.0, 26.0),
             );
             painter.rect_filled(controls_rect, 10.0, theme.overlay_fill);
             painter.text(
                 controls_rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "roam WASD + QE  |  drag to look  |  ctrl+drag manipulates selection  |  T / R / Y gizmos",
+                format!(
+                    "roam WASD + QE  |  drag to look  |  {} transforms  |  {} / {} / {} modes  |  {} space  |  {} snap",
+                    viewport_drag_trigger_label(drag_trigger),
+                    viewport_hotkey_label(gizmo_binding.translate_hotkey.as_deref(), "T"),
+                    viewport_hotkey_label(gizmo_binding.rotate_hotkey.as_deref(), "R"),
+                    viewport_hotkey_label(gizmo_binding.scale_hotkey.as_deref(), "Y"),
+                    viewport_hotkey_label(gizmo_binding.cycle_space_hotkey.as_deref(), "U"),
+                    viewport_hotkey_label(gizmo_binding.toggle_snap_hotkey.as_deref(), "I")
+                ),
                 egui::FontId::monospace(10.5),
                 if response.has_focus() || response.hovered() {
                     app_theme.palette.highlight
@@ -6735,6 +7027,9 @@ fn snapshot_viewport_input(ctx: &egui::Context) -> ViewportInputSnapshot {
     ctx.input(|input| ViewportInputSnapshot {
         scroll_delta_y: input.raw_scroll_delta.y,
         pointer_delta: input.pointer.delta(),
+        modifier_ctrl: input.modifiers.ctrl,
+        modifier_alt: input.modifiers.alt,
+        pressed_hotkeys: capture_viewport_pressed_hotkeys(input),
         move_forward: input.key_down(egui::Key::W),
         move_backward: input.key_down(egui::Key::S),
         move_right: input.key_down(egui::Key::D),
@@ -6742,11 +7037,7 @@ fn snapshot_viewport_input(ctx: &egui::Context) -> ViewportInputSnapshot {
         move_up: input.key_down(egui::Key::Q),
         move_down: input.key_down(egui::Key::E),
         speed_boost: input.modifiers.shift,
-        manipulate_modifier: input.modifiers.ctrl,
         recenter: input.key_pressed(egui::Key::Space),
-        gizmo_translate: input.key_pressed(egui::Key::T),
-        gizmo_rotate: input.key_pressed(egui::Key::R),
-        gizmo_scale: input.key_pressed(egui::Key::Y),
     })
 }
 
@@ -6755,6 +7046,7 @@ fn sync_viewport_input(
     response: &egui::Response,
     reference_pose: &CameraPose,
     controller: &mut ViewportCameraController,
+    drag_trigger: ViewportManipulatorDragTrigger,
     dt_seconds: f32,
 ) {
     if response.hovered() && input.scroll_delta_y.abs() > f32::EPSILON {
@@ -6762,7 +7054,9 @@ fn sync_viewport_input(
         controller.move_speed = (controller.move_speed * speed_scale).clamp(1.0, 42.0);
     }
 
-    if response.dragged_by(egui::PointerButton::Primary) && !input.manipulate_modifier {
+    if response.dragged_by(egui::PointerButton::Primary)
+        && !viewport_drag_trigger_active(input, drag_trigger)
+    {
         let delta = input.pointer_delta;
         controller.yaw += delta.x * 0.009;
         controller.pitch = (controller.pitch - delta.y * 0.009).clamp(-1.45, 1.45);
@@ -6817,9 +7111,15 @@ fn sync_viewport_manipulation(
     input: &ViewportInputSnapshot,
     scene_time_seconds: f32,
     camera: &CameraPose,
+    gizmo_binding: &RealtimeViewportGizmoBinding,
     surface: &mut ViewportSurfaceState,
 ) {
-    if !input.manipulate_modifier {
+    if !gizmo_binding.visible.unwrap_or(true) {
+        surface.active_manipulation = None;
+        return;
+    }
+    let drag_trigger = viewport_drag_trigger_from_binding_value(gizmo_binding.drag_trigger.as_deref());
+    if !viewport_drag_trigger_active(input, drag_trigger) {
         surface.active_manipulation = None;
         return;
     }
@@ -6872,8 +7172,11 @@ fn sync_viewport_manipulation(
         camera,
         resolution,
         surface.manipulator_mode,
+        surface.manipulator_space,
         &active_manipulation.drag_origin_transform,
         pointer_delta,
+        surface.snap_enabled,
+        viewport_gizmo_snap_settings(gizmo_binding),
     );
     surface
         .instance_transform_overrides
@@ -6898,8 +7201,11 @@ fn manipulated_transform_from_drag(
     camera: &CameraPose,
     resolution: RenderResolution,
     manipulator_mode: ManipulatorMode,
+    manipulator_space: ManipulatorSpace,
     drag_origin_transform: &SceneTransform,
     pointer_delta: Vec2,
+    snap_enabled: bool,
+    snap_settings: ViewportGizmoSnapSettings,
 ) -> SceneTransform {
     let viewport_scale = (resolution.width.min(resolution.height) as f32).max(1.0);
     let depth_scale =
@@ -6914,16 +7220,38 @@ fn manipulated_transform_from_drag(
             updated_transform.translation = drag_origin_transform.translation
                 + camera_right * (pointer_delta.x * depth_scale)
                 + camera_up * (-pointer_delta.y * depth_scale);
+            if snap_enabled {
+                if let Some(step) = snap_settings.translation_step {
+                    updated_transform.translation = snap_vec3(updated_transform.translation, step);
+                }
+            }
         }
         ManipulatorMode::Rotate => {
             updated_transform.rotation_radians = drag_origin_transform.rotation_radians
                 + Vec3::new(pointer_delta.y * -0.008, pointer_delta.x * 0.008, 0.0);
+            if snap_enabled {
+                if let Some(step) = snap_settings.rotation_step_radians {
+                    updated_transform.rotation_radians =
+                        snap_vec3(updated_transform.rotation_radians, step);
+                }
+            }
         }
         ManipulatorMode::Scale => {
-            let scale_factor = (1.0 + (pointer_delta.x - pointer_delta.y) * 0.004).clamp(0.25, 5.0);
+            let scale_factor =
+                (1.0 + (pointer_delta.x - pointer_delta.y) * 0.004).clamp(0.25, 5.0);
             updated_transform.scale = drag_origin_transform.scale * scale_factor;
+            if snap_enabled {
+                if let Some(step) = snap_settings.scale_step {
+                    updated_transform.scale = Vec3::new(
+                        round_to_step(updated_transform.scale.x, step).max(step),
+                        round_to_step(updated_transform.scale.y, step).max(step),
+                        round_to_step(updated_transform.scale.z, step).max(step),
+                    );
+                }
+            }
         }
     }
+    let _ = manipulator_space;
     updated_transform
 }
 
@@ -6987,6 +7315,10 @@ fn prop_f32(node: &UiNode, key: &str) -> Option<f32> {
     node.props.get(key).and_then(ui_value_as_f32)
 }
 
+fn prop_bool(node: &UiNode, key: &str) -> Option<bool> {
+    node.props.get(key).and_then(ui_value_as_bool)
+}
+
 fn prop_i64(node: &UiNode, key: &str) -> Option<i64> {
     node.props.get(key).and_then(ui_value_as_i64)
 }
@@ -7023,15 +7355,54 @@ fn resolve_viewport_presentation_binding_from_node(
 ) -> Option<RealtimeViewportPresentationBinding> {
     let particle_budget =
         prop_i64(node, "viewport.particle_budget").and_then(|value| u32::try_from(value).ok());
+    let gizmo = resolve_viewport_gizmo_binding_from_node(node);
     let presentation = RealtimeViewportPresentationBinding {
         profile: prop_text(node, "viewport.profile").map(ToString::to_string),
         fog_density: prop_f32(node, "viewport.fog_density"),
         particle_budget,
+        gizmo,
     };
     (presentation.profile.is_some()
         || presentation.fog_density.is_some()
-        || presentation.particle_budget.is_some())
+        || presentation.particle_budget.is_some()
+        || presentation.gizmo.is_some())
     .then_some(presentation)
+}
+
+fn resolve_viewport_gizmo_binding_from_node(node: &UiNode) -> Option<RealtimeViewportGizmoBinding> {
+    let gizmo = RealtimeViewportGizmoBinding {
+        profile_id: prop_text(node, "gizmo.profile").map(ToString::to_string),
+        visible: prop_bool(node, "gizmo.visible"),
+        default_mode: prop_text(node, "gizmo.default_mode").map(ToString::to_string),
+        default_space: prop_text(node, "gizmo.default_space").map(ToString::to_string),
+        drag_trigger: prop_text(node, "gizmo.drag_trigger").map(ToString::to_string),
+        selection_required: prop_bool(node, "gizmo.selection_required"),
+        translate_hotkey: prop_text(node, "gizmo.hotkey.translate").map(ToString::to_string),
+        rotate_hotkey: prop_text(node, "gizmo.hotkey.rotate").map(ToString::to_string),
+        scale_hotkey: prop_text(node, "gizmo.hotkey.scale").map(ToString::to_string),
+        cycle_space_hotkey: prop_text(node, "gizmo.hotkey.cycle_space").map(ToString::to_string),
+        toggle_snap_hotkey: prop_text(node, "gizmo.hotkey.toggle_snap").map(ToString::to_string),
+        translate_snap_units: prop_f32(node, "gizmo.snap.translate"),
+        rotate_snap_degrees: prop_f32(node, "gizmo.snap.rotate_degrees"),
+        scale_snap_percent: prop_f32(node, "gizmo.snap.scale_percent"),
+        snap_default_enabled: prop_bool(node, "gizmo.snap.default_enabled"),
+    };
+    (gizmo.profile_id.is_some()
+        || gizmo.visible.is_some()
+        || gizmo.default_mode.is_some()
+        || gizmo.default_space.is_some()
+        || gizmo.drag_trigger.is_some()
+        || gizmo.selection_required.is_some()
+        || gizmo.translate_hotkey.is_some()
+        || gizmo.rotate_hotkey.is_some()
+        || gizmo.scale_hotkey.is_some()
+        || gizmo.cycle_space_hotkey.is_some()
+        || gizmo.toggle_snap_hotkey.is_some()
+        || gizmo.translate_snap_units.is_some()
+        || gizmo.rotate_snap_degrees.is_some()
+        || gizmo.scale_snap_percent.is_some()
+        || gizmo.snap_default_enabled.is_some())
+    .then_some(gizmo)
 }
 
 fn vec3_from_triplet(value: [f32; 3]) -> Vec3 {
