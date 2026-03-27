@@ -4,97 +4,107 @@
       "id": "select",
       "label": "Select",
       "lane": "scene_assembly",
-      "summary": "Selection, hierarchy filtering, and transform handoff."
+      "summary": "Selection, hierarchy filtering, and transform handoff.",
+      "gizmo_enabled": true,
+      "gizmo_profile_id": "dcc_transform_universal",
+      "default_gizmo_mode": "translate",
+      "default_gizmo_space": "world"
     },
     {
       "id": "kitbash_placement",
       "label": "Kitbash Placement",
       "lane": "scene_assembly",
-      "summary": "Scene placement, snap rules, and collection instancing."
+      "summary": "Scene placement, snap rules, and collection instancing.",
+      "gizmo_enabled": true,
+      "gizmo_profile_id": "dcc_transform_universal",
+      "default_gizmo_mode": "translate",
+      "default_gizmo_space": "world"
     },
     {
       "id": "poly_extrude",
       "label": "Poly Extrude",
       "lane": "sculpt_model",
-      "summary": "Poly modeling, shelling, and local face edits."
+      "summary": "Poly modeling, shelling, and local face edits.",
+      "gizmo_enabled": true,
+      "gizmo_profile_id": "dcc_transform_universal",
+      "default_gizmo_mode": "translate",
+      "default_gizmo_space": "local"
     },
     {
       "id": "clay_sculpt",
       "label": "Clay Sculpt",
       "lane": "sculpt_model",
-      "summary": "Brush-based form sculpting through the native mutation seam."
+      "summary": "Brush-based form sculpting through the native mutation seam.",
+      "gizmo_enabled": false
     },
     {
       "id": "voxel_rebuild",
       "label": "Voxel Rebuild",
       "lane": "sculpt_model",
-      "summary": "Topology reset, remesh, and high-level volume cleanup."
+      "summary": "Topology reset, remesh, and high-level volume cleanup.",
+      "gizmo_enabled": false
     },
     {
       "id": "material_layer_paint",
       "label": "Material Layer Paint",
       "lane": "material_lookdev",
-      "summary": "Mask, ID, anchor, and procedural material layer authoring."
+      "summary": "Mask, ID, and procedural material layer authoring.",
+      "gizmo_enabled": false
     },
     {
       "id": "texture_bake",
       "label": "Texture Bake",
       "lane": "material_lookdev",
-      "summary": "GPU-assisted preview, rebake, and export-ready texture packing workflows."
-    },
-    {
-      "id": "smart_material_stack",
-      "label": "Smart Material Stack",
-      "lane": "material_lookdev",
-      "summary": "Reusable fill layers, generators, filters, and material-response presets."
-    },
-    {
-      "id": "svg_mask_shape",
-      "label": "SVG Mask Shape",
-      "lane": "material_lookdev",
-      "summary": "Bezier-authored vector masks, booleans, decals, and trim-sheet motifs."
-    },
-    {
-      "id": "channel_pack_export",
-      "label": "Channel Pack Export",
-      "lane": "material_lookdev",
-      "summary": "Metal-rough, ORM, height, and custom packed export authoring."
+      "summary": "GPU-assisted preview and baking workflows.",
+      "gizmo_enabled": false
     },
     {
       "id": "control_rig_edit",
       "label": "Control Rig Edit",
       "lane": "rig_anim",
-      "summary": "Rig graph authoring, control bindings, and solver metadata edits."
+      "summary": "Rig graph authoring, control bindings, and solver metadata edits.",
+      "gizmo_enabled": true,
+      "gizmo_profile_id": "dcc_transform_universal",
+      "default_gizmo_mode": "rotate",
+      "default_gizmo_space": "local"
     },
     {
       "id": "clip_blocking",
       "label": "Clip Blocking",
       "lane": "rig_anim",
-      "summary": "Timing, pose blocking, and clip state management."
+      "summary": "Timing, pose blocking, and clip state management.",
+      "gizmo_enabled": true,
+      "gizmo_profile_id": "dcc_transform_universal",
+      "default_gizmo_mode": "rotate",
+      "default_gizmo_space": "local"
     },
     {
       "id": "cache_solver",
       "label": "Cache Solver",
       "lane": "sim_fx",
-      "summary": "Simulation cache planning and replay orchestration."
+      "summary": "Simulation cache planning and replay orchestration.",
+      "gizmo_enabled": false
     },
     {
       "id": "render_preview",
       "label": "Render Preview",
       "lane": "render_comp",
-      "summary": "Viewport preview renders, AOV toggles, and render queue staging."
+      "summary": "Viewport preview renders, AOV toggles, and render queue staging.",
+      "gizmo_enabled": false
     },
     {
       "id": "comp_rebuild",
       "label": "Comp Rebuild",
       "lane": "render_comp",
-      "summary": "Composite plan refresh and pass composition inspection."
+      "summary": "Composite plan refresh and pass composition inspection.",
+      "gizmo_enabled": false
     },
     {
       "id": "publish_bundle",
       "label": "Publish Bundle",
       "lane": "publish_automation",
-      "summary": "Delivery package generation, report emission, and runtime pack promotion."
+      "summary": "Delivery package generation, report emission, and runtime pack promotion.",
+      "gizmo_enabled": false
     }
   ]
 }

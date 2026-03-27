@@ -3,6 +3,8 @@ use std::interop::bridge
 struct DccSuiteSeedOutputs:
     scene_graph_document: String
     asset_catalog_document: String
+    material_authoring_document: String
+    svg_mask_document: String
     preview_src: Any
     preview_dst: Any
     preview_image: Any
@@ -59,10 +61,12 @@ fn build_preview_pixels(width: Int, height: Int, accent: Int) -> Array<Int>:
     while y < height:
         let x = 0
         while x < width:
-            let heat = (x * 11 + y * 17 + accent) % 255
-            pixels.push(heat)
-            pixels.push((heat + accent) % 255)
-            pixels.push((255 - heat) % 255)
+            let albedo = (x * 17 + y * 11 + accent * 9) % 255
+            let roughness = (x * 5 + y * 13 + 96 + accent) % 255
+            let metallic = (x * 19 + y * 7 + 32 + accent * 3) % 255
+            pixels.push(albedo)
+            pixels.push(roughness)
+            pixels.push(metallic)
             pixels.push(255)
             x = x + 1
         y = y + 1
@@ -83,8 +87,14 @@ fn build_scene_graph_document(settings: Any) -> String:
 fn build_asset_catalog_document(settings: Any) -> String:
     return "asset-catalog:gltf+usd+materials+rigs:staged=" + str(settings.runtime_pack_count)
 
+fn build_material_authoring_document(settings: Any) -> String:
+    return "material-contract:" + settings.project_name + ":texture-set=textureset/hero_body_udim1001:layers=7:svg=3:channels=basecolor+normal+roughness+metallic+ao+height+emissive"
+
+fn build_svg_mask_document(settings: Any) -> String:
+    return "svg-mask:" + settings.project_name + ":documents=3:anchors=" + str(settings.runtime_pack_count + 2) + ":motifs=trim+decal+stencil"
+
 fn build_session_report(settings: Any) -> String:
-    return "session-report:" + settings.project_name + ":preview=" + str(settings.preview_count) + ":tensor=" + str(settings.tensor_feature_count)
+    return "session-report:" + settings.project_name + ":preview=" + str(settings.preview_count) + ":tensor=" + str(settings.tensor_feature_count) + ":pbr=7:svg=3"
 
 fn main() -> DccSuiteSeedOutputs:
     let settings = fabric_inputs.python_suite_bootstrap.project_settings
@@ -125,6 +135,8 @@ fn main() -> DccSuiteSeedOutputs:
     return DccSuiteSeedOutputs {
         scene_graph_document: build_scene_graph_document(settings),
         asset_catalog_document: build_asset_catalog_document(settings),
+        material_authoring_document: build_material_authoring_document(settings),
+        svg_mask_document: build_svg_mask_document(settings),
         preview_src: preview_src,
         preview_dst: preview_dst,
         preview_image: preview_image,

@@ -22,6 +22,14 @@ struct ToolState:
     brush_radius: Int
     brush_strength_percent: Int
 
+struct GizmoState:
+    active_profile_id: String
+    mode: String
+    space: String
+    snap_enabled: Bool
+    visible: Bool
+    drag_trigger: String
+
 struct SelectionState:
     entity_ids: Array<String>
     subobject_ids: Array<String>
@@ -107,6 +115,7 @@ struct SessionDocument:
     project: ProjectState
     workspace: WorkspaceState
     tooling: ToolState
+    gizmo: GizmoState
     selection: SelectionState
     scene: SceneState
     ingest: AssetIngestState
@@ -148,6 +157,14 @@ fn default_session_document() -> SessionDocument:
             active_tool: "select",
             brush_radius: 42,
             brush_strength_percent: 68
+        },
+        gizmo: GizmoState {
+            active_profile_id: "dcc_transform_universal",
+            mode: "translate",
+            space: "world",
+            snap_enabled: false,
+            visible: true,
+            drag_trigger: "ctrl_primary_drag"
         },
         selection: SelectionState {
             entity_ids: ["entity/root_stage"],

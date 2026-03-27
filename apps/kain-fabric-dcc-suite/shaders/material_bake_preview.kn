@@ -19,5 +19,8 @@ shader compute DccSuiteMaterialBakePreview(id: UVec3) -> Vec4:
 
     let index = id.x
     let input_value = src[index]
-    dst[index] = input_value
-    return vec4(input_value, input_value * 0.8, input_value * 0.6, 1.0)
+    let normalized = input_value * 0.25
+    let roughness_like = 1.0 - (normalized * 0.5)
+    let metallic_like = (normalized * 0.35) + 0.1
+    dst[index] = normalized
+    return vec4(normalized, roughness_like, metallic_like, 1.0)

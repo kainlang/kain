@@ -6,6 +6,9 @@
       "title": "Viewport Stage",
       "dock": "center",
       "kind": "viewport3d",
+      "scene": "dcc_suite_scene",
+      "presentation_profile": "dcc_authoring_balanced",
+      "gizmo_binding": "primary_dcc_viewport",
       "summary": "Primary 3D authoring viewport for scene, model, rig, and render review."
     },
     {

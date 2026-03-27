@@ -64,6 +64,42 @@ pub struct RealtimeViewportPresentationBinding {
     pub fog_density: Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub particle_budget: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gizmo: Option<RealtimeViewportGizmoBinding>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RealtimeViewportGizmoBinding {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visible: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_space: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drag_trigger: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selection_required: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub translate_hotkey: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rotate_hotkey: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scale_hotkey: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cycle_space_hotkey: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub toggle_snap_hotkey: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub translate_snap_units: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rotate_snap_degrees: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scale_snap_percent: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snap_default_enabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -884,6 +920,20 @@ fn ui_value_as_u32(value: &UiValue) -> Option<u32> {
     }
 }
 
+fn ui_value_as_bool(value: &UiValue) -> Option<bool> {
+    match value {
+        UiValue::Bool(value) => Some(*value),
+        UiValue::Int(value) => Some(*value != 0),
+        UiValue::Float(value) => Some(value.abs() > f64::EPSILON),
+        UiValue::String(value) => match value.trim().to_ascii_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => Some(true),
+            "0" | "false" | "no" | "off" => Some(false),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn scene_prop_string(
     props: &std::collections::BTreeMap<String, UiValue>,
     key: &str,
@@ -910,6 +960,14 @@ fn scene_prop_u32(
 ) -> Option<u32> {
     keys.iter()
         .find_map(|key| props.get(*key).and_then(ui_value_as_u32))
+}
+
+fn scene_prop_bool(
+    props: &std::collections::BTreeMap<String, UiValue>,
+    keys: &[&str],
+) -> Option<bool> {
+    keys.iter()
+        .find_map(|key| props.get(*key).and_then(ui_value_as_bool))
 }
 
 fn scene_prop_vec3(
@@ -943,15 +1001,56 @@ fn collect_scene_camera_binding(
 fn collect_scene_presentation_binding(
     props: &std::collections::BTreeMap<String, UiValue>,
 ) -> Option<RealtimeViewportPresentationBinding> {
+    let gizmo = collect_scene_gizmo_binding(props);
     let presentation = RealtimeViewportPresentationBinding {
         profile: scene_prop_string(props, "viewport.profile"),
         fog_density: scene_prop_f32(props, &["viewport.fog_density"]),
         particle_budget: scene_prop_u32(props, &["viewport.particle_budget"]),
+        gizmo,
     };
     (presentation.profile.is_some()
         || presentation.fog_density.is_some()
-        || presentation.particle_budget.is_some())
+        || presentation.particle_budget.is_some()
+        || presentation.gizmo.is_some())
     .then_some(presentation)
+}
+
+fn collect_scene_gizmo_binding(
+    props: &std::collections::BTreeMap<String, UiValue>,
+) -> Option<RealtimeViewportGizmoBinding> {
+    let gizmo = RealtimeViewportGizmoBinding {
+        profile_id: scene_prop_string(props, "gizmo.profile"),
+        visible: scene_prop_bool(props, &["gizmo.visible"]),
+        default_mode: scene_prop_string(props, "gizmo.default_mode"),
+        default_space: scene_prop_string(props, "gizmo.default_space"),
+        drag_trigger: scene_prop_string(props, "gizmo.drag_trigger"),
+        selection_required: scene_prop_bool(props, &["gizmo.selection_required"]),
+        translate_hotkey: scene_prop_string(props, "gizmo.hotkey.translate"),
+        rotate_hotkey: scene_prop_string(props, "gizmo.hotkey.rotate"),
+        scale_hotkey: scene_prop_string(props, "gizmo.hotkey.scale"),
+        cycle_space_hotkey: scene_prop_string(props, "gizmo.hotkey.cycle_space"),
+        toggle_snap_hotkey: scene_prop_string(props, "gizmo.hotkey.toggle_snap"),
+        translate_snap_units: scene_prop_f32(props, &["gizmo.snap.translate"]),
+        rotate_snap_degrees: scene_prop_f32(props, &["gizmo.snap.rotate_degrees"]),
+        scale_snap_percent: scene_prop_f32(props, &["gizmo.snap.scale_percent"]),
+        snap_default_enabled: scene_prop_bool(props, &["gizmo.snap.default_enabled"]),
+    };
+    (gizmo.profile_id.is_some()
+        || gizmo.visible.is_some()
+        || gizmo.default_mode.is_some()
+        || gizmo.default_space.is_some()
+        || gizmo.drag_trigger.is_some()
+        || gizmo.selection_required.is_some()
+        || gizmo.translate_hotkey.is_some()
+        || gizmo.rotate_hotkey.is_some()
+        || gizmo.scale_hotkey.is_some()
+        || gizmo.cycle_space_hotkey.is_some()
+        || gizmo.toggle_snap_hotkey.is_some()
+        || gizmo.translate_snap_units.is_some()
+        || gizmo.rotate_snap_degrees.is_some()
+        || gizmo.scale_snap_percent.is_some()
+        || gizmo.snap_default_enabled.is_some())
+    .then_some(gizmo)
 }
 
 fn collect_scene_bindings(
@@ -1319,7 +1418,24 @@ component App():
         "presentation": {
           "profile": "tensor_stream_probe",
           "fog_density": 0.018,
-          "particle_budget": 192
+          "particle_budget": 192,
+          "gizmo": {
+            "profile_id": "dcc_transform_universal",
+            "visible": true,
+            "default_mode": "translate",
+            "default_space": "world",
+            "drag_trigger": "ctrl_primary_drag",
+            "selection_required": true,
+            "translate_hotkey": "T",
+            "rotate_hotkey": "R",
+            "scale_hotkey": "Y",
+            "cycle_space_hotkey": "U",
+            "toggle_snap_hotkey": "I",
+            "translate_snap_units": 0.5,
+            "rotate_snap_degrees": 15.0,
+            "scale_snap_percent": 10.0,
+            "snap_default_enabled": false
+          }
         }
       }
     ],
@@ -1354,6 +1470,14 @@ component App():
                 .and_then(|presentation| presentation.profile.as_deref()),
             Some("tensor_stream_probe")
         );
+        assert_eq!(
+            bundle.render.scenes[0]
+                .presentation
+                .as_ref()
+                .and_then(|presentation| presentation.gizmo.as_ref())
+                .and_then(|gizmo| gizmo.profile_id.as_deref()),
+            Some("dcc_transform_universal")
+        );
         assert_eq!(bundle.render.materials[0].id, "terrain");
     }
 
@@ -1377,6 +1501,21 @@ component App():
             viewport.profile="kerr_black_hole"
             viewport.fog_density={0.012}
             viewport.particle_budget={288}
+            gizmo.profile="dcc_transform_universal"
+            gizmo.visible={true}
+            gizmo.default_mode="translate"
+            gizmo.default_space="world"
+            gizmo.drag_trigger="ctrl_primary_drag"
+            gizmo.selection_required={true}
+            gizmo.hotkey.translate="T"
+            gizmo.hotkey.rotate="R"
+            gizmo.hotkey.scale="Y"
+            gizmo.hotkey.cycle_space="U"
+            gizmo.hotkey.toggle_snap="I"
+            gizmo.snap.translate={0.5}
+            gizmo.snap.rotate_degrees={15.0}
+            gizmo.snap.scale_percent={10.0}
+            gizmo.snap.default_enabled={false}
         />
     </panel>
 "#;
@@ -1426,6 +1565,22 @@ component App():
                 .as_ref()
                 .and_then(|presentation| presentation.particle_budget),
             Some(288)
+        );
+        assert_eq!(
+            scene
+                .presentation
+                .as_ref()
+                .and_then(|presentation| presentation.gizmo.as_ref())
+                .and_then(|gizmo| gizmo.default_mode.as_deref()),
+            Some("translate")
+        );
+        assert_eq!(
+            scene
+                .presentation
+                .as_ref()
+                .and_then(|presentation| presentation.gizmo.as_ref())
+                .and_then(|gizmo| gizmo.toggle_snap_hotkey.as_deref()),
+            Some("I")
         );
     }
 

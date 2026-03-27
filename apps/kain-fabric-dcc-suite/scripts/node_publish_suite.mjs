@@ -4,6 +4,9 @@ export function run(fabricInputs) {
   const trainReport = fabricInputs.tensor_train_stage.tensor_training_report;
   const inferReport = fabricInputs.tensor_infer_stage.tensor_inference_report;
   const sculptSignature = fabricInputs.native_sculpt_kernel.sculpt_signature;
+  const materialAuthoring = fabricInputs.material_authoring_projection.material_authoring_report;
+  const svgMask = fabricInputs.svg_material_mask_projection.svg_mask_report;
+  const materialExport = fabricInputs.material_texture_export_projection.material_texture_export_report;
   const previewBuffer = fabricInputs.gpu_material_preview.preview_dst;
 
   return [
@@ -12,6 +15,9 @@ export function run(fabricInputs) {
     `<p>workspace=${settings.workspace_mode}</p>`,
     `<p>${topologyReport}</p>`,
     `<p>${sculptSignature}</p>`,
+    `<p>${materialAuthoring}</p>`,
+    `<p>${svgMask}</p>`,
+    `<p>${materialExport}</p>`,
     `<p>${trainReport.summary ?? trainReport}</p>`,
     `<p>${inferReport.summary ?? inferReport}</p>`,
     `<p>gpu-preview-bytes=${previewBuffer.byte_length}</p>`,

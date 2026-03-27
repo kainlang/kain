@@ -10,6 +10,15 @@ function ConvertTo-KnLiteral {
     return ($Value -replace "\\", "\\\\") -replace '"', '\"'
 }
 
+function ConvertTo-KnBoolLiteral {
+    param([object]$Value)
+
+    if ($Value) {
+        return "{true}"
+    }
+    return "{false}"
+}
+
 function Render-TextLines {
     param(
         [System.Collections.IEnumerable]$Items,
@@ -32,6 +41,7 @@ $Manifest = Get-Content (Join-Path $AppRoot "config/app_manifest.json") -Raw | C
 $Modes = (Get-Content (Join-Path $AppRoot "config/workspace_modes.json") -Raw | ConvertFrom-Json).modes
 $Surfaces = (Get-Content (Join-Path $AppRoot "config/surfaces.json") -Raw | ConvertFrom-Json).surfaces
 $Tools = (Get-Content (Join-Path $AppRoot "config/tool_catalog.json") -Raw | ConvertFrom-Json).tools
+$GizmoRegistry = Get-Content (Join-Path $AppRoot "config/gizmo_registry.json") -Raw | ConvertFrom-Json
 $Commands = (Get-Content (Join-Path $AppRoot "config/command_registry.json") -Raw | ConvertFrom-Json).commands
 $Pipeline = (Get-Content (Join-Path $AppRoot "config/fabric_pipeline.json") -Raw | ConvertFrom-Json).steps
 $Intents = (Get-Content (Join-Path $AppRoot "config/fabric_intents.json") -Raw | ConvertFrom-Json).intents
@@ -44,13 +54,50 @@ $ModeLines = Render-TextLines $Modes { param($mode) "$($mode.label) | $($mode.su
 $CommandLines = Render-TextLines $Commands { param($command) "$($command.label) | $($command.intent) | $($command.summary)" }
 $PackLines = Render-TextLines ($RuntimePacks | Select-Object -First 8) { param($pack) "$($pack.label) | $($pack.summary)" }
 $SurfaceLines = Render-TextLines $Surfaces { param($surface) "$($surface.title) | $($surface.kind) | $($surface.summary)" }
-$ToolLines = Render-TextLines $Tools { param($tool) "$($tool.label) | $($tool.summary)" }
+$ToolLines = Render-TextLines $Tools {
+    param($tool)
+    $gizmoSummary = if ($tool.gizmo_enabled) {
+        "gizmo=$($tool.default_gizmo_mode)/$($tool.default_gizmo_space)"
+    } else {
+        "gizmo=off"
+    }
+    "$($tool.label) | $gizmoSummary | $($tool.summary)"
+}
+$GizmoLines = Render-TextLines $GizmoRegistry.profiles {
+    param($profile)
+    "$($profile.label) | drag=$($profile.drag_trigger) | hotkeys=$($profile.hotkeys.translate)/$($profile.hotkeys.rotate)/$($profile.hotkeys.scale) | snap=$($profile.snap.translate_world_units)m,$($profile.snap.rotate_degrees)deg,$($profile.snap.scale_percent)%"
+}
 $IntentLines = Render-TextLines $Intents { param($intent) "$($intent.label) | $($intent.graph) | produces $($intent.produces.Count) targets" }
 $PipelineLines = Render-TextLines $Pipeline { param($step) "$($step.id) | $($step.runtime) | $($step.summary)" }
 $ResourceLines = Render-TextLines $Resources { param($resource) "$($resource.resource_uri) | $($resource.kind) | $($resource.summary)" }
 $ReportLines = Render-TextLines $Reports { param($report) "$($report.report_uri) | $($report.summary)" }
 $JobLines = Render-TextLines $Jobs { param($job) "$($job.label) | $($job.schedule) | $($job.summary)" }
 $CapabilityLines = Render-TextLines $Manifest.required_runtime_capabilities { param($capability) $capability }
+
+$ViewportSurface = $Surfaces | Where-Object { $_.id -eq "viewport_stage" } | Select-Object -First 1
+$ViewportBinding = $GizmoRegistry.viewport_bindings | Where-Object { $_.surface_id -eq $ViewportSurface.id } | Select-Object -First 1
+$GizmoProfile = $GizmoRegistry.profiles | Where-Object { $_.id -eq $ViewportBinding.gizmo_profile_id } | Select-Object -First 1
+
+$ViewportProps = @(
+    "title=`"$($ViewportSurface.title)`"",
+    "scene=`"$($ViewportBinding.scene)`"",
+    "viewport.profile=`"$($ViewportBinding.presentation_profile)`"",
+    "gizmo.profile=`"$($GizmoProfile.id)`"",
+    "gizmo.visible=" + (ConvertTo-KnBoolLiteral $GizmoProfile.visible),
+    "gizmo.default_mode=`"$($ViewportBinding.default_mode)`"",
+    "gizmo.default_space=`"$($ViewportBinding.default_space)`"",
+    "gizmo.drag_trigger=`"$($GizmoProfile.drag_trigger)`"",
+    "gizmo.selection_required=" + (ConvertTo-KnBoolLiteral $GizmoProfile.selection_required),
+    "gizmo.hotkey.translate=`"$($GizmoProfile.hotkeys.translate)`"",
+    "gizmo.hotkey.rotate=`"$($GizmoProfile.hotkeys.rotate)`"",
+    "gizmo.hotkey.scale=`"$($GizmoProfile.hotkeys.scale)`"",
+    "gizmo.hotkey.cycle_space=`"$($GizmoProfile.hotkeys.cycle_space)`"",
+    "gizmo.hotkey.toggle_snap=`"$($GizmoProfile.hotkeys.toggle_snap)`"",
+    "gizmo.snap.translate={$($GizmoProfile.snap.translate_world_units)}",
+    "gizmo.snap.rotate_degrees={$($GizmoProfile.snap.rotate_degrees)}",
+    "gizmo.snap.scale_percent={$($GizmoProfile.snap.scale_percent)}",
+    "gizmo.snap.default_enabled=" + (ConvertTo-KnBoolLiteral $GizmoProfile.snap.default_enabled)
+) -join " "
 
 $Shell = @"
 component App():
@@ -79,7 +126,7 @@ $CommandLines
                 </inspector>
             </panel>
             <panel title="DCC Stage" dock="center" gap={14}>
-                <viewport3d title="Viewport Stage" scene="dcc_suite_scene" />
+                <viewport3d $ViewportProps />
                 <panel title="Lane Deck" layout="row" gap={12}>
                     <graph title="Material Graph" />
                     <graph title="Rig Graph" />
@@ -97,6 +144,9 @@ $SurfaceLines
                 </inspector>
                 <inspector title="Tool Rail">
 $ToolLines
+                </inspector>
+                <inspector title="Gizmo System">
+$GizmoLines
                 </inspector>
                 <inspector title="Intent Library">
 $IntentLines

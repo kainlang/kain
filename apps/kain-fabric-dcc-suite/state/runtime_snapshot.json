@@ -20,7 +20,7 @@
                             {
                                 "id":  "material_lookdev",
                                 "label":  "Material And Lookdev",
-                                "summary":  "Shader graphs, texture baking, surface libraries, and preview lighting."
+                                "summary":  "PBR texture sets, paint layers, SVG masks, smart materials, and export presets."
                             },
                             {
                                 "id":  "rig_anim",
@@ -48,79 +48,107 @@
                       "id":  "select",
                       "label":  "Select",
                       "lane":  "scene_assembly",
-                      "summary":  "Selection, hierarchy filtering, and transform handoff."
+                      "summary":  "Selection, hierarchy filtering, and transform handoff.",
+                      "gizmo_enabled":  true,
+                      "gizmo_profile_id":  "dcc_transform_universal",
+                      "default_gizmo_mode":  "translate",
+                      "default_gizmo_space":  "world"
                   },
                   {
                       "id":  "kitbash_placement",
                       "label":  "Kitbash Placement",
                       "lane":  "scene_assembly",
-                      "summary":  "Scene placement, snap rules, and collection instancing."
+                      "summary":  "Scene placement, snap rules, and collection instancing.",
+                      "gizmo_enabled":  true,
+                      "gizmo_profile_id":  "dcc_transform_universal",
+                      "default_gizmo_mode":  "translate",
+                      "default_gizmo_space":  "world"
                   },
                   {
                       "id":  "poly_extrude",
                       "label":  "Poly Extrude",
                       "lane":  "sculpt_model",
-                      "summary":  "Poly modeling, shelling, and local face edits."
+                      "summary":  "Poly modeling, shelling, and local face edits.",
+                      "gizmo_enabled":  true,
+                      "gizmo_profile_id":  "dcc_transform_universal",
+                      "default_gizmo_mode":  "translate",
+                      "default_gizmo_space":  "local"
                   },
                   {
                       "id":  "clay_sculpt",
                       "label":  "Clay Sculpt",
                       "lane":  "sculpt_model",
-                      "summary":  "Brush-based form sculpting through the native mutation seam."
+                      "summary":  "Brush-based form sculpting through the native mutation seam.",
+                      "gizmo_enabled":  false
                   },
                   {
                       "id":  "voxel_rebuild",
                       "label":  "Voxel Rebuild",
                       "lane":  "sculpt_model",
-                      "summary":  "Topology reset, remesh, and high-level volume cleanup."
+                      "summary":  "Topology reset, remesh, and high-level volume cleanup.",
+                      "gizmo_enabled":  false
                   },
                   {
                       "id":  "material_layer_paint",
                       "label":  "Material Layer Paint",
                       "lane":  "material_lookdev",
-                      "summary":  "Mask, ID, and procedural material layer authoring."
+                      "summary":  "Mask, ID, and procedural material layer authoring.",
+                      "gizmo_enabled":  false
                   },
                   {
                       "id":  "texture_bake",
                       "label":  "Texture Bake",
                       "lane":  "material_lookdev",
-                      "summary":  "GPU-assisted preview and baking workflows."
+                      "summary":  "GPU-assisted preview and baking workflows.",
+                      "gizmo_enabled":  false
                   },
                   {
                       "id":  "control_rig_edit",
                       "label":  "Control Rig Edit",
                       "lane":  "rig_anim",
-                      "summary":  "Rig graph authoring, control bindings, and solver metadata edits."
+                      "summary":  "Rig graph authoring, control bindings, and solver metadata edits.",
+                      "gizmo_enabled":  true,
+                      "gizmo_profile_id":  "dcc_transform_universal",
+                      "default_gizmo_mode":  "rotate",
+                      "default_gizmo_space":  "local"
                   },
                   {
                       "id":  "clip_blocking",
                       "label":  "Clip Blocking",
                       "lane":  "rig_anim",
-                      "summary":  "Timing, pose blocking, and clip state management."
+                      "summary":  "Timing, pose blocking, and clip state management.",
+                      "gizmo_enabled":  true,
+                      "gizmo_profile_id":  "dcc_transform_universal",
+                      "default_gizmo_mode":  "rotate",
+                      "default_gizmo_space":  "local"
                   },
                   {
                       "id":  "cache_solver",
                       "label":  "Cache Solver",
                       "lane":  "sim_fx",
-                      "summary":  "Simulation cache planning and replay orchestration."
+                      "summary":  "Simulation cache planning and replay orchestration.",
+                      "gizmo_enabled":  false
                   },
                   {
                       "id":  "render_preview",
                       "label":  "Render Preview",
                       "lane":  "render_comp",
-                      "summary":  "Viewport preview renders, AOV toggles, and render queue staging."
+                      "summary":  "Viewport preview renders, AOV toggles, and render queue staging.",
+                      "gizmo_enabled":  false
                   },
                   {
                       "id":  "comp_rebuild",
                       "label":  "Comp Rebuild",
                       "lane":  "render_comp",
-                      "summary":  "Composite plan refresh and pass composition inspection."
+                      "summary":  "Composite plan refresh and pass composition inspection.",
+                      "gizmo_enabled":  false
                   },
                   {
                       "id":  "publish_bundle",
                       "label":  "Publish Bundle",
                       "lane":  "publish_automation",
-                      "summary":  "Delivery package generation, report emission, and runtime pack promotion."
+                      "summary":  "Delivery package generation, report emission, and runtime pack promotion.",
+                      "gizmo_enabled":  false
                   }
               ],
     "commands":  [
@@ -178,6 +206,36 @@
                                             }
                      },
                      {
+                         "id":  "gizmo.set_mode",
+                         "label":  "Set Gizmo Mode",
+                         "surface":  "viewport",
+                         "summary":  "Switches the active universal gizmo mode for the current authoring selection.",
+                         "intent":  "gizmo.set_mode",
+                         "payload_schema":  {
+                                                "mode":  "string"
+                                            }
+                     },
+                     {
+                         "id":  "gizmo.set_space",
+                         "label":  "Set Gizmo Space",
+                         "surface":  "viewport",
+                         "summary":  "Switches the universal gizmo between world and local evaluation space.",
+                         "intent":  "gizmo.set_space",
+                         "payload_schema":  {
+                                                "space":  "string"
+                                            }
+                     },
+                     {
+                         "id":  "gizmo.toggle_snap",
+                         "label":  "Toggle Gizmo Snap",
+                         "surface":  "viewport",
+                         "summary":  "Toggles transform snapping for the active universal gizmo profile.",
+                         "intent":  "gizmo.toggle_snap",
+                         "payload_schema":  {
+                                                "enabled":  "bool"
+                                            }
+                     },
+                     {
                          "id":  "sculpt.apply_stroke",
                          "label":  "Apply Sculpt Stroke",
                          "surface":  "viewport",
@@ -224,10 +282,57 @@
                          "id":  "material.bake_preview",
                          "label":  "Bake Material Preview",
                          "surface":  "material_graph",
-                         "summary":  "Refreshes material preview buffers through the GPU compute lane.",
+                         "summary":  "Refreshes the authored PBR preview, SVG mask stack, and packed texture outputs.",
                          "intent":  "material.bake_preview",
                          "payload_schema":  {
                                                 "reason":  "string"
+                                            }
+                     },
+                     {
+                         "id":  "material.author_texture_set",
+                         "label":  "Author Texture Set",
+                         "surface":  "texture_set_inspector",
+                         "summary":  "Updates the active texture set, UDIM coverage, and channel preset for the current material.",
+                         "intent":  "material.bake_preview",
+                         "payload_schema":  {
+                                                "texture_set_id":  "string",
+                                                "udim_root":  "string",
+                                                "resolution":  "number"
+                                            }
+                     },
+                     {
+                         "id":  "material.paint_layer",
+                         "label":  "Paint Material Layer",
+                         "surface":  "material_layers",
+                         "summary":  "Queues layer-stack changes for fill, paint, filter, and smart-material operators.",
+                         "intent":  "material.bake_preview",
+                         "payload_schema":  {
+                                                "layer_id":  "string",
+                                                "channel_target":  "string",
+                                                "blend_mode":  "string"
+                                            }
+                     },
+                     {
+                         "id":  "material.edit_svg_mask",
+                         "label":  "Edit SVG Mask",
+                         "surface":  "svg_mask_canvas",
+                         "summary":  "Queues SVG mask graph changes, shape edits, booleans, and anchor projections.",
+                         "intent":  "material.bake_preview",
+                         "payload_schema":  {
+                                                "document_id":  "string",
+                                                "shape_id":  "string",
+                                                "operation":  "string"
+                                            }
+                     },
+                     {
+                         "id":  "material.export_textures",
+                         "label":  "Export Texture Set",
+                         "surface":  "material_export_board",
+                         "summary":  "Builds the material export receipt for packed texture delivery into downstream runtimes.",
+                         "intent":  "material.export_textures",
+                         "payload_schema":  {
+                                                "preset_id":  "string",
+                                                "target_runtime":  "string"
                                             }
                      },
                      {
@@ -301,6 +406,24 @@
                           "summary":  "Asset ingest and package catalog bootstrap document."
                       },
                       {
+                          "id":  "material_authoring_document",
+                          "resource_uri":  "material://current/authoring-contract",
+                          "kind":  "value",
+                          "producer_step":  "dcc_suite_seed",
+                          "output_name":  "material_authoring_document",
+                          "storage":  "fabric-report",
+                          "summary":  "Kain-authored PBR texture-set, layer-stack, and export contract document."
+                      },
+                      {
+                          "id":  "svg_mask_document",
+                          "resource_uri":  "svg://material/current-mask-stack",
+                          "kind":  "value",
+                          "producer_step":  "dcc_suite_seed",
+                          "output_name":  "svg_mask_document",
+                          "storage":  "fabric-report",
+                          "summary":  "Kain-authored SVG mask stack document for vector decals, trims, and anchors."
+                      },
+                      {
                           "id":  "preview_source_buffer",
                           "resource_uri":  "buffer://preview/source",
                           "kind":  "shared_buffer",
@@ -344,6 +467,15 @@
                           "output_name":  "sculpt_delta",
                           "storage":  "shared-buffer",
                           "summary":  "Latest sculpt mutation payload emitted by the C ABI seam."
+                      },
+                      {
+                          "id":  "material_export_bundle",
+                          "resource_uri":  "artifact://material/export-bundle",
+                          "kind":  "value",
+                          "producer_step":  "material_texture_export_projection",
+                          "output_name":  "material_texture_export_report",
+                          "storage":  "fabric-report",
+                          "summary":  "Packed material texture export descriptor for downstream DCC and runtime consumers."
                       }
                   ],
     "reports":  [
@@ -383,11 +515,32 @@
                         "summary":  "Simulation planning report for the current frame tick."
                     },
                     {
+                        "id":  "material_authoring_report",
+                        "report_uri":  "report://material/authoring",
+                        "producer_step":  "material_authoring_projection",
+                        "output_name":  "material_authoring_report",
+                        "summary":  "PBR texture-set, layer-stack, and export preset authoring report."
+                    },
+                    {
+                        "id":  "svg_mask_report",
+                        "report_uri":  "report://material/svg-mask",
+                        "producer_step":  "svg_material_mask_projection",
+                        "output_name":  "svg_mask_report",
+                        "summary":  "SVG vector mask stack report for decals, trim motifs, and anchor-driven shapes."
+                    },
+                    {
                         "id":  "render_preview_report",
                         "report_uri":  "report://render/preview",
                         "producer_step":  "render_preview_projection",
                         "output_name":  "render_preview_report",
                         "summary":  "Render preview planning report."
+                    },
+                    {
+                        "id":  "material_texture_export_report",
+                        "report_uri":  "report://material/export",
+                        "producer_step":  "material_texture_export_projection",
+                        "output_name":  "material_texture_export_report",
+                        "summary":  "Material texture export and channel-packing report."
                     },
                     {
                         "id":  "compositor_rebuild_report",
@@ -429,7 +582,19 @@
                                 "id":  "nightly_material_rebake",
                                 "label":  "Nightly Material Rebake",
                                 "schedule":  "nightly",
-                                "summary":  "Rebuilds preview materials and cached bake outputs."
+                                "summary":  "Rebuilds preview materials, SVG mask atlases, and cached bake outputs."
+                            },
+                            {
+                                "id":  "svg_mask_cache_rebuild",
+                                "label":  "SVG Mask Cache Rebuild",
+                                "schedule":  "on_material_edit",
+                                "summary":  "Recompiles vector mask stacks and anchor projections after material-layer edits."
+                            },
+                            {
+                                "id":  "smart_material_cache_warmup",
+                                "label":  "Smart Material Cache Warmup",
+                                "schedule":  "on_scene_open",
+                                "summary":  "Stages smart material presets, packed brush responses, and texture-set defaults."
                             },
                             {
                                 "id":  "rig_health_audit",

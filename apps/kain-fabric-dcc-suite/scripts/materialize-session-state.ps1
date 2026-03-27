@@ -24,6 +24,7 @@ $RepoRoot = (Resolve-Path (Join-Path $AppRoot "..\..")).Path
 
 $Manifest = Get-Content (Join-Path $AppRoot "config/app_manifest.json") -Raw | ConvertFrom-Json
 $Commands = (Get-Content (Join-Path $AppRoot "config/command_registry.json") -Raw | ConvertFrom-Json).commands
+$GizmoRegistry = Get-Content (Join-Path $AppRoot "config/gizmo_registry.json") -Raw | ConvertFrom-Json
 $Resources = (Get-Content (Join-Path $AppRoot "config/resource_kinds.json") -Raw | ConvertFrom-Json).resource_kinds
 $Reports = (Get-Content (Join-Path $AppRoot "config/report_kinds.json") -Raw | ConvertFrom-Json).report_kinds
 $Jobs = (Get-Content (Join-Path $AppRoot "config/automation_jobs.json") -Raw | ConvertFrom-Json).jobs
@@ -41,11 +42,14 @@ $Snapshot = [ordered]@{
     latest_fabric_status = if ($null -eq $LatestReport) { "idle" } else { $LatestReport.status }
     workspace_modes = $Modes
     tools = $Tools
+    gizmo_profiles = $GizmoRegistry.profiles
+    viewport_gizmo_bindings = $GizmoRegistry.viewport_bindings
     commands = $Commands
     resources = $Resources
     reports = $Reports
     automation_jobs = $Jobs
     extension_seams = @(
+        "viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge",
         "tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract",
         "simulation lane currently materializes plan-oriented reports rather than a true solver runtime",
         "compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"

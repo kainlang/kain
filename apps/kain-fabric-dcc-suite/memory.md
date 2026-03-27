@@ -2,6 +2,27 @@
 
 This file preserves the durable design intent for `apps/kain-fabric-dcc-suite`.
 
+## 2026-03-27 (Later) - Painter-Style PBR And SVG Material Pipeline Added
+
+- Expanded the material lane from a single preview-bake scaffold into a painter-style authored pipeline with first-class texture sets, layer stacks, SVG masks, smart materials, and packed export presets.
+- Added new config-owned material surfaces, tools, commands, runtime packs, resources, reports, and automation jobs so the shell and operator model understand the lane without hardcoded host logic.
+- Extended `session/session_schema.kn`, reducers, planner, handler catalog, and registries so material authoring, SVG mask edits, and texture export requests are first-class session truth instead of UI-only strings.
+- Upgraded `src/main.kn` to seed material and SVG contract documents and added `src/material_authoring_projection.kn`, `src/svg_material_mask_projection.kn`, and `src/material_texture_export_projection.kn` to materialize durable receipts into `state/`.
+- Rewired `KAIN.fabric.toml`, `fabric/intents/material_bake.fabric.toml`, `fabric/intents/render_preview.fabric.toml`, and `fabric/intents/publish_package.fabric.toml` so the material lane now runs as authoring projection -> SVG projection -> GPU preview -> export projection.
+- Regenerated `generated/main.generated.kn` and `state/runtime_snapshot.json` from the updated registries.
+
+Important design decision:
+
+- No compiler or language-core changes were made in this pass because the broader Kain repo already has PBR/material-graph concepts. The gap in this app was ownership and orchestration, so the new work lives in app-level Kain authoring and Fabric graphs.
+
+Current risk:
+
+- The material lane is now structurally much closer to a Substance Painter-style workflow, but the bake/export execution is still orchestration-grade. There is not yet a native tiled brush engine, sparse texture runtime, or true GPU baker behind the new receipts.
+
+Next recommended step:
+
+- Replace the current material export and preview seams with a real native painter runtime or Rust/WGPU baking service that consumes the authored texture-set and SVG receipts as execution truth.
+
 ## 2026-03-27 - Flagship Fabric DCC Suite Scaffold Added
 
 The repo now has a flagship DCC suite scaffold under `apps/kain-fabric-dcc-suite`.
@@ -62,6 +83,23 @@ What future work should preserve:
 Next recommended step:
 
 - Replace the current mock execution seams in sim, tensor bridge dispatch, and compositor with real runtime work now that Fabric convergence is proven.
+
+## 2026-03-27 (Later) - Universal Gizmo System Added
+
+- Added `config/gizmo_registry.json` as the app-owned source of truth for universal viewport gizmo policy, including hotkeys, drag trigger, snap increments, and per-viewport binding.
+- Extended `config/surfaces.json`, `config/tool_catalog.json`, and `config/command_registry.json` so viewport surfaces, tools, and commands can describe gizmo participation without pushing that meaning into the native host.
+- Extended `session/session_schema.kn`, `session/reducers.kn`, and `session/command_handlers.kn` with durable gizmo concepts so future session-to-host bridges have explicit ownership seams.
+- Updated the shell and runtime snapshot materializers so generated UI and `state/runtime_snapshot.json` expose the same gizmo contract the host consumes.
+
+Current durable state:
+
+- The native viewport can now consume bundle-authored gizmo defaults instead of relying on one hardcoded ctrl-drag path.
+- Tool metadata now declares whether a lane participates in the universal gizmo and which default mode or space it prefers.
+- The registry currently drives viewport defaults and runtime metadata, but live tool-activation to viewport-policy sync still needs a dedicated session bridge.
+
+Next recommended step:
+
+- Add a session-to-host command bridge so `tool.activate`, `gizmo.set_mode`, `gizmo.set_space`, and `gizmo.toggle_snap` can update the live native viewport without relying only on authored defaults.
 
 ## 2026-03-27 (Later) - Sim, Compositor, and Tensor Receipts Materialized as Real Lane Artifacts
 

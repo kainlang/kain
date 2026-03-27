@@ -56,6 +56,36 @@
       }
     },
     {
+      "id": "gizmo.set_mode",
+      "label": "Set Gizmo Mode",
+      "surface": "viewport",
+      "summary": "Switches the active universal gizmo mode for the current authoring selection.",
+      "intent": "gizmo.set_mode",
+      "payload_schema": {
+        "mode": "string"
+      }
+    },
+    {
+      "id": "gizmo.set_space",
+      "label": "Set Gizmo Space",
+      "surface": "viewport",
+      "summary": "Switches the universal gizmo between world and local evaluation space.",
+      "intent": "gizmo.set_space",
+      "payload_schema": {
+        "space": "string"
+      }
+    },
+    {
+      "id": "gizmo.toggle_snap",
+      "label": "Toggle Gizmo Snap",
+      "surface": "viewport",
+      "summary": "Toggles transform snapping for the active universal gizmo profile.",
+      "intent": "gizmo.toggle_snap",
+      "payload_schema": {
+        "enabled": "bool"
+      }
+    },
+    {
       "id": "sculpt.apply_stroke",
       "label": "Apply Sculpt Stroke",
       "surface": "viewport",

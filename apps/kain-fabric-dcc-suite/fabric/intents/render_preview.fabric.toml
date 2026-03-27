@@ -25,6 +25,14 @@ entry = "src/main.kn"
 depends_on = ["python_suite_bootstrap"]
 
 [[steps.outputs]]
+name = "material_authoring_document"
+kind = "value"
+
+[[steps.outputs]]
+name = "svg_mask_document"
+kind = "value"
+
+[[steps.outputs]]
 name = "preview_src"
 kind = "shared_buffer"
 
@@ -37,21 +45,64 @@ name = "session_report"
 kind = "value"
 
 [[steps]]
+id = "material_authoring_projection"
+runtime = "kain"
+entry = "src/material_authoring_projection.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed"]
+
+[[steps.outputs]]
+name = "material_authoring_report"
+kind = "value"
+
+[[steps]]
+id = "svg_material_mask_projection"
+runtime = "kain"
+entry = "src/svg_material_mask_projection.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "material_authoring_projection"]
+
+[[steps.outputs]]
+name = "svg_mask_report"
+kind = "value"
+
+[[steps]]
 id = "gpu_material_preview"
 runtime = "gpu_compute"
 shader_source = "shaders/material_bake_preview.kn"
 compute_key = "DccSuiteMaterialBakePreview"
-depends_on = ["dcc_suite_seed"]
+depends_on = ["dcc_suite_seed", "material_authoring_projection", "svg_material_mask_projection"]
 
 [[steps.outputs]]
 name = "preview_dst"
 kind = "shared_buffer"
 
 [[steps]]
+id = "material_texture_export_projection"
+runtime = "kain"
+entry = "src/material_texture_export_projection.kn"
+depends_on = [
+    "python_suite_bootstrap",
+    "dcc_suite_seed",
+    "material_authoring_projection",
+    "svg_material_mask_projection",
+    "gpu_material_preview"
+]
+
+[[steps.outputs]]
+name = "material_texture_export_report"
+kind = "value"
+
+[[steps]]
 id = "render_preview_projection"
 runtime = "kain"
 entry = "src/session_projection.kn"
-depends_on = ["python_suite_bootstrap", "gpu_material_preview", "dcc_suite_seed"]
+depends_on = [
+    "python_suite_bootstrap",
+    "dcc_suite_seed",
+    "material_authoring_projection",
+    "svg_material_mask_projection",
+    "gpu_material_preview",
+    "material_texture_export_projection"
+]
 
 [[steps.outputs]]
 name = "render_preview_report"

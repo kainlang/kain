@@ -9,6 +9,7 @@
     "surfaces": "config/surfaces.json",
     "workspace_modes": "config/workspace_modes.json",
     "tools": "config/tool_catalog.json",
+    "gizmo_registry": "config/gizmo_registry.json",
     "command_registry": "config/command_registry.json",
     "fabric_pipeline": "config/fabric_pipeline.json",
     "fabric_intents": "config/fabric_intents.json",

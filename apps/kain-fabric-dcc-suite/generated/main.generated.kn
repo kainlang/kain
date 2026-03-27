@@ -16,7 +16,7 @@ component App():
                 <inspector title="Workspace Modes">
                     <text role="body">{"Scene Assembly | Scene graph authoring, set dressing, layout, and asset placement."}</text>
                     <text role="body">{"Sculpt And Model | Poly modeling, sculpt strokes, remesh, and topology shaping."}</text>
-                    <text role="body">{"Material And Lookdev | Shader graphs, texture baking, surface libraries, and preview lighting."}</text>
+                    <text role="body">{"Material And Lookdev | PBR texture sets, paint layers, SVG masks, smart materials, and export presets."}</text>
                     <text role="body">{"Rig And Animation | Rig graphs, deformation checks, clips, retargeting, and blocking."}</text>
                     <text role="body">{"Simulation And FX | Caches, solvers, scene events, and reproducible simulation jobs."}</text>
                     <text role="body">{"Render And Composite | Viewport renders, frame products, AOV assembly, and compositor rebuilds."}</text>
@@ -27,10 +27,10 @@ component App():
                     <text role="body">{"Asset Ingest Pack | Asset intake schemas, package staging, and source provenance."}</text>
                     <text role="body">{"Modeling Ops Pack | Modeling tools, topology mutations, and authoring operators."}</text>
                     <text role="body">{"Sculpt Runtime Pack | Brush profiles, sculpt previews, and native mutation surfaces."}</text>
-                    <text role="body">{"Material Graph Pack | Material graphs, shader previews, and bake metadata."}</text>
-                    <text role="body">{"Rig Runtime Pack | Rig controls, graph projections, and deformation contracts."}</text>
-                    <text role="body">{"Animation Clip Pack | Clip state, timing, markers, and retargeting support."}</text>
-                    <text role="body">{"Simulation Cache Pack | Cache roots, solver manifests, and replay state."}</text>
+                    <text role="body">{"Material Graph Pack | Material graphs, PBR channels, shader previews, and bake metadata."}</text>
+                    <text role="body">{"Smart Material Pack | Reusable fill layers, generators, anchor-driven filters, and painter-style presets."}</text>
+                    <text role="body">{"SVG Mask Pack | Vector masks, spline decals, boolean stacks, and trim-sheet SVG motifs."}</text>
+                    <text role="body">{"Material Export Pack | Channel packing, export presets, target runtime templates, and delivery manifests."}</text>
                 </inspector>
                 <inspector title="Command Surface">
                     <text role="body">{"Bootstrap Suite | project.bootstrap | Seeds the canonical scene, asset, preview, tensor, and publish session state."}</text>
@@ -38,11 +38,18 @@ component App():
                     <text role="body">{"Ingest Package | asset.ingest_package | Stages a new asset package into the suite ingest lane and updates runtime pack bookkeeping."}</text>
                     <text role="body">{"Activate Tool | tool.activate | Changes the active authoring tool and updates tool preset context."}</text>
                     <text role="body">{"Set Selection | selection.set | Replaces the live entity selection and updates lane inspectors."}</text>
+                    <text role="body">{"Set Gizmo Mode | gizmo.set_mode | Switches the active universal gizmo mode for the current authoring selection."}</text>
+                    <text role="body">{"Set Gizmo Space | gizmo.set_space | Switches the universal gizmo between world and local evaluation space."}</text>
+                    <text role="body">{"Toggle Gizmo Snap | gizmo.toggle_snap | Toggles transform snapping for the active universal gizmo profile."}</text>
                     <text role="body">{"Apply Sculpt Stroke | sculpt.apply_stroke | Queues a sculpt stroke through the native mutation seam and marks downstream lanes dirty."}</text>
                     <text role="body">{"Rebuild Topology | topology.rebuild | Refreshes topology and graph health analysis against current scene resources."}</text>
                     <text role="body">{"Sync Rig Controls | rig.sync_controls | Synchronizes rig projections and deformation reports."}</text>
                     <text role="body">{"Tick Simulation | sim.tick | Requests the next simulation planning tick and marks cache products dirty."}</text>
-                    <text role="body">{"Bake Material Preview | material.bake_preview | Refreshes material preview buffers through the GPU compute lane."}</text>
+                    <text role="body">{"Bake Material Preview | material.bake_preview | Refreshes the authored PBR preview, SVG mask stack, and packed texture outputs."}</text>
+                    <text role="body">{"Author Texture Set | material.bake_preview | Updates the active texture set, UDIM coverage, and channel preset for the current material."}</text>
+                    <text role="body">{"Paint Material Layer | material.bake_preview | Queues layer-stack changes for fill, paint, filter, and smart-material operators."}</text>
+                    <text role="body">{"Edit SVG Mask | material.bake_preview | Queues SVG mask graph changes, shape edits, booleans, and anchor projections."}</text>
+                    <text role="body">{"Export Texture Set | material.export_textures | Builds the material export receipt for packed texture delivery into downstream runtimes."}</text>
                     <text role="body">{"Render Preview | render.preview | Stages a preview render refresh and updates render-facing reports."}</text>
                     <text role="body">{"Rebuild Composite | compositor.rebuild | Refreshes the compositor rebuild plan for the current frame products."}</text>
                     <text role="body">{"Package Publish | publish.package | Builds the publish summary and package receipts for operator review."}</text>
@@ -70,7 +77,11 @@ component App():
                     <text role="body">{"Asset Ingest | tree | USD, GLTF, material, groom, cache, and runtime pack intake."}</text>
                     <text role="body">{"Tool Shelf | inspector | Context-sensitive authoring tools across sculpt, material, rig, sim, and publish."}</text>
                     <text role="body">{"Selection Inspector | inspector | Transforms, metadata, relationships, and lane-specific detail panels."}</text>
-                    <text role="body">{"Material Graph | graph | Shading, lookdev, texture-routing, and baking graph surface."}</text>
+                    <text role="body">{"Material Graph | graph | Shading, texture-routing, anchor points, and smart material composition."}</text>
+                    <text role="body">{"Material Layers | inspector | Layer stacks, generators, fill layers, paint layers, and channel blend modes."}</text>
+                    <text role="body">{"SVG Mask Canvas | graph | Vector masks, spline decals, anchor-driven booleans, and reusable SVG motifs."}</text>
+                    <text role="body">{"Texture Set Inspector | inspector | Texture set membership, UDIM coverage, channel packs, and bake preset assignment."}</text>
+                    <text role="body">{"Material Export Board | inspector | Target packers, channel routing, export presets, and downstream DCC/runtime consumers."}</text>
                     <text role="body">{"Rig Graph | graph | Control rigs, constraints, deformation layers, and sync reports."}</text>
                     <text role="body">{"Animation Timeline | timeline | Clips, simulation triggers, preview markers, and publish cut ranges."}</text>
                     <text role="body">{"Simulation Board | graph | Cache plans, solver dependencies, and replay diagnostics."}</text>
@@ -102,7 +113,8 @@ component App():
                     <text role="body">{"Topology Rebuild | fabric/intents/topology_rebuild.fabric.toml | produces 1 targets"}</text>
                     <text role="body">{"Rig Sync | fabric/intents/rig_sync.fabric.toml | produces 1 targets"}</text>
                     <text role="body">{"Simulation Tick | fabric/intents/sim_tick.fabric.toml | produces 1 targets"}</text>
-                    <text role="body">{"Material Bake | fabric/intents/material_bake.fabric.toml | produces 1 targets"}</text>
+                    <text role="body">{"Material Bake | fabric/intents/material_bake.fabric.toml | produces 4 targets"}</text>
+                    <text role="body">{"Material Export | fabric/intents/material_bake.fabric.toml | produces 1 targets"}</text>
                     <text role="body">{"Render Preview | fabric/intents/render_preview.fabric.toml | produces 1 targets"}</text>
                     <text role="body">{"Compositor Rebuild | fabric/intents/compositor_rebuild.fabric.toml | produces 1 targets"}</text>
                     <text role="body">{"Publish Package | fabric/intents/publish_package.fabric.toml | produces 1 targets"}</text>
@@ -112,11 +124,14 @@ component App():
                 <inspector title="Resources">
                     <text role="body">{"scene://current/graph | value | Canonical scene graph bootstrap document authored by Kain."}</text>
                     <text role="body">{"asset://catalog/current | value | Asset ingest and package catalog bootstrap document."}</text>
+                    <text role="body">{"material://current/authoring-contract | value | Kain-authored PBR texture-set, layer-stack, and export contract document."}</text>
+                    <text role="body">{"svg://material/current-mask-stack | value | Kain-authored SVG mask stack document for vector decals, trims, and anchors."}</text>
                     <text role="body">{"buffer://preview/source | shared_buffer | Source preview and material bake buffer."}</text>
                     <text role="body">{"buffer://preview/destination | shared_buffer | Destination preview and material bake buffer populated by GPU compute."}</text>
                     <text role="body">{"image://preview/current | shared_image | Preview image projected into viewport, render, and publish surfaces."}</text>
                     <text role="body">{"buffer://tensor/features | shared_buffer | Feature buffer staged for tensor-oriented training and inference planning."}</text>
                     <text role="body">{"buffer://sculpt/delta | shared_buffer | Latest sculpt mutation payload emitted by the C ABI seam."}</text>
+                    <text role="body">{"artifact://material/export-bundle | value | Packed material texture export descriptor for downstream DCC and runtime consumers."}</text>
                 </inspector>
                 <inspector title="Reports">
                     <text role="body">{"report://session/bootstrap | Bootstrap summary for suite session state."}</text>
@@ -124,7 +139,10 @@ component App():
                     <text role="body">{"report://topology/current | Graph and topology health report."}</text>
                     <text role="body">{"report://rig/sync | Rig sync and deformation readiness report."}</text>
                     <text role="body">{"report://simulation/tick-plan | Simulation planning report for the current frame tick."}</text>
+                    <text role="body">{"report://material/authoring | PBR texture-set, layer-stack, and export preset authoring report."}</text>
+                    <text role="body">{"report://material/svg-mask | SVG vector mask stack report for decals, trim motifs, and anchor-driven shapes."}</text>
                     <text role="body">{"report://render/preview | Render preview planning report."}</text>
+                    <text role="body">{"report://material/export | Material texture export and channel-packing report."}</text>
                     <text role="body">{"report://compositor/rebuild | Compositor rebuild planning report."}</text>
                     <text role="body">{"report://tensor/training | Tensor training readiness and plan report."}</text>
                     <text role="body">{"report://tensor/inference | Tensor inference readiness and serving report."}</text>
@@ -134,17 +152,22 @@ component App():
             <panel title="Runtime Telemetry" dock="bottom" split_ratio={0.27} min_height={220} max_height={360} resizable={true} layout="row" gap={12}>
                 <inspector title="Fabric Pipeline">
                     <text role="body">{"python_suite_bootstrap | python | Seeds project defaults, workspace selection, preview sizing, runtime pack counts, and tensor readiness hints."}</text>
-                    <text role="body">{"dcc_suite_seed | kain | Authors the scene graph bootstrap, asset catalog bootstrap, preview buffers, tensor features, and session report."}</text>
+                    <text role="body">{"dcc_suite_seed | kain | Authors the scene graph bootstrap, asset catalog bootstrap, PBR material contract, SVG mask contract, preview buffers, tensor features, and session report."}</text>
+                    <text role="body">{"material_authoring_projection | kain | Projects a substance-painter-style texture set, layer stack, and export preset report from Kain-owned session truth."}</text>
+                    <text role="body">{"svg_material_mask_projection | kain | Projects SVG mask documents, anchor-driven vector motifs, and reusable decal shapes for the material lane."}</text>
                     <text role="body">{"native_sculpt_kernel | c_abi | Uses the native helper to apply a narrow sculpt mutation proof and emit a sculpt signature."}</text>
                     <text role="body">{"rig_graph_analysis | rust_crate | Builds graph and topology health reporting from authored scene and sculpt outputs."}</text>
                     <text role="body">{"tensor_train_stage | python | Emits PyTorch-oriented training readiness and plan summaries without pretending the runtime is fully wired."}</text>
                     <text role="body">{"tensor_infer_stage | python | Emits tensor inference readiness and model-serving summaries."}</text>
-                    <text role="body">{"gpu_material_preview | gpu_compute | Runs a compute preview and material bake pass across the shared preview buffers."}</text>
-                    <text role="body">{"publish_suite_report | kain | Builds the publish and package report through a Kain-authored bridge into Node reporting."}</text>
+                    <text role="body">{"gpu_material_preview | gpu_compute | Runs a compute preview and material bake pass across the shared preview buffers after PBR and SVG authoring receipts are materialized."}</text>
+                    <text role="body">{"material_texture_export_projection | kain | Builds channel-pack export receipts for metal-rough, ORM, height, emissive, and custom packed delivery."}</text>
+                    <text role="body">{"publish_suite_report | kain | Builds the publish and package report through a Kain-authored bridge that includes the material export lane."}</text>
                 </inspector>
                 <inspector title="Automation Jobs">
                     <text role="body">{"Thumbnail Refresh | on_asset_ingest | Refreshes asset thumbnails and preview products after ingest."}</text>
-                    <text role="body">{"Nightly Material Rebake | nightly | Rebuilds preview materials and cached bake outputs."}</text>
+                    <text role="body">{"Nightly Material Rebake | nightly | Rebuilds preview materials, SVG mask atlases, and cached bake outputs."}</text>
+                    <text role="body">{"SVG Mask Cache Rebuild | on_material_edit | Recompiles vector mask stacks and anchor projections after material-layer edits."}</text>
+                    <text role="body">{"Smart Material Cache Warmup | on_scene_open | Stages smart material presets, packed brush responses, and texture-set defaults."}</text>
                     <text role="body">{"Rig Health Audit | on_publish_candidate | Recomputes rig and graph health before publish promotion."}</text>
                     <text role="body">{"Simulation Cache Warmup | on_scene_open | Stages warm caches for repeatable simulation review."}</text>
                     <text role="body">{"Tensor Readiness Probe | manual_or_nightly | Checks tensor lane readiness and records PyTorch availability without forcing runtime completion."}</text>
@@ -164,6 +187,10 @@ component App():
                     <text role="body">{"asset.usd"}</text>
                     <text role="body">{"asset.realtime"}</text>
                     <text role="body">{"material.graph"}</text>
+                    <text role="body">{"material.layer_stack"}</text>
+                    <text role="body">{"material.paint"}</text>
+                    <text role="body">{"material.texture_export"}</text>
+                    <text role="body">{"vector.svg"}</text>
                     <text role="body">{"rig.runtime"}</text>
                     <text role="body">{"animation.runtime"}</text>
                     <text role="body">{"simulation.runtime"}</text>
