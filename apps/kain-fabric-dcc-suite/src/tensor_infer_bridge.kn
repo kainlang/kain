@@ -1,3 +1,12 @@
+fn app_state_root() -> String:
+    return "apps/kain-fabric-dcc-suite/state"
+
+fn tensor_infer_dispatch_path() -> String:
+    return app_state_root() + "/tensor_infer_dispatch.json"
+
+fn tensor_infer_result_path() -> String:
+    return app_state_root() + "/tensor_infer_result.json"
+
 fn build_tensor_infer_dispatch_json(settings: Any, infer_report: Any, train_report: Any) -> String:
     let dispatch_status = "planned"
     if infer_report.status == "ready":
@@ -36,7 +45,7 @@ fn main() -> String:
     let dispatch_json = build_tensor_infer_dispatch_json(settings, infer_report, train_report)
     let result_json = build_tensor_infer_result_json(settings, infer_report, train_report)
 
-    write_file(infer_report.dispatch_receipt_path, dispatch_json)
-    write_file(infer_report.output_path, result_json)
+    write_file(tensor_infer_dispatch_path(), dispatch_json)
+    write_file(tensor_infer_result_path(), result_json)
 
-    return "tensor-infer-dispatch:" + infer_report.status + ":receipt=" + infer_report.dispatch_receipt_path + ":output=" + infer_report.output_path
+    return "tensor-infer-dispatch:" + infer_report.status + ":receipt=" + tensor_infer_dispatch_path() + ":output=" + tensor_infer_result_path()

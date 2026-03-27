@@ -102,10 +102,57 @@
       "id": "material.bake_preview",
       "label": "Bake Material Preview",
       "surface": "material_graph",
-      "summary": "Refreshes material preview buffers through the GPU compute lane.",
+      "summary": "Refreshes the authored PBR preview, SVG mask stack, and packed texture outputs.",
       "intent": "material.bake_preview",
       "payload_schema": {
         "reason": "string"
+      }
+    },
+    {
+      "id": "material.author_texture_set",
+      "label": "Author Texture Set",
+      "surface": "texture_set_inspector",
+      "summary": "Updates the active texture set, UDIM coverage, and channel preset for the current material.",
+      "intent": "material.bake_preview",
+      "payload_schema": {
+        "texture_set_id": "string",
+        "udim_root": "string",
+        "resolution": "number"
+      }
+    },
+    {
+      "id": "material.paint_layer",
+      "label": "Paint Material Layer",
+      "surface": "material_layers",
+      "summary": "Queues layer-stack changes for fill, paint, filter, and smart-material operators.",
+      "intent": "material.bake_preview",
+      "payload_schema": {
+        "layer_id": "string",
+        "channel_target": "string",
+        "blend_mode": "string"
+      }
+    },
+    {
+      "id": "material.edit_svg_mask",
+      "label": "Edit SVG Mask",
+      "surface": "svg_mask_canvas",
+      "summary": "Queues SVG mask graph changes, shape edits, booleans, and anchor projections.",
+      "intent": "material.bake_preview",
+      "payload_schema": {
+        "document_id": "string",
+        "shape_id": "string",
+        "operation": "string"
+      }
+    },
+    {
+      "id": "material.export_textures",
+      "label": "Export Texture Set",
+      "surface": "material_export_board",
+      "summary": "Builds the material export receipt for packed texture delivery into downstream runtimes.",
+      "intent": "material.export_textures",
+      "payload_schema": {
+        "preset_id": "string",
+        "target_runtime": "string"
       }
     },
     {

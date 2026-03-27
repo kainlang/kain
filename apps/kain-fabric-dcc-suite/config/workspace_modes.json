@@ -13,7 +13,7 @@
     {
       "id": "material_lookdev",
       "label": "Material And Lookdev",
-      "summary": "Shader graphs, texture baking, surface libraries, and preview lighting."
+      "summary": "PBR texture sets, paint layers, SVG masks, smart materials, and export presets."
     },
     {
       "id": "rig_anim",

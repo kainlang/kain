@@ -22,7 +22,7 @@ fn default_workspaces() -> Array<WorkspaceDescriptor>:
             id: "material_lookdev",
             label: "Material And Lookdev",
             focus_surface: "material_graph",
-            summary: "Shader graphs, texture baking, and lighting preview"
+            summary: "PBR texture sets, svg masks, smart materials, and packed export authoring"
         },
         WorkspaceDescriptor {
             id: "rig_anim",

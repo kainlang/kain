@@ -1,0 +1,11 @@
+{
+  "kind": "tensor_infer_dispatch",
+  "project": "fabric-dcc-suite",
+  "dispatch_status": "queued",
+  "dispatch_mode": "python_worker",
+  "model_path": "apps/kain-fabric-dcc-suite/state/tensor_train_checkpoint.json",
+  "input_uri": "buffer://tensor/features",
+  "output_path": "apps/kain-fabric-dcc-suite/state/tensor_infer_result.json",
+  "inference_profile": "preview_surface_probe",
+  "upstream_train_summary": "tensor-train:ready:bytes=48:torch=True"
+}

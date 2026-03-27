@@ -41,7 +41,35 @@
       "title": "Material Graph",
       "dock": "bottom",
       "kind": "graph",
-      "summary": "Shading, lookdev, texture-routing, and baking graph surface."
+      "summary": "Shading, texture-routing, anchor points, and smart material composition."
+    },
+    {
+      "id": "material_layers",
+      "title": "Material Layers",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Layer stacks, generators, fill layers, paint layers, and channel blend modes."
+    },
+    {
+      "id": "svg_mask_canvas",
+      "title": "SVG Mask Canvas",
+      "dock": "bottom",
+      "kind": "graph",
+      "summary": "Vector masks, spline decals, anchor-driven booleans, and reusable SVG motifs."
+    },
+    {
+      "id": "texture_set_inspector",
+      "title": "Texture Set Inspector",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Texture set membership, UDIM coverage, channel packs, and bake preset assignment."
+    },
+    {
+      "id": "material_export_board",
+      "title": "Material Export Board",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Target packers, channel routing, export presets, and downstream DCC/runtime consumers."
     },
     {
       "id": "rig_graph",

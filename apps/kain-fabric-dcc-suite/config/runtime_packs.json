@@ -28,7 +28,25 @@
       "id": "material_graph_pack",
       "label": "Material Graph Pack",
       "category": "runtime-pack",
-      "summary": "Material graphs, shader previews, and bake metadata."
+      "summary": "Material graphs, PBR channels, shader previews, and bake metadata."
+    },
+    {
+      "id": "smart_material_pack",
+      "label": "Smart Material Pack",
+      "category": "runtime-pack",
+      "summary": "Reusable fill layers, generators, anchor-driven filters, and painter-style presets."
+    },
+    {
+      "id": "svg_mask_pack",
+      "label": "SVG Mask Pack",
+      "category": "runtime-pack",
+      "summary": "Vector masks, spline decals, boolean stacks, and trim-sheet SVG motifs."
+    },
+    {
+      "id": "material_export_pack",
+      "label": "Material Export Pack",
+      "category": "runtime-pack",
+      "summary": "Channel packing, export presets, target runtime templates, and delivery manifests."
     },
     {
       "id": "rig_runtime_pack",

@@ -69,10 +69,23 @@ fn plan_for_command(
             debounce_ms: 16
         })
     if material_dirty:
+        let material_intent_id = "material.bake_preview"
+        let material_reason = "material preview state is dirty"
+        let material_priority = 70
+        if command_kind == "material.author_texture_set":
+            material_reason = "texture set membership or bake preset changed"
+        if command_kind == "material.paint_layer":
+            material_reason = "layer stack changed and preview textures must refresh"
+        if command_kind == "material.edit_svg_mask":
+            material_reason = "svg mask stack changed and preview textures must refresh"
+        if command_kind == "material.export_textures":
+            material_intent_id = "material.export_textures"
+            material_reason = "texture export requested from current material contract"
+            material_priority = 74
         intents.push(PlannedIntent {
-            intent_id: "material.bake_preview",
-            reason: "material preview state is dirty",
-            priority: 70,
+            intent_id: material_intent_id,
+            reason: material_reason,
+            priority: material_priority,
             debounce_ms: 16
         })
     if render_dirty:

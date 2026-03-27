@@ -55,6 +55,30 @@ fn command_handlers() -> Array<CommandHandlerDescriptor>:
             immediate_effect: "refresh material preview buffers"
         },
         CommandHandlerDescriptor {
+            command_kind: "material.author_texture_set",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "update texture set, bake preset, and pbr channel contract"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "material.paint_layer",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "queue layer stack repaint and smart material recomposition"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "material.edit_svg_mask",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "queue svg mask graph recompilation and preview refresh"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "material.export_textures",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "queue packed texture export and downstream publish handoff"
+        },
+        CommandHandlerDescriptor {
             command_kind: "render.preview",
             reducer_owner: "session.reducers",
             planner_owner: "session.intent_planner",

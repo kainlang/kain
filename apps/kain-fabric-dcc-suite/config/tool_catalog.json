@@ -34,13 +34,31 @@
       "id": "material_layer_paint",
       "label": "Material Layer Paint",
       "lane": "material_lookdev",
-      "summary": "Mask, ID, and procedural material layer authoring."
+      "summary": "Mask, ID, anchor, and procedural material layer authoring."
     },
     {
       "id": "texture_bake",
       "label": "Texture Bake",
       "lane": "material_lookdev",
-      "summary": "GPU-assisted preview and baking workflows."
+      "summary": "GPU-assisted preview, rebake, and export-ready texture packing workflows."
+    },
+    {
+      "id": "smart_material_stack",
+      "label": "Smart Material Stack",
+      "lane": "material_lookdev",
+      "summary": "Reusable fill layers, generators, filters, and material-response presets."
+    },
+    {
+      "id": "svg_mask_shape",
+      "label": "SVG Mask Shape",
+      "lane": "material_lookdev",
+      "summary": "Bezier-authored vector masks, booleans, decals, and trim-sheet motifs."
+    },
+    {
+      "id": "channel_pack_export",
+      "label": "Channel Pack Export",
+      "lane": "material_lookdev",
+      "summary": "Metal-rough, ORM, height, and custom packed export authoring."
     },
     {
       "id": "control_rig_edit",

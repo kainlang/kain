@@ -1,0 +1,9 @@
+{
+  "kind": "sim_tick_report",
+  "project": "fabric-dcc-suite",
+  "solver_profile": "cloth_preview_dispatch",
+  "simulated_frames": 16,
+  "cache_segments": 13,
+  "replay_checksum": 860,
+  "plan_summary": "sim-plan:scene_assembly:frames=32:stride=16"
+}

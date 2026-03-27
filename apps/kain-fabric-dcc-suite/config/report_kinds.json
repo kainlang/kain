@@ -36,11 +36,32 @@
       "summary": "Simulation planning report for the current frame tick."
     },
     {
+      "id": "material_authoring_report",
+      "report_uri": "report://material/authoring",
+      "producer_step": "material_authoring_projection",
+      "output_name": "material_authoring_report",
+      "summary": "PBR texture-set, layer-stack, and export preset authoring report."
+    },
+    {
+      "id": "svg_mask_report",
+      "report_uri": "report://material/svg-mask",
+      "producer_step": "svg_material_mask_projection",
+      "output_name": "svg_mask_report",
+      "summary": "SVG vector mask stack report for decals, trim motifs, and anchor-driven shapes."
+    },
+    {
       "id": "render_preview_report",
       "report_uri": "report://render/preview",
       "producer_step": "render_preview_projection",
       "output_name": "render_preview_report",
       "summary": "Render preview planning report."
+    },
+    {
+      "id": "material_texture_export_report",
+      "report_uri": "report://material/export",
+      "producer_step": "material_texture_export_projection",
+      "output_name": "material_texture_export_report",
+      "summary": "Material texture export and channel-packing report."
     },
     {
       "id": "compositor_rebuild_report",

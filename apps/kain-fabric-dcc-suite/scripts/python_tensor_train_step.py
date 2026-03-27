@@ -1,6 +1,10 @@
 import importlib.util
 
 
+def app_state_path(name):
+    return f"apps/kain-fabric-dcc-suite/state/{name}"
+
+
 def run(fabric_inputs):
     settings = fabric_inputs.get("python_suite_bootstrap", {}).get("project_settings", {})
     torch_available = importlib.util.find_spec("torch") is not None
@@ -19,7 +23,7 @@ def run(fabric_inputs):
         "epochs": epochs,
         "batch_size": batch_size,
         "checkpoint_tag": f"{settings.get('project_name', 'fabric-dcc-suite')}-train-{byte_length}",
-        "dispatch_receipt_path": "state/tensor_train_dispatch.json",
-        "checkpoint_path": "state/tensor_train_checkpoint.json",
+        "dispatch_receipt_path": app_state_path("tensor_train_dispatch.json"),
+        "checkpoint_path": app_state_path("tensor_train_checkpoint.json"),
         "summary": f"tensor-train:{status}:bytes={byte_length}:torch={torch_available}",
     }

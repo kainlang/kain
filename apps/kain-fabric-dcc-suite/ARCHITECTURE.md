@@ -24,7 +24,7 @@ The scaffold is split into six durable ownership layers:
 `src/*.kn`, `native/*`, `local_crate/*`, `shaders/*`, and `scripts/*` provide the narrow per-runtime seams behind the Fabric manifests.
 
 6. Materialized outputs
-`generated/main.generated.kn` and `state/runtime_snapshot.json` are projected artifacts produced from the registries and the latest Fabric reports.
+`generated/main.generated.kn`, `state/runtime_snapshot.json`, and the lane receipt files in `state/*.json` are projected artifacts produced from the registries and the latest Fabric reports.
 
 ## Ownership Boundaries
 
@@ -56,6 +56,7 @@ The scaffold is split into six durable ownership layers:
 - `shaders/material_bake_preview.kn`: GPU compute preview and material bake seam.
 - `scripts/materialize-shell.ps1`: data-driven shell materializer.
 - `scripts/materialize-session-state.ps1`: runtime snapshot materializer from config and latest Fabric report.
+- `state/*.json`: durable lane receipts for sim planning, compositor planning, tensor dispatch, tensor checkpoints, and tensor inference results.
 
 ## Primary Data Flow
 
@@ -67,11 +68,13 @@ The scaffold is split into six durable ownership layers:
 
 `python suite bootstrap -> kain scene/session seed -> native sculpt seam -> rust graph analysis -> python tensor planning -> gpu preview bake -> Kain node publish bridge`
 
+`sim/compositor/tensor intent graphs -> explicit app-rooted receipt writes in state/*.json -> shell inspection, automation jobs, and future native runtime consumers`
+
 ## Extension Seams That Are Intentional
 
-- The tensor lane currently emits training and inference plans plus readiness reports. A first-class typed tensor artifact contract across Python, Kain, and GPU runtime lanes is still future work.
-- The sim lane is scaffolded as a plan and report lane rather than a real solver. That keeps the current repo honest until a durable sim runtime contract exists.
-- The compositor lane is scaffolded as a rebuild-plan and report lane. Real graph execution and frame assembly should arrive through a broader runtime extension, not by overloading shell presentation code.
+- The tensor lane now emits explicit dispatch, checkpoint, and inference-result receipts in `state/*.json`. A first-class typed tensor artifact contract across Python, Kain, and GPU runtime lanes is still future work.
+- The sim lane now emits durable plan and report receipts in `state/*.json` rather than a mock string return, but it is still not a real solver runtime. That keeps the current repo honest until a durable sim contract exists.
+- The compositor lane now emits durable rebuild-plan and rebuild-report receipts in `state/*.json`, but real graph execution and frame assembly should still arrive through a broader runtime extension rather than by overloading shell presentation code.
 - The runtime pack registry is broad on purpose, but it is still manifest-owned metadata until downstream pack loaders and launchers consume it directly.
 
 ## Common Commands
@@ -101,6 +104,8 @@ powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/buil
 - On Windows, keep `__declspec(dllexport)` on the declarations in `native/dcc_suite_ops.h` or the Fabric `c_abi` bridge will fail to resolve `dcc_suite_apply_sculpt_stamp` and `dcc_suite_signature`.
 - `local_crate/Cargo.toml` needs a local `[workspace]` table so the Fabric rust-crate loader can resolve the helper crate without adding it to the monorepo workspace members list.
 - `shaders/material_bake_preview.kn` follows the stricter compute-shader tuple syntax used by the Fabric GPU smoketests. Missing trailing commas inside the `comptime` tuple can make `gpu_material_preview` fail with a parser error.
+- The lane manifests under `fabric/intents/*.fabric.toml` must set `[workspace].root = "../.."` so scripts, source files, and local crate paths resolve from the app root rather than `fabric/intents/`.
+- For Kain steps launched through lane manifests, do not rely on cwd-relative receipt paths like `state/foo.json`. Use explicit app-rooted paths such as `apps/kain-fabric-dcc-suite/state/foo.json` or the receipts may not materialize where the shell expects them.
 - `generated/main.generated.kn` is materialized output. If config and shell drift, rerun `scripts/materialize-shell.ps1`.
 - `state/runtime_snapshot.json` is also materialized output. If reports change, rerun `scripts/materialize-session-state.ps1`.
 - The tensor manifests intentionally report readiness and plan state even when `torch` is unavailable. That is not a bug in the scaffold; it is the current extension seam.

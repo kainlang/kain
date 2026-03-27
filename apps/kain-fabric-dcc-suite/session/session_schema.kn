@@ -39,7 +39,14 @@ struct AssetIngestState:
 struct MaterialState:
     active_material_id: String
     active_graph_id: String
+    active_texture_set_id: String
+    active_layer_stack_id: String
+    active_svg_document_id: String
+    active_bake_preset_id: String
+    active_export_preset_id: String
     preview_profile: String
+    channel_profile: String
+    paint_resolution: Int
 
 struct RigState:
     active_rig_id: String
@@ -159,7 +166,14 @@ fn default_session_document() -> SessionDocument:
         materials: MaterialState {
             active_material_id: "material/hero_surface",
             active_graph_id: "graph/lookdev_primary",
-            preview_profile: "material_preview_balanced"
+            active_texture_set_id: "textureset/hero_body_udim1001",
+            active_layer_stack_id: "layerstack/hero_surface_primary",
+            active_svg_document_id: "svg/masks/hero_surface_primary",
+            active_bake_preset_id: "bake/high_precision_curvature",
+            active_export_preset_id: "export/metalrough_orm_painter",
+            preview_profile: "material_preview_balanced",
+            channel_profile: "basecolor_normal_roughness_metallic_ao_height_emissive",
+            paint_resolution: 4096
         },
         rig: RigState {
             active_rig_id: "rig/hero_body",
@@ -193,7 +207,7 @@ fn default_session_document() -> SessionDocument:
         },
         automation: AutomationState {
             enabled: true,
-            active_job_ids: ["thumbnail_refresh", "tensor_readiness_probe"],
+            active_job_ids: ["thumbnail_refresh", "nightly_material_rebake", "svg_mask_cache_rebuild"],
             last_audit_status: "pending"
         },
         dirty: DirtyState {

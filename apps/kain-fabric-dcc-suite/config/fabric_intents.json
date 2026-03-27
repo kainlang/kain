@@ -54,7 +54,20 @@
       "lane": "material",
       "graph": "fabric/intents/material_bake.fabric.toml",
       "debounce_ms": 16,
-      "produces": ["preview_dst"]
+      "produces": [
+        "material_authoring_report",
+        "svg_mask_report",
+        "preview_dst",
+        "material_texture_export_report"
+      ]
+    },
+    {
+      "id": "material.export_textures",
+      "label": "Material Export",
+      "lane": "material",
+      "graph": "fabric/intents/material_bake.fabric.toml",
+      "debounce_ms": 0,
+      "produces": ["material_texture_export_report"]
     },
     {
       "id": "render.preview",

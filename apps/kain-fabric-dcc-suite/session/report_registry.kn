@@ -37,10 +37,28 @@ fn default_reports() -> Array<ReportDescriptor>:
             summary: "Simulation planning report"
         },
         ReportDescriptor {
+            id: "material_authoring_report",
+            report_uri: "report://material/authoring",
+            producer_step: "material_authoring_projection",
+            summary: "Texture-set, layer-stack, and export preset authoring report"
+        },
+        ReportDescriptor {
+            id: "svg_mask_report",
+            report_uri: "report://material/svg-mask",
+            producer_step: "svg_material_mask_projection",
+            summary: "SVG mask stack report"
+        },
+        ReportDescriptor {
             id: "render_preview_report",
             report_uri: "report://render/preview",
             producer_step: "render_preview_projection",
             summary: "Render preview planning report"
+        },
+        ReportDescriptor {
+            id: "material_texture_export_report",
+            report_uri: "report://material/export",
+            producer_step: "material_texture_export_projection",
+            summary: "Packed texture export report"
         },
         ReportDescriptor {
             id: "compositor_rebuild_report",

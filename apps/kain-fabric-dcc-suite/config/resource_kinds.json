@@ -19,6 +19,24 @@
       "summary": "Asset ingest and package catalog bootstrap document."
     },
     {
+      "id": "material_authoring_document",
+      "resource_uri": "material://current/authoring-contract",
+      "kind": "value",
+      "producer_step": "dcc_suite_seed",
+      "output_name": "material_authoring_document",
+      "storage": "fabric-report",
+      "summary": "Kain-authored PBR texture-set, layer-stack, and export contract document."
+    },
+    {
+      "id": "svg_mask_document",
+      "resource_uri": "svg://material/current-mask-stack",
+      "kind": "value",
+      "producer_step": "dcc_suite_seed",
+      "output_name": "svg_mask_document",
+      "storage": "fabric-report",
+      "summary": "Kain-authored SVG mask stack document for vector decals, trims, and anchors."
+    },
+    {
       "id": "preview_source_buffer",
       "resource_uri": "buffer://preview/source",
       "kind": "shared_buffer",
@@ -62,6 +80,15 @@
       "output_name": "sculpt_delta",
       "storage": "shared-buffer",
       "summary": "Latest sculpt mutation payload emitted by the C ABI seam."
+    },
+    {
+      "id": "material_export_bundle",
+      "resource_uri": "artifact://material/export-bundle",
+      "kind": "value",
+      "producer_step": "material_texture_export_projection",
+      "output_name": "material_texture_export_report",
+      "storage": "fabric-report",
+      "summary": "Packed material texture export descriptor for downstream DCC and runtime consumers."
     }
   ]
 }

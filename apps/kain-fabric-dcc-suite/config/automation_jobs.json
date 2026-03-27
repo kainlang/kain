@@ -10,7 +10,19 @@
       "id": "nightly_material_rebake",
       "label": "Nightly Material Rebake",
       "schedule": "nightly",
-      "summary": "Rebuilds preview materials and cached bake outputs."
+      "summary": "Rebuilds preview materials, SVG mask atlases, and cached bake outputs."
+    },
+    {
+      "id": "svg_mask_cache_rebuild",
+      "label": "SVG Mask Cache Rebuild",
+      "schedule": "on_material_edit",
+      "summary": "Recompiles vector mask stacks and anchor projections after material-layer edits."
+    },
+    {
+      "id": "smart_material_cache_warmup",
+      "label": "Smart Material Cache Warmup",
+      "schedule": "on_scene_open",
+      "summary": "Stages smart material presets, packed brush responses, and texture-set defaults."
     },
     {
       "id": "rig_health_audit",

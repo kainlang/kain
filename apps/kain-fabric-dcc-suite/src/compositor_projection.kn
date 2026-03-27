@@ -1,5 +1,8 @@
+fn app_state_root() -> String:
+    return "apps/kain-fabric-dcc-suite/state"
+
 fn compositor_rebuild_plan_path() -> String:
-    return "state/compositor_rebuild_plan.json"
+    return app_state_root() + "/compositor_rebuild_plan.json"
 
 fn build_compositor_plan_json(settings: Any, session_report: String) -> String:
     let assembled_layers = settings.runtime_pack_count + 3

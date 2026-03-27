@@ -1,5 +1,8 @@
+fn app_state_root() -> String:
+    return "apps/kain-fabric-dcc-suite/state"
+
 fn sim_tick_plan_path() -> String:
-    return "state/sim_tick_plan.json"
+    return app_state_root() + "/sim_tick_plan.json"
 
 fn build_sim_tick_plan_json(settings: Any, session_report: String) -> String:
     let planned_frames = settings.preview_count * 2

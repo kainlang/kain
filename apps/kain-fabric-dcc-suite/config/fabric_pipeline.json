@@ -8,7 +8,17 @@
     {
       "id": "dcc_suite_seed",
       "runtime": "kain",
-      "summary": "Authors the scene graph bootstrap, asset catalog bootstrap, preview buffers, tensor features, and session report."
+      "summary": "Authors the scene graph bootstrap, asset catalog bootstrap, PBR material contract, SVG mask contract, preview buffers, tensor features, and session report."
+    },
+    {
+      "id": "material_authoring_projection",
+      "runtime": "kain",
+      "summary": "Projects a substance-painter-style texture set, layer stack, and export preset report from Kain-owned session truth."
+    },
+    {
+      "id": "svg_material_mask_projection",
+      "runtime": "kain",
+      "summary": "Projects SVG mask documents, anchor-driven vector motifs, and reusable decal shapes for the material lane."
     },
     {
       "id": "native_sculpt_kernel",
@@ -33,12 +43,17 @@
     {
       "id": "gpu_material_preview",
       "runtime": "gpu_compute",
-      "summary": "Runs a compute preview and material bake pass across the shared preview buffers."
+      "summary": "Runs a compute preview and material bake pass across the shared preview buffers after PBR and SVG authoring receipts are materialized."
+    },
+    {
+      "id": "material_texture_export_projection",
+      "runtime": "kain",
+      "summary": "Builds channel-pack export receipts for metal-rough, ORM, height, emissive, and custom packed delivery."
     },
     {
       "id": "publish_suite_report",
       "runtime": "kain",
-      "summary": "Builds the publish and package report through a Kain-authored bridge into Node reporting."
+      "summary": "Builds the publish and package report through a Kain-authored bridge that includes the material export lane."
     }
   ]
 }

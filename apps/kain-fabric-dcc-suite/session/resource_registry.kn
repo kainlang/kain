@@ -22,6 +22,20 @@ fn default_resources() -> Array<ResourceDescriptor>:
             summary: "Asset ingest and package catalog"
         },
         ResourceDescriptor {
+            id: "material_authoring_document",
+            resource_uri: "material://current/authoring-contract",
+            kind: "value",
+            producer_step: "dcc_suite_seed",
+            summary: "PBR texture-set, layer-stack, and export contract"
+        },
+        ResourceDescriptor {
+            id: "svg_mask_document",
+            resource_uri: "svg://material/current-mask-stack",
+            kind: "value",
+            producer_step: "dcc_suite_seed",
+            summary: "SVG mask stack document for vector decals and trim motifs"
+        },
+        ResourceDescriptor {
             id: "preview_source_buffer",
             resource_uri: "buffer://preview/source",
             kind: "shared_buffer",
@@ -55,5 +69,12 @@ fn default_resources() -> Array<ResourceDescriptor>:
             kind: "shared_buffer",
             producer_step: "native_sculpt_kernel",
             summary: "Latest sculpt mutation payload"
+        },
+        ResourceDescriptor {
+            id: "material_export_bundle",
+            resource_uri: "artifact://material/export-bundle",
+            kind: "value",
+            producer_step: "material_texture_export_projection",
+            summary: "Packed material export bundle descriptor"
         }
     ]

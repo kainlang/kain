@@ -63,3 +63,23 @@ Next recommended step:
 
 - Replace the current mock execution seams in sim, tensor bridge dispatch, and compositor with real runtime work now that Fabric convergence is proven.
 
+## 2026-03-27 (Later) - Sim, Compositor, and Tensor Receipts Materialized as Real Lane Artifacts
+
+- Replaced the cwd-relative receipt writes in the sim, compositor, and tensor bridge steps with explicit app-rooted paths under `apps/kain-fabric-dcc-suite/state/`.
+- Added dedicated Kain receipt emitters for simulation planning and compositor planning so those lanes now leave durable JSON artifacts instead of only returning mock summary strings.
+- Upgraded the Python tensor stages and Kain tensor bridges so the suite now materializes `tensor_train_dispatch.json`, `tensor_train_checkpoint.json`, `tensor_infer_dispatch.json`, and `tensor_infer_result.json` as first-class bridge artifacts.
+- Normalized the lane manifests under `fabric/intents/` to resolve from the app root and to declare the full seeded output set expected by `dcc_suite_seed`.
+- Verified the focused lane manifests for `sim_tick`, `compositor_rebuild`, `tensor_train_step`, and `tensor_infer_step`, then re-ran the full `KAIN.fabric.toml` suite successfully.
+- Refreshed `state/runtime_snapshot.json` after the successful lane pass so the shell sees the latest Fabric success state alongside the new state receipts.
+
+Current durable state:
+
+- Sim now writes `sim_tick_plan.json` and `sim_tick_report.json`.
+- Compositor now writes `compositor_rebuild_plan.json` and `compositor_rebuild_report.json`.
+- Tensor now writes dispatch, checkpoint, and inference result receipts with explicit app-local paths shared across Python and Kain.
+- These are still orchestration-grade runtime seams, not full solver/compositor/tensor engines.
+
+Next recommended step:
+
+- Replace the synthetic metrics inside the new sim/compositor/tensor receipts with outputs from real external runtimes or typed artifact contracts so the receipts become execution truth rather than planned scaffolding.
+
