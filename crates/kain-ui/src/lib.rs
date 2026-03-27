@@ -586,6 +586,30 @@ pub struct UiFocusGraph {
     /// Current focus owner per scope.
     #[serde(default)]
     pub focused: BTreeMap<String, UiNodeId>,
+    /// Explicit focus traversal edges (Tab, arrows, etc) when the runtime/compiler provides them.
+    #[serde(default)]
+    pub traversal_edges: Vec<UiFocusTraversalEdge>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiFocusTraversalKind {
+    TabForward,
+    TabBackward,
+    ArrowLeft,
+    ArrowRight,
+    ArrowUp,
+    ArrowDown,
+    Next,
+    Prev,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiFocusTraversalEdge {
+    pub scope: String,
+    pub kind: UiFocusTraversalKind,
+    pub from: UiNodeId,
+    pub to: UiNodeId,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -903,6 +927,74 @@ pub struct UiCommandBuffer {
     pub rejections: Vec<UiCommandRejection>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UiCommandEffectKind {
+    /// Runtime-owned mutation of the semantic/runtime graph.
+    RuntimeMutation,
+    /// External effect executed by the embedding host (file IO, process launch, etc).
+    ExternalEffect,
+}
+
+impl Default for UiCommandEffectKind {
+    fn default() -> Self {
+        Self::RuntimeMutation
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiCommandDescriptor {
+    pub name: String,
+    pub label: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub keywords: Vec<String>,
+    #[serde(default)]
+    pub category: Option<String>,
+    #[serde(default)]
+    pub shortcut: Option<String>,
+    #[serde(default)]
+    pub effect: UiCommandEffectKind,
+}
+
+/// Data-driven command registry that survives authoring, bundling, runtime, and backend realization.
+///
+/// Inspired by the explicit, source-owned registration model used in K_OS.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UiCommandRegistry {
+    pub commands_by_source: BTreeMap<String, Vec<UiCommandDescriptor>>,
+    pub snapshot: Vec<UiCommandDescriptor>,
+}
+
+impl UiCommandRegistry {
+    pub fn rebuild_snapshot(&mut self) {
+        let mut all = Vec::new();
+        for commands in self.commands_by_source.values() {
+            all.extend(commands.iter().cloned());
+        }
+        all.sort_by(|a, b| a.name.cmp(&b.name));
+        self.snapshot = all;
+    }
+}
+
+pub fn ui_register_command_descriptors(
+    registry: &mut UiCommandRegistry,
+    source_id: &str,
+    commands: Vec<UiCommandDescriptor>,
+) {
+    registry
+        .commands_by_source
+        .insert(source_id.to_string(), commands);
+    registry.rebuild_snapshot();
+}
+
+pub fn ui_unregister_command_descriptors(registry: &mut UiCommandRegistry, source_id: &str) {
+    if registry.commands_by_source.remove(source_id).is_some() {
+        registry.rebuild_snapshot();
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UiThemeToken {
     pub name: String,
@@ -1088,6 +1180,7 @@ impl Default for UiFocusGraph {
             scopes: Vec::new(),
             default_scope: None,
             focused: BTreeMap::new(),
+            traversal_edges: Vec::new(),
         }
     }
 }

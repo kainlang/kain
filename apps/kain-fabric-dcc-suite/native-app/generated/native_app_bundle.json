@@ -40010,7 +40010,7 @@
         },
         "757": {
           "id": 757,
-          "identity_key": null,
+          "identity_key": "757",
           "kind": {
             "ComponentRef": "App"
           },
@@ -85656,7 +85656,7 @@
         "CreateNode": {
           "node": {
             "id": 757,
-            "identity_key": null,
+            "identity_key": "757",
             "kind": {
               "ComponentRef": "App"
             },
@@ -85724,7 +85724,8 @@
       "transactions": [],
       "focus_graph": {
         "scopes": [],
-        "default_scope": null
+        "default_scope": null,
+        "focused": {}
       },
       "event_routes": [],
       "animation_tracks": [
@@ -86603,6 +86604,466 @@
           "composition_mode": "layered_gpu",
           "gpu_backing_required": true,
           "shader": null
+        },
+        {
+          "id": "surface.176",
+          "kind": "Tree",
+          "node": 176,
+          "title": "Focus Surface",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.191",
+          "kind": "Viewport3D",
+          "node": 191,
+          "title": "Viewport Stage",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.196",
+          "kind": "Tree",
+          "node": 196,
+          "title": "Scene Graph",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.201",
+          "kind": "Tree",
+          "node": 201,
+          "title": "Asset Ingest",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.205",
+          "kind": "Graph",
+          "node": 205,
+          "title": "Render Lounge",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.232",
+          "kind": "Timeline",
+          "node": 232,
+          "title": "Animation Timeline",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.236",
+          "kind": "Timeline",
+          "node": 236,
+          "title": "Jobs Monitor",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.257",
+          "kind": "Tree",
+          "node": 257,
+          "title": "Focus Surface",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.272",
+          "kind": "Viewport3D",
+          "node": 272,
+          "title": "Viewport Stage",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.277",
+          "kind": "Tree",
+          "node": 277,
+          "title": "Scene Graph",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.281",
+          "kind": "Graph",
+          "node": 281,
+          "title": "Material Graph",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.285",
+          "kind": "Graph",
+          "node": 285,
+          "title": "Simulation Board",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.312",
+          "kind": "Graph",
+          "node": 312,
+          "title": "Rig Graph",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.316",
+          "kind": "Timeline",
+          "node": 316,
+          "title": "Jobs Monitor",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.337",
+          "kind": "Tree",
+          "node": 337,
+          "title": "Focus Surface",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.352",
+          "kind": "Viewport3D",
+          "node": 352,
+          "title": "Viewport Stage",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.356",
+          "kind": "Graph",
+          "node": 356,
+          "title": "Material Graph",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.360",
+          "kind": "Graph",
+          "node": 360,
+          "title": "SVG Mask Canvas",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.364",
+          "kind": "Graph",
+          "node": 364,
+          "title": "Render Lounge",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.396",
+          "kind": "Graph",
+          "node": 396,
+          "title": "Compositor Stack",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.400",
+          "kind": "Timeline",
+          "node": 400,
+          "title": "Jobs Monitor",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.419",
+          "kind": "Tree",
+          "node": 419,
+          "title": "Focus Surface",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.434",
+          "kind": "Viewport3D",
+          "node": 434,
+          "title": "Viewport Stage",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.438",
+          "kind": "Graph",
+          "node": 438,
+          "title": "Rig Graph",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.442",
+          "kind": "Timeline",
+          "node": 442,
+          "title": "Animation Timeline",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.446",
+          "kind": "Graph",
+          "node": 446,
+          "title": "Render Lounge",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.472",
+          "kind": "Graph",
+          "node": 472,
+          "title": "Simulation Board",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.476",
+          "kind": "Timeline",
+          "node": 476,
+          "title": "Jobs Monitor",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.494",
+          "kind": "Tree",
+          "node": 494,
+          "title": "Focus Surface",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.509",
+          "kind": "Viewport3D",
+          "node": 509,
+          "title": "Viewport Stage",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.513",
+          "kind": "Graph",
+          "node": 513,
+          "title": "Simulation Board",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.517",
+          "kind": "Graph",
+          "node": 517,
+          "title": "Render Lounge",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.521",
+          "kind": "Graph",
+          "node": 521,
+          "title": "Compositor Stack",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.543",
+          "kind": "Timeline",
+          "node": 543,
+          "title": "Animation Timeline",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.547",
+          "kind": "Timeline",
+          "node": 547,
+          "title": "Jobs Monitor",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.566",
+          "kind": "Tree",
+          "node": 566,
+          "title": "Focus Surface",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.581",
+          "kind": "Viewport3D",
+          "node": 581,
+          "title": "Viewport Stage",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.585",
+          "kind": "Graph",
+          "node": 585,
+          "title": "Render Lounge",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.589",
+          "kind": "Graph",
+          "node": 589,
+          "title": "Compositor Stack",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.620",
+          "kind": "Timeline",
+          "node": 620,
+          "title": "Animation Timeline",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.624",
+          "kind": "Timeline",
+          "node": 624,
+          "title": "Jobs Monitor",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.643",
+          "kind": "Tree",
+          "node": 643,
+          "title": "Focus Surface",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.658",
+          "kind": "Viewport3D",
+          "node": 658,
+          "title": "Viewport Stage",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.672",
+          "kind": "Graph",
+          "node": 672,
+          "title": "Render Lounge",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.693",
+          "kind": "Timeline",
+          "node": 693,
+          "title": "Jobs Monitor",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
+        },
+        {
+          "id": "surface.697",
+          "kind": "Graph",
+          "node": 697,
+          "title": "Compositor Stack",
+          "renderer_preference": "auto",
+          "composition_mode": "host",
+          "gpu_backing_required": false,
+          "shader": null
         }
       ],
       "scheduler": {
@@ -86990,10 +87451,14 @@
       },
       "selection_model": {
         "scopes": [],
-        "active_scope": null
+        "active_scope": null,
+        "primary": {},
+        "selected": {}
       },
       "command_buffer": {
-        "pending": []
+        "pending": [],
+        "executed": [],
+        "rejections": []
       },
       "theme_registry": {
         "active_theme": "kain_fabric_universal_studio",
@@ -88048,7 +88513,12 @@
         "preserve_docking": true,
         "preserve_animation_state": true,
         "preserve_session_state": true,
-        "identity_aliases": []
+        "identity_aliases": [
+          {
+            "from": "757",
+            "to": "757"
+          }
+        ]
       },
       "signal_values": {},
       "animation_state": {},
@@ -88081,7 +88551,7 @@
         "dock_placement": null,
         "split_ratio": null,
         "resizable": false,
-        "persistent_layout_id": "node-757",
+        "persistent_layout_id": "757",
         "tab_group_id": null,
         "tab_label": null,
         "tab_order": null,
