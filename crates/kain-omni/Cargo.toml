@@ -6,10 +6,14 @@ authors = ["KAIN Contributors"]
 description = "Import-aware multi-language orchestration for KAIN"
 license = "MIT"
 
+[features]
+default = ["typescript-import"]
+typescript-import = ["kain-import/typescript"]
+
 [dependencies]
 kain-core = { path = "../kain-core" }
 kain-driver = { path = "../kain-driver", default-features = false, features = ["ue5", "gpu", "web", "sys"] }
-kain-import = { path = "../kain-import" }
+kain-import = { path = "../kain-import", default-features = false, features = ["c", "rust", "usf"] }
 kain-asm = { path = "../kain-asm" }
 ue5 = { path = "../ue5" }
 ue5-editor = { path = "../ue5-editor" }

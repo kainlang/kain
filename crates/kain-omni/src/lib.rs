@@ -11,6 +11,7 @@ use kain_core::CompileTarget;
 use kain_driver::{self as driver, GpuArtifactOutput, RustBundleOutput};
 use kain_import::c::{import_c_file_with_options, CImportOptions};
 use kain_import::rust::import_rust_file;
+#[cfg(feature = "typescript-import")]
 use kain_import::typescript::import_typescript_file;
 use kain_sys_codegen::RustArtifactKind;
 use serde::{Deserialize, Serialize};
@@ -301,8 +302,17 @@ fn stage_imports(
                 fs::write(&generated_kn_path, render_program(&program)?)?;
             }
             OmniSourceLanguage::TypeScript => {
-                let program = import_typescript_path(&source_path, import)?;
-                fs::write(&generated_kn_path, render_program(&program)?)?;
+                #[cfg(feature = "typescript-import")]
+                {
+                    let program = import_typescript_path(&source_path, import)?;
+                    fs::write(&generated_kn_path, render_program(&program)?)?;
+                }
+                #[cfg(not(feature = "typescript-import"))]
+                {
+                    return Err(OmniError::Config(
+                        "TypeScript imports are disabled in this kain-omni build".to_string(),
+                    ));
+                }
             }
             OmniSourceLanguage::C => {
                 let program = import_c_path(&source_path, import)?;
@@ -338,6 +348,7 @@ fn import_rust_path(path: &Path, config: &OmniImportSource) -> OmniResult<Progra
     })
 }
 
+#[cfg(feature = "typescript-import")]
 fn import_typescript_path(path: &Path, config: &OmniImportSource) -> OmniResult<Program> {
     if path.is_file() {
         return import_typescript_file(path).map_err(|err| OmniError::Compiler(err.to_string()));

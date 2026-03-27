@@ -25,6 +25,48 @@ fn command_handlers() -> Array<CommandHandlerDescriptor>:
             immediate_effect: "stage asset package and mark downstream lanes dirty"
         },
         CommandHandlerDescriptor {
+            command_kind: "mesh.open_document",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "switch the active mesh document into the current authoring session"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "mesh.set_edit_target",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "bind the current mesh document to a concrete scene edit target"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "mesh.set_authoring_policy",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "change whether mesh edits prefer imported payloads, primitives, or topology outputs"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "mesh.create_primitive",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "author a new primitive-backed mesh document and queue downstream refresh work"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "mesh.import_asset",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "promote an imported asset into the mesh resource contract and queue analysis"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "mesh.edit_topology",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "request topology-oriented mesh edits against the active edit target"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "mesh.rebuild_topology",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "refresh topology-derived mesh resources after import, primitive authoring, or edit work"
+        },
+        CommandHandlerDescriptor {
             command_kind: "tool.activate",
             reducer_owner: "session.reducers",
             planner_owner: "session.intent_planner",

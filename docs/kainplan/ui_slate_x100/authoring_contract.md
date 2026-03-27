@@ -109,6 +109,23 @@ Component state declarations are emitted as signals:
 
 This is a bridge for runtime/backends/tools without reintroducing value-flattened state props.
 
+### 5B. Explicit Signals and Derived Values
+
+In addition to component state, authors may declare explicit signals and derived values as non-rendered declaration nodes:
+
+```kain
+<signal id="selection.active" initial={"none"} />
+<computed id="selection.has_active"
+          label="has active selection"
+          depends_on="selection.active"
+          phase="signals" />
+```
+
+Emission:
+
+- `<signal>` emits `output.systems.signal_values[UiSignalId]`
+- `<computed>` emits `output.systems.computed[]` (with optional `invalidates` node refs)
+
 ### 6. Motion (Tracks and Policy)
 
 Motion is split into:
@@ -178,4 +195,3 @@ Schemas are defined in:
 
 - `widget_registry_schema.md`
 - `paint_motion_schema.md`
-

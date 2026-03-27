@@ -33,6 +33,55 @@ fn plan_for_command(
             ]
         }
     let intents = []
+    if command_kind == "mesh.open_document":
+        intents.push(PlannedIntent {
+            intent_id: "mesh.open_document",
+            reason: "mesh document selection changed and the active mesh contract must refresh",
+            priority: 94,
+            debounce_ms: 0
+        })
+    if command_kind == "mesh.set_edit_target":
+        intents.push(PlannedIntent {
+            intent_id: "mesh.set_edit_target",
+            reason: "mesh edit target changed and the current authoring context must rebind",
+            priority: 93,
+            debounce_ms: 0
+        })
+    if command_kind == "mesh.set_authoring_policy":
+        intents.push(PlannedIntent {
+            intent_id: "mesh.set_authoring_policy",
+            reason: "mesh authoring policy changed between imports, primitives, and topology outputs",
+            priority: 92,
+            debounce_ms: 0
+        })
+    if command_kind == "mesh.create_primitive":
+        intents.push(PlannedIntent {
+            intent_id: "mesh.create_primitive",
+            reason: "primitive authoring requested a new app-owned mesh document",
+            priority: 96,
+            debounce_ms: 0
+        })
+    if command_kind == "mesh.import_asset":
+        intents.push(PlannedIntent {
+            intent_id: "mesh.import_asset",
+            reason: "mesh import requested promotion of an external asset into the app-owned mesh contract",
+            priority: 97,
+            debounce_ms: 0
+        })
+    if command_kind == "mesh.edit_topology":
+        intents.push(PlannedIntent {
+            intent_id: "mesh.edit_topology",
+            reason: "topology edit requested against the active mesh resource",
+            priority: 95,
+            debounce_ms: 0
+        })
+    if command_kind == "mesh.rebuild_topology":
+        intents.push(PlannedIntent {
+            intent_id: "mesh.rebuild_topology",
+            reason: "mesh topology resources need a dedicated rebuild pass",
+            priority: 91,
+            debounce_ms: 0
+        })
     if asset_dirty:
         intents.push(PlannedIntent {
             intent_id: "asset.ingest_package",

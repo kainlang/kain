@@ -85725,7 +85725,8 @@
       "focus_graph": {
         "scopes": [],
         "default_scope": null,
-        "focused": {}
+        "focused": {},
+        "traversal_edges": []
       },
       "event_routes": [],
       "animation_tracks": [
@@ -86144,6 +86145,13 @@
           "preserve_on_reload": true
         }
       ],
+      "motion_policy": {
+        "mode": "full",
+        "performance_tier": "warp",
+        "is_resizing": false,
+        "is_pointer_active": false,
+        "capacitor": "charged"
+      },
       "surfaces": [
         {
           "id": "surface.node.176",
@@ -87066,6 +87074,9 @@
           "shader": null
         }
       ],
+      "overlay_stack": {
+        "entries": []
+      },
       "scheduler": {
         "phases": [
           "Signals",
@@ -87459,6 +87470,10 @@
         "pending": [],
         "executed": [],
         "rejections": []
+      },
+      "command_registry": {
+        "commands_by_source": {},
+        "snapshot": []
       },
       "theme_registry": {
         "active_theme": "kain_fabric_universal_studio",

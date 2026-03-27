@@ -83,6 +83,23 @@ What future work should preserve:
 - keep frontend/UI/chat/actor runtime registries manifest-driven
 - keep helper runtime as the single endpoint owner until Kain-native web runtimes land
 
+## 2026-03-27 - Universal Web Template Expanded UI + Infra System Registries
+
+The universal web template expanded its frontend/UI registries with richer component/layout/token recipes, plus broader infrastructure, observability, security, accessibility, and performance metadata to cover more real-world website system needs.
+
+Update:
+
+- Expanded frontend stack registry with framework compatibility targets (React/Next/Remix/Astro/SvelteKit/Vue/Solid) plus tooling/styling/SSR notes.
+- Added richer UI component, layout, and token recipes for portfolio, docs, commerce, and realtime shells.
+- Expanded observability and infrastructure registries with edge/serverless/data/log/cost entries.
+- Added more security controls and accessibility/performance targets.
+- Synced updates into `M:\Templates\Web` and `M:\Code\Kain\templates\Web`.
+
+What future work should preserve:
+
+- keep expanded system registries manifest-driven rather than hardcoding new boilerplate
+- keep framework targets labeled as compatibility plans until first-class runtime lanes exist
+
 The repo now has a broader flagship Fabric-first DCC suite scaffold under `apps/kain-fabric-dcc-suite`.
 
 Update:

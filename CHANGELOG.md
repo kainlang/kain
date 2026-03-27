@@ -5,6 +5,44 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=d9a0abded0e8a106 -->
+## 2026-03-27 19:10:07 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `156b4d87`
+- Changed files: 6
+- [.M] `crates/kain-c-ffi/Cargo.toml`
+- [.M] `crates/kain-host/Cargo.toml`
+- [.M] `crates/kain-omni/Cargo.toml`
+- [.M] `crates/kain-omni/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `crates/kain-ui/src/runtime_execution.rs`
+
+<!-- polytools-changelog:fingerprint=51f11d8ee0deb6dd -->
+## 2026-03-27 19:09:29 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `156b4d87`
+- Changed files: 5
+- [.M] `crates/kain-host/Cargo.toml`
+- [.M] `crates/kain-omni/Cargo.toml`
+- [.M] `crates/kain-omni/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `crates/kain-ui/src/runtime_execution.rs`
+
+<!-- polytools-changelog:fingerprint=098b522bc0b335ec -->
+## 2026-03-27 19:04:55 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `156b4d87`
+- Changed files: 2
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `crates/kain-ui/src/runtime_execution.rs`
+
+<!-- polytools-changelog:fingerprint=38017156cc131342 -->
+## 2026-03-27 19:00:09 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `156b4d87`
+- Changed files: 1
+- [.M] `crates/kain-ui/src/lib.rs`
+
 <!-- polytools-changelog:fingerprint=bb7b459fa8a3dfd5 -->
 ## 2026-03-27 18:57:13 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

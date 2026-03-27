@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 kain-core = { path = "../kain-core" }
-kain-import = { path = "../kain-import" }
+kain-import = { path = "../kain-import", default-features = false, features = ["c"] }
 kain-interop = { path = "../kain-interop" }
 once_cell = { workspace = true }
 regex = { workspace = true }

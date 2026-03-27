@@ -55,6 +55,139 @@ fn reduce_command(command_kind: String, payload_summary: String, current_tool: S
             queued_intents: ["asset.ingest_package", "render.preview", "publish.package", "tensor.infer_step"],
             session_needs_save: true
         }
+    if command_kind == "mesh.open_document":
+        return ReducerOutcome {
+            next_workspace_mode: "scene_assembly",
+            next_active_tool: "select",
+            status_banner: "mesh document opened",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: false,
+            publish_dirty: false,
+            tensor_dirty: false,
+            queued_intents: ["mesh.open_document", "render.preview"],
+            session_needs_save: true
+        }
+    if command_kind == "mesh.set_edit_target":
+        return ReducerOutcome {
+            next_workspace_mode: "scene_assembly",
+            next_active_tool: current_tool,
+            status_banner: "mesh edit target updated",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: false,
+            publish_dirty: false,
+            tensor_dirty: false,
+            queued_intents: ["mesh.set_edit_target", "render.preview"],
+            session_needs_save: true
+        }
+    if command_kind == "mesh.set_authoring_policy":
+        return ReducerOutcome {
+            next_workspace_mode: "scene_assembly",
+            next_active_tool: current_tool,
+            status_banner: "mesh authoring policy updated",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: true,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: false,
+            publish_dirty: false,
+            tensor_dirty: false,
+            queued_intents: ["mesh.set_authoring_policy", "mesh.rebuild_topology", "render.preview"],
+            session_needs_save: true
+        }
+    if command_kind == "mesh.create_primitive":
+        return ReducerOutcome {
+            next_workspace_mode: "scene_assembly",
+            next_active_tool: "select",
+            status_banner: "primitive mesh created",
+            asset_dirty: true,
+            sculpt_dirty: false,
+            topology_dirty: true,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: false,
+            publish_dirty: true,
+            tensor_dirty: false,
+            queued_intents: ["mesh.create_primitive", "mesh.rebuild_topology", "render.preview", "publish.package"],
+            session_needs_save: true
+        }
+    if command_kind == "mesh.import_asset":
+        return ReducerOutcome {
+            next_workspace_mode: "scene_assembly",
+            next_active_tool: "select",
+            status_banner: "mesh asset imported",
+            asset_dirty: true,
+            sculpt_dirty: false,
+            topology_dirty: true,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: false,
+            publish_dirty: true,
+            tensor_dirty: true,
+            queued_intents: ["mesh.import_asset", "mesh.rebuild_topology", "render.preview", "publish.package", "tensor.infer_step"],
+            session_needs_save: true
+        }
+    if command_kind == "mesh.edit_topology":
+        return ReducerOutcome {
+            next_workspace_mode: "sculpt_model",
+            next_active_tool: current_tool,
+            status_banner: "mesh topology edit queued",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: true,
+            material_dirty: false,
+            rig_dirty: true,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: false,
+            publish_dirty: true,
+            tensor_dirty: false,
+            queued_intents: ["mesh.edit_topology", "mesh.rebuild_topology", "rig.sync_controls", "render.preview", "publish.package"],
+            session_needs_save: true
+        }
+    if command_kind == "mesh.rebuild_topology":
+        return ReducerOutcome {
+            next_workspace_mode: "sculpt_model",
+            next_active_tool: current_tool,
+            status_banner: "mesh topology rebuild requested",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: true,
+            material_dirty: false,
+            rig_dirty: true,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: false,
+            publish_dirty: true,
+            tensor_dirty: false,
+            queued_intents: ["mesh.rebuild_topology", "rig.sync_controls", "render.preview", "publish.package"],
+            session_needs_save: true
+        }
     if command_kind == "tool.activate":
         return ReducerOutcome {
             next_workspace_mode: current_mode,

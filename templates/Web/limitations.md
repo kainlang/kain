@@ -158,13 +158,35 @@ Requested upstream capability:
 
 - Kain-owned adapters for email/SMS/push, scheduling calendars, ticketing systems, and privacy request workflows so these systems can move beyond helper-owned metadata
 
-### 14. Messaging, scheduling, support ticketing, and privacy request providers are helper-owned
+### 14. Voice + multimodal chat lanes are still browser/Node-only
 
 Current template approach:
 
-- messaging, scheduling, ticket queues, and privacy request registries are manifest-driven
-- the runtime exposes JSON endpoints, but no first-class provider adapters exist inside Kain
+- voice stack and moderation registries live in manifest data
+- any actual voice capture or streaming still relies on browser APIs + helper code
 
 Requested upstream capability:
 
-- Kain-owned adapters for email/SMS/push, scheduling calendars, ticketing systems, and privacy request workflows so these systems can move beyond helper-owned metadata
+- first-class Kain-side voice/multimodal contracts and streaming adapters so chat-first sites can stay Kain-owned end to end
+
+### 15. 3D web runtime execution is still helper-owned
+
+Current template approach:
+
+- 3D pipeline and render-stack metadata are manifest-only
+- WebGL/Three.js islands and bundling live in the Node helper runtime
+
+Requested upstream capability:
+
+- a Kain-owned web 3D runtime lane that can consume scene contracts, render stacks, and device profiles without helper-side logic
+
+### 16. React/Next/Astro framework parity is manifest-only
+
+Current template approach:
+
+- frontend stack registries describe React/Next/Astro/SvelteKit/Vue targets
+- the actual runtime is the bundled Preact + island lane in the Node helper
+
+Requested upstream capability:
+
+- first-class Kain web targets or adapter lanes for major web frameworks so the registry entries can become runnable without retooling the helper runtime

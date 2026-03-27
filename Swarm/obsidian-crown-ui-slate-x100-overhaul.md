@@ -6,7 +6,7 @@
 - Swarm Status: active
 - Swarm Owner: Sovereign
 - Created At: 2026-03-26 21:24 EDT
-- Updated At: 2026-03-27 18:39 EDT
+- Updated At: 2026-03-27 18:58 EDT
 - Completion Rule: When every lane is done or cancelled, Sovereign moves this file into ./Swarm/completed/.
 
 ## Objectives
@@ -108,7 +108,7 @@
 ## Lane: Vector
 
 - Role: Authoring contracts, parser/lowering, schema-driven UI, and compiler-emitted bundle truth.
-- Status: in_progress
+- Status: done
 - Claimed By: Vector
 - Claimed At: 2026-03-27 18:39 EDT
 - Depends On: Atlas
@@ -118,15 +118,16 @@
   - `docs/kainplan/ui_slate_x100/paint_motion_schema.md`
   - compiler/runtime bundle updates in `crates/kain-core`
 - Task List:
-  - [ ] Extend `.kn` UI authoring so state, derived values, actions, event routes, command dispatch, focus scopes, selection scopes, and transactions are cleanly expressible instead of host-invented.
-  - [ ] Define a compiler-owned widget registry and schema-driven UI contract for inspectors, property grids, forms, menus, tables, trees, and command surfaces.
-  - [ ] Add compiler-owned paint and motion semantics for backgrounds, gradients, images, layered surfaces, masks, blur, transitions, and authored animation intent.
-  - [ ] Ensure all new semantics flow through `UiBuildOutput`, runtime bundles, and realtime app bundles without backend-specific gaps.
-  - [ ] Tighten authoring ergonomics so rich UI does not require verbose host-aware attribute soup for common desktop/editor patterns.
-  - [ ] Preserve the distinction between semantic truth and backend lowering, especially for future Slate and web adapters.
+  - [x] Extend `.kn` UI authoring so state, derived values, actions, event routes, command dispatch, focus scopes, selection scopes, and transactions are cleanly expressible instead of host-invented.
+  - [x] Define a compiler-owned widget registry and schema-driven UI contract for inspectors, property grids, forms, menus, tables, trees, and command surfaces.
+  - [x] Add compiler-owned paint and motion semantics for backgrounds, gradients, images, layered surfaces, masks, blur, transitions, and authored animation intent.
+  - [x] Ensure all new semantics flow through `UiBuildOutput`, runtime bundles, and realtime app bundles without backend-specific gaps.
+  - [x] Tighten authoring ergonomics so rich UI does not require verbose host-aware attribute soup for common desktop/editor patterns.
+  - [x] Preserve the distinction between semantic truth and backend lowering, especially for future Slate and web adapters.
 - Notes:
   - Vector owns author-facing expressiveness and emitted truth. It should delete parser pain, not hide it behind host sugar.
   - 2026-03-27 18:35 EDT: Atlas is done. Vector is unblocked and should optimize for explicit, LLM-legible authoring and bundle contracts instead of terse prop soup.
+  - 2026-03-27 18:58 EDT: Landed `authoring_contract.md`, `widget_registry_schema.md`, and `paint_motion_schema.md` plus compiler-side emission upgrades (`kain-core/src/ui.rs`, `kain-core/src/realtime_app_bundle.rs`) with an explicit spatial-verifiability surface (`RealtimeAppBundle.ui_contracts.structure_index` + optional `workspace_layout`) and named contract JSON hooks (`ui_*_registry` / `ui_motion_policy` / `ui_workspace_schema`).
 
 ## Lane: Delta
 

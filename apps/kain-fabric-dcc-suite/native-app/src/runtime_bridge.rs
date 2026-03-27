@@ -121,6 +121,17 @@ fn apply_command_request(
         "runtime.reload" => {}
         "project.bootstrap" => apply_project_bootstrap(session_document, runtime_snapshot),
         "workspace.switch_mode" => apply_workspace_switch(session_document, runtime_snapshot),
+        "mesh.open_document" => apply_mesh_open_document(session_document, processed_command_count),
+        "mesh.set_edit_target" => apply_mesh_set_edit_target(session_document, processed_command_count),
+        "mesh.set_authoring_policy" => apply_mesh_set_authoring_policy(session_document),
+        "mesh.create_primitive" => apply_mesh_create_primitive(
+            session_document,
+            runtime_snapshot,
+            processed_command_count,
+        ),
+        "mesh.import_asset" => apply_mesh_import_asset(session_document, processed_command_count),
+        "mesh.edit_topology" => apply_mesh_edit_topology(session_document),
+        "mesh.rebuild_topology" => apply_mesh_rebuild_topology(session_document),
         "tool.activate" => apply_tool_cycle(session_document, runtime_snapshot),
         "gizmo.set_mode" => apply_gizmo_mode_cycle(session_document),
         "gizmo.set_space" => apply_gizmo_space_toggle(session_document),
@@ -258,6 +269,205 @@ fn apply_asset_ingest(session_document: &mut Value, processed_command_count: usi
     ] {
         set_bool_at_path(session_document, &["dirty", dirty_key], true);
     }
+}
+
+fn apply_mesh_open_document(session_document: &mut Value, processed_command_count: usize) {
+    set_string_at_path(
+        session_document,
+        &["mesh", "active_document_id"],
+        format!("mesh/document/bridge_open_{processed_command_count:04}"),
+    );
+    set_string_at_path(
+        session_document,
+        &["mesh", "active_edit_target_id"],
+        format!("entity/bridge_mesh_target_{processed_command_count:04}"),
+    );
+    set_string_at_path(
+        session_document,
+        &["mesh", "topology_edit_mode"],
+        "object",
+    );
+    set_string_array_at_path(
+        session_document,
+        &["selection", "entity_ids"],
+        &[format!("entity/bridge_mesh_target_{processed_command_count:04}")],
+    );
+    for dirty_key in ["render_dirty", "session_needs_save"] {
+        set_bool_at_path(session_document, &["dirty", dirty_key], true);
+    }
+}
+
+fn apply_mesh_set_edit_target(session_document: &mut Value, processed_command_count: usize) {
+    let edit_target_id = format!("entity/bridge_mesh_edit_target_{processed_command_count:04}");
+    set_string_at_path(
+        session_document,
+        &["mesh", "active_edit_target_id"],
+        edit_target_id.clone(),
+    );
+    set_string_array_at_path(session_document, &["selection", "entity_ids"], &[edit_target_id]);
+    for dirty_key in ["render_dirty", "session_needs_save"] {
+        set_bool_at_path(session_document, &["dirty", dirty_key], true);
+    }
+}
+
+fn apply_mesh_set_authoring_policy(session_document: &mut Value) {
+    let policies = vec![
+        "mesh_authoring_policy/startup_hybrid".to_string(),
+        "mesh_authoring_policy/imported_asset_preferred".to_string(),
+        "mesh_authoring_policy/authored_primitives_first".to_string(),
+        "mesh_authoring_policy/topology_edit_session".to_string(),
+    ];
+    let current_policy =
+        get_string_at_path(session_document, &["mesh", "mesh_authoring_policy_id"]).unwrap_or_default();
+    if let Some(next_policy) = cycle_string_value(&policies, &current_policy) {
+        set_string_at_path(
+            session_document,
+            &["mesh", "mesh_authoring_policy_id"],
+            next_policy,
+        );
+    }
+    for dirty_key in ["topology_dirty", "render_dirty", "session_needs_save"] {
+        set_bool_at_path(session_document, &["dirty", dirty_key], true);
+    }
+}
+
+fn apply_mesh_create_primitive(
+    session_document: &mut Value,
+    runtime_snapshot: &Value,
+    processed_command_count: usize,
+) {
+    if tool_exists(runtime_snapshot, "select") {
+        apply_tool_defaults_from_snapshot(session_document, runtime_snapshot, "select");
+    }
+    let primitive_templates = vec![
+        "primitive/cube".to_string(),
+        "primitive/cylinder".to_string(),
+        "primitive/uv_sphere".to_string(),
+        "primitive/cone".to_string(),
+    ];
+    let current_template = get_string_at_path(
+        session_document,
+        &["mesh", "active_primitive_template_id"],
+    )
+    .unwrap_or_default();
+    if let Some(next_template) = cycle_string_value(&primitive_templates, &current_template) {
+        set_string_at_path(
+            session_document,
+            &["mesh", "active_primitive_template_id"],
+            next_template,
+        );
+    }
+    let mesh_document_id = format!("mesh/document/primitive_{processed_command_count:04}");
+    let entity_id = format!("entity/primitive_mesh_{processed_command_count:04}");
+    set_string_at_path(
+        session_document,
+        &["mesh", "active_document_id"],
+        mesh_document_id,
+    );
+    set_string_at_path(
+        session_document,
+        &["mesh", "active_edit_target_id"],
+        entity_id.clone(),
+    );
+    set_string_at_path(
+        session_document,
+        &["mesh", "mesh_authoring_policy_id"],
+        "mesh_authoring_policy/authored_primitives_first",
+    );
+    set_string_at_path(
+        session_document,
+        &["mesh", "topology_edit_mode"],
+        "object",
+    );
+    set_string_array_at_path(session_document, &["selection", "entity_ids"], &[entity_id]);
+    for dirty_key in [
+        "asset_dirty",
+        "topology_dirty",
+        "render_dirty",
+        "publish_dirty",
+        "session_needs_save",
+    ] {
+        set_bool_at_path(session_document, &["dirty", dirty_key], true);
+    }
+}
+
+fn apply_mesh_import_asset(session_document: &mut Value, processed_command_count: usize) {
+    let mesh_document_id = format!("mesh/document/import_{processed_command_count:04}");
+    let entity_id = format!("entity/imported_mesh_{processed_command_count:04}");
+    set_string_at_path(
+        session_document,
+        &["mesh", "active_document_id"],
+        mesh_document_id,
+    );
+    set_string_at_path(
+        session_document,
+        &["mesh", "active_edit_target_id"],
+        entity_id.clone(),
+    );
+    set_string_at_path(
+        session_document,
+        &["mesh", "mesh_authoring_policy_id"],
+        "mesh_authoring_policy/imported_asset_preferred",
+    );
+    set_string_array_at_path(session_document, &["selection", "entity_ids"], &[entity_id]);
+    set_string_at_path(
+        session_document,
+        &["ingest", "last_package_uri"],
+        format!("asset://bridge/imported_mesh_{processed_command_count:04}"),
+    );
+    set_string_at_path(session_document, &["ingest", "last_package_kind"], "gltf");
+    increment_i64_at_path(session_document, &["ingest", "staged_package_count"], 1);
+    for dirty_key in [
+        "asset_dirty",
+        "topology_dirty",
+        "render_dirty",
+        "publish_dirty",
+        "tensor_dirty",
+        "session_needs_save",
+    ] {
+        set_bool_at_path(session_document, &["dirty", dirty_key], true);
+    }
+}
+
+fn apply_mesh_edit_topology(session_document: &mut Value) {
+    let topology_modes = vec![
+        "object".to_string(),
+        "vertex".to_string(),
+        "edge".to_string(),
+        "face".to_string(),
+    ];
+    let current_mode =
+        get_string_at_path(session_document, &["mesh", "topology_edit_mode"]).unwrap_or_default();
+    if let Some(next_mode) = cycle_string_value(&topology_modes, &current_mode) {
+        set_string_at_path(session_document, &["mesh", "topology_edit_mode"], next_mode);
+    }
+    set_string_at_path(
+        session_document,
+        &["mesh", "mesh_authoring_policy_id"],
+        "mesh_authoring_policy/topology_edit_session",
+    );
+    for dirty_key in [
+        "topology_dirty",
+        "rig_dirty",
+        "render_dirty",
+        "publish_dirty",
+        "session_needs_save",
+    ] {
+        set_bool_at_path(session_document, &["dirty", dirty_key], true);
+    }
+}
+
+fn apply_mesh_rebuild_topology(session_document: &mut Value) {
+    set_string_at_path(
+        session_document,
+        &["mesh", "mesh_authoring_policy_id"],
+        "mesh_authoring_policy/topology_edit_session",
+    );
+    set_bool_at_path(session_document, &["dirty", "topology_dirty"], false);
+    set_bool_at_path(session_document, &["dirty", "rig_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "render_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "publish_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "session_needs_save"], true);
 }
 
 fn apply_selection_change(session_document: &mut Value, processed_command_count: usize) {
@@ -623,8 +833,11 @@ fn ensure_mode_for_command(
 }
 
 fn preferred_mode_for_command(command_id: &str) -> Option<&'static str> {
-    if command_id.starts_with("project.")
+    if command_id == "mesh.edit_topology" || command_id == "mesh.rebuild_topology" {
+        Some("sculpt_model")
+    } else if command_id.starts_with("project.")
         || command_id.starts_with("asset.")
+        || command_id.starts_with("mesh.")
         || command_id.starts_with("selection.")
     {
         Some("scene_assembly")

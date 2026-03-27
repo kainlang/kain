@@ -190,6 +190,10 @@ New system registries in this pass:
 - UI runtime registry (schema, modules, islands, tokens, layouts)
 - chat runtime registry (streaming, personas, playbooks, tools, memory, safety)
 - actor runtime registry (routes, mesh, supervision, queues, metrics, tools)
+- frontend framework targets (React/Next/Remix/Astro/SvelteKit/Vue/Solid compatibility planning)
+- expanded UI component + layout recipes (portfolio, docs, commerce, realtime)
+- expanded infrastructure + observability stack metadata (edge, serverless, data, logs, cost)
+- expanded security controls and performance/accessibility targets
 - actor policies and actor metrics
 - scene pipeline, render stack, interaction modes, and device profiles
 - model stack, voice stack, and moderation policies
@@ -197,6 +201,12 @@ New system registries in this pass:
 - data governance and backup plan registries
 - support tickets, feedback loops, and survey programs
 - messaging, payments, scheduling, and privacy request registries
+- product catalog and inventory stack registries
+- fulfillment, shipping, and returns policy registries
+- loyalty and referral program registries
+- paid acquisition and personalization stack registries
+- customer portal registry
+- data platform registry
 - release notes and changelog entries
 - feature flag registry
 - incident response playbooks

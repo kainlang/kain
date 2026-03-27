@@ -44,6 +44,7 @@ The scaffold is split into seven durable ownership layers:
 ## Mesh Contract
 
 - Meshes are now being treated as app-owned resources addressed by stable mesh resource ids. Sculpt and topology steps should read the active edit target from the session/resource contract, mutate or replace that resource, and mark the resulting resource dirty for downstream consumers.
+- The first mesh command surface is now wired end-to-end through `session/command_handlers.kn`, `session/reducers.kn`, `session/intent_planner.kn`, and the file-backed `native-app/src/runtime_bridge.rs`. Commands for opening mesh documents, rebinding edit targets, switching authoring policy, creating primitives, importing assets, and driving topology edits now all mutate the same app-owned session mesh state.
 - The current sculpt and topology seams are deliberately narrower than a full mesh asset system. They can operate on the active edit target, but they do not yet own persistent serialization, provenance tracking, undo/redo topology history, or import-time asset normalization.
 - Shared viewport startup geometry is still only a bootstrap realization. It is acceptable for `crates/kain-3D` to materialize a temporary cube or support mesh for the opening viewport, but that runtime geometry should not be mistaken for the durable mesh ownership boundary.
 - The next durable contract should explicitly cover imported assets, authored primitives, and topology edits as first-class mesh resources so the viewport, sculpt lane, and topology lane all speak the same id-based language.

@@ -2,6 +2,24 @@
 
 This file preserves the durable design intent for `apps/kain-fabric-dcc-suite`.
 
+## 2026-03-27 (Latest) - Mesh Command Contract Wired Through Session Core And Live Bridge
+
+- Finished the first app-owned mesh command contract by wiring the new mesh verbs through `session/command_handlers.kn`, `session/reducers.kn`, `session/intent_planner.kn`, and `native-app/src/runtime_bridge.rs`.
+- The session layer now recognizes `mesh.open_document`, `mesh.set_edit_target`, `mesh.set_authoring_policy`, `mesh.create_primitive`, `mesh.import_asset`, `mesh.edit_topology`, and `mesh.rebuild_topology` as first-class commands instead of leaving them as registry-only metadata.
+- The live bridge now mutates the canonical `mesh` session block for those commands, including active mesh document id, active edit target id, authoring policy, primitive template, topology mode, selection sync, and downstream dirty flags. That keeps the native-host loop aligned with the app-owned contract rather than falling back to generic no-op save dirties.
+
+Important design decision:
+
+- The bridge is still heuristic and file-backed, but it now mirrors the mesh session contract explicitly. Mesh verbs should mutate the same `SessionDocument.mesh` structure everywhere instead of inventing separate runtime-only state.
+
+Current risk:
+
+- The contract now routes commands coherently, but the mesh documents are still synthetic ids and not yet backed by durable mesh serialization, import normalization, or topology history storage.
+
+Next recommended step:
+
+- Replace the synthetic bridge/session mesh ids with true persisted mesh documents plus projection steps for imported payloads, authored primitive definitions, and topology outputs so the command surface can drive real mesh resources instead of contract-only placeholders.
+
 ## 2026-03-27 (Latest) - App-Owned Mesh Resource Contract Framed For Sculpt And Topology
 
 - Tightened the sculpt and topology extension seams so they speak in terms of mesh resource ids and active edit targets instead of implying that the step itself owns mesh lifetime.

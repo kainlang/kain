@@ -529,8 +529,32 @@ pub struct UiComputed {
     pub id: String,
     pub label: String,
     pub depends_on: Vec<UiSignalId>,
+    /// Optional derived-signal output written by this computed entry.
+    #[serde(default)]
+    pub writes_signal: Option<UiSignalId>,
+    /// Optional derived expression evaluated by the runtime when inputs change.
+    ///
+    /// This is intentionally small and backend-neutral; it exists so derived values can
+    /// be compiler-emitted and runtime-executed without host-local invention.
+    #[serde(default)]
+    pub expr: Option<UiDerivedExpr>,
     pub invalidates_nodes: Vec<UiNodeId>,
     pub scheduler_phase: UiSchedulerPhase,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum UiDerivedExpr {
+    Literal(UiValue),
+    Signal(UiSignalId),
+    Not(Box<UiDerivedExpr>),
+    And(Box<UiDerivedExpr>, Box<UiDerivedExpr>),
+    Or(Box<UiDerivedExpr>, Box<UiDerivedExpr>),
+    Eq(Box<UiDerivedExpr>, Box<UiDerivedExpr>),
+    Add(Box<UiDerivedExpr>, Box<UiDerivedExpr>),
+    Sub(Box<UiDerivedExpr>, Box<UiDerivedExpr>),
+    Mul(Box<UiDerivedExpr>, Box<UiDerivedExpr>),
+    Div(Box<UiDerivedExpr>, Box<UiDerivedExpr>),
+    ToString(Box<UiDerivedExpr>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1134,10 +1158,13 @@ pub struct UiRuntimeSystems {
     pub focus_graph: UiFocusGraph,
     pub event_routes: Vec<UiEventRoute>,
     pub animation_tracks: Vec<UiAnimationTrack>,
+    pub motion_policy: UiMotionPolicy,
     pub surfaces: Vec<UiSurface>,
+    pub overlay_stack: UiOverlayStack,
     pub scheduler: UiScheduler,
     pub selection_model: UiSelectionModel,
     pub command_buffer: UiCommandBuffer,
+    pub command_registry: UiCommandRegistry,
     pub theme_registry: UiThemeRegistry,
     pub workspace_layout: UiWorkspaceLayout,
     pub hot_reload: UiHotReloadPlan,
@@ -1156,7 +1183,9 @@ impl UiRuntimeSystems {
             && self.focus_graph.focused.is_empty()
             && self.event_routes.is_empty()
             && self.animation_tracks.is_empty()
+            && self.motion_policy == UiMotionPolicy::default()
             && self.surfaces.is_empty()
+            && self.overlay_stack.entries.is_empty()
             && self.scheduler.pending.is_empty()
             && self.selection_model.scopes.is_empty()
             && self.selection_model.active_scope.is_none()
@@ -1165,6 +1194,8 @@ impl UiRuntimeSystems {
             && self.command_buffer.pending.is_empty()
             && self.command_buffer.executed.is_empty()
             && self.command_buffer.rejections.is_empty()
+            && self.command_registry.snapshot.is_empty()
+            && self.command_registry.commands_by_source.is_empty()
             && self.theme_registry.is_empty()
             && self.workspace_layout.is_empty()
             && self.hot_reload.identity_aliases.is_empty()
@@ -1348,6 +1379,8 @@ pub fn ui_runtime_systems_from_tree(tree: &UiTree) -> UiRuntimeSystems {
                 id: format!("computed.node.{}", node.id.0),
                 label: format!("node-{}-dependencies", node.id.0),
                 depends_on: node.watches.clone(),
+                writes_signal: None,
+                expr: None,
                 invalidates_nodes: vec![node.id],
                 scheduler_phase: UiSchedulerPhase::Signals,
             });
@@ -1442,9 +1475,37 @@ pub fn ui_runtime_systems_from_tree(tree: &UiTree) -> UiRuntimeSystems {
                     to: identity_key,
                 });
         }
+
+        // Compatibility: treat `Overlay` nodes as members of an explicit overlay stack so
+        // z-order and anchoring are inspectable without backend heuristics.
+        if matches!(node.kind, UiWidgetKind::Overlay) {
+            let order = node
+                .props
+                .get("overlay_order")
+                .and_then(|value| match value {
+                    UiValue::Int(v) => Some(*v as i32),
+                    UiValue::Float(v) => Some(*v as i32),
+                    UiValue::String(v) => v.parse::<i32>().ok(),
+                    _ => None,
+                })
+                .unwrap_or_else(|| (node.id.0.min(i32::MAX as u64)) as i32);
+
+            systems.overlay_stack.entries.push(UiOverlayEntry {
+                id: format!("overlay.node.{}", node.id.0),
+                node: node.id,
+                order,
+                anchor: None,
+                modal: false,
+            });
+        }
     }
 
     systems.workspace_layout.active_tabs = resolve_workspace_active_tabs(tree, None);
+    systems.motion_policy.recompute_capacitor();
+    systems
+        .overlay_stack
+        .entries
+        .sort_by(|a, b| (a.order, a.id.clone()).cmp(&(b.order, b.id.clone())));
 
     if !systems.theme_registry.scopes.is_empty() {
         systems.theme_registry.variants.push(UiThemeVariant {
@@ -3181,6 +3242,8 @@ mod tests {
             id: "selection.computed".to_string(),
             label: "selection".to_string(),
             depends_on: vec![UiSignalId(7)],
+            writes_signal: None,
+            expr: None,
             invalidates_nodes: vec![UiNodeId(11), UiNodeId(12)],
             scheduler_phase: UiSchedulerPhase::Signals,
         });

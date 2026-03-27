@@ -18,7 +18,7 @@ kain-interop = { path = "../kain-interop" }
 kain-node = { path = "../kain-node" }
 kain-python = { path = "../kain-python" }
 kain-host-derive = { path = "../kain-host-derive", optional = true }
-kain-omni = { path = "../kain-omni" }
+kain-omni = { path = "../kain-omni", default-features = false }
 kain-gpu-runtime = { path = "../kain-gpu-runtime" }
 kain-reflect = { path = "../kain-reflect" }
 serde = { workspace = true }
