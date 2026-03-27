@@ -472,17 +472,17 @@
     "sessions":  {
                      "total_sessions":  1,
                      "active_provider":  "native_runtime",
-                     "recent_session_id":  "session-1774649727200-167908",
+                     "recent_session_id":  "session-1774649768801-15784",
                      "recent_session_title":  "Kain Fabric DCC Suite | Scene Assembly"
                  },
     "recent_sessions":  [
                             {
-                                "id":  "session-1774649727200-167908",
+                                "id":  "session-1774649768801-15784",
                                 "title":  "Kain Fabric DCC Suite | Scene Assembly",
                                 "provider_id":  "native_runtime",
                                 "status":  "failed",
                                 "workspace_root":  "M:\\Code\\Kain",
-                                "updated_at":  "2026-03-27T22:15:28Z",
+                                "updated_at":  "2026-03-27T22:16:10Z",
                                 "message_count":  1,
                                 "last_message_role":  "system",
                                 "last_message_preview":  "DCC suite bridge ready | fabric=failed | mode=Scene Assembly"
@@ -630,7 +630,7 @@
                                                           "session_needs_save":  false
                                                       },
                                             "jobs":  {
-                                                         "latest_fabric_session_id":  "session-1774649727200-167908",
+                                                         "latest_fabric_session_id":  "session-1774649768801-15784",
                                                          "latest_fabric_status":  "failed",
                                                          "active_intents":  [
 
@@ -1556,7 +1556,7 @@
                                              ],
                             "latest_command":  null,
                             "latest_fabric_run":  {
-                                                      "session_id":  "session-1774649727200-167908",
+                                                      "session_id":  "session-1774649768801-15784",
                                                       "status":  "failed",
                                                       "manifest_path":  "apps/kain-fabric-dcc-suite/KAIN.fabric.toml",
                                                       "steps":  [
@@ -1647,5 +1647,5 @@
                                                     "compositor lane still materializes rebuild plans rather than a first-class compositor graph runtime"
                                                 ]
                         },
-    "updated_at":  "2026-03-27T22:15:28Z"
+    "updated_at":  "2026-03-27T22:16:10Z"
 }

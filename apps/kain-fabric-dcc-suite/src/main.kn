@@ -105,7 +105,9 @@ fn build_sculpt_heightfield_stream(settings: Any) -> Array<Int>:
     let height_min = settings.sculpt_height_min_milli
     let height_max = settings.sculpt_height_max_milli
     let raw_span = height_max - height_min
-    let height_span = if raw_span > 0 { raw_span } else { 1 }
+    let height_span = raw_span
+    if height_span <= 0:
+        height_span = 1
     let index = 0
     while index < sample_count:
         let x = index % resolution

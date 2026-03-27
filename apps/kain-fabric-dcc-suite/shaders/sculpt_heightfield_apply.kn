@@ -51,11 +51,9 @@ shader compute DccSuiteGpuSculptStroke(id: UVec3) -> Vec4:
     let normalized_distance = clamp(distance / radius, 0.0, 1.0)
     let brush_weight = pow(1.0 - normalized_distance, 1.0 + falloff * 3.0)
     let signed_strength = height_span * strength * brush_weight
-    let displaced_height = if invert {
-        source_height - signed_strength
-    } else {
-        source_height + signed_strength
-    }
+    let displaced_height = source_height + signed_strength
+    if invert:
+        displaced_height = source_height - signed_strength
     let clamped_height = clamp(displaced_height, height_min, height_max)
     sculpt_delta[sample_index] = UInt(clamped_height)
     return vec4(clamped_height / height_max, brush_weight, strength, 1.0)

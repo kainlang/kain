@@ -167,7 +167,7 @@ component App():
                 </panel>
                 <panel title="Status" scope="dcc_shell" variant="topbar_status_strip" layout="grid" columns={4} gap={8}>
                     <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2} min_width={120}>
-                        <text role="metric">{""}</text>
+                        <text role="metric">{"FAILED"}</text>
                         <text role="caption">{"latest pipeline session"}</text>
                     </panel>
                     <panel title="Workspaces" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
@@ -305,7 +305,7 @@ component App():
                             <text role="caption">{"focus Scene Graph"}</text>
                         </panel>
                         <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
-                            <text role="metric">{""}</text>
+                            <text role="metric">{"FAILED"}</text>
                             <text role="caption">{"intent routes 4"}</text>
                         </panel>
                         <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
@@ -412,7 +412,7 @@ component App():
                             <text role="caption">{"focus Viewport Stage"}</text>
                         </panel>
                         <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
-                            <text role="metric">{""}</text>
+                            <text role="metric">{"FAILED"}</text>
                             <text role="caption">{"intent routes 4"}</text>
                         </panel>
                         <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
@@ -517,7 +517,7 @@ component App():
                             <text role="caption">{"focus Material Graph"}</text>
                         </panel>
                         <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
-                            <text role="metric">{""}</text>
+                            <text role="metric">{"FAILED"}</text>
                             <text role="caption">{"intent routes 4"}</text>
                         </panel>
                         <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
@@ -625,7 +625,7 @@ component App():
                             <text role="caption">{"focus Rig Graph"}</text>
                         </panel>
                         <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
-                            <text role="metric">{""}</text>
+                            <text role="metric">{"FAILED"}</text>
                             <text role="caption">{"intent routes 3"}</text>
                         </panel>
                         <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
@@ -724,7 +724,7 @@ component App():
                             <text role="caption">{"focus Simulation Board"}</text>
                         </panel>
                         <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
-                            <text role="metric">{""}</text>
+                            <text role="metric">{"FAILED"}</text>
                             <text role="caption">{"intent routes 4"}</text>
                         </panel>
                         <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
@@ -818,7 +818,7 @@ component App():
                             <text role="caption">{"focus Render Lounge"}</text>
                         </panel>
                         <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
-                            <text role="metric">{""}</text>
+                            <text role="metric">{"FAILED"}</text>
                             <text role="caption">{"intent routes 3"}</text>
                         </panel>
                         <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
@@ -920,7 +920,7 @@ component App():
                             <text role="caption">{"focus Publish Console"}</text>
                         </panel>
                         <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
-                            <text role="metric">{""}</text>
+                            <text role="metric">{"FAILED"}</text>
                             <text role="caption">{"intent routes 3"}</text>
                         </panel>
                         <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>

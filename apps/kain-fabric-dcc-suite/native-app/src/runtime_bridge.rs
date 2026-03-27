@@ -238,3 +238,320 @@ fn apply_gizmo_snap_toggle(session_document: &mut Value) {
     set_bool_at_path(session_document, &["gizmo", "snap_enabled"], !current_value);
     set_bool_at_path(session_document, &["dirty", "session_needs_save"], true);
 }
+
+fn apply_asset_ingest(session_document: &mut Value, processed_command_count: usize) {
+    let staged_package_count =
+        increment_i64_at_path(session_document, &["ingest", "staged_package_count"], 1);
+    set_string_at_path(
+        session_document,
+        &["ingest", "last_package_uri"],
+        format!("asset://bridge/session_package_{processed_command_count:04}"),
+    );
+    let package_kind = if staged_package_count % 2 == 0 { "usd" } else { "gltf" };
+    set_string_at_path(session_document, &["ingest", "last_package_kind"], package_kind);
+    for dirty_key in [
+        "asset_dirty",
+        "render_dirty",
+        "compositor_dirty",
+        "publish_dirty",
+        "session_needs_save",
+    ] {
+        set_bool_at_path(session_document, &["dirty", dirty_key], true);
+    }
+}
+
+fn apply_selection_change(session_document: &mut Value, processed_command_count: usize) {
+    set_string_array_at_path(
+        session_document,
+        &["selection", "entity_ids"],
+        &[format!("entity/bridge_selection_{processed_command_count:04}")],
+    );
+    set_string_array_at_path(session_document, &["selection", "subobject_ids"], &[]);
+}
+
+fn apply_sculpt_stroke(session_document: &mut Value, runtime_snapshot: &Value) {
+    if tool_exists(runtime_snapshot, "clay_sculpt") {
+        apply_tool_defaults_from_snapshot(session_document, runtime_snapshot, "clay_sculpt");
+    }
+    increment_i64_at_path(session_document, &["tooling", "brush_radius"], 2);
+    for dirty_key in [
+        "sculpt_dirty",
+        "topology_dirty",
+        "material_dirty",
+        "render_dirty",
+        "session_needs_save",
+    ] {
+        set_bool_at_path(session_document, &["dirty", dirty_key], true);
+    }
+}
+
+fn apply_topology_rebuild(session_document: &mut Value) {
+    set_bool_at_path(session_document, &["dirty", "topology_dirty"], false);
+    set_bool_at_path(session_document, &["dirty", "render_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "session_needs_save"], true);
+}
+
+fn apply_rig_sync(session_document: &mut Value, runtime_snapshot: &Value) {
+    if tool_exists(runtime_snapshot, "control_rig_edit") {
+        apply_tool_defaults_from_snapshot(session_document, runtime_snapshot, "control_rig_edit");
+    }
+    set_bool_at_path(session_document, &["dirty", "rig_dirty"], false);
+    set_bool_at_path(session_document, &["dirty", "animation_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "render_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "session_needs_save"], true);
+}
+
+fn apply_sim_tick(session_document: &mut Value, runtime_snapshot: &Value) {
+    if tool_exists(runtime_snapshot, "cache_solver") {
+        apply_tool_defaults_from_snapshot(session_document, runtime_snapshot, "cache_solver");
+    }
+    let frame = increment_i64_at_path(session_document, &["animation", "frame"], 1);
+    set_i64_at_path(session_document, &["simulation", "last_tick_frame"], frame);
+    set_bool_at_path(session_document, &["dirty", "simulation_dirty"], false);
+    set_bool_at_path(session_document, &["dirty", "render_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "compositor_dirty"], true);
+}
+
+fn apply_texture_set_authoring(session_document: &mut Value, processed_command_count: usize) {
+    set_string_at_path(
+        session_document,
+        &["materials", "active_texture_set_id"],
+        format!("textureset/bridge_udim_{processed_command_count:04}"),
+    );
+    let resolution = get_i64_at_path(session_document, &["materials", "paint_resolution"])
+        .unwrap_or(2048);
+    let next_resolution = match resolution {
+        2048 => 4096,
+        4096 => 8192,
+        _ => 2048,
+    };
+    set_i64_at_path(
+        session_document,
+        &["materials", "paint_resolution"],
+        next_resolution,
+    );
+    for dirty_key in [
+        "material_dirty",
+        "render_dirty",
+        "compositor_dirty",
+        "publish_dirty",
+        "session_needs_save",
+    ] {
+        set_bool_at_path(session_document, &["dirty", dirty_key], true);
+    }
+}
+
+fn apply_material_paint(session_document: &mut Value, runtime_snapshot: &Value) {
+    if tool_exists(runtime_snapshot, "material_layer_paint") {
+        apply_tool_defaults_from_snapshot(
+            session_document,
+            runtime_snapshot,
+            "material_layer_paint",
+        );
+    }
+    set_bool_at_path(session_document, &["dirty", "material_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "render_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "compositor_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "publish_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "session_needs_save"], true);
+}
+
+fn apply_svg_mask_edit(session_document: &mut Value) {
+    set_bool_at_path(session_document, &["dirty", "material_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "render_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "compositor_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "session_needs_save"], true);
+}
+
+fn apply_material_bake_preview(session_document: &mut Value) {
+    set_bool_at_path(session_document, &["dirty", "material_dirty"], false);
+    set_bool_at_path(session_document, &["dirty", "render_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "compositor_dirty"], true);
+}
+
+fn apply_material_export(session_document: &mut Value) {
+    set_bool_at_path(session_document, &["dirty", "material_dirty"], false);
+    set_bool_at_path(session_document, &["dirty", "publish_dirty"], true);
+}
+
+fn apply_render_preview(session_document: &mut Value, runtime_snapshot: &Value) {
+    if tool_exists(runtime_snapshot, "render_preview") {
+        apply_tool_defaults_from_snapshot(session_document, runtime_snapshot, "render_preview");
+    }
+    set_bool_at_path(session_document, &["dirty", "render_dirty"], false);
+    set_bool_at_path(session_document, &["dirty", "compositor_dirty"], true);
+}
+
+fn apply_compositor_rebuild(session_document: &mut Value, runtime_snapshot: &Value) {
+    if tool_exists(runtime_snapshot, "comp_rebuild") {
+        apply_tool_defaults_from_snapshot(session_document, runtime_snapshot, "comp_rebuild");
+    }
+    set_bool_at_path(session_document, &["dirty", "compositor_dirty"], false);
+    set_bool_at_path(session_document, &["dirty", "publish_dirty"], true);
+    set_string_at_path(
+        session_document,
+        &["compositor", "last_rebuild_reason"],
+        "live-command-bridge",
+    );
+}
+
+fn apply_publish_package(session_document: &mut Value, runtime_snapshot: &Value) {
+    if tool_exists(runtime_snapshot, "publish_bundle") {
+        apply_tool_defaults_from_snapshot(session_document, runtime_snapshot, "publish_bundle");
+    }
+    set_bool_at_path(session_document, &["dirty", "publish_dirty"], false);
+    set_bool_at_path(session_document, &["dirty", "session_needs_save"], false);
+    set_string_at_path(session_document, &["automation", "last_audit_status"], "packaged");
+}
+
+fn apply_tensor_train_step(session_document: &mut Value) {
+    set_bool_at_path(session_document, &["dirty", "tensor_dirty"], false);
+    set_string_at_path(
+        session_document,
+        &["automation", "last_audit_status"],
+        "tensor-train-dispatched",
+    );
+}
+
+fn apply_tensor_infer_step(session_document: &mut Value) {
+    set_bool_at_path(session_document, &["dirty", "tensor_dirty"], false);
+    set_string_at_path(
+        session_document,
+        &["automation", "last_audit_status"],
+        "tensor-infer-dispatched",
+    );
+}
+
+fn sync_runtime_snapshot_from_session(
+    session_document: &mut Value,
+    runtime_snapshot: &mut Value,
+    request: &RuntimeCommandRequest,
+    processed_command_count: usize,
+    paths: &LiveBridgePaths,
+) {
+    let active_mode = get_string_at_path(session_document, &["workspace", "active_mode"])
+        .unwrap_or_default();
+    let active_tool = get_string_at_path(session_document, &["tooling", "active_tool"])
+        .unwrap_or_default();
+    let active_mode_label = lookup_registry_label(
+        runtime_snapshot,
+        &["dcc_suite_state", "workspace_modes"],
+        &active_mode,
+    )
+    .unwrap_or_else(|| active_mode.clone());
+    let active_tool_label = lookup_registry_label(
+        runtime_snapshot,
+        &["dcc_suite_state", "available_tools"],
+        &active_tool,
+    )
+    .unwrap_or_else(|| active_tool.clone());
+    let selection_count = get_string_vec_at_path(session_document, &["selection", "entity_ids"]).len();
+    let gizmo_mode = get_string_at_path(session_document, &["gizmo", "mode"]).unwrap_or_default();
+    let gizmo_space = get_string_at_path(session_document, &["gizmo", "space"]).unwrap_or_default();
+    let gizmo_snap = get_bool_at_path(session_document, &["gizmo", "snap_enabled"]).unwrap_or(false);
+    let animation_frame = get_i64_at_path(session_document, &["animation", "frame"]).unwrap_or(0);
+    let updated_at = now_iso_string();
+    let command_label = if request.label.is_empty() {
+        request.command_id.clone()
+    } else {
+        request.label.clone()
+    };
+
+    let next_intent_queue = build_next_intent_queue(runtime_snapshot, request);
+
+    set_value_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "session"],
+        session_document.clone(),
+    );
+    set_string_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "derived", "active_mode_label"],
+        active_mode_label.clone(),
+    );
+    set_string_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "derived", "active_tool_label"],
+        active_tool_label.clone(),
+    );
+    set_string_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "derived", "selection_summary"],
+        format!("{selection_count} entity selected"),
+    );
+    set_string_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "derived", "gizmo_summary"],
+        format!(
+            "{gizmo_mode} | {gizmo_space} | snap {}",
+            if gizmo_snap { "on" } else { "off" }
+        ),
+    );
+    set_i64_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "derived", "queued_intent_count"],
+        next_intent_queue.len() as i64,
+    );
+    set_string_at_path(runtime_snapshot, &["dcc_suite_state", "bridge", "status"], "live");
+    set_string_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "bridge", "command_queue_path"],
+        paths.command_queue_path.to_string_lossy(),
+    );
+    set_string_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "bridge", "session_document_path"],
+        paths.session_document_path.to_string_lossy(),
+    );
+    set_i64_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "bridge", "processed_command_count"],
+        processed_command_count as i64,
+    );
+    set_value_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "latest_command"],
+        json!({
+            "command_id": request.command_id,
+            "label": command_label,
+            "intent": request.intent,
+            "surface": request.surface,
+            "source": request.source,
+            "requested_at": if request.requested_at.is_empty() { updated_at.clone() } else { request.requested_at.clone() },
+            "processed_at": updated_at.clone(),
+        }),
+    );
+    set_value_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "intent_queue"],
+        Value::Array(next_intent_queue.clone()),
+    );
+    set_string_array_at_path(session_document, &["jobs", "active_intents"], &intent_queue_ids(&next_intent_queue));
+
+    let recent_session_title = format!("Kain Fabric DCC Suite | {active_mode_label}");
+    set_string_at_path(runtime_snapshot, &["sessions", "recent_session_title"], recent_session_title.clone());
+    set_i64_at_path(runtime_snapshot, &["sessions", "total_sessions"], 1);
+    if let Some(recent_session) = ensure_array_object_at_index(runtime_snapshot, &["recent_sessions"], 0) {
+        recent_session.insert("title".to_string(), Value::String(recent_session_title.clone()));
+        recent_session.insert("status".to_string(), Value::String("interactive".to_string()));
+        recent_session.insert("updated_at".to_string(), Value::String(updated_at.clone()));
+        recent_session.insert(
+            "message_count".to_string(),
+            Value::Number((processed_command_count as u64 + 1).into()),
+        );
+        recent_session.insert("last_message_role".to_string(), Value::String("system".to_string()));
+        recent_session.insert(
+            "last_message_preview".to_string(),
+            Value::String(format!(
+                "{command_label} | mode={active_mode_label} | tool={active_tool_label} | frame={animation_frame}"
+            )),
+        );
+    }
+    if let Some(workspace) = ensure_array_object_at_index(runtime_snapshot, &["workspaces"], 0) {
+        workspace.insert(
+            "recent_session_title".to_string(),
+            Value::String(recent_session_title),
+        );
+    }
+    set_string_at_path(runtime_snapshot, &["updated_at"], updated_at);
+}

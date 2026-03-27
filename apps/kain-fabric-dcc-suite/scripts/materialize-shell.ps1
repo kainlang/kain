@@ -211,7 +211,10 @@ function Resolve-LatestFabricStatus {
         [string]$Snapshot.derived.latest_fabric_status,
         [string]$Snapshot.jobs.latest_fabric_status,
         [string]$Snapshot.session.derived.latest_fabric_status,
-        [string]$Snapshot.session.jobs.latest_fabric_status
+        [string]$Snapshot.session.jobs.latest_fabric_status,
+        [string]$Snapshot.dcc_suite_state.derived.latest_fabric_status,
+        [string]$Snapshot.dcc_suite_state.session.jobs.latest_fabric_status,
+        [string]$Snapshot.recent_sessions[0].status
     )
 
     foreach ($candidateValue in $candidateValues) {
