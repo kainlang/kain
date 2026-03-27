@@ -6,7 +6,7 @@
 - Swarm Status: active
 - Swarm Owner: Sovereign
 - Created At: 2026-03-26 21:24 EDT
-- Updated At: 2026-03-26 21:24 EDT
+- Updated At: 2026-03-27 01:26 EDT
 - Completion Rule: When every lane is done or cancelled, Sovereign moves this file into ./Swarm/completed/.
 
 ## Objectives
@@ -47,23 +47,25 @@
 - Deliverables:
   - Finalized swarm plan and dependency map
   - Cross-lane decision log inside this file
+  - `docs/kainplan/ui_slate_x100/00_SOVEREIGN_KICKOFF.md`
   - Merge order and cutover strategy for the UI overhaul
   - Final completion review and archive move into `./Swarm/completed/`
 - Task List:
-  - [ ] Convert the current pain points into a hard acceptance bar for “Slate x100” rather than allowing vague success criteria.
-  - [ ] Keep Atlas, Forge, Vector, and Delta ownership non-overlapping as the plan evolves.
-  - [ ] Decide the phase boundaries between semantic-model work, authoring-syntax work, native-host reset, and smoke refresh.
+  - [x] Convert the current pain points into a hard acceptance bar for “Slate x100” rather than allowing vague success criteria.
+  - [x] Keep Atlas, Forge, Vector, and Delta ownership non-overlapping at kickoff and document the seam in the Sovereign kickoff material.
+  - [x] Decide the phase boundaries between semantic-model work, authoring-syntax work, native-host reset, and smoke refresh.
   - [ ] Revisit this file after each major lane lands and tighten priorities, blockers, and merge order.
   - [ ] Own the final go/no-go decision for removing legacy host chrome defaults and retiring weak demos.
 - Notes:
   - Sovereign is the only lane allowed to redefine scope or accept architectural tradeoffs that affect multiple lanes.
+  - Kickoff source of truth: `docs/kainplan/ui_slate_x100/00_SOVEREIGN_KICKOFF.md`
 
 ## Lane: Atlas
 
 - Role: Architecture mapping, subsystem boundaries, migration design, and backend split strategy.
-- Status: ready
-- Claimed By: unclaimed
-- Claimed At: unclaimed
+- Status: in_progress
+- Claimed By: Atlas
+- Claimed At: 2026-03-27 01:22 EDT
 - Depends On: Sovereign
 - Deliverables:
   - `docs/kainplan/ui_slate_x100/current_state_map.md`
@@ -82,7 +84,7 @@
 ## Lane: Forge
 
 - Role: Core semantic runtime lane for retained graph behavior, reactivity, scheduler depth, and mutation semantics.
-- Status: ready
+- Status: blocked
 - Claimed By: unclaimed
 - Claimed At: unclaimed
 - Depends On: Atlas
@@ -99,11 +101,12 @@
   - [ ] Keep performance and inspectability first-class: every new runtime subsystem should remain explainable and backend-agnostic.
 - Notes:
   - Forge owns the semantic execution model, not parser syntax and not host chrome.
+  - Blocked until Atlas publishes target subsystem boundaries.
 
 ## Lane: Vector
 
 - Role: Authoring contracts, parser/lowering, schema-driven UI, and compiler-emitted bundle truth.
-- Status: ready
+- Status: blocked
 - Claimed By: unclaimed
 - Claimed At: unclaimed
 - Depends On: Atlas
@@ -121,11 +124,12 @@
   - [ ] Preserve the distinction between semantic truth and backend lowering, especially for future Slate and web adapters.
 - Notes:
   - Vector owns author-facing expressiveness and emitted truth. It should delete parser pain, not hide it behind host sugar.
+  - Blocked until Atlas publishes target subsystem boundaries.
 
 ## Lane: Delta
 
 - Role: Native host reset, widget/chrome realization, backend capability delivery, and proof-of-look integration.
-- Status: ready
+- Status: blocked
 - Claimed By: unclaimed
 - Claimed At: unclaimed
 - Depends On: Atlas, Forge, Vector
@@ -143,32 +147,36 @@
   - [ ] Keep the native host aligned with future backend contracts instead of turning it into a second UI framework with its own semantics.
 - Notes:
   - Delta owns the “stop looking generic and glitchy” mandate. Product UI must visually overpower host scaffolding, not the other way around.
+  - Delta may inventory contamination immediately, but major realization work stays blocked until Atlas, Forge, and Vector are done.
 
 ## Lane: Aegis
 
 - Role: Validation strategy, invariants, regression criteria, performance checks, and acceptance gate design.
-- Status: ready
-- Claimed By: unclaimed
-- Claimed At: unclaimed
-- Depends On: Atlas
+- Status: done
+- Claimed By: Aegis
+- Claimed At: 2026-03-27 01:22 EDT
+- Depends On: Sovereign
 - Deliverables:
   - `docs/kainplan/ui_slate_x100/acceptance_matrix.md`
   - `docs/kainplan/ui_slate_x100/backend_capability_matrix.md`
   - `docs/kainplan/ui_slate_x100/regression_plan.md`
   - smoke and validation criteria for native, bundle, and authoring lanes
 - Task List:
-  - [ ] Define objective acceptance criteria for “Slate x100” in repo terms: widget depth, interaction depth, styling freedom, backend parity, debug separation, and authored-shell distinctiveness.
-  - [ ] Map invariants that must hold across compiler output, runtime graph, patch streams, backend realization, and packaged app behavior.
-  - [ ] Design validation for expressive UI features that are easy to fake badly: tabs, docking, menus, property grids, tables, command surfaces, animation, paint layers, and viewport overlays.
-  - [ ] Establish performance and responsiveness guardrails so richer semantics do not regress interactive tool shells into sluggish host behavior.
-  - [ ] Define how to validate backend fallback behavior explicitly rather than letting unsupported semantics disappear silently.
+  - [x] Define objective acceptance criteria for “Slate x100” in repo terms: widget depth, interaction depth, styling freedom, backend parity, debug separation, and authored-shell distinctiveness.
+  - [x] Map invariants that must hold across compiler output, runtime graph, patch streams, backend realization, and packaged app behavior.
+  - [x] Design validation for expressive UI features that are easy to fake badly: tabs, docking, menus, property grids, tables, command surfaces, animation, paint layers, and viewport overlays.
+  - [x] Establish performance and responsiveness guardrails so richer semantics do not regress interactive tool shells into sluggish host behavior.
+  - [x] Define how to validate backend fallback behavior explicitly rather than letting unsupported semantics disappear silently.
 - Notes:
   - Aegis is the lane that prevents “looks cooler in one smoke” from masquerading as a platform overhaul.
+  - Aegis can begin once the Sovereign kickoff exists; Atlas output will refine, not unlock, the acceptance draft.
+  - 2026-03-27 01:22 EDT: Claim started. First pass covers the acceptance gate, backend capability matrix, and regression plan with platform-level rejection criteria.
+  - 2026-03-27 01:26 EDT: Published `acceptance_matrix.md`, `backend_capability_matrix.md`, and `regression_plan.md`. The gate now explicitly rejects screenshot-only wins, host-owned semantics, silent fallback, and default debug contamination.
 
 ## Lane: Scribe
 
 - Role: Durable docs, architecture narrative, memory capture, migration guidance, and author/operator handoff.
-- Status: ready
+- Status: blocked
 - Claimed By: unclaimed
 - Claimed At: unclaimed
 - Depends On: Atlas, Forge, Vector, Delta
@@ -186,11 +194,12 @@
   - [ ] Keep migration notes concrete enough that workers can retrofit existing smoketests and apps deliberately instead of cargo-culting old patterns.
 - Notes:
   - Scribe should leave behind a system another frontier agent can extend correctly in one read.
+  - Blocked until the architecture and contract shape is stable enough to document without churn.
 
 ## Lane: Sweep
 
 - Role: Cleanup, codemods, dead-path retirement, smoke retrofit, consistency pass, and edge-case closure.
-- Status: ready
+- Status: blocked
 - Claimed By: unclaimed
 - Claimed At: unclaimed
 - Depends On: Forge, Vector, Delta, Aegis
@@ -207,6 +216,7 @@
   - [ ] Produce a finish-pass audit of leftover hardcoded chrome, duplicated visual logic, and dead experimental branches that should not survive the overhaul.
 - Notes:
   - Sweep is the “make the repo stop lying about the UI system” lane.
+  - Blocked until the new semantics, host posture, and acceptance gates are real enough to retrofit against.
 
 ## Cross-Lane Coordination Notes
 
@@ -216,3 +226,9 @@
 - Aegis defines the acceptance gate early so visual polish does not outrun semantic capability.
 - Scribe updates only after the architecture and contracts are real enough to be stable.
 - Sweep lands late and should delete misleading artifacts aggressively once the new path is proven.
+
+## Sovereign Decision Log
+
+- 2026-03-27 00:09 EDT: The active acceptance bar now requires authored product mode by default, explicit debug/devtools separation, deeper compiler-owned interaction semantics, richer paint/motion contracts, and three clearly distinct showcase-grade native apps.
+- 2026-03-27 00:09 EDT: Phase order is now fixed as Architecture -> Semantic Runtime + Authoring -> Native Host Reset + Visual Proof -> Acceptance Gate + Retrofit -> Durable Docs.
+- 2026-03-27 00:09 EDT: Delta may inventory and remove host contamination immediately, but substantial widget/chrome realization must follow Forge/Vector contract alignment rather than inventing backend-local semantics.
