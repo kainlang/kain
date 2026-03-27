@@ -5488,7 +5488,9 @@ fn render_node(
         return;
     };
 
-    ui.scope(|ui| {
+    let node_identity = node_layout_identity(node);
+    ui.push_id(node_identity, |ui| {
+        ui.scope(|ui| {
         let presentation = resolve_node_presentation(&app.output, node);
         let product_shell = is_product_desktop_theme(app_theme, app.app_runtime_snapshot.as_ref());
         if presentation.translate_y > f32::EPSILON {
@@ -5726,6 +5728,7 @@ fn render_node(
                 render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
             }
         }
+        });
     });
 }
 
@@ -6384,7 +6387,10 @@ fn render_children(
         } else {
             egui::ScrollArea::vertical()
         };
-        scroll_area.auto_shrink([false, false]).show(ui, |ui| {
+        scroll_area
+            .id_salt(node_layout_identity(node))
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
             render_children_content(
                 app,
                 ui,
@@ -6395,7 +6401,7 @@ fn render_children(
                 node,
                 layout_gap,
             );
-        });
+            });
     } else {
         render_children_content(
             app,
@@ -6669,7 +6675,7 @@ fn render_children_content(
                 .and_then(ui_value_as_i64)
                 .unwrap_or(2)
                 .max(1) as usize;
-            egui::Grid::new(format!("kain_ui_native_grid_{}", node.id.0))
+            egui::Grid::new(format!("kain_ui_native_grid_{}", node_layout_identity(node)))
                 .num_columns(columns)
                 .spacing(egui::vec2(layout_gap, layout_gap))
                 .show(ui, |ui| {
