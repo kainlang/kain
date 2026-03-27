@@ -482,7 +482,7 @@
                                 "provider_id":  "native_runtime",
                                 "status":  "failed",
                                 "workspace_root":  "M:\\Code\\Kain",
-                                "updated_at":  "2026-03-27T22:20:56Z",
+                                "updated_at":  "2026-03-27T22:23:17Z",
                                 "message_count":  1,
                                 "last_message_role":  "system",
                                 "last_message_preview":  "DCC suite bridge ready | fabric=failed | mode=Scene Assembly"
@@ -641,8 +641,8 @@
                                                      }
                                         },
                             "derived":  {
-                                            "active_mode_label":  "Scene Assembly",
-                                            "active_tool_label":  "Select",
+                                            "active_mode_label":  "scene_assembly",
+                                            "active_tool_label":  "select",
                                             "selection_summary":  "1 entity selected",
                                             "gizmo_summary":  "translate | world | snap off",
                                             "queued_intent_count":  0,
@@ -1638,7 +1638,9 @@
                                            "status":  "ready",
                                            "command_queue_path":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\state\\command_queue.jsonl",
                                            "session_document_path":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\state\\session_document.json",
-                                           "processed_command_count":  0
+                                           "processed_command_count":  0,
+                                           "last_processed_at":  "2026-03-27T22:23:18Z",
+                                           "last_processed_batch_count":  0
                                        },
                             "extension_seams":  [
                                                     "material lane still projects authoring receipts rather than a true native painter runtime",
@@ -1647,5 +1649,5 @@
                                                     "compositor lane still materializes rebuild plans rather than a first-class compositor graph runtime"
                                                 ]
                         },
-    "updated_at":  "2026-03-27T22:20:56Z"
+    "updated_at":  "2026-03-27T22:23:17Z"
 }

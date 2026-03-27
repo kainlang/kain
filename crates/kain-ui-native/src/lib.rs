@@ -3253,9 +3253,9 @@ impl KainUiNativeApp {
             );
             show_badge(
                 format!("dirty {dirty_count}"),
-                alpha_tint(app_theme.palette.warning, 0.14),
-                app_theme.palette.warning,
-                app_theme.palette.warning,
+                alpha_tint(app_theme.palette.highlight, 0.14),
+                app_theme.palette.highlight,
+                app_theme.palette.highlight,
             );
             show_badge(
                 bridge_summary,

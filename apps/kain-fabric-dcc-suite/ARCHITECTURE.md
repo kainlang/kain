@@ -8,7 +8,7 @@ This file is the durable project overview for `M:/Code/Kain/apps/kain-fabric-dcc
 
 The material lane now includes a painter-style PBR authoring contract with texture sets, layer stacks, SVG masks, smart materials, and packed texture export receipts. The sculpt lane now also includes a native GPU-owned heightfield proof where Kain seeds brush and surface buffers, the GPU step owns deformation, and the C seam emits native-facing signatures and reports rather than pretending to own the sculpt itself.
 
-The scaffold is split into six durable ownership layers:
+The scaffold is split into seven durable ownership layers:
 
 1. App registries
 `config/*.json` defines workspace modes, surfaces, tools, universal gizmo profiles, commands, Fabric pipeline summaries, Fabric intent registry, resource kinds, report kinds, runtime packs, automation jobs, the shader catalog, and the universal UI theme plus workbench manifests.
@@ -25,8 +25,11 @@ The scaffold is split into six durable ownership layers:
 5. Runtime seam modules
 `src/*.kn`, `native/*`, `local_crate/*`, `shaders/*`, and `scripts/*` provide the narrow per-runtime seams behind the Fabric manifests.
 
-6. Materialized outputs
-`generated/main.generated.kn`, `state/runtime_snapshot.json`, and the lane receipt files in `state/*.json` are projected artifacts produced from the registries and the latest Fabric reports.
+6. Native live bridge
+`native-app/src/main.rs` and `native-app/src/runtime_bridge.rs` now provide a file-backed command/session/host bridge. `kain-ui-native` emits command requests into `state/command_queue.jsonl`; the bridge mutates `state/session_document.json`, rewrites `state/runtime_snapshot.json`, and relies on `kain-ui-native` file watchers to hot-reload the shell state.
+
+7. Materialized outputs
+`generated/main.generated.kn`, `state/runtime_snapshot.json`, `state/session_document.json`, `state/command_queue.jsonl`, and the lane receipt files in `state/*.json` are projected artifacts produced from the registries, the latest Fabric reports, and the live bridge loop.
 
 ## Ownership Boundaries
 
@@ -35,7 +38,7 @@ The scaffold is split into six durable ownership layers:
 - The native C helper owns only a narrow sculpt signature and report seam over GPU output.
 - The local Rust crate owns graph, topology, and rig health analysis only.
 - The GPU shader layer owns sculpt heightfield evaluation, material preview bake, export channel packing, render preview lighting, compositor tone mapping, and staged shader-library expansion for viewport and smart-material work.
-- The future native shell must consume generated bundles and snapshots. It must not become the semantic owner of workspace lanes, command routing, or session truth.
+- The native shell may emit command events and host the bridge loop, but it still must not become the semantic owner of workspace lanes, command routing, or session truth. Session truth remains the document projected from app-owned schema plus reducers.
 
 ## Main Files
 
@@ -72,7 +75,11 @@ The scaffold is split into six durable ownership layers:
 - `shaders/compositor_tone_map.kn`: compositor GPU seam used by the rebuild graph.
 - `shaders/material_layer_blend_preview.kn`, `shaders/svg_mask_raster.kn`, `shaders/smart_material_resolve.kn`, `shaders/viewport_lighting_preview.kn`, `shaders/render_aov_pack.kn`, and `shaders/compositor_id_matte.kn`: staged shader library coverage for the suite’s likely next GPU responsibilities.
 - `scripts/materialize-shell.ps1`: data-driven shell materializer.
-- `scripts/materialize-session-state.ps1`: runtime snapshot materializer from config and latest Fabric report.
+- `scripts/materialize-session-state.ps1`: runtime snapshot plus session-document materializer from config and latest Fabric report. It also seeds the bridge command queue.
+- `native-app/src/main.rs`: native launcher that resolves the live bridge sidecars and exports bridge env vars for `kain-ui-native`.
+- `native-app/src/runtime_bridge.rs`: background bridge loop that consumes JSONL commands, mutates the session document, rewrites the runtime snapshot, and mirrors state sidecars when both app and native-app copies exist.
+- `state/session_document.json`: mutable live session document consumed and rewritten by the bridge loop.
+- `state/command_queue.jsonl`: append-only command request sink emitted by the host UI.
 - `state/*.json`: durable lane receipts for sim planning, compositor planning, tensor dispatch, tensor checkpoints, and tensor inference results.
 - `state/material_authoring_report.json`, `state/svg_mask_report.json`, and `state/material_texture_export_report.json`: durable painter-style material receipts consumed by shell inspectors and publish/reporting flow.
 
@@ -81,6 +88,8 @@ The scaffold is split into six durable ownership layers:
 `config/ui_*.json + config/*.json + state/runtime_snapshot.json -> scripts/materialize-shell.ps1 -> generated/main.generated.kn -> kain build native-ui`
 
 `config/*.json + latest Fabric report -> scripts/materialize-session-state.ps1 -> state/runtime_snapshot.json -> native shell`
+
+`kain-ui-native topbar or inspector command button -> KAIN_UI_NATIVE_COMMAND_BRIDGE -> state/command_queue.jsonl -> native-app/src/runtime_bridge.rs -> state/session_document.json + state/runtime_snapshot.json -> kain-ui-native file watcher hot reload`
 
 `config/gizmo_registry.json + viewport surface metadata -> bundle-authored <viewport3d ... gizmo.*> props -> realtime bundle + native viewport policy`
 
@@ -127,6 +136,7 @@ powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/buil
 - Keep universal gizmo defaults, hotkeys, drag triggers, and snap policy in `config/gizmo_registry.json` and viewport-authored props rather than re-hardcoding them inside `kain-ui-native`.
 - Keep session truth in `session/*.kn`; reports and runtime snapshots are derivative artifacts.
 - Keep the C and Rust helpers narrow and replaceable. If a concept becomes true DCC semantics, move it back into Kain or registry data.
+- Keep the bridge file-backed and data-driven until a stronger typed runtime contract lands. Do not hardcode lane truth inside egui widgets or the launcher.
 - Keep tensor, sim, and compositor work explicit about current limits instead of implying runtime completeness that does not exist yet.
 
 ## Common Errors
@@ -142,6 +152,8 @@ powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/buil
 - The lane manifests under `fabric/intents/*.fabric.toml` must set `[workspace].root = "../.."` so scripts, source files, and local crate paths resolve from the app root rather than `fabric/intents/`.
 - For Kain steps launched through lane manifests, do not rely on cwd-relative receipt paths like `state/foo.json`. Use explicit app-rooted paths such as `apps/kain-fabric-dcc-suite/state/foo.json` or the receipts may not materialize where the shell expects them.
 - `generated/main.generated.kn` is materialized output. If config and shell drift, rerun `scripts/materialize-shell.ps1`.
-- `state/runtime_snapshot.json` and the material lane receipts are also materialized output. If reports change, rerun `scripts/materialize-session-state.ps1`.
+- `state/runtime_snapshot.json`, `state/session_document.json`, and `state/command_queue.jsonl` are part of the live bridge contract now. If the host stops reflecting changes, verify that `KAIN_UI_NATIVE_APP_SNAPSHOT` and `KAIN_UI_NATIVE_COMMAND_BRIDGE` point at the same state root the native bridge thread is rewriting.
+- `state/runtime_snapshot.json` must satisfy `crates/kain-ui-native`'s `NativeAppRuntimeSnapshot` schema. If the snapshot shape drifts, the host will silently fail to hot-reload it.
+- `scripts/materialize-session-state.ps1` is now responsible for seeding both app-root and `native-app/state` sidecars. If one copy is missing, the bridge loop will still run, but only the existing sidecar roots will stay synchronized.
 - `config/gizmo_registry.json` is now part of the viewport contract. If gizmo defaults or hotkeys change, rerun `scripts/materialize-shell.ps1` and rebuild the native UI bundle so the realtime viewport sees the new metadata.
 - The tensor manifests intentionally report readiness and plan state even when `torch` is unavailable. That is not a bug in the scaffold; it is the current extension seam.

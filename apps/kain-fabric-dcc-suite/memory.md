@@ -2,6 +2,25 @@
 
 This file preserves the durable design intent for `apps/kain-fabric-dcc-suite`.
 
+## 2026-03-27 (Later) - Live Command Session Host Bridge Landed
+
+- Replaced the old minimal runtime snapshot materializer with a host-compatible snapshot plus live `session_document.json` and `command_queue.jsonl` seed flow in `scripts/materialize-session-state.ps1`.
+- Extended `crates/kain-ui-native` so runtime snapshot commands are now actionable: the desktop topbar and runtime inspector can emit command requests into a JSONL bridge sink, and the topbar now reflects DCC session state such as active mode, tool, gizmo state, frame, dirty-count, and processed-command status.
+- Added `native-app/src/runtime_bridge.rs` and updated `native-app/src/main.rs` so the native launcher now spawns a background bridge loop before booting the host UI. The bridge consumes queued commands, mutates the live session document, rewrites the runtime snapshot, mirrors sidecars when both app and native-app copies exist, and relies on `kain-ui-native` hot-reload watchers to refresh the shell.
+- The first bridge slice is intentionally deterministic and data-driven rather than fully semantic-complete: commands such as `workspace.switch_mode`, `tool.activate`, `gizmo.*`, `sim.tick`, `material.*`, `render.preview`, and `publish.package` now drive visible session transitions and dirty-state changes without pushing lane ownership into the native host.
+
+Important design decision:
+
+- The native app still does not own session truth. The bridge mutates a file-backed session document that mirrors the Kain-owned session schema, and the host UI only emits commands plus reloads projected state.
+
+Current risk:
+
+- The bridge currently applies deterministic command heuristics over JSON documents rather than invoking the true `session/*.kn` reducer/runtime path. It is the right bootstrap layer for a live shell, but the next durability step is to route those same commands through a typed reducer or driver contract so the bridge stops duplicating session-transition logic.
+
+Next recommended step:
+
+- Replace the JSON-heuristic mutations inside `native-app/src/runtime_bridge.rs` with a reducer-backed bridge contract shared with the Kain session layer, then let material/lookdev and viewport commands dispatch into real runtime services behind the same contract.
+
 ## 2026-03-27 (Later) - Native GPU Sculpt Pipeline Replaced The Placeholder Sculpt Seam
 
 - Replaced the old preview-image C stamp seam with a real GPU-owned sculpt proof made of seeded heightfield buffers, seeded brush parameter buffers, and a dedicated `gpu_sculpt_displacement` Fabric compute step.
@@ -214,4 +233,3 @@ Current risk:
 Next recommended step:
 
 - Replace the file-based queue with a true host/session dispatcher that can consume commands continuously, debounce intent scheduling, and hand the queued intents directly to Fabric execution without a full rematerialize cycle.
-
