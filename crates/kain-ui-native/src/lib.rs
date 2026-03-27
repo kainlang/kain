@@ -3120,7 +3120,7 @@ impl KainUiNativeApp {
                 });
 
             for command in &snapshot.commands {
-                let is_latest = latest_command_id.is_some_and(|id| id == command.id);
+                let is_latest = latest_command_id.is_some_and(|id| id == command.id.as_str());
                 let fill = if is_latest {
                     alpha_tint(app_theme.palette.accent, 0.22)
                 } else {

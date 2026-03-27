@@ -5,7 +5,7 @@
                     "schema_version":  1
                 },
     "workspace":  {
-                      "active_mode":  "material_lookdev",
+                      "active_mode":  "scene_assembly",
                       "layout_id":  "kain_fabric_dcc_suite_shell",
                       "available_modes":  [
                                               "scene_assembly",
@@ -51,14 +51,14 @@
     "materials":  {
                       "active_material_id":  "material/hero_surface",
                       "active_graph_id":  "graph/lookdev_primary",
-                      "active_texture_set_id":  "textureset/hero_body_udim1002",
+                      "active_texture_set_id":  "textureset/hero_body_udim1001",
                       "active_layer_stack_id":  "layerstack/hero_surface_primary",
                       "active_svg_document_id":  "svg/masks/hero_surface_primary",
                       "active_bake_preset_id":  "bake/high_precision_curvature",
                       "active_export_preset_id":  "export/metalrough_orm_painter",
                       "preview_profile":  "material_preview_balanced",
                       "channel_profile":  "basecolor_normal_roughness_metallic_ao_height_emissive",
-                      "paint_resolution":  2048
+                      "paint_resolution":  4096
                   },
     "rig":  {
                 "active_rig_id":  "rig/hero_body",
@@ -103,22 +103,21 @@
                   "asset_dirty":  false,
                   "sculpt_dirty":  false,
                   "topology_dirty":  false,
-                  "material_dirty":  true,
+                  "material_dirty":  false,
                   "rig_dirty":  false,
                   "animation_dirty":  false,
                   "simulation_dirty":  false,
                   "render_dirty":  true,
-                  "compositor_dirty":  true,
+                  "compositor_dirty":  false,
                   "publish_dirty":  false,
                   "tensor_dirty":  false,
-                  "session_needs_save":  true
+                  "session_needs_save":  false
               },
     "jobs":  {
                  "latest_fabric_session_id":  "session-1774649768801-15784",
-                 "latest_fabric_status":  "queued",
+                 "latest_fabric_status":  "failed",
                  "active_intents":  [
-                                        "material.bake_preview",
-                                        "render.preview"
+
                                     ],
                  "active_jobs":  [
 

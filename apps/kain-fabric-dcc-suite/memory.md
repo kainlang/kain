@@ -196,3 +196,22 @@ Next recommended step:
 
 - Replace the synthetic metrics inside the new sim/compositor/tensor receipts with outputs from real external runtimes or typed artifact contracts so the receipts become execution truth rather than planned scaffolding.
 
+## 2026-03-27 (Later) - First Live Command Queue Bridge Landed
+
+- Added `scripts/queue-command.ps1` and `scripts/process-command-queue.ps1` as the first real interactive control-loop bridge for the suite.
+- The new bridge reads `state/command_queue.jsonl`, applies command effects into `state/session_document.json`, derives an intent queue, updates `state/runtime_snapshot.json`, and mirrors both documents into `native-app/state/`.
+- The first validated vertical slice is lookdev/material authoring: queueing `material.author_texture_set` now switches the app into `material_lookdev`, updates the active texture set and paint resolution, marks material/render/compositor dirty, and queues `material.bake_preview` plus `render.preview`.
+- Updated `scripts/build-native-ui.ps1` so bundle generation now runs state materialization, command processing, and shell regeneration in sequence instead of treating the runtime snapshot as static.
+
+Important design decision:
+
+- This pass intentionally keeps the live bridge outside the native host for now. The command queue and runtime snapshot are the first executable seam between shell interaction and Fabric work, which lets the app prove the control loop before pushing more logic into runtime-specific code.
+
+Current risk:
+
+- `scripts/materialize-session-state.ps1` still regenerates a baseline session document, so the bridge currently acts as an incremental command pass layered over a freshly materialized state. A deeper future pass should preserve and evolve session truth continuously instead of re-seeding it before every build flow.
+
+Next recommended step:
+
+- Replace the file-based queue with a true host/session dispatcher that can consume commands continuously, debounce intent scheduling, and hand the queued intents directly to Fabric execution without a full rematerialize cycle.
+

@@ -463,6 +463,8 @@ fn sync_runtime_snapshot_from_session(
     };
 
     let next_intent_queue = build_next_intent_queue(runtime_snapshot, request);
+    let active_intent_ids = intent_queue_ids(&next_intent_queue);
+    set_string_array_at_path(session_document, &["jobs", "active_intents"], &active_intent_ids);
 
     set_value_at_path(
         runtime_snapshot,
@@ -531,7 +533,6 @@ fn sync_runtime_snapshot_from_session(
         &["dcc_suite_state", "intent_queue"],
         Value::Array(next_intent_queue.clone()),
     );
-    set_string_array_at_path(session_document, &["jobs", "active_intents"], &intent_queue_ids(&next_intent_queue));
 
     let recent_session_title = format!("Kain Fabric DCC Suite | {active_mode_label}");
     set_string_at_path(runtime_snapshot, &["sessions", "recent_session_title"], recent_session_title.clone());
@@ -581,7 +582,7 @@ fn build_next_intent_queue(runtime_snapshot: &Value, request: &RuntimeCommandReq
             if entry
                 .get("id")
                 .and_then(Value::as_str)
-                .is_some_and(|id| id == request.command_id)
+                .is_some_and(|id| id == request.command_id.as_str())
             {
                 continue;
             }
