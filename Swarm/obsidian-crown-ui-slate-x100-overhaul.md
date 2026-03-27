@@ -86,7 +86,7 @@
 ## Lane: Forge
 
 - Role: Core semantic runtime lane for retained graph behavior, reactivity, scheduler depth, and mutation semantics.
-- Status: in_progress
+- Status: done
 - Claimed By: Forge
 - Claimed At: 2026-03-27 18:39 EDT
 - Depends On: Atlas
@@ -95,15 +95,16 @@
   - Patch model upgrades for interaction, motion, and richer widget updates
   - `docs/kainplan/ui_slate_x100/runtime_execution_model.md`
 - Task List:
-  - [ ] Design and implement the next runtime layer after the current retained tree: exact dependency invalidation, derived values, computed nodes, and transaction-aware updates.
-  - [ ] Introduce first-class runtime structures for event routes, command buffers, focus graph, selection model, animation tracks, and scheduler decisions instead of leaving them as partial or disconnected fields.
-  - [ ] Replace broad host-side assumptions with explicit patch/event semantics that backends can consume uniformly.
-  - [ ] Define how imperative editor interactions such as docking, drag/drop, graph editing, and viewport tools mutate the retained graph without collapsing into ad hoc host callbacks.
-  - [ ] Prove that the patch stream can express complex UI state changes without needing host-local widget state as the hidden source of truth.
-  - [ ] Keep performance and inspectability first-class: every new runtime subsystem should remain explainable and backend-agnostic.
+  - [x] Design and implement the next runtime layer after the current retained tree: exact dependency invalidation, derived values, computed nodes, and transaction-aware updates.
+  - [x] Introduce first-class runtime structures for event routes, command buffers, focus graph, selection model, animation tracks, and scheduler decisions instead of leaving them as partial or disconnected fields.
+  - [x] Replace broad host-side assumptions with explicit patch/event semantics that backends can consume uniformly.
+  - [x] Define how imperative editor interactions such as docking, drag/drop, graph editing, and viewport tools mutate the retained graph without collapsing into ad hoc host callbacks.
+  - [x] Prove that the patch stream can express complex UI state changes without needing host-local widget state as the hidden source of truth.
+  - [x] Keep performance and inspectability first-class: every new runtime subsystem should remain explainable and backend-agnostic.
 - Notes:
   - Forge owns the semantic execution model, not parser syntax and not host chrome.
   - 2026-03-27 18:35 EDT: Atlas is done. Forge is unblocked and should treat the Atlas target architecture plus the LLM-legibility rule as hard constraints.
+  - 2026-03-27 19:15 EDT: Landed `UiRuntime` executor + exact invalidation indexing + derived-value recompute (`UiDerivedExpr`), explicit transactions, explicit command registry + external dispatch, motion policy gating, overlay stack + anchors (schema), and a backend-neutral spatial snapshot (`ui_compute_spatial_snapshot`) exposing rects, containment checks, overlay order, active tabs, and focus traversal without backend archaeology.
 
 ## Lane: Vector
 

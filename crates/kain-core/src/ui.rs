@@ -667,6 +667,8 @@ fn resolve_authored_computed_spec(
         id: spec.id,
         label: spec.label,
         depends_on,
+        writes_signal: None,
+        expr: None,
         invalidates_nodes,
         scheduler_phase: spec.scheduler_phase,
     }

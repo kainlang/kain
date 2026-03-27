@@ -10,9 +10,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ui_solve_workspace_layout, ui_step_animation_runtime, UiAnimationFrame, UiCommand,
-    UiCommandRejection, UiComputed, UiEventPhase, UiInvalidationResult, UiLayoutKind, UiNodeId,
-    UiOverflowBehavior, UiPatch, UiRect, UiResolvedLayout, UiSchedulerEntry, UiSchedulerPhase,
-    UiSignalId, UiSignalUpdate, UiTransaction, UiTree, UiValue, UiWorkspaceLayout,
+    UiCommandRejection, UiComputed, UiDerivedExpr, UiEventPhase, UiInvalidationResult, UiLayoutKind,
+    UiNodeId, UiOverflowBehavior, UiPatch, UiRect, UiResolvedLayout, UiSchedulerEntry,
+    UiSchedulerPhase, UiSignalId, UiSignalUpdate, UiTransaction, UiTree, UiValue, UiWorkspaceLayout,
 };
 
 /// Runtime entrypoint that owns:
@@ -117,20 +117,40 @@ impl UiRuntime {
 
         // Track invalidated nodes in a set to preserve "exact once" invalidation.
         let mut invalidated = BTreeSet::new();
+        let mut changed = BTreeSet::<UiSignalId>::new();
+        let mut worklist = Vec::<UiSignalId>::new();
+        let mut scheduled = BTreeSet::<String>::new();
 
+        // Seed worklist with direct updates.
         for update in updates {
-            let changed = self.systems.signal_values.get(&update.signal) != Some(&update.value);
-            if !changed {
+            let changed_value = self.systems.signal_values.get(&update.signal) != Some(&update.value);
+            if !changed_value {
                 continue;
             }
-
             self.systems
                 .signal_values
                 .insert(update.signal, update.value.clone());
-            result.changed_signals.push(update.signal);
+            if changed.insert(update.signal) {
+                result.changed_signals.push(update.signal);
+                worklist.push(update.signal);
+            }
+        }
+
+        // Propagate invalidation and derived recompute until stable.
+        //
+        // This is the runtime-side "derived values" contract: derived signals are explicit
+        // (`UiComputed { writes_signal, expr }`) and are recomputed here, not in the backend.
+        let mut steps = 0usize;
+        while let Some(signal) = worklist.pop() {
+            steps += 1;
+            if steps > 10_000 {
+                // Defensive bound against cycles. Cycles are an authoring/compiler error, but
+                // the runtime must stay bounded.
+                break;
+            }
 
             // Direct node watchers (tree-owned dependency declaration).
-            if let Some(nodes) = self.indexes.signal_watchers.get(&update.signal) {
+            if let Some(nodes) = self.indexes.signal_watchers.get(&signal) {
                 for node in nodes {
                     if invalidated.insert(*node) {
                         result.invalidated_nodes.push(*node);
@@ -139,30 +159,65 @@ impl UiRuntime {
             }
 
             // Computed dependents (systems-owned dependency declaration).
-            if let Some(computed_indices) = self.indexes.signal_to_computed.get(&update.signal) {
+            if let Some(computed_indices) = self.indexes.signal_to_computed.get(&signal) {
                 for idx in computed_indices {
-                    let Some(computed) = self.systems.computed.get(*idx) else {
+                    let Some(computed) = self.systems.computed.get(*idx).cloned() else {
                         continue;
                     };
+
+                    // Derived-signal recompute path.
+                    if let (Some(out_signal), Some(expr)) = (computed.writes_signal, computed.expr.clone()) {
+                        let next_value = ui_eval_derived_expr(&expr, &self.systems.signal_values);
+                        let changed_value = self.systems.signal_values.get(&out_signal) != Some(&next_value);
+                        if changed_value {
+                            self.systems.signal_values.insert(out_signal, next_value);
+                            if changed.insert(out_signal) {
+                                result.changed_signals.push(out_signal);
+                                worklist.push(out_signal);
+                            }
+
+                            // Only invalidate/schedule when the derived output actually changed.
+                            for node in &computed.invalidates_nodes {
+                                if invalidated.insert(*node) {
+                                    result.invalidated_nodes.push(*node);
+                                }
+                            }
+                            let entry = UiSchedulerEntry {
+                                phase: computed.scheduler_phase,
+                                label: computed.label.clone(),
+                                target_nodes: computed.invalidates_nodes.clone(),
+                            };
+                            let key = format!("computed:{}:{:?}", computed.id, entry.phase);
+                            if scheduled.insert(key) {
+                                self.systems.scheduler.pending.push(entry.clone());
+                                result.scheduled.push(entry);
+                            }
+                        }
+                        continue;
+                    }
+
+                    // Plain computed invalidation path.
                     for node in &computed.invalidates_nodes {
                         if invalidated.insert(*node) {
                             result.invalidated_nodes.push(*node);
                         }
                     }
-
                     let entry = UiSchedulerEntry {
                         phase: computed.scheduler_phase,
                         label: computed.label.clone(),
                         target_nodes: computed.invalidates_nodes.clone(),
                     };
-                    self.systems.scheduler.pending.push(entry.clone());
-                    result.scheduled.push(entry);
+                    let key = format!("computed:{}:{:?}", computed.id, entry.phase);
+                    if scheduled.insert(key) {
+                        self.systems.scheduler.pending.push(entry.clone());
+                        result.scheduled.push(entry);
+                    }
                 }
             }
         }
 
         if !result.changed_signals.is_empty() {
-            let mut transaction = UiTransaction {
+            let transaction = UiTransaction {
                 label: transaction_label
                     .map(|label| label.to_string())
                     .unwrap_or_else(|| format!("signals:{}", result.changed_signals.len())),
@@ -171,7 +226,6 @@ impl UiRuntime {
                 ..UiTransaction::default_runtime(self.next_transaction_id)
             };
             self.next_transaction_id = self.next_transaction_id.saturating_add(1);
-            transaction.patch_count = 0;
             self.systems.transactions.push(transaction.clone());
             result.transaction = Some(transaction);
         }
@@ -823,6 +877,94 @@ pub fn ui_resize_size_from_drag_start(
     unconstrained
         .max(constraints.min_px)
         .min(constraints.max_px.max(constraints.min_px))
+}
+
+fn ui_eval_derived_expr(expr: &UiDerivedExpr, signals: &BTreeMap<UiSignalId, UiValue>) -> UiValue {
+    match expr {
+        UiDerivedExpr::Literal(value) => value.clone(),
+        UiDerivedExpr::Signal(id) => signals.get(id).cloned().unwrap_or(UiValue::Null),
+        UiDerivedExpr::Not(inner) => UiValue::Bool(!ui_value_truthy(&ui_eval_derived_expr(inner, signals))),
+        UiDerivedExpr::And(a, b) => UiValue::Bool(
+            ui_value_truthy(&ui_eval_derived_expr(a, signals))
+                && ui_value_truthy(&ui_eval_derived_expr(b, signals)),
+        ),
+        UiDerivedExpr::Or(a, b) => UiValue::Bool(
+            ui_value_truthy(&ui_eval_derived_expr(a, signals))
+                || ui_value_truthy(&ui_eval_derived_expr(b, signals)),
+        ),
+        UiDerivedExpr::Eq(a, b) => UiValue::Bool(ui_eval_derived_expr(a, signals) == ui_eval_derived_expr(b, signals)),
+        UiDerivedExpr::Add(a, b) => ui_value_binary_numeric_op(a, b, signals, |x, y| x + y),
+        UiDerivedExpr::Sub(a, b) => ui_value_binary_numeric_op(a, b, signals, |x, y| x - y),
+        UiDerivedExpr::Mul(a, b) => ui_value_binary_numeric_op(a, b, signals, |x, y| x * y),
+        UiDerivedExpr::Div(a, b) => {
+            let rhs = ui_eval_derived_expr(b, signals);
+            match rhs {
+                UiValue::Int(0) => UiValue::Null,
+                UiValue::Float(v) if v.abs() <= f64::EPSILON => UiValue::Null,
+                _ => ui_value_binary_numeric_op(a, b, signals, |x, y| x / y),
+            }
+        }
+        UiDerivedExpr::ToString(inner) => UiValue::String(ui_value_to_string(&ui_eval_derived_expr(inner, signals))),
+    }
+}
+
+fn ui_value_truthy(value: &UiValue) -> bool {
+    match value {
+        UiValue::Null => false,
+        UiValue::Bool(v) => *v,
+        UiValue::Int(v) => *v != 0,
+        UiValue::Float(v) => v.abs() > f64::EPSILON,
+        UiValue::String(v) => match v.trim().to_ascii_lowercase().as_str() {
+            "" | "0" | "false" | "no" | "off" | "null" => false,
+            _ => true,
+        },
+    }
+}
+
+fn ui_value_to_string(value: &UiValue) -> String {
+    match value {
+        UiValue::Null => "null".to_string(),
+        UiValue::Bool(v) => v.to_string(),
+        UiValue::Int(v) => v.to_string(),
+        UiValue::Float(v) => v.to_string(),
+        UiValue::String(v) => v.clone(),
+    }
+}
+
+fn ui_value_binary_numeric_op(
+    a: &UiDerivedExpr,
+    b: &UiDerivedExpr,
+    signals: &BTreeMap<UiSignalId, UiValue>,
+    op: fn(f64, f64) -> f64,
+) -> UiValue {
+    let left = ui_eval_derived_expr(a, signals);
+    let right = ui_eval_derived_expr(b, signals);
+
+    let (l, l_is_int) = match left {
+        UiValue::Int(v) => (v as f64, true),
+        UiValue::Float(v) => (v, false),
+        UiValue::String(v) => match v.parse::<f64>() {
+            Ok(parsed) => (parsed, false),
+            Err(_) => return UiValue::Null,
+        },
+        _ => return UiValue::Null,
+    };
+    let (r, r_is_int) = match right {
+        UiValue::Int(v) => (v as f64, true),
+        UiValue::Float(v) => (v, false),
+        UiValue::String(v) => match v.parse::<f64>() {
+            Ok(parsed) => (parsed, false),
+            Err(_) => return UiValue::Null,
+        },
+        _ => return UiValue::Null,
+    };
+
+    let result = op(l, r);
+    if l_is_int && r_is_int && result.is_finite() && result.fract().abs() <= f64::EPSILON {
+        UiValue::Int(result as i64)
+    } else {
+        UiValue::Float(result)
+    }
 }
 
 fn ui_apply_builtin_command(

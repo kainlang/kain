@@ -72,6 +72,10 @@ Every mutation creates a `UiTransaction` entry so the patch stream can be audite
 
 Signal updates only invalidate nodes that depend on the changed signals, and they schedule only the required phases (`UiSchedulerEntry`). This is the runtime-side “bounded, explainable invalidation” bar from the acceptance matrix.
 
+### Derived Values
+
+Derived values are represented explicitly as `UiComputed { writes_signal, expr }` using the small backend-neutral expression AST `UiDerivedExpr`. The runtime recomputes derived outputs when inputs change and only propagates invalidation when the derived output value actually changes.
+
 ## Spatial Verifiability (First-Class)
 
 The runtime must expose enough spatial truth that tools and strong models can answer layout-correctness questions directly, for example:
@@ -131,8 +135,26 @@ Runtime playback (animation stepping) is gated by `motion_policy.should_animate(
 
 This prevents “command palettes” from becoming backend inventions with hidden state.
 
+## Imperative Editor Interactions (Docking, Drag/Drop, Graph Editing, Viewport Tools)
+
+All imperative interactions must enter the system as explicit runtime input:
+
+- pointer/keyboard events are routed through compiler-emitted `UiEventRoute`
+- semantic actions are represented as `UiCommand { name, target, payload }`
+- runtime-mutation commands are executed in `kain-ui` (mutating `UiTree`/`UiRuntimeSystems` through patch authority)
+- external-effect commands are dispatched explicitly and recorded as such
+
+This avoids the “host callback owns meaning” failure mode. Backend adapters should only forward input and apply the emitted patch/system deltas.
+
+Recommended command families (names are contracts, not suggestions):
+
+- `ui.tab.*` (tab selection, close, reorder)
+- `ui.dock.*` (dock move, split ratio update, tab well operations)
+- `ui.drag.*` (drag begin/update/commit/cancel as transaction-scoped intents)
+- `ui.graph.*` (selection, pan/zoom, node edit operations as transactions)
+- `ui.viewport.*` (tool mode changes, gizmo interactions, overlay toggles as transactions)
+
 ## Implementation References
 
 - Runtime executor and spatial snapshot: [runtime_execution.rs](/M:/Code/Kain/crates/kain-ui/src/runtime_execution.rs)
 - Core semantic types and layout solver: [lib.rs](/M:/Code/Kain/crates/kain-ui/src/lib.rs)
-

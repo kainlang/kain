@@ -2593,8 +2593,6 @@ name = "kain-fabric-dcc-suite"
 version = "0.1.0"
 dependencies = [
  "kain-ui-native",
- "serde",
- "serde_json",
 ]
 
 [[package]]
