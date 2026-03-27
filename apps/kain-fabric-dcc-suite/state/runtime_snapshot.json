@@ -1,51 +1,464 @@
 {
-  "app_id": "kain.fabric.dcc-suite",
-  "name": "Kain Fabric DCC Suite",
-  "version": "0.1.0",
-  "window_title": "Kain Fabric DCC Suite",
-  "layout_id": "kain_fabric_dcc_suite_shell",
-  "latest_fabric_status": "scaffolded",
-  "workspace_modes": [
-    "scene_assembly",
-    "sculpt_model",
-    "material_lookdev",
-    "rig_anim",
-    "sim_fx",
-    "render_comp",
-    "publish_automation"
-  ],
-  "resources": [
-    "scene://current/graph",
-    "asset://catalog/current",
-    "buffer://preview/source",
-    "buffer://preview/destination",
-    "image://preview/current",
-    "buffer://tensor/features",
-    "buffer://sculpt/delta"
-  ],
-  "reports": [
-    "report://session/bootstrap",
-    "report://asset/ingest",
-    "report://topology/current",
-    "report://rig/sync",
-    "report://simulation/tick-plan",
-    "report://render/preview",
-    "report://compositor/rebuild",
-    "report://tensor/training",
-    "report://tensor/inference",
-    "artifact://publish/summary"
-  ],
-  "automation_jobs": [
-    "thumbnail_refresh",
-    "nightly_material_rebake",
-    "rig_health_audit",
-    "simulation_cache_warmup",
-    "tensor_readiness_probe",
-    "publish_receipt_archive"
-  ],
-  "extension_seams": [
-    "tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract",
-    "simulation lane currently materializes plan-oriented reports rather than a true solver runtime",
-    "compositor lane currently materializes rebuild plans rather than a first-class compositor graph runtime"
-  ]
+    "app_id":  "kain.fabric.dcc-suite",
+    "name":  "Kain Fabric DCC Suite",
+    "version":  "0.1.0",
+    "window_title":  "Kain Fabric DCC Suite",
+    "layout_id":  "kain_fabric_dcc_suite_shell",
+    "workspace_root":  "M:\\Code\\Kain",
+    "latest_fabric_status":  "idle",
+    "workspace_modes":  [
+                            {
+                                "id":  "scene_assembly",
+                                "label":  "Scene Assembly",
+                                "summary":  "Scene graph authoring, set dressing, layout, and asset placement."
+                            },
+                            {
+                                "id":  "sculpt_model",
+                                "label":  "Sculpt And Model",
+                                "summary":  "Poly modeling, sculpt strokes, remesh, and topology shaping."
+                            },
+                            {
+                                "id":  "material_lookdev",
+                                "label":  "Material And Lookdev",
+                                "summary":  "Shader graphs, texture baking, surface libraries, and preview lighting."
+                            },
+                            {
+                                "id":  "rig_anim",
+                                "label":  "Rig And Animation",
+                                "summary":  "Rig graphs, deformation checks, clips, retargeting, and blocking."
+                            },
+                            {
+                                "id":  "sim_fx",
+                                "label":  "Simulation And FX",
+                                "summary":  "Caches, solvers, scene events, and reproducible simulation jobs."
+                            },
+                            {
+                                "id":  "render_comp",
+                                "label":  "Render And Composite",
+                                "summary":  "Viewport renders, frame products, AOV assembly, and compositor rebuilds."
+                            },
+                            {
+                                "id":  "publish_automation",
+                                "label":  "Publish And Automation",
+                                "summary":  "Package review, delivery reports, automation jobs, and runtime pack promotion."
+                            }
+                        ],
+    "tools":  [
+                  {
+                      "id":  "select",
+                      "label":  "Select",
+                      "lane":  "scene_assembly",
+                      "summary":  "Selection, hierarchy filtering, and transform handoff."
+                  },
+                  {
+                      "id":  "kitbash_placement",
+                      "label":  "Kitbash Placement",
+                      "lane":  "scene_assembly",
+                      "summary":  "Scene placement, snap rules, and collection instancing."
+                  },
+                  {
+                      "id":  "poly_extrude",
+                      "label":  "Poly Extrude",
+                      "lane":  "sculpt_model",
+                      "summary":  "Poly modeling, shelling, and local face edits."
+                  },
+                  {
+                      "id":  "clay_sculpt",
+                      "label":  "Clay Sculpt",
+                      "lane":  "sculpt_model",
+                      "summary":  "Brush-based form sculpting through the native mutation seam."
+                  },
+                  {
+                      "id":  "voxel_rebuild",
+                      "label":  "Voxel Rebuild",
+                      "lane":  "sculpt_model",
+                      "summary":  "Topology reset, remesh, and high-level volume cleanup."
+                  },
+                  {
+                      "id":  "material_layer_paint",
+                      "label":  "Material Layer Paint",
+                      "lane":  "material_lookdev",
+                      "summary":  "Mask, ID, and procedural material layer authoring."
+                  },
+                  {
+                      "id":  "texture_bake",
+                      "label":  "Texture Bake",
+                      "lane":  "material_lookdev",
+                      "summary":  "GPU-assisted preview and baking workflows."
+                  },
+                  {
+                      "id":  "control_rig_edit",
+                      "label":  "Control Rig Edit",
+                      "lane":  "rig_anim",
+                      "summary":  "Rig graph authoring, control bindings, and solver metadata edits."
+                  },
+                  {
+                      "id":  "clip_blocking",
+                      "label":  "Clip Blocking",
+                      "lane":  "rig_anim",
+                      "summary":  "Timing, pose blocking, and clip state management."
+                  },
+                  {
+                      "id":  "cache_solver",
+                      "label":  "Cache Solver",
+                      "lane":  "sim_fx",
+                      "summary":  "Simulation cache planning and replay orchestration."
+                  },
+                  {
+                      "id":  "render_preview",
+                      "label":  "Render Preview",
+                      "lane":  "render_comp",
+                      "summary":  "Viewport preview renders, AOV toggles, and render queue staging."
+                  },
+                  {
+                      "id":  "comp_rebuild",
+                      "label":  "Comp Rebuild",
+                      "lane":  "render_comp",
+                      "summary":  "Composite plan refresh and pass composition inspection."
+                  },
+                  {
+                      "id":  "publish_bundle",
+                      "label":  "Publish Bundle",
+                      "lane":  "publish_automation",
+                      "summary":  "Delivery package generation, report emission, and runtime pack promotion."
+                  }
+              ],
+    "commands":  [
+                     {
+                         "id":  "project.bootstrap",
+                         "label":  "Bootstrap Suite",
+                         "surface":  "titlebar",
+                         "summary":  "Seeds the canonical scene, asset, preview, tensor, and publish session state.",
+                         "intent":  "project.bootstrap",
+                         "payload_schema":  {
+                                                "project_id":  "string",
+                                                "workspace_mode":  "workspace_mode_id"
+                                            }
+                     },
+                     {
+                         "id":  "workspace.switch_mode",
+                         "label":  "Switch Workspace",
+                         "surface":  "workspace_mode_rail",
+                         "summary":  "Moves the operator into a different DCC lane and marks downstream surfaces for refresh.",
+                         "intent":  "workspace.switch_mode",
+                         "payload_schema":  {
+                                                "mode_id":  "workspace_mode_id"
+                                            }
+                     },
+                     {
+                         "id":  "asset.ingest_package",
+                         "label":  "Ingest Package",
+                         "surface":  "asset_ingest",
+                         "summary":  "Stages a new asset package into the suite ingest lane and updates runtime pack bookkeeping.",
+                         "intent":  "asset.ingest_package",
+                         "payload_schema":  {
+                                                "source_uri":  "string",
+                                                "package_kind":  "string"
+                                            }
+                     },
+                     {
+                         "id":  "tool.activate",
+                         "label":  "Activate Tool",
+                         "surface":  "tool_shelf",
+                         "summary":  "Changes the active authoring tool and updates tool preset context.",
+                         "intent":  "tool.activate",
+                         "payload_schema":  {
+                                                "tool_id":  "tool_id"
+                                            }
+                     },
+                     {
+                         "id":  "selection.set",
+                         "label":  "Set Selection",
+                         "surface":  "viewport",
+                         "summary":  "Replaces the live entity selection and updates lane inspectors.",
+                         "intent":  "selection.set",
+                         "payload_schema":  {
+                                                "entity_ids":  "string_array",
+                                                "subobject_ids":  "string_array"
+                                            }
+                     },
+                     {
+                         "id":  "sculpt.apply_stroke",
+                         "label":  "Apply Sculpt Stroke",
+                         "surface":  "viewport",
+                         "summary":  "Queues a sculpt stroke through the native mutation seam and marks downstream lanes dirty.",
+                         "intent":  "sculpt.apply_stroke",
+                         "payload_schema":  {
+                                                "target_mesh":  "resource_ref",
+                                                "brush_id":  "tool_id",
+                                                "radius":  "number",
+                                                "strength":  "number"
+                                            }
+                     },
+                     {
+                         "id":  "topology.rebuild",
+                         "label":  "Rebuild Topology",
+                         "surface":  "scene_graph",
+                         "summary":  "Refreshes topology and graph health analysis against current scene resources.",
+                         "intent":  "topology.rebuild",
+                         "payload_schema":  {
+                                                "reason":  "string"
+                                            }
+                     },
+                     {
+                         "id":  "rig.sync_controls",
+                         "label":  "Sync Rig Controls",
+                         "surface":  "rig_graph",
+                         "summary":  "Synchronizes rig projections and deformation reports.",
+                         "intent":  "rig.sync_controls",
+                         "payload_schema":  {
+                                                "rig_id":  "string"
+                                            }
+                     },
+                     {
+                         "id":  "sim.tick",
+                         "label":  "Tick Simulation",
+                         "surface":  "simulation_board",
+                         "summary":  "Requests the next simulation planning tick and marks cache products dirty.",
+                         "intent":  "sim.tick",
+                         "payload_schema":  {
+                                                "frame":  "number"
+                                            }
+                     },
+                     {
+                         "id":  "material.bake_preview",
+                         "label":  "Bake Material Preview",
+                         "surface":  "material_graph",
+                         "summary":  "Refreshes material preview buffers through the GPU compute lane.",
+                         "intent":  "material.bake_preview",
+                         "payload_schema":  {
+                                                "reason":  "string"
+                                            }
+                     },
+                     {
+                         "id":  "render.preview",
+                         "label":  "Render Preview",
+                         "surface":  "render_lounge",
+                         "summary":  "Stages a preview render refresh and updates render-facing reports.",
+                         "intent":  "render.preview",
+                         "payload_schema":  {
+                                                "camera_id":  "string"
+                                            }
+                     },
+                     {
+                         "id":  "compositor.rebuild",
+                         "label":  "Rebuild Composite",
+                         "surface":  "compositor_stack",
+                         "summary":  "Refreshes the compositor rebuild plan for the current frame products.",
+                         "intent":  "compositor.rebuild",
+                         "payload_schema":  {
+                                                "stack_id":  "string"
+                                            }
+                     },
+                     {
+                         "id":  "publish.package",
+                         "label":  "Package Publish",
+                         "surface":  "publish_console",
+                         "summary":  "Builds the publish summary and package receipts for operator review.",
+                         "intent":  "publish.package",
+                         "payload_schema":  {
+                                                "profile":  "string"
+                                            }
+                     },
+                     {
+                         "id":  "tensor.train_step",
+                         "label":  "Tensor Train Step",
+                         "surface":  "jobs_monitor",
+                         "summary":  "Stages a tensor-oriented training plan and readiness report.",
+                         "intent":  "tensor.train_step",
+                         "payload_schema":  {
+                                                "dataset_id":  "string"
+                                            }
+                     },
+                     {
+                         "id":  "tensor.infer_step",
+                         "label":  "Tensor Infer Step",
+                         "surface":  "jobs_monitor",
+                         "summary":  "Stages a tensor-oriented inference plan and readiness report.",
+                         "intent":  "tensor.infer_step",
+                         "payload_schema":  {
+                                                "model_id":  "string"
+                                            }
+                     }
+                 ],
+    "resources":  [
+                      {
+                          "id":  "scene_graph_document",
+                          "resource_uri":  "scene://current/graph",
+                          "kind":  "value",
+                          "producer_step":  "dcc_suite_seed",
+                          "output_name":  "scene_graph_document",
+                          "storage":  "fabric-report",
+                          "summary":  "Canonical scene graph bootstrap document authored by Kain."
+                      },
+                      {
+                          "id":  "asset_catalog_document",
+                          "resource_uri":  "asset://catalog/current",
+                          "kind":  "value",
+                          "producer_step":  "dcc_suite_seed",
+                          "output_name":  "asset_catalog_document",
+                          "storage":  "fabric-report",
+                          "summary":  "Asset ingest and package catalog bootstrap document."
+                      },
+                      {
+                          "id":  "preview_source_buffer",
+                          "resource_uri":  "buffer://preview/source",
+                          "kind":  "shared_buffer",
+                          "producer_step":  "dcc_suite_seed",
+                          "output_name":  "preview_src",
+                          "storage":  "shared-buffer",
+                          "summary":  "Source preview and material bake buffer."
+                      },
+                      {
+                          "id":  "preview_destination_buffer",
+                          "resource_uri":  "buffer://preview/destination",
+                          "kind":  "shared_buffer",
+                          "producer_step":  "gpu_material_preview",
+                          "output_name":  "preview_dst",
+                          "storage":  "shared-buffer",
+                          "summary":  "Destination preview and material bake buffer populated by GPU compute."
+                      },
+                      {
+                          "id":  "preview_image",
+                          "resource_uri":  "image://preview/current",
+                          "kind":  "shared_image",
+                          "producer_step":  "dcc_suite_seed",
+                          "output_name":  "preview_image",
+                          "storage":  "shared-image",
+                          "summary":  "Preview image projected into viewport, render, and publish surfaces."
+                      },
+                      {
+                          "id":  "tensor_features",
+                          "resource_uri":  "buffer://tensor/features",
+                          "kind":  "shared_buffer",
+                          "producer_step":  "dcc_suite_seed",
+                          "output_name":  "tensor_features",
+                          "storage":  "shared-buffer",
+                          "summary":  "Feature buffer staged for tensor-oriented training and inference planning."
+                      },
+                      {
+                          "id":  "sculpt_delta",
+                          "resource_uri":  "buffer://sculpt/delta",
+                          "kind":  "shared_buffer",
+                          "producer_step":  "native_sculpt_kernel",
+                          "output_name":  "sculpt_delta",
+                          "storage":  "shared-buffer",
+                          "summary":  "Latest sculpt mutation payload emitted by the C ABI seam."
+                      }
+                  ],
+    "reports":  [
+                    {
+                        "id":  "session_report",
+                        "report_uri":  "report://session/bootstrap",
+                        "producer_step":  "dcc_suite_seed",
+                        "output_name":  "session_report",
+                        "summary":  "Bootstrap summary for suite session state."
+                    },
+                    {
+                        "id":  "asset_ingest_report",
+                        "report_uri":  "report://asset/ingest",
+                        "producer_step":  "asset_ingest_session",
+                        "output_name":  "asset_ingest_report",
+                        "summary":  "Asset ingest session report."
+                    },
+                    {
+                        "id":  "topology_report",
+                        "report_uri":  "report://topology/current",
+                        "producer_step":  "rig_graph_analysis",
+                        "output_name":  "topology_report",
+                        "summary":  "Graph and topology health report."
+                    },
+                    {
+                        "id":  "rig_sync_report",
+                        "report_uri":  "report://rig/sync",
+                        "producer_step":  "rig_sync_projection",
+                        "output_name":  "rig_sync_report",
+                        "summary":  "Rig sync and deformation readiness report."
+                    },
+                    {
+                        "id":  "sim_tick_plan",
+                        "report_uri":  "report://simulation/tick-plan",
+                        "producer_step":  "sim_tick_projection",
+                        "output_name":  "sim_tick_plan",
+                        "summary":  "Simulation planning report for the current frame tick."
+                    },
+                    {
+                        "id":  "render_preview_report",
+                        "report_uri":  "report://render/preview",
+                        "producer_step":  "render_preview_projection",
+                        "output_name":  "render_preview_report",
+                        "summary":  "Render preview planning report."
+                    },
+                    {
+                        "id":  "compositor_rebuild_report",
+                        "report_uri":  "report://compositor/rebuild",
+                        "producer_step":  "compositor_projection",
+                        "output_name":  "compositor_rebuild_report",
+                        "summary":  "Compositor rebuild planning report."
+                    },
+                    {
+                        "id":  "tensor_training_report",
+                        "report_uri":  "report://tensor/training",
+                        "producer_step":  "tensor_train_stage",
+                        "output_name":  "tensor_training_report",
+                        "summary":  "Tensor training readiness and plan report."
+                    },
+                    {
+                        "id":  "tensor_inference_report",
+                        "report_uri":  "report://tensor/inference",
+                        "producer_step":  "tensor_infer_stage",
+                        "output_name":  "tensor_inference_report",
+                        "summary":  "Tensor inference readiness and serving report."
+                    },
+                    {
+                        "id":  "publish_summary",
+                        "report_uri":  "artifact://publish/summary",
+                        "producer_step":  "publish_suite_report",
+                        "output_name":  "publish_summary",
+                        "summary":  "Publish and delivery summary emitted through the Node bridge."
+                    }
+                ],
+    "automation_jobs":  [
+                            {
+                                "id":  "thumbnail_refresh",
+                                "label":  "Thumbnail Refresh",
+                                "schedule":  "on_asset_ingest",
+                                "summary":  "Refreshes asset thumbnails and preview products after ingest."
+                            },
+                            {
+                                "id":  "nightly_material_rebake",
+                                "label":  "Nightly Material Rebake",
+                                "schedule":  "nightly",
+                                "summary":  "Rebuilds preview materials and cached bake outputs."
+                            },
+                            {
+                                "id":  "rig_health_audit",
+                                "label":  "Rig Health Audit",
+                                "schedule":  "on_publish_candidate",
+                                "summary":  "Recomputes rig and graph health before publish promotion."
+                            },
+                            {
+                                "id":  "simulation_cache_warmup",
+                                "label":  "Simulation Cache Warmup",
+                                "schedule":  "on_scene_open",
+                                "summary":  "Stages warm caches for repeatable simulation review."
+                            },
+                            {
+                                "id":  "tensor_readiness_probe",
+                                "label":  "Tensor Readiness Probe",
+                                "schedule":  "manual_or_nightly",
+                                "summary":  "Checks tensor lane readiness and records PyTorch availability without forcing runtime completion."
+                            },
+                            {
+                                "id":  "publish_receipt_archive",
+                                "label":  "Publish Receipt Archive",
+                                "schedule":  "on_publish",
+                                "summary":  "Archives publish receipts and operator-facing reports."
+                            }
+                        ],
+    "extension_seams":  [
+                            "tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract",
+                            "simulation lane currently materializes plan-oriented reports rather than a true solver runtime",
+                            "compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"
+                        ]
 }

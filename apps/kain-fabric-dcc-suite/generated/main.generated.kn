@@ -29,20 +29,25 @@ component App():
                     <text role="body">{"Sculpt Runtime Pack | Brush profiles, sculpt previews, and native mutation surfaces."}</text>
                     <text role="body">{"Material Graph Pack | Material graphs, shader previews, and bake metadata."}</text>
                     <text role="body">{"Rig Runtime Pack | Rig controls, graph projections, and deformation contracts."}</text>
-                    <text role="body">{"Render Products Pack | Render products, AOVs, preview queues, and viewport handoff."}</text>
-                    <text role="body">{"Publish Delivery Pack | Package manifests, delivery variants, and client receipt surfaces."}</text>
+                    <text role="body">{"Animation Clip Pack | Clip state, timing, markers, and retargeting support."}</text>
+                    <text role="body">{"Simulation Cache Pack | Cache roots, solver manifests, and replay state."}</text>
                 </inspector>
                 <inspector title="Command Surface">
-                    <text role="body">{"Bootstrap Suite | project.bootstrap | Seeds canonical scene, asset, preview, tensor, and publish state."}</text>
-                    <text role="body">{"Ingest Package | asset.ingest_package | Stages asset packages and runtime pack bookkeeping."}</text>
-                    <text role="body">{"Apply Sculpt Stroke | sculpt.apply_stroke | Queues the native sculpt seam and downstream refreshes."}</text>
-                    <text role="body">{"Rebuild Topology | topology.rebuild | Refreshes graph and topology analysis."}</text>
-                    <text role="body">{"Sync Rig Controls | rig.sync_controls | Refreshes rig and deformation projections."}</text>
-                    <text role="body">{"Tick Simulation | sim.tick | Stages the next simulation planning tick."}</text>
-                    <text role="body">{"Bake Material Preview | material.bake_preview | Refreshes GPU preview buffers."}</text>
-                    <text role="body">{"Render Preview | render.preview | Refreshes render-facing planning and products."}</text>
-                    <text role="body">{"Rebuild Composite | compositor.rebuild | Refreshes composite rebuild planning."}</text>
-                    <text role="body">{"Package Publish | publish.package | Emits publish and delivery summaries."}</text>
+                    <text role="body">{"Bootstrap Suite | project.bootstrap | Seeds the canonical scene, asset, preview, tensor, and publish session state."}</text>
+                    <text role="body">{"Switch Workspace | workspace.switch_mode | Moves the operator into a different DCC lane and marks downstream surfaces for refresh."}</text>
+                    <text role="body">{"Ingest Package | asset.ingest_package | Stages a new asset package into the suite ingest lane and updates runtime pack bookkeeping."}</text>
+                    <text role="body">{"Activate Tool | tool.activate | Changes the active authoring tool and updates tool preset context."}</text>
+                    <text role="body">{"Set Selection | selection.set | Replaces the live entity selection and updates lane inspectors."}</text>
+                    <text role="body">{"Apply Sculpt Stroke | sculpt.apply_stroke | Queues a sculpt stroke through the native mutation seam and marks downstream lanes dirty."}</text>
+                    <text role="body">{"Rebuild Topology | topology.rebuild | Refreshes topology and graph health analysis against current scene resources."}</text>
+                    <text role="body">{"Sync Rig Controls | rig.sync_controls | Synchronizes rig projections and deformation reports."}</text>
+                    <text role="body">{"Tick Simulation | sim.tick | Requests the next simulation planning tick and marks cache products dirty."}</text>
+                    <text role="body">{"Bake Material Preview | material.bake_preview | Refreshes material preview buffers through the GPU compute lane."}</text>
+                    <text role="body">{"Render Preview | render.preview | Stages a preview render refresh and updates render-facing reports."}</text>
+                    <text role="body">{"Rebuild Composite | compositor.rebuild | Refreshes the compositor rebuild plan for the current frame products."}</text>
+                    <text role="body">{"Package Publish | publish.package | Builds the publish summary and package receipts for operator review."}</text>
+                    <text role="body">{"Tensor Train Step | tensor.train_step | Stages a tensor-oriented training plan and readiness report."}</text>
+                    <text role="body">{"Tensor Infer Step | tensor.infer_step | Stages a tensor-oriented inference plan and readiness report."}</text>
                 </inspector>
             </panel>
             <panel title="DCC Stage" dock="center" gap={14}>
@@ -59,61 +64,116 @@ component App():
                 </panel>
             </panel>
             <panel title="Operator Rails" dock="right" split_ratio={0.27} min_width={320} max_width={470} resizable={true} gap={12}>
-                <inspector title="Surface Registry">
-                    <text role="body">{"Viewport Stage | viewport3d | Primary 3D authoring viewport."}</text>
+                <inspector title="Surfaces">
+                    <text role="body">{"Viewport Stage | viewport3d | Primary 3D authoring viewport for scene, model, rig, and render review."}</text>
                     <text role="body">{"Scene Graph | tree | Hierarchy, collections, instancing groups, and publish roots."}</text>
                     <text role="body">{"Asset Ingest | tree | USD, GLTF, material, groom, cache, and runtime pack intake."}</text>
+                    <text role="body">{"Tool Shelf | inspector | Context-sensitive authoring tools across sculpt, material, rig, sim, and publish."}</text>
+                    <text role="body">{"Selection Inspector | inspector | Transforms, metadata, relationships, and lane-specific detail panels."}</text>
                     <text role="body">{"Material Graph | graph | Shading, lookdev, texture-routing, and baking graph surface."}</text>
                     <text role="body">{"Rig Graph | graph | Control rigs, constraints, deformation layers, and sync reports."}</text>
+                    <text role="body">{"Animation Timeline | timeline | Clips, simulation triggers, preview markers, and publish cut ranges."}</text>
                     <text role="body">{"Simulation Board | graph | Cache plans, solver dependencies, and replay diagnostics."}</text>
                     <text role="body">{"Render Lounge | graph | Render products, preview budgets, frame queues, and AOV targets."}</text>
                     <text role="body">{"Compositor Stack | graph | Composite rebuild plans, mattes, passes, and grading nodes."}</text>
-                    <text role="body">{"Publish Console | inspector | Packages, receipts, validators, and client-facing summaries."}</text>
+                    <text role="body">{"Publish Console | inspector | Packages, receipts, validators, deliverables, and client-facing summaries."}</text>
+                    <text role="body">{"Report Browser | inspector | Topology, tensor, render, automation, and publish reports."}</text>
+                    <text role="body">{"Jobs Monitor | timeline | Background jobs, Fabric sessions, automation schedules, and retry state."}</text>
                 </inspector>
                 <inspector title="Tool Rail">
+                    <text role="body">{"Select | Selection, hierarchy filtering, and transform handoff."}</text>
                     <text role="body">{"Kitbash Placement | Scene placement, snap rules, and collection instancing."}</text>
                     <text role="body">{"Poly Extrude | Poly modeling, shelling, and local face edits."}</text>
                     <text role="body">{"Clay Sculpt | Brush-based form sculpting through the native mutation seam."}</text>
+                    <text role="body">{"Voxel Rebuild | Topology reset, remesh, and high-level volume cleanup."}</text>
                     <text role="body">{"Material Layer Paint | Mask, ID, and procedural material layer authoring."}</text>
-                    <text role="body">{"Control Rig Edit | Rig graph authoring and solver metadata edits."}</text>
+                    <text role="body">{"Texture Bake | GPU-assisted preview and baking workflows."}</text>
+                    <text role="body">{"Control Rig Edit | Rig graph authoring, control bindings, and solver metadata edits."}</text>
+                    <text role="body">{"Clip Blocking | Timing, pose blocking, and clip state management."}</text>
                     <text role="body">{"Cache Solver | Simulation cache planning and replay orchestration."}</text>
-                    <text role="body">{"Render Preview | Viewport preview renders and render queue staging."}</text>
-                    <text role="body">{"Publish Bundle | Delivery package generation and runtime pack promotion."}</text>
+                    <text role="body">{"Render Preview | Viewport preview renders, AOV toggles, and render queue staging."}</text>
+                    <text role="body">{"Comp Rebuild | Composite plan refresh and pass composition inspection."}</text>
+                    <text role="body">{"Publish Bundle | Delivery package generation, report emission, and runtime pack promotion."}</text>
                 </inspector>
                 <inspector title="Intent Library">
                     <text role="body">{"Bootstrap Suite | fabric/intents/bootstrap.fabric.toml | produces 3 targets"}</text>
                     <text role="body">{"Asset Ingest | fabric/intents/asset_ingest.fabric.toml | produces 1 targets"}</text>
                     <text role="body">{"Sculpt Stroke | fabric/intents/sculpt_stroke.fabric.toml | produces 2 targets"}</text>
+                    <text role="body">{"Topology Rebuild | fabric/intents/topology_rebuild.fabric.toml | produces 1 targets"}</text>
                     <text role="body">{"Rig Sync | fabric/intents/rig_sync.fabric.toml | produces 1 targets"}</text>
+                    <text role="body">{"Simulation Tick | fabric/intents/sim_tick.fabric.toml | produces 1 targets"}</text>
                     <text role="body">{"Material Bake | fabric/intents/material_bake.fabric.toml | produces 1 targets"}</text>
+                    <text role="body">{"Render Preview | fabric/intents/render_preview.fabric.toml | produces 1 targets"}</text>
+                    <text role="body">{"Compositor Rebuild | fabric/intents/compositor_rebuild.fabric.toml | produces 1 targets"}</text>
                     <text role="body">{"Publish Package | fabric/intents/publish_package.fabric.toml | produces 1 targets"}</text>
                     <text role="body">{"Tensor Train Step | fabric/intents/tensor_train_step.fabric.toml | produces 2 targets"}</text>
                     <text role="body">{"Tensor Infer Step | fabric/intents/tensor_infer_step.fabric.toml | produces 2 targets"}</text>
                 </inspector>
+                <inspector title="Resources">
+                    <text role="body">{"scene://current/graph | value | Canonical scene graph bootstrap document authored by Kain."}</text>
+                    <text role="body">{"asset://catalog/current | value | Asset ingest and package catalog bootstrap document."}</text>
+                    <text role="body">{"buffer://preview/source | shared_buffer | Source preview and material bake buffer."}</text>
+                    <text role="body">{"buffer://preview/destination | shared_buffer | Destination preview and material bake buffer populated by GPU compute."}</text>
+                    <text role="body">{"image://preview/current | shared_image | Preview image projected into viewport, render, and publish surfaces."}</text>
+                    <text role="body">{"buffer://tensor/features | shared_buffer | Feature buffer staged for tensor-oriented training and inference planning."}</text>
+                    <text role="body">{"buffer://sculpt/delta | shared_buffer | Latest sculpt mutation payload emitted by the C ABI seam."}</text>
+                </inspector>
+                <inspector title="Reports">
+                    <text role="body">{"report://session/bootstrap | Bootstrap summary for suite session state."}</text>
+                    <text role="body">{"report://asset/ingest | Asset ingest session report."}</text>
+                    <text role="body">{"report://topology/current | Graph and topology health report."}</text>
+                    <text role="body">{"report://rig/sync | Rig sync and deformation readiness report."}</text>
+                    <text role="body">{"report://simulation/tick-plan | Simulation planning report for the current frame tick."}</text>
+                    <text role="body">{"report://render/preview | Render preview planning report."}</text>
+                    <text role="body">{"report://compositor/rebuild | Compositor rebuild planning report."}</text>
+                    <text role="body">{"report://tensor/training | Tensor training readiness and plan report."}</text>
+                    <text role="body">{"report://tensor/inference | Tensor inference readiness and serving report."}</text>
+                    <text role="body">{"artifact://publish/summary | Publish and delivery summary emitted through the Node bridge."}</text>
+                </inspector>
             </panel>
             <panel title="Runtime Telemetry" dock="bottom" split_ratio={0.27} min_height={220} max_height={360} resizable={true} layout="row" gap={12}>
                 <inspector title="Fabric Pipeline">
-                    <text role="body">{"python_suite_bootstrap | python | Seeds project defaults, lane counts, and tensor readiness hints."}</text>
-                    <text role="body">{"dcc_suite_seed | kain | Authors scene, asset, preview, tensor, and session bootstrap artifacts."}</text>
-                    <text role="body">{"native_sculpt_kernel | c_abi | Applies a narrow sculpt mutation proof and signature."}</text>
-                    <text role="body">{"rig_graph_analysis | rust_crate | Builds graph and topology health reporting."}</text>
-                    <text role="body">{"tensor_train_stage | python | Emits tensor training readiness and plan summaries."}</text>
-                    <text role="body">{"tensor_infer_stage | python | Emits tensor inference readiness and serving summaries."}</text>
-                    <text role="body">{"gpu_material_preview | gpu_compute | Runs the compute preview and material bake pass."}</text>
-                    <text role="body">{"publish_suite_report | kain | Builds the publish report through the Kain-to-Node bridge."}</text>
+                    <text role="body">{"python_suite_bootstrap | python | Seeds project defaults, workspace selection, preview sizing, runtime pack counts, and tensor readiness hints."}</text>
+                    <text role="body">{"dcc_suite_seed | kain | Authors the scene graph bootstrap, asset catalog bootstrap, preview buffers, tensor features, and session report."}</text>
+                    <text role="body">{"native_sculpt_kernel | c_abi | Uses the native helper to apply a narrow sculpt mutation proof and emit a sculpt signature."}</text>
+                    <text role="body">{"rig_graph_analysis | rust_crate | Builds graph and topology health reporting from authored scene and sculpt outputs."}</text>
+                    <text role="body">{"tensor_train_stage | python | Emits PyTorch-oriented training readiness and plan summaries without pretending the runtime is fully wired."}</text>
+                    <text role="body">{"tensor_infer_stage | python | Emits tensor inference readiness and model-serving summaries."}</text>
+                    <text role="body">{"gpu_material_preview | gpu_compute | Runs a compute preview and material bake pass across the shared preview buffers."}</text>
+                    <text role="body">{"publish_suite_report | kain | Builds the publish and package report through a Kain-authored bridge into Node reporting."}</text>
                 </inspector>
                 <inspector title="Automation Jobs">
                     <text role="body">{"Thumbnail Refresh | on_asset_ingest | Refreshes asset thumbnails and preview products after ingest."}</text>
                     <text role="body">{"Nightly Material Rebake | nightly | Rebuilds preview materials and cached bake outputs."}</text>
                     <text role="body">{"Rig Health Audit | on_publish_candidate | Recomputes rig and graph health before publish promotion."}</text>
                     <text role="body">{"Simulation Cache Warmup | on_scene_open | Stages warm caches for repeatable simulation review."}</text>
-                    <text role="body">{"Tensor Readiness Probe | manual_or_nightly | Checks tensor lane readiness without forcing runtime completion."}</text>
+                    <text role="body">{"Tensor Readiness Probe | manual_or_nightly | Checks tensor lane readiness and records PyTorch availability without forcing runtime completion."}</text>
                     <text role="body">{"Publish Receipt Archive | on_publish | Archives publish receipts and operator-facing reports."}</text>
                 </inspector>
-                <inspector title="Extension Seams">
-                    <text role="body">{"Tensor lane currently emits readiness and planning reports while a first-class typed tensor artifact contract is still future work."}</text>
-                    <text role="body">{"Simulation lane currently materializes plan reports rather than a full solver runtime."}</text>
-                    <text role="body">{"Compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime."}</text>
+                <inspector title="Capabilities">
+                    <text role="body">{"ui.runtime"}</text>
+                    <text role="body">{"actor.runtime"}</text>
+                    <text role="body">{"async.runtime"}</text>
+                    <text role="body">{"host.bridge"}</text>
+                    <text role="body">{"reflection"}</text>
+                    <text role="body">{"gfx.viewport"}</text>
+                    <text role="body">{"scene.runtime"}</text>
+                    <text role="body">{"scene.query"}</text>
+                    <text role="body">{"scene.mutation"}</text>
+                    <text role="body">{"asset.gltf"}</text>
+                    <text role="body">{"asset.usd"}</text>
+                    <text role="body">{"asset.realtime"}</text>
+                    <text role="body">{"material.graph"}</text>
+                    <text role="body">{"rig.runtime"}</text>
+                    <text role="body">{"animation.runtime"}</text>
+                    <text role="body">{"simulation.runtime"}</text>
+                    <text role="body">{"render.runtime"}</text>
+                    <text role="body">{"compositor.runtime"}</text>
+                    <text role="body">{"fabric.runtime"}</text>
+                    <text role="body">{"tensor.runtime"}</text>
+                    <text role="body">{"automation.runtime"}</text>
+                    <text role="body">{"ui.bundle"}</text>
+                    <text role="body">{"device.reflection"}</text>
                 </inspector>
             </panel>
         </panel>
