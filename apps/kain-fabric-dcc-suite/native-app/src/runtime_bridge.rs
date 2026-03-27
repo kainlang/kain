@@ -555,3 +555,196 @@ fn sync_runtime_snapshot_from_session(
     }
     set_string_at_path(runtime_snapshot, &["updated_at"], updated_at);
 }
+
+fn build_next_intent_queue(runtime_snapshot: &Value, request: &RuntimeCommandRequest) -> Vec<Value> {
+    let mut next_queue = Vec::new();
+    next_queue.push(json!({
+        "id": request.command_id,
+        "label": if request.label.is_empty() { request.command_id.clone() } else { request.label.clone() },
+        "reason": format!("Live command from {}", if request.surface.is_empty() { "native-host" } else { request.surface.as_str() }),
+        "graph": if request.intent.is_empty() { request.command_id.clone() } else { request.intent.clone() },
+        "debounce_ms": 0,
+        "status": "queued",
+    }));
+    if let Some(existing_entries) = value_at_path(runtime_snapshot, &["dcc_suite_state", "intent_queue"])
+        .and_then(Value::as_array)
+    {
+        for entry in existing_entries {
+            if next_queue.len() >= 8 {
+                break;
+            }
+            if entry
+                .get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| id == request.command_id)
+            {
+                continue;
+            }
+            next_queue.push(entry.clone());
+        }
+    }
+    next_queue
+}
+
+fn intent_queue_ids(intent_queue: &[Value]) -> Vec<String> {
+    intent_queue
+        .iter()
+        .filter_map(|entry| entry.get("id").and_then(Value::as_str))
+        .map(|value| value.to_string())
+        .collect()
+}
+
+fn ensure_mode_for_command(
+    session_document: &mut Value,
+    runtime_snapshot: &Value,
+    command_id: &str,
+) {
+    let Some(preferred_mode) = preferred_mode_for_command(command_id) else {
+        return;
+    };
+    let available_modes = get_string_vec_at_path(session_document, &["workspace", "available_modes"]);
+    if !available_modes.iter().any(|mode| mode == preferred_mode) {
+        return;
+    }
+    let current_mode = get_string_at_path(session_document, &["workspace", "active_mode"]).unwrap_or_default();
+    if current_mode == preferred_mode {
+        return;
+    }
+    set_string_at_path(session_document, &["workspace", "active_mode"], preferred_mode);
+    if let Some(tool_id) = first_tool_for_lane(runtime_snapshot, preferred_mode) {
+        apply_tool_defaults_from_snapshot(session_document, runtime_snapshot, &tool_id);
+    }
+}
+
+fn preferred_mode_for_command(command_id: &str) -> Option<&'static str> {
+    if command_id.starts_with("project.")
+        || command_id.starts_with("asset.")
+        || command_id.starts_with("selection.")
+    {
+        Some("scene_assembly")
+    } else if command_id.starts_with("sculpt.") || command_id.starts_with("topology.") {
+        Some("sculpt_model")
+    } else if command_id.starts_with("material.") {
+        Some("material_lookdev")
+    } else if command_id.starts_with("rig.") {
+        Some("rig_anim")
+    } else if command_id.starts_with("sim.") {
+        Some("sim_fx")
+    } else if command_id.starts_with("render.") || command_id.starts_with("compositor.") {
+        Some("render_comp")
+    } else if command_id.starts_with("publish.") || command_id.starts_with("tensor.") {
+        Some("publish_automation")
+    } else {
+        None
+    }
+}
+
+fn apply_tool_defaults_from_snapshot(
+    session_document: &mut Value,
+    runtime_snapshot: &Value,
+    tool_id: &str,
+) {
+    set_string_at_path(session_document, &["tooling", "active_tool"], tool_id);
+    if let Some(tool_value) = find_array_object_by_field(
+        runtime_snapshot,
+        &["dcc_suite_state", "available_tools"],
+        "id",
+        tool_id,
+    ) {
+        if let Some(default_mode) = tool_value.get("default_gizmo_mode").and_then(Value::as_str) {
+            set_string_at_path(session_document, &["gizmo", "mode"], default_mode);
+        }
+        if let Some(default_space) = tool_value.get("default_gizmo_space").and_then(Value::as_str) {
+            set_string_at_path(session_document, &["gizmo", "space"], default_space);
+        }
+        if let Some(gizmo_enabled) = tool_value.get("gizmo_enabled").and_then(Value::as_bool) {
+            set_bool_at_path(session_document, &["gizmo", "visible"], gizmo_enabled);
+        }
+    }
+}
+
+fn first_tool_for_lane(runtime_snapshot: &Value, lane: &str) -> Option<String> {
+    value_at_path(runtime_snapshot, &["dcc_suite_state", "available_tools"])
+        .and_then(Value::as_array)
+        .and_then(|tools| {
+            tools
+                .iter()
+                .find(|tool| tool.get("lane").and_then(Value::as_str) == Some(lane))
+                .and_then(|tool| tool.get("id").and_then(Value::as_str))
+                .map(|tool_id| tool_id.to_string())
+        })
+}
+
+fn tool_exists(runtime_snapshot: &Value, tool_id: &str) -> bool {
+    find_array_object_by_field(
+        runtime_snapshot,
+        &["dcc_suite_state", "available_tools"],
+        "id",
+        tool_id,
+    )
+    .is_some()
+}
+
+fn collect_tool_ids_for_lane(runtime_snapshot: &Value, lane: &str) -> Vec<String> {
+    value_at_path(runtime_snapshot, &["dcc_suite_state", "available_tools"])
+        .and_then(Value::as_array)
+        .map(|tools| {
+            tools
+                .iter()
+                .filter(|tool| tool.get("lane").and_then(Value::as_str) == Some(lane))
+                .filter_map(|tool| tool.get("id").and_then(Value::as_str))
+                .map(|tool_id| tool_id.to_string())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn lookup_registry_label(value: &Value, path: &[&str], entry_id: &str) -> Option<String> {
+    find_array_object_by_field(value, path, "id", entry_id)
+        .and_then(|entry| entry.get("label"))
+        .and_then(Value::as_str)
+        .map(|label| label.to_string())
+}
+
+fn collect_registry_ids(value: &Value, path: &[&str], field: &str) -> Vec<String> {
+    value_at_path(value, path)
+        .and_then(Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| entry.get(field).and_then(Value::as_str))
+                .map(|entry_id| entry_id.to_string())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn cycle_string_value(values: &[String], current: &str) -> Option<String> {
+    if values.is_empty() {
+        return None;
+    }
+    if let Some(index) = values.iter().position(|value| value == current) {
+        Some(values[(index + 1) % values.len()].clone())
+    } else {
+        Some(values[0].clone())
+    }
+}
+
+fn set_all_dirty_flags(session_document: &mut Value, dirty_value: bool) {
+    for dirty_key in [
+        "asset_dirty",
+        "sculpt_dirty",
+        "topology_dirty",
+        "material_dirty",
+        "rig_dirty",
+        "animation_dirty",
+        "simulation_dirty",
+        "render_dirty",
+        "compositor_dirty",
+        "publish_dirty",
+        "tensor_dirty",
+        "session_needs_save",
+    ] {
+        set_bool_at_path(session_document, &["dirty", dirty_key], dirty_value);
+    }
+}

@@ -313,7 +313,7 @@ component App():
                             <text role="caption">{"runtime packs online"}</text>
                         </panel>
                     </panel>
-                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport.profile="dcc_authoring_balanced" gizmo.default_mode="translate" gizmo.default_space="world" gizmo.profile="dcc_transform_universal" gizmo.visible={true} gizmo.drag_trigger="ctrl_primary_drag" gizmo.selection_required={true} gizmo.hotkey.translate="T" gizmo.hotkey.rotate="R" gizmo.hotkey.scale="Y" gizmo.hotkey.cycle_space="U" gizmo.hotkey.toggle_snap="I" gizmo.snap.translate={0.5} gizmo.snap.rotate_degrees={15.0} gizmo.snap.scale_percent={10.0} gizmo.snap.default_enabled={false} />
+                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
                     <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
                         <panel title="Scene Graph" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
                             <text role="eyebrow">{"TREE"}</text>
@@ -420,7 +420,7 @@ component App():
                             <text role="caption">{"runtime packs online"}</text>
                         </panel>
                     </panel>
-                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport.profile="dcc_authoring_balanced" gizmo.default_mode="translate" gizmo.default_space="world" gizmo.profile="dcc_transform_universal" gizmo.visible={true} gizmo.drag_trigger="ctrl_primary_drag" gizmo.selection_required={true} gizmo.hotkey.translate="T" gizmo.hotkey.rotate="R" gizmo.hotkey.scale="Y" gizmo.hotkey.cycle_space="U" gizmo.hotkey.toggle_snap="I" gizmo.snap.translate={0.5} gizmo.snap.rotate_degrees={15.0} gizmo.snap.scale_percent={10.0} gizmo.snap.default_enabled={false} />
+                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
                     <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
                         <panel title="Scene Graph" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
                             <text role="eyebrow">{"TREE"}</text>
@@ -525,7 +525,7 @@ component App():
                             <text role="caption">{"runtime packs online"}</text>
                         </panel>
                     </panel>
-                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport.profile="dcc_authoring_balanced" gizmo.default_mode="translate" gizmo.default_space="world" gizmo.profile="dcc_transform_universal" gizmo.visible={true} gizmo.drag_trigger="ctrl_primary_drag" gizmo.selection_required={true} gizmo.hotkey.translate="T" gizmo.hotkey.rotate="R" gizmo.hotkey.scale="Y" gizmo.hotkey.cycle_space="U" gizmo.hotkey.toggle_snap="I" gizmo.snap.translate={0.5} gizmo.snap.rotate_degrees={15.0} gizmo.snap.scale_percent={10.0} gizmo.snap.default_enabled={false} />
+                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
                     <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
                         <panel title="Material Graph" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
                             <text role="eyebrow">{"GRAPH"}</text>
@@ -633,7 +633,7 @@ component App():
                             <text role="caption">{"runtime packs online"}</text>
                         </panel>
                     </panel>
-                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport.profile="dcc_authoring_balanced" gizmo.default_mode="translate" gizmo.default_space="world" gizmo.profile="dcc_transform_universal" gizmo.visible={true} gizmo.drag_trigger="ctrl_primary_drag" gizmo.selection_required={true} gizmo.hotkey.translate="T" gizmo.hotkey.rotate="R" gizmo.hotkey.scale="Y" gizmo.hotkey.cycle_space="U" gizmo.hotkey.toggle_snap="I" gizmo.snap.translate={0.5} gizmo.snap.rotate_degrees={15.0} gizmo.snap.scale_percent={10.0} gizmo.snap.default_enabled={false} />
+                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
                     <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
                         <panel title="Rig Graph" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
                             <text role="eyebrow">{"GRAPH"}</text>
@@ -732,7 +732,7 @@ component App():
                             <text role="caption">{"runtime packs online"}</text>
                         </panel>
                     </panel>
-                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport.profile="dcc_authoring_balanced" gizmo.default_mode="translate" gizmo.default_space="world" gizmo.profile="dcc_transform_universal" gizmo.visible={true} gizmo.drag_trigger="ctrl_primary_drag" gizmo.selection_required={true} gizmo.hotkey.translate="T" gizmo.hotkey.rotate="R" gizmo.hotkey.scale="Y" gizmo.hotkey.cycle_space="U" gizmo.hotkey.toggle_snap="I" gizmo.snap.translate={0.5} gizmo.snap.rotate_degrees={15.0} gizmo.snap.scale_percent={10.0} gizmo.snap.default_enabled={false} />
+                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
                     <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
                         <panel title="Simulation Board" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
                             <text role="eyebrow">{"GRAPH"}</text>
@@ -826,7 +826,7 @@ component App():
                             <text role="caption">{"runtime packs online"}</text>
                         </panel>
                     </panel>
-                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport.profile="dcc_authoring_balanced" gizmo.default_mode="translate" gizmo.default_space="world" gizmo.profile="dcc_transform_universal" gizmo.visible={true} gizmo.drag_trigger="ctrl_primary_drag" gizmo.selection_required={true} gizmo.hotkey.translate="T" gizmo.hotkey.rotate="R" gizmo.hotkey.scale="Y" gizmo.hotkey.cycle_space="U" gizmo.hotkey.toggle_snap="I" gizmo.snap.translate={0.5} gizmo.snap.rotate_degrees={15.0} gizmo.snap.scale_percent={10.0} gizmo.snap.default_enabled={false} />
+                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
                     <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
                         <panel title="Render Lounge" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
                             <text role="eyebrow">{"GRAPH"}</text>
@@ -928,7 +928,7 @@ component App():
                             <text role="caption">{"runtime packs online"}</text>
                         </panel>
                     </panel>
-                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport.profile="dcc_authoring_balanced" gizmo.default_mode="translate" gizmo.default_space="world" gizmo.profile="dcc_transform_universal" gizmo.visible={true} gizmo.drag_trigger="ctrl_primary_drag" gizmo.selection_required={true} gizmo.hotkey.translate="T" gizmo.hotkey.rotate="R" gizmo.hotkey.scale="Y" gizmo.hotkey.cycle_space="U" gizmo.hotkey.toggle_snap="I" gizmo.snap.translate={0.5} gizmo.snap.rotate_degrees={15.0} gizmo.snap.scale_percent={10.0} gizmo.snap.default_enabled={false} />
+                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
                     <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
                         <panel title="Publish Console" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
                             <text role="eyebrow">{"INSPECTOR"}</text>
