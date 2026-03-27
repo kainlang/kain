@@ -18,6 +18,7 @@ The target is a platform where:
 - different apps can feel radically different without escaping the semantic model
 - debug tooling is powerful but fully separated from normal product presentation
 - the system is explicit enough that strong LLMs can inspect, author, and extend UI without getting lost in backend-local quirks
+- the system exposes enough spatial truth that strong LLMs can tell when layout, ownership, anchoring, or focus flow is wrong without relying only on screenshots
 
 ## Current Failure Modes To Eliminate
 
@@ -49,6 +50,13 @@ The overhaul is only successful if all of the following are true.
 - Core UI behavior must not depend on opaque prop strings, smoke-specific drawing branches, or backend-owned fallback magic.
 - Widget, paint, motion, command, and schema systems should be driven by named contracts and registries rather than ad hoc literal combinations that make authored UIs collapse into the same shape.
 
+### 2C. Spatial Verifiability By Construction
+
+- Runtime truth must expose workspace graphs, panel ownership, active tab membership, computed rects, containment, overlay order, and focus-order edges explicitly.
+- Menus, popovers, tooltips, and other anchored surfaces must have inspectable anchor-zone data instead of backend-local placement guesses.
+- Resize and docking constraints must be explicit enough that a regression tool or LLM can tell whether a control moved into the wrong region.
+- Reference comparison: [k_os_shell_lessons.md](/M:/Code/Kain/docs/kainplan/ui_slate_x100/k_os_shell_lessons.md)
+
 ### 3. Widget Depth Reaches Serious Desktop/Editor Territory
 
 - The platform can express and realize top bars, tab wells, sidebars, toolbars, menus, status bars, command palettes, splitters, docking, trees, tables, property grids, timelines, graphs, overlays, and viewport-adjacent controls.
@@ -78,6 +86,7 @@ Treat the overhaul as failed if any of these remain true after the supposed land
 - paint/motion richness exists only through smoke-specific renderer hacks
 - complex interaction depends on backend-local widget state with no semantic event/transaction model
 - “Slate x100” is claimed based on prettier screenshots without deeper state/interaction/widget contracts
+- layout correctness still depends mainly on screenshots because runtime geometry and ownership truth are too weak to inspect directly
 
 ## Phase Boundaries
 

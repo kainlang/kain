@@ -1,6 +1,7 @@
 # Atlas Target Architecture
 
 - Goal: keep compiler-owned UI semantics authoritative while making runtime and backend boundaries strong enough for native, web, and future Slate/UE adapters.
+- Reference comparison: [k_os_shell_lessons.md](/M:/Code/Kain/docs/kainplan/ui_slate_x100/k_os_shell_lessons.md)
 
 This doc is the boundary contract that Forge, Vector, Delta, and future Slate/UE work must follow.
 
@@ -22,9 +23,11 @@ These are the minimum architectural corrections required to meet the acceptance 
    - Replace `state.<name>` props with compiler-emitted signal/state declarations plus runtime-owned state storage.
 3. Stop letting `kain-ui` infer primary runtime semantics from tree shape.
    - `ui_runtime_systems_from_tree` becomes compatibility-only; new authored UI must emit runtime systems explicitly.
-4. Isolate `UiNativeProjection` so it cannot become the cross-backend ABI.
+4. Stop treating computed layout and geometry as backend-local side effects.
+   - Runtime-visible frame graphs, computed rects, containment, anchors, focus-order edges, and overlay stacks must be first-class semantic/runtime truth.
+5. Isolate `UiNativeProjection` so it cannot become the cross-backend ABI.
    - Keep it for current native/C consumers, but treat it as a native adapter sidecar or explicit compatibility section, not the semantic contract.
-5. Keep `RealtimeAppBundle` focused on realtime render surfaces, but make it consume compiler-emitted surface truth.
+6. Keep `RealtimeAppBundle` focused on realtime render surfaces, but make it consume compiler-emitted surface truth.
    - Surface identity and capabilities must originate from compiler/runtime contracts, not prop scanning and heuristic inference.
 
 ## Target Subsystem Boundaries
@@ -32,8 +35,8 @@ These are the minimum architectural corrections required to meet the acceptance 
 | Subsystem | Target owner | Must own | Must not own |
 | --- | --- | --- | --- |
 | Authoring syntax + typing | `kain-core` | UI syntax, parsing/typing, schema ids, typed semantic IR | Any host widget behavior, egui/Slate specifics |
-| UI semantic IR emission | `kain-core` | Emitted UI bundle truth: widget identities, typed props, event routes, command surfaces/defs, focus/selection scopes, workspace layout intent, paint/motion intent, schema-driven widget contracts, capability requirements | Native-only DTO projections used as "the truth" |
-| Runtime graph | `kain-ui` | Retained nodes, stable node identity, state/signal storage, computed invalidation, transaction log, focus graph, selection model, scheduler, workspace layout state, hot reload transfer, fallback resolution | JSX execution, component interpretation, backend-specific chrome decisions |
+| UI semantic IR emission | `kain-core` | Emitted UI bundle truth: widget identities, typed props, event routes, command surfaces/defs, focus/selection scopes, workspace layout intent, spatial constraints, paint/motion intent, schema-driven widget contracts, capability requirements | Native-only DTO projections used as "the truth" |
+| Runtime graph | `kain-ui` | Retained nodes, stable node identity, state/signal storage, computed invalidation, transaction log, focus graph, selection model, scheduler, workspace layout state, geometry/frame graph, anchor resolution, hot reload transfer, fallback resolution | JSX execution, component interpretation, backend-specific chrome decisions |
 | Patch planner | `kain-ui` | Backend-agnostic `UiPatch` generation from runtime mutations and scheduler phases | Direct egui/DOM/Slate rendering |
 | Backend capability model | Shared schema in `kain-ui`; backend-provided data in adapters | Capability ids, fallback categories/policies, explicit unsupported-state reporting | Silent degradation, backend-private feature flags with no declared contract |
 | Paint + motion | `kain-core` contract; `kain-ui` runtime playback | Semantic paint primitives and motion intent; runtime playback state and scheduling | Backend-local rendering hacks as the only way to express authored visuals |
@@ -62,7 +65,8 @@ Owned by: `kain-ui` (schema), emitted by `kain-core`, executed by `kain-ui`, con
 Must contain:
 
 - retained semantic tree (or a stable runtime graph representation)
-- compiler-emitted runtime systems (events, commands, focus/selection scopes, workspace layout intent, paint/motion intent, schema widgets)
+- compiler-emitted runtime systems (events, commands, focus/selection scopes, workspace layout intent, spatial constraints, paint/motion intent, schema widgets)
+- geometry-facing verification surfaces (stable node ids, layout relations, anchor zones, and enough metadata to query containment and placement correctness)
 - backend capability requirements and explicit fallback expectations
 
 Must not contain:

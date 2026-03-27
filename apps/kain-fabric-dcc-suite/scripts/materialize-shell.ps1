@@ -340,11 +340,17 @@ function Render-SurfaceCard {
         $Surface,
         [string]$Scope,
         [string]$Variant,
+        [string]$PersistentLayoutId = "",
         [string]$Indent = ""
     )
 
     $lines = New-Object System.Collections.Generic.List[string]
-    Add-Line $lines "$Indent<panel title=`"$($Surface.title)`" scope=`"$Scope`" variant=`"$Variant`" layout=`"column`" gap={8}>"
+    $resolvedPersistentLayoutId = if ([string]::IsNullOrWhiteSpace($PersistentLayoutId)) {
+        ConvertTo-KnSafeId ("surface_card_" + $Surface.id)
+    } else {
+        ConvertTo-KnSafeId $PersistentLayoutId
+    }
+    Add-Line $lines "$Indent<panel title=`"$($Surface.title)`" scope=`"$Scope`" variant=`"$Variant`" layout=`"column`" gap={8} persistent_layout_id=`"$resolvedPersistentLayoutId`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value ([string]$Surface.kind).ToUpperInvariant() -Indent "$Indent    ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value $Surface.summary -Indent "$Indent    ")
     Add-Lines $lines (Render-SurfaceWidget -Surface $Surface -Indent "$Indent    ")
@@ -358,6 +364,7 @@ function Render-ChromeMetricCard {
         [hashtable]$ShellMetrics,
         [string]$Scope,
         [string]$PreferredVariant = "",
+        [string]$PersistentLayoutIdPrefix = "",
         [string]$Indent = ""
     )
 
@@ -369,9 +376,14 @@ function Render-ChromeMetricCard {
         "metric_pill"
     }
     $metricValue = Get-ShellMetricValue -MetricSource $StatusItem.metric_source -ShellMetrics $ShellMetrics
+    $persistentLayoutId = if ([string]::IsNullOrWhiteSpace($PersistentLayoutIdPrefix)) {
+        ConvertTo-KnSafeId ("metric_" + $StatusItem.id)
+    } else {
+        ConvertTo-KnSafeId ($PersistentLayoutIdPrefix + "_" + $StatusItem.id)
+    }
 
     $lines = New-Object System.Collections.Generic.List[string]
-    Add-Line $lines "$Indent<panel title=`"$($StatusItem.label)`" scope=`"$Scope`" variant=`"$variant`" layout=`"column`" gap={2} min_width={112}>"
+    Add-Line $lines "$Indent<panel title=`"$($StatusItem.label)`" scope=`"$Scope`" variant=`"$variant`" layout=`"column`" gap={2} min_width={112} persistent_layout_id=`"$persistentLayoutId`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $StatusItem.label.ToUpperInvariant() -Indent "$Indent    ")
     Add-Line $lines (Render-TextNode -Role "metric" -Value $metricValue -Indent "$Indent    ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value $StatusItem.caption -Indent "$Indent    ")
@@ -386,8 +398,9 @@ function Render-MenuCard {
         [string]$Indent = ""
     )
 
+    $persistentLayoutId = ConvertTo-KnSafeId ("menu_" + $MenuItem.label)
     $lines = New-Object System.Collections.Generic.List[string]
-    Add-Line $lines "$Indent<panel title=`"$($MenuItem.label)`" scope=`"$Scope`" variant=`"menu_pill`" layout=`"column`" gap={1} min_width={120}>"
+    Add-Line $lines "$Indent<panel title=`"$($MenuItem.label)`" scope=`"$Scope`" variant=`"menu_pill`" layout=`"column`" gap={1} min_width={120} persistent_layout_id=`"$persistentLayoutId`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value "MENU" -Indent "$Indent    ")
     Add-Line $lines (Render-TextNode -Role "title" -Value $MenuItem.label -Indent "$Indent    ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value $MenuItem.summary -Indent "$Indent    ")
@@ -405,9 +418,10 @@ function Render-WorkspaceChip {
     )
 
     $variant = if ($IsActive) { "workspace_chip_active" } else { "workspace_chip" }
+    $persistentLayoutId = ConvertTo-KnSafeId ("workspace_chip_" + $Mode.id)
 
     $lines = New-Object System.Collections.Generic.List[string]
-    Add-Line $lines "$Indent<panel title=`"$($Mode.label)`" scope=`"$Scope`" variant=`"$variant`" layout=`"column`" gap={2} min_width={156}>"
+    Add-Line $lines "$Indent<panel title=`"$($Mode.label)`" scope=`"$Scope`" variant=`"$variant`" layout=`"column`" gap={2} min_width={156} persistent_layout_id=`"$persistentLayoutId`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $Page.tab_label.ToUpperInvariant() -Indent "$Indent    ")
     Add-Line $lines (Render-TextNode -Role "title" -Value $Mode.label -Indent "$Indent    ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value $Mode.summary -Indent "$Indent    ")
@@ -424,9 +438,10 @@ function Render-CommandSpotlightCard {
 
     $surfaceLabel = if ([string]::IsNullOrWhiteSpace([string]$Command.surface)) { "shell" } else { $Command.surface }
     $intentLabel = if ([string]::IsNullOrWhiteSpace([string]$Command.intent)) { "no intent" } else { $Command.intent }
+    $persistentLayoutId = ConvertTo-KnSafeId ("command_spotlight_" + $Command.id)
 
     $lines = New-Object System.Collections.Generic.List[string]
-    Add-Line $lines "$Indent<panel title=`"$($Command.label)`" scope=`"$Scope`" variant=`"spotlight_card`" layout=`"column`" gap={3} min_width={196}>"
+    Add-Line $lines "$Indent<panel title=`"$($Command.label)`" scope=`"$Scope`" variant=`"spotlight_card`" layout=`"column`" gap={3} min_width={196} persistent_layout_id=`"$persistentLayoutId`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value ("SURFACE " + $surfaceLabel.ToUpperInvariant()) -Indent "$Indent    ")
     Add-Line $lines (Render-TextNode -Role "title" -Value $Command.label -Indent "$Indent    ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value ("intent " + $intentLabel) -Indent "$Indent    ")
@@ -446,15 +461,16 @@ function Render-SystemRack {
 
     $statusItems = Get-ResolvedItems -Ids $SystemRack.status_item_ids -Lookup $StatusItemById
     $statusColumns = [Math]::Max(1, [Math]::Min(2, @($statusItems).Count))
+    $systemRackId = ConvertTo-KnSafeId ("system_rack_" + $SystemRack.title)
 
     $lines = New-Object System.Collections.Generic.List[string]
-    Add-Line $lines "$Indent<panel title=`"$($SystemRack.title)`" scope=`"$Scope`" variant=`"system_rack`" layout=`"column`" gap={8}>"
+    Add-Line $lines "$Indent<panel title=`"$($SystemRack.title)`" scope=`"$Scope`" variant=`"system_rack`" layout=`"column`" gap={8} persistent_layout_id=`"$systemRackId`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $SystemRack.eyebrow -Indent "$Indent    ")
     Add-Line $lines (Render-TextNode -Role "title" -Value $SystemRack.title -Indent "$Indent    ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value $SystemRack.summary -Indent "$Indent    ")
-    Add-Line $lines "$Indent    <panel title=`"System Metrics`" scope=`"$Scope`" variant=`"system_rack`" layout=`"grid`" columns={$statusColumns} gap={8}>"
+    Add-Line $lines "$Indent    <panel title=`"System Metrics`" scope=`"$Scope`" variant=`"system_rack`" layout=`"grid`" columns={$statusColumns} gap={8} persistent_layout_id=`"${systemRackId}_metrics`">"
     foreach ($statusItem in $statusItems) {
-        Add-Lines $lines (Render-ChromeMetricCard -StatusItem $statusItem -ShellMetrics $ShellMetrics -Scope $Scope -PreferredVariant "metric_pill" -Indent "$Indent        ")
+        Add-Lines $lines (Render-ChromeMetricCard -StatusItem $statusItem -ShellMetrics $ShellMetrics -Scope $Scope -PreferredVariant "metric_pill" -PersistentLayoutIdPrefix $systemRackId -Indent "$Indent        ")
     }
     Add-Line $lines "$Indent    </panel>"
     Add-Lines $lines (Render-TextLines -Items $SystemRack.notes -Formatter { param($note) $note } -Role "caption" -Indent "$Indent    ")
@@ -475,32 +491,32 @@ function Render-ShellTopBar {
     $statusColumns = [Math]::Max(1, [Math]::Min(4, $statusItems.Count))
 
     $lines = New-Object System.Collections.Generic.List[string]
-    Add-Line $lines "$Indent<panel title=`"Global Top Bar`" scope=`"$Scope`" variant=`"topbar`" layout=`"column`" gap={8}>"
+    Add-Line $lines "$Indent<panel title=`"Global Top Bar`" scope=`"$Scope`" variant=`"topbar`" layout=`"column`" gap={8} persistent_layout_id=`"dcc_topbar`">"
 
-    Add-Line $lines "$Indent    <panel title=`"Top Bar Frame`" scope=`"$Scope`" variant=`"topbar_frame`" layout=`"grid`" columns={2} gap={8}>"
+    Add-Line $lines "$Indent    <panel title=`"Top Bar Frame`" scope=`"$Scope`" variant=`"topbar_frame`" layout=`"grid`" columns={2} gap={8} persistent_layout_id=`"dcc_topbar_frame`">"
 
-    Add-Line $lines "$Indent        <panel title=`"Brand Console`" scope=`"$Scope`" variant=`"brand_console`" layout=`"column`" gap={3} min_width={340}>"
+    Add-Line $lines "$Indent        <panel title=`"Brand Console`" scope=`"$Scope`" variant=`"brand_console`" layout=`"column`" gap={3} min_width={340} persistent_layout_id=`"dcc_brand_console`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $ShellChrome.brand.eyebrow -Indent "$Indent            ")
     Add-Line $lines (Render-TextNode -Role "title" -Value $ShellChrome.brand.title -Indent "$Indent            ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value $ShellChrome.brand.summary -Indent "$Indent            ")
     Add-Line $lines "$Indent        </panel>"
 
-    Add-Line $lines "$Indent        <panel title=`"Status Rack`" scope=`"$Scope`" variant=`"status_rack`" layout=`"column`" gap={6}>"
+    Add-Line $lines "$Indent        <panel title=`"Status Rack`" scope=`"$Scope`" variant=`"status_rack`" layout=`"column`" gap={6} persistent_layout_id=`"dcc_status_rack`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value "RUNTIME STATUS" -Indent "$Indent            ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value "Live session scale and pipeline health for the active shell." -Indent "$Indent            ")
-    Add-Line $lines "$Indent            <panel title=`"Status Metrics`" scope=`"$Scope`" variant=`"status_rack`" layout=`"grid`" columns={$statusColumns} gap={8}>"
+    Add-Line $lines "$Indent            <panel title=`"Status Metrics`" scope=`"$Scope`" variant=`"status_rack`" layout=`"grid`" columns={$statusColumns} gap={8} persistent_layout_id=`"dcc_status_metrics`">"
     foreach ($statusItem in $statusItems) {
-        Add-Lines $lines (Render-ChromeMetricCard -StatusItem $statusItem -ShellMetrics $ShellMetrics -Scope $Scope -Indent "$Indent                ")
+        Add-Lines $lines (Render-ChromeMetricCard -StatusItem $statusItem -ShellMetrics $ShellMetrics -Scope $Scope -PersistentLayoutIdPrefix "topbar_status" -Indent "$Indent                ")
     }
     Add-Line $lines "$Indent            </panel>"
     Add-Line $lines "$Indent        </panel>"
 
     Add-Line $lines "$Indent    </panel>"
 
-    Add-Line $lines "$Indent    <panel title=`"Menu Rack`" scope=`"$Scope`" variant=`"menu_rack`" layout=`"column`" gap={6}>"
+    Add-Line $lines "$Indent    <panel title=`"Menu Rack`" scope=`"$Scope`" variant=`"menu_rack`" layout=`"column`" gap={6} persistent_layout_id=`"dcc_menu_rack`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value "SHELL MENUS" -Indent "$Indent        ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value "Global editor commands stay mounted in the same cockpit frame across every lane." -Indent "$Indent        ")
-    Add-Line $lines "$Indent        <slot layout=`"row`" gap={6} overflow_x=`"scroll`">"
+    Add-Line $lines "$Indent        <slot layout=`"row`" gap={6} overflow_x=`"scroll`" persistent_layout_id=`"dcc_menu_rack_slot`">"
     foreach ($menuItem in $menuItems) {
         Add-Lines $lines (Render-MenuCard -MenuItem $menuItem -Scope $Scope -Indent "$Indent            ")
     }
@@ -526,13 +542,13 @@ function Render-ShellContextStrip {
     $spotlightCommands = Get-ResolvedItems -Ids $ShellChrome.command_spotlight.command_ids -Lookup $CommandById
 
     $lines = New-Object System.Collections.Generic.List[string]
-    Add-Line $lines "$Indent<panel title=`"Shell Context Strip`" scope=`"$Scope`" variant=`"context_strip`" layout=`"column`" gap={10}>"
+    Add-Line $lines "$Indent<panel title=`"Shell Context Strip`" scope=`"$Scope`" variant=`"context_strip`" layout=`"column`" gap={10} persistent_layout_id=`"dcc_shell_context`">"
 
-    Add-Line $lines "$Indent    <panel title=`"$($ShellChrome.workspace_switcher.title)`" scope=`"$Scope`" variant=`"workspace_strip`" layout=`"column`" gap={8}>"
+    Add-Line $lines "$Indent    <panel title=`"$($ShellChrome.workspace_switcher.title)`" scope=`"$Scope`" variant=`"workspace_strip`" layout=`"column`" gap={8} persistent_layout_id=`"dcc_workspace_strip`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $ShellChrome.workspace_switcher.eyebrow -Indent "$Indent        ")
     Add-Line $lines (Render-TextNode -Role "title" -Value $ShellChrome.workspace_switcher.title -Indent "$Indent        ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value $ShellChrome.workspace_switcher.summary -Indent "$Indent        ")
-    Add-Line $lines "$Indent        <slot layout=`"row`" gap={8} overflow_x=`"scroll`">"
+    Add-Line $lines "$Indent        <slot layout=`"row`" gap={8} overflow_x=`"scroll`" persistent_layout_id=`"dcc_workspace_strip_slot`">"
 
     $pageIndex = 0
     foreach ($page in $Pages) {
@@ -553,13 +569,13 @@ function Render-ShellContextStrip {
     Add-Line $lines "$Indent        </slot>"
     Add-Line $lines "$Indent    </panel>"
 
-    Add-Line $lines "$Indent    <panel title=`"Shell Context Blocks`" scope=`"$Scope`" variant=`"context_strip`" layout=`"grid`" columns={3} gap={10}>"
+    Add-Line $lines "$Indent    <panel title=`"Shell Context Blocks`" scope=`"$Scope`" variant=`"context_strip`" layout=`"grid`" columns={3} gap={10} persistent_layout_id=`"dcc_context_blocks`">"
 
-    Add-Line $lines "$Indent        <panel title=`"$($ShellChrome.command_spotlight.title)`" scope=`"$Scope`" variant=`"command_spotlight`" layout=`"column`" gap={8}>"
+    Add-Line $lines "$Indent        <panel title=`"$($ShellChrome.command_spotlight.title)`" scope=`"$Scope`" variant=`"command_spotlight`" layout=`"column`" gap={8} persistent_layout_id=`"dcc_command_spotlight`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $ShellChrome.command_spotlight.eyebrow -Indent "$Indent            ")
     Add-Line $lines (Render-TextNode -Role "title" -Value $ShellChrome.command_spotlight.title -Indent "$Indent            ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value $ShellChrome.command_spotlight.summary -Indent "$Indent            ")
-    Add-Line $lines "$Indent            <slot layout=`"row`" gap={8} overflow_x=`"scroll`">"
+    Add-Line $lines "$Indent            <slot layout=`"row`" gap={8} overflow_x=`"scroll`" persistent_layout_id=`"dcc_command_spotlight_slot`">"
     foreach ($command in $spotlightCommands) {
         Add-Lines $lines (Render-CommandSpotlightCard -Command $command -Scope $Scope -Indent "$Indent                ")
     }
@@ -568,7 +584,7 @@ function Render-ShellContextStrip {
 
     Add-Lines $lines (Render-SystemRack -SystemRack $ShellChrome.system_rack -StatusItemById $StatusItemById -ShellMetrics $ShellMetrics -Scope $Scope -Indent "$Indent        ")
 
-    Add-Line $lines "$Indent        <panel title=`"$($ShellChrome.operator_notes.title)`" scope=`"$Scope`" variant=`"operator_console`" layout=`"column`" gap={6}>"
+    Add-Line $lines "$Indent        <panel title=`"$($ShellChrome.operator_notes.title)`" scope=`"$Scope`" variant=`"operator_console`" layout=`"column`" gap={6} persistent_layout_id=`"dcc_operator_console`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $ShellChrome.operator_notes.eyebrow -Indent "$Indent            ")
     Add-Line $lines (Render-TextNode -Role "title" -Value $ShellChrome.operator_notes.title -Indent "$Indent            ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value $ShellChrome.operator_notes.summary -Indent "$Indent            ")
@@ -608,77 +624,78 @@ function Render-WorkspacePage {
     $runtimePackCount = @($Snapshot.runtime_packs).Count
     $surfaceDeckColumns = [Math]::Min(3, [Math]::Max(1, @($centerSurfaces).Count))
     $telemetryDeckColumns = [Math]::Min(3, [Math]::Max(1, @($bottomSurfaces).Count))
+    $pageLayoutPrefix = ConvertTo-KnSafeId ("dcc_page_" + $Page.mode_id)
 
     $lines = New-Object System.Collections.Generic.List[string]
     $defaultActiveLiteral = if ($IsDefaultActive) { " tab_default_active={true}" } else { "" }
 
-    Add-Line $lines "            <panel title=`"$($Page.title)`" scope=`"$Scope`" variant=`"page`" layout=`"dock`" gap={14} persistent_layout_id=`"dcc_page_$($Page.mode_id)`" tab_group_id=`"$PageTabGroupId`" tab_label=`"$($Page.tab_label)`" tab_order={$TabOrder}$defaultActiveLiteral>"
+    Add-Line $lines "            <panel title=`"$($Page.title)`" scope=`"$Scope`" variant=`"page`" layout=`"dock`" gap={14} persistent_layout_id=`"$pageLayoutPrefix`" tab_group_id=`"$PageTabGroupId`" tab_label=`"$($Page.tab_label)`" tab_order={$TabOrder}$defaultActiveLiteral>"
 
-    Add-Line $lines "                <panel title=`"Lane Console`" dock=`"left`" split_ratio={0.18} min_width={250} max_width={340} resizable={true} layout=`"column`" gap={10}>"
-    Add-Line $lines "                    <panel title=`"Hero`" scope=`"$Scope`" variant=`"hero_card`" layout=`"column`" gap={6}>"
+    Add-Line $lines "                <panel title=`"Lane Console`" dock=`"left`" split_ratio={0.18} min_width={250} max_width={340} resizable={true} layout=`"column`" gap={10} persistent_layout_id=`"${pageLayoutPrefix}_lane_console`">"
+    Add-Line $lines "                    <panel title=`"Hero`" scope=`"$Scope`" variant=`"hero_card`" layout=`"column`" gap={6} persistent_layout_id=`"${pageLayoutPrefix}_hero`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $Mode.label.ToUpperInvariant() -Indent "                        ")
     Add-Line $lines (Render-TextNode -Role "hero" -Value $Page.hero_title -Indent "                        ")
     Add-Line $lines (Render-TextNode -Role "body" -Value $Page.hero_summary -Indent "                        ")
     Add-Line $lines "                    </panel>"
-    Add-Line $lines "                    <inspector title=`"Featured Tools`">"
+    Add-Line $lines "                    <inspector title=`"Featured Tools`" persistent_layout_id=`"${pageLayoutPrefix}_featured_tools`">"
     Add-Lines $lines (Render-TextLines -Items $featuredTools -Formatter { param($tool) "$($tool.label) | $($tool.summary)" } -Role "body" -Indent "                        ")
     Add-Line $lines "                    </inspector>"
-    Add-Line $lines "                    <inspector title=`"Quick Commands`">"
+    Add-Line $lines "                    <inspector title=`"Quick Commands`" persistent_layout_id=`"${pageLayoutPrefix}_quick_commands`">"
     Add-Lines $lines (Render-TextLines -Items $quickCommands -Formatter { param($command) "$($command.label) | $($command.summary)" } -Role "body" -Indent "                        ")
     Add-Line $lines "                    </inspector>"
     if ($null -ne $focusSurface) {
-        Add-Line $lines "                    <tree title=`"Focus Surface`">"
+        Add-Line $lines "                    <tree title=`"Focus Surface`" persistent_layout_id=`"${pageLayoutPrefix}_focus_surface`">"
         Add-Line $lines (Render-TextNode -Role "caption" -Value $focusSurface.title -Indent "                        ")
         Add-Line $lines (Render-TextNode -Role "caption" -Value $focusSurface.summary -Indent "                        ")
         Add-Line $lines "                    </tree>"
     }
     Add-Line $lines "                </panel>"
 
-    Add-Line $lines "                <panel title=`"Workbench Stage`" dock=`"center`" layout=`"column`" gap={12}>"
-    Add-Line $lines "                    <panel title=`"Viewport Frame`" scope=`"$Scope`" variant=`"viewport_frame`" layout=`"column`" gap={10}>"
-    Add-Line $lines "                        <panel title=`"Cockpit Strip`" layout=`"grid`" columns={4} gap={8}>"
-    Add-Line $lines "                            <panel title=`"Mode`" scope=`"$Scope`" variant=`"quiet_card`" layout=`"column`" gap={2}>"
+    Add-Line $lines "                <panel title=`"Workbench Stage`" dock=`"center`" layout=`"column`" gap={12} persistent_layout_id=`"${pageLayoutPrefix}_workbench_stage`">"
+    Add-Line $lines "                    <panel title=`"Viewport Frame`" scope=`"$Scope`" variant=`"viewport_frame`" layout=`"column`" gap={10} persistent_layout_id=`"${pageLayoutPrefix}_viewport_frame`">"
+    Add-Line $lines "                        <panel title=`"Cockpit Strip`" layout=`"grid`" columns={4} gap={8} persistent_layout_id=`"${pageLayoutPrefix}_cockpit_strip`">"
+    Add-Line $lines "                            <panel title=`"Mode`" scope=`"$Scope`" variant=`"quiet_card`" layout=`"column`" gap={2} persistent_layout_id=`"${pageLayoutPrefix}_mode_metric`">"
     Add-Line $lines (Render-TextNode -Role "metric" -Value $Mode.label -Indent "                            ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value $focusCaption -Indent "                            ")
     Add-Line $lines "                            </panel>"
-    Add-Line $lines "                            <panel title=`"Fabric`" scope=`"$Scope`" variant=`"status_card`" layout=`"column`" gap={2}>"
+    Add-Line $lines "                            <panel title=`"Fabric`" scope=`"$Scope`" variant=`"status_card`" layout=`"column`" gap={2} persistent_layout_id=`"${pageLayoutPrefix}_fabric_metric`">"
     Add-Line $lines (Render-TextNode -Role "metric" -Value ([string]$latestFabricStatus).ToUpperInvariant() -Indent "                            ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value ("intent routes " + @($intents).Count) -Indent "                            ")
     Add-Line $lines "                            </panel>"
-    Add-Line $lines "                            <panel title=`"Scale`" scope=`"$Scope`" variant=`"quiet_card`" layout=`"column`" gap={2}>"
+    Add-Line $lines "                            <panel title=`"Scale`" scope=`"$Scope`" variant=`"quiet_card`" layout=`"column`" gap={2} persistent_layout_id=`"${pageLayoutPrefix}_scale_metric`">"
     Add-Line $lines (Render-TextNode -Role "metric" -Value ([string]$runtimePackCount) -Indent "                            ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value "runtime packs online" -Indent "                            ")
     Add-Line $lines "                            </panel>"
-    Add-Line $lines "                            <panel title=`"Commands`" scope=`"$Scope`" variant=`"quiet_card`" layout=`"column`" gap={2}>"
+    Add-Line $lines "                            <panel title=`"Commands`" scope=`"$Scope`" variant=`"quiet_card`" layout=`"column`" gap={2} persistent_layout_id=`"${pageLayoutPrefix}_commands_metric`">"
     Add-Line $lines (Render-TextNode -Role "metric" -Value ([string]@($quickCommands).Count) -Indent "                            ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value "quick actions armed" -Indent "                            ")
     Add-Line $lines "                            </panel>"
     Add-Line $lines "                        </panel>"
     Add-Line $lines "                        <viewport3d $ViewportProps />"
     Add-Line $lines "                    </panel>"
-    Add-Line $lines "                    <panel title=`"Surface Deck`" layout=`"grid`" columns={$surfaceDeckColumns} gap={10}>"
+    Add-Line $lines "                    <panel title=`"Surface Deck`" layout=`"grid`" columns={$surfaceDeckColumns} gap={10} persistent_layout_id=`"${pageLayoutPrefix}_surface_deck`">"
     foreach ($surface in $centerSurfaces) {
-        Add-Lines $lines (Render-SurfaceCard -Surface $surface -Scope $Scope -Variant "surface_card" -Indent "                        ")
+        Add-Lines $lines (Render-SurfaceCard -Surface $surface -Scope $Scope -Variant "surface_card" -PersistentLayoutId "${pageLayoutPrefix}_center_$($surface.id)" -Indent "                        ")
     }
     Add-Line $lines "                    </panel>"
     Add-Line $lines "                </panel>"
 
-    Add-Line $lines "                <panel title=`"Inspector Rail`" dock=`"right`" split_ratio={0.22} min_width={300} max_width={420} resizable={true} layout=`"column`" gap={10}>"
-    Add-Line $lines "                    <inspector title=`"Intent Routes`">"
+    Add-Line $lines "                <panel title=`"Inspector Rail`" dock=`"right`" split_ratio={0.22} min_width={300} max_width={420} resizable={true} layout=`"column`" gap={10} persistent_layout_id=`"${pageLayoutPrefix}_inspector_rail`">"
+    Add-Line $lines "                    <inspector title=`"Intent Routes`" persistent_layout_id=`"${pageLayoutPrefix}_intent_routes`">"
     Add-Lines $lines (Render-TextLines -Items $intents -Formatter { param($intent) "$($intent.label) | $($intent.graph)" } -Role "body" -Indent "                        ")
     Add-Line $lines "                    </inspector>"
     foreach ($surface in $rightSurfaces) {
-        Add-Lines $lines (Render-SurfaceCard -Surface $surface -Scope $Scope -Variant "surface_card" -Indent "                    ")
+        Add-Lines $lines (Render-SurfaceCard -Surface $surface -Scope $Scope -Variant "surface_card" -PersistentLayoutId "${pageLayoutPrefix}_right_$($surface.id)" -Indent "                    ")
     }
     Add-Line $lines "                </panel>"
 
-    Add-Line $lines "                <panel title=`"Telemetry Tray`" dock=`"bottom`" split_ratio={0.2} min_height={180} max_height={320} resizable={true} layout=`"column`" gap={10}>"
-    Add-Line $lines "                    <panel title=`"Execution Surfaces`" layout=`"grid`" columns={$telemetryDeckColumns} gap={10}>"
+    Add-Line $lines "                <panel title=`"Telemetry Tray`" dock=`"bottom`" split_ratio={0.2} min_height={180} max_height={320} resizable={true} layout=`"column`" gap={10} persistent_layout_id=`"${pageLayoutPrefix}_telemetry_tray`">"
+    Add-Line $lines "                    <panel title=`"Execution Surfaces`" layout=`"grid`" columns={$telemetryDeckColumns} gap={10} persistent_layout_id=`"${pageLayoutPrefix}_execution_surfaces`">"
     foreach ($surface in $bottomSurfaces) {
-        Add-Lines $lines (Render-SurfaceCard -Surface $surface -Scope $Scope -Variant "quiet_card" -Indent "                        ")
+        Add-Lines $lines (Render-SurfaceCard -Surface $surface -Scope $Scope -Variant "quiet_card" -PersistentLayoutId "${pageLayoutPrefix}_bottom_$($surface.id)" -Indent "                        ")
     }
     Add-Line $lines "                    </panel>"
-    Add-Line $lines "                    <inspector title=`"Extension Seams`">"
+    Add-Line $lines "                    <inspector title=`"Extension Seams`" persistent_layout_id=`"${pageLayoutPrefix}_extension_seams`">"
     Add-Lines $lines (Render-TextLines -Items $Snapshot.extension_seams -Formatter { param($item) $item } -Role "caption" -Indent "                        ")
     Add-Line $lines "                    </inspector>"
     Add-Line $lines "                </panel>"
@@ -740,12 +757,12 @@ $ShellMetrics = New-ShellMetrics `
 
 $lines = New-Object System.Collections.Generic.List[string]
 Add-Line $lines "component App():"
-Add-Line $lines "    render <slot layout=`"column`" gap={10} padding={10} overflow_y=`"scroll`">"
+Add-Line $lines "    render <slot layout=`"column`" gap={10} padding={10} overflow_y=`"scroll`" persistent_layout_id=`"dcc_root_slot`">"
 Add-Lines $lines (Render-ThemeBlock -Theme $Theme -Indent "        ")
-Add-Line $lines "        <panel title=`"$($Manifest.window_title)`" scope=`"dcc_shell`" variant=`"shell_root`" layout=`"column`" gap={10}>"
+Add-Line $lines "        <panel title=`"$($Manifest.window_title)`" scope=`"dcc_shell`" variant=`"shell_root`" layout=`"column`" gap={10} persistent_layout_id=`"dcc_shell_root`">"
 Add-Lines $lines (Render-ShellTopBar -ShellChrome $ShellChrome -ShellMetrics $ShellMetrics -Scope "dcc_shell" -Indent "            ")
 Add-Lines $lines (Render-ShellContextStrip -ShellChrome $ShellChrome -Pages $UiShell.workspace_pages -ModeById $ModeById -CommandById $CommandById -StatusItemById $StatusItemById -ShellMetrics $ShellMetrics -Scope "dcc_shell" -Indent "            ")
-Add-Line $lines "            <panel title=`"Workbench Pages`" scope=`"dcc_shell`" variant=`"page`" layout=`"column`" gap={12}>"
+Add-Line $lines "            <panel title=`"Workbench Pages`" scope=`"dcc_shell`" variant=`"page`" layout=`"column`" gap={12} persistent_layout_id=`"dcc_workbench_pages`">"
 
 $pageIndex = 0
 foreach ($page in $UiShell.workspace_pages) {
@@ -771,17 +788,17 @@ foreach ($page in $UiShell.workspace_pages) {
 }
 
 Add-Line $lines "            </panel>"
-Add-Line $lines "            <panel title=`"Global Registries`" scope=`"dcc_shell`" variant=`"page`" layout=`"grid`" columns={4} gap={12}>"
-Add-Line $lines "                <inspector title=`"Pipeline`">"
+Add-Line $lines "            <panel title=`"Global Registries`" scope=`"dcc_shell`" variant=`"page`" layout=`"grid`" columns={4} gap={12} persistent_layout_id=`"dcc_global_registries`">"
+Add-Line $lines "                <inspector title=`"Pipeline`" persistent_layout_id=`"dcc_registry_pipeline`">"
 Add-Lines $lines (Render-TextLines -Items $Pipeline -Formatter { param($step) "$($step.id) | $($step.runtime)" } -Role "caption" -Indent "                    ")
 Add-Line $lines "                </inspector>"
-Add-Line $lines "                <inspector title=`"Resources`">"
+Add-Line $lines "                <inspector title=`"Resources`" persistent_layout_id=`"dcc_registry_resources`">"
 Add-Lines $lines (Render-TextLines -Items $Resources -Formatter { param($resource) "$($resource.resource_uri) | $($resource.kind)" } -Role "caption" -Indent "                    ")
 Add-Line $lines "                </inspector>"
-Add-Line $lines "                <inspector title=`"Reports`">"
+Add-Line $lines "                <inspector title=`"Reports`" persistent_layout_id=`"dcc_registry_reports`">"
 Add-Lines $lines (Render-TextLines -Items $Reports -Formatter { param($report) "$($report.report_uri) | $($report.summary)" } -Role "caption" -Indent "                    ")
 Add-Line $lines "                </inspector>"
-Add-Line $lines "                <inspector title=`"Automation`">"
+Add-Line $lines "                <inspector title=`"Automation`" persistent_layout_id=`"dcc_registry_automation`">"
 Add-Lines $lines (Render-TextLines -Items $Jobs -Formatter { param($job) "$($job.label) | $($job.schedule)" } -Role "caption" -Indent "                    ")
 Add-Line $lines "                </inspector>"
 Add-Line $lines "            </panel>"

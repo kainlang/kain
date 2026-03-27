@@ -34,9 +34,11 @@
 | --- | --- | --- | --- |
 | Widget/chrome depth | The platform can semantically express and natively realize top bars, tab wells, toolbars, sidebars, menus, status bars, command surfaces, property grids, trees, tables, overlays, and viewport-adjacent controls. | Showcase matrix plus per-widget bundle and runtime proofs. | A widget class exists only as handcrafted host drawing or smoke-specific code. |
 | Interaction depth | Drag/drop, docking, keyboard focus travel, selection changes, command invocation, panel open/close, and viewport-to-shell coordination are driven by runtime semantics. | Interaction traces, patch deltas, and packaged-app recordings. | These flows only work because the native host keeps private state that other backends cannot see. |
+| Spatial verifiability | The runtime exposes explicit geometry, containment, docking, overlay, and focus-order truth strongly enough that layout correctness can be inspected and validated structurally. | Runtime geometry snapshots, verification queries, and layout-trace artifacts for tab wells, panels, anchors, and overlays. | A model or tool must infer layout correctness from screenshots or renderer quirks because computed spatial truth is missing. |
 | Paint and motion depth | Gradients, layered surfaces, images, masks, blur, transitions, and authored animations survive the bundle path and degrade explicitly when unsupported. | Bundle payload examples, native proof captures, and fallback proofs. | Rich styling exists only through renderer-local hacks or post-bundle mutation. |
 | Schema-driven tooling surfaces | Property grids, inspectors, tables, forms, menus, and metadata views can be generated from compiler-owned schema/widget contracts. | Schema inputs, emitted bundle excerpts, and realized examples. | Tooling surfaces are still one-off handwritten widget trees with no reusable contract. |
 | Backend portability discipline | Native-specific conveniences do not redefine UI meaning. Web and Slate can consume the same semantic model without reverse engineering the native host. | Capability matrix entries tied to bundle/runtime structures. | Native realization introduces semantics that have no bundle-level representation. |
+| Performance policy depth | Resize, motion, invalidation, and idle behavior are expressed through explicit runtime policy and stay bounded under dense tool-shell workloads. | Timing captures, invalidation traces, policy tables, and idle-state baselines. | Richer UI still depends on accidental host behavior, emits unbounded churn, or has no inspectable performance policy. |
 
 ## P2 Strongening Work
 
@@ -60,6 +62,7 @@ These invariants are cross-cutting. Breaking any of them is grounds for rejectio
 
 - The retained runtime graph must preserve stable identity for nodes that survive an interaction.
 - Focus, selection, commands, transactions, and animations must be runtime-visible structures, not incidental backend bookkeeping.
+- Computed geometry, containment, anchor zones, and focus-order edges must be runtime-visible structures, not screenshot-only emergent behavior.
 - `workspace_layout.active_tabs` style state is the pattern to preserve: authored meaning persists through shared runtime truth instead of renderer-local storage.
 
 ### Runtime Graph To Patch Stream
@@ -85,10 +88,11 @@ These invariants are cross-cutting. Breaking any of them is grounds for rejectio
 The overhaul is not accepted until the repo can present all of the following:
 
 1. A compiler/bundle proof for each major semantic family: state, commands, focus, selection, transactions, paint, motion, schema widgets, and viewport-adjacent controls.
-2. A runtime/patch proof for each hard-to-fake interaction: tab change, dock move, command execution, property edit, menu open, and overlay interaction.
+2. A runtime/patch and geometry proof for each hard-to-fake interaction: tab change, dock move, command execution, property edit, menu open, overlay interaction, and anchored surface placement.
 3. A packaged native proof for three distinct showcase shells: editorial, operator, and workbench/property-grid.
 4. A backend-capability proof showing that unsupported semantics are surfaced explicitly instead of vanishing.
-5. A regression run that compares the accepted bundle/runtime traces against future changes.
+5. A performance proof showing bounded invalidation, resize behavior, and quiescent idle behavior for dense tool shells.
+6. A regression run that compares the accepted bundle/runtime traces against future changes.
 
 ## Explicit Failure Conditions
 

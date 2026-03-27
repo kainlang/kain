@@ -8,13 +8,19 @@ use crate::parser::Parser;
 use crate::runtime::{eval_expr, Env, Value};
 use crate::span::Span;
 use kain_ui::{
-    default_layout_for_tag, render_debug_tree, widget_kind_for_tag, UiBuildOutput, UiDockPlacement,
+    default_layout_for_tag, render_debug_tree, ui_runtime_systems_from_tree, widget_kind_for_tag,
+    UiBuildOutput, UiDockNode, UiDockPlacement,
     UiLayoutAlignment, UiLength, UiLengthUnit, UiNode, UiOverflowBehavior, UiStyleState,
     UiThemeRegistry, UiThemeScope, UiThemeToken, UiThemeVariant, UiTreeBuilder, UiValue,
-    UiWidgetKind,
+    UiWidgetKind, UiAnimationTrack, UiAnimationTrigger, UiComputed, UiEasingKind, UiEventRoute,
+    UiFocusGraph, UiResource, UiResourceState, UiSchedulerPhase, UiSelectionModel, UiSignalId,
+    UiSurface, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
+    UiSurfaceShaderBinding, UiTransaction,
 };
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
+
+const UI_AUTHORING_CONTRACT_VERSION: &str = "ui_slate_x100.authoring_contract.v1";
 
 /// Named backend targets for KAIN's UI subsystem.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -334,7 +340,9 @@ pub fn build_ui_output_from_program(
     };
 
     let rendered = eval_jsx(&mut env, &root)?;
-    Ok(lower_value_to_ui_tree(rendered))
+    let mut output = lower_value_to_ui_tree(rendered);
+    append_global_ui_authoring_contracts(&mut output, &env);
+    Ok(output)
 }
 
 /// Lower any interpreter value into a semantic `UiTree`.
@@ -355,6 +363,7 @@ pub fn lower_vnode_to_ui_tree(root: &VNode) -> UiBuildOutput {
         output.systems.theme_registry =
             merge_authored_theme_registry(&output.systems.theme_registry, lowering.authored_theme);
     }
+    lowering.authored_systems.apply_to_output(&mut output);
     output
 }
 
@@ -458,6 +467,7 @@ fn coerce_value_to_vnode(value: Value) -> VNode {
 struct UiLowering {
     builder: UiTreeBuilder,
     authored_theme: UiThemeRegistry,
+    authored_systems: AuthoredUiSystemsAccumulator,
 }
 
 impl Default for UiLowering {
@@ -468,8 +478,230 @@ impl Default for UiLowering {
                 active_theme: None,
                 ..UiThemeRegistry::default()
             },
+            authored_systems: AuthoredUiSystemsAccumulator::default(),
         }
     }
+}
+
+#[derive(Debug, Clone)]
+struct AuthoredComputedSpec {
+    pub id: String,
+    pub label: String,
+    pub depends_on: Vec<String>,
+    pub invalidates: Vec<String>,
+    pub scheduler_phase: UiSchedulerPhase,
+}
+
+#[derive(Default)]
+struct AuthoredUiSystemsAccumulator {
+    focus_scopes: BTreeSet<String>,
+    focus_default_scope: Option<String>,
+    selection_scopes: BTreeSet<String>,
+    selection_default_scope: Option<String>,
+    event_routes: Vec<UiEventRoute>,
+    animation_tracks: Vec<UiAnimationTrack>,
+    surfaces: Vec<UiSurface>,
+    computed_specs: Vec<AuthoredComputedSpec>,
+    signal_values: BTreeMap<UiSignalId, UiValue>,
+    session_state: BTreeMap<String, UiValue>,
+    workspace_persistence_key: Option<String>,
+    workspace_virtualization_enabled: Option<bool>,
+}
+
+impl AuthoredUiSystemsAccumulator {
+    fn apply_to_output(&mut self, output: &mut UiBuildOutput) {
+        // Scopes
+        for scope in self.focus_scopes.iter().cloned() {
+            if !output.systems.focus_graph.scopes.contains(&scope) {
+                output.systems.focus_graph.scopes.push(scope);
+            }
+        }
+        if output.systems.focus_graph.default_scope.is_none() {
+            output.systems.focus_graph.default_scope = self.focus_default_scope.clone();
+        }
+
+        for scope in self.selection_scopes.iter().cloned() {
+            if !output.systems.selection_model.scopes.contains(&scope) {
+                output.systems.selection_model.scopes.push(scope);
+            }
+        }
+        if output.systems.selection_model.active_scope.is_none() {
+            output.systems.selection_model.active_scope = self.selection_default_scope.clone();
+        }
+
+        // Events
+        for route in self.event_routes.drain(..) {
+            output.systems.event_routes.push(route);
+        }
+
+        // Motion
+        for track in self.animation_tracks.drain(..) {
+            output.systems.animation_tracks.push(track);
+        }
+
+        // Surfaces
+        for surface in self.surfaces.drain(..) {
+            output.systems.surfaces.push(surface);
+        }
+
+        // Signals
+        for (id, value) in std::mem::take(&mut self.signal_values) {
+            output.systems.signal_values.insert(id, value);
+        }
+
+        // Session state metadata (explicit contract surfaces that don't fit in scalar node props).
+        for (key, value) in std::mem::take(&mut self.session_state) {
+            output.systems.session_state.insert(key, value);
+        }
+
+        // Computed declarations can reference nodes by identity keys, so resolve them once the
+        // full tree is available.
+        if !self.computed_specs.is_empty() {
+            let identity_index = build_identity_key_index(output);
+            for spec in self.computed_specs.drain(..) {
+                output.systems.computed.push(resolve_authored_computed_spec(spec, &identity_index));
+            }
+        }
+
+        self.apply_workspace_contract(output);
+        self.apply_compat_backfill(output);
+    }
+
+    fn apply_workspace_contract(&self, output: &mut UiBuildOutput) {
+        if output.systems.workspace_layout.persistence_key.is_none() {
+            output.systems.workspace_layout.persistence_key = self.workspace_persistence_key.clone();
+        }
+        if !output.systems.workspace_layout.virtualization_enabled {
+            if let Some(enabled) = self.workspace_virtualization_enabled {
+                output.systems.workspace_layout.virtualization_enabled = enabled;
+            }
+        }
+
+        if output.systems.workspace_layout.roots.is_empty() {
+            let mut roots = Vec::new();
+            for node in output.tree.nodes.values() {
+                let Some(placement) = node.layout.dock else {
+                    continue;
+                };
+                roots.push(UiDockNode {
+                    id: node_layout_id(node),
+                    node: node.id,
+                    placement,
+                    split_ratio: node.layout.split_ratio,
+                    children: node.children.clone(),
+                    persistent_layout_id: node.layout.persistent_layout_id.clone(),
+                });
+            }
+            if !roots.is_empty() {
+                output.systems.workspace_layout.roots = roots;
+            }
+        }
+
+        if output.systems.workspace_layout.active_tabs.is_empty() {
+            output.systems.workspace_layout.active_tabs = resolve_active_tabs_from_tree(&output.tree);
+        }
+    }
+
+    fn apply_compat_backfill(&self, output: &mut UiBuildOutput) {
+        // Compatibility: unless an app opts into the authored-first contract marker, preserve the
+        // legacy behavior where `kain-ui` infers missing systems from tree shape.
+        let opted_in = output.systems.session_state.contains_key("ui.contract.version");
+        if opted_in {
+            return;
+        }
+
+        let inferred = ui_runtime_systems_from_tree(&output.tree);
+
+        if output.systems.workspace_layout.roots.is_empty() {
+            output.systems.workspace_layout.roots = inferred.workspace_layout.roots;
+        }
+        if output.systems.workspace_layout.persistence_key.is_none() {
+            output.systems.workspace_layout.persistence_key = inferred.workspace_layout.persistence_key;
+        }
+        if output.systems.workspace_layout.active_tabs.is_empty() {
+            output.systems.workspace_layout.active_tabs = inferred.workspace_layout.active_tabs;
+        }
+
+        if output.systems.focus_graph.scopes.is_empty() && !inferred.focus_graph.scopes.is_empty() {
+            output.systems.focus_graph = inferred.focus_graph;
+        }
+        if output.systems.selection_model.scopes.is_empty() && !inferred.selection_model.scopes.is_empty() {
+            output.systems.selection_model = inferred.selection_model;
+        }
+        if output.systems.surfaces.is_empty() && !inferred.surfaces.is_empty() {
+            output.systems.surfaces = inferred.surfaces;
+        }
+        if output.systems.animation_tracks.is_empty() && !inferred.animation_tracks.is_empty() {
+            output.systems.animation_tracks = inferred.animation_tracks;
+        }
+        if output.systems.theme_registry.scopes.is_empty() && !inferred.theme_registry.scopes.is_empty() {
+            output.systems.theme_registry = inferred.theme_registry;
+        }
+    }
+}
+
+fn build_identity_key_index(output: &UiBuildOutput) -> HashMap<String, kain_ui::UiNodeId> {
+    let mut index = HashMap::new();
+    for (id, node) in &output.tree.nodes {
+        if let Some(key) = node.identity_key.as_deref() {
+            index.insert(key.to_string(), *id);
+        }
+    }
+    index
+}
+
+fn resolve_authored_computed_spec(
+    spec: AuthoredComputedSpec,
+    identity_index: &HashMap<String, kain_ui::UiNodeId>,
+) -> UiComputed {
+    let depends_on = spec
+        .depends_on
+        .iter()
+        .map(|entry| parse_signal_ref(entry))
+        .collect::<Vec<_>>();
+    let invalidates_nodes = spec
+        .invalidates
+        .iter()
+        .filter_map(|entry| parse_node_ref(entry, identity_index))
+        .collect::<Vec<_>>();
+    UiComputed {
+        id: spec.id,
+        label: spec.label,
+        depends_on,
+        invalidates_nodes,
+        scheduler_phase: spec.scheduler_phase,
+    }
+}
+
+fn parse_node_ref(
+    entry: &str,
+    identity_index: &HashMap<String, kain_ui::UiNodeId>,
+) -> Option<kain_ui::UiNodeId> {
+    if let Ok(parsed) = entry.parse::<u64>() {
+        return Some(kain_ui::UiNodeId(parsed));
+    }
+    identity_index.get(entry).cloned()
+}
+
+fn parse_signal_ref(entry: &str) -> UiSignalId {
+    if let Ok(parsed) = entry.parse::<u64>() {
+        return UiSignalId(parsed);
+    }
+    UiSignalId(stable_hash_u64(entry))
+}
+
+fn stable_hash_u64(input: &str) -> u64 {
+    // Stable FNV-1a 64-bit hash. We use this for signal ids so authored ids remain stable across
+    // rebuilds even when tree structure changes.
+    const OFFSET_BASIS: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x00000100000001B3;
+
+    let mut hash = OFFSET_BASIS;
+    for byte in input.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(PRIME);
+    }
+    hash
 }
 
 fn lower_vnode_into_tree(lowering: &mut UiLowering, node: &VNode) -> Option<kain_ui::UiNodeId> {
@@ -508,6 +740,26 @@ fn lower_vnode_into_tree(lowering: &mut UiLowering, node: &VNode) -> Option<kain
                 extract_theme_block(&mut lowering.authored_theme, attrs, children);
                 return None;
             }
+            if tag.eq_ignore_ascii_case("signal") {
+                extract_signal_decl(&mut lowering.authored_systems, attrs);
+                return None;
+            }
+            if tag.eq_ignore_ascii_case("computed") {
+                extract_computed_decl(&mut lowering.authored_systems, attrs);
+                return None;
+            }
+            if tag.eq_ignore_ascii_case("workspace") {
+                extract_workspace_decl(&mut lowering.authored_systems, attrs);
+                return None;
+            }
+            if tag.eq_ignore_ascii_case("focus_scope") {
+                extract_focus_scope_decl(&mut lowering.authored_systems, attrs);
+                return None;
+            }
+            if tag.eq_ignore_ascii_case("selection_scope") {
+                extract_selection_scope_decl(&mut lowering.authored_systems, attrs);
+                return None;
+            }
 
             if tag.eq_ignore_ascii_case("text") {
                 return Some(lower_text_element(lowering, attrs, children, key));
@@ -525,11 +777,15 @@ fn lower_vnode_into_tree(lowering: &mut UiLowering, node: &VNode) -> Option<kain
                 .props
                 .insert("tag".to_string(), UiValue::String(tag.clone()));
             if let Some(key) = key {
+                ui_node.identity_key = Some(key.clone());
                 ui_node
                     .props
                     .insert("key".to_string(), UiValue::String(key.clone()));
             }
             apply_canonical_attrs_to_ui_node(&mut ui_node, tag, attrs);
+            lowering
+                .authored_systems
+                .record_authored_semantics_for_node(id, &ui_node, attrs);
             apply_attrs_to_ui_props(&mut ui_node.props, attrs);
             lowering.builder.add_node(ui_node);
             if !child_ids.is_empty() {
@@ -549,11 +805,9 @@ fn lower_vnode_into_tree(lowering: &mut UiLowering, node: &VNode) -> Option<kain
                     .props
                     .insert(name.clone(), runtime_value_to_ui_value(value));
             }
-            for (name, value) in &instance.state {
-                ui_node
-                    .props
-                    .insert(format!("state.{name}"), runtime_value_to_ui_value(value));
-            }
+            lowering
+                .authored_systems
+                .record_component_state_signals(id, &instance.name, &instance.props, &instance.state, &mut ui_node);
             lowering.builder.add_node(ui_node);
             if let Some(rendered_id) = rendered_id {
                 lowering.builder.replace_children(id, vec![rendered_id]);
@@ -578,12 +832,8 @@ fn apply_attrs_to_ui_props(props: &mut BTreeMap<String, UiValue>, attrs: &[UIAtt
                 }
                 props.insert(name.clone(), UiValue::Bool(*value));
             }
-            UIAttr::Event { name, event, .. } => {
-                props.insert(
-                    name.clone(),
-                    UiValue::String(format!("[event:{}]", event_name(event))),
-                );
-            }
+            // Events are compiler-owned semantics. They do not lower to opaque prop strings.
+            UIAttr::Event { .. } => {}
         }
     }
 }
@@ -738,6 +988,21 @@ fn layout_from_attrs(tag: &str, attrs: &[UIAttr]) -> kain_ui::UiLayoutSpec {
 }
 
 fn apply_canonical_attrs_to_ui_node(node: &mut UiNode, tag: &str, attrs: &[UIAttr]) {
+    if let Some(identity) = attr_string(attrs, "identity_key")
+        .or_else(|| attr_string(attrs, "identity"))
+        .or_else(|| attr_string(attrs, "id"))
+    {
+        node.identity_key = Some(identity);
+    }
+
+    if let Some(scope) = attr_string(attrs, "focus_scope") {
+        node.focus_scope = Some(scope);
+    }
+
+    if let Some(scope) = attr_string(attrs, "selection_scope") {
+        node.selection_scope = Some(scope);
+    }
+
     if let Some(scope) = attr_string(attrs, "scope").or_else(|| attr_string(attrs, "theme_scope")) {
         node.style.theme_scope = Some(scope);
     }
@@ -766,9 +1031,43 @@ fn apply_canonical_attrs_to_ui_node(node: &mut UiNode, tag: &str, attrs: &[UIAtt
             node.style.variant = Some(role);
         }
     }
+
+    // Style and paint values are explicit semantic data, not backend-local props.
+    for attr in attrs {
+        let UIAttr::Property { name, value } = attr else {
+            continue;
+        };
+        if let Some(key) = name.strip_prefix("style_") {
+            node.style
+                .values
+                .insert(normalize_style_key(key), runtime_value_to_ui_value(value));
+            continue;
+        }
+        if let Some(key) = name.strip_prefix("paint_") {
+            node.style.values.insert(
+                format!("paint.{}", normalize_style_key(key)),
+                runtime_value_to_ui_value(value),
+            );
+            continue;
+        }
+    }
+}
+
+fn normalize_style_key(input: &str) -> String {
+    // Attribute names in `.kn` JSX are typically identifier-shaped. We use `_` as a stable
+    // separator that authors can type easily, but the runtime treats the keys as dotted
+    // namespaces.
+    input.replace('_', ".")
 }
 
 fn should_skip_prop_attr(name: &str) -> bool {
+    if name.starts_with("style_")
+        || name.starts_with("paint_")
+        || name.starts_with("motion_")
+    {
+        return true;
+    }
+
     matches!(
         name,
         "layout"
@@ -805,7 +1104,436 @@ fn should_skip_prop_attr(name: &str) -> bool {
             | "classes"
             | "tokens"
             | "states"
+            | "role"
+            | "id"
+            | "identity"
+            | "identity_key"
+            | "key"
+            | "focus_scope"
+            | "selection_scope"
+            | "focus_scope_default"
+            | "selection_scope_default"
+            | "event_phase"
+            | "command"
+            | "transaction"
     )
+}
+
+fn extract_signal_decl(systems: &mut AuthoredUiSystemsAccumulator, attrs: &[UIAttr]) {
+    let Some(id) = attr_string(attrs, "id").or_else(|| attr_string(attrs, "name")) else {
+        return;
+    };
+    let initial = attr_value(attrs, "initial")
+        .or_else(|| attr_value(attrs, "value"))
+        .map(runtime_value_to_ui_value)
+        .unwrap_or(UiValue::Null);
+    let signal_key = format!("ui.signal::{id}");
+    let signal_id = UiSignalId(stable_hash_u64(&signal_key));
+    systems.signal_values.insert(signal_id, initial);
+    systems.session_state.insert(
+        format!("ui.signal.key.{}", signal_id.0),
+        UiValue::String(signal_key),
+    );
+}
+
+fn extract_computed_decl(systems: &mut AuthoredUiSystemsAccumulator, attrs: &[UIAttr]) {
+    let Some(id) = attr_string(attrs, "id") else {
+        return;
+    };
+    let label = attr_string(attrs, "label").unwrap_or_else(|| id.clone());
+    let depends_on = attr_list(attrs, &["depends_on", "depends", "signals"]);
+    let invalidates = attr_list(attrs, &["invalidates_nodes", "invalidates", "nodes"]);
+    let scheduler_phase = attr_string(attrs, "phase")
+        .and_then(parse_scheduler_phase)
+        .unwrap_or(UiSchedulerPhase::Signals);
+    systems.computed_specs.push(AuthoredComputedSpec {
+        id,
+        label,
+        depends_on,
+        invalidates,
+        scheduler_phase,
+    });
+}
+
+fn parse_scheduler_phase(input: String) -> Option<UiSchedulerPhase> {
+    match input.trim().to_ascii_lowercase().as_str() {
+        "signals" => Some(UiSchedulerPhase::Signals),
+        "resources" => Some(UiSchedulerPhase::Resources),
+        "layout" => Some(UiSchedulerPhase::Layout),
+        "animation" => Some(UiSchedulerPhase::Animation),
+        "patches" => Some(UiSchedulerPhase::Patches),
+        "effects" => Some(UiSchedulerPhase::Effects),
+        _ => None,
+    }
+}
+
+fn extract_focus_scope_decl(systems: &mut AuthoredUiSystemsAccumulator, attrs: &[UIAttr]) {
+    let Some(name) = attr_string(attrs, "name") else {
+        return;
+    };
+    systems.focus_scopes.insert(name.clone());
+    let is_default = attr_string(attrs, "default")
+        .and_then(|value| value.parse::<bool>().ok())
+        .unwrap_or(false);
+    if is_default {
+        systems.focus_default_scope = Some(name);
+    }
+}
+
+fn extract_selection_scope_decl(systems: &mut AuthoredUiSystemsAccumulator, attrs: &[UIAttr]) {
+    let Some(name) = attr_string(attrs, "name") else {
+        return;
+    };
+    systems.selection_scopes.insert(name.clone());
+    let is_default = attr_string(attrs, "default")
+        .and_then(|value| value.parse::<bool>().ok())
+        .unwrap_or(false);
+    if is_default {
+        systems.selection_default_scope = Some(name);
+    }
+}
+
+impl AuthoredUiSystemsAccumulator {
+    fn record_authored_semantics_for_node(&mut self, id: kain_ui::UiNodeId, node: &UiNode, attrs: &[UIAttr]) {
+        if let Some(scope) = node.focus_scope.as_deref() {
+            self.focus_scopes.insert(scope.to_string());
+            if attr_string(attrs, "focus_scope_default")
+                .and_then(|value| value.parse::<bool>().ok())
+                .unwrap_or(false)
+            {
+                self.focus_default_scope = Some(scope.to_string());
+            }
+        }
+
+        if let Some(scope) = node.selection_scope.as_deref() {
+            self.selection_scopes.insert(scope.to_string());
+            if attr_string(attrs, "selection_scope_default")
+                .and_then(|value| value.parse::<bool>().ok())
+                .unwrap_or(false)
+            {
+                self.selection_default_scope = Some(scope.to_string());
+            }
+        }
+
+        self.record_event_routes_and_handlers(id, attrs);
+        self.record_motion_tracks(id, node, attrs);
+        self.record_surface_decl(id, node, attrs);
+    }
+
+    fn record_event_routes_and_handlers(&mut self, id: kain_ui::UiNodeId, attrs: &[UIAttr]) {
+        let phase = attr_string(attrs, "event_phase").unwrap_or_else(|| "bubble".to_string());
+        let command = attr_string(attrs, "command");
+        let transaction = attr_string(attrs, "transaction");
+
+        for attr in attrs {
+            let UIAttr::Event { event, handler, .. } = attr else {
+                continue;
+            };
+            let event_name = event_name(event).to_string();
+            self.event_routes.push(UiEventRoute {
+                event: event_name.clone(),
+                target: id,
+                phase: phase.clone(),
+            });
+
+            self.session_state.insert(
+                format!("ui.event.handler.{}.{}", id.0, event_name),
+                UiValue::String(handler_ref_string(handler)),
+            );
+            if let Some(command) = command.as_deref() {
+                self.session_state.insert(
+                    format!("ui.event.command.{}.{}", id.0, event_name),
+                    UiValue::String(command.to_string()),
+                );
+            }
+            if let Some(label) = transaction.as_deref() {
+                self.session_state.insert(
+                    format!("ui.event.transaction.{}.{}", id.0, event_name),
+                    UiValue::String(label.to_string()),
+                );
+            }
+        }
+    }
+
+    fn record_motion_tracks(&mut self, id: kain_ui::UiNodeId, node: &UiNode, attrs: &[UIAttr]) {
+        let Some(property) = attr_string(attrs, "motion_property")
+            .or_else(|| attr_string(attrs, "motion_prop"))
+        else {
+            return;
+        };
+
+        let track_id = attr_string(attrs, "motion_id").unwrap_or_else(|| {
+            let target = node
+                .identity_key
+                .as_deref()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| id.0.to_string());
+            format!("motion.{target}.{property}")
+        });
+        let duration_ms = attr_value(attrs, "motion_duration_ms")
+            .and_then(runtime_value_to_u32)
+            .unwrap_or(250);
+        let trigger = attr_string(attrs, "motion_trigger")
+            .and_then(parse_animation_trigger)
+            .unwrap_or(UiAnimationTrigger::Mount);
+        let easing = attr_string(attrs, "motion_easing")
+            .and_then(parse_easing_kind)
+            .unwrap_or(UiEasingKind::EaseInOut);
+        let preserve_on_reload = attr_value(attrs, "motion_preserve_on_reload")
+            .and_then(value_as_bool)
+            .unwrap_or(true);
+
+        self.animation_tracks.push(UiAnimationTrack {
+            id: track_id,
+            target: id,
+            property,
+            duration_ms,
+            trigger,
+            easing,
+            preserve_on_reload,
+        });
+    }
+
+    fn record_surface_decl(&mut self, id: kain_ui::UiNodeId, node: &UiNode, attrs: &[UIAttr]) {
+        let kind = match node.kind {
+            UiWidgetKind::Graph => UiSurfaceKind::Graph,
+            UiWidgetKind::Timeline => UiSurfaceKind::Timeline,
+            UiWidgetKind::Table => UiSurfaceKind::Table,
+            UiWidgetKind::Tree => UiSurfaceKind::Tree,
+            UiWidgetKind::Viewport2D => UiSurfaceKind::Viewport2D,
+            UiWidgetKind::Viewport3D => UiSurfaceKind::Viewport3D,
+            UiWidgetKind::Overlay => UiSurfaceKind::Overlay,
+            _ => return,
+        };
+
+        let surface_id = attr_string(attrs, "surface_id")
+            .or_else(|| node.identity_key.clone())
+            .unwrap_or_else(|| format!("surface.{}", id.0));
+
+        let renderer_preference = attr_string(attrs, "surface_renderer")
+            .and_then(parse_surface_renderer_preference)
+            .unwrap_or_default();
+        let composition_mode = attr_string(attrs, "surface_composition")
+            .and_then(parse_surface_composition_mode)
+            .unwrap_or_default();
+        let gpu_backing_required = attr_value(attrs, "gpu_backing_required")
+            .and_then(value_as_bool)
+            .unwrap_or(false);
+        let title = attr_string(attrs, "title");
+
+        let shader_ref = attr_string(attrs, "shader_ref");
+        let shader = shader_ref.map(|shader_ref| UiSurfaceShaderBinding {
+            shader_ref,
+            entry_point: attr_string(attrs, "shader_entry_point"),
+            stage: attr_string(attrs, "shader_stage"),
+            derived_format: attr_string(attrs, "shader_derived_format"),
+        });
+
+        self.surfaces.push(UiSurface {
+            id: surface_id,
+            kind,
+            node: id,
+            title,
+            renderer_preference,
+            composition_mode,
+            gpu_backing_required,
+            shader,
+        });
+    }
+
+    fn record_component_state_signals(
+        &mut self,
+        component_node_id: kain_ui::UiNodeId,
+        component_name: &str,
+        props: &HashMap<String, Value>,
+        state: &HashMap<String, Value>,
+        ui_node: &mut UiNode,
+    ) {
+        let identity = props
+            .get("key")
+            .and_then(value_as_str)
+            .or_else(|| props.get("id").and_then(value_as_str))
+            .map(ToString::to_string)
+            .unwrap_or_else(|| format!("{}", component_node_id.0));
+        ui_node.identity_key.get_or_insert(identity.clone());
+
+        for (state_name, initial_value) in state {
+            let signal_key =
+                format!("ui.signal.component_state::{component_name}::{identity}::{state_name}");
+            let signal_id = UiSignalId(stable_hash_u64(&signal_key));
+            ui_node.watches.push(signal_id);
+
+            self.signal_values
+                .insert(signal_id, runtime_value_to_ui_value(initial_value));
+            // Provide a deterministic bridge for other layers (runtime/backends/tools) without
+            // reintroducing `state.<name>=<value>` prop flattening.
+            ui_node.props.insert(
+                format!("ui.state_signal.{state_name}"),
+                UiValue::String(signal_id.0.to_string()),
+            );
+            self.session_state.insert(
+                format!("ui.signal.key.{}", signal_id.0),
+                UiValue::String(signal_key),
+            );
+            self.session_state.insert(
+                format!("ui.signal.owner.{}", signal_id.0),
+                UiValue::String(format!("component:{component_name}")),
+            );
+        }
+    }
+}
+
+fn runtime_value_to_u32(value: &Value) -> Option<u32> {
+    match value {
+        Value::Int(value) => u32::try_from(*value).ok(),
+        Value::Float(value) => u32::try_from(*value as i64).ok(),
+        Value::String(value) => value.parse::<u32>().ok(),
+        _ => None,
+    }
+}
+
+fn parse_animation_trigger(input: String) -> Option<UiAnimationTrigger> {
+    match input.trim().to_ascii_lowercase().as_str() {
+        "mount" => Some(UiAnimationTrigger::Mount),
+        "unmount" => Some(UiAnimationTrigger::Unmount),
+        "signal_change" | "signalchange" => Some(UiAnimationTrigger::SignalChange),
+        "hover" => Some(UiAnimationTrigger::Hover),
+        "focus" => Some(UiAnimationTrigger::Focus),
+        "layout_change" | "layoutchange" => Some(UiAnimationTrigger::LayoutChange),
+        "reload" => Some(UiAnimationTrigger::Reload),
+        _ => None,
+    }
+}
+
+fn parse_easing_kind(input: String) -> Option<UiEasingKind> {
+    match input.trim().to_ascii_lowercase().as_str() {
+        "linear" => Some(UiEasingKind::Linear),
+        "ease_in" | "easein" => Some(UiEasingKind::EaseIn),
+        "ease_out" | "easeout" => Some(UiEasingKind::EaseOut),
+        "ease_in_out" | "easeinout" => Some(UiEasingKind::EaseInOut),
+        "spring" => Some(UiEasingKind::Spring),
+        _ => None,
+    }
+}
+
+fn parse_surface_renderer_preference(input: String) -> Option<UiSurfaceRendererPreference> {
+    match input.trim().to_ascii_lowercase().as_str() {
+        "auto" => Some(UiSurfaceRendererPreference::Auto),
+        "native" => Some(UiSurfaceRendererPreference::Native),
+        "dom" => Some(UiSurfaceRendererPreference::Dom),
+        "wgpu" => Some(UiSurfaceRendererPreference::Wgpu),
+        "shader" => Some(UiSurfaceRendererPreference::Shader),
+        _ => None,
+    }
+}
+
+fn parse_surface_composition_mode(input: String) -> Option<UiSurfaceCompositionMode> {
+    match input.trim().to_ascii_lowercase().as_str() {
+        "host" => Some(UiSurfaceCompositionMode::Host),
+        "layered_gpu" | "layeredgpu" => Some(UiSurfaceCompositionMode::LayeredGpu),
+        "viewport" => Some(UiSurfaceCompositionMode::Viewport),
+        "shader_canvas" | "shadercanvas" => Some(UiSurfaceCompositionMode::ShaderCanvas),
+        _ => None,
+    }
+}
+
+fn handler_ref_string(handler: &Value) -> String {
+    match handler {
+        Value::Function(name) => name.clone(),
+        Value::NativeFn(name, _) => name.clone(),
+        Value::String(name) => name.clone(),
+        Value::Closure(params, _, _) => format!("[closure params={}]", params.len()),
+        other => format!("{}", other),
+    }
+}
+
+fn append_global_ui_authoring_contracts(output: &mut UiBuildOutput, env: &Env) {
+    let mut inserted_any = false;
+
+    if let Some(widget_registry) = env.lookup_value("ui_widget_registry") {
+        if let Some(json) = runtime_value_to_json_string(&widget_registry) {
+            output.systems.session_state.insert(
+                "ui.contract.widget_registry.json".to_string(),
+                UiValue::String(json),
+            );
+            inserted_any = true;
+        }
+    }
+
+    if let Some(paint_registry) = env.lookup_value("ui_paint_registry") {
+        if let Some(json) = runtime_value_to_json_string(&paint_registry) {
+            output.systems.session_state.insert(
+                "ui.contract.paint_registry.json".to_string(),
+                UiValue::String(json),
+            );
+            inserted_any = true;
+        }
+    }
+
+    if let Some(motion_registry) = env.lookup_value("ui_motion_registry") {
+        if let Some(json) = runtime_value_to_json_string(&motion_registry) {
+            output.systems.session_state.insert(
+                "ui.contract.motion_registry.json".to_string(),
+                UiValue::String(json),
+            );
+            inserted_any = true;
+        }
+    }
+
+    if let Some(command_registry) = env.lookup_value("ui_command_registry") {
+        if let Some(json) = runtime_value_to_json_string(&command_registry) {
+            output.systems.session_state.insert(
+                "ui.contract.command_registry.json".to_string(),
+                UiValue::String(json),
+            );
+            inserted_any = true;
+        }
+    }
+
+    if let Some(motion_policy) = env.lookup_value("ui_motion_policy") {
+        if let Some(json) = runtime_value_to_json_string(&motion_policy) {
+            output.systems.session_state.insert(
+                "ui.contract.motion_policy.json".to_string(),
+                UiValue::String(json),
+            );
+            inserted_any = true;
+        }
+    }
+
+    if inserted_any {
+        output.systems.session_state.insert(
+            "ui.contract.version".to_string(),
+            UiValue::String(UI_AUTHORING_CONTRACT_VERSION.to_string()),
+        );
+    }
+}
+
+fn runtime_value_to_json_string(value: &Value) -> Option<String> {
+    fn to_json(v: &Value) -> serde_json::Value {
+        match v {
+            Value::Unit | Value::None => serde_json::Value::Null,
+            Value::Bool(b) => serde_json::Value::Bool(*b),
+            Value::Int(i) => serde_json::json!(i),
+            Value::Float(f) => serde_json::json!(f),
+            Value::String(s) => serde_json::Value::String(s.clone()),
+            Value::Array(arr) => {
+                let arr = arr.read().unwrap();
+                serde_json::Value::Array(arr.iter().map(to_json).collect())
+            }
+            Value::Tuple(items) => serde_json::Value::Array(items.iter().map(to_json).collect()),
+            Value::Struct(_, fields) => {
+                let fields = fields.read().unwrap();
+                let mut map = serde_json::Map::new();
+                for (k, v) in fields.iter() {
+                    map.insert(k.clone(), to_json(v));
+                }
+                serde_json::Value::Object(map)
+            }
+            other => serde_json::Value::String(format!("{}", other)),
+        }
+    }
+
+    serde_json::to_string_pretty(&to_json(value)).ok()
 }
 
 fn parse_layout_kind(name: &str) -> Option<kain_ui::UiLayoutKind> {

@@ -13,6 +13,7 @@
 | Runtime | Retained graph, runtime state, transactions, and patch streams reflect the authored change | Patch traces, runtime snapshots, invalidation logs |
 | Backend | Realization consumes shared semantics and applies explicit capability/fallback policy | Capability report, backend trace, unsupported-state capture |
 | Packaged app | Product mode owns the screen and the app behaves like authored software, not a debug shell | Native `.exe`, launch capture, screenshot set, operator notes |
+| Spatial verification | Layout correctness is inspectable structurally instead of only visually | Geometry snapshots, containment queries, anchor-zone traces, focus-order traces |
 | Performance | Richer semantics remain responsive and bounded | Timing captures, patch counts, idle-state traces |
 
 ## Canonical Proof Surfaces
@@ -43,6 +44,7 @@ Each showcase must prove:
 - no default debug contamination
 - distinct typography and surface language
 - at least one hard interaction path beyond static layout
+- layout correctness can be queried from runtime geometry and state rather than only from screenshots
 
 ## Regression Suites
 
@@ -62,6 +64,7 @@ Validate emitted truth directly.
 - Diff on stable fields only; ignore disposable paths and timestamps.
 - Fail if a semantic addition exists only in backend code and not in the bundle family.
 - Fail if a fallback path is required by the capability table but absent from the emitted truth.
+- Fail if workspace ownership, tab membership, anchor intent, or spatial relations are needed for verification but absent from emitted truth.
 
 ### 3. Runtime Graph And Patch Trace Suite
 
@@ -72,8 +75,19 @@ Validate retained-tree and patch-stream behavior.
 - Fail if a local interaction emits a full-root patch without a matching root-level authored cause.
 - Fail if node identity churns unnecessarily during tab switches, docking, or schema-driven edits.
 - Fail if idle state continues to emit patches after the UI has settled.
+- Record geometry snapshots for tab wells, dock regions, anchored surfaces, overlay stacks, and focus-order transitions.
 
-### 4. Backend Capability And Fallback Suite
+### 4. Spatial Verification Suite
+
+Validate that layout correctness can be asserted from semantic and runtime truth alone.
+
+- Query which panel owns a target control and verify ownership remains correct across tab switches and dock operations.
+- Query active tab well membership and verify the active surface matches the authored/runtime state.
+- Verify menus, popovers, and tooltips resolve to the intended anchor zone.
+- Verify overlay stack order and focus traversal edges match authored intent.
+- Fail if a strong model or a regression tool must rely on screenshot reading because the runtime cannot answer spatial questions directly.
+
+### 5. Backend Capability And Fallback Suite
 
 Validate explicit capability handling.
 
@@ -82,7 +96,7 @@ Validate explicit capability handling.
 - Fail if a backend silently drops authored chrome, motion, or tooling semantics.
 - Fail if `Debug` is required to access a product interaction that should exist in `Native`.
 
-### 5. Native Packaging And Product-Mode Suite
+### 6. Native Packaging And Product-Mode Suite
 
 Validate the packaged-app posture.
 
@@ -92,7 +106,7 @@ Validate the packaged-app posture.
 - Fail if authored chrome is visually subordinate to host scaffolding.
 - Fail if packaged output requires hand-edited generated files or smoke-local cleanup to look correct.
 
-### 6. Distinctiveness Review Suite
+### 7. Distinctiveness Review Suite
 
 Validate that the overhaul changed the platform look, not only the content.
 
@@ -101,7 +115,7 @@ Validate that the overhaul changed the platform look, not only the content.
 - Fail if the three captures still read as the same host shell with reskinned text.
 - Fail if distinctiveness depends on custom renderer paths that other authored apps cannot reuse.
 
-### 7. Performance And Responsiveness Suite
+### 8. Performance And Responsiveness Suite
 
 Validate that richer semantics remain tool-grade.
 
@@ -113,8 +127,9 @@ Validate that richer semantics remain tool-grade.
 - continuous drag or docking behavior that starves input or drops stable semantic state
 - viewport activity that collapses adjacent shell responsiveness
 - Runtime work must remain bounded. A local edit should touch the affected region, not re-drive the full tree by default.
+- Resize and motion policy must be named and inspectable rather than hidden in backend-local heuristics.
 
-### 8. Negative And Contamination Suite
+### 9. Negative And Contamination Suite
 
 Validate that legacy failures stay dead.
 

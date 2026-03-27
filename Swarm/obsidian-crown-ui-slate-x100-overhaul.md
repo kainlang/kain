@@ -25,6 +25,7 @@
 - Keep the system native-first and tooling-first as stated in `crates/kain-ui/NORTH_STAR_SPEC.md`.
 - Prefer data-driven registries for widget capabilities, event routes, paint primitives, backend support, and style mappings over scattered string switches.
 - LLM legibility is a first-class design requirement. Authoring, runtime data, widget registries, and paint/motion contracts must be explicit enough that a strong model can understand and extend the system without backend archaeology.
+- Spatial verifiability is also a first-class design requirement. Runtime truth must expose ownership, geometry, containment, anchor zones, overlay order, and focus travel strongly enough that layout correctness is machine-checkable.
 - Separate debug tooling from product UI explicitly. Semantic tree inspectors, patch logs, and runtime diagnostics must not contaminate normal packaged apps by default.
 - Avoid smoke-local hacks. New demos should prove reusable platform capability, not one-off custom drawing paths that bypass the semantic model.
 - Preserve backward migration strategy where feasible, but do not protect weak abstractions if they block the target architecture.
@@ -237,3 +238,4 @@
 - 2026-03-27 00:09 EDT: Delta may inventory and remove host contamination immediately, but substantial widget/chrome realization must follow Forge/Vector contract alignment rather than inventing backend-local semantics.
 - 2026-03-27 18:35 EDT: LLM-legible-by-construction is now a platform rule. If the system is so opaque that strong models keep collapsing into the same toy-block shell, the design is failing even before human ergonomics are considered.
 - 2026-03-27 18:35 EDT: Atlas is complete. Forge and Vector are unblocked to define runtime and authoring contracts that are explicit enough for both humans and LLMs to extend without backend archaeology.
+- 2026-03-27 19:05 EDT: The old K_OS TypeScript shell confirms the missing ingredient is explicit structure, not just visual treatment. Workspace graphs, panel state, command registries, motion policy, and behavior verification now serve as reference patterns for Kain's spatially verifiable runtime and authoring contracts.

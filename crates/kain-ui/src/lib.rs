@@ -552,8 +552,30 @@ pub enum UiResourceState {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UiTransaction {
     pub label: String,
+    /// Runtime-generated transaction id (monotonic within a runtime instance).
+    #[serde(default)]
+    pub id: u64,
+    /// Number of semantic-tree patches emitted during this transaction.
+    #[serde(default)]
+    pub patch_count: usize,
     pub touched_nodes: Vec<UiNodeId>,
     pub changed_signals: Vec<UiSignalId>,
+    /// Commands dispatched during this transaction (backend may execute externally).
+    #[serde(default)]
+    pub dispatched_commands: Vec<String>,
+}
+
+impl UiTransaction {
+    pub fn default_runtime(id: u64) -> Self {
+        Self {
+            label: String::new(),
+            id,
+            patch_count: 0,
+            touched_nodes: Vec::new(),
+            changed_signals: Vec::new(),
+            dispatched_commands: Vec::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -561,13 +583,38 @@ pub struct UiTransaction {
 pub struct UiFocusGraph {
     pub scopes: Vec<String>,
     pub default_scope: Option<String>,
+    /// Current focus owner per scope.
+    #[serde(default)]
+    pub focused: BTreeMap<String, UiNodeId>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiEventPhase {
+    /// Default event route behavior (bubble up through parents).
+    #[default]
+    Bubble,
+    /// Capture phase (root down to target).
+    Capture,
+    /// Direct dispatch to the target only.
+    Direct,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UiEventRoute {
+    /// Stable route id (useful for patch traces and debugging).
+    #[serde(default)]
+    pub route_id: String,
     pub event: String,
     pub target: UiNodeId,
-    pub phase: String,
+    #[serde(default)]
+    pub phase: UiEventPhase,
+    /// Optional handler id emitted by the compiler/authoring layer.
+    #[serde(default)]
+    pub handler_id: Option<String>,
+    /// Optional command name to dispatch when this route fires.
+    #[serde(default)]
+    pub dispatch_command: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -705,6 +752,12 @@ impl Default for UiScheduler {
 pub struct UiSelectionModel {
     pub scopes: Vec<String>,
     pub active_scope: Option<String>,
+    /// Primary selection per scope (single node).
+    #[serde(default)]
+    pub primary: BTreeMap<String, UiNodeId>,
+    /// Multi-selection per scope.
+    #[serde(default)]
+    pub selected: BTreeMap<String, BTreeSet<UiNodeId>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -714,9 +767,19 @@ pub struct UiCommand {
     pub payload: BTreeMap<String, UiValue>,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiCommandRejection {
+    pub command_name: String,
+    pub reason: String,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct UiCommandBuffer {
     pub pending: Vec<UiCommand>,
+    #[serde(default)]
+    pub executed: Vec<UiCommand>,
+    #[serde(default)]
+    pub rejections: Vec<UiCommandRejection>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -877,13 +940,18 @@ impl UiRuntimeSystems {
             && self.transactions.is_empty()
             && self.focus_graph.scopes.is_empty()
             && self.focus_graph.default_scope.is_none()
+            && self.focus_graph.focused.is_empty()
             && self.event_routes.is_empty()
             && self.animation_tracks.is_empty()
             && self.surfaces.is_empty()
             && self.scheduler.pending.is_empty()
             && self.selection_model.scopes.is_empty()
             && self.selection_model.active_scope.is_none()
+            && self.selection_model.primary.is_empty()
+            && self.selection_model.selected.is_empty()
             && self.command_buffer.pending.is_empty()
+            && self.command_buffer.executed.is_empty()
+            && self.command_buffer.rejections.is_empty()
             && self.theme_registry.is_empty()
             && self.workspace_layout.is_empty()
             && self.hot_reload.identity_aliases.is_empty()
@@ -898,6 +966,7 @@ impl Default for UiFocusGraph {
         Self {
             scopes: Vec::new(),
             default_scope: None,
+            focused: BTreeMap::new(),
         }
     }
 }
@@ -907,6 +976,8 @@ impl Default for UiSelectionModel {
         Self {
             scopes: Vec::new(),
             active_scope: None,
+            primary: BTreeMap::new(),
+            selected: BTreeMap::new(),
         }
     }
 }
