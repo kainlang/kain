@@ -397,7 +397,11 @@
       { "method": "GET", "path": "/api/chat/memory", "purpose": "returns chat memory lane metadata" },
       { "method": "GET", "path": "/api/actors/policies", "purpose": "returns actor policy metadata" },
       { "method": "GET", "path": "/api/actors/metrics", "purpose": "returns actor metric metadata" },
-      { "method": "GET", "path": "/api/agents", "purpose": "returns chat + agent roster metadata" }
+      { "method": "GET", "path": "/api/agents", "purpose": "returns chat + agent roster metadata" },
+      { "method": "GET", "path": "/api/releases", "purpose": "returns release notes and changelog metadata" },
+      { "method": "GET", "path": "/api/feature-flags", "purpose": "returns feature flag registry metadata" },
+      { "method": "GET", "path": "/api/incidents", "purpose": "returns incident response playbooks" },
+      { "method": "GET", "path": "/api/crm", "purpose": "returns CRM pipeline metadata" }
     ]
   },
   "developer_portal": {
@@ -538,6 +542,58 @@
       { "name": "Launch Updates", "purpose": "Notify on new releases.", "owner": "growth_ops", "cadence": "daily", "transport": "email" },
       { "name": "Actor Alerts", "purpose": "Route failures and escalation signals.", "owner": "mesh_supervisor", "cadence": "immediate", "transport": "webhook" },
       { "name": "Chat Insights", "purpose": "Prompt trends and routing outcomes.", "owner": "chat_ops", "cadence": "weekly", "transport": "dashboard" }
+    ]
+  },
+  "release_notes": {
+    "kicker": "Releases",
+    "title": "Release notes and changelog",
+    "body": "Track launch drops, template upgrades, and system changes in one manifest lane.",
+    "entries": [
+      {
+        "version": "v1.6",
+        "date": "2026-03-20",
+        "summary": "Universal pack expands across chat, ops, and 3D launch surfaces.",
+        "owner": "release_ops",
+        "highlights": ["Scene spotlight refinements", "Operator runtime lanes", "Expanded UI kit + app shell"]
+      },
+      {
+        "version": "v1.7",
+        "date": "2026-03-26",
+        "summary": "Governance, community, and growth systems shipped as first-class registries.",
+        "owner": "release_ops",
+        "highlights": ["Compliance + observability", "Growth and experiments", "Actor topology surfaces"]
+      }
+    ]
+  },
+  "feature_flags": {
+    "kicker": "Flags",
+    "title": "Feature flag registry",
+    "body": "Track rollout status and ownership for experiments and staged launches.",
+    "flags": [
+      { "name": "chat_streaming", "status": "on", "owner": "chat_ops", "impact": "SSE + WS streaming preview enabled" },
+      { "name": "ui_kit_islands", "status": "on", "owner": "ui_systems", "impact": "Preact island for UI kit summaries" },
+      { "name": "actor_incident_alerts", "status": "beta", "owner": "mesh_supervisor", "impact": "Incident notifications routed through actor mesh" }
+    ]
+  },
+  "incident_response": {
+    "kicker": "Incident",
+    "title": "Incident response playbooks",
+    "body": "Declare severity levels, ownership, and response paths for runtime incidents.",
+    "playbooks": [
+      { "severity": "SEV-1", "title": "Runtime outage", "summary": "Critical runtime availability or routing outage.", "owner": "mesh_supervisor", "sla": "15m response" },
+      { "severity": "SEV-2", "title": "Degraded experience", "summary": "Chat or realtime degradation beyond error budget.", "owner": "signal_broker", "sla": "60m response" },
+      { "severity": "SEV-3", "title": "Minor regression", "summary": "Non-blocking UI or content regressions.", "owner": "experience_ops", "sla": "1 business day" }
+    ]
+  },
+  "crm_pipeline": {
+    "kicker": "CRM",
+    "title": "CRM pipeline and lead routing",
+    "body": "Track lead stages, conversion goals, and ownership for business and portfolio sites.",
+    "stages": [
+      { "stage": "Discovery", "goal": "Qualify launch or portfolio needs.", "owner": "launch_ops", "sla": "48h" },
+      { "stage": "Briefing", "goal": "Capture detailed requirements and lane mix.", "owner": "experience_design", "sla": "5d" },
+      { "stage": "Proposal", "goal": "Deliver a scoped system plan and estimate.", "owner": "growth_ops", "sla": "7d" },
+      { "stage": "Activation", "goal": "Kick off the build and operator lane setup.", "owner": "runtime_lead", "sla": "14d" }
     ]
   },
   "forms": {

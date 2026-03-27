@@ -555,6 +555,105 @@ function renderNotificationMatrix(notifications) {
     .join("")}</div>`;
 }
 
+function renderReleaseNotes(releaseNotes) {
+  const entries = releaseNotes?.entries || [];
+  const rows = entries.length
+    ? `<div class="timeline-list release-list">${entries
+        .map(
+          (entry) => `<article class="timeline-row release-row">
+  <p class="timeline-label">${escapeHtml([entry.version, entry.date].filter(Boolean).join(" / "))}</p>
+  <div>
+    <h3>${escapeHtml(entry.summary || "Release update")}</h3>
+    <p>${escapeHtml((entry.highlights || []).join(" · "))}</p>
+    <p class="portfolio-stack">${escapeHtml(entry.owner || "")}</p>
+  </div>
+</article>`
+        )
+        .join("")}</div>`
+    : `<p class="section-copy">No release notes registered yet.</p>`;
+  return `<section class="release-notes">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(releaseNotes?.kicker || "Releases")}</p>
+    <h3>${escapeHtml(releaseNotes?.title || "Release notes")}</h3>
+    <p class="section-copy">${escapeHtml(releaseNotes?.body || "")}</p>
+  </article>
+  ${rows}
+</section>`;
+}
+
+function renderFeatureFlags(featureFlags) {
+  const flags = featureFlags?.flags || [];
+  return `<section class="feature-flags">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(featureFlags?.kicker || "Flags")}</p>
+    <h3>${escapeHtml(featureFlags?.title || "Feature flags")}</h3>
+    <p class="section-copy">${escapeHtml(featureFlags?.body || "")}</p>
+  </article>
+  <div class="feature-grid flag-grid">${flags
+    .map(
+      (flag) => `<article class="feature-card flag-card">
+  <p class="card-kicker">${escapeHtml(flag.status || "flag")}</p>
+  <h3>${escapeHtml(flag.name || "flag")}</h3>
+  <p>${escapeHtml(flag.impact || flag.summary || "")}</p>
+  <p class="portfolio-stack">${escapeHtml(flag.owner || "")}</p>
+</article>`
+    )
+    .join("")}</div>
+</section>`;
+}
+
+function renderIncidentResponse(incidentResponse) {
+  const playbooks = incidentResponse?.playbooks || [];
+  const rows = playbooks.length
+    ? `<div class="timeline-list incident-list">${playbooks
+        .map(
+          (entry) => `<article class="timeline-row incident-row">
+  <p class="timeline-label">${escapeHtml([entry.severity, entry.sla].filter(Boolean).join(" / "))}</p>
+  <div>
+    <h3>${escapeHtml(entry.title || "Incident playbook")}</h3>
+    <p>${escapeHtml(entry.summary || entry.body || "")}</p>
+    <p class="portfolio-stack">${escapeHtml(entry.owner || "")}</p>
+  </div>
+</article>`
+        )
+        .join("")}</div>`
+    : `<p class="section-copy">No incident playbooks registered.</p>`;
+  return `<section class="incident-response">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(incidentResponse?.kicker || "Incident")}</p>
+    <h3>${escapeHtml(incidentResponse?.title || "Incident response")}</h3>
+    <p class="section-copy">${escapeHtml(incidentResponse?.body || "")}</p>
+  </article>
+  ${rows}
+</section>`;
+}
+
+function renderCrmPipeline(crmPipeline) {
+  const stages = crmPipeline?.stages || [];
+  const rows = stages.length
+    ? `<div class="timeline-list crm-list">${stages
+        .map(
+          (stage) => `<article class="timeline-row crm-row">
+  <p class="timeline-label">${escapeHtml([stage.stage, stage.sla].filter(Boolean).join(" / "))}</p>
+  <div>
+    <h3>${escapeHtml(stage.goal || stage.title || "Stage")}</h3>
+    <p>${escapeHtml(stage.summary || stage.detail || "")}</p>
+    <p class="portfolio-stack">${escapeHtml(stage.owner || "")}</p>
+  </div>
+</article>`
+        )
+        .join("")}</div>`
+    : `<p class="section-copy">No CRM stages registered yet.</p>`;
+  return `<section class="crm-pipeline">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(crmPipeline?.kicker || "CRM")}</p>
+    <h3>${escapeHtml(crmPipeline?.title || "CRM pipeline")}</h3>
+    <p class="section-copy">${escapeHtml(crmPipeline?.body || "")}</p>
+  </article>
+  ${rows}
+</section>`;
+}
+
 function renderActorTopology(topology) {
   const nodes = topology?.nodes || [];
   const edges = topology?.edges || [];
@@ -1467,6 +1566,14 @@ function renderSectionBlock(section, model) {
     bodyHtml = renderSuccessPlaybooks(getModelValue(model, normalized.source, {}));
   } else if (kind === "notification_matrix") {
     bodyHtml = renderNotificationMatrix(getModelValue(model, normalized.source, {}));
+  } else if (kind === "release_notes") {
+    bodyHtml = renderReleaseNotes(getModelValue(model, normalized.source, {}));
+  } else if (kind === "feature_flags") {
+    bodyHtml = renderFeatureFlags(getModelValue(model, normalized.source, {}));
+  } else if (kind === "incident_response") {
+    bodyHtml = renderIncidentResponse(getModelValue(model, normalized.source, {}));
+  } else if (kind === "crm_pipeline") {
+    bodyHtml = renderCrmPipeline(getModelValue(model, normalized.source, {}));
   } else if (kind === "pricing") {
     bodyHtml = renderPricing(getModelValue(model, normalized.source, []));
   } else if (kind === "testimonials") {
@@ -1614,6 +1721,18 @@ function buildDerivedSearchDocuments(model) {
   }
   for (const channel of model.content.notifications?.channels || []) {
     pushDocument("notification", channel.name, channel.purpose, "#notifications");
+  }
+  for (const entry of model.content.release_notes?.entries || []) {
+    pushDocument("release", entry.version, entry.summary, "#releases");
+  }
+  for (const flag of model.content.feature_flags?.flags || []) {
+    pushDocument("flag", flag.name, flag.impact, "#flags");
+  }
+  for (const playbook of model.content.incident_response?.playbooks || []) {
+    pushDocument("incident", playbook.title, playbook.summary, "#incidents");
+  }
+  for (const stage of model.content.crm_pipeline?.stages || []) {
+    pushDocument("crm", stage.stage, stage.goal, "#crm");
   }
   for (const persona of model.content.chat_personas || []) {
     pushDocument("persona", persona.title || persona.name, persona.body || persona.summary || "", "#personas");
@@ -2231,6 +2350,10 @@ function buildSiteData(model) {
     service_catalog: model.content.service_catalog || null,
     success: model.content.success || null,
     notifications: model.content.notifications || null,
+    release_notes: model.content.release_notes || null,
+    feature_flags: model.content.feature_flags || null,
+    incident_response: model.content.incident_response || null,
+    crm_pipeline: model.content.crm_pipeline || null,
     status: model.content.status || null,
     roadmap: model.content.roadmap || [],
     team_members: model.content.team_members || [],
@@ -3104,6 +3227,10 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     services: "/api/services",
     success: "/api/success",
     notifications: "/api/notifications",
+    releases: "/api/releases",
+    feature_flags: "/api/feature-flags",
+    incident_response: "/api/incidents",
+    crm_pipeline: "/api/crm",
     actor_topology: "/api/actors/topology",
     actor_policies: "/api/actors/policies",
     actor_metrics: "/api/actors/metrics",
@@ -3150,6 +3277,10 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     service_catalog: siteData.service_catalog || null,
     success: siteData.success || null,
     notifications: siteData.notifications || null,
+    release_notes: siteData.release_notes || null,
+    feature_flags: siteData.feature_flags || null,
+    incident_response: siteData.incident_response || null,
+    crm_pipeline: siteData.crm_pipeline || null,
     status_data: siteData.status || null,
     roadmap_items: siteData.roadmap || [],
     support_channels: siteData.support_channels || [],
@@ -3265,6 +3396,10 @@ function buildUiSchema(model, siteData) {
       service_count: (siteData.service_catalog?.services || []).length,
       success_playbooks: (siteData.success?.playbooks || []).length,
       notification_channels: (siteData.notifications?.channels || []).length,
+      release_notes: (siteData.release_notes?.entries || []).length,
+      feature_flags: (siteData.feature_flags?.flags || []).length,
+      incident_playbooks: (siteData.incident_response?.playbooks || []).length,
+      crm_stages: (siteData.crm_pipeline?.stages || []).length,
       actor_nodes: (siteData.actor_topology?.nodes || []).length,
       status_services: (siteData.status?.services || []).length,
       roadmap_items: (siteData.roadmap || []).length,
@@ -3519,6 +3654,10 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/services", purpose: "returns service catalog and SLA metadata", actor: "service_manager" },
     { method: "GET", path: "/api/success", purpose: "returns customer success playbooks", actor: "success_lead" },
     { method: "GET", path: "/api/notifications", purpose: "returns notification channel metadata", actor: "signal_broker" },
+    { method: "GET", path: "/api/releases", purpose: "returns release notes and changelog metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/feature-flags", purpose: "returns feature flag registry metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/incidents", purpose: "returns incident response playbooks", actor: "mesh_supervisor" },
+    { method: "GET", path: "/api/crm", purpose: "returns CRM pipeline metadata", actor: "growth_ops" },
     { method: "GET", path: "/api/integrations", purpose: "returns upstream system connectors and transports", actor: "integration_router" },
     { method: "GET", path: "/api/status", purpose: "returns status board metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/roadmap", purpose: "returns roadmap milestones", actor: "runtime_reporter" },
@@ -3626,6 +3765,10 @@ export function buildActorServerPlan(appManifestPath, experienceId) {
     service_catalog: siteData.service_catalog || null,
     success: siteData.success || null,
     notifications: siteData.notifications || null,
+    release_notes: siteData.release_notes || null,
+    feature_flags: siteData.feature_flags || null,
+    incident_response: siteData.incident_response || null,
+    crm_pipeline: siteData.crm_pipeline || null,
     status: siteData.status || null,
     roadmap: siteData.roadmap || [],
     support_channels: siteData.support_channels || [],
@@ -4168,6 +4311,22 @@ async function serveExperience(appManifestPath, experienceId) {
     }
     if (request.method === "GET" && pathname === "/api/notifications") {
       sendJson(response, 200, bundle.site_data.notifications || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/releases") {
+      sendJson(response, 200, bundle.site_data.release_notes || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/feature-flags") {
+      sendJson(response, 200, bundle.site_data.feature_flags || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/incidents") {
+      sendJson(response, 200, bundle.site_data.incident_response || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/crm") {
+      sendJson(response, 200, bundle.site_data.crm_pipeline || {});
       return;
     }
     if (request.method === "GET" && pathname === "/api/integrations") {

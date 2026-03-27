@@ -58,6 +58,10 @@
       "service_catalog",
       "success_playbooks",
       "notification_matrix",
+      "release_notes",
+      "feature_flags",
+      "incident_response",
+      "crm_pipeline",
       "actor_topology"
     ]
   },

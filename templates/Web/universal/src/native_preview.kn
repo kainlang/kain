@@ -242,4 +242,23 @@ component App():
                 <text role="caption">Rate limits and escalation rules live with the runtime contract.</text>
             </panel>
         </panel>
+
+        <panel title="Release + Pipeline Systems" scope="web_pack" variant="section" layout="grid" columns={3} gap={14}>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Release Notes</text>
+                <text role="caption">Changelog and upgrade notes stay manifest-driven.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Feature Flags</text>
+                <text role="caption">Flag rollout status captured for app + site surfaces.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Incident Playbooks</text>
+                <text role="caption">Severity and response workflows stay data-driven.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">CRM Pipeline</text>
+                <text role="caption">Lead stages and ownership tracked with the web system contract.</text>
+            </panel>
+        </panel>
     </slot>

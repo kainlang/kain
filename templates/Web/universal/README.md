@@ -159,6 +159,10 @@ New reusable section kinds in this pass:
 - `service_catalog`
 - `success_playbooks`
 - `notification_matrix`
+- `release_notes`
+- `feature_flags`
+- `incident_response`
+- `crm_pipeline`
 - `community_hub`
 - `event_schedule`
 - `newsletter_panel`
@@ -183,3 +187,7 @@ New system registries in this pass:
 - chat agent roster, tools, and workflows
 - UI components, layouts, and design token registries
 - actor policies and actor metrics
+- release notes and changelog entries
+- feature flag registry
+- incident response playbooks
+- CRM pipeline stages

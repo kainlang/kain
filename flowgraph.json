@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at_utc": "2026-03-27T04:00:21.192267+00:00",
+  "generated_at_utc": "2026-03-27T08:00:22.692473+00:00",
   "display_name": "Code/Kain",
   "directory": "M:\\Code\\Kain",
   "summary": {
@@ -21,8 +21,8 @@
       "crates",
       "unreal",
       "smoketest",
-      "runtime",
       "apps",
+      "runtime",
       "stdlib"
     ],
     "manifests": [
@@ -111,7 +111,7 @@
         "dependency_count": 6
       }
     ],
-    "manifest_count_total": 62,
+    "manifest_count_total": 63,
     "sampled_file_count": 220
   },
   "nodes": [
@@ -140,16 +140,16 @@
       "path": "M:\\Code\\Kain\\smoketest"
     },
     {
-      "id": "dir_runtime",
-      "label": "runtime",
-      "kind": "subdir",
-      "path": "M:\\Code\\Kain\\runtime"
-    },
-    {
       "id": "dir_apps",
       "label": "apps",
       "kind": "subdir",
       "path": "M:\\Code\\Kain\\apps"
+    },
+    {
+      "id": "dir_runtime",
+      "label": "runtime",
+      "kind": "subdir",
+      "path": "M:\\Code\\Kain\\runtime"
     },
     {
       "id": "dir_stdlib",

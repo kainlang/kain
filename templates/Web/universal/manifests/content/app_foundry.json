@@ -12,6 +12,9 @@
     { "label": "Auth", "href": "#auth" },
     { "label": "Data", "href": "#data" },
     { "label": "Integrations", "href": "#integrations" },
+    { "label": "Releases", "href": "#releases" },
+    { "label": "Flags", "href": "#flags" },
+    { "label": "Status", "href": "#status" },
     { "label": "Routes", "href": "#routes" }
   ],
   "hero": {

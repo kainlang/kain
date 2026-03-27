@@ -10,6 +10,11 @@
     { "label": "Prompts", "href": "#prompts" },
     { "label": "Routes", "href": "#routes" },
     { "label": "Actors", "href": "#actors" },
+    { "label": "Incidents", "href": "#incidents" },
+    { "label": "Releases", "href": "#releases" },
+    { "label": "Flags", "href": "#flags" },
+    { "label": "CRM", "href": "#crm" },
+    { "label": "Status", "href": "#status" },
     { "label": "Scene", "href": "#scene" },
     { "label": "Blog", "href": "#blog" },
     { "label": "Request", "href": "#intake" }

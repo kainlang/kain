@@ -457,6 +457,68 @@ export type KainNotificationDescriptor = {
   channels?: KainNotificationChannel[] | null;
 };
 
+export type KainReleaseNote = {
+  version?: string | null;
+  date?: string | null;
+  summary?: string | null;
+  owner?: string | null;
+  highlights?: string[] | null;
+};
+
+export type KainReleaseNotesDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  entries?: KainReleaseNote[] | null;
+};
+
+export type KainFeatureFlag = {
+  name?: string | null;
+  status?: string | null;
+  owner?: string | null;
+  impact?: string | null;
+  summary?: string | null;
+};
+
+export type KainFeatureFlagsDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  flags?: KainFeatureFlag[] | null;
+};
+
+export type KainIncidentPlaybook = {
+  severity?: string | null;
+  title?: string | null;
+  summary?: string | null;
+  owner?: string | null;
+  sla?: string | null;
+  body?: string | null;
+};
+
+export type KainIncidentResponseDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  playbooks?: KainIncidentPlaybook[] | null;
+};
+
+export type KainCrmStage = {
+  stage?: string | null;
+  goal?: string | null;
+  owner?: string | null;
+  sla?: string | null;
+  summary?: string | null;
+  detail?: string | null;
+};
+
+export type KainCrmPipelineDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  stages?: KainCrmStage[] | null;
+};
+
 export type KainActorTopologyNode = {
   id?: string | null;
   name?: string | null;
@@ -583,6 +645,10 @@ export type KainSiteData = {
   service_catalog?: KainServiceCatalog | null;
   success?: KainSuccessDescriptor | null;
   notifications?: KainNotificationDescriptor | null;
+  release_notes?: KainReleaseNotesDescriptor | null;
+  feature_flags?: KainFeatureFlagsDescriptor | null;
+  incident_response?: KainIncidentResponseDescriptor | null;
+  crm_pipeline?: KainCrmPipelineDescriptor | null;
   careers?: KainCareersDescriptor | null;
   partners?: KainPartner[] | null;
   press_kit?: KainPressKit | null;
