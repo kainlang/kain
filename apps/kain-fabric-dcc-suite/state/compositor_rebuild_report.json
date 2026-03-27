@@ -1,9 +1,0 @@
-{
-  "kind": "compositor_rebuild_report",
-  "project": "fabric-dcc-suite",
-  "active_stack": "comp/final_review",
-  "assembled_layers": 15,
-  "pass_count": 18,
-  "output_surfaces": 13,
-  "plan_summary": "compositor-plan:scene_assembly:layers=15:targets=28"
-}

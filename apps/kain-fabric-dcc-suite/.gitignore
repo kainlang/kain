@@ -1,0 +1,17 @@
+# Materialized Kain shell output
+/generated/
+/state/
+
+# Generated native app wrapper output
+/native-app/Cargo.lock
+/native-app/Cargo.toml
+/native-app/config/
+/native-app/generated/
+/native-app/main.generated.kn
+/native-app/src/main.rs
+/native-app/state/
+/native-app/kain_realtime_app_bundle.json
+/native-app/kain_reflection_payload.json
+/native-app/kain_runtime_compatibility.json
+/native-app/kain_runtime_contract.json
+/native-app/kain_runtime_version.json

@@ -1,9 +1,0 @@
-{
-  "kind": "tensor_train_checkpoint",
-  "project": "fabric-dcc-suite",
-  "model_architecture": "fabric_preview_mlp_48",
-  "embedding_width": 60,
-  "epochs_completed": 4,
-  "checkpoint_tag": "fabric-dcc-suite-train-48",
-  "topology_report": "topology-report:48:checksum=29479:scene-graph:fabric-dcc-suite:workspace=scene_assembly:packs=12:sculpt-seam-optional"
-}

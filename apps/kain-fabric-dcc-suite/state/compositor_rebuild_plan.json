@@ -1,9 +1,0 @@
-{
-  "kind": "compositor_rebuild_plan",
-  "project": "fabric-dcc-suite",
-  "workspace_mode": "scene_assembly",
-  "active_stack": "comp/final_review",
-  "assembled_layers": 15,
-  "review_targets": 28,
-  "upstream_session_report": "session-report:fabric-dcc-suite:preview=16:tensor=12"
-}

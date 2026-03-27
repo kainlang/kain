@@ -1,9 +1,0 @@
-{
-  "kind": "tensor_infer_result",
-  "project": "fabric-dcc-suite",
-  "model_id": "fabric-dcc-suite-preview-model",
-  "output_binding": "buffer://tensor/inference/output",
-  "confidence_basis": 28,
-  "upstream_train_status": "ready",
-  "summary": "tensor-infer:ready:upstream=tensor-train:ready:bytes=48:torch=True:torch=True"
-}

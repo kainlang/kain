@@ -1,1 +1,0 @@
-{\n  \"kind\": \"svg_mask_report\",\n  \"project\": \"fabric-dcc-suite\",\n  \"document_id\": \"svg/masks/hero_surface_primary\",\n  \"vector_shape_count\": 21,\n  \"anchor_count\": 14,\n  \"decal_count\": 13,\n  \"trim_sheet_mode\": \"hybrid_svg_and_bake\",\n  \"svg_document\": \"svg-mask:fabric-dcc-suite:documents=3:anchors=14:motifs=trim+decal+stencil\"\n}\n
