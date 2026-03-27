@@ -98,6 +98,9 @@ powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/buil
 ## Common Errors
 
 - `native/dcc_suite_ops.dll` must exist before `c_abi` sculpt steps can execute.
+- On Windows, keep `__declspec(dllexport)` on the declarations in `native/dcc_suite_ops.h` or the Fabric `c_abi` bridge will fail to resolve `dcc_suite_apply_sculpt_stamp` and `dcc_suite_signature`.
+- `local_crate/Cargo.toml` needs a local `[workspace]` table so the Fabric rust-crate loader can resolve the helper crate without adding it to the monorepo workspace members list.
+- `shaders/material_bake_preview.kn` follows the stricter compute-shader tuple syntax used by the Fabric GPU smoketests. Missing trailing commas inside the `comptime` tuple can make `gpu_material_preview` fail with a parser error.
 - `generated/main.generated.kn` is materialized output. If config and shell drift, rerun `scripts/materialize-shell.ps1`.
 - `state/runtime_snapshot.json` is also materialized output. If reports change, rerun `scripts/materialize-session-state.ps1`.
 - The tensor manifests intentionally report readiness and plan state even when `torch` is unavailable. That is not a bug in the scaffold; it is the current extension seam.

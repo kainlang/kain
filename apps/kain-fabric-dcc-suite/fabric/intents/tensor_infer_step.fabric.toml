@@ -1,7 +1,7 @@
 version = 1
 
 [workspace]
-root = "."
+root = "../.."
 search_roots = ["src", "scripts"]
 
 [[requires]]
@@ -25,8 +25,32 @@ entry = "src/main.kn"
 depends_on = ["python_suite_bootstrap"]
 
 [[steps.outputs]]
+name = "scene_graph_document"
+kind = "value"
+
+[[steps.outputs]]
+name = "asset_catalog_document"
+kind = "value"
+
+[[steps.outputs]]
+name = "preview_src"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "preview_dst"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "preview_image"
+kind = "shared_image"
+
+[[steps.outputs]]
 name = "tensor_features"
 kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "session_report"
+kind = "value"
 
 [[steps]]
 id = "tensor_train_stage"
@@ -52,7 +76,7 @@ kind = "value"
 id = "tensor_inference_bridge"
 runtime = "kain"
 entry = "src/tensor_infer_bridge.kn"
-depends_on = ["tensor_infer_stage"]
+depends_on = ["python_suite_bootstrap", "tensor_train_stage", "tensor_infer_stage"]
 
 [[steps.outputs]]
 name = "tensor_inference_bridge"

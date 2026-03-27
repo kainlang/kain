@@ -10,11 +10,11 @@ shader compute DccSuiteMaterialBakePreview(id: UVec3) -> Vec4:
             [8, 1, 1],
             [
                 ("src", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
-                ("dst", "f32", ["dispatch.x"], "output", "kain.shared.buffer")
+                ("dst", "f32", ["dispatch.x"], "output", "kain.shared.buffer"),
             ],
             [
-                ("dcc_suite_material_bake_preview", "copy_preview_stream", ["src"], ["dst"], false)
-            ]
+                ("dcc_suite_material_bake_preview", "copy_preview_stream", ["src"], ["dst"], false),
+            ],
         )
 
     let index = id.x

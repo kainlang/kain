@@ -1,7 +1,7 @@
 version = 1
 
 [workspace]
-root = "."
+root = "../.."
 search_roots = ["src", "scripts"]
 
 [[requires]]
@@ -25,13 +25,37 @@ entry = "src/main.kn"
 depends_on = ["python_suite_bootstrap"]
 
 [[steps.outputs]]
+name = "scene_graph_document"
+kind = "value"
+
+[[steps.outputs]]
+name = "asset_catalog_document"
+kind = "value"
+
+[[steps.outputs]]
+name = "preview_src"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "preview_dst"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "preview_image"
+kind = "shared_image"
+
+[[steps.outputs]]
+name = "tensor_features"
+kind = "shared_buffer"
+
+[[steps.outputs]]
 name = "session_report"
 kind = "value"
 
 [[steps]]
 id = "sim_tick_projection"
 runtime = "kain"
-entry = "src/session_projection.kn"
+entry = "src/sim_tick_projection.kn"
 depends_on = ["python_suite_bootstrap", "dcc_suite_seed"]
 
 [[steps.outputs]]
@@ -42,7 +66,7 @@ kind = "value"
 id = "sim_solver_execute"
 runtime = "kain"
 entry = "src/sim_solver_step.kn"
-depends_on = ["sim_tick_projection"]
+depends_on = ["python_suite_bootstrap", "sim_tick_projection"]
 
 [[steps.outputs]]
 name = "sim_tick_report"

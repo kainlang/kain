@@ -50,3 +50,16 @@ What future work should preserve:
 - Created \src/topology_rebuild_step.kn\ to act as an explicit execution step for the \	opology_rebuild\ Fabric intent.
 - Documented the current Kain runtime limitations (lack of native, high-performance half-edge data structures and algorithms) and provided a clean FFI extension seam delegating mesh retopology to a native C++/Rust library.
 
+## 2026-03-27 (Later) - First End-To-End Fabric Pass Succeeded
+
+- The suite now completes a full `kain fabric run --manifest apps/kain-fabric-dcc-suite/KAIN.fabric.toml` session across python, kain, gpu_compute, c_abi, rust_crate, and publish stages.
+- Added Windows symbol exports in `native/dcc_suite_ops.h` so the Fabric `c_abi` bridge can resolve `dcc_suite_apply_sculpt_stamp` and `dcc_suite_signature` from `native/dcc_suite_ops.dll`.
+- Fixed `shaders/material_bake_preview.kn` to use the trailing-comma `comptime` tuple style expected by the current Fabric GPU parser.
+- Added a local `[workspace]` table to `local_crate/Cargo.toml` so the Fabric rust-crate loader can resolve `fabric_dcc_suite_runtime` without modifying the top-level monorepo workspace.
+- Re-ran the shell and runtime materializers so `generated/main.generated.kn` and `state/runtime_snapshot.json` reflect a successful Fabric session rather than stale scaffold output.
+- Materialized a native UI bundle under `apps/kain-fabric-dcc-suite/native-app` with `kain build native-ui ... --bundle-only`.
+
+Next recommended step:
+
+- Replace the current mock execution seams in sim, tensor bridge dispatch, and compositor with real runtime work now that Fabric convergence is proven.
+

@@ -1,7 +1,7 @@
 version = 1
 
 [workspace]
-root = "."
+root = "../.."
 search_roots = ["src", "scripts", "local_crate"]
 
 [[requires]]
@@ -25,15 +25,39 @@ entry = "src/main.kn"
 depends_on = ["python_suite_bootstrap"]
 
 [[steps.outputs]]
+name = "scene_graph_document"
+kind = "value"
+
+[[steps.outputs]]
+name = "asset_catalog_document"
+kind = "value"
+
+[[steps.outputs]]
+name = "preview_src"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "preview_dst"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "preview_image"
+kind = "shared_image"
+
+[[steps.outputs]]
 name = "tensor_features"
 kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "session_report"
+kind = "value"
 
 [[steps]]
 id = "rig_graph_analysis"
 runtime = "rust_crate"
 entry = "src/rust_graph_step.kn"
 crate_name = "fabric_dcc_suite_runtime"
-manifest_path = "local_crate/Cargo.toml"
+manifest_path = "../../local_crate/Cargo.toml"
 depends_on = ["dcc_suite_seed"]
 
 [[steps.outputs]]
@@ -54,7 +78,7 @@ kind = "value"
 id = "tensor_training_bridge"
 runtime = "kain"
 entry = "src/tensor_train_bridge.kn"
-depends_on = ["tensor_train_stage"]
+depends_on = ["python_suite_bootstrap", "rig_graph_analysis", "tensor_train_stage"]
 
 [[steps.outputs]]
 name = "tensor_training_bridge"

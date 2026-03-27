@@ -6,3 +6,5 @@ edition = "2021"
 [lib]
 name = "fabric_dcc_suite_runtime"
 crate-type = ["rlib"]
+
+[workspace]

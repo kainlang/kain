@@ -1,0 +1,28 @@
+fn sim_tick_plan_path() -> String:
+    return "state/sim_tick_plan.json"
+
+fn build_sim_tick_plan_json(settings: Any, session_report: String) -> String:
+    let planned_frames = settings.preview_count * 2
+    let checkpoint_stride = settings.tensor_feature_count + 4
+    let cache_budget_bytes = planned_frames * checkpoint_stride * 64
+
+    let json = "{\n"
+    let json = json + "  \"kind\": \"sim_tick_plan\",\n"
+    let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
+    let json = json + "  \"workspace_mode\": \"" + settings.workspace_mode + "\",\n"
+    let json = json + "  \"solver_profile\": \"cloth_preview_dispatch\",\n"
+    let json = json + "  \"planned_frames\": " + str(planned_frames) + ",\n"
+    let json = json + "  \"checkpoint_stride\": " + str(checkpoint_stride) + ",\n"
+    let json = json + "  \"cache_budget_bytes\": " + str(cache_budget_bytes) + ",\n"
+    let json = json + "  \"upstream_session_report\": \"" + session_report + "\"\n"
+    let json = json + "}\n"
+    return json
+
+fn main() -> String:
+    let settings = fabric_inputs.python_suite_bootstrap.project_settings
+    let session_report = fabric_inputs.dcc_suite_seed.session_report
+    let plan_json = build_sim_tick_plan_json(settings, session_report)
+
+    write_file(sim_tick_plan_path(), plan_json)
+
+    return "sim-plan:" + settings.workspace_mode + ":frames=" + str(settings.preview_count * 2) + ":stride=" + str(settings.tensor_feature_count + 4)

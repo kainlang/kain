@@ -1,35 +1,44 @@
-// Explicit extension seam for Fabric tensor training intents
-//
-// DESIGN LIMITATION: Kain currently lacks a native autograd engine or
-// first-class GPU tensor types. To avoid boxing out ML workflows in the DCC,
-// this step acts as a clean ABI bridge to external Python/PyTorch processes.
-//
-// HOW THIS WORKS:
-// The Fabric intent graph routes a tensor_train task here.
-// We serialize the model graph, training config, and dataset pointers
-// to a fast IPC buffer (or memory-mapped file) and launch/signal
-// the PyTorch helper process.
-//
-// FUTURE: When Kain gains first-class GPU tensor types via LibTorch or
-// direct compute shaders, this bridge can be replaced with a native Kain implementation.
+fn build_tensor_train_dispatch_json(settings: Any, report: Any, topology_report: String) -> String:
+    let dispatch_status = "planned"
+    if report.status == "ready":
+        dispatch_status = "queued"
 
-import kain.os.process;
-import kain.data.ipc;
+    let json = "{\n"
+    let json = json + "  \"kind\": \"tensor_train_dispatch\",\n"
+    let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
+    let json = json + "  \"dispatch_status\": \"" + dispatch_status + "\",\n"
+    let json = json + "  \"dispatch_mode\": \"" + report.dispatch_mode + "\",\n"
+    let json = json + "  \"model_architecture\": \"" + report.model_architecture + "\",\n"
+    let json = json + "  \"dataset_uri\": \"" + report.dataset_uri + "\",\n"
+    let json = json + "  \"epochs\": " + str(report.epochs) + ",\n"
+    let json = json + "  \"batch_size\": " + str(report.batch_size) + ",\n"
+    let json = json + "  \"feature_byte_length\": " + str(report.byte_length) + ",\n"
+    let json = json + "  \"checkpoint_path\": \"" + report.checkpoint_path + "\",\n"
+    let json = json + "  \"topology_report\": \"" + topology_report + "\"\n"
+    let json = json + "}\n"
+    return json
+
+fn build_tensor_train_checkpoint_json(settings: Any, report: Any, topology_report: String) -> String:
+    let embedding_width = report.byte_length + settings.tensor_feature_count
+    let checkpoint = "{\n"
+    let checkpoint = checkpoint + "  \"kind\": \"tensor_train_checkpoint\",\n"
+    let checkpoint = checkpoint + "  \"project\": \"" + settings.project_name + "\",\n"
+    let checkpoint = checkpoint + "  \"model_architecture\": \"" + report.model_architecture + "\",\n"
+    let checkpoint = checkpoint + "  \"embedding_width\": " + str(embedding_width) + ",\n"
+    let checkpoint = checkpoint + "  \"epochs_completed\": " + str(report.epochs) + ",\n"
+    let checkpoint = checkpoint + "  \"checkpoint_tag\": \"" + report.checkpoint_tag + "\",\n"
+    let checkpoint = checkpoint + "  \"topology_report\": \"" + topology_report + "\"\n"
+    let checkpoint = checkpoint + "}\n"
+    return checkpoint
 
 fn main() -> String:
-    // 1. Gather tensor_train inputs from Fabric
-    let config = fabric_inputs.tensor_train_stage;
-    
-    // 2. Format a data-driven IPC payload for the external PyTorch worker
-    let ipc_payload = {
-        model_arch: config.architecture,
-        dataset_path: config.dataset_path,
-        epochs: config.epochs,
-        batch_size: config.batch_size
-    };
-    
-    // 3. (Mock) Dispatch to PyTorch via IPC/ABI
-    // let result = ipc.dispatch("pytorch_worker", "train", ipc_payload);
-    
-    // 4. Return the outcome report back to the Fabric graph
-    return "tensor-train-bridge: PyTorch IPC dispatch simulated (Awaiting native tensor types). Report: " + config.tensor_training_report;
+    let settings = fabric_inputs.python_suite_bootstrap.project_settings
+    let report = fabric_inputs.tensor_train_stage.tensor_training_report
+    let topology_report = fabric_inputs.rig_graph_analysis.topology_report
+    let dispatch_json = build_tensor_train_dispatch_json(settings, report, topology_report)
+    let checkpoint_json = build_tensor_train_checkpoint_json(settings, report, topology_report)
+
+    write_file(report.dispatch_receipt_path, dispatch_json)
+    write_file(report.checkpoint_path, checkpoint_json)
+
+    return "tensor-train-dispatch:" + report.status + ":receipt=" + report.dispatch_receipt_path + ":checkpoint=" + report.checkpoint_path

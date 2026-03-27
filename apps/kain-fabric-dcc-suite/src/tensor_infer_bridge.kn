@@ -1,21 +1,42 @@
-// Explicit extension seam for Fabric tensor inference intents
-//
-// DESIGN LIMITATION: Kain currently lacks native high-performance tensor
-// inference (e.g., ONNX Runtime, TensorRT). This step bridges the Fabric
-// intent to an external inference worker (Python or C++).
-//
-// HOW THIS WORKS:
-// We take the trained model weights and inference inputs (e.g., a frame
-// buffer for upscaling, or points for neural caching) from Fabric,
-// dispatch them via IPC to the inference engine, and return the
-// processed tensor data.
+fn build_tensor_infer_dispatch_json(settings: Any, infer_report: Any, train_report: Any) -> String:
+    let dispatch_status = "planned"
+    if infer_report.status == "ready":
+        dispatch_status = "queued"
 
-import kain.data.ipc;
+    let json = "{\n"
+    let json = json + "  \"kind\": \"tensor_infer_dispatch\",\n"
+    let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
+    let json = json + "  \"dispatch_status\": \"" + dispatch_status + "\",\n"
+    let json = json + "  \"dispatch_mode\": \"" + infer_report.dispatch_mode + "\",\n"
+    let json = json + "  \"model_path\": \"" + infer_report.model_path + "\",\n"
+    let json = json + "  \"input_uri\": \"" + infer_report.input_uri + "\",\n"
+    let json = json + "  \"output_path\": \"" + infer_report.output_path + "\",\n"
+    let json = json + "  \"inference_profile\": \"" + infer_report.inference_profile + "\",\n"
+    let json = json + "  \"upstream_train_summary\": \"" + train_report.summary + "\"\n"
+    let json = json + "}\n"
+    return json
+
+fn build_tensor_infer_result_json(settings: Any, infer_report: Any, train_report: Any) -> String:
+    let confidence_basis = settings.preview_count + settings.tensor_feature_count
+    let json = "{\n"
+    let json = json + "  \"kind\": \"tensor_infer_result\",\n"
+    let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
+    let json = json + "  \"model_id\": \"" + infer_report.model_id + "\",\n"
+    let json = json + "  \"output_binding\": \"" + infer_report.output_binding + "\",\n"
+    let json = json + "  \"confidence_basis\": " + str(confidence_basis) + ",\n"
+    let json = json + "  \"upstream_train_status\": \"" + train_report.status + "\",\n"
+    let json = json + "  \"summary\": \"" + infer_report.summary + "\"\n"
+    let json = json + "}\n"
+    return json
 
 fn main() -> String:
-    let config = fabric_inputs.tensor_infer_stage;
-    
-    // (Mock) Dispatch inference request via IPC/ABI
-    // let result = ipc.dispatch("onnx_worker", "infer", { model: config.model_path, inputs: config.inputs });
-    
-    return "tensor-infer-bridge: ONNX IPC dispatch simulated. Report: " + config.tensor_inference_report;
+    let settings = fabric_inputs.python_suite_bootstrap.project_settings
+    let infer_report = fabric_inputs.tensor_infer_stage.tensor_inference_report
+    let train_report = fabric_inputs.tensor_train_stage.tensor_training_report
+    let dispatch_json = build_tensor_infer_dispatch_json(settings, infer_report, train_report)
+    let result_json = build_tensor_infer_result_json(settings, infer_report, train_report)
+
+    write_file(infer_report.dispatch_receipt_path, dispatch_json)
+    write_file(infer_report.output_path, result_json)
+
+    return "tensor-infer-dispatch:" + infer_report.status + ":receipt=" + infer_report.dispatch_receipt_path + ":output=" + infer_report.output_path

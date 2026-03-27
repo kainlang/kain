@@ -5,7 +5,7 @@
     "window_title":  "Kain Fabric DCC Suite",
     "layout_id":  "kain_fabric_dcc_suite_shell",
     "workspace_root":  "M:\\Code\\Kain",
-    "latest_fabric_status":  "idle",
+    "latest_fabric_status":  "succeeded",
     "workspace_modes":  [
                             {
                                 "id":  "scene_assembly",

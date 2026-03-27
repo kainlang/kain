@@ -1,0 +1,26 @@
+fn compositor_rebuild_plan_path() -> String:
+    return "state/compositor_rebuild_plan.json"
+
+fn build_compositor_plan_json(settings: Any, session_report: String) -> String:
+    let assembled_layers = settings.runtime_pack_count + 3
+    let review_targets = settings.preview_count + settings.tensor_feature_count
+
+    let json = "{\n"
+    let json = json + "  \"kind\": \"compositor_rebuild_plan\",\n"
+    let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
+    let json = json + "  \"workspace_mode\": \"" + settings.workspace_mode + "\",\n"
+    let json = json + "  \"active_stack\": \"comp/final_review\",\n"
+    let json = json + "  \"assembled_layers\": " + str(assembled_layers) + ",\n"
+    let json = json + "  \"review_targets\": " + str(review_targets) + ",\n"
+    let json = json + "  \"upstream_session_report\": \"" + session_report + "\"\n"
+    let json = json + "}\n"
+    return json
+
+fn main() -> String:
+    let settings = fabric_inputs.python_suite_bootstrap.project_settings
+    let session_report = fabric_inputs.dcc_suite_seed.session_report
+    let plan_json = build_compositor_plan_json(settings, session_report)
+
+    write_file(compositor_rebuild_plan_path(), plan_json)
+
+    return "compositor-plan:" + settings.workspace_mode + ":layers=" + str(settings.runtime_pack_count + 3) + ":targets=" + str(settings.preview_count + settings.tensor_feature_count)
