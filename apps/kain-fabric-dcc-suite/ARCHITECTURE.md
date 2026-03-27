@@ -6,12 +6,12 @@ This file is the durable project overview for `M:/Code/Kain/apps/kain-fabric-dcc
 
 `kain-fabric-dcc-suite` is a flagship multi-lane DCC suite scaffold that keeps app meaning in Kain plus Fabric rather than in the eventual native host.
 
-The material lane now includes a painter-style PBR authoring contract with texture sets, layer stacks, SVG masks, smart materials, and packed texture export receipts. This pass deliberately keeps those semantics in app-level Kain and Fabric manifests because the wider repo already has PBR and material-graph language concepts; the missing piece here was pipeline ownership, not a new compiler dialect.
+The material lane now includes a painter-style PBR authoring contract with texture sets, layer stacks, SVG masks, smart materials, and packed texture export receipts. The sculpt lane now also includes a native GPU-owned heightfield proof where Kain seeds brush and surface buffers, the GPU step owns deformation, and the C seam emits native-facing signatures and reports rather than pretending to own the sculpt itself.
 
 The scaffold is split into six durable ownership layers:
 
 1. App registries
-`config/*.json` defines workspace modes, surfaces, tools, universal gizmo profiles, commands, Fabric pipeline summaries, Fabric intent registry, resource kinds, report kinds, runtime packs, automation jobs, and the universal UI theme plus workbench manifests.
+`config/*.json` defines workspace modes, surfaces, tools, universal gizmo profiles, commands, Fabric pipeline summaries, Fabric intent registry, resource kinds, report kinds, runtime packs, automation jobs, the shader catalog, and the universal UI theme plus workbench manifests.
 
 2. Session core
 `session/*.kn` defines the canonical session document, reducers, derived read models, command handler catalog, intent planner, and resource/report/job/workspace registries.
@@ -32,9 +32,9 @@ The scaffold is split into six durable ownership layers:
 
 - Kain owns authored shell meaning, session state contracts, scene/asset/tensor projection glue, and node publishing bridge entrypoints.
 - Fabric owns runtime selection, step ordering, dependency edges, report emission, and reusable intent graph composition.
-- The native C helper owns only a narrow sculpt and mesh-signature mutation seam.
+- The native C helper owns only a narrow sculpt signature and report seam over GPU output.
 - The local Rust crate owns graph, topology, and rig health analysis only.
-- The GPU shader owns preview and material-bake compute shape only.
+- The GPU shader layer owns sculpt heightfield evaluation, material preview bake, export channel packing, render preview lighting, compositor tone mapping, and staged shader-library expansion for viewport and smart-material work.
 - The future native shell must consume generated bundles and snapshots. It must not become the semantic owner of workspace lanes, command routing, or session truth.
 
 ## Main Files
@@ -53,8 +53,10 @@ The scaffold is split into six durable ownership layers:
 - `config/fabric_intents.json`: reusable intent registry with per-lane graph ownership.
 - `config/resource_kinds.json`: resource registry schema for scene, asset, preview, tensor, sculpt, and publish artifacts.
 - `config/report_kinds.json`: report registry schema for bootstrap, ingest, topology, rig, tensor, publish, and automation artifacts.
+- `config/sculpt_pipeline.json`: data-driven sculpt grid, brush, and height-range defaults for the GPU sculpt lane.
 - `config/runtime_packs.json`: data-driven runtime pack catalog inspired by K_OS registry patterns.
 - `config/automation_jobs.json`: recurring job catalog for caches, previews, publish, and tensor upkeep.
+- `config/shader_catalog.json`: manifest-owned registry of shader families, lane ownership, compute keys, and current wiring status.
 - `session/*.kn`: session truth, reducer logic, read models, and typed registries.
 - `session/ui_workbench_registry.kn`: durable Kain-side workbench contract mirroring the generated shell pages.
 - `fabric/intents/*.fabric.toml`: reusable lane graphs.
@@ -62,7 +64,13 @@ The scaffold is split into six durable ownership layers:
 - `src/material_authoring_projection.kn`: projects the active texture-set, layer-stack, and export-preset report.
 - `src/svg_material_mask_projection.kn`: projects the active SVG mask stack and vector decal report.
 - `src/material_texture_export_projection.kn`: projects packed texture export receipts for downstream runtimes.
-- `shaders/material_bake_preview.kn`: GPU compute preview and material bake seam.
+- `src/render_preview_projection.kn`: render preview report writer that summarizes the dedicated render GPU pass rather than reusing a generic session string.
+- `shaders/material_bake_preview.kn`: baseline GPU compute preview and material bake seam for the material lane.
+- `shaders/sculpt_heightfield_apply.kn`: GPU sculpt stroke seam for future heightfield-style brush evaluation.
+- `shaders/material_channel_pack.kn`: export-oriented GPU channel packing seam used by the publish graph.
+- `shaders/render_preview_lighting.kn`: render-preview GPU seam used by the render lounge graph.
+- `shaders/compositor_tone_map.kn`: compositor GPU seam used by the rebuild graph.
+- `shaders/material_layer_blend_preview.kn`, `shaders/svg_mask_raster.kn`, `shaders/smart_material_resolve.kn`, `shaders/viewport_lighting_preview.kn`, `shaders/render_aov_pack.kn`, and `shaders/compositor_id_matte.kn`: staged shader library coverage for the suite’s likely next GPU responsibilities.
 - `scripts/materialize-shell.ps1`: data-driven shell materializer.
 - `scripts/materialize-session-state.ps1`: runtime snapshot materializer from config and latest Fabric report.
 - `state/*.json`: durable lane receipts for sim planning, compositor planning, tensor dispatch, tensor checkpoints, and tensor inference results.
@@ -78,9 +86,13 @@ The scaffold is split into six durable ownership layers:
 
 `operator command -> session/reducers.kn -> session/intent_planner.kn -> fabric/intents/*.fabric.toml -> runtime workers -> resources/reports/jobs -> shell projections`
 
-`python suite bootstrap -> kain scene/session seed -> native sculpt seam -> rust graph analysis -> python tensor planning -> gpu preview bake -> Kain node publish bridge`
+`python suite bootstrap -> kain scene/session seed -> gpu sculpt displacement -> native sculpt reporting -> rust graph analysis -> python tensor planning -> gpu preview bake -> Kain node publish bridge`
 
 `material authoring command -> session material state -> dcc_suite_seed material/svg documents -> material_authoring_projection -> svg_material_mask_projection -> gpu_material_preview -> material_texture_export_projection -> render/publish consumers`
+
+`render preview command -> material receipts -> gpu_render_preview -> render_preview_projection -> render-facing shell reports`
+
+`compositor rebuild command -> compositor_projection -> gpu_compositor_tone_map -> compositor_rebuild_step -> compositor-facing shell reports`
 
 `sim/compositor/tensor intent graphs -> explicit app-rooted receipt writes in state/*.json -> shell inspection, automation jobs, and future native runtime consumers`
 
@@ -90,6 +102,8 @@ The scaffold is split into six durable ownership layers:
 - The sim lane now emits durable plan and report receipts in `state/*.json` rather than a mock string return, but it is still not a real solver runtime. That keeps the current repo honest until a durable sim contract exists.
 - The compositor lane now emits durable rebuild-plan and rebuild-report receipts in `state/*.json`, but real graph execution and frame assembly should still arrive through a broader runtime extension rather than by overloading shell presentation code.
 - The material lane now emits durable authoring, SVG mask, and export receipts in `state/*.json`, but it is still not a native painter engine with tiled brush evaluation, GPU bakers, or live sparse texture streaming. Those remain explicit extension seams.
+- The sculpt lane now emits a real GPU-owned heightfield delta buffer and native-facing sculpt receipts, but it is still not a production mesh sculpt engine with BVH queries, voxel remeshing, multiresolution data, or tablet-pressure sampling. Those remain explicit extension seams.
+- The shader catalog is intentionally broader than the currently scheduled Fabric steps. Some shader files are staged for near-term lane growth rather than being scheduled in every graph immediately.
 - The runtime pack registry is broad on purpose, but it is still manifest-owned metadata until downstream pack loaders and launchers consume it directly.
 
 ## Common Commands
@@ -118,9 +132,11 @@ powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/buil
 ## Common Errors
 
 - `native/dcc_suite_ops.dll` must exist before `c_abi` sculpt steps can execute.
-- On Windows, keep `__declspec(dllexport)` on the declarations in `native/dcc_suite_ops.h` or the Fabric `c_abi` bridge will fail to resolve `dcc_suite_apply_sculpt_stamp` and `dcc_suite_signature`.
+- On Windows, keep `__declspec(dllexport)` on the declarations in `native/dcc_suite_ops.h` or the Fabric `c_abi` bridge will fail to resolve `dcc_suite_sculpt_signature` and `dcc_suite_sculpt_report`.
 - `local_crate/Cargo.toml` needs a local `[workspace]` table so the Fabric rust-crate loader can resolve the helper crate without adding it to the monorepo workspace members list.
+- `gpu_sculpt_displacement` relies on name-based GPU binding resolution. `dcc_suite_seed` must keep emitting a zeroed `sculpt_delta` buffer so Fabric can infer the output shape for the GPU step.
 - `shaders/material_bake_preview.kn` follows the stricter compute-shader tuple syntax used by the Fabric GPU smoketests. Missing trailing commas inside the `comptime` tuple can make `gpu_material_preview` fail with a parser error.
+- The new staged shader files under `shaders/` follow the same tuple syntax and shared-buffer contract as the Fabric GPU smoketests. When adding more wired GPU steps, keep the `src` and `dst` buffer bindings aligned with Fabric output contracts unless the graph is also updated.
 - The material receipt writers in `src/material_authoring_projection.kn`, `src/svg_material_mask_projection.kn`, and `src/material_texture_export_projection.kn` use escaped JSON string assembly just like the existing lane receipts. Unescaped quote characters will break Kain parsing.
 - The lane manifests under `fabric/intents/*.fabric.toml` must set `[workspace].root = "../.."` so scripts, source files, and local crate paths resolve from the app root rather than `fabric/intents/`.
 - For Kain steps launched through lane manifests, do not rely on cwd-relative receipt paths like `state/foo.json`. Use explicit app-rooted paths such as `apps/kain-fabric-dcc-suite/state/foo.json` or the receipts may not materialize where the shell expects them.

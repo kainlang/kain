@@ -2,8 +2,19 @@ import json
 from pathlib import Path
 
 
+def _resolve_sculpt_pipeline_path():
+    candidates = [
+        Path("config/sculpt_pipeline.json"),
+        Path("apps/kain-fabric-dcc-suite/config/sculpt_pipeline.json"),
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError("Unable to locate config/sculpt_pipeline.json from the current Fabric working directory.")
+
+
 def _load_sculpt_pipeline():
-    config_path = Path(__file__).resolve().parents[1] / "config" / "sculpt_pipeline.json"
+    config_path = _resolve_sculpt_pipeline_path()
     with config_path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
 

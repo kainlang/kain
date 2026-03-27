@@ -5155,6 +5155,13 @@ impl eframe::App for KainUiNativeApp {
                                     .color(app_theme.palette.accent_soft),
                             );
                         }
+                        if let Some(path) = &self.command_bridge_path {
+                            ui.label(
+                                RichText::new(format!("command bridge: {path}"))
+                                    .monospace()
+                                    .color(app_theme.palette.highlight),
+                            );
+                        }
                         if let Some(snapshot) = &self.app_runtime_snapshot {
                             ui.separator();
                             ui.heading(RichText::new("Desktop Snapshot").color(app_theme.palette.text));
@@ -5213,15 +5220,76 @@ impl eframe::App for KainUiNativeApp {
                             });
                             ui.collapsing("Commands", |ui| {
                                 for command in &snapshot.commands {
+                                    ui.horizontal_wrapped(|ui| {
+                                        let button = egui::Button::new(
+                                            RichText::new(&command.label)
+                                                .size(app_theme.typography.small)
+                                                .color(app_theme.palette.text),
+                                        )
+                                        .fill(alpha_tint(app_theme.palette.surface_overlay, 0.82))
+                                        .stroke(Stroke::new(1.0, app_theme.palette.outline_soft))
+                                        .corner_radius(app_theme.metrics.radius_medium);
+                                        if ui
+                                            .add_enabled(
+                                                self.command_bridge_path.is_some(),
+                                                button,
+                                            )
+                                            .clicked()
+                                        {
+                                            self.emit_runtime_command(command);
+                                        }
+                                        ui.label(
+                                            RichText::new(format!(
+                                                "[{}] -> {} @ {}",
+                                                command.id, command.intent, command.surface
+                                            ))
+                                            .monospace()
+                                            .color(app_theme.palette.text_muted),
+                                        );
+                                    });
+                                }
+                            });
+                            if let Some(dcc_state) = &snapshot.dcc_suite_state {
+                                ui.collapsing("DCC Suite", |ui| {
                                     ui.label(
                                         RichText::new(format!(
-                                            "{} [{}] -> {} @ {}",
-                                            command.label, command.id, command.intent, command.surface
+                                            "mode={} tool={} frame={} dirty={} bridge={} processed={}",
+                                            dcc_state.session.workspace.active_mode,
+                                            dcc_state.session.tooling.active_tool,
+                                            dcc_state.session.animation.frame,
+                                            dcc_state.session.dirty.active_count(),
+                                            dcc_state.bridge.status,
+                                            dcc_state.bridge.processed_command_count
                                         ))
                                         .monospace(),
                                     );
-                                }
-                            });
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "gizmo={} | {} | snap={}",
+                                            dcc_state.session.gizmo.mode,
+                                            dcc_state.session.gizmo.space,
+                                            dcc_state.session.gizmo.snap_enabled
+                                        ))
+                                        .monospace()
+                                        .color(app_theme.palette.accent_soft),
+                                    );
+                                    if let Some(command) = &dcc_state.latest_command {
+                                        ui.label(
+                                            RichText::new(format!(
+                                                "latest_command={} requested_at={}",
+                                                if command.label.is_empty() {
+                                                    command.command_id.as_str()
+                                                } else {
+                                                    command.label.as_str()
+                                                },
+                                                command.requested_at
+                                            ))
+                                            .monospace()
+                                            .color(app_theme.palette.highlight),
+                                        );
+                                    }
+                                });
+                            }
                             ui.collapsing("Providers", |ui| {
                                 for provider in &snapshot.providers {
                                     ui.label(

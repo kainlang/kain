@@ -2,6 +2,46 @@
 
 This file preserves the durable design intent for `apps/kain-fabric-dcc-suite`.
 
+## 2026-03-27 (Later) - Native GPU Sculpt Pipeline Replaced The Placeholder Sculpt Seam
+
+- Replaced the old preview-image C stamp seam with a real GPU-owned sculpt proof made of seeded heightfield buffers, seeded brush parameter buffers, and a dedicated `gpu_sculpt_displacement` Fabric compute step.
+- Added `config/sculpt_pipeline.json` so sculpt grid size, brush center, radius, strength, falloff, invert mode, and height range are data-driven instead of being hardcoded in Kain or shader code.
+- Upgraded `src/main.kn` to seed `sculpt_heightfield_src`, `sculpt_brush_params`, and a zeroed `sculpt_delta` buffer so Fabric can infer the GPU output binding shape by name.
+- Reworked `src/native_sculpt_step.kn` and `native/dcc_suite_ops.*` so the native seam now summarizes GPU output into `sculpt_signature` and `sculpt_report` rather than pretending C owns the sculpt mutation itself.
+- Rewired the Rust topology analysis, publish bridge, Fabric pipeline manifest, sculpt/topology/publish intent manifests, and the resource/report registries to treat `gpu_sculpt_displacement.sculpt_delta` as the canonical sculpt artifact.
+
+Important design decision:
+
+- This pass intentionally stops at a heightfield sculpt proof instead of pretending the app now has a full mesh-surface sculpt engine. That keeps the implementation honest while still making GPU ownership real and testable inside the current Fabric architecture.
+
+Current risk:
+
+- The sculpt lane is now structurally real in Fabric, but it still works over a synthetic seeded heightfield rather than actual mesh topology, tablet input, multiresolution subdivision, or sparse voxel data.
+
+Next recommended step:
+
+- Replace the seeded heightfield source with a real mesh or sculpt-tile artifact contract and add a native or Rust bridge that can project brush strokes into GPU-friendly tiles or patches without giving semantic ownership back to the host.
+
+## 2026-03-27 (Later) - Shader Library Expanded Beyond The Single Material Preview Pass
+
+- Added `config/shader_catalog.json` so the suite now has a manifest-owned record of which shader families exist, which lane each belongs to, and which Fabric graphs already wire them.
+- Preserved the existing `shaders/sculpt_heightfield_apply.kn` seam and expanded `shaders/` with broader material, render, compositor, and viewport coverage instead of leaving the suite centered on one narrow preview shader.
+- Rewired `fabric/intents/render_preview.fabric.toml` to use a dedicated render-preview lighting shader and added `src/render_preview_projection.kn` so render reports now summarize a render-specific GPU pass instead of a generic session string.
+- Rewired `fabric/intents/publish_package.fabric.toml` so publish-time material export uses a dedicated channel-pack shader instead of reusing the material preview shader.
+- Rewired `fabric/intents/compositor_rebuild.fabric.toml` to run a compositor tone-map shader before report emission, and updated `src/compositor_rebuild_step.kn` to report GPU buffer metadata from that pass.
+
+Important design decision:
+
+- The shader catalog is intentionally broader than the currently scheduled Fabric graphs. That keeps the suite honest about what it still needs while still landing real shader coverage in the highest-value wired lanes first.
+
+Current risk:
+
+- The new shader files are structurally aligned with the current Fabric GPU contract, but most of the newly added library shaders are staged assets rather than fully orchestrated multi-pass pipelines. They still need richer buffer/image contracts before they can behave like a production painter, renderer, or compositor.
+
+Next recommended step:
+
+- Introduce richer shared image and intermediate buffer contracts for the material, render, and comp graphs so the staged shader library can be wired as true multi-pass GPU flows instead of single-buffer transforms.
+
 ## 2026-03-27 (Later) - Painter-Style PBR And SVG Material Pipeline Added
 
 - Expanded the material lane from a single preview-bake scaffold into a painter-style authored pipeline with first-class texture sets, layer stacks, SVG masks, smart materials, and packed export presets.

@@ -140,10 +140,10 @@ name = "tensor_inference_report"
 kind = "value"
 
 [[steps]]
-id = "gpu_material_preview"
+id = "gpu_material_channel_pack"
 runtime = "gpu_compute"
-shader_source = "shaders/material_bake_preview.kn"
-compute_key = "DccSuiteMaterialBakePreview"
+shader_source = "shaders/material_channel_pack.kn"
+compute_key = "DccSuiteMaterialChannelPack"
 depends_on = ["dcc_suite_seed", "material_authoring_projection", "svg_material_mask_projection"]
 
 [[steps.outputs]]
@@ -159,7 +159,7 @@ depends_on = [
     "dcc_suite_seed",
     "material_authoring_projection",
     "svg_material_mask_projection",
-    "gpu_material_preview"
+    "gpu_material_channel_pack"
 ]
 
 [[steps.outputs]]
@@ -180,7 +180,7 @@ depends_on = [
     "rig_graph_analysis",
     "tensor_train_stage",
     "tensor_infer_stage",
-    "gpu_material_preview",
+    "gpu_material_channel_pack",
     "material_texture_export_projection"
 ]
 

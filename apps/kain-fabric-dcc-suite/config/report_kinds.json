@@ -15,6 +15,13 @@
       "summary": "Asset ingest session report."
     },
     {
+      "id": "sculpt_report",
+      "report_uri": "report://sculpt/current",
+      "producer_step": "native_sculpt_kernel",
+      "output_name": "sculpt_report",
+      "summary": "Native sculpt summary report for the latest GPU sculpt pass."
+    },
+    {
       "id": "topology_report",
       "report_uri": "report://topology/current",
       "producer_step": "rig_graph_analysis",

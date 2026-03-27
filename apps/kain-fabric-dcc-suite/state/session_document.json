@@ -107,15 +107,15 @@
                   "rig_dirty":  false,
                   "animation_dirty":  false,
                   "simulation_dirty":  false,
-                  "render_dirty":  false,
+                  "render_dirty":  true,
                   "compositor_dirty":  false,
                   "publish_dirty":  false,
                   "tensor_dirty":  false,
                   "session_needs_save":  false
               },
     "jobs":  {
-                 "latest_fabric_session_id":  "session-1774649162907-50392",
-                 "latest_fabric_status":  "succeeded",
+                 "latest_fabric_session_id":  "session-1774649727200-167908",
+                 "latest_fabric_status":  "failed",
                  "active_intents":  [
 
                                     ],

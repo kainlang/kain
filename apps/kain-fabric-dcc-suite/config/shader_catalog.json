@@ -14,6 +14,19 @@
       "summary": "Baseline material preview bake over the shared preview buffers after authored PBR and SVG mask receipts are projected."
     },
     {
+      "id": "sculpt_heightfield_apply",
+      "lane": "sculpt_model",
+      "status": "staged_library",
+      "shader_source": "shaders/sculpt_heightfield_apply.kn",
+      "compute_key": "DccSuiteGpuSculptStroke",
+      "primary_manifests": [
+        "fabric/intents/sculpt_stroke.fabric.toml"
+      ],
+      "inputs": ["sculpt_heightfield_src", "sculpt_brush_params"],
+      "outputs": ["sculpt_delta"],
+      "summary": "Heightfield-style sculpt stroke compute seam for future GPU-assisted brush evaluation."
+    },
+    {
       "id": "material_layer_blend_preview",
       "lane": "material_lookdev",
       "status": "staged_library",

@@ -73,13 +73,31 @@
       "summary": "Feature buffer staged for tensor-oriented training and inference planning."
     },
     {
+      "id": "sculpt_heightfield_source",
+      "resource_uri": "buffer://sculpt/heightfield-source",
+      "kind": "shared_buffer",
+      "producer_step": "dcc_suite_seed",
+      "output_name": "sculpt_heightfield_src",
+      "storage": "shared-buffer",
+      "summary": "Seeded heightfield source buffer used by the GPU sculpt lane."
+    },
+    {
+      "id": "sculpt_brush_params",
+      "resource_uri": "buffer://sculpt/brush-params",
+      "kind": "shared_buffer",
+      "producer_step": "dcc_suite_seed",
+      "output_name": "sculpt_brush_params",
+      "storage": "shared-buffer",
+      "summary": "Brush parameter payload that drives the GPU sculpt stroke kernel."
+    },
+    {
       "id": "sculpt_delta",
       "resource_uri": "buffer://sculpt/delta",
       "kind": "shared_buffer",
-      "producer_step": "native_sculpt_kernel",
+      "producer_step": "gpu_sculpt_displacement",
       "output_name": "sculpt_delta",
       "storage": "shared-buffer",
-      "summary": "Latest sculpt mutation payload emitted by the C ABI seam."
+      "summary": "Latest sculpt displacement payload emitted by the GPU sculpt kernel."
     },
     {
       "id": "material_export_bundle",

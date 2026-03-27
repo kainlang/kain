@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 kain-ui-native = { path = "../../../crates/kain-ui-native" }
+serde_json = "1"

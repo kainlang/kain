@@ -64,11 +64,25 @@ fn default_resources() -> Array<ResourceDescriptor>:
             summary: "Tensor planning feature buffer"
         },
         ResourceDescriptor {
+            id: "sculpt_heightfield_source",
+            resource_uri: "buffer://sculpt/heightfield-source",
+            kind: "shared_buffer",
+            producer_step: "dcc_suite_seed",
+            summary: "Seeded GPU sculpt heightfield source buffer"
+        },
+        ResourceDescriptor {
+            id: "sculpt_brush_params",
+            resource_uri: "buffer://sculpt/brush-params",
+            kind: "shared_buffer",
+            producer_step: "dcc_suite_seed",
+            summary: "GPU sculpt brush parameter buffer"
+        },
+        ResourceDescriptor {
             id: "sculpt_delta",
             resource_uri: "buffer://sculpt/delta",
             kind: "shared_buffer",
-            producer_step: "native_sculpt_kernel",
-            summary: "Latest sculpt mutation payload"
+            producer_step: "gpu_sculpt_displacement",
+            summary: "Latest GPU sculpt displacement payload"
         },
         ResourceDescriptor {
             id: "material_export_bundle",

@@ -22,7 +22,7 @@
       "lane": "sculpt",
       "graph": "fabric/intents/sculpt_stroke.fabric.toml",
       "debounce_ms": 0,
-      "produces": ["sculpt_delta", "sculpt_signature"]
+      "produces": ["sculpt_delta", "sculpt_signature", "sculpt_report"]
     },
     {
       "id": "topology.rebuild",

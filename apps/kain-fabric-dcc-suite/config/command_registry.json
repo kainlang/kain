@@ -89,7 +89,7 @@
       "id": "sculpt.apply_stroke",
       "label": "Apply Sculpt Stroke",
       "surface": "viewport",
-      "summary": "Queues a sculpt stroke through the native mutation seam and marks downstream lanes dirty.",
+      "summary": "Queues a sculpt stroke through the native GPU sculpt lane and marks downstream lanes dirty.",
       "intent": "sculpt.apply_stroke",
       "payload_schema": {
         "target_mesh": "resource_ref",

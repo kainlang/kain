@@ -34,7 +34,7 @@
       "id": "clay_sculpt",
       "label": "Clay Sculpt",
       "lane": "sculpt_model",
-      "summary": "Brush-based form sculpting through the native mutation seam.",
+      "summary": "Brush-based form sculpting through the native GPU heightfield lane.",
       "gizmo_enabled": false
     },
     {

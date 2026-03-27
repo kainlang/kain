@@ -472,20 +472,20 @@
     "sessions":  {
                      "total_sessions":  1,
                      "active_provider":  "native_runtime",
-                     "recent_session_id":  "session-1774649162907-50392",
+                     "recent_session_id":  "session-1774649727200-167908",
                      "recent_session_title":  "Kain Fabric DCC Suite | Scene Assembly"
                  },
     "recent_sessions":  [
                             {
-                                "id":  "session-1774649162907-50392",
+                                "id":  "session-1774649727200-167908",
                                 "title":  "Kain Fabric DCC Suite | Scene Assembly",
                                 "provider_id":  "native_runtime",
-                                "status":  "succeeded",
+                                "status":  "failed",
                                 "workspace_root":  "M:\\Code\\Kain",
-                                "updated_at":  "2026-03-27T22:06:14Z",
+                                "updated_at":  "2026-03-27T22:15:28Z",
                                 "message_count":  1,
                                 "last_message_role":  "system",
-                                "last_message_preview":  "DCC suite bridge ready | fabric=succeeded | mode=Scene Assembly"
+                                "last_message_preview":  "DCC suite bridge ready | fabric=failed | mode=Scene Assembly"
                             }
                         ],
     "workspaces":  [
@@ -623,15 +623,15 @@
                                                           "rig_dirty":  false,
                                                           "animation_dirty":  false,
                                                           "simulation_dirty":  false,
-                                                          "render_dirty":  false,
+                                                          "render_dirty":  true,
                                                           "compositor_dirty":  false,
                                                           "publish_dirty":  false,
                                                           "tensor_dirty":  false,
                                                           "session_needs_save":  false
                                                       },
                                             "jobs":  {
-                                                         "latest_fabric_session_id":  "session-1774649162907-50392",
-                                                         "latest_fabric_status":  "succeeded",
+                                                         "latest_fabric_session_id":  "session-1774649727200-167908",
+                                                         "latest_fabric_status":  "failed",
                                                          "active_intents":  [
 
                                                                             ],
@@ -646,7 +646,7 @@
                                             "selection_summary":  "1 entity selected",
                                             "gizmo_summary":  "translate | world | snap off",
                                             "queued_intent_count":  0,
-                                            "latest_fabric_status":  "succeeded"
+                                            "latest_fabric_status":  "failed"
                                         },
                             "command_registry":  [
                                                      {
@@ -736,7 +736,7 @@
                                                          "id":  "sculpt.apply_stroke",
                                                          "label":  "Apply Sculpt Stroke",
                                                          "surface":  "viewport",
-                                                         "summary":  "Queues a sculpt stroke through the native mutation seam and marks downstream lanes dirty.",
+                                                         "summary":  "Queues a sculpt stroke through the native GPU sculpt lane and marks downstream lanes dirty.",
                                                          "intent":  "sculpt.apply_stroke",
                                                          "payload_schema":  {
                                                                                 "target_mesh":  "resource_ref",
@@ -918,7 +918,7 @@
                                                         "id":  "clay_sculpt",
                                                         "label":  "Clay Sculpt",
                                                         "lane":  "sculpt_model",
-                                                        "summary":  "Brush-based form sculpting through the native mutation seam.",
+                                                        "summary":  "Brush-based form sculpting through the native GPU heightfield lane.",
                                                         "gizmo_enabled":  false
                                                     },
                                                     {
@@ -1365,13 +1365,31 @@
                                                        "summary":  "Feature buffer staged for tensor-oriented training and inference planning."
                                                    },
                                                    {
+                                                       "id":  "sculpt_heightfield_source",
+                                                       "resource_uri":  "buffer://sculpt/heightfield-source",
+                                                       "kind":  "shared_buffer",
+                                                       "producer_step":  "dcc_suite_seed",
+                                                       "output_name":  "sculpt_heightfield_src",
+                                                       "storage":  "shared-buffer",
+                                                       "summary":  "Seeded heightfield source buffer used by the GPU sculpt lane."
+                                                   },
+                                                   {
+                                                       "id":  "sculpt_brush_params",
+                                                       "resource_uri":  "buffer://sculpt/brush-params",
+                                                       "kind":  "shared_buffer",
+                                                       "producer_step":  "dcc_suite_seed",
+                                                       "output_name":  "sculpt_brush_params",
+                                                       "storage":  "shared-buffer",
+                                                       "summary":  "Brush parameter payload that drives the GPU sculpt stroke kernel."
+                                                   },
+                                                   {
                                                        "id":  "sculpt_delta",
                                                        "resource_uri":  "buffer://sculpt/delta",
                                                        "kind":  "shared_buffer",
-                                                       "producer_step":  "native_sculpt_kernel",
+                                                       "producer_step":  "gpu_sculpt_displacement",
                                                        "output_name":  "sculpt_delta",
                                                        "storage":  "shared-buffer",
-                                                       "summary":  "Latest sculpt mutation payload emitted by the C ABI seam."
+                                                       "summary":  "Latest sculpt displacement payload emitted by the GPU sculpt kernel."
                                                    },
                                                    {
                                                        "id":  "material_export_bundle",
@@ -1397,6 +1415,13 @@
                                                      "producer_step":  "asset_ingest_session",
                                                      "output_name":  "asset_ingest_report",
                                                      "summary":  "Asset ingest session report."
+                                                 },
+                                                 {
+                                                     "id":  "sculpt_report",
+                                                     "report_uri":  "report://sculpt/current",
+                                                     "producer_step":  "native_sculpt_kernel",
+                                                     "output_name":  "sculpt_report",
+                                                     "summary":  "Native sculpt summary report for the latest GPU sculpt pass."
                                                  },
                                                  {
                                                      "id":  "topology_report",
@@ -1531,74 +1556,80 @@
                                              ],
                             "latest_command":  null,
                             "latest_fabric_run":  {
-                                                      "session_id":  "session-1774649162907-50392",
-                                                      "status":  "succeeded",
+                                                      "session_id":  "session-1774649727200-167908",
+                                                      "status":  "failed",
                                                       "manifest_path":  "apps/kain-fabric-dcc-suite/KAIN.fabric.toml",
                                                       "steps":  [
                                                                     {
                                                                         "id":  "python_suite_bootstrap",
                                                                         "runtime":  "python",
-                                                                        "status":  "succeeded",
+                                                                        "status":  "failed",
                                                                         "summary":  "Seeds project defaults, workspace selection, preview sizing, runtime pack counts, and tensor readiness hints."
                                                                     },
                                                                     {
                                                                         "id":  "dcc_suite_seed",
                                                                         "runtime":  "kain",
-                                                                        "status":  "succeeded",
-                                                                        "summary":  "Authors the scene graph bootstrap, asset catalog bootstrap, PBR material contract, SVG mask contract, preview buffers, tensor features, and session report."
+                                                                        "status":  "failed",
+                                                                        "summary":  "Authors the scene graph bootstrap, asset catalog bootstrap, PBR material contract, SVG mask contract, preview buffers, tensor features, GPU sculpt seed buffers, and session report."
+                                                                    },
+                                                                    {
+                                                                        "id":  "gpu_sculpt_displacement",
+                                                                        "runtime":  "gpu_compute",
+                                                                        "status":  "failed",
+                                                                        "summary":  "Runs a GPU sculpt proof over seeded heightfield and brush parameter buffers, emitting the canonical sculpt delta payload."
                                                                     },
                                                                     {
                                                                         "id":  "material_authoring_projection",
                                                                         "runtime":  "kain",
-                                                                        "status":  "succeeded",
+                                                                        "status":  "failed",
                                                                         "summary":  "Projects a substance-painter-style texture set, layer stack, and export preset report from Kain-owned session truth."
                                                                     },
                                                                     {
                                                                         "id":  "svg_material_mask_projection",
                                                                         "runtime":  "kain",
-                                                                        "status":  "succeeded",
+                                                                        "status":  "failed",
                                                                         "summary":  "Projects SVG mask documents, anchor-driven vector motifs, and reusable decal shapes for the material lane."
                                                                     },
                                                                     {
                                                                         "id":  "native_sculpt_kernel",
                                                                         "runtime":  "c_abi",
-                                                                        "status":  "succeeded",
-                                                                        "summary":  "Uses the native helper to apply a narrow sculpt mutation proof and emit a sculpt signature."
+                                                                        "status":  "failed",
+                                                                        "summary":  "Uses the native helper to summarize GPU sculpt output into native-friendly sculpt signatures and reports."
                                                                     },
                                                                     {
                                                                         "id":  "rig_graph_analysis",
                                                                         "runtime":  "rust_crate",
-                                                                        "status":  "succeeded",
+                                                                        "status":  "failed",
                                                                         "summary":  "Builds graph and topology health reporting from authored scene and sculpt outputs."
                                                                     },
                                                                     {
                                                                         "id":  "tensor_train_stage",
                                                                         "runtime":  "python",
-                                                                        "status":  "succeeded",
+                                                                        "status":  "failed",
                                                                         "summary":  "Emits PyTorch-oriented training readiness and plan summaries without pretending the runtime is fully wired."
                                                                     },
                                                                     {
                                                                         "id":  "tensor_infer_stage",
                                                                         "runtime":  "python",
-                                                                        "status":  "succeeded",
+                                                                        "status":  "failed",
                                                                         "summary":  "Emits tensor inference readiness and model-serving summaries."
                                                                     },
                                                                     {
                                                                         "id":  "gpu_material_preview",
                                                                         "runtime":  "gpu_compute",
-                                                                        "status":  "succeeded",
+                                                                        "status":  "failed",
                                                                         "summary":  "Runs a compute preview and material bake pass across the shared preview buffers after PBR and SVG authoring receipts are materialized."
                                                                     },
                                                                     {
                                                                         "id":  "material_texture_export_projection",
                                                                         "runtime":  "kain",
-                                                                        "status":  "succeeded",
+                                                                        "status":  "failed",
                                                                         "summary":  "Builds channel-pack export receipts for metal-rough, ORM, height, emissive, and custom packed delivery."
                                                                     },
                                                                     {
                                                                         "id":  "publish_suite_report",
                                                                         "runtime":  "kain",
-                                                                        "status":  "succeeded",
+                                                                        "status":  "failed",
                                                                         "summary":  "Builds the publish and package report through a Kain-authored bridge that includes the material export lane."
                                                                     }
                                                                 ]
@@ -1616,5 +1647,5 @@
                                                     "compositor lane still materializes rebuild plans rather than a first-class compositor graph runtime"
                                                 ]
                         },
-    "updated_at":  "2026-03-27T22:06:14Z"
+    "updated_at":  "2026-03-27T22:15:28Z"
 }

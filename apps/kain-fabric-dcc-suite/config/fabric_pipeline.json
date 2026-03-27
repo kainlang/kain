@@ -8,7 +8,12 @@
     {
       "id": "dcc_suite_seed",
       "runtime": "kain",
-      "summary": "Authors the scene graph bootstrap, asset catalog bootstrap, PBR material contract, SVG mask contract, preview buffers, tensor features, and session report."
+      "summary": "Authors the scene graph bootstrap, asset catalog bootstrap, PBR material contract, SVG mask contract, preview buffers, tensor features, GPU sculpt seed buffers, and session report."
+    },
+    {
+      "id": "gpu_sculpt_displacement",
+      "runtime": "gpu_compute",
+      "summary": "Runs a GPU sculpt proof over seeded heightfield and brush parameter buffers, emitting the canonical sculpt delta payload."
     },
     {
       "id": "material_authoring_projection",
@@ -23,7 +28,7 @@
     {
       "id": "native_sculpt_kernel",
       "runtime": "c_abi",
-      "summary": "Uses the native helper to apply a narrow sculpt mutation proof and emit a sculpt signature."
+      "summary": "Uses the native helper to summarize GPU sculpt output into native-friendly sculpt signatures and reports."
     },
     {
       "id": "rig_graph_analysis",
