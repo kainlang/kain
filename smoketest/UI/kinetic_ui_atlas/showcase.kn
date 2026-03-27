@@ -1,0 +1,352 @@
+shader fragment AuroraRibbon(uv: Vec2) -> Vec4:
+    let center = vec2(0.5, 0.42)
+    let dx = uv.x - center.x
+    let dy = uv.y - center.y
+    let radius = sqrt(dx * dx + dy * dy)
+    let halo = clamp(1.0 - radius * 1.8, 0.0, 1.0)
+    let ribbon_a = clamp(1.0 - abs(uv.y - (0.28 + uv.x * 0.16)) * 16.0, 0.0, 1.0)
+    let ribbon_b = clamp(1.0 - abs(uv.y - (0.76 - uv.x * 0.18)) * 14.0, 0.0, 1.0)
+    let lattice = clamp(1.0 - abs(fract((uv.x + uv.y) * 9.0) - 0.5) * 7.0, 0.0, 1.0)
+
+    let base_r = 0.03 + halo * 0.10 + ribbon_b * 0.14
+    let base_g = 0.05 + halo * 0.18 + ribbon_a * 0.12 + lattice * 0.03
+    let base_b = 0.10 + halo * 0.24 + ribbon_a * 0.18 + ribbon_b * 0.08 + lattice * 0.05
+
+    return vec4(base_r, base_g, base_b, 1.0)
+
+shader fragment CircuitField(uv: Vec2) -> Vec4:
+    let grid_x = clamp(1.0 - abs(fract(uv.x * 12.0) - 0.5) * 7.5, 0.0, 1.0)
+    let grid_y = clamp(1.0 - abs(fract(uv.y * 8.0) - 0.5) * 6.5, 0.0, 1.0)
+    let conduit = clamp(1.0 - abs(uv.y - 0.36) * 12.0, 0.0, 1.0)
+    let conduit_echo = clamp(1.0 - abs(uv.x - 0.74) * 10.0, 0.0, 1.0)
+    let pulse_ring = clamp(1.0 - abs(sqrt((uv.x - 0.28) * (uv.x - 0.28) + (uv.y - 0.58) * (uv.y - 0.58)) - 0.16) * 18.0, 0.0, 1.0)
+
+    let base_r = 0.04 + grid_x * 0.03 + conduit_echo * 0.14
+    let base_g = 0.07 + grid_y * 0.08 + conduit * 0.16 + pulse_ring * 0.10
+    let base_b = 0.09 + conduit * 0.18 + conduit_echo * 0.10 + pulse_ring * 0.16
+
+    return vec4(base_r, base_g, base_b, 1.0)
+
+component App():
+    render <slot layout="column" gap={18} padding={18}>
+        <theme name="kinetic_ui_atlas">
+            <scope name="atlas" selector="kinetic-atlas" />
+
+            <token name="theme.background.top" category="color" value="#081019" />
+            <token name="theme.background.bottom" category="color" value="#141a29" />
+            <token name="theme.surface.base" category="color" value="#111827" />
+            <token name="theme.surface.alt" category="color" value="#1a2335" />
+            <token name="theme.surface.overlay" category="color" value="#162133d6" />
+            <token name="theme.accent.primary" category="color" value="#ff8a47" />
+            <token name="theme.accent.soft" category="color" value="#ffd3aa" />
+            <token name="theme.highlight" category="color" value="#86d7ff" />
+            <token name="theme.text.default" category="color" value="#f6efe5" />
+            <token name="theme.text.muted" category="color" value="#9bb0c7" />
+            <token name="theme.typography.scale" category="type" value={1.08} />
+            <token name="theme.spacing.scale" category="space" value={1.02} />
+            <token name="theme.radius.scale" category="radius" value={1.12} />
+            <token name="widget.panel.surface.mode" category="surface" value="glass" />
+            <token name="widget.inspector.surface.mode" category="surface" value="flat" />
+            <token name="widget.tree.surface.mode" category="surface" value="ghost" />
+            <token name="widget.graph.surface.mode" category="surface" value="canvas" />
+            <token name="widget.timeline.surface.mode" category="surface" value="accent" />
+            <token name="widget.viewport3d.surface.mode" category="surface" value="canvas" />
+            <token name="widget.canvas.surface.mode" category="surface" value="canvas" />
+
+            <variant scope="atlas" name="shell">
+                <token name="surface.mode" category="surface" value="ghost" />
+                <token name="surface.padding" category="space" value={8} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+
+            <variant scope="atlas" name="masthead">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.padding" category="space" value={16} />
+            </variant>
+
+            <variant scope="atlas" name="strip">
+                <token name="surface.mode" category="surface" value="ghost" />
+                <token name="surface.padding" category="space" value={4} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+
+            <variant scope="atlas" name="page">
+                <token name="surface.mode" category="surface" value="ghost" />
+                <token name="surface.padding" category="space" value={6} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+
+            <variant scope="atlas" name="hero">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.padding" category="space" value={18} />
+            </variant>
+
+            <variant scope="atlas" name="quiet">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.padding" category="space" value={12} />
+            </variant>
+
+            <variant scope="atlas" name="dense">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.padding" category="space" value={10} />
+            </variant>
+
+            <variant scope="atlas" name="status">
+                <token name="surface.mode" category="surface" value="accent" />
+                <token name="surface.padding" category="space" value={10} />
+            </variant>
+
+            <textvariant scope="atlas" name="display">
+                <token name="body.size" category="type" value={34} />
+            </textvariant>
+
+            <textvariant scope="atlas" name="metric">
+                <token name="body.size" category="type" value={24} />
+            </textvariant>
+        </theme>
+
+        <panel title="Kinetic UI Atlas" scope="atlas" variant="shell" layout="column" gap={16}>
+            <panel title="Kinetic UI Atlas" scope="atlas" variant="masthead" layout="row" gap={16}>
+                <panel title="Lead" scope="atlas" variant="hero" layout="column" gap={8}>
+                    <text role="eyebrow">SEMANTIC NATIVE UI ATLAS</text>
+                    <text role="display">Four authored schemas in one executable.</text>
+                    <text role="body">This smoke is a fresh tabbed desktop shell showing typography systems, shader canvases, docked workspaces, dense operator walls, and a real viewport lane without reusing the older smoketest compositions.</text>
+                </panel>
+                <panel title="Status Rail" scope="atlas" variant="shell" layout="column" gap={10}>
+                    <panel title="Surface Mix" scope="atlas" variant="status" layout="column" gap={2}>
+                        <text role="metric">7</text>
+                        <text role="caption">surface families in one shell</text>
+                    </panel>
+                    <panel title="Page Count" scope="atlas" variant="quiet" layout="column" gap={2}>
+                        <text role="metric">4</text>
+                        <text role="caption">top-tab schemas</text>
+                    </panel>
+                    <panel title="Contract" scope="atlas" variant="quiet" layout="column" gap={2}>
+                        <text role="caption">theme + tabs + dock + viewport + shader canvas</text>
+                    </panel>
+                </panel>
+            </panel>
+
+            <panel title="Schema Atlas" scope="atlas" variant="strip" layout="column" gap={12}>
+                <panel title="Editorial Control Deck" scope="atlas" variant="page" layout="dock" gap={14} persistent_layout_id="kinetic_page_editorial" tab_group_id="kinetic-pages" tab_label="Editorial" tab_order={0} tab_default_active={true}>
+                    <panel title="Editorial Rail" dock="left" split_ratio={0.22} min_width={260} max_width={360} resizable={true} layout="column" gap={12}>
+                        <inspector title="Type Families">
+                            <text role="body">Display Rhythm</text>
+                            <text role="body">Caption Rail</text>
+                            <text role="body">Metric Stack</text>
+                            <text role="body">Code Ledger</text>
+                        </inspector>
+                        <tree title="Story Structure">
+                            <text role="caption">Lead block</text>
+                            <text role="caption">Pull quote</text>
+                            <text role="caption">Evidence lane</text>
+                            <text role="caption">Action footer</text>
+                        </tree>
+                    </panel>
+
+                    <panel title="Editorial Stage" dock="center" layout="column" gap={12}>
+                        <panel title="Lead Spread" scope="atlas" variant="hero" layout="column" gap={8}>
+                            <text role="eyebrow">TYPOGRAPHIC SYSTEM</text>
+                            <text role="display">Readable chrome does not have to look like every other editor.</text>
+                            <text role="body">This page leans on text hierarchy, spacing scale, surface contrast, and a restrained information density rather than a viewport-first story.</text>
+                        </panel>
+                        <panel title="Columns" layout="row" gap={12}>
+                            <panel title="Publisher Note" scope="atlas" variant="quiet" layout="column" gap={6}>
+                                <text role="title">Signal framing</text>
+                                <text role="caption">Panels can behave like editorial cards, not only inspector boxes.</text>
+                                <text role="body">The current runtime can already carry scoped themes, variant-based styling, nested layouts, and presentation modes strong enough to break out of the default "utility chrome" look.</text>
+                            </panel>
+                            <panel title="Proof Card" scope="atlas" variant="quiet" layout="column" gap={6}>
+                                <text role="title">Surface logic</text>
+                                <text role="caption">glass / flat / ghost / accent are all alive in the native host</text>
+                                <text role="body">You can already differentiate mastheads, side rails, evidence blocks, and status chips with theme tokens instead of hand-coded one-off widget branches.</text>
+                            </panel>
+                        </panel>
+                        <canvas title="Typographic Backdrop" text="Editorial texture layer" shader_ref="AuroraRibbon" shader_stage="fragment" shader_format="spirv" font_family="ui-sans" />
+                    </panel>
+
+                    <panel title="Evidence Rail" dock="right" split_ratio={0.22} min_width={280} max_width={380} resizable={true} layout="column" gap={12}>
+                        <inspector title="Metrics">
+                            <text role="metric">{"1.08x"}</text>
+                            <text role="caption">type scale</text>
+                            <text role="metric">{"1.12x"}</text>
+                            <text role="caption">radius scale</text>
+                        </inspector>
+                        <graph title="Reading Rhythm" />
+                    </panel>
+
+                    <panel title="Annotation Strip" dock="bottom" split_ratio={0.18} min_height={180} max_height={260} resizable={true} layout="row" gap={12}>
+                        <timeline title="Edition Timeline" />
+                        <panel title="Footnotes" scope="atlas" variant="dense" layout="column" gap={6}>
+                            <text role="caption">Top tabs are now rendered by the native host from semantic tab groups.</text>
+                            <text role="caption">The page itself is still plain Kain authoring, not a custom per-smoke renderer.</text>
+                        </panel>
+                    </panel>
+                </panel>
+
+                <panel title="Motion And Surface Studio" scope="atlas" variant="page" layout="dock" gap={14} persistent_layout_id="kinetic_page_motion" tab_group_id="kinetic-pages" tab_label="Motion" tab_order={1}>
+                    <panel title="Surface Registry" dock="left" split_ratio={0.22} min_width={250} max_width={340} resizable={true} layout="column" gap={12}>
+                        <inspector title="Canvas Roles">
+                            <text role="body">ambient backdrop</text>
+                            <text role="body">diagram field</text>
+                            <text role="body">signal banner</text>
+                        </inspector>
+                        <tree title="Motion Notes">
+                            <text role="caption">{"shader-backed panels"}</text>
+                            <text role="caption">timeline strips</text>
+                            <text role="caption">stacked overlays</text>
+                        </tree>
+                    </panel>
+
+                    <panel title="Motion Stage" dock="center" layout="column" gap={12}>
+                        <panel title="Shader Canvases" layout="row" gap={12}>
+                            <canvas title="Aurora Ribbon" text="shader-backed chrome" shader_ref="AuroraRibbon" shader_stage="fragment" shader_format="spirv" font_family="ui-sans" />
+                            <canvas title="Circuit Field" text="diagrammatic panel layer" shader_ref="CircuitField" shader_stage="fragment" shader_format="spirv" font_family="ui-mono" />
+                        </panel>
+                        <panel title="Signal Deck" layout="row" gap={12}>
+                            <graph title="Node Traffic" />
+                            <timeline title="Release Drift" />
+                        </panel>
+                        <overlay layout="stack" gap={0}>
+                            <canvas title="Backdrop Field" text="stacked overlay host" shader_ref="CircuitField" shader_stage="fragment" shader_format="spirv" font_family="ui-sans" />
+                            <panel title="Overlay Narrative" scope="atlas" variant="hero" layout="column" gap={6}>
+                                <text role="title">Surface composition can carry more than plain boxes.</text>
+                                <text role="caption">The host is already able to treat shader canvases as a real lane rather than a viewport placeholder.</text>
+                            </panel>
+                        </overlay>
+                    </panel>
+
+                    <panel title="Operator Notes" dock="right" split_ratio={0.24} min_width={280} max_width={360} resizable={true} layout="column" gap={12}>
+                        <inspector title="What This Page Uses">
+                            <text role="caption">two fragment shaders</text>
+                            <text role="caption">stacked overlay composition</text>
+                            <text role="caption">graph + timeline surface modes</text>
+                        </inspector>
+                        <panel title="Constraint" scope="atlas" variant="quiet" layout="column" gap={4}>
+                            <text role="caption">{"This smoke stays inside currently proven shader-canvas authoring instead of inventing an unverified custom shader input API."}</text>
+                        </panel>
+                    </panel>
+                </panel>
+
+                <panel title="Foundry Mission Control" scope="atlas" variant="page" layout="dock" gap={14} persistent_layout_id="kinetic_page_foundry" tab_group_id="kinetic-pages" tab_label="Foundry" tab_order={2}>
+                    <panel title="Navigator" dock="left" split_ratio={0.22} min_width={260} max_width={360} resizable={true} layout="column" gap={12}>
+                        <tree title="Workspace Modes">
+                            <text role="body">terrain review</text>
+                            <text role="body">material response</text>
+                            <text role="body">lighting drift</text>
+                            <text role="body">delivery gate</text>
+                        </tree>
+                        <inspector title="Runtime Hooks">
+                            <text role="caption">viewport3d scene binding</text>
+                            <text role="caption">native camera controls</text>
+                            <text role="caption">real dock shell chrome</text>
+                        </inspector>
+                    </panel>
+
+                    <panel title="Foundry Stage" dock="center" layout="column" gap={12}>
+                        <viewport3d title="Foundry Viewport" scene="magma_terraces" />
+                        <panel title="Telemetry Deck" layout="row" gap={12}>
+                            <graph title="Heat Lattice" />
+                            <timeline title="Shift Windows" />
+                        </panel>
+                    </panel>
+
+                    <panel title="Review Rail" dock="right" split_ratio={0.25} min_width={300} max_width={400} resizable={true} layout="column" gap={12}>
+                        <inspector title="Scene Readout">
+                            <text role="metric">magma_terraces</text>
+                            <text role="caption">scene binding</text>
+                            <text role="caption">WASD + QE move, drag mouse to look</text>
+                            <text role="caption">T / R / Y gizmo controls</text>
+                        </inspector>
+                        <panel title="Approval Notes" scope="atlas" variant="quiet" layout="column" gap={4}>
+                            <text role="caption">This page is the proof that the shell can host a real workspace around the viewport instead of collapsing into a bare demo viewer.</text>
+                        </panel>
+                    </panel>
+
+                    <panel title="Dispatch Bar" dock="bottom" split_ratio={0.20} min_height={180} max_height={280} resizable={true} layout="row" gap={12}>
+                        <panel title="Loadout" scope="atlas" variant="dense" layout="grid" columns={2} gap={8}>
+                            <panel title="Tool A" scope="atlas" variant="status" layout="column" gap={2}>
+                                <text role="caption">select</text>
+                                <text role="metric">ON</text>
+                            </panel>
+                            <panel title="Tool B" scope="atlas" variant="quiet" layout="column" gap={2}>
+                                <text role="caption">measure</text>
+                                <text role="metric">42</text>
+                            </panel>
+                            <panel title="Tool C" scope="atlas" variant="quiet" layout="column" gap={2}>
+                                <text role="caption">emitters</text>
+                                <text role="metric">6</text>
+                            </panel>
+                            <panel title="Tool D" scope="atlas" variant="status" layout="column" gap={2}>
+                                <text role="caption">drift</text>
+                                <text role="metric">stable</text>
+                            </panel>
+                        </panel>
+                        <tree title="Delivery Gates">
+                            <text role="caption">viewport lane</text>
+                            <text role="caption">dock shell</text>
+                            <text role="caption">status telemetry</text>
+                            <text role="caption">operator framing</text>
+                        </tree>
+                    </panel>
+                </panel>
+
+                <panel title="Dense Operator Bench" scope="atlas" variant="page" layout="dock" gap={14} persistent_layout_id="kinetic_page_bench" tab_group_id="kinetic-pages" tab_label="Bench" tab_order={3}>
+                    <panel title="Input Rails" dock="left" split_ratio={0.20} min_width={240} max_width={320} resizable={true} layout="column" gap={10}>
+                        <inspector title="Action Stack">
+                            <text role="body">build queue</text>
+                            <text role="body">review pass</text>
+                            <text role="body">publish gate</text>
+                        </inspector>
+                        <tree title="Targets">
+                            <text role="caption">{"native-ui"}</text>
+                            <text role="caption">shader canvas</text>
+                            <text role="caption">viewport host</text>
+                            <text role="caption">sidecar pack</text>
+                        </tree>
+                    </panel>
+
+                    <panel title="Bench Grid" dock="center" layout="column" gap={12}>
+                        <panel title="Control Wall" layout="grid" columns={3} gap={10}>
+                            <panel title="Queue" scope="atlas" variant="quiet" layout="column" gap={4}>
+                                <text role="metric">12</text>
+                                <text role="caption">jobs ready</text>
+                            </panel>
+                            <panel title="GPU Lane" scope="atlas" variant="status" layout="column" gap={4}>
+                                <text role="metric">ACTIVE</text>
+                                <text role="caption">surface renderer</text>
+                            </panel>
+                            <panel title="ABI Sidecars" scope="atlas" variant="quiet" layout="column" gap={4}>
+                                <text role="metric">3</text>
+                                <text role="caption">loaded</text>
+                            </panel>
+                            <panel title="Theme Diff" scope="atlas" variant="quiet" layout="column" gap={4}>
+                                <text role="metric">18</text>
+                                <text role="caption">tokens touched</text>
+                            </panel>
+                            <panel title="Dock Roots" scope="atlas" variant="status" layout="column" gap={4}>
+                                <text role="metric">4</text>
+                                <text role="caption">active rails</text>
+                            </panel>
+                            <panel title="Review" scope="atlas" variant="quiet" layout="column" gap={4}>
+                                <text role="metric">READY</text>
+                                <text role="caption">{"handoff state"}</text>
+                            </panel>
+                        </panel>
+                        <panel title="Bench Surfaces" layout="row" gap={12}>
+                            <graph title="Dependency Mesh" />
+                            <timeline title="Ship Window" />
+                        </panel>
+                    </panel>
+
+                    <panel title="Audit Rail" dock="right" split_ratio={0.24} min_width={280} max_width={360} resizable={true} layout="column" gap={12}>
+                        <inspector title="Why This Page Exists">
+                            <text role="caption">The current system can already sustain a dense operational shell, not only spacious hero panels.</text>
+                            <text role="caption">It still needs richer authored behavior and more widgets to reach true Slate-class depth.</text>
+                        </inspector>
+                        <canvas title="Bench Accent Surface" text="operator accent" shader_ref="AuroraRibbon" shader_stage="fragment" shader_format="spirv" font_family="ui-sans" />
+                    </panel>
+                </panel>
+            </panel>
+        </panel>
+    </slot>

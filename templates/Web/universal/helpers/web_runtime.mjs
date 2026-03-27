@@ -580,6 +580,209 @@ function renderSecurityGrid(security) {
 </section>`;
 }
 
+function renderCommunityHub(community) {
+  const channels = community?.channels || [];
+  return `<section class="community-hub">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(community?.kicker || "Community")}</p>
+    <h3>${escapeHtml(community?.title || "Community lanes")}</h3>
+    <p class="section-copy">${escapeHtml(community?.body || "")}</p>
+  </article>
+  <div class="feature-grid">${channels
+    .map(
+      (channel) => `<article class="feature-card community-card">
+  <p class="card-kicker">${escapeHtml(channel.platform || "Channel")}</p>
+  <h3>${escapeHtml(channel.name || "Community")}</h3>
+  <p>${escapeHtml(channel.summary || "")}</p>
+  <p class="portfolio-stack">${escapeHtml([channel.members, channel.cadence].filter(Boolean).join(" / "))}</p>
+  ${channel.href ? `<a class="inline-link" href="${escapeHtml(channel.href)}">Open</a>` : ""}
+</article>`
+    )
+    .join("")}</div>
+</section>`;
+}
+
+function renderEventSchedule(events, model) {
+  const upcoming = events?.upcoming || [];
+  const rows = upcoming.length
+    ? `<div class="timeline-list">${upcoming
+        .map(
+          (entry) => `<article class="timeline-row event-row">
+  <p class="timeline-label">${escapeHtml([entry.date, entry.format].filter(Boolean).join(" / "))}</p>
+  <div>
+    <h3>${escapeHtml(entry.title || "Event")}</h3>
+    <p>${escapeHtml(entry.summary || "")}</p>
+  </div>
+</article>`
+        )
+        .join("")}</div>`
+    : `<p class="section-copy">No events scheduled yet.</p>`;
+  const rsvpFormId = events?.rsvp_form_id;
+  const rsvpForm = rsvpFormId ? model?.content?.forms?.[rsvpFormId] : null;
+  const rsvpHtml = rsvpForm ? renderFormPanel(rsvpForm) : "";
+  return `<section class="event-schedule">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(events?.kicker || "Events")}</p>
+    <h3>${escapeHtml(events?.title || "Upcoming events")}</h3>
+    <p class="section-copy">${escapeHtml(events?.body || "")}</p>
+  </article>
+  ${rows}
+  ${rsvpHtml}
+</section>`;
+}
+
+function renderNewsletterPanel(newsletter, model) {
+  const topics = (newsletter?.topics || [])
+    .map((topic) => `<span class="tag-pill">${escapeHtml(topic)}</span>`)
+    .join("");
+  const formId = newsletter?.form_id;
+  const form = formId ? model?.content?.forms?.[formId] : null;
+  const formHtml = form ? renderFormPanel(form) : "";
+  return `<section class="newsletter-panel">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(newsletter?.kicker || "Newsletter")}</p>
+    <h3>${escapeHtml(newsletter?.title || "Newsletter")}</h3>
+    <p class="section-copy">${escapeHtml(newsletter?.body || "")}</p>
+    <p class="portfolio-stack">${escapeHtml(newsletter?.cadence || "")}</p>
+    ${topics ? `<div class="tag-row">${topics}</div>` : ""}
+  </article>
+  ${formHtml}
+</section>`;
+}
+
+function renderComplianceGrid(compliance) {
+  const controls = compliance?.controls || [];
+  return `<section class="compliance-grid">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(compliance?.kicker || "Compliance")}</p>
+    <h3>${escapeHtml(compliance?.title || "Compliance posture")}</h3>
+    <p class="section-copy">${escapeHtml(compliance?.body || "")}</p>
+  </article>
+  <div class="feature-grid">${controls
+    .map(
+      (control) => `<article class="feature-card compliance-card">
+  <p class="card-kicker">${escapeHtml(control.status || "control")}</p>
+  <h3>${escapeHtml(control.title || "Control")}</h3>
+  <p>${escapeHtml(control.detail || "")}</p>
+</article>`
+    )
+    .join("")}</div>
+</section>`;
+}
+
+function renderObservabilityStack(observability) {
+  const signals = observability?.signals || [];
+  return `<section class="observability-stack">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(observability?.kicker || "Observability")}</p>
+    <h3>${escapeHtml(observability?.title || "Operational signals")}</h3>
+    <p class="section-copy">${escapeHtml(observability?.body || "")}</p>
+  </article>
+  <div class="feature-grid">${signals
+    .map(
+      (signal) => `<article class="feature-card observability-card">
+  <p class="card-kicker">${escapeHtml(signal.owner || "signal")}</p>
+  <h3>${escapeHtml(signal.title || "Signal")}</h3>
+  <p>${escapeHtml(signal.detail || "")}</p>
+  <p class="portfolio-stack">${escapeHtml(signal.cadence || "")}</p>
+</article>`
+    )
+    .join("")}</div>
+</section>`;
+}
+
+function renderInfrastructureStack(infrastructure) {
+  const stack = infrastructure?.stack || [];
+  return `<section class="infrastructure-stack">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(infrastructure?.kicker || "Infrastructure")}</p>
+    <h3>${escapeHtml(infrastructure?.title || "Infrastructure stack")}</h3>
+    <p class="section-copy">${escapeHtml(infrastructure?.body || "")}</p>
+  </article>
+  <div class="feature-grid">${stack
+    .map(
+      (item) => `<article class="feature-card infrastructure-card">
+  <p class="card-kicker">${escapeHtml(item.tier || "stack")}</p>
+  <h3>${escapeHtml(item.title || "Component")}</h3>
+  <p>${escapeHtml(item.detail || "")}</p>
+  <p class="portfolio-stack">${escapeHtml(item.status || "")}</p>
+</article>`
+    )
+    .join("")}</div>
+</section>`;
+}
+
+function renderLocalizationGrid(localization) {
+  const languages = localization?.languages || [];
+  const regions = localization?.regions || [];
+  const languageCards = languages
+    .map(
+      (entry) => `<article class="feature-card localization-card">
+  <p class="card-kicker">${escapeHtml(entry.status || "language")}</p>
+  <h3>${escapeHtml(entry.name || "Language")}</h3>
+  <p>${escapeHtml(entry.coverage || "")}</p>
+</article>`
+    )
+    .join("");
+  const regionCards = regions
+    .map(
+      (entry) => `<article class="feature-card localization-card">
+  <p class="card-kicker">${escapeHtml(entry.status || "region")}</p>
+  <h3>${escapeHtml(entry.name || "Region")}</h3>
+  <p>${escapeHtml(entry.timezone || "")}</p>
+</article>`
+    )
+    .join("");
+  return `<section class="localization-grid">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(localization?.kicker || "Localization")}</p>
+    <h3>${escapeHtml(localization?.title || "Localization")}</h3>
+    <p class="section-copy">${escapeHtml(localization?.body || "")}</p>
+  </article>
+  <div class="feature-grid">${languageCards}${regionCards}</div>
+</section>`;
+}
+
+function renderAccessibilityGrid(accessibility) {
+  const checks = accessibility?.checks || [];
+  return `<section class="accessibility-grid">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(accessibility?.kicker || "Accessibility")}</p>
+    <h3>${escapeHtml(accessibility?.title || "Accessibility")}</h3>
+    <p class="section-copy">${escapeHtml(accessibility?.body || "")}</p>
+  </article>
+  <div class="feature-grid">${checks
+    .map(
+      (entry) => `<article class="feature-card accessibility-card">
+  <p class="card-kicker">${escapeHtml(entry.status || "check")}</p>
+  <h3>${escapeHtml(entry.title || "Check")}</h3>
+  <p>${escapeHtml(entry.detail || "")}</p>
+</article>`
+    )
+    .join("")}</div>
+</section>`;
+}
+
+function renderPerformanceTargets(performance) {
+  const targets = performance?.targets || [];
+  return `<section class="performance-targets">
+  <article class="hero-card">
+    <p class="section-label">${escapeHtml(performance?.kicker || "Performance")}</p>
+    <h3>${escapeHtml(performance?.title || "Performance targets")}</h3>
+    <p class="section-copy">${escapeHtml(performance?.body || "")}</p>
+  </article>
+  <div class="feature-grid">${targets
+    .map(
+      (entry) => `<article class="feature-card performance-card">
+  <p class="card-kicker">${escapeHtml(entry.target || "")}</p>
+  <h3>${escapeHtml(entry.title || "Target")}</h3>
+  <p>${escapeHtml(entry.detail || "")}</p>
+</article>`
+    )
+    .join("")}</div>
+</section>`;
+}
+
 function renderRoadmapTimeline(items) {
   return `<div class="timeline-list">${(items || [])
     .map(
@@ -1132,6 +1335,24 @@ function renderSectionBlock(section, model) {
     bodyHtml = renderPressKit(getModelValue(model, normalized.source, {}));
   } else if (kind === "security_grid") {
     bodyHtml = renderSecurityGrid(getModelValue(model, normalized.source, {}));
+  } else if (kind === "community_hub") {
+    bodyHtml = renderCommunityHub(getModelValue(model, normalized.source, {}));
+  } else if (kind === "event_schedule") {
+    bodyHtml = renderEventSchedule(getModelValue(model, normalized.source, {}), model);
+  } else if (kind === "newsletter_panel") {
+    bodyHtml = renderNewsletterPanel(getModelValue(model, normalized.source, {}), model);
+  } else if (kind === "compliance_grid") {
+    bodyHtml = renderComplianceGrid(getModelValue(model, normalized.source, {}));
+  } else if (kind === "observability_stack") {
+    bodyHtml = renderObservabilityStack(getModelValue(model, normalized.source, {}));
+  } else if (kind === "infrastructure_stack") {
+    bodyHtml = renderInfrastructureStack(getModelValue(model, normalized.source, {}));
+  } else if (kind === "localization_grid") {
+    bodyHtml = renderLocalizationGrid(getModelValue(model, normalized.source, {}));
+  } else if (kind === "accessibility_grid") {
+    bodyHtml = renderAccessibilityGrid(getModelValue(model, normalized.source, {}));
+  } else if (kind === "performance_targets") {
+    bodyHtml = renderPerformanceTargets(getModelValue(model, normalized.source, {}));
   } else if (kind === "legal_links") {
     bodyHtml = renderLegalLinks(getModelValue(model, normalized.source, []));
   } else if (kind === "careers_list") {
@@ -1385,6 +1606,96 @@ function buildDerivedSearchDocuments(model) {
       tags: [control.status].filter(Boolean)
     });
   }
+  for (const channel of model.content.community?.channels || []) {
+    documents.push({
+      kind: "community",
+      title: channel.name,
+      summary: channel.summary || "",
+      href: "#community",
+      tags: [channel.platform, channel.members, channel.cadence].filter(Boolean)
+    });
+  }
+  for (const event of model.content.events?.upcoming || []) {
+    documents.push({
+      kind: "event",
+      title: event.title,
+      summary: event.summary || "",
+      href: "#events",
+      tags: [event.date, event.format, event.focus].filter(Boolean)
+    });
+  }
+  if (model.content.newsletter) {
+    documents.push({
+      kind: "newsletter",
+      title: model.content.newsletter.title || "Newsletter",
+      summary: model.content.newsletter.body || "",
+      href: "#newsletter",
+      tags: [model.content.newsletter.cadence].filter(Boolean)
+    });
+  }
+  for (const control of model.content.compliance?.controls || []) {
+    documents.push({
+      kind: "compliance",
+      title: control.title,
+      summary: control.detail || "",
+      href: "#compliance",
+      tags: [control.status].filter(Boolean)
+    });
+  }
+  for (const signal of model.content.observability?.signals || []) {
+    documents.push({
+      kind: "observability",
+      title: signal.title,
+      summary: signal.detail || "",
+      href: "#observability",
+      tags: [signal.owner, signal.cadence].filter(Boolean)
+    });
+  }
+  for (const item of model.content.infrastructure?.stack || []) {
+    documents.push({
+      kind: "infrastructure",
+      title: item.title,
+      summary: item.detail || "",
+      href: "#infrastructure",
+      tags: [item.tier, item.status].filter(Boolean)
+    });
+  }
+  for (const language of model.content.localization?.languages || []) {
+    documents.push({
+      kind: "localization",
+      title: language.name,
+      summary: language.coverage || "",
+      href: "#localization",
+      tags: [language.status].filter(Boolean)
+    });
+  }
+  for (const region of model.content.localization?.regions || []) {
+    documents.push({
+      kind: "localization",
+      title: region.name,
+      summary: region.timezone || "",
+      href: "#localization",
+      tags: [region.status].filter(Boolean)
+    });
+  }
+  for (const check of model.content.accessibility?.checks || []) {
+    documents.push({
+      kind: "accessibility",
+      title: check.title,
+      summary: check.detail || "",
+      href: "#accessibility",
+      tags: [check.status].filter(Boolean)
+    });
+  }
+  for (const target of model.content.performance?.targets || []) {
+    documents.push({
+      kind: "performance",
+      title: target.title,
+      summary: target.detail || "",
+      href: "#performance",
+      tags: [target.target].filter(Boolean)
+    });
+  }
   for (const partner of model.content.partners || []) {
     documents.push({
       kind: "partner",
@@ -1559,7 +1870,16 @@ function buildSiteData(model) {
     careers: model.content.careers || null,
     support_channels: model.content.support_channels || [],
     legal: model.content.legal || [],
-    security: model.content.security || null
+    security: model.content.security || null,
+    community: model.content.community || null,
+    events: model.content.events || null,
+    newsletter: model.content.newsletter || null,
+    compliance: model.content.compliance || null,
+    observability: model.content.observability || null,
+    infrastructure: model.content.infrastructure || null,
+    localization: model.content.localization || null,
+    accessibility: model.content.accessibility || null,
+    performance: model.content.performance || null
   };
 }
 
@@ -2350,6 +2670,15 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     support: "/api/support",
     legal: "/api/legal",
     security: "/api/security",
+    community: "/api/community",
+    events: "/api/events",
+    newsletter: "/api/newsletter",
+    compliance: "/api/compliance",
+    observability: "/api/observability",
+    infrastructure: "/api/infrastructure",
+    localization: "/api/localization",
+    accessibility: "/api/accessibility",
+    performance: "/api/performance",
     team: "/api/team",
     partners: "/api/partners",
     press: "/api/press",
@@ -2365,6 +2694,15 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     support_channels: siteData.support_channels || [],
     legal: siteData.legal || [],
     security: siteData.security || null,
+    community: siteData.community || null,
+    events: siteData.events || null,
+    newsletter: siteData.newsletter || null,
+    compliance: siteData.compliance || null,
+    observability: siteData.observability || null,
+    infrastructure: siteData.infrastructure || null,
+    localization: siteData.localization || null,
+    accessibility: siteData.accessibility || null,
+    performance: siteData.performance || null,
     team_members: siteData.team_members || [],
     partners: siteData.partners || [],
     press_kit: siteData.press_kit || null,
@@ -2461,7 +2799,16 @@ function buildUiSchema(model, siteData) {
       support_channels: (siteData.support_channels || []).length,
       team_members: (siteData.team_members || []).length,
       careers: (siteData.careers?.roles || []).length,
-      legal_links: (siteData.legal || []).length
+      legal_links: (siteData.legal || []).length,
+      community_channels: (siteData.community?.channels || []).length,
+      event_count: (siteData.events?.upcoming || []).length,
+      newsletter_enabled: siteData.newsletter ? 1 : 0,
+      compliance_controls: (siteData.compliance?.controls || []).length,
+      observability_signals: (siteData.observability?.signals || []).length,
+      infrastructure_stack: (siteData.infrastructure?.stack || []).length,
+      localization_languages: (siteData.localization?.languages || []).length,
+      accessibility_checks: (siteData.accessibility?.checks || []).length,
+      performance_targets: (siteData.performance?.targets || []).length
     }
   };
 }
@@ -2679,6 +3026,15 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/support", purpose: "returns support channels", actor: "runtime_reporter" },
     { method: "GET", path: "/api/legal", purpose: "returns legal and policy links", actor: "runtime_reporter" },
     { method: "GET", path: "/api/security", purpose: "returns security control metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/community", purpose: "returns community channels and cohorts", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/events", purpose: "returns upcoming event schedule", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/newsletter", purpose: "returns newsletter metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/compliance", purpose: "returns compliance and governance metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/observability", purpose: "returns operational signals metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/infrastructure", purpose: "returns infrastructure stack metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/localization", purpose: "returns localization metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/accessibility", purpose: "returns accessibility metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/performance", purpose: "returns performance target metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/team", purpose: "returns team metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/partners", purpose: "returns partner metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/press", purpose: "returns press kit metadata", actor: "runtime_reporter" },
@@ -2750,6 +3106,15 @@ export function buildActorServerPlan(appManifestPath, experienceId) {
     support_channels: siteData.support_channels || [],
     legal: siteData.legal || [],
     security: siteData.security || null,
+    community: siteData.community || null,
+    events: siteData.events || null,
+    newsletter: siteData.newsletter || null,
+    compliance: siteData.compliance || null,
+    observability: siteData.observability || null,
+    infrastructure: siteData.infrastructure || null,
+    localization: siteData.localization || null,
+    accessibility: siteData.accessibility || null,
+    performance: siteData.performance || null,
     team_members: siteData.team_members || [],
     partners: siteData.partners || [],
     press_kit: siteData.press_kit || null,
@@ -3210,6 +3575,42 @@ async function serveExperience(appManifestPath, experienceId) {
     }
     if (request.method === "GET" && pathname === "/api/security") {
       sendJson(response, 200, bundle.site_data.security || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/community") {
+      sendJson(response, 200, bundle.site_data.community || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/events") {
+      sendJson(response, 200, bundle.site_data.events || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/newsletter") {
+      sendJson(response, 200, bundle.site_data.newsletter || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/compliance") {
+      sendJson(response, 200, bundle.site_data.compliance || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/observability") {
+      sendJson(response, 200, bundle.site_data.observability || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/infrastructure") {
+      sendJson(response, 200, bundle.site_data.infrastructure || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/localization") {
+      sendJson(response, 200, bundle.site_data.localization || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/accessibility") {
+      sendJson(response, 200, bundle.site_data.accessibility || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/performance") {
+      sendJson(response, 200, bundle.site_data.performance || {});
       return;
     }
     if (request.method === "GET" && pathname === "/api/team") {

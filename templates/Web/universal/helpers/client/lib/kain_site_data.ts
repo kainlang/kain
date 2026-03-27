@@ -152,6 +152,135 @@ export type KainSecurityDescriptor = {
   controls?: KainSecurityControl[] | null;
 };
 
+export type KainCommunityChannel = {
+  name?: string | null;
+  platform?: string | null;
+  summary?: string | null;
+  members?: string | null;
+  cadence?: string | null;
+  href?: string | null;
+};
+
+export type KainCommunityDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  channels?: KainCommunityChannel[] | null;
+};
+
+export type KainEventEntry = {
+  title?: string | null;
+  date?: string | null;
+  format?: string | null;
+  summary?: string | null;
+  focus?: string | null;
+  href?: string | null;
+};
+
+export type KainEventsDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  rsvp_form_id?: string | null;
+  upcoming?: KainEventEntry[] | null;
+};
+
+export type KainNewsletterDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  cadence?: string | null;
+  topics?: string[] | null;
+  form_id?: string | null;
+};
+
+export type KainComplianceControl = {
+  title?: string | null;
+  detail?: string | null;
+  status?: string | null;
+};
+
+export type KainComplianceDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  controls?: KainComplianceControl[] | null;
+};
+
+export type KainObservabilitySignal = {
+  title?: string | null;
+  detail?: string | null;
+  owner?: string | null;
+  cadence?: string | null;
+};
+
+export type KainObservabilityDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  signals?: KainObservabilitySignal[] | null;
+};
+
+export type KainInfrastructureItem = {
+  title?: string | null;
+  detail?: string | null;
+  tier?: string | null;
+  status?: string | null;
+};
+
+export type KainInfrastructureDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  stack?: KainInfrastructureItem[] | null;
+};
+
+export type KainLocalizationLanguage = {
+  name?: string | null;
+  coverage?: string | null;
+  status?: string | null;
+};
+
+export type KainLocalizationRegion = {
+  name?: string | null;
+  timezone?: string | null;
+  status?: string | null;
+};
+
+export type KainLocalizationDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  languages?: KainLocalizationLanguage[] | null;
+  regions?: KainLocalizationRegion[] | null;
+};
+
+export type KainAccessibilityCheck = {
+  title?: string | null;
+  detail?: string | null;
+  status?: string | null;
+};
+
+export type KainAccessibilityDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  checks?: KainAccessibilityCheck[] | null;
+};
+
+export type KainPerformanceTarget = {
+  title?: string | null;
+  detail?: string | null;
+  target?: string | null;
+};
+
+export type KainPerformanceDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  targets?: KainPerformanceTarget[] | null;
+};
+
 export type KainCareerRole = {
   title?: string | null;
   location?: string | null;
@@ -222,6 +351,15 @@ export type KainSiteData = {
   support_channels?: KainSupportChannel[] | null;
   legal?: KainLegalLink[] | null;
   security?: KainSecurityDescriptor | null;
+  community?: KainCommunityDescriptor | null;
+  events?: KainEventsDescriptor | null;
+  newsletter?: KainNewsletterDescriptor | null;
+  compliance?: KainComplianceDescriptor | null;
+  observability?: KainObservabilityDescriptor | null;
+  infrastructure?: KainInfrastructureDescriptor | null;
+  localization?: KainLocalizationDescriptor | null;
+  accessibility?: KainAccessibilityDescriptor | null;
+  performance?: KainPerformanceDescriptor | null;
   careers?: KainCareersDescriptor | null;
   partners?: KainPartner[] | null;
   press_kit?: KainPressKit | null;

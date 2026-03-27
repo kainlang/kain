@@ -51,8 +51,8 @@ component App():
                 </panel>
                 <panel scope="studio" variant="hud" layout="column" gap={2}>
                     <text role="eyebrow">SESSION</text>
-                    <text role="caption">session-1774568484304-203944</text>
-                    <text role="caption">SUCCEEDED in 1135 ms</text>
+                    <text role="caption">session-1774571647172-94732</text>
+                    <text role="caption">SUCCEEDED in 727 ms</text>
                 </panel>
                 <panel scope="studio" variant="hud" layout="column" gap={2}>
                     <text role="eyebrow">RUNTIME MIX</text>

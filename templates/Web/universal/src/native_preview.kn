@@ -122,4 +122,31 @@ component App():
                 <text role="caption">Themes, content, scenes, and experiences stay data-driven and expand without boilerplate cloning.</text>
             </panel>
         </panel>
+
+        <panel title="Web Systems Expansion" scope="web_pack" variant="section" layout="grid" columns={3} gap={14}>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Community</text>
+                <text role="caption">Community hubs, events, newsletters, and support lanes are all registry-driven.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Governance</text>
+                <text role="caption">Compliance, security, and legal metadata stay in the system contract.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Operations</text>
+                <text role="caption">Observability, infrastructure, and performance budgets ship with the template.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Localization</text>
+                <text role="caption">Language and region plans are modeled explicitly in the pack.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Accessibility</text>
+                <text role="caption">Accessibility checks and posture are declared alongside content.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Performance</text>
+                <text role="caption">Runtime targets and budgets are tracked with the system data.</text>
+            </panel>
+        </panel>
     </slot>

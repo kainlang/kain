@@ -16,7 +16,7 @@ use crate::{
 };
 
 const MAX_DIRECTIONAL_LIGHTS: usize = 2;
-const MAX_POINT_LIGHTS: usize = 4;
+const MAX_POINT_LIGHTS: usize = 8;
 const COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 const PICK_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Uint;
@@ -199,6 +199,7 @@ pub struct SceneUniforms {
     counts: [u32; 4],
     background_top: [f32; 4],
     background_bottom: [f32; 4],
+    fog_color_density: [f32; 4],
 }
 
 impl WgpuRenderer {
@@ -783,7 +784,7 @@ impl RenderBackend for WgpuRenderer {
         self.queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
 
-        let (pick_vertices, pick_targets) = build_pick_scene(scene, time_seconds)?;
+        let (pick_vertices, pick_targets) = build_pick_scene(scene, time_seconds, view)?;
         if pick_vertices.is_empty() || pick_targets.is_empty() {
             return Ok(None);
         }
@@ -879,10 +880,11 @@ impl RenderBackend for WgpuRenderer {
             &default_camera_pose
         };
         let ray = PickingRay::from_viewport_pixel(pixel_x, pixel_y, resolution, camera);
-        Ok(CpuPickingService.pick_scene_instance(
+        Ok(CpuPickingService.pick_scene_instance_with_overrides(
             scene,
             &PickingQuery::new(ray, time_seconds),
             &target.instance_id,
+            &view.instance_transform_overrides,
         ))
     }
 }
@@ -905,7 +907,7 @@ pub fn prepare_wgpu_frame(
 ) -> Result<PreparedWgpuFrame, RenderError> {
     let active_camera = resolve_camera_pose(scene, time_seconds, view);
     let uniforms = build_scene_uniforms(scene, time_seconds, resolution, view);
-    let (scene_vertices, mut stats) = build_gpu_scene(scene, time_seconds)?;
+    let (scene_vertices, mut stats) = build_gpu_scene(scene, time_seconds, view)?;
     let (depth_particles, overlay_particles, particle_count) =
         build_particle_vertices(scene, time_seconds, &active_camera);
     stats.particles_submitted = particle_count;
@@ -1010,14 +1012,22 @@ fn build_scene_uniforms(
             scene.background.bottom.b,
             1.0,
         ],
+        fog_color_density: [
+            scene.background.bottom.r,
+            scene.background.bottom.g,
+            scene.background.bottom.b,
+            view.fog_density.unwrap_or(0.0).max(0.0),
+        ],
     }
 }
 
 fn build_gpu_scene(
     scene: &SceneDescription,
     time_seconds: f32,
+    view: &RenderViewSettings,
 ) -> Result<(Vec<GpuVertex>, RenderStats), RenderError> {
-    let animated_instances = scene.animated_instances(time_seconds);
+    let animated_instances =
+        scene.animated_instances_with_overrides(time_seconds, &view.instance_transform_overrides);
     let mut vertices = Vec::new();
     let mut triangles_submitted = 0usize;
 
@@ -1091,8 +1101,10 @@ fn append_mesh_vertices(
 fn build_pick_scene(
     scene: &SceneDescription,
     time_seconds: f32,
+    view: &RenderViewSettings,
 ) -> Result<(Vec<PickVertex>, Vec<PickTargetId>), RenderError> {
-    let animated_instances = scene.animated_instances(time_seconds);
+    let animated_instances =
+        scene.animated_instances_with_overrides(time_seconds, &view.instance_transform_overrides);
     let mut vertices = Vec::new();
     let mut targets = Vec::new();
 
@@ -1304,7 +1316,8 @@ fn build_gizmo_vertices(
         return Vec::new();
     };
 
-    let animated_instances = scene.animated_instances(time_seconds);
+    let animated_instances =
+        scene.animated_instances_with_overrides(time_seconds, &view.instance_transform_overrides);
     let Some(instance) = animated_instances
         .iter()
         .find(|candidate| candidate.id == selected_instance_id)

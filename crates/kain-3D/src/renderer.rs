@@ -1,6 +1,8 @@
+use std::collections::BTreeMap;
+
 use crate::{
     BlackHole, CameraPose, ColorRgb, ManipulatorMode, Mat4, ParticleEmitter, PickingHit,
-    SceneCatalog, SceneDescription, Vec3,
+    SceneCatalog, SceneDescription, Transform, Vec3,
 };
 use crate::{DirectionalLight, LightingRig, Material, PointLight};
 
@@ -39,6 +41,8 @@ pub struct RenderViewSettings {
     pub camera: Option<CameraPose>,
     pub selected_instance_id: Option<String>,
     pub manipulator_mode: Option<ManipulatorMode>,
+    pub fog_density: Option<f32>,
+    pub instance_transform_overrides: BTreeMap<String, Transform>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -256,7 +260,9 @@ impl SoftwareRenderer {
         );
         let view_projection = projection.mul_mat4(view_matrix);
 
-        for instance in scene.animated_instances(time_seconds) {
+        for instance in scene
+            .animated_instances_with_overrides(time_seconds, &view.instance_transform_overrides)
+        {
             let mesh = scene
                 .resolved_mesh(&instance.mesh, time_seconds)
                 .ok_or_else(|| RenderError::MissingMesh(instance.mesh.clone()))?;
@@ -308,6 +314,8 @@ impl SoftwareRenderer {
                     material,
                     &scene.lighting,
                     camera.position,
+                    scene.background.bottom,
+                    view.fog_density,
                     screen,
                     transformed,
                     config,
@@ -450,6 +458,8 @@ fn rasterize_triangle(
     material: &Material,
     lighting: &LightingRig,
     camera_position: Vec3,
+    fog_color: ColorRgb,
+    fog_density: Option<f32>,
     screen: [ScreenVertex; 3],
     transformed: [RasterVertex; 3],
     config: SoftwareRendererConfig,
@@ -522,7 +532,13 @@ fn rasterize_triangle(
                 camera_position,
                 config,
             );
-            let pixel = shaded.to_rgba8();
+            let pixel = apply_distance_fog(
+                shaded,
+                fog_color,
+                fog_density.unwrap_or(0.0),
+                camera_position.distance(world_position),
+            )
+            .to_rgba8();
             let rgba_index = pixel_index * 4;
             rgba[rgba_index..rgba_index + 4].copy_from_slice(&pixel);
         }
@@ -839,6 +855,19 @@ fn shade_pixel(
     color += Vec3::new(rim, rim, rim * 1.25);
 
     ColorRgb::from_vec3(color)
+}
+
+fn apply_distance_fog(
+    shaded: ColorRgb,
+    fog_color: ColorRgb,
+    fog_density: f32,
+    distance: f32,
+) -> ColorRgb {
+    if fog_density <= f32::EPSILON {
+        return shaded;
+    }
+    let fog_factor = (1.0 - (-distance * fog_density).exp()).clamp(0.0, 1.0);
+    shaded * (1.0 - fog_factor) + fog_color * fog_factor
 }
 
 fn shade_directional(

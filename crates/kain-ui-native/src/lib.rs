@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap},
+    collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
     fs::{self, OpenOptions},
     hash::{Hash, Hasher},
     io::Write,
@@ -24,9 +24,9 @@ use nalgebra::{Affine2, Similarity2, Vector2};
 use kain_3d::{
     default_viewport_shader_bundle, prepare_wgpu_frame, wgsl_module_source, CameraPose,
     CpuPickingService, GizmoVertex, GpuVertex, ManipulatorMode, ParticleVertex, PickingHit,
-    PickingQuery, PickingRay, PickingService, PreparedWgpuFrame, RenderBackend, RenderResolution,
-    RenderStats, RenderViewSettings, SceneCatalog, SceneDescription, SceneUniforms,
-    SoftwareRenderer, Vec3, WgpuRenderer, VIEWPORT_SHADER_MODULE_NAME,
+    PickingQuery, PickingRay, PreparedWgpuFrame, RenderBackend, RenderResolution, RenderStats,
+    RenderViewSettings, SceneCatalog, SceneDescription, SceneUniforms, SoftwareRenderer,
+    Transform as SceneTransform, Vec3, WgpuRenderer, VIEWPORT_SHADER_MODULE_NAME,
 };
 use kain_core::{
     build_ui_output_from_source, realtime_app_bundle_from_json, render_ui_output_debug,
@@ -428,7 +428,7 @@ impl Default for KainUiNativeRuntimeSettings {
     fn default() -> Self {
         Self {
             renderer: NativeRendererPreference::Wgpu,
-            show_runtime_inspector: true,
+            show_runtime_inspector: false,
             enable_viewports: true,
             repaint_interval_ms: DEFAULT_REPAINT_INTERVAL_MS,
             viewport_render_interval_idle_ms: DEFAULT_VIEWPORT_RENDER_INTERVAL_IDLE_MS,
@@ -2314,7 +2314,16 @@ struct ViewportSurfaceState {
     selected_instance_id: Option<String>,
     manipulator_mode: ManipulatorMode,
     last_pick: Option<PickingHit>,
+    instance_transform_overrides: BTreeMap<String, SceneTransform>,
+    active_manipulation: Option<ViewportManipulatorState>,
     presented_state: Option<Arc<Mutex<PresentedViewportGpuState>>>,
+}
+
+#[derive(Clone, Debug)]
+struct ViewportManipulatorState {
+    selected_instance_id: String,
+    drag_origin_pointer: egui::Pos2,
+    drag_origin_transform: SceneTransform,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -2463,6 +2472,7 @@ struct ViewportInputSnapshot {
     move_up: bool,
     move_down: bool,
     speed_boost: bool,
+    manipulate_modifier: bool,
     recenter: bool,
     gizmo_translate: bool,
     gizmo_rotate: bool,
@@ -5710,6 +5720,228 @@ fn render_children(
     ui.spacing_mut().item_spacing = item_spacing;
 }
 
+#[derive(Clone, Debug)]
+enum ChildRenderEntry {
+    Single(UiNodeId),
+    TabGroup { group_id: String, tabs: Vec<UiNodeId> },
+}
+
+fn node_layout_identity(node: &UiNode) -> String {
+    node.layout
+        .persistent_layout_id
+        .clone()
+        .or_else(|| node.identity_key.clone())
+        .unwrap_or_else(|| format!("node-{}", node.id.0))
+}
+
+fn collect_child_render_entries(tree: &UiTree, node: &UiNode) -> Vec<ChildRenderEntry> {
+    let mut entries = Vec::new();
+    let mut seen_groups = BTreeSet::new();
+
+    for child_id in &node.children {
+        let Some(child_node) = tree.node(*child_id) else {
+            continue;
+        };
+        if let Some(group_id) = child_node.layout.tab_group_id.clone() {
+            if !seen_groups.insert(group_id.clone()) {
+                continue;
+            }
+            let mut tabs = node
+                .children
+                .iter()
+                .copied()
+                .filter(|candidate| {
+                    tree.node(*candidate)
+                        .and_then(|candidate_node| candidate_node.layout.tab_group_id.as_deref())
+                        == Some(group_id.as_str())
+                })
+                .collect::<Vec<_>>();
+            tabs.sort_by_key(|candidate| {
+                tree.node(*candidate)
+                    .map(|candidate_node| {
+                        (
+                            candidate_node.layout.tab_order.unwrap_or(i32::MAX),
+                            candidate_node.id.0,
+                        )
+                    })
+                    .unwrap_or((i32::MAX, candidate.0))
+            });
+            entries.push(ChildRenderEntry::TabGroup { group_id, tabs });
+        } else {
+            entries.push(ChildRenderEntry::Single(*child_id));
+        }
+    }
+
+    entries
+}
+
+fn child_entry_dock_placement(tree: &UiTree, entry: &ChildRenderEntry) -> kain_ui::UiDockPlacement {
+    let representative_id = match entry {
+        ChildRenderEntry::Single(id) => Some(*id),
+        ChildRenderEntry::TabGroup { tabs, .. } => tabs.first().copied(),
+    };
+    representative_id
+        .and_then(|child_id| tree.node(child_id))
+        .and_then(|child_node| child_node.layout.dock)
+        .unwrap_or(kain_ui::UiDockPlacement::Center)
+}
+
+fn render_child_entry(
+    app: &mut KainUiNativeApp,
+    ui: &mut egui::Ui,
+    ctx: &egui::Context,
+    tree: &UiTree,
+    theme_registry: &UiThemeRegistry,
+    app_theme: &NativeAppTheme,
+    entry: &ChildRenderEntry,
+) {
+    match entry {
+        ChildRenderEntry::Single(id) => {
+            render_node(app, ui, ctx, tree, theme_registry, app_theme, *id);
+        }
+        ChildRenderEntry::TabGroup { group_id, tabs } => {
+            render_tab_group(app, ui, ctx, tree, theme_registry, app_theme, group_id, tabs);
+        }
+    }
+}
+
+fn resolve_active_tab_child(
+    app: &mut KainUiNativeApp,
+    tree: &UiTree,
+    group_id: &str,
+    tabs: &[UiNodeId],
+) -> Option<UiNodeId> {
+    let mut resolved_tabs = Vec::new();
+    for tab_id in tabs {
+        let Some(tab_node) = tree.node(*tab_id) else {
+            continue;
+        };
+        resolved_tabs.push((
+            *tab_id,
+            node_layout_identity(tab_node),
+            tab_node.layout.tab_default_active,
+        ));
+    }
+
+    if resolved_tabs.is_empty() {
+        return None;
+    }
+
+    let stored_layout_id = app
+        .output
+        .systems
+        .workspace_layout
+        .active_tabs
+        .get(group_id)
+        .cloned();
+    if let Some(active_layout_id) = stored_layout_id {
+        if let Some((tab_id, _, _)) = resolved_tabs
+            .iter()
+            .find(|(_, layout_id, _)| *layout_id == active_layout_id)
+        {
+            return Some(*tab_id);
+        }
+    }
+
+    let fallback = resolved_tabs
+        .iter()
+        .find(|(_, _, default_active)| *default_active)
+        .or_else(|| resolved_tabs.first())
+        .cloned();
+    if let Some((tab_id, layout_id, _)) = fallback {
+        app.output
+            .systems
+            .workspace_layout
+            .active_tabs
+            .insert(group_id.to_string(), layout_id);
+        Some(tab_id)
+    } else {
+        None
+    }
+}
+
+fn render_tab_group(
+    app: &mut KainUiNativeApp,
+    ui: &mut egui::Ui,
+    ctx: &egui::Context,
+    tree: &UiTree,
+    theme_registry: &UiThemeRegistry,
+    app_theme: &NativeAppTheme,
+    group_id: &str,
+    tabs: &[UiNodeId],
+) {
+    let Some(active_tab_id) = resolve_active_tab_child(app, tree, group_id, tabs) else {
+        return;
+    };
+    let Some(active_node) = tree.node(active_tab_id) else {
+        return;
+    };
+    let chrome_theme = resolve_widget_theme(active_node, theme_registry, app_theme);
+    let mut pending_layout_id = None::<String>;
+
+    Frame::new()
+        .fill(alpha_tint(chrome_theme.overlay_fill, 0.92))
+        .stroke(Stroke::new(1.0, alpha_tint(chrome_theme.stroke, 0.85)))
+        .corner_radius(app_theme.metrics.radius_medium)
+        .inner_margin(app_theme.metrics.tight_padding)
+        .show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                for tab_id in tabs {
+                    let Some(tab_node) = tree.node(*tab_id) else {
+                        continue;
+                    };
+                    let layout_id = node_layout_identity(tab_node);
+                    let is_active = *tab_id == active_tab_id;
+                    let label = tab_node
+                        .layout
+                        .tab_label
+                        .clone()
+                        .or_else(|| prop_text(tab_node, "title").map(|value| value.to_string()))
+                        .unwrap_or_else(|| format!("Page {}", tab_node.id.0));
+                    let button = egui::Button::new(
+                        RichText::new(label)
+                            .size(app_theme.typography.body)
+                            .strong()
+                            .color(if is_active {
+                                chrome_theme.title_color
+                            } else {
+                                chrome_theme.muted_color
+                            }),
+                    )
+                    .fill(if is_active {
+                        alpha_tint(chrome_theme.accent, 0.28)
+                    } else {
+                        alpha_tint(chrome_theme.fill, 0.52)
+                    })
+                    .stroke(Stroke::new(
+                        1.0,
+                        if is_active {
+                            chrome_theme.accent
+                        } else {
+                            alpha_tint(chrome_theme.stroke, 0.72)
+                        },
+                    ))
+                    .corner_radius(app_theme.metrics.radius_small)
+                    .min_size(egui::vec2(108.0, 34.0));
+                    if ui.add(button).clicked() {
+                        pending_layout_id = Some(layout_id);
+                    }
+                }
+            });
+        });
+
+    if let Some(layout_id) = pending_layout_id {
+        app.output
+            .systems
+            .workspace_layout
+            .active_tabs
+            .insert(group_id.to_string(), layout_id);
+    }
+
+    ui.add_space(chrome_theme.gap * 0.6);
+    render_node(app, ui, ctx, tree, theme_registry, app_theme, active_tab_id);
+}
+
 fn render_children_content(
     app: &mut KainUiNativeApp,
     ui: &mut egui::Ui,
@@ -5721,19 +5953,20 @@ fn render_children_content(
     layout_gap: f32,
 ) {
     let cross_align = layout_align(node.layout.align_items);
+    let child_entries = collect_child_render_entries(tree, node);
 
     match node.layout.kind {
         UiLayoutKind::FlexRow => {
             ui.with_layout(Layout::left_to_right(cross_align), |ui| {
-                for child in &node.children {
-                    render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                for entry in &child_entries {
+                    render_child_entry(app, ui, ctx, tree, theme_registry, app_theme, entry);
                 }
             });
         }
         UiLayoutKind::FlexColumn => {
             ui.with_layout(Layout::top_down(cross_align), |ui| {
-                for child in &node.children {
-                    render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                for entry in &child_entries {
+                    render_child_entry(app, ui, ctx, tree, theme_registry, app_theme, entry);
                 }
             });
         }
@@ -5748,8 +5981,8 @@ fn render_children_content(
                 .num_columns(columns)
                 .spacing(egui::vec2(layout_gap, layout_gap))
                 .show(ui, |ui| {
-                    for (index, child) in node.children.iter().enumerate() {
-                        render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                    for (index, entry) in child_entries.iter().enumerate() {
+                        render_child_entry(app, ui, ctx, tree, theme_registry, app_theme, entry);
                         if (index + 1) % columns == 0 {
                             ui.end_row();
                         }
@@ -5758,13 +5991,13 @@ fn render_children_content(
         }
         UiLayoutKind::Stack | UiLayoutKind::Absolute => {
             let overlay_theme = resolve_widget_theme(node, theme_registry, app_theme);
-            for (index, child) in node.children.iter().enumerate() {
+            for (index, entry) in child_entries.iter().enumerate() {
                 if index > 0 {
                     ui.add_space(-overlay_theme.gap * 0.35);
                 }
                 ui.scope(|ui| {
                     ui.set_width(ui.available_width());
-                    render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                    render_child_entry(app, ui, ctx, tree, theme_registry, app_theme, entry);
                 });
             }
         }
@@ -5776,25 +6009,22 @@ fn render_children_content(
             let mut bottom = Vec::new();
             let mut center = Vec::new();
 
-            for child in &node.children {
-                let placement = tree
-                    .node(*child)
-                    .and_then(|child_node| child_node.layout.dock)
-                    .unwrap_or(kain_ui::UiDockPlacement::Center);
+            for entry in child_entries {
+                let placement = child_entry_dock_placement(tree, &entry);
                 match placement {
-                    kain_ui::UiDockPlacement::Left => left.push(*child),
-                    kain_ui::UiDockPlacement::Right => right.push(*child),
-                    kain_ui::UiDockPlacement::Top => top.push(*child),
-                    kain_ui::UiDockPlacement::Bottom => bottom.push(*child),
-                    _ => center.push(*child),
+                    kain_ui::UiDockPlacement::Left => left.push(entry),
+                    kain_ui::UiDockPlacement::Right => right.push(entry),
+                    kain_ui::UiDockPlacement::Top => top.push(entry),
+                    kain_ui::UiDockPlacement::Bottom => bottom.push(entry),
+                    _ => center.push(entry),
                 }
             }
 
             if !top.is_empty() {
                 ui.scope(|ui| {
                     ui.set_width(ui.available_width());
-                    for child in &top {
-                        render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                    for entry in &top {
+                        render_child_entry(app, ui, ctx, tree, theme_registry, app_theme, entry);
                     }
                 });
                 ui.add_space(layout_gap);
@@ -5805,16 +6035,16 @@ fn render_children_content(
                     let width = ui.available_width() * split;
                     ui.scope(|ui| {
                         ui.set_width(width);
-                        for child in &left {
-                            render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                        for entry in &left {
+                            render_child_entry(app, ui, ctx, tree, theme_registry, app_theme, entry);
                         }
                     });
                     ui.add_space(layout_gap);
                 }
 
                 ui.scope(|ui| {
-                    for child in &center {
-                        render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                    for entry in &center {
+                        render_child_entry(app, ui, ctx, tree, theme_registry, app_theme, entry);
                     }
                 });
 
@@ -5823,8 +6053,8 @@ fn render_children_content(
                     let width = ui.available_width() * split;
                     ui.scope(|ui| {
                         ui.set_width(width);
-                        for child in &right {
-                            render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                        for entry in &right {
+                            render_child_entry(app, ui, ctx, tree, theme_registry, app_theme, entry);
                         }
                     });
                 }
@@ -5834,15 +6064,15 @@ fn render_children_content(
                 ui.add_space(layout_gap);
                 ui.scope(|ui| {
                     ui.set_width(ui.available_width());
-                    for child in &bottom {
-                        render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+                    for entry in &bottom {
+                        render_child_entry(app, ui, ctx, tree, theme_registry, app_theme, entry);
                     }
                 });
             }
         }
         _ => {
-            for child in &node.children {
-                render_node(app, ui, ctx, tree, theme_registry, app_theme, *child);
+            for entry in &child_entries {
+                render_child_entry(app, ui, ctx, tree, theme_registry, app_theme, entry);
             }
         }
     }
@@ -5940,6 +6170,8 @@ fn render_viewport_surface(
                         selected_instance_id: None,
                         manipulator_mode: ManipulatorMode::Translate,
                         last_pick: None,
+                        instance_transform_overrides: BTreeMap::new(),
+                        active_manipulation: None,
                         presented_state: app.presented_viewport_host.map(|host| {
                             Arc::new(Mutex::new(PresentedViewportGpuState::new(
                                 host.target_format,
@@ -5964,6 +6196,8 @@ fn render_viewport_surface(
                 surface.last_stats = RenderStats::default();
                 surface.selected_instance_id = None;
                 surface.last_pick = None;
+                surface.instance_transform_overrides.clear();
+                surface.active_manipulation = None;
                 if let Some(host) = app.presented_viewport_host {
                     surface.presented_state =
                         Some(Arc::new(Mutex::new(PresentedViewportGpuState::new(
@@ -5995,6 +6229,16 @@ fn render_viewport_surface(
                 elapsed_seconds,
                 app.frame_dt_seconds,
             );
+            sync_viewport_manipulation(
+                &scene_snapshot,
+                response,
+                inner_rect,
+                resolution,
+                &app.viewport_input,
+                elapsed_seconds,
+                &surface.controller.pose(&reference_pose),
+                surface,
+            );
             if response.hovered() || response.has_focus() {
                 if app.viewport_input.gizmo_translate {
                     surface.manipulator_mode = ManipulatorMode::Translate;
@@ -6009,8 +6253,13 @@ fn render_viewport_surface(
                 camera: Some(active_camera),
                 selected_instance_id: surface.selected_instance_id.clone(),
                 manipulator_mode: Some(surface.manipulator_mode),
+                fog_density: surface
+                    .bundle_presentation
+                    .as_ref()
+                    .and_then(|presentation| presentation.fog_density),
+                instance_transform_overrides: surface.instance_transform_overrides.clone(),
             };
-            if response.clicked() {
+            if response.clicked() && !app.viewport_input.manipulate_modifier {
                 if let Some(pointer_pos) = response.interact_pointer_pos() {
                     if inner_rect.contains(pointer_pos) {
                         let relative = pointer_pos - inner_rect.min;
@@ -6035,20 +6284,22 @@ fn render_viewport_surface(
                         );
                         surface.last_pick = match gpu_pick {
                             Ok(Some(hit)) => Some(hit),
-                            Ok(None) => CpuPickingService.pick_catalog_scene(
+                            Ok(None) => CpuPickingService.pick_catalog_scene_with_overrides(
                                 &app.scene_catalog,
                                 &scene_name,
                                 &query,
+                                &surface.instance_transform_overrides,
                             ),
                             Err(err) => {
                                 trace_runtime(format!(
                                     "viewport: gpu_pick_failed node={} error={err}",
                                     node.id.0
                                 ));
-                                CpuPickingService.pick_catalog_scene(
+                                CpuPickingService.pick_catalog_scene_with_overrides(
                                     &app.scene_catalog,
                                     &scene_name,
                                     &query,
+                                    &surface.instance_transform_overrides,
                                 )
                             }
                         };
@@ -6340,7 +6591,7 @@ fn render_viewport_surface(
             painter.text(
                 controls_rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "roam WASD + QE  |  drag to look  |  wheel changes speed  |  T / R / Y gizmos",
+                "roam WASD + QE  |  drag to look  |  ctrl+drag manipulates selection  |  T / R / Y gizmos",
                 egui::FontId::monospace(10.5),
                 if response.has_focus() || response.hovered() {
                     app_theme.palette.highlight
@@ -6491,6 +6742,7 @@ fn snapshot_viewport_input(ctx: &egui::Context) -> ViewportInputSnapshot {
         move_up: input.key_down(egui::Key::Q),
         move_down: input.key_down(egui::Key::E),
         speed_boost: input.modifiers.shift,
+        manipulate_modifier: input.modifiers.ctrl,
         recenter: input.key_pressed(egui::Key::Space),
         gizmo_translate: input.key_pressed(egui::Key::T),
         gizmo_rotate: input.key_pressed(egui::Key::R),
@@ -6510,7 +6762,7 @@ fn sync_viewport_input(
         controller.move_speed = (controller.move_speed * speed_scale).clamp(1.0, 42.0);
     }
 
-    if response.dragged_by(egui::PointerButton::Primary) {
+    if response.dragged_by(egui::PointerButton::Primary) && !input.manipulate_modifier {
         let delta = input.pointer_delta;
         controller.yaw += delta.x * 0.009;
         controller.pitch = (controller.pitch - delta.y * 0.009).clamp(-1.45, 1.45);
@@ -6555,6 +6807,124 @@ fn sync_viewport_input(
         };
         controller.position += movement.normalize() * dt_seconds * speed;
     }
+}
+
+fn sync_viewport_manipulation(
+    scene: &SceneDescription,
+    response: &egui::Response,
+    inner_rect: egui::Rect,
+    resolution: RenderResolution,
+    input: &ViewportInputSnapshot,
+    scene_time_seconds: f32,
+    camera: &CameraPose,
+    surface: &mut ViewportSurfaceState,
+) {
+    if !input.manipulate_modifier {
+        surface.active_manipulation = None;
+        return;
+    }
+
+    let Some(selected_instance_id) = surface.selected_instance_id.clone() else {
+        surface.active_manipulation = None;
+        return;
+    };
+
+    if !response.dragged_by(egui::PointerButton::Primary) {
+        surface.active_manipulation = None;
+        return;
+    }
+
+    let Some(pointer_pos) = response.interact_pointer_pos() else {
+        surface.active_manipulation = None;
+        return;
+    };
+    if !inner_rect.contains(pointer_pos) {
+        surface.active_manipulation = None;
+        return;
+    }
+
+    let drag_state_needs_reset = surface
+        .active_manipulation
+        .as_ref()
+        .is_none_or(|state| state.selected_instance_id != selected_instance_id);
+    if drag_state_needs_reset {
+        let Some(drag_origin_transform) = resolve_effective_instance_transform(
+            scene,
+            scene_time_seconds,
+            &surface.instance_transform_overrides,
+            &selected_instance_id,
+        ) else {
+            surface.active_manipulation = None;
+            return;
+        };
+        surface.active_manipulation = Some(ViewportManipulatorState {
+            selected_instance_id: selected_instance_id.clone(),
+            drag_origin_pointer: pointer_pos,
+            drag_origin_transform,
+        });
+    }
+
+    let Some(active_manipulation) = surface.active_manipulation.as_ref() else {
+        return;
+    };
+    let pointer_delta = pointer_pos - active_manipulation.drag_origin_pointer;
+    let updated_transform = manipulated_transform_from_drag(
+        camera,
+        resolution,
+        surface.manipulator_mode,
+        &active_manipulation.drag_origin_transform,
+        pointer_delta,
+    );
+    surface
+        .instance_transform_overrides
+        .insert(selected_instance_id, updated_transform);
+    surface.last_render_at = None;
+}
+
+fn resolve_effective_instance_transform(
+    scene: &SceneDescription,
+    scene_time_seconds: f32,
+    instance_transform_overrides: &BTreeMap<String, SceneTransform>,
+    instance_id: &str,
+) -> Option<SceneTransform> {
+    scene
+        .animated_instances_with_overrides(scene_time_seconds, instance_transform_overrides)
+        .into_iter()
+        .find(|instance| instance.id == instance_id)
+        .map(|instance| instance.transform)
+}
+
+fn manipulated_transform_from_drag(
+    camera: &CameraPose,
+    resolution: RenderResolution,
+    manipulator_mode: ManipulatorMode,
+    drag_origin_transform: &SceneTransform,
+    pointer_delta: Vec2,
+) -> SceneTransform {
+    let viewport_scale = (resolution.width.min(resolution.height) as f32).max(1.0);
+    let depth_scale =
+        (camera.position.distance(drag_origin_transform.translation) * 2.4 / viewport_scale)
+            .clamp(0.006, 0.18);
+    let camera_right = camera.right();
+    let camera_up = camera.right().cross(camera.forward()).normalize();
+
+    let mut updated_transform = drag_origin_transform.clone();
+    match manipulator_mode {
+        ManipulatorMode::Translate => {
+            updated_transform.translation = drag_origin_transform.translation
+                + camera_right * (pointer_delta.x * depth_scale)
+                + camera_up * (-pointer_delta.y * depth_scale);
+        }
+        ManipulatorMode::Rotate => {
+            updated_transform.rotation_radians = drag_origin_transform.rotation_radians
+                + Vec3::new(pointer_delta.y * -0.008, pointer_delta.x * 0.008, 0.0);
+        }
+        ManipulatorMode::Scale => {
+            let scale_factor = (1.0 + (pointer_delta.x - pointer_delta.y) * 0.004).clamp(0.25, 5.0);
+            updated_transform.scale = drag_origin_transform.scale * scale_factor;
+        }
+    }
+    updated_transform
 }
 
 fn apply_viewport_grounding(
@@ -7228,6 +7598,55 @@ mod tests {
                 .collect::<Vec<_>>()
         );
         assert!(Arc::ptr_eq(&first.rgba8, &second.rgba8));
+    }
+
+    #[test]
+    fn viewport_translate_drag_moves_selected_instance_in_camera_plane() {
+        let camera = CameraPose {
+            position: Vec3::new(0.0, 4.0, 10.0),
+            target: Vec3::ZERO,
+            up: Vec3::UP,
+            fov_y_degrees: 60.0,
+            near_plane: 0.1,
+            far_plane: 100.0,
+        };
+        let origin = SceneTransform::identity().with_translation(Vec3::new(1.0, 2.0, 3.0));
+
+        let updated = manipulated_transform_from_drag(
+            &camera,
+            RenderResolution::new(1280, 720),
+            ManipulatorMode::Translate,
+            &origin,
+            Vec2::new(120.0, -48.0),
+        );
+
+        assert!(updated.translation.x > origin.translation.x);
+        assert!(updated.translation.y > origin.translation.y);
+    }
+
+    #[test]
+    fn viewport_scale_drag_remains_positive() {
+        let camera = CameraPose {
+            position: Vec3::new(0.0, 4.0, 10.0),
+            target: Vec3::ZERO,
+            up: Vec3::UP,
+            fov_y_degrees: 60.0,
+            near_plane: 0.1,
+            far_plane: 100.0,
+        };
+        let origin = SceneTransform::identity().with_scale(Vec3::new(2.0, 3.0, 4.0));
+
+        let updated = manipulated_transform_from_drag(
+            &camera,
+            RenderResolution::new(1280, 720),
+            ManipulatorMode::Scale,
+            &origin,
+            Vec2::new(-900.0, 900.0),
+        );
+
+        assert!(updated.scale.x > 0.0);
+        assert!(updated.scale.y > 0.0);
+        assert!(updated.scale.z > 0.0);
     }
 
     fn themed_test_output(child_values: Option<BTreeMap<String, UiValue>>) -> UiBuildOutput {

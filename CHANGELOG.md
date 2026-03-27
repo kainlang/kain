@@ -5,6 +5,298 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=7482ec77377b96f7 -->
+## 2026-03-26 20:34:29 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1cf5b7a`
+- Changed files: 27
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-3D/src/interaction.rs`
+- [.M] `crates/kain-3D/src/renderer.rs`
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-3D/src/shaders/viewport_surface.wgsl`
+- [.M] `crates/kain-3D/src/wgpu_renderer.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.ps1`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/kain_realtime_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+- [??] `smoketest/UI/kinetic_ui_atlas/.gitignore`
+- [??] `smoketest/UI/kinetic_ui_atlas/README.md`
+- [??] `smoketest/UI/kinetic_ui_atlas/build_native_exe.ps1`
+- [??] `smoketest/UI/kinetic_ui_atlas/launch_native_exe.ps1`
+- [??] `smoketest/UI/kinetic_ui_atlas/showcase.kn`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+
+<!-- polytools-changelog:fingerprint=dd488a881b7ecebf -->
+## 2026-03-26 20:33:38 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1cf5b7a`
+- Changed files: 26
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-3D/src/interaction.rs`
+- [.M] `crates/kain-3D/src/renderer.rs`
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-3D/src/shaders/viewport_surface.wgsl`
+- [.M] `crates/kain-3D/src/wgpu_renderer.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/build_visual_exe.ps1`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/lib.rs`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/generated/native_app_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/visual-native-app/main.generated.kn`
+- [??] `smoketest/UI/kinetic_ui_atlas/.gitignore`
+- [??] `smoketest/UI/kinetic_ui_atlas/README.md`
+- [??] `smoketest/UI/kinetic_ui_atlas/build_native_exe.ps1`
+- [??] `smoketest/UI/kinetic_ui_atlas/launch_native_exe.ps1`
+- [??] `smoketest/UI/kinetic_ui_atlas/showcase.kn`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+
+<!-- polytools-changelog:fingerprint=adafb7bec091b079 -->
+## 2026-03-26 20:24:34 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1cf5b7a`
+- Changed files: 23
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-3D/src/interaction.rs`
+- [.M] `crates/kain-3D/src/renderer.rs`
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-3D/src/shaders/viewport_surface.wgsl`
+- [.M] `crates/kain-3D/src/wgpu_renderer.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/main.generated.kn`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/visual_snapshot.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/templates/visual_showcase.template.kn`
+- [??] `smoketest/UI/kinetic_ui_atlas/.gitignore`
+- [??] `smoketest/UI/kinetic_ui_atlas/README.md`
+- [??] `smoketest/UI/kinetic_ui_atlas/build_native_exe.ps1`
+- [??] `smoketest/UI/kinetic_ui_atlas/launch_native_exe.ps1`
+- [??] `smoketest/UI/kinetic_ui_atlas/showcase.kn`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+
+<!-- polytools-changelog:fingerprint=b5e06d3bd0e37c9e -->
+## 2026-03-26 20:20:12 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1cf5b7a`
+- Changed files: 20
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-3D/src/interaction.rs`
+- [.M] `crates/kain-3D/src/renderer.rs`
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-3D/src/shaders/viewport_surface.wgsl`
+- [.M] `crates/kain-3D/src/wgpu_renderer.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [.M] `smoketest/fabric/gpu_compute_convergence/templates/visual_showcase.template.kn`
+- [??] `smoketest/UI/kinetic_ui_atlas/.gitignore`
+- [??] `smoketest/UI/kinetic_ui_atlas/README.md`
+- [??] `smoketest/UI/kinetic_ui_atlas/build_native_exe.ps1`
+- [??] `smoketest/UI/kinetic_ui_atlas/showcase.kn`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+
+<!-- polytools-changelog:fingerprint=99565580c1fec8cd -->
+## 2026-03-26 20:13:22 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1cf5b7a`
+- Changed files: 18
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-3D/src/interaction.rs`
+- [.M] `crates/kain-3D/src/renderer.rs`
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-3D/src/wgpu_renderer.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [??] `smoketest/UI/kinetic_ui_atlas/.gitignore`
+- [??] `smoketest/UI/kinetic_ui_atlas/README.md`
+- [??] `smoketest/UI/kinetic_ui_atlas/build_native_exe.ps1`
+- [??] `smoketest/UI/kinetic_ui_atlas/showcase.kn`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+
+<!-- polytools-changelog:fingerprint=1997b8600b80fe88 -->
+## 2026-03-26 20:13:12 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1cf5b7a`
+- Changed files: 17
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-3D/src/interaction.rs`
+- [.M] `crates/kain-3D/src/renderer.rs`
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [??] `smoketest/UI/kinetic_ui_atlas/.gitignore`
+- [??] `smoketest/UI/kinetic_ui_atlas/README.md`
+- [??] `smoketest/UI/kinetic_ui_atlas/build_native_exe.ps1`
+- [??] `smoketest/UI/kinetic_ui_atlas/showcase.kn`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+
+<!-- polytools-changelog:fingerprint=29825e2fba342830 -->
+## 2026-03-26 20:13:08 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1cf5b7a`
+- Changed files: 13
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-3D/src/interaction.rs`
+- [.M] `crates/kain-3D/src/renderer.rs`
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+
+<!-- polytools-changelog:fingerprint=562b8a8e2195f661 -->
+## 2026-03-26 20:12:59 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1cf5b7a`
+- Changed files: 12
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-3D/src/renderer.rs`
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+
+<!-- polytools-changelog:fingerprint=e152504c561912fd -->
+## 2026-03-26 20:12:50 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1cf5b7a`
+- Changed files: 11
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-3D/src/scene.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+
+<!-- polytools-changelog:fingerprint=5b506b0720298015 -->
+## 2026-03-26 20:10:49 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1cf5b7a`
+- Changed files: 10
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+
+<!-- polytools-changelog:fingerprint=88e4584e1a3e71a0 -->
+## 2026-03-26 20:00:46 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1cf5b7a`
+- Changed files: 9
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+
+<!-- polytools-changelog:fingerprint=e3f2d9cf462d500c -->
+## 2026-03-26 20:00:08 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1cf5b7a`
+- Changed files: 7
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+
+<!-- polytools-changelog:fingerprint=4607037b98df8b52 -->
+## 2026-03-26 19:59:47 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1cf5b7a`
+- Changed files: 6
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_gpu.spv`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/generated/kain_shader_bundle.json`
+- [.M] `smoketest/UI/spv_ui_surface_probe/native-app/kain_shader_bundle.json`
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+- [??] `smoketest/UI/spv_ui_surface_probe/assets/ui_smoke_default.ttf`
+
+<!-- polytools-changelog:fingerprint=47c9eed2fabf84c5 -->
+## 2026-03-26 19:56:07 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1cf5b7a`
+- Changed files: 2
+- [.M] `smoketest/fabric/gpu_compute_convergence/README.md`
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+
+<!-- polytools-changelog:fingerprint=d4efb8b5139e865a -->
+## 2026-03-26 19:55:25 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `f1cf5b7a`
+- Changed files: 1
+- [.M] `smoketest/fabric/gpu_compute_convergence/generated/fabric_gpu_visual_showcase.png`
+
 <!-- polytools-changelog:fingerprint=16f6157f0e18c46e -->
 ## 2026-03-26 19:54:28 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

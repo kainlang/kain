@@ -10,6 +10,27 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-26 - Semantic Native Tabs And Fresh Four-Page UI Showcase
+
+The native UI host now renders semantic tab groups as real clickable top tabs, and the repo has a fresh smoke that proves that capability in a non-generic editor shell.
+
+Update:
+
+- `crates/kain-ui-native` now groups sibling nodes that share `tab_group_id`, resolves the active child through compiler-owned `persistent_layout_id` state, renders a native tab strip, and writes selection changes back into `output.systems.workspace_layout.active_tabs`.
+- This keeps authored tab meaning in the normal Kain UI/runtime bundle path instead of inventing a smoke-local or host-only tab schema.
+- `smoketest/UI/kinetic_ui_atlas` is the new proof smoke for this lane. It packages `kinetic-ui-atlas.exe` as a four-page shell with a shared top tab bar and four deliberately different schemas:
+- editorial typography deck
+- shader-surface and overlay studio
+- viewport-centered foundry workspace
+- dense operator bench
+- The smoke stays intentionally fresh. It does not reuse prior smoketest layouts, and it demonstrates that current Kain UI can already host themed shells, docked rails, inspectors, trees, graphs, timelines, canvases, and viewport workspaces inside one authored executable.
+
+What future work should preserve:
+
+- keep `tab_group_id`, `tab_label`, `tab_order`, `tab_default_active`, and `persistent_layout_id` as the semantic truth for authored tabs
+- keep the native host consuming and mutating `workspace_layout.active_tabs` rather than introducing a second renderer-local tab persistence model
+- use `smoketest/UI/kinetic_ui_atlas` as the fresh reference when proving broad UI expressiveness, especially for non-viewport-first shell composition
+
 ## 2026-03-26 - All-In-One Cross-Pipeline Regression Harness Added Under smoketest/allinone
 
 The repo now has a single broad smoke folder that exercises the major Kain codegen and bridge surfaces without scattering outputs across unrelated older smokes.
@@ -129,7 +150,9 @@ Update:
 - `crates/kain-host/src/fabric.rs` now parses authored compute metadata from shader source, derives workgroup/dispatch and tensor/stream intent from that metadata, prefers resolved shared-buffer snapshot shapes over `[1]`, and infers storage-buffer access modes from declared compute roles instead of placeholder defaults.
 - The repo-local end-to-end smoke `smoketest/fabric/gpu_compute_convergence/KAIN.fabric.toml` now succeeds through `Python -> Kain -> GPU -> Node`.
 - The same smoke now owns a native viewport proof lane: `build_visual_exe.ps1` reruns the Fabric session, projects the newest report into `generated/main.generated.kn` and `generated/visual_snapshot.json`, and packages `visual-native-app/fabric-studio-3d-editor.exe` as a minimal viewport-first shell with a real `viewport3d` center pane and only a narrow session HUD. `build_visual_exe.ps1 -Release` uses an isolated smoke-local cargo target dir so release packaging does not fight the workspace-wide `target/` cache, and `capture_visual_demo.ps1 -Release` captures the maximized viewport window into `generated/fabric_gpu_visual_showcase.png`.
-- The current capture helper now foregrounds the window and tries `PrintWindow`, but it is still fundamentally a GDI-era screenshot path. On Windows, GPU-backed viewport and shader-canvas content may remain absent from the captured PNG even when the realtime bundle clearly contains those surfaces and the executable launches. Preserve this distinction so future agents do not misdiagnose a capture limitation as a missing Fabric UI bundle or missing SPIR-V surface.
+- The native showcase was later simplified from a fake editor dashboard into a minimal viewport shell. That change matters because the resulting capture path now shows the actual `magma_terraces` 3D scene instead of mostly shell chrome, which makes the smoke a better proof of the native viewport lane and avoids wasting time on off-path UI-library experiments.
+- The `magma_terraces` scene and viewport lane were then pushed into a graphics-max pass. `crates/kain-3D` now drives a much larger and denser caldera scene with more geometry, more point lights, hotter emissive materials, heavier particle coverage, and real distance fog in both the software and WGPU viewport paths. `crates/kain-ui-native` now applies per-view transform overrides so `Ctrl+drag` manipulation works on selected objects with translate/rotate/scale gizmo modes, and the release host no longer shows the runtime inspector by default.
+- The current authored `viewport.fog_density` / `viewport.particle_budget` dotted props are still not accepted by the `kain build native-ui` compiler path for this smoke, even though the realtime bundle layer understands them. Preserve the current workaround: keep the authored `viewport3d` node parser-safe, then patch `generated/kain_realtime_app_bundle.json` in `build_visual_exe.ps1` to inject the `graphics_max` presentation sidecar before packaging the exe.
 
 ### What changed
 
@@ -1312,4 +1335,20 @@ Next serious move:
 - add first-class schema validation and CLI hydration for the web template registries
 - evolve the Node helper runtime into a reusable browser adapter surface that future KainScript or semantic UI web lanes can consume
 - then replace the current HTML-plus-islands workaround with a real semantic `kain-ui-web` lowering path
+
+## 2026-03-26 - Universal Web Template Governance + Community Systems Expanded
+
+The universal web template now includes the governance and community systems that full production sites need, without forcing Rust tooling on end users.
+
+What changed:
+
+- `web_systems_core` now includes community channels, event schedules, newsletters, compliance controls, observability signals, infrastructure stacks, localization plans, accessibility checks, and performance targets.
+- Hybrid, business, chat, operator, and realtime experiences now surface those systems as first-class sections (community/events/newsletter and ops/governance panels).
+- The Node helper runtime now exposes new endpoints and system contract fields for the added systems (`/api/community`, `/api/events`, `/api/newsletter`, `/api/compliance`, `/api/observability`, `/api/infrastructure`, `/api/localization`, `/api/accessibility`, `/api/performance`).
+- Site data + UI schema now capture counts for the new governance and ops lanes.
+
+What future work should preserve:
+
+- keep the additional systems registry-driven in `web_systems_core` so every archetype can opt in without new boilerplate
+- keep the helper runtime as the single place that emits system contract + actor plan updates for web; avoid duplicating routing logic per archetype
 

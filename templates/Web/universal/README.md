@@ -148,4 +148,13 @@ New reusable section kinds in this pass:
 - `careers_list`
 - `support_grid`
 - `security_grid`
+- `community_hub`
+- `event_schedule`
+- `newsletter_panel`
+- `compliance_grid`
+- `observability_stack`
+- `infrastructure_stack`
+- `localization_grid`
+- `accessibility_grid`
+- `performance_targets`
 - `legal_links`

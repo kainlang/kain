@@ -1,29 +1,44 @@
 {
-  "schema_version": 1,
-  "target": "rust",
-  "render": {
-    "scenes": [
-      {
-        "viewport_node": "surface.node.14",
-        "viewport_kind": "viewport3d",
-        "scene": "magma_terraces",
-        "title": "Fabric Studio Viewport",
-        "material_refs": [],
-        "shader_bundle_ref_keys": []
-      }
-    ],
-    "materials": []
-  },
-  "shader_bundle_refs": [],
-  "assets": [],
-  "tool_caps": [
-    "viewport.3d"
-  ],
-  "requirements": [
-    "host.native-ui",
-    "runtime.contract.bundle",
-    "scene.runtime-bundle",
-    "shader.bundle.metadata",
-    "viewport.presented-or-fallback"
-  ]
+    "schema_version":  1,
+    "target":  "rust",
+    "render":  {
+                   "scenes":  [
+                                  {
+                                      "viewport_node":  "surface.node.14",
+                                      "viewport_kind":  "viewport3d",
+                                      "scene":  "magma_terraces",
+                                      "title":  "Fabric Studio Viewport",
+                                      "material_refs":  [
+
+                                                        ],
+                                      "shader_bundle_ref_keys":  [
+
+                                                                 ],
+                                      "presentation":  {
+                                                           "profile":  "graphics_max",
+                                                           "fog_density":  0.022,
+                                                           "particle_budget":  1024
+                                                       }
+                                  }
+                              ],
+                   "materials":  [
+
+                                 ]
+               },
+    "shader_bundle_refs":  [
+
+                           ],
+    "assets":  [
+
+               ],
+    "tool_caps":  [
+                      "viewport.3d"
+                  ],
+    "requirements":  [
+                         "host.native-ui",
+                         "runtime.contract.bundle",
+                         "scene.runtime-bundle",
+                         "shader.bundle.metadata",
+                         "viewport.presented-or-fallback"
+                     ]
 }

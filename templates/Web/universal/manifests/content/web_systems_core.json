@@ -182,5 +182,125 @@
       { "title": "Audit trails", "detail": "JSONL capture for auth + analytics", "status": "template-ready" },
       { "title": "Session isolation", "detail": "Cookie-backed local sessions", "status": "template-ready" }
     ]
+  },
+  "community": {
+    "kicker": "Community",
+    "title": "Operator and builder community",
+    "body": "Community lanes are captured in data so you can wire Discord, forum, and beta cohorts without rewriting pages.",
+    "channels": [
+      { "name": "Operator Discord", "platform": "Discord", "summary": "Daily operator standups and runtime triage.", "members": "1.2k", "cadence": "daily", "href": "#" },
+      { "name": "Builder Forum", "platform": "Forum", "summary": "Docs Q&A, build logs, and template updates.", "members": "4.8k", "cadence": "weekly", "href": "#" },
+      { "name": "Early Access Group", "platform": "Invite", "summary": "Closed cohort for actor-server pilots.", "members": "120", "cadence": "monthly", "href": "#" }
+    ]
+  },
+  "events": {
+    "kicker": "Events",
+    "title": "Launches, workshops, and operator briefings",
+    "body": "Track upcoming launches, training, and live demos from one schedule lane.",
+    "rsvp_form_id": "event_rsvp",
+    "upcoming": [
+      { "title": "Hybrid Command Briefing", "date": "2026-04-08", "format": "Live stream", "summary": "Walkthrough of the hybrid archetype, actor routes, and chat systems.", "focus": "hybrid", "href": "#" },
+      { "title": "3D Web Systems Lab", "date": "2026-04-15", "format": "Workshop", "summary": "Scene islands, WebGL previews, and manifest-driven 3D layouts.", "focus": "3d", "href": "#" },
+      { "title": "Actor Server Clinic", "date": "2026-04-22", "format": "Office hours", "summary": "Routes, playbooks, tools, and operator handoff patterns.", "focus": "actors", "href": "#" }
+    ]
+  },
+  "newsletter": {
+    "kicker": "Newsletter",
+    "title": "Stay synced on template drops",
+    "body": "A local-first newsletter intake that can be wired to any provider later.",
+    "cadence": "Bi-weekly",
+    "topics": ["web template upgrades", "actor runtime lanes", "chat systems", "3D web islands"],
+    "form_id": "newsletter_signup"
+  },
+  "compliance": {
+    "kicker": "Compliance",
+    "title": "Compliance and governance",
+    "body": "Contract-friendly compliance metadata for regulated launches.",
+    "controls": [
+      { "title": "SOC 2 posture", "detail": "Template-ready compliance outline", "status": "draft" },
+      { "title": "GDPR readiness", "detail": "Data retention + consent notes", "status": "template-ready" },
+      { "title": "Data residency", "detail": "Region and storage policies", "status": "template-ready" }
+    ]
+  },
+  "observability": {
+    "kicker": "Observability",
+    "title": "Operational visibility",
+    "body": "Signals, logs, and alerting summaries for operator surfaces.",
+    "signals": [
+      { "title": "Route latency", "detail": "Local SSE + WS latency capture", "owner": "signal_broker", "cadence": "1s" },
+      { "title": "Actor health", "detail": "Actor mesh and tool status", "owner": "mesh_supervisor", "cadence": "5s" },
+      { "title": "Search index drift", "detail": "Diff-friendly index snapshots", "owner": "search_indexer", "cadence": "daily" }
+    ]
+  },
+  "infrastructure": {
+    "kicker": "Infrastructure",
+    "title": "Hosting and delivery stack",
+    "body": "Describe deployment, CDN, and runtime edge decisions in data.",
+    "stack": [
+      { "title": "Edge CDN", "detail": "Static artifact delivery with purge controls.", "tier": "edge", "status": "template-ready" },
+      { "title": "Actor runtime", "detail": "Node-backed host with Kain contract ownership.", "tier": "runtime", "status": "template-ready" },
+      { "title": "Artifact storage", "detail": "Static build outputs and uploads.", "tier": "storage", "status": "template-ready" }
+    ]
+  },
+  "localization": {
+    "kicker": "Localization",
+    "title": "Languages and regions",
+    "body": "Use manifest data to plan localization without changing page logic.",
+    "languages": [
+      { "name": "English", "coverage": "full", "status": "template-ready" },
+      { "name": "Japanese", "coverage": "partial", "status": "planned" },
+      { "name": "German", "coverage": "partial", "status": "planned" }
+    ],
+    "regions": [
+      { "name": "North America", "timezone": "America/New_York", "status": "active" },
+      { "name": "Europe", "timezone": "Europe/Berlin", "status": "planned" }
+    ]
+  },
+  "accessibility": {
+    "kicker": "Accessibility",
+    "title": "Inclusive interface checklist",
+    "body": "Declare accessibility posture in one reusable manifest.",
+    "checks": [
+      { "title": "Semantic headings", "detail": "H1-H3 hierarchy maintained", "status": "template-ready" },
+      { "title": "Color contrast", "detail": "Theme tokens tracked per surface", "status": "in-review" },
+      { "title": "Keyboard navigation", "detail": "Forms and nav include focus states", "status": "template-ready" }
+    ]
+  },
+  "performance": {
+    "kicker": "Performance",
+    "title": "Performance targets",
+    "body": "Declare latency and asset budgets alongside runtime metadata.",
+    "targets": [
+      { "title": "LCP", "detail": "Largest contentful paint", "target": "< 2.5s" },
+      { "title": "TBT", "detail": "Total blocking time", "target": "< 150ms" },
+      { "title": "Bundle size", "detail": "Client island payload", "target": "< 260kb" }
+    ]
+  },
+  "forms": {
+    "newsletter_signup": {
+      "id": "newsletter_signup",
+      "kicker": "Newsletter",
+      "title": "Join the Kain web update stream",
+      "body": "Capture newsletter signups locally before wiring a provider.",
+      "submit_label": "Join newsletter",
+      "action": "/api/forms/newsletter_signup",
+      "fields": [
+        { "name": "email", "label": "Email", "type": "email", "placeholder": "you@studio.com" },
+        { "name": "role", "label": "Role", "type": "text", "placeholder": "operator / founder / builder" }
+      ]
+    },
+    "event_rsvp": {
+      "id": "event_rsvp",
+      "kicker": "Events",
+      "title": "RSVP for the next briefing",
+      "body": "Capture event RSVPs as JSONL while planning the launch.",
+      "submit_label": "RSVP",
+      "action": "/api/forms/event_rsvp",
+      "fields": [
+        { "name": "name", "label": "Name", "type": "text", "placeholder": "Your name" },
+        { "name": "email", "label": "Email", "type": "email", "placeholder": "you@studio.com" },
+        { "name": "interest", "label": "Focus", "type": "text", "placeholder": "hybrid / 3d / actor" }
+      ]
+    }
   }
 }

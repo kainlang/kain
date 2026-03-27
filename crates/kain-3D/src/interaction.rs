@@ -1,4 +1,6 @@
-use crate::{CameraPose, RenderResolution, SceneCatalog, SceneDescription, Vec3};
+use std::collections::BTreeMap;
+
+use crate::{CameraPose, RenderResolution, SceneCatalog, SceneDescription, Transform, Vec3};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PickTargetId {
@@ -169,6 +171,31 @@ impl PickingService for CpuPickingService {
 }
 
 impl CpuPickingService {
+    pub fn pick_scene_with_overrides(
+        &self,
+        scene: &SceneDescription,
+        query: &PickingQuery,
+        instance_transform_overrides: &BTreeMap<String, Transform>,
+    ) -> Option<PickingHit> {
+        self.pick_scene_filtered_with_overrides(
+            scene,
+            query,
+            None,
+            instance_transform_overrides,
+        )
+    }
+
+    pub fn pick_catalog_scene_with_overrides(
+        &self,
+        catalog: &SceneCatalog,
+        scene_name: &str,
+        query: &PickingQuery,
+        instance_transform_overrides: &BTreeMap<String, Transform>,
+    ) -> Option<PickingHit> {
+        let scene = catalog.scene(scene_name)?;
+        self.pick_scene_with_overrides(scene, query, instance_transform_overrides)
+    }
+
     pub fn pick_scene_instance(
         &self,
         scene: &SceneDescription,
@@ -189,15 +216,60 @@ impl CpuPickingService {
         self.pick_scene_instance(scene, query, instance_id)
     }
 
+    pub fn pick_scene_instance_with_overrides(
+        &self,
+        scene: &SceneDescription,
+        query: &PickingQuery,
+        instance_id: &str,
+        instance_transform_overrides: &BTreeMap<String, Transform>,
+    ) -> Option<PickingHit> {
+        self.pick_scene_filtered_with_overrides(
+            scene,
+            query,
+            Some(instance_id),
+            instance_transform_overrides,
+        )
+    }
+
+    pub fn pick_catalog_scene_instance_with_overrides(
+        &self,
+        catalog: &SceneCatalog,
+        scene_name: &str,
+        query: &PickingQuery,
+        instance_id: &str,
+        instance_transform_overrides: &BTreeMap<String, Transform>,
+    ) -> Option<PickingHit> {
+        let scene = catalog.scene(scene_name)?;
+        self.pick_scene_instance_with_overrides(
+            scene,
+            query,
+            instance_id,
+            instance_transform_overrides,
+        )
+    }
+
     fn pick_scene_filtered(
         &self,
         scene: &SceneDescription,
         query: &PickingQuery,
         instance_filter: Option<&str>,
     ) -> Option<PickingHit> {
+        self.pick_scene_filtered_with_overrides(scene, query, instance_filter, &BTreeMap::new())
+    }
+
+    fn pick_scene_filtered_with_overrides(
+        &self,
+        scene: &SceneDescription,
+        query: &PickingQuery,
+        instance_filter: Option<&str>,
+        instance_transform_overrides: &BTreeMap<String, Transform>,
+    ) -> Option<PickingHit> {
         let mut closest_hit: Option<PickingHit> = None;
 
-        for instance in scene.animated_instances(query.scene_time_seconds) {
+        for instance in scene.animated_instances_with_overrides(
+            query.scene_time_seconds,
+            instance_transform_overrides,
+        ) {
             if let Some(instance_filter) = instance_filter {
                 if instance.id != instance_filter {
                     continue;

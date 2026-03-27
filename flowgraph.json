@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at_utc": "2026-03-26T20:02:25.323747+00:00",
+  "generated_at_utc": "2026-03-27T00:00:22.082242+00:00",
   "display_name": "Code/Kain",
   "directory": "M:\\Code\\Kain",
   "summary": {
@@ -55,6 +55,20 @@
         "dependency_count": 5
       },
       {
+        "path": "apps/kain-fabric-modeler/local_crate/Cargo.toml",
+        "type": "cargo",
+        "package_name": "fabric_modeler_runtime",
+        "workspace_members": 0,
+        "dependency_count": 0
+      },
+      {
+        "path": "apps/kain-fabric-modeler/native-app/Cargo.toml",
+        "type": "cargo",
+        "package_name": "kain-fabric-modeler",
+        "workspace_members": 0,
+        "dependency_count": 1
+      },
+      {
         "path": "labs/native_ui_viewport_smoke/native_ui_viewport_smoke-native-ui/Cargo.toml",
         "type": "cargo",
         "package_name": "native-ui-viewport-smoke",
@@ -95,23 +109,9 @@
         "package_name": "unreal_helpers",
         "workspace_members": 0,
         "dependency_count": 6
-      },
-      {
-        "path": "unreal/unrealmodding-main/unreal_mod_integrator/Cargo.toml",
-        "type": "cargo",
-        "package_name": "unreal_mod_integrator",
-        "workspace_members": 0,
-        "dependency_count": 9
-      },
-      {
-        "path": "unreal/unrealmodding-main/unreal_mod_manager/Cargo.toml",
-        "type": "cargo",
-        "package_name": "unreal_mod_manager",
-        "workspace_members": 0,
-        "dependency_count": 25
       }
     ],
-    "manifest_count_total": 60,
+    "manifest_count_total": 62,
     "sampled_file_count": 220
   },
   "nodes": [

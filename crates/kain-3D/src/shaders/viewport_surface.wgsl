@@ -5,11 +5,12 @@ struct SceneUniforms {
     ambient_color_intensity: vec4<f32>,
     directional_directions: array<vec4<f32>, 2>,
     directional_colors: array<vec4<f32>, 2>,
-    point_positions_intensity: array<vec4<f32>, 4>,
-    point_colors_range: array<vec4<f32>, 4>,
+    point_positions_intensity: array<vec4<f32>, 8>,
+    point_colors_range: array<vec4<f32>, 8>,
     counts: vec4<u32>,
     background_top: vec4<f32>,
     background_bottom: vec4<f32>,
+    fog_color_density: vec4<f32>,
 };
 
 @group(0) @binding(0)
@@ -189,6 +190,13 @@ fn scene_fs_main(input: SceneVertexOutput) -> @location(0) vec4<f32> {
             input.specular_strength,
             input.shininess,
         );
+    }
+
+    let fog_density = max(scene.fog_color_density.w, 0.0);
+    if (fog_density > 0.0) {
+        let view_distance = distance(scene.camera_position.xyz, input.world_position);
+        let fog_factor = clamp(1.0 - exp(-view_distance * fog_density), 0.0, 1.0);
+        color = color * (1.0 - fog_factor) + scene.fog_color_density.xyz * fog_factor;
     }
 
     return vec4<f32>(clamp(color, vec3<f32>(0.0), vec3<f32>(1.0)), 1.0);

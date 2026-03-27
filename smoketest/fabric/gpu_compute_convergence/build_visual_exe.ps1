@@ -57,6 +57,44 @@ function Write-Utf8NoBomFile([string]$Path, [string]$Content) {
     [System.IO.File]::WriteAllText($Path, $Content, $Encoding)
 }
 
+function Update-RealtimeViewportPresentation(
+    [string]$BundlePath,
+    [string]$SceneName,
+    [string]$Profile,
+    [double]$FogDensity,
+    [int]$ParticleBudget
+) {
+    if (-not (Test-Path $BundlePath)) {
+        return
+    }
+
+    $Bundle = Get-Content -Raw -Path $BundlePath | ConvertFrom-Json
+    if ($null -eq $Bundle.render -or $null -eq $Bundle.render.scenes) {
+        return
+    }
+
+    $DidChange = $false
+    foreach ($Scene in @($Bundle.render.scenes)) {
+        if ([string]$Scene.scene -ne $SceneName) {
+            continue
+        }
+
+        $ExistingPresentation = Get-ObjectPropertyValue $Scene "presentation"
+        if ($null -eq $ExistingPresentation) {
+            $Scene | Add-Member -NotePropertyName presentation -NotePropertyValue ([pscustomobject]@{}) -Force
+        }
+
+        $Scene.presentation | Add-Member -NotePropertyName profile -NotePropertyValue $Profile -Force
+        $Scene.presentation | Add-Member -NotePropertyName fog_density -NotePropertyValue ([double]$FogDensity) -Force
+        $Scene.presentation | Add-Member -NotePropertyName particle_budget -NotePropertyValue ([int]$ParticleBudget) -Force
+        $DidChange = $true
+    }
+
+    if ($DidChange) {
+        Write-Utf8NoBomFile -Path $BundlePath -Content ($Bundle | ConvertTo-Json -Depth 16)
+    }
+}
+
 function Get-ObjectPropertyValue($Object, [string]$PropertyName) {
     if ($null -eq $Object) {
         return $null
@@ -298,6 +336,19 @@ try {
     & cargo @BuildArguments
     if ($LASTEXITCODE -ne 0) {
         throw "Native UI build failed for the Fabric visual showcase."
+    }
+
+    $RealtimeBundleCandidates = @(
+        (Join-Path $NativeAppRoot "generated\kain_realtime_app_bundle.json"),
+        (Join-Path $NativeAppRoot "kain_realtime_app_bundle.json")
+    )
+    foreach ($RealtimeBundlePath in $RealtimeBundleCandidates) {
+        Update-RealtimeViewportPresentation `
+            -BundlePath $RealtimeBundlePath `
+            -SceneName "magma_terraces" `
+            -Profile "graphics_max" `
+            -FogDensity 0.022 `
+            -ParticleBudget 1024
     }
 
     if ($Release) {

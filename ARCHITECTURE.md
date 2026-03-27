@@ -103,6 +103,16 @@ The native shader-canvas UI lane now follows this contract:
 
 The architecture rule here is the same as the viewport and compute lanes: shader-canvas execution can optimize presentation, but it must stay subordinate to compiler-owned bundle truth rather than inventing a renderer-local UI shader dialect.
 
+### Semantic Tab Workspace Lane
+
+Semantic authored tabs now follow the same ownership rule:
+
+- `kain-ui` and `kain-core` own tab intent through authored node metadata such as `tab_group_id`, `tab_label`, `tab_order`, `tab_default_active`, and `persistent_layout_id`
+- `kain-ui-native` may render that intent as native clickable tab chrome, but it should resolve and persist the active selection through `output.systems.workspace_layout.active_tabs`
+- host-side tab rendering is allowed to optimize presentation, but it must not invent a second tab schema or bypass the emitted UI/runtime bundle truth
+
+`smoketest/UI/kinetic_ui_atlas` is now the durable repo-local proof for this lane: a fresh four-page native executable that uses semantic top tabs, docked shells, shader canvases, and a real viewport workspace without reusing the older smoketest compositions.
+
 ### Viewport Contract Lane
 
 Viewport startup intent now follows the same compiler-owned pattern:

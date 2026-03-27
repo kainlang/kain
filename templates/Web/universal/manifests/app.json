@@ -43,7 +43,16 @@
       "scene_webgl",
       "chat_sse_tokens",
       "realtime_sse_ticks",
-      "realtime_ws"
+      "realtime_ws",
+      "community_hub",
+      "event_schedule",
+      "newsletter_panel",
+      "compliance_grid",
+      "observability_stack",
+      "infrastructure_stack",
+      "localization_grid",
+      "accessibility_grid",
+      "performance_targets"
     ]
   },
   "client_bundle": {

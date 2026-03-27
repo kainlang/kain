@@ -1,11 +1,11 @@
 # Code/Kain Flow Map
 
 - Directory: `M:\Code\Kain`
-- Generated (UTC): `2026-03-26T20:02:25.323747+00:00`
+- Generated (UTC): `2026-03-27T00:00:22.082242+00:00`
 - Languages: `JSON, Markdown, Rust, TOML`
 - Entry files: `Cargo.toml, unreal/unrealmodding-main/Cargo.toml, apps/ZenDAW/Cargo.toml, unreal/unrealmodding-main/unreal_pak_cli/Cargo.toml`
 - Manifests: `cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo`
-- Additional manifests omitted from markdown: `48`
+- Additional manifests omitted from markdown: `50`
 
 ```mermaid
 flowchart LR
@@ -53,14 +53,14 @@ flowchart LR
 - `apps/ZenDAW/Cargo.toml`: cargo, workspace members: 8, deps: 0
 - `unreal/unrealmodding-main/Cargo.toml`: cargo, workspace members: 16, deps: 0
 - `apps/kade-desktop/controller/Cargo.toml`: cargo, deps: 5
+- `apps/kain-fabric-modeler/local_crate/Cargo.toml`: cargo, deps: 0
+- `apps/kain-fabric-modeler/native-app/Cargo.toml`: cargo, deps: 1
 - `labs/native_ui_viewport_smoke/native_ui_viewport_smoke-native-ui/Cargo.toml`: cargo, deps: 1
 - `unreal/unrealmodding-main/dll_injector/Cargo.toml`: cargo, deps: 0
 - `unreal/unrealmodding-main/github_helpers/Cargo.toml`: cargo, deps: 3
 - `unreal/unrealmodding-main/unreal_asset/Cargo.toml`: cargo, deps: 8
 - `unreal/unrealmodding-main/unreal_cpp_bootstrapper/Cargo.toml`: cargo, deps: 8
 - `unreal/unrealmodding-main/unreal_helpers/Cargo.toml`: cargo, deps: 6
-- `unreal/unrealmodding-main/unreal_mod_integrator/Cargo.toml`: cargo, deps: 9
-- `unreal/unrealmodding-main/unreal_mod_manager/Cargo.toml`: cargo, deps: 25
 
 ## Edge Legend
 - `entrypoint`: root directory to a main entry file or manifest.
