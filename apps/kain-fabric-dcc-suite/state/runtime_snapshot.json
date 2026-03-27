@@ -482,7 +482,7 @@
                                 "provider_id":  "native_runtime",
                                 "status":  "succeeded",
                                 "workspace_root":  "M:\\Code\\Kain",
-                                "updated_at":  "2026-03-27T22:26:12Z",
+                                "updated_at":  "2026-03-27T22:32:11Z",
                                 "message_count":  1,
                                 "last_message_role":  "system",
                                 "last_message_preview":  "DCC suite bridge ready | fabric=succeeded | mode=Scene Assembly"
@@ -521,7 +521,7 @@
                                                             "schema_version":  1
                                                         },
                                             "workspace":  {
-                                                              "active_mode":  "scene_assembly",
+                                                              "active_mode":  "render_comp",
                                                               "layout_id":  "kain_fabric_dcc_suite_shell",
                                                               "available_modes":  [
                                                                                       "scene_assembly",
@@ -534,7 +534,7 @@
                                                                                   ]
                                                           },
                                             "tooling":  {
-                                                            "active_tool":  "select",
+                                                            "active_tool":  "material_layer_paint",
                                                             "brush_radius":  42,
                                                             "brush_strength_percent":  68
                                                         },
@@ -568,7 +568,7 @@
                                                               "active_material_id":  "material/hero_surface",
                                                               "active_graph_id":  "graph/lookdev_primary",
                                                               "active_texture_set_id":  "textureset/hero_body_udim1001",
-                                                              "active_layer_stack_id":  "layerstack/hero_surface_primary",
+                                                              "active_layer_stack_id":  "layerstack/hero_surface_secondary",
                                                               "active_svg_document_id":  "svg/masks/hero_surface_primary",
                                                               "active_bake_preset_id":  "bake/high_precision_curvature",
                                                               "active_export_preset_id":  "export/metalrough_orm_painter",
@@ -592,7 +592,7 @@
                                                                "solver_profile":  "cloth_preview"
                                                            },
                                             "render":  {
-                                                           "camera_id":  "camera/shot_main",
+                                                           "camera_id":  "camera/shot_closeup",
                                                            "view_transform":  "acescg",
                                                            "render_profile":  "viewport_quality",
                                                            "aov_set":  "beauty_plus_utility"
@@ -627,7 +627,7 @@
                                                           "compositor_dirty":  false,
                                                           "publish_dirty":  false,
                                                           "tensor_dirty":  false,
-                                                          "session_needs_save":  false
+                                                          "session_needs_save":  true
                                                       },
                                             "jobs":  {
                                                          "latest_fabric_session_id":  "session-1774650369315-174572",
@@ -641,11 +641,11 @@
                                                      }
                                         },
                             "derived":  {
-                                            "active_mode_label":  "scene_assembly",
-                                            "active_tool_label":  "select",
+                                            "active_mode_label":  "render_comp",
+                                            "active_tool_label":  "material_layer_paint",
                                             "selection_summary":  "1 entity selected",
                                             "gizmo_summary":  "translate | world | snap off",
-                                            "queued_intent_count":  0,
+                                            "queued_intent_count":  2,
                                             "latest_fabric_status":  "succeeded"
                                         },
                             "command_registry":  [
@@ -1552,95 +1552,216 @@
                                                     }
                                                 ],
                             "intent_queue":  [
-
+                                                 {
+                                                     "id":  "material.bake_preview",
+                                                     "reason":  "material layer stack changed",
+                                                     "priority":  70,
+                                                     "debounce_ms":  16,
+                                                     "status":  "succeeded",
+                                                     "source_command_id":  "c49a2a15-97a9-4d56-9218-5cb6b43bb9db"
+                                                 },
+                                                 {
+                                                     "id":  "render.preview",
+                                                     "reason":  "render preview requested",
+                                                     "priority":  60,
+                                                     "debounce_ms":  16,
+                                                     "status":  "succeeded",
+                                                     "source_command_id":  "7403b2b0-8a59-4370-be04-279e1df93471"
+                                                 }
                                              ],
-                            "latest_command":  null,
+                            "latest_command":  {
+                                                   "id":  "7403b2b0-8a59-4370-be04-279e1df93471",
+                                                   "kind":  "render.preview",
+                                                   "issued_at":  "2026-03-27T22:33:17Z",
+                                                   "payload":  {
+                                                                   "camera_id":  "camera/shot_closeup"
+                                                               }
+                                               },
                             "latest_fabric_run":  {
                                                       "session_id":  "session-1774650369315-174572",
                                                       "status":  "succeeded",
                                                       "manifest_path":  "apps/kain-fabric-dcc-suite/KAIN.fabric.toml",
-                                                      "steps":  [
-                                                                    {
-                                                                        "id":  "python_suite_bootstrap",
-                                                                        "runtime":  "python",
-                                                                        "status":  "succeeded",
-                                                                        "summary":  "Seeds project defaults, workspace selection, preview sizing, runtime pack counts, and tensor readiness hints."
-                                                                    },
-                                                                    {
-                                                                        "id":  "dcc_suite_seed",
-                                                                        "runtime":  "kain",
-                                                                        "status":  "succeeded",
-                                                                        "summary":  "Authors the scene graph bootstrap, asset catalog bootstrap, PBR material contract, SVG mask contract, preview buffers, tensor features, GPU sculpt seed buffers, and session report."
-                                                                    },
-                                                                    {
-                                                                        "id":  "gpu_sculpt_displacement",
-                                                                        "runtime":  "gpu_compute",
-                                                                        "status":  "succeeded",
-                                                                        "summary":  "Runs a GPU sculpt proof over seeded heightfield and brush parameter buffers, emitting the canonical sculpt delta payload."
-                                                                    },
-                                                                    {
-                                                                        "id":  "material_authoring_projection",
-                                                                        "runtime":  "kain",
-                                                                        "status":  "succeeded",
-                                                                        "summary":  "Projects a substance-painter-style texture set, layer stack, and export preset report from Kain-owned session truth."
-                                                                    },
-                                                                    {
-                                                                        "id":  "svg_material_mask_projection",
-                                                                        "runtime":  "kain",
-                                                                        "status":  "succeeded",
-                                                                        "summary":  "Projects SVG mask documents, anchor-driven vector motifs, and reusable decal shapes for the material lane."
-                                                                    },
-                                                                    {
-                                                                        "id":  "native_sculpt_kernel",
-                                                                        "runtime":  "c_abi",
-                                                                        "status":  "succeeded",
-                                                                        "summary":  "Uses the native helper to summarize GPU sculpt output into native-friendly sculpt signatures and reports."
-                                                                    },
-                                                                    {
-                                                                        "id":  "rig_graph_analysis",
-                                                                        "runtime":  "rust_crate",
-                                                                        "status":  "succeeded",
-                                                                        "summary":  "Builds graph and topology health reporting from authored scene and sculpt outputs."
-                                                                    },
-                                                                    {
-                                                                        "id":  "tensor_train_stage",
-                                                                        "runtime":  "python",
-                                                                        "status":  "succeeded",
-                                                                        "summary":  "Emits PyTorch-oriented training readiness and plan summaries without pretending the runtime is fully wired."
-                                                                    },
-                                                                    {
-                                                                        "id":  "tensor_infer_stage",
-                                                                        "runtime":  "python",
-                                                                        "status":  "succeeded",
-                                                                        "summary":  "Emits tensor inference readiness and model-serving summaries."
-                                                                    },
-                                                                    {
-                                                                        "id":  "gpu_material_preview",
-                                                                        "runtime":  "gpu_compute",
-                                                                        "status":  "succeeded",
-                                                                        "summary":  "Runs a compute preview and material bake pass across the shared preview buffers after PBR and SVG authoring receipts are materialized."
-                                                                    },
-                                                                    {
-                                                                        "id":  "material_texture_export_projection",
-                                                                        "runtime":  "kain",
-                                                                        "status":  "succeeded",
-                                                                        "summary":  "Builds channel-pack export receipts for metal-rough, ORM, height, emissive, and custom packed delivery."
-                                                                    },
-                                                                    {
-                                                                        "id":  "publish_suite_report",
-                                                                        "runtime":  "kain",
-                                                                        "status":  "succeeded",
-                                                                        "summary":  "Builds the publish and package report through a Kain-authored bridge that includes the material export lane."
-                                                                    }
-                                                                ]
+                                                      "hot_path_results":  [
+                                                                               [
+                                                                                   " KAIN Compiler v0.1.0 (build 1774557219)",
+                                                                                   "Fabric manifest: apps/kain-fabric-dcc-suite/fabric/intents/render_preview.fabric.toml",
+                                                                                   "Steps: 7",
+                                                                                   "Runtimes:",
+                                                                                   "  - gpu_compute: 1",
+                                                                                   "  - kain: 5",
+                                                                                   "  - python: 1",
+                                                                                   "Required capabilities:",
+                                                                                   "  - contract.shared-buffer",
+                                                                                   "  - contract.value",
+                                                                                   "  - runtime.gpu-compute",
+                                                                                   "  - runtime.kain",
+                                                                                   "  - runtime.python",
+                                                                                   "  - session.local",
+                                                                                   "Session: session-1774650837231-180024",
+                                                                                   "Status: Succeeded",
+                                                                                   "Session directory: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024",
+                                                                                   "Report: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\report.json",
+                                                                                   "Lock: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\session.lock.json",
+                                                                                   "Events: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\events.jsonl",
+                                                                                   "Step results:",
+                                                                                   "  - python_suite_bootstrap [python]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - dcc_suite_seed [kain]: Succeeded",
+                                                                                   "    outputs: 5",
+                                                                                   "  - material_authoring_projection [kain]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - svg_material_mask_projection [kain]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - gpu_render_preview [gpu_compute]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - material_texture_export_projection [kain]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - render_preview_projection [kain]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   {
+                                                                                       "id":  "render.preview",
+                                                                                       "status":  "succeeded",
+                                                                                       "manifest":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\fabric\\intents\\render_preview.fabric.toml",
+                                                                                       "exit_code":  0
+                                                                                   }
+                                                                               ],
+                                                                               [
+                                                                                   " KAIN Compiler v0.1.0 (build 1774557219)",
+                                                                                   "Fabric manifest: apps/kain-fabric-dcc-suite/fabric/intents/material_bake.fabric.toml",
+                                                                                   "Steps: 6",
+                                                                                   "Runtimes:",
+                                                                                   "  - gpu_compute: 1",
+                                                                                   "  - kain: 4",
+                                                                                   "  - python: 1",
+                                                                                   "Required capabilities:",
+                                                                                   "  - contract.shared-buffer",
+                                                                                   "  - contract.value",
+                                                                                   "  - runtime.gpu-compute",
+                                                                                   "  - runtime.kain",
+                                                                                   "  - runtime.python",
+                                                                                   "  - session.local",
+                                                                                   "Session: session-1774650839144-151836",
+                                                                                   "Status: Succeeded",
+                                                                                   "Session directory: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836",
+                                                                                   "Report: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\report.json",
+                                                                                   "Lock: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\session.lock.json",
+                                                                                   "Events: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\events.jsonl",
+                                                                                   "Step results:",
+                                                                                   "  - python_suite_bootstrap [python]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - dcc_suite_seed [kain]: Succeeded",
+                                                                                   "    outputs: 4",
+                                                                                   "  - material_authoring_projection [kain]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - svg_material_mask_projection [kain]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - gpu_material_preview [gpu_compute]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - material_texture_export_projection [kain]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   {
+                                                                                       "id":  "material.bake_preview",
+                                                                                       "status":  "succeeded",
+                                                                                       "manifest":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\fabric\\intents\\material_bake.fabric.toml",
+                                                                                       "exit_code":  0
+                                                                                   }
+                                                                               ]
+                                                                           ]
                                                   },
                             "bridge":  {
                                            "status":  "ready",
                                            "command_queue_path":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\state\\command_queue.jsonl",
                                            "session_document_path":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\state\\session_document.json",
-                                           "processed_command_count":  0,
-                                           "last_processed_at":  "2026-03-27T22:26:13Z",
-                                           "last_processed_batch_count":  0
+                                           "processed_command_count":  2,
+                                           "last_processed_at":  "2026-03-27T22:34:00Z",
+                                           "last_processed_batch_count":  1,
+                                           "dispatcher_mode":  "queue-pass+fabric-hot-path",
+                                           "last_fabric_results":  [
+                                                                       [
+                                                                           " KAIN Compiler v0.1.0 (build 1774557219)",
+                                                                           "Fabric manifest: apps/kain-fabric-dcc-suite/fabric/intents/render_preview.fabric.toml",
+                                                                           "Steps: 7",
+                                                                           "Runtimes:",
+                                                                           "  - gpu_compute: 1",
+                                                                           "  - kain: 5",
+                                                                           "  - python: 1",
+                                                                           "Required capabilities:",
+                                                                           "  - contract.shared-buffer",
+                                                                           "  - contract.value",
+                                                                           "  - runtime.gpu-compute",
+                                                                           "  - runtime.kain",
+                                                                           "  - runtime.python",
+                                                                           "  - session.local",
+                                                                           "Session: session-1774650837231-180024",
+                                                                           "Status: Succeeded",
+                                                                           "Session directory: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024",
+                                                                           "Report: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\report.json",
+                                                                           "Lock: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\session.lock.json",
+                                                                           "Events: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\events.jsonl",
+                                                                           "Step results:",
+                                                                           "  - python_suite_bootstrap [python]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - dcc_suite_seed [kain]: Succeeded",
+                                                                           "    outputs: 5",
+                                                                           "  - material_authoring_projection [kain]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - svg_material_mask_projection [kain]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - gpu_render_preview [gpu_compute]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - material_texture_export_projection [kain]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - render_preview_projection [kain]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           {
+                                                                               "id":  "render.preview",
+                                                                               "status":  "succeeded",
+                                                                               "manifest":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\fabric\\intents\\render_preview.fabric.toml",
+                                                                               "exit_code":  0
+                                                                           }
+                                                                       ],
+                                                                       [
+                                                                           " KAIN Compiler v0.1.0 (build 1774557219)",
+                                                                           "Fabric manifest: apps/kain-fabric-dcc-suite/fabric/intents/material_bake.fabric.toml",
+                                                                           "Steps: 6",
+                                                                           "Runtimes:",
+                                                                           "  - gpu_compute: 1",
+                                                                           "  - kain: 4",
+                                                                           "  - python: 1",
+                                                                           "Required capabilities:",
+                                                                           "  - contract.shared-buffer",
+                                                                           "  - contract.value",
+                                                                           "  - runtime.gpu-compute",
+                                                                           "  - runtime.kain",
+                                                                           "  - runtime.python",
+                                                                           "  - session.local",
+                                                                           "Session: session-1774650839144-151836",
+                                                                           "Status: Succeeded",
+                                                                           "Session directory: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836",
+                                                                           "Report: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\report.json",
+                                                                           "Lock: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\session.lock.json",
+                                                                           "Events: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\events.jsonl",
+                                                                           "Step results:",
+                                                                           "  - python_suite_bootstrap [python]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - dcc_suite_seed [kain]: Succeeded",
+                                                                           "    outputs: 4",
+                                                                           "  - material_authoring_projection [kain]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - svg_material_mask_projection [kain]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - gpu_material_preview [gpu_compute]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - material_texture_export_projection [kain]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           {
+                                                                               "id":  "material.bake_preview",
+                                                                               "status":  "succeeded",
+                                                                               "manifest":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\fabric\\intents\\material_bake.fabric.toml",
+                                                                               "exit_code":  0
+                                                                           }
+                                                                       ]
+                                                                   ]
                                        },
                             "extension_seams":  [
                                                     "material lane still projects authoring receipts rather than a true native painter runtime",
@@ -1649,5 +1770,5 @@
                                                     "compositor lane still materializes rebuild plans rather than a first-class compositor graph runtime"
                                                 ]
                         },
-    "updated_at":  "2026-03-27T22:26:12Z"
+    "updated_at":  "2026-03-27T22:32:11Z"
 }

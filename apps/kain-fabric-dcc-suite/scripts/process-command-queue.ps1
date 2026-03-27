@@ -1,6 +1,8 @@
 param(
     [string]$AppRoot,
-    [switch]$KeepQueue
+    [switch]$KeepQueue,
+    [switch]$ExecuteFabricHotPath,
+    [switch]$RegenerateShell
 )
 
 $ErrorActionPreference = "Stop"
@@ -52,7 +54,7 @@ function New-Intent {
 function Add-IntentIfMissing {
     param(
         [System.Collections.ArrayList]$IntentQueue,
-        [hashtable]$Intent
+        $Intent
     )
 
     foreach ($existing in $IntentQueue) {
@@ -70,11 +72,9 @@ function Get-CommandKind {
     if ($Command.PSObject.Properties.Name -contains "kind" -and -not [string]::IsNullOrWhiteSpace([string]$Command.kind)) {
         return [string]$Command.kind
     }
-
     if ($Command.PSObject.Properties.Name -contains "id" -and -not [string]::IsNullOrWhiteSpace([string]$Command.id)) {
         return [string]$Command.id
     }
-
     if ($Command.PSObject.Properties.Name -contains "command_id" -and -not [string]::IsNullOrWhiteSpace([string]$Command.command_id)) {
         return [string]$Command.command_id
     }
@@ -92,15 +92,9 @@ function Get-PayloadValue {
     if ($null -eq $Payload) {
         return $Default
     }
-
-    if ($Payload -is [hashtable] -and $Payload.ContainsKey($Key)) {
-        return $Payload[$Key]
-    }
-
     if ($Payload.PSObject.Properties.Name -contains $Key) {
         return $Payload.$Key
     }
-
     return $Default
 }
 
@@ -128,11 +122,65 @@ function Update-DerivedState {
     }
 }
 
+function Ensure-BridgeProperty {
+    param(
+        $Bridge,
+        [string]$Name,
+        $Value
+    )
+
+    if (-not ($Bridge.PSObject.Properties.Name -contains $Name)) {
+        $Bridge | Add-Member -NotePropertyName $Name -NotePropertyValue $Value
+    }
+}
+
+function Get-IntentGraphLookup {
+    param([string]$ConfigPath)
+
+    $lookup = @{}
+    $config = Get-JsonDocument -Path $ConfigPath
+    foreach ($intent in @($config.intents)) {
+        $lookup[[string]$intent.id] = [string]$intent.graph
+    }
+    return $lookup
+}
+
+function Invoke-FabricIntent {
+    param(
+        [string]$RepoRoot,
+        [string]$AppRoot,
+        [string]$GraphPath,
+        [string]$IntentId
+    )
+
+    if ([string]::IsNullOrWhiteSpace($GraphPath)) {
+        return [ordered]@{ id = $IntentId; status = "skipped"; reason = "no graph path" }
+    }
+
+    $manifestPath = Join-Path $AppRoot $GraphPath
+    if (-not (Test-Path $manifestPath)) {
+        return [ordered]@{ id = $IntentId; status = "missing"; manifest = $manifestPath }
+    }
+
+    Push-Location $RepoRoot
+    try {
+        & cargo run -p cli --bin kain -- fabric run --manifest ("apps/kain-fabric-dcc-suite/" + $GraphPath)
+        if ($LASTEXITCODE -ne 0) {
+            return [ordered]@{ id = $IntentId; status = "failed"; manifest = $manifestPath; exit_code = $LASTEXITCODE }
+        }
+        return [ordered]@{ id = $IntentId; status = "succeeded"; manifest = $manifestPath; exit_code = 0 }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($AppRoot)) {
     $AppRoot = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) ".."
 }
 
 $AppRoot = (Resolve-Path $AppRoot).Path
+$RepoRoot = (Resolve-Path (Join-Path $AppRoot "..\.." )).Path
 $StateRoot = Join-Path $AppRoot "state"
 $NativeStateRoot = Join-Path $AppRoot "native-app/state"
 $CommandQueuePath = Join-Path $StateRoot "command_queue.jsonl"
@@ -140,11 +188,13 @@ $SessionPath = Join-Path $StateRoot "session_document.json"
 $SnapshotPath = Join-Path $StateRoot "runtime_snapshot.json"
 $NativeSessionPath = Join-Path $NativeStateRoot "session_document.json"
 $NativeSnapshotPath = Join-Path $NativeStateRoot "runtime_snapshot.json"
+$IntentConfigPath = Join-Path $AppRoot "config/fabric_intents.json"
 
 Ensure-StateDocuments -ResolvedAppRoot $AppRoot
 
 $RuntimeSnapshot = Get-JsonDocument -Path $SnapshotPath
 $SessionDocument = Get-JsonDocument -Path $SessionPath
+$IntentGraphLookup = Get-IntentGraphLookup -ConfigPath $IntentConfigPath
 
 if (-not (Test-Path $CommandQueuePath)) {
     Set-Content -Path $CommandQueuePath -Value ""
@@ -169,9 +219,8 @@ $RawLines = @(Get-Content $CommandQueuePath | Where-Object { -not [string]::IsNu
 foreach ($rawLine in $RawLines) {
     $Command = $rawLine | ConvertFrom-Json
     $CommandKind = Get-CommandKind -Command $Command
-    $Payload = Get-PayloadValue -Payload $Command -Key "payload" -Default @{}
-    if ($null -eq $Payload) { $Payload = @{} }
-    $CommandId = [string](Get-PayloadValue -Payload $Command -Key "command_id" -Default $(Get-PayloadValue -Payload $Command -Key "id" -Default ([guid]::NewGuid().ToString())))
+    $Payload = Get-PayloadValue -Payload $Command -Key "payload" -Default ([pscustomobject]@{})
+    $CommandId = [string](Get-PayloadValue -Payload $Command -Key "id" -Default ([guid]::NewGuid().ToString()))
     $IssuedAt = [string](Get-PayloadValue -Payload $Command -Key "issued_at" -Default ((Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")))
 
     switch ($CommandKind) {
@@ -179,7 +228,7 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.workspace.active_mode = [string](Get-PayloadValue -Payload $Payload -Key "mode_id" -Default $SessionDocument.workspace.active_mode)
             $SessionDocument.dirty.render_dirty = $true
             $SessionDocument.dirty.session_needs_save = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "render.preview" -Reason "workspace mode changed" -Priority 60 -DebounceMs 16 -SourceCommandId $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "render.preview" "workspace mode changed" 60 16 $CommandId)
         }
         "asset.ingest_package" {
             $SessionDocument.ingest.last_package_uri = [string](Get-PayloadValue -Payload $Payload -Key "source_uri" -Default $SessionDocument.ingest.last_package_uri)
@@ -191,8 +240,8 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.dirty.publish_dirty = $true
             $SessionDocument.dirty.tensor_dirty = $true
             $SessionDocument.dirty.session_needs_save = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "asset.ingest_package" -Reason "asset package staged" -Priority 90 -DebounceMs 0 -SourceCommandId $CommandId)
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "render.preview" -Reason "ingested assets need preview refresh" -Priority 60 -DebounceMs 16 -SourceCommandId $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "asset.ingest_package" "asset package staged" 90 0 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "render.preview" "ingested assets need preview refresh" 60 16 $CommandId)
         }
         "tool.activate" {
             $SessionDocument.tooling.active_tool = [string](Get-PayloadValue -Payload $Payload -Key "tool_id" -Default $SessionDocument.tooling.active_tool)
@@ -221,14 +270,14 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.dirty.render_dirty = $true
             $SessionDocument.dirty.publish_dirty = $true
             $SessionDocument.dirty.session_needs_save = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "sculpt.apply_stroke" -Reason "operator sculpt stroke" -Priority 95 -DebounceMs 0 -SourceCommandId $CommandId)
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "topology.rebuild" -Reason "sculpt changed topology-sensitive data" -Priority 80 -DebounceMs 32 -SourceCommandId $CommandId)
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "render.preview" -Reason "sculpt stroke needs viewport refresh" -Priority 60 -DebounceMs 16 -SourceCommandId $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "sculpt.apply_stroke" "operator sculpt stroke" 95 0 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "topology.rebuild" "sculpt changed topology-sensitive data" 80 32 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "render.preview" "sculpt stroke needs viewport refresh" 60 16 $CommandId)
         }
         "topology.rebuild" {
             $SessionDocument.dirty.topology_dirty = $true
             $SessionDocument.dirty.rig_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "topology.rebuild" -Reason "topology rebuild requested" -Priority 80 -DebounceMs 32 -SourceCommandId $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "topology.rebuild" "topology rebuild requested" 80 32 $CommandId)
         }
         "rig.sync_controls" {
             $SessionDocument.workspace.active_mode = "rig_anim"
@@ -236,7 +285,7 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.dirty.rig_dirty = $true
             $SessionDocument.dirty.animation_dirty = $true
             $SessionDocument.dirty.render_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "rig.sync_controls" -Reason "rig sync requested" -Priority 72 -DebounceMs 24 -SourceCommandId $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "rig.sync_controls" "rig sync requested" 72 24 $CommandId)
         }
         "sim.tick" {
             $SessionDocument.workspace.active_mode = "sim_fx"
@@ -244,14 +293,14 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.dirty.simulation_dirty = $true
             $SessionDocument.dirty.render_dirty = $true
             $SessionDocument.dirty.compositor_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "sim.tick" -Reason "simulation tick requested" -Priority 64 -DebounceMs 16 -SourceCommandId $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "sim.tick" "simulation tick requested" 64 16 $CommandId)
         }
         "material.bake_preview" {
             $SessionDocument.workspace.active_mode = "material_lookdev"
             $SessionDocument.dirty.material_dirty = $true
             $SessionDocument.dirty.render_dirty = $true
             $SessionDocument.dirty.compositor_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "material.bake_preview" -Reason "material preview requested" -Priority 70 -DebounceMs 16 -SourceCommandId $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "material.bake_preview" "material preview requested" 70 16 $CommandId)
         }
         "material.author_texture_set" {
             $SessionDocument.workspace.active_mode = "material_lookdev"
@@ -261,8 +310,8 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.dirty.render_dirty = $true
             $SessionDocument.dirty.compositor_dirty = $true
             $SessionDocument.dirty.session_needs_save = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "material.bake_preview" -Reason "texture set changed" -Priority 70 -DebounceMs 16 -SourceCommandId $CommandId)
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "render.preview" -Reason "lookdev preview needs refresh" -Priority 60 -DebounceMs 16 -SourceCommandId $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "material.bake_preview" "texture set changed" 70 16 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "render.preview" "lookdev preview needs refresh" 60 16 $CommandId)
         }
         "material.paint_layer" {
             $SessionDocument.workspace.active_mode = "material_lookdev"
@@ -272,7 +321,7 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.dirty.render_dirty = $true
             $SessionDocument.dirty.compositor_dirty = $true
             $SessionDocument.dirty.session_needs_save = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "material.bake_preview" -Reason "material layer stack changed" -Priority 70 -DebounceMs 16 -SourceCommandId $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "material.bake_preview" "material layer stack changed" 70 16 $CommandId)
         }
         "material.edit_svg_mask" {
             $SessionDocument.workspace.active_mode = "material_lookdev"
@@ -282,47 +331,46 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.dirty.render_dirty = $true
             $SessionDocument.dirty.compositor_dirty = $true
             $SessionDocument.dirty.session_needs_save = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "material.bake_preview" -Reason "svg mask graph changed" -Priority 70 -DebounceMs 16 -SourceCommandId $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "material.bake_preview" "svg mask graph changed" 70 16 $CommandId)
         }
         "material.export_textures" {
             $SessionDocument.workspace.active_mode = "material_lookdev"
             $SessionDocument.materials.active_export_preset_id = [string](Get-PayloadValue -Payload $Payload -Key "preset_id" -Default $SessionDocument.materials.active_export_preset_id)
             $SessionDocument.dirty.publish_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "material.export_textures" -Reason "material export requested" -Priority 74 -DebounceMs 0 -SourceCommandId $CommandId)
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "publish.package" -Reason "publish bundle depends on exported textures" -Priority 40 -DebounceMs 0 -SourceCommandId $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "material.export_textures" "material export requested" 74 0 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "publish.package" "publish bundle depends on exported textures" 40 0 $CommandId)
         }
         "render.preview" {
             $SessionDocument.workspace.active_mode = "render_comp"
             $SessionDocument.render.camera_id = [string](Get-PayloadValue -Payload $Payload -Key "camera_id" -Default $SessionDocument.render.camera_id)
             $SessionDocument.dirty.render_dirty = $true
             $SessionDocument.dirty.compositor_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "render.preview" -Reason "render preview requested" -Priority 60 -DebounceMs 16 -SourceCommandId $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "render.preview" "render preview requested" 60 16 $CommandId)
         }
         "compositor.rebuild" {
             $SessionDocument.workspace.active_mode = "render_comp"
             $SessionDocument.compositor.active_stack_id = [string](Get-PayloadValue -Payload $Payload -Key "stack_id" -Default $SessionDocument.compositor.active_stack_id)
             $SessionDocument.dirty.compositor_dirty = $true
             $SessionDocument.dirty.publish_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "compositor.rebuild" -Reason "compositor rebuild requested" -Priority 48 -DebounceMs 48 -SourceCommandId $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "compositor.rebuild" "compositor rebuild requested" 48 48 $CommandId)
         }
         "publish.package" {
             $SessionDocument.workspace.active_mode = "publish_automation"
             $SessionDocument.publish.profile_id = [string](Get-PayloadValue -Payload $Payload -Key "profile" -Default $SessionDocument.publish.profile_id)
             $SessionDocument.dirty.publish_dirty = $true
             $SessionDocument.dirty.session_needs_save = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "publish.package" -Reason "publish package requested" -Priority 40 -DebounceMs 0 -SourceCommandId $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "publish.package" "publish package requested" 40 0 $CommandId)
         }
         "tensor.train_step" {
             $SessionDocument.dirty.tensor_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "tensor.train_step" -Reason "tensor training requested" -Priority 55 -DebounceMs 0 -SourceCommandId $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "tensor.train_step" "tensor training requested" 55 0 $CommandId)
         }
         "tensor.infer_step" {
             $SessionDocument.dirty.tensor_dirty = $true
             $SessionDocument.dirty.publish_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent -IntentId "tensor.infer_step" -Reason "tensor inference requested" -Priority 55 -DebounceMs 0 -SourceCommandId $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "tensor.infer_step" "tensor inference requested" 55 0 $CommandId)
         }
-        default {
-        }
+        default { }
     }
 
     $LatestCommand = [ordered]@{
@@ -335,21 +383,54 @@ foreach ($rawLine in $RawLines) {
     $ProcessedCount += 1
 }
 
-$SessionDocument.jobs.active_intents = @($IntentQueue | ForEach-Object { $_.id })
-$SessionDocument.jobs.latest_fabric_status = if (@($IntentQueue).Count -gt 0) { "queued" } else { [string]$SessionDocument.jobs.latest_fabric_status }
+$ExecutedFabricResults = New-Object System.Collections.ArrayList
+if ($ExecuteFabricHotPath -and @($IntentQueue).Count -gt 0) {
+    $hotPathIntentIds = @("material.bake_preview", "render.preview")
+    $sortedIntents = @($IntentQueue | Sort-Object priority -Descending)
+    foreach ($intent in $sortedIntents) {
+        if ($hotPathIntentIds -notcontains [string]$intent.id) {
+            continue
+        }
 
-if (-not ($RuntimeSnapshot.dcc_suite_state.bridge.PSObject.Properties.Name -contains "processed_command_count")) {
-    $RuntimeSnapshot.dcc_suite_state.bridge | Add-Member -NotePropertyName processed_command_count -NotePropertyValue 0
+        $graphPath = $IntentGraphLookup[[string]$intent.id]
+        $result = Invoke-FabricIntent -RepoRoot $RepoRoot -AppRoot $AppRoot -GraphPath $graphPath -IntentId ([string]$intent.id)
+        $null = $ExecutedFabricResults.Add($result)
+        $intent.status = [string]$result.status
+    }
+
+    if (@($ExecutedFabricResults).Count -gt 0) {
+        $hasFailure = @($ExecutedFabricResults | Where-Object { $_.status -ne "succeeded" }).Count -gt 0
+        $SessionDocument.jobs.latest_fabric_status = if ($hasFailure) { "failed" } else { "succeeded" }
+        $SessionDocument.dirty.material_dirty = $false
+        $SessionDocument.dirty.render_dirty = $false
+        $SessionDocument.dirty.compositor_dirty = $false
+    }
 }
-if (-not ($RuntimeSnapshot.dcc_suite_state.bridge.PSObject.Properties.Name -contains "last_processed_at")) {
-    $RuntimeSnapshot.dcc_suite_state.bridge | Add-Member -NotePropertyName last_processed_at -NotePropertyValue $null
+else {
+    $SessionDocument.jobs.latest_fabric_status = if (@($IntentQueue).Count -gt 0) { "queued" } else { [string]$SessionDocument.jobs.latest_fabric_status }
 }
-if (-not ($RuntimeSnapshot.dcc_suite_state.bridge.PSObject.Properties.Name -contains "last_processed_batch_count")) {
-    $RuntimeSnapshot.dcc_suite_state.bridge | Add-Member -NotePropertyName last_processed_batch_count -NotePropertyValue 0
+
+$SessionDocument.jobs.active_intents = @($IntentQueue | Where-Object { $_.status -eq "queued" } | ForEach-Object { $_.id })
+
+$Bridge = $RuntimeSnapshot.dcc_suite_state.bridge
+Ensure-BridgeProperty -Bridge $Bridge -Name processed_command_count -Value 0
+Ensure-BridgeProperty -Bridge $Bridge -Name last_processed_at -Value $null
+Ensure-BridgeProperty -Bridge $Bridge -Name last_processed_batch_count -Value 0
+Ensure-BridgeProperty -Bridge $Bridge -Name dispatcher_mode -Value "queue-pass"
+Ensure-BridgeProperty -Bridge $Bridge -Name last_fabric_results -Value @()
+
+$Bridge.processed_command_count = [int]$Bridge.processed_command_count + $ProcessedCount
+$Bridge.last_processed_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+$Bridge.last_processed_batch_count = $ProcessedCount
+$Bridge.dispatcher_mode = if ($ExecuteFabricHotPath) { "queue-pass+fabric-hot-path" } else { "queue-pass" }
+$Bridge.last_fabric_results = @($ExecutedFabricResults)
+
+$RuntimeSnapshot.dcc_suite_state.latest_fabric_run = [ordered]@{
+    session_id = [string]$SessionDocument.jobs.latest_fabric_session_id
+    status = [string]$SessionDocument.jobs.latest_fabric_status
+    manifest_path = "apps/kain-fabric-dcc-suite/KAIN.fabric.toml"
+    hot_path_results = @($ExecutedFabricResults)
 }
-$RuntimeSnapshot.dcc_suite_state.bridge.processed_command_count = [int]$RuntimeSnapshot.dcc_suite_state.bridge.processed_command_count + $ProcessedCount
-$RuntimeSnapshot.dcc_suite_state.bridge.last_processed_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-$RuntimeSnapshot.dcc_suite_state.bridge.last_processed_batch_count = $ProcessedCount
 
 Update-DerivedState -RuntimeSnapshot $RuntimeSnapshot -SessionDocument $SessionDocument -IntentQueue $IntentQueue -LatestCommand $LatestCommand
 
@@ -360,6 +441,10 @@ New-Item -ItemType Directory -Force -Path $NativeStateRoot | Out-Null
 Set-JsonFile -Path $NativeSessionPath -Value $SessionDocument -Depth 16
 Set-JsonFile -Path $NativeSnapshotPath -Value $RuntimeSnapshot -Depth 24
 
+if ($RegenerateShell) {
+    powershell -ExecutionPolicy Bypass -File (Join-Path $AppRoot "scripts/materialize-shell.ps1")
+}
+
 if (-not $KeepQueue) {
     Set-Content -Path $CommandQueuePath -Value ""
     $NativeQueuePath = Join-Path $NativeStateRoot "command_queue.jsonl"
@@ -369,3 +454,6 @@ if (-not $KeepQueue) {
 }
 
 Write-Host "Processed $ProcessedCount command(s) from $CommandQueuePath"
+if (@($ExecutedFabricResults).Count -gt 0) {
+    Write-Host ("Executed Fabric hot path intents: " + ((@($ExecutedFabricResults) | ForEach-Object { $_.id + ":" + $_.status }) -join ", "))
+}

@@ -1,0 +1,13 @@
+{
+  "kind": "render_preview_report",
+  "project": "fabric-dcc-suite",
+  "workspace_mode": "scene_assembly",
+  "render_profile": "lookdev_review_balanced",
+  "gpu_step": "gpu_render_preview",
+  "preview_buffer_bytes": 4,
+  "preview_sample_count": 1,
+  "aov_count": 14,
+  "upstream_material_summary": "material-authoring:scene_assembly:layers=15:svg=21",
+  "upstream_svg_summary": "svg-mask:scene_assembly:shapes=21:anchors=14",
+  "upstream_export_summary": "material-export:scene_assembly:packs=4:udim=12"
+}

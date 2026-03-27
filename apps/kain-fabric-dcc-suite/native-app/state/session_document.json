@@ -5,7 +5,7 @@
                     "schema_version":  1
                 },
     "workspace":  {
-                      "active_mode":  "scene_assembly",
+                      "active_mode":  "render_comp",
                       "layout_id":  "kain_fabric_dcc_suite_shell",
                       "available_modes":  [
                                               "scene_assembly",
@@ -18,7 +18,7 @@
                                           ]
                   },
     "tooling":  {
-                    "active_tool":  "select",
+                    "active_tool":  "material_layer_paint",
                     "brush_radius":  42,
                     "brush_strength_percent":  68
                 },
@@ -52,7 +52,7 @@
                       "active_material_id":  "material/hero_surface",
                       "active_graph_id":  "graph/lookdev_primary",
                       "active_texture_set_id":  "textureset/hero_body_udim1001",
-                      "active_layer_stack_id":  "layerstack/hero_surface_primary",
+                      "active_layer_stack_id":  "layerstack/hero_surface_secondary",
                       "active_svg_document_id":  "svg/masks/hero_surface_primary",
                       "active_bake_preset_id":  "bake/high_precision_curvature",
                       "active_export_preset_id":  "export/metalrough_orm_painter",
@@ -76,7 +76,7 @@
                        "solver_profile":  "cloth_preview"
                    },
     "render":  {
-                   "camera_id":  "camera/shot_main",
+                   "camera_id":  "camera/shot_closeup",
                    "view_transform":  "acescg",
                    "render_profile":  "viewport_quality",
                    "aov_set":  "beauty_plus_utility"
@@ -111,7 +111,7 @@
                   "compositor_dirty":  false,
                   "publish_dirty":  false,
                   "tensor_dirty":  false,
-                  "session_needs_save":  false
+                  "session_needs_save":  true
               },
     "jobs":  {
                  "latest_fabric_session_id":  "session-1774650369315-174572",

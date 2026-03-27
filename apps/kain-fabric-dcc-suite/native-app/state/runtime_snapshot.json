@@ -1,131 +1,1774 @@
 {
-  "app_id": "kain.fabric.dcc.suite",
-  "name": "Kain Fabric DCC Suite",
-  "version": "0.1.0",
-  "window_title": "Kain Fabric DCC Suite",
-  "root_component": "App",
-  "layout_id": "kain_fabric_dcc_suite_shell",
-  "required_runtime_capabilities": [
-    "compiler.typed-program",
-    "driver.native-app-bundle",
-    "memory.raw-ops",
-    "memory.raw-pointers",
-    "runtime.contract.bundle",
-    "ui.components",
-    "ui.runtime-bundle"
-  ],
-  "panels": [
-    {
-      "id": "runtime_surface",
-      "title": "Kain Fabric DCC Suite",
-      "dock": "center",
-      "kind": "native-ui"
-    }
-  ],
-  "commands": [
-    {
-      "id": "runtime.reload",
-      "label": "Reload Runtime",
-      "surface": "titlebar",
-      "intent": "runtime.reload"
-    }
-  ],
-  "providers": [
-    {
-      "id": "native_runtime",
-      "label": "Native Runtime",
-      "transport": "in-process",
-      "profile_kind": "native-ui",
-      "supports_tools": true,
-      "supports_streaming": false,
-      "active": true,
-      "profile_configured": true,
-      "profile_keys": []
-    }
-  ],
-  "tools": [
-    {
-      "id": "compiler_typed-program",
-      "label": "compiler.typed-program",
-      "capability": "compiler.typed-program",
-      "approval": "workspace",
-      "decision": null,
-      "scope_decisions": []
-    },
-    {
-      "id": "driver_native-app-bundle",
-      "label": "driver.native-app-bundle",
-      "capability": "driver.native-app-bundle",
-      "approval": "workspace",
-      "decision": null,
-      "scope_decisions": []
-    },
-    {
-      "id": "memory_raw-ops",
-      "label": "memory.raw-ops",
-      "capability": "memory.raw-ops",
-      "approval": "workspace",
-      "decision": null,
-      "scope_decisions": []
-    },
-    {
-      "id": "memory_raw-pointers",
-      "label": "memory.raw-pointers",
-      "capability": "memory.raw-pointers",
-      "approval": "workspace",
-      "decision": null,
-      "scope_decisions": []
-    },
-    {
-      "id": "runtime_contract_bundle",
-      "label": "runtime.contract.bundle",
-      "capability": "runtime.contract.bundle",
-      "approval": "workspace",
-      "decision": null,
-      "scope_decisions": []
-    },
-    {
-      "id": "ui_components",
-      "label": "ui.components",
-      "capability": "ui.components",
-      "approval": "workspace",
-      "decision": null,
-      "scope_decisions": []
-    },
-    {
-      "id": "ui_runtime-bundle",
-      "label": "ui.runtime-bundle",
-      "capability": "ui.runtime-bundle",
-      "approval": "workspace",
-      "decision": null,
-      "scope_decisions": []
-    }
-  ],
-  "sessions": {
-    "total_sessions": 1,
-    "active_provider": "native_runtime",
-    "recent_session_id": "native-app-session",
-    "recent_session_title": "Kain Fabric DCC Suite"
-  },
-  "recent_sessions": [
-    {
-      "id": "native-app-session",
-      "title": "Kain Fabric DCC Suite",
-      "provider_id": "native_runtime",
-      "status": "active",
-      "workspace_root": "M:\\Code\\Kain",
-      "updated_at": "2026-03-25T00:00:00Z",
-      "message_count": 1,
-      "last_message_role": "system",
-      "last_message_preview": "Native app materialization snapshot"
-    }
-  ],
-  "workspaces": [
-    {
-      "root": "M:\\Code\\Kain",
-      "session_count": 1,
-      "recent_session_title": "Kain Fabric DCC Suite"
-    }
-  ],
-  "updated_at": "2026-03-25T00:00:00Z"
+    "app_id":  "kain.fabric.dcc-suite",
+    "name":  "Kain Fabric DCC Suite",
+    "version":  "0.1.0",
+    "window_title":  "Kain Fabric DCC Suite",
+    "root_component":  "App",
+    "layout_id":  "kain_fabric_dcc_suite_shell",
+    "required_runtime_capabilities":  [
+                                          "ui.runtime",
+                                          "actor.runtime",
+                                          "async.runtime",
+                                          "host.bridge",
+                                          "reflection",
+                                          "gfx.viewport",
+                                          "scene.runtime",
+                                          "scene.query",
+                                          "scene.mutation",
+                                          "asset.gltf",
+                                          "asset.usd",
+                                          "asset.realtime",
+                                          "material.graph",
+                                          "material.layer_stack",
+                                          "material.paint",
+                                          "material.texture_export",
+                                          "vector.svg",
+                                          "rig.runtime",
+                                          "animation.runtime",
+                                          "simulation.runtime",
+                                          "render.runtime",
+                                          "compositor.runtime",
+                                          "fabric.runtime",
+                                          "tensor.runtime",
+                                          "automation.runtime",
+                                          "ui.bundle",
+                                          "device.reflection"
+                                      ],
+    "panels":  [
+                   {
+                       "id":  "runtime_surface",
+                       "title":  "Kain Fabric DCC Suite",
+                       "dock":  "center",
+                       "kind":  "native-ui"
+                   }
+               ],
+    "commands":  [
+                     {
+                         "id":  "runtime.reload",
+                         "label":  "Reload Runtime",
+                         "surface":  "titlebar",
+                         "intent":  "runtime.reload"
+                     },
+                     {
+                         "id":  "project.bootstrap",
+                         "label":  "Bootstrap Suite",
+                         "surface":  "titlebar",
+                         "intent":  "project.bootstrap"
+                     },
+                     {
+                         "id":  "workspace.switch_mode",
+                         "label":  "Switch Workspace",
+                         "surface":  "workspace_mode_rail",
+                         "intent":  "workspace.switch_mode"
+                     },
+                     {
+                         "id":  "asset.ingest_package",
+                         "label":  "Ingest Package",
+                         "surface":  "asset_ingest",
+                         "intent":  "asset.ingest_package"
+                     },
+                     {
+                         "id":  "tool.activate",
+                         "label":  "Activate Tool",
+                         "surface":  "tool_shelf",
+                         "intent":  "tool.activate"
+                     },
+                     {
+                         "id":  "selection.set",
+                         "label":  "Set Selection",
+                         "surface":  "viewport",
+                         "intent":  "selection.set"
+                     },
+                     {
+                         "id":  "gizmo.set_mode",
+                         "label":  "Set Gizmo Mode",
+                         "surface":  "viewport",
+                         "intent":  "gizmo.set_mode"
+                     },
+                     {
+                         "id":  "gizmo.set_space",
+                         "label":  "Set Gizmo Space",
+                         "surface":  "viewport",
+                         "intent":  "gizmo.set_space"
+                     },
+                     {
+                         "id":  "gizmo.toggle_snap",
+                         "label":  "Toggle Gizmo Snap",
+                         "surface":  "viewport",
+                         "intent":  "gizmo.toggle_snap"
+                     },
+                     {
+                         "id":  "sculpt.apply_stroke",
+                         "label":  "Apply Sculpt Stroke",
+                         "surface":  "viewport",
+                         "intent":  "sculpt.apply_stroke"
+                     },
+                     {
+                         "id":  "topology.rebuild",
+                         "label":  "Rebuild Topology",
+                         "surface":  "scene_graph",
+                         "intent":  "topology.rebuild"
+                     },
+                     {
+                         "id":  "rig.sync_controls",
+                         "label":  "Sync Rig Controls",
+                         "surface":  "rig_graph",
+                         "intent":  "rig.sync_controls"
+                     },
+                     {
+                         "id":  "sim.tick",
+                         "label":  "Tick Simulation",
+                         "surface":  "simulation_board",
+                         "intent":  "sim.tick"
+                     },
+                     {
+                         "id":  "material.bake_preview",
+                         "label":  "Bake Material Preview",
+                         "surface":  "material_graph",
+                         "intent":  "material.bake_preview"
+                     },
+                     {
+                         "id":  "material.author_texture_set",
+                         "label":  "Author Texture Set",
+                         "surface":  "texture_set_inspector",
+                         "intent":  "material.bake_preview"
+                     },
+                     {
+                         "id":  "material.paint_layer",
+                         "label":  "Paint Material Layer",
+                         "surface":  "material_layers",
+                         "intent":  "material.bake_preview"
+                     },
+                     {
+                         "id":  "material.edit_svg_mask",
+                         "label":  "Edit SVG Mask",
+                         "surface":  "svg_mask_canvas",
+                         "intent":  "material.bake_preview"
+                     },
+                     {
+                         "id":  "material.export_textures",
+                         "label":  "Export Texture Set",
+                         "surface":  "material_export_board",
+                         "intent":  "material.export_textures"
+                     },
+                     {
+                         "id":  "render.preview",
+                         "label":  "Render Preview",
+                         "surface":  "render_lounge",
+                         "intent":  "render.preview"
+                     },
+                     {
+                         "id":  "compositor.rebuild",
+                         "label":  "Rebuild Composite",
+                         "surface":  "compositor_stack",
+                         "intent":  "compositor.rebuild"
+                     },
+                     {
+                         "id":  "publish.package",
+                         "label":  "Package Publish",
+                         "surface":  "publish_console",
+                         "intent":  "publish.package"
+                     },
+                     {
+                         "id":  "tensor.train_step",
+                         "label":  "Tensor Train Step",
+                         "surface":  "jobs_monitor",
+                         "intent":  "tensor.train_step"
+                     },
+                     {
+                         "id":  "tensor.infer_step",
+                         "label":  "Tensor Infer Step",
+                         "surface":  "jobs_monitor",
+                         "intent":  "tensor.infer_step"
+                     }
+                 ],
+    "providers":  [
+                      {
+                          "id":  "native_runtime",
+                          "label":  "Native Runtime",
+                          "transport":  "in-process",
+                          "profile_kind":  "native-ui",
+                          "supports_tools":  true,
+                          "supports_streaming":  false,
+                          "active":  true,
+                          "profile_configured":  true,
+                          "profile_keys":  [
+
+                                           ]
+                      }
+                  ],
+    "tools":  [
+                  {
+                      "id":  "ui_runtime",
+                      "label":  "ui.runtime",
+                      "capability":  "ui.runtime",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "actor_runtime",
+                      "label":  "actor.runtime",
+                      "capability":  "actor.runtime",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "async_runtime",
+                      "label":  "async.runtime",
+                      "capability":  "async.runtime",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "host_bridge",
+                      "label":  "host.bridge",
+                      "capability":  "host.bridge",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "reflection",
+                      "label":  "reflection",
+                      "capability":  "reflection",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "gfx_viewport",
+                      "label":  "gfx.viewport",
+                      "capability":  "gfx.viewport",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "scene_runtime",
+                      "label":  "scene.runtime",
+                      "capability":  "scene.runtime",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "scene_query",
+                      "label":  "scene.query",
+                      "capability":  "scene.query",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "scene_mutation",
+                      "label":  "scene.mutation",
+                      "capability":  "scene.mutation",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "asset_gltf",
+                      "label":  "asset.gltf",
+                      "capability":  "asset.gltf",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "asset_usd",
+                      "label":  "asset.usd",
+                      "capability":  "asset.usd",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "asset_realtime",
+                      "label":  "asset.realtime",
+                      "capability":  "asset.realtime",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "material_graph",
+                      "label":  "material.graph",
+                      "capability":  "material.graph",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "material_layer_stack",
+                      "label":  "material.layer_stack",
+                      "capability":  "material.layer_stack",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "material_paint",
+                      "label":  "material.paint",
+                      "capability":  "material.paint",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "material_texture_export",
+                      "label":  "material.texture_export",
+                      "capability":  "material.texture_export",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "vector_svg",
+                      "label":  "vector.svg",
+                      "capability":  "vector.svg",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "rig_runtime",
+                      "label":  "rig.runtime",
+                      "capability":  "rig.runtime",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "animation_runtime",
+                      "label":  "animation.runtime",
+                      "capability":  "animation.runtime",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "simulation_runtime",
+                      "label":  "simulation.runtime",
+                      "capability":  "simulation.runtime",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "render_runtime",
+                      "label":  "render.runtime",
+                      "capability":  "render.runtime",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "compositor_runtime",
+                      "label":  "compositor.runtime",
+                      "capability":  "compositor.runtime",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "fabric_runtime",
+                      "label":  "fabric.runtime",
+                      "capability":  "fabric.runtime",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "tensor_runtime",
+                      "label":  "tensor.runtime",
+                      "capability":  "tensor.runtime",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "automation_runtime",
+                      "label":  "automation.runtime",
+                      "capability":  "automation.runtime",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "ui_bundle",
+                      "label":  "ui.bundle",
+                      "capability":  "ui.bundle",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  },
+                  {
+                      "id":  "device_reflection",
+                      "label":  "device.reflection",
+                      "capability":  "device.reflection",
+                      "approval":  "workspace",
+                      "decision":  null,
+                      "scope_decisions":  [
+
+                                          ]
+                  }
+              ],
+    "sessions":  {
+                     "total_sessions":  1,
+                     "active_provider":  "native_runtime",
+                     "recent_session_id":  "session-1774650369315-174572",
+                     "recent_session_title":  "Kain Fabric DCC Suite | Scene Assembly"
+                 },
+    "recent_sessions":  [
+                            {
+                                "id":  "session-1774650369315-174572",
+                                "title":  "Kain Fabric DCC Suite | Scene Assembly",
+                                "provider_id":  "native_runtime",
+                                "status":  "succeeded",
+                                "workspace_root":  "M:\\Code\\Kain",
+                                "updated_at":  "2026-03-27T22:32:11Z",
+                                "message_count":  1,
+                                "last_message_role":  "system",
+                                "last_message_preview":  "DCC suite bridge ready | fabric=succeeded | mode=Scene Assembly"
+                            }
+                        ],
+    "workspaces":  [
+                       {
+                           "root":  "M:\\Code\\Kain",
+                           "session_count":  1,
+                           "recent_session_title":  "Kain Fabric DCC Suite | Scene Assembly"
+                       }
+                   ],
+    "dcc_suite_state":  {
+                            "schema_version":  1,
+                            "manifest_registry":  {
+                                                      "app_manifest":  "config/app_manifest.json",
+                                                      "workspace_modes":  "config/workspace_modes.json",
+                                                      "surfaces":  "config/surfaces.json",
+                                                      "tool_catalog":  "config/tool_catalog.json",
+                                                      "command_registry":  "config/command_registry.json",
+                                                      "fabric_pipeline":  "config/fabric_pipeline.json",
+                                                      "fabric_intents":  "config/fabric_intents.json",
+                                                      "resource_kinds":  "config/resource_kinds.json",
+                                                      "report_kinds":  "config/report_kinds.json",
+                                                      "runtime_packs":  "config/runtime_packs.json",
+                                                      "automation_jobs":  "config/automation_jobs.json",
+                                                      "gizmo_registry":  "config/gizmo_registry.json",
+                                                      "session_schema":  "session/session_schema.kn",
+                                                      "session_reducers":  "session/reducers.kn",
+                                                      "session_intent_planner":  "session/intent_planner.kn"
+                                                  },
+                            "session":  {
+                                            "project":  {
+                                                            "project_id":  "fabric-dcc-suite",
+                                                            "project_name":  "Kain Fabric DCC Suite",
+                                                            "schema_version":  1
+                                                        },
+                                            "workspace":  {
+                                                              "active_mode":  "render_comp",
+                                                              "layout_id":  "kain_fabric_dcc_suite_shell",
+                                                              "available_modes":  [
+                                                                                      "scene_assembly",
+                                                                                      "sculpt_model",
+                                                                                      "material_lookdev",
+                                                                                      "rig_anim",
+                                                                                      "sim_fx",
+                                                                                      "render_comp",
+                                                                                      "publish_automation"
+                                                                                  ]
+                                                          },
+                                            "tooling":  {
+                                                            "active_tool":  "material_layer_paint",
+                                                            "brush_radius":  42,
+                                                            "brush_strength_percent":  68
+                                                        },
+                                            "gizmo":  {
+                                                          "active_profile_id":  "dcc_transform_universal",
+                                                          "mode":  "translate",
+                                                          "space":  "world",
+                                                          "snap_enabled":  false,
+                                                          "visible":  true,
+                                                          "drag_trigger":  "ctrl_primary_drag"
+                                                      },
+                                            "selection":  {
+                                                              "entity_ids":  [
+                                                                                 "entity/root_stage"
+                                                                             ],
+                                                              "subobject_ids":  [
+
+                                                                                ]
+                                                          },
+                                            "scene":  {
+                                                          "active_document_id":  "scene/main",
+                                                          "active_collection_id":  "collection/environment",
+                                                          "active_variant":  "lookdev"
+                                                      },
+                                            "ingest":  {
+                                                           "last_package_uri":  "asset://starter/kitbash_hangar",
+                                                           "last_package_kind":  "gltf",
+                                                           "staged_package_count":  1
+                                                       },
+                                            "materials":  {
+                                                              "active_material_id":  "material/hero_surface",
+                                                              "active_graph_id":  "graph/lookdev_primary",
+                                                              "active_texture_set_id":  "textureset/hero_body_udim1001",
+                                                              "active_layer_stack_id":  "layerstack/hero_surface_secondary",
+                                                              "active_svg_document_id":  "svg/masks/hero_surface_primary",
+                                                              "active_bake_preset_id":  "bake/high_precision_curvature",
+                                                              "active_export_preset_id":  "export/metalrough_orm_painter",
+                                                              "preview_profile":  "material_preview_balanced",
+                                                              "channel_profile":  "basecolor_normal_roughness_metallic_ao_height_emissive",
+                                                              "paint_resolution":  4096
+                                                          },
+                                            "rig":  {
+                                                        "active_rig_id":  "rig/hero_body",
+                                                        "active_control_set":  "controls/anim_main",
+                                                        "deformation_profile":  "hero_deformation_preview"
+                                                    },
+                                            "animation":  {
+                                                              "active_clip_id":  "clip/blocking_pass_a",
+                                                              "frame":  96,
+                                                              "playback_mode":  "paused"
+                                                          },
+                                            "simulation":  {
+                                                               "cache_profile":  "sim_preview_cache",
+                                                               "last_tick_frame":  96,
+                                                               "solver_profile":  "cloth_preview"
+                                                           },
+                                            "render":  {
+                                                           "camera_id":  "camera/shot_closeup",
+                                                           "view_transform":  "acescg",
+                                                           "render_profile":  "viewport_quality",
+                                                           "aov_set":  "beauty_plus_utility"
+                                                       },
+                                            "compositor":  {
+                                                               "active_stack_id":  "comp/final_review",
+                                                               "last_rebuild_reason":  "bootstrap"
+                                                           },
+                                            "publish":  {
+                                                            "profile_id":  "publish/review_daily",
+                                                            "target_bundle":  "bundle/hero_scene_daily",
+                                                            "delivery_channel":  "studio_review"
+                                                        },
+                                            "automation":  {
+                                                               "enabled":  true,
+                                                               "active_job_ids":  [
+                                                                                      "thumbnail_refresh",
+                                                                                      "nightly_material_rebake",
+                                                                                      "svg_mask_cache_rebuild"
+                                                                                  ],
+                                                               "last_audit_status":  "pending"
+                                                           },
+                                            "dirty":  {
+                                                          "asset_dirty":  false,
+                                                          "sculpt_dirty":  false,
+                                                          "topology_dirty":  false,
+                                                          "material_dirty":  false,
+                                                          "rig_dirty":  false,
+                                                          "animation_dirty":  false,
+                                                          "simulation_dirty":  false,
+                                                          "render_dirty":  false,
+                                                          "compositor_dirty":  false,
+                                                          "publish_dirty":  false,
+                                                          "tensor_dirty":  false,
+                                                          "session_needs_save":  true
+                                                      },
+                                            "jobs":  {
+                                                         "latest_fabric_session_id":  "session-1774650369315-174572",
+                                                         "latest_fabric_status":  "succeeded",
+                                                         "active_intents":  [
+
+                                                                            ],
+                                                         "active_jobs":  [
+
+                                                                         ]
+                                                     }
+                                        },
+                            "derived":  {
+                                            "active_mode_label":  "render_comp",
+                                            "active_tool_label":  "material_layer_paint",
+                                            "selection_summary":  "1 entity selected",
+                                            "gizmo_summary":  "translate | world | snap off",
+                                            "queued_intent_count":  2,
+                                            "latest_fabric_status":  "succeeded"
+                                        },
+                            "command_registry":  [
+                                                     {
+                                                         "id":  "project.bootstrap",
+                                                         "label":  "Bootstrap Suite",
+                                                         "surface":  "titlebar",
+                                                         "summary":  "Seeds the canonical scene, asset, preview, tensor, and publish session state.",
+                                                         "intent":  "project.bootstrap",
+                                                         "payload_schema":  {
+                                                                                "project_id":  "string",
+                                                                                "workspace_mode":  "workspace_mode_id"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "workspace.switch_mode",
+                                                         "label":  "Switch Workspace",
+                                                         "surface":  "workspace_mode_rail",
+                                                         "summary":  "Moves the operator into a different DCC lane and marks downstream surfaces for refresh.",
+                                                         "intent":  "workspace.switch_mode",
+                                                         "payload_schema":  {
+                                                                                "mode_id":  "workspace_mode_id"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "asset.ingest_package",
+                                                         "label":  "Ingest Package",
+                                                         "surface":  "asset_ingest",
+                                                         "summary":  "Stages a new asset package into the suite ingest lane and updates runtime pack bookkeeping.",
+                                                         "intent":  "asset.ingest_package",
+                                                         "payload_schema":  {
+                                                                                "source_uri":  "string",
+                                                                                "package_kind":  "string"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "tool.activate",
+                                                         "label":  "Activate Tool",
+                                                         "surface":  "tool_shelf",
+                                                         "summary":  "Changes the active authoring tool and updates tool preset context.",
+                                                         "intent":  "tool.activate",
+                                                         "payload_schema":  {
+                                                                                "tool_id":  "tool_id"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "selection.set",
+                                                         "label":  "Set Selection",
+                                                         "surface":  "viewport",
+                                                         "summary":  "Replaces the live entity selection and updates lane inspectors.",
+                                                         "intent":  "selection.set",
+                                                         "payload_schema":  {
+                                                                                "entity_ids":  "string_array",
+                                                                                "subobject_ids":  "string_array"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "gizmo.set_mode",
+                                                         "label":  "Set Gizmo Mode",
+                                                         "surface":  "viewport",
+                                                         "summary":  "Switches the active universal gizmo mode for the current authoring selection.",
+                                                         "intent":  "gizmo.set_mode",
+                                                         "payload_schema":  {
+                                                                                "mode":  "string"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "gizmo.set_space",
+                                                         "label":  "Set Gizmo Space",
+                                                         "surface":  "viewport",
+                                                         "summary":  "Switches the universal gizmo between world and local evaluation space.",
+                                                         "intent":  "gizmo.set_space",
+                                                         "payload_schema":  {
+                                                                                "space":  "string"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "gizmo.toggle_snap",
+                                                         "label":  "Toggle Gizmo Snap",
+                                                         "surface":  "viewport",
+                                                         "summary":  "Toggles transform snapping for the active universal gizmo profile.",
+                                                         "intent":  "gizmo.toggle_snap",
+                                                         "payload_schema":  {
+                                                                                "enabled":  "bool"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "sculpt.apply_stroke",
+                                                         "label":  "Apply Sculpt Stroke",
+                                                         "surface":  "viewport",
+                                                         "summary":  "Queues a sculpt stroke through the native GPU sculpt lane and marks downstream lanes dirty.",
+                                                         "intent":  "sculpt.apply_stroke",
+                                                         "payload_schema":  {
+                                                                                "target_mesh":  "resource_ref",
+                                                                                "brush_id":  "tool_id",
+                                                                                "radius":  "number",
+                                                                                "strength":  "number"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "topology.rebuild",
+                                                         "label":  "Rebuild Topology",
+                                                         "surface":  "scene_graph",
+                                                         "summary":  "Refreshes topology and graph health analysis against current scene resources.",
+                                                         "intent":  "topology.rebuild",
+                                                         "payload_schema":  {
+                                                                                "reason":  "string"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "rig.sync_controls",
+                                                         "label":  "Sync Rig Controls",
+                                                         "surface":  "rig_graph",
+                                                         "summary":  "Synchronizes rig projections and deformation reports.",
+                                                         "intent":  "rig.sync_controls",
+                                                         "payload_schema":  {
+                                                                                "rig_id":  "string"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "sim.tick",
+                                                         "label":  "Tick Simulation",
+                                                         "surface":  "simulation_board",
+                                                         "summary":  "Requests the next simulation planning tick and marks cache products dirty.",
+                                                         "intent":  "sim.tick",
+                                                         "payload_schema":  {
+                                                                                "frame":  "number"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "material.bake_preview",
+                                                         "label":  "Bake Material Preview",
+                                                         "surface":  "material_graph",
+                                                         "summary":  "Refreshes the authored PBR preview, SVG mask stack, and packed texture outputs.",
+                                                         "intent":  "material.bake_preview",
+                                                         "payload_schema":  {
+                                                                                "reason":  "string"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "material.author_texture_set",
+                                                         "label":  "Author Texture Set",
+                                                         "surface":  "texture_set_inspector",
+                                                         "summary":  "Updates the active texture set, UDIM coverage, and channel preset for the current material.",
+                                                         "intent":  "material.bake_preview",
+                                                         "payload_schema":  {
+                                                                                "texture_set_id":  "string",
+                                                                                "udim_root":  "string",
+                                                                                "resolution":  "number"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "material.paint_layer",
+                                                         "label":  "Paint Material Layer",
+                                                         "surface":  "material_layers",
+                                                         "summary":  "Queues layer-stack changes for fill, paint, filter, and smart-material operators.",
+                                                         "intent":  "material.bake_preview",
+                                                         "payload_schema":  {
+                                                                                "layer_id":  "string",
+                                                                                "channel_target":  "string",
+                                                                                "blend_mode":  "string"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "material.edit_svg_mask",
+                                                         "label":  "Edit SVG Mask",
+                                                         "surface":  "svg_mask_canvas",
+                                                         "summary":  "Queues SVG mask graph changes, shape edits, booleans, and anchor projections.",
+                                                         "intent":  "material.bake_preview",
+                                                         "payload_schema":  {
+                                                                                "document_id":  "string",
+                                                                                "shape_id":  "string",
+                                                                                "operation":  "string"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "material.export_textures",
+                                                         "label":  "Export Texture Set",
+                                                         "surface":  "material_export_board",
+                                                         "summary":  "Builds the material export receipt for packed texture delivery into downstream runtimes.",
+                                                         "intent":  "material.export_textures",
+                                                         "payload_schema":  {
+                                                                                "preset_id":  "string",
+                                                                                "target_runtime":  "string"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "render.preview",
+                                                         "label":  "Render Preview",
+                                                         "surface":  "render_lounge",
+                                                         "summary":  "Stages a preview render refresh and updates render-facing reports.",
+                                                         "intent":  "render.preview",
+                                                         "payload_schema":  {
+                                                                                "camera_id":  "string"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "compositor.rebuild",
+                                                         "label":  "Rebuild Composite",
+                                                         "surface":  "compositor_stack",
+                                                         "summary":  "Refreshes the compositor rebuild plan for the current frame products.",
+                                                         "intent":  "compositor.rebuild",
+                                                         "payload_schema":  {
+                                                                                "stack_id":  "string"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "publish.package",
+                                                         "label":  "Package Publish",
+                                                         "surface":  "publish_console",
+                                                         "summary":  "Builds the publish summary and package receipts for operator review.",
+                                                         "intent":  "publish.package",
+                                                         "payload_schema":  {
+                                                                                "profile":  "string"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "tensor.train_step",
+                                                         "label":  "Tensor Train Step",
+                                                         "surface":  "jobs_monitor",
+                                                         "summary":  "Stages a tensor-oriented training plan and readiness report.",
+                                                         "intent":  "tensor.train_step",
+                                                         "payload_schema":  {
+                                                                                "dataset_id":  "string"
+                                                                            }
+                                                     },
+                                                     {
+                                                         "id":  "tensor.infer_step",
+                                                         "label":  "Tensor Infer Step",
+                                                         "surface":  "jobs_monitor",
+                                                         "summary":  "Stages a tensor-oriented inference plan and readiness report.",
+                                                         "intent":  "tensor.infer_step",
+                                                         "payload_schema":  {
+                                                                                "model_id":  "string"
+                                                                            }
+                                                     }
+                                                 ],
+                            "available_tools":  [
+                                                    {
+                                                        "id":  "select",
+                                                        "label":  "Select",
+                                                        "lane":  "scene_assembly",
+                                                        "summary":  "Selection, hierarchy filtering, and transform handoff.",
+                                                        "gizmo_enabled":  true,
+                                                        "gizmo_profile_id":  "dcc_transform_universal",
+                                                        "default_gizmo_mode":  "translate",
+                                                        "default_gizmo_space":  "world"
+                                                    },
+                                                    {
+                                                        "id":  "kitbash_placement",
+                                                        "label":  "Kitbash Placement",
+                                                        "lane":  "scene_assembly",
+                                                        "summary":  "Scene placement, snap rules, and collection instancing.",
+                                                        "gizmo_enabled":  true,
+                                                        "gizmo_profile_id":  "dcc_transform_universal",
+                                                        "default_gizmo_mode":  "translate",
+                                                        "default_gizmo_space":  "world"
+                                                    },
+                                                    {
+                                                        "id":  "poly_extrude",
+                                                        "label":  "Poly Extrude",
+                                                        "lane":  "sculpt_model",
+                                                        "summary":  "Poly modeling, shelling, and local face edits.",
+                                                        "gizmo_enabled":  true,
+                                                        "gizmo_profile_id":  "dcc_transform_universal",
+                                                        "default_gizmo_mode":  "translate",
+                                                        "default_gizmo_space":  "local"
+                                                    },
+                                                    {
+                                                        "id":  "clay_sculpt",
+                                                        "label":  "Clay Sculpt",
+                                                        "lane":  "sculpt_model",
+                                                        "summary":  "Brush-based form sculpting through the native GPU heightfield lane.",
+                                                        "gizmo_enabled":  false
+                                                    },
+                                                    {
+                                                        "id":  "voxel_rebuild",
+                                                        "label":  "Voxel Rebuild",
+                                                        "lane":  "sculpt_model",
+                                                        "summary":  "Topology reset, remesh, and high-level volume cleanup.",
+                                                        "gizmo_enabled":  false
+                                                    },
+                                                    {
+                                                        "id":  "material_layer_paint",
+                                                        "label":  "Material Layer Paint",
+                                                        "lane":  "material_lookdev",
+                                                        "summary":  "Mask, ID, and procedural material layer authoring.",
+                                                        "gizmo_enabled":  false
+                                                    },
+                                                    {
+                                                        "id":  "texture_bake",
+                                                        "label":  "Texture Bake",
+                                                        "lane":  "material_lookdev",
+                                                        "summary":  "GPU-assisted preview and baking workflows.",
+                                                        "gizmo_enabled":  false
+                                                    },
+                                                    {
+                                                        "id":  "control_rig_edit",
+                                                        "label":  "Control Rig Edit",
+                                                        "lane":  "rig_anim",
+                                                        "summary":  "Rig graph authoring, control bindings, and solver metadata edits.",
+                                                        "gizmo_enabled":  true,
+                                                        "gizmo_profile_id":  "dcc_transform_universal",
+                                                        "default_gizmo_mode":  "rotate",
+                                                        "default_gizmo_space":  "local"
+                                                    },
+                                                    {
+                                                        "id":  "clip_blocking",
+                                                        "label":  "Clip Blocking",
+                                                        "lane":  "rig_anim",
+                                                        "summary":  "Timing, pose blocking, and clip state management.",
+                                                        "gizmo_enabled":  true,
+                                                        "gizmo_profile_id":  "dcc_transform_universal",
+                                                        "default_gizmo_mode":  "rotate",
+                                                        "default_gizmo_space":  "local"
+                                                    },
+                                                    {
+                                                        "id":  "cache_solver",
+                                                        "label":  "Cache Solver",
+                                                        "lane":  "sim_fx",
+                                                        "summary":  "Simulation cache planning and replay orchestration.",
+                                                        "gizmo_enabled":  false
+                                                    },
+                                                    {
+                                                        "id":  "render_preview",
+                                                        "label":  "Render Preview",
+                                                        "lane":  "render_comp",
+                                                        "summary":  "Viewport preview renders, AOV toggles, and render queue staging.",
+                                                        "gizmo_enabled":  false
+                                                    },
+                                                    {
+                                                        "id":  "comp_rebuild",
+                                                        "label":  "Comp Rebuild",
+                                                        "lane":  "render_comp",
+                                                        "summary":  "Composite plan refresh and pass composition inspection.",
+                                                        "gizmo_enabled":  false
+                                                    },
+                                                    {
+                                                        "id":  "publish_bundle",
+                                                        "label":  "Publish Bundle",
+                                                        "lane":  "publish_automation",
+                                                        "summary":  "Delivery package generation, report emission, and runtime pack promotion.",
+                                                        "gizmo_enabled":  false
+                                                    }
+                                                ],
+                            "workspace_modes":  [
+                                                    {
+                                                        "id":  "scene_assembly",
+                                                        "label":  "Scene Assembly",
+                                                        "summary":  "Scene graph authoring, set dressing, layout, and asset placement."
+                                                    },
+                                                    {
+                                                        "id":  "sculpt_model",
+                                                        "label":  "Sculpt And Model",
+                                                        "summary":  "Poly modeling, sculpt strokes, remesh, and topology shaping."
+                                                    },
+                                                    {
+                                                        "id":  "material_lookdev",
+                                                        "label":  "Material And Lookdev",
+                                                        "summary":  "PBR texture sets, paint layers, SVG masks, smart materials, and export presets."
+                                                    },
+                                                    {
+                                                        "id":  "rig_anim",
+                                                        "label":  "Rig And Animation",
+                                                        "summary":  "Rig graphs, deformation checks, clips, retargeting, and blocking."
+                                                    },
+                                                    {
+                                                        "id":  "sim_fx",
+                                                        "label":  "Simulation And FX",
+                                                        "summary":  "Caches, solvers, scene events, and reproducible simulation jobs."
+                                                    },
+                                                    {
+                                                        "id":  "render_comp",
+                                                        "label":  "Render And Composite",
+                                                        "summary":  "Viewport renders, frame products, AOV assembly, and compositor rebuilds."
+                                                    },
+                                                    {
+                                                        "id":  "publish_automation",
+                                                        "label":  "Publish And Automation",
+                                                        "summary":  "Package review, delivery reports, automation jobs, and runtime pack promotion."
+                                                    }
+                                                ],
+                            "surface_registry":  [
+                                                     {
+                                                         "id":  "viewport_stage",
+                                                         "title":  "Viewport Stage",
+                                                         "dock":  "center",
+                                                         "kind":  "viewport3d",
+                                                         "scene":  "dcc_suite_scene",
+                                                         "presentation_profile":  "dcc_authoring_balanced",
+                                                         "gizmo_binding":  "primary_dcc_viewport",
+                                                         "summary":  "Primary 3D authoring viewport for scene, model, rig, and render review."
+                                                     },
+                                                     {
+                                                         "id":  "scene_graph",
+                                                         "title":  "Scene Graph",
+                                                         "dock":  "left",
+                                                         "kind":  "tree",
+                                                         "summary":  "Hierarchy, collections, instancing groups, and publish roots."
+                                                     },
+                                                     {
+                                                         "id":  "asset_ingest",
+                                                         "title":  "Asset Ingest",
+                                                         "dock":  "left",
+                                                         "kind":  "tree",
+                                                         "summary":  "USD, GLTF, material, groom, cache, and runtime pack intake."
+                                                     },
+                                                     {
+                                                         "id":  "tool_shelf",
+                                                         "title":  "Tool Shelf",
+                                                         "dock":  "right",
+                                                         "kind":  "inspector",
+                                                         "summary":  "Context-sensitive authoring tools across sculpt, material, rig, sim, and publish."
+                                                     },
+                                                     {
+                                                         "id":  "selection_inspector",
+                                                         "title":  "Selection Inspector",
+                                                         "dock":  "right",
+                                                         "kind":  "inspector",
+                                                         "summary":  "Transforms, metadata, relationships, and lane-specific detail panels."
+                                                     },
+                                                     {
+                                                         "id":  "material_graph",
+                                                         "title":  "Material Graph",
+                                                         "dock":  "bottom",
+                                                         "kind":  "graph",
+                                                         "summary":  "Shading, texture-routing, anchor points, and smart material composition."
+                                                     },
+                                                     {
+                                                         "id":  "material_layers",
+                                                         "title":  "Material Layers",
+                                                         "dock":  "right",
+                                                         "kind":  "inspector",
+                                                         "summary":  "Layer stacks, generators, fill layers, paint layers, and channel blend modes."
+                                                     },
+                                                     {
+                                                         "id":  "svg_mask_canvas",
+                                                         "title":  "SVG Mask Canvas",
+                                                         "dock":  "bottom",
+                                                         "kind":  "graph",
+                                                         "summary":  "Vector masks, spline decals, anchor-driven booleans, and reusable SVG motifs."
+                                                     },
+                                                     {
+                                                         "id":  "texture_set_inspector",
+                                                         "title":  "Texture Set Inspector",
+                                                         "dock":  "right",
+                                                         "kind":  "inspector",
+                                                         "summary":  "Texture set membership, UDIM coverage, channel packs, and bake preset assignment."
+                                                     },
+                                                     {
+                                                         "id":  "material_export_board",
+                                                         "title":  "Material Export Board",
+                                                         "dock":  "right",
+                                                         "kind":  "inspector",
+                                                         "summary":  "Target packers, channel routing, export presets, and downstream DCC/runtime consumers."
+                                                     },
+                                                     {
+                                                         "id":  "rig_graph",
+                                                         "title":  "Rig Graph",
+                                                         "dock":  "bottom",
+                                                         "kind":  "graph",
+                                                         "summary":  "Control rigs, constraints, deformation layers, and sync reports."
+                                                     },
+                                                     {
+                                                         "id":  "animation_timeline",
+                                                         "title":  "Animation Timeline",
+                                                         "dock":  "bottom",
+                                                         "kind":  "timeline",
+                                                         "summary":  "Clips, simulation triggers, preview markers, and publish cut ranges."
+                                                     },
+                                                     {
+                                                         "id":  "simulation_board",
+                                                         "title":  "Simulation Board",
+                                                         "dock":  "bottom",
+                                                         "kind":  "graph",
+                                                         "summary":  "Cache plans, solver dependencies, and replay diagnostics."
+                                                     },
+                                                     {
+                                                         "id":  "render_lounge",
+                                                         "title":  "Render Lounge",
+                                                         "dock":  "bottom",
+                                                         "kind":  "graph",
+                                                         "summary":  "Render products, preview budgets, frame queues, and AOV targets."
+                                                     },
+                                                     {
+                                                         "id":  "compositor_stack",
+                                                         "title":  "Compositor Stack",
+                                                         "dock":  "bottom",
+                                                         "kind":  "graph",
+                                                         "summary":  "Composite rebuild plans, mattes, passes, and grading nodes."
+                                                     },
+                                                     {
+                                                         "id":  "publish_console",
+                                                         "title":  "Publish Console",
+                                                         "dock":  "right",
+                                                         "kind":  "inspector",
+                                                         "summary":  "Packages, receipts, validators, deliverables, and client-facing summaries."
+                                                     },
+                                                     {
+                                                         "id":  "report_browser",
+                                                         "title":  "Report Browser",
+                                                         "dock":  "right",
+                                                         "kind":  "inspector",
+                                                         "summary":  "Topology, tensor, render, automation, and publish reports."
+                                                     },
+                                                     {
+                                                         "id":  "jobs_monitor",
+                                                         "title":  "Jobs Monitor",
+                                                         "dock":  "bottom",
+                                                         "kind":  "timeline",
+                                                         "summary":  "Background jobs, Fabric sessions, automation schedules, and retry state."
+                                                     }
+                                                 ],
+                            "runtime_packs":  [
+                                                  {
+                                                      "id":  "scene_foundation_pack",
+                                                      "label":  "Scene Foundation Pack",
+                                                      "category":  "runtime-pack",
+                                                      "summary":  "Scene graph, transforms, collections, and viewport bindings."
+                                                  },
+                                                  {
+                                                      "id":  "asset_ingest_pack",
+                                                      "label":  "Asset Ingest Pack",
+                                                      "category":  "runtime-pack",
+                                                      "summary":  "Asset intake schemas, package staging, and source provenance."
+                                                  },
+                                                  {
+                                                      "id":  "modeling_ops_pack",
+                                                      "label":  "Modeling Ops Pack",
+                                                      "category":  "runtime-pack",
+                                                      "summary":  "Modeling tools, topology mutations, and authoring operators."
+                                                  },
+                                                  {
+                                                      "id":  "sculpt_runtime_pack",
+                                                      "label":  "Sculpt Runtime Pack",
+                                                      "category":  "runtime-pack",
+                                                      "summary":  "Brush profiles, sculpt previews, and native mutation surfaces."
+                                                  },
+                                                  {
+                                                      "id":  "material_graph_pack",
+                                                      "label":  "Material Graph Pack",
+                                                      "category":  "runtime-pack",
+                                                      "summary":  "Material graphs, PBR channels, shader previews, and bake metadata."
+                                                  },
+                                                  {
+                                                      "id":  "smart_material_pack",
+                                                      "label":  "Smart Material Pack",
+                                                      "category":  "runtime-pack",
+                                                      "summary":  "Reusable fill layers, generators, anchor-driven filters, and painter-style presets."
+                                                  },
+                                                  {
+                                                      "id":  "svg_mask_pack",
+                                                      "label":  "SVG Mask Pack",
+                                                      "category":  "runtime-pack",
+                                                      "summary":  "Vector masks, spline decals, boolean stacks, and trim-sheet SVG motifs."
+                                                  },
+                                                  {
+                                                      "id":  "material_export_pack",
+                                                      "label":  "Material Export Pack",
+                                                      "category":  "runtime-pack",
+                                                      "summary":  "Channel packing, export presets, target runtime templates, and delivery manifests."
+                                                  },
+                                                  {
+                                                      "id":  "rig_runtime_pack",
+                                                      "label":  "Rig Runtime Pack",
+                                                      "category":  "runtime-pack",
+                                                      "summary":  "Rig controls, graph projections, and deformation contracts."
+                                                  },
+                                                  {
+                                                      "id":  "animation_clip_pack",
+                                                      "label":  "Animation Clip Pack",
+                                                      "category":  "runtime-pack",
+                                                      "summary":  "Clip state, timing, markers, and retargeting support."
+                                                  },
+                                                  {
+                                                      "id":  "simulation_cache_pack",
+                                                      "label":  "Simulation Cache Pack",
+                                                      "category":  "runtime-pack",
+                                                      "summary":  "Cache roots, solver manifests, and replay state."
+                                                  },
+                                                  {
+                                                      "id":  "render_products_pack",
+                                                      "label":  "Render Products Pack",
+                                                      "category":  "runtime-pack",
+                                                      "summary":  "Render products, AOVs, preview queues, and viewport handoff."
+                                                  },
+                                                  {
+                                                      "id":  "compositor_stack_pack",
+                                                      "label":  "Compositor Stack Pack",
+                                                      "category":  "runtime-pack",
+                                                      "summary":  "Composite stack plans, pass dependencies, and grading metadata."
+                                                  },
+                                                  {
+                                                      "id":  "publish_delivery_pack",
+                                                      "label":  "Publish Delivery Pack",
+                                                      "category":  "runtime-pack",
+                                                      "summary":  "Package manifests, delivery variants, and client receipt surfaces."
+                                                  },
+                                                  {
+                                                      "id":  "automation_ops_pack",
+                                                      "label":  "Automation Ops Pack",
+                                                      "category":  "runtime-pack",
+                                                      "summary":  "Background jobs, schedules, report retention, and promotion rules."
+                                                  }
+                                              ],
+                            "gizmo_profiles":  [
+                                                   {
+                                                       "id":  "dcc_transform_universal",
+                                                       "label":  "Universal Transform Gizmo",
+                                                       "summary":  "Shared translate, rotate, and scale gizmo contract for layout, modeling, rigging, and clip blocking lanes.",
+                                                       "visible":  true,
+                                                       "drag_trigger":  "ctrl_primary_drag",
+                                                       "selection_required":  true,
+                                                       "default_space":  "world",
+                                                       "hotkeys":  {
+                                                                       "translate":  "T",
+                                                                       "rotate":  "R",
+                                                                       "scale":  "Y",
+                                                                       "cycle_space":  "U",
+                                                                       "toggle_snap":  "I"
+                                                                   },
+                                                       "snap":  {
+                                                                    "translate_world_units":  0.5,
+                                                                    "rotate_degrees":  15.0,
+                                                                    "scale_percent":  10.0,
+                                                                    "default_enabled":  false
+                                                                },
+                                                       "overlays":  {
+                                                                        "show_mode_badge":  true,
+                                                                        "show_space_badge":  true,
+                                                                        "show_snap_badge":  true
+                                                                    }
+                                                   }
+                                               ],
+                            "viewport_gizmo_bindings":  [
+                                                            {
+                                                                "id":  "primary_dcc_viewport",
+                                                                "surface_id":  "viewport_stage",
+                                                                "scene":  "dcc_suite_scene",
+                                                                "presentation_profile":  "dcc_authoring_balanced",
+                                                                "gizmo_profile_id":  "dcc_transform_universal",
+                                                                "default_mode":  "translate",
+                                                                "default_space":  "world"
+                                                            }
+                                                        ],
+                            "resource_store":  [
+                                                   {
+                                                       "id":  "scene_graph_document",
+                                                       "resource_uri":  "scene://current/graph",
+                                                       "kind":  "value",
+                                                       "producer_step":  "dcc_suite_seed",
+                                                       "output_name":  "scene_graph_document",
+                                                       "storage":  "fabric-report",
+                                                       "summary":  "Canonical scene graph bootstrap document authored by Kain."
+                                                   },
+                                                   {
+                                                       "id":  "asset_catalog_document",
+                                                       "resource_uri":  "asset://catalog/current",
+                                                       "kind":  "value",
+                                                       "producer_step":  "dcc_suite_seed",
+                                                       "output_name":  "asset_catalog_document",
+                                                       "storage":  "fabric-report",
+                                                       "summary":  "Asset ingest and package catalog bootstrap document."
+                                                   },
+                                                   {
+                                                       "id":  "material_authoring_document",
+                                                       "resource_uri":  "material://current/authoring-contract",
+                                                       "kind":  "value",
+                                                       "producer_step":  "dcc_suite_seed",
+                                                       "output_name":  "material_authoring_document",
+                                                       "storage":  "fabric-report",
+                                                       "summary":  "Kain-authored PBR texture-set, layer-stack, and export contract document."
+                                                   },
+                                                   {
+                                                       "id":  "svg_mask_document",
+                                                       "resource_uri":  "svg://material/current-mask-stack",
+                                                       "kind":  "value",
+                                                       "producer_step":  "dcc_suite_seed",
+                                                       "output_name":  "svg_mask_document",
+                                                       "storage":  "fabric-report",
+                                                       "summary":  "Kain-authored SVG mask stack document for vector decals, trims, and anchors."
+                                                   },
+                                                   {
+                                                       "id":  "preview_source_buffer",
+                                                       "resource_uri":  "buffer://preview/source",
+                                                       "kind":  "shared_buffer",
+                                                       "producer_step":  "dcc_suite_seed",
+                                                       "output_name":  "preview_src",
+                                                       "storage":  "shared-buffer",
+                                                       "summary":  "Source preview and material bake buffer."
+                                                   },
+                                                   {
+                                                       "id":  "preview_destination_buffer",
+                                                       "resource_uri":  "buffer://preview/destination",
+                                                       "kind":  "shared_buffer",
+                                                       "producer_step":  "gpu_material_preview",
+                                                       "output_name":  "preview_dst",
+                                                       "storage":  "shared-buffer",
+                                                       "summary":  "Destination preview and material bake buffer populated by GPU compute."
+                                                   },
+                                                   {
+                                                       "id":  "preview_image",
+                                                       "resource_uri":  "image://preview/current",
+                                                       "kind":  "shared_image",
+                                                       "producer_step":  "dcc_suite_seed",
+                                                       "output_name":  "preview_image",
+                                                       "storage":  "shared-image",
+                                                       "summary":  "Preview image projected into viewport, render, and publish surfaces."
+                                                   },
+                                                   {
+                                                       "id":  "tensor_features",
+                                                       "resource_uri":  "buffer://tensor/features",
+                                                       "kind":  "shared_buffer",
+                                                       "producer_step":  "dcc_suite_seed",
+                                                       "output_name":  "tensor_features",
+                                                       "storage":  "shared-buffer",
+                                                       "summary":  "Feature buffer staged for tensor-oriented training and inference planning."
+                                                   },
+                                                   {
+                                                       "id":  "sculpt_heightfield_source",
+                                                       "resource_uri":  "buffer://sculpt/heightfield-source",
+                                                       "kind":  "shared_buffer",
+                                                       "producer_step":  "dcc_suite_seed",
+                                                       "output_name":  "sculpt_heightfield_src",
+                                                       "storage":  "shared-buffer",
+                                                       "summary":  "Seeded heightfield source buffer used by the GPU sculpt lane."
+                                                   },
+                                                   {
+                                                       "id":  "sculpt_brush_params",
+                                                       "resource_uri":  "buffer://sculpt/brush-params",
+                                                       "kind":  "shared_buffer",
+                                                       "producer_step":  "dcc_suite_seed",
+                                                       "output_name":  "sculpt_brush_params",
+                                                       "storage":  "shared-buffer",
+                                                       "summary":  "Brush parameter payload that drives the GPU sculpt stroke kernel."
+                                                   },
+                                                   {
+                                                       "id":  "sculpt_delta",
+                                                       "resource_uri":  "buffer://sculpt/delta",
+                                                       "kind":  "shared_buffer",
+                                                       "producer_step":  "gpu_sculpt_displacement",
+                                                       "output_name":  "sculpt_delta",
+                                                       "storage":  "shared-buffer",
+                                                       "summary":  "Latest sculpt displacement payload emitted by the GPU sculpt kernel."
+                                                   },
+                                                   {
+                                                       "id":  "material_export_bundle",
+                                                       "resource_uri":  "artifact://material/export-bundle",
+                                                       "kind":  "value",
+                                                       "producer_step":  "material_texture_export_projection",
+                                                       "output_name":  "material_texture_export_report",
+                                                       "storage":  "fabric-report",
+                                                       "summary":  "Packed material texture export descriptor for downstream DCC and runtime consumers."
+                                                   }
+                                               ],
+                            "report_store":  [
+                                                 {
+                                                     "id":  "session_report",
+                                                     "report_uri":  "report://session/bootstrap",
+                                                     "producer_step":  "dcc_suite_seed",
+                                                     "output_name":  "session_report",
+                                                     "summary":  "Bootstrap summary for suite session state."
+                                                 },
+                                                 {
+                                                     "id":  "asset_ingest_report",
+                                                     "report_uri":  "report://asset/ingest",
+                                                     "producer_step":  "asset_ingest_session",
+                                                     "output_name":  "asset_ingest_report",
+                                                     "summary":  "Asset ingest session report."
+                                                 },
+                                                 {
+                                                     "id":  "sculpt_report",
+                                                     "report_uri":  "report://sculpt/current",
+                                                     "producer_step":  "native_sculpt_kernel",
+                                                     "output_name":  "sculpt_report",
+                                                     "summary":  "Native sculpt summary report for the latest GPU sculpt pass."
+                                                 },
+                                                 {
+                                                     "id":  "topology_report",
+                                                     "report_uri":  "report://topology/current",
+                                                     "producer_step":  "rig_graph_analysis",
+                                                     "output_name":  "topology_report",
+                                                     "summary":  "Graph and topology health report."
+                                                 },
+                                                 {
+                                                     "id":  "rig_sync_report",
+                                                     "report_uri":  "report://rig/sync",
+                                                     "producer_step":  "rig_sync_projection",
+                                                     "output_name":  "rig_sync_report",
+                                                     "summary":  "Rig sync and deformation readiness report."
+                                                 },
+                                                 {
+                                                     "id":  "sim_tick_plan",
+                                                     "report_uri":  "report://simulation/tick-plan",
+                                                     "producer_step":  "sim_tick_projection",
+                                                     "output_name":  "sim_tick_plan",
+                                                     "summary":  "Simulation planning report for the current frame tick."
+                                                 },
+                                                 {
+                                                     "id":  "material_authoring_report",
+                                                     "report_uri":  "report://material/authoring",
+                                                     "producer_step":  "material_authoring_projection",
+                                                     "output_name":  "material_authoring_report",
+                                                     "summary":  "PBR texture-set, layer-stack, and export preset authoring report."
+                                                 },
+                                                 {
+                                                     "id":  "svg_mask_report",
+                                                     "report_uri":  "report://material/svg-mask",
+                                                     "producer_step":  "svg_material_mask_projection",
+                                                     "output_name":  "svg_mask_report",
+                                                     "summary":  "SVG vector mask stack report for decals, trim motifs, and anchor-driven shapes."
+                                                 },
+                                                 {
+                                                     "id":  "render_preview_report",
+                                                     "report_uri":  "report://render/preview",
+                                                     "producer_step":  "render_preview_projection",
+                                                     "output_name":  "render_preview_report",
+                                                     "summary":  "Render preview planning report."
+                                                 },
+                                                 {
+                                                     "id":  "material_texture_export_report",
+                                                     "report_uri":  "report://material/export",
+                                                     "producer_step":  "material_texture_export_projection",
+                                                     "output_name":  "material_texture_export_report",
+                                                     "summary":  "Material texture export and channel-packing report."
+                                                 },
+                                                 {
+                                                     "id":  "compositor_rebuild_report",
+                                                     "report_uri":  "report://compositor/rebuild",
+                                                     "producer_step":  "compositor_projection",
+                                                     "output_name":  "compositor_rebuild_report",
+                                                     "summary":  "Compositor rebuild planning report."
+                                                 },
+                                                 {
+                                                     "id":  "tensor_training_report",
+                                                     "report_uri":  "report://tensor/training",
+                                                     "producer_step":  "tensor_train_stage",
+                                                     "output_name":  "tensor_training_report",
+                                                     "summary":  "Tensor training readiness and plan report."
+                                                 },
+                                                 {
+                                                     "id":  "tensor_inference_report",
+                                                     "report_uri":  "report://tensor/inference",
+                                                     "producer_step":  "tensor_infer_stage",
+                                                     "output_name":  "tensor_inference_report",
+                                                     "summary":  "Tensor inference readiness and serving report."
+                                                 },
+                                                 {
+                                                     "id":  "publish_summary",
+                                                     "report_uri":  "artifact://publish/summary",
+                                                     "producer_step":  "publish_suite_report",
+                                                     "output_name":  "publish_summary",
+                                                     "summary":  "Publish and delivery summary emitted through the Node bridge."
+                                                 }
+                                             ],
+                            "automation_jobs":  [
+                                                    {
+                                                        "id":  "thumbnail_refresh",
+                                                        "label":  "Thumbnail Refresh",
+                                                        "schedule":  "on_asset_ingest",
+                                                        "summary":  "Refreshes asset thumbnails and preview products after ingest."
+                                                    },
+                                                    {
+                                                        "id":  "nightly_material_rebake",
+                                                        "label":  "Nightly Material Rebake",
+                                                        "schedule":  "nightly",
+                                                        "summary":  "Rebuilds preview materials, SVG mask atlases, and cached bake outputs."
+                                                    },
+                                                    {
+                                                        "id":  "svg_mask_cache_rebuild",
+                                                        "label":  "SVG Mask Cache Rebuild",
+                                                        "schedule":  "on_material_edit",
+                                                        "summary":  "Recompiles vector mask stacks and anchor projections after material-layer edits."
+                                                    },
+                                                    {
+                                                        "id":  "smart_material_cache_warmup",
+                                                        "label":  "Smart Material Cache Warmup",
+                                                        "schedule":  "on_scene_open",
+                                                        "summary":  "Stages smart material presets, packed brush responses, and texture-set defaults."
+                                                    },
+                                                    {
+                                                        "id":  "rig_health_audit",
+                                                        "label":  "Rig Health Audit",
+                                                        "schedule":  "on_publish_candidate",
+                                                        "summary":  "Recomputes rig and graph health before publish promotion."
+                                                    },
+                                                    {
+                                                        "id":  "simulation_cache_warmup",
+                                                        "label":  "Simulation Cache Warmup",
+                                                        "schedule":  "on_scene_open",
+                                                        "summary":  "Stages warm caches for repeatable simulation review."
+                                                    },
+                                                    {
+                                                        "id":  "tensor_readiness_probe",
+                                                        "label":  "Tensor Readiness Probe",
+                                                        "schedule":  "manual_or_nightly",
+                                                        "summary":  "Checks tensor lane readiness and records PyTorch availability without forcing runtime completion."
+                                                    },
+                                                    {
+                                                        "id":  "publish_receipt_archive",
+                                                        "label":  "Publish Receipt Archive",
+                                                        "schedule":  "on_publish",
+                                                        "summary":  "Archives publish receipts and operator-facing reports."
+                                                    }
+                                                ],
+                            "intent_queue":  [
+                                                 {
+                                                     "id":  "material.bake_preview",
+                                                     "reason":  "material layer stack changed",
+                                                     "priority":  70,
+                                                     "debounce_ms":  16,
+                                                     "status":  "succeeded",
+                                                     "source_command_id":  "c49a2a15-97a9-4d56-9218-5cb6b43bb9db"
+                                                 },
+                                                 {
+                                                     "id":  "render.preview",
+                                                     "reason":  "render preview requested",
+                                                     "priority":  60,
+                                                     "debounce_ms":  16,
+                                                     "status":  "succeeded",
+                                                     "source_command_id":  "7403b2b0-8a59-4370-be04-279e1df93471"
+                                                 }
+                                             ],
+                            "latest_command":  {
+                                                   "id":  "7403b2b0-8a59-4370-be04-279e1df93471",
+                                                   "kind":  "render.preview",
+                                                   "issued_at":  "2026-03-27T22:33:17Z",
+                                                   "payload":  {
+                                                                   "camera_id":  "camera/shot_closeup"
+                                                               }
+                                               },
+                            "latest_fabric_run":  {
+                                                      "session_id":  "session-1774650369315-174572",
+                                                      "status":  "succeeded",
+                                                      "manifest_path":  "apps/kain-fabric-dcc-suite/KAIN.fabric.toml",
+                                                      "hot_path_results":  [
+                                                                               [
+                                                                                   " KAIN Compiler v0.1.0 (build 1774557219)",
+                                                                                   "Fabric manifest: apps/kain-fabric-dcc-suite/fabric/intents/render_preview.fabric.toml",
+                                                                                   "Steps: 7",
+                                                                                   "Runtimes:",
+                                                                                   "  - gpu_compute: 1",
+                                                                                   "  - kain: 5",
+                                                                                   "  - python: 1",
+                                                                                   "Required capabilities:",
+                                                                                   "  - contract.shared-buffer",
+                                                                                   "  - contract.value",
+                                                                                   "  - runtime.gpu-compute",
+                                                                                   "  - runtime.kain",
+                                                                                   "  - runtime.python",
+                                                                                   "  - session.local",
+                                                                                   "Session: session-1774650837231-180024",
+                                                                                   "Status: Succeeded",
+                                                                                   "Session directory: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024",
+                                                                                   "Report: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\report.json",
+                                                                                   "Lock: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\session.lock.json",
+                                                                                   "Events: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\events.jsonl",
+                                                                                   "Step results:",
+                                                                                   "  - python_suite_bootstrap [python]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - dcc_suite_seed [kain]: Succeeded",
+                                                                                   "    outputs: 5",
+                                                                                   "  - material_authoring_projection [kain]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - svg_material_mask_projection [kain]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - gpu_render_preview [gpu_compute]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - material_texture_export_projection [kain]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - render_preview_projection [kain]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   {
+                                                                                       "id":  "render.preview",
+                                                                                       "status":  "succeeded",
+                                                                                       "manifest":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\fabric\\intents\\render_preview.fabric.toml",
+                                                                                       "exit_code":  0
+                                                                                   }
+                                                                               ],
+                                                                               [
+                                                                                   " KAIN Compiler v0.1.0 (build 1774557219)",
+                                                                                   "Fabric manifest: apps/kain-fabric-dcc-suite/fabric/intents/material_bake.fabric.toml",
+                                                                                   "Steps: 6",
+                                                                                   "Runtimes:",
+                                                                                   "  - gpu_compute: 1",
+                                                                                   "  - kain: 4",
+                                                                                   "  - python: 1",
+                                                                                   "Required capabilities:",
+                                                                                   "  - contract.shared-buffer",
+                                                                                   "  - contract.value",
+                                                                                   "  - runtime.gpu-compute",
+                                                                                   "  - runtime.kain",
+                                                                                   "  - runtime.python",
+                                                                                   "  - session.local",
+                                                                                   "Session: session-1774650839144-151836",
+                                                                                   "Status: Succeeded",
+                                                                                   "Session directory: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836",
+                                                                                   "Report: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\report.json",
+                                                                                   "Lock: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\session.lock.json",
+                                                                                   "Events: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\events.jsonl",
+                                                                                   "Step results:",
+                                                                                   "  - python_suite_bootstrap [python]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - dcc_suite_seed [kain]: Succeeded",
+                                                                                   "    outputs: 4",
+                                                                                   "  - material_authoring_projection [kain]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - svg_material_mask_projection [kain]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - gpu_material_preview [gpu_compute]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   "  - material_texture_export_projection [kain]: Succeeded",
+                                                                                   "    outputs: 1",
+                                                                                   {
+                                                                                       "id":  "material.bake_preview",
+                                                                                       "status":  "succeeded",
+                                                                                       "manifest":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\fabric\\intents\\material_bake.fabric.toml",
+                                                                                       "exit_code":  0
+                                                                                   }
+                                                                               ]
+                                                                           ]
+                                                  },
+                            "bridge":  {
+                                           "status":  "ready",
+                                           "command_queue_path":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\state\\command_queue.jsonl",
+                                           "session_document_path":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\state\\session_document.json",
+                                           "processed_command_count":  2,
+                                           "last_processed_at":  "2026-03-27T22:34:00Z",
+                                           "last_processed_batch_count":  1,
+                                           "dispatcher_mode":  "queue-pass+fabric-hot-path",
+                                           "last_fabric_results":  [
+                                                                       [
+                                                                           " KAIN Compiler v0.1.0 (build 1774557219)",
+                                                                           "Fabric manifest: apps/kain-fabric-dcc-suite/fabric/intents/render_preview.fabric.toml",
+                                                                           "Steps: 7",
+                                                                           "Runtimes:",
+                                                                           "  - gpu_compute: 1",
+                                                                           "  - kain: 5",
+                                                                           "  - python: 1",
+                                                                           "Required capabilities:",
+                                                                           "  - contract.shared-buffer",
+                                                                           "  - contract.value",
+                                                                           "  - runtime.gpu-compute",
+                                                                           "  - runtime.kain",
+                                                                           "  - runtime.python",
+                                                                           "  - session.local",
+                                                                           "Session: session-1774650837231-180024",
+                                                                           "Status: Succeeded",
+                                                                           "Session directory: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024",
+                                                                           "Report: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\report.json",
+                                                                           "Lock: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\session.lock.json",
+                                                                           "Events: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/render_preview\\session-1774650837231-180024\\events.jsonl",
+                                                                           "Step results:",
+                                                                           "  - python_suite_bootstrap [python]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - dcc_suite_seed [kain]: Succeeded",
+                                                                           "    outputs: 5",
+                                                                           "  - material_authoring_projection [kain]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - svg_material_mask_projection [kain]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - gpu_render_preview [gpu_compute]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - material_texture_export_projection [kain]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - render_preview_projection [kain]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           {
+                                                                               "id":  "render.preview",
+                                                                               "status":  "succeeded",
+                                                                               "manifest":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\fabric\\intents\\render_preview.fabric.toml",
+                                                                               "exit_code":  0
+                                                                           }
+                                                                       ],
+                                                                       [
+                                                                           " KAIN Compiler v0.1.0 (build 1774557219)",
+                                                                           "Fabric manifest: apps/kain-fabric-dcc-suite/fabric/intents/material_bake.fabric.toml",
+                                                                           "Steps: 6",
+                                                                           "Runtimes:",
+                                                                           "  - gpu_compute: 1",
+                                                                           "  - kain: 4",
+                                                                           "  - python: 1",
+                                                                           "Required capabilities:",
+                                                                           "  - contract.shared-buffer",
+                                                                           "  - contract.value",
+                                                                           "  - runtime.gpu-compute",
+                                                                           "  - runtime.kain",
+                                                                           "  - runtime.python",
+                                                                           "  - session.local",
+                                                                           "Session: session-1774650839144-151836",
+                                                                           "Status: Succeeded",
+                                                                           "Session directory: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836",
+                                                                           "Report: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\report.json",
+                                                                           "Lock: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\session.lock.json",
+                                                                           "Events: apps/kain-fabric-dcc-suite/fabric/intents\\../..\\.kain/fabric/intents/material_bake\\session-1774650839144-151836\\events.jsonl",
+                                                                           "Step results:",
+                                                                           "  - python_suite_bootstrap [python]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - dcc_suite_seed [kain]: Succeeded",
+                                                                           "    outputs: 4",
+                                                                           "  - material_authoring_projection [kain]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - svg_material_mask_projection [kain]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - gpu_material_preview [gpu_compute]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           "  - material_texture_export_projection [kain]: Succeeded",
+                                                                           "    outputs: 1",
+                                                                           {
+                                                                               "id":  "material.bake_preview",
+                                                                               "status":  "succeeded",
+                                                                               "manifest":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\fabric\\intents\\material_bake.fabric.toml",
+                                                                               "exit_code":  0
+                                                                           }
+                                                                       ]
+                                                                   ]
+                                       },
+                            "extension_seams":  [
+                                                    "material lane still projects authoring receipts rather than a true native painter runtime",
+                                                    "tensor lane still reports readiness and plan state rather than executing a full typed tensor artifact contract",
+                                                    "simulation lane still materializes plan-oriented reports rather than a true solver runtime",
+                                                    "compositor lane still materializes rebuild plans rather than a first-class compositor graph runtime"
+                                                ]
+                        },
+    "updated_at":  "2026-03-27T22:32:11Z"
 }

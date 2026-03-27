@@ -4,12 +4,200 @@
   "render": {
     "scenes": [
       {
-        "viewport_node": "surface.node.35",
+        "viewport_node": "surface.node.133",
         "viewport_kind": "viewport3d",
         "scene": "dcc_suite_scene",
         "title": "Viewport Stage",
         "material_refs": [],
-        "shader_bundle_ref_keys": []
+        "shader_bundle_ref_keys": [],
+        "presentation": {
+          "profile": "dcc_authoring_balanced",
+          "gizmo": {
+            "profile_id": "dcc_transform_universal",
+            "visible": true,
+            "default_mode": "translate",
+            "default_space": "world",
+            "drag_trigger": "ctrl_primary_drag",
+            "selection_required": true,
+            "translate_hotkey": "T",
+            "rotate_hotkey": "R",
+            "scale_hotkey": "Y",
+            "cycle_space_hotkey": "U",
+            "toggle_snap_hotkey": "I",
+            "translate_snap_units": 0.5,
+            "rotate_snap_degrees": 15.0,
+            "scale_snap_percent": 10.0,
+            "snap_default_enabled": false
+          }
+        }
+      },
+      {
+        "viewport_node": "surface.node.210",
+        "viewport_kind": "viewport3d",
+        "scene": "dcc_suite_scene",
+        "title": "Viewport Stage",
+        "material_refs": [],
+        "shader_bundle_ref_keys": [],
+        "presentation": {
+          "profile": "dcc_authoring_balanced",
+          "gizmo": {
+            "profile_id": "dcc_transform_universal",
+            "visible": true,
+            "default_mode": "translate",
+            "default_space": "world",
+            "drag_trigger": "ctrl_primary_drag",
+            "selection_required": true,
+            "translate_hotkey": "T",
+            "rotate_hotkey": "R",
+            "scale_hotkey": "Y",
+            "cycle_space_hotkey": "U",
+            "toggle_snap_hotkey": "I",
+            "translate_snap_units": 0.5,
+            "rotate_snap_degrees": 15.0,
+            "scale_snap_percent": 10.0,
+            "snap_default_enabled": false
+          }
+        }
+      },
+      {
+        "viewport_node": "surface.node.286",
+        "viewport_kind": "viewport3d",
+        "scene": "dcc_suite_scene",
+        "title": "Viewport Stage",
+        "material_refs": [],
+        "shader_bundle_ref_keys": [],
+        "presentation": {
+          "profile": "dcc_authoring_balanced",
+          "gizmo": {
+            "profile_id": "dcc_transform_universal",
+            "visible": true,
+            "default_mode": "translate",
+            "default_space": "world",
+            "drag_trigger": "ctrl_primary_drag",
+            "selection_required": true,
+            "translate_hotkey": "T",
+            "rotate_hotkey": "R",
+            "scale_hotkey": "Y",
+            "cycle_space_hotkey": "U",
+            "toggle_snap_hotkey": "I",
+            "translate_snap_units": 0.5,
+            "rotate_snap_degrees": 15.0,
+            "scale_snap_percent": 10.0,
+            "snap_default_enabled": false
+          }
+        }
+      },
+      {
+        "viewport_node": "surface.node.364",
+        "viewport_kind": "viewport3d",
+        "scene": "dcc_suite_scene",
+        "title": "Viewport Stage",
+        "material_refs": [],
+        "shader_bundle_ref_keys": [],
+        "presentation": {
+          "profile": "dcc_authoring_balanced",
+          "gizmo": {
+            "profile_id": "dcc_transform_universal",
+            "visible": true,
+            "default_mode": "translate",
+            "default_space": "world",
+            "drag_trigger": "ctrl_primary_drag",
+            "selection_required": true,
+            "translate_hotkey": "T",
+            "rotate_hotkey": "R",
+            "scale_hotkey": "Y",
+            "cycle_space_hotkey": "U",
+            "toggle_snap_hotkey": "I",
+            "translate_snap_units": 0.5,
+            "rotate_snap_degrees": 15.0,
+            "scale_snap_percent": 10.0,
+            "snap_default_enabled": false
+          }
+        }
+      },
+      {
+        "viewport_node": "surface.node.435",
+        "viewport_kind": "viewport3d",
+        "scene": "dcc_suite_scene",
+        "title": "Viewport Stage",
+        "material_refs": [],
+        "shader_bundle_ref_keys": [],
+        "presentation": {
+          "profile": "dcc_authoring_balanced",
+          "gizmo": {
+            "profile_id": "dcc_transform_universal",
+            "visible": true,
+            "default_mode": "translate",
+            "default_space": "world",
+            "drag_trigger": "ctrl_primary_drag",
+            "selection_required": true,
+            "translate_hotkey": "T",
+            "rotate_hotkey": "R",
+            "scale_hotkey": "Y",
+            "cycle_space_hotkey": "U",
+            "toggle_snap_hotkey": "I",
+            "translate_snap_units": 0.5,
+            "rotate_snap_degrees": 15.0,
+            "scale_snap_percent": 10.0,
+            "snap_default_enabled": false
+          }
+        }
+      },
+      {
+        "viewport_node": "surface.node.503",
+        "viewport_kind": "viewport3d",
+        "scene": "dcc_suite_scene",
+        "title": "Viewport Stage",
+        "material_refs": [],
+        "shader_bundle_ref_keys": [],
+        "presentation": {
+          "profile": "dcc_authoring_balanced",
+          "gizmo": {
+            "profile_id": "dcc_transform_universal",
+            "visible": true,
+            "default_mode": "translate",
+            "default_space": "world",
+            "drag_trigger": "ctrl_primary_drag",
+            "selection_required": true,
+            "translate_hotkey": "T",
+            "rotate_hotkey": "R",
+            "scale_hotkey": "Y",
+            "cycle_space_hotkey": "U",
+            "toggle_snap_hotkey": "I",
+            "translate_snap_units": 0.5,
+            "rotate_snap_degrees": 15.0,
+            "scale_snap_percent": 10.0,
+            "snap_default_enabled": false
+          }
+        }
+      },
+      {
+        "viewport_node": "surface.node.576",
+        "viewport_kind": "viewport3d",
+        "scene": "dcc_suite_scene",
+        "title": "Viewport Stage",
+        "material_refs": [],
+        "shader_bundle_ref_keys": [],
+        "presentation": {
+          "profile": "dcc_authoring_balanced",
+          "gizmo": {
+            "profile_id": "dcc_transform_universal",
+            "visible": true,
+            "default_mode": "translate",
+            "default_space": "world",
+            "drag_trigger": "ctrl_primary_drag",
+            "selection_required": true,
+            "translate_hotkey": "T",
+            "rotate_hotkey": "R",
+            "scale_hotkey": "Y",
+            "cycle_space_hotkey": "U",
+            "toggle_snap_hotkey": "I",
+            "translate_snap_units": 0.5,
+            "rotate_snap_degrees": 15.0,
+            "scale_snap_percent": 10.0,
+            "snap_default_enabled": false
+          }
+        }
       }
     ],
     "materials": []
