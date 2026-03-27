@@ -23,7 +23,7 @@
   - HTML and client-island renderer
   - client bundler (Preact + Three.js) for React/TypeScript-esque islands
   - KainScript (`.ks`) support in the client bundle loader
-  - local search, chat, prompt-deck, catalog, app/auth/commerce/data/realtime, session, uploads, analytics, form, and route APIs
+  - local search, chat, prompt-deck, catalog, app/auth/commerce/data/realtime, growth/experiments/service catalog, session, uploads, analytics, form, and route APIs
   - static artifact writer
   - actor-aware local HTTP + SSE + WebSocket server
 - `package.json`
@@ -36,7 +36,7 @@
 - `manifests/themes/*.json`
   - visual systems
 - `manifests/content/*.json`
-  - copy, pricing, testimonials, docs links, prompts, forms, routes, and search documents
+  - copy, pricing, testimonials, docs links, prompts, forms, routes, growth/experiment/service data, and search documents
 - `manifests/scenes/*.json`
   - immersive scene descriptors
 - `manifests/experiences/*.json`
@@ -138,8 +138,12 @@ New reusable section kinds in this pass:
 - `analytics_lab`
 - `card_grid` with `content.chat_personas`
 - `card_grid` with `content.chat_modes`
+- `process_steps` with `content.chat_playbooks`
+- `card_grid` with `content.chat_tools`
+- `card_grid` with `content.chat_memory`
 - `process_steps` with `content.actor_playbooks`
 - `card_grid` with `content.actor_tools`
+- `actor_topology`
 - `status_board`
 - `roadmap_timeline`
 - `team_grid`
@@ -148,6 +152,11 @@ New reusable section kinds in this pass:
 - `careers_list`
 - `support_grid`
 - `security_grid`
+- `growth_stack`
+- `experiment_board`
+- `service_catalog`
+- `success_playbooks`
+- `notification_matrix`
 - `community_hub`
 - `event_schedule`
 - `newsletter_panel`

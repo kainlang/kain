@@ -276,6 +276,61 @@
       { "title": "Bundle size", "detail": "Client island payload", "target": "< 260kb" }
     ]
   },
+  "growth": {
+    "kicker": "Growth",
+    "title": "Growth campaigns and funnels",
+    "body": "Plan launch campaigns, funnels, and acquisition lanes without rewriting page logic.",
+    "campaigns": [
+      { "title": "Launch Countdown", "channel": "email", "summary": "10-day narrative drip leading to launch day.", "status": "ready" },
+      { "title": "Operator Briefing", "channel": "live", "summary": "Live walkthrough of actor-server capabilities.", "status": "scheduled" },
+      { "title": "Docs Activation", "channel": "docs", "summary": "Search-driven onboarding for knowledge hubs.", "status": "active" }
+    ],
+    "funnels": [
+      { "stage": "Awareness", "metric": "site visits", "owner": "growth_ops" },
+      { "stage": "Activation", "metric": "prompted chat sessions", "owner": "chat_ops" },
+      { "stage": "Conversion", "metric": "intake submissions", "owner": "intake_collector" }
+    ]
+  },
+  "experiments": {
+    "kicker": "Experiments",
+    "title": "A/B testing and feature flags",
+    "body": "Track experiments, hypotheses, and rollout status as data.",
+    "tests": [
+      { "name": "Hero CTA variant", "hypothesis": "Short CTA increases intake conversion.", "status": "running", "metric": "form_submit", "owner": "growth_ops" },
+      { "name": "Chat-first nav", "hypothesis": "Chat entry point reduces bounce rate.", "status": "planned", "metric": "chat_start", "owner": "chat_ops" },
+      { "name": "Scene-first layout", "hypothesis": "Scene-led storytelling increases engagement.", "status": "completed", "metric": "time_on_page", "owner": "experience_design" }
+    ]
+  },
+  "service_catalog": {
+    "kicker": "Services",
+    "title": "Service catalog and SLAs",
+    "body": "Describe what the site system offers and how it is supported.",
+    "services": [
+      { "name": "Launch Site", "tier": "core", "summary": "Business + pricing + docs stack.", "sla": "2-day turnaround", "owner": "launch_ops" },
+      { "name": "Chat System", "tier": "extended", "summary": "Prompt decks, persona rails, streaming chat.", "sla": "weekly iteration", "owner": "chat_ops" },
+      { "name": "Actor Runtime", "tier": "operator", "summary": "Route contracts, actor mesh, control plane.", "sla": "on-call coverage", "owner": "mesh_supervisor" }
+    ]
+  },
+  "success": {
+    "kicker": "Success",
+    "title": "Customer success playbooks",
+    "body": "Track onboarding, adoption, and renewal workflows in one place.",
+    "playbooks": [
+      { "title": "Launch onboarding", "goal": "Move launch teams to first publish.", "owner": "success_lead", "cadence": "weekly" },
+      { "title": "Chat adoption", "goal": "Drive prompt-led engagement.", "owner": "chat_ops", "cadence": "daily" },
+      { "title": "Operator expansion", "goal": "Expand actor runtime coverage.", "owner": "mesh_supervisor", "cadence": "bi-weekly" }
+    ]
+  },
+  "notifications": {
+    "kicker": "Notifications",
+    "title": "Messaging and alert channels",
+    "body": "Declare notification channels and responsibilities for live systems.",
+    "channels": [
+      { "name": "Launch Updates", "purpose": "Notify on new releases.", "owner": "growth_ops", "cadence": "daily", "transport": "email" },
+      { "name": "Actor Alerts", "purpose": "Route failures and escalation signals.", "owner": "mesh_supervisor", "cadence": "immediate", "transport": "webhook" },
+      { "name": "Chat Insights", "purpose": "Prompt trends and routing outcomes.", "owner": "chat_ops", "cadence": "weekly", "transport": "dashboard" }
+    ]
+  },
   "forms": {
     "newsletter_signup": {
       "id": "newsletter_signup",

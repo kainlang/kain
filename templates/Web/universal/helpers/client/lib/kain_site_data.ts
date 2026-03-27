@@ -281,6 +281,108 @@ export type KainPerformanceDescriptor = {
   targets?: KainPerformanceTarget[] | null;
 };
 
+export type KainGrowthCampaign = {
+  title?: string | null;
+  channel?: string | null;
+  summary?: string | null;
+  status?: string | null;
+};
+
+export type KainGrowthFunnel = {
+  stage?: string | null;
+  metric?: string | null;
+  owner?: string | null;
+};
+
+export type KainGrowthDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  campaigns?: KainGrowthCampaign[] | null;
+  funnels?: KainGrowthFunnel[] | null;
+};
+
+export type KainExperimentTest = {
+  name?: string | null;
+  hypothesis?: string | null;
+  status?: string | null;
+  metric?: string | null;
+  owner?: string | null;
+};
+
+export type KainExperimentDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  tests?: KainExperimentTest[] | null;
+};
+
+export type KainServiceEntry = {
+  name?: string | null;
+  tier?: string | null;
+  summary?: string | null;
+  sla?: string | null;
+  owner?: string | null;
+};
+
+export type KainServiceCatalog = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  services?: KainServiceEntry[] | null;
+};
+
+export type KainSuccessPlaybook = {
+  title?: string | null;
+  goal?: string | null;
+  owner?: string | null;
+  cadence?: string | null;
+};
+
+export type KainSuccessDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  playbooks?: KainSuccessPlaybook[] | null;
+};
+
+export type KainNotificationChannel = {
+  name?: string | null;
+  purpose?: string | null;
+  owner?: string | null;
+  cadence?: string | null;
+  transport?: string | null;
+};
+
+export type KainNotificationDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  channels?: KainNotificationChannel[] | null;
+};
+
+export type KainActorTopologyNode = {
+  id?: string | null;
+  name?: string | null;
+  role?: string | null;
+  channel?: string | null;
+};
+
+export type KainActorTopologyEdge = {
+  from?: string | null;
+  to?: string | null;
+  relation?: string | null;
+  detail?: string | null;
+};
+
+export type KainActorTopology = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  nodes?: KainActorTopologyNode[] | null;
+  edges?: KainActorTopologyEdge[] | null;
+};
+
 export type KainCareerRole = {
   title?: string | null;
   location?: string | null;
@@ -338,8 +440,12 @@ export type KainSiteData = {
   chat_seed?: KainChatSeedMessage[];
   chat_personas?: KainCardEntry[];
   chat_modes?: KainCardEntry[];
+  chat_playbooks?: KainProcessStep[];
+  chat_tools?: KainCardEntry[];
+  chat_memory?: KainCardEntry[];
   actor_playbooks?: KainProcessStep[];
   actor_tools?: KainCardEntry[];
+  actor_topology?: KainActorTopology | null;
   scene?: KainSceneDescriptor;
   auth?: KainAuthDescriptor | null;
   commerce?: KainCommerceDescriptor | null;
@@ -360,6 +466,11 @@ export type KainSiteData = {
   localization?: KainLocalizationDescriptor | null;
   accessibility?: KainAccessibilityDescriptor | null;
   performance?: KainPerformanceDescriptor | null;
+  growth?: KainGrowthDescriptor | null;
+  experiments?: KainExperimentDescriptor | null;
+  service_catalog?: KainServiceCatalog | null;
+  success?: KainSuccessDescriptor | null;
+  notifications?: KainNotificationDescriptor | null;
   careers?: KainCareersDescriptor | null;
   partners?: KainPartner[] | null;
   press_kit?: KainPressKit | null;

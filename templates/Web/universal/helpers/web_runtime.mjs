@@ -468,6 +468,121 @@ function renderSupportGrid(channels) {
     .join("")}</div>`;
 }
 
+function renderGrowthStack(growth) {
+  const campaigns = growth?.campaigns || [];
+  const funnels = growth?.funnels || [];
+  const campaignCards = campaigns
+    .map(
+      (campaign) => `<article class="feature-card growth-card">
+  <p class="card-kicker">${escapeHtml(campaign.channel || "campaign")}</p>
+  <h3>${escapeHtml(campaign.title || "Campaign")}</h3>
+  <p>${escapeHtml(campaign.summary || "")}</p>
+  <p class="portfolio-stack">${escapeHtml(campaign.status || "")}</p>
+</article>`
+    )
+    .join("");
+  const funnelRows = funnels.length
+    ? `<div class="timeline-list">${funnels
+        .map(
+          (funnel) => `<article class="timeline-row funnel-row">
+  <p class="timeline-label">${escapeHtml(funnel.stage || "Stage")}</p>
+  <div>
+    <h3>${escapeHtml(funnel.metric || "")}</h3>
+    <p>${escapeHtml(funnel.owner || "")}</p>
+  </div>
+</article>`
+        )
+        .join("")}</div>`
+    : "";
+  return `<div class="growth-grid">${campaignCards}</div>${funnelRows}`;
+}
+
+function renderExperimentBoard(experiments) {
+  const tests = experiments?.tests || [];
+  return `<div class="feature-grid experiment-grid">${tests
+    .map(
+      (test) => `<article class="feature-card experiment-card">
+  <p class="card-kicker">${escapeHtml(test.status || "experiment")}</p>
+  <h3>${escapeHtml(test.name || "Experiment")}</h3>
+  <p>${escapeHtml(test.hypothesis || "")}</p>
+  <p class="portfolio-stack">${escapeHtml([test.metric, test.owner].filter(Boolean).join(" / "))}</p>
+</article>`
+    )
+    .join("")}</div>`;
+}
+
+function renderServiceCatalog(serviceCatalog) {
+  const services = serviceCatalog?.services || [];
+  return `<div class="feature-grid service-grid">${services
+    .map(
+      (service) => `<article class="feature-card service-card">
+  <p class="card-kicker">${escapeHtml(service.tier || "service")}</p>
+  <h3>${escapeHtml(service.name || "Service")}</h3>
+  <p>${escapeHtml(service.summary || "")}</p>
+  <p class="portfolio-stack">${escapeHtml([service.sla, service.owner].filter(Boolean).join(" / "))}</p>
+</article>`
+    )
+    .join("")}</div>`;
+}
+
+function renderSuccessPlaybooks(success) {
+  const playbooks = success?.playbooks || [];
+  return `<div class="timeline-list success-list">${playbooks
+    .map(
+      (playbook) => `<article class="timeline-row success-row">
+  <p class="timeline-label">${escapeHtml(playbook.cadence || "Cadence")}</p>
+  <div>
+    <h3>${escapeHtml(playbook.title || "Playbook")}</h3>
+    <p>${escapeHtml(playbook.goal || "")}</p>
+    <p class="portfolio-stack">${escapeHtml(playbook.owner || "")}</p>
+  </div>
+</article>`
+    )
+    .join("")}</div>`;
+}
+
+function renderNotificationMatrix(notifications) {
+  const channels = notifications?.channels || [];
+  return `<div class="feature-grid notification-grid">${channels
+    .map(
+      (channel) => `<article class="feature-card notification-card">
+  <p class="card-kicker">${escapeHtml(channel.transport || "notification")}</p>
+  <h3>${escapeHtml(channel.name || "Channel")}</h3>
+  <p>${escapeHtml(channel.purpose || "")}</p>
+  <p class="portfolio-stack">${escapeHtml([channel.cadence, channel.owner].filter(Boolean).join(" / "))}</p>
+</article>`
+    )
+    .join("")}</div>`;
+}
+
+function renderActorTopology(topology) {
+  const nodes = topology?.nodes || [];
+  const edges = topology?.edges || [];
+  const nodeCards = nodes
+    .map(
+      (node) => `<article class="feature-card topology-card">
+  <p class="card-kicker">${escapeHtml(node.role || "node")}</p>
+  <h3>${escapeHtml(node.name || node.id || "Actor")}</h3>
+  <p>${escapeHtml(node.channel || "")}</p>
+</article>`
+    )
+    .join("");
+  const edgeRows = edges.length
+    ? `<div class="timeline-list topology-links">${edges
+        .map(
+          (edge) => `<article class="timeline-row topology-edge">
+  <p class="timeline-label">${escapeHtml(edge.relation || "link")}</p>
+  <div>
+    <h3>${escapeHtml(edge.from || "")} → ${escapeHtml(edge.to || "")}</h3>
+    <p>${escapeHtml(edge.detail || "")}</p>
+  </div>
+</article>`
+        )
+        .join("")}</div>`
+    : "";
+  return `<div class="feature-grid topology-grid">${nodeCards}</div>${edgeRows}`;
+}
+
 function renderCareersList(careers) {
   const roles = careers?.roles || [];
   return `<section class="careers-shell">
@@ -1313,8 +1428,20 @@ function renderSectionBlock(section, model) {
     bodyHtml = renderChat(getModelValue(model, normalized.source, []), normalized);
   } else if (kind === "actor_mesh") {
     bodyHtml = `<div class="feature-grid">${renderActors(getModelValue(model, normalized.source, []))}</div>`;
+  } else if (kind === "actor_topology") {
+    bodyHtml = renderActorTopology(getModelValue(model, normalized.source, {}));
   } else if (kind === "route_grid") {
     bodyHtml = `<div class="feature-grid">${renderRoutes(getModelValue(model, normalized.source, []))}</div>`;
+  } else if (kind === "growth_stack") {
+    bodyHtml = renderGrowthStack(getModelValue(model, normalized.source, {}));
+  } else if (kind === "experiment_board") {
+    bodyHtml = renderExperimentBoard(getModelValue(model, normalized.source, {}));
+  } else if (kind === "service_catalog") {
+    bodyHtml = renderServiceCatalog(getModelValue(model, normalized.source, {}));
+  } else if (kind === "success_playbooks") {
+    bodyHtml = renderSuccessPlaybooks(getModelValue(model, normalized.source, {}));
+  } else if (kind === "notification_matrix") {
+    bodyHtml = renderNotificationMatrix(getModelValue(model, normalized.source, {}));
   } else if (kind === "pricing") {
     bodyHtml = renderPricing(getModelValue(model, normalized.source, []));
   } else if (kind === "testimonials") {
@@ -1438,6 +1565,24 @@ function buildDerivedSearchDocuments(model) {
   }
   for (const actor of model.content.actor_roles || []) {
     pushDocument("actor", actor.name, actor.responsibility, "#actors");
+  }
+  for (const node of model.content.actor_topology?.nodes || []) {
+    pushDocument("actor-node", node.name || node.id, node.channel || node.role, "#topology");
+  }
+  for (const campaign of model.content.growth?.campaigns || []) {
+    pushDocument("growth", campaign.title, campaign.summary, "#growth");
+  }
+  for (const test of model.content.experiments?.tests || []) {
+    pushDocument("experiment", test.name, test.hypothesis, "#experiments");
+  }
+  for (const service of model.content.service_catalog?.services || []) {
+    pushDocument("service", service.name, service.summary, "#services");
+  }
+  for (const playbook of model.content.success?.playbooks || []) {
+    pushDocument("success", playbook.title, playbook.goal, "#success");
+  }
+  for (const channel of model.content.notifications?.channels || []) {
+    pushDocument("notification", channel.name, channel.purpose, "#notifications");
   }
   for (const persona of model.content.chat_personas || []) {
     pushDocument("persona", persona.title || persona.name, persona.body || persona.summary || "", "#personas");
@@ -1850,8 +1995,12 @@ function buildSiteData(model) {
     prompt_presets: model.content.prompt_presets || [],
     chat_personas: model.content.chat_personas || [],
     chat_modes: model.content.chat_modes || [],
+    chat_playbooks: model.content.chat_playbooks || [],
+    chat_tools: model.content.chat_tools || [],
+    chat_memory: model.content.chat_memory || [],
     actor_playbooks: model.content.actor_playbooks || [],
     actor_tools: model.content.actor_tools || [],
+    actor_topology: model.content.actor_topology || null,
     blueprints: model.content.blueprints || [],
     capability_matrix: model.content.capability_matrix || null,
     auth: model.content.auth || null,
@@ -1862,6 +2011,11 @@ function buildSiteData(model) {
     integrations: model.content.integrations || [],
     realtime_channels: model.content.realtime_channels || [],
     data_collections: model.content.data_collections || [],
+    growth: model.content.growth || null,
+    experiments: model.content.experiments || null,
+    service_catalog: model.content.service_catalog || null,
+    success: model.content.success || null,
+    notifications: model.content.notifications || null,
     status: model.content.status || null,
     roadmap: model.content.roadmap || [],
     team_members: model.content.team_members || [],
@@ -2172,7 +2326,7 @@ function renderDocument(model, siteData, options = {}) {
       color: var(--muted);
       line-height: 1.5;
     }
-    .metric-grid, .feature-grid, .portfolio-grid, .docs-grid, .link-grid, .command-grid, .pricing-grid, .testimonial-grid, .process-grid, .prompt-grid, .team-grid, .support-grid, .status-grid, .career-grid, .legal-grid {
+    .metric-grid, .feature-grid, .growth-grid, .experiment-grid, .service-grid, .notification-grid, .topology-grid, .portfolio-grid, .docs-grid, .link-grid, .command-grid, .pricing-grid, .testimonial-grid, .process-grid, .prompt-grid, .team-grid, .support-grid, .status-grid, .career-grid, .legal-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 14px;
@@ -2665,6 +2819,12 @@ function buildSystemContract(model, siteData, actorServerPlan) {
       event: "/api/analytics/event",
       events: "/api/analytics/events"
     },
+    growth: "/api/growth",
+    experiments: "/api/experiments",
+    services: "/api/services",
+    success: "/api/success",
+    notifications: "/api/notifications",
+    actor_topology: "/api/actors/topology",
     status: "/api/status",
     roadmap: "/api/roadmap",
     support: "/api/support",
@@ -2689,6 +2849,11 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     integrations: siteData.integrations || [],
     realtime_channels: siteData.realtime_channels || [],
     data_collections: siteData.data_collections || [],
+    growth: siteData.growth || null,
+    experiments: siteData.experiments || null,
+    service_catalog: siteData.service_catalog || null,
+    success: siteData.success || null,
+    notifications: siteData.notifications || null,
     status_data: siteData.status || null,
     roadmap_items: siteData.roadmap || [],
     support_channels: siteData.support_channels || [],
@@ -2794,6 +2959,12 @@ function buildUiSchema(model, siteData) {
         category: entry.category || null,
         transport: entry.transport || null
       })),
+      growth_campaigns: (siteData.growth?.campaigns || []).length,
+      experiment_count: (siteData.experiments?.tests || []).length,
+      service_count: (siteData.service_catalog?.services || []).length,
+      success_playbooks: (siteData.success?.playbooks || []).length,
+      notification_channels: (siteData.notifications?.channels || []).length,
+      actor_nodes: (siteData.actor_topology?.nodes || []).length,
       status_services: (siteData.status?.services || []).length,
       roadmap_items: (siteData.roadmap || []).length,
       support_channels: (siteData.support_channels || []).length,
@@ -3020,6 +3191,11 @@ function buildApiRoutes(model, siteData) {
     { method: "POST", path: "/api/auth/session/logout", purpose: "clears the active session identity", actor: "auth_gateway" },
     { method: "GET", path: "/api/commerce", purpose: "returns sellable offers and membership metadata", actor: "commerce_orchestrator" },
     { method: "GET", path: "/api/data", purpose: "returns typed collection and persistence metadata", actor: "data_keeper" },
+    { method: "GET", path: "/api/growth", purpose: "returns growth campaign and funnel metadata", actor: "growth_ops" },
+    { method: "GET", path: "/api/experiments", purpose: "returns experiment and A/B test metadata", actor: "growth_ops" },
+    { method: "GET", path: "/api/services", purpose: "returns service catalog and SLA metadata", actor: "service_manager" },
+    { method: "GET", path: "/api/success", purpose: "returns customer success playbooks", actor: "success_lead" },
+    { method: "GET", path: "/api/notifications", purpose: "returns notification channel metadata", actor: "signal_broker" },
     { method: "GET", path: "/api/integrations", purpose: "returns upstream system connectors and transports", actor: "integration_router" },
     { method: "GET", path: "/api/status", purpose: "returns status board metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/roadmap", purpose: "returns roadmap milestones", actor: "runtime_reporter" },
@@ -3047,6 +3223,7 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/realtime/stream", purpose: "returns a server-sent event preview for realtime channels", actor: "signal_broker" },
     { method: "WS", path: "/ws/realtime", purpose: "websocket stream for realtime channels", actor: "signal_broker" },
     { method: "WS", path: "/ws/chat", purpose: "websocket message lane for chat experiments", actor: "chat_seed_router" },
+    { method: "GET", path: "/api/actors/topology", purpose: "returns actor mesh topology nodes and edges", actor: "mesh_supervisor" },
     { method: "GET", path: "/api/system.contract.json", purpose: "returns the complete website system contract", actor: "runtime_reporter" },
     { method: "GET", path: "/api/ui.schema.json", purpose: "returns the UI composition schema", actor: "runtime_reporter" },
     { method: "GET", path: "/api/actors", purpose: "returns actor topology and role descriptions", actor: "mesh_supervisor" },
@@ -3092,8 +3269,12 @@ export function buildActorServerPlan(appManifestPath, experienceId) {
     actors: model.content.actor_roles || [],
     actor_playbooks: siteData.actor_playbooks || [],
     actor_tools: siteData.actor_tools || [],
+    actor_topology: siteData.actor_topology || null,
     chat_personas: siteData.chat_personas || [],
     chat_modes: siteData.chat_modes || [],
+    chat_playbooks: siteData.chat_playbooks || [],
+    chat_tools: siteData.chat_tools || [],
+    chat_memory: siteData.chat_memory || [],
     forms: siteData.forms || [],
     auth: siteData.auth || null,
     commerce: siteData.commerce || null,
@@ -3101,6 +3282,11 @@ export function buildActorServerPlan(appManifestPath, experienceId) {
     integrations: siteData.integrations || [],
     realtime_channels: siteData.realtime_channels || [],
     data_collections: siteData.data_collections || [],
+    growth: siteData.growth || null,
+    experiments: siteData.experiments || null,
+    service_catalog: siteData.service_catalog || null,
+    success: siteData.success || null,
+    notifications: siteData.notifications || null,
     status: siteData.status || null,
     roadmap: siteData.roadmap || [],
     support_channels: siteData.support_channels || [],
@@ -3553,6 +3739,26 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, bundle.site_data.data_collections || []);
       return;
     }
+    if (request.method === "GET" && pathname === "/api/growth") {
+      sendJson(response, 200, bundle.site_data.growth || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/experiments") {
+      sendJson(response, 200, bundle.site_data.experiments || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/services") {
+      sendJson(response, 200, bundle.site_data.service_catalog || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/success") {
+      sendJson(response, 200, bundle.site_data.success || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/notifications") {
+      sendJson(response, 200, bundle.site_data.notifications || {});
+      return;
+    }
     if (request.method === "GET" && pathname === "/api/integrations") {
       sendJson(response, 200, bundle.site_data.integrations || []);
       return;
@@ -3631,6 +3837,10 @@ async function serveExperience(appManifestPath, experienceId) {
     }
     if (request.method === "GET" && pathname === "/api/realtime") {
       sendJson(response, 200, bundle.site_data.realtime_channels || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/actors/topology") {
+      sendJson(response, 200, bundle.site_data.actor_topology || {});
       return;
     }
     if (request.method === "GET" && pathname === "/api/actors") {

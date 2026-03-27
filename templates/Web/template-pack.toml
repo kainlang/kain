@@ -37,7 +37,13 @@ supports = [
   "careers_page",
   "press_kit",
   "security_posture",
-  "partner_grid"
+  "partner_grid",
+  "growth_stack",
+  "experiment_board",
+  "service_catalog",
+  "success_playbooks",
+  "notification_matrix",
+  "actor_topology"
 ]
 stdlib_modules = [
   "std::javascript::site_runtime",

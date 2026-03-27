@@ -2,6 +2,7 @@ import { h } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import type { KainChatSeedMessage } from "../lib/kain_site_data";
+import { normalizePrompt } from "../lib/kain_script_bridge.ks";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -55,7 +56,7 @@ export function ChatLabIsland(props: Props) {
   const streamEndpoint = props.streamEndpoint || "/api/chat/stream";
 
   const submit = async () => {
-    const trimmed = prompt.trim();
+    const trimmed = normalizePrompt(prompt);
     if (!trimmed || streaming) return;
     setPrompt("");
     setMessages((prev) => [...prev, { role: "user", text: trimmed }]);

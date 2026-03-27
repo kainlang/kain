@@ -149,4 +149,31 @@ component App():
                 <text role="caption">Runtime targets and budgets are tracked with the system data.</text>
             </panel>
         </panel>
+
+        <panel title="Growth + Ops Systems" scope="web_pack" variant="section" layout="grid" columns={3} gap={14}>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Growth</text>
+                <text role="caption">Campaigns and funnels stay in data so launches can iterate without new code.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Experiments</text>
+                <text role="caption">A/B tests and feature flags live beside the content registry.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Service Catalog</text>
+                <text role="caption">Describe offerings, SLAs, and ownership in the system contract.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Success</text>
+                <text role="caption">Customer success playbooks and adoption flows stay manifest-driven.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Notifications</text>
+                <text role="caption">Messaging and alert channels are tracked as runtime data.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Actor Topology</text>
+                <text role="caption">Actor mesh nodes and edges are visible in the web control plane.</text>
+            </panel>
+        </panel>
     </slot>

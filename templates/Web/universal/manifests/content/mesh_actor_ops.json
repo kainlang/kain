@@ -76,6 +76,24 @@
     { "name": "search_indexer", "responsibility": "Queries the local docs and route index.", "channel": "api.search" },
     { "name": "mesh_supervisor", "responsibility": "Owns actor topology and health reporting.", "channel": "api.actors" }
   ],
+  "actor_topology": {
+    "kicker": "Topology",
+    "title": "Actor mesh topology",
+    "body": "Actor nodes and relationships are tracked as data so the control plane stays predictable.",
+    "nodes": [
+      { "id": "site_renderer", "name": "Site Renderer", "role": "surface", "channel": "http.root" },
+      { "id": "runtime_reporter", "name": "Runtime Reporter", "role": "telemetry", "channel": "api.runtime" },
+      { "id": "mesh_supervisor", "name": "Mesh Supervisor", "role": "control", "channel": "api.actors" },
+      { "id": "search_indexer", "name": "Search Indexer", "role": "index", "channel": "api.search" },
+      { "id": "chat_seed_router", "name": "Chat Seed Router", "role": "chat", "channel": "api.chat" }
+    ],
+    "edges": [
+      { "from": "site_renderer", "to": "runtime_reporter", "relation": "telemetry" },
+      { "from": "mesh_supervisor", "to": "site_renderer", "relation": "status" },
+      { "from": "search_indexer", "to": "site_renderer", "relation": "index" },
+      { "from": "chat_seed_router", "to": "mesh_supervisor", "relation": "escalate" }
+    ]
+  },
   "actor_playbooks": [
     { "kicker": "Playbook", "title": "Route outage response", "body": "Validate the route catalog, notify the mesh supervisor, and publish a temporary fallback route." },
     { "kicker": "Playbook", "title": "Chat escalation", "body": "Promote high-signal prompts into the intake queue and tag the responsible actor." },

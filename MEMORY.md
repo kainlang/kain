@@ -10,6 +10,26 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-26 - Universal Web Template Growth + Ops Systems Expanded
+
+The universal web template now ships the full growth and operations systems expected of production-grade sites, without requiring Rust tooling.
+
+Update:
+
+- Added growth, experiments, service catalog, success playbooks, and notification channels to the shared `web_systems_core` manifest.
+- Added actor topology data to the actor-server content and rendered it as a first-class section.
+- Extended hybrid, operator, business, chat, and actor experiences to surface the new systems.
+- Added new section kinds (`growth_stack`, `experiment_board`, `service_catalog`, `success_playbooks`, `notification_matrix`, `actor_topology`) with renderer + CSS support.
+- Extended site data, system contract, actor server plan, and API routes to expose the new system domains (`/api/growth`, `/api/experiments`, `/api/services`, `/api/success`, `/api/notifications`, `/api/actors/topology`).
+- Expanded chat content with explicit playbooks, tooling, and memory lanes; normalized prompts via KainScript in the client chat island.
+- Updated template pack metadata, docs, and preview UI to reflect the expanded web systems layer.
+
+What future work should preserve:
+
+- keep growth/experiment/service/success/notification data registry-driven and exposed through the same system contract surface
+- keep actor topology as structured data, not inferred from scattered route definitions
+- keep the Node helper runtime as the centralized web API/router until a first-class Kain web backend lands
+
 ## 2026-03-26 - Semantic Native Tabs And Fresh Four-Page UI Showcase
 
 The native UI host now renders semantic tab groups as real clickable top tabs, and the repo has a fresh smoke that proves that capability in a non-generic editor shell.

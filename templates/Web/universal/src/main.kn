@@ -16,7 +16,7 @@ fn main() -> String:
     let report = report + "server_port: " + str(summary.server_port) + "\n"
     let report = report + "modes: " + str(summary.modes) + "\n"
     let report = report + "catalog_default: " + catalog.default_experience + "\n"
-    let report = report + "client_features: metrics, portfolio filters, prompt deck, faq toggles, chat, search, forms, catalog api, app shell, auth panel, auth session, commerce stack, status watch, uploads lab, analytics lab, realtime channels, community hub, events, newsletter, compliance, observability, infrastructure, localization, accessibility, performance targets\n"
+    let report = report + "client_features: metrics, portfolio filters, prompt deck, faq toggles, chat, search, forms, catalog api, app shell, auth panel, auth session, commerce stack, status watch, uploads lab, analytics lab, realtime channels, community hub, events, newsletter, compliance, observability, infrastructure, localization, accessibility, performance targets, growth stack, experiment board, service catalog, success playbooks, notification matrix, actor topology\n"
     let report = report + "outputs: html, blog pages, manifest, actor-plan, site-data, system-contract, ui-schema, sitemap, robots, feed, social-card\n"
     let report = report + "archetypes: business, portfolio, immersive3d, chat, actor_server, docs_hub, operator_hub, hybrid, app_shell, commerce, realtime"
 

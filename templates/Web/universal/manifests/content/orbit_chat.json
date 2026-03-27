@@ -46,6 +46,21 @@
     { "kicker": "Mode", "title": "System Planner", "body": "Builds a system-level plan: routes, actors, integrations, and data collections." },
     { "kicker": "Mode", "title": "Escalation Gate", "body": "Routes high-signal prompts into forms, operator queues, or realtime channels." }
   ],
+  "chat_playbooks": [
+    { "title": "Intent capture", "body": "Normalize the prompt, extract target archetype, and tag desired launch systems." },
+    { "title": "Route escalation", "body": "Convert intent into actor tasks and route the request to the right control surface." },
+    { "title": "Brief finalize", "body": "Summarize the conversation into a brief and attach it to the intake queue." }
+  ],
+  "chat_tools": [
+    { "kicker": "Tool", "title": "Prompt router", "body": "Maps prompts to archetypes, routes, and output artifacts." },
+    { "kicker": "Tool", "title": "Conversation brief", "body": "Turns chat context into a structured build brief." },
+    { "kicker": "Tool", "title": "Route inspector", "body": "Surfaces live runtime routes and actor ownership." }
+  ],
+  "chat_memory": [
+    { "kicker": "Memory", "title": "Conversation summary", "body": "Summaries persist alongside intake payloads for operator review." },
+    { "kicker": "Memory", "title": "Persona alignment", "body": "Track which persona responded to each prompt segment." },
+    { "kicker": "Memory", "title": "Outcome tags", "body": "Apply tags for routed lanes, artifacts, and next actions." }
+  ],
   "process_steps": [
     { "title": "Seed the conversation", "body": "Start with intent-rich prompt cards instead of leaving visitors in an empty chat box." },
     { "title": "Route to a lane", "body": "Use local prompt and keyword matching to move toward the right archetype or next action." },

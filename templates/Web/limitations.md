@@ -113,3 +113,36 @@ Current template approach:
 Requested upstream capability:
 
 - a first-class Kain-authored component and routing lane for the web so React/TypeScript-style application shells can be expressed semantically and lowered without helper-owned island code
+
+### 11. Chat + LLM provider adapters are still template-owned stubs
+
+Current template approach:
+
+- chat routes return seeded responses and lightweight prompt routing
+- no first-class model provider adapters or tool-calling surface exists inside Kain yet
+
+Requested upstream capability:
+
+- Kain-owned LLM adapter contracts (streaming, tool calls, guardrails) so chat-heavy sites can be powered without hand-authored Node glue
+
+### 12. Durable storage and vector search are not first-class
+
+Current template approach:
+
+- form submissions, analytics, and uploads are persisted to local JSONL files
+- search is a helper-owned in-memory index over manifest data
+
+Requested upstream capability:
+
+- Kain-side persistence contracts for relational + object storage plus vector search so docs/search hubs can scale beyond local previews
+
+### 13. Deployment targets are still local-runtime focused
+
+Current template approach:
+
+- Node helper runtime assumes a local server process with filesystem access
+- no dedicated serverless/edge packaging path is exposed from Kain
+
+Requested upstream capability:
+
+- first-class Kain deployment targets for serverless and edge runtimes so actor-server sites can ship without retooling the helper runtime

@@ -9,6 +9,7 @@
   "sections": [
     { "id": "routes", "kind": "route_grid", "eyebrow": "Routes", "title": "Route contract", "source": "content.server_routes" },
     { "id": "actors", "kind": "actor_mesh", "eyebrow": "Actors", "title": "Actor mesh", "source": "content.actor_roles" },
+    { "id": "topology", "kind": "actor_topology", "eyebrow": "Topology", "title": "Actor mesh topology", "source": "content.actor_topology" },
     { "id": "playbooks", "kind": "process_steps", "eyebrow": "Playbooks", "title": "Operator playbooks", "source": "content.actor_playbooks" },
     { "id": "tools", "kind": "card_grid", "eyebrow": "Tools", "title": "Actor tools", "source": "content.actor_tools" },
     { "id": "status", "kind": "status_board", "eyebrow": "Status", "title": "Runtime status", "source": "content.status" },
