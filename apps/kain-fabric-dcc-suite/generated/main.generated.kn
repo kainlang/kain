@@ -134,53 +134,52 @@ component App():
             </widget>
         </theme>
         <panel title="Kain Fabric DCC Suite" scope="dcc_shell" variant="shell_root" layout="column" gap={10}>
-            <panel title="Global Top Bar" scope="dcc_shell" variant="topbar" layout="row" gap={12}>
-                <panel title="Brand" scope="dcc_shell" variant="topbar_brand" layout="column" gap={4} min_width={360}>
+            <panel title="Global Top Bar" scope="dcc_shell" variant="topbar" layout="grid" columns={3} gap={10}>
+                <panel title="Brand" scope="dcc_shell" variant="topbar_brand" layout="column" gap={4}>
                     <text role="eyebrow">{"KAIN FABRIC SUITE"}</text>
                     <text role="title">{"Fabric-owned global studio shell"}</text>
-                    <text role="caption">{"A shell-level UI system inspired by the newer K_OS app shell: global chrome, workspace navigation, command spotlight, and runtime status live above the authored pages instead of being buried inside them."}</text>
+                    <text role="caption">{"Global chrome, workspace navigation, command spotlight, and runtime status stay above the authored workbench pages."}</text>
                 </panel>
-                <panel title="Menus" scope="dcc_shell" variant="topbar_menu" layout="column" gap={8} min_width={360}>
-                    <text role="eyebrow">{"GLOBAL MENUS"}</text>
-                    <slot layout="row" gap={8} overflow_x="scroll">
-                        <panel title="File" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={132}>
+                <panel title="Menus" scope="dcc_shell" variant="topbar_menu" layout="column" gap={6}>
+                    <text role="eyebrow">{"SHELL MENUS"}</text>
+                    <text role="caption">{"Global editor menus stay visible above every lane."}</text>
+                    <slot layout="row" gap={6} overflow_x="scroll">
+                        <panel title="File" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
                             <text role="title">{"File"}</text>
-                            <text role="caption">{"Bootstrap, ingest, and publish the active suite state."}</text>
                         </panel>
-                        <panel title="Edit" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={132}>
+                        <panel title="Edit" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
                             <text role="title">{"Edit"}</text>
-                            <text role="caption">{"Selection, tool routing, and gizmo ownership."}</text>
                         </panel>
-                        <panel title="View" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={132}>
+                        <panel title="View" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
                             <text role="title">{"View"}</text>
-                            <text role="caption">{"Workspace lanes, dock layout, and inspector emphasis."}</text>
                         </panel>
-                        <panel title="Jobs" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={132}>
+                        <panel title="Jobs" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
                             <text role="title">{"Jobs"}</text>
-                            <text role="caption">{"Fabric sessions, automation jobs, and runtime packs."}</text>
                         </panel>
-                        <panel title="Help" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={132}>
+                        <panel title="Help" scope="dcc_shell" variant="workspace_chip" layout="column" gap={2} min_width={92}>
                             <text role="title">{"Help"}</text>
-                            <text role="caption">{"Reports, extension seams, and operator guidance."}</text>
                         </panel>
                     </slot>
                 </panel>
-                <panel title="Status" scope="dcc_shell" variant="topbar_status_strip" layout="grid" columns={4} gap={8}>
-                    <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2} min_width={120}>
-                        <text role="metric">{"SUCCEEDED"}</text>
-                        <text role="caption">{"latest pipeline session"}</text>
-                    </panel>
-                    <panel title="Workspaces" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
-                        <text role="metric">{"7"}</text>
-                        <text role="caption">{"authored page lanes"}</text>
-                    </panel>
-                    <panel title="Surfaces" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
-                        <text role="metric">{"18"}</text>
-                        <text role="caption">{"registered shell surfaces"}</text>
-                    </panel>
-                    <panel title="Packs" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
-                        <text role="metric">{"15"}</text>
-                        <text role="caption">{"runtime packs projected"}</text>
+                <panel title="Status" scope="dcc_shell" variant="topbar_status_strip" layout="column" gap={6}>
+                    <text role="eyebrow">{"RUNTIME STATUS"}</text>
+                    <panel title="Status Metrics" scope="dcc_shell" variant="topbar_status_strip" layout="grid" columns={4} gap={8}>
+                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2} min_width={120}>
+                            <text role="metric">{"SUCCEEDED"}</text>
+                            <text role="caption">{"latest pipeline session"}</text>
+                        </panel>
+                        <panel title="Workspaces" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
+                            <text role="metric">{"7"}</text>
+                            <text role="caption">{"authored page lanes"}</text>
+                        </panel>
+                        <panel title="Surfaces" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
+                            <text role="metric">{"18"}</text>
+                            <text role="caption">{"registered shell surfaces"}</text>
+                        </panel>
+                        <panel title="Packs" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
+                            <text role="metric">{"15"}</text>
+                            <text role="caption">{"runtime packs projected"}</text>
+                        </panel>
                     </panel>
                 </panel>
             </panel>
