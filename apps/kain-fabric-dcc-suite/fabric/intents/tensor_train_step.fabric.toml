@@ -1,0 +1,65 @@
+version = 1
+
+[workspace]
+root = "."
+search_roots = ["src", "scripts", "local_crate"]
+
+[[requires]]
+key = "session.local"
+version = 1
+optional = false
+
+[[steps]]
+id = "python_suite_bootstrap"
+runtime = "python"
+entry = "scripts/python_suite_bootstrap.py"
+
+[[steps.outputs]]
+name = "project_settings"
+kind = "value"
+
+[[steps]]
+id = "dcc_suite_seed"
+runtime = "kain"
+entry = "src/main.kn"
+depends_on = ["python_suite_bootstrap"]
+
+[[steps.outputs]]
+name = "tensor_features"
+kind = "shared_buffer"
+
+[[steps]]
+id = "rig_graph_analysis"
+runtime = "rust_crate"
+entry = "src/rust_graph_step.kn"
+crate_name = "fabric_dcc_suite_runtime"
+manifest_path = "local_crate/Cargo.toml"
+depends_on = ["dcc_suite_seed"]
+
+[[steps.outputs]]
+name = "topology_report"
+kind = "value"
+
+[[steps]]
+id = "tensor_train_stage"
+runtime = "python"
+entry = "scripts/python_tensor_train_step.py"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "rig_graph_analysis"]
+
+[[steps.outputs]]
+name = "tensor_training_report"
+kind = "value"
+
+[[steps]]
+id = "tensor_training_bridge"
+runtime = "kain"
+entry = "src/tensor_train_bridge.kn"
+depends_on = ["tensor_train_stage"]
+
+[[steps.outputs]]
+name = "tensor_training_bridge"
+kind = "value"
+
+[reports]
+directory = ".kain/fabric/intents/tensor_train_step"
+emit_jsonl_events = true

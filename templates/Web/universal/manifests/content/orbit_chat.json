@@ -9,6 +9,7 @@
   "nav": [
     { "label": "Chat", "href": "#chat" },
     { "label": "Systems", "href": "#systems" },
+    { "label": "Chat Runtime", "href": "#chat-runtime" },
     { "label": "Search", "href": "#search" },
     { "label": "Start", "href": "#intake" }
   ],

@@ -1,0 +1,112 @@
+struct PlannedIntent:
+    intent_id: String
+    reason: String
+    priority: Int
+    debounce_ms: Int
+
+struct IntentPlan:
+    command_kind: String
+    intents: Array<PlannedIntent>
+
+fn plan_for_command(
+    command_kind: String,
+    asset_dirty: Bool,
+    topology_dirty: Bool,
+    material_dirty: Bool,
+    rig_dirty: Bool,
+    simulation_dirty: Bool,
+    render_dirty: Bool,
+    compositor_dirty: Bool,
+    publish_dirty: Bool,
+    tensor_dirty: Bool
+) -> IntentPlan:
+    if command_kind == "project.bootstrap":
+        return IntentPlan {
+            command_kind: command_kind,
+            intents: [
+                PlannedIntent {
+                    intent_id: "project.bootstrap",
+                    reason: "bootstrap requested",
+                    priority: 100,
+                    debounce_ms: 0
+                }
+            ]
+        }
+    let intents = []
+    if asset_dirty:
+        intents.push(PlannedIntent {
+            intent_id: "asset.ingest_package",
+            reason: "asset ingest state is dirty",
+            priority: 90,
+            debounce_ms: 0
+        })
+    if command_kind == "sculpt.apply_stroke":
+        intents.push(PlannedIntent {
+            intent_id: "sculpt.apply_stroke",
+            reason: "native sculpt seam requested",
+            priority: 95,
+            debounce_ms: 0
+        })
+    if topology_dirty:
+        intents.push(PlannedIntent {
+            intent_id: "topology.rebuild",
+            reason: "topology state is dirty",
+            priority: 80,
+            debounce_ms: 32
+        })
+    if rig_dirty:
+        intents.push(PlannedIntent {
+            intent_id: "rig.sync_controls",
+            reason: "rig state is dirty",
+            priority: 72,
+            debounce_ms: 24
+        })
+    if simulation_dirty:
+        intents.push(PlannedIntent {
+            intent_id: "sim.tick",
+            reason: "simulation state is dirty",
+            priority: 64,
+            debounce_ms: 16
+        })
+    if material_dirty:
+        intents.push(PlannedIntent {
+            intent_id: "material.bake_preview",
+            reason: "material preview state is dirty",
+            priority: 70,
+            debounce_ms: 16
+        })
+    if render_dirty:
+        intents.push(PlannedIntent {
+            intent_id: "render.preview",
+            reason: "render preview needs refresh",
+            priority: 60,
+            debounce_ms: 16
+        })
+    if compositor_dirty:
+        intents.push(PlannedIntent {
+            intent_id: "compositor.rebuild",
+            reason: "compositor stack depends on stale products",
+            priority: 48,
+            debounce_ms: 48
+        })
+    if publish_dirty:
+        intents.push(PlannedIntent {
+            intent_id: "publish.package",
+            reason: "publish surfaces depend on new results",
+            priority: 40,
+            debounce_ms: 0
+        })
+    if tensor_dirty:
+        let tensor_intent = "tensor.infer_step"
+        if command_kind == "tensor.train_step":
+            tensor_intent = "tensor.train_step"
+        intents.push(PlannedIntent {
+            intent_id: tensor_intent,
+            reason: "tensor lane requested a readiness or planning update",
+            priority: 55,
+            debounce_ms: 0
+        })
+    return IntentPlan {
+        command_kind: command_kind,
+        intents: intents
+    }

@@ -1,0 +1,45 @@
+struct AutomationJobDescriptor:
+    id: String
+    label: String
+    schedule: String
+    summary: String
+
+fn default_jobs() -> Array<AutomationJobDescriptor>:
+    return [
+        AutomationJobDescriptor {
+            id: "thumbnail_refresh",
+            label: "Thumbnail Refresh",
+            schedule: "on_asset_ingest",
+            summary: "Refreshes asset thumbnails and preview products after ingest"
+        },
+        AutomationJobDescriptor {
+            id: "nightly_material_rebake",
+            label: "Nightly Material Rebake",
+            schedule: "nightly",
+            summary: "Rebuilds preview materials and cached bake outputs"
+        },
+        AutomationJobDescriptor {
+            id: "rig_health_audit",
+            label: "Rig Health Audit",
+            schedule: "on_publish_candidate",
+            summary: "Recomputes rig and graph health before publish promotion"
+        },
+        AutomationJobDescriptor {
+            id: "simulation_cache_warmup",
+            label: "Simulation Cache Warmup",
+            schedule: "on_scene_open",
+            summary: "Stages warm caches for repeatable simulation review"
+        },
+        AutomationJobDescriptor {
+            id: "tensor_readiness_probe",
+            label: "Tensor Readiness Probe",
+            schedule: "manual_or_nightly",
+            summary: "Checks tensor lane readiness and records PyTorch availability"
+        },
+        AutomationJobDescriptor {
+            id: "publish_receipt_archive",
+            label: "Publish Receipt Archive",
+            schedule: "on_publish",
+            summary: "Archives publish receipts and operator-facing reports"
+        }
+    ]

@@ -8,6 +8,11 @@
   "eyebrow": "Portfolio Website",
   "sections": [
     { "id": "proof", "kind": "card_grid", "eyebrow": "System", "title": "Portfolio systems", "source": "content.feature_cards" },
+    { "id": "brand-system", "kind": "card_grid", "eyebrow": "Brand", "title": "Brand system", "source": "content.brand_system" },
+    { "id": "social-presence", "kind": "card_grid", "eyebrow": "Social", "title": "Social presence", "source": "content.social_presence" },
+    { "id": "content-calendar", "kind": "process_steps", "eyebrow": "Calendar", "title": "Content calendar", "source": "content.content_calendar" },
+    { "id": "qa-program", "kind": "card_grid", "eyebrow": "QA", "title": "Quality program", "source": "content.qa_program" },
+    { "id": "trust-center", "kind": "card_grid", "eyebrow": "Trust", "title": "Trust center", "source": "content.trust_center" },
     { "id": "work", "kind": "portfolio_grid", "eyebrow": "Work", "title": "Selected work", "source": "content.portfolio_entries" },
     { "id": "voices", "kind": "testimonials", "eyebrow": "Proof", "title": "Client and peer proof", "source": "content.testimonials" },
     { "id": "timeline", "kind": "timeline", "eyebrow": "Flow", "title": "How the portfolio reads", "source": "content.timeline" },

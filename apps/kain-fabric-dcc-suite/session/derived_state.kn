@@ -1,0 +1,46 @@
+struct WorkspaceReadModel:
+    active_mode: String
+    focus_surface: String
+    operator_summary: String
+    dirty_lanes: Array<String>
+
+struct PipelineHealthReadModel:
+    severity: String
+    summary: String
+
+fn derive_workspace_read_model(active_mode: String, active_tool: String, selection_count: Int, publish_dirty: Bool, tensor_dirty: Bool) -> WorkspaceReadModel:
+    let dirty_lanes = []
+    if publish_dirty:
+        dirty_lanes.push("publish")
+    if tensor_dirty:
+        dirty_lanes.push("tensor")
+    let focus_surface = "viewport_stage"
+    if active_mode == "material_lookdev":
+        focus_surface = "material_graph"
+    if active_mode == "rig_anim":
+        focus_surface = "rig_graph"
+    if active_mode == "render_comp":
+        focus_surface = "render_lounge"
+    let operator_summary = active_mode + ":tool=" + active_tool + ":selection=" + str(selection_count)
+    return WorkspaceReadModel {
+        active_mode: active_mode,
+        focus_surface: focus_surface,
+        operator_summary: operator_summary,
+        dirty_lanes: dirty_lanes
+    }
+
+fn derive_pipeline_health(latest_status: String, render_dirty: Bool, compositor_dirty: Bool, publish_dirty: Bool) -> PipelineHealthReadModel:
+    if latest_status == "failed":
+        return PipelineHealthReadModel {
+            severity: "critical",
+            summary: "latest Fabric session failed"
+        }
+    if render_dirty or compositor_dirty or publish_dirty:
+        return PipelineHealthReadModel {
+            severity: "warning",
+            summary: "downstream lane refresh required"
+        }
+    return PipelineHealthReadModel {
+        severity: "healthy",
+        summary: "session and lane projections are aligned"
+    }

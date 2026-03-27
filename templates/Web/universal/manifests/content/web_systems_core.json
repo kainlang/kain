@@ -156,6 +156,41 @@
       "href": "#routes"
     }
   ],
+  "support_tickets": [
+    { "kicker": "Ticket", "title": "Intake triage", "body": "Capture launch, ops, and product requests with a consistent queue contract." },
+    { "kicker": "Ticket", "title": "Incident escalation", "body": "Route SEV incidents into the operator lane with explicit ownership." },
+    { "kicker": "Ticket", "title": "Docs + search", "body": "Tag knowledge-base gaps and documentation requests." }
+  ],
+  "feedback_loops": [
+    { "kicker": "Feedback", "title": "Customer feedback", "body": "Collect qualitative feedback alongside chat transcripts and intake forms." },
+    { "kicker": "Feedback", "title": "Feature requests", "body": "Track high-signal feature requests and map them to roadmap items." },
+    { "kicker": "Feedback", "title": "Experience audits", "body": "Capture UX/3D feedback for immersive and portfolio surfaces." }
+  ],
+  "survey_programs": [
+    { "kicker": "Survey", "title": "Launch survey", "body": "Post-launch pulse surveys for early adopter cohorts." },
+    { "kicker": "Survey", "title": "Operator satisfaction", "body": "Track operator workflow health and response friction." },
+    { "kicker": "Survey", "title": "Portfolio signal", "body": "Capture hiring, client, or partner response to case studies." }
+  ],
+  "messaging_stack": [
+    { "kicker": "Messaging", "title": "Email lanes", "body": "Transactional and marketing email routing metadata." },
+    { "kicker": "Messaging", "title": "SMS + push", "body": "Multi-channel notification planning for realtime surfaces." },
+    { "kicker": "Messaging", "title": "Inbox routing", "body": "Operator inbox rules and escalation handoffs." }
+  ],
+  "payments_stack": [
+    { "kicker": "Payments", "title": "Payment providers", "body": "Declare Stripe/PayPal/etc. before wiring real checkout flows." },
+    { "kicker": "Payments", "title": "Billing events", "body": "Track payment intents, refunds, and invoice state changes." },
+    { "kicker": "Payments", "title": "Tax + compliance", "body": "Capture tax rules and compliance notes for billing." }
+  ],
+  "scheduling_stack": [
+    { "kicker": "Scheduling", "title": "Appointments", "body": "Capture booking, consultation, and onboarding schedules." },
+    { "kicker": "Scheduling", "title": "Events + demos", "body": "Route live demo and workshop scheduling into event calendars." },
+    { "kicker": "Scheduling", "title": "Operator rotations", "body": "Model on-call calendars for actor supervision lanes." }
+  ],
+  "privacy_requests": [
+    { "kicker": "Privacy", "title": "Data access", "body": "Track user data access and export requests." },
+    { "kicker": "Privacy", "title": "Deletion requests", "body": "Plan data deletion workflows and acknowledgements." },
+    { "kicker": "Privacy", "title": "Consent updates", "body": "Maintain consent and preference updates over time." }
+  ],
   "legal": [
     {
       "kicker": "Policy",
@@ -228,6 +263,16 @@
       { "title": "Data residency", "detail": "Region and storage policies", "status": "template-ready" }
     ]
   },
+  "data_governance": [
+    { "kicker": "Governance", "title": "Retention policies", "body": "Describe data retention and purge cadences." },
+    { "kicker": "Governance", "title": "Access tiers", "body": "Who can see analytics, chat logs, and intake data." },
+    { "kicker": "Governance", "title": "PII handling", "body": "Guidance for user-submitted content and forms." }
+  ],
+  "backup_plan": [
+    { "kicker": "Backup", "title": "Snapshot cadence", "body": "Daily export and weekly archive schedule." },
+    { "kicker": "Backup", "title": "Restore drills", "body": "Track recovery time targets per system." },
+    { "kicker": "Backup", "title": "Artifact escrow", "body": "Store build artifacts and content manifests." }
+  ],
   "observability": {
     "kicker": "Observability",
     "title": "Operational visibility",
@@ -248,6 +293,16 @@
       { "title": "Artifact storage", "detail": "Static build outputs and uploads.", "tier": "storage", "status": "template-ready" }
     ]
   },
+  "runtime_hosts": [
+    { "kicker": "Runtime", "title": "Local preview host", "body": "Local Node runtime with filesystem access." },
+    { "kicker": "Runtime", "title": "Container host", "body": "Dockerized runtime for staging and production." },
+    { "kicker": "Runtime", "title": "Edge worker", "body": "Distributed host for low-latency routing." }
+  ],
+  "deployment_targets": [
+    { "kicker": "Target", "title": "Static hosting", "body": "Static deploy for launch and portfolio sites." },
+    { "kicker": "Target", "title": "Edge runtime", "body": "Edge deploy for actor and chat routes." },
+    { "kicker": "Target", "title": "Hybrid container", "body": "Full runtime deploy with uploads and analytics." }
+  ],
   "localization": {
     "kicker": "Localization",
     "title": "Languages and regions",
@@ -356,6 +411,78 @@
       { "kicker": "Pipeline", "title": "CDN metadata", "body": "Capture caching and delivery policies." }
     ]
   },
+  "scene_pipeline": [
+    { "kicker": "Pipeline", "title": "Scene ingest", "body": "Track how GLB, USD, or mesh payloads enter the web runtime." },
+    { "kicker": "Pipeline", "title": "Material staging", "body": "Define texture, shader, and lighting preparation steps." },
+    { "kicker": "Pipeline", "title": "Preview capture", "body": "Emit poster frames and social cards from the scene plan." },
+    { "kicker": "Pipeline", "title": "Scene activation", "body": "Describe when the WebGL/Three island should load." }
+  ],
+  "render_stack": [
+    { "kicker": "Render", "title": "WebGL core", "body": "Default renderer and shader readiness for broad browser coverage." },
+    { "kicker": "Render", "title": "WebGPU pilot", "body": "Optional path when WebGPU is available." },
+    { "kicker": "Render", "title": "Post stack", "body": "Bloom, color grading, and tone mapping configuration." },
+    { "kicker": "Render", "title": "Fallback mode", "body": "Static poster + motion fallback when GPU is constrained." }
+  ],
+  "interaction_modes": [
+    { "kicker": "Interaction", "title": "Guided camera", "body": "Scroll or waypoint-driven story mode." },
+    { "kicker": "Interaction", "title": "Free orbit", "body": "User-controlled orbit with limited bounds." },
+    { "kicker": "Interaction", "title": "Actor spotlight", "body": "Highlight and focus on narrative beats or product nodes." }
+  ],
+  "device_profiles": [
+    { "kicker": "Device", "title": "Desktop GPU", "body": "Full shader and particle budgets." },
+    { "kicker": "Device", "title": "Mobile GPU", "body": "Reduced particles + baked lighting." },
+    { "kicker": "Device", "title": "Fallback", "body": "Poster image + micro interactions." }
+  ],
+  "scene_assets": [
+    { "kicker": "Asset", "title": "Hero scene GLB", "body": "Primary hero scene with multi-LOD variants." },
+    { "kicker": "Asset", "title": "Product turntable", "body": "Feature model with baked lightmaps." },
+    { "kicker": "Asset", "title": "Scene decals", "body": "Brand textures and UI overlays." }
+  ],
+  "material_library": [
+    { "kicker": "Material", "title": "Anodized metal", "body": "PBR metal with calibrated roughness ranges." },
+    { "kicker": "Material", "title": "Volumetric glass", "body": "Glass preset with refraction and bloom tuning." },
+    { "kicker": "Material", "title": "Fabric weave", "body": "Tactile material used in portfolio or product shots." }
+  ],
+  "lighting_rigs": [
+    { "kicker": "Lighting", "title": "Studio softbox", "body": "Neutral launch lighting for hero shots." },
+    { "kicker": "Lighting", "title": "Cinematic rim", "body": "High-contrast lighting for immersive scenes." },
+    { "kicker": "Lighting", "title": "Ambient gallery", "body": "Low-contrast lighting for portfolio walkthroughs." }
+  ],
+  "camera_rigs": [
+    { "kicker": "Camera", "title": "Guided rails", "body": "Timeline-driven scene capture for narrative pages." },
+    { "kicker": "Camera", "title": "Orbit rig", "body": "Interactive orbit for product or scene inspection." },
+    { "kicker": "Camera", "title": "Cinematic dolly", "body": "Slow dolly path for premium launches." }
+  ],
+  "animation_stack": [
+    { "kicker": "Animation", "title": "Keyframe rails", "body": "Pre-authored keyframes tied to scroll positions." },
+    { "kicker": "Animation", "title": "Interaction loops", "body": "Hover or idle loops for realtime surfaces." },
+    { "kicker": "Animation", "title": "Event triggers", "body": "Event-driven animation hooks for actor events." }
+  ],
+  "physics_stack": [
+    { "kicker": "Physics", "title": "Rigid body", "body": "Lightweight collisions for interactive objects." },
+    { "kicker": "Physics", "title": "Soft constraints", "body": "Elastic interactions for UI and scene props." },
+    { "kicker": "Physics", "title": "Motion damping", "body": "Stable motion budgets for mobile devices." }
+  ],
+  "spatial_audio": [
+    { "kicker": "Audio", "title": "Ambient beds", "body": "Looped ambience per scene mode." },
+    { "kicker": "Audio", "title": "Focus cues", "body": "Audio cues for feature highlights." },
+    { "kicker": "Audio", "title": "Voice overlays", "body": "Narration tracks for guided tours." }
+  ],
+  "xr_modes": [
+    { "kicker": "XR", "title": "WebXR preview", "body": "Optional XR lane for supported devices." },
+    { "kicker": "XR", "title": "Spatial walkthrough", "body": "Room-scale preview for immersive stories." },
+    { "kicker": "XR", "title": "Fallback capture", "body": "Capture alternative when XR is unavailable." }
+  ],
+  "shader_stack": [
+    { "kicker": "Shader", "title": "Surface stylization", "body": "Toon, glass, and emission shader presets." },
+    { "kicker": "Shader", "title": "Post FX", "body": "Bloom, LUT, and grain passes." },
+    { "kicker": "Shader", "title": "Data-driven shaders", "body": "Shader parameters bound to content metadata." }
+  ],
+  "streaming_stack": [
+    { "kicker": "Streaming", "title": "Realtime preview", "body": "SSE and WS streams for chat + ops." },
+    { "kicker": "Streaming", "title": "Scene sync", "body": "Scene state streaming for multi-device previews." },
+    { "kicker": "Streaming", "title": "Telemetry feed", "body": "Event streaming for operator dashboards." }
+  ],
   "automation": {
     "kicker": "Automation",
     "title": "Workflow automation",
@@ -392,16 +519,57 @@
       { "method": "GET", "path": "/api/developer", "purpose": "returns developer portal metadata" },
       { "method": "GET", "path": "/api/seo", "purpose": "returns SEO target metadata" },
       { "method": "GET", "path": "/api/ui-kit", "purpose": "returns UI kit components, layouts, and tokens" },
+      { "method": "GET", "path": "/api/frontend", "purpose": "returns frontend stack metadata" },
+      { "method": "GET", "path": "/api/ui-runtime", "purpose": "returns UI runtime metadata" },
+      { "method": "GET", "path": "/api/chat/runtime", "purpose": "returns chat runtime metadata" },
+      { "method": "GET", "path": "/api/actors/runtime", "purpose": "returns actor runtime metadata" },
       { "method": "GET", "path": "/api/chat/playbooks", "purpose": "returns chat playbook metadata" },
       { "method": "GET", "path": "/api/chat/tools", "purpose": "returns chat tool metadata" },
       { "method": "GET", "path": "/api/chat/memory", "purpose": "returns chat memory lane metadata" },
+      { "method": "GET", "path": "/api/chat/models", "purpose": "returns model stack metadata" },
+      { "method": "GET", "path": "/api/voice", "purpose": "returns voice stack metadata" },
+      { "method": "GET", "path": "/api/moderation", "purpose": "returns moderation policy metadata" },
       { "method": "GET", "path": "/api/actors/policies", "purpose": "returns actor policy metadata" },
       { "method": "GET", "path": "/api/actors/metrics", "purpose": "returns actor metric metadata" },
+      { "method": "GET", "path": "/api/actors/supervision", "purpose": "returns actor supervision metadata" },
+      { "method": "GET", "path": "/api/actors/queues", "purpose": "returns actor queue metadata" },
+      { "method": "GET", "path": "/api/3d/pipeline", "purpose": "returns 3D scene pipeline metadata" },
+      { "method": "GET", "path": "/api/3d/render", "purpose": "returns render stack metadata" },
+      { "method": "GET", "path": "/api/3d/interaction", "purpose": "returns 3D interaction mode metadata" },
+      { "method": "GET", "path": "/api/3d/devices", "purpose": "returns 3D device profile metadata" },
+      { "method": "GET", "path": "/api/3d/assets", "purpose": "returns 3D scene asset metadata" },
+      { "method": "GET", "path": "/api/3d/materials", "purpose": "returns 3D material library metadata" },
+      { "method": "GET", "path": "/api/3d/lighting", "purpose": "returns 3D lighting rig metadata" },
+      { "method": "GET", "path": "/api/3d/cameras", "purpose": "returns 3D camera rig metadata" },
+      { "method": "GET", "path": "/api/3d/animation", "purpose": "returns 3D animation stack metadata" },
+      { "method": "GET", "path": "/api/3d/physics", "purpose": "returns 3D physics stack metadata" },
+      { "method": "GET", "path": "/api/3d/audio", "purpose": "returns spatial audio stack metadata" },
+      { "method": "GET", "path": "/api/3d/xr", "purpose": "returns XR mode metadata" },
+      { "method": "GET", "path": "/api/3d/shaders", "purpose": "returns shader stack metadata" },
+      { "method": "GET", "path": "/api/streaming", "purpose": "returns streaming stack metadata" },
+      { "method": "GET", "path": "/api/data-governance", "purpose": "returns data governance metadata" },
+      { "method": "GET", "path": "/api/backups", "purpose": "returns backup plan metadata" },
+      { "method": "GET", "path": "/api/support/tickets", "purpose": "returns support ticket queue metadata" },
+      { "method": "GET", "path": "/api/feedback", "purpose": "returns feedback loop metadata" },
+      { "method": "GET", "path": "/api/surveys", "purpose": "returns survey program metadata" },
+      { "method": "GET", "path": "/api/messaging", "purpose": "returns messaging stack metadata" },
+      { "method": "GET", "path": "/api/payments", "purpose": "returns payments stack metadata" },
+      { "method": "GET", "path": "/api/scheduling", "purpose": "returns scheduling stack metadata" },
+      { "method": "GET", "path": "/api/privacy/requests", "purpose": "returns privacy request metadata" },
       { "method": "GET", "path": "/api/agents", "purpose": "returns chat + agent roster metadata" },
+      { "method": "GET", "path": "/api/agents/knowledge", "purpose": "returns knowledge source metadata" },
+      { "method": "GET", "path": "/api/agents/memory", "purpose": "returns agent memory store metadata" },
+      { "method": "GET", "path": "/api/agents/tools", "purpose": "returns agent tool registry metadata" },
+      { "method": "GET", "path": "/api/agents/workflows", "purpose": "returns agent workflow metadata" },
       { "method": "GET", "path": "/api/releases", "purpose": "returns release notes and changelog metadata" },
       { "method": "GET", "path": "/api/feature-flags", "purpose": "returns feature flag registry metadata" },
       { "method": "GET", "path": "/api/incidents", "purpose": "returns incident response playbooks" },
-      { "method": "GET", "path": "/api/crm", "purpose": "returns CRM pipeline metadata" }
+      { "method": "GET", "path": "/api/crm", "purpose": "returns CRM pipeline metadata" },
+      { "method": "GET", "path": "/api/actors/jobs", "purpose": "returns actor job metadata" },
+      { "method": "GET", "path": "/api/actors/schedules", "purpose": "returns actor schedule metadata" },
+      { "method": "GET", "path": "/api/actors/hosts", "purpose": "returns actor host metadata" },
+      { "method": "GET", "path": "/api/runtime/hosts", "purpose": "returns runtime host metadata" },
+      { "method": "GET", "path": "/api/runtime/deployments", "purpose": "returns deployment target metadata" }
     ]
   },
   "developer_portal": {
@@ -424,6 +592,42 @@
       { "kicker": "SEO", "title": "Structured data", "body": "Schema.org data for products and events." }
     ]
   },
+  "brand_system": [
+    { "kicker": "Brand", "title": "Narrative voice", "body": "Tone, copy guardrails, and narrative beats for the launch." },
+    { "kicker": "Brand", "title": "Visual identity", "body": "Logo, type, and color usage rules for every section." },
+    { "kicker": "Brand", "title": "Motion signature", "body": "Motion cadence and interaction style guidance." }
+  ],
+  "social_presence": [
+    { "kicker": "Social", "title": "Channel map", "body": "Define priority channels and cross-post cadence." },
+    { "kicker": "Social", "title": "Launch beats", "body": "Launch announcement and follow-up content plan." },
+    { "kicker": "Social", "title": "Community ops", "body": "Guidelines for responding to inbound signals." }
+  ],
+  "content_calendar": [
+    { "title": "Week -2", "body": "Prep launch narrative, assets, and blog posts." },
+    { "title": "Week -1", "body": "Publish teaser, schedule events, and align operator staff." },
+    { "title": "Week 0", "body": "Launch day content and realtime monitoring." },
+    { "title": "Week +1", "body": "Release notes, follow-up case study, and feedback review." }
+  ],
+  "release_pipeline": [
+    { "title": "Draft → Review", "body": "Stakeholder review and QA for site updates." },
+    { "title": "Stage → Verify", "body": "Preview site in staging with full artifact output." },
+    { "title": "Publish → Monitor", "body": "Deploy and monitor status, chat, and actor routes." }
+  ],
+  "qa_program": [
+    { "kicker": "QA", "title": "Content QA", "body": "Check copy, links, and CTA routes." },
+    { "kicker": "QA", "title": "Accessibility QA", "body": "Keyboard, contrast, and aria checks." },
+    { "kicker": "QA", "title": "Performance QA", "body": "Lighthouse, bundle, and asset audit." }
+  ],
+  "domain_stack": [
+    { "kicker": "Domain", "title": "DNS + SSL", "body": "Certificate management and DNS ownership." },
+    { "kicker": "Domain", "title": "CDN + caching", "body": "Cache rules and purge policy." },
+    { "kicker": "Domain", "title": "Edge routing", "body": "Edge routing rules for chat and actor routes." }
+  ],
+  "trust_center": [
+    { "kicker": "Trust", "title": "Security posture", "body": "Controls, audit coverage, and incident readiness." },
+    { "kicker": "Trust", "title": "Privacy commitments", "body": "Data retention and privacy requests in the runtime contract." },
+    { "kicker": "Trust", "title": "Compliance readiness", "body": "Compliance scope and governance workflows." }
+  ],
   "ai_agents": {
     "kicker": "Agents",
     "title": "Chat and agent roster",
@@ -443,6 +647,41 @@
       { "title": "Prompt → Escalate", "body": "Escalate high-signal prompts into operator queues." }
     ]
   },
+  "knowledge_sources": [
+    { "kicker": "Knowledge", "title": "Docs index", "body": "Structured knowledge base for search + chat retrieval." },
+    { "kicker": "Knowledge", "title": "Runbooks", "body": "Operator playbooks and escalation notes." },
+    { "kicker": "Knowledge", "title": "Scene notes", "body": "3D scene and asset metadata for assisted navigation." }
+  ],
+  "memory_stores": [
+    { "kicker": "Memory", "title": "Session buffer", "body": "Short-lived memory for chat flows." },
+    { "kicker": "Memory", "title": "Brief archive", "body": "Structured briefs captured from chat and intake." },
+    { "kicker": "Memory", "title": "Ops ledger", "body": "Operator handoffs and incident summaries." }
+  ],
+  "tool_registry": [
+    { "kicker": "Tool", "title": "Search retriever", "body": "Docs + manifest retrieval for chat." },
+    { "kicker": "Tool", "title": "Scene inspector", "body": "Pulls 3D asset and lighting metadata." },
+    { "kicker": "Tool", "title": "Ops handoff", "body": "Creates operator tasks from chat sessions." }
+  ],
+  "agent_workflows": [
+    { "title": "Discover → Design → Build", "body": "Standard path for new site builds." },
+    { "title": "Prompt → Enrich → Deploy", "body": "Chat-first build flow for rapid prototypes." },
+    { "title": "Incident → Triage → Resolve", "body": "Agent-led incident response lane." }
+  ],
+  "model_stack": [
+    { "kicker": "Model", "title": "Local seed router", "body": "Default offline prompt routing for preview builds." },
+    { "kicker": "Model", "title": "Hosted LLM adapter", "body": "Pluggable provider bridge for production chat." },
+    { "kicker": "Model", "title": "Tool routing", "body": "Structured tool call registry for actor and ops flows." }
+  ],
+  "voice_stack": [
+    { "kicker": "Voice", "title": "Voice input", "body": "Capture speech prompts with browser media APIs." },
+    { "kicker": "Voice", "title": "Voice output", "body": "Stream or batch voice responses for chat-first sites." },
+    { "kicker": "Voice", "title": "Latency budget", "body": "Targets for interactive voice mode." }
+  ],
+  "moderation_stack": [
+    { "kicker": "Moderation", "title": "Safety rules", "body": "Policy rails for prompt intake and route escalation." },
+    { "kicker": "Moderation", "title": "Escalation paths", "body": "Move risky conversations into operator review." },
+    { "kicker": "Moderation", "title": "Audit capture", "body": "Structured transcript + decision logs." }
+  ],
   "ui_components": [
     { "kicker": "Component", "title": "Hero stack", "body": "Primary headline + CTA framing with metric cards and proof rails." },
     { "kicker": "Component", "title": "Feature grid", "body": "Card grid for system features, tools, or services." },
@@ -462,6 +701,39 @@
     { "kicker": "Token", "title": "Type scale", "body": "Hero, title, body, and caption tiers." },
     { "kicker": "Token", "title": "Motion cadence", "body": "Micro + macro motion timing for island transitions." },
     { "kicker": "Token", "title": "Accent lanes", "body": "Primary, soft, and highlight accent colors." }
+  ],
+  "frontend_stack": [
+    { "kicker": "Language", "title": "TypeScript-first UI", "body": "Typed manifests, client islands, and app shell modules authored in TS." },
+    { "kicker": "Runtime", "title": "Preact + islands", "body": "Lightweight React-like runtime with partial hydration where it matters." },
+    { "kicker": "Routing", "title": "Module route map", "body": "Routes live in manifest data and surface via `ui.schema.json`." },
+    { "kicker": "State", "title": "Signal store", "body": "Local state store contracts for modules, chat, and operators." },
+    { "kicker": "Data", "title": "Typed fetchers", "body": "Typed fetch + schema-driven responses from the Node runtime." },
+    { "kicker": "Forms", "title": "Schema validation", "body": "Form contracts stay in manifests and emit structured JSONL." },
+    { "kicker": "Testing", "title": "Component + route checks", "body": "Islands are isolated for rapid preview testing." },
+    { "kicker": "Build", "title": "Bundled client pipeline", "body": "Esbuild bundles islands, scene previews, and app shells." }
+  ],
+  "ui_runtime": [
+    { "kicker": "Schema", "title": "ui.schema.json contract", "body": "Declarative section + island map for React-like shells." },
+    { "kicker": "Modules", "title": "App shell modules", "body": "Workspace navigation stays data-driven and route-ready." },
+    { "kicker": "Islands", "title": "Selective hydration", "body": "Chat, app shell, realtime, and 3D islands hydrate on demand." },
+    { "kicker": "Tokens", "title": "Design token system", "body": "Tokens keep typography, surfaces, and motion consistent across themes." },
+    { "kicker": "Layouts", "title": "Layout recipes", "body": "Reusable launch, chat-first, operator, and app-shell layouts." }
+  ],
+  "chat_runtime": [
+    { "kicker": "Streaming", "title": "SSE + WS preview", "body": "Local streaming channels keep chat experience lifelike." },
+    { "kicker": "Personas", "title": "Persona routing", "body": "Route prompts through persona and mode metadata." },
+    { "kicker": "Playbooks", "title": "Structured chat flows", "body": "Prompt intake and escalation playbooks stay explicit." },
+    { "kicker": "Tools", "title": "Tool routing", "body": "Tools and actions surface in manifest-driven routing tables." },
+    { "kicker": "Memory", "title": "Session + brief memory", "body": "Memory lanes describe short-term context and follow-up." },
+    { "kicker": "Safety", "title": "Moderation rails", "body": "Safety, audit, and escalation policies live in data." }
+  ],
+  "actor_runtime": [
+    { "kicker": "Routing", "title": "Actor route matrix", "body": "Actor routes stay explicit with purpose and ownership metadata." },
+    { "kicker": "Mesh", "title": "Actor topology", "body": "Mesh nodes and edges map ownership across routes." },
+    { "kicker": "Supervision", "title": "Health + escalation", "body": "Supervision playbooks coordinate uptime and recovery." },
+    { "kicker": "Queues", "title": "Intake + ops queues", "body": "Queues keep chat escalation and ops workflows aligned." },
+    { "kicker": "Metrics", "title": "Actor metrics", "body": "Metrics stay in data so dashboards stay consistent." },
+    { "kicker": "Tools", "title": "Actor tool registry", "body": "Actor tools define action routes and handoff contracts." }
   ],
   "chat_playbooks": [
     { "title": "Prompt intake", "body": "Collect intent, lane mix, and timing in one flow." },
@@ -488,6 +760,31 @@
     { "value": "6", "label": "actors online" },
     { "value": "95%", "label": "route coverage" },
     { "value": "1.2s", "label": "median response" }
+  ],
+  "actor_supervision": [
+    { "kicker": "Supervision", "title": "Health probes", "body": "Periodic health checks across routes and actors." },
+    { "kicker": "Supervision", "title": "Escalation ladder", "body": "Define who handles SEV-1/SEV-2 events." },
+    { "kicker": "Supervision", "title": "Recovery playbooks", "body": "Restart and fallback steps per actor group." }
+  ],
+  "actor_queues": [
+    { "kicker": "Queue", "title": "Intake queue", "body": "Handoff from chat into operator review." },
+    { "kicker": "Queue", "title": "Ops queue", "body": "Runtime changes and incident tasks." },
+    { "kicker": "Queue", "title": "Build queue", "body": "Website build and release tasks." }
+  ],
+  "actor_jobs": [
+    { "kicker": "Job", "title": "Nightly report", "body": "Summarize routes, actors, and backlog state." },
+    { "kicker": "Job", "title": "Scene refresh", "body": "Rebuild preview captures after scene updates." },
+    { "kicker": "Job", "title": "Search rebuild", "body": "Re-index docs and runtime artifacts." }
+  ],
+  "actor_schedules": [
+    { "kicker": "Schedule", "title": "Daily ops sync", "body": "Operator standup cadence and ownership handoff." },
+    { "kicker": "Schedule", "title": "Weekly release", "body": "Template and site release cadence." },
+    { "kicker": "Schedule", "title": "Incident drills", "body": "Monthly incident rehearsal for operator readiness." }
+  ],
+  "actor_hosts": [
+    { "kicker": "Host", "title": "Local Node runtime", "body": "Development and preview host for actor servers." },
+    { "kicker": "Host", "title": "Container runtime", "body": "Deployable actor host for production." },
+    { "kicker": "Host", "title": "Edge worker", "body": "Lightweight edge runtime for routing and webhooks." }
   ],
   "growth": {
     "kicker": "Growth",
@@ -562,6 +859,13 @@
         "summary": "Governance, community, and growth systems shipped as first-class registries.",
         "owner": "release_ops",
         "highlights": ["Compliance + observability", "Growth and experiments", "Actor topology surfaces"]
+      },
+      {
+        "version": "v1.8",
+        "date": "2026-03-27",
+        "summary": "Frontend stack, UI runtime, chat runtime, and actor runtime registries added.",
+        "owner": "release_ops",
+        "highlights": ["React/TypeScript stack metadata", "UI runtime contract lanes", "Chat + actor runtime expansions"]
       }
     ]
   },

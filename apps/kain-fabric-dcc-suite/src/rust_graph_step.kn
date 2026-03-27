@@ -1,0 +1,14 @@
+use rust::fabric_dcc_suite_runtime
+use std::interop::bridge
+
+fn main() -> String:
+    let tensor_features = fabric_inputs.dcc_suite_seed.tensor_features
+    let feature_info = interop_shared_buffer_info(tensor_features)
+    let feature_bytes = interop_shared_buffer_bytes(tensor_features)
+    let checksum = graph_checksum(feature_bytes)
+    return build_analysis_report(
+        feature_info.byte_length,
+        checksum,
+        fabric_inputs.dcc_suite_seed.scene_graph_document,
+        "sculpt-seam-optional"
+    )

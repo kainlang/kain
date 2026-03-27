@@ -1,0 +1,102 @@
+struct CommandHandlerDescriptor:
+    command_kind: String
+    reducer_owner: String
+    planner_owner: String
+    immediate_effect: String
+
+fn command_handlers() -> Array<CommandHandlerDescriptor>:
+    return [
+        CommandHandlerDescriptor {
+            command_kind: "project.bootstrap",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "seed bootstrap session state"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "workspace.switch_mode",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "switch workspace and invalidate previews"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "asset.ingest_package",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "stage asset package and mark downstream lanes dirty"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "sculpt.apply_stroke",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "queue sculpt mutation, topology, material, and publish work"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "topology.rebuild",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "refresh graph and topology analysis"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "rig.sync_controls",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "refresh rig and deformation projections"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "sim.tick",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "queue simulation planning tick and downstream preview work"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "material.bake_preview",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "refresh material preview buffers"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "render.preview",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "request render preview planning"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "compositor.rebuild",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "request compositor rebuild planning"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "publish.package",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "request publish summary and packaging"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "tensor.train_step",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "queue tensor training readiness work"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "tensor.infer_step",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "queue tensor inference readiness work"
+        }
+    ]
+
+fn lookup_handler(command_kind: String) -> CommandHandlerDescriptor:
+    let handlers = command_handlers()
+    let index = 0
+    while index < len(handlers):
+        let handler = handlers[index]
+        if handler.command_kind == command_kind:
+            return handler
+        index = index + 1
+    return CommandHandlerDescriptor {
+        command_kind: command_kind,
+        reducer_owner: "session.reducers",
+        planner_owner: "session.intent_planner",
+        immediate_effect: "no registered handler"
+    }

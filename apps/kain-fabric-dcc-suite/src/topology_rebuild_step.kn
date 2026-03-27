@@ -1,0 +1,57 @@
+// src/topology_rebuild_step.kn
+
+import kain.fabric.IntentContext;
+import kain.fabric.StepResult;
+import kain.memory.BufferView;
+import kain.ffi.NativeFunction;
+
+// KAIN RUNTIME LIMITATION:
+// Kain does not currently have a native, high-performance half-edge data structure
+// or built-in algorithms for automatic retopology, decimation, or subdivision
+// that match the speed of specialized C++/Rust libraries.
+//
+// EXTENSION SEAM:
+// We define a clean FFI seam to a native library (e.g., a Rust crate `kain_topo_rs`
+// or a C++ library exposing a C ABI) that takes a raw vertex/index buffer,
+// performs the topology operation, and writes back the new mesh data.
+
+fn @ffi_rebuild_topology = NativeFunction::load("kain_topo_ops", "rebuild_topology");
+
+pub fn execute_topology_rebuild(ctx: IntentContext): StepResult {
+    let source_mesh = ctx.get_input("source_mesh");
+    let target_polycount = ctx.get_param("target_polycount").as_int();
+    
+    // Ensure the mesh data is accessible via a raw pointer for the FFI boundary
+    let vertex_buffer: BufferView = source_mesh.get_vertex_buffer().as_view();
+    let index_buffer: BufferView = source_mesh.get_index_buffer().as_view();
+    
+    // Allocate an output buffer large enough for the expected result
+    // The native function will write the actual sizes back
+    let max_output_size = vertex_buffer.size() * 2; // Heuristic allocation
+    let mut out_vertex_buffer = BufferView::allocate(max_output_size);
+    let mut out_index_buffer = BufferView::allocate(max_output_size);
+    
+    let mut actual_vert_count: u32 = 0;
+    let mut actual_index_count: u32 = 0;
+
+    let success = @ffi_rebuild_topology(
+        vertex_buffer.ptr(), vertex_buffer.size(),
+        index_buffer.ptr(), index_buffer.size(),
+        target_polycount,
+        out_vertex_buffer.ptr(), out_vertex_buffer.size(), &mut actual_vert_count,
+        out_index_buffer.ptr(), out_index_buffer.size(), &mut actual_index_count
+    );
+
+    if !success {
+        return StepResult::fail("Topology rebuild failed in native execution");
+    }
+
+    // Wrap the returned buffers back into a Kain mesh resource
+    let new_mesh = ctx.create_resource("mesh");
+    new_mesh.set_vertex_buffer(out_vertex_buffer.slice(0, actual_vert_count * stride));
+    new_mesh.set_index_buffer(out_index_buffer.slice(0, actual_index_count * 4));
+    
+    ctx.set_output("retopologized_mesh", new_mesh);
+    
+    return StepResult::success();
+}

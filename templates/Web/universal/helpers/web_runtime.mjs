@@ -1722,6 +1722,27 @@ function buildDerivedSearchDocuments(model) {
   for (const channel of model.content.notifications?.channels || []) {
     pushDocument("notification", channel.name, channel.purpose, "#notifications");
   }
+  for (const entry of model.content.support_tickets || []) {
+    pushDocument("support-ticket", entry.title || entry.name, entry.body || entry.summary || "", "#support-tickets");
+  }
+  for (const entry of model.content.feedback_loops || []) {
+    pushDocument("feedback", entry.title || entry.name, entry.body || entry.summary || "", "#feedback");
+  }
+  for (const entry of model.content.survey_programs || []) {
+    pushDocument("survey", entry.title || entry.name, entry.body || entry.summary || "", "#surveys");
+  }
+  for (const entry of model.content.messaging_stack || []) {
+    pushDocument("messaging", entry.title || entry.name, entry.body || entry.summary || "", "#messaging");
+  }
+  for (const entry of model.content.payments_stack || []) {
+    pushDocument("payments", entry.title || entry.name, entry.body || entry.summary || "", "#payments");
+  }
+  for (const entry of model.content.scheduling_stack || []) {
+    pushDocument("scheduling", entry.title || entry.name, entry.body || entry.summary || "", "#scheduling");
+  }
+  for (const entry of model.content.privacy_requests || []) {
+    pushDocument("privacy", entry.title || entry.name, entry.body || entry.summary || "", "#privacy");
+  }
   for (const entry of model.content.release_notes?.entries || []) {
     pushDocument("release", entry.version, entry.summary, "#releases");
   }
@@ -1757,6 +1778,18 @@ function buildDerivedSearchDocuments(model) {
   }
   for (const metric of model.content.actor_metrics || []) {
     pushDocument("actor-metric", metric.label, metric.value, "#actor-metrics");
+  }
+  for (const entry of model.content.frontend_stack || []) {
+    pushDocument("frontend", entry.title || entry.kicker, entry.body || entry.summary || "", "#frontend-stack");
+  }
+  for (const entry of model.content.ui_runtime || []) {
+    pushDocument("ui-runtime", entry.title || entry.kicker, entry.body || entry.summary || "", "#ui-runtime");
+  }
+  for (const entry of model.content.chat_runtime || []) {
+    pushDocument("chat-runtime", entry.title || entry.kicker, entry.body || entry.summary || "", "#chat-runtime");
+  }
+  for (const entry of model.content.actor_runtime || []) {
+    pushDocument("actor-runtime", entry.title || entry.kicker, entry.body || entry.summary || "", "#actor-runtime");
   }
   for (const doc of model.content.docs_links || []) {
     documents.push({
@@ -1825,6 +1858,63 @@ function buildDerivedSearchDocuments(model) {
       href: "#data",
       tags: [collection.schema, collection.retention, collection.actor].filter(Boolean)
     });
+  }
+  for (const asset of model.content.scene_assets || []) {
+    pushDocument("scene-asset", asset.title || asset.name, asset.body || asset.summary || "", "#scene-assets");
+  }
+  for (const material of model.content.material_library || []) {
+    pushDocument("material", material.title || material.name, material.body || material.summary || "", "#materials");
+  }
+  for (const rig of model.content.lighting_rigs || []) {
+    pushDocument("lighting", rig.title || rig.name, rig.body || rig.summary || "", "#lighting");
+  }
+  for (const rig of model.content.camera_rigs || []) {
+    pushDocument("camera", rig.title || rig.name, rig.body || rig.summary || "", "#cameras");
+  }
+  for (const entry of model.content.animation_stack || []) {
+    pushDocument("animation", entry.title || entry.name, entry.body || entry.summary || "", "#animation");
+  }
+  for (const entry of model.content.physics_stack || []) {
+    pushDocument("physics", entry.title || entry.name, entry.body || entry.summary || "", "#physics");
+  }
+  for (const entry of model.content.spatial_audio || []) {
+    pushDocument("audio", entry.title || entry.name, entry.body || entry.summary || "", "#audio");
+  }
+  for (const entry of model.content.xr_modes || []) {
+    pushDocument("xr", entry.title || entry.name, entry.body || entry.summary || "", "#xr");
+  }
+  for (const entry of model.content.shader_stack || []) {
+    pushDocument("shader", entry.title || entry.name, entry.body || entry.summary || "", "#shaders");
+  }
+  for (const entry of model.content.streaming_stack || []) {
+    pushDocument("streaming", entry.title || entry.name, entry.body || entry.summary || "", "#streaming");
+  }
+  for (const entry of model.content.knowledge_sources || []) {
+    pushDocument("knowledge", entry.title || entry.name, entry.body || entry.summary || "", "#knowledge");
+  }
+  for (const entry of model.content.memory_stores || []) {
+    pushDocument("memory", entry.title || entry.name, entry.body || entry.summary || "", "#memory");
+  }
+  for (const entry of model.content.tool_registry || []) {
+    pushDocument("tool", entry.title || entry.name, entry.body || entry.summary || "", "#tool-registry");
+  }
+  for (const entry of model.content.agent_workflows || []) {
+    pushDocument("agent-flow", entry.title || entry.name, entry.body || entry.summary || "", "#agent-workflows");
+  }
+  for (const entry of model.content.actor_jobs || []) {
+    pushDocument("actor-job", entry.title || entry.name, entry.body || entry.summary || "", "#actor-jobs");
+  }
+  for (const entry of model.content.actor_schedules || []) {
+    pushDocument("actor-schedule", entry.title || entry.name, entry.body || entry.summary || "", "#actor-schedules");
+  }
+  for (const entry of model.content.actor_hosts || []) {
+    pushDocument("actor-host", entry.title || entry.name, entry.body || entry.summary || "", "#actor-hosts");
+  }
+  for (const entry of model.content.runtime_hosts || []) {
+    pushDocument("runtime-host", entry.title || entry.name, entry.body || entry.summary || "", "#runtime-hosts");
+  }
+  for (const entry of model.content.deployment_targets || []) {
+    pushDocument("deploy", entry.title || entry.name, entry.body || entry.summary || "", "#deploy");
   }
   for (const method of model.content.auth?.methods || []) {
     documents.push({
@@ -2321,6 +2411,11 @@ function buildSiteData(model) {
     actor_topology: model.content.actor_topology || null,
     actor_policies: model.content.actor_policies || [],
     actor_metrics: model.content.actor_metrics || [],
+    actor_supervision: model.content.actor_supervision || [],
+    actor_queues: model.content.actor_queues || [],
+    actor_jobs: model.content.actor_jobs || [],
+    actor_schedules: model.content.actor_schedules || [],
+    actor_hosts: model.content.actor_hosts || [],
     blueprints: model.content.blueprints || [],
     capability_matrix: model.content.capability_matrix || null,
     auth: model.content.auth || null,
@@ -2329,15 +2424,47 @@ function buildSiteData(model) {
     subscriptions: model.content.subscriptions || null,
     cms: model.content.cms || null,
     media_library: model.content.media_library || null,
+    scene_pipeline: model.content.scene_pipeline || [],
+    render_stack: model.content.render_stack || [],
+    interaction_modes: model.content.interaction_modes || [],
+    device_profiles: model.content.device_profiles || [],
+    scene_assets: model.content.scene_assets || [],
+    material_library: model.content.material_library || [],
+    lighting_rigs: model.content.lighting_rigs || [],
+    camera_rigs: model.content.camera_rigs || [],
+    animation_stack: model.content.animation_stack || [],
+    physics_stack: model.content.physics_stack || [],
+    spatial_audio: model.content.spatial_audio || [],
+    xr_modes: model.content.xr_modes || [],
+    shader_stack: model.content.shader_stack || [],
+    streaming_stack: model.content.streaming_stack || [],
     automation: model.content.automation || null,
     webhooks: model.content.webhooks || null,
     api_reference: model.content.api_reference || null,
     developer_portal: model.content.developer_portal || null,
     seo_stack: model.content.seo_stack || null,
+    brand_system: model.content.brand_system || [],
+    social_presence: model.content.social_presence || [],
+    content_calendar: model.content.content_calendar || [],
+    release_pipeline: model.content.release_pipeline || [],
+    qa_program: model.content.qa_program || [],
+    domain_stack: model.content.domain_stack || [],
+    trust_center: model.content.trust_center || [],
     ai_agents: model.content.ai_agents || null,
+    knowledge_sources: model.content.knowledge_sources || [],
+    memory_stores: model.content.memory_stores || [],
+    tool_registry: model.content.tool_registry || [],
+    agent_workflows: model.content.agent_workflows || [],
+    model_stack: model.content.model_stack || [],
+    voice_stack: model.content.voice_stack || [],
+    moderation_stack: model.content.moderation_stack || [],
     ui_components: model.content.ui_components || [],
     ui_layouts: model.content.ui_layouts || [],
     ui_tokens: model.content.ui_tokens || [],
+    frontend_stack: model.content.frontend_stack || [],
+    ui_runtime: model.content.ui_runtime || [],
+    chat_runtime: model.content.chat_runtime || [],
+    actor_runtime: model.content.actor_runtime || [],
     commerce: model.content.commerce || null,
     uploads: model.content.uploads || null,
     analytics: model.content.analytics || null,
@@ -2361,14 +2488,25 @@ function buildSiteData(model) {
     press_kit: model.content.press_kit || null,
     careers: model.content.careers || null,
     support_channels: model.content.support_channels || [],
+    support_tickets: model.content.support_tickets || [],
+    feedback_loops: model.content.feedback_loops || [],
+    survey_programs: model.content.survey_programs || [],
+    messaging_stack: model.content.messaging_stack || [],
+    payments_stack: model.content.payments_stack || [],
+    scheduling_stack: model.content.scheduling_stack || [],
+    privacy_requests: model.content.privacy_requests || [],
     legal: model.content.legal || [],
     security: model.content.security || null,
     community: model.content.community || null,
     events: model.content.events || null,
     newsletter: model.content.newsletter || null,
     compliance: model.content.compliance || null,
+    data_governance: model.content.data_governance || [],
+    backup_plan: model.content.backup_plan || [],
     observability: model.content.observability || null,
     infrastructure: model.content.infrastructure || null,
+    runtime_hosts: model.content.runtime_hosts || [],
+    deployment_targets: model.content.deployment_targets || [],
     localization: model.content.localization || null,
     accessibility: model.content.accessibility || null,
     performance: model.content.performance || null
@@ -3219,9 +3357,28 @@ function buildSystemContract(model, siteData, actorServerPlan) {
       events: "/api/analytics/events"
     },
     ui_kit: "/api/ui-kit",
+    frontend_stack: "/api/frontend",
+    ui_runtime: "/api/ui-runtime",
+    chat_runtime: "/api/chat/runtime",
+    actor_runtime: "/api/actors/runtime",
     chat_playbooks: "/api/chat/playbooks",
     chat_tools: "/api/chat/tools",
     chat_memory: "/api/chat/memory",
+    chat_models: "/api/chat/models",
+    voice: "/api/voice",
+    moderation: "/api/moderation",
+    seo_stack: "/api/seo",
+    brand_system: "/api/brand",
+    social_presence: "/api/social",
+    content_calendar: "/api/content/calendar",
+    release_pipeline: "/api/release/pipeline",
+    qa_program: "/api/qa",
+    domain_stack: "/api/domains",
+    trust_center: "/api/trust",
+    knowledge_sources: "/api/agents/knowledge",
+    memory_stores: "/api/agents/memory",
+    tool_registry: "/api/agents/tools",
+    agent_workflows: "/api/agents/workflows",
     growth: "/api/growth",
     experiments: "/api/experiments",
     services: "/api/services",
@@ -3234,17 +3391,47 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     actor_topology: "/api/actors/topology",
     actor_policies: "/api/actors/policies",
     actor_metrics: "/api/actors/metrics",
+    actor_supervision: "/api/actors/supervision",
+    actor_queues: "/api/actors/queues",
+    actor_jobs: "/api/actors/jobs",
+    actor_schedules: "/api/actors/schedules",
+    actor_hosts: "/api/actors/hosts",
+    scene_pipeline: "/api/3d/pipeline",
+    render_stack: "/api/3d/render",
+    interaction_modes: "/api/3d/interaction",
+    device_profiles: "/api/3d/devices",
+    scene_assets: "/api/3d/assets",
+    material_library: "/api/3d/materials",
+    lighting_rigs: "/api/3d/lighting",
+    camera_rigs: "/api/3d/cameras",
+    animation_stack: "/api/3d/animation",
+    physics_stack: "/api/3d/physics",
+    spatial_audio: "/api/3d/audio",
+    xr_modes: "/api/3d/xr",
+    shader_stack: "/api/3d/shaders",
+    streaming_stack: "/api/streaming",
     status: "/api/status",
     roadmap: "/api/roadmap",
     support: "/api/support",
+    support_tickets: "/api/support/tickets",
+    feedback: "/api/feedback",
+    surveys: "/api/surveys",
+    messaging: "/api/messaging",
+    payments: "/api/payments",
+    scheduling: "/api/scheduling",
+    privacy_requests: "/api/privacy/requests",
     legal: "/api/legal",
     security: "/api/security",
     community: "/api/community",
     events: "/api/events",
     newsletter: "/api/newsletter",
     compliance: "/api/compliance",
+    data_governance: "/api/data-governance",
+    backup_plan: "/api/backups",
     observability: "/api/observability",
     infrastructure: "/api/infrastructure",
+    runtime_hosts: "/api/runtime/hosts",
+    deployment_targets: "/api/runtime/deployments",
     localization: "/api/localization",
     accessibility: "/api/accessibility",
     performance: "/api/performance",
@@ -3258,15 +3445,44 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     subscriptions: siteData.subscriptions || null,
     cms: siteData.cms || null,
     media_library: siteData.media_library || null,
+    scene_pipeline: siteData.scene_pipeline || [],
+    render_stack: siteData.render_stack || [],
+    interaction_modes: siteData.interaction_modes || [],
+    device_profiles: siteData.device_profiles || [],
+    scene_assets: siteData.scene_assets || [],
+    material_library: siteData.material_library || [],
+    lighting_rigs: siteData.lighting_rigs || [],
+    camera_rigs: siteData.camera_rigs || [],
+    animation_stack: siteData.animation_stack || [],
+    physics_stack: siteData.physics_stack || [],
+    spatial_audio: siteData.spatial_audio || [],
+    xr_modes: siteData.xr_modes || [],
+    shader_stack: siteData.shader_stack || [],
+    streaming_stack: siteData.streaming_stack || [],
     automation: siteData.automation || null,
     webhooks: siteData.webhooks || null,
     api_reference: siteData.api_reference || null,
     developer_portal: siteData.developer_portal || null,
     seo_stack: siteData.seo_stack || null,
+    brand_system: siteData.brand_system || [],
+    social_presence: siteData.social_presence || [],
+    content_calendar: siteData.content_calendar || [],
+    release_pipeline: siteData.release_pipeline || [],
+    qa_program: siteData.qa_program || [],
+    domain_stack: siteData.domain_stack || [],
+    trust_center: siteData.trust_center || [],
     ai_agents: siteData.ai_agents || null,
+    knowledge_sources: siteData.knowledge_sources || [],
+    memory_stores: siteData.memory_stores || [],
+    tool_registry: siteData.tool_registry || [],
+    agent_workflows: siteData.agent_workflows || [],
     ui_components: siteData.ui_components || [],
     ui_layouts: siteData.ui_layouts || [],
     ui_tokens: siteData.ui_tokens || [],
+    frontend_stack: siteData.frontend_stack || [],
+    ui_runtime: siteData.ui_runtime || [],
+    chat_runtime: siteData.chat_runtime || [],
+    actor_runtime: siteData.actor_runtime || [],
     commerce: siteData.commerce || null,
     app_modules: siteData.app_modules || [],
     integrations: siteData.integrations || [],
@@ -3284,6 +3500,13 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     status_data: siteData.status || null,
     roadmap_items: siteData.roadmap || [],
     support_channels: siteData.support_channels || [],
+    support_tickets: siteData.support_tickets || [],
+    feedback_loops: siteData.feedback_loops || [],
+    survey_programs: siteData.survey_programs || [],
+    messaging_stack: siteData.messaging_stack || [],
+    payments_stack: siteData.payments_stack || [],
+    scheduling_stack: siteData.scheduling_stack || [],
+    privacy_requests: siteData.privacy_requests || [],
     legal: siteData.legal || [],
     security: siteData.security || null,
     community: siteData.community || null,
@@ -3297,6 +3520,14 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     performance: siteData.performance || null,
     actor_policies: siteData.actor_policies || [],
     actor_metrics: siteData.actor_metrics || [],
+    actor_supervision: siteData.actor_supervision || [],
+    actor_queues: siteData.actor_queues || [],
+    actor_jobs: siteData.actor_jobs || [],
+    actor_schedules: siteData.actor_schedules || [],
+    actor_hosts: siteData.actor_hosts || [],
+    actor_jobs: siteData.actor_jobs || [],
+    actor_schedules: siteData.actor_schedules || [],
+    actor_hosts: siteData.actor_hosts || [],
     team_members: siteData.team_members || [],
     partners: siteData.partners || [],
     press_kit: siteData.press_kit || null,
@@ -3391,6 +3622,10 @@ function buildUiSchema(model, siteData) {
         category: entry.category || null,
         transport: entry.transport || null
       })),
+      frontend_stack: (siteData.frontend_stack || []).length,
+      ui_runtime: (siteData.ui_runtime || []).length,
+      chat_runtime: (siteData.chat_runtime || []).length,
+      actor_runtime: (siteData.actor_runtime || []).length,
       growth_campaigns: (siteData.growth?.campaigns || []).length,
       experiment_count: (siteData.experiments?.tests || []).length,
       service_count: (siteData.service_catalog?.services || []).length,
@@ -3400,10 +3635,26 @@ function buildUiSchema(model, siteData) {
       feature_flags: (siteData.feature_flags?.flags || []).length,
       incident_playbooks: (siteData.incident_response?.playbooks || []).length,
       crm_stages: (siteData.crm_pipeline?.stages || []).length,
+      brand_system: (siteData.brand_system || []).length,
+      social_presence: (siteData.social_presence || []).length,
+      content_calendar: (siteData.content_calendar || []).length,
+      release_pipeline: (siteData.release_pipeline || []).length,
+      qa_program: (siteData.qa_program || []).length,
+      domain_stack: (siteData.domain_stack || []).length,
+      trust_center: (siteData.trust_center || []).length,
       actor_nodes: (siteData.actor_topology?.nodes || []).length,
+      actor_supervision: (siteData.actor_supervision || []).length,
+      actor_queues: (siteData.actor_queues || []).length,
       status_services: (siteData.status?.services || []).length,
       roadmap_items: (siteData.roadmap || []).length,
       support_channels: (siteData.support_channels || []).length,
+      support_tickets: (siteData.support_tickets || []).length,
+      feedback_loops: (siteData.feedback_loops || []).length,
+      survey_programs: (siteData.survey_programs || []).length,
+      messaging_stack: (siteData.messaging_stack || []).length,
+      payments_stack: (siteData.payments_stack || []).length,
+      scheduling_stack: (siteData.scheduling_stack || []).length,
+      privacy_requests: (siteData.privacy_requests || []).length,
       team_members: (siteData.team_members || []).length,
       careers: (siteData.careers?.roles || []).length,
       legal_links: (siteData.legal || []).length,
@@ -3411,11 +3662,39 @@ function buildUiSchema(model, siteData) {
       event_count: (siteData.events?.upcoming || []).length,
       newsletter_enabled: siteData.newsletter ? 1 : 0,
       compliance_controls: (siteData.compliance?.controls || []).length,
+      data_governance: (siteData.data_governance || []).length,
+      backup_plan: (siteData.backup_plan || []).length,
       observability_signals: (siteData.observability?.signals || []).length,
       infrastructure_stack: (siteData.infrastructure?.stack || []).length,
       localization_languages: (siteData.localization?.languages || []).length,
       accessibility_checks: (siteData.accessibility?.checks || []).length,
-      performance_targets: (siteData.performance?.targets || []).length
+      performance_targets: (siteData.performance?.targets || []).length,
+      scene_pipeline: (siteData.scene_pipeline || []).length,
+      render_stack: (siteData.render_stack || []).length,
+      interaction_modes: (siteData.interaction_modes || []).length,
+      device_profiles: (siteData.device_profiles || []).length,
+      scene_assets: (siteData.scene_assets || []).length,
+      material_library: (siteData.material_library || []).length,
+      lighting_rigs: (siteData.lighting_rigs || []).length,
+      camera_rigs: (siteData.camera_rigs || []).length,
+      animation_stack: (siteData.animation_stack || []).length,
+      physics_stack: (siteData.physics_stack || []).length,
+      spatial_audio: (siteData.spatial_audio || []).length,
+      xr_modes: (siteData.xr_modes || []).length,
+      shader_stack: (siteData.shader_stack || []).length,
+      streaming_stack: (siteData.streaming_stack || []).length,
+      model_stack: (siteData.model_stack || []).length,
+      voice_stack: (siteData.voice_stack || []).length,
+      moderation_stack: (siteData.moderation_stack || []).length,
+      knowledge_sources: (siteData.knowledge_sources || []).length,
+      memory_stores: (siteData.memory_stores || []).length,
+      tool_registry: (siteData.tool_registry || []).length,
+      agent_workflows: (siteData.agent_workflows || []).length,
+      actor_jobs: (siteData.actor_jobs || []).length,
+      actor_schedules: (siteData.actor_schedules || []).length,
+      actor_hosts: (siteData.actor_hosts || []).length,
+      runtime_hosts: (siteData.runtime_hosts || []).length,
+      deployment_targets: (siteData.deployment_targets || []).length
     }
   };
 }
@@ -3618,6 +3897,20 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/routes", purpose: "returns the route contract", actor: "mesh_supervisor" },
     { method: "GET", path: "/api/site", purpose: "returns site data and seo metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/scene", purpose: "returns the current scene descriptor", actor: "site_renderer" },
+    { method: "GET", path: "/api/3d/pipeline", purpose: "returns 3D scene pipeline metadata", actor: "site_renderer" },
+    { method: "GET", path: "/api/3d/render", purpose: "returns render stack metadata", actor: "site_renderer" },
+    { method: "GET", path: "/api/3d/interaction", purpose: "returns 3D interaction mode metadata", actor: "site_renderer" },
+    { method: "GET", path: "/api/3d/devices", purpose: "returns device profile metadata", actor: "site_renderer" },
+    { method: "GET", path: "/api/3d/assets", purpose: "returns scene asset metadata", actor: "site_renderer" },
+    { method: "GET", path: "/api/3d/materials", purpose: "returns material library metadata", actor: "site_renderer" },
+    { method: "GET", path: "/api/3d/lighting", purpose: "returns lighting rig metadata", actor: "site_renderer" },
+    { method: "GET", path: "/api/3d/cameras", purpose: "returns camera rig metadata", actor: "site_renderer" },
+    { method: "GET", path: "/api/3d/animation", purpose: "returns animation stack metadata", actor: "site_renderer" },
+    { method: "GET", path: "/api/3d/physics", purpose: "returns physics stack metadata", actor: "site_renderer" },
+    { method: "GET", path: "/api/3d/audio", purpose: "returns spatial audio metadata", actor: "site_renderer" },
+    { method: "GET", path: "/api/3d/xr", purpose: "returns XR mode metadata", actor: "site_renderer" },
+    { method: "GET", path: "/api/3d/shaders", purpose: "returns shader stack metadata", actor: "site_renderer" },
+    { method: "GET", path: "/api/streaming", purpose: "returns streaming stack metadata", actor: "signal_broker" },
     { method: "GET", path: "/api/forms", purpose: "returns the available form contracts", actor: "intake_collector" },
     { method: "GET", path: "/api/blog/posts", purpose: "returns the blog post registry metadata", actor: "site_renderer" },
     { method: "GET", path: "/api/search/documents", purpose: "returns the local search document index", actor: "search_indexer" },
@@ -3625,6 +3918,9 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/chat", purpose: "returns chat seed messages or a local reply", actor: "chat_seed_router" },
     { method: "POST", path: "/api/chat", purpose: "accepts a prompt payload and returns a local reply", actor: "chat_seed_router" },
     { method: "GET", path: "/api/chat/stream", purpose: "returns a server-sent event preview for local chat pipelines", actor: "chat_seed_router" },
+    { method: "GET", path: "/api/chat/models", purpose: "returns model stack metadata", actor: "chat_seed_router" },
+    { method: "GET", path: "/api/voice", purpose: "returns voice stack metadata", actor: "chat_seed_router" },
+    { method: "GET", path: "/api/moderation", purpose: "returns moderation policy metadata", actor: "chat_seed_router" },
     { method: "GET", path: "/api/app", purpose: "returns the app module manifest for react-like workspace shells", actor: "runtime_reporter" },
     { method: "GET", path: "/api/auth", purpose: "returns authentication strategy metadata", actor: "auth_gateway" },
     { method: "GET", path: "/api/auth/session", purpose: "returns the current session identity (cookie-backed)", actor: "auth_gateway" },
@@ -3642,13 +3938,28 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/seo", purpose: "returns SEO target metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/agents", purpose: "returns chat agent roster metadata", actor: "chat_seed_router" },
     { method: "GET", path: "/api/ui-kit", purpose: "returns UI kit components, layouts, and tokens", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/frontend", purpose: "returns frontend stack metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/ui-runtime", purpose: "returns UI runtime metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/chat/runtime", purpose: "returns chat runtime metadata", actor: "chat_seed_router" },
+    { method: "GET", path: "/api/actors/runtime", purpose: "returns actor runtime metadata", actor: "mesh_supervisor" },
     { method: "GET", path: "/api/chat/playbooks", purpose: "returns chat playbook metadata", actor: "chat_seed_router" },
     { method: "GET", path: "/api/chat/tools", purpose: "returns chat tool metadata", actor: "chat_seed_router" },
     { method: "GET", path: "/api/chat/memory", purpose: "returns chat memory lane metadata", actor: "chat_seed_router" },
+    { method: "GET", path: "/api/agents/knowledge", purpose: "returns knowledge source metadata", actor: "chat_seed_router" },
+    { method: "GET", path: "/api/agents/memory", purpose: "returns agent memory store metadata", actor: "chat_seed_router" },
+    { method: "GET", path: "/api/agents/tools", purpose: "returns agent tool registry metadata", actor: "chat_seed_router" },
+    { method: "GET", path: "/api/agents/workflows", purpose: "returns agent workflow metadata", actor: "chat_seed_router" },
     { method: "GET", path: "/api/actors/policies", purpose: "returns actor policy metadata", actor: "mesh_supervisor" },
     { method: "GET", path: "/api/actors/metrics", purpose: "returns actor metric metadata", actor: "mesh_supervisor" },
+    { method: "GET", path: "/api/actors/supervision", purpose: "returns actor supervision metadata", actor: "mesh_supervisor" },
+    { method: "GET", path: "/api/actors/queues", purpose: "returns actor queue metadata", actor: "mesh_supervisor" },
+    { method: "GET", path: "/api/actors/jobs", purpose: "returns actor job metadata", actor: "mesh_supervisor" },
+    { method: "GET", path: "/api/actors/schedules", purpose: "returns actor schedule metadata", actor: "mesh_supervisor" },
+    { method: "GET", path: "/api/actors/hosts", purpose: "returns actor host metadata", actor: "mesh_supervisor" },
     { method: "GET", path: "/api/commerce", purpose: "returns sellable offers and membership metadata", actor: "commerce_orchestrator" },
     { method: "GET", path: "/api/data", purpose: "returns typed collection and persistence metadata", actor: "data_keeper" },
+    { method: "GET", path: "/api/data-governance", purpose: "returns data governance metadata", actor: "data_keeper" },
+    { method: "GET", path: "/api/backups", purpose: "returns backup plan metadata", actor: "data_keeper" },
     { method: "GET", path: "/api/growth", purpose: "returns growth campaign and funnel metadata", actor: "growth_ops" },
     { method: "GET", path: "/api/experiments", purpose: "returns experiment and A/B test metadata", actor: "growth_ops" },
     { method: "GET", path: "/api/services", purpose: "returns service catalog and SLA metadata", actor: "service_manager" },
@@ -3662,6 +3973,13 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/status", purpose: "returns status board metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/roadmap", purpose: "returns roadmap milestones", actor: "runtime_reporter" },
     { method: "GET", path: "/api/support", purpose: "returns support channels", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/support/tickets", purpose: "returns support ticket queue metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/feedback", purpose: "returns feedback loop metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/surveys", purpose: "returns survey program metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/messaging", purpose: "returns messaging stack metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/payments", purpose: "returns payments stack metadata", actor: "commerce_orchestrator" },
+    { method: "GET", path: "/api/scheduling", purpose: "returns scheduling stack metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/privacy/requests", purpose: "returns privacy request metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/legal", purpose: "returns legal and policy links", actor: "runtime_reporter" },
     { method: "GET", path: "/api/security", purpose: "returns security control metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/community", purpose: "returns community channels and cohorts", actor: "runtime_reporter" },
@@ -3670,6 +3988,8 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/compliance", purpose: "returns compliance and governance metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/observability", purpose: "returns operational signals metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/infrastructure", purpose: "returns infrastructure stack metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/runtime/hosts", purpose: "returns runtime host metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/runtime/deployments", purpose: "returns deployment target metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/localization", purpose: "returns localization metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/accessibility", purpose: "returns accessibility metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/performance", purpose: "returns performance target metadata", actor: "runtime_reporter" },
@@ -3734,11 +4054,16 @@ export function buildActorServerPlan(appManifestPath, experienceId) {
     actor_topology: siteData.actor_topology || null,
     actor_policies: siteData.actor_policies || [],
     actor_metrics: siteData.actor_metrics || [],
+    actor_supervision: siteData.actor_supervision || [],
+    actor_queues: siteData.actor_queues || [],
     chat_personas: siteData.chat_personas || [],
     chat_modes: siteData.chat_modes || [],
     chat_playbooks: siteData.chat_playbooks || [],
     chat_tools: siteData.chat_tools || [],
     chat_memory: siteData.chat_memory || [],
+    model_stack: siteData.model_stack || [],
+    voice_stack: siteData.voice_stack || [],
+    moderation_stack: siteData.moderation_stack || [],
     forms: siteData.forms || [],
     auth: siteData.auth || null,
     identity: siteData.identity || null,
@@ -3746,12 +4071,33 @@ export function buildActorServerPlan(appManifestPath, experienceId) {
     subscriptions: siteData.subscriptions || null,
     cms: siteData.cms || null,
     media_library: siteData.media_library || null,
+    scene_pipeline: siteData.scene_pipeline || [],
+    render_stack: siteData.render_stack || [],
+    interaction_modes: siteData.interaction_modes || [],
+    device_profiles: siteData.device_profiles || [],
+    scene_assets: siteData.scene_assets || [],
+    material_library: siteData.material_library || [],
+    lighting_rigs: siteData.lighting_rigs || [],
+    camera_rigs: siteData.camera_rigs || [],
+    animation_stack: siteData.animation_stack || [],
+    physics_stack: siteData.physics_stack || [],
+    spatial_audio: siteData.spatial_audio || [],
+    xr_modes: siteData.xr_modes || [],
+    shader_stack: siteData.shader_stack || [],
+    streaming_stack: siteData.streaming_stack || [],
     automation: siteData.automation || null,
     webhooks: siteData.webhooks || null,
     api_reference: siteData.api_reference || null,
     developer_portal: siteData.developer_portal || null,
     seo_stack: siteData.seo_stack || null,
     ai_agents: siteData.ai_agents || null,
+    knowledge_sources: siteData.knowledge_sources || [],
+    memory_stores: siteData.memory_stores || [],
+    tool_registry: siteData.tool_registry || [],
+    agent_workflows: siteData.agent_workflows || [],
+    model_stack: siteData.model_stack || [],
+    voice_stack: siteData.voice_stack || [],
+    moderation_stack: siteData.moderation_stack || [],
     ui_components: siteData.ui_components || [],
     ui_layouts: siteData.ui_layouts || [],
     ui_tokens: siteData.ui_tokens || [],
@@ -3772,14 +4118,27 @@ export function buildActorServerPlan(appManifestPath, experienceId) {
     status: siteData.status || null,
     roadmap: siteData.roadmap || [],
     support_channels: siteData.support_channels || [],
+    support_tickets: siteData.support_tickets || [],
+    feedback_loops: siteData.feedback_loops || [],
+    survey_programs: siteData.survey_programs || [],
+    messaging_stack: siteData.messaging_stack || [],
+    payments_stack: siteData.payments_stack || [],
+    scheduling_stack: siteData.scheduling_stack || [],
+    privacy_requests: siteData.privacy_requests || [],
     legal: siteData.legal || [],
     security: siteData.security || null,
     community: siteData.community || null,
     events: siteData.events || null,
     newsletter: siteData.newsletter || null,
     compliance: siteData.compliance || null,
+    data_governance: siteData.data_governance || [],
+    backup_plan: siteData.backup_plan || [],
     observability: siteData.observability || null,
     infrastructure: siteData.infrastructure || null,
+    runtime_hosts: siteData.runtime_hosts || [],
+    deployment_targets: siteData.deployment_targets || [],
+    runtime_hosts: siteData.runtime_hosts || [],
+    deployment_targets: siteData.deployment_targets || [],
     localization: siteData.localization || null,
     accessibility: siteData.accessibility || null,
     performance: siteData.performance || null,
@@ -4176,6 +4535,58 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, bundle.manifest.scene);
       return;
     }
+    if (request.method === "GET" && pathname === "/api/3d/pipeline") {
+      sendJson(response, 200, bundle.site_data.scene_pipeline || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/3d/render") {
+      sendJson(response, 200, bundle.site_data.render_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/3d/interaction") {
+      sendJson(response, 200, bundle.site_data.interaction_modes || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/3d/devices") {
+      sendJson(response, 200, bundle.site_data.device_profiles || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/3d/assets") {
+      sendJson(response, 200, bundle.site_data.scene_assets || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/3d/materials") {
+      sendJson(response, 200, bundle.site_data.material_library || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/3d/lighting") {
+      sendJson(response, 200, bundle.site_data.lighting_rigs || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/3d/cameras") {
+      sendJson(response, 200, bundle.site_data.camera_rigs || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/3d/animation") {
+      sendJson(response, 200, bundle.site_data.animation_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/3d/physics") {
+      sendJson(response, 200, bundle.site_data.physics_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/3d/audio") {
+      sendJson(response, 200, bundle.site_data.spatial_audio || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/3d/xr") {
+      sendJson(response, 200, bundle.site_data.xr_modes || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/3d/shaders") {
+      sendJson(response, 200, bundle.site_data.shader_stack || []);
+      return;
+    }
     if (request.method === "GET" && pathname === "/api/forms") {
       sendJson(response, 200, bundle.site_data.forms || []);
       return;
@@ -4228,6 +4639,34 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, bundle.site_data.seo_stack || {});
       return;
     }
+    if (request.method === "GET" && pathname === "/api/brand") {
+      sendJson(response, 200, bundle.site_data.brand_system || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/social") {
+      sendJson(response, 200, bundle.site_data.social_presence || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/content/calendar") {
+      sendJson(response, 200, bundle.site_data.content_calendar || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/release/pipeline") {
+      sendJson(response, 200, bundle.site_data.release_pipeline || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/qa") {
+      sendJson(response, 200, bundle.site_data.qa_program || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/domains") {
+      sendJson(response, 200, bundle.site_data.domain_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/trust") {
+      sendJson(response, 200, bundle.site_data.trust_center || []);
+      return;
+    }
     if (request.method === "GET" && pathname === "/api/agents") {
       sendJson(response, 200, bundle.site_data.ai_agents || {});
       return;
@@ -4238,6 +4677,22 @@ async function serveExperience(appManifestPath, experienceId) {
         layouts: bundle.site_data.ui_layouts || [],
         tokens: bundle.site_data.ui_tokens || []
       });
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/frontend") {
+      sendJson(response, 200, bundle.site_data.frontend_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/ui-runtime") {
+      sendJson(response, 200, bundle.site_data.ui_runtime || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/chat/runtime") {
+      sendJson(response, 200, bundle.site_data.chat_runtime || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/actors/runtime") {
+      sendJson(response, 200, bundle.site_data.actor_runtime || []);
       return;
     }
     if (request.method === "GET" && pathname === "/api/chat/playbooks") {
@@ -4252,12 +4707,48 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, bundle.site_data.chat_memory || []);
       return;
     }
+    if (request.method === "GET" && pathname === "/api/agents/knowledge") {
+      sendJson(response, 200, bundle.site_data.knowledge_sources || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/agents/memory") {
+      sendJson(response, 200, bundle.site_data.memory_stores || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/agents/tools") {
+      sendJson(response, 200, bundle.site_data.tool_registry || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/agents/workflows") {
+      sendJson(response, 200, bundle.site_data.agent_workflows || []);
+      return;
+    }
     if (request.method === "GET" && pathname === "/api/actors/policies") {
       sendJson(response, 200, bundle.site_data.actor_policies || []);
       return;
     }
     if (request.method === "GET" && pathname === "/api/actors/metrics") {
       sendJson(response, 200, bundle.site_data.actor_metrics || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/actors/supervision") {
+      sendJson(response, 200, bundle.site_data.actor_supervision || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/actors/queues") {
+      sendJson(response, 200, bundle.site_data.actor_queues || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/actors/jobs") {
+      sendJson(response, 200, bundle.site_data.actor_jobs || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/actors/schedules") {
+      sendJson(response, 200, bundle.site_data.actor_schedules || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/actors/hosts") {
+      sendJson(response, 200, bundle.site_data.actor_hosts || []);
       return;
     }
     if (request.method === "GET" && pathname === "/api/auth/session") {
@@ -4291,6 +4782,14 @@ async function serveExperience(appManifestPath, experienceId) {
     }
     if (request.method === "GET" && pathname === "/api/data") {
       sendJson(response, 200, bundle.site_data.data_collections || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/data-governance") {
+      sendJson(response, 200, bundle.site_data.data_governance || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/backups") {
+      sendJson(response, 200, bundle.site_data.backup_plan || []);
       return;
     }
     if (request.method === "GET" && pathname === "/api/growth") {
@@ -4345,6 +4844,34 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, bundle.site_data.support_channels || []);
       return;
     }
+    if (request.method === "GET" && pathname === "/api/support/tickets") {
+      sendJson(response, 200, bundle.site_data.support_tickets || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/feedback") {
+      sendJson(response, 200, bundle.site_data.feedback_loops || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/surveys") {
+      sendJson(response, 200, bundle.site_data.survey_programs || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/messaging") {
+      sendJson(response, 200, bundle.site_data.messaging_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/payments") {
+      sendJson(response, 200, bundle.site_data.payments_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/scheduling") {
+      sendJson(response, 200, bundle.site_data.scheduling_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/privacy/requests") {
+      sendJson(response, 200, bundle.site_data.privacy_requests || []);
+      return;
+    }
     if (request.method === "GET" && pathname === "/api/legal") {
       sendJson(response, 200, bundle.site_data.legal || []);
       return;
@@ -4375,6 +4902,14 @@ async function serveExperience(appManifestPath, experienceId) {
     }
     if (request.method === "GET" && pathname === "/api/infrastructure") {
       sendJson(response, 200, bundle.site_data.infrastructure || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/runtime/hosts") {
+      sendJson(response, 200, bundle.site_data.runtime_hosts || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/runtime/deployments") {
+      sendJson(response, 200, bundle.site_data.deployment_targets || []);
       return;
     }
     if (request.method === "GET" && pathname === "/api/localization") {
@@ -4415,6 +4950,22 @@ async function serveExperience(appManifestPath, experienceId) {
     }
     if (request.method === "GET" && pathname === "/api/actors") {
       sendJson(response, 200, plan);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/chat/models") {
+      sendJson(response, 200, bundle.site_data.model_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/voice") {
+      sendJson(response, 200, bundle.site_data.voice_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/moderation") {
+      sendJson(response, 200, bundle.site_data.moderation_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/streaming") {
+      sendJson(response, 200, bundle.site_data.streaming_stack || []);
       return;
     }
     if (request.method === "GET" && pathname === "/api/chat") {

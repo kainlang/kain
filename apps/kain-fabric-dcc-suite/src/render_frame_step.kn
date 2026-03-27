@@ -1,0 +1,61 @@
+// src/render_frame_step.kn
+// Kain Fabric DCC Suite - Render Frame Intent Step
+
+module RenderFrame;
+
+import Fabric.Intent;
+import Fabric.Graph;
+import Native.FFI;
+
+// Limitation: Kain does not currently have a native, high-performance
+// path tracer or rasterizer built into the core runtime.
+//
+// Extension Seam: This module defines a clean C ABI boundary and
+// IPC dispatch mechanism to offload rendering tasks to external
+// engines (e.g., Cycles, Arnold, or a custom Rust/WGPU renderer)
+// while keeping the scene semantic orchestration in Kain.
+
+struct RenderRequest {
+    scene_graph_ptr: Native.Pointer,
+    camera_id: u32,
+    resolution_x: u32,
+    resolution_y: u32,
+    samples: u32,
+    output_path: String,
+}
+
+struct RenderResult {
+    success: bool,
+    frame_time_ms: u64,
+    error_message: String,
+}
+
+// FFI binding to a hypothetical external renderer crate/library
+extern "C" {
+    fn kain_render_dispatch_frame(request: RenderRequest) -> RenderResult;
+}
+
+pub fn handle_render_frame(intent: Fabric.Intent.RenderFrame) -> Fabric.Graph.NodeResult {
+    // 1. Gather scene data pointers and rendering parameters from the intent
+    let request = RenderRequest {
+        scene_graph_ptr: intent.scene_buffer_ref,
+        camera_id: intent.active_camera,
+        resolution_x: intent.width,
+        resolution_y: intent.height,
+        samples: intent.sample_count,
+        output_path: intent.target_file,
+    };
+    
+    // 2. Dispatch across the ABI boundary
+    let result = kain_render_dispatch_frame(request);
+    
+    if !result.success {
+        return Fabric.Graph.NodeResult::Error(result.error_message);
+    }
+    
+    // 3. Return success to the Fabric graph
+    return Fabric.Graph.NodeResult::Success({
+        time_ms: result.frame_time_ms,
+        output: request.output_path,
+    });
+}

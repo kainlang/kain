@@ -1,0 +1,46 @@
+// src/sculpt_brush_step.kn
+// Kain Fabric DCC Suite - Sculpt Brush Extension Seam
+
+module KainFabric::DccSuite::Sculpt;
+
+import Kain::Fabric::Intent;
+import Kain::State;
+
+/// Handles the `sculpt_brush_stroke` Fabric intent.
+/// 
+/// RUNTIME LIMITATION:
+/// Kain does not currently have a native, high-performance spatial hash or 
+/// BVH (Bounding Volume Hierarchy) required for real-time vertex displacement
+/// on meshes exceeding 5-10 million polygons. 
+///
+/// EXTENSION SEAM:
+/// This step packages the brush intent (radius, strength, falloff, ray hit) 
+/// and delegates the actual mesh mutation to a native C++/Vulkan compute 
+/// shader or a Rust-based CPU multithreading pool.
+///
+/// The native boundary expects a shared memory buffer (e.g., mapped GPU memory)
+/// for vertex positions and normals to avoid copy overhead.
+
+public fn execute_sculpt_brush_step(intent: Intent, state: State) -> State {
+    let brush_data = intent.payload.get_as::<SculptBrushData>("brush_data");
+    let mesh_id = intent.payload.get_string("target_mesh_id");
+    
+    // 1. Lock the mesh for write access in the session state.
+    // 2. Marshall the brush stroke parameters to the FFI boundary.
+    
+    log::info("Delegating sculpt_brush_stroke to native high-performance BVH/compute kernel.");
+    
+    // FFI call to native sculpt engine (placeholder)
+    // let result = NativeSculptEngine::apply_stroke(mesh_id, brush_data);
+    
+    // 3. Mark the mesh bounding box as dirty for the renderer.
+    state
+}
+
+struct SculptBrushData {
+    pub origin: Vec3,
+    pub direction: Vec3,
+    pub radius: f32,
+    pub strength: f32,
+    pub falloff_curve: String,
+}

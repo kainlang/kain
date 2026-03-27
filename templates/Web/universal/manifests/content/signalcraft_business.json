@@ -10,6 +10,13 @@
     { "label": "Systems", "href": "#systems" },
     { "label": "Pricing", "href": "#pricing" },
     { "label": "Proof", "href": "#proof" },
+    { "label": "Brand", "href": "#brand-system" },
+    { "label": "Social", "href": "#social-presence" },
+    { "label": "Calendar", "href": "#content-calendar" },
+    { "label": "Release", "href": "#release-pipeline" },
+    { "label": "QA", "href": "#qa-program" },
+    { "label": "Domains", "href": "#domain-stack" },
+    { "label": "Trust", "href": "#trust-center" },
     { "label": "Blog", "href": "#blog" },
     { "label": "FAQ", "href": "#faq" },
     { "label": "Start", "href": "#intake" }

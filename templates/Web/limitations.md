@@ -146,3 +146,25 @@ Current template approach:
 Requested upstream capability:
 
 - first-class Kain deployment targets for serverless and edge runtimes so actor-server sites can ship without retooling the helper runtime
+
+### 14. Messaging, scheduling, support ticketing, and privacy request providers are helper-owned
+
+Current template approach:
+
+- messaging, scheduling, ticket queues, and privacy request registries are manifest-driven
+- the runtime exposes JSON endpoints, but no first-class provider adapters exist inside Kain
+
+Requested upstream capability:
+
+- Kain-owned adapters for email/SMS/push, scheduling calendars, ticketing systems, and privacy request workflows so these systems can move beyond helper-owned metadata
+
+### 14. Messaging, scheduling, support ticketing, and privacy request providers are helper-owned
+
+Current template approach:
+
+- messaging, scheduling, ticket queues, and privacy request registries are manifest-driven
+- the runtime exposes JSON endpoints, but no first-class provider adapters exist inside Kain
+
+Requested upstream capability:
+
+- Kain-owned adapters for email/SMS/push, scheduling calendars, ticketing systems, and privacy request workflows so these systems can move beyond helper-owned metadata

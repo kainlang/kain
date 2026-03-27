@@ -1,0 +1,67 @@
+{
+  "resource_kinds": [
+    {
+      "id": "scene_graph_document",
+      "resource_uri": "scene://current/graph",
+      "kind": "value",
+      "producer_step": "dcc_suite_seed",
+      "output_name": "scene_graph_document",
+      "storage": "fabric-report",
+      "summary": "Canonical scene graph bootstrap document authored by Kain."
+    },
+    {
+      "id": "asset_catalog_document",
+      "resource_uri": "asset://catalog/current",
+      "kind": "value",
+      "producer_step": "dcc_suite_seed",
+      "output_name": "asset_catalog_document",
+      "storage": "fabric-report",
+      "summary": "Asset ingest and package catalog bootstrap document."
+    },
+    {
+      "id": "preview_source_buffer",
+      "resource_uri": "buffer://preview/source",
+      "kind": "shared_buffer",
+      "producer_step": "dcc_suite_seed",
+      "output_name": "preview_src",
+      "storage": "shared-buffer",
+      "summary": "Source preview and material bake buffer."
+    },
+    {
+      "id": "preview_destination_buffer",
+      "resource_uri": "buffer://preview/destination",
+      "kind": "shared_buffer",
+      "producer_step": "gpu_material_preview",
+      "output_name": "preview_dst",
+      "storage": "shared-buffer",
+      "summary": "Destination preview and material bake buffer populated by GPU compute."
+    },
+    {
+      "id": "preview_image",
+      "resource_uri": "image://preview/current",
+      "kind": "shared_image",
+      "producer_step": "dcc_suite_seed",
+      "output_name": "preview_image",
+      "storage": "shared-image",
+      "summary": "Preview image projected into viewport, render, and publish surfaces."
+    },
+    {
+      "id": "tensor_features",
+      "resource_uri": "buffer://tensor/features",
+      "kind": "shared_buffer",
+      "producer_step": "dcc_suite_seed",
+      "output_name": "tensor_features",
+      "storage": "shared-buffer",
+      "summary": "Feature buffer staged for tensor-oriented training and inference planning."
+    },
+    {
+      "id": "sculpt_delta",
+      "resource_uri": "buffer://sculpt/delta",
+      "kind": "shared_buffer",
+      "producer_step": "native_sculpt_kernel",
+      "output_name": "sculpt_delta",
+      "storage": "shared-buffer",
+      "summary": "Latest sculpt mutation payload emitted by the C ABI seam."
+    }
+  ]
+}

@@ -9,6 +9,11 @@
   "nav": [
     { "label": "Work", "href": "#work" },
     { "label": "Proof", "href": "#proof" },
+    { "label": "Brand", "href": "#brand-system" },
+    { "label": "Social", "href": "#social-presence" },
+    { "label": "Calendar", "href": "#content-calendar" },
+    { "label": "QA", "href": "#qa-program" },
+    { "label": "Trust", "href": "#trust-center" },
     { "label": "Blog", "href": "#blog" },
     { "label": "Search", "href": "#search" },
     { "label": "Brief", "href": "#brief" }

@@ -1,0 +1,51 @@
+struct WorkspaceDescriptor:
+    id: String
+    label: String
+    focus_surface: String
+    summary: String
+
+fn default_workspaces() -> Array<WorkspaceDescriptor>:
+    return [
+        WorkspaceDescriptor {
+            id: "scene_assembly",
+            label: "Scene Assembly",
+            focus_surface: "scene_graph",
+            summary: "Scene graph authoring, layout, and asset placement"
+        },
+        WorkspaceDescriptor {
+            id: "sculpt_model",
+            label: "Sculpt And Model",
+            focus_surface: "viewport_stage",
+            summary: "Modeling, sculpting, remesh, and topology shaping"
+        },
+        WorkspaceDescriptor {
+            id: "material_lookdev",
+            label: "Material And Lookdev",
+            focus_surface: "material_graph",
+            summary: "Shader graphs, texture baking, and lighting preview"
+        },
+        WorkspaceDescriptor {
+            id: "rig_anim",
+            label: "Rig And Animation",
+            focus_surface: "rig_graph",
+            summary: "Rig controls, clips, and deformation review"
+        },
+        WorkspaceDescriptor {
+            id: "sim_fx",
+            label: "Simulation And FX",
+            focus_surface: "simulation_board",
+            summary: "Caches, solvers, and replay diagnostics"
+        },
+        WorkspaceDescriptor {
+            id: "render_comp",
+            label: "Render And Composite",
+            focus_surface: "render_lounge",
+            summary: "Render products, frame assembly, and compositor planning"
+        },
+        WorkspaceDescriptor {
+            id: "publish_automation",
+            label: "Publish And Automation",
+            focus_surface: "publish_console",
+            summary: "Package review, delivery, and recurring automation"
+        }
+    ]

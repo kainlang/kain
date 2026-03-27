@@ -9,6 +9,9 @@
   "sections": [
     { "id": "offers", "kind": "commerce_stack", "eyebrow": "Offers", "title": "Offer and membership stack", "source": "content.commerce" },
     { "id": "auth", "kind": "auth_panel", "eyebrow": "Auth", "title": "Buyer and member access", "source": "content.auth" },
+    { "id": "payments", "kind": "card_grid", "eyebrow": "Payments", "title": "Payments stack", "source": "content.payments_stack" },
+    { "id": "messaging", "kind": "card_grid", "eyebrow": "Messaging", "title": "Messaging stack", "source": "content.messaging_stack" },
+    { "id": "scheduling", "kind": "card_grid", "eyebrow": "Scheduling", "title": "Scheduling stack", "source": "content.scheduling_stack" },
     { "id": "integrations", "kind": "integration_grid", "eyebrow": "Integrations", "title": "Checkout and fulfillment connectors", "source": "content.integrations" },
     { "id": "data", "kind": "data_collections", "eyebrow": "Data", "title": "Buyer and membership collections", "source": "content.data_collections" },
     { "id": "status", "kind": "status_board", "eyebrow": "Status", "title": "Commerce runtime status", "source": "content.status" },

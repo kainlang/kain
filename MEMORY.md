@@ -10,6 +10,74 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-27 - Flagship Fabric DCC Suite Scaffold Added Under apps/kain-fabric-dcc-suite
+
+## 2026-03-27 - Universal Web Template Brand + Trust Systems Added
+
+The universal web template now ships brand/marketing/trust system registries and integrates them into the hybrid, business, and portfolio experiences.
+
+Update:
+
+- Added brand system, social presence, content calendar, release pipeline, QA program, domain/edge stack, and trust center registries to `web_systems_core`.
+- Wired the new sections into hybrid, business, and portfolio experiences with matching nav anchors.
+- Extended the Node helper runtime with site-data fields, system-contract endpoints, API routes, and UI schema counts for the new systems.
+- Updated client site-data typings, the Kain build report, and template docs; synced changes into `M:\Code\Kain\templates\Web` and `K:\templates\web`.
+
+What future work should preserve:
+
+- keep the new systems manifest-driven and rendered via existing section kinds
+- keep the Node helper runtime as the single API owner until a native web runtime exists
+
+## 2026-03-27 - Universal Web Template Expanded With 3D + Chat + Actor + Governance Systems
+
+The universal web template under `M:\Templates\Web\universal` now ships expanded systems so sites can cover immersive 3D, chat-first surfaces, actor supervision, and data governance without needing Rust tooling.
+
+Update:
+
+- Added manifest-driven registries for scene pipeline, render stack, interaction modes, and device profiles to harden 3D site coverage.
+- Added model stack, voice stack, and moderation policy registries so chat-first sites can declare LLM/voice/safety systems in data.
+- Added actor supervision and queue registries, plus data governance and backup plan registries, to round out operator and compliance needs.
+- Expanded experiences (immersive, chat, actor, app, and hybrid) to render the new systems using existing section kinds.
+- Extended the Node helper runtime with new system-contract fields, API endpoints, and route responses for the new registries.
+- Updated the native Kain UI preview and template docs to reflect the expanded system surface.
+
+What future work should preserve:
+
+- keep the new systems manifest-driven so new archetypes stay data-first
+- keep the helper runtime as the single place that exposes system-contract endpoints until Kain ships a native web backend
+- keep the web template focused on no-Rust-required workflows while still proving Kain UI + Node FFI orchestration
+
+## 2026-03-27 - Universal Web Template Added Frontend/UI/Chat/Actor Runtime Registries
+
+The universal web template now includes explicit frontend stack, UI runtime, chat runtime, and actor runtime registries plus new API endpoints so React/TypeScript-style shells and actor/chat-heavy sites can be described without boilerplate.
+
+Update:
+
+- Added frontend stack + UI runtime registries (TypeScript/React-like runtime, routing, state, data, build metadata).
+- Added chat runtime + actor runtime registries alongside existing playbooks, tools, and supervision lanes.
+- Exposed new endpoints and system contract fields (`/api/frontend`, `/api/ui-runtime`, `/api/chat/runtime`, `/api/actors/runtime`).
+- Wired the new registries into hybrid/app/chat/actor experiences and refreshed the native preview + docs to surface the runtime stacks.
+
+What future work should preserve:
+
+- keep frontend/UI/chat/actor runtime registries manifest-driven
+- keep helper runtime as the single endpoint owner until Kain-native web runtimes land
+
+The repo now has a broader flagship Fabric-first DCC suite scaffold under `apps/kain-fabric-dcc-suite`.
+
+Update:
+
+- Added a registry-driven app scaffold with explicit manifests for workspaces, surfaces, commands, Fabric pipeline summaries, Fabric intents, resources, reports, runtime packs, and automation jobs.
+- Added a focused Kain session core split across schema, reducers, derived state, command handlers, intent planning, and typed registries for resources, reports, jobs, and workspaces.
+- Added a broad Fabric pipeline and lane-local intent manifests that cover bootstrap, asset ingest, sculpt stroke, topology rebuild, rig sync, sim tick, material bake, render preview, compositor rebuild, publish package, and tensor-oriented train/infer planning.
+- Added narrow native C and Rust seams plus a GPU compute shader and Kain-to-Node publish bridge so the scaffold proves current multi-runtime convergence without making the native host the semantic owner.
+
+What future work should preserve:
+
+- keep the suite registry-driven through `config/*.json` instead of letting generated shell output become the source of truth
+- keep live operator state and dirty-state planning in `session/*.kn`
+- keep tensor, sim, and compositor lanes explicit about current extension seams until first-class contracts land
+
 ## 2026-03-27 - Canvas Forge Added As A Node-First Desktop Art Studio Prototype
 
 The repo now has a dedicated Node-driven app under `apps/kain-canvas-forge` that proves a serious browser-plus-desktop studio shell can live inside the current Kain JavaScript bridge lane.

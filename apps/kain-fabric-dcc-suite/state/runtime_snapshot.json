@@ -1,0 +1,51 @@
+{
+  "app_id": "kain.fabric.dcc-suite",
+  "name": "Kain Fabric DCC Suite",
+  "version": "0.1.0",
+  "window_title": "Kain Fabric DCC Suite",
+  "layout_id": "kain_fabric_dcc_suite_shell",
+  "latest_fabric_status": "scaffolded",
+  "workspace_modes": [
+    "scene_assembly",
+    "sculpt_model",
+    "material_lookdev",
+    "rig_anim",
+    "sim_fx",
+    "render_comp",
+    "publish_automation"
+  ],
+  "resources": [
+    "scene://current/graph",
+    "asset://catalog/current",
+    "buffer://preview/source",
+    "buffer://preview/destination",
+    "image://preview/current",
+    "buffer://tensor/features",
+    "buffer://sculpt/delta"
+  ],
+  "reports": [
+    "report://session/bootstrap",
+    "report://asset/ingest",
+    "report://topology/current",
+    "report://rig/sync",
+    "report://simulation/tick-plan",
+    "report://render/preview",
+    "report://compositor/rebuild",
+    "report://tensor/training",
+    "report://tensor/inference",
+    "artifact://publish/summary"
+  ],
+  "automation_jobs": [
+    "thumbnail_refresh",
+    "nightly_material_rebake",
+    "rig_health_audit",
+    "simulation_cache_warmup",
+    "tensor_readiness_probe",
+    "publish_receipt_archive"
+  ],
+  "extension_seams": [
+    "tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract",
+    "simulation lane currently materializes plan-oriented reports rather than a true solver runtime",
+    "compositor lane currently materializes rebuild plans rather than a first-class compositor graph runtime"
+  ]
+}

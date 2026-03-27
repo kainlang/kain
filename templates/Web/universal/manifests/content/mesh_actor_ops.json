@@ -9,6 +9,7 @@
   "nav": [
     { "label": "Routes", "href": "#routes" },
     { "label": "Actors", "href": "#actors" },
+    { "label": "Actor Runtime", "href": "#actor-runtime" },
     { "label": "Commands", "href": "#commands" },
     { "label": "Search", "href": "#search" },
     { "label": "Intake", "href": "#intake" }

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at_utc": "2026-03-27T08:00:22.692473+00:00",
+  "generated_at_utc": "2026-03-27T20:00:26.626315+00:00",
   "display_name": "Code/Kain",
   "directory": "M:\\Code\\Kain",
   "summary": {
@@ -55,6 +55,13 @@
         "dependency_count": 5
       },
       {
+        "path": "apps/kain-fabric-dcc-suite/local_crate/Cargo.toml",
+        "type": "cargo",
+        "package_name": "fabric_dcc_suite_runtime",
+        "workspace_members": 0,
+        "dependency_count": 0
+      },
+      {
         "path": "apps/kain-fabric-modeler/local_crate/Cargo.toml",
         "type": "cargo",
         "package_name": "fabric_modeler_runtime",
@@ -102,16 +109,9 @@
         "package_name": "unreal_cpp_bootstrapper",
         "workspace_members": 0,
         "dependency_count": 8
-      },
-      {
-        "path": "unreal/unrealmodding-main/unreal_helpers/Cargo.toml",
-        "type": "cargo",
-        "package_name": "unreal_helpers",
-        "workspace_members": 0,
-        "dependency_count": 6
       }
     ],
-    "manifest_count_total": 63,
+    "manifest_count_total": 64,
     "sampled_file_count": 220
   },
   "nodes": [

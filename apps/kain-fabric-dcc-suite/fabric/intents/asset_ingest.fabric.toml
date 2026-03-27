@@ -1,0 +1,33 @@
+version = 1
+
+[workspace]
+root = "."
+search_roots = ["src", "scripts"]
+
+[[requires]]
+key = "session.local"
+version = 1
+optional = false
+
+[[steps]]
+id = "python_suite_bootstrap"
+runtime = "python"
+entry = "scripts/python_suite_bootstrap.py"
+
+[[steps.outputs]]
+name = "project_settings"
+kind = "value"
+
+[[steps]]
+id = "asset_ingest_session"
+runtime = "kain"
+entry = "src/asset_ingest_step.kn"
+depends_on = ["python_suite_bootstrap"]
+
+[[steps.outputs]]
+name = "asset_ingest_report"
+kind = "value"
+
+[reports]
+directory = ".kain/fabric/intents/asset_ingest"
+emit_jsonl_events = true

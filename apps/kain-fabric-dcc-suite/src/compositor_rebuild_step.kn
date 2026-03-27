@@ -1,0 +1,16 @@
+// compositor_rebuild_step.kn
+// Kain extension seam for compositor frame assembly
+
+import "session"
+
+fn run(plan: session::CompositorRebuildPlan) -> session::CompositorRebuildReport {
+    // RUNTIME LIMITATION: True compositor graph execution and frame buffer assembly
+    // are not yet natively supported in Kain.
+    // This is the clean extension seam for the eventual image processing compute runtime.
+    
+    return session::CompositorRebuildReport {
+        ready: true,
+        message: "Compositor rebuild is a mock extension seam until runtime contracts land.",
+        assembled_layers: 0
+    }
+}

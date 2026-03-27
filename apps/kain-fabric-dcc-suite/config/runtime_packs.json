@@ -1,0 +1,76 @@
+{
+  "runtime_packs": [
+    {
+      "id": "scene_foundation_pack",
+      "label": "Scene Foundation Pack",
+      "category": "runtime-pack",
+      "summary": "Scene graph, transforms, collections, and viewport bindings."
+    },
+    {
+      "id": "asset_ingest_pack",
+      "label": "Asset Ingest Pack",
+      "category": "runtime-pack",
+      "summary": "Asset intake schemas, package staging, and source provenance."
+    },
+    {
+      "id": "modeling_ops_pack",
+      "label": "Modeling Ops Pack",
+      "category": "runtime-pack",
+      "summary": "Modeling tools, topology mutations, and authoring operators."
+    },
+    {
+      "id": "sculpt_runtime_pack",
+      "label": "Sculpt Runtime Pack",
+      "category": "runtime-pack",
+      "summary": "Brush profiles, sculpt previews, and native mutation surfaces."
+    },
+    {
+      "id": "material_graph_pack",
+      "label": "Material Graph Pack",
+      "category": "runtime-pack",
+      "summary": "Material graphs, shader previews, and bake metadata."
+    },
+    {
+      "id": "rig_runtime_pack",
+      "label": "Rig Runtime Pack",
+      "category": "runtime-pack",
+      "summary": "Rig controls, graph projections, and deformation contracts."
+    },
+    {
+      "id": "animation_clip_pack",
+      "label": "Animation Clip Pack",
+      "category": "runtime-pack",
+      "summary": "Clip state, timing, markers, and retargeting support."
+    },
+    {
+      "id": "simulation_cache_pack",
+      "label": "Simulation Cache Pack",
+      "category": "runtime-pack",
+      "summary": "Cache roots, solver manifests, and replay state."
+    },
+    {
+      "id": "render_products_pack",
+      "label": "Render Products Pack",
+      "category": "runtime-pack",
+      "summary": "Render products, AOVs, preview queues, and viewport handoff."
+    },
+    {
+      "id": "compositor_stack_pack",
+      "label": "Compositor Stack Pack",
+      "category": "runtime-pack",
+      "summary": "Composite stack plans, pass dependencies, and grading metadata."
+    },
+    {
+      "id": "publish_delivery_pack",
+      "label": "Publish Delivery Pack",
+      "category": "runtime-pack",
+      "summary": "Package manifests, delivery variants, and client receipt surfaces."
+    },
+    {
+      "id": "automation_ops_pack",
+      "label": "Automation Ops Pack",
+      "category": "runtime-pack",
+      "summary": "Background jobs, schedules, report retention, and promotion rules."
+    }
+  ]
+}

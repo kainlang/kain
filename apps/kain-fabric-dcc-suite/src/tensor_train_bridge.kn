@@ -1,0 +1,35 @@
+// Explicit extension seam for Fabric tensor training intents
+//
+// DESIGN LIMITATION: Kain currently lacks a native autograd engine or
+// first-class GPU tensor types. To avoid boxing out ML workflows in the DCC,
+// this step acts as a clean ABI bridge to external Python/PyTorch processes.
+//
+// HOW THIS WORKS:
+// The Fabric intent graph routes a tensor_train task here.
+// We serialize the model graph, training config, and dataset pointers
+// to a fast IPC buffer (or memory-mapped file) and launch/signal
+// the PyTorch helper process.
+//
+// FUTURE: When Kain gains first-class GPU tensor types via LibTorch or
+// direct compute shaders, this bridge can be replaced with a native Kain implementation.
+
+import kain.os.process;
+import kain.data.ipc;
+
+fn main() -> String:
+    // 1. Gather tensor_train inputs from Fabric
+    let config = fabric_inputs.tensor_train_stage;
+    
+    // 2. Format a data-driven IPC payload for the external PyTorch worker
+    let ipc_payload = {
+        model_arch: config.architecture,
+        dataset_path: config.dataset_path,
+        epochs: config.epochs,
+        batch_size: config.batch_size
+    };
+    
+    // 3. (Mock) Dispatch to PyTorch via IPC/ABI
+    // let result = ipc.dispatch("pytorch_worker", "train", ipc_payload);
+    
+    // 4. Return the outcome report back to the Fabric graph
+    return "tensor-train-bridge: PyTorch IPC dispatch simulated (Awaiting native tensor types). Report: " + config.tensor_training_report;

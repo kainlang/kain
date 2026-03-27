@@ -1,0 +1,106 @@
+version = 1
+
+[workspace]
+root = "."
+search_roots = ["src", "scripts", "native", "local_crate", "shaders"]
+
+[[requires]]
+key = "session.local"
+version = 1
+optional = false
+
+[[steps]]
+id = "python_suite_bootstrap"
+runtime = "python"
+entry = "scripts/python_suite_bootstrap.py"
+
+[[steps.outputs]]
+name = "project_settings"
+kind = "value"
+
+[[steps]]
+id = "dcc_suite_seed"
+runtime = "kain"
+entry = "src/main.kn"
+depends_on = ["python_suite_bootstrap"]
+
+[[steps.outputs]]
+name = "session_report"
+kind = "value"
+
+[[steps]]
+id = "native_sculpt_kernel"
+runtime = "c_abi"
+entry = "src/native_sculpt_step.kn"
+module = "dcc_suite_ops"
+library = "native/dcc_suite_ops.dll"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed"]
+
+[[steps.outputs]]
+name = "sculpt_signature"
+kind = "value"
+
+[[steps]]
+id = "rig_graph_analysis"
+runtime = "rust_crate"
+entry = "src/rust_graph_step.kn"
+crate_name = "fabric_dcc_suite_runtime"
+manifest_path = "local_crate/Cargo.toml"
+depends_on = ["dcc_suite_seed", "native_sculpt_kernel"]
+
+[[steps.outputs]]
+name = "topology_report"
+kind = "value"
+
+[[steps]]
+id = "tensor_train_stage"
+runtime = "python"
+entry = "scripts/python_tensor_train_step.py"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "rig_graph_analysis"]
+
+[[steps.outputs]]
+name = "tensor_training_report"
+kind = "value"
+
+[[steps]]
+id = "tensor_infer_stage"
+runtime = "python"
+entry = "scripts/python_tensor_infer_step.py"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "tensor_train_stage"]
+
+[[steps.outputs]]
+name = "tensor_inference_report"
+kind = "value"
+
+[[steps]]
+id = "gpu_material_preview"
+runtime = "gpu_compute"
+shader_source = "shaders/material_bake_preview.kn"
+compute_key = "DccSuiteMaterialBakePreview"
+depends_on = ["dcc_suite_seed"]
+
+[[steps.outputs]]
+name = "preview_dst"
+kind = "shared_buffer"
+
+[[steps]]
+id = "publish_suite_report"
+runtime = "kain"
+entry = "src/node_publish_bridge.kn"
+depends_on = [
+    "python_suite_bootstrap",
+    "dcc_suite_seed",
+    "native_sculpt_kernel",
+    "rig_graph_analysis",
+    "tensor_train_stage",
+    "tensor_infer_stage",
+    "gpu_material_preview"
+]
+
+[[steps.outputs]]
+name = "publish_summary"
+kind = "value"
+
+[reports]
+directory = ".kain/fabric/intents/publish_package"
+emit_jsonl_events = true

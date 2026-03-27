@@ -8,6 +8,7 @@
   "eyebrow": "Realtime Website System",
   "sections": [
     { "id": "realtime", "kind": "realtime_channels", "eyebrow": "Realtime", "title": "Signal channel previews", "source": "content.realtime_channels" },
+    { "id": "streaming", "kind": "card_grid", "eyebrow": "Streaming", "title": "Streaming stack", "source": "content.streaming_stack" },
     { "id": "capabilities", "kind": "capability_matrix", "eyebrow": "Capability", "title": "How chat, ops, and knowledge mix", "source": "content.capability_matrix" },
     { "id": "integrations", "kind": "integration_grid", "eyebrow": "Integrations", "title": "Live adapters and imports", "source": "content.integrations" },
     { "id": "data", "kind": "data_collections", "eyebrow": "Data", "title": "Typed event collections", "source": "content.data_collections" },
@@ -15,6 +16,8 @@
     { "id": "roadmap", "kind": "roadmap_timeline", "eyebrow": "Roadmap", "title": "Realtime roadmap", "source": "content.roadmap" },
     { "id": "observability", "kind": "observability_stack", "eyebrow": "Observability", "title": "Signal monitoring", "source": "content.observability" },
     { "id": "infrastructure", "kind": "infrastructure_stack", "eyebrow": "Infrastructure", "title": "Realtime stack", "source": "content.infrastructure" },
+    { "id": "runtime-hosts", "kind": "card_grid", "eyebrow": "Runtime", "title": "Runtime hosts", "source": "content.runtime_hosts" },
+    { "id": "deploy", "kind": "card_grid", "eyebrow": "Deploy", "title": "Deployment targets", "source": "content.deployment_targets" },
     { "id": "performance", "kind": "performance_targets", "eyebrow": "Performance", "title": "Latency budgets", "source": "content.performance" },
     { "id": "security", "kind": "security_grid", "eyebrow": "Security", "title": "Security controls", "source": "content.security" },
     { "id": "support", "kind": "support_grid", "eyebrow": "Support", "title": "Support channels", "source": "content.support_channels" },
@@ -24,6 +27,9 @@
     { "id": "prompts", "kind": "prompt_deck", "eyebrow": "Prompts", "title": "Route the live system by prompt", "source": "content.prompt_presets" },
     { "id": "chat", "kind": "chat_lab", "eyebrow": "Chat", "title": "Prompt the realtime lane", "source": "content.chat_seed", "placeholder": "What kind of live website do you need?", "button_label": "Ask" },
     { "id": "actors", "kind": "actor_mesh", "eyebrow": "Actors", "title": "Realtime actor mesh", "source": "content.actor_roles" },
+    { "id": "actor-jobs", "kind": "card_grid", "eyebrow": "Jobs", "title": "Actor jobs", "source": "content.actor_jobs" },
+    { "id": "actor-schedules", "kind": "card_grid", "eyebrow": "Schedules", "title": "Actor schedules", "source": "content.actor_schedules" },
+    { "id": "actor-hosts", "kind": "card_grid", "eyebrow": "Hosts", "title": "Actor hosts", "source": "content.actor_hosts" },
     { "id": "routes", "kind": "route_grid", "eyebrow": "Runtime", "title": "Realtime routes", "source": "content.server_routes" },
     { "id": "intake", "kind": "form_panel", "eyebrow": "Intake", "title": "Describe the live flow", "source": "content.forms.realtime_intake" },
     { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }

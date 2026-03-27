@@ -1,0 +1,103 @@
+{
+  "layout": "dock",
+  "surfaces": [
+    {
+      "id": "viewport_stage",
+      "title": "Viewport Stage",
+      "dock": "center",
+      "kind": "viewport3d",
+      "summary": "Primary 3D authoring viewport for scene, model, rig, and render review."
+    },
+    {
+      "id": "scene_graph",
+      "title": "Scene Graph",
+      "dock": "left",
+      "kind": "tree",
+      "summary": "Hierarchy, collections, instancing groups, and publish roots."
+    },
+    {
+      "id": "asset_ingest",
+      "title": "Asset Ingest",
+      "dock": "left",
+      "kind": "tree",
+      "summary": "USD, GLTF, material, groom, cache, and runtime pack intake."
+    },
+    {
+      "id": "tool_shelf",
+      "title": "Tool Shelf",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Context-sensitive authoring tools across sculpt, material, rig, sim, and publish."
+    },
+    {
+      "id": "selection_inspector",
+      "title": "Selection Inspector",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Transforms, metadata, relationships, and lane-specific detail panels."
+    },
+    {
+      "id": "material_graph",
+      "title": "Material Graph",
+      "dock": "bottom",
+      "kind": "graph",
+      "summary": "Shading, lookdev, texture-routing, and baking graph surface."
+    },
+    {
+      "id": "rig_graph",
+      "title": "Rig Graph",
+      "dock": "bottom",
+      "kind": "graph",
+      "summary": "Control rigs, constraints, deformation layers, and sync reports."
+    },
+    {
+      "id": "animation_timeline",
+      "title": "Animation Timeline",
+      "dock": "bottom",
+      "kind": "timeline",
+      "summary": "Clips, simulation triggers, preview markers, and publish cut ranges."
+    },
+    {
+      "id": "simulation_board",
+      "title": "Simulation Board",
+      "dock": "bottom",
+      "kind": "graph",
+      "summary": "Cache plans, solver dependencies, and replay diagnostics."
+    },
+    {
+      "id": "render_lounge",
+      "title": "Render Lounge",
+      "dock": "bottom",
+      "kind": "graph",
+      "summary": "Render products, preview budgets, frame queues, and AOV targets."
+    },
+    {
+      "id": "compositor_stack",
+      "title": "Compositor Stack",
+      "dock": "bottom",
+      "kind": "graph",
+      "summary": "Composite rebuild plans, mattes, passes, and grading nodes."
+    },
+    {
+      "id": "publish_console",
+      "title": "Publish Console",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Packages, receipts, validators, deliverables, and client-facing summaries."
+    },
+    {
+      "id": "report_browser",
+      "title": "Report Browser",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Topology, tensor, render, automation, and publish reports."
+    },
+    {
+      "id": "jobs_monitor",
+      "title": "Jobs Monitor",
+      "dock": "bottom",
+      "kind": "timeline",
+      "summary": "Background jobs, Fabric sessions, automation schedules, and retry state."
+    }
+  ]
+}

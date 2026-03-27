@@ -1,0 +1,133 @@
+use std::interop::bridge
+
+struct DccSuiteSeedOutputs:
+    scene_graph_document: String
+    asset_catalog_document: String
+    preview_src: Any
+    preview_dst: Any
+    preview_image: Any
+    tensor_features: Any
+    session_report: String
+
+fn push_f32_demo(bytes: Array<Int>, value: Int) -> Void:
+    if value == 1:
+        bytes.push(0)
+        bytes.push(0)
+        bytes.push(128)
+        bytes.push(63)
+        return
+    if value == 2:
+        bytes.push(0)
+        bytes.push(0)
+        bytes.push(0)
+        bytes.push(64)
+        return
+    if value == 3:
+        bytes.push(0)
+        bytes.push(0)
+        bytes.push(64)
+        bytes.push(64)
+        return
+    bytes.push(0)
+    bytes.push(0)
+    bytes.push(128)
+    bytes.push(64)
+
+fn build_preview_stream(count: Int, accent: Int) -> Array<Int>:
+    let bytes = []
+    let index = 0
+    while index < count:
+        let value = ((index + accent) % 4) + 1
+        push_f32_demo(bytes, value)
+        index = index + 1
+    return bytes
+
+fn build_zero_stream(count: Int) -> Array<Int>:
+    let bytes = []
+    let index = 0
+    while index < count:
+        bytes.push(0)
+        bytes.push(0)
+        bytes.push(0)
+        bytes.push(0)
+        index = index + 1
+    return bytes
+
+fn build_preview_pixels(width: Int, height: Int, accent: Int) -> Array<Int>:
+    let pixels = []
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let heat = (x * 11 + y * 17 + accent) % 255
+            pixels.push(heat)
+            pixels.push((heat + accent) % 255)
+            pixels.push((255 - heat) % 255)
+            pixels.push(255)
+            x = x + 1
+        y = y + 1
+    return pixels
+
+fn build_tensor_features(count: Int, accent: Int) -> Array<Int>:
+    let bytes = []
+    let index = 0
+    while index < count:
+        let value = ((index * 3) + accent) % 4
+        push_f32_demo(bytes, value + 1)
+        index = index + 1
+    return bytes
+
+fn build_scene_graph_document(settings: Any) -> String:
+    return "scene-graph:" + settings.project_name + ":workspace=" + settings.workspace_mode + ":packs=" + str(settings.runtime_pack_count)
+
+fn build_asset_catalog_document(settings: Any) -> String:
+    return "asset-catalog:gltf+usd+materials+rigs:staged=" + str(settings.runtime_pack_count)
+
+fn build_session_report(settings: Any) -> String:
+    return "session-report:" + settings.project_name + ":preview=" + str(settings.preview_count) + ":tensor=" + str(settings.tensor_feature_count)
+
+fn main() -> DccSuiteSeedOutputs:
+    let settings = fabric_inputs.python_suite_bootstrap.project_settings
+    let preview_src_bytes = build_preview_stream(settings.preview_count, settings.brush_accent)
+    let preview_dst_bytes = build_zero_stream(settings.preview_count)
+    let preview_pixels = build_preview_pixels(8, 8, settings.brush_accent)
+    let tensor_bytes = build_tensor_features(settings.tensor_feature_count, settings.brush_accent)
+    let preview_src = interop_shared_buffer_from_bytes(
+        preview_src_bytes,
+        "f32",
+        [settings.preview_count],
+        "f32",
+        "application/octet-stream"
+    )
+    let preview_dst = interop_shared_buffer_from_bytes(
+        preview_dst_bytes,
+        "f32",
+        [settings.preview_count],
+        "f32",
+        "application/octet-stream"
+    )
+    let preview_image = interop_shared_image_from_bytes(
+        preview_pixels,
+        8,
+        8,
+        4,
+        "HWC",
+        "rgba8",
+        "image/x-kain-raster"
+    )
+    let tensor_features = interop_shared_buffer_from_bytes(
+        tensor_bytes,
+        "f32",
+        [settings.tensor_feature_count],
+        "f32",
+        "application/octet-stream"
+    )
+    return DccSuiteSeedOutputs {
+        scene_graph_document: build_scene_graph_document(settings),
+        asset_catalog_document: build_asset_catalog_document(settings),
+        preview_src: preview_src,
+        preview_dst: preview_dst,
+        preview_image: preview_image,
+        tensor_features: tensor_features,
+        session_report: build_session_report(settings)
+    }

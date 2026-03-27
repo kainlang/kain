@@ -7,6 +7,7 @@ This folder holds first-class Kain applications and app prototypes that exercise
 - `kade-desktop/` is the native desktop app lane and its supporting assets.
 - `kain-canvas-forge/` is a Node-first painting and Three.js composition studio prototype with a direct Electron desktop path.
 - `kain-fabric-modeler/` is the Fabric-first native 3D modeling workbench and flagship multi-runtime app scaffold.
+- `kain-fabric-dcc-suite/` is the broader flagship Fabric-first DCC suite scaffold with scene, ingest, sculpt, material, rig, sim, render, compositor, publish, automation, and tensor planning lanes.
 - `ripgrep/` is reserved for CLI/tooling experiments and external tool integration.
 
 ## Output Hygiene

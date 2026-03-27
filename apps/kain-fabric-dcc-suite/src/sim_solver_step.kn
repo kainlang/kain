@@ -1,0 +1,16 @@
+// sim_solver_step.kn
+// Kain extension seam for explicit sim execution
+
+import "session"
+
+fn run(plan: session::SimTickPlan) -> session::SimTickReport {
+    // RUNTIME LIMITATION: True physics/sim solver runtime contracts (e.g., rigid body,
+    // soft body, fluids) are not yet natively supported in Kain. 
+    // This is the clean extension seam for the eventual sim compute runtime or external C++ solver integration.
+    
+    return session::SimTickReport {
+        ready: true,
+        message: "Sim solver is a mock extension seam until runtime contracts land.",
+        simulated_frames: 0
+    }
+}

@@ -137,6 +137,14 @@ component App():
                 <text role="caption">Observability, infrastructure, and performance budgets ship with the template.</text>
             </panel>
             <panel scope="web_pack" variant="card">
+                <text role="title">3D Pipeline</text>
+                <text role="caption">Scene pipeline, render stack, and interaction modes live in the system contract.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Device Profiles</text>
+                <text role="caption">GPU tiers and fallbacks stay data-driven for 3D sites.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
                 <text role="title">Localization</text>
                 <text role="caption">Language and region plans are modeled explicitly in the pack.</text>
             </panel>
@@ -147,6 +155,84 @@ component App():
             <panel scope="web_pack" variant="card">
                 <text role="title">Performance</text>
                 <text role="caption">Runtime targets and budgets are tracked with the system data.</text>
+            </panel>
+        </panel>
+
+        <panel title="3D Production Systems" scope="web_pack" variant="section" layout="grid" columns={3} gap={14}>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Scene Assets</text>
+                <text role="caption">Hero GLBs, decals, and scene payload registries.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Materials</text>
+                <text role="caption">Material libraries and shader presets.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Lighting</text>
+                <text role="caption">Lighting rig presets for immersive launches.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Cameras</text>
+                <text role="caption">Guided and orbit camera rigs.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Animation</text>
+                <text role="caption">Keyframes, interactions, and event triggers.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Physics</text>
+                <text role="caption">Motion and collision budgets for web 3D.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Spatial Audio</text>
+                <text role="caption">Ambient beds and narrative cues.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">XR Modes</text>
+                <text role="caption">WebXR-ready experience planning.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Shader Stack</text>
+                <text role="caption">Shader passes and data-driven uniforms.</text>
+            </panel>
+        </panel>
+
+        <panel title="Agent + Runtime Orchestration" scope="web_pack" variant="section" layout="grid" columns={3} gap={14}>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Knowledge Sources</text>
+                <text role="caption">Docs, runbooks, and scene metadata for retrieval.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Memory Stores</text>
+                <text role="caption">Session memory and operator ledgers.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Tool Registry</text>
+                <text role="caption">Shared tool catalog for chat and operators.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Agent Workflows</text>
+                <text role="caption">Orchestration flows for prompts and incidents.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Actor Jobs</text>
+                <text role="caption">Scheduled jobs and report pipelines.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Actor Schedules</text>
+                <text role="caption">Cadence planning for ops and releases.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Actor Hosts</text>
+                <text role="caption">Local, container, and edge hosts.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Streaming Stack</text>
+                <text role="caption">Realtime SSE/WS streaming lanes.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Runtime + Deploy</text>
+                <text role="caption">Runtime hosts and deployment targets.</text>
             </panel>
         </panel>
 
@@ -174,6 +260,22 @@ component App():
             <panel scope="web_pack" variant="card">
                 <text role="title">Actor Topology</text>
                 <text role="caption">Actor mesh nodes and edges are visible in the web control plane.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Actor Supervision</text>
+                <text role="caption">Supervision and escalation ladders are registry-driven.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Actor Queues</text>
+                <text role="caption">Queue lanes for intake, ops, and build tasks.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Data Governance</text>
+                <text role="caption">Retention and access tiers stay explicit.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Backup Plan</text>
+                <text role="caption">Backup cadence and recovery drills are declared.</text>
             </panel>
         </panel>
 
@@ -240,6 +342,37 @@ component App():
             <panel scope="web_pack" variant="card">
                 <text role="title">Actor Policies</text>
                 <text role="caption">Rate limits and escalation rules live with the runtime contract.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Model Stack</text>
+                <text role="caption">Pluggable model registry for chat-first sites.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Voice Stack</text>
+                <text role="caption">Voice input/output lanes are tracked in manifests.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Moderation</text>
+                <text role="caption">Safety rails and escalation policies are explicit.</text>
+            </panel>
+        </panel>
+
+        <panel title="Frontend + Runtime Systems" scope="web_pack" variant="section" layout="grid" columns={2} gap={14}>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Frontend Stack</text>
+                <text role="caption">TypeScript + Preact islands, routing, state, and build metadata.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">UI Runtime</text>
+                <text role="caption">ui.schema.json, module contracts, and layout recipes.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Chat Runtime</text>
+                <text role="caption">Streaming, personas, playbooks, tools, and memory lanes.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Actor Runtime</text>
+                <text role="caption">Routes, mesh topology, supervision, queues, and metrics.</text>
             </panel>
         </panel>
 

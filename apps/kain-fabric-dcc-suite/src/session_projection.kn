@@ -1,0 +1,4 @@
+fn main() -> String:
+    let settings = fabric_inputs.python_suite_bootstrap.project_settings
+    let session_report = fabric_inputs.dcc_suite_seed.session_report
+    return "lane-plan:" + settings.workspace_mode + ":" + session_report

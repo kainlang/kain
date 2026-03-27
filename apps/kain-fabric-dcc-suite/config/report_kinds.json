@@ -1,0 +1,74 @@
+{
+  "report_kinds": [
+    {
+      "id": "session_report",
+      "report_uri": "report://session/bootstrap",
+      "producer_step": "dcc_suite_seed",
+      "output_name": "session_report",
+      "summary": "Bootstrap summary for suite session state."
+    },
+    {
+      "id": "asset_ingest_report",
+      "report_uri": "report://asset/ingest",
+      "producer_step": "asset_ingest_session",
+      "output_name": "asset_ingest_report",
+      "summary": "Asset ingest session report."
+    },
+    {
+      "id": "topology_report",
+      "report_uri": "report://topology/current",
+      "producer_step": "rig_graph_analysis",
+      "output_name": "topology_report",
+      "summary": "Graph and topology health report."
+    },
+    {
+      "id": "rig_sync_report",
+      "report_uri": "report://rig/sync",
+      "producer_step": "rig_sync_projection",
+      "output_name": "rig_sync_report",
+      "summary": "Rig sync and deformation readiness report."
+    },
+    {
+      "id": "sim_tick_plan",
+      "report_uri": "report://simulation/tick-plan",
+      "producer_step": "sim_tick_projection",
+      "output_name": "sim_tick_plan",
+      "summary": "Simulation planning report for the current frame tick."
+    },
+    {
+      "id": "render_preview_report",
+      "report_uri": "report://render/preview",
+      "producer_step": "render_preview_projection",
+      "output_name": "render_preview_report",
+      "summary": "Render preview planning report."
+    },
+    {
+      "id": "compositor_rebuild_report",
+      "report_uri": "report://compositor/rebuild",
+      "producer_step": "compositor_projection",
+      "output_name": "compositor_rebuild_report",
+      "summary": "Compositor rebuild planning report."
+    },
+    {
+      "id": "tensor_training_report",
+      "report_uri": "report://tensor/training",
+      "producer_step": "tensor_train_stage",
+      "output_name": "tensor_training_report",
+      "summary": "Tensor training readiness and plan report."
+    },
+    {
+      "id": "tensor_inference_report",
+      "report_uri": "report://tensor/inference",
+      "producer_step": "tensor_infer_stage",
+      "output_name": "tensor_inference_report",
+      "summary": "Tensor inference readiness and serving report."
+    },
+    {
+      "id": "publish_summary",
+      "report_uri": "artifact://publish/summary",
+      "producer_step": "publish_suite_report",
+      "output_name": "publish_summary",
+      "summary": "Publish and delivery summary emitted through the Node bridge."
+    }
+  ]
+}

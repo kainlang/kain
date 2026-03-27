@@ -1,0 +1,100 @@
+{
+  "intents": [
+    {
+      "id": "project.bootstrap",
+      "label": "Bootstrap Suite",
+      "lane": "core",
+      "graph": "fabric/intents/bootstrap.fabric.toml",
+      "debounce_ms": 0,
+      "produces": ["scene_graph_document", "asset_catalog_document", "session_report"]
+    },
+    {
+      "id": "asset.ingest_package",
+      "label": "Asset Ingest",
+      "lane": "ingest",
+      "graph": "fabric/intents/asset_ingest.fabric.toml",
+      "debounce_ms": 0,
+      "produces": ["asset_ingest_report"]
+    },
+    {
+      "id": "sculpt.apply_stroke",
+      "label": "Sculpt Stroke",
+      "lane": "sculpt",
+      "graph": "fabric/intents/sculpt_stroke.fabric.toml",
+      "debounce_ms": 0,
+      "produces": ["sculpt_delta", "sculpt_signature"]
+    },
+    {
+      "id": "topology.rebuild",
+      "label": "Topology Rebuild",
+      "lane": "topology",
+      "graph": "fabric/intents/topology_rebuild.fabric.toml",
+      "debounce_ms": 120,
+      "produces": ["topology_report"]
+    },
+    {
+      "id": "rig.sync_controls",
+      "label": "Rig Sync",
+      "lane": "rig",
+      "graph": "fabric/intents/rig_sync.fabric.toml",
+      "debounce_ms": 40,
+      "produces": ["rig_sync_report"]
+    },
+    {
+      "id": "sim.tick",
+      "label": "Simulation Tick",
+      "lane": "simulation",
+      "graph": "fabric/intents/sim_tick.fabric.toml",
+      "debounce_ms": 33,
+      "produces": ["sim_tick_plan"]
+    },
+    {
+      "id": "material.bake_preview",
+      "label": "Material Bake",
+      "lane": "material",
+      "graph": "fabric/intents/material_bake.fabric.toml",
+      "debounce_ms": 16,
+      "produces": ["preview_dst"]
+    },
+    {
+      "id": "render.preview",
+      "label": "Render Preview",
+      "lane": "render",
+      "graph": "fabric/intents/render_preview.fabric.toml",
+      "debounce_ms": 16,
+      "produces": ["render_preview_report"]
+    },
+    {
+      "id": "compositor.rebuild",
+      "label": "Compositor Rebuild",
+      "lane": "compositor",
+      "graph": "fabric/intents/compositor_rebuild.fabric.toml",
+      "debounce_ms": 80,
+      "produces": ["compositor_rebuild_report"]
+    },
+    {
+      "id": "publish.package",
+      "label": "Publish Package",
+      "lane": "publish",
+      "graph": "fabric/intents/publish_package.fabric.toml",
+      "debounce_ms": 0,
+      "produces": ["publish_summary"]
+    },
+    {
+      "id": "tensor.train_step",
+      "label": "Tensor Train Step",
+      "lane": "tensor",
+      "graph": "fabric/intents/tensor_train_step.fabric.toml",
+      "debounce_ms": 0,
+      "produces": ["tensor_training_report", "tensor_training_bridge"]
+    },
+    {
+      "id": "tensor.infer_step",
+      "label": "Tensor Infer Step",
+      "lane": "tensor",
+      "graph": "fabric/intents/tensor_infer_step.fabric.toml",
+      "debounce_ms": 0,
+      "produces": ["tensor_inference_report", "tensor_inference_bridge"]
+    }
+  ]
+}

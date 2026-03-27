@@ -1,0 +1,38 @@
+// material_bake_step.kn
+
+import fabric.intent
+import fabric.context
+import app.resources
+import app.shaders
+
+// This step implements the Fabric intent graph node for material baking.
+// It acts as the orchestration point for compiling material node graphs
+// into texture atlases and previewing them via the `material_bake_preview.kn` shader.
+
+fn run_material_bake(ctx: fabric.context.Context, config: resources.BakeConfig) -> fabric.intent.Result {
+    // KN-LIMITATION: Currently, Kain does not have a native GPU texture baking engine
+    // or image-based rendering system in the core runtime.
+    //
+    // EXTENSION SEAM: This function is the clean landing zone for a future Rust/WGPU
+    // or C++/Vulkan texture baking pipeline. Until then, we project the material graph
+    // to a diagnostic state and use the `material_bake_preview.kn` shader for visual
+    // inspection in the workspace surface.
+    
+    log.info("Starting material bake step for config:", config.name)
+    
+    // 1. Gather material dependencies and node graph definition
+    let graph = resources.load_material_graph(config.graph_id)
+    
+    // 2. Map material properties to the preview shader
+    let shader_params = shaders.map_graph_to_shader_params(graph)
+    
+    // 3. Dispatch to the preview shader (currently the only available implementation)
+    // In the future, this will dispatch to a background baking queue.
+    let preview_result = shaders.execute_material_bake_preview(ctx, shader_params)
+    
+    return fabric.intent.Result.Success({
+        "bake_status": "preview_only",
+        "preview_id": preview_result.texture_id,
+        "limitation_note": "Awaiting native GPU baking engine integration."
+    })
+}

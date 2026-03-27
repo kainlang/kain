@@ -1,0 +1,44 @@
+{
+  "steps": [
+    {
+      "id": "python_suite_bootstrap",
+      "runtime": "python",
+      "summary": "Seeds project defaults, workspace selection, preview sizing, runtime pack counts, and tensor readiness hints."
+    },
+    {
+      "id": "dcc_suite_seed",
+      "runtime": "kain",
+      "summary": "Authors the scene graph bootstrap, asset catalog bootstrap, preview buffers, tensor features, and session report."
+    },
+    {
+      "id": "native_sculpt_kernel",
+      "runtime": "c_abi",
+      "summary": "Uses the native helper to apply a narrow sculpt mutation proof and emit a sculpt signature."
+    },
+    {
+      "id": "rig_graph_analysis",
+      "runtime": "rust_crate",
+      "summary": "Builds graph and topology health reporting from authored scene and sculpt outputs."
+    },
+    {
+      "id": "tensor_train_stage",
+      "runtime": "python",
+      "summary": "Emits PyTorch-oriented training readiness and plan summaries without pretending the runtime is fully wired."
+    },
+    {
+      "id": "tensor_infer_stage",
+      "runtime": "python",
+      "summary": "Emits tensor inference readiness and model-serving summaries."
+    },
+    {
+      "id": "gpu_material_preview",
+      "runtime": "gpu_compute",
+      "summary": "Runs a compute preview and material bake pass across the shared preview buffers."
+    },
+    {
+      "id": "publish_suite_report",
+      "runtime": "kain",
+      "summary": "Builds the publish and package report through a Kain-authored bridge into Node reporting."
+    }
+  ]
+}

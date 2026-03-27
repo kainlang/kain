@@ -1,0 +1,59 @@
+struct ResourceDescriptor:
+    id: String
+    resource_uri: String
+    kind: String
+    producer_step: String
+    summary: String
+
+fn default_resources() -> Array<ResourceDescriptor>:
+    return [
+        ResourceDescriptor {
+            id: "scene_graph_document",
+            resource_uri: "scene://current/graph",
+            kind: "value",
+            producer_step: "dcc_suite_seed",
+            summary: "Scene graph bootstrap document"
+        },
+        ResourceDescriptor {
+            id: "asset_catalog_document",
+            resource_uri: "asset://catalog/current",
+            kind: "value",
+            producer_step: "dcc_suite_seed",
+            summary: "Asset ingest and package catalog"
+        },
+        ResourceDescriptor {
+            id: "preview_source_buffer",
+            resource_uri: "buffer://preview/source",
+            kind: "shared_buffer",
+            producer_step: "dcc_suite_seed",
+            summary: "Material preview source buffer"
+        },
+        ResourceDescriptor {
+            id: "preview_destination_buffer",
+            resource_uri: "buffer://preview/destination",
+            kind: "shared_buffer",
+            producer_step: "gpu_material_preview",
+            summary: "Material preview destination buffer"
+        },
+        ResourceDescriptor {
+            id: "preview_image",
+            resource_uri: "image://preview/current",
+            kind: "shared_image",
+            producer_step: "dcc_suite_seed",
+            summary: "Viewport preview image"
+        },
+        ResourceDescriptor {
+            id: "tensor_features",
+            resource_uri: "buffer://tensor/features",
+            kind: "shared_buffer",
+            producer_step: "dcc_suite_seed",
+            summary: "Tensor planning feature buffer"
+        },
+        ResourceDescriptor {
+            id: "sculpt_delta",
+            resource_uri: "buffer://sculpt/delta",
+            kind: "shared_buffer",
+            producer_step: "native_sculpt_kernel",
+            summary: "Latest sculpt mutation payload"
+        }
+    ]

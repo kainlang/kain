@@ -1,0 +1,69 @@
+struct ReportDescriptor:
+    id: String
+    report_uri: String
+    producer_step: String
+    summary: String
+
+fn default_reports() -> Array<ReportDescriptor>:
+    return [
+        ReportDescriptor {
+            id: "session_report",
+            report_uri: "report://session/bootstrap",
+            producer_step: "dcc_suite_seed",
+            summary: "Suite bootstrap report"
+        },
+        ReportDescriptor {
+            id: "asset_ingest_report",
+            report_uri: "report://asset/ingest",
+            producer_step: "asset_ingest_session",
+            summary: "Asset ingest session report"
+        },
+        ReportDescriptor {
+            id: "topology_report",
+            report_uri: "report://topology/current",
+            producer_step: "rig_graph_analysis",
+            summary: "Topology and graph health report"
+        },
+        ReportDescriptor {
+            id: "rig_sync_report",
+            report_uri: "report://rig/sync",
+            producer_step: "rig_sync_projection",
+            summary: "Rig sync projection report"
+        },
+        ReportDescriptor {
+            id: "sim_tick_plan",
+            report_uri: "report://simulation/tick-plan",
+            producer_step: "sim_tick_projection",
+            summary: "Simulation planning report"
+        },
+        ReportDescriptor {
+            id: "render_preview_report",
+            report_uri: "report://render/preview",
+            producer_step: "render_preview_projection",
+            summary: "Render preview planning report"
+        },
+        ReportDescriptor {
+            id: "compositor_rebuild_report",
+            report_uri: "report://compositor/rebuild",
+            producer_step: "compositor_projection",
+            summary: "Compositor rebuild planning report"
+        },
+        ReportDescriptor {
+            id: "tensor_training_report",
+            report_uri: "report://tensor/training",
+            producer_step: "tensor_train_stage",
+            summary: "Tensor training readiness report"
+        },
+        ReportDescriptor {
+            id: "tensor_inference_report",
+            report_uri: "report://tensor/inference",
+            producer_step: "tensor_infer_stage",
+            summary: "Tensor inference readiness report"
+        },
+        ReportDescriptor {
+            id: "publish_summary",
+            report_uri: "artifact://publish/summary",
+            producer_step: "publish_suite_report",
+            summary: "Publish summary report"
+        }
+    ]

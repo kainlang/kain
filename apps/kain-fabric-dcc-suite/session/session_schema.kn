@@ -1,0 +1,219 @@
+struct CommandEnvelope:
+    id: String
+    kind: String
+    scope: String
+    issued_at: String
+    payload_summary: String
+    workspace_mode: String
+    selection_summary: String
+
+struct ProjectState:
+    project_id: String
+    project_name: String
+    schema_version: Int
+
+struct WorkspaceState:
+    active_mode: String
+    layout_id: String
+    available_modes: Array<String>
+
+struct ToolState:
+    active_tool: String
+    brush_radius: Int
+    brush_strength_percent: Int
+
+struct SelectionState:
+    entity_ids: Array<String>
+    subobject_ids: Array<String>
+
+struct SceneState:
+    active_document_id: String
+    active_collection_id: String
+    active_variant: String
+
+struct AssetIngestState:
+    last_package_uri: String
+    last_package_kind: String
+    staged_package_count: Int
+
+struct MaterialState:
+    active_material_id: String
+    active_graph_id: String
+    preview_profile: String
+
+struct RigState:
+    active_rig_id: String
+    active_control_set: String
+    deformation_profile: String
+
+struct AnimationState:
+    active_clip_id: String
+    frame: Int
+    playback_mode: String
+
+struct SimulationState:
+    cache_profile: String
+    last_tick_frame: Int
+    solver_profile: String
+
+struct RenderState:
+    camera_id: String
+    view_transform: String
+    render_profile: String
+    aov_set: String
+
+struct CompositorState:
+    active_stack_id: String
+    last_rebuild_reason: String
+
+struct PublishState:
+    profile_id: String
+    target_bundle: String
+    delivery_channel: String
+
+struct AutomationState:
+    enabled: Bool
+    active_job_ids: Array<String>
+    last_audit_status: String
+
+struct DirtyState:
+    asset_dirty: Bool
+    sculpt_dirty: Bool
+    topology_dirty: Bool
+    material_dirty: Bool
+    rig_dirty: Bool
+    animation_dirty: Bool
+    simulation_dirty: Bool
+    render_dirty: Bool
+    compositor_dirty: Bool
+    publish_dirty: Bool
+    tensor_dirty: Bool
+    session_needs_save: Bool
+
+struct JobState:
+    latest_fabric_session_id: String
+    latest_fabric_status: String
+    active_intents: Array<String>
+    active_jobs: Array<String>
+
+struct SessionDocument:
+    project: ProjectState
+    workspace: WorkspaceState
+    tooling: ToolState
+    selection: SelectionState
+    scene: SceneState
+    ingest: AssetIngestState
+    materials: MaterialState
+    rig: RigState
+    animation: AnimationState
+    simulation: SimulationState
+    render: RenderState
+    compositor: CompositorState
+    publish: PublishState
+    automation: AutomationState
+    dirty: DirtyState
+    jobs: JobState
+
+fn default_workspace_modes() -> Array<String>:
+    return [
+        "scene_assembly",
+        "sculpt_model",
+        "material_lookdev",
+        "rig_anim",
+        "sim_fx",
+        "render_comp",
+        "publish_automation"
+    ]
+
+fn default_session_document() -> SessionDocument:
+    return SessionDocument {
+        project: ProjectState {
+            project_id: "fabric-dcc-suite",
+            project_name: "Kain Fabric DCC Suite",
+            schema_version: 1
+        },
+        workspace: WorkspaceState {
+            active_mode: "scene_assembly",
+            layout_id: "kain_fabric_dcc_suite_shell",
+            available_modes: default_workspace_modes()
+        },
+        tooling: ToolState {
+            active_tool: "select",
+            brush_radius: 42,
+            brush_strength_percent: 68
+        },
+        selection: SelectionState {
+            entity_ids: ["entity/root_stage"],
+            subobject_ids: []
+        },
+        scene: SceneState {
+            active_document_id: "scene/main",
+            active_collection_id: "collection/environment",
+            active_variant: "lookdev"
+        },
+        ingest: AssetIngestState {
+            last_package_uri: "asset://starter/kitbash_hangar",
+            last_package_kind: "gltf",
+            staged_package_count: 1
+        },
+        materials: MaterialState {
+            active_material_id: "material/hero_surface",
+            active_graph_id: "graph/lookdev_primary",
+            preview_profile: "material_preview_balanced"
+        },
+        rig: RigState {
+            active_rig_id: "rig/hero_body",
+            active_control_set: "controls/anim_main",
+            deformation_profile: "hero_deformation_preview"
+        },
+        animation: AnimationState {
+            active_clip_id: "clip/blocking_pass_a",
+            frame: 96,
+            playback_mode: "paused"
+        },
+        simulation: SimulationState {
+            cache_profile: "sim_preview_cache",
+            last_tick_frame: 96,
+            solver_profile: "cloth_preview"
+        },
+        render: RenderState {
+            camera_id: "camera/shot_main",
+            view_transform: "acescg",
+            render_profile: "viewport_quality",
+            aov_set: "beauty_plus_utility"
+        },
+        compositor: CompositorState {
+            active_stack_id: "comp/final_review",
+            last_rebuild_reason: "bootstrap"
+        },
+        publish: PublishState {
+            profile_id: "publish/review_daily",
+            target_bundle: "bundle/hero_scene_daily",
+            delivery_channel: "studio_review"
+        },
+        automation: AutomationState {
+            enabled: true,
+            active_job_ids: ["thumbnail_refresh", "tensor_readiness_probe"],
+            last_audit_status: "pending"
+        },
+        dirty: DirtyState {
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: false,
+            compositor_dirty: false,
+            publish_dirty: false,
+            tensor_dirty: false,
+            session_needs_save: false
+        },
+        jobs: JobState {
+            latest_fabric_session_id: "",
+            latest_fabric_status: "idle",
+            active_intents: [],
+            active_jobs: []
+        }
+    }

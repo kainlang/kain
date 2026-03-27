@@ -1,0 +1,21 @@
+// Explicit extension seam for Fabric tensor inference intents
+//
+// DESIGN LIMITATION: Kain currently lacks native high-performance tensor
+// inference (e.g., ONNX Runtime, TensorRT). This step bridges the Fabric
+// intent to an external inference worker (Python or C++).
+//
+// HOW THIS WORKS:
+// We take the trained model weights and inference inputs (e.g., a frame
+// buffer for upscaling, or points for neural caching) from Fabric,
+// dispatch them via IPC to the inference engine, and return the
+// processed tensor data.
+
+import kain.data.ipc;
+
+fn main() -> String:
+    let config = fabric_inputs.tensor_infer_stage;
+    
+    // (Mock) Dispatch inference request via IPC/ABI
+    // let result = ipc.dispatch("onnx_worker", "infer", { model: config.model_path, inputs: config.inputs });
+    
+    return "tensor-infer-bridge: ONNX IPC dispatch simulated. Report: " + config.tensor_inference_report;

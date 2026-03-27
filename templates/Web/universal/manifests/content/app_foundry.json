@@ -9,6 +9,8 @@
   "nav": [
     { "label": "Modules", "href": "#modules" },
     { "label": "UI Kit", "href": "#ui-kit" },
+    { "label": "Frontend", "href": "#frontend-stack" },
+    { "label": "UI Runtime", "href": "#ui-runtime" },
     { "label": "Auth", "href": "#auth" },
     { "label": "Data", "href": "#data" },
     { "label": "Integrations", "href": "#integrations" },

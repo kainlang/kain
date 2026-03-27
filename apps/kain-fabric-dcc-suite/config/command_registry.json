@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "default_scope": "project",
+  "commands": [
+    {
+      "id": "project.bootstrap",
+      "label": "Bootstrap Suite",
+      "surface": "titlebar",
+      "summary": "Seeds the canonical scene, asset, preview, tensor, and publish session state.",
+      "intent": "project.bootstrap",
+      "payload_schema": {
+        "project_id": "string",
+        "workspace_mode": "workspace_mode_id"
+      }
+    },
+    {
+      "id": "workspace.switch_mode",
+      "label": "Switch Workspace",
+      "surface": "workspace_mode_rail",
+      "summary": "Moves the operator into a different DCC lane and marks downstream surfaces for refresh.",
+      "intent": "workspace.switch_mode",
+      "payload_schema": {
+        "mode_id": "workspace_mode_id"
+      }
+    },
+    {
+      "id": "asset.ingest_package",
+      "label": "Ingest Package",
+      "surface": "asset_ingest",
+      "summary": "Stages a new asset package into the suite ingest lane and updates runtime pack bookkeeping.",
+      "intent": "asset.ingest_package",
+      "payload_schema": {
+        "source_uri": "string",
+        "package_kind": "string"
+      }
+    },
+    {
+      "id": "tool.activate",
+      "label": "Activate Tool",
+      "surface": "tool_shelf",
+      "summary": "Changes the active authoring tool and updates tool preset context.",
+      "intent": "tool.activate",
+      "payload_schema": {
+        "tool_id": "tool_id"
+      }
+    },
+    {
+      "id": "selection.set",
+      "label": "Set Selection",
+      "surface": "viewport",
+      "summary": "Replaces the live entity selection and updates lane inspectors.",
+      "intent": "selection.set",
+      "payload_schema": {
+        "entity_ids": "string_array",
+        "subobject_ids": "string_array"
+      }
+    },
+    {
+      "id": "sculpt.apply_stroke",
+      "label": "Apply Sculpt Stroke",
+      "surface": "viewport",
+      "summary": "Queues a sculpt stroke through the native mutation seam and marks downstream lanes dirty.",
+      "intent": "sculpt.apply_stroke",
+      "payload_schema": {
+        "target_mesh": "resource_ref",
+        "brush_id": "tool_id",
+        "radius": "number",
+        "strength": "number"
+      }
+    },
+    {
+      "id": "topology.rebuild",
+      "label": "Rebuild Topology",
+      "surface": "scene_graph",
+      "summary": "Refreshes topology and graph health analysis against current scene resources.",
+      "intent": "topology.rebuild",
+      "payload_schema": {
+        "reason": "string"
+      }
+    },
+    {
+      "id": "rig.sync_controls",
+      "label": "Sync Rig Controls",
+      "surface": "rig_graph",
+      "summary": "Synchronizes rig projections and deformation reports.",
+      "intent": "rig.sync_controls",
+      "payload_schema": {
+        "rig_id": "string"
+      }
+    },
+    {
+      "id": "sim.tick",
+      "label": "Tick Simulation",
+      "surface": "simulation_board",
+      "summary": "Requests the next simulation planning tick and marks cache products dirty.",
+      "intent": "sim.tick",
+      "payload_schema": {
+        "frame": "number"
+      }
+    },
+    {
+      "id": "material.bake_preview",
+      "label": "Bake Material Preview",
+      "surface": "material_graph",
+      "summary": "Refreshes material preview buffers through the GPU compute lane.",
+      "intent": "material.bake_preview",
+      "payload_schema": {
+        "reason": "string"
+      }
+    },
+    {
+      "id": "render.preview",
+      "label": "Render Preview",
+      "surface": "render_lounge",
+      "summary": "Stages a preview render refresh and updates render-facing reports.",
+      "intent": "render.preview",
+      "payload_schema": {
+        "camera_id": "string"
+      }
+    },
+    {
+      "id": "compositor.rebuild",
+      "label": "Rebuild Composite",
+      "surface": "compositor_stack",
+      "summary": "Refreshes the compositor rebuild plan for the current frame products.",
+      "intent": "compositor.rebuild",
+      "payload_schema": {
+        "stack_id": "string"
+      }
+    },
+    {
+      "id": "publish.package",
+      "label": "Package Publish",
+      "surface": "publish_console",
+      "summary": "Builds the publish summary and package receipts for operator review.",
+      "intent": "publish.package",
+      "payload_schema": {
+        "profile": "string"
+      }
+    },
+    {
+      "id": "tensor.train_step",
+      "label": "Tensor Train Step",
+      "surface": "jobs_monitor",
+      "summary": "Stages a tensor-oriented training plan and readiness report.",
+      "intent": "tensor.train_step",
+      "payload_schema": {
+        "dataset_id": "string"
+      }
+    },
+    {
+      "id": "tensor.infer_step",
+      "label": "Tensor Infer Step",
+      "surface": "jobs_monitor",
+      "summary": "Stages a tensor-oriented inference plan and readiness report.",
+      "intent": "tensor.infer_step",
+      "payload_schema": {
+        "model_id": "string"
+      }
+    }
+  ]
+}

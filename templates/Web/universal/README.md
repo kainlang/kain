@@ -23,7 +23,7 @@
   - HTML and client-island renderer
   - client bundler (Preact + Three.js) for React/TypeScript-esque islands
   - KainScript (`.ks`) support in the client bundle loader
-  - local search, chat (playbooks/tools/memory), prompt-deck, UI kit, catalog, app/auth/commerce/data/realtime, growth/experiments/service catalog, session, uploads, analytics, form, and route APIs
+  - local search, frontend stack + UI runtime, chat runtime, actor runtime, agent knowledge/memory/tool registries, chat (playbooks/tools/memory), prompt-deck, UI kit, catalog, app/auth/commerce/data/realtime, 3D scene assets/materials/lighting/cameras/animation/physics/audio/XR/shaders, growth/experiments/service catalog, support + feedback + survey + messaging + payments + scheduling + privacy lanes, actor jobs/schedules/hosts, runtime hosts + deployment targets, session, uploads, analytics, form, and route APIs
   - static artifact writer
   - actor-aware local HTTP + SSE + WebSocket server
 - `package.json`
@@ -186,8 +186,30 @@ New system registries in this pass:
 - SEO targets and social metadata
 - chat agent roster, tools, and workflows
 - UI components, layouts, and design token registries
+- frontend stack registry (TypeScript/React-like runtime, routing, state, data, build)
+- UI runtime registry (schema, modules, islands, tokens, layouts)
+- chat runtime registry (streaming, personas, playbooks, tools, memory, safety)
+- actor runtime registry (routes, mesh, supervision, queues, metrics, tools)
 - actor policies and actor metrics
+- scene pipeline, render stack, interaction modes, and device profiles
+- model stack, voice stack, and moderation policies
+- actor supervision and actor queue registries
+- data governance and backup plan registries
+- support tickets, feedback loops, and survey programs
+- messaging, payments, scheduling, and privacy request registries
 - release notes and changelog entries
 - feature flag registry
 - incident response playbooks
 - CRM pipeline stages
+- scene asset, material, lighting, camera, animation, physics, spatial audio, XR, and shader registries
+- streaming stack registry for chat + ops previews
+- knowledge sources, memory stores, tool registry, and agent workflow registries
+- actor job, schedule, and host registries
+- runtime host and deployment target registries
+- brand system registry (voice, identity, motion)
+- social presence and channel registry
+- content calendar registry
+- release pipeline registry
+- QA program registry
+- domain + edge stack registry
+- trust center registry

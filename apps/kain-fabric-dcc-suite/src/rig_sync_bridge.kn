@@ -1,0 +1,3 @@
+fn main() -> String:
+    let settings = fabric_inputs.python_suite_bootstrap.project_settings
+    return "rig-sync:" + settings.project_name + ":" + fabric_inputs.rig_graph_analysis.topology_report

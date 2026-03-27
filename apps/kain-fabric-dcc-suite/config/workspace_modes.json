@@ -1,0 +1,39 @@
+{
+  "modes": [
+    {
+      "id": "scene_assembly",
+      "label": "Scene Assembly",
+      "summary": "Scene graph authoring, set dressing, layout, and asset placement."
+    },
+    {
+      "id": "sculpt_model",
+      "label": "Sculpt And Model",
+      "summary": "Poly modeling, sculpt strokes, remesh, and topology shaping."
+    },
+    {
+      "id": "material_lookdev",
+      "label": "Material And Lookdev",
+      "summary": "Shader graphs, texture baking, surface libraries, and preview lighting."
+    },
+    {
+      "id": "rig_anim",
+      "label": "Rig And Animation",
+      "summary": "Rig graphs, deformation checks, clips, retargeting, and blocking."
+    },
+    {
+      "id": "sim_fx",
+      "label": "Simulation And FX",
+      "summary": "Caches, solvers, scene events, and reproducible simulation jobs."
+    },
+    {
+      "id": "render_comp",
+      "label": "Render And Composite",
+      "summary": "Viewport renders, frame products, AOV assembly, and compositor rebuilds."
+    },
+    {
+      "id": "publish_automation",
+      "label": "Publish And Automation",
+      "summary": "Package review, delivery reports, automation jobs, and runtime pack promotion."
+    }
+  ]
+}

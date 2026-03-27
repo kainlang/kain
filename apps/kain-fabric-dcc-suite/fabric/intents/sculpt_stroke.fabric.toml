@@ -1,0 +1,49 @@
+version = 1
+
+[workspace]
+root = "."
+search_roots = ["src", "scripts", "native"]
+
+[[requires]]
+key = "session.local"
+version = 1
+optional = false
+
+[[steps]]
+id = "python_suite_bootstrap"
+runtime = "python"
+entry = "scripts/python_suite_bootstrap.py"
+
+[[steps.outputs]]
+name = "project_settings"
+kind = "value"
+
+[[steps]]
+id = "dcc_suite_seed"
+runtime = "kain"
+entry = "src/main.kn"
+depends_on = ["python_suite_bootstrap"]
+
+[[steps.outputs]]
+name = "preview_image"
+kind = "shared_image"
+
+[[steps]]
+id = "native_sculpt_kernel"
+runtime = "c_abi"
+entry = "src/native_sculpt_step.kn"
+module = "dcc_suite_ops"
+library = "native/dcc_suite_ops.dll"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed"]
+
+[[steps.outputs]]
+name = "sculpt_delta"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "sculpt_signature"
+kind = "value"
+
+[reports]
+directory = ".kain/fabric/intents/sculpt_stroke"
+emit_jsonl_events = true

@@ -1,0 +1,303 @@
+struct ReducerOutcome:
+    next_workspace_mode: String
+    next_active_tool: String
+    status_banner: String
+    asset_dirty: Bool
+    sculpt_dirty: Bool
+    topology_dirty: Bool
+    material_dirty: Bool
+    rig_dirty: Bool
+    animation_dirty: Bool
+    simulation_dirty: Bool
+    render_dirty: Bool
+    compositor_dirty: Bool
+    publish_dirty: Bool
+    tensor_dirty: Bool
+    queued_intents: Array<String>
+    session_needs_save: Bool
+
+fn reduce_command(command_kind: String, payload_summary: String, current_tool: String, current_mode: String) -> ReducerOutcome:
+    if command_kind == "workspace.switch_mode":
+        return ReducerOutcome {
+            next_workspace_mode: payload_summary,
+            next_active_tool: current_tool,
+            status_banner: "workspace mode updated",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: false,
+            publish_dirty: false,
+            tensor_dirty: false,
+            queued_intents: ["render.preview"],
+            session_needs_save: true
+        }
+    if command_kind == "asset.ingest_package":
+        return ReducerOutcome {
+            next_workspace_mode: "scene_assembly",
+            next_active_tool: "select",
+            status_banner: "asset package staged",
+            asset_dirty: true,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: false,
+            publish_dirty: true,
+            tensor_dirty: true,
+            queued_intents: ["asset.ingest_package", "render.preview", "publish.package", "tensor.infer_step"],
+            session_needs_save: true
+        }
+    if command_kind == "tool.activate":
+        return ReducerOutcome {
+            next_workspace_mode: current_mode,
+            next_active_tool: payload_summary,
+            status_banner: "tool context updated",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: false,
+            compositor_dirty: false,
+            publish_dirty: false,
+            tensor_dirty: false,
+            queued_intents: [],
+            session_needs_save: false
+        }
+    if command_kind == "selection.set":
+        return ReducerOutcome {
+            next_workspace_mode: current_mode,
+            next_active_tool: current_tool,
+            status_banner: "selection updated",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: false,
+            compositor_dirty: false,
+            publish_dirty: false,
+            tensor_dirty: false,
+            queued_intents: [],
+            session_needs_save: false
+        }
+    if command_kind == "sculpt.apply_stroke":
+        return ReducerOutcome {
+            next_workspace_mode: "sculpt_model",
+            next_active_tool: current_tool,
+            status_banner: "sculpt stroke queued",
+            asset_dirty: false,
+            sculpt_dirty: true,
+            topology_dirty: true,
+            material_dirty: true,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: false,
+            publish_dirty: true,
+            tensor_dirty: false,
+            queued_intents: ["sculpt.apply_stroke", "topology.rebuild", "material.bake_preview", "render.preview", "publish.package"],
+            session_needs_save: true
+        }
+    if command_kind == "topology.rebuild":
+        return ReducerOutcome {
+            next_workspace_mode: current_mode,
+            next_active_tool: current_tool,
+            status_banner: "topology rebuild requested",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: true,
+            material_dirty: false,
+            rig_dirty: true,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: false,
+            compositor_dirty: false,
+            publish_dirty: true,
+            tensor_dirty: false,
+            queued_intents: ["topology.rebuild", "rig.sync_controls", "publish.package"],
+            session_needs_save: false
+        }
+    if command_kind == "rig.sync_controls":
+        return ReducerOutcome {
+            next_workspace_mode: "rig_anim",
+            next_active_tool: current_tool,
+            status_banner: "rig sync requested",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: true,
+            animation_dirty: true,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: false,
+            publish_dirty: true,
+            tensor_dirty: false,
+            queued_intents: ["rig.sync_controls", "render.preview", "publish.package"],
+            session_needs_save: true
+        }
+    if command_kind == "sim.tick":
+        return ReducerOutcome {
+            next_workspace_mode: "sim_fx",
+            next_active_tool: current_tool,
+            status_banner: "simulation tick queued",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: true,
+            simulation_dirty: true,
+            render_dirty: true,
+            compositor_dirty: true,
+            publish_dirty: true,
+            tensor_dirty: false,
+            queued_intents: ["sim.tick", "render.preview", "compositor.rebuild", "publish.package"],
+            session_needs_save: true
+        }
+    if command_kind == "material.bake_preview":
+        return ReducerOutcome {
+            next_workspace_mode: "material_lookdev",
+            next_active_tool: current_tool,
+            status_banner: "material bake queued",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: true,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: true,
+            publish_dirty: false,
+            tensor_dirty: false,
+            queued_intents: ["material.bake_preview", "render.preview", "compositor.rebuild"],
+            session_needs_save: false
+        }
+    if command_kind == "render.preview":
+        return ReducerOutcome {
+            next_workspace_mode: "render_comp",
+            next_active_tool: current_tool,
+            status_banner: "render preview requested",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: true,
+            publish_dirty: false,
+            tensor_dirty: false,
+            queued_intents: ["render.preview", "compositor.rebuild"],
+            session_needs_save: false
+        }
+    if command_kind == "compositor.rebuild":
+        return ReducerOutcome {
+            next_workspace_mode: "render_comp",
+            next_active_tool: current_tool,
+            status_banner: "compositor rebuild requested",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: false,
+            compositor_dirty: true,
+            publish_dirty: true,
+            tensor_dirty: false,
+            queued_intents: ["compositor.rebuild", "publish.package"],
+            session_needs_save: false
+        }
+    if command_kind == "publish.package":
+        return ReducerOutcome {
+            next_workspace_mode: "publish_automation",
+            next_active_tool: current_tool,
+            status_banner: "publish package queued",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: false,
+            compositor_dirty: false,
+            publish_dirty: true,
+            tensor_dirty: false,
+            queued_intents: ["publish.package"],
+            session_needs_save: true
+        }
+    if command_kind == "tensor.train_step":
+        return ReducerOutcome {
+            next_workspace_mode: current_mode,
+            next_active_tool: current_tool,
+            status_banner: "tensor training step queued",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: false,
+            compositor_dirty: false,
+            publish_dirty: false,
+            tensor_dirty: true,
+            queued_intents: ["tensor.train_step"],
+            session_needs_save: false
+        }
+    if command_kind == "tensor.infer_step":
+        return ReducerOutcome {
+            next_workspace_mode: current_mode,
+            next_active_tool: current_tool,
+            status_banner: "tensor inference step queued",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: false,
+            compositor_dirty: false,
+            publish_dirty: true,
+            tensor_dirty: true,
+            queued_intents: ["tensor.infer_step", "publish.package"],
+            session_needs_save: false
+        }
+    return ReducerOutcome {
+        next_workspace_mode: current_mode,
+        next_active_tool: current_tool,
+        status_banner: "no reducer change",
+        asset_dirty: false,
+        sculpt_dirty: false,
+        topology_dirty: false,
+        material_dirty: false,
+        rig_dirty: false,
+        animation_dirty: false,
+        simulation_dirty: false,
+        render_dirty: false,
+        compositor_dirty: false,
+        publish_dirty: false,
+        tensor_dirty: false,
+        queued_intents: [],
+        session_needs_save: false
+    }

@@ -1,0 +1,41 @@
+version = 1
+
+[workspace]
+root = "."
+search_roots = ["src", "scripts", "shaders"]
+
+[[requires]]
+key = "session.local"
+version = 1
+optional = false
+
+[[steps]]
+id = "python_suite_bootstrap"
+runtime = "python"
+entry = "scripts/python_suite_bootstrap.py"
+
+[[steps.outputs]]
+name = "project_settings"
+kind = "value"
+
+[[steps]]
+id = "dcc_suite_seed"
+runtime = "kain"
+entry = "src/main.kn"
+depends_on = ["python_suite_bootstrap"]
+
+[[steps.outputs]]
+name = "scene_graph_document"
+kind = "value"
+
+[[steps.outputs]]
+name = "asset_catalog_document"
+kind = "value"
+
+[[steps.outputs]]
+name = "session_report"
+kind = "value"
+
+[reports]
+directory = ".kain/fabric/intents/bootstrap"
+emit_jsonl_events = true

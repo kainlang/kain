@@ -1,0 +1,74 @@
+// Fabric Intent Step: Asset Ingest
+// Role: Handles the parsing, validation, and normalization of incoming 3D assets (USD, Alembic, glTF)
+//       into the canonical Kain runtime representation.
+
+struct AssetIngestResult {
+    asset_id: String
+    geometry_nodes: Int
+    materials_discovered: Int
+    status: String
+}
+
+// -------------------------------------------------------------------------------------------------
+// RUNTIME LIMITATION:
+// Kain currently lacks native, high-performance parsers for complex 3D interchange formats like 
+// USD (Universal Scene Description) or Alembic. 
+//
+// EXTENSION SEAM:
+// We delegate the heavy lifting of parsing and binary-to-memory mapping to a native Rust crate
+// (e.g., via a C ABI boundary) that loads the USD/Alembic file and serializes the core geometry 
+// and topology data into a flat, Kain-friendly memory buffer.
+// -------------------------------------------------------------------------------------------------
+
+@ffi(lib="kain_asset_ingest_rs", function="ingest_usd_payload")
+fn native_ingest_usd(file_path: String, buffer_ptr: Ptr, buffer_len: Int) -> Int
+
+fn main() -> AssetIngestResult:
+    let settings = fabric_inputs.python_suite_bootstrap.project_settings
+    let target_file = fabric_inputs.asset_file_path
+
+    // 1. Pre-flight validation in Kain
+    if not target_file.ends_with(".usd") and not target_file.ends_with(".abc"):
+        return AssetIngestResult(
+            asset_id: "none",
+            geometry_nodes: 0,
+            materials_discovered: 0,
+            status: "error: unsupported format"
+        )
+
+    // 2. Allocate receive buffer for topology data
+    // (Simulated 64MB buffer for ingest)
+    let ingest_buffer = allocate_buffer(64 * 1024 * 1024)
+
+    // 3. Delegate to Rust FFI for actual USD parsing
+    let bytes_written = native_ingest_usd(target_file, ingest_buffer.ptr, ingest_buffer.size)
+
+    if bytes_written <= 0:
+        return AssetIngestResult(
+            asset_id: "none",
+            geometry_nodes: 0,
+            materials_discovered: 0,
+            status: "error: native ingest failed"
+        )
+
+    // 4. Construct Kain-native scene graph references from the loaded buffer
+    let parsed_nodes = deserialize_kain_nodes(ingest_buffer, bytes_written)
+
+    return AssetIngestResult(
+        asset_id: "asset_" + settings.project_name + "_ingested",
+        geometry_nodes: parsed_nodes.len,
+        materials_discovered: count_materials(parsed_nodes),
+        status: "success"
+    )
+
+fn allocate_buffer(size: Int) -> Any:
+    // Stub for native buffer allocation
+    return { ptr: 0x0, size: size }
+
+fn deserialize_kain_nodes(buffer: Any, length: Int) -> List[Any]:
+    // Stub for decoding flat buffer into Kain structs
+    return [{ node_type: "mesh" }, { node_type: "transform" }]
+
+fn count_materials(nodes: List[Any]) -> Int:
+    // Stub for material discovery
+    return 1
