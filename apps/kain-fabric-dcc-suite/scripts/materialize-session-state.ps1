@@ -18,67 +18,374 @@ function Get-LatestFabricReport {
     return Get-Content $latest.FullName -Raw | ConvertFrom-Json
 }
 
+function New-RequiredCapabilityTools {
+    param([string[]]$Capabilities)
+
+    $tools = New-Object System.Collections.ArrayList
+    foreach ($capability in $Capabilities) {
+        $toolId = ($capability -replace "[^A-Za-z0-9]", "_").ToLowerInvariant()
+        $null = $tools.Add([ordered]@{
+            id = $toolId
+            label = $capability
+            capability = $capability
+            approval = "workspace"
+            decision = $null
+            scope_decisions = @()
+        })
+    }
+    return $tools
+}
+
+function New-CommandSnapshots {
+    param($Commands)
+
+    $snapshots = New-Object System.Collections.ArrayList
+    $null = $snapshots.Add([ordered]@{
+        id = "runtime.reload"
+        label = "Reload Runtime"
+        surface = "titlebar"
+        intent = "runtime.reload"
+    })
+
+    foreach ($command in $Commands) {
+        $null = $snapshots.Add([ordered]@{
+            id = $command.id
+            label = $command.label
+            surface = $command.surface
+            intent = $command.intent
+        })
+    }
+
+    return $snapshots
+}
+
+function Find-ModeLabel {
+    param(
+        $Modes,
+        [string]$ModeId
+    )
+
+    $mode = $Modes | Where-Object { $_.id -eq $ModeId } | Select-Object -First 1
+    if ($null -eq $mode) {
+        return $ModeId
+    }
+    return $mode.label
+}
+
+function New-RecentSessionPreview {
+    param(
+        [string]$FabricStatus,
+        [string]$ModeLabel
+    )
+
+    return "DCC suite bridge ready | fabric=$FabricStatus | mode=$ModeLabel"
+}
+
 $AppRoot = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) ".."
 $AppRoot = (Resolve-Path $AppRoot).Path
 $RepoRoot = (Resolve-Path (Join-Path $AppRoot "..\..")).Path
+$StateRoot = Join-Path $AppRoot "state"
+$NativeAppStateRoot = Join-Path $AppRoot "native-app/state"
+
+New-Item -ItemType Directory -Path $StateRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $NativeAppStateRoot -Force | Out-Null
 
 $Manifest = Get-Content (Join-Path $AppRoot "config/app_manifest.json") -Raw | ConvertFrom-Json
+$Modes = (Get-Content (Join-Path $AppRoot "config/workspace_modes.json") -Raw | ConvertFrom-Json).modes
 $Surfaces = (Get-Content (Join-Path $AppRoot "config/surfaces.json") -Raw | ConvertFrom-Json).surfaces
-$RuntimePacks = (Get-Content (Join-Path $AppRoot "config/runtime_packs.json") -Raw | ConvertFrom-Json).runtime_packs
-$Pipeline = (Get-Content (Join-Path $AppRoot "config/fabric_pipeline.json") -Raw | ConvertFrom-Json).steps
-$Intents = (Get-Content (Join-Path $AppRoot "config/fabric_intents.json") -Raw | ConvertFrom-Json).intents
-$UiTheme = Get-Content (Join-Path $AppRoot "config/ui_theme.json") -Raw | ConvertFrom-Json
-$UiShell = Get-Content (Join-Path $AppRoot "config/ui_shell.json") -Raw | ConvertFrom-Json
+$Tools = (Get-Content (Join-Path $AppRoot "config/tool_catalog.json") -Raw | ConvertFrom-Json).tools
 $Commands = (Get-Content (Join-Path $AppRoot "config/command_registry.json") -Raw | ConvertFrom-Json).commands
-$GizmoRegistry = Get-Content (Join-Path $AppRoot "config/gizmo_registry.json") -Raw | ConvertFrom-Json
+$Intents = (Get-Content (Join-Path $AppRoot "config/fabric_intents.json") -Raw | ConvertFrom-Json).intents
+$Pipeline = (Get-Content (Join-Path $AppRoot "config/fabric_pipeline.json") -Raw | ConvertFrom-Json).steps
+$RuntimePacks = (Get-Content (Join-Path $AppRoot "config/runtime_packs.json") -Raw | ConvertFrom-Json).runtime_packs
 $Resources = (Get-Content (Join-Path $AppRoot "config/resource_kinds.json") -Raw | ConvertFrom-Json).resource_kinds
 $Reports = (Get-Content (Join-Path $AppRoot "config/report_kinds.json") -Raw | ConvertFrom-Json).report_kinds
 $Jobs = (Get-Content (Join-Path $AppRoot "config/automation_jobs.json") -Raw | ConvertFrom-Json).jobs
-$Modes = (Get-Content (Join-Path $AppRoot "config/workspace_modes.json") -Raw | ConvertFrom-Json).modes
-$Tools = (Get-Content (Join-Path $AppRoot "config/tool_catalog.json") -Raw | ConvertFrom-Json).tools
-$LatestReport = Get-LatestFabricReport -ReportRoot (Join-Path $AppRoot ".kain/fabric/reports")
+$GizmoRegistry = Get-Content (Join-Path $AppRoot "config/gizmo_registry.json") -Raw | ConvertFrom-Json
+$UiShell = Get-Content (Join-Path $AppRoot "config/ui_shell.json") -Raw | ConvertFrom-Json
 
-$Snapshot = [ordered]@{
+$LatestReport = Get-LatestFabricReport -ReportRoot (Join-Path $AppRoot ".kain/fabric/reports")
+$LatestFabricStatus = if ($null -eq $LatestReport) { "idle" } else { $LatestReport.status }
+$NowIso = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+$SessionId = if ($null -eq $LatestReport) { "dcc-suite-session-bootstrap" } else { $LatestReport.session_id }
+
+$DefaultModeId = "scene_assembly"
+$ActiveModeId = $DefaultModeId
+$ActiveModeLabel = Find-ModeLabel -Modes $Modes -ModeId $ActiveModeId
+$RecentSessionTitle = "$($Manifest.name) | $ActiveModeLabel"
+
+$CommandSnapshots = New-CommandSnapshots -Commands $Commands
+$RuntimeTools = New-RequiredCapabilityTools -Capabilities $Manifest.required_runtime_capabilities
+
+$InitialIntentQueue = @()
+if ($LatestFabricStatus -eq "idle") {
+    $InitialIntentQueue = @(
+        [ordered]@{
+            id = "project.bootstrap"
+            label = "Bootstrap Suite"
+            reason = "No Fabric report exists yet."
+            graph = "fabric/intents/bootstrap.fabric.toml"
+            debounce_ms = 0
+            status = "recommended"
+        }
+    )
+}
+
+$SessionDocument = [ordered]@{
+    project = [ordered]@{
+        project_id = "fabric-dcc-suite"
+        project_name = "Kain Fabric DCC Suite"
+        schema_version = 1
+    }
+    workspace = [ordered]@{
+        active_mode = $ActiveModeId
+        layout_id = $Manifest.layout_id
+        available_modes = @($Modes | ForEach-Object { $_.id })
+    }
+    tooling = [ordered]@{
+        active_tool = "select"
+        brush_radius = 42
+        brush_strength_percent = 68
+    }
+    gizmo = [ordered]@{
+        active_profile_id = "dcc_transform_universal"
+        mode = "translate"
+        space = "world"
+        snap_enabled = $false
+        visible = $true
+        drag_trigger = "ctrl_primary_drag"
+    }
+    selection = [ordered]@{
+        entity_ids = @("entity/root_stage")
+        subobject_ids = @()
+    }
+    scene = [ordered]@{
+        active_document_id = "scene/main"
+        active_collection_id = "collection/environment"
+        active_variant = "lookdev"
+    }
+    ingest = [ordered]@{
+        last_package_uri = "asset://starter/kitbash_hangar"
+        last_package_kind = "gltf"
+        staged_package_count = 1
+    }
+    materials = [ordered]@{
+        active_material_id = "material/hero_surface"
+        active_graph_id = "graph/lookdev_primary"
+        active_texture_set_id = "textureset/hero_body_udim1001"
+        active_layer_stack_id = "layerstack/hero_surface_primary"
+        active_svg_document_id = "svg/masks/hero_surface_primary"
+        active_bake_preset_id = "bake/high_precision_curvature"
+        active_export_preset_id = "export/metalrough_orm_painter"
+        preview_profile = "material_preview_balanced"
+        channel_profile = "basecolor_normal_roughness_metallic_ao_height_emissive"
+        paint_resolution = 4096
+    }
+    rig = [ordered]@{
+        active_rig_id = "rig/hero_body"
+        active_control_set = "controls/anim_main"
+        deformation_profile = "hero_deformation_preview"
+    }
+    animation = [ordered]@{
+        active_clip_id = "clip/blocking_pass_a"
+        frame = 96
+        playback_mode = "paused"
+    }
+    simulation = [ordered]@{
+        cache_profile = "sim_preview_cache"
+        last_tick_frame = 96
+        solver_profile = "cloth_preview"
+    }
+    render = [ordered]@{
+        camera_id = "camera/shot_main"
+        view_transform = "acescg"
+        render_profile = "viewport_quality"
+        aov_set = "beauty_plus_utility"
+    }
+    compositor = [ordered]@{
+        active_stack_id = "comp/final_review"
+        last_rebuild_reason = "bootstrap"
+    }
+    publish = [ordered]@{
+        profile_id = "publish/review_daily"
+        target_bundle = "bundle/hero_scene_daily"
+        delivery_channel = "studio_review"
+    }
+    automation = [ordered]@{
+        enabled = $true
+        active_job_ids = @("thumbnail_refresh", "nightly_material_rebake", "svg_mask_cache_rebuild")
+        last_audit_status = "pending"
+    }
+    dirty = [ordered]@{
+        asset_dirty = $false
+        sculpt_dirty = $false
+        topology_dirty = $false
+        material_dirty = $false
+        rig_dirty = $false
+        animation_dirty = $false
+        simulation_dirty = $false
+        render_dirty = ($LatestFabricStatus -ne "succeeded")
+        compositor_dirty = $false
+        publish_dirty = $false
+        tensor_dirty = $false
+        session_needs_save = $false
+    }
+    jobs = [ordered]@{
+        latest_fabric_session_id = $SessionId
+        latest_fabric_status = $LatestFabricStatus
+        active_intents = @($InitialIntentQueue | ForEach-Object { $_.id })
+        active_jobs = @()
+    }
+}
+
+$BridgeCommandQueuePath = Join-Path $StateRoot "command_queue.jsonl"
+$BridgeSessionPath = Join-Path $StateRoot "session_document.json"
+$BridgeStatus = [ordered]@{
+    status = "ready"
+    command_queue_path = $BridgeCommandQueuePath
+    session_document_path = $BridgeSessionPath
+    processed_command_count = 0
+}
+
+$StepStatus = @($Pipeline | ForEach-Object {
+    [ordered]@{
+        id = $_.id
+        runtime = $_.runtime
+        status = if ($LatestFabricStatus -eq "idle") { "pending" } else { $LatestFabricStatus }
+        summary = $_.summary
+    }
+})
+
+$RuntimeSnapshot = [ordered]@{
     app_id = $Manifest.app_id
     name = $Manifest.name
     version = $Manifest.version
     window_title = $Manifest.window_title
+    root_component = $Manifest.root_component
     layout_id = $Manifest.layout_id
-    workspace_root = $RepoRoot
-    latest_fabric_status = if ($null -eq $LatestReport) { "idle" } else { $LatestReport.status }
-    workspace_modes = $Modes
-    surfaces = $Surfaces
-    tools = $Tools
-    gizmo_profiles = $GizmoRegistry.profiles
-    viewport_gizmo_bindings = $GizmoRegistry.viewport_bindings
-    commands = $Commands
-    runtime_packs = $RuntimePacks
-    fabric_pipeline = $Pipeline
-    fabric_intents = $Intents
-    resources = $Resources
-    reports = $Reports
-    automation_jobs = $Jobs
-    ui_theme = [ordered]@{
-        name = $UiTheme.theme_name
-        scope_count = @($UiTheme.scopes).Count
-        variant_count = @($UiTheme.variants).Count
-        text_variant_count = @($UiTheme.text_variants).Count
-    }
-    ui_shell = [ordered]@{
-        page_tab_group_id = $UiShell.page_tab_group_id
-        viewport_scene = $UiShell.viewport_scene
-        workspace_page_count = @($UiShell.workspace_pages).Count
-        workspace_pages = $UiShell.workspace_pages
-    }
-    extension_seams = @(
-        "the universal studio shell is manifest-driven and generated, but interactive command dispatch still needs a live runtime bridge",
-        "viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge",
-        "tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract",
-        "simulation lane currently materializes plan-oriented reports rather than a true solver runtime",
-        "compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"
+    required_runtime_capabilities = $Manifest.required_runtime_capabilities
+    panels = @(
+        [ordered]@{
+            id = "runtime_surface"
+            title = $Manifest.window_title
+            dock = "center"
+            kind = "native-ui"
+        }
     )
+    commands = $CommandSnapshots
+    providers = @(
+        [ordered]@{
+            id = "native_runtime"
+            label = "Native Runtime"
+            transport = "in-process"
+            profile_kind = "native-ui"
+            supports_tools = $true
+            supports_streaming = $false
+            active = $true
+            profile_configured = $true
+            profile_keys = @()
+        }
+    )
+    tools = $RuntimeTools
+    sessions = [ordered]@{
+        total_sessions = 1
+        active_provider = "native_runtime"
+        recent_session_id = $SessionId
+        recent_session_title = $RecentSessionTitle
+    }
+    recent_sessions = @(
+        [ordered]@{
+            id = $SessionId
+            title = $RecentSessionTitle
+            provider_id = "native_runtime"
+            status = $LatestFabricStatus
+            workspace_root = $RepoRoot
+            updated_at = $NowIso
+            message_count = 1
+            last_message_role = "system"
+            last_message_preview = New-RecentSessionPreview -FabricStatus $LatestFabricStatus -ModeLabel $ActiveModeLabel
+        }
+    )
+    workspaces = @(
+        [ordered]@{
+            root = $RepoRoot
+            session_count = 1
+            recent_session_title = $RecentSessionTitle
+        }
+    )
+    dcc_suite_state = [ordered]@{
+        schema_version = 1
+        manifest_registry = [ordered]@{
+            app_manifest = "config/app_manifest.json"
+            workspace_modes = "config/workspace_modes.json"
+            surfaces = "config/surfaces.json"
+            tool_catalog = "config/tool_catalog.json"
+            command_registry = "config/command_registry.json"
+            fabric_pipeline = "config/fabric_pipeline.json"
+            fabric_intents = "config/fabric_intents.json"
+            resource_kinds = "config/resource_kinds.json"
+            report_kinds = "config/report_kinds.json"
+            runtime_packs = "config/runtime_packs.json"
+            automation_jobs = "config/automation_jobs.json"
+            gizmo_registry = "config/gizmo_registry.json"
+            session_schema = "session/session_schema.kn"
+            session_reducers = "session/reducers.kn"
+            session_intent_planner = "session/intent_planner.kn"
+        }
+        session = $SessionDocument
+        derived = [ordered]@{
+            active_mode_label = $ActiveModeLabel
+            active_tool_label = "Select"
+            selection_summary = "1 entity selected"
+            gizmo_summary = "translate | world | snap off"
+            queued_intent_count = @($InitialIntentQueue).Count
+            latest_fabric_status = $LatestFabricStatus
+        }
+        command_registry = $Commands
+        available_tools = $Tools
+        workspace_modes = $Modes
+        surface_registry = $Surfaces
+        runtime_packs = $RuntimePacks
+        gizmo_profiles = $GizmoRegistry.profiles
+        viewport_gizmo_bindings = $GizmoRegistry.viewport_bindings
+        resource_store = $Resources
+        report_store = $Reports
+        automation_jobs = $Jobs
+        intent_queue = $InitialIntentQueue
+        latest_command = $null
+        latest_fabric_run = [ordered]@{
+            session_id = if ($null -eq $LatestReport) { $null } else { $LatestReport.session_id }
+            status = $LatestFabricStatus
+            manifest_path = "apps/kain-fabric-dcc-suite/KAIN.fabric.toml"
+            steps = $StepStatus
+        }
+        bridge = $BridgeStatus
+        extension_seams = @(
+            "material lane still projects authoring receipts rather than a true native painter runtime",
+            "tensor lane still reports readiness and plan state rather than executing a full typed tensor artifact contract",
+            "simulation lane still materializes plan-oriented reports rather than a true solver runtime",
+            "compositor lane still materializes rebuild plans rather than a first-class compositor graph runtime"
+        )
+    }
+    updated_at = $NowIso
 }
 
-$OutputPath = Join-Path $AppRoot "state/runtime_snapshot.json"
-$Snapshot | ConvertTo-Json -Depth 10 | Set-Content -Path $OutputPath
-Write-Host "Materialized $OutputPath"
+$RuntimeSnapshotJson = $RuntimeSnapshot | ConvertTo-Json -Depth 20
+$SessionDocumentJson = $SessionDocument | ConvertTo-Json -Depth 12
+
+Set-Content -Path (Join-Path $StateRoot "runtime_snapshot.json") -Value $RuntimeSnapshotJson
+Set-Content -Path (Join-Path $NativeAppStateRoot "runtime_snapshot.json") -Value $RuntimeSnapshotJson
+Set-Content -Path (Join-Path $StateRoot "session_document.json") -Value $SessionDocumentJson
+Set-Content -Path (Join-Path $NativeAppStateRoot "session_document.json") -Value $SessionDocumentJson
+
+if (-not (Test-Path $BridgeCommandQueuePath)) {
+    Set-Content -Path $BridgeCommandQueuePath -Value ""
+}
+
+$NativeAppCommandQueuePath = Join-Path $NativeAppStateRoot "command_queue.jsonl"
+if (-not (Test-Path $NativeAppCommandQueuePath)) {
+    Set-Content -Path $NativeAppCommandQueuePath -Value ""
+}
+
+Write-Host "Materialized $(Join-Path $StateRoot 'runtime_snapshot.json')"
+Write-Host "Materialized $(Join-Path $StateRoot 'session_document.json')"

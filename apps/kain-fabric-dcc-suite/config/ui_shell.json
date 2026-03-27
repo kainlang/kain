@@ -1,6 +1,88 @@
 {
   "page_tab_group_id": "dcc-workspaces",
   "viewport_scene": "dcc_suite_scene",
+  "shell_chrome": {
+    "brand": {
+      "eyebrow": "KAIN FABRIC SUITE",
+      "title": "Fabric-owned global studio shell",
+      "summary": "A shell-level UI system inspired by the newer K_OS app shell: global chrome, workspace navigation, command spotlight, and runtime status live above the authored pages instead of being buried inside them."
+    },
+    "menu_items": [
+      {
+        "label": "File",
+        "summary": "Bootstrap, ingest, and publish the active suite state."
+      },
+      {
+        "label": "Edit",
+        "summary": "Selection, tool routing, and gizmo ownership."
+      },
+      {
+        "label": "View",
+        "summary": "Workspace lanes, dock layout, and inspector emphasis."
+      },
+      {
+        "label": "Jobs",
+        "summary": "Fabric sessions, automation jobs, and runtime packs."
+      },
+      {
+        "label": "Help",
+        "summary": "Reports, extension seams, and operator guidance."
+      }
+    ],
+    "status_items": [
+      {
+        "id": "fabric_status",
+        "label": "Fabric",
+        "metric_source": "latest_fabric_status",
+        "caption": "latest pipeline session"
+      },
+      {
+        "id": "workspace_count",
+        "label": "Workspaces",
+        "metric_source": "workspace_mode_count",
+        "caption": "authored page lanes"
+      },
+      {
+        "id": "surface_count",
+        "label": "Surfaces",
+        "metric_source": "surface_count",
+        "caption": "registered shell surfaces"
+      },
+      {
+        "id": "runtime_pack_count",
+        "label": "Packs",
+        "metric_source": "runtime_pack_count",
+        "caption": "runtime packs projected"
+      }
+    ],
+    "command_spotlight": {
+      "eyebrow": "Command Spotlight",
+      "title": "Global operator quick-actions",
+      "summary": "These are the shell-level commands that should stay one gesture away no matter which workbench is active.",
+      "command_ids": [
+        "project.bootstrap",
+        "workspace.switch_mode",
+        "render.preview",
+        "publish.package",
+        "tensor.infer_step"
+      ]
+    },
+    "workspace_switcher": {
+      "eyebrow": "Workspace Switcher",
+      "title": "Global lane navigation",
+      "summary": "Each chip mirrors an authored workbench page. The host can style this later as real tab chrome without inventing a second workspace schema."
+    },
+    "operator_notes": {
+      "eyebrow": "Operator Context",
+      "title": "Shell system guidance",
+      "summary": "The shell chrome should feel persistent and global. Workbench pages should feel like modules mounted inside the same editor, not separate generated demos.",
+      "notes": [
+        "command spotlight remains shell-owned so operators can bootstrap, switch lanes, preview, and publish without hunting through page-local inspectors",
+        "workspace chips mirror authored page descriptors and should be the future landing zone for semantic top-tab rendering in the native host",
+        "runtime status, registry counts, and extension seam warnings belong in shell chrome so lane pages can stay focused on authored work"
+      ]
+    }
+  },
   "workspace_pages": [
     {
       "mode_id": "scene_assembly",
