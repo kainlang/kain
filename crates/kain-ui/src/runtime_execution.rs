@@ -7,9 +7,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    ui_step_animation_runtime, UiAnimationFrame, UiCommand, UiCommandBuffer, UiComputed, UiEventRoute,
-    UiInvalidationResult, UiNodeId, UiPatch, UiSchedulerEntry, UiSchedulerPhase, UiSignalId,
-    UiSignalUpdate, UiTransaction, UiTree, UiValue, UiWorkspaceLayout,
+    ui_step_animation_runtime, UiAnimationFrame, UiCommand, UiCommandBuffer, UiCommandRejection,
+    UiComputed, UiEventPhase, UiInvalidationResult, UiNodeId, UiPatch, UiSchedulerEntry,
+    UiSchedulerPhase, UiSignalId, UiSignalUpdate, UiTransaction, UiTree, UiValue,
+    UiWorkspaceLayout,
 };
 
 /// Runtime entrypoint that owns:
@@ -67,9 +68,13 @@ impl UiRuntime {
         for command in std::mem::take(&mut self.systems.command_buffer.pending) {
             let exec_one = self.execute_command(command.clone());
             command_exec.merge(exec_one);
+            let command_name = command.name.clone();
             output.system_patches.push(UiRuntimeSystemPatch::CommandExecuted {
                 command,
-                applied: !command_exec.rejections.iter().any(|rej| rej.command_name == command.name),
+                applied: !command_exec
+                    .rejections
+                    .iter()
+                    .any(|rej| rej.command_name == command_name),
             });
         }
         self.systems.command_buffer.executed.extend(command_exec.executed);
@@ -268,15 +273,6 @@ pub struct UiRuntimeEvent {
     pub payload: BTreeMap<String, UiValue>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum UiEventPhase {
-    #[default]
-    Bubble,
-    Capture,
-    Direct,
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum UiRuntimeSystemPatch {
     SignalsUpdated {
@@ -325,13 +321,7 @@ impl UiCommandExecutionOutput {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct UiCommandRejection {
-    pub command_name: String,
-    pub reason: String,
-}
-
-#[derive(Clone, Debug, Default)]
+#[derive(Debug)]
 struct UiTreeMutator<'a> {
     tree: &'a mut UiTree,
     patches: Vec<UiPatch>,
@@ -501,7 +491,10 @@ fn ui_apply_builtin_command(
         "ui.node.set_prop" => {
             let node_id = match command.payload.get("node_id") {
                 Some(UiValue::Int(value)) if *value >= 0 => UiNodeId(*value as u64),
-                Some(UiValue::String(value)) => value.parse::<u64>().ok().map(UiNodeId)?,
+                Some(UiValue::String(value)) => match value.parse::<u64>() {
+                    Ok(parsed) => UiNodeId(parsed),
+                    Err(_) => return false,
+                },
                 _ => return false,
             };
             let key = match command.payload.get("key") {
@@ -517,7 +510,10 @@ fn ui_apply_builtin_command(
         "ui.node.set_dock" => {
             let node_id = match command.payload.get("node_id") {
                 Some(UiValue::Int(value)) if *value >= 0 => UiNodeId(*value as u64),
-                Some(UiValue::String(value)) => value.parse::<u64>().ok().map(UiNodeId)?,
+                Some(UiValue::String(value)) => match value.parse::<u64>() {
+                    Ok(parsed) => UiNodeId(parsed),
+                    Err(_) => return false,
+                },
                 _ => return false,
             };
             let placement = match command.payload.get("placement") {
@@ -536,11 +532,10 @@ fn ui_apply_builtin_command(
                 "bottom" => crate::UiDockPlacement::Bottom,
                 "center" => crate::UiDockPlacement::Center,
                 "tab" => crate::UiDockPlacement::Tab,
-                "floating" => crate::UiDockPlacement::Floating,
                 _ => return false,
             });
             if let Some(UiValue::Float(ratio)) = command.payload.get("split_ratio") {
-                layout.split_ratio = Some(*ratio);
+                layout.split_ratio = Some(*ratio as f32);
             }
             mutator.set_layout(node_id, layout)
         }
@@ -635,4 +630,3 @@ impl UiWorkspaceLayout {
 // formats should stay in adapter crates.
 
 use serde::{Deserialize, Serialize};
-

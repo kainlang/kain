@@ -164,6 +164,13 @@ $SessionDocument = [ordered]@{
         active_collection_id = "collection/startup_stage"
         active_variant = "lookdev"
     }
+    mesh = [ordered]@{
+        active_document_id = "mesh/dcc_suite_startup_cube"
+        active_edit_target_id = "entity/blender_startup_cube"
+        mesh_authoring_policy_id = "mesh_authoring_policy/startup_hybrid"
+        active_primitive_template_id = "primitive/cube"
+        topology_edit_mode = "object"
+    }
     ingest = [ordered]@{
         last_package_uri = "asset://starter/kitbash_hangar"
         last_package_kind = "gltf"

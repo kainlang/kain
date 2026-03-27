@@ -25,8 +25,9 @@ swc_common      = { version = "0.38", optional = true }
 
 # Utilities
 thiserror = "1.0"
-# Pin serde to version compatible with SWC (serde 1.0.210 removed __private API)
-serde = { version = "=1.0.209", features = ["derive"] }
+# Keep serde aligned with the Kain workspace so downstream hosts can resolve
+# modern UI/runtime crates against the same serialization stack.
+serde = { workspace = true, features = ["derive"] }
 serde_json = "1.0"
 
 # GPU shader parsing

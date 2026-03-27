@@ -2,7 +2,25 @@
 
 This file preserves the durable design intent for `apps/kain-fabric-dcc-suite`.
 
-## 2026-03-27 (Latest) - DCC Startup Viewport Scene And Renderer Quality Pass
+## 2026-03-27 (Latest) - App-Owned Mesh Resource Contract Framed For Sculpt And Topology
+
+- Tightened the sculpt and topology extension seams so they speak in terms of mesh resource ids and active edit targets instead of implying that the step itself owns mesh lifetime.
+- Updated the seam comments and outputs to make it explicit that sculpt should mark the active mesh resource dirty, while topology should return a replacement mesh resource through the app-owned resource contract.
+- Added durable architecture notes describing the current mesh boundary: the app owns the semantic mesh contract, shared viewport startup geometry is still just a bootstrap realization, and persistent mesh serialization/provenance/history are still future work.
+
+Important design decision:
+
+- Mesh operations should be modeled as resource-contract adapters. The sculpt and topology lanes can mutate or replace the active edit target, but they should not invent separate mesh ownership rules inside the step bodies.
+
+Current risk:
+
+- The code now points at the right ownership boundary, but the broader mesh asset contract still needs first-class schema, persistence, and import normalization before imported assets and authored primitives can behave like durable mesh resources.
+
+Next recommended step:
+
+- Land the first-class mesh resource schema and registry wiring for imported assets, authored primitives, and topology history so the sculpt and topology steps can bind to a real app-owned mesh document instead of only a seam-level edit target.
+
+## 2026-03-27 (Earlier) - DCC Startup Viewport Scene And Renderer Quality Pass
 
 - Added a dedicated shared viewport scene named `dcc_suite_scene` in `crates/kain-3D` so the app no longer points at an undefined scene id and falls back to unrelated demo content.
 - The startup scene now boots with a Blender-style default cube at world origin plus a floor, backdrop, authored camera framing, and a neutral studio light rig instead of a generic toy-like primitive stack.

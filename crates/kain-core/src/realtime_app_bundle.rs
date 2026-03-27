@@ -3,9 +3,10 @@ use serde::{Deserialize, Serialize};
 use crate::ast::{ComputeMetadata, ShaderStage, Type, COMPUTE_PLAN_CAPABILITY_KEY};
 use crate::{CompileTarget, TypedItem, TypedProgram, TypedShader};
 use kain_ui::{
-    UiBuildOutput, UiNode, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
-    UiValue,
+    UiBuildOutput, UiDockPlacement, UiLayoutKind, UiNode, UiNodeId, UiSurfaceCompositionMode,
+    UiSurfaceKind, UiSurfaceRendererPreference, UiValue, UiWidgetKind, UiWorkspaceLayout,
 };
+use std::collections::{BTreeMap, HashMap};
 
 pub const REALTIME_APP_BUNDLE_SCHEMA_VERSION: u32 = 1;
 
@@ -20,6 +21,69 @@ pub struct RealtimeAppBundle {
     pub assets: Vec<RealtimeAssetBinding>,
     pub tool_caps: Vec<String>,
     pub requirements: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui_contracts: Option<RealtimeUiContractsBundle>,
+}
+
+/// Optional compiler-emitted UI contract bundle.
+///
+/// This is intentionally "verification first": it exists so tools and strong models can validate
+/// spatial ownership (workspace graphs, panel/tab containment, anchors) from structure alone.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct RealtimeUiContractsBundle {
+    pub contract_version: Option<String>,
+    pub widget_registry_json: Option<String>,
+    pub command_registry_json: Option<String>,
+    pub motion_policy_json: Option<String>,
+    pub paint_registry_json: Option<String>,
+    pub motion_registry_json: Option<String>,
+    pub workspace_schema_json: Option<String>,
+    pub workspace_layout: Option<UiWorkspaceLayout>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub structure_index: Vec<RealtimeUiStructureNode>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RealtimeUiStructureNode {
+    pub id: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity_key: Option<String>,
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chrome_role: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor_zone: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor_target: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dock_placement: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub persistent_layout_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tab_group_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tab_label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tab_order: Option<i32>,
+    #[serde(default)]
+    pub tab_default_active: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focus_scope: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selection_scope: Option<String>,
+    #[serde(default)]
+    pub min_width: Option<f32>,
+    #[serde(default)]
+    pub min_height: Option<f32>,
+    #[serde(default)]
+    pub max_width: Option<f32>,
+    #[serde(default)]
+    pub max_height: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub region_hint: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -277,6 +341,7 @@ pub fn emit_realtime_app_bundle(
         &tool_caps,
         has_explicit_compute_metadata,
     );
+    let ui_contracts = collect_ui_contracts(ui_output);
 
     RealtimeAppBundle {
         schema_version: REALTIME_APP_BUNDLE_SCHEMA_VERSION,
@@ -287,6 +352,7 @@ pub fn emit_realtime_app_bundle(
         assets,
         tool_caps,
         requirements,
+        ui_contracts,
     }
 }
 
@@ -298,6 +364,203 @@ pub fn realtime_app_bundle_to_json(
 
 pub fn realtime_app_bundle_from_json(json: &str) -> Result<RealtimeAppBundle, serde_json::Error> {
     serde_json::from_str(json)
+}
+
+fn collect_ui_contracts(ui_output: Option<&UiBuildOutput>) -> Option<RealtimeUiContractsBundle> {
+    let Some(output) = ui_output else {
+        return None;
+    };
+
+    let mut bundle = RealtimeUiContractsBundle::default();
+    bundle.contract_version = ui_session_state_string(output, "ui.contract.version");
+    bundle.widget_registry_json = ui_session_state_string(output, "ui.contract.widget_registry.json");
+    bundle.command_registry_json = ui_session_state_string(output, "ui.contract.command_registry.json");
+    bundle.motion_policy_json = ui_session_state_string(output, "ui.contract.motion_policy.json");
+    bundle.paint_registry_json = ui_session_state_string(output, "ui.contract.paint_registry.json");
+    bundle.motion_registry_json = ui_session_state_string(output, "ui.contract.motion_registry.json");
+    bundle.workspace_schema_json = ui_session_state_string(output, "ui.contract.workspace_schema.json");
+
+    if !output.systems.workspace_layout.roots.is_empty()
+        || output.systems.workspace_layout.persistence_key.is_some()
+        || output.systems.workspace_layout.virtualization_enabled
+        || !output.systems.workspace_layout.active_tabs.is_empty()
+    {
+        bundle.workspace_layout = Some(output.systems.workspace_layout.clone());
+    }
+
+    bundle.structure_index = build_ui_structure_index(output);
+
+    let has_any = bundle.contract_version.is_some()
+        || bundle.widget_registry_json.is_some()
+        || bundle.command_registry_json.is_some()
+        || bundle.motion_policy_json.is_some()
+        || bundle.paint_registry_json.is_some()
+        || bundle.motion_registry_json.is_some()
+        || bundle.workspace_schema_json.is_some()
+        || bundle.workspace_layout.is_some()
+        || !bundle.structure_index.is_empty();
+    if has_any { Some(bundle) } else { None }
+}
+
+fn ui_session_state_string(output: &UiBuildOutput, key: &str) -> Option<String> {
+    output
+        .systems
+        .session_state
+        .get(key)
+        .and_then(|value| match value {
+            UiValue::String(value) => Some(value.clone()),
+            UiValue::Int(value) => Some(value.to_string()),
+            UiValue::Float(value) => Some(value.to_string()),
+            UiValue::Bool(value) => Some(value.to_string()),
+            UiValue::Null => None,
+        })
+}
+
+fn build_ui_structure_index(output: &UiBuildOutput) -> Vec<RealtimeUiStructureNode> {
+    let mut parents = HashMap::<UiNodeId, UiNodeId>::new();
+    for node in output.tree.nodes.values() {
+        for child in &node.children {
+            parents.insert(*child, node.id);
+        }
+    }
+
+    let mut nodes = Vec::new();
+    for node in output.tree.nodes.values() {
+        let role = node
+            .props
+            .get("role")
+            .and_then(|value| value.as_str())
+            .map(ToString::to_string);
+        let chrome_role = node
+            .props
+            .get("ui.chrome_role")
+            .and_then(|value| value.as_str())
+            .map(ToString::to_string);
+        let anchor_zone = node
+            .props
+            .get("ui.anchor_zone")
+            .and_then(|value| value.as_str())
+            .map(ToString::to_string);
+        let anchor_target = node
+            .props
+            .get("ui.anchor_target")
+            .and_then(|value| value.as_str())
+            .map(ToString::to_string);
+
+        let include = node.identity_key.is_some()
+            || role.is_some()
+            || chrome_role.is_some()
+            || anchor_zone.is_some()
+            || anchor_target.is_some()
+            || node.layout.dock.is_some()
+            || node.layout.persistent_layout_id.is_some()
+            || node.layout.tab_group_id.is_some()
+            || node.layout.kind == UiLayoutKind::Dock;
+        if !include {
+            continue;
+        }
+
+        nodes.push(RealtimeUiStructureNode {
+            id: node.id.0,
+            identity_key: node.identity_key.clone(),
+            kind: ui_widget_kind_name(&node.kind),
+            chrome_role,
+            role,
+            anchor_zone,
+            anchor_target,
+            dock_placement: node.layout.dock.map(dock_placement_name).map(ToString::to_string),
+            persistent_layout_id: node.layout.persistent_layout_id.clone(),
+            tab_group_id: node.layout.tab_group_id.clone(),
+            tab_label: node.layout.tab_label.clone(),
+            tab_order: node.layout.tab_order,
+            tab_default_active: node.layout.tab_default_active,
+            focus_scope: node.focus_scope.clone(),
+            selection_scope: node.selection_scope.clone(),
+            min_width: node.layout.min_width,
+            min_height: node.layout.min_height,
+            max_width: node.layout.max_width,
+            max_height: node.layout.max_height,
+            region_hint: compute_region_hint(node.id, &parents, &output.tree.nodes),
+        });
+    }
+
+    nodes.sort_by_key(|node| node.id);
+    nodes
+}
+
+fn compute_region_hint(
+    id: UiNodeId,
+    parents: &HashMap<UiNodeId, UiNodeId>,
+    nodes: &BTreeMap<UiNodeId, UiNode>,
+) -> Option<String> {
+    let mut cursor = Some(id);
+    let mut dock_hint: Option<String> = None;
+    let mut chrome_hint: Option<String> = None;
+    let mut anchor_hint: Option<String> = None;
+    while let Some(current) = cursor {
+        if let Some(node) = nodes.get(&current) {
+            if dock_hint.is_none() {
+                if let Some(placement) = node.layout.dock {
+                    dock_hint = Some(format!("dock.{}", dock_placement_name(placement)));
+                }
+            }
+            if chrome_hint.is_none() {
+                chrome_hint = node
+                    .props
+                    .get("ui.chrome_role")
+                    .and_then(|value| value.as_str())
+                    .map(|value| format!("chrome.{value}"))
+                    .or_else(|| {
+                        node.props
+                            .get("role")
+                            .and_then(|value| value.as_str())
+                            .map(|value| format!("role.{value}"))
+                    });
+            }
+            if anchor_hint.is_none() {
+                anchor_hint = node
+                    .props
+                    .get("ui.anchor_zone")
+                    .and_then(|value| value.as_str())
+                    .map(|value| format!("anchor.{value}"));
+            }
+            if dock_hint.is_some() {
+                break;
+            }
+        }
+        cursor = parents.get(&current).copied();
+    }
+
+    dock_hint.or(chrome_hint).or(anchor_hint)
+}
+
+fn dock_placement_name(value: UiDockPlacement) -> &'static str {
+    match value {
+        UiDockPlacement::Center => "center",
+        UiDockPlacement::Left => "left",
+        UiDockPlacement::Right => "right",
+        UiDockPlacement::Top => "top",
+        UiDockPlacement::Bottom => "bottom",
+        UiDockPlacement::Tab => "tab",
+    }
+}
+
+fn ui_widget_kind_name(kind: &UiWidgetKind) -> String {
+    match kind {
+        UiWidgetKind::Element(tag) => format!("element:{tag}"),
+        UiWidgetKind::ComponentRef(name) => format!("component:{name}"),
+        UiWidgetKind::Text => "text".to_string(),
+        UiWidgetKind::Panel => "panel".to_string(),
+        UiWidgetKind::Inspector => "inspector".to_string(),
+        UiWidgetKind::Graph => "graph".to_string(),
+        UiWidgetKind::Timeline => "timeline".to_string(),
+        UiWidgetKind::Table => "table".to_string(),
+        UiWidgetKind::Tree => "tree".to_string(),
+        UiWidgetKind::Viewport2D => "viewport2d".to_string(),
+        UiWidgetKind::Viewport3D => "viewport3d".to_string(),
+        UiWidgetKind::Overlay => "overlay".to_string(),
+        UiWidgetKind::Slot => "slot".to_string(),
+    }
 }
 
 fn collect_shader_bundle_refs(program: &TypedProgram) -> Vec<RealtimeShaderBundleRef> {

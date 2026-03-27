@@ -9,13 +9,12 @@ use crate::runtime::{eval_expr, Env, Value};
 use crate::span::Span;
 use kain_ui::{
     default_layout_for_tag, render_debug_tree, ui_runtime_systems_from_tree, widget_kind_for_tag,
-    UiBuildOutput, UiDockNode, UiDockPlacement,
-    UiLayoutAlignment, UiLength, UiLengthUnit, UiNode, UiOverflowBehavior, UiStyleState,
+    UiAnimationTrack, UiAnimationTrigger, UiBuildOutput, UiComputed, UiDockNode, UiDockPlacement,
+    UiEasingKind, UiEventPhase, UiEventRoute, UiLayoutAlignment, UiLength, UiLengthUnit, UiNode,
+    UiOverflowBehavior, UiSchedulerPhase, UiSignalId, UiStyleState, UiSurface,
+    UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference, UiSurfaceShaderBinding,
     UiThemeRegistry, UiThemeScope, UiThemeToken, UiThemeVariant, UiTreeBuilder, UiValue,
-    UiWidgetKind, UiAnimationTrack, UiAnimationTrigger, UiComputed, UiEasingKind, UiEventRoute,
-    UiFocusGraph, UiResource, UiResourceState, UiSchedulerPhase, UiSelectionModel, UiSignalId,
-    UiSurface, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
-    UiSurfaceShaderBinding, UiTransaction,
+    UiWidgetKind,
 };
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
@@ -1003,6 +1002,21 @@ fn apply_canonical_attrs_to_ui_node(node: &mut UiNode, tag: &str, attrs: &[UIAtt
         node.selection_scope = Some(scope);
     }
 
+    if let Some(role) = attr_string(attrs, "chrome_role") {
+        node.props
+            .insert("ui.chrome_role".to_string(), UiValue::String(role));
+    }
+
+    if let Some(zone) = attr_string(attrs, "anchor_zone").or_else(|| attr_string(attrs, "anchor")) {
+        node.props
+            .insert("ui.anchor_zone".to_string(), UiValue::String(zone));
+    }
+
+    if let Some(target) = attr_string(attrs, "anchor_target") {
+        node.props
+            .insert("ui.anchor_target".to_string(), UiValue::String(target));
+    }
+
     if let Some(scope) = attr_string(attrs, "scope").or_else(|| attr_string(attrs, "theme_scope")) {
         node.style.theme_scope = Some(scope);
     }
@@ -1116,6 +1130,10 @@ fn should_skip_prop_attr(name: &str) -> bool {
             | "event_phase"
             | "command"
             | "transaction"
+            | "chrome_role"
+            | "anchor_zone"
+            | "anchor"
+            | "anchor_target"
     )
 }
 
@@ -1155,6 +1173,29 @@ fn extract_computed_decl(systems: &mut AuthoredUiSystemsAccumulator, attrs: &[UI
     });
 }
 
+fn extract_workspace_decl(systems: &mut AuthoredUiSystemsAccumulator, attrs: &[UIAttr]) {
+    if let Some(key) = attr_string(attrs, "persistence_key")
+        .or_else(|| attr_string(attrs, "layout_key"))
+        .or_else(|| attr_string(attrs, "workspace_key"))
+    {
+        systems.workspace_persistence_key = Some(key);
+    }
+
+    if let Some(enabled) = attr_value(attrs, "virtualization_enabled")
+        .and_then(value_as_bool)
+        .or_else(|| attr_value(attrs, "virtualize").and_then(value_as_bool))
+    {
+        systems.workspace_virtualization_enabled = Some(enabled);
+    }
+
+    if let Some(preset) = attr_string(attrs, "preset") {
+        systems.session_state.insert(
+            "ui.workspace.preset".to_string(),
+            UiValue::String(preset),
+        );
+    }
+}
+
 fn parse_scheduler_phase(input: String) -> Option<UiSchedulerPhase> {
     match input.trim().to_ascii_lowercase().as_str() {
         "signals" => Some(UiSchedulerPhase::Signals),
@@ -1165,6 +1206,43 @@ fn parse_scheduler_phase(input: String) -> Option<UiSchedulerPhase> {
         "effects" => Some(UiSchedulerPhase::Effects),
         _ => None,
     }
+}
+
+fn node_layout_id(node: &UiNode) -> String {
+    node.layout
+        .persistent_layout_id
+        .clone()
+        .or_else(|| node.identity_key.clone())
+        .unwrap_or_else(|| format!("node-{}", node.id.0))
+}
+
+fn resolve_active_tabs_from_tree(tree: &kain_ui::UiTree) -> BTreeMap<String, String> {
+    let mut grouped_tabs = BTreeMap::<String, Vec<(&UiNode, String)>>::new();
+    let mut resolved = BTreeMap::new();
+
+    for node in tree.nodes.values() {
+        let Some(group_id) = node.layout.tab_group_id.clone() else {
+            continue;
+        };
+        grouped_tabs
+            .entry(group_id)
+            .or_default()
+            .push((node, node_layout_id(node)));
+    }
+
+    for (group_id, mut tabs) in grouped_tabs {
+        tabs.sort_by_key(|(node, _)| (node.layout.tab_order.unwrap_or(i32::MAX), node.id.0));
+        if let Some(layout_id) = tabs
+            .iter()
+            .find(|(node, _)| node.layout.tab_default_active)
+            .or_else(|| tabs.first())
+            .map(|(_, layout_id)| layout_id.clone())
+        {
+            resolved.insert(group_id, layout_id);
+        }
+    }
+
+    resolved
 }
 
 fn extract_focus_scope_decl(systems: &mut AuthoredUiSystemsAccumulator, attrs: &[UIAttr]) {
@@ -1221,7 +1299,15 @@ impl AuthoredUiSystemsAccumulator {
     }
 
     fn record_event_routes_and_handlers(&mut self, id: kain_ui::UiNodeId, attrs: &[UIAttr]) {
-        let phase = attr_string(attrs, "event_phase").unwrap_or_else(|| "bubble".to_string());
+        let phase = match attr_string(attrs, "event_phase")
+            .unwrap_or_else(|| "bubble".to_string())
+            .as_str()
+        {
+            "bubble" => UiEventPhase::Bubble,
+            "capture" => UiEventPhase::Capture,
+            "direct" => UiEventPhase::Direct,
+            _ => UiEventPhase::Bubble,
+        };
         let command = attr_string(attrs, "command");
         let transaction = attr_string(attrs, "transaction");
 
@@ -1230,15 +1316,19 @@ impl AuthoredUiSystemsAccumulator {
                 continue;
             };
             let event_name = event_name(event).to_string();
+            let handler_id = handler_ref_string(handler);
             self.event_routes.push(UiEventRoute {
+                route_id: format!("route_{}_{}", id.0, event_name),
                 event: event_name.clone(),
                 target: id,
-                phase: phase.clone(),
+                phase,
+                handler_id: Some(handler_id.clone()),
+                dispatch_command: command.clone(),
             });
 
             self.session_state.insert(
                 format!("ui.event.handler.{}.{}", id.0, event_name),
-                UiValue::String(handler_ref_string(handler)),
+                UiValue::String(handler_id),
             );
             if let Some(command) = command.as_deref() {
                 self.session_state.insert(
@@ -1494,6 +1584,16 @@ fn append_global_ui_authoring_contracts(output: &mut UiBuildOutput, env: &Env) {
         if let Some(json) = runtime_value_to_json_string(&motion_policy) {
             output.systems.session_state.insert(
                 "ui.contract.motion_policy.json".to_string(),
+                UiValue::String(json),
+            );
+            inserted_any = true;
+        }
+    }
+
+    if let Some(workspace_schema) = env.lookup_value("ui_workspace_schema") {
+        if let Some(json) = runtime_value_to_json_string(&workspace_schema) {
+            output.systems.session_state.insert(
+                "ui.contract.workspace_schema.json".to_string(),
                 UiValue::String(json),
             );
             inserted_any = true;

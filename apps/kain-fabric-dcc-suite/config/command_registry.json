@@ -35,6 +35,85 @@
       }
     },
     {
+      "id": "mesh.open_document",
+      "label": "Open Mesh Document",
+      "surface": "scene_graph",
+      "summary": "Opens the active mesh document for either imported assets or authored geometry.",
+      "intent": "mesh.open_document",
+      "payload_schema": {
+        "mesh_document_id": "string",
+        "source_uri": "string"
+      }
+    },
+    {
+      "id": "mesh.set_edit_target",
+      "label": "Set Mesh Edit Target",
+      "surface": "scene_graph",
+      "summary": "Binds the active mesh document to the selected edit target in the scene graph.",
+      "intent": "mesh.set_edit_target",
+      "payload_schema": {
+        "mesh_document_id": "string",
+        "mesh_edit_target_id": "string"
+      }
+    },
+    {
+      "id": "mesh.set_authoring_policy",
+      "label": "Set Mesh Authoring Policy",
+      "surface": "scene_graph",
+      "summary": "Updates the mesh policy that chooses between imported assets, primitives, and topology edits.",
+      "intent": "mesh.set_authoring_policy",
+      "payload_schema": {
+        "mesh_authoring_policy_id": "string"
+      }
+    },
+    {
+      "id": "mesh.create_primitive",
+      "label": "Create Primitive Mesh",
+      "surface": "viewport",
+      "summary": "Creates a new authored primitive in the active mesh document and makes it available for editing.",
+      "intent": "mesh.create_primitive",
+      "payload_schema": {
+        "mesh_document_id": "string",
+        "primitive_kind": "string",
+        "name": "string"
+      }
+    },
+    {
+      "id": "mesh.import_asset",
+      "label": "Import Mesh Asset",
+      "surface": "asset_ingest",
+      "summary": "Imports a mesh asset into the active document and records the source package for reuse.",
+      "intent": "mesh.import_asset",
+      "payload_schema": {
+        "mesh_document_id": "string",
+        "source_uri": "string",
+        "import_profile_id": "string"
+      }
+    },
+    {
+      "id": "mesh.edit_topology",
+      "label": "Edit Mesh Topology",
+      "surface": "viewport",
+      "summary": "Applies topology-oriented edits such as insert, dissolve, bevel, or retopology operations.",
+      "intent": "mesh.edit_topology",
+      "payload_schema": {
+        "mesh_document_id": "string",
+        "topology_operation_id": "string",
+        "selection_scope": "string"
+      }
+    },
+    {
+      "id": "mesh.rebuild_topology",
+      "label": "Rebuild Mesh Topology",
+      "surface": "scene_graph",
+      "summary": "Recomputes mesh topology analysis after import, primitive creation, or edit operations.",
+      "intent": "mesh.rebuild_topology",
+      "payload_schema": {
+        "mesh_document_id": "string",
+        "reason": "string"
+      }
+    },
+    {
       "id": "tool.activate",
       "label": "Activate Tool",
       "surface": "tool_shelf",

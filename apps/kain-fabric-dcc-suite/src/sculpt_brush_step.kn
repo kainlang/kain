@@ -14,26 +14,30 @@ import Kain::State;
 /// on meshes exceeding 5-10 million polygons. 
 ///
 /// EXTENSION SEAM:
-/// This step packages the brush intent (radius, strength, falloff, ray hit) 
-/// and delegates the actual mesh mutation to a native C++/Vulkan compute 
-/// shader or a Rust-based CPU multithreading pool.
+/// This step packages the brush intent (radius, strength, falloff, ray hit)
+/// against the active mesh edit target and delegates the actual mutation to a
+/// native C++/Vulkan compute shader or a Rust-based CPU multithreading pool.
 ///
-/// The native boundary expects a shared memory buffer (e.g., mapped GPU memory)
-/// for vertex positions and normals to avoid copy overhead.
+/// The native boundary expects the active edit target to be addressed by mesh
+/// resource id, with shared buffers for vertex positions and normals used as the
+/// transfer path to avoid copy overhead.
 
 public fn execute_sculpt_brush_step(intent: Intent, state: State) -> State {
     let brush_data = intent.payload.get_as::<SculptBrushData>("brush_data");
-    let mesh_id = intent.payload.get_string("target_mesh_id");
+    let active_mesh_resource_id = intent.payload.get_string("target_mesh_id");
     
-    // 1. Lock the mesh for write access in the session state.
+    // The sculpt lane edits the active mesh resource id; it does not own the
+    // mesh object itself inside this step.
+    // 1. Resolve the active edit target from the session/resource contract.
     // 2. Marshall the brush stroke parameters to the FFI boundary.
     
-    log::info("Delegating sculpt_brush_stroke to native high-performance BVH/compute kernel.");
+    log::info("Delegating sculpt_brush_stroke for active mesh resource id to native high-performance BVH/compute kernel.");
     
     // FFI call to native sculpt engine (placeholder)
-    // let result = NativeSculptEngine::apply_stroke(mesh_id, brush_data);
+    // let result = NativeSculptEngine::apply_stroke(active_mesh_resource_id, brush_data);
     
-    // 3. Mark the mesh bounding box as dirty for the renderer.
+    // 3. Mark the active mesh resource dirty so downstream viewport and edit
+    //    consumers know the resource contents changed.
     state
 }
 

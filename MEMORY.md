@@ -10,6 +10,26 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-27 - UI Slate X100 Now Treats Spatial Verifiability And LLM Legibility As Platform Requirements
+
+The current UI overhaul plan has sharpened around a critical realization: the main failure is not only visual sameness. The deeper failure is that Kain UI still hides too much layout, ownership, motion, and interaction meaning behind generic props, backend-local behavior, and host contamination. That makes strong LLMs collapse into the same blocky shell because the system does not expose enough explicit structure to support more ambitious authorship.
+
+Update:
+
+- Compared the active Kain UI direction against the older TypeScript shell at `M:\K_OS\src-frontend\ui\shell`.
+- Captured the comparison in `docs/kainplan/ui_slate_x100/k_os_shell_lessons.md`.
+- Promoted two requirements into the active overhaul docs and swarm rules:
+- `LLM legibility by construction`
+- `spatial verifiability by construction`
+- Updated the Sovereign kickoff, target architecture, acceptance matrix, regression plan, and swarm plan so future work must expose explicit workspace graphs, panel/tab ownership, computed geometry, containment, anchor intent, overlay order, focus travel, and inspectable performance policy.
+
+What future work should preserve:
+
+- do not treat this as a cosmetic styling problem; the core issue is missing explicit semantic and runtime structure
+- do not accept screenshot-only validation as proof of layout correctness
+- do not let runtime geometry, anchors, or focus travel remain backend-local emergent behavior
+- use the K_OS shell lessons as a reference for the kind of named layout, motion, command, and verification contracts Kain must match or exceed
+
 ## 2026-03-27 - Flagship Fabric DCC Suite Scaffold Added Under apps/kain-fabric-dcc-suite
 
 ## 2026-03-27 - Universal Web Template Brand + Trust Systems Added

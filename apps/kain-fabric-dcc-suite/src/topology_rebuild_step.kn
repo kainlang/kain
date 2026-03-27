@@ -12,18 +12,20 @@ import kain.ffi.NativeFunction;
 //
 // EXTENSION SEAM:
 // We define a clean FFI seam to a native library (e.g., a Rust crate `kain_topo_rs`
-// or a C++ library exposing a C ABI) that takes a raw vertex/index buffer,
-// performs the topology operation, and writes back the new mesh data.
+// or a C++ library exposing a C ABI) that takes the active mesh resource id,
+// resolves the current edit target, performs the topology operation, and writes
+// back a replacement mesh resource rather than pretending this step owns the mesh.
 
 fn @ffi_rebuild_topology = NativeFunction::load("kain_topo_ops", "rebuild_topology");
 
 pub fn execute_topology_rebuild(ctx: IntentContext): StepResult {
-    let source_mesh = ctx.get_input("source_mesh");
+    let source_mesh_resource = ctx.get_input("source_mesh");
     let target_polycount = ctx.get_param("target_polycount").as_int();
     
-    // Ensure the mesh data is accessible via a raw pointer for the FFI boundary
-    let vertex_buffer: BufferView = source_mesh.get_vertex_buffer().as_view();
-    let index_buffer: BufferView = source_mesh.get_index_buffer().as_view();
+    // Resolve the active edit target as a mesh resource handle, then hand its
+    // buffers across the FFI boundary for topology work.
+    let vertex_buffer: BufferView = source_mesh_resource.get_vertex_buffer().as_view();
+    let index_buffer: BufferView = source_mesh_resource.get_index_buffer().as_view();
     
     // Allocate an output buffer large enough for the expected result
     // The native function will write the actual sizes back
@@ -46,12 +48,13 @@ pub fn execute_topology_rebuild(ctx: IntentContext): StepResult {
         return StepResult::fail("Topology rebuild failed in native execution");
     }
 
-    // Wrap the returned buffers back into a Kain mesh resource
+    // Wrap the returned buffers back into a new mesh resource owned by the
+    // app/resource contract, not by this step.
     let new_mesh = ctx.create_resource("mesh");
     new_mesh.set_vertex_buffer(out_vertex_buffer.slice(0, actual_vert_count * stride));
     new_mesh.set_index_buffer(out_index_buffer.slice(0, actual_index_count * 4));
     
-    ctx.set_output("retopologized_mesh", new_mesh);
+    ctx.set_output("retopologized_mesh_resource", new_mesh);
     
     return StepResult::success();
 }

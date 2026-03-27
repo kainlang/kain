@@ -648,6 +648,69 @@ pub struct UiAnimationTrack {
     pub preserve_on_reload: bool,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiMotionMode {
+    #[default]
+    Full,
+    Balanced,
+    Reduced,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiPerformanceTier {
+    #[default]
+    Warp,
+    Cruise,
+    Safe,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiCapacitorState {
+    #[default]
+    Charged,
+    Priming,
+    Discharged,
+}
+
+/// Runtime motion policy. This is intended to be stable, inspectable truth:
+/// motion changes are not ad-hoc booleans on random widgets.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UiMotionPolicy {
+    pub mode: UiMotionMode,
+    pub performance_tier: UiPerformanceTier,
+    pub is_resizing: bool,
+    pub is_pointer_active: bool,
+    pub capacitor: UiCapacitorState,
+}
+
+impl UiMotionPolicy {
+    pub fn recompute_capacitor(&mut self) {
+        self.capacitor = match self.mode {
+            UiMotionMode::Reduced => UiCapacitorState::Discharged,
+            _ if self.is_resizing => UiCapacitorState::Priming,
+            _ if self.performance_tier == UiPerformanceTier::Safe => UiCapacitorState::Priming,
+            _ if self.is_pointer_active => UiCapacitorState::Charged,
+            _ => {
+                if self.performance_tier == UiPerformanceTier::Warp {
+                    UiCapacitorState::Charged
+                } else {
+                    UiCapacitorState::Priming
+                }
+            }
+        };
+    }
+
+    pub fn should_animate(&self) -> bool {
+        self.mode != UiMotionMode::Reduced
+            && self.performance_tier != UiPerformanceTier::Safe
+            && !self.is_resizing
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UiSurface {
     pub id: String,
@@ -705,6 +768,64 @@ pub struct UiSurfaceShaderBinding {
     pub entry_point: Option<String>,
     pub stage: Option<String>,
     pub derived_format: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiAnchorPlacement {
+    #[default]
+    Auto,
+    TopLeft,
+    Top,
+    TopRight,
+    Right,
+    BottomRight,
+    Bottom,
+    BottomLeft,
+    Left,
+    Center,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiAnchorConstraint {
+    #[default]
+    ClampToViewport,
+    AllowOverflow,
+}
+
+/// Anchor definition for overlays/popovers/menus/tooltips.
+///
+/// This is backend-neutral spatial intent. Backends can still choose the final
+/// pixel placement, but the relationship must be inspectable and stable.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiAnchorSpec {
+    pub target: UiNodeId,
+    #[serde(default)]
+    pub placement: UiAnchorPlacement,
+    #[serde(default)]
+    pub offset_px: [f32; 2],
+    #[serde(default)]
+    pub constraint: UiAnchorConstraint,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiOverlayEntry {
+    pub id: String,
+    pub node: UiNodeId,
+    /// Higher orders draw above lower orders.
+    #[serde(default)]
+    pub order: i32,
+    #[serde(default)]
+    pub anchor: Option<UiAnchorSpec>,
+    #[serde(default)]
+    pub modal: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UiOverlayStack {
+    pub entries: Vec<UiOverlayEntry>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1314,6 +1435,7 @@ pub fn ui_execute_signal_updates(
             label: format!("signals:{}", result.changed_signals.len()),
             touched_nodes: result.invalidated_nodes.clone(),
             changed_signals: result.changed_signals.clone(),
+            ..UiTransaction::default_runtime(0)
         };
         systems.transactions.push(transaction.clone());
         result.transaction = Some(transaction);

@@ -41,6 +41,13 @@ The scaffold is split into seven durable ownership layers:
 - The app owns the `dcc_suite_scene` viewport intent and startup-session semantics, while the shared `crates/kain-3D` scene catalog currently owns the temporary procedural realization of the startup mesh, floor, backdrop, and studio light rig until a first-class mesh asset contract lands.
 - The native shell may emit command events and host the bridge loop, but it still must not become the semantic owner of workspace lanes, command routing, or session truth. Session truth remains the document projected from app-owned schema plus reducers.
 
+## Mesh Contract
+
+- Meshes are now being treated as app-owned resources addressed by stable mesh resource ids. Sculpt and topology steps should read the active edit target from the session/resource contract, mutate or replace that resource, and mark the resulting resource dirty for downstream consumers.
+- The current sculpt and topology seams are deliberately narrower than a full mesh asset system. They can operate on the active edit target, but they do not yet own persistent serialization, provenance tracking, undo/redo topology history, or import-time asset normalization.
+- Shared viewport startup geometry is still only a bootstrap realization. It is acceptable for `crates/kain-3D` to materialize a temporary cube or support mesh for the opening viewport, but that runtime geometry should not be mistaken for the durable mesh ownership boundary.
+- The next durable contract should explicitly cover imported assets, authored primitives, and topology edits as first-class mesh resources so the viewport, sculpt lane, and topology lane all speak the same id-based language.
+
 ## Main Files
 
 - `KAIN.toml`: app package and build contract.
@@ -113,6 +120,7 @@ The scaffold is split into seven durable ownership layers:
 - The compositor lane now emits durable rebuild-plan and rebuild-report receipts in `state/*.json`, but real graph execution and frame assembly should still arrive through a broader runtime extension rather than by overloading shell presentation code.
 - The material lane now emits durable authoring, SVG mask, and export receipts in `state/*.json`, but it is still not a native painter engine with tiled brush evaluation, GPU bakers, or live sparse texture streaming. Those remain explicit extension seams.
 - The sculpt lane now emits a real GPU-owned heightfield delta buffer and native-facing sculpt receipts, but it is still not a production mesh sculpt engine with BVH queries, voxel remeshing, multiresolution data, or tablet-pressure sampling. Those remain explicit extension seams.
+- The sculpt and topology seam modules should be read as resource-contract adapters, not as mesh owners. They are expected to operate on active edit targets identified by resource id and hand the mutated or rebuilt mesh back through the app-owned resource contract.
 - The shader catalog is intentionally broader than the currently scheduled Fabric steps. Some shader files are staged for near-term lane growth rather than being scheduled in every graph immediately.
 - The runtime pack registry is broad on purpose, but it is still manifest-owned metadata until downstream pack loaders and launchers consume it directly.
 
@@ -158,4 +166,5 @@ powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/buil
 - `scripts/materialize-session-state.ps1` is now responsible for seeding both app-root and `native-app/state` sidecars. If one copy is missing, the bridge loop will still run, but only the existing sidecar roots will stay synchronized.
 - `config/gizmo_registry.json` is now part of the viewport contract. If gizmo defaults or hotkeys change, rerun `scripts/materialize-shell.ps1` and rebuild the native UI bundle so the realtime viewport sees the new metadata.
 - The DCC suite now expects `dcc_suite_scene` to resolve through the shared `crates/kain-3D` scene catalog. If that scene id changes on the app side, update the shared scene catalog or the viewport will silently fall back to another catalog scene.
+- Treat `target_mesh_id` and related mesh inputs as active edit target ids, not ownership claims. The sculpt and topology seams should resolve the resource, operate on it, and hand back a dirty or replacement resource rather than inventing ad-hoc mesh lifetime rules inside the step.
 - The tensor manifests intentionally report readiness and plan state even when `torch` is unavailable. That is not a bug in the scaffold; it is the current extension seam.
