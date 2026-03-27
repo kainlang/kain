@@ -20,11 +20,16 @@ workspace_manifest = "config/app_manifest.json"
 name = "modeler_ops"
 header = "native/modeler_ops.h"
 shared_lib = "native/modeler_ops.dll"
-
 [manifests]
 app = "config/app_manifest.json"
 surfaces = "config/surfaces.json"
 workspace_modes = "config/workspace_modes.json"
 library_catalog = "config/library_catalog.json"
 tools = "config/tool_catalog.json"
+command_registry = "config/command_registry.json"
 fabric_pipeline = "config/fabric_pipeline.json"
+fabric_intents = "config/fabric_intents.json"
+session_schema = "session/session_schema.kn"
+session_reducers = "session/reducers.kn"
+session_intent_planner = "session/intent_planner.kn"
+

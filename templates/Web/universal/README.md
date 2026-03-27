@@ -23,7 +23,7 @@
   - HTML and client-island renderer
   - client bundler (Preact + Three.js) for React/TypeScript-esque islands
   - KainScript (`.ks`) support in the client bundle loader
-  - local search, chat, prompt-deck, catalog, app/auth/commerce/data/realtime, growth/experiments/service catalog, session, uploads, analytics, form, and route APIs
+  - local search, chat (playbooks/tools/memory), prompt-deck, UI kit, catalog, app/auth/commerce/data/realtime, growth/experiments/service catalog, session, uploads, analytics, form, and route APIs
   - static artifact writer
   - actor-aware local HTTP + SSE + WebSocket server
 - `package.json`
@@ -144,6 +144,8 @@ New reusable section kinds in this pass:
 - `process_steps` with `content.actor_playbooks`
 - `card_grid` with `content.actor_tools`
 - `actor_topology`
+- `ui_kit` (UI components + layouts + tokens island)
+- `metric_grid` with `content.actor_metrics`
 - `status_board`
 - `roadmap_timeline`
 - `team_grid`
@@ -167,3 +169,17 @@ New reusable section kinds in this pass:
 - `accessibility_grid`
 - `performance_targets`
 - `legal_links`
+
+New system registries in this pass:
+
+- identity providers, roles, and access policies
+- billing plans, invoices, and tax metadata
+- subscription tiers and entitlements
+- CMS content types and editorial workflow
+- media libraries and asset pipelines
+- automation flows and webhook event contracts
+- API reference registry + developer portal tools
+- SEO targets and social metadata
+- chat agent roster, tools, and workflows
+- UI components, layouts, and design token registries
+- actor policies and actor metrics

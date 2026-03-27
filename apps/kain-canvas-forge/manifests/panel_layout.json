@@ -1,0 +1,11 @@
+[
+  { "id": "workspace_modes", "title": "Workspace Modes", "region": "left", "summary": "Mode rail for paint, story, and pose layouts." },
+  { "id": "tool_rail", "title": "Tool Rail", "region": "left", "summary": "Brush, erase, pose, camera, and timeline commands." },
+  { "id": "canvas_stack", "title": "Canvas Stack", "region": "center", "summary": "Main paint surface with layered drawing." },
+  { "id": "viewport_stage", "title": "Viewport Stage", "region": "center", "summary": "Three.js pose and composition reference stage." },
+  { "id": "layers", "title": "Layers", "region": "right", "summary": "Layer visibility, ordering, and active target controls." },
+  { "id": "brush_presets", "title": "Brush Presets", "region": "right", "summary": "Preset browser for paint feel and stroke tuning." },
+  { "id": "scene_inspector", "title": "Scene Inspector", "region": "right", "summary": "Current 3D stage metadata and asset notes." },
+  { "id": "timeline", "title": "Timeline", "region": "bottom", "summary": "Frame and action lane for motion-minded workflows." }
+]
+

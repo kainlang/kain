@@ -176,4 +176,70 @@ component App():
                 <text role="caption">Actor mesh nodes and edges are visible in the web control plane.</text>
             </panel>
         </panel>
+
+        <panel title="Product + Agent Systems" scope="web_pack" variant="section" layout="grid" columns={3} gap={14}>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Identity</text>
+                <text role="caption">Providers, roles, and access policies live in the manifest layer.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Billing</text>
+                <text role="caption">Plans, invoices, and tax posture remain data-driven.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Subscriptions</text>
+                <text role="caption">Entitlements and tiers are modeled alongside the commerce stack.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">CMS</text>
+                <text role="caption">Content types and editorial workflow live in system data.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Media</text>
+                <text role="caption">Asset libraries and pipelines stay in one registry.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Automation</text>
+                <text role="caption">Workflow automation for launch, chat, and ops surfaces.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Webhooks</text>
+                <text role="caption">Event contracts and hook definitions stay explicit.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Developer Portal</text>
+                <text role="caption">SDKs, sandboxes, and API playbooks are ready to wire.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Agents</text>
+                <text role="caption">Agent rosters and routing workflows power chat-first experiences.</text>
+            </panel>
+        </panel>
+
+        <panel title="UI Kit + Chat Systems" scope="web_pack" variant="section" layout="grid" columns={3} gap={14}>
+            <panel scope="web_pack" variant="card">
+                <text role="title">UI Components</text>
+                <text role="caption">Manifest-driven component kit for React-style shells.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Layout Patterns</text>
+                <text role="caption">Launch, chat-first, operator, and app-shell layouts stay data-driven.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Design Tokens</text>
+                <text role="caption">Tokens capture typography, surface, and motion systems.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Chat Playbooks</text>
+                <text role="caption">Conversation flows and escalation paths are explicit.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Chat Tools</text>
+                <text role="caption">Tool routing, context assembly, and handoff triggers.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Actor Policies</text>
+                <text role="caption">Rate limits and escalation rules live with the runtime contract.</text>
+            </panel>
+        </panel>
     </slot>

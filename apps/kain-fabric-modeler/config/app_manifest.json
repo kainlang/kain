@@ -10,8 +10,14 @@
     "workspace_modes": "config/workspace_modes.json",
     "library_catalog": "config/library_catalog.json",
     "tools": "config/tool_catalog.json",
-    "fabric_pipeline": "config/fabric_pipeline.json"
+    "command_registry": "config/command_registry.json",
+    "fabric_pipeline": "config/fabric_pipeline.json",
+    "fabric_intents": "config/fabric_intents.json",
+    "session_schema": "session/session_schema.kn",
+    "session_reducers": "session/reducers.kn",
+    "session_intent_planner": "session/intent_planner.kn"
   },
+
   "required_runtime_capabilities": [
     "ui.runtime",
     "actor.runtime",

@@ -1365,6 +1365,31 @@ function renderAppShell(modules) {
 </section>`;
 }
 
+function renderUiKit(kit) {
+  const summary = kit || {};
+  const componentCount = (summary.components || []).length;
+  const layoutCount = (summary.layouts || []).length;
+  const tokenCount = (summary.tokens || []).length;
+  return `<section class="ui-kit-shell">
+  <div class="logo-pill"><span>UI Kit</span><span>components + layouts + tokens</span></div>
+  <div class="ui-kit-summary">
+    <article class="metric-card">
+      <p class="metric-value">${escapeHtml(String(componentCount))}</p>
+      <p class="metric-label">components</p>
+    </article>
+    <article class="metric-card">
+      <p class="metric-value">${escapeHtml(String(layoutCount))}</p>
+      <p class="metric-label">layouts</p>
+    </article>
+    <article class="metric-card">
+      <p class="metric-value">${escapeHtml(String(tokenCount))}</p>
+      <p class="metric-label">tokens</p>
+    </article>
+  </div>
+  <div data-kain-island="ui-kit" data-site-data="site.data.json"></div>
+</section>`;
+}
+
 function renderSectionIntro(section) {
   const eyebrow = section.eyebrow || section.label || section.kicker;
   const title = section.title;
@@ -1516,6 +1541,12 @@ function renderSectionBlock(section, model) {
     bodyHtml = renderDataCollections(getModelValue(model, normalized.source, []));
   } else if (kind === "app_shell") {
     bodyHtml = renderAppShell(getModelValue(model, normalized.source, []));
+  } else if (kind === "ui_kit") {
+    bodyHtml = renderUiKit({
+      components: getModelValue(model, normalized.components_source || "content.ui_components", []),
+      layouts: getModelValue(model, normalized.layouts_source || "content.ui_layouts", []),
+      tokens: getModelValue(model, normalized.tokens_source || "content.ui_tokens", [])
+    });
   } else if (kind === "cta") {
     const title = getModelValue(model, normalized.title_source, normalized.title || "");
     const body = getModelValue(model, normalized.body_source, normalized.body || "");
@@ -1590,8 +1621,23 @@ function buildDerivedSearchDocuments(model) {
   for (const mode of model.content.chat_modes || []) {
     pushDocument("chat-mode", mode.title || mode.name, mode.body || mode.summary || "", "#chat-modes");
   }
+  for (const playbook of model.content.chat_playbooks || []) {
+    pushDocument("chat-playbook", playbook.title, playbook.body, "#chat-workflows");
+  }
+  for (const tool of model.content.chat_tools || []) {
+    pushDocument("chat-tool", tool.title, tool.body || tool.summary || "", "#chat-tools");
+  }
+  for (const memory of model.content.chat_memory || []) {
+    pushDocument("chat-memory", memory.title, memory.body || memory.summary || "", "#chat-memory");
+  }
   for (const playbook of model.content.actor_playbooks || []) {
     pushDocument("playbook", playbook.title || playbook.name, playbook.body || playbook.summary || "", "#playbooks");
+  }
+  for (const policy of model.content.actor_policies || []) {
+    pushDocument("actor-policy", policy.title, policy.body || policy.summary || "", "#actor-policies");
+  }
+  for (const metric of model.content.actor_metrics || []) {
+    pushDocument("actor-metric", metric.label, metric.value, "#actor-metrics");
   }
   for (const doc of model.content.docs_links || []) {
     documents.push({
@@ -1668,6 +1714,159 @@ function buildDerivedSearchDocuments(model) {
       summary: method.detail || "",
       href: "#auth",
       tags: [method.scope, method.status].filter(Boolean)
+    });
+  }
+  for (const provider of model.content.identity?.providers || []) {
+    documents.push({
+      kind: "identity",
+      title: provider.title,
+      summary: provider.body || "",
+      href: "#identity",
+      tags: [provider.kicker].filter(Boolean)
+    });
+  }
+  for (const role of model.content.identity?.roles || []) {
+    documents.push({
+      kind: "role",
+      title: role.title,
+      summary: role.body || "",
+      href: "#identity-roles",
+      tags: [role.kicker].filter(Boolean)
+    });
+  }
+  for (const plan of model.content.billing?.plans || []) {
+    documents.push({
+      kind: "billing",
+      title: plan.title,
+      summary: plan.body || "",
+      href: "#billing",
+      tags: [plan.kicker].filter(Boolean)
+    });
+  }
+  for (const tier of model.content.subscriptions?.tiers || []) {
+    documents.push({
+      kind: "subscription",
+      title: tier.title,
+      summary: tier.body || "",
+      href: "#subscriptions",
+      tags: [tier.kicker].filter(Boolean)
+    });
+  }
+  for (const contentType of model.content.cms?.content_types || []) {
+    documents.push({
+      kind: "cms",
+      title: contentType.title,
+      summary: contentType.body || "",
+      href: "#cms",
+      tags: [contentType.kicker].filter(Boolean)
+    });
+  }
+  for (const asset of model.content.media_library?.libraries || []) {
+    documents.push({
+      kind: "media",
+      title: asset.title,
+      summary: asset.body || "",
+      href: "#media",
+      tags: [asset.kicker].filter(Boolean)
+    });
+  }
+  for (const flow of model.content.automation?.flows || []) {
+    documents.push({
+      kind: "automation",
+      title: flow.title,
+      summary: flow.body || "",
+      href: "#automation",
+      tags: [flow.kicker].filter(Boolean)
+    });
+  }
+  for (const event of model.content.webhooks?.events || []) {
+    documents.push({
+      kind: "webhook",
+      title: event.title,
+      summary: event.body || "",
+      href: "#webhooks",
+      tags: [event.kicker].filter(Boolean)
+    });
+  }
+  for (const endpoint of model.content.api_reference?.endpoints || []) {
+    documents.push({
+      kind: "api",
+      title: endpoint.path,
+      summary: endpoint.purpose || "",
+      href: "#api",
+      tags: [endpoint.method].filter(Boolean)
+    });
+  }
+  for (const tool of model.content.developer_portal?.tools || []) {
+    documents.push({
+      kind: "developer",
+      title: tool.title,
+      summary: tool.body || "",
+      href: "#developer",
+      tags: [tool.kicker].filter(Boolean)
+    });
+  }
+  for (const target of model.content.seo_stack?.targets || []) {
+    documents.push({
+      kind: "seo",
+      title: target.title,
+      summary: target.body || "",
+      href: "#seo",
+      tags: [target.kicker].filter(Boolean)
+    });
+  }
+  for (const component of model.content.ui_components || []) {
+    documents.push({
+      kind: "ui-component",
+      title: component.title,
+      summary: component.body || "",
+      href: "#ui-kit",
+      tags: [component.kicker].filter(Boolean)
+    });
+  }
+  for (const layout of model.content.ui_layouts || []) {
+    documents.push({
+      kind: "ui-layout",
+      title: layout.title,
+      summary: layout.body || "",
+      href: "#ui-kit",
+      tags: [layout.kicker].filter(Boolean)
+    });
+  }
+  for (const token of model.content.ui_tokens || []) {
+    documents.push({
+      kind: "ui-token",
+      title: token.title,
+      summary: token.body || "",
+      href: "#ui-kit",
+      tags: [token.kicker].filter(Boolean)
+    });
+  }
+  for (const agent of model.content.ai_agents?.agents || []) {
+    documents.push({
+      kind: "agent",
+      title: agent.title,
+      summary: agent.body || "",
+      href: "#agents",
+      tags: [agent.kicker].filter(Boolean)
+    });
+  }
+  for (const tool of model.content.ai_agents?.tools || []) {
+    documents.push({
+      kind: "agent-tool",
+      title: tool.title,
+      summary: tool.body || "",
+      href: "#agent-tools",
+      tags: [tool.kicker].filter(Boolean)
+    });
+  }
+  for (const workflow of model.content.ai_agents?.workflows || []) {
+    documents.push({
+      kind: "agent-workflow",
+      title: workflow.title,
+      summary: workflow.body || "",
+      href: "#agent-workflows",
+      tags: []
     });
   }
   for (const offer of model.content.commerce?.offers || []) {
@@ -2001,9 +2200,25 @@ function buildSiteData(model) {
     actor_playbooks: model.content.actor_playbooks || [],
     actor_tools: model.content.actor_tools || [],
     actor_topology: model.content.actor_topology || null,
+    actor_policies: model.content.actor_policies || [],
+    actor_metrics: model.content.actor_metrics || [],
     blueprints: model.content.blueprints || [],
     capability_matrix: model.content.capability_matrix || null,
     auth: model.content.auth || null,
+    identity: model.content.identity || null,
+    billing: model.content.billing || null,
+    subscriptions: model.content.subscriptions || null,
+    cms: model.content.cms || null,
+    media_library: model.content.media_library || null,
+    automation: model.content.automation || null,
+    webhooks: model.content.webhooks || null,
+    api_reference: model.content.api_reference || null,
+    developer_portal: model.content.developer_portal || null,
+    seo_stack: model.content.seo_stack || null,
+    ai_agents: model.content.ai_agents || null,
+    ui_components: model.content.ui_components || [],
+    ui_layouts: model.content.ui_layouts || [],
+    ui_tokens: model.content.ui_tokens || [],
     commerce: model.content.commerce || null,
     uploads: model.content.uploads || null,
     analytics: model.content.analytics || null,
@@ -2523,7 +2738,12 @@ function renderDocument(model, siteData, options = {}) {
       gap: 12px;
       align-content: start;
     }
-    .auth-shell, .app-shell { display: grid; gap: 14px; }
+    .auth-shell, .app-shell, .ui-kit-shell { display: grid; gap: 14px; }
+    .ui-kit-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
     .kain-island {
       border-radius: 24px;
       border: 1px solid rgba(255,255,255,0.12);
@@ -2593,12 +2813,67 @@ function renderDocument(model, siteData, options = {}) {
     .kain-realtime-title { margin: 0; font-family: var(--font-display); }
     .kain-realtime-copy { margin: 8px 0 0; color: var(--muted); line-height: 1.5; }
     .kain-realtime-meta { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
+    .kain-ui-kit-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .kain-ui-kit-card {
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 14px;
+      background: rgba(255,255,255,0.02);
+    }
+    .kain-ui-kit-card h4 { margin: 0 0 6px; font-family: var(--font-display); }
+    .kain-ui-kit-card p { margin: 0; color: var(--muted); line-height: 1.5; }
     .kain-chat-log { max-height: 320px; overflow: auto; display: grid; gap: 10px; padding-right: 6px; }
     .kain-chat-bubble { border-radius: 18px; border: 1px solid rgba(255,255,255,0.08); padding: 12px 14px; }
     .kain-chat-bubble.user { background: rgba(255,255,255,0.02); }
     .kain-chat-bubble.assistant { background: rgba(90, 228, 255, 0.06); }
     .kain-chat-role { margin: 0 0 6px; color: var(--accent-soft); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; }
     .kain-chat-text { margin: 0; color: var(--muted); line-height: 1.5; white-space: pre-wrap; }
+    .kain-chat-controls { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+    .kain-chat-controls label { display: grid; gap: 6px; font-size: 12px; color: var(--muted); }
+    .kain-chat-controls select {
+      min-width: 180px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(10, 20, 32, 0.65);
+      color: var(--text);
+    }
+    .kain-chat-agents { margin-top: 12px; }
+    .kain-chat-agents-label { margin: 0 0 6px; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
+    .kain-chat-agent-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .kain-chat-agent-pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(90, 228, 255, 0.08);
+      border: 1px solid rgba(90, 228, 255, 0.24);
+      font-size: 12px;
+      color: var(--text);
+    }
+    .kain-chat-systems { display: grid; gap: 16px; margin-top: 12px; }
+    .kain-chat-system-title {
+      margin: 0 0 8px;
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent-soft);
+    }
+    .kain-chat-system-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .kain-chat-system-card {
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 12px;
+      background: rgba(255,255,255,0.03);
+    }
+    .kain-chat-system-card h4 { margin: 0 0 6px; font-family: var(--font-display); }
+    .kain-chat-system-card p { margin: 0; color: var(--muted); line-height: 1.5; }
     .kain-chat-form { display: flex; gap: 10px; align-items: center; }
     .kain-chat-form input {
       flex: 1;
@@ -2633,6 +2908,7 @@ function renderDocument(model, siteData, options = {}) {
       .hero-grid, .scene-shell, .metric-grid, .feature-grid, .portfolio-grid, .docs-grid, .link-grid, .command-grid, .pricing-grid, .testimonial-grid, .form-grid, .team-grid, .support-grid, .status-grid, .career-grid, .legal-grid {
         grid-template-columns: 1fr;
       }
+      .ui-kit-summary { grid-template-columns: 1fr; }
       .timeline-row { grid-template-columns: 1fr; }
     }
   </style>
@@ -2819,12 +3095,18 @@ function buildSystemContract(model, siteData, actorServerPlan) {
       event: "/api/analytics/event",
       events: "/api/analytics/events"
     },
+    ui_kit: "/api/ui-kit",
+    chat_playbooks: "/api/chat/playbooks",
+    chat_tools: "/api/chat/tools",
+    chat_memory: "/api/chat/memory",
     growth: "/api/growth",
     experiments: "/api/experiments",
     services: "/api/services",
     success: "/api/success",
     notifications: "/api/notifications",
     actor_topology: "/api/actors/topology",
+    actor_policies: "/api/actors/policies",
+    actor_metrics: "/api/actors/metrics",
     status: "/api/status",
     roadmap: "/api/roadmap",
     support: "/api/support",
@@ -2844,6 +3126,20 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     press: "/api/press",
     careers: "/api/careers",
     auth: siteData.auth || null,
+    identity: siteData.identity || null,
+    billing: siteData.billing || null,
+    subscriptions: siteData.subscriptions || null,
+    cms: siteData.cms || null,
+    media_library: siteData.media_library || null,
+    automation: siteData.automation || null,
+    webhooks: siteData.webhooks || null,
+    api_reference: siteData.api_reference || null,
+    developer_portal: siteData.developer_portal || null,
+    seo_stack: siteData.seo_stack || null,
+    ai_agents: siteData.ai_agents || null,
+    ui_components: siteData.ui_components || [],
+    ui_layouts: siteData.ui_layouts || [],
+    ui_tokens: siteData.ui_tokens || [],
     commerce: siteData.commerce || null,
     app_modules: siteData.app_modules || [],
     integrations: siteData.integrations || [],
@@ -2868,6 +3164,8 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     localization: siteData.localization || null,
     accessibility: siteData.accessibility || null,
     performance: siteData.performance || null,
+    actor_policies: siteData.actor_policies || [],
+    actor_metrics: siteData.actor_metrics || [],
     team_members: siteData.team_members || [],
     partners: siteData.partners || [],
     press_kit: siteData.press_kit || null,
@@ -2888,6 +3186,7 @@ function buildUiSchema(model, siteData) {
     if (kind === "auth_session") return "auth-session";
     if (kind === "uploads_lab") return "uploads";
     if (kind === "analytics_lab") return "analytics";
+    if (kind === "ui_kit") return "ui-kit";
     return null;
   };
 
@@ -2932,10 +3231,12 @@ function buildUiSchema(model, siteData) {
                   ? { status: "/api/status" }
                 : island === "auth-session"
                   ? { me: "/api/auth/session", login: "/api/auth/session/login", logout: "/api/auth/session/logout" }
-                  : island === "uploads"
-                    ? { upload: "/api/uploads", serve_prefix: "/uploads/" }
-                    : island === "analytics"
-                      ? { event: "/api/analytics/event", events: "/api/analytics/events" }
+                : island === "uploads"
+                  ? { upload: "/api/uploads", serve_prefix: "/uploads/" }
+                  : island === "analytics"
+                    ? { event: "/api/analytics/event", events: "/api/analytics/events" }
+                    : island === "ui-kit"
+                      ? { ui_kit: "/api/ui-kit" }
                       : { app: "/api/app" }
         };
       }).filter(Boolean)
@@ -3137,8 +3438,10 @@ export function buildCatalog(appManifestPath) {
   };
 }
 
-function buildChatReply(bundle, plan, prompt) {
+function buildChatReply(bundle, plan, prompt, options = {}) {
   const lowered = String(prompt || "").toLowerCase();
+  const persona = String(options.persona || "").trim();
+  const mode = String(options.mode || "").trim();
   const laneMatches = [
     { keywords: ["business", "pricing", "marketing", "landing"], experience: "business_launch", label: "business launch" },
     { keywords: ["portfolio", "case study", "work"], experience: "portfolio_signal", label: "portfolio" },
@@ -3160,8 +3463,11 @@ function buildChatReply(bundle, plan, prompt) {
   const suggestedPrompt = matchedPrompts[0]?.prompt || null;
   const routeCount = plan.routes.length;
   const actorCount = plan.actors.length;
+  const agentCount = (bundle.site_data.ai_agents?.agents || []).length;
+  const personaNote = persona ? ` Persona: ${persona}.` : "";
+  const modeNote = mode ? ` Mode: ${mode}.` : "";
   const suggestion = suggestedPrompt ? ` Suggested prompt: "${suggestedPrompt}".` : "";
-  return `Local Kain web runtime received '${prompt}'. Route this request through ${nextLane}. Current experience '${bundle.id}' exposes ${routeCount} routes, ${actorCount} actors, and forms [${formIds}].${suggestion}`;
+  return `Local Kain web runtime received '${prompt}'.${personaNote}${modeNote} Route this request through ${nextLane}. Current experience '${bundle.id}' exposes ${routeCount} routes, ${actorCount} actors, ${agentCount} agents, and forms [${formIds}].${suggestion}`;
 }
 
 function buildApiRoutes(model, siteData) {
@@ -3189,6 +3495,23 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/auth/session", purpose: "returns the current session identity (cookie-backed)", actor: "auth_gateway" },
     { method: "POST", path: "/api/auth/session/login", purpose: "creates a local session identity (dev-only)", actor: "auth_gateway" },
     { method: "POST", path: "/api/auth/session/logout", purpose: "clears the active session identity", actor: "auth_gateway" },
+    { method: "GET", path: "/api/identity", purpose: "returns identity providers, roles, and policy metadata", actor: "auth_gateway" },
+    { method: "GET", path: "/api/billing", purpose: "returns billing plans and invoice metadata", actor: "commerce_orchestrator" },
+    { method: "GET", path: "/api/subscriptions", purpose: "returns subscription tier metadata", actor: "commerce_orchestrator" },
+    { method: "GET", path: "/api/cms", purpose: "returns content type and workflow metadata", actor: "content_keeper" },
+    { method: "GET", path: "/api/media", purpose: "returns media library metadata", actor: "media_keeper" },
+    { method: "GET", path: "/api/automation", purpose: "returns automation flow metadata", actor: "automation_orchestrator" },
+    { method: "GET", path: "/api/webhooks", purpose: "returns webhook event metadata", actor: "signal_broker" },
+    { method: "GET", path: "/api/api-reference", purpose: "returns the API reference registry", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/developer", purpose: "returns developer portal metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/seo", purpose: "returns SEO target metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/agents", purpose: "returns chat agent roster metadata", actor: "chat_seed_router" },
+    { method: "GET", path: "/api/ui-kit", purpose: "returns UI kit components, layouts, and tokens", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/chat/playbooks", purpose: "returns chat playbook metadata", actor: "chat_seed_router" },
+    { method: "GET", path: "/api/chat/tools", purpose: "returns chat tool metadata", actor: "chat_seed_router" },
+    { method: "GET", path: "/api/chat/memory", purpose: "returns chat memory lane metadata", actor: "chat_seed_router" },
+    { method: "GET", path: "/api/actors/policies", purpose: "returns actor policy metadata", actor: "mesh_supervisor" },
+    { method: "GET", path: "/api/actors/metrics", purpose: "returns actor metric metadata", actor: "mesh_supervisor" },
     { method: "GET", path: "/api/commerce", purpose: "returns sellable offers and membership metadata", actor: "commerce_orchestrator" },
     { method: "GET", path: "/api/data", purpose: "returns typed collection and persistence metadata", actor: "data_keeper" },
     { method: "GET", path: "/api/growth", purpose: "returns growth campaign and funnel metadata", actor: "growth_ops" },
@@ -3270,6 +3593,8 @@ export function buildActorServerPlan(appManifestPath, experienceId) {
     actor_playbooks: siteData.actor_playbooks || [],
     actor_tools: siteData.actor_tools || [],
     actor_topology: siteData.actor_topology || null,
+    actor_policies: siteData.actor_policies || [],
+    actor_metrics: siteData.actor_metrics || [],
     chat_personas: siteData.chat_personas || [],
     chat_modes: siteData.chat_modes || [],
     chat_playbooks: siteData.chat_playbooks || [],
@@ -3277,6 +3602,20 @@ export function buildActorServerPlan(appManifestPath, experienceId) {
     chat_memory: siteData.chat_memory || [],
     forms: siteData.forms || [],
     auth: siteData.auth || null,
+    identity: siteData.identity || null,
+    billing: siteData.billing || null,
+    subscriptions: siteData.subscriptions || null,
+    cms: siteData.cms || null,
+    media_library: siteData.media_library || null,
+    automation: siteData.automation || null,
+    webhooks: siteData.webhooks || null,
+    api_reference: siteData.api_reference || null,
+    developer_portal: siteData.developer_portal || null,
+    seo_stack: siteData.seo_stack || null,
+    ai_agents: siteData.ai_agents || null,
+    ui_components: siteData.ui_components || [],
+    ui_layouts: siteData.ui_layouts || [],
+    ui_tokens: siteData.ui_tokens || [],
     commerce: siteData.commerce || null,
     app_modules: siteData.app_modules || [],
     integrations: siteData.integrations || [],
@@ -3706,6 +4045,78 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, bundle.site_data.auth || {});
       return;
     }
+    if (request.method === "GET" && pathname === "/api/identity") {
+      sendJson(response, 200, bundle.site_data.identity || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/billing") {
+      sendJson(response, 200, bundle.site_data.billing || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/subscriptions") {
+      sendJson(response, 200, bundle.site_data.subscriptions || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/cms") {
+      sendJson(response, 200, bundle.site_data.cms || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/media") {
+      sendJson(response, 200, bundle.site_data.media_library || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/automation") {
+      sendJson(response, 200, bundle.site_data.automation || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/webhooks") {
+      sendJson(response, 200, bundle.site_data.webhooks || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/api-reference") {
+      sendJson(response, 200, bundle.site_data.api_reference || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/developer") {
+      sendJson(response, 200, bundle.site_data.developer_portal || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/seo") {
+      sendJson(response, 200, bundle.site_data.seo_stack || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/agents") {
+      sendJson(response, 200, bundle.site_data.ai_agents || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/ui-kit") {
+      sendJson(response, 200, {
+        components: bundle.site_data.ui_components || [],
+        layouts: bundle.site_data.ui_layouts || [],
+        tokens: bundle.site_data.ui_tokens || []
+      });
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/chat/playbooks") {
+      sendJson(response, 200, bundle.site_data.chat_playbooks || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/chat/tools") {
+      sendJson(response, 200, bundle.site_data.chat_tools || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/chat/memory") {
+      sendJson(response, 200, bundle.site_data.chat_memory || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/actors/policies") {
+      sendJson(response, 200, bundle.site_data.actor_policies || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/actors/metrics") {
+      sendJson(response, 200, bundle.site_data.actor_metrics || []);
+      return;
+    }
     if (request.method === "GET" && pathname === "/api/auth/session") {
       sendJson(response, 200, { ok: true, session: getSession(bundle, request) });
       return;
@@ -3849,21 +4260,25 @@ async function serveExperience(appManifestPath, experienceId) {
     }
     if (request.method === "GET" && pathname === "/api/chat") {
       const prompt = requestUrl.searchParams.get("prompt");
+      const persona = requestUrl.searchParams.get("persona");
+      const mode = requestUrl.searchParams.get("mode");
       if (!prompt) {
         sendJson(response, 200, chatSeed);
         return;
       }
-      sendJson(response, 200, { reply: buildChatReply(bundle, plan, prompt) });
+      sendJson(response, 200, { reply: buildChatReply(bundle, plan, prompt, { persona, mode }) });
       return;
     }
     if (request.method === "POST" && pathname === "/api/chat") {
       const payload = await parseRequestBody(request);
       const prompt = payload.prompt || payload.message || payload.text;
+      const persona = payload.persona || null;
+      const mode = payload.mode || null;
       if (!prompt) {
         sendJson(response, 200, { reply: "missing prompt" });
         return;
       }
-      sendJson(response, 200, { reply: buildChatReply(bundle, plan, String(prompt)) });
+      sendJson(response, 200, { reply: buildChatReply(bundle, plan, String(prompt), { persona, mode }) });
       return;
     }
     if (request.method === "GET" && pathname === "/api/chat/stream") {
@@ -3873,8 +4288,10 @@ async function serveExperience(appManifestPath, experienceId) {
         connection: "keep-alive"
       });
       const prompt = (requestUrl.searchParams.get("prompt") || "").trim();
+      const persona = requestUrl.searchParams.get("persona");
+      const mode = requestUrl.searchParams.get("mode");
       response.write(`event: ready\n`);
-      response.write(`data: ${JSON.stringify({ experience: bundle.id, actors: plan.actors.length, routes: plan.routes.length })}\n\n`);
+      response.write(`data: ${JSON.stringify({ experience: bundle.id, actors: plan.actors.length, routes: plan.routes.length, persona, mode })}\n\n`);
       if (!prompt) {
         response.write(`event: seed\n`);
         response.write(`data: ${JSON.stringify(chatSeed)}\n\n`);
@@ -3883,7 +4300,7 @@ async function serveExperience(appManifestPath, experienceId) {
         response.end();
         return;
       }
-      const reply = buildChatReply(bundle, plan, prompt);
+      const reply = buildChatReply(bundle, plan, prompt, { persona, mode });
       const tokens = String(reply).split(/(\s+)/).filter((token) => token.length > 0);
       let index = 0;
       const interval = setInterval(() => {

@@ -8,6 +8,7 @@
   },
   "nav": [
     { "label": "Modules", "href": "#modules" },
+    { "label": "UI Kit", "href": "#ui-kit" },
     { "label": "Auth", "href": "#auth" },
     { "label": "Data", "href": "#data" },
     { "label": "Integrations", "href": "#integrations" },

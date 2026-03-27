@@ -9,6 +9,7 @@ import { ChatLabIsland } from "./islands/ChatLabIsland";
 import { RealtimeChannelsIsland } from "./islands/RealtimeChannelsIsland";
 import { SceneViewportIsland } from "./islands/SceneViewportIsland";
 import { StatusWatchIsland } from "./islands/StatusWatchIsland";
+import { UiKitIsland } from "./islands/UiKitIsland";
 import { UploadsLabIsland } from "./islands/UploadsLabIsland";
 
 type IslandKind =
@@ -19,7 +20,8 @@ type IslandKind =
   | "status"
   | "auth-session"
   | "uploads"
-  | "analytics";
+  | "analytics"
+  | "ui-kit";
 
 type IslandTarget = {
   node: HTMLElement;
@@ -47,6 +49,17 @@ async function mountTarget(target: IslandTarget) {
     render(<AppShellIsland modules={siteData.app_modules || []} />, target.node);
     return;
   }
+  if (target.kind === "ui-kit") {
+    render(
+      <UiKitIsland
+        components={siteData.ui_components || []}
+        layouts={siteData.ui_layouts || []}
+        tokens={siteData.ui_tokens || []}
+      />,
+      target.node
+    );
+    return;
+  }
   if (target.kind === "realtime") {
     render(<RealtimeChannelsIsland channels={siteData.realtime_channels || []} />, target.node);
     return;
@@ -60,7 +73,18 @@ async function mountTarget(target: IslandTarget) {
     return;
   }
   if (target.kind === "chat") {
-    render(<ChatLabIsland seed={siteData.chat_seed || []} />, target.node);
+    render(
+      <ChatLabIsland
+        seed={siteData.chat_seed || []}
+        personas={siteData.chat_personas || []}
+        modes={siteData.chat_modes || []}
+        agents={siteData.ai_agents?.agents || []}
+        playbooks={siteData.chat_playbooks || []}
+        tools={siteData.chat_tools || []}
+        memory={siteData.chat_memory || []}
+      />,
+      target.node
+    );
     return;
   }
   if (target.kind === "auth-session") {

@@ -10,6 +10,22 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-27 - Canvas Forge Added As A Node-First Desktop Art Studio Prototype
+
+The repo now has a dedicated Node-driven app under `apps/kain-canvas-forge` that proves a serious browser-plus-desktop studio shell can live inside the current Kain JavaScript bridge lane.
+
+Update:
+
+- Added `apps/kain-canvas-forge` as a data-driven app scaffold for a Krita-like and Clip Studio Paint-like workstation shape.
+- The app combines manifest-owned workspace/tool/brush/scene registries, a Node helper runtime, a Preact client, a layered 2D paint surface, a live Three.js viewport, and an Electron packaging lane.
+- `src/main.kn` now acts as orchestration proof that Kain can drive the Node helper and emit a build report without the browser client becoming the semantic owner of the app.
+
+What future work should preserve:
+
+- keep studio metadata registry-driven instead of hardcoding more panel/tool/workspace truth into the browser client
+- keep Node as the owner of browser packaging, local serving, and desktop glue for this app lane
+- keep the Three.js viewport positioned as a scene-reference and composition lane until the repo defines a broader first-class web 3D application contract
+
 ## 2026-03-26 - Universal Web Template Growth + Ops Systems Expanded
 
 The universal web template now ships the full growth and operations systems expected of production-grade sites, without requiring Rust tooling.

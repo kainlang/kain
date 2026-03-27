@@ -40,6 +40,12 @@
       }
     ]
   },
+  "actor_roles": [
+    { "name": "content_keeper", "responsibility": "Tracks CMS content types, workflow, and publication states.", "channel": "api.cms" },
+    { "name": "media_keeper", "responsibility": "Owns media library metadata and asset pipeline contracts.", "channel": "api.media" },
+    { "name": "automation_orchestrator", "responsibility": "Publishes automation flow definitions and run states.", "channel": "api.automation" },
+    { "name": "billing_orchestrator", "responsibility": "Publishes billing and subscription metadata for app shells.", "channel": "api.billing" }
+  ],
   "roadmap": [
     {
       "phase": "Now",
@@ -276,6 +282,209 @@
       { "title": "Bundle size", "detail": "Client island payload", "target": "< 260kb" }
     ]
   },
+  "identity": {
+    "kicker": "Identity",
+    "title": "Identity and access control",
+    "body": "Declare identity providers, roles, and access policies without baking them into page code.",
+    "providers": [
+      { "kicker": "SSO", "title": "OIDC + SAML bridge", "body": "Enterprise identity hooks that stay manifest-driven until wiring the real provider." },
+      { "kicker": "Member", "title": "Passwordless email", "body": "Lightweight sign-in for launch or portfolio gated content." },
+      { "kicker": "Operator", "title": "Invite-only access", "body": "Gate operator consoles, actor dashboards, and incident rooms." }
+    ],
+    "roles": [
+      { "kicker": "Role", "title": "Owner", "body": "Full access to runtime configuration and publishing." },
+      { "kicker": "Role", "title": "Editor", "body": "Content and CMS access without infrastructure controls." },
+      { "kicker": "Role", "title": "Operator", "body": "Actor routes, health surfaces, and realtime lanes." }
+    ],
+    "policies": [
+      { "kicker": "Policy", "title": "MFA required", "body": "Require multi-factor for operator and billing surfaces." },
+      { "kicker": "Policy", "title": "Session timeouts", "body": "Short-lived sessions for control-plane access." }
+    ]
+  },
+  "billing": {
+    "kicker": "Billing",
+    "title": "Billing and finance",
+    "body": "Plan, invoice, and tax metadata stay consistent across commerce and app surfaces.",
+    "plans": [
+      { "kicker": "Plan", "title": "Usage tiers", "body": "Starter, growth, and enterprise usage bands." },
+      { "kicker": "Plan", "title": "Seat-based access", "body": "Workspace and operator seat pricing." },
+      { "kicker": "Plan", "title": "One-time launch", "body": "Project-based pricing for premium site builds." }
+    ],
+    "invoices": [
+      { "kicker": "Invoice", "title": "Invoice scheduling", "body": "Monthly and annual invoice cadence metadata." },
+      { "kicker": "Invoice", "title": "PO support", "body": "Enterprise purchase order and approval workflow." }
+    ],
+    "taxes": [
+      { "kicker": "Tax", "title": "VAT / Sales tax", "body": "Tax collection strategy captured in policy data." }
+    ]
+  },
+  "subscriptions": {
+    "kicker": "Subscriptions",
+    "title": "Subscription and entitlement lanes",
+    "body": "Model entitlements, tiers, and renewal policies in one shared registry.",
+    "tiers": [
+      { "kicker": "Tier", "title": "Core", "body": "Launch + docs + forms with basic analytics." },
+      { "kicker": "Tier", "title": "Pro", "body": "Chat, operator lanes, and realtime channels." },
+      { "kicker": "Tier", "title": "Enterprise", "body": "SSO, audit trails, and dedicated actor meshes." }
+    ]
+  },
+  "cms": {
+    "kicker": "CMS",
+    "title": "Content pipeline and governance",
+    "body": "Define content types, workflow steps, and review cadence without reauthoring templates.",
+    "content_types": [
+      { "kicker": "Type", "title": "Case study", "body": "Portfolio-driven longform content." },
+      { "kicker": "Type", "title": "Release note", "body": "Launch updates and product changelogs." },
+      { "kicker": "Type", "title": "Operator runbook", "body": "Procedural playbooks for actor-driven systems." }
+    ],
+    "workflow": [
+      { "kicker": "Workflow", "title": "Draft → Review → Publish", "body": "Editorial chain for docs and public updates." },
+      { "kicker": "Workflow", "title": "Ops approval", "body": "Operator surfaces require a second reviewer." }
+    ]
+  },
+  "media_library": {
+    "kicker": "Media",
+    "title": "Media library and asset pipeline",
+    "body": "Capture media, brand, and 3D assets with consistent metadata.",
+    "libraries": [
+      { "kicker": "Library", "title": "Brand kit", "body": "Logos, colors, and typography references." },
+      { "kicker": "Library", "title": "Scene assets", "body": "3D scene payloads, textures, and preview renders." },
+      { "kicker": "Library", "title": "Product visuals", "body": "Screenshots, UI clips, and launch imagery." }
+    ],
+    "pipelines": [
+      { "kicker": "Pipeline", "title": "Transform presets", "body": "Responsive variants and social crops." },
+      { "kicker": "Pipeline", "title": "CDN metadata", "body": "Capture caching and delivery policies." }
+    ]
+  },
+  "automation": {
+    "kicker": "Automation",
+    "title": "Workflow automation",
+    "body": "Declarative automation for launch, content, and operator surfaces.",
+    "flows": [
+      { "kicker": "Flow", "title": "Launch intake routing", "body": "Promote form submissions into the right workspace." },
+      { "kicker": "Flow", "title": "Chat escalation", "body": "Route high-signal prompts into operator review queues." },
+      { "kicker": "Flow", "title": "Status updates", "body": "Broadcast incident changes to realtime channels." }
+    ]
+  },
+  "webhooks": {
+    "kicker": "Webhooks",
+    "title": "Event and webhook registry",
+    "body": "Track outbound and inbound webhook payloads as a runtime contract.",
+    "events": [
+      { "kicker": "Event", "title": "form.submitted", "body": "Fires when intake or newsletter forms are captured." },
+      { "kicker": "Event", "title": "chat.escalated", "body": "Triggered when a chat session becomes an operator ticket." },
+      { "kicker": "Event", "title": "incident.updated", "body": "Broadcasts status updates to external tools." }
+    ]
+  },
+  "api_reference": {
+    "kicker": "API",
+    "title": "Runtime API reference",
+    "body": "Document the runtime APIs as a first-class contract.",
+    "endpoints": [
+      { "method": "GET", "path": "/api/api-reference", "purpose": "returns the API reference registry" },
+      { "method": "GET", "path": "/api/identity", "purpose": "returns identity providers, roles, and access policy metadata" },
+      { "method": "GET", "path": "/api/billing", "purpose": "returns billing plans and invoice metadata" },
+      { "method": "GET", "path": "/api/subscriptions", "purpose": "returns subscription tier and entitlement data" },
+      { "method": "GET", "path": "/api/cms", "purpose": "returns content types and workflow metadata" },
+      { "method": "GET", "path": "/api/media", "purpose": "returns media library and pipeline metadata" },
+      { "method": "GET", "path": "/api/automation", "purpose": "returns automation flow metadata" },
+      { "method": "GET", "path": "/api/webhooks", "purpose": "returns webhook event metadata" },
+      { "method": "GET", "path": "/api/developer", "purpose": "returns developer portal metadata" },
+      { "method": "GET", "path": "/api/seo", "purpose": "returns SEO target metadata" },
+      { "method": "GET", "path": "/api/ui-kit", "purpose": "returns UI kit components, layouts, and tokens" },
+      { "method": "GET", "path": "/api/chat/playbooks", "purpose": "returns chat playbook metadata" },
+      { "method": "GET", "path": "/api/chat/tools", "purpose": "returns chat tool metadata" },
+      { "method": "GET", "path": "/api/chat/memory", "purpose": "returns chat memory lane metadata" },
+      { "method": "GET", "path": "/api/actors/policies", "purpose": "returns actor policy metadata" },
+      { "method": "GET", "path": "/api/actors/metrics", "purpose": "returns actor metric metadata" },
+      { "method": "GET", "path": "/api/agents", "purpose": "returns chat + agent roster metadata" }
+    ]
+  },
+  "developer_portal": {
+    "kicker": "Developers",
+    "title": "Developer portal",
+    "body": "SDKs, sandboxes, and integration docs are first-class systems.",
+    "tools": [
+      { "kicker": "SDK", "title": "REST + WebSocket SDK", "body": "Typed client for runtime routes and realtime channels." },
+      { "kicker": "Sandbox", "title": "Actor sandbox", "body": "Local simulation of actor routes and tools." },
+      { "kicker": "Docs", "title": "API playbooks", "body": "Operator and developer quickstart guides." }
+    ]
+  },
+  "seo_stack": {
+    "kicker": "SEO",
+    "title": "Search and social metadata",
+    "body": "SEO, social preview, and keyword strategy are part of the contract.",
+    "targets": [
+      { "kicker": "SEO", "title": "Primary keywords", "body": "Launch, 3D, chat, and operator systems." },
+      { "kicker": "SEO", "title": "Open Graph", "body": "Social previews and share assets." },
+      { "kicker": "SEO", "title": "Structured data", "body": "Schema.org data for products and events." }
+    ]
+  },
+  "ai_agents": {
+    "kicker": "Agents",
+    "title": "Chat and agent roster",
+    "body": "Define agent roles, workflows, and tool routing in manifest data.",
+    "agents": [
+      { "kicker": "Agent", "title": "Launch Conductor", "body": "Routes business and portfolio requests into launch plans." },
+      { "kicker": "Agent", "title": "Scene Director", "body": "Specializes in 3D staging and immersive story rails." },
+      { "kicker": "Agent", "title": "Operator Steward", "body": "Handles actor routes, incidents, and realtime orchestration." }
+    ],
+    "tools": [
+      { "kicker": "Tool", "title": "Prompt router", "body": "Maps prompt intent to the right archetype and workflow." },
+      { "kicker": "Tool", "title": "Knowledge retriever", "body": "Pulls docs and system notes into chat replies." },
+      { "kicker": "Tool", "title": "Action handoff", "body": "Turns chat into structured intake or operator tasks." }
+    ],
+    "workflows": [
+      { "title": "Brief → Plan → Execute", "body": "Standard flow for complex site builds." },
+      { "title": "Prompt → Escalate", "body": "Escalate high-signal prompts into operator queues." }
+    ]
+  },
+  "ui_components": [
+    { "kicker": "Component", "title": "Hero stack", "body": "Primary headline + CTA framing with metric cards and proof rails." },
+    { "kicker": "Component", "title": "Feature grid", "body": "Card grid for system features, tools, or services." },
+    { "kicker": "Component", "title": "Prompt deck", "body": "Prompt buttons wired into chat and form routing." },
+    { "kicker": "Component", "title": "Route catalog", "body": "Route cards with method, path, and purpose metadata." },
+    { "kicker": "Component", "title": "Scene spotlight", "body": "3D scene staging with WebGL island support." },
+    { "kicker": "Component", "title": "Form intake", "body": "Reusable form panel wired to local JSONL capture." }
+  ],
+  "ui_layouts": [
+    { "kicker": "Layout", "title": "Launch stack", "body": "Hero → proof → pricing → FAQ → intake." },
+    { "kicker": "Layout", "title": "Chat-first", "body": "Prompt deck → personas → chat lab → escalation forms." },
+    { "kicker": "Layout", "title": "Operator hub", "body": "Routes → actor mesh → command lines → status board." },
+    { "kicker": "Layout", "title": "App shell", "body": "Workspace modules → auth → integrations → data collections." }
+  ],
+  "ui_tokens": [
+    { "kicker": "Token", "title": "Surface elevation", "body": "Define base, raised, and overlay surfaces per theme." },
+    { "kicker": "Token", "title": "Type scale", "body": "Hero, title, body, and caption tiers." },
+    { "kicker": "Token", "title": "Motion cadence", "body": "Micro + macro motion timing for island transitions." },
+    { "kicker": "Token", "title": "Accent lanes", "body": "Primary, soft, and highlight accent colors." }
+  ],
+  "chat_playbooks": [
+    { "title": "Prompt intake", "body": "Collect intent, lane mix, and timing in one flow." },
+    { "title": "Persona routing", "body": "Route prompts to the right persona or actor tool." },
+    { "title": "Escalation handoff", "body": "Convert high-signal chat into structured intake forms." }
+  ],
+  "chat_tools": [
+    { "kicker": "Tool", "title": "Prompt router", "body": "Map intent to archetype and output slug." },
+    { "kicker": "Tool", "title": "Context assembler", "body": "Pull docs + system notes into chat responses." },
+    { "kicker": "Tool", "title": "Escalation trigger", "body": "Push critical prompts into operator queues." }
+  ],
+  "chat_memory": [
+    { "kicker": "Memory", "title": "Session buffer", "body": "Ephemeral per-session context window." },
+    { "kicker": "Memory", "title": "Brief archive", "body": "Structured intent snapshots for later follow-up." },
+    { "kicker": "Memory", "title": "Route history", "body": "Last-known archetype + route context." }
+  ],
+  "actor_policies": [
+    { "kicker": "Policy", "title": "Rate limits", "body": "Declare per-route rate limits before wiring enforcement." },
+    { "kicker": "Policy", "title": "Escalation rules", "body": "Define when actors must hand off to operators." },
+    { "kicker": "Policy", "title": "Audit coverage", "body": "Track which actor routes emit audit trails." }
+  ],
+  "actor_metrics": [
+    { "value": "18", "label": "routes tracked" },
+    { "value": "6", "label": "actors online" },
+    { "value": "95%", "label": "route coverage" },
+    { "value": "1.2s", "label": "median response" }
+  ],
   "growth": {
     "kicker": "Growth",
     "title": "Growth campaigns and funnels",

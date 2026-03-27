@@ -10,6 +10,11 @@ export type KainCardEntry = {
   summary?: string | null;
 };
 
+export type KainMetric = {
+  value?: string | null;
+  label?: string | null;
+};
+
 export type KainProcessStep = {
   title?: string | null;
   body?: string | null;
@@ -45,6 +50,97 @@ export type KainAuthDescriptor = {
   session_title?: string | null;
   session_body?: string | null;
   methods?: KainAuthMethod[] | null;
+};
+
+export type KainIdentityDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  providers?: KainCardEntry[] | null;
+  roles?: KainCardEntry[] | null;
+  policies?: KainCardEntry[] | null;
+};
+
+export type KainBillingDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  plans?: KainCardEntry[] | null;
+  invoices?: KainCardEntry[] | null;
+  taxes?: KainCardEntry[] | null;
+};
+
+export type KainSubscriptionDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  tiers?: KainCardEntry[] | null;
+};
+
+export type KainCmsDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  content_types?: KainCardEntry[] | null;
+  workflow?: KainCardEntry[] | null;
+};
+
+export type KainMediaLibraryDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  libraries?: KainCardEntry[] | null;
+  pipelines?: KainCardEntry[] | null;
+};
+
+export type KainAutomationDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  flows?: KainCardEntry[] | null;
+};
+
+export type KainWebhookDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  events?: KainCardEntry[] | null;
+};
+
+export type KainApiEndpoint = {
+  method?: string | null;
+  path?: string | null;
+  purpose?: string | null;
+};
+
+export type KainApiReferenceDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  endpoints?: KainApiEndpoint[] | null;
+};
+
+export type KainDeveloperPortalDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  tools?: KainCardEntry[] | null;
+};
+
+export type KainSeoDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  targets?: KainCardEntry[] | null;
+};
+
+export type KainAgentDescriptor = {
+  kicker?: string | null;
+  title?: string | null;
+  body?: string | null;
+  agents?: KainCardEntry[] | null;
+  tools?: KainCardEntry[] | null;
+  workflows?: KainProcessStep[] | null;
 };
 
 export type KainCommerceOffer = {
@@ -446,8 +542,24 @@ export type KainSiteData = {
   actor_playbooks?: KainProcessStep[];
   actor_tools?: KainCardEntry[];
   actor_topology?: KainActorTopology | null;
+  actor_policies?: KainCardEntry[];
+  actor_metrics?: KainMetric[];
   scene?: KainSceneDescriptor;
   auth?: KainAuthDescriptor | null;
+  identity?: KainIdentityDescriptor | null;
+  billing?: KainBillingDescriptor | null;
+  subscriptions?: KainSubscriptionDescriptor | null;
+  cms?: KainCmsDescriptor | null;
+  media_library?: KainMediaLibraryDescriptor | null;
+  automation?: KainAutomationDescriptor | null;
+  webhooks?: KainWebhookDescriptor | null;
+  api_reference?: KainApiReferenceDescriptor | null;
+  developer_portal?: KainDeveloperPortalDescriptor | null;
+  seo_stack?: KainSeoDescriptor | null;
+  ai_agents?: KainAgentDescriptor | null;
+  ui_components?: KainCardEntry[];
+  ui_layouts?: KainCardEntry[];
+  ui_tokens?: KainCardEntry[];
   commerce?: KainCommerceDescriptor | null;
   uploads?: KainUploadsDescriptor | null;
   analytics?: KainAnalyticsDescriptor | null;

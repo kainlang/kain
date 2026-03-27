@@ -44,6 +44,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [docs](/M:/Code/Kain/docs): doctrine, plans, pipeline notes, validation notes, and research
 - [apps](/M:/Code/Kain/apps): first-class applications and prototypes
 - [apps/kain-fabric-modeler](/M:/Code/Kain/apps/kain-fabric-modeler): Fabric-first native 3D modeling app scaffold that converges Python, Kain, C ABI, Rust crate, GPU compute, Node, and native-ui packaging
+- [apps/kain-canvas-forge](/M:/Code/Kain/apps/kain-canvas-forge): Node-first desktop-ready painting and Three.js composition studio prototype that proves a browser and `.exe` app lane can live under `apps/`
 - [stdlib](/M:/Code/Kain/stdlib): runtime support and standard library data
 - [testing](/M:/Code/Kain/testing): test infrastructure and fixtures
 

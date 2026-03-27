@@ -1,6 +1,11 @@
 # Kain Fabric Modeler Pipeline
-
 This app treats Fabric as the authoring and orchestration spine behind the modeler.
+
+The pipeline is now split into two layers:
+
+    - `KAIN.fabric.toml` remains the full bootstrap pipeline.
+    - `config/fabric_intents.json` plus `fabric/intents/*.fabric.toml` define reusable intent graphs for interactive session work like preview rebakes, topology refreshes, publish summary refreshes, and future mesh-edit commands.
+
 
 ## Step Flow
 
@@ -21,8 +26,17 @@ The GPU compute step copies the preview stream through the Fabric GPU runtime to
 
 6. `node_publisher`
 Kain calls the Node helper through the JavaScript bridge to render a publish/export-style summary from the upstream Fabric results.
+## Session Core
 
-## Quickstart
+The modeler now has an explicit app-state middle layer:
+
+    - `session/session_schema.kn` defines the canonical live session document.
+    - `config/command_registry.json` defines the legal command surface.
+    - `session/reducers.kn` performs immediate semantic state updates.
+    - `session/intent_planner.kn` maps commands and dirty resources to Fabric intents.
+
+    ## Quickstart
+
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File apps/kain-fabric-modeler/scripts/build-native-library.ps1
