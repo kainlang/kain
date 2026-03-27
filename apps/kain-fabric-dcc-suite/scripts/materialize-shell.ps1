@@ -363,9 +363,8 @@ function Render-MenuCard {
     )
 
     $lines = New-Object System.Collections.Generic.List[string]
-    Add-Line $lines "$Indent<panel title=`"$($MenuItem.label)`" scope=`"$Scope`" variant=`"workspace_chip`" layout=`"column`" gap={3} min_width={132}>"
+    Add-Line $lines "$Indent<panel title=`"$($MenuItem.label)`" scope=`"$Scope`" variant=`"workspace_chip`" layout=`"column`" gap={2} min_width={92}>"
     Add-Line $lines (Render-TextNode -Role "title" -Value $MenuItem.label -Indent "$Indent    ")
-    Add-Line $lines (Render-TextNode -Role "caption" -Value $MenuItem.summary -Indent "$Indent    ")
     Add-Line $lines "$Indent</panel>"
     return $lines
 }
@@ -423,27 +422,31 @@ function Render-ShellTopBar {
     $statusColumns = [Math]::Max(1, $statusItems.Count)
 
     $lines = New-Object System.Collections.Generic.List[string]
-    Add-Line $lines "$Indent<panel title=`"Global Top Bar`" scope=`"$Scope`" variant=`"topbar`" layout=`"row`" gap={12}>"
+    Add-Line $lines "$Indent<panel title=`"Global Top Bar`" scope=`"$Scope`" variant=`"topbar`" layout=`"grid`" columns={3} gap={10}>"
 
-    Add-Line $lines "$Indent    <panel title=`"Brand`" scope=`"$Scope`" variant=`"topbar_brand`" layout=`"column`" gap={4} min_width={360}>"
+    Add-Line $lines "$Indent    <panel title=`"Brand`" scope=`"$Scope`" variant=`"topbar_brand`" layout=`"column`" gap={4}>"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $ShellChrome.brand.eyebrow -Indent "$Indent        ")
     Add-Line $lines (Render-TextNode -Role "title" -Value $ShellChrome.brand.title -Indent "$Indent        ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value $ShellChrome.brand.summary -Indent "$Indent        ")
     Add-Line $lines "$Indent    </panel>"
 
-    Add-Line $lines "$Indent    <panel title=`"Menus`" scope=`"$Scope`" variant=`"topbar_menu`" layout=`"column`" gap={8} min_width={360}>"
-    Add-Line $lines (Render-TextNode -Role "eyebrow" -Value "GLOBAL MENUS" -Indent "$Indent        ")
-    Add-Line $lines "$Indent        <slot layout=`"row`" gap={8} overflow_x=`"scroll`">"
+    Add-Line $lines "$Indent    <panel title=`"Menus`" scope=`"$Scope`" variant=`"topbar_menu`" layout=`"column`" gap={6}>"
+    Add-Line $lines (Render-TextNode -Role "eyebrow" -Value "SHELL MENUS" -Indent "$Indent        ")
+    Add-Line $lines (Render-TextNode -Role "caption" -Value "Global editor menus stay visible above every lane." -Indent "$Indent        ")
+    Add-Line $lines "$Indent        <slot layout=`"row`" gap={6} overflow_x=`"scroll`">"
     foreach ($menuItem in $menuItems) {
         Add-Lines $lines (Render-MenuCard -MenuItem $menuItem -Scope $Scope -Indent "$Indent            ")
     }
     Add-Line $lines "$Indent        </slot>"
     Add-Line $lines "$Indent    </panel>"
 
-    Add-Line $lines "$Indent    <panel title=`"Status`" scope=`"$Scope`" variant=`"topbar_status_strip`" layout=`"grid`" columns={$statusColumns} gap={8}>"
+    Add-Line $lines "$Indent    <panel title=`"Status`" scope=`"$Scope`" variant=`"topbar_status_strip`" layout=`"column`" gap={6}>"
+    Add-Line $lines (Render-TextNode -Role "eyebrow" -Value "RUNTIME STATUS" -Indent "$Indent        ")
+    Add-Line $lines "$Indent        <panel title=`"Status Metrics`" scope=`"$Scope`" variant=`"topbar_status_strip`" layout=`"grid`" columns={$statusColumns} gap={8}>"
     foreach ($statusItem in $statusItems) {
-        Add-Lines $lines (Render-ChromeMetricCard -StatusItem $statusItem -ShellMetrics $ShellMetrics -Scope $Scope -Indent "$Indent        ")
+        Add-Lines $lines (Render-ChromeMetricCard -StatusItem $statusItem -ShellMetrics $ShellMetrics -Scope $Scope -Indent "$Indent            ")
     }
+    Add-Line $lines "$Indent        </panel>"
     Add-Line $lines "$Indent    </panel>"
 
     Add-Line $lines "$Indent</panel>"

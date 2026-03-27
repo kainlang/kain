@@ -5,7 +5,7 @@
     "brand": {
       "eyebrow": "KAIN FABRIC SUITE",
       "title": "Fabric-owned global studio shell",
-      "summary": "A shell-level UI system inspired by the newer K_OS app shell: global chrome, workspace navigation, command spotlight, and runtime status live above the authored pages instead of being buried inside them."
+      "summary": "Global chrome, workspace navigation, command spotlight, and runtime status stay above the authored workbench pages."
     },
     "menu_items": [
       {
