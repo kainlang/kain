@@ -482,7 +482,7 @@
                                 "provider_id":  "native_runtime",
                                 "status":  "failed",
                                 "workspace_root":  "M:\\Code\\Kain",
-                                "updated_at":  "2026-03-27T22:16:10Z",
+                                "updated_at":  "2026-03-27T22:19:43Z",
                                 "message_count":  1,
                                 "last_message_role":  "system",
                                 "last_message_preview":  "DCC suite bridge ready | fabric=failed | mode=Scene Assembly"
@@ -521,7 +521,7 @@
                                                             "schema_version":  1
                                                         },
                                             "workspace":  {
-                                                              "active_mode":  "scene_assembly",
+                                                              "active_mode":  "material_lookdev",
                                                               "layout_id":  "kain_fabric_dcc_suite_shell",
                                                               "available_modes":  [
                                                                                       "scene_assembly",
@@ -567,14 +567,14 @@
                                             "materials":  {
                                                               "active_material_id":  "material/hero_surface",
                                                               "active_graph_id":  "graph/lookdev_primary",
-                                                              "active_texture_set_id":  "textureset/hero_body_udim1001",
+                                                              "active_texture_set_id":  "textureset/hero_body_udim1002",
                                                               "active_layer_stack_id":  "layerstack/hero_surface_primary",
                                                               "active_svg_document_id":  "svg/masks/hero_surface_primary",
                                                               "active_bake_preset_id":  "bake/high_precision_curvature",
                                                               "active_export_preset_id":  "export/metalrough_orm_painter",
                                                               "preview_profile":  "material_preview_balanced",
                                                               "channel_profile":  "basecolor_normal_roughness_metallic_ao_height_emissive",
-                                                              "paint_resolution":  4096
+                                                              "paint_resolution":  2048
                                                           },
                                             "rig":  {
                                                         "active_rig_id":  "rig/hero_body",
@@ -619,21 +619,22 @@
                                                           "asset_dirty":  false,
                                                           "sculpt_dirty":  false,
                                                           "topology_dirty":  false,
-                                                          "material_dirty":  false,
+                                                          "material_dirty":  true,
                                                           "rig_dirty":  false,
                                                           "animation_dirty":  false,
                                                           "simulation_dirty":  false,
                                                           "render_dirty":  true,
-                                                          "compositor_dirty":  false,
+                                                          "compositor_dirty":  true,
                                                           "publish_dirty":  false,
                                                           "tensor_dirty":  false,
-                                                          "session_needs_save":  false
+                                                          "session_needs_save":  true
                                                       },
                                             "jobs":  {
                                                          "latest_fabric_session_id":  "session-1774649768801-15784",
-                                                         "latest_fabric_status":  "failed",
+                                                         "latest_fabric_status":  "queued",
                                                          "active_intents":  [
-
+                                                                                "material.bake_preview",
+                                                                                "render.preview"
                                                                             ],
                                                          "active_jobs":  [
 
@@ -641,12 +642,12 @@
                                                      }
                                         },
                             "derived":  {
-                                            "active_mode_label":  "Scene Assembly",
-                                            "active_tool_label":  "Select",
+                                            "active_mode_label":  "material_lookdev",
+                                            "active_tool_label":  "select",
                                             "selection_summary":  "1 entity selected",
                                             "gizmo_summary":  "translate | world | snap off",
-                                            "queued_intent_count":  0,
-                                            "latest_fabric_status":  "failed"
+                                            "queued_intent_count":  2,
+                                            "latest_fabric_status":  "queued"
                                         },
                             "command_registry":  [
                                                      {
@@ -1552,9 +1553,33 @@
                                                     }
                                                 ],
                             "intent_queue":  [
-
+                                                 {
+                                                     "source_command_id":  "bdb59fab-341f-48b4-b906-679f56bfd6dd",
+                                                     "priority":  70,
+                                                     "reason":  "texture set changed",
+                                                     "status":  "queued",
+                                                     "debounce_ms":  16,
+                                                     "id":  "material.bake_preview"
+                                                 },
+                                                 {
+                                                     "source_command_id":  "bdb59fab-341f-48b4-b906-679f56bfd6dd",
+                                                     "priority":  60,
+                                                     "reason":  "lookdev preview needs refresh",
+                                                     "status":  "queued",
+                                                     "debounce_ms":  16,
+                                                     "id":  "render.preview"
+                                                 }
                                              ],
-                            "latest_command":  null,
+                            "latest_command":  {
+                                                   "id":  "76d55c40-63fe-4828-8c50-1a751dc1bafb",
+                                                   "kind":  "material.author_texture_set",
+                                                   "issued_at":  "2026-03-27T22:19:44Z",
+                                                   "payload":  {
+                                                                   "texture_set_id":  "textureset/hero_body_udim1002",
+                                                                   "resolution":  2048,
+                                                                   "udim_root":  "1002"
+                                                               }
+                                               },
                             "latest_fabric_run":  {
                                                       "session_id":  "session-1774649768801-15784",
                                                       "status":  "failed",
@@ -1638,7 +1663,9 @@
                                            "status":  "ready",
                                            "command_queue_path":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\state\\command_queue.jsonl",
                                            "session_document_path":  "M:\\Code\\Kain\\apps\\kain-fabric-dcc-suite\\state\\session_document.json",
-                                           "processed_command_count":  0
+                                           "processed_command_count":  2,
+                                           "last_processed_at":  "2026-03-27T22:19:45Z",
+                                           "last_processed_batch_count":  2
                                        },
                             "extension_seams":  [
                                                     "material lane still projects authoring receipts rather than a true native painter runtime",
@@ -1647,5 +1674,5 @@
                                                     "compositor lane still materializes rebuild plans rather than a first-class compositor graph runtime"
                                                 ]
                         },
-    "updated_at":  "2026-03-27T22:16:10Z"
+    "updated_at":  "2026-03-27T22:19:43Z"
 }

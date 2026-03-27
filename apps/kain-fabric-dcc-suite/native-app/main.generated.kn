@@ -1,5 +1,5 @@
 component App():
-    render <slot>
+    render <slot layout="column" gap={10} padding={10} overflow_y="scroll">
         <theme name="kain_fabric_universal_studio">
             <scope name="dcc_shell" selector="kain-fabric-dcc-suite" />
             <token name="theme.chrome.topbar.visible" category="state" value={false} />
@@ -29,16 +29,61 @@ component App():
             <variant scope="dcc_shell" name="shell_root">
                 <token name="title.visible" category="state" value={false} />
                 <token name="surface.mode" category="surface" value="ghost" />
-                <token name="surface.padding" category="space" value={8} />
+                <token name="surface.padding" category="space" value={6} />
             </variant>
-            <variant scope="dcc_shell" name="masthead">
+            <variant scope="dcc_shell" name="topbar">
                 <token name="surface.mode" category="surface" value="glass" />
-                <token name="surface.padding" category="space" value={16} />
+                <token name="surface.padding" category="space" value={12} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="topbar_brand">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.padding" category="space" value={14} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="topbar_menu">
+                <token name="surface.mode" category="surface" value="ghost" />
+                <token name="surface.padding" category="space" value={8} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="topbar_status_strip">
+                <token name="surface.mode" category="surface" value="ghost" />
+                <token name="surface.padding" category="space" value={6} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="context_strip">
+                <token name="surface.mode" category="surface" value="ghost" />
+                <token name="surface.padding" category="space" value={4} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="context_block">
+                <token name="surface.mode" category="surface" value="layered" />
+                <token name="surface.padding" category="space" value={12} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="command_spotlight">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.padding" category="space" value={12} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="workspace_chip">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.padding" category="space" value={10} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="workspace_chip_active">
+                <token name="surface.mode" category="surface" value="accent" />
+                <token name="surface.padding" category="space" value={10} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="spotlight_card">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.padding" category="space" value={10} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
             <variant scope="dcc_shell" name="page">
                 <token name="surface.mode" category="surface" value="ghost" />
-                <token name="surface.padding" category="space" value={8} />
+                <token name="surface.padding" category="space" value={6} />
                 <token name="title.visible" category="state" value={false} />
             </variant>
             <variant scope="dcc_shell" name="hero_card">
@@ -61,8 +106,26 @@ component App():
                 <token name="surface.padding" category="space" value={12} />
             </variant>
             <textvariant scope="dcc_shell" name="hero">
-                <token name="body.size" category="type" value={32} />
+                <token name="body.size" category="type" value={30} />
             </textvariant>
+            <widget kind="panel" scope="dcc_shell" variant="topbar_menu">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="panel" scope="dcc_shell" variant="topbar_status_strip">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="panel" scope="dcc_shell" variant="context_block">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="panel" scope="dcc_shell" variant="workspace_chip">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="panel" scope="dcc_shell" variant="workspace_chip_active">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="panel" scope="dcc_shell" variant="spotlight_card">
+                <token name="density" category="layout" value="compact" />
+            </widget>
             <widget kind="panel" scope="dcc_shell" variant="page">
                 <token name="density" category="layout" value="compact" />
             </widget>
@@ -70,27 +133,149 @@ component App():
                 <token name="density" category="layout" value="compact" />
             </widget>
         </theme>
-        <panel title="Kain Fabric DCC Suite" scope="dcc_shell" variant="shell_root" layout="column" gap={12} padding={12}>
-            <panel title="Operator Masthead" scope="dcc_shell" variant="masthead" layout="row" gap={12}>
-                <panel title="Identity" scope="dcc_shell" variant="hero_card" layout="column" gap={4}>
-                    <text role="eyebrow">{"UNIVERSAL STUDIO UI"}</text>
-                    <text role="hero">{"Workspace-aware Kain shell with page-level docks, stage decks, and authored operator rails."}</text>
-                    <text role="body">{"This shell is generated from manifest-owned UI descriptors so the suite can evolve like a real editor framework instead of a static demo layout."}</text>
+        <panel title="Kain Fabric DCC Suite" scope="dcc_shell" variant="shell_root" layout="column" gap={10}>
+            <panel title="Global Top Bar" scope="dcc_shell" variant="topbar" layout="row" gap={12}>
+                <panel title="Brand" scope="dcc_shell" variant="topbar_brand" layout="column" gap={4} min_width={360}>
+                    <text role="eyebrow">{"KAIN FABRIC SUITE"}</text>
+                    <text role="title">{"Fabric-owned global studio shell"}</text>
+                    <text role="caption">{"A shell-level UI system inspired by the newer K_OS app shell: global chrome, workspace navigation, command spotlight, and runtime status live above the authored pages instead of being buried inside them."}</text>
                 </panel>
-                <panel title="Runtime" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
-                    <text role="metric">{"SUCCEEDED"}</text>
-                    <text role="caption">{"pipeline steps 11"}</text>
+                <panel title="Menus" scope="dcc_shell" variant="topbar_menu" layout="column" gap={8} min_width={360}>
+                    <text role="eyebrow">{"GLOBAL MENUS"}</text>
+                    <slot layout="row" gap={8} overflow_x="scroll">
+                        <panel title="File" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={132}>
+                            <text role="title">{"File"}</text>
+                            <text role="caption">{"Bootstrap, ingest, and publish the active suite state."}</text>
+                        </panel>
+                        <panel title="Edit" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={132}>
+                            <text role="title">{"Edit"}</text>
+                            <text role="caption">{"Selection, tool routing, and gizmo ownership."}</text>
+                        </panel>
+                        <panel title="View" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={132}>
+                            <text role="title">{"View"}</text>
+                            <text role="caption">{"Workspace lanes, dock layout, and inspector emphasis."}</text>
+                        </panel>
+                        <panel title="Jobs" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={132}>
+                            <text role="title">{"Jobs"}</text>
+                            <text role="caption">{"Fabric sessions, automation jobs, and runtime packs."}</text>
+                        </panel>
+                        <panel title="Help" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={132}>
+                            <text role="title">{"Help"}</text>
+                            <text role="caption">{"Reports, extension seams, and operator guidance."}</text>
+                        </panel>
+                    </slot>
                 </panel>
-                <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
-                    <text role="metric">{"15"}</text>
-                    <text role="caption">{"runtime packs"}</text>
-                </panel>
-                <panel title="Registry" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
-                    <text role="metric">{"18"}</text>
-                    <text role="caption">{"surface contracts"}</text>
+                <panel title="Status" scope="dcc_shell" variant="topbar_status_strip" layout="grid" columns={4} gap={8}>
+                    <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2} min_width={120}>
+                        <text role="metric">{"FAILED"}</text>
+                        <text role="caption">{"latest pipeline session"}</text>
+                    </panel>
+                    <panel title="Workspaces" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
+                        <text role="metric">{"7"}</text>
+                        <text role="caption">{"authored page lanes"}</text>
+                    </panel>
+                    <panel title="Surfaces" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
+                        <text role="metric">{"18"}</text>
+                        <text role="caption">{"registered shell surfaces"}</text>
+                    </panel>
+                    <panel title="Packs" scope="dcc_shell" variant="quiet_card" layout="column" gap={2} min_width={120}>
+                        <text role="metric">{"15"}</text>
+                        <text role="caption">{"runtime packs projected"}</text>
+                    </panel>
                 </panel>
             </panel>
-            <panel title="Workspace Atlas" scope="dcc_shell" variant="page" layout="column" gap={12}>
+            <panel title="Shell Context Strip" scope="dcc_shell" variant="context_strip" layout="column" gap={10}>
+                <panel title="Global lane navigation" scope="dcc_shell" variant="context_block" layout="column" gap={8}>
+                    <text role="eyebrow">{"Workspace Switcher"}</text>
+                    <text role="title">{"Global lane navigation"}</text>
+                    <text role="caption">{"Each chip mirrors an authored workbench page. The host can style this later as real tab chrome without inventing a second workspace schema."}</text>
+                    <slot layout="row" gap={8} overflow_x="scroll">
+                        <panel title="Scene Assembly" scope="dcc_shell" variant="workspace_chip_active" layout="column" gap={3} min_width={170}>
+                            <text role="eyebrow">{"SCENE"}</text>
+                            <text role="title">{"Scene Assembly"}</text>
+                            <text role="caption">{"Scene graph authoring, set dressing, layout, and asset placement."}</text>
+                        </panel>
+                        <panel title="Sculpt And Model" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={170}>
+                            <text role="eyebrow">{"MODEL"}</text>
+                            <text role="title">{"Sculpt And Model"}</text>
+                            <text role="caption">{"Poly modeling, sculpt strokes, remesh, and topology shaping."}</text>
+                        </panel>
+                        <panel title="Material And Lookdev" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={170}>
+                            <text role="eyebrow">{"LOOKDEV"}</text>
+                            <text role="title">{"Material And Lookdev"}</text>
+                            <text role="caption">{"PBR texture sets, paint layers, SVG masks, smart materials, and export presets."}</text>
+                        </panel>
+                        <panel title="Rig And Animation" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={170}>
+                            <text role="eyebrow">{"RIG"}</text>
+                            <text role="title">{"Rig And Animation"}</text>
+                            <text role="caption">{"Rig graphs, deformation checks, clips, retargeting, and blocking."}</text>
+                        </panel>
+                        <panel title="Simulation And FX" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={170}>
+                            <text role="eyebrow">{"SIM"}</text>
+                            <text role="title">{"Simulation And FX"}</text>
+                            <text role="caption">{"Caches, solvers, scene events, and reproducible simulation jobs."}</text>
+                        </panel>
+                        <panel title="Render And Composite" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={170}>
+                            <text role="eyebrow">{"RENDER"}</text>
+                            <text role="title">{"Render And Composite"}</text>
+                            <text role="caption">{"Viewport renders, frame products, AOV assembly, and compositor rebuilds."}</text>
+                        </panel>
+                        <panel title="Publish And Automation" scope="dcc_shell" variant="workspace_chip" layout="column" gap={3} min_width={170}>
+                            <text role="eyebrow">{"PUBLISH"}</text>
+                            <text role="title">{"Publish And Automation"}</text>
+                            <text role="caption">{"Package review, delivery reports, automation jobs, and runtime pack promotion."}</text>
+                        </panel>
+                    </slot>
+                </panel>
+                <panel title="Shell Context Blocks" scope="dcc_shell" variant="context_strip" layout="grid" columns={2} gap={10}>
+                    <panel title="Global operator quick-actions" scope="dcc_shell" variant="command_spotlight" layout="column" gap={8}>
+                        <text role="eyebrow">{"Command Spotlight"}</text>
+                        <text role="title">{"Global operator quick-actions"}</text>
+                        <text role="caption">{"These are the shell-level commands that should stay one gesture away no matter which workbench is active."}</text>
+                        <slot layout="row" gap={8} overflow_x="scroll">
+                            <panel title="Bootstrap Suite" scope="dcc_shell" variant="spotlight_card" layout="column" gap={4} min_width={220}>
+                                <text role="eyebrow">{"SURFACE TITLEBAR"}</text>
+                                <text role="title">{"Bootstrap Suite"}</text>
+                                <text role="caption">{"intent project.bootstrap"}</text>
+                                <text role="body">{"Seeds the canonical scene, asset, preview, tensor, and publish session state."}</text>
+                            </panel>
+                            <panel title="Switch Workspace" scope="dcc_shell" variant="spotlight_card" layout="column" gap={4} min_width={220}>
+                                <text role="eyebrow">{"SURFACE WORKSPACE_MODE_RAIL"}</text>
+                                <text role="title">{"Switch Workspace"}</text>
+                                <text role="caption">{"intent workspace.switch_mode"}</text>
+                                <text role="body">{"Moves the operator into a different DCC lane and marks downstream surfaces for refresh."}</text>
+                            </panel>
+                            <panel title="Render Preview" scope="dcc_shell" variant="spotlight_card" layout="column" gap={4} min_width={220}>
+                                <text role="eyebrow">{"SURFACE RENDER_LOUNGE"}</text>
+                                <text role="title">{"Render Preview"}</text>
+                                <text role="caption">{"intent render.preview"}</text>
+                                <text role="body">{"Stages a preview render refresh and updates render-facing reports."}</text>
+                            </panel>
+                            <panel title="Package Publish" scope="dcc_shell" variant="spotlight_card" layout="column" gap={4} min_width={220}>
+                                <text role="eyebrow">{"SURFACE PUBLISH_CONSOLE"}</text>
+                                <text role="title">{"Package Publish"}</text>
+                                <text role="caption">{"intent publish.package"}</text>
+                                <text role="body">{"Builds the publish summary and package receipts for operator review."}</text>
+                            </panel>
+                            <panel title="Tensor Infer Step" scope="dcc_shell" variant="spotlight_card" layout="column" gap={4} min_width={220}>
+                                <text role="eyebrow">{"SURFACE JOBS_MONITOR"}</text>
+                                <text role="title">{"Tensor Infer Step"}</text>
+                                <text role="caption">{"intent tensor.infer_step"}</text>
+                                <text role="body">{"Stages a tensor-oriented inference plan and readiness report."}</text>
+                            </panel>
+                        </slot>
+                    </panel>
+                    <panel title="Shell system guidance" scope="dcc_shell" variant="context_block" layout="column" gap={6}>
+                        <text role="eyebrow">{"Operator Context"}</text>
+                        <text role="title">{"Shell system guidance"}</text>
+                        <text role="caption">{"The shell chrome should feel persistent and global. Workbench pages should feel like modules mounted inside the same editor, not separate generated demos."}</text>
+                        <text role="caption">{"command spotlight remains shell-owned so operators can bootstrap, switch lanes, preview, and publish without hunting through page-local inspectors"}</text>
+                        <text role="caption">{"workspace chips mirror authored page descriptors and should be the future landing zone for semantic top-tab rendering in the native host"}</text>
+                        <text role="caption">{"runtime status, registry counts, and extension seam warnings belong in shell chrome so lane pages can stay focused on authored work"}</text>
+                    </panel>
+                </panel>
+            </panel>
+            <panel title="Workbench Pages" scope="dcc_shell" variant="page" layout="column" gap={12}>
             <panel title="Scene Assembly Workbench" scope="dcc_shell" variant="page" layout="dock" gap={14} persistent_layout_id="dcc_page_scene_assembly" tab_group_id="dcc-workspaces" tab_label="Scene" tab_order={0} tab_default_active={true}>
                 <panel title="Navigator" dock="left" split_ratio={0.22} min_width={270} max_width={380} resizable={true} layout="column" gap={12}>
                     <panel title="Hero" scope="dcc_shell" variant="hero_card" layout="column" gap={6}>
@@ -120,11 +305,11 @@ component App():
                             <text role="caption">{"focus Scene Graph"}</text>
                         </panel>
                         <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
-                            <text role="metric">{"SUCCEEDED"}</text>
+                            <text role="metric">{"FAILED"}</text>
                             <text role="caption">{"intent routes 4"}</text>
                         </panel>
                         <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
-                            <text role="metric">{"15"}</text>
+                            <text role="metric">{"1"}</text>
                             <text role="caption">{"runtime packs online"}</text>
                         </panel>
                     </panel>
@@ -194,11 +379,6 @@ component App():
                         </panel>
                     </panel>
                     <inspector title="Extension Seams">
-                        <text role="caption">{"the universal studio shell is manifest-driven and generated, but interactive command dispatch still needs a live runtime bridge"}</text>
-                        <text role="caption">{"viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge"}</text>
-                        <text role="caption">{"tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract"}</text>
-                        <text role="caption">{"simulation lane currently materializes plan-oriented reports rather than a true solver runtime"}</text>
-                        <text role="caption">{"compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"}</text>
                     </inspector>
                 </panel>
             </panel>
@@ -211,13 +391,13 @@ component App():
                     </panel>
                     <inspector title="Featured Tools">
                         <text role="body">{"Poly Extrude | Poly modeling, shelling, and local face edits."}</text>
-                        <text role="body">{"Clay Sculpt | Brush-based form sculpting through the native mutation seam."}</text>
+                        <text role="body">{"Clay Sculpt | Brush-based form sculpting through the native GPU heightfield lane."}</text>
                         <text role="body">{"Voxel Rebuild | Topology reset, remesh, and high-level volume cleanup."}</text>
                     </inspector>
                     <inspector title="Quick Commands">
                         <text role="body">{"Activate Tool | Changes the active authoring tool and updates tool preset context."}</text>
                         <text role="body">{"Set Selection | Replaces the live entity selection and updates lane inspectors."}</text>
-                        <text role="body">{"Apply Sculpt Stroke | Queues a sculpt stroke through the native mutation seam and marks downstream lanes dirty."}</text>
+                        <text role="body">{"Apply Sculpt Stroke | Queues a sculpt stroke through the native GPU sculpt lane and marks downstream lanes dirty."}</text>
                         <text role="body">{"Rebuild Topology | Refreshes topology and graph health analysis against current scene resources."}</text>
                     </inspector>
                     <tree title="Focus Surface">
@@ -232,11 +412,11 @@ component App():
                             <text role="caption">{"focus Viewport Stage"}</text>
                         </panel>
                         <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
-                            <text role="metric">{"SUCCEEDED"}</text>
+                            <text role="metric">{"FAILED"}</text>
                             <text role="caption">{"intent routes 4"}</text>
                         </panel>
                         <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
-                            <text role="metric">{"15"}</text>
+                            <text role="metric">{"1"}</text>
                             <text role="caption">{"runtime packs online"}</text>
                         </panel>
                     </panel>
@@ -304,11 +484,6 @@ component App():
                         </panel>
                     </panel>
                     <inspector title="Extension Seams">
-                        <text role="caption">{"the universal studio shell is manifest-driven and generated, but interactive command dispatch still needs a live runtime bridge"}</text>
-                        <text role="caption">{"viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge"}</text>
-                        <text role="caption">{"tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract"}</text>
-                        <text role="caption">{"simulation lane currently materializes plan-oriented reports rather than a true solver runtime"}</text>
-                        <text role="caption">{"compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"}</text>
                     </inspector>
                 </panel>
             </panel>
@@ -342,11 +517,11 @@ component App():
                             <text role="caption">{"focus Material Graph"}</text>
                         </panel>
                         <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
-                            <text role="metric">{"SUCCEEDED"}</text>
+                            <text role="metric">{"FAILED"}</text>
                             <text role="caption">{"intent routes 4"}</text>
                         </panel>
                         <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
-                            <text role="metric">{"15"}</text>
+                            <text role="metric">{"1"}</text>
                             <text role="caption">{"runtime packs online"}</text>
                         </panel>
                     </panel>
@@ -419,11 +594,6 @@ component App():
                         </panel>
                     </panel>
                     <inspector title="Extension Seams">
-                        <text role="caption">{"the universal studio shell is manifest-driven and generated, but interactive command dispatch still needs a live runtime bridge"}</text>
-                        <text role="caption">{"viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge"}</text>
-                        <text role="caption">{"tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract"}</text>
-                        <text role="caption">{"simulation lane currently materializes plan-oriented reports rather than a true solver runtime"}</text>
-                        <text role="caption">{"compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"}</text>
                     </inspector>
                 </panel>
             </panel>
@@ -455,11 +625,11 @@ component App():
                             <text role="caption">{"focus Rig Graph"}</text>
                         </panel>
                         <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
-                            <text role="metric">{"SUCCEEDED"}</text>
+                            <text role="metric">{"FAILED"}</text>
                             <text role="caption">{"intent routes 3"}</text>
                         </panel>
                         <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
-                            <text role="metric">{"15"}</text>
+                            <text role="metric">{"1"}</text>
                             <text role="caption">{"runtime packs online"}</text>
                         </panel>
                     </panel>
@@ -524,11 +694,6 @@ component App():
                         </panel>
                     </panel>
                     <inspector title="Extension Seams">
-                        <text role="caption">{"the universal studio shell is manifest-driven and generated, but interactive command dispatch still needs a live runtime bridge"}</text>
-                        <text role="caption">{"viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge"}</text>
-                        <text role="caption">{"tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract"}</text>
-                        <text role="caption">{"simulation lane currently materializes plan-oriented reports rather than a true solver runtime"}</text>
-                        <text role="caption">{"compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"}</text>
                     </inspector>
                 </panel>
             </panel>
@@ -559,11 +724,11 @@ component App():
                             <text role="caption">{"focus Simulation Board"}</text>
                         </panel>
                         <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
-                            <text role="metric">{"SUCCEEDED"}</text>
+                            <text role="metric">{"FAILED"}</text>
                             <text role="caption">{"intent routes 4"}</text>
                         </panel>
                         <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
-                            <text role="metric">{"15"}</text>
+                            <text role="metric">{"1"}</text>
                             <text role="caption">{"runtime packs online"}</text>
                         </panel>
                     </panel>
@@ -622,11 +787,6 @@ component App():
                         </panel>
                     </panel>
                     <inspector title="Extension Seams">
-                        <text role="caption">{"the universal studio shell is manifest-driven and generated, but interactive command dispatch still needs a live runtime bridge"}</text>
-                        <text role="caption">{"viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge"}</text>
-                        <text role="caption">{"tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract"}</text>
-                        <text role="caption">{"simulation lane currently materializes plan-oriented reports rather than a true solver runtime"}</text>
-                        <text role="caption">{"compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"}</text>
                     </inspector>
                 </panel>
             </panel>
@@ -658,11 +818,11 @@ component App():
                             <text role="caption">{"focus Render Lounge"}</text>
                         </panel>
                         <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
-                            <text role="metric">{"SUCCEEDED"}</text>
+                            <text role="metric">{"FAILED"}</text>
                             <text role="caption">{"intent routes 3"}</text>
                         </panel>
                         <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
-                            <text role="metric">{"15"}</text>
+                            <text role="metric">{"1"}</text>
                             <text role="caption">{"runtime packs online"}</text>
                         </panel>
                     </panel>
@@ -729,11 +889,6 @@ component App():
                         </panel>
                     </panel>
                     <inspector title="Extension Seams">
-                        <text role="caption">{"the universal studio shell is manifest-driven and generated, but interactive command dispatch still needs a live runtime bridge"}</text>
-                        <text role="caption">{"viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge"}</text>
-                        <text role="caption">{"tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract"}</text>
-                        <text role="caption">{"simulation lane currently materializes plan-oriented reports rather than a true solver runtime"}</text>
-                        <text role="caption">{"compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"}</text>
                     </inspector>
                 </panel>
             </panel>
@@ -765,11 +920,11 @@ component App():
                             <text role="caption">{"focus Publish Console"}</text>
                         </panel>
                         <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
-                            <text role="metric">{"SUCCEEDED"}</text>
+                            <text role="metric">{"FAILED"}</text>
                             <text role="caption">{"intent routes 3"}</text>
                         </panel>
                         <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
-                            <text role="metric">{"15"}</text>
+                            <text role="metric">{"1"}</text>
                             <text role="caption">{"runtime packs online"}</text>
                         </panel>
                     </panel>
@@ -831,11 +986,6 @@ component App():
                         </panel>
                     </panel>
                     <inspector title="Extension Seams">
-                        <text role="caption">{"the universal studio shell is manifest-driven and generated, but interactive command dispatch still needs a live runtime bridge"}</text>
-                        <text role="caption">{"viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge"}</text>
-                        <text role="caption">{"tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract"}</text>
-                        <text role="caption">{"simulation lane currently materializes plan-oriented reports rather than a true solver runtime"}</text>
-                        <text role="caption">{"compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"}</text>
                     </inspector>
                 </panel>
             </panel>
@@ -844,6 +994,7 @@ component App():
                 <inspector title="Pipeline">
                     <text role="caption">{"python_suite_bootstrap | python"}</text>
                     <text role="caption">{"dcc_suite_seed | kain"}</text>
+                    <text role="caption">{"gpu_sculpt_displacement | gpu_compute"}</text>
                     <text role="caption">{"material_authoring_projection | kain"}</text>
                     <text role="caption">{"svg_material_mask_projection | kain"}</text>
                     <text role="caption">{"native_sculpt_kernel | c_abi"}</text>
@@ -863,12 +1014,15 @@ component App():
                     <text role="caption">{"buffer://preview/destination | shared_buffer"}</text>
                     <text role="caption">{"image://preview/current | shared_image"}</text>
                     <text role="caption">{"buffer://tensor/features | shared_buffer"}</text>
+                    <text role="caption">{"buffer://sculpt/heightfield-source | shared_buffer"}</text>
+                    <text role="caption">{"buffer://sculpt/brush-params | shared_buffer"}</text>
                     <text role="caption">{"buffer://sculpt/delta | shared_buffer"}</text>
                     <text role="caption">{"artifact://material/export-bundle | value"}</text>
                 </inspector>
                 <inspector title="Reports">
                     <text role="caption">{"report://session/bootstrap | Bootstrap summary for suite session state."}</text>
                     <text role="caption">{"report://asset/ingest | Asset ingest session report."}</text>
+                    <text role="caption">{"report://sculpt/current | Native sculpt summary report for the latest GPU sculpt pass."}</text>
                     <text role="caption">{"report://topology/current | Graph and topology health report."}</text>
                     <text role="caption">{"report://rig/sync | Rig sync and deformation readiness report."}</text>
                     <text role="caption">{"report://simulation/tick-plan | Simulation planning report for the current frame tick."}</text>

@@ -1,9 +1,9 @@
-$ErrorActionPreference = "Stop"
-
 param(
     [string]$AppRoot,
     [switch]$KeepQueue
 )
+
+$ErrorActionPreference = "Stop"
 
 function Ensure-StateDocuments {
     param([string]$ResolvedAppRoot)
@@ -15,9 +15,9 @@ function Ensure-StateDocuments {
     }
 }
 
-function Get-JsonHashtable {
+function Get-JsonDocument {
     param([string]$Path)
-    return Get-Content $Path -Raw | ConvertFrom-Json -AsHashtable
+    return Get-Content $Path -Raw | ConvertFrom-Json
 }
 
 function Set-JsonFile {
@@ -67,15 +67,15 @@ function Add-IntentIfMissing {
 function Get-CommandKind {
     param($Command)
 
-    if ($Command.ContainsKey("kind") -and -not [string]::IsNullOrWhiteSpace([string]$Command.kind)) {
+    if ($Command.PSObject.Properties.Name -contains "kind" -and -not [string]::IsNullOrWhiteSpace([string]$Command.kind)) {
         return [string]$Command.kind
     }
 
-    if ($Command.ContainsKey("id") -and -not [string]::IsNullOrWhiteSpace([string]$Command.id)) {
+    if ($Command.PSObject.Properties.Name -contains "id" -and -not [string]::IsNullOrWhiteSpace([string]$Command.id)) {
         return [string]$Command.id
     }
 
-    if ($Command.ContainsKey("command_id") -and -not [string]::IsNullOrWhiteSpace([string]$Command.command_id)) {
+    if ($Command.PSObject.Properties.Name -contains "command_id" -and -not [string]::IsNullOrWhiteSpace([string]$Command.command_id)) {
         return [string]$Command.command_id
     }
 
@@ -106,10 +106,10 @@ function Get-PayloadValue {
 
 function Update-DerivedState {
     param(
-        [hashtable]$RuntimeSnapshot,
-        [hashtable]$SessionDocument,
+        $RuntimeSnapshot,
+        $SessionDocument,
         [System.Collections.ArrayList]$IntentQueue,
-        [hashtable]$LatestCommand
+        $LatestCommand
     )
 
     $selectedCount = @($SessionDocument.selection.entity_ids).Count
@@ -143,8 +143,8 @@ $NativeSnapshotPath = Join-Path $NativeStateRoot "runtime_snapshot.json"
 
 Ensure-StateDocuments -ResolvedAppRoot $AppRoot
 
-$RuntimeSnapshot = Get-JsonHashtable -Path $SnapshotPath
-$SessionDocument = Get-JsonHashtable -Path $SessionPath
+$RuntimeSnapshot = Get-JsonDocument -Path $SnapshotPath
+$SessionDocument = Get-JsonDocument -Path $SessionPath
 
 if (-not (Test-Path $CommandQueuePath)) {
     Set-Content -Path $CommandQueuePath -Value ""
@@ -167,7 +167,7 @@ $LatestCommand = $RuntimeSnapshot.dcc_suite_state.latest_command
 $RawLines = @(Get-Content $CommandQueuePath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 
 foreach ($rawLine in $RawLines) {
-    $Command = $rawLine | ConvertFrom-Json -AsHashtable
+    $Command = $rawLine | ConvertFrom-Json
     $CommandKind = Get-CommandKind -Command $Command
     $Payload = Get-PayloadValue -Payload $Command -Key "payload" -Default @{}
     if ($null -eq $Payload) { $Payload = @{} }
@@ -338,8 +338,14 @@ foreach ($rawLine in $RawLines) {
 $SessionDocument.jobs.active_intents = @($IntentQueue | ForEach-Object { $_.id })
 $SessionDocument.jobs.latest_fabric_status = if (@($IntentQueue).Count -gt 0) { "queued" } else { [string]$SessionDocument.jobs.latest_fabric_status }
 
-if (-not $RuntimeSnapshot.dcc_suite_state.bridge.ContainsKey("processed_command_count")) {
-    $RuntimeSnapshot.dcc_suite_state.bridge.processed_command_count = 0
+if (-not ($RuntimeSnapshot.dcc_suite_state.bridge.PSObject.Properties.Name -contains "processed_command_count")) {
+    $RuntimeSnapshot.dcc_suite_state.bridge | Add-Member -NotePropertyName processed_command_count -NotePropertyValue 0
+}
+if (-not ($RuntimeSnapshot.dcc_suite_state.bridge.PSObject.Properties.Name -contains "last_processed_at")) {
+    $RuntimeSnapshot.dcc_suite_state.bridge | Add-Member -NotePropertyName last_processed_at -NotePropertyValue $null
+}
+if (-not ($RuntimeSnapshot.dcc_suite_state.bridge.PSObject.Properties.Name -contains "last_processed_batch_count")) {
+    $RuntimeSnapshot.dcc_suite_state.bridge | Add-Member -NotePropertyName last_processed_batch_count -NotePropertyValue 0
 }
 $RuntimeSnapshot.dcc_suite_state.bridge.processed_command_count = [int]$RuntimeSnapshot.dcc_suite_state.bridge.processed_command_count + $ProcessedCount
 $RuntimeSnapshot.dcc_suite_state.bridge.last_processed_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")

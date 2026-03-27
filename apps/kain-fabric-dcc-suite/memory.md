@@ -13,6 +13,7 @@ This file preserves the durable design intent for `apps/kain-fabric-dcc-suite`.
 Important design decision:
 
 - This pass intentionally stops at a heightfield sculpt proof instead of pretending the app now has a full mesh-surface sculpt engine. That keeps the implementation honest while still making GPU ownership real and testable inside the current Fabric architecture.
+- The sculpt compute kernel is intentionally branchless because the current Kain HLSL backend does not yet lower general `if` blocks inside compute shaders. Brush inversion and radius masking are expressed through scalar math instead of control flow.
 
 Current risk:
 

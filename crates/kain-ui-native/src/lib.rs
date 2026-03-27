@@ -706,10 +706,10 @@ fn emit_runtime_command_to_bridge(
     command: &NativeAppRuntimeCommand,
 ) -> Result<(), String> {
     let payload = serde_json::json!({
-        "command_id": command.id,
-        "label": command.label,
-        "intent": command.intent,
-        "surface": command.surface,
+        "command_id": command.id.clone(),
+        "label": command.label.clone(),
+        "intent": command.intent.clone(),
+        "surface": command.surface.clone(),
         "source": "kain-ui-native",
         "requested_at": bridge_timestamp_string(),
     });

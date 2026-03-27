@@ -261,12 +261,17 @@ fn apply_asset_ingest(session_document: &mut Value, processed_command_count: usi
 }
 
 fn apply_selection_change(session_document: &mut Value, processed_command_count: usize) {
+    let empty_subobject_ids: Vec<String> = Vec::new();
     set_string_array_at_path(
         session_document,
         &["selection", "entity_ids"],
         &[format!("entity/bridge_selection_{processed_command_count:04}")],
     );
-    set_string_array_at_path(session_document, &["selection", "subobject_ids"], &[]);
+    set_string_array_at_path(
+        session_document,
+        &["selection", "subobject_ids"],
+        &empty_subobject_ids,
+    );
 }
 
 fn apply_sculpt_stroke(session_document: &mut Value, runtime_snapshot: &Value) {
@@ -512,11 +517,11 @@ fn sync_runtime_snapshot_from_session(
         runtime_snapshot,
         &["dcc_suite_state", "latest_command"],
         json!({
-            "command_id": request.command_id,
-            "label": command_label,
-            "intent": request.intent,
-            "surface": request.surface,
-            "source": request.source,
+            "command_id": request.command_id.clone(),
+            "label": command_label.clone(),
+            "intent": request.intent.clone(),
+            "surface": request.surface.clone(),
+            "source": request.source.clone(),
             "requested_at": if request.requested_at.is_empty() { updated_at.clone() } else { request.requested_at.clone() },
             "processed_at": updated_at.clone(),
         }),
@@ -559,7 +564,7 @@ fn sync_runtime_snapshot_from_session(
 fn build_next_intent_queue(runtime_snapshot: &Value, request: &RuntimeCommandRequest) -> Vec<Value> {
     let mut next_queue = Vec::new();
     next_queue.push(json!({
-        "id": request.command_id,
+        "id": request.command_id.clone(),
         "label": if request.label.is_empty() { request.command_id.clone() } else { request.label.clone() },
         "reason": format!("Live command from {}", if request.surface.is_empty() { "native-host" } else { request.surface.as_str() }),
         "graph": if request.intent.is_empty() { request.command_id.clone() } else { request.intent.clone() },
@@ -747,4 +752,171 @@ fn set_all_dirty_flags(session_document: &mut Value, dirty_value: bool) {
     ] {
         set_bool_at_path(session_document, &["dirty", dirty_key], dirty_value);
     }
+}
+
+fn ensure_parent_directory(path: &Path) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+    Ok(())
+}
+
+fn load_json_document(primary_path: &Path, mirror_paths: &[PathBuf]) -> Value {
+    for candidate_path in std::iter::once(primary_path).chain(mirror_paths.iter().map(PathBuf::as_path)) {
+        if let Ok(contents) = fs::read_to_string(candidate_path) {
+            if let Ok(document) = serde_json::from_str::<Value>(&contents) {
+                return document;
+            }
+        }
+    }
+    json!({})
+}
+
+fn write_json_document(
+    primary_path: &Path,
+    mirror_paths: &[PathBuf],
+    document: &Value,
+) -> Result<(), String> {
+    let document_json = serde_json::to_string_pretty(document).map_err(|err| err.to_string())?;
+    let mut write_targets = BTreeSet::new();
+    write_targets.insert(primary_path.to_path_buf());
+    for mirror_path in mirror_paths {
+        write_targets.insert(mirror_path.clone());
+    }
+    for target_path in write_targets {
+        ensure_parent_directory(&target_path)?;
+        fs::write(target_path, &document_json).map_err(|err| err.to_string())?;
+    }
+    Ok(())
+}
+
+fn now_iso_string() -> String {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .to_string()
+}
+
+fn value_at_path<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {
+    let mut current = value;
+    for key in path {
+        current = current.get(*key)?;
+    }
+    Some(current)
+}
+
+fn ensure_object_value(value: &mut Value) -> &mut serde_json::Map<String, Value> {
+    if !value.is_object() {
+        *value = json!({});
+    }
+    value.as_object_mut().expect("object value")
+}
+
+fn ensure_array_value(value: &mut Value) -> &mut Vec<Value> {
+    if !value.is_array() {
+        *value = Value::Array(Vec::new());
+    }
+    value.as_array_mut().expect("array value")
+}
+
+fn set_value_at_path(value: &mut Value, path: &[&str], next_value: Value) {
+    if path.is_empty() {
+        *value = next_value;
+        return;
+    }
+    let mut current = value;
+    for key in &path[..path.len() - 1] {
+        let object = ensure_object_value(current);
+        current = object.entry((*key).to_string()).or_insert_with(|| json!({}));
+    }
+    let object = ensure_object_value(current);
+    object.insert(path[path.len() - 1].to_string(), next_value);
+}
+
+fn set_string_at_path(value: &mut Value, path: &[&str], next_value: impl Into<String>) {
+    set_value_at_path(value, path, Value::String(next_value.into()));
+}
+
+fn set_bool_at_path(value: &mut Value, path: &[&str], next_value: bool) {
+    set_value_at_path(value, path, Value::Bool(next_value));
+}
+
+fn set_i64_at_path(value: &mut Value, path: &[&str], next_value: i64) {
+    set_value_at_path(value, path, Value::Number(next_value.into()));
+}
+
+fn increment_i64_at_path(value: &mut Value, path: &[&str], delta: i64) -> i64 {
+    let next_value = get_i64_at_path(value, path).unwrap_or(0) + delta;
+    set_i64_at_path(value, path, next_value);
+    next_value
+}
+
+fn set_string_array_at_path(value: &mut Value, path: &[&str], values: &[String]) {
+    set_value_at_path(
+        value,
+        path,
+        Value::Array(values.iter().cloned().map(Value::String).collect()),
+    );
+}
+
+fn get_string_at_path(value: &Value, path: &[&str]) -> Option<String> {
+    value_at_path(value, path)
+        .and_then(Value::as_str)
+        .map(|value| value.to_string())
+}
+
+fn get_bool_at_path(value: &Value, path: &[&str]) -> Option<bool> {
+    value_at_path(value, path).and_then(Value::as_bool)
+}
+
+fn get_i64_at_path(value: &Value, path: &[&str]) -> Option<i64> {
+    value_at_path(value, path).and_then(Value::as_i64)
+}
+
+fn get_string_vec_at_path(value: &Value, path: &[&str]) -> Vec<String> {
+    value_at_path(value, path)
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_str)
+                .map(|value| value.to_string())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn find_array_object_by_field<'a>(
+    value: &'a Value,
+    path: &[&str],
+    field_name: &str,
+    wanted_value: &str,
+) -> Option<&'a Value> {
+    value_at_path(value, path)
+        .and_then(Value::as_array)
+        .and_then(|entries| {
+            entries.iter().find(|entry| {
+                entry.get(field_name).and_then(Value::as_str) == Some(wanted_value)
+            })
+        })
+}
+
+fn ensure_array_object_at_index<'a>(
+    value: &'a mut Value,
+    path: &[&str],
+    index: usize,
+) -> Option<&'a mut serde_json::Map<String, Value>> {
+    let mut current = value;
+    for key in path {
+        let object = ensure_object_value(current);
+        current = object
+            .entry((*key).to_string())
+            .or_insert_with(|| Value::Array(Vec::new()));
+    }
+    let array = ensure_array_value(current);
+    while array.len() <= index {
+        array.push(json!({}));
+    }
+    array.get_mut(index).map(ensure_object_value)
 }

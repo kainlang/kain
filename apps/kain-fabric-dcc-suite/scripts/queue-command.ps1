@@ -1,11 +1,11 @@
-$ErrorActionPreference = "Stop"
-
 param(
     [Parameter(Mandatory = $true)]
     [string]$Kind,
     [string]$AppRoot,
     [string]$PayloadJson = "{}"
 )
+
+$ErrorActionPreference = "Stop"
 
 if ([string]::IsNullOrWhiteSpace($AppRoot)) {
     $AppRoot = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) ".."
@@ -16,7 +16,7 @@ $StateRoot = Join-Path $AppRoot "state"
 $QueuePath = Join-Path $StateRoot "command_queue.jsonl"
 New-Item -ItemType Directory -Force -Path $StateRoot | Out-Null
 
-$Payload = $PayloadJson | ConvertFrom-Json -AsHashtable
+$Payload = $PayloadJson | ConvertFrom-Json
 $Command = [ordered]@{
     id = [guid]::NewGuid().ToString()
     kind = $Kind
