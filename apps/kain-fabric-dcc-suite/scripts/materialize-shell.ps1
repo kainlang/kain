@@ -179,25 +179,25 @@ function Get-ViewportProps {
     )
 
     if ($null -ne $viewportBinding) {
-        $props += "viewport_profile=`"$($viewportBinding.presentation_profile)`""
-        $props += "gizmo_default_mode=`"$($viewportBinding.default_mode)`""
-        $props += "gizmo_default_space=`"$($viewportBinding.default_space)`""
+        $props += "viewport.profile=`"$($viewportBinding.presentation_profile)`""
+        $props += "gizmo.default_mode=`"$($viewportBinding.default_mode)`""
+        $props += "gizmo.default_space=`"$($viewportBinding.default_space)`""
     }
 
     if ($null -ne $gizmoProfile) {
-        $props += "gizmo_profile=`"$($gizmoProfile.id)`""
-        $props += "gizmo_visible={" + $gizmoProfile.visible.ToString().ToLowerInvariant() + "}"
-        $props += "gizmo_drag_trigger=`"$($gizmoProfile.drag_trigger)`""
-        $props += "gizmo_selection_required={" + $gizmoProfile.selection_required.ToString().ToLowerInvariant() + "}"
-        $props += "gizmo_hotkey_translate=`"$($gizmoProfile.hotkeys.translate)`""
-        $props += "gizmo_hotkey_rotate=`"$($gizmoProfile.hotkeys.rotate)`""
-        $props += "gizmo_hotkey_scale=`"$($gizmoProfile.hotkeys.scale)`""
-        $props += "gizmo_hotkey_cycle_space=`"$($gizmoProfile.hotkeys.cycle_space)`""
-        $props += "gizmo_hotkey_toggle_snap=`"$($gizmoProfile.hotkeys.toggle_snap)`""
-        $props += "gizmo_snap_translate={$($gizmoProfile.snap.translate_world_units)}"
-        $props += "gizmo_snap_rotate_degrees={$($gizmoProfile.snap.rotate_degrees)}"
-        $props += "gizmo_snap_scale_percent={$($gizmoProfile.snap.scale_percent)}"
-        $props += "gizmo_snap_default_enabled={" + $gizmoProfile.snap.default_enabled.ToString().ToLowerInvariant() + "}"
+        $props += "gizmo.profile=`"$($gizmoProfile.id)`""
+        $props += "gizmo.visible={" + $gizmoProfile.visible.ToString().ToLowerInvariant() + "}"
+        $props += "gizmo.drag_trigger=`"$($gizmoProfile.drag_trigger)`""
+        $props += "gizmo.selection_required={" + $gizmoProfile.selection_required.ToString().ToLowerInvariant() + "}"
+        $props += "gizmo.hotkey.translate=`"$($gizmoProfile.hotkeys.translate)`""
+        $props += "gizmo.hotkey.rotate=`"$($gizmoProfile.hotkeys.rotate)`""
+        $props += "gizmo.hotkey.scale=`"$($gizmoProfile.hotkeys.scale)`""
+        $props += "gizmo.hotkey.cycle_space=`"$($gizmoProfile.hotkeys.cycle_space)`""
+        $props += "gizmo.hotkey.toggle_snap=`"$($gizmoProfile.hotkeys.toggle_snap)`""
+        $props += "gizmo.snap.translate={$($gizmoProfile.snap.translate_world_units)}"
+        $props += "gizmo.snap.rotate_degrees={$($gizmoProfile.snap.rotate_degrees)}"
+        $props += "gizmo.snap.scale_percent={$($gizmoProfile.snap.scale_percent)}"
+        $props += "gizmo.snap.default_enabled={" + $gizmoProfile.snap.default_enabled.ToString().ToLowerInvariant() + "}"
     }
 
     return ($props -join " ")
