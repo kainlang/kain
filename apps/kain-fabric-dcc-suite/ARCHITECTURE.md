@@ -11,7 +11,7 @@ The material lane now includes a painter-style PBR authoring contract with textu
 The scaffold is split into six durable ownership layers:
 
 1. App registries
-`config/*.json` defines workspace modes, surfaces, tools, universal gizmo profiles, commands, Fabric pipeline summaries, Fabric intent registry, resource kinds, report kinds, runtime packs, and automation jobs.
+`config/*.json` defines workspace modes, surfaces, tools, universal gizmo profiles, commands, Fabric pipeline summaries, Fabric intent registry, resource kinds, report kinds, runtime packs, automation jobs, and the universal UI theme plus workbench manifests.
 
 2. Session core
 `session/*.kn` defines the canonical session document, reducers, derived read models, command handler catalog, intent planner, and resource/report/job/workspace registries.
@@ -46,6 +46,8 @@ The scaffold is split into six durable ownership layers:
 - `config/surfaces.json`: docked shell surface registry.
 - `config/tool_catalog.json`: tool and operator rail, including smart material, SVG mask, channel-pack export tools, and per-tool gizmo defaults.
 - `config/gizmo_registry.json`: universal gizmo profile and per-viewport binding registry.
+- `config/ui_theme.json`: semantic tokens, scopes, variants, and widget defaults for the universal studio shell.
+- `config/ui_shell.json`: workspace-page layout manifest with per-mode workbench composition.
 - `config/command_registry.json`: canonical command surface for operators, routing, automation, painter-style material authoring, export, and gizmo state changes.
 - `config/fabric_pipeline.json`: shell-facing summary of the broad pipeline.
 - `config/fabric_intents.json`: reusable intent registry with per-lane graph ownership.
@@ -54,6 +56,7 @@ The scaffold is split into six durable ownership layers:
 - `config/runtime_packs.json`: data-driven runtime pack catalog inspired by K_OS registry patterns.
 - `config/automation_jobs.json`: recurring job catalog for caches, previews, publish, and tensor upkeep.
 - `session/*.kn`: session truth, reducer logic, read models, and typed registries.
+- `session/ui_workbench_registry.kn`: durable Kain-side workbench contract mirroring the generated shell pages.
 - `fabric/intents/*.fabric.toml`: reusable lane graphs.
 - `src/*.kn`: Kain-authored runtime bridge modules.
 - `src/material_authoring_projection.kn`: projects the active texture-set, layer-stack, and export-preset report.
@@ -67,7 +70,7 @@ The scaffold is split into six durable ownership layers:
 
 ## Primary Data Flow
 
-`config/*.json -> scripts/materialize-shell.ps1 -> generated/main.generated.kn -> kain build native-ui`
+`config/ui_*.json + config/*.json + state/runtime_snapshot.json -> scripts/materialize-shell.ps1 -> generated/main.generated.kn -> kain build native-ui`
 
 `config/*.json + latest Fabric report -> scripts/materialize-session-state.ps1 -> state/runtime_snapshot.json -> native shell`
 
@@ -106,6 +109,7 @@ powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/buil
 
 - Keep semantic ownership in Kain, session modules, and config plus Fabric graphs, not in the native host.
 - Keep registry truth in `config/*.json`; generated shell output is a projection.
+- Keep page, theme, and workbench truth in `config/ui_*.json` plus `session/ui_workbench_registry.kn`; the generated shell remains disposable output.
 - Keep universal gizmo defaults, hotkeys, drag triggers, and snap policy in `config/gizmo_registry.json` and viewport-authored props rather than re-hardcoding them inside `kain-ui-native`.
 - Keep session truth in `session/*.kn`; reports and runtime snapshots are derivative artifacts.
 - Keep the C and Rust helpers narrow and replaceable. If a concept becomes true DCC semantics, move it back into Kain or registry data.

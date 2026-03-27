@@ -1,0 +1,268 @@
+{
+  "page_tab_group_id": "dcc-workspaces",
+  "viewport_scene": "dcc_suite_scene",
+  "workspace_pages": [
+    {
+      "mode_id": "scene_assembly",
+      "tab_label": "Scene",
+      "title": "Scene Assembly Workbench",
+      "hero_title": "Scene-first assembly and ingest mission control",
+      "hero_summary": "Stage layout, intake, placement, and downstream review stay in one operator surface instead of scattering across separate host-owned tools.",
+      "focus_surface_id": "scene_graph",
+      "featured_tool_ids": [
+        "select",
+        "kitbash_placement"
+      ],
+      "quick_command_ids": [
+        "project.bootstrap",
+        "workspace.switch_mode",
+        "asset.ingest_package",
+        "render.preview"
+      ],
+      "center_surface_ids": [
+        "scene_graph",
+        "asset_ingest",
+        "render_lounge"
+      ],
+      "right_surface_ids": [
+        "selection_inspector",
+        "tool_shelf",
+        "report_browser"
+      ],
+      "bottom_surface_ids": [
+        "animation_timeline",
+        "jobs_monitor"
+      ],
+      "intent_ids": [
+        "project.bootstrap",
+        "asset.ingest_package",
+        "render.preview",
+        "publish.package"
+      ]
+    },
+    {
+      "mode_id": "sculpt_model",
+      "tab_label": "Model",
+      "title": "Sculpt And Modeling Forge",
+      "hero_title": "Viewport-dominant modeling and sculpt layout",
+      "hero_summary": "Brush operations, topology refresh, and publish invalidation are grouped as one sculpt workbench instead of separate one-off inspectors.",
+      "focus_surface_id": "viewport_stage",
+      "featured_tool_ids": [
+        "poly_extrude",
+        "clay_sculpt",
+        "voxel_rebuild"
+      ],
+      "quick_command_ids": [
+        "tool.activate",
+        "selection.set",
+        "sculpt.apply_stroke",
+        "topology.rebuild"
+      ],
+      "center_surface_ids": [
+        "scene_graph",
+        "material_graph",
+        "simulation_board"
+      ],
+      "right_surface_ids": [
+        "selection_inspector",
+        "tool_shelf",
+        "report_browser"
+      ],
+      "bottom_surface_ids": [
+        "rig_graph",
+        "jobs_monitor"
+      ],
+      "intent_ids": [
+        "sculpt.apply_stroke",
+        "topology.rebuild",
+        "material.bake_preview",
+        "publish.package"
+      ]
+    },
+    {
+      "mode_id": "material_lookdev",
+      "tab_label": "Lookdev",
+      "title": "Material And Lookdev Studio",
+      "hero_title": "Painter-style material authoring with SVG and packed export lanes",
+      "hero_summary": "Texture sets, smart materials, SVG masks, and export presets are treated as first-class authored surfaces instead of metadata hidden behind a bake button.",
+      "focus_surface_id": "material_graph",
+      "featured_tool_ids": [
+        "material_layer_paint",
+        "texture_bake",
+        "smart_material_stack",
+        "svg_mask_shape",
+        "channel_pack_export"
+      ],
+      "quick_command_ids": [
+        "material.bake_preview",
+        "material.author_texture_set",
+        "material.paint_layer",
+        "material.edit_svg_mask",
+        "material.export_textures"
+      ],
+      "center_surface_ids": [
+        "material_graph",
+        "svg_mask_canvas",
+        "render_lounge"
+      ],
+      "right_surface_ids": [
+        "material_layers",
+        "texture_set_inspector",
+        "material_export_board",
+        "report_browser"
+      ],
+      "bottom_surface_ids": [
+        "compositor_stack",
+        "jobs_monitor"
+      ],
+      "intent_ids": [
+        "material.bake_preview",
+        "material.export_textures",
+        "render.preview",
+        "compositor.rebuild"
+      ]
+    },
+    {
+      "mode_id": "rig_anim",
+      "tab_label": "Rig",
+      "title": "Rig And Animation Bench",
+      "hero_title": "Graph, timeline, and deformation review in one bench",
+      "hero_summary": "Rig sync, clip blocking, and viewport validation share one workbench so animation state stays coupled to the same authored contracts.",
+      "focus_surface_id": "rig_graph",
+      "featured_tool_ids": [
+        "control_rig_edit",
+        "clip_blocking"
+      ],
+      "quick_command_ids": [
+        "rig.sync_controls",
+        "selection.set",
+        "render.preview"
+      ],
+      "center_surface_ids": [
+        "rig_graph",
+        "animation_timeline",
+        "render_lounge"
+      ],
+      "right_surface_ids": [
+        "selection_inspector",
+        "tool_shelf",
+        "report_browser"
+      ],
+      "bottom_surface_ids": [
+        "simulation_board",
+        "jobs_monitor"
+      ],
+      "intent_ids": [
+        "rig.sync_controls",
+        "render.preview",
+        "publish.package"
+      ]
+    },
+    {
+      "mode_id": "sim_fx",
+      "tab_label": "Sim",
+      "title": "Simulation And FX Board",
+      "hero_title": "Plan, cache, and review simulation work as a first-class lane",
+      "hero_summary": "This page keeps simulation planning visible, links it to downstream render and comp work, and makes the current solver seam honest instead of pretending it is complete.",
+      "focus_surface_id": "simulation_board",
+      "featured_tool_ids": [
+        "cache_solver"
+      ],
+      "quick_command_ids": [
+        "sim.tick",
+        "render.preview",
+        "compositor.rebuild"
+      ],
+      "center_surface_ids": [
+        "simulation_board",
+        "render_lounge",
+        "compositor_stack"
+      ],
+      "right_surface_ids": [
+        "selection_inspector",
+        "report_browser"
+      ],
+      "bottom_surface_ids": [
+        "animation_timeline",
+        "jobs_monitor"
+      ],
+      "intent_ids": [
+        "sim.tick",
+        "render.preview",
+        "compositor.rebuild",
+        "publish.package"
+      ]
+    },
+    {
+      "mode_id": "render_comp",
+      "tab_label": "Render",
+      "title": "Render And Composite Control Room",
+      "hero_title": "Review renders, composite plans, and final publish risk in one control room",
+      "hero_summary": "Render and comp should feel like a real production room with visible outputs, not a final step hidden behind a single preview button.",
+      "focus_surface_id": "render_lounge",
+      "featured_tool_ids": [
+        "render_preview",
+        "comp_rebuild"
+      ],
+      "quick_command_ids": [
+        "render.preview",
+        "compositor.rebuild",
+        "publish.package"
+      ],
+      "center_surface_ids": [
+        "render_lounge",
+        "compositor_stack",
+        "publish_console"
+      ],
+      "right_surface_ids": [
+        "selection_inspector",
+        "report_browser",
+        "publish_console"
+      ],
+      "bottom_surface_ids": [
+        "animation_timeline",
+        "jobs_monitor"
+      ],
+      "intent_ids": [
+        "render.preview",
+        "compositor.rebuild",
+        "publish.package"
+      ]
+    },
+    {
+      "mode_id": "publish_automation",
+      "tab_label": "Publish",
+      "title": "Publish And Automation Command Deck",
+      "hero_title": "Delivery, receipts, automation, and tensor readiness under one publish deck",
+      "hero_summary": "The delivery lane should own bundle readiness, recurring jobs, and release artifacts without forcing operators to leave the authored session model.",
+      "focus_surface_id": "publish_console",
+      "featured_tool_ids": [
+        "publish_bundle"
+      ],
+      "quick_command_ids": [
+        "publish.package",
+        "tensor.train_step",
+        "tensor.infer_step",
+        "project.bootstrap"
+      ],
+      "center_surface_ids": [
+        "publish_console",
+        "report_browser",
+        "render_lounge"
+      ],
+      "right_surface_ids": [
+        "material_export_board",
+        "selection_inspector"
+      ],
+      "bottom_surface_ids": [
+        "jobs_monitor",
+        "compositor_stack"
+      ],
+      "intent_ids": [
+        "publish.package",
+        "tensor.train_step",
+        "tensor.infer_step"
+      ]
+    }
+  ]
+}

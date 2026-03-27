@@ -43,6 +43,137 @@
                                 "summary":  "Package review, delivery reports, automation jobs, and runtime pack promotion."
                             }
                         ],
+    "surfaces":  [
+                     {
+                         "id":  "viewport_stage",
+                         "title":  "Viewport Stage",
+                         "dock":  "center",
+                         "kind":  "viewport3d",
+                         "scene":  "dcc_suite_scene",
+                         "presentation_profile":  "dcc_authoring_balanced",
+                         "gizmo_binding":  "primary_dcc_viewport",
+                         "summary":  "Primary 3D authoring viewport for scene, model, rig, and render review."
+                     },
+                     {
+                         "id":  "scene_graph",
+                         "title":  "Scene Graph",
+                         "dock":  "left",
+                         "kind":  "tree",
+                         "summary":  "Hierarchy, collections, instancing groups, and publish roots."
+                     },
+                     {
+                         "id":  "asset_ingest",
+                         "title":  "Asset Ingest",
+                         "dock":  "left",
+                         "kind":  "tree",
+                         "summary":  "USD, GLTF, material, groom, cache, and runtime pack intake."
+                     },
+                     {
+                         "id":  "tool_shelf",
+                         "title":  "Tool Shelf",
+                         "dock":  "right",
+                         "kind":  "inspector",
+                         "summary":  "Context-sensitive authoring tools across sculpt, material, rig, sim, and publish."
+                     },
+                     {
+                         "id":  "selection_inspector",
+                         "title":  "Selection Inspector",
+                         "dock":  "right",
+                         "kind":  "inspector",
+                         "summary":  "Transforms, metadata, relationships, and lane-specific detail panels."
+                     },
+                     {
+                         "id":  "material_graph",
+                         "title":  "Material Graph",
+                         "dock":  "bottom",
+                         "kind":  "graph",
+                         "summary":  "Shading, texture-routing, anchor points, and smart material composition."
+                     },
+                     {
+                         "id":  "material_layers",
+                         "title":  "Material Layers",
+                         "dock":  "right",
+                         "kind":  "inspector",
+                         "summary":  "Layer stacks, generators, fill layers, paint layers, and channel blend modes."
+                     },
+                     {
+                         "id":  "svg_mask_canvas",
+                         "title":  "SVG Mask Canvas",
+                         "dock":  "bottom",
+                         "kind":  "graph",
+                         "summary":  "Vector masks, spline decals, anchor-driven booleans, and reusable SVG motifs."
+                     },
+                     {
+                         "id":  "texture_set_inspector",
+                         "title":  "Texture Set Inspector",
+                         "dock":  "right",
+                         "kind":  "inspector",
+                         "summary":  "Texture set membership, UDIM coverage, channel packs, and bake preset assignment."
+                     },
+                     {
+                         "id":  "material_export_board",
+                         "title":  "Material Export Board",
+                         "dock":  "right",
+                         "kind":  "inspector",
+                         "summary":  "Target packers, channel routing, export presets, and downstream DCC/runtime consumers."
+                     },
+                     {
+                         "id":  "rig_graph",
+                         "title":  "Rig Graph",
+                         "dock":  "bottom",
+                         "kind":  "graph",
+                         "summary":  "Control rigs, constraints, deformation layers, and sync reports."
+                     },
+                     {
+                         "id":  "animation_timeline",
+                         "title":  "Animation Timeline",
+                         "dock":  "bottom",
+                         "kind":  "timeline",
+                         "summary":  "Clips, simulation triggers, preview markers, and publish cut ranges."
+                     },
+                     {
+                         "id":  "simulation_board",
+                         "title":  "Simulation Board",
+                         "dock":  "bottom",
+                         "kind":  "graph",
+                         "summary":  "Cache plans, solver dependencies, and replay diagnostics."
+                     },
+                     {
+                         "id":  "render_lounge",
+                         "title":  "Render Lounge",
+                         "dock":  "bottom",
+                         "kind":  "graph",
+                         "summary":  "Render products, preview budgets, frame queues, and AOV targets."
+                     },
+                     {
+                         "id":  "compositor_stack",
+                         "title":  "Compositor Stack",
+                         "dock":  "bottom",
+                         "kind":  "graph",
+                         "summary":  "Composite rebuild plans, mattes, passes, and grading nodes."
+                     },
+                     {
+                         "id":  "publish_console",
+                         "title":  "Publish Console",
+                         "dock":  "right",
+                         "kind":  "inspector",
+                         "summary":  "Packages, receipts, validators, deliverables, and client-facing summaries."
+                     },
+                     {
+                         "id":  "report_browser",
+                         "title":  "Report Browser",
+                         "dock":  "right",
+                         "kind":  "inspector",
+                         "summary":  "Topology, tensor, render, automation, and publish reports."
+                     },
+                     {
+                         "id":  "jobs_monitor",
+                         "title":  "Jobs Monitor",
+                         "dock":  "bottom",
+                         "kind":  "timeline",
+                         "summary":  "Background jobs, Fabric sessions, automation schedules, and retry state."
+                     }
+                 ],
     "tools":  [
                   {
                       "id":  "select",
@@ -151,6 +282,46 @@
                       "gizmo_enabled":  false
                   }
               ],
+    "gizmo_profiles":  [
+                           {
+                               "id":  "dcc_transform_universal",
+                               "label":  "Universal Transform Gizmo",
+                               "summary":  "Shared translate, rotate, and scale gizmo contract for layout, modeling, rigging, and clip blocking lanes.",
+                               "visible":  true,
+                               "drag_trigger":  "ctrl_primary_drag",
+                               "selection_required":  true,
+                               "default_space":  "world",
+                               "hotkeys":  {
+                                               "translate":  "T",
+                                               "rotate":  "R",
+                                               "scale":  "Y",
+                                               "cycle_space":  "U",
+                                               "toggle_snap":  "I"
+                                           },
+                               "snap":  {
+                                            "translate_world_units":  0.5,
+                                            "rotate_degrees":  15.0,
+                                            "scale_percent":  10.0,
+                                            "default_enabled":  false
+                                        },
+                               "overlays":  {
+                                                "show_mode_badge":  true,
+                                                "show_space_badge":  true,
+                                                "show_snap_badge":  true
+                                            }
+                           }
+                       ],
+    "viewport_gizmo_bindings":  [
+                                    {
+                                        "id":  "primary_dcc_viewport",
+                                        "surface_id":  "viewport_stage",
+                                        "scene":  "dcc_suite_scene",
+                                        "presentation_profile":  "dcc_authoring_balanced",
+                                        "gizmo_profile_id":  "dcc_transform_universal",
+                                        "default_mode":  "translate",
+                                        "default_space":  "world"
+                                    }
+                                ],
     "commands":  [
                      {
                          "id":  "project.bootstrap",
@@ -386,6 +557,295 @@
                                             }
                      }
                  ],
+    "runtime_packs":  [
+                          {
+                              "id":  "scene_foundation_pack",
+                              "label":  "Scene Foundation Pack",
+                              "category":  "runtime-pack",
+                              "summary":  "Scene graph, transforms, collections, and viewport bindings."
+                          },
+                          {
+                              "id":  "asset_ingest_pack",
+                              "label":  "Asset Ingest Pack",
+                              "category":  "runtime-pack",
+                              "summary":  "Asset intake schemas, package staging, and source provenance."
+                          },
+                          {
+                              "id":  "modeling_ops_pack",
+                              "label":  "Modeling Ops Pack",
+                              "category":  "runtime-pack",
+                              "summary":  "Modeling tools, topology mutations, and authoring operators."
+                          },
+                          {
+                              "id":  "sculpt_runtime_pack",
+                              "label":  "Sculpt Runtime Pack",
+                              "category":  "runtime-pack",
+                              "summary":  "Brush profiles, sculpt previews, and native mutation surfaces."
+                          },
+                          {
+                              "id":  "material_graph_pack",
+                              "label":  "Material Graph Pack",
+                              "category":  "runtime-pack",
+                              "summary":  "Material graphs, PBR channels, shader previews, and bake metadata."
+                          },
+                          {
+                              "id":  "smart_material_pack",
+                              "label":  "Smart Material Pack",
+                              "category":  "runtime-pack",
+                              "summary":  "Reusable fill layers, generators, anchor-driven filters, and painter-style presets."
+                          },
+                          {
+                              "id":  "svg_mask_pack",
+                              "label":  "SVG Mask Pack",
+                              "category":  "runtime-pack",
+                              "summary":  "Vector masks, spline decals, boolean stacks, and trim-sheet SVG motifs."
+                          },
+                          {
+                              "id":  "material_export_pack",
+                              "label":  "Material Export Pack",
+                              "category":  "runtime-pack",
+                              "summary":  "Channel packing, export presets, target runtime templates, and delivery manifests."
+                          },
+                          {
+                              "id":  "rig_runtime_pack",
+                              "label":  "Rig Runtime Pack",
+                              "category":  "runtime-pack",
+                              "summary":  "Rig controls, graph projections, and deformation contracts."
+                          },
+                          {
+                              "id":  "animation_clip_pack",
+                              "label":  "Animation Clip Pack",
+                              "category":  "runtime-pack",
+                              "summary":  "Clip state, timing, markers, and retargeting support."
+                          },
+                          {
+                              "id":  "simulation_cache_pack",
+                              "label":  "Simulation Cache Pack",
+                              "category":  "runtime-pack",
+                              "summary":  "Cache roots, solver manifests, and replay state."
+                          },
+                          {
+                              "id":  "render_products_pack",
+                              "label":  "Render Products Pack",
+                              "category":  "runtime-pack",
+                              "summary":  "Render products, AOVs, preview queues, and viewport handoff."
+                          },
+                          {
+                              "id":  "compositor_stack_pack",
+                              "label":  "Compositor Stack Pack",
+                              "category":  "runtime-pack",
+                              "summary":  "Composite stack plans, pass dependencies, and grading metadata."
+                          },
+                          {
+                              "id":  "publish_delivery_pack",
+                              "label":  "Publish Delivery Pack",
+                              "category":  "runtime-pack",
+                              "summary":  "Package manifests, delivery variants, and client receipt surfaces."
+                          },
+                          {
+                              "id":  "automation_ops_pack",
+                              "label":  "Automation Ops Pack",
+                              "category":  "runtime-pack",
+                              "summary":  "Background jobs, schedules, report retention, and promotion rules."
+                          }
+                      ],
+    "fabric_pipeline":  [
+                            {
+                                "id":  "python_suite_bootstrap",
+                                "runtime":  "python",
+                                "summary":  "Seeds project defaults, workspace selection, preview sizing, runtime pack counts, and tensor readiness hints."
+                            },
+                            {
+                                "id":  "dcc_suite_seed",
+                                "runtime":  "kain",
+                                "summary":  "Authors the scene graph bootstrap, asset catalog bootstrap, PBR material contract, SVG mask contract, preview buffers, tensor features, and session report."
+                            },
+                            {
+                                "id":  "material_authoring_projection",
+                                "runtime":  "kain",
+                                "summary":  "Projects a substance-painter-style texture set, layer stack, and export preset report from Kain-owned session truth."
+                            },
+                            {
+                                "id":  "svg_material_mask_projection",
+                                "runtime":  "kain",
+                                "summary":  "Projects SVG mask documents, anchor-driven vector motifs, and reusable decal shapes for the material lane."
+                            },
+                            {
+                                "id":  "native_sculpt_kernel",
+                                "runtime":  "c_abi",
+                                "summary":  "Uses the native helper to apply a narrow sculpt mutation proof and emit a sculpt signature."
+                            },
+                            {
+                                "id":  "rig_graph_analysis",
+                                "runtime":  "rust_crate",
+                                "summary":  "Builds graph and topology health reporting from authored scene and sculpt outputs."
+                            },
+                            {
+                                "id":  "tensor_train_stage",
+                                "runtime":  "python",
+                                "summary":  "Emits PyTorch-oriented training readiness and plan summaries without pretending the runtime is fully wired."
+                            },
+                            {
+                                "id":  "tensor_infer_stage",
+                                "runtime":  "python",
+                                "summary":  "Emits tensor inference readiness and model-serving summaries."
+                            },
+                            {
+                                "id":  "gpu_material_preview",
+                                "runtime":  "gpu_compute",
+                                "summary":  "Runs a compute preview and material bake pass across the shared preview buffers after PBR and SVG authoring receipts are materialized."
+                            },
+                            {
+                                "id":  "material_texture_export_projection",
+                                "runtime":  "kain",
+                                "summary":  "Builds channel-pack export receipts for metal-rough, ORM, height, emissive, and custom packed delivery."
+                            },
+                            {
+                                "id":  "publish_suite_report",
+                                "runtime":  "kain",
+                                "summary":  "Builds the publish and package report through a Kain-authored bridge that includes the material export lane."
+                            }
+                        ],
+    "fabric_intents":  [
+                           {
+                               "id":  "project.bootstrap",
+                               "label":  "Bootstrap Suite",
+                               "lane":  "core",
+                               "graph":  "fabric/intents/bootstrap.fabric.toml",
+                               "debounce_ms":  0,
+                               "produces":  [
+                                                "scene_graph_document",
+                                                "asset_catalog_document",
+                                                "session_report"
+                                            ]
+                           },
+                           {
+                               "id":  "asset.ingest_package",
+                               "label":  "Asset Ingest",
+                               "lane":  "ingest",
+                               "graph":  "fabric/intents/asset_ingest.fabric.toml",
+                               "debounce_ms":  0,
+                               "produces":  [
+                                                "asset_ingest_report"
+                                            ]
+                           },
+                           {
+                               "id":  "sculpt.apply_stroke",
+                               "label":  "Sculpt Stroke",
+                               "lane":  "sculpt",
+                               "graph":  "fabric/intents/sculpt_stroke.fabric.toml",
+                               "debounce_ms":  0,
+                               "produces":  [
+                                                "sculpt_delta",
+                                                "sculpt_signature"
+                                            ]
+                           },
+                           {
+                               "id":  "topology.rebuild",
+                               "label":  "Topology Rebuild",
+                               "lane":  "topology",
+                               "graph":  "fabric/intents/topology_rebuild.fabric.toml",
+                               "debounce_ms":  120,
+                               "produces":  [
+                                                "topology_report"
+                                            ]
+                           },
+                           {
+                               "id":  "rig.sync_controls",
+                               "label":  "Rig Sync",
+                               "lane":  "rig",
+                               "graph":  "fabric/intents/rig_sync.fabric.toml",
+                               "debounce_ms":  40,
+                               "produces":  [
+                                                "rig_sync_report"
+                                            ]
+                           },
+                           {
+                               "id":  "sim.tick",
+                               "label":  "Simulation Tick",
+                               "lane":  "simulation",
+                               "graph":  "fabric/intents/sim_tick.fabric.toml",
+                               "debounce_ms":  33,
+                               "produces":  [
+                                                "sim_tick_plan"
+                                            ]
+                           },
+                           {
+                               "id":  "material.bake_preview",
+                               "label":  "Material Bake",
+                               "lane":  "material",
+                               "graph":  "fabric/intents/material_bake.fabric.toml",
+                               "debounce_ms":  16,
+                               "produces":  [
+                                                "material_authoring_report",
+                                                "svg_mask_report",
+                                                "preview_dst",
+                                                "material_texture_export_report"
+                                            ]
+                           },
+                           {
+                               "id":  "material.export_textures",
+                               "label":  "Material Export",
+                               "lane":  "material",
+                               "graph":  "fabric/intents/material_bake.fabric.toml",
+                               "debounce_ms":  0,
+                               "produces":  [
+                                                "material_texture_export_report"
+                                            ]
+                           },
+                           {
+                               "id":  "render.preview",
+                               "label":  "Render Preview",
+                               "lane":  "render",
+                               "graph":  "fabric/intents/render_preview.fabric.toml",
+                               "debounce_ms":  16,
+                               "produces":  [
+                                                "render_preview_report"
+                                            ]
+                           },
+                           {
+                               "id":  "compositor.rebuild",
+                               "label":  "Compositor Rebuild",
+                               "lane":  "compositor",
+                               "graph":  "fabric/intents/compositor_rebuild.fabric.toml",
+                               "debounce_ms":  80,
+                               "produces":  [
+                                                "compositor_rebuild_report"
+                                            ]
+                           },
+                           {
+                               "id":  "publish.package",
+                               "label":  "Publish Package",
+                               "lane":  "publish",
+                               "graph":  "fabric/intents/publish_package.fabric.toml",
+                               "debounce_ms":  0,
+                               "produces":  [
+                                                "publish_summary"
+                                            ]
+                           },
+                           {
+                               "id":  "tensor.train_step",
+                               "label":  "Tensor Train Step",
+                               "lane":  "tensor",
+                               "graph":  "fabric/intents/tensor_train_step.fabric.toml",
+                               "debounce_ms":  0,
+                               "produces":  [
+                                                "tensor_training_report",
+                                                "tensor_training_bridge"
+                                            ]
+                           },
+                           {
+                               "id":  "tensor.infer_step",
+                               "label":  "Tensor Infer Step",
+                               "lane":  "tensor",
+                               "graph":  "fabric/intents/tensor_infer_step.fabric.toml",
+                               "debounce_ms":  0,
+                               "produces":  [
+                                                "tensor_inference_report",
+                                                "tensor_inference_bridge"
+                                            ]
+                           }
+                       ],
     "resources":  [
                       {
                           "id":  "scene_graph_document",
@@ -621,7 +1081,284 @@
                                 "summary":  "Archives publish receipts and operator-facing reports."
                             }
                         ],
+    "ui_theme":  {
+                     "name":  "kain_fabric_universal_studio",
+                     "scope_count":  1,
+                     "variant_count":  7,
+                     "text_variant_count":  1
+                 },
+    "ui_shell":  {
+                     "page_tab_group_id":  "dcc-workspaces",
+                     "viewport_scene":  "dcc_suite_scene",
+                     "workspace_page_count":  7,
+                     "workspace_pages":  [
+                                             {
+                                                 "mode_id":  "scene_assembly",
+                                                 "tab_label":  "Scene",
+                                                 "title":  "Scene Assembly Workbench",
+                                                 "hero_title":  "Scene-first assembly and ingest mission control",
+                                                 "hero_summary":  "Stage layout, intake, placement, and downstream review stay in one operator surface instead of scattering across separate host-owned tools.",
+                                                 "focus_surface_id":  "scene_graph",
+                                                 "featured_tool_ids":  [
+                                                                           "select",
+                                                                           "kitbash_placement"
+                                                                       ],
+                                                 "quick_command_ids":  [
+                                                                           "project.bootstrap",
+                                                                           "workspace.switch_mode",
+                                                                           "asset.ingest_package",
+                                                                           "render.preview"
+                                                                       ],
+                                                 "center_surface_ids":  [
+                                                                            "scene_graph",
+                                                                            "asset_ingest",
+                                                                            "render_lounge"
+                                                                        ],
+                                                 "right_surface_ids":  [
+                                                                           "selection_inspector",
+                                                                           "tool_shelf",
+                                                                           "report_browser"
+                                                                       ],
+                                                 "bottom_surface_ids":  [
+                                                                            "animation_timeline",
+                                                                            "jobs_monitor"
+                                                                        ],
+                                                 "intent_ids":  [
+                                                                    "project.bootstrap",
+                                                                    "asset.ingest_package",
+                                                                    "render.preview",
+                                                                    "publish.package"
+                                                                ]
+                                             },
+                                             {
+                                                 "mode_id":  "sculpt_model",
+                                                 "tab_label":  "Model",
+                                                 "title":  "Sculpt And Modeling Forge",
+                                                 "hero_title":  "Viewport-dominant modeling and sculpt layout",
+                                                 "hero_summary":  "Brush operations, topology refresh, and publish invalidation are grouped as one sculpt workbench instead of separate one-off inspectors.",
+                                                 "focus_surface_id":  "viewport_stage",
+                                                 "featured_tool_ids":  [
+                                                                           "poly_extrude",
+                                                                           "clay_sculpt",
+                                                                           "voxel_rebuild"
+                                                                       ],
+                                                 "quick_command_ids":  [
+                                                                           "tool.activate",
+                                                                           "selection.set",
+                                                                           "sculpt.apply_stroke",
+                                                                           "topology.rebuild"
+                                                                       ],
+                                                 "center_surface_ids":  [
+                                                                            "scene_graph",
+                                                                            "material_graph",
+                                                                            "simulation_board"
+                                                                        ],
+                                                 "right_surface_ids":  [
+                                                                           "selection_inspector",
+                                                                           "tool_shelf",
+                                                                           "report_browser"
+                                                                       ],
+                                                 "bottom_surface_ids":  [
+                                                                            "rig_graph",
+                                                                            "jobs_monitor"
+                                                                        ],
+                                                 "intent_ids":  [
+                                                                    "sculpt.apply_stroke",
+                                                                    "topology.rebuild",
+                                                                    "material.bake_preview",
+                                                                    "publish.package"
+                                                                ]
+                                             },
+                                             {
+                                                 "mode_id":  "material_lookdev",
+                                                 "tab_label":  "Lookdev",
+                                                 "title":  "Material And Lookdev Studio",
+                                                 "hero_title":  "Painter-style material authoring with SVG and packed export lanes",
+                                                 "hero_summary":  "Texture sets, smart materials, SVG masks, and export presets are treated as first-class authored surfaces instead of metadata hidden behind a bake button.",
+                                                 "focus_surface_id":  "material_graph",
+                                                 "featured_tool_ids":  [
+                                                                           "material_layer_paint",
+                                                                           "texture_bake",
+                                                                           "smart_material_stack",
+                                                                           "svg_mask_shape",
+                                                                           "channel_pack_export"
+                                                                       ],
+                                                 "quick_command_ids":  [
+                                                                           "material.bake_preview",
+                                                                           "material.author_texture_set",
+                                                                           "material.paint_layer",
+                                                                           "material.edit_svg_mask",
+                                                                           "material.export_textures"
+                                                                       ],
+                                                 "center_surface_ids":  [
+                                                                            "material_graph",
+                                                                            "svg_mask_canvas",
+                                                                            "render_lounge"
+                                                                        ],
+                                                 "right_surface_ids":  [
+                                                                           "material_layers",
+                                                                           "texture_set_inspector",
+                                                                           "material_export_board",
+                                                                           "report_browser"
+                                                                       ],
+                                                 "bottom_surface_ids":  [
+                                                                            "compositor_stack",
+                                                                            "jobs_monitor"
+                                                                        ],
+                                                 "intent_ids":  [
+                                                                    "material.bake_preview",
+                                                                    "material.export_textures",
+                                                                    "render.preview",
+                                                                    "compositor.rebuild"
+                                                                ]
+                                             },
+                                             {
+                                                 "mode_id":  "rig_anim",
+                                                 "tab_label":  "Rig",
+                                                 "title":  "Rig And Animation Bench",
+                                                 "hero_title":  "Graph, timeline, and deformation review in one bench",
+                                                 "hero_summary":  "Rig sync, clip blocking, and viewport validation share one workbench so animation state stays coupled to the same authored contracts.",
+                                                 "focus_surface_id":  "rig_graph",
+                                                 "featured_tool_ids":  [
+                                                                           "control_rig_edit",
+                                                                           "clip_blocking"
+                                                                       ],
+                                                 "quick_command_ids":  [
+                                                                           "rig.sync_controls",
+                                                                           "selection.set",
+                                                                           "render.preview"
+                                                                       ],
+                                                 "center_surface_ids":  [
+                                                                            "rig_graph",
+                                                                            "animation_timeline",
+                                                                            "render_lounge"
+                                                                        ],
+                                                 "right_surface_ids":  [
+                                                                           "selection_inspector",
+                                                                           "tool_shelf",
+                                                                           "report_browser"
+                                                                       ],
+                                                 "bottom_surface_ids":  [
+                                                                            "simulation_board",
+                                                                            "jobs_monitor"
+                                                                        ],
+                                                 "intent_ids":  [
+                                                                    "rig.sync_controls",
+                                                                    "render.preview",
+                                                                    "publish.package"
+                                                                ]
+                                             },
+                                             {
+                                                 "mode_id":  "sim_fx",
+                                                 "tab_label":  "Sim",
+                                                 "title":  "Simulation And FX Board",
+                                                 "hero_title":  "Plan, cache, and review simulation work as a first-class lane",
+                                                 "hero_summary":  "This page keeps simulation planning visible, links it to downstream render and comp work, and makes the current solver seam honest instead of pretending it is complete.",
+                                                 "focus_surface_id":  "simulation_board",
+                                                 "featured_tool_ids":  [
+                                                                           "cache_solver"
+                                                                       ],
+                                                 "quick_command_ids":  [
+                                                                           "sim.tick",
+                                                                           "render.preview",
+                                                                           "compositor.rebuild"
+                                                                       ],
+                                                 "center_surface_ids":  [
+                                                                            "simulation_board",
+                                                                            "render_lounge",
+                                                                            "compositor_stack"
+                                                                        ],
+                                                 "right_surface_ids":  [
+                                                                           "selection_inspector",
+                                                                           "report_browser"
+                                                                       ],
+                                                 "bottom_surface_ids":  [
+                                                                            "animation_timeline",
+                                                                            "jobs_monitor"
+                                                                        ],
+                                                 "intent_ids":  [
+                                                                    "sim.tick",
+                                                                    "render.preview",
+                                                                    "compositor.rebuild",
+                                                                    "publish.package"
+                                                                ]
+                                             },
+                                             {
+                                                 "mode_id":  "render_comp",
+                                                 "tab_label":  "Render",
+                                                 "title":  "Render And Composite Control Room",
+                                                 "hero_title":  "Review renders, composite plans, and final publish risk in one control room",
+                                                 "hero_summary":  "Render and comp should feel like a real production room with visible outputs, not a final step hidden behind a single preview button.",
+                                                 "focus_surface_id":  "render_lounge",
+                                                 "featured_tool_ids":  [
+                                                                           "render_preview",
+                                                                           "comp_rebuild"
+                                                                       ],
+                                                 "quick_command_ids":  [
+                                                                           "render.preview",
+                                                                           "compositor.rebuild",
+                                                                           "publish.package"
+                                                                       ],
+                                                 "center_surface_ids":  [
+                                                                            "render_lounge",
+                                                                            "compositor_stack",
+                                                                            "publish_console"
+                                                                        ],
+                                                 "right_surface_ids":  [
+                                                                           "selection_inspector",
+                                                                           "report_browser",
+                                                                           "publish_console"
+                                                                       ],
+                                                 "bottom_surface_ids":  [
+                                                                            "animation_timeline",
+                                                                            "jobs_monitor"
+                                                                        ],
+                                                 "intent_ids":  [
+                                                                    "render.preview",
+                                                                    "compositor.rebuild",
+                                                                    "publish.package"
+                                                                ]
+                                             },
+                                             {
+                                                 "mode_id":  "publish_automation",
+                                                 "tab_label":  "Publish",
+                                                 "title":  "Publish And Automation Command Deck",
+                                                 "hero_title":  "Delivery, receipts, automation, and tensor readiness under one publish deck",
+                                                 "hero_summary":  "The delivery lane should own bundle readiness, recurring jobs, and release artifacts without forcing operators to leave the authored session model.",
+                                                 "focus_surface_id":  "publish_console",
+                                                 "featured_tool_ids":  [
+                                                                           "publish_bundle"
+                                                                       ],
+                                                 "quick_command_ids":  [
+                                                                           "publish.package",
+                                                                           "tensor.train_step",
+                                                                           "tensor.infer_step",
+                                                                           "project.bootstrap"
+                                                                       ],
+                                                 "center_surface_ids":  [
+                                                                            "publish_console",
+                                                                            "report_browser",
+                                                                            "render_lounge"
+                                                                        ],
+                                                 "right_surface_ids":  [
+                                                                           "material_export_board",
+                                                                           "selection_inspector"
+                                                                       ],
+                                                 "bottom_surface_ids":  [
+                                                                            "jobs_monitor",
+                                                                            "compositor_stack"
+                                                                        ],
+                                                 "intent_ids":  [
+                                                                    "publish.package",
+                                                                    "tensor.train_step",
+                                                                    "tensor.infer_step"
+                                                                ]
+                                             }
+                                         ]
+                 },
     "extension_seams":  [
+                            "the universal studio shell is manifest-driven and generated, but interactive command dispatch still needs a live runtime bridge",
+                            "viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge",
                             "tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract",
                             "simulation lane currently materializes plan-oriented reports rather than a true solver runtime",
                             "compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"

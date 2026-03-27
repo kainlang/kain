@@ -1,0 +1,138 @@
+struct UiWorkbenchDescriptor:
+    mode_id: String
+    tab_label: String
+    title: String
+    hero_title: String
+    hero_summary: String
+    focus_surface: String
+    featured_tools: Array<String>
+    quick_commands: Array<String>
+    center_surfaces: Array<String>
+    right_surfaces: Array<String>
+    bottom_surfaces: Array<String>
+    intent_ids: Array<String>
+
+fn default_ui_workbenches() -> Array<UiWorkbenchDescriptor>:
+    return [
+        UiWorkbenchDescriptor {
+            mode_id: "scene_assembly",
+            tab_label: "Scene",
+            title: "Scene Assembly Workbench",
+            hero_title: "Scene-first assembly and ingest mission control",
+            hero_summary: "Stage layout, intake, placement, and downstream review stay in one operator surface instead of scattering across separate host-owned tools.",
+            focus_surface: "scene_graph",
+            featured_tools: ["select", "kitbash_placement"],
+            quick_commands: ["project.bootstrap", "workspace.switch_mode", "asset.ingest_package", "render.preview"],
+            center_surfaces: ["scene_graph", "asset_ingest", "render_lounge"],
+            right_surfaces: ["selection_inspector", "tool_shelf", "report_browser"],
+            bottom_surfaces: ["animation_timeline", "jobs_monitor"],
+            intent_ids: ["project.bootstrap", "asset.ingest_package", "render.preview", "publish.package"]
+        },
+        UiWorkbenchDescriptor {
+            mode_id: "sculpt_model",
+            tab_label: "Model",
+            title: "Sculpt And Modeling Forge",
+            hero_title: "Viewport-dominant modeling and sculpt layout",
+            hero_summary: "Brush operations, topology refresh, and publish invalidation are grouped as one sculpt workbench instead of separate one-off inspectors.",
+            focus_surface: "viewport_stage",
+            featured_tools: ["poly_extrude", "clay_sculpt", "voxel_rebuild"],
+            quick_commands: ["tool.activate", "selection.set", "sculpt.apply_stroke", "topology.rebuild"],
+            center_surfaces: ["scene_graph", "material_graph", "simulation_board"],
+            right_surfaces: ["selection_inspector", "tool_shelf", "report_browser"],
+            bottom_surfaces: ["rig_graph", "jobs_monitor"],
+            intent_ids: ["sculpt.apply_stroke", "topology.rebuild", "material.bake_preview", "publish.package"]
+        },
+        UiWorkbenchDescriptor {
+            mode_id: "material_lookdev",
+            tab_label: "Lookdev",
+            title: "Material And Lookdev Studio",
+            hero_title: "Painter-style material authoring with SVG and packed export lanes",
+            hero_summary: "Texture sets, smart materials, SVG masks, and export presets are treated as first-class authored surfaces instead of metadata hidden behind a bake button.",
+            focus_surface: "material_graph",
+            featured_tools: ["material_layer_paint", "texture_bake", "smart_material_stack", "svg_mask_shape", "channel_pack_export"],
+            quick_commands: ["material.bake_preview", "material.author_texture_set", "material.paint_layer", "material.edit_svg_mask", "material.export_textures"],
+            center_surfaces: ["material_graph", "svg_mask_canvas", "render_lounge"],
+            right_surfaces: ["material_layers", "texture_set_inspector", "material_export_board", "report_browser"],
+            bottom_surfaces: ["compositor_stack", "jobs_monitor"],
+            intent_ids: ["material.bake_preview", "material.export_textures", "render.preview", "compositor.rebuild"]
+        },
+        UiWorkbenchDescriptor {
+            mode_id: "rig_anim",
+            tab_label: "Rig",
+            title: "Rig And Animation Bench",
+            hero_title: "Graph, timeline, and deformation review in one bench",
+            hero_summary: "Rig sync, clip blocking, and viewport validation share one workbench so animation state stays coupled to the same authored contracts.",
+            focus_surface: "rig_graph",
+            featured_tools: ["control_rig_edit", "clip_blocking"],
+            quick_commands: ["rig.sync_controls", "selection.set", "render.preview"],
+            center_surfaces: ["rig_graph", "animation_timeline", "render_lounge"],
+            right_surfaces: ["selection_inspector", "tool_shelf", "report_browser"],
+            bottom_surfaces: ["simulation_board", "jobs_monitor"],
+            intent_ids: ["rig.sync_controls", "render.preview", "publish.package"]
+        },
+        UiWorkbenchDescriptor {
+            mode_id: "sim_fx",
+            tab_label: "Sim",
+            title: "Simulation And FX Board",
+            hero_title: "Plan, cache, and review simulation work as a first-class lane",
+            hero_summary: "This page keeps simulation planning visible, links it to downstream render and comp work, and makes the current solver seam honest instead of pretending it is complete.",
+            focus_surface: "simulation_board",
+            featured_tools: ["cache_solver"],
+            quick_commands: ["sim.tick", "render.preview", "compositor.rebuild"],
+            center_surfaces: ["simulation_board", "render_lounge", "compositor_stack"],
+            right_surfaces: ["selection_inspector", "report_browser"],
+            bottom_surfaces: ["animation_timeline", "jobs_monitor"],
+            intent_ids: ["sim.tick", "render.preview", "compositor.rebuild", "publish.package"]
+        },
+        UiWorkbenchDescriptor {
+            mode_id: "render_comp",
+            tab_label: "Render",
+            title: "Render And Composite Control Room",
+            hero_title: "Review renders, composite plans, and final publish risk in one control room",
+            hero_summary: "Render and comp should feel like a real production room with visible outputs, not a final step hidden behind a single preview button.",
+            focus_surface: "render_lounge",
+            featured_tools: ["render_preview", "comp_rebuild"],
+            quick_commands: ["render.preview", "compositor.rebuild", "publish.package"],
+            center_surfaces: ["render_lounge", "compositor_stack", "publish_console"],
+            right_surfaces: ["selection_inspector", "report_browser", "publish_console"],
+            bottom_surfaces: ["animation_timeline", "jobs_monitor"],
+            intent_ids: ["render.preview", "compositor.rebuild", "publish.package"]
+        },
+        UiWorkbenchDescriptor {
+            mode_id: "publish_automation",
+            tab_label: "Publish",
+            title: "Publish And Automation Command Deck",
+            hero_title: "Delivery, receipts, automation, and tensor readiness under one publish deck",
+            hero_summary: "The delivery lane should own bundle readiness, recurring jobs, and release artifacts without forcing operators to leave the authored session model.",
+            focus_surface: "publish_console",
+            featured_tools: ["publish_bundle"],
+            quick_commands: ["publish.package", "tensor.train_step", "tensor.infer_step", "project.bootstrap"],
+            center_surfaces: ["publish_console", "report_browser", "render_lounge"],
+            right_surfaces: ["material_export_board", "selection_inspector"],
+            bottom_surfaces: ["jobs_monitor", "compositor_stack"],
+            intent_ids: ["publish.package", "tensor.train_step", "tensor.infer_step"]
+        }
+    ]
+
+fn lookup_ui_workbench(mode_id: String) -> UiWorkbenchDescriptor:
+    let workbenches = default_ui_workbenches()
+    let index = 0
+    while index < len(workbenches):
+        let workbench = workbenches[index]
+        if workbench.mode_id == mode_id:
+            return workbench
+        index = index + 1
+    return UiWorkbenchDescriptor {
+        mode_id: mode_id,
+        tab_label: "Workspace",
+        title: "Fallback Workbench",
+        hero_title: "Fallback workbench",
+        hero_summary: "No authored workbench descriptor was found for this workspace.",
+        focus_surface: "viewport_stage",
+        featured_tools: [],
+        quick_commands: [],
+        center_surfaces: [],
+        right_surfaces: [],
+        bottom_surfaces: [],
+        intent_ids: []
+    }

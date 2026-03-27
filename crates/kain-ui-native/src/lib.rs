@@ -7354,11 +7354,16 @@ fn resolve_viewport_presentation_binding_from_node(
     node: &UiNode,
 ) -> Option<RealtimeViewportPresentationBinding> {
     let particle_budget =
-        prop_i64(node, "viewport.particle_budget").and_then(|value| u32::try_from(value).ok());
+        prop_i64(node, "viewport.particle_budget")
+            .or_else(|| prop_i64(node, "viewport_particle_budget"))
+            .and_then(|value| u32::try_from(value).ok());
     let gizmo = resolve_viewport_gizmo_binding_from_node(node);
     let presentation = RealtimeViewportPresentationBinding {
-        profile: prop_text(node, "viewport.profile").map(ToString::to_string),
-        fog_density: prop_f32(node, "viewport.fog_density"),
+        profile: prop_text(node, "viewport.profile")
+            .or_else(|| prop_text(node, "viewport_profile"))
+            .map(ToString::to_string),
+        fog_density: prop_f32(node, "viewport.fog_density")
+            .or_else(|| prop_f32(node, "viewport_fog_density")),
         particle_budget,
         gizmo,
     };
@@ -7371,21 +7376,44 @@ fn resolve_viewport_presentation_binding_from_node(
 
 fn resolve_viewport_gizmo_binding_from_node(node: &UiNode) -> Option<RealtimeViewportGizmoBinding> {
     let gizmo = RealtimeViewportGizmoBinding {
-        profile_id: prop_text(node, "gizmo.profile").map(ToString::to_string),
-        visible: prop_bool(node, "gizmo.visible"),
-        default_mode: prop_text(node, "gizmo.default_mode").map(ToString::to_string),
-        default_space: prop_text(node, "gizmo.default_space").map(ToString::to_string),
-        drag_trigger: prop_text(node, "gizmo.drag_trigger").map(ToString::to_string),
-        selection_required: prop_bool(node, "gizmo.selection_required"),
-        translate_hotkey: prop_text(node, "gizmo.hotkey.translate").map(ToString::to_string),
-        rotate_hotkey: prop_text(node, "gizmo.hotkey.rotate").map(ToString::to_string),
-        scale_hotkey: prop_text(node, "gizmo.hotkey.scale").map(ToString::to_string),
-        cycle_space_hotkey: prop_text(node, "gizmo.hotkey.cycle_space").map(ToString::to_string),
-        toggle_snap_hotkey: prop_text(node, "gizmo.hotkey.toggle_snap").map(ToString::to_string),
-        translate_snap_units: prop_f32(node, "gizmo.snap.translate"),
-        rotate_snap_degrees: prop_f32(node, "gizmo.snap.rotate_degrees"),
-        scale_snap_percent: prop_f32(node, "gizmo.snap.scale_percent"),
-        snap_default_enabled: prop_bool(node, "gizmo.snap.default_enabled"),
+        profile_id: prop_text(node, "gizmo.profile")
+            .or_else(|| prop_text(node, "gizmo_profile"))
+            .map(ToString::to_string),
+        visible: prop_bool(node, "gizmo.visible").or_else(|| prop_bool(node, "gizmo_visible")),
+        default_mode: prop_text(node, "gizmo.default_mode")
+            .or_else(|| prop_text(node, "gizmo_default_mode"))
+            .map(ToString::to_string),
+        default_space: prop_text(node, "gizmo.default_space")
+            .or_else(|| prop_text(node, "gizmo_default_space"))
+            .map(ToString::to_string),
+        drag_trigger: prop_text(node, "gizmo.drag_trigger")
+            .or_else(|| prop_text(node, "gizmo_drag_trigger"))
+            .map(ToString::to_string),
+        selection_required: prop_bool(node, "gizmo.selection_required")
+            .or_else(|| prop_bool(node, "gizmo_selection_required")),
+        translate_hotkey: prop_text(node, "gizmo.hotkey.translate")
+            .or_else(|| prop_text(node, "gizmo_hotkey_translate"))
+            .map(ToString::to_string),
+        rotate_hotkey: prop_text(node, "gizmo.hotkey.rotate")
+            .or_else(|| prop_text(node, "gizmo_hotkey_rotate"))
+            .map(ToString::to_string),
+        scale_hotkey: prop_text(node, "gizmo.hotkey.scale")
+            .or_else(|| prop_text(node, "gizmo_hotkey_scale"))
+            .map(ToString::to_string),
+        cycle_space_hotkey: prop_text(node, "gizmo.hotkey.cycle_space")
+            .or_else(|| prop_text(node, "gizmo_hotkey_cycle_space"))
+            .map(ToString::to_string),
+        toggle_snap_hotkey: prop_text(node, "gizmo.hotkey.toggle_snap")
+            .or_else(|| prop_text(node, "gizmo_hotkey_toggle_snap"))
+            .map(ToString::to_string),
+        translate_snap_units: prop_f32(node, "gizmo.snap.translate")
+            .or_else(|| prop_f32(node, "gizmo_snap_translate")),
+        rotate_snap_degrees: prop_f32(node, "gizmo.snap.rotate_degrees")
+            .or_else(|| prop_f32(node, "gizmo_snap_rotate_degrees")),
+        scale_snap_percent: prop_f32(node, "gizmo.snap.scale_percent")
+            .or_else(|| prop_f32(node, "gizmo_snap_scale_percent")),
+        snap_default_enabled: prop_bool(node, "gizmo.snap.default_enabled")
+            .or_else(|| prop_bool(node, "gizmo_snap_default_enabled")),
     };
     (gizmo.profile_id.is_some()
         || gizmo.visible.is_some()
@@ -7987,8 +8015,11 @@ mod tests {
             &camera,
             RenderResolution::new(1280, 720),
             ManipulatorMode::Translate,
+            ManipulatorSpace::World,
             &origin,
             Vec2::new(120.0, -48.0),
+            false,
+            viewport_gizmo_snap_settings(&default_viewport_gizmo_binding()),
         );
 
         assert!(updated.translation.x > origin.translation.x);
@@ -8011,13 +8042,47 @@ mod tests {
             &camera,
             RenderResolution::new(1280, 720),
             ManipulatorMode::Scale,
+            ManipulatorSpace::World,
             &origin,
             Vec2::new(-900.0, 900.0),
+            false,
+            viewport_gizmo_snap_settings(&default_viewport_gizmo_binding()),
         );
 
         assert!(updated.scale.x > 0.0);
         assert!(updated.scale.y > 0.0);
         assert!(updated.scale.z > 0.0);
+    }
+
+    #[test]
+    fn viewport_translate_drag_snaps_when_enabled() {
+        let camera = CameraPose {
+            position: Vec3::new(0.0, 4.0, 10.0),
+            target: Vec3::ZERO,
+            up: Vec3::UP,
+            fov_y_degrees: 60.0,
+            near_plane: 0.1,
+            far_plane: 100.0,
+        };
+        let origin = SceneTransform::identity().with_translation(Vec3::new(0.3, 0.7, 1.1));
+
+        let updated = manipulated_transform_from_drag(
+            &camera,
+            RenderResolution::new(1280, 720),
+            ManipulatorMode::Translate,
+            ManipulatorSpace::World,
+            &origin,
+            Vec2::new(67.0, -19.0),
+            true,
+            ViewportGizmoSnapSettings {
+                translation_step: Some(0.5),
+                rotation_step_radians: None,
+                scale_step: None,
+            },
+        );
+
+        assert!((updated.translation.x * 2.0).fract().abs() <= 1.0e-4);
+        assert!((updated.translation.y * 2.0).fract().abs() <= 1.0e-4);
     }
 
     fn themed_test_output(child_values: Option<BTreeMap<String, UiValue>>) -> UiBuildOutput {

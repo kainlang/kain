@@ -1,0 +1,314 @@
+{
+  "theme_name": "kain_fabric_universal_studio",
+  "scopes": [
+    {
+      "name": "dcc_shell",
+      "selector": "kain-fabric-dcc-suite"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "theme.chrome.topbar.visible",
+      "category": "state",
+      "value": false
+    },
+    {
+      "name": "theme.chrome.inspector.visible",
+      "category": "state",
+      "value": false
+    },
+    {
+      "name": "theme.spacing.scale",
+      "category": "space",
+      "value": 1.02
+    },
+    {
+      "name": "theme.radius.scale",
+      "category": "radius",
+      "value": 1.1
+    },
+    {
+      "name": "theme.typography.scale",
+      "category": "type",
+      "value": 1.05
+    },
+    {
+      "name": "theme.background.top",
+      "category": "color",
+      "value": "#07111a"
+    },
+    {
+      "name": "theme.background.bottom",
+      "category": "color",
+      "value": "#0d1b25"
+    },
+    {
+      "name": "theme.surface.default",
+      "category": "color",
+      "value": "#11212d"
+    },
+    {
+      "name": "theme.surface.alt",
+      "category": "color",
+      "value": "#172a38"
+    },
+    {
+      "name": "theme.surface.raised",
+      "category": "color",
+      "value": "#22384a"
+    },
+    {
+      "name": "theme.surface.overlay",
+      "category": "color",
+      "value": "#0a1620e6"
+    },
+    {
+      "name": "theme.outline.soft",
+      "category": "color",
+      "value": "#335267"
+    },
+    {
+      "name": "theme.outline.bright",
+      "category": "color",
+      "value": "#6dd3c7"
+    },
+    {
+      "name": "theme.accent.primary",
+      "category": "color",
+      "value": "#ff8c42"
+    },
+    {
+      "name": "theme.accent.soft",
+      "category": "color",
+      "value": "#ffd29c"
+    },
+    {
+      "name": "theme.highlight",
+      "category": "color",
+      "value": "#52c7ea"
+    },
+    {
+      "name": "theme.text.default",
+      "category": "color",
+      "value": "#eef7fb"
+    },
+    {
+      "name": "theme.text.muted",
+      "category": "color",
+      "value": "#9fb5c4"
+    },
+    {
+      "name": "widget.panel.surface.stroke",
+      "category": "color",
+      "value": "#00000000"
+    },
+    {
+      "name": "widget.inspector.surface.mode",
+      "category": "surface",
+      "value": "ghost"
+    },
+    {
+      "name": "widget.tree.surface.mode",
+      "category": "surface",
+      "value": "ghost"
+    },
+    {
+      "name": "widget.graph.surface.mode",
+      "category": "surface",
+      "value": "canvas"
+    },
+    {
+      "name": "widget.timeline.surface.mode",
+      "category": "surface",
+      "value": "canvas"
+    },
+    {
+      "name": "widget.viewport3d.surface.mode",
+      "category": "surface",
+      "value": "canvas"
+    }
+  ],
+  "variants": [
+    {
+      "scope": "dcc_shell",
+      "name": "shell_root",
+      "tokens": [
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        },
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "ghost"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 8
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "masthead",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "glass"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 16
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "page",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "ghost"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 8
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "hero_card",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "glass"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 16
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "quiet_card",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "flat"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 10
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "status_card",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "accent"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 10
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "surface_card",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "glass"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 12
+        }
+      ]
+    }
+  ],
+  "text_variants": [
+    {
+      "scope": "dcc_shell",
+      "name": "hero",
+      "tokens": [
+        {
+          "name": "body.size",
+          "category": "type",
+          "value": 32
+        }
+      ]
+    }
+  ],
+  "widget_defaults": [
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "page",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "surface_card",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    }
+  ]
+}

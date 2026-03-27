@@ -1,206 +1,895 @@
 component App():
     render <slot>
-        <theme name="kain_fabric_dcc_suite">
-            <token name="theme.background.top" category="color" value="#0f1d23" />
-            <token name="theme.background.bottom" category="color" value="#162f35" />
-            <token name="theme.surface.default" category="color" value="#1e3e44" />
-            <token name="theme.surface.alt" category="color" value="#28525a" />
-            <token name="theme.surface.raised" category="color" value="#356972" />
-            <token name="theme.outline.soft" category="color" value="#63a3a6" />
-            <token name="theme.outline.bright" category="color" value="#f59e0b" />
-            <token name="theme.accent.primary" category="color" value="#f97316" />
-            <token name="text.default" category="color" value="#eefaf8" />
+        <theme name="kain_fabric_universal_studio">
+            <scope name="dcc_shell" selector="kain-fabric-dcc-suite" />
+            <token name="theme.chrome.topbar.visible" category="state" value={false} />
+            <token name="theme.chrome.inspector.visible" category="state" value={false} />
+            <token name="theme.spacing.scale" category="space" value={1.02} />
+            <token name="theme.radius.scale" category="radius" value={1.1} />
+            <token name="theme.typography.scale" category="type" value={1.05} />
+            <token name="theme.background.top" category="color" value="#07111a" />
+            <token name="theme.background.bottom" category="color" value="#0d1b25" />
+            <token name="theme.surface.default" category="color" value="#11212d" />
+            <token name="theme.surface.alt" category="color" value="#172a38" />
+            <token name="theme.surface.raised" category="color" value="#22384a" />
+            <token name="theme.surface.overlay" category="color" value="#0a1620e6" />
+            <token name="theme.outline.soft" category="color" value="#335267" />
+            <token name="theme.outline.bright" category="color" value="#6dd3c7" />
+            <token name="theme.accent.primary" category="color" value="#ff8c42" />
+            <token name="theme.accent.soft" category="color" value="#ffd29c" />
+            <token name="theme.highlight" category="color" value="#52c7ea" />
+            <token name="theme.text.default" category="color" value="#eef7fb" />
+            <token name="theme.text.muted" category="color" value="#9fb5c4" />
+            <token name="widget.panel.surface.stroke" category="color" value="#00000000" />
+            <token name="widget.inspector.surface.mode" category="surface" value="ghost" />
+            <token name="widget.tree.surface.mode" category="surface" value="ghost" />
+            <token name="widget.graph.surface.mode" category="surface" value="canvas" />
+            <token name="widget.timeline.surface.mode" category="surface" value="canvas" />
+            <token name="widget.viewport3d.surface.mode" category="surface" value="canvas" />
+            <variant scope="dcc_shell" name="shell_root">
+                <token name="title.visible" category="state" value={false} />
+                <token name="surface.mode" category="surface" value="ghost" />
+                <token name="surface.padding" category="space" value={8} />
+            </variant>
+            <variant scope="dcc_shell" name="masthead">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.padding" category="space" value={16} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="page">
+                <token name="surface.mode" category="surface" value="ghost" />
+                <token name="surface.padding" category="space" value={8} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="hero_card">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.padding" category="space" value={16} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="quiet_card">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.padding" category="space" value={10} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="status_card">
+                <token name="surface.mode" category="surface" value="accent" />
+                <token name="surface.padding" category="space" value={10} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="dcc_shell" name="surface_card">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.padding" category="space" value={12} />
+            </variant>
+            <textvariant scope="dcc_shell" name="hero">
+                <token name="body.size" category="type" value={32} />
+            </textvariant>
+            <widget kind="panel" scope="dcc_shell" variant="page">
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="panel" scope="dcc_shell" variant="surface_card">
+                <token name="density" category="layout" value="compact" />
+            </widget>
         </theme>
-        <panel title="Kain Fabric DCC Suite" layout="dock" persistent_layout_id="kain_fabric_dcc_suite_shell" gap={18} padding={18}>
-            <panel title="Suite Rail" dock="left" split_ratio={0.23} min_width={300} max_width={430} resizable={true} gap={12}>
-                <inspector title="Workspace Modes">
-                    <text role="body">{"Scene Assembly | Scene graph authoring, set dressing, layout, and asset placement."}</text>
-                    <text role="body">{"Sculpt And Model | Poly modeling, sculpt strokes, remesh, and topology shaping."}</text>
-                    <text role="body">{"Material And Lookdev | PBR texture sets, paint layers, SVG masks, smart materials, and export presets."}</text>
-                    <text role="body">{"Rig And Animation | Rig graphs, deformation checks, clips, retargeting, and blocking."}</text>
-                    <text role="body">{"Simulation And FX | Caches, solvers, scene events, and reproducible simulation jobs."}</text>
-                    <text role="body">{"Render And Composite | Viewport renders, frame products, AOV assembly, and compositor rebuilds."}</text>
-                    <text role="body">{"Publish And Automation | Package review, delivery reports, automation jobs, and runtime pack promotion."}</text>
-                </inspector>
-                <inspector title="Runtime Packs">
-                    <text role="body">{"Scene Foundation Pack | Scene graph, transforms, collections, and viewport bindings."}</text>
-                    <text role="body">{"Asset Ingest Pack | Asset intake schemas, package staging, and source provenance."}</text>
-                    <text role="body">{"Modeling Ops Pack | Modeling tools, topology mutations, and authoring operators."}</text>
-                    <text role="body">{"Sculpt Runtime Pack | Brush profiles, sculpt previews, and native mutation surfaces."}</text>
-                    <text role="body">{"Material Graph Pack | Material graphs, PBR channels, shader previews, and bake metadata."}</text>
-                    <text role="body">{"Smart Material Pack | Reusable fill layers, generators, anchor-driven filters, and painter-style presets."}</text>
-                    <text role="body">{"SVG Mask Pack | Vector masks, spline decals, boolean stacks, and trim-sheet SVG motifs."}</text>
-                    <text role="body">{"Material Export Pack | Channel packing, export presets, target runtime templates, and delivery manifests."}</text>
-                </inspector>
-                <inspector title="Command Surface">
-                    <text role="body">{"Bootstrap Suite | project.bootstrap | Seeds the canonical scene, asset, preview, tensor, and publish session state."}</text>
-                    <text role="body">{"Switch Workspace | workspace.switch_mode | Moves the operator into a different DCC lane and marks downstream surfaces for refresh."}</text>
-                    <text role="body">{"Ingest Package | asset.ingest_package | Stages a new asset package into the suite ingest lane and updates runtime pack bookkeeping."}</text>
-                    <text role="body">{"Activate Tool | tool.activate | Changes the active authoring tool and updates tool preset context."}</text>
-                    <text role="body">{"Set Selection | selection.set | Replaces the live entity selection and updates lane inspectors."}</text>
-                    <text role="body">{"Set Gizmo Mode | gizmo.set_mode | Switches the active universal gizmo mode for the current authoring selection."}</text>
-                    <text role="body">{"Set Gizmo Space | gizmo.set_space | Switches the universal gizmo between world and local evaluation space."}</text>
-                    <text role="body">{"Toggle Gizmo Snap | gizmo.toggle_snap | Toggles transform snapping for the active universal gizmo profile."}</text>
-                    <text role="body">{"Apply Sculpt Stroke | sculpt.apply_stroke | Queues a sculpt stroke through the native mutation seam and marks downstream lanes dirty."}</text>
-                    <text role="body">{"Rebuild Topology | topology.rebuild | Refreshes topology and graph health analysis against current scene resources."}</text>
-                    <text role="body">{"Sync Rig Controls | rig.sync_controls | Synchronizes rig projections and deformation reports."}</text>
-                    <text role="body">{"Tick Simulation | sim.tick | Requests the next simulation planning tick and marks cache products dirty."}</text>
-                    <text role="body">{"Bake Material Preview | material.bake_preview | Refreshes the authored PBR preview, SVG mask stack, and packed texture outputs."}</text>
-                    <text role="body">{"Author Texture Set | material.bake_preview | Updates the active texture set, UDIM coverage, and channel preset for the current material."}</text>
-                    <text role="body">{"Paint Material Layer | material.bake_preview | Queues layer-stack changes for fill, paint, filter, and smart-material operators."}</text>
-                    <text role="body">{"Edit SVG Mask | material.bake_preview | Queues SVG mask graph changes, shape edits, booleans, and anchor projections."}</text>
-                    <text role="body">{"Export Texture Set | material.export_textures | Builds the material export receipt for packed texture delivery into downstream runtimes."}</text>
-                    <text role="body">{"Render Preview | render.preview | Stages a preview render refresh and updates render-facing reports."}</text>
-                    <text role="body">{"Rebuild Composite | compositor.rebuild | Refreshes the compositor rebuild plan for the current frame products."}</text>
-                    <text role="body">{"Package Publish | publish.package | Builds the publish summary and package receipts for operator review."}</text>
-                    <text role="body">{"Tensor Train Step | tensor.train_step | Stages a tensor-oriented training plan and readiness report."}</text>
-                    <text role="body">{"Tensor Infer Step | tensor.infer_step | Stages a tensor-oriented inference plan and readiness report."}</text>
-                </inspector>
-            </panel>
-            <panel title="DCC Stage" dock="center" gap={14}>
-                <viewport3d title="Viewport Stage" scene="dcc_suite_scene" />
-                <panel title="Lane Deck" layout="row" gap={12}>
-                    <graph title="Material Graph" />
-                    <graph title="Rig Graph" />
-                    <timeline title="Animation Timeline" />
+        <panel title="Kain Fabric DCC Suite" scope="dcc_shell" variant="shell_root" layout="column" gap={12} padding={12}>
+            <panel title="Operator Masthead" scope="dcc_shell" variant="masthead" layout="row" gap={12}>
+                <panel title="Identity" scope="dcc_shell" variant="hero_card" layout="column" gap={4}>
+                    <text role="eyebrow">{"UNIVERSAL STUDIO UI"}</text>
+                    <text role="hero">{"Workspace-aware Kain shell with page-level docks, stage decks, and authored operator rails."}</text>
+                    <text role="body">{"This shell is generated from manifest-owned UI descriptors so the suite can evolve like a real editor framework instead of a static demo layout."}</text>
                 </panel>
-                <panel title="Production Deck" layout="row" gap={12}>
-                    <graph title="Simulation Board" />
-                    <graph title="Render Lounge" />
-                    <graph title="Compositor Stack" />
+                <panel title="Runtime" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
+                    <text role="metric">{"SUCCEEDED"}</text>
+                    <text role="caption">{"pipeline steps 11"}</text>
+                </panel>
+                <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                    <text role="metric">{"15"}</text>
+                    <text role="caption">{"runtime packs"}</text>
+                </panel>
+                <panel title="Registry" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                    <text role="metric">{"18"}</text>
+                    <text role="caption">{"surface contracts"}</text>
                 </panel>
             </panel>
-            <panel title="Operator Rails" dock="right" split_ratio={0.27} min_width={320} max_width={470} resizable={true} gap={12}>
-                <inspector title="Surfaces">
-                    <text role="body">{"Viewport Stage | viewport3d | Primary 3D authoring viewport for scene, model, rig, and render review."}</text>
-                    <text role="body">{"Scene Graph | tree | Hierarchy, collections, instancing groups, and publish roots."}</text>
-                    <text role="body">{"Asset Ingest | tree | USD, GLTF, material, groom, cache, and runtime pack intake."}</text>
-                    <text role="body">{"Tool Shelf | inspector | Context-sensitive authoring tools across sculpt, material, rig, sim, and publish."}</text>
-                    <text role="body">{"Selection Inspector | inspector | Transforms, metadata, relationships, and lane-specific detail panels."}</text>
-                    <text role="body">{"Material Graph | graph | Shading, texture-routing, anchor points, and smart material composition."}</text>
-                    <text role="body">{"Material Layers | inspector | Layer stacks, generators, fill layers, paint layers, and channel blend modes."}</text>
-                    <text role="body">{"SVG Mask Canvas | graph | Vector masks, spline decals, anchor-driven booleans, and reusable SVG motifs."}</text>
-                    <text role="body">{"Texture Set Inspector | inspector | Texture set membership, UDIM coverage, channel packs, and bake preset assignment."}</text>
-                    <text role="body">{"Material Export Board | inspector | Target packers, channel routing, export presets, and downstream DCC/runtime consumers."}</text>
-                    <text role="body">{"Rig Graph | graph | Control rigs, constraints, deformation layers, and sync reports."}</text>
-                    <text role="body">{"Animation Timeline | timeline | Clips, simulation triggers, preview markers, and publish cut ranges."}</text>
-                    <text role="body">{"Simulation Board | graph | Cache plans, solver dependencies, and replay diagnostics."}</text>
-                    <text role="body">{"Render Lounge | graph | Render products, preview budgets, frame queues, and AOV targets."}</text>
-                    <text role="body">{"Compositor Stack | graph | Composite rebuild plans, mattes, passes, and grading nodes."}</text>
-                    <text role="body">{"Publish Console | inspector | Packages, receipts, validators, deliverables, and client-facing summaries."}</text>
-                    <text role="body">{"Report Browser | inspector | Topology, tensor, render, automation, and publish reports."}</text>
-                    <text role="body">{"Jobs Monitor | timeline | Background jobs, Fabric sessions, automation schedules, and retry state."}</text>
-                </inspector>
-                <inspector title="Tool Rail">
-                    <text role="body">{"Select | Selection, hierarchy filtering, and transform handoff."}</text>
-                    <text role="body">{"Kitbash Placement | Scene placement, snap rules, and collection instancing."}</text>
-                    <text role="body">{"Poly Extrude | Poly modeling, shelling, and local face edits."}</text>
-                    <text role="body">{"Clay Sculpt | Brush-based form sculpting through the native mutation seam."}</text>
-                    <text role="body">{"Voxel Rebuild | Topology reset, remesh, and high-level volume cleanup."}</text>
-                    <text role="body">{"Material Layer Paint | Mask, ID, and procedural material layer authoring."}</text>
-                    <text role="body">{"Texture Bake | GPU-assisted preview and baking workflows."}</text>
-                    <text role="body">{"Control Rig Edit | Rig graph authoring, control bindings, and solver metadata edits."}</text>
-                    <text role="body">{"Clip Blocking | Timing, pose blocking, and clip state management."}</text>
-                    <text role="body">{"Cache Solver | Simulation cache planning and replay orchestration."}</text>
-                    <text role="body">{"Render Preview | Viewport preview renders, AOV toggles, and render queue staging."}</text>
-                    <text role="body">{"Comp Rebuild | Composite plan refresh and pass composition inspection."}</text>
-                    <text role="body">{"Publish Bundle | Delivery package generation, report emission, and runtime pack promotion."}</text>
-                </inspector>
-                <inspector title="Intent Library">
-                    <text role="body">{"Bootstrap Suite | fabric/intents/bootstrap.fabric.toml | produces 3 targets"}</text>
-                    <text role="body">{"Asset Ingest | fabric/intents/asset_ingest.fabric.toml | produces 1 targets"}</text>
-                    <text role="body">{"Sculpt Stroke | fabric/intents/sculpt_stroke.fabric.toml | produces 2 targets"}</text>
-                    <text role="body">{"Topology Rebuild | fabric/intents/topology_rebuild.fabric.toml | produces 1 targets"}</text>
-                    <text role="body">{"Rig Sync | fabric/intents/rig_sync.fabric.toml | produces 1 targets"}</text>
-                    <text role="body">{"Simulation Tick | fabric/intents/sim_tick.fabric.toml | produces 1 targets"}</text>
-                    <text role="body">{"Material Bake | fabric/intents/material_bake.fabric.toml | produces 4 targets"}</text>
-                    <text role="body">{"Material Export | fabric/intents/material_bake.fabric.toml | produces 1 targets"}</text>
-                    <text role="body">{"Render Preview | fabric/intents/render_preview.fabric.toml | produces 1 targets"}</text>
-                    <text role="body">{"Compositor Rebuild | fabric/intents/compositor_rebuild.fabric.toml | produces 1 targets"}</text>
-                    <text role="body">{"Publish Package | fabric/intents/publish_package.fabric.toml | produces 1 targets"}</text>
-                    <text role="body">{"Tensor Train Step | fabric/intents/tensor_train_step.fabric.toml | produces 2 targets"}</text>
-                    <text role="body">{"Tensor Infer Step | fabric/intents/tensor_infer_step.fabric.toml | produces 2 targets"}</text>
+            <panel title="Workspace Atlas" scope="dcc_shell" variant="page" layout="column" gap={12}>
+            <panel title="Scene Assembly Workbench" scope="dcc_shell" variant="page" layout="dock" gap={14} persistent_layout_id="dcc_page_scene_assembly" tab_group_id="dcc-workspaces" tab_label="Scene" tab_order={0} tab_default_active={true}>
+                <panel title="Navigator" dock="left" split_ratio={0.22} min_width={270} max_width={380} resizable={true} layout="column" gap={12}>
+                    <panel title="Hero" scope="dcc_shell" variant="hero_card" layout="column" gap={6}>
+                        <text role="eyebrow">{"SCENE ASSEMBLY"}</text>
+                        <text role="hero">{"Scene-first assembly and ingest mission control"}</text>
+                        <text role="body">{"Stage layout, intake, placement, and downstream review stay in one operator surface instead of scattering across separate host-owned tools."}</text>
+                    </panel>
+                    <inspector title="Featured Tools">
+                        <text role="body">{"Select | Selection, hierarchy filtering, and transform handoff."}</text>
+                        <text role="body">{"Kitbash Placement | Scene placement, snap rules, and collection instancing."}</text>
+                    </inspector>
+                    <inspector title="Quick Commands">
+                        <text role="body">{"Bootstrap Suite | Seeds the canonical scene, asset, preview, tensor, and publish session state."}</text>
+                        <text role="body">{"Switch Workspace | Moves the operator into a different DCC lane and marks downstream surfaces for refresh."}</text>
+                        <text role="body">{"Ingest Package | Stages a new asset package into the suite ingest lane and updates runtime pack bookkeeping."}</text>
+                        <text role="body">{"Render Preview | Stages a preview render refresh and updates render-facing reports."}</text>
+                    </inspector>
+                    <tree title="Focus Surface">
+                        <text role="caption">{"Scene Graph"}</text>
+                        <text role="caption">{"Hierarchy, collections, instancing groups, and publish roots."}</text>
+                    </tree>
+                </panel>
+                <panel title="Workbench Stage" dock="center" layout="column" gap={12}>
+                    <panel title="Status Deck" layout="grid" columns={3} gap={10}>
+                        <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"Scene Assembly"}</text>
+                            <text role="caption">{"focus Scene Graph"}</text>
+                        </panel>
+                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
+                            <text role="metric">{"SUCCEEDED"}</text>
+                            <text role="caption">{"intent routes 4"}</text>
+                        </panel>
+                        <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"15"}</text>
+                            <text role="caption">{"runtime packs online"}</text>
+                        </panel>
+                    </panel>
+                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
+                    <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
+                        <panel title="Scene Graph" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"TREE"}</text>
+                            <text role="caption">{"Hierarchy, collections, instancing groups, and publish roots."}</text>
+                            <tree title="Scene Graph">
+                                <text role="caption">{"Hierarchy, collections, instancing groups, and publish roots."}</text>
+                            </tree>
+                        </panel>
+                        <panel title="Asset Ingest" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"TREE"}</text>
+                            <text role="caption">{"USD, GLTF, material, groom, cache, and runtime pack intake."}</text>
+                            <tree title="Asset Ingest">
+                                <text role="caption">{"USD, GLTF, material, groom, cache, and runtime pack intake."}</text>
+                            </tree>
+                        </panel>
+                        <panel title="Render Lounge" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Render products, preview budgets, frame queues, and AOV targets."}</text>
+                            <graph title="Render Lounge" />
+                        </panel>
+                    </panel>
+                </panel>
+                <panel title="Inspector Rail" dock="right" split_ratio={0.25} min_width={320} max_width={460} resizable={true} layout="column" gap={12}>
+                    <inspector title="Intent Routes">
+                        <text role="body">{"Bootstrap Suite | fabric/intents/bootstrap.fabric.toml"}</text>
+                        <text role="body">{"Asset Ingest | fabric/intents/asset_ingest.fabric.toml"}</text>
+                        <text role="body">{"Render Preview | fabric/intents/render_preview.fabric.toml"}</text>
+                        <text role="body">{"Publish Package | fabric/intents/publish_package.fabric.toml"}</text>
+                    </inspector>
+                    <panel title="Selection Inspector" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Transforms, metadata, relationships, and lane-specific detail panels."}</text>
+                        <inspector title="Selection Inspector">
+                            <text role="caption">{"Transforms, metadata, relationships, and lane-specific detail panels."}</text>
+                        </inspector>
+                    </panel>
+                    <panel title="Tool Shelf" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Context-sensitive authoring tools across sculpt, material, rig, sim, and publish."}</text>
+                        <inspector title="Tool Shelf">
+                            <text role="caption">{"Context-sensitive authoring tools across sculpt, material, rig, sim, and publish."}</text>
+                        </inspector>
+                    </panel>
+                    <panel title="Report Browser" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Topology, tensor, render, automation, and publish reports."}</text>
+                        <inspector title="Report Browser">
+                            <text role="caption">{"Topology, tensor, render, automation, and publish reports."}</text>
+                        </inspector>
+                    </panel>
+                </panel>
+                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.24} min_height={220} max_height={360} resizable={true} layout="column" gap={12}>
+                    <panel title="Execution Surfaces" layout="grid" columns={2} gap={10}>
+                        <panel title="Animation Timeline" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"TIMELINE"}</text>
+                            <text role="caption">{"Clips, simulation triggers, preview markers, and publish cut ranges."}</text>
+                            <timeline title="Animation Timeline" />
+                        </panel>
+                        <panel title="Jobs Monitor" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"TIMELINE"}</text>
+                            <text role="caption">{"Background jobs, Fabric sessions, automation schedules, and retry state."}</text>
+                            <timeline title="Jobs Monitor" />
+                        </panel>
+                    </panel>
+                    <inspector title="Extension Seams">
+                        <text role="caption">{"the universal studio shell is manifest-driven and generated, but interactive command dispatch still needs a live runtime bridge"}</text>
+                        <text role="caption">{"viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge"}</text>
+                        <text role="caption">{"tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract"}</text>
+                        <text role="caption">{"simulation lane currently materializes plan-oriented reports rather than a true solver runtime"}</text>
+                        <text role="caption">{"compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"}</text>
+                    </inspector>
+                </panel>
+            </panel>
+            <panel title="Sculpt And Modeling Forge" scope="dcc_shell" variant="page" layout="dock" gap={14} persistent_layout_id="dcc_page_sculpt_model" tab_group_id="dcc-workspaces" tab_label="Model" tab_order={1}>
+                <panel title="Navigator" dock="left" split_ratio={0.22} min_width={270} max_width={380} resizable={true} layout="column" gap={12}>
+                    <panel title="Hero" scope="dcc_shell" variant="hero_card" layout="column" gap={6}>
+                        <text role="eyebrow">{"SCULPT AND MODEL"}</text>
+                        <text role="hero">{"Viewport-dominant modeling and sculpt layout"}</text>
+                        <text role="body">{"Brush operations, topology refresh, and publish invalidation are grouped as one sculpt workbench instead of separate one-off inspectors."}</text>
+                    </panel>
+                    <inspector title="Featured Tools">
+                        <text role="body">{"Poly Extrude | Poly modeling, shelling, and local face edits."}</text>
+                        <text role="body">{"Clay Sculpt | Brush-based form sculpting through the native mutation seam."}</text>
+                        <text role="body">{"Voxel Rebuild | Topology reset, remesh, and high-level volume cleanup."}</text>
+                    </inspector>
+                    <inspector title="Quick Commands">
+                        <text role="body">{"Activate Tool | Changes the active authoring tool and updates tool preset context."}</text>
+                        <text role="body">{"Set Selection | Replaces the live entity selection and updates lane inspectors."}</text>
+                        <text role="body">{"Apply Sculpt Stroke | Queues a sculpt stroke through the native mutation seam and marks downstream lanes dirty."}</text>
+                        <text role="body">{"Rebuild Topology | Refreshes topology and graph health analysis against current scene resources."}</text>
+                    </inspector>
+                    <tree title="Focus Surface">
+                        <text role="caption">{"Viewport Stage"}</text>
+                        <text role="caption">{"Primary 3D authoring viewport for scene, model, rig, and render review."}</text>
+                    </tree>
+                </panel>
+                <panel title="Workbench Stage" dock="center" layout="column" gap={12}>
+                    <panel title="Status Deck" layout="grid" columns={3} gap={10}>
+                        <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"Sculpt And Model"}</text>
+                            <text role="caption">{"focus Viewport Stage"}</text>
+                        </panel>
+                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
+                            <text role="metric">{"SUCCEEDED"}</text>
+                            <text role="caption">{"intent routes 4"}</text>
+                        </panel>
+                        <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"15"}</text>
+                            <text role="caption">{"runtime packs online"}</text>
+                        </panel>
+                    </panel>
+                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
+                    <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
+                        <panel title="Scene Graph" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"TREE"}</text>
+                            <text role="caption">{"Hierarchy, collections, instancing groups, and publish roots."}</text>
+                            <tree title="Scene Graph">
+                                <text role="caption">{"Hierarchy, collections, instancing groups, and publish roots."}</text>
+                            </tree>
+                        </panel>
+                        <panel title="Material Graph" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Shading, texture-routing, anchor points, and smart material composition."}</text>
+                            <graph title="Material Graph" />
+                        </panel>
+                        <panel title="Simulation Board" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Cache plans, solver dependencies, and replay diagnostics."}</text>
+                            <graph title="Simulation Board" />
+                        </panel>
+                    </panel>
+                </panel>
+                <panel title="Inspector Rail" dock="right" split_ratio={0.25} min_width={320} max_width={460} resizable={true} layout="column" gap={12}>
+                    <inspector title="Intent Routes">
+                        <text role="body">{"Sculpt Stroke | fabric/intents/sculpt_stroke.fabric.toml"}</text>
+                        <text role="body">{"Topology Rebuild | fabric/intents/topology_rebuild.fabric.toml"}</text>
+                        <text role="body">{"Material Bake | fabric/intents/material_bake.fabric.toml"}</text>
+                        <text role="body">{"Publish Package | fabric/intents/publish_package.fabric.toml"}</text>
+                    </inspector>
+                    <panel title="Selection Inspector" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Transforms, metadata, relationships, and lane-specific detail panels."}</text>
+                        <inspector title="Selection Inspector">
+                            <text role="caption">{"Transforms, metadata, relationships, and lane-specific detail panels."}</text>
+                        </inspector>
+                    </panel>
+                    <panel title="Tool Shelf" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Context-sensitive authoring tools across sculpt, material, rig, sim, and publish."}</text>
+                        <inspector title="Tool Shelf">
+                            <text role="caption">{"Context-sensitive authoring tools across sculpt, material, rig, sim, and publish."}</text>
+                        </inspector>
+                    </panel>
+                    <panel title="Report Browser" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Topology, tensor, render, automation, and publish reports."}</text>
+                        <inspector title="Report Browser">
+                            <text role="caption">{"Topology, tensor, render, automation, and publish reports."}</text>
+                        </inspector>
+                    </panel>
+                </panel>
+                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.24} min_height={220} max_height={360} resizable={true} layout="column" gap={12}>
+                    <panel title="Execution Surfaces" layout="grid" columns={2} gap={10}>
+                        <panel title="Rig Graph" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Control rigs, constraints, deformation layers, and sync reports."}</text>
+                            <graph title="Rig Graph" />
+                        </panel>
+                        <panel title="Jobs Monitor" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"TIMELINE"}</text>
+                            <text role="caption">{"Background jobs, Fabric sessions, automation schedules, and retry state."}</text>
+                            <timeline title="Jobs Monitor" />
+                        </panel>
+                    </panel>
+                    <inspector title="Extension Seams">
+                        <text role="caption">{"the universal studio shell is manifest-driven and generated, but interactive command dispatch still needs a live runtime bridge"}</text>
+                        <text role="caption">{"viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge"}</text>
+                        <text role="caption">{"tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract"}</text>
+                        <text role="caption">{"simulation lane currently materializes plan-oriented reports rather than a true solver runtime"}</text>
+                        <text role="caption">{"compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"}</text>
+                    </inspector>
+                </panel>
+            </panel>
+            <panel title="Material And Lookdev Studio" scope="dcc_shell" variant="page" layout="dock" gap={14} persistent_layout_id="dcc_page_material_lookdev" tab_group_id="dcc-workspaces" tab_label="Lookdev" tab_order={2}>
+                <panel title="Navigator" dock="left" split_ratio={0.22} min_width={270} max_width={380} resizable={true} layout="column" gap={12}>
+                    <panel title="Hero" scope="dcc_shell" variant="hero_card" layout="column" gap={6}>
+                        <text role="eyebrow">{"MATERIAL AND LOOKDEV"}</text>
+                        <text role="hero">{"Painter-style material authoring with SVG and packed export lanes"}</text>
+                        <text role="body">{"Texture sets, smart materials, SVG masks, and export presets are treated as first-class authored surfaces instead of metadata hidden behind a bake button."}</text>
+                    </panel>
+                    <inspector title="Featured Tools">
+                        <text role="body">{"Material Layer Paint | Mask, ID, and procedural material layer authoring."}</text>
+                        <text role="body">{"Texture Bake | GPU-assisted preview and baking workflows."}</text>
+                    </inspector>
+                    <inspector title="Quick Commands">
+                        <text role="body">{"Bake Material Preview | Refreshes the authored PBR preview, SVG mask stack, and packed texture outputs."}</text>
+                        <text role="body">{"Author Texture Set | Updates the active texture set, UDIM coverage, and channel preset for the current material."}</text>
+                        <text role="body">{"Paint Material Layer | Queues layer-stack changes for fill, paint, filter, and smart-material operators."}</text>
+                        <text role="body">{"Edit SVG Mask | Queues SVG mask graph changes, shape edits, booleans, and anchor projections."}</text>
+                        <text role="body">{"Export Texture Set | Builds the material export receipt for packed texture delivery into downstream runtimes."}</text>
+                    </inspector>
+                    <tree title="Focus Surface">
+                        <text role="caption">{"Material Graph"}</text>
+                        <text role="caption">{"Shading, texture-routing, anchor points, and smart material composition."}</text>
+                    </tree>
+                </panel>
+                <panel title="Workbench Stage" dock="center" layout="column" gap={12}>
+                    <panel title="Status Deck" layout="grid" columns={3} gap={10}>
+                        <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"Material And Lookdev"}</text>
+                            <text role="caption">{"focus Material Graph"}</text>
+                        </panel>
+                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
+                            <text role="metric">{"SUCCEEDED"}</text>
+                            <text role="caption">{"intent routes 4"}</text>
+                        </panel>
+                        <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"15"}</text>
+                            <text role="caption">{"runtime packs online"}</text>
+                        </panel>
+                    </panel>
+                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
+                    <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
+                        <panel title="Material Graph" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Shading, texture-routing, anchor points, and smart material composition."}</text>
+                            <graph title="Material Graph" />
+                        </panel>
+                        <panel title="SVG Mask Canvas" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Vector masks, spline decals, anchor-driven booleans, and reusable SVG motifs."}</text>
+                            <graph title="SVG Mask Canvas" />
+                        </panel>
+                        <panel title="Render Lounge" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Render products, preview budgets, frame queues, and AOV targets."}</text>
+                            <graph title="Render Lounge" />
+                        </panel>
+                    </panel>
+                </panel>
+                <panel title="Inspector Rail" dock="right" split_ratio={0.25} min_width={320} max_width={460} resizable={true} layout="column" gap={12}>
+                    <inspector title="Intent Routes">
+                        <text role="body">{"Material Bake | fabric/intents/material_bake.fabric.toml"}</text>
+                        <text role="body">{"Material Export | fabric/intents/material_bake.fabric.toml"}</text>
+                        <text role="body">{"Render Preview | fabric/intents/render_preview.fabric.toml"}</text>
+                        <text role="body">{"Compositor Rebuild | fabric/intents/compositor_rebuild.fabric.toml"}</text>
+                    </inspector>
+                    <panel title="Material Layers" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Layer stacks, generators, fill layers, paint layers, and channel blend modes."}</text>
+                        <inspector title="Material Layers">
+                            <text role="caption">{"Layer stacks, generators, fill layers, paint layers, and channel blend modes."}</text>
+                        </inspector>
+                    </panel>
+                    <panel title="Texture Set Inspector" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Texture set membership, UDIM coverage, channel packs, and bake preset assignment."}</text>
+                        <inspector title="Texture Set Inspector">
+                            <text role="caption">{"Texture set membership, UDIM coverage, channel packs, and bake preset assignment."}</text>
+                        </inspector>
+                    </panel>
+                    <panel title="Material Export Board" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Target packers, channel routing, export presets, and downstream DCC/runtime consumers."}</text>
+                        <inspector title="Material Export Board">
+                            <text role="caption">{"Target packers, channel routing, export presets, and downstream DCC/runtime consumers."}</text>
+                        </inspector>
+                    </panel>
+                    <panel title="Report Browser" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Topology, tensor, render, automation, and publish reports."}</text>
+                        <inspector title="Report Browser">
+                            <text role="caption">{"Topology, tensor, render, automation, and publish reports."}</text>
+                        </inspector>
+                    </panel>
+                </panel>
+                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.24} min_height={220} max_height={360} resizable={true} layout="column" gap={12}>
+                    <panel title="Execution Surfaces" layout="grid" columns={2} gap={10}>
+                        <panel title="Compositor Stack" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Composite rebuild plans, mattes, passes, and grading nodes."}</text>
+                            <graph title="Compositor Stack" />
+                        </panel>
+                        <panel title="Jobs Monitor" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"TIMELINE"}</text>
+                            <text role="caption">{"Background jobs, Fabric sessions, automation schedules, and retry state."}</text>
+                            <timeline title="Jobs Monitor" />
+                        </panel>
+                    </panel>
+                    <inspector title="Extension Seams">
+                        <text role="caption">{"the universal studio shell is manifest-driven and generated, but interactive command dispatch still needs a live runtime bridge"}</text>
+                        <text role="caption">{"viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge"}</text>
+                        <text role="caption">{"tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract"}</text>
+                        <text role="caption">{"simulation lane currently materializes plan-oriented reports rather than a true solver runtime"}</text>
+                        <text role="caption">{"compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"}</text>
+                    </inspector>
+                </panel>
+            </panel>
+            <panel title="Rig And Animation Bench" scope="dcc_shell" variant="page" layout="dock" gap={14} persistent_layout_id="dcc_page_rig_anim" tab_group_id="dcc-workspaces" tab_label="Rig" tab_order={3}>
+                <panel title="Navigator" dock="left" split_ratio={0.22} min_width={270} max_width={380} resizable={true} layout="column" gap={12}>
+                    <panel title="Hero" scope="dcc_shell" variant="hero_card" layout="column" gap={6}>
+                        <text role="eyebrow">{"RIG AND ANIMATION"}</text>
+                        <text role="hero">{"Graph, timeline, and deformation review in one bench"}</text>
+                        <text role="body">{"Rig sync, clip blocking, and viewport validation share one workbench so animation state stays coupled to the same authored contracts."}</text>
+                    </panel>
+                    <inspector title="Featured Tools">
+                        <text role="body">{"Control Rig Edit | Rig graph authoring, control bindings, and solver metadata edits."}</text>
+                        <text role="body">{"Clip Blocking | Timing, pose blocking, and clip state management."}</text>
+                    </inspector>
+                    <inspector title="Quick Commands">
+                        <text role="body">{"Sync Rig Controls | Synchronizes rig projections and deformation reports."}</text>
+                        <text role="body">{"Set Selection | Replaces the live entity selection and updates lane inspectors."}</text>
+                        <text role="body">{"Render Preview | Stages a preview render refresh and updates render-facing reports."}</text>
+                    </inspector>
+                    <tree title="Focus Surface">
+                        <text role="caption">{"Rig Graph"}</text>
+                        <text role="caption">{"Control rigs, constraints, deformation layers, and sync reports."}</text>
+                    </tree>
+                </panel>
+                <panel title="Workbench Stage" dock="center" layout="column" gap={12}>
+                    <panel title="Status Deck" layout="grid" columns={3} gap={10}>
+                        <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"Rig And Animation"}</text>
+                            <text role="caption">{"focus Rig Graph"}</text>
+                        </panel>
+                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
+                            <text role="metric">{"SUCCEEDED"}</text>
+                            <text role="caption">{"intent routes 3"}</text>
+                        </panel>
+                        <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"15"}</text>
+                            <text role="caption">{"runtime packs online"}</text>
+                        </panel>
+                    </panel>
+                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
+                    <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
+                        <panel title="Rig Graph" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Control rigs, constraints, deformation layers, and sync reports."}</text>
+                            <graph title="Rig Graph" />
+                        </panel>
+                        <panel title="Animation Timeline" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"TIMELINE"}</text>
+                            <text role="caption">{"Clips, simulation triggers, preview markers, and publish cut ranges."}</text>
+                            <timeline title="Animation Timeline" />
+                        </panel>
+                        <panel title="Render Lounge" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Render products, preview budgets, frame queues, and AOV targets."}</text>
+                            <graph title="Render Lounge" />
+                        </panel>
+                    </panel>
+                </panel>
+                <panel title="Inspector Rail" dock="right" split_ratio={0.25} min_width={320} max_width={460} resizable={true} layout="column" gap={12}>
+                    <inspector title="Intent Routes">
+                        <text role="body">{"Rig Sync | fabric/intents/rig_sync.fabric.toml"}</text>
+                        <text role="body">{"Render Preview | fabric/intents/render_preview.fabric.toml"}</text>
+                        <text role="body">{"Publish Package | fabric/intents/publish_package.fabric.toml"}</text>
+                    </inspector>
+                    <panel title="Selection Inspector" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Transforms, metadata, relationships, and lane-specific detail panels."}</text>
+                        <inspector title="Selection Inspector">
+                            <text role="caption">{"Transforms, metadata, relationships, and lane-specific detail panels."}</text>
+                        </inspector>
+                    </panel>
+                    <panel title="Tool Shelf" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Context-sensitive authoring tools across sculpt, material, rig, sim, and publish."}</text>
+                        <inspector title="Tool Shelf">
+                            <text role="caption">{"Context-sensitive authoring tools across sculpt, material, rig, sim, and publish."}</text>
+                        </inspector>
+                    </panel>
+                    <panel title="Report Browser" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Topology, tensor, render, automation, and publish reports."}</text>
+                        <inspector title="Report Browser">
+                            <text role="caption">{"Topology, tensor, render, automation, and publish reports."}</text>
+                        </inspector>
+                    </panel>
+                </panel>
+                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.24} min_height={220} max_height={360} resizable={true} layout="column" gap={12}>
+                    <panel title="Execution Surfaces" layout="grid" columns={2} gap={10}>
+                        <panel title="Simulation Board" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Cache plans, solver dependencies, and replay diagnostics."}</text>
+                            <graph title="Simulation Board" />
+                        </panel>
+                        <panel title="Jobs Monitor" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"TIMELINE"}</text>
+                            <text role="caption">{"Background jobs, Fabric sessions, automation schedules, and retry state."}</text>
+                            <timeline title="Jobs Monitor" />
+                        </panel>
+                    </panel>
+                    <inspector title="Extension Seams">
+                        <text role="caption">{"the universal studio shell is manifest-driven and generated, but interactive command dispatch still needs a live runtime bridge"}</text>
+                        <text role="caption">{"viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge"}</text>
+                        <text role="caption">{"tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract"}</text>
+                        <text role="caption">{"simulation lane currently materializes plan-oriented reports rather than a true solver runtime"}</text>
+                        <text role="caption">{"compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"}</text>
+                    </inspector>
+                </panel>
+            </panel>
+            <panel title="Simulation And FX Board" scope="dcc_shell" variant="page" layout="dock" gap={14} persistent_layout_id="dcc_page_sim_fx" tab_group_id="dcc-workspaces" tab_label="Sim" tab_order={4}>
+                <panel title="Navigator" dock="left" split_ratio={0.22} min_width={270} max_width={380} resizable={true} layout="column" gap={12}>
+                    <panel title="Hero" scope="dcc_shell" variant="hero_card" layout="column" gap={6}>
+                        <text role="eyebrow">{"SIMULATION AND FX"}</text>
+                        <text role="hero">{"Plan, cache, and review simulation work as a first-class lane"}</text>
+                        <text role="body">{"This page keeps simulation planning visible, links it to downstream render and comp work, and makes the current solver seam honest instead of pretending it is complete."}</text>
+                    </panel>
+                    <inspector title="Featured Tools">
+                        <text role="body">{"Cache Solver | Simulation cache planning and replay orchestration."}</text>
+                    </inspector>
+                    <inspector title="Quick Commands">
+                        <text role="body">{"Tick Simulation | Requests the next simulation planning tick and marks cache products dirty."}</text>
+                        <text role="body">{"Render Preview | Stages a preview render refresh and updates render-facing reports."}</text>
+                        <text role="body">{"Rebuild Composite | Refreshes the compositor rebuild plan for the current frame products."}</text>
+                    </inspector>
+                    <tree title="Focus Surface">
+                        <text role="caption">{"Simulation Board"}</text>
+                        <text role="caption">{"Cache plans, solver dependencies, and replay diagnostics."}</text>
+                    </tree>
+                </panel>
+                <panel title="Workbench Stage" dock="center" layout="column" gap={12}>
+                    <panel title="Status Deck" layout="grid" columns={3} gap={10}>
+                        <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"Simulation And FX"}</text>
+                            <text role="caption">{"focus Simulation Board"}</text>
+                        </panel>
+                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
+                            <text role="metric">{"SUCCEEDED"}</text>
+                            <text role="caption">{"intent routes 4"}</text>
+                        </panel>
+                        <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"15"}</text>
+                            <text role="caption">{"runtime packs online"}</text>
+                        </panel>
+                    </panel>
+                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
+                    <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
+                        <panel title="Simulation Board" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Cache plans, solver dependencies, and replay diagnostics."}</text>
+                            <graph title="Simulation Board" />
+                        </panel>
+                        <panel title="Render Lounge" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Render products, preview budgets, frame queues, and AOV targets."}</text>
+                            <graph title="Render Lounge" />
+                        </panel>
+                        <panel title="Compositor Stack" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Composite rebuild plans, mattes, passes, and grading nodes."}</text>
+                            <graph title="Compositor Stack" />
+                        </panel>
+                    </panel>
+                </panel>
+                <panel title="Inspector Rail" dock="right" split_ratio={0.25} min_width={320} max_width={460} resizable={true} layout="column" gap={12}>
+                    <inspector title="Intent Routes">
+                        <text role="body">{"Simulation Tick | fabric/intents/sim_tick.fabric.toml"}</text>
+                        <text role="body">{"Render Preview | fabric/intents/render_preview.fabric.toml"}</text>
+                        <text role="body">{"Compositor Rebuild | fabric/intents/compositor_rebuild.fabric.toml"}</text>
+                        <text role="body">{"Publish Package | fabric/intents/publish_package.fabric.toml"}</text>
+                    </inspector>
+                    <panel title="Selection Inspector" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Transforms, metadata, relationships, and lane-specific detail panels."}</text>
+                        <inspector title="Selection Inspector">
+                            <text role="caption">{"Transforms, metadata, relationships, and lane-specific detail panels."}</text>
+                        </inspector>
+                    </panel>
+                    <panel title="Report Browser" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Topology, tensor, render, automation, and publish reports."}</text>
+                        <inspector title="Report Browser">
+                            <text role="caption">{"Topology, tensor, render, automation, and publish reports."}</text>
+                        </inspector>
+                    </panel>
+                </panel>
+                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.24} min_height={220} max_height={360} resizable={true} layout="column" gap={12}>
+                    <panel title="Execution Surfaces" layout="grid" columns={2} gap={10}>
+                        <panel title="Animation Timeline" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"TIMELINE"}</text>
+                            <text role="caption">{"Clips, simulation triggers, preview markers, and publish cut ranges."}</text>
+                            <timeline title="Animation Timeline" />
+                        </panel>
+                        <panel title="Jobs Monitor" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"TIMELINE"}</text>
+                            <text role="caption">{"Background jobs, Fabric sessions, automation schedules, and retry state."}</text>
+                            <timeline title="Jobs Monitor" />
+                        </panel>
+                    </panel>
+                    <inspector title="Extension Seams">
+                        <text role="caption">{"the universal studio shell is manifest-driven and generated, but interactive command dispatch still needs a live runtime bridge"}</text>
+                        <text role="caption">{"viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge"}</text>
+                        <text role="caption">{"tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract"}</text>
+                        <text role="caption">{"simulation lane currently materializes plan-oriented reports rather than a true solver runtime"}</text>
+                        <text role="caption">{"compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"}</text>
+                    </inspector>
+                </panel>
+            </panel>
+            <panel title="Render And Composite Control Room" scope="dcc_shell" variant="page" layout="dock" gap={14} persistent_layout_id="dcc_page_render_comp" tab_group_id="dcc-workspaces" tab_label="Render" tab_order={5}>
+                <panel title="Navigator" dock="left" split_ratio={0.22} min_width={270} max_width={380} resizable={true} layout="column" gap={12}>
+                    <panel title="Hero" scope="dcc_shell" variant="hero_card" layout="column" gap={6}>
+                        <text role="eyebrow">{"RENDER AND COMPOSITE"}</text>
+                        <text role="hero">{"Review renders, composite plans, and final publish risk in one control room"}</text>
+                        <text role="body">{"Render and comp should feel like a real production room with visible outputs, not a final step hidden behind a single preview button."}</text>
+                    </panel>
+                    <inspector title="Featured Tools">
+                        <text role="body">{"Render Preview | Viewport preview renders, AOV toggles, and render queue staging."}</text>
+                        <text role="body">{"Comp Rebuild | Composite plan refresh and pass composition inspection."}</text>
+                    </inspector>
+                    <inspector title="Quick Commands">
+                        <text role="body">{"Render Preview | Stages a preview render refresh and updates render-facing reports."}</text>
+                        <text role="body">{"Rebuild Composite | Refreshes the compositor rebuild plan for the current frame products."}</text>
+                        <text role="body">{"Package Publish | Builds the publish summary and package receipts for operator review."}</text>
+                    </inspector>
+                    <tree title="Focus Surface">
+                        <text role="caption">{"Render Lounge"}</text>
+                        <text role="caption">{"Render products, preview budgets, frame queues, and AOV targets."}</text>
+                    </tree>
+                </panel>
+                <panel title="Workbench Stage" dock="center" layout="column" gap={12}>
+                    <panel title="Status Deck" layout="grid" columns={3} gap={10}>
+                        <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"Render And Composite"}</text>
+                            <text role="caption">{"focus Render Lounge"}</text>
+                        </panel>
+                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
+                            <text role="metric">{"SUCCEEDED"}</text>
+                            <text role="caption">{"intent routes 3"}</text>
+                        </panel>
+                        <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"15"}</text>
+                            <text role="caption">{"runtime packs online"}</text>
+                        </panel>
+                    </panel>
+                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
+                    <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
+                        <panel title="Render Lounge" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Render products, preview budgets, frame queues, and AOV targets."}</text>
+                            <graph title="Render Lounge" />
+                        </panel>
+                        <panel title="Compositor Stack" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Composite rebuild plans, mattes, passes, and grading nodes."}</text>
+                            <graph title="Compositor Stack" />
+                        </panel>
+                        <panel title="Publish Console" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"INSPECTOR"}</text>
+                            <text role="caption">{"Packages, receipts, validators, deliverables, and client-facing summaries."}</text>
+                            <inspector title="Publish Console">
+                                <text role="caption">{"Packages, receipts, validators, deliverables, and client-facing summaries."}</text>
+                            </inspector>
+                        </panel>
+                    </panel>
+                </panel>
+                <panel title="Inspector Rail" dock="right" split_ratio={0.25} min_width={320} max_width={460} resizable={true} layout="column" gap={12}>
+                    <inspector title="Intent Routes">
+                        <text role="body">{"Render Preview | fabric/intents/render_preview.fabric.toml"}</text>
+                        <text role="body">{"Compositor Rebuild | fabric/intents/compositor_rebuild.fabric.toml"}</text>
+                        <text role="body">{"Publish Package | fabric/intents/publish_package.fabric.toml"}</text>
+                    </inspector>
+                    <panel title="Selection Inspector" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Transforms, metadata, relationships, and lane-specific detail panels."}</text>
+                        <inspector title="Selection Inspector">
+                            <text role="caption">{"Transforms, metadata, relationships, and lane-specific detail panels."}</text>
+                        </inspector>
+                    </panel>
+                    <panel title="Report Browser" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Topology, tensor, render, automation, and publish reports."}</text>
+                        <inspector title="Report Browser">
+                            <text role="caption">{"Topology, tensor, render, automation, and publish reports."}</text>
+                        </inspector>
+                    </panel>
+                    <panel title="Publish Console" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Packages, receipts, validators, deliverables, and client-facing summaries."}</text>
+                        <inspector title="Publish Console">
+                            <text role="caption">{"Packages, receipts, validators, deliverables, and client-facing summaries."}</text>
+                        </inspector>
+                    </panel>
+                </panel>
+                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.24} min_height={220} max_height={360} resizable={true} layout="column" gap={12}>
+                    <panel title="Execution Surfaces" layout="grid" columns={2} gap={10}>
+                        <panel title="Animation Timeline" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"TIMELINE"}</text>
+                            <text role="caption">{"Clips, simulation triggers, preview markers, and publish cut ranges."}</text>
+                            <timeline title="Animation Timeline" />
+                        </panel>
+                        <panel title="Jobs Monitor" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"TIMELINE"}</text>
+                            <text role="caption">{"Background jobs, Fabric sessions, automation schedules, and retry state."}</text>
+                            <timeline title="Jobs Monitor" />
+                        </panel>
+                    </panel>
+                    <inspector title="Extension Seams">
+                        <text role="caption">{"the universal studio shell is manifest-driven and generated, but interactive command dispatch still needs a live runtime bridge"}</text>
+                        <text role="caption">{"viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge"}</text>
+                        <text role="caption">{"tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract"}</text>
+                        <text role="caption">{"simulation lane currently materializes plan-oriented reports rather than a true solver runtime"}</text>
+                        <text role="caption">{"compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"}</text>
+                    </inspector>
+                </panel>
+            </panel>
+            <panel title="Publish And Automation Command Deck" scope="dcc_shell" variant="page" layout="dock" gap={14} persistent_layout_id="dcc_page_publish_automation" tab_group_id="dcc-workspaces" tab_label="Publish" tab_order={6}>
+                <panel title="Navigator" dock="left" split_ratio={0.22} min_width={270} max_width={380} resizable={true} layout="column" gap={12}>
+                    <panel title="Hero" scope="dcc_shell" variant="hero_card" layout="column" gap={6}>
+                        <text role="eyebrow">{"PUBLISH AND AUTOMATION"}</text>
+                        <text role="hero">{"Delivery, receipts, automation, and tensor readiness under one publish deck"}</text>
+                        <text role="body">{"The delivery lane should own bundle readiness, recurring jobs, and release artifacts without forcing operators to leave the authored session model."}</text>
+                    </panel>
+                    <inspector title="Featured Tools">
+                        <text role="body">{"Publish Bundle | Delivery package generation, report emission, and runtime pack promotion."}</text>
+                    </inspector>
+                    <inspector title="Quick Commands">
+                        <text role="body">{"Package Publish | Builds the publish summary and package receipts for operator review."}</text>
+                        <text role="body">{"Tensor Train Step | Stages a tensor-oriented training plan and readiness report."}</text>
+                        <text role="body">{"Tensor Infer Step | Stages a tensor-oriented inference plan and readiness report."}</text>
+                        <text role="body">{"Bootstrap Suite | Seeds the canonical scene, asset, preview, tensor, and publish session state."}</text>
+                    </inspector>
+                    <tree title="Focus Surface">
+                        <text role="caption">{"Publish Console"}</text>
+                        <text role="caption">{"Packages, receipts, validators, deliverables, and client-facing summaries."}</text>
+                    </tree>
+                </panel>
+                <panel title="Workbench Stage" dock="center" layout="column" gap={12}>
+                    <panel title="Status Deck" layout="grid" columns={3} gap={10}>
+                        <panel title="Mode" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"Publish And Automation"}</text>
+                            <text role="caption">{"focus Publish Console"}</text>
+                        </panel>
+                        <panel title="Fabric" scope="dcc_shell" variant="status_card" layout="column" gap={2}>
+                            <text role="metric">{"SUCCEEDED"}</text>
+                            <text role="caption">{"intent routes 3"}</text>
+                        </panel>
+                        <panel title="Scale" scope="dcc_shell" variant="quiet_card" layout="column" gap={2}>
+                            <text role="metric">{"15"}</text>
+                            <text role="caption">{"runtime packs online"}</text>
+                        </panel>
+                    </panel>
+                    <viewport3d title="Viewport Stage" scene="dcc_suite_scene" viewport_profile="dcc_authoring_balanced" gizmo_default_mode="translate" gizmo_default_space="world" gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
+                    <panel title="Surface Deck" layout="grid" columns={2} gap={12}>
+                        <panel title="Publish Console" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"INSPECTOR"}</text>
+                            <text role="caption">{"Packages, receipts, validators, deliverables, and client-facing summaries."}</text>
+                            <inspector title="Publish Console">
+                                <text role="caption">{"Packages, receipts, validators, deliverables, and client-facing summaries."}</text>
+                            </inspector>
+                        </panel>
+                        <panel title="Report Browser" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"INSPECTOR"}</text>
+                            <text role="caption">{"Topology, tensor, render, automation, and publish reports."}</text>
+                            <inspector title="Report Browser">
+                                <text role="caption">{"Topology, tensor, render, automation, and publish reports."}</text>
+                            </inspector>
+                        </panel>
+                        <panel title="Render Lounge" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Render products, preview budgets, frame queues, and AOV targets."}</text>
+                            <graph title="Render Lounge" />
+                        </panel>
+                    </panel>
+                </panel>
+                <panel title="Inspector Rail" dock="right" split_ratio={0.25} min_width={320} max_width={460} resizable={true} layout="column" gap={12}>
+                    <inspector title="Intent Routes">
+                        <text role="body">{"Publish Package | fabric/intents/publish_package.fabric.toml"}</text>
+                        <text role="body">{"Tensor Train Step | fabric/intents/tensor_train_step.fabric.toml"}</text>
+                        <text role="body">{"Tensor Infer Step | fabric/intents/tensor_infer_step.fabric.toml"}</text>
+                    </inspector>
+                    <panel title="Material Export Board" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Target packers, channel routing, export presets, and downstream DCC/runtime consumers."}</text>
+                        <inspector title="Material Export Board">
+                            <text role="caption">{"Target packers, channel routing, export presets, and downstream DCC/runtime consumers."}</text>
+                        </inspector>
+                    </panel>
+                    <panel title="Selection Inspector" scope="dcc_shell" variant="surface_card" layout="column" gap={8}>
+                        <text role="eyebrow">{"INSPECTOR"}</text>
+                        <text role="caption">{"Transforms, metadata, relationships, and lane-specific detail panels."}</text>
+                        <inspector title="Selection Inspector">
+                            <text role="caption">{"Transforms, metadata, relationships, and lane-specific detail panels."}</text>
+                        </inspector>
+                    </panel>
+                </panel>
+                <panel title="Telemetry Tray" dock="bottom" split_ratio={0.24} min_height={220} max_height={360} resizable={true} layout="column" gap={12}>
+                    <panel title="Execution Surfaces" layout="grid" columns={2} gap={10}>
+                        <panel title="Jobs Monitor" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"TIMELINE"}</text>
+                            <text role="caption">{"Background jobs, Fabric sessions, automation schedules, and retry state."}</text>
+                            <timeline title="Jobs Monitor" />
+                        </panel>
+                        <panel title="Compositor Stack" scope="dcc_shell" variant="quiet_card" layout="column" gap={8}>
+                            <text role="eyebrow">{"GRAPH"}</text>
+                            <text role="caption">{"Composite rebuild plans, mattes, passes, and grading nodes."}</text>
+                            <graph title="Compositor Stack" />
+                        </panel>
+                    </panel>
+                    <inspector title="Extension Seams">
+                        <text role="caption">{"the universal studio shell is manifest-driven and generated, but interactive command dispatch still needs a live runtime bridge"}</text>
+                        <text role="caption">{"viewport host now consumes bundle-authored universal gizmo defaults, but live per-tool gizmo switching still needs a session-to-host bridge"}</text>
+                        <text role="caption">{"tensor lane currently reports readiness and plan state rather than executing a full typed tensor artifact contract"}</text>
+                        <text role="caption">{"simulation lane currently materializes plan-oriented reports rather than a true solver runtime"}</text>
+                        <text role="caption">{"compositor lane currently materializes rebuild plans rather than executing a first-class compositor graph runtime"}</text>
+                    </inspector>
+                </panel>
+            </panel>
+            </panel>
+            <panel title="Global Registries" scope="dcc_shell" variant="page" layout="grid" columns={4} gap={12}>
+                <inspector title="Pipeline">
+                    <text role="caption">{"python_suite_bootstrap | python"}</text>
+                    <text role="caption">{"dcc_suite_seed | kain"}</text>
+                    <text role="caption">{"material_authoring_projection | kain"}</text>
+                    <text role="caption">{"svg_material_mask_projection | kain"}</text>
+                    <text role="caption">{"native_sculpt_kernel | c_abi"}</text>
+                    <text role="caption">{"rig_graph_analysis | rust_crate"}</text>
+                    <text role="caption">{"tensor_train_stage | python"}</text>
+                    <text role="caption">{"tensor_infer_stage | python"}</text>
+                    <text role="caption">{"gpu_material_preview | gpu_compute"}</text>
+                    <text role="caption">{"material_texture_export_projection | kain"}</text>
+                    <text role="caption">{"publish_suite_report | kain"}</text>
                 </inspector>
                 <inspector title="Resources">
-                    <text role="body">{"scene://current/graph | value | Canonical scene graph bootstrap document authored by Kain."}</text>
-                    <text role="body">{"asset://catalog/current | value | Asset ingest and package catalog bootstrap document."}</text>
-                    <text role="body">{"material://current/authoring-contract | value | Kain-authored PBR texture-set, layer-stack, and export contract document."}</text>
-                    <text role="body">{"svg://material/current-mask-stack | value | Kain-authored SVG mask stack document for vector decals, trims, and anchors."}</text>
-                    <text role="body">{"buffer://preview/source | shared_buffer | Source preview and material bake buffer."}</text>
-                    <text role="body">{"buffer://preview/destination | shared_buffer | Destination preview and material bake buffer populated by GPU compute."}</text>
-                    <text role="body">{"image://preview/current | shared_image | Preview image projected into viewport, render, and publish surfaces."}</text>
-                    <text role="body">{"buffer://tensor/features | shared_buffer | Feature buffer staged for tensor-oriented training and inference planning."}</text>
-                    <text role="body">{"buffer://sculpt/delta | shared_buffer | Latest sculpt mutation payload emitted by the C ABI seam."}</text>
-                    <text role="body">{"artifact://material/export-bundle | value | Packed material texture export descriptor for downstream DCC and runtime consumers."}</text>
+                    <text role="caption">{"scene://current/graph | value"}</text>
+                    <text role="caption">{"asset://catalog/current | value"}</text>
+                    <text role="caption">{"material://current/authoring-contract | value"}</text>
+                    <text role="caption">{"svg://material/current-mask-stack | value"}</text>
+                    <text role="caption">{"buffer://preview/source | shared_buffer"}</text>
+                    <text role="caption">{"buffer://preview/destination | shared_buffer"}</text>
+                    <text role="caption">{"image://preview/current | shared_image"}</text>
+                    <text role="caption">{"buffer://tensor/features | shared_buffer"}</text>
+                    <text role="caption">{"buffer://sculpt/delta | shared_buffer"}</text>
+                    <text role="caption">{"artifact://material/export-bundle | value"}</text>
                 </inspector>
                 <inspector title="Reports">
-                    <text role="body">{"report://session/bootstrap | Bootstrap summary for suite session state."}</text>
-                    <text role="body">{"report://asset/ingest | Asset ingest session report."}</text>
-                    <text role="body">{"report://topology/current | Graph and topology health report."}</text>
-                    <text role="body">{"report://rig/sync | Rig sync and deformation readiness report."}</text>
-                    <text role="body">{"report://simulation/tick-plan | Simulation planning report for the current frame tick."}</text>
-                    <text role="body">{"report://material/authoring | PBR texture-set, layer-stack, and export preset authoring report."}</text>
-                    <text role="body">{"report://material/svg-mask | SVG vector mask stack report for decals, trim motifs, and anchor-driven shapes."}</text>
-                    <text role="body">{"report://render/preview | Render preview planning report."}</text>
-                    <text role="body">{"report://material/export | Material texture export and channel-packing report."}</text>
-                    <text role="body">{"report://compositor/rebuild | Compositor rebuild planning report."}</text>
-                    <text role="body">{"report://tensor/training | Tensor training readiness and plan report."}</text>
-                    <text role="body">{"report://tensor/inference | Tensor inference readiness and serving report."}</text>
-                    <text role="body">{"artifact://publish/summary | Publish and delivery summary emitted through the Node bridge."}</text>
+                    <text role="caption">{"report://session/bootstrap | Bootstrap summary for suite session state."}</text>
+                    <text role="caption">{"report://asset/ingest | Asset ingest session report."}</text>
+                    <text role="caption">{"report://topology/current | Graph and topology health report."}</text>
+                    <text role="caption">{"report://rig/sync | Rig sync and deformation readiness report."}</text>
+                    <text role="caption">{"report://simulation/tick-plan | Simulation planning report for the current frame tick."}</text>
+                    <text role="caption">{"report://material/authoring | PBR texture-set, layer-stack, and export preset authoring report."}</text>
+                    <text role="caption">{"report://material/svg-mask | SVG vector mask stack report for decals, trim motifs, and anchor-driven shapes."}</text>
+                    <text role="caption">{"report://render/preview | Render preview planning report."}</text>
+                    <text role="caption">{"report://material/export | Material texture export and channel-packing report."}</text>
+                    <text role="caption">{"report://compositor/rebuild | Compositor rebuild planning report."}</text>
+                    <text role="caption">{"report://tensor/training | Tensor training readiness and plan report."}</text>
+                    <text role="caption">{"report://tensor/inference | Tensor inference readiness and serving report."}</text>
+                    <text role="caption">{"artifact://publish/summary | Publish and delivery summary emitted through the Node bridge."}</text>
                 </inspector>
-            </panel>
-            <panel title="Runtime Telemetry" dock="bottom" split_ratio={0.27} min_height={220} max_height={360} resizable={true} layout="row" gap={12}>
-                <inspector title="Fabric Pipeline">
-                    <text role="body">{"python_suite_bootstrap | python | Seeds project defaults, workspace selection, preview sizing, runtime pack counts, and tensor readiness hints."}</text>
-                    <text role="body">{"dcc_suite_seed | kain | Authors the scene graph bootstrap, asset catalog bootstrap, PBR material contract, SVG mask contract, preview buffers, tensor features, and session report."}</text>
-                    <text role="body">{"material_authoring_projection | kain | Projects a substance-painter-style texture set, layer stack, and export preset report from Kain-owned session truth."}</text>
-                    <text role="body">{"svg_material_mask_projection | kain | Projects SVG mask documents, anchor-driven vector motifs, and reusable decal shapes for the material lane."}</text>
-                    <text role="body">{"native_sculpt_kernel | c_abi | Uses the native helper to apply a narrow sculpt mutation proof and emit a sculpt signature."}</text>
-                    <text role="body">{"rig_graph_analysis | rust_crate | Builds graph and topology health reporting from authored scene and sculpt outputs."}</text>
-                    <text role="body">{"tensor_train_stage | python | Emits PyTorch-oriented training readiness and plan summaries without pretending the runtime is fully wired."}</text>
-                    <text role="body">{"tensor_infer_stage | python | Emits tensor inference readiness and model-serving summaries."}</text>
-                    <text role="body">{"gpu_material_preview | gpu_compute | Runs a compute preview and material bake pass across the shared preview buffers after PBR and SVG authoring receipts are materialized."}</text>
-                    <text role="body">{"material_texture_export_projection | kain | Builds channel-pack export receipts for metal-rough, ORM, height, emissive, and custom packed delivery."}</text>
-                    <text role="body">{"publish_suite_report | kain | Builds the publish and package report through a Kain-authored bridge that includes the material export lane."}</text>
-                </inspector>
-                <inspector title="Automation Jobs">
-                    <text role="body">{"Thumbnail Refresh | on_asset_ingest | Refreshes asset thumbnails and preview products after ingest."}</text>
-                    <text role="body">{"Nightly Material Rebake | nightly | Rebuilds preview materials, SVG mask atlases, and cached bake outputs."}</text>
-                    <text role="body">{"SVG Mask Cache Rebuild | on_material_edit | Recompiles vector mask stacks and anchor projections after material-layer edits."}</text>
-                    <text role="body">{"Smart Material Cache Warmup | on_scene_open | Stages smart material presets, packed brush responses, and texture-set defaults."}</text>
-                    <text role="body">{"Rig Health Audit | on_publish_candidate | Recomputes rig and graph health before publish promotion."}</text>
-                    <text role="body">{"Simulation Cache Warmup | on_scene_open | Stages warm caches for repeatable simulation review."}</text>
-                    <text role="body">{"Tensor Readiness Probe | manual_or_nightly | Checks tensor lane readiness and records PyTorch availability without forcing runtime completion."}</text>
-                    <text role="body">{"Publish Receipt Archive | on_publish | Archives publish receipts and operator-facing reports."}</text>
-                </inspector>
-                <inspector title="Capabilities">
-                    <text role="body">{"ui.runtime"}</text>
-                    <text role="body">{"actor.runtime"}</text>
-                    <text role="body">{"async.runtime"}</text>
-                    <text role="body">{"host.bridge"}</text>
-                    <text role="body">{"reflection"}</text>
-                    <text role="body">{"gfx.viewport"}</text>
-                    <text role="body">{"scene.runtime"}</text>
-                    <text role="body">{"scene.query"}</text>
-                    <text role="body">{"scene.mutation"}</text>
-                    <text role="body">{"asset.gltf"}</text>
-                    <text role="body">{"asset.usd"}</text>
-                    <text role="body">{"asset.realtime"}</text>
-                    <text role="body">{"material.graph"}</text>
-                    <text role="body">{"material.layer_stack"}</text>
-                    <text role="body">{"material.paint"}</text>
-                    <text role="body">{"material.texture_export"}</text>
-                    <text role="body">{"vector.svg"}</text>
-                    <text role="body">{"rig.runtime"}</text>
-                    <text role="body">{"animation.runtime"}</text>
-                    <text role="body">{"simulation.runtime"}</text>
-                    <text role="body">{"render.runtime"}</text>
-                    <text role="body">{"compositor.runtime"}</text>
-                    <text role="body">{"fabric.runtime"}</text>
-                    <text role="body">{"tensor.runtime"}</text>
-                    <text role="body">{"automation.runtime"}</text>
-                    <text role="body">{"ui.bundle"}</text>
-                    <text role="body">{"device.reflection"}</text>
+                <inspector title="Automation">
+                    <text role="caption">{"Thumbnail Refresh | on_asset_ingest"}</text>
+                    <text role="caption">{"Nightly Material Rebake | nightly"}</text>
+                    <text role="caption">{"SVG Mask Cache Rebuild | on_material_edit"}</text>
+                    <text role="caption">{"Smart Material Cache Warmup | on_scene_open"}</text>
+                    <text role="caption">{"Rig Health Audit | on_publish_candidate"}</text>
+                    <text role="caption">{"Simulation Cache Warmup | on_scene_open"}</text>
+                    <text role="caption">{"Tensor Readiness Probe | manual_or_nightly"}</text>
+                    <text role="caption">{"Publish Receipt Archive | on_publish"}</text>
                 </inspector>
             </panel>
         </panel>

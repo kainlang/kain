@@ -10,6 +10,8 @@
     "workspace_modes": "config/workspace_modes.json",
     "tools": "config/tool_catalog.json",
     "gizmo_registry": "config/gizmo_registry.json",
+    "ui_theme": "config/ui_theme.json",
+    "ui_shell": "config/ui_shell.json",
     "command_registry": "config/command_registry.json",
     "fabric_pipeline": "config/fabric_pipeline.json",
     "fabric_intents": "config/fabric_intents.json",
@@ -25,7 +27,8 @@
     "session_resource_registry": "session/resource_registry.kn",
     "session_report_registry": "session/report_registry.kn",
     "session_job_registry": "session/job_registry.kn",
-    "session_workspace_registry": "session/workspace_registry.kn"
+    "session_workspace_registry": "session/workspace_registry.kn",
+    "session_ui_workbench_registry": "session/ui_workbench_registry.kn"
   },
   "required_runtime_capabilities": [
     "ui.runtime",

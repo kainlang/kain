@@ -101,6 +101,23 @@ Next recommended step:
 
 - Add a session-to-host command bridge so `tool.activate`, `gizmo.set_mode`, `gizmo.set_space`, and `gizmo.toggle_snap` can update the live native viewport without relying only on authored defaults.
 
+## 2026-03-27 (Later) - Universal Studio UI System Added
+
+- Added `config/ui_theme.json` and `config/ui_shell.json` as manifest-owned inputs for a page-based universal studio shell with theme scopes, variants, and workspace-specific workbenches.
+- Added `session/ui_workbench_registry.kn` so the workbench contract also exists as typed Kain-owned semantics instead of only inside generated UI output.
+- Replaced the shell materializer with a richer projection that emits workspace pages, viewport-first stage decks, inspector rails, telemetry trays, and manifest-driven operator copy.
+- Expanded `state/runtime_snapshot.json` materialization so future shell or host consumers can read surfaces, runtime packs, pipeline steps, intents, and UI manifest metadata from one projected document.
+
+What future work should preserve:
+
+- keep the generated shell projection disposable while preserving UI truth in the manifests and Kain workbench registry
+- keep workspace pages aligned with the session and intent system instead of letting the native host invent separate navigation truth
+- keep the shell explicit about extension seams so simulation, compositor, and tensor pages do not imply more runtime completeness than the suite currently has
+
+Next recommended step:
+
+- connect the universal shell pages to real interactive command dispatch, layout persistence recovery, and runtime snapshot deltas so the current manifest-rich projection becomes a live editor shell rather than a static generated studio frame
+
 ## 2026-03-27 (Later) - Sim, Compositor, and Tensor Receipts Materialized as Real Lane Artifacts
 
 - Replaced the cwd-relative receipt writes in the sim, compositor, and tensor bridge steps with explicit app-rooted paths under `apps/kain-fabric-dcc-suite/state/`.

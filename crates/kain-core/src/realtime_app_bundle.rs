@@ -946,6 +946,13 @@ fn scene_prop_string(
         .map(ToString::to_string)
 }
 
+fn scene_prop_string_any(
+    props: &std::collections::BTreeMap<String, UiValue>,
+    keys: &[&str],
+) -> Option<String> {
+    keys.iter().find_map(|key| scene_prop_string(props, key))
+}
+
 fn scene_prop_f32(
     props: &std::collections::BTreeMap<String, UiValue>,
     keys: &[&str],
@@ -1003,9 +1010,9 @@ fn collect_scene_presentation_binding(
 ) -> Option<RealtimeViewportPresentationBinding> {
     let gizmo = collect_scene_gizmo_binding(props);
     let presentation = RealtimeViewportPresentationBinding {
-        profile: scene_prop_string(props, "viewport.profile"),
-        fog_density: scene_prop_f32(props, &["viewport.fog_density"]),
-        particle_budget: scene_prop_u32(props, &["viewport.particle_budget"]),
+        profile: scene_prop_string_any(props, &["viewport.profile", "viewport_profile"]),
+        fog_density: scene_prop_f32(props, &["viewport.fog_density", "viewport_fog_density"]),
+        particle_budget: scene_prop_u32(props, &["viewport.particle_budget", "viewport_particle_budget"]),
         gizmo,
     };
     (presentation.profile.is_some()
@@ -1019,21 +1026,21 @@ fn collect_scene_gizmo_binding(
     props: &std::collections::BTreeMap<String, UiValue>,
 ) -> Option<RealtimeViewportGizmoBinding> {
     let gizmo = RealtimeViewportGizmoBinding {
-        profile_id: scene_prop_string(props, "gizmo.profile"),
-        visible: scene_prop_bool(props, &["gizmo.visible"]),
-        default_mode: scene_prop_string(props, "gizmo.default_mode"),
-        default_space: scene_prop_string(props, "gizmo.default_space"),
-        drag_trigger: scene_prop_string(props, "gizmo.drag_trigger"),
-        selection_required: scene_prop_bool(props, &["gizmo.selection_required"]),
-        translate_hotkey: scene_prop_string(props, "gizmo.hotkey.translate"),
-        rotate_hotkey: scene_prop_string(props, "gizmo.hotkey.rotate"),
-        scale_hotkey: scene_prop_string(props, "gizmo.hotkey.scale"),
-        cycle_space_hotkey: scene_prop_string(props, "gizmo.hotkey.cycle_space"),
-        toggle_snap_hotkey: scene_prop_string(props, "gizmo.hotkey.toggle_snap"),
-        translate_snap_units: scene_prop_f32(props, &["gizmo.snap.translate"]),
-        rotate_snap_degrees: scene_prop_f32(props, &["gizmo.snap.rotate_degrees"]),
-        scale_snap_percent: scene_prop_f32(props, &["gizmo.snap.scale_percent"]),
-        snap_default_enabled: scene_prop_bool(props, &["gizmo.snap.default_enabled"]),
+        profile_id: scene_prop_string_any(props, &["gizmo.profile", "gizmo_profile"]),
+        visible: scene_prop_bool(props, &["gizmo.visible", "gizmo_visible"]),
+        default_mode: scene_prop_string_any(props, &["gizmo.default_mode", "gizmo_default_mode"]),
+        default_space: scene_prop_string_any(props, &["gizmo.default_space", "gizmo_default_space"]),
+        drag_trigger: scene_prop_string_any(props, &["gizmo.drag_trigger", "gizmo_drag_trigger"]),
+        selection_required: scene_prop_bool(props, &["gizmo.selection_required", "gizmo_selection_required"]),
+        translate_hotkey: scene_prop_string_any(props, &["gizmo.hotkey.translate", "gizmo_hotkey_translate"]),
+        rotate_hotkey: scene_prop_string_any(props, &["gizmo.hotkey.rotate", "gizmo_hotkey_rotate"]),
+        scale_hotkey: scene_prop_string_any(props, &["gizmo.hotkey.scale", "gizmo_hotkey_scale"]),
+        cycle_space_hotkey: scene_prop_string_any(props, &["gizmo.hotkey.cycle_space", "gizmo_hotkey_cycle_space"]),
+        toggle_snap_hotkey: scene_prop_string_any(props, &["gizmo.hotkey.toggle_snap", "gizmo_hotkey_toggle_snap"]),
+        translate_snap_units: scene_prop_f32(props, &["gizmo.snap.translate", "gizmo_snap_translate"]),
+        rotate_snap_degrees: scene_prop_f32(props, &["gizmo.snap.rotate_degrees", "gizmo_snap_rotate_degrees"]),
+        scale_snap_percent: scene_prop_f32(props, &["gizmo.snap.scale_percent", "gizmo_snap_scale_percent"]),
+        snap_default_enabled: scene_prop_bool(props, &["gizmo.snap.default_enabled", "gizmo_snap_default_enabled"]),
     };
     (gizmo.profile_id.is_some()
         || gizmo.visible.is_some()
