@@ -1,14 +1,17 @@
 use std::javascript::bridge
 
+fn app_root() -> String:
+    return "apps/kain-canvas-forge"
+
 fn studio_runtime() -> Any:
-    return js_bridge_import("./helpers/studio_runtime.mjs")
+    return js_bridge_import("./apps/kain-canvas-forge/helpers/studio_runtime.mjs")
 
 fn output_path(name: String) -> String:
-    return "outputs/" + name
+    return app_root() + "/outputs/" + name
 
 fn main() -> String:
     let runtime = studio_runtime()
-    let summary = js_bridge_call_method(runtime, "buildApp", ["."])
+    let summary = js_bridge_call_method(runtime, "buildApp", [app_root()])
 
     let report = "Kain Canvas Forge build\n"
     let report = report + "app: " + summary.name + "\n"
@@ -23,4 +26,3 @@ fn main() -> String:
     write_file(output_path("kain_canvas_forge_build.txt"), report)
     println(report)
     return report
-
