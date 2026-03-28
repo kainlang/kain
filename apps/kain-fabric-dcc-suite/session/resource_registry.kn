@@ -57,6 +57,13 @@ fn default_resources() -> Array<ResourceDescriptor>:
             summary: "Topology rebuild output contract for mesh edit passes and downstream consumers; topology returns replacement mesh ids"
         },
         ResourceDescriptor {
+            id: "topology_history_mesh_document",
+            resource_uri: "mesh://topology/history/current",
+            kind: "value",
+            producer_step: "topology_history_projection",
+            summary: "Durable topology history contract that retains authored topology decisions and replacement lineage"
+        },
+        ResourceDescriptor {
             id: "material_authoring_document",
             resource_uri: "material://current/authoring-contract",
             kind: "value",
@@ -125,5 +132,27 @@ fn default_resources() -> Array<ResourceDescriptor>:
             kind: "value",
             producer_step: "material_texture_export_projection",
             summary: "Packed material export bundle descriptor"
+        },
+        ResourceDescriptor {
+            id: "rig_control_state_document",
+            resource_uri: "rig://control/current",
+            kind: "value",
+            producer_step: "rig_sync_projection",
+            summary: "App-owned rig control state document that tracks control targets and pose readiness; see config/rig_resource_contract.json"
+        },
+        ResourceDescriptor {
+            id: "rig_deformation_output_document",
+            resource_uri: "rig://deformation/output/current",
+            kind: "value",
+            producer_step: "rig_sync_projection",
+            summary: "App-owned rig deformation output document for solved transforms and downstream consumers; see config/rig_resource_contract.json"
+        },
+        ResourceDescriptor {
+            id: "rig_solver_bridge_document",
+            resource_uri: "rig://solver/bridge/current",
+            kind: "value",
+            producer_step: "rig_sync_projection",
+            summary: "Extension seam document for the external solver adapter expected to own IK and bone evaluation; see config/rig_resource_contract.json"
         }
     ]
+}

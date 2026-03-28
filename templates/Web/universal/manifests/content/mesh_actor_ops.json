@@ -14,6 +14,18 @@
       "href": "#routes"
     },
     {
+      "label": "Actor Ops",
+      "href": "#actor-ops"
+    },
+    {
+      "label": "Agent Studio",
+      "href": "#agent-studio"
+    },
+    {
+      "label": "Contract",
+      "href": "#system-contract"
+    },
+    {
       "label": "Actors",
       "href": "#actors"
     },

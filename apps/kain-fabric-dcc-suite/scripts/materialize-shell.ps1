@@ -448,7 +448,7 @@ function Get-SurfaceCardVariant {
         "texture_set_inspector" { return "property_grid" }
         "material_export_board" { return "property_grid" }
         "publish_console" { return "overlay_card" }
-        "report_browser" { return "overlay_card" }
+        "report_browser" { return "report_browser" }
         "jobs_monitor" { return "status_strip" }
     }
 
@@ -495,6 +495,9 @@ function Render-SurfaceCard {
     Add-Line $lines "$Indent<panel title=`"$($Surface.title)`" scope=`"$Scope`" variant=`"$resolvedVariant`" layout=`"column`" gap={8} persistent_layout_id=`"$resolvedPersistentLayoutId`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value ([string]$Surface.kind).ToUpperInvariant() -Indent "$Indent    ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value $Surface.summary -Indent "$Indent    ")
+    if ([string]$Surface.id -eq "report_browser") {
+        Add-Line $lines (Render-TextNode -Role "callout" -Value "Mesh and topology lineage stay first in this browser." -Indent "$Indent    ")
+    }
     Add-Lines $lines (Render-SurfaceWidget -Surface $Surface -Indent "$Indent    ")
     Add-Line $lines "$Indent</panel>"
     return $lines
@@ -628,7 +631,7 @@ function Render-ShellTopBar {
 
     $statusItems = @($ShellChrome.status_items)
     $menuItems = @($ShellChrome.menu_items)
-    $topBarStatusItems = @($statusItems | Select-Object -First 4)
+    $topBarStatusItems = @($statusItems | Select-Object -First 5)
 
     $lines = New-Object System.Collections.Generic.List[string]
     Add-Line $lines "$Indent<panel title=`"Workbench Top Bar`" scope=`"$Scope`" variant=`"topbar`" layout=`"column`" gap={8} persistent_layout_id=`"dcc_topbar`">"

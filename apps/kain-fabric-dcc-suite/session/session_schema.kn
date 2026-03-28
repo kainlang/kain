@@ -46,6 +46,14 @@ struct MeshState:
     active_primitive_template_id: String
     topology_edit_mode: String
 
+struct TopologyHistoryState:
+    history_document_id: String
+    history_document_uri: String
+    last_lineage_reason: String
+    last_upstream_topology_report: String
+    last_active_edit_target_id: String
+    last_topology_output_id: String
+
 struct AssetIngestState:
     last_package_uri: String
     last_package_kind: String
@@ -118,6 +126,11 @@ struct JobState:
     active_intents: Array<String>
     active_jobs: Array<String>
 
+struct ReportState:
+    mesh_contract_report_id: String
+    mesh_contract_report_uri: String
+    mesh_contract_report_path: String
+
 struct SessionDocument:
     project: ProjectState
     workspace: WorkspaceState
@@ -126,6 +139,7 @@ struct SessionDocument:
     selection: SelectionState
     scene: SceneState
     mesh: MeshState
+    topology_history: TopologyHistoryState
     ingest: AssetIngestState
     materials: MaterialState
     rig: RigState
@@ -135,6 +149,7 @@ struct SessionDocument:
     compositor: CompositorState
     publish: PublishState
     automation: AutomationState
+    reports: ReportState
     dirty: DirtyState
     jobs: JobState
 
@@ -190,6 +205,14 @@ fn default_session_document() -> SessionDocument:
             active_primitive_template_id: "primitive/cube",
             topology_edit_mode: "object"
         },
+        topology_history: TopologyHistoryState {
+            history_document_id: "topology_history_mesh_document",
+            history_document_uri: "mesh://topology/history/current",
+            last_lineage_reason: "bootstrap",
+            last_upstream_topology_report: "state/topology_history_report.json",
+            last_active_edit_target_id: "entity/blender_startup_cube",
+            last_topology_output_id: "topology_output_mesh_document"
+        },
         ingest: AssetIngestState {
             last_package_uri: "asset://starter/kitbash_hangar",
             last_package_kind: "gltf",
@@ -241,6 +264,14 @@ fn default_session_document() -> SessionDocument:
             enabled: true,
             active_job_ids: ["thumbnail_refresh", "nightly_material_rebake", "svg_mask_cache_rebuild"],
             last_audit_status: "pending"
+        },
+        reports: ReportState {
+            mesh_contract_report_id: "mesh_contract_report",
+            mesh_contract_report_uri: "report://mesh/contract",
+            mesh_contract_report_path: "state/mesh_contract_report.json",
+            topology_history_report_id: "topology_history_report",
+            topology_history_report_uri: "report://topology/history",
+            topology_history_report_path: "state/topology_history_report.json"
         },
         dirty: DirtyState {
             asset_dirty: false,

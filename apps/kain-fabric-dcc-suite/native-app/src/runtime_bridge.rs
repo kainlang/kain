@@ -21,6 +21,12 @@ const MESH_ACTIVE_EDIT_TARGET_URI: &str = "mesh://editing/active";
 const MESH_IMPORTED_PAYLOAD_URI: &str = "mesh://imports/current/payloads";
 const MESH_AUTHORED_PRIMITIVE_URI: &str = "mesh://primitives/authored/definitions";
 const MESH_TOPOLOGY_OUTPUT_URI: &str = "mesh://topology/output/current";
+const TOPOLOGY_HISTORY_DOCUMENT_ID: &str = "topology_history_mesh_document";
+const TOPOLOGY_HISTORY_DOCUMENT_URI: &str = "mesh://topology/history/current";
+const TOPOLOGY_HISTORY_REBUILD_REPORT: &str = "state/topology_history_report.json";
+const MESH_CONTRACT_REPORT_ID: &str = "mesh_contract_report";
+const MESH_CONTRACT_REPORT_URI: &str = "report://mesh/contract";
+const MESH_CONTRACT_REPORT_PATH: &str = "state/mesh_contract_report.json";
 
 #[derive(Clone, Debug)]
 pub struct LiveBridgePaths {
@@ -284,6 +290,7 @@ fn apply_asset_ingest(session_document: &mut Value, processed_command_count: usi
 }
 
 fn apply_mesh_open_document(session_document: &mut Value, _processed_command_count: usize) {
+    set_mesh_contract_report(session_document, "mesh.open_document");
     set_string_at_path(
         session_document,
         &["mesh", "active_document_id"],
@@ -366,6 +373,7 @@ fn apply_mesh_create_primitive(
     runtime_snapshot: &Value,
     _processed_command_count: usize,
 ) {
+    set_mesh_contract_report(session_document, "mesh.create_primitive");
     if tool_exists(runtime_snapshot, "select") {
         apply_tool_defaults_from_snapshot(session_document, runtime_snapshot, "select");
     }
@@ -434,6 +442,7 @@ fn apply_mesh_create_primitive(
 }
 
 fn apply_mesh_import_asset(session_document: &mut Value, _processed_command_count: usize) {
+    set_mesh_contract_report(session_document, "mesh.import_asset");
     set_string_at_path(
         session_document,
         &["mesh", "active_document_id"],
@@ -502,6 +511,22 @@ fn apply_mesh_edit_topology(session_document: &mut Value) {
 }
 
 fn apply_mesh_rebuild_topology(session_document: &mut Value) {
+    set_mesh_contract_report(session_document, "mesh.rebuild_topology");
+    set_string_at_path(
+        session_document,
+        &["reports", "topology_history_report_id"],
+        "topology_history_report",
+    );
+    set_string_at_path(
+        session_document,
+        &["reports", "topology_history_report_uri"],
+        "report://topology/history",
+    );
+    set_string_at_path(
+        session_document,
+        &["reports", "topology_history_report_path"],
+        TOPOLOGY_HISTORY_REBUILD_REPORT,
+    );
     set_string_at_path(
         session_document,
         &["mesh", "active_document_id"],
@@ -526,6 +551,36 @@ fn apply_mesh_rebuild_topology(session_document: &mut Value) {
         session_document,
         &["mesh", "mesh_authoring_policy_id"],
         "mesh_authoring_policy/topology_edit_session",
+    );
+    set_string_at_path(
+        session_document,
+        &["topology_history", "history_document_id"],
+        TOPOLOGY_HISTORY_DOCUMENT_ID,
+    );
+    set_string_at_path(
+        session_document,
+        &["topology_history", "history_document_uri"],
+        TOPOLOGY_HISTORY_DOCUMENT_URI,
+    );
+    set_string_at_path(
+        session_document,
+        &["topology_history", "last_lineage_reason"],
+        "topology.rebuild",
+    );
+    set_string_at_path(
+        session_document,
+        &["topology_history", "last_upstream_topology_report"],
+        TOPOLOGY_HISTORY_REBUILD_REPORT,
+    );
+    set_string_at_path(
+        session_document,
+        &["topology_history", "last_active_edit_target_id"],
+        MESH_ACTIVE_EDIT_TARGET_ID,
+    );
+    set_string_at_path(
+        session_document,
+        &["topology_history", "last_topology_output_id"],
+        MESH_TOPOLOGY_OUTPUT_DOCUMENT_ID,
     );
     set_bool_at_path(session_document, &["dirty", "topology_dirty"], false);
     set_bool_at_path(session_document, &["dirty", "rig_dirty"], true);
@@ -565,6 +620,16 @@ fn apply_sculpt_stroke(session_document: &mut Value, runtime_snapshot: &Value) {
 }
 
 fn apply_topology_rebuild(session_document: &mut Value) {
+    set_string_at_path(
+        session_document,
+        &["topology_history", "last_lineage_reason"],
+        "topology.rebuild",
+    );
+    set_string_at_path(
+        session_document,
+        &["topology_history", "last_upstream_topology_report"],
+        TOPOLOGY_HISTORY_REBUILD_REPORT,
+    );
     set_bool_at_path(session_document, &["dirty", "topology_dirty"], false);
     set_bool_at_path(session_document, &["dirty", "render_dirty"], true);
     set_bool_at_path(session_document, &["dirty", "session_needs_save"], true);
@@ -681,6 +746,35 @@ fn apply_publish_package(session_document: &mut Value, runtime_snapshot: &Value)
     set_bool_at_path(session_document, &["dirty", "publish_dirty"], false);
     set_bool_at_path(session_document, &["dirty", "session_needs_save"], false);
     set_string_at_path(session_document, &["automation", "last_audit_status"], "packaged");
+}
+
+fn set_mesh_contract_report(session_document: &mut Value, lineage_reason: &str) {
+    set_string_at_path(
+        session_document,
+        &["reports", "mesh_contract_report_id"],
+        MESH_CONTRACT_REPORT_ID,
+    );
+    set_string_at_path(
+        session_document,
+        &["reports", "mesh_contract_report_uri"],
+        MESH_CONTRACT_REPORT_URI,
+    );
+    set_string_at_path(
+        session_document,
+        &["reports", "mesh_contract_report_path"],
+        MESH_CONTRACT_REPORT_PATH,
+    );
+    set_string_at_path(
+        session_document,
+        &["mesh", "mesh_authoring_policy_id"],
+        if lineage_reason == "mesh.import_asset" {
+            "mesh_authoring_policy/imported_asset_preferred"
+        } else if lineage_reason == "mesh.create_primitive" {
+            "mesh_authoring_policy/authored_primitives_first"
+        } else {
+            "mesh_authoring_policy/topology_edit_session"
+        },
+    );
 }
 
 fn apply_tensor_train_step(session_document: &mut Value) {

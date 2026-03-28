@@ -2,17 +2,23 @@ import { h, render } from "preact";
 
 import { loadSiteData } from "./lib/kain_site_data";
 import { kainScriptTagline } from "./lib/kain_script_bridge.ks";
+import { AgentStudioIsland } from "./islands/AgentStudioIsland";
 import { AppShellIsland } from "./islands/AppShellIsland";
 import { AnalyticsLabIsland } from "./islands/AnalyticsLabIsland";
+import { ActorOpsIsland } from "./islands/ActorOpsIsland";
 import { AuthSessionIsland } from "./islands/AuthSessionIsland";
 import { ChatLabIsland } from "./islands/ChatLabIsland";
 import { RealtimeChannelsIsland } from "./islands/RealtimeChannelsIsland";
 import { SceneViewportIsland } from "./islands/SceneViewportIsland";
 import { StatusWatchIsland } from "./islands/StatusWatchIsland";
+import { SystemContractIsland } from "./islands/SystemContractIsland";
+import { UiStacksIsland } from "./islands/UiStacksIsland";
 import { UiKitIsland } from "./islands/UiKitIsland";
 import { UploadsLabIsland } from "./islands/UploadsLabIsland";
 
 type IslandKind =
+  | "actor-ops"
+  | "agent-studio"
   | "app-shell"
   | "chat"
   | "realtime"
@@ -21,6 +27,8 @@ type IslandKind =
   | "auth-session"
   | "uploads"
   | "analytics"
+  | "system-contract"
+  | "ui-stacks"
   | "ui-kit";
 
 type IslandTarget = {
@@ -49,12 +57,60 @@ async function mountTarget(target: IslandTarget) {
     render(<AppShellIsland modules={siteData.app_modules || []} />, target.node);
     return;
   }
+  if (target.kind === "actor-ops") {
+    render(
+      <ActorOpsIsland
+        routes={siteData.routes || []}
+        actors={siteData.actors || []}
+        topology={siteData.actor_topology || null}
+        policies={siteData.actor_policies || []}
+        metrics={siteData.actor_metrics || []}
+        supervision={siteData.actor_supervision || []}
+        queues={siteData.actor_queues || []}
+        jobs={siteData.actor_jobs || []}
+        schedules={siteData.actor_schedules || []}
+        hosts={siteData.actor_hosts || []}
+        runtime={siteData.actor_runtime || []}
+      />,
+      target.node
+    );
+    return;
+  }
+  if (target.kind === "agent-studio") {
+    render(
+      <AgentStudioIsland
+        agents={siteData.ai_agents?.agents || []}
+        workflows={[...(siteData.agent_workflows || []), ...(siteData.ai_agents?.workflows || [])]}
+        tools={[...(siteData.tool_registry || []), ...(siteData.ai_agents?.tools || [])]}
+        knowledge={siteData.knowledge_sources || []}
+        memory={siteData.memory_stores || []}
+      />,
+      target.node
+    );
+    return;
+  }
   if (target.kind === "ui-kit") {
     render(
       <UiKitIsland
         components={siteData.ui_components || []}
         layouts={siteData.ui_layouts || []}
         tokens={siteData.ui_tokens || []}
+      />,
+      target.node
+    );
+    return;
+  }
+  if (target.kind === "ui-stacks") {
+    render(
+      <UiStacksIsland
+        uiRuntime={siteData.ui_runtime || []}
+        uiState={siteData.ui_state_stack || []}
+        uiRouting={siteData.ui_routing_stack || []}
+        uiData={siteData.ui_data_stack || []}
+        uiForms={siteData.ui_form_stack || []}
+        uiMotion={siteData.ui_motion_stack || []}
+        uiTesting={siteData.ui_testing_stack || []}
+        uiTooling={siteData.ui_tooling_stack || []}
       />,
       target.node
     );
@@ -97,6 +153,10 @@ async function mountTarget(target: IslandTarget) {
   }
   if (target.kind === "analytics") {
     render(<AnalyticsLabIsland />, target.node);
+    return;
+  }
+  if (target.kind === "system-contract") {
+    render(<SystemContractIsland />, target.node);
   }
 }
 

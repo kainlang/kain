@@ -9,6 +9,24 @@ pub fn js_site_load_app(path: String) -> Any:
 pub fn js_site_build_experience(path: String, experience_id: String) -> Any:
     return js_bridge_call_method(js_site_runtime(), "buildExperience", [path, experience_id])
 
+pub fn js_site_bundle_client(path: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "bundleClient", [path])
+
+pub fn js_site_default_experience(path: String) -> String:
+    return js_bridge_call_method(js_site_runtime(), "defaultExperience", [path])
+
+pub fn js_site_bundle_and_build(path: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "bundleAndBuild", [path])
+
+pub fn js_site_build(path: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "buildSite", [path])
+
+pub fn js_site_serve(path: String, experience_id: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "serveSite", [path, experience_id])
+
+pub fn js_site_serve_default(path: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "serveDefault", [path])
+
 pub fn js_site_catalog(path: String) -> Any:
     return js_bridge_call_method(js_site_runtime(), "buildCatalog", [path])
 

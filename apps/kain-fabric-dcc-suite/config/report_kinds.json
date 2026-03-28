@@ -15,6 +15,13 @@
       "summary": "Asset ingest session report."
     },
     {
+      "id": "mesh_contract_report",
+      "report_uri": "report://mesh/contract",
+      "producer_step": "mesh_session_projection",
+      "output_name": "mesh_contract_report",
+      "summary": "Mesh session and contract routing report."
+    },
+    {
       "id": "sculpt_report",
       "report_uri": "report://sculpt/current",
       "producer_step": "native_sculpt_kernel",
@@ -62,6 +69,13 @@
       "producer_step": "render_preview_projection",
       "output_name": "render_preview_report",
       "summary": "Render preview planning report."
+    },
+    {
+      "id": "topology_history_report",
+      "report_uri": "report://topology/history",
+      "producer_step": "topology_history_projection",
+      "output_name": "topology_history_report",
+      "summary": "Topology lineage and replacement-history report."
     },
     {
       "id": "material_texture_export_report",

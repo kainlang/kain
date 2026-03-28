@@ -223,6 +223,14 @@ $SessionDocument = [ordered]@{
         active_job_ids = @("thumbnail_refresh", "nightly_material_rebake", "svg_mask_cache_rebuild")
         last_audit_status = "pending"
     }
+    reports = [ordered]@{
+        mesh_contract_report_id = "mesh_contract_report"
+        mesh_contract_report_uri = "report://mesh/contract"
+        mesh_contract_report_path = "state/mesh_contract_report.json"
+        topology_history_report_id = "topology_history_report"
+        topology_history_report_uri = "report://topology/history"
+        topology_history_report_path = "state/topology_history_report.json"
+    }
     dirty = [ordered]@{
         asset_dirty = $false
         sculpt_dirty = $false

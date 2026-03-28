@@ -162,10 +162,20 @@ name = "topology_report"
 kind = "value"
 
 [[steps]]
+id = "topology_history_projection"
+runtime = "kain"
+entry = "src/topology_history_projection.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "rig_graph_analysis"]
+
+[[steps.outputs]]
+name = "topology_history_report"
+kind = "value"
+
+[[steps]]
 id = "tensor_train_stage"
 runtime = "python"
 entry = "scripts/python_tensor_train_step.py"
-depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "rig_graph_analysis"]
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "rig_graph_analysis", "topology_history_projection"]
 
 [[steps.outputs]]
 name = "tensor_training_report"

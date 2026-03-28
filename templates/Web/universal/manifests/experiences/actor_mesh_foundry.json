@@ -15,6 +15,20 @@
       "source": "content.server_routes"
     },
     {
+      "id": "actor-ops",
+      "kind": "actor_ops",
+      "eyebrow": "Ops Console",
+      "title": "Actor ops console",
+      "body": "Mount the actor control island with routes, queues, schedules, and topology in one live view."
+    },
+    {
+      "id": "system-contract",
+      "kind": "system_contract",
+      "eyebrow": "Contract",
+      "title": "System contract explorer",
+      "body": "Inspect the emitted system contract and UI schema for this actor server."
+    },
+    {
       "id": "streaming",
       "kind": "card_grid",
       "eyebrow": "Streaming",
@@ -48,6 +62,13 @@
       "eyebrow": "Agents",
       "title": "Agent roster",
       "source": "content.ai_agents.agents"
+    },
+    {
+      "id": "agent-studio",
+      "kind": "agent_studio",
+      "eyebrow": "Studio",
+      "title": "Agent studio",
+      "body": "Agent orchestration cockpit for tooling, workflows, knowledge, and memory."
     },
     {
       "id": "actors",

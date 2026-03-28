@@ -50,6 +50,20 @@
       "source": "content.server_routes"
     },
     {
+      "id": "actor-ops",
+      "kind": "actor_ops",
+      "eyebrow": "Ops Console",
+      "title": "Actor ops console",
+      "body": "Consolidated actor control view for queues, schedules, and runtime supervision."
+    },
+    {
+      "id": "system-contract",
+      "kind": "system_contract",
+      "eyebrow": "Contract",
+      "title": "System contract explorer",
+      "body": "Live view of emitted system contract metadata and UI schema outputs."
+    },
+    {
       "id": "streaming",
       "kind": "card_grid",
       "eyebrow": "Streaming",
@@ -111,6 +125,13 @@
       "eyebrow": "Agent Flow",
       "title": "Agent workflows",
       "source": "content.agent_workflows"
+    },
+    {
+      "id": "agent-studio",
+      "kind": "agent_studio",
+      "eyebrow": "Studio",
+      "title": "Agent studio",
+      "body": "Operator cockpit for agent routing, tools, workflows, and memory."
     },
     {
       "id": "actors",

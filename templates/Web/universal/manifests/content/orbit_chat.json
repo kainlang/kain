@@ -22,6 +22,10 @@
       "href": "#chat-runtime"
     },
     {
+      "label": "Agent Studio",
+      "href": "#agent-studio"
+    },
+    {
       "label": "Search",
       "href": "#search"
     },

@@ -19,12 +19,27 @@ def _load_sculpt_pipeline():
         return json.load(handle)
 
 
+def _load_mesh_resource_contract():
+    candidates = [
+        Path("config/mesh_resource_contract.json"),
+        Path("apps/kain-fabric-dcc-suite/config/mesh_resource_contract.json"),
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            with candidate.open("r", encoding="utf-8") as handle:
+                return json.load(handle)
+    raise FileNotFoundError("Unable to locate config/mesh_resource_contract.json from the current Fabric working directory.")
+
+
 def run(fabric_inputs):
     sculpt_pipeline = _load_sculpt_pipeline()
+    mesh_contract = _load_mesh_resource_contract()
     brush = sculpt_pipeline["brush"]
     height_range = sculpt_pipeline["height_range"]
     grid_resolution = int(sculpt_pipeline["grid_resolution"])
     sample_count = int(sculpt_pipeline.get("sample_count", grid_resolution * grid_resolution))
+    mesh_documents = mesh_contract["mesh_documents"]
+    resource_uris = {document["id"]: document["resource_uri"] for document in mesh_documents}
 
     return {
         "project_name": "fabric-dcc-suite",
@@ -45,4 +60,5 @@ def run(fabric_inputs):
         "sculpt_invert": bool(brush["invert"]),
         "sculpt_height_min_milli": int(height_range["min_milli"]),
         "sculpt_height_max_milli": int(height_range["max_milli"]),
+        "mesh_contract_resource_uris": resource_uris,
     }

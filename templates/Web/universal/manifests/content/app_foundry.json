@@ -26,6 +26,38 @@
       "href": "#ui-runtime"
     },
     {
+      "label": "UI Systems",
+      "href": "#ui-stacks"
+    },
+    {
+      "label": "Client Runtime",
+      "href": "#client-runtime"
+    },
+    {
+      "label": "Server Runtime",
+      "href": "#server-runtime"
+    },
+    {
+      "label": "FFI",
+      "href": "#ffi"
+    },
+    {
+      "label": "KainScript",
+      "href": "#kain-script"
+    },
+    {
+      "label": "PWA",
+      "href": "#pwa"
+    },
+    {
+      "label": "Offline",
+      "href": "#offline"
+    },
+    {
+      "label": "Personalization",
+      "href": "#personalization"
+    },
+    {
       "label": "Auth",
       "href": "#auth"
     },

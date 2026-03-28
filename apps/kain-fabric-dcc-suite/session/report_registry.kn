@@ -19,6 +19,12 @@ fn default_reports() -> Array<ReportDescriptor>:
             summary: "Asset ingest session report"
         },
         ReportDescriptor {
+            id: "mesh_contract_report",
+            report_uri: "report://mesh/contract",
+            producer_step: "mesh_session_projection",
+            summary: "Mesh session and contract routing report"
+        },
+        ReportDescriptor {
             id: "sculpt_report",
             report_uri: "report://sculpt/current",
             producer_step: "native_sculpt_kernel",
@@ -59,6 +65,12 @@ fn default_reports() -> Array<ReportDescriptor>:
             report_uri: "report://render/preview",
             producer_step: "render_preview_projection",
             summary: "Render preview planning report"
+        },
+        ReportDescriptor {
+            id: "topology_history_report",
+            report_uri: "report://topology/history",
+            producer_step: "topology_history_projection",
+            summary: "Topology lineage and replacement-history report"
         },
         ReportDescriptor {
             id: "material_texture_export_report",

@@ -1,0 +1,35 @@
+fn app_state_root() -> String:
+    return "apps/kain-fabric-dcc-suite/state"
+
+fn mesh_contract_report_path() -> String:
+    return app_state_root() + "/mesh_contract_report.json"
+
+fn build_mesh_contract_report_json(settings: Any, scene_graph_document: String, mesh_resource_contract_document: String) -> String:
+    let json = "{\n"
+    let json = json + "  \"kind\": \"mesh_contract_report\",\n"
+    let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
+    let json = json + "  \"workspace_mode\": \"" + settings.workspace_mode + "\",\n"
+    let json = json + "  \"scene_graph_document\": \"" + scene_graph_document + "\",\n"
+    let json = json + "  \"mesh_resource_contract_document\": \"" + mesh_resource_contract_document + "\",\n"
+    let json = json + "  \"mesh_command_ids\": [\n"
+    let json = json + "    \"mesh.open_document\",\n"
+    let json = json + "    \"mesh.set_edit_target\",\n"
+    let json = json + "    \"mesh.set_authoring_policy\",\n"
+    let json = json + "    \"mesh.create_primitive\",\n"
+    let json = json + "    \"mesh.import_asset\",\n"
+    let json = json + "    \"mesh.edit_topology\",\n"
+    let json = json + "    \"mesh.rebuild_topology\"\n"
+    let json = json + "  ],\n"
+    let json = json + "  \"limitation\": \"Kain owns the mesh contract and session routing, but durable mesh normalization and topology solving still require a native runtime seam.\"\n"
+    let json = json + "}\n"
+    return json
+
+fn main() -> String:
+    let settings = fabric_inputs.python_suite_bootstrap.project_settings
+    let scene_graph_document = fabric_inputs.dcc_suite_seed.scene_graph_document
+    let mesh_resource_contract_document = fabric_inputs.dcc_suite_seed.mesh_resource_contract_document
+    let report_json = build_mesh_contract_report_json(settings, scene_graph_document, mesh_resource_contract_document)
+
+    write_file(mesh_contract_report_path(), report_json)
+
+    return "mesh-session:" + settings.workspace_mode

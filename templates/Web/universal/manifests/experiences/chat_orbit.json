@@ -127,6 +127,13 @@
       "source": "content.agent_workflows"
     },
     {
+      "id": "agent-studio",
+      "kind": "agent_studio",
+      "eyebrow": "Studio",
+      "title": "Agent studio",
+      "body": "Live agent cockpit with routing, workflows, tools, knowledge, and memory."
+    },
+    {
       "id": "chat",
       "kind": "chat_lab",
       "eyebrow": "Chat",

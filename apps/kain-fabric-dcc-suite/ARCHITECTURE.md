@@ -6,7 +6,7 @@ This file is the durable project overview for `M:/Code/Kain/apps/kain-fabric-dcc
 
 `kain-fabric-dcc-suite` is a flagship multi-lane DCC suite scaffold that keeps app meaning in Kain plus Fabric rather than in the eventual native host.
 
-The material lane now includes a painter-style PBR authoring contract with texture sets, layer stacks, SVG masks, smart materials, and packed texture export receipts. The sculpt lane now also includes a native GPU-owned heightfield proof where Kain seeds brush and surface buffers, the GPU step owns deformation, and the C seam emits native-facing signatures and reports rather than pretending to own the sculpt itself.
+The material lane now includes a painter-style PBR authoring contract with texture sets, layer stacks, SVG masks, smart materials, and packed texture export receipts. The sculpt lane now also includes a native GPU-owned heightfield proof where Kain seeds brush and surface buffers, the GPU step owns deformation, and the C seam emits native-facing signatures and reports rather than pretending to own the sculpt itself. The mesh lane now carries a topology history contract so replacement lineage and authored topology decisions have a durable home instead of living only in transient planner state. The rig lane now has a first-class control/deformation contract and an explicit solver bridge seam so rig sync can stay data-driven even while the native IK runtime remains external.
 
 The scaffold is split into seven durable ownership layers:
 
@@ -40,14 +40,16 @@ The scaffold is split into seven durable ownership layers:
 - The GPU shader layer owns sculpt heightfield evaluation, material preview bake, export channel packing, render preview lighting, compositor tone mapping, and staged shader-library expansion for viewport and smart-material work.
 - The app owns the `dcc_suite_scene` viewport intent and startup-session semantics, while the shared `crates/kain-3D` scene catalog currently owns the temporary procedural realization of the startup mesh, floor, backdrop, and studio light rig until a first-class mesh asset contract lands.
 - The native shell may emit command events and host the bridge loop, but it still must not become the semantic owner of workspace lanes, command routing, or session truth. Session truth remains the document projected from app-owned schema plus reducers.
+- The session document now carries a small `reports` block for `mesh_contract_report` and `topology_history_report` so the live bridge can expose report vocabulary directly in state instead of forcing tools to infer it from generated files alone.
 
 ## Mesh Contract
 
 - Meshes are now being treated as app-owned resources addressed by stable mesh resource ids. Sculpt and topology steps should read the active edit target from the session/resource contract, mutate or replace that resource, and mark the resulting resource dirty for downstream consumers.
 - The first mesh command surface is now wired end-to-end through `session/command_handlers.kn`, `session/reducers.kn`, `session/intent_planner.kn`, and the file-backed `native-app/src/runtime_bridge.rs`. Commands for opening mesh documents, rebinding edit targets, switching authoring policy, creating primitives, importing assets, and driving topology edits now all mutate the same app-owned session mesh state.
 - The current sculpt and topology seams are deliberately narrower than a full mesh asset system. They can operate on the active edit target, but they do not yet own persistent serialization, provenance tracking, undo/redo topology history, or import-time asset normalization.
+- The clean extension seam for the next increment is a typed reducer/driver bridge shared by `session/resource_registry.kn`, `session/report_registry.kn`, and `native-app/src/runtime_bridge.rs`, so canonical ids, URIs, and lineage receipts can round-trip through one registry-backed contract instead of only through heuristic JSON mutation.
 - Shared viewport startup geometry is still only a bootstrap realization. It is acceptable for `crates/kain-3D` to materialize a temporary cube or support mesh for the opening viewport, but that runtime geometry should not be mistaken for the durable mesh ownership boundary.
-- The next durable contract should explicitly cover imported assets, authored primitives, and topology edits as first-class mesh resources so the viewport, sculpt lane, and topology lane all speak the same id-based language.
+- The next durable contract should explicitly cover imported assets, authored primitives, topology history, and topology edits as first-class mesh resources so the viewport, sculpt lane, and topology lane all speak the same id-based language.
 
 ## Main Files
 
@@ -55,20 +57,22 @@ The scaffold is split into seven durable ownership layers:
 - `KAIN.fabric.toml`: canonical cross-runtime scaffold pipeline.
 - `config/app_manifest.json`: app identity, manifest map, and runtime capability contract.
 - `config/workspace_modes.json`: workspace and lane presets for the full DCC suite, including painter-style material and lookdev flow.
-- `config/surfaces.json`: docked shell surface registry.
+- `config/surfaces.json`: docked shell surface registry, including the report browser surface that keeps mesh and topology lineage visible in the shell.
 - `config/tool_catalog.json`: tool and operator rail, including smart material, SVG mask, channel-pack export tools, and per-tool gizmo defaults.
 - `config/gizmo_registry.json`: universal gizmo profile and per-viewport binding registry.
 - `config/ui_theme.json`: semantic tokens, scopes, variants, and widget defaults for the universal studio shell, including authored workspace rails, status strips, property grids, and command surfaces.
-- `config/ui_shell.json`: workspace-page layout manifest with per-mode workbench composition and authored chrome blocks.
+- `config/ui_shell.json`: workspace-page layout manifest with per-mode workbench composition and authored chrome blocks. The authored shell telemetry now includes `report_count` so report inventory stays visible at a glance.
 - `config/command_registry.json`: canonical command surface for operators, routing, automation, painter-style material authoring, export, shell navigation, and property-grid state changes.
 - `config/fabric_pipeline.json`: shell-facing summary of the broad pipeline.
 - `config/fabric_intents.json`: reusable intent registry with per-lane graph ownership.
 - `config/resource_kinds.json`: resource registry schema for scene, asset, preview, tensor, sculpt, and publish artifacts.
-- `config/mesh_resource_contract.json`: first-class mesh document contract for imported payloads, authored primitives, active edit targets, and topology outputs.
+- `config/mesh_resource_contract.json`: first-class mesh document contract for imported payloads, authored primitives, active edit targets, topology outputs, and topology history.
 - `session/resource_registry.kn`: canonical mesh resource registry entries, including the contract document itself and the active edit-target seam.
-- `config/report_kinds.json`: report registry schema for bootstrap, ingest, topology, rig, tensor, publish, and automation artifacts.
+- `config/report_kinds.json`: report registry schema for bootstrap, ingest, mesh contract, topology lineage, rig, tensor, publish, and automation artifacts.
+- `config/rig_resource_contract.json`: app-owned rig control, deformation, and solver-bridge document contract for the rig sync seam.
 - `config/sculpt_pipeline.json`: data-driven sculpt grid, brush, and height-range defaults for the GPU sculpt lane.
 - `config/runtime_packs.json`: data-driven runtime pack catalog inspired by K_OS registry patterns.
+- `config/runtime_lanes.json`: explicit runtime-lane ownership matrix for Kain, Fabric, Python, GPU, native C, Rust, and Node bridge semantics.
 - `config/automation_jobs.json`: recurring job catalog for caches, previews, publish, and tensor upkeep.
 - `config/shader_catalog.json`: manifest-owned registry of shader families, lane ownership, compute keys, and current wiring status.
 - `session/*.kn`: session truth, reducer logic, read models, and typed registries.
@@ -79,6 +83,7 @@ The scaffold is split into seven durable ownership layers:
 - `src/svg_material_mask_projection.kn`: projects the active SVG mask stack and vector decal report.
 - `src/material_texture_export_projection.kn`: projects packed texture export receipts for downstream runtimes.
 - `src/render_preview_projection.kn`: render preview report writer that summarizes the dedicated render GPU pass rather than reusing a generic session string.
+- `src/topology_history_projection.kn`: durable mesh lineage projection that retains topology rebuild history as an app-owned report and now cites the canonical mesh contract seams instead of the generic scene bootstrap document.
 - `shaders/material_bake_preview.kn`: baseline GPU compute preview and material bake seam for the material lane.
 - `shaders/sculpt_heightfield_apply.kn`: GPU sculpt stroke seam for future heightfield-style brush evaluation.
 - `shaders/material_channel_pack.kn`: export-oriented GPU channel packing seam used by the publish graph.
@@ -127,6 +132,7 @@ The scaffold is split into seven durable ownership layers:
 - The sculpt and topology seam modules should be read as resource-contract adapters, not as mesh owners. They are expected to operate on active edit targets identified by resource id and hand the mutated or rebuilt mesh back through the app-owned resource contract.
 - The shader catalog is intentionally broader than the currently scheduled Fabric steps. Some shader files are staged for near-term lane growth rather than being scheduled in every graph immediately.
 - The runtime pack registry is broad on purpose, but it is still manifest-owned metadata until downstream pack loaders and launchers consume it directly.
+- The next clean extension seam is an explicit runtime-lane matrix registry so the app can declare which semantic lanes are owned by Kain, Fabric, GPU, C ABI, Rust, Python, or external Node bridges without leaving that mapping implicit in prose.
 
 ## Common Commands
 

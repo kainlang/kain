@@ -69,6 +69,7 @@ web application packs under `templates/Web`:
 
 - `std::javascript::site_runtime`
 - `std::javascript::site_actor`
+- `std::javascript::site_report`
 
 They are intentionally thin wrappers over a local helper module, usually
 `./helpers/web_runtime.mjs`, so Kain source can stay focused on orchestration
@@ -83,6 +84,32 @@ fn main() -> String:
     let summary = js_site_write_matrix("manifests/app.json")
     println("built " + str(summary.experience_count) + " experiences")
     return summary.output_root
+```
+
+Additional helpers for orchestration:
+
+- `js_site_bundle_client(path)` for the client islands bundle
+- `js_site_default_experience(path)` for the app manifest default experience id
+- `js_site_bundle_and_build(path)` for a one-call bundle + build pass
+- `js_site_build(path)` for the full experience matrix build
+- `js_site_serve(path, experience_id)` for local runtime serving
+- `js_site_serve_default(path)` for serving the manifest default experience
+
+If you want a consistent build report without repeating string assembly per
+template, call `std::javascript::site_report`:
+
+```kain
+use std::javascript::site_report
+
+fn main() -> String:
+    let report = js_site_build_report(
+        "manifests/app.json",
+        "universal",
+        "business, portfolio, immersive3d, chat, actor_server, docs_hub, operator_hub, hybrid, app_shell, commerce, realtime",
+        "html, blog pages, manifest, actor-plan, site-data, system-contract, ui-schema, sitemap, robots, feed, social-card"
+    )
+    println(report)
+    return report
 ```
 
 Those helpers are designed for no-Rust-required web templates where:

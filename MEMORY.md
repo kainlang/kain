@@ -10,7 +10,116 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-28 - Universal Web Template Added UI Stack Studio + Default Build/Serve Helpers
+
+The universal web template now exposes a UI stack studio island so React/TypeScript-style runtime, state, routing, data, forms, motion, testing, and tooling systems are inspectable in one interactive surface, and default build/serve orchestration now avoids manual CLI boilerplate.
+
+Update:
+
+- Added `ui_stacks` section kind and `UiStacksIsland` so UI stack registries render as a tabbed, manifest-backed inventory inside the web template.
+- Fixed the KainScript bridge to include `normalizeSelectionLabel`, keeping chat + agent islands aligned with their JS/TSX imports.
+- Added Node helper CLI commands for `default-experience`, `bundle-build`, and `serve-default`, plus stdlib wrappers for default experience, bundle+build, and default serve.
+- Added Kain entrypoints (`src/build.kn`, `src/serve.kn`) and updated `package.json` to route build/serve through the new helper commands.
+- Synced the updated universal template into `M:\Code\Kain\templates\Web` and `K:\templates\Web`.
+
+What future work should preserve:
+
+- keep UI stack coverage manifest-driven and surfaced through the UI schema and island contract surfaces
+- keep default build/serve orchestration data-driven via the helper runtime instead of hardcoded experience ids
+
+Current run recorded at 2026-03-28T15:13:31.5899338-04:00.
+
+## 2026-03-28 - Universal Web Template Added UI State/Routing/Data/Form/Motion/Testing/Tooling Stacks
+
+The universal web template now models dedicated UI system stacks for state, routing, data, forms, motion, testing, and tooling, so React/TypeScript-style shells have manifest-level coverage beyond the core UI kit.
+
+Update:
+
+- Added `ui_state_stack`, `ui_routing_stack`, `ui_data_stack`, `ui_form_stack`, `ui_motion_stack`, `ui_testing_stack`, and `ui_tooling_stack` registries to `web_systems_core`.
+- Wired the new stacks into `hybrid_command` and `app_foundry` experiences, search indexing, UI schema counts, and site/system contract data.
+- Exposed new UI stack endpoints (`/api/ui/state`, `/api/ui/routing`, `/api/ui/data`, `/api/ui/forms`, `/api/ui/motion`, `/api/ui/testing`, `/api/ui/tooling`) via the Node helper runtime.
+- Updated template docs to reflect the expanded React/TypeScript UI system coverage.
+
+What future work should preserve:
+
+- keep UI stacks manifest-driven and surfaced through the system contract for downstream shells
+- keep endpoints and UI schema counts aligned when new UI stack registries are added
+
+Current run recorded at 2026-03-28T13:38:57.6164758-04:00.
+
+## 2026-03-28 - Universal Web Template Added Analytics + Attribution + Warehouse + CDP Stacks
+
+The universal web template now includes explicit analytics, attribution, data warehouse, and CDP registries plus API endpoints and UI sections, so data/marketing ops are manifest-driven without hand-written boilerplate.
+
+Update:
+
+- Added analytics, attribution, data warehouse, and CDP registries to `web_systems_core`.
+- Wired the new stacks into the hybrid archetype navigation + sections and extended search indexing + UI schema counts.
+- Exposed new API endpoints (`/api/analytics/stack`, `/api/analytics/attribution`, `/api/analytics/warehouse`, `/api/analytics/cdp`) and injected the stacks into site data, system contracts, and actor server plans.
+- Added stdlib wrappers for client bundling, build, and serve so Kain entrypoints can orchestrate web packs without manual Node glue.
+
+What future work should preserve:
+
+- keep analytics/attribution/warehouse/CDP metadata manifest-driven and visible via system contract endpoints
+- keep stdlib helpers as the preferred Kain entrypoints for web template orchestration
+
+Current run recorded at 2026-03-28T09:15:02.7400099-04:00.
+
+## 2026-03-28 - Universal Web Template Added Actor Ops + System Contract Islands
+
+## 2026-03-28 - Universal Web Template Added Agent Studio + Agent Routing
+
+The universal web template now includes an agent studio island plus agent-scoped chat routing for chat-heavy and actor-heavy sites.
+
+Update:
+
+- Added a new `agent_studio` section kind with an `AgentStudioIsland` that surfaces agent rosters, workflows, tools, knowledge sources, and memory stores alongside a live prompt console.
+- Extended the Node helper runtime to emit the agent studio section, map it into `ui.schema.json`, and include agent-studio endpoints in island contracts.
+- Updated chat runtime handling to accept an `agent` selector across HTTP, SSE, and WebSocket chat routes, and wired agent selection into the chat island UI.
+- Added a new `std::javascript::site_report` helper so web templates can emit a build report without hand-written string assembly in every `main.kn`.
+- Wired the agent studio section into chat, operator, actor-server, and hybrid experiences plus matching navigation anchors in content manifests.
+- Synced template changes into `M:\Templates\Web`, `M:\Code\Kain\templates\Web`, and `K:\templates\Web`.
+
+What future work should preserve:
+
+- keep agent studio and agent routing manifest-driven through the helper runtime until a native web lane lands
+- keep chat and agent islands aligned with `ui.schema.json` so React/TypeScript-style shells can discover mount points
+- keep template build reports standardized via stdlib helpers to avoid boilerplate
+
+The universal web template now ships actor ops and system contract explorer islands so actor-backed servers can surface control and contract data without new boilerplate.
+
+Update:
+
+- Added actor ops + system contract section kinds and Preact islands (`ActorOpsIsland`, `SystemContractIsland`) for actor control surfaces and contract inspection.
+- Wired the new islands into the UI schema mapping plus actor, operator, and hybrid experience manifests and nav anchors.
+- Updated universal template docs and runtime CSS to cover the new control/contract surfaces.
+
+What future work should preserve:
+
+- keep actor ops and system contract surfaces manifest-driven and island-backed, not hardcoded in HTML
+- keep UI schema mapping aligned with island kinds so React/TypeScript-style shells can discover the new mounts
+
+Current run recorded at 2026-03-28T05:14:57.8381222-04:00.
+
 ## 2026-03-28 - Universal Web Template Added Trust + Risk + Consent + Marketplace Systems
+
+## 2026-03-28 - Universal Web Template Added PWA + Offline + Personalization Systems
+
+The universal web template now includes explicit PWA, offline, and personalization system registries so app-shell and hybrid experiences can ship installability, offline safety, and segment-aware UX without bolting on bespoke code.
+
+Update:
+
+- Added manifest-driven PWA stack, offline support, and personalization stack registries to `web_systems_core`.
+- Exposed the new registries through site data, system contract endpoints, UI schema counts, and runtime routes (`/api/pwa`, `/api/offline`, `/api/personalization`).
+- Wired the PWA/offline/personalization sections into the hybrid and app archetypes plus navigation anchors.
+- Updated universal README coverage and synced the template into `M:\Templates\Web` and `K:\templates\Web`.
+
+What future work should preserve:
+
+- keep PWA/offline/personalization systems manifest-driven and emitted through the helper runtime contract
+- keep the hybrid and app archetypes as the primary proofs for these systems before copying to narrower experiences
+
+Current run recorded at 2026-03-28T03:09:27-04:00.
 
 The universal web template now includes additional web-critical systems that previously lived only as implicit gaps: identity verification, fraud/risk controls, consent management, audit logging, data exports, marketplace ops, and content syndication.
 

@@ -18,3 +18,15 @@ export function normalizePrompt(value) {
     .replace(/\s+/g, " ")
     .slice(0, 240);
 }
+
+/**
+ * @param {string} value
+ * @returns {string}
+ */
+export function normalizeSelectionLabel(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[^a-zA-Z0-9\s\-_.]/g, "")
+    .slice(0, 80);
+}

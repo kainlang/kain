@@ -136,7 +136,8 @@ fn build_sculpt_brush_params(settings: Any) -> Array<Int>:
     return bytes
 
 fn build_mesh_resource_contract() -> String:
-    return "ownership=app-owned:startup-cube=mesh://primitives/authored/startup-cube:imported-payloads=mesh://imports/current/payloads:authored-primitives=mesh://primitives/authored/definitions:active-editable=mesh://editing/active:topology-output=mesh://topology/output/current"
+    let mesh_contract = fabric_inputs.python_suite_bootstrap.mesh_contract_resource_uris
+    return "ownership=app-owned:startup-cube=mesh://primitives/authored/startup-cube:imported-payloads=" + mesh_contract.imported_mesh_payload_document + ":authored-primitives=" + mesh_contract.authored_primitive_definition_document + ":active-editable=" + mesh_contract.active_editable_mesh_document + ":topology-output=" + mesh_contract.topology_output_mesh_document
 
 fn build_scene_graph_document(settings: Any) -> String:
     return "scene-graph:" + settings.project_name + ":scene=dcc_suite_scene:start-mesh=mesh://primitives/authored/startup-cube:selection=entity/blender_startup_cube:collection=collection/startup_stage:camera=camera/startup_authoring:mesh-contract=" + build_mesh_resource_contract() + ":mesh-policy=procedural-primitives-first_then_asset-ingest:workspace=" + settings.workspace_mode + ":packs=" + str(settings.runtime_pack_count)

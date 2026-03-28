@@ -347,16 +347,16 @@
       "title": "Report Browser",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Topology, tensor, render, automation, and publish reports.",
+      "summary": "Mesh, topology lineage, rig, tensor, render, automation, and publish reports.",
       "properties": [
         {
           "label": "Latest report",
-          "value": "Render + publish",
-          "detail": "most recent lane"
+          "value": "Mesh + topology lineage",
+          "detail": "most recent lineage"
         },
         {
           "label": "Filters",
-          "value": "Topology, render, publish",
+          "value": "Mesh, topology lineage, rig, tensor, render, publish",
           "detail": "operator indexed"
         },
         {

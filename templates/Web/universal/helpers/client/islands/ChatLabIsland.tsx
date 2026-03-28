@@ -30,7 +30,13 @@ function normalizeSeed(seed: KainChatSeedMessage[]): ChatMessage[] {
     }));
 }
 
-async function requestChatReply(endpoint: string, prompt: string, persona?: string, mode?: string): Promise<string> {
+async function requestChatReply(
+  endpoint: string,
+  prompt: string,
+  persona?: string,
+  mode?: string,
+  agent?: string
+): Promise<string> {
   const url = new URL(endpoint, window.location.href);
   url.searchParams.set("prompt", prompt);
   if (persona) {
@@ -38,6 +44,9 @@ async function requestChatReply(endpoint: string, prompt: string, persona?: stri
   }
   if (mode) {
     url.searchParams.set("mode", mode);
+  }
+  if (agent) {
+    url.searchParams.set("agent", agent);
   }
   const response = await fetch(url.toString(), { headers: { accept: "application/json" } });
   if (!response.ok) {
@@ -63,6 +72,9 @@ export function ChatLabIsland(props: Props) {
   );
   const [mode, setMode] = useState(() =>
     normalizeSelectionLabel(modeOptions[0]?.title || modeOptions[0]?.kicker || "")
+  );
+  const [agent, setAgent] = useState(() =>
+    normalizeSelectionLabel(agentRoster[0]?.title || agentRoster[0]?.kicker || "")
   );
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -97,6 +109,9 @@ export function ChatLabIsland(props: Props) {
         streamUrl.searchParams.set("mode", mode);
       }
 
+      if (agent) {
+        streamUrl.searchParams.set("agent", agent);
+      }
       const source = new EventSource(streamUrl.toString());
       let collected = "";
       source.addEventListener("token", (event) => {
@@ -119,12 +134,12 @@ export function ChatLabIsland(props: Props) {
       source.onerror = async () => {
         source.close();
         setStreaming(false);
-        const reply = await requestChatReply(endpoint, trimmed, persona, mode);
+        const reply = await requestChatReply(endpoint, trimmed, persona, mode, agent);
         setMessages((prev) => [...prev, { role: "assistant", text: reply }]);
       };
     } catch (error) {
       setStreaming(false);
-      const reply = await requestChatReply(endpoint, trimmed, persona, mode);
+      const reply = await requestChatReply(endpoint, trimmed, persona, mode, agent);
       setMessages((prev) => [...prev, { role: "assistant", text: reply }]);
     }
   };
@@ -138,7 +153,7 @@ export function ChatLabIsland(props: Props) {
           Uses `/api/chat/stream` when available, falls back to `/api/chat`. Plug a real LLM adapter into the Node FFI
           lane while keeping the authored intent in manifests + Kain.
         </p>
-        {(personaOptions.length > 0 || modeOptions.length > 0) && (
+        {(personaOptions.length > 0 || modeOptions.length > 0 || agentRoster.length > 0) && (
           <div class="kain-chat-controls">
             {personaOptions.length > 0 && (
               <label>
@@ -161,6 +176,21 @@ export function ChatLabIsland(props: Props) {
                 <select value={mode} onChange={(event) => setMode(event.currentTarget.value)}>
                   {modeOptions.map((entry, index) => {
                     const label = normalizeSelectionLabel(entry.title || entry.kicker || `Mode ${index + 1}`);
+                    return (
+                      <option key={label} value={label}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+            )}
+            {agentRoster.length > 0 && (
+              <label>
+                Agent
+                <select value={agent} onChange={(event) => setAgent(event.currentTarget.value)}>
+                  {agentRoster.map((entry, index) => {
+                    const label = normalizeSelectionLabel(entry.title || entry.kicker || `Agent ${index + 1}`);
                     return (
                       <option key={label} value={label}>
                         {label}

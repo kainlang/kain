@@ -1489,6 +1489,162 @@ function renderUiKit(kit) {
 </section>`;
 }
 
+function renderUiStacks(model) {
+  const runtime = model.content.ui_runtime || [];
+  const state = model.content.ui_state_stack || [];
+  const routing = model.content.ui_routing_stack || [];
+  const data = model.content.ui_data_stack || [];
+  const forms = model.content.ui_form_stack || [];
+  const motion = model.content.ui_motion_stack || [];
+  const testing = model.content.ui_testing_stack || [];
+  const tooling = model.content.ui_tooling_stack || [];
+  const total =
+    runtime.length +
+    state.length +
+    routing.length +
+    data.length +
+    forms.length +
+    motion.length +
+    testing.length +
+    tooling.length;
+
+  return `<section class="ui-stack-shell">
+  <div class="logo-pill"><span>UI Systems</span><span>${total} stack entries</span></div>
+  <div class="ui-stack-summary">
+    <article class="metric-card">
+      <p class="metric-value">${runtime.length}</p>
+      <p class="metric-label">runtime</p>
+    </article>
+    <article class="metric-card">
+      <p class="metric-value">${state.length}</p>
+      <p class="metric-label">state</p>
+    </article>
+    <article class="metric-card">
+      <p class="metric-value">${routing.length}</p>
+      <p class="metric-label">routing</p>
+    </article>
+    <article class="metric-card">
+      <p class="metric-value">${data.length}</p>
+      <p class="metric-label">data</p>
+    </article>
+    <article class="metric-card">
+      <p class="metric-value">${forms.length}</p>
+      <p class="metric-label">forms</p>
+    </article>
+    <article class="metric-card">
+      <p class="metric-value">${motion.length}</p>
+      <p class="metric-label">motion</p>
+    </article>
+    <article class="metric-card">
+      <p class="metric-value">${testing.length}</p>
+      <p class="metric-label">testing</p>
+    </article>
+    <article class="metric-card">
+      <p class="metric-value">${tooling.length}</p>
+      <p class="metric-label">tooling</p>
+    </article>
+  </div>
+  <div data-kain-island="ui-stacks" data-site-data="site.data.json"></div>
+</section>`;
+}
+
+function renderAgentStudio(model) {
+  const agents = model.content.ai_agents?.agents || [];
+  const knowledge = model.content.knowledge_sources || [];
+  const memory = model.content.memory_stores || [];
+  const tools = model.content.tool_registry || [];
+  const workflows = model.content.agent_workflows || [];
+  const total = agents.length + knowledge.length + memory.length + tools.length + workflows.length;
+  return `<section class="agent-studio-shell">
+  <div class="agent-studio-summary">
+    <article class="hero-card">
+      <p class="section-label">Agent studio</p>
+      <h3>Agent orchestration cockpit</h3>
+      <p class="section-copy">Wire agent rosters, workflows, tools, knowledge, and memory into a live operator surface.</p>
+    </article>
+    <div class="agent-studio-metrics">
+      <article class="system-contract-card">
+        <p class="card-kicker">Agents</p>
+        <p class="metric-value">${agents.length}</p>
+        <p class="metric-label">personas</p>
+      </article>
+      <article class="system-contract-card">
+        <p class="card-kicker">Workflows</p>
+        <p class="metric-value">${workflows.length}</p>
+        <p class="metric-label">orchestration lanes</p>
+      </article>
+      <article class="system-contract-card">
+        <p class="card-kicker">Knowledge</p>
+        <p class="metric-value">${knowledge.length}</p>
+        <p class="metric-label">sources</p>
+      </article>
+      <article class="system-contract-card">
+        <p class="card-kicker">Tools</p>
+        <p class="metric-value">${tools.length}</p>
+        <p class="metric-label">registries</p>
+      </article>
+      <article class="system-contract-card">
+        <p class="card-kicker">Total</p>
+        <p class="metric-value">${total}</p>
+        <p class="metric-label">agent assets</p>
+      </article>
+    </div>
+  </div>
+  <div data-kain-island="agent-studio" data-site-data="site.data.json"></div>
+</section>`;
+}
+
+function renderActorOps(model) {
+  const routeCount = (model.content.server_routes || []).length;
+  const actorCount = (model.content.actor_roles || []).length;
+  const topologyNodes = (model.content.actor_topology?.nodes || []).length;
+  const topologyEdges = (model.content.actor_topology?.edges || []).length;
+  return `<section class="actor-ops-shell">
+  <div class="actor-ops-summary">
+    <article class="actor-ops-card">
+      <p class="card-kicker">Routes</p>
+      <p class="metric-value">${routeCount}</p>
+      <p class="metric-label">declared routes</p>
+    </article>
+    <article class="actor-ops-card">
+      <p class="card-kicker">Actors</p>
+      <p class="metric-value">${actorCount}</p>
+      <p class="metric-label">actor roles</p>
+    </article>
+    <article class="actor-ops-card">
+      <p class="card-kicker">Topology</p>
+      <p class="metric-value">${topologyNodes}</p>
+      <p class="metric-label">mesh nodes</p>
+    </article>
+    <article class="actor-ops-card">
+      <p class="card-kicker">Links</p>
+      <p class="metric-value">${topologyEdges}</p>
+      <p class="metric-label">mesh edges</p>
+    </article>
+  </div>
+  <div data-kain-island="actor-ops" data-site-data="site.data.json"></div>
+</section>`;
+}
+
+function renderSystemContract(model) {
+  const clientFeatures = model.context.app.site_runtime.client_features || [];
+  return `<section class="system-contract-shell">
+  <div class="system-contract-summary">
+    <article class="system-contract-card">
+      <p class="card-kicker">Contract</p>
+      <p class="metric-value">${clientFeatures.length}</p>
+      <p class="metric-label">client features</p>
+    </article>
+    <article class="system-contract-card">
+      <p class="card-kicker">Artifacts</p>
+      <p class="metric-value">4</p>
+      <p class="metric-label">contract + ui schema</p>
+    </article>
+  </div>
+  <div data-kain-island="system-contract" data-site-data="site.data.json"></div>
+</section>`;
+}
+
 function renderSectionIntro(section) {
   const eyebrow = section.eyebrow || section.label || section.kicker;
   const title = section.title;
@@ -1648,12 +1804,20 @@ function renderSectionBlock(section, model) {
     bodyHtml = renderDataCollections(getModelValue(model, normalized.source, []));
   } else if (kind === "app_shell") {
     bodyHtml = renderAppShell(getModelValue(model, normalized.source, []));
+  } else if (kind === "agent_studio") {
+    bodyHtml = renderAgentStudio(model);
+  } else if (kind === "actor_ops") {
+    bodyHtml = renderActorOps(model);
+  } else if (kind === "system_contract") {
+    bodyHtml = renderSystemContract(model);
   } else if (kind === "ui_kit") {
     bodyHtml = renderUiKit({
       components: getModelValue(model, normalized.components_source || "content.ui_components", []),
       layouts: getModelValue(model, normalized.layouts_source || "content.ui_layouts", []),
       tokens: getModelValue(model, normalized.tokens_source || "content.ui_tokens", [])
     });
+  } else if (kind === "ui_stacks") {
+    bodyHtml = renderUiStacks(model);
   } else if (kind === "cta") {
     const title = getModelValue(model, normalized.title_source, normalized.title || "");
     const body = getModelValue(model, normalized.body_source, normalized.body || "");
@@ -1785,6 +1949,27 @@ function buildDerivedSearchDocuments(model) {
   for (const entry of model.content.ui_runtime || []) {
     pushDocument("ui-runtime", entry.title || entry.kicker, entry.body || entry.summary || "", "#ui-runtime");
   }
+  for (const entry of model.content.ui_state_stack || []) {
+    pushDocument("ui-state", entry.title || entry.kicker, entry.body || entry.summary || "", "#ui-state");
+  }
+  for (const entry of model.content.ui_routing_stack || []) {
+    pushDocument("ui-routing", entry.title || entry.kicker, entry.body || entry.summary || "", "#ui-routing");
+  }
+  for (const entry of model.content.ui_data_stack || []) {
+    pushDocument("ui-data", entry.title || entry.kicker, entry.body || entry.summary || "", "#ui-data");
+  }
+  for (const entry of model.content.ui_form_stack || []) {
+    pushDocument("ui-forms", entry.title || entry.kicker, entry.body || entry.summary || "", "#ui-forms");
+  }
+  for (const entry of model.content.ui_motion_stack || []) {
+    pushDocument("ui-motion", entry.title || entry.kicker, entry.body || entry.summary || "", "#ui-motion");
+  }
+  for (const entry of model.content.ui_testing_stack || []) {
+    pushDocument("ui-testing", entry.title || entry.kicker, entry.body || entry.summary || "", "#ui-testing");
+  }
+  for (const entry of model.content.ui_tooling_stack || []) {
+    pushDocument("ui-tooling", entry.title || entry.kicker, entry.body || entry.summary || "", "#ui-tooling");
+  }
   for (const entry of model.content.chat_runtime || []) {
     pushDocument("chat-runtime", entry.title || entry.kicker, entry.body || entry.summary || "", "#chat-runtime");
   }
@@ -1840,6 +2025,18 @@ function buildDerivedSearchDocuments(model) {
       href: "#integrations",
       tags: [integration.category, integration.transport, integration.status].filter(Boolean)
     });
+  }
+  for (const entry of model.content.analytics_stack || []) {
+    pushDocument("analytics-stack", entry.title || entry.name, entry.body || entry.summary || "", "#analytics-stack");
+  }
+  for (const entry of model.content.attribution_stack || []) {
+    pushDocument("attribution", entry.title || entry.name, entry.body || entry.summary || "", "#attribution");
+  }
+  for (const entry of model.content.data_warehouse || []) {
+    pushDocument("data-warehouse", entry.title || entry.name, entry.body || entry.summary || "", "#data-warehouse");
+  }
+  for (const entry of model.content.cdp_stack || []) {
+    pushDocument("cdp", entry.title || entry.name, entry.body || entry.summary || "", "#cdp-stack");
   }
   for (const entry of model.content.edge_runtime || []) {
     pushDocument("edge-runtime", entry.title || entry.kicker, entry.body || entry.summary || "", "#edge-runtime");
@@ -2474,6 +2671,9 @@ function buildSiteData(model) {
     api_reference: model.content.api_reference || null,
     developer_portal: model.content.developer_portal || null,
     seo_stack: model.content.seo_stack || null,
+    pwa_stack: model.content.pwa_stack || [],
+    offline_support: model.content.offline_support || [],
+    personalization_stack: model.content.personalization_stack || [],
     brand_system: model.content.brand_system || [],
     social_presence: model.content.social_presence || [],
     content_calendar: model.content.content_calendar || [],
@@ -2494,11 +2694,26 @@ function buildSiteData(model) {
     ui_tokens: model.content.ui_tokens || [],
     frontend_stack: model.content.frontend_stack || [],
     ui_runtime: model.content.ui_runtime || [],
+    ui_state_stack: model.content.ui_state_stack || [],
+    ui_routing_stack: model.content.ui_routing_stack || [],
+    ui_data_stack: model.content.ui_data_stack || [],
+    ui_form_stack: model.content.ui_form_stack || [],
+    ui_motion_stack: model.content.ui_motion_stack || [],
+    ui_testing_stack: model.content.ui_testing_stack || [],
+    ui_tooling_stack: model.content.ui_tooling_stack || [],
     chat_runtime: model.content.chat_runtime || [],
     actor_runtime: model.content.actor_runtime || [],
+    ffi_bridges: model.content.ffi_bridges || [],
+    kain_script_stack: model.content.kain_script_stack || [],
+    client_runtime_stack: model.content.client_runtime_stack || [],
+    server_runtime_stack: model.content.server_runtime_stack || [],
     commerce: model.content.commerce || null,
     uploads: model.content.uploads || null,
     analytics: model.content.analytics || null,
+    analytics_stack: model.content.analytics_stack || [],
+    attribution_stack: model.content.attribution_stack || [],
+    data_warehouse: model.content.data_warehouse || [],
+    cdp_stack: model.content.cdp_stack || [],
     app_modules: model.content.app_modules || [],
     integrations: model.content.integrations || [],
     realtime_channels: model.content.realtime_channels || [],
@@ -3043,10 +3258,15 @@ function renderDocument(model, siteData, options = {}) {
       gap: 12px;
       align-content: start;
     }
-    .auth-shell, .app-shell, .ui-kit-shell { display: grid; gap: 14px; }
+    .auth-shell, .app-shell, .ui-kit-shell, .ui-stack-shell { display: grid; gap: 14px; }
     .ui-kit-summary {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .ui-stack-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
       gap: 12px;
     }
     .kain-island {
@@ -3093,6 +3313,28 @@ function renderDocument(model, siteData, options = {}) {
     .kain-island-panel-copy { margin: 8px 0 0; color: var(--muted); line-height: 1.5; }
     .kain-island-panel-tags { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
     .kain-island-panel-hint { margin-top: 12px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .kain-ui-stack-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .kain-ui-stack-card {
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 12px;
+      background: rgba(255,255,255,0.03);
+      display: grid;
+      gap: 6px;
+    }
+    .kain-ui-stack-card h4 { margin: 0; font-family: var(--font-display); }
+    .kain-ui-stack-card p { margin: 0; color: var(--muted); line-height: 1.5; }
+    .kain-ui-stack-kicker {
+      margin: 0;
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent-soft);
+    }
     .kain-island-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
     .kain-island-actions button {
       min-height: 38px;
@@ -3112,6 +3354,85 @@ function renderDocument(model, siteData, options = {}) {
     .kain-status-meta { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
     .kain-island-actions button:disabled { opacity: 0.6; cursor: default; }
     .kain-island-status { color: var(--muted); font-size: 12px; }
+    .actor-ops-shell, .system-contract-shell { display: grid; gap: 14px; }
+    .actor-ops-summary, .system-contract-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
+    .actor-ops-card, .system-contract-card {
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 12px;
+      background: rgba(255,255,255,0.03);
+    }
+    .kain-actor-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
+    .kain-actor-summary-card {
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 12px;
+      background: rgba(255,255,255,0.03);
+    }
+    .kain-actor-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .kain-actor-card {
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 12px;
+      background: rgba(255,255,255,0.02);
+    }
+    .kain-actor-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+    }
+    .kain-actor-metric {
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 12px;
+      background: rgba(255,255,255,0.03);
+      text-align: center;
+    }
+    .kain-actor-metric-value { margin: 0; font-size: 20px; font-family: var(--font-display); }
+    .kain-actor-metric-label { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+    .kain-contract-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .kain-contract-card {
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 12px;
+      background: rgba(255,255,255,0.03);
+    }
+    .kain-contract-feature-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .kain-contract-pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(90, 228, 255, 0.24);
+      background: rgba(90, 228, 255, 0.08);
+      color: var(--text);
+      font-size: 12px;
+    }
+    .kain-contract-endpoints {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .kain-contract-endpoint {
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 12px;
+      background: rgba(255,255,255,0.02);
+    }
     .kain-realtime-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .kain-realtime-card { border-radius: 18px; border: 1px solid rgba(255,255,255,0.08); padding: 14px; }
     .kain-realtime-kicker { margin: 0 0 6px; color: var(--accent-soft); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; }
@@ -3190,6 +3511,50 @@ function renderDocument(model, siteData, options = {}) {
       padding: 0 14px;
     }
     .kain-chat-form button { min-height: 44px; padding: 0 16px; border-radius: 999px; }
+    .agent-studio-shell { display: grid; gap: 16px; }
+    .agent-studio-summary { display: grid; gap: 14px; }
+    .agent-studio-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
+    .kain-agent-select {
+      display: grid;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      max-width: 240px;
+    }
+    .kain-agent-select select {
+      min-height: 40px;
+      padding: 0 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(10, 20, 32, 0.65);
+      color: var(--text);
+    }
+    .kain-agent-studio-grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .kain-agent-studio-title {
+      margin: 0 0 8px;
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent-soft);
+    }
+    .kain-agent-studio-list { display: grid; gap: 10px; }
+    .kain-agent-studio-card {
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 12px;
+      background: rgba(255,255,255,0.03);
+    }
+    .kain-agent-studio-card h4 { margin: 0 0 6px; font-family: var(--font-display); }
+    .kain-agent-studio-card p { margin: 0; color: var(--muted); line-height: 1.5; }
+    .kain-agent-log { max-height: 260px; overflow: auto; display: grid; gap: 10px; padding-right: 6px; }
     .kain-scene-mount { min-height: 320px; border-radius: 22px; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; }
     .realtime-row { align-items: start; }
     .integration-card, .auth-card, .data-card, .app-module-card, .commerce-card { min-height: 220px; }
@@ -3400,11 +3765,26 @@ function buildSystemContract(model, siteData, actorServerPlan) {
       event: "/api/analytics/event",
       events: "/api/analytics/events"
     },
+    analytics_stack: "/api/analytics/stack",
+    attribution_stack: "/api/analytics/attribution",
+    data_warehouse: "/api/analytics/warehouse",
+    cdp_stack: "/api/analytics/cdp",
     ui_kit: "/api/ui-kit",
     frontend_stack: "/api/frontend",
     ui_runtime: "/api/ui-runtime",
+    ui_state_stack: "/api/ui/state",
+    ui_routing_stack: "/api/ui/routing",
+    ui_data_stack: "/api/ui/data",
+    ui_form_stack: "/api/ui/forms",
+    ui_motion_stack: "/api/ui/motion",
+    ui_testing_stack: "/api/ui/testing",
+    ui_tooling_stack: "/api/ui/tooling",
     chat_runtime: "/api/chat/runtime",
     actor_runtime: "/api/actors/runtime",
+    ffi_bridges: "/api/ffi",
+    kain_script_stack: "/api/kain-script",
+    client_runtime_stack: "/api/runtime/client",
+    server_runtime_stack: "/api/runtime/server",
     chat_playbooks: "/api/chat/playbooks",
     chat_tools: "/api/chat/tools",
     chat_memory: "/api/chat/memory",
@@ -3412,6 +3792,9 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     voice: "/api/voice",
     moderation: "/api/moderation",
     seo_stack: "/api/seo",
+    pwa_stack: "/api/pwa",
+    offline_support: "/api/offline",
+    personalization_stack: "/api/personalization",
     brand_system: "/api/brand",
     social_presence: "/api/social",
     content_calendar: "/api/content/calendar",
@@ -3535,6 +3918,9 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     api_reference: siteData.api_reference || null,
     developer_portal: siteData.developer_portal || null,
     seo_stack: siteData.seo_stack || null,
+    pwa_stack: siteData.pwa_stack || [],
+    offline_support: siteData.offline_support || [],
+    personalization_stack: siteData.personalization_stack || [],
     brand_system: siteData.brand_system || [],
     social_presence: siteData.social_presence || [],
     content_calendar: siteData.content_calendar || [],
@@ -3552,9 +3938,26 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     ui_tokens: siteData.ui_tokens || [],
     frontend_stack: siteData.frontend_stack || [],
     ui_runtime: siteData.ui_runtime || [],
+    ui_state_stack: siteData.ui_state_stack || [],
+    ui_routing_stack: siteData.ui_routing_stack || [],
+    ui_data_stack: siteData.ui_data_stack || [],
+    ui_form_stack: siteData.ui_form_stack || [],
+    ui_motion_stack: siteData.ui_motion_stack || [],
+    ui_testing_stack: siteData.ui_testing_stack || [],
+    ui_tooling_stack: siteData.ui_tooling_stack || [],
     chat_runtime: siteData.chat_runtime || [],
     actor_runtime: siteData.actor_runtime || [],
+    ffi_bridges: siteData.ffi_bridges || [],
+    kain_script_stack: siteData.kain_script_stack || [],
+    client_runtime_stack: siteData.client_runtime_stack || [],
+    server_runtime_stack: siteData.server_runtime_stack || [],
     commerce: siteData.commerce || null,
+    uploads: siteData.uploads || null,
+    analytics: siteData.analytics || null,
+    analytics_stack: siteData.analytics_stack || [],
+    attribution_stack: siteData.attribution_stack || [],
+    data_warehouse: siteData.data_warehouse || [],
+    cdp_stack: siteData.cdp_stack || [],
     app_modules: siteData.app_modules || [],
     integrations: siteData.integrations || [],
     realtime_channels: siteData.realtime_channels || [],
@@ -3617,6 +4020,8 @@ function buildSystemContract(model, siteData, actorServerPlan) {
 function buildUiSchema(model, siteData) {
   const islandKindForSectionKind = (kind) => {
     if (kind === "app_shell") return "app-shell";
+    if (kind === "agent_studio") return "agent-studio";
+    if (kind === "actor_ops") return "actor-ops";
     if (kind === "realtime_channels") return "realtime";
     if (kind === "scene_spotlight") return "scene";
     if (kind === "chat_lab") return "chat";
@@ -3624,7 +4029,9 @@ function buildUiSchema(model, siteData) {
     if (kind === "auth_session") return "auth-session";
     if (kind === "uploads_lab") return "uploads";
     if (kind === "analytics_lab") return "analytics";
+    if (kind === "system_contract") return "system-contract";
     if (kind === "ui_kit") return "ui-kit";
+    if (kind === "ui_stacks") return "ui-stacks";
     return null;
   };
 
@@ -3672,10 +4079,35 @@ function buildUiSchema(model, siteData) {
                 : island === "uploads"
                   ? { upload: "/api/uploads", serve_prefix: "/uploads/" }
                   : island === "analytics"
-                    ? { event: "/api/analytics/event", events: "/api/analytics/events" }
-                    : island === "ui-kit"
-                      ? { ui_kit: "/api/ui-kit" }
-                      : { app: "/api/app" }
+                  ? { event: "/api/analytics/event", events: "/api/analytics/events" }
+                    : island === "agent-studio"
+                      ? {
+                        agents: "/api/agents",
+                        knowledge: "/api/agents/knowledge",
+                        memory: "/api/agents/memory",
+                        tools: "/api/agents/tools",
+                        workflows: "/api/agents/workflows",
+                        chat: "/api/chat",
+                        stream: "/api/chat/stream"
+                      }
+                      : island === "actor-ops"
+                        ? { actors: "/api/actors", routes: "/api/routes", topology: "/api/actors/topology" }
+                        : island === "system-contract"
+                          ? { contract: "/api/system.contract.json", ui_schema: "/api/ui.schema.json" }
+                          : island === "ui-kit"
+                            ? { ui_kit: "/api/ui-kit" }
+                            : island === "ui-stacks"
+                              ? {
+                                ui_runtime: "/api/ui-runtime",
+                                ui_state: "/api/ui/state",
+                                ui_routing: "/api/ui/routing",
+                                ui_data: "/api/ui/data",
+                                ui_forms: "/api/ui/forms",
+                                ui_motion: "/api/ui/motion",
+                                ui_testing: "/api/ui/testing",
+                                ui_tooling: "/api/ui/tooling"
+                              }
+                            : { app: "/api/app" }
         };
       }).filter(Boolean)
     },
@@ -3698,8 +4130,19 @@ function buildUiSchema(model, siteData) {
         category: entry.category || null,
         transport: entry.transport || null
       })),
+      analytics_stack: (siteData.analytics_stack || []).length,
+      attribution_stack: (siteData.attribution_stack || []).length,
+      data_warehouse: (siteData.data_warehouse || []).length,
+      cdp_stack: (siteData.cdp_stack || []).length,
       frontend_stack: (siteData.frontend_stack || []).length,
       ui_runtime: (siteData.ui_runtime || []).length,
+      ui_state_stack: (siteData.ui_state_stack || []).length,
+      ui_routing_stack: (siteData.ui_routing_stack || []).length,
+      ui_data_stack: (siteData.ui_data_stack || []).length,
+      ui_form_stack: (siteData.ui_form_stack || []).length,
+      ui_motion_stack: (siteData.ui_motion_stack || []).length,
+      ui_testing_stack: (siteData.ui_testing_stack || []).length,
+      ui_tooling_stack: (siteData.ui_tooling_stack || []).length,
       chat_runtime: (siteData.chat_runtime || []).length,
       actor_runtime: (siteData.actor_runtime || []).length,
       growth_campaigns: (siteData.growth?.campaigns || []).length,
@@ -3709,6 +4152,9 @@ function buildUiSchema(model, siteData) {
       notification_channels: (siteData.notifications?.channels || []).length,
       release_notes: (siteData.release_notes?.entries || []).length,
       feature_flags: (siteData.feature_flags?.flags || []).length,
+      pwa_stack: (siteData.pwa_stack || []).length,
+      offline_support: (siteData.offline_support || []).length,
+      personalization_stack: (siteData.personalization_stack || []).length,
       incident_playbooks: (siteData.incident_response?.playbooks || []).length,
       crm_stages: (siteData.crm_pipeline?.stages || []).length,
       brand_system: (siteData.brand_system || []).length,
@@ -3938,6 +4384,37 @@ export function buildExperience(appManifestPath, experienceId) {
   };
 }
 
+export function bundleClient(appManifestPath) {
+  const context = loadAppConfig(appManifestPath);
+  return ensureClientBundle(context, { force: true });
+}
+
+export function defaultExperience(appManifestPath) {
+  const context = loadAppConfig(appManifestPath);
+  return context.app.default_experience || null;
+}
+
+export function bundleAndBuild(appManifestPath) {
+  const context = loadAppConfig(appManifestPath);
+  ensureClientBundle(context, { force: true });
+  return writeMatrix(appManifestPath);
+}
+
+export function buildSite(appManifestPath) {
+  return writeMatrix(appManifestPath);
+}
+
+export function serveSite(appManifestPath, experienceId) {
+  serveExperience(appManifestPath, experienceId);
+  return { ok: true, experience: experienceId || null };
+}
+
+export function serveDefault(appManifestPath) {
+  const experienceId = defaultExperience(appManifestPath);
+  serveExperience(appManifestPath, experienceId);
+  return { ok: true, experience: experienceId || null };
+}
+
 export function buildCatalog(appManifestPath) {
   const context = loadAppConfig(appManifestPath);
   return {
@@ -3952,6 +4429,7 @@ function buildChatReply(bundle, plan, prompt, options = {}) {
   const lowered = String(prompt || "").toLowerCase();
   const persona = String(options.persona || "").trim();
   const mode = String(options.mode || "").trim();
+  const agent = String(options.agent || "").trim();
   const laneMatches = [
     { keywords: ["business", "pricing", "marketing", "landing"], experience: "business_launch", label: "business launch" },
     { keywords: ["portfolio", "case study", "work"], experience: "portfolio_signal", label: "portfolio" },
@@ -3976,8 +4454,9 @@ function buildChatReply(bundle, plan, prompt, options = {}) {
   const agentCount = (bundle.site_data.ai_agents?.agents || []).length;
   const personaNote = persona ? ` Persona: ${persona}.` : "";
   const modeNote = mode ? ` Mode: ${mode}.` : "";
+  const agentNote = agent ? ` Agent: ${agent}.` : "";
   const suggestion = suggestedPrompt ? ` Suggested prompt: "${suggestedPrompt}".` : "";
-  return `Local Kain web runtime received '${prompt}'.${personaNote}${modeNote} Route this request through ${nextLane}. Current experience '${bundle.id}' exposes ${routeCount} routes, ${actorCount} actors, ${agentCount} agents, and forms [${formIds}].${suggestion}`;
+  return `Local Kain web runtime received '${prompt}'.${personaNote}${modeNote}${agentNote} Route this request through ${nextLane}. Current experience '${bundle.id}' exposes ${routeCount} routes, ${actorCount} actors, ${agentCount} agents, and forms [${formIds}].${suggestion}`;
 }
 
 function buildApiRoutes(model, siteData) {
@@ -4039,12 +4518,26 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/api-reference", purpose: "returns the API reference registry", actor: "runtime_reporter" },
     { method: "GET", path: "/api/developer", purpose: "returns developer portal metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/seo", purpose: "returns SEO target metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/pwa", purpose: "returns PWA stack metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/offline", purpose: "returns offline support metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/personalization", purpose: "returns personalization stack metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/agents", purpose: "returns chat agent roster metadata", actor: "chat_seed_router" },
     { method: "GET", path: "/api/ui-kit", purpose: "returns UI kit components, layouts, and tokens", actor: "runtime_reporter" },
     { method: "GET", path: "/api/frontend", purpose: "returns frontend stack metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/ui-runtime", purpose: "returns UI runtime metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/ui/state", purpose: "returns UI state stack metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/ui/routing", purpose: "returns UI routing stack metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/ui/data", purpose: "returns UI data stack metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/ui/forms", purpose: "returns UI form stack metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/ui/motion", purpose: "returns UI motion stack metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/ui/testing", purpose: "returns UI testing stack metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/ui/tooling", purpose: "returns UI tooling stack metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/chat/runtime", purpose: "returns chat runtime metadata", actor: "chat_seed_router" },
     { method: "GET", path: "/api/actors/runtime", purpose: "returns actor runtime metadata", actor: "mesh_supervisor" },
+    { method: "GET", path: "/api/ffi", purpose: "returns FFI bridge metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/kain-script", purpose: "returns KainScript module metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/runtime/client", purpose: "returns client runtime metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/runtime/server", purpose: "returns server runtime metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/chat/playbooks", purpose: "returns chat playbook metadata", actor: "chat_seed_router" },
     { method: "GET", path: "/api/chat/tools", purpose: "returns chat tool metadata", actor: "chat_seed_router" },
     { method: "GET", path: "/api/chat/memory", purpose: "returns chat memory lane metadata", actor: "chat_seed_router" },
@@ -4112,6 +4605,10 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/uploads/*", purpose: "serves uploaded files from the runtime uploads folder (local server only)", actor: "upload_gate" },
     { method: "POST", path: "/api/analytics/event", purpose: "captures client analytics events to JSONL", actor: "analytics_sentinel" },
     { method: "GET", path: "/api/analytics/events", purpose: "returns recent analytics events (local server only)", actor: "analytics_sentinel" },
+    { method: "GET", path: "/api/analytics/stack", purpose: "returns analytics stack metadata", actor: "analytics_sentinel" },
+    { method: "GET", path: "/api/analytics/attribution", purpose: "returns attribution stack metadata", actor: "analytics_sentinel" },
+    { method: "GET", path: "/api/analytics/warehouse", purpose: "returns data warehouse metadata", actor: "analytics_sentinel" },
+    { method: "GET", path: "/api/analytics/cdp", purpose: "returns CDP stack metadata", actor: "analytics_sentinel" },
     { method: "GET", path: "/api/realtime", purpose: "returns live channel descriptors and event cadence", actor: "signal_broker" },
     { method: "GET", path: "/api/realtime/stream", purpose: "returns a server-sent event preview for realtime channels", actor: "signal_broker" },
     { method: "WS", path: "/ws/realtime", purpose: "websocket stream for realtime channels", actor: "signal_broker" },
@@ -4213,6 +4710,12 @@ export function buildActorServerPlan(appManifestPath, experienceId) {
     ui_layouts: siteData.ui_layouts || [],
     ui_tokens: siteData.ui_tokens || [],
     commerce: siteData.commerce || null,
+    uploads: siteData.uploads || null,
+    analytics: siteData.analytics || null,
+    analytics_stack: siteData.analytics_stack || [],
+    attribution_stack: siteData.attribution_stack || [],
+    data_warehouse: siteData.data_warehouse || [],
+    cdp_stack: siteData.cdp_stack || [],
     app_modules: siteData.app_modules || [],
     integrations: siteData.integrations || [],
     realtime_channels: siteData.realtime_channels || [],
@@ -4786,6 +5289,18 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, bundle.site_data.seo_stack || {});
       return;
     }
+    if (request.method === "GET" && pathname === "/api/pwa") {
+      sendJson(response, 200, bundle.site_data.pwa_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/offline") {
+      sendJson(response, 200, bundle.site_data.offline_support || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/personalization") {
+      sendJson(response, 200, bundle.site_data.personalization_stack || []);
+      return;
+    }
     if (request.method === "GET" && pathname === "/api/brand") {
       sendJson(response, 200, bundle.site_data.brand_system || []);
       return;
@@ -4834,12 +5349,56 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, bundle.site_data.ui_runtime || []);
       return;
     }
+    if (request.method === "GET" && pathname === "/api/ui/state") {
+      sendJson(response, 200, bundle.site_data.ui_state_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/ui/routing") {
+      sendJson(response, 200, bundle.site_data.ui_routing_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/ui/data") {
+      sendJson(response, 200, bundle.site_data.ui_data_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/ui/forms") {
+      sendJson(response, 200, bundle.site_data.ui_form_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/ui/motion") {
+      sendJson(response, 200, bundle.site_data.ui_motion_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/ui/testing") {
+      sendJson(response, 200, bundle.site_data.ui_testing_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/ui/tooling") {
+      sendJson(response, 200, bundle.site_data.ui_tooling_stack || []);
+      return;
+    }
     if (request.method === "GET" && pathname === "/api/chat/runtime") {
       sendJson(response, 200, bundle.site_data.chat_runtime || []);
       return;
     }
     if (request.method === "GET" && pathname === "/api/actors/runtime") {
       sendJson(response, 200, bundle.site_data.actor_runtime || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/ffi") {
+      sendJson(response, 200, bundle.site_data.ffi_bridges || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/kain-script") {
+      sendJson(response, 200, bundle.site_data.kain_script_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/runtime/client") {
+      sendJson(response, 200, bundle.site_data.client_runtime_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/runtime/server") {
+      sendJson(response, 200, bundle.site_data.server_runtime_stack || []);
       return;
     }
     if (request.method === "GET" && pathname === "/api/chat/playbooks") {
@@ -5171,11 +5730,12 @@ async function serveExperience(appManifestPath, experienceId) {
       const prompt = requestUrl.searchParams.get("prompt");
       const persona = requestUrl.searchParams.get("persona");
       const mode = requestUrl.searchParams.get("mode");
+      const agent = requestUrl.searchParams.get("agent");
       if (!prompt) {
         sendJson(response, 200, chatSeed);
         return;
       }
-      sendJson(response, 200, { reply: buildChatReply(bundle, plan, prompt, { persona, mode }) });
+      sendJson(response, 200, { reply: buildChatReply(bundle, plan, prompt, { persona, mode, agent }) });
       return;
     }
     if (request.method === "POST" && pathname === "/api/chat") {
@@ -5183,11 +5743,12 @@ async function serveExperience(appManifestPath, experienceId) {
       const prompt = payload.prompt || payload.message || payload.text;
       const persona = payload.persona || null;
       const mode = payload.mode || null;
+      const agent = payload.agent || null;
       if (!prompt) {
         sendJson(response, 200, { reply: "missing prompt" });
         return;
       }
-      sendJson(response, 200, { reply: buildChatReply(bundle, plan, String(prompt), { persona, mode }) });
+      sendJson(response, 200, { reply: buildChatReply(bundle, plan, String(prompt), { persona, mode, agent }) });
       return;
     }
     if (request.method === "GET" && pathname === "/api/chat/stream") {
@@ -5199,8 +5760,18 @@ async function serveExperience(appManifestPath, experienceId) {
       const prompt = (requestUrl.searchParams.get("prompt") || "").trim();
       const persona = requestUrl.searchParams.get("persona");
       const mode = requestUrl.searchParams.get("mode");
+      const agent = requestUrl.searchParams.get("agent");
       response.write(`event: ready\n`);
-      response.write(`data: ${JSON.stringify({ experience: bundle.id, actors: plan.actors.length, routes: plan.routes.length, persona, mode })}\n\n`);
+      response.write(
+        `data: ${JSON.stringify({
+          experience: bundle.id,
+          actors: plan.actors.length,
+          routes: plan.routes.length,
+          persona,
+          mode,
+          agent
+        })}\n\n`
+      );
       if (!prompt) {
         response.write(`event: seed\n`);
         response.write(`data: ${JSON.stringify(chatSeed)}\n\n`);
@@ -5209,7 +5780,7 @@ async function serveExperience(appManifestPath, experienceId) {
         response.end();
         return;
       }
-      const reply = buildChatReply(bundle, plan, prompt, { persona, mode });
+      const reply = buildChatReply(bundle, plan, prompt, { persona, mode, agent });
       const tokens = String(reply).split(/(\s+)/).filter((token) => token.length > 0);
       let index = 0;
       const interval = setInterval(() => {
@@ -5296,6 +5867,22 @@ async function serveExperience(appManifestPath, experienceId) {
         }
       }
       sendJson(response, 200, { ok: true, items: entries });
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/analytics/stack") {
+      sendJson(response, 200, bundle.site_data.analytics_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/analytics/attribution") {
+      sendJson(response, 200, bundle.site_data.attribution_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/analytics/warehouse") {
+      sendJson(response, 200, bundle.site_data.data_warehouse || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/analytics/cdp") {
+      sendJson(response, 200, bundle.site_data.cdp_stack || []);
       return;
     }
     if (request.method === "POST" && pathname === "/api/uploads") {
@@ -5395,7 +5982,7 @@ async function serveExperience(appManifestPath, experienceId) {
           try {
             const payload = JSON.parse(String(raw || "{}"));
             const prompt = String(payload.prompt || payload.message || "");
-            const reply = buildChatReply(bundle, plan, prompt);
+            const reply = buildChatReply(bundle, plan, prompt, { agent: payload.agent || null });
             ws.send(JSON.stringify({ event: "reply", reply }));
           } catch {
             ws.send(JSON.stringify({ event: "error", error: "invalid_payload" }));
@@ -5417,12 +6004,24 @@ function runCli() {
     process.stdout.write(JSON.stringify({ ok: true, bundle: result?.href_from_server_root || null }, null, 2) + "\n");
     return;
   }
+  if (command === "default-experience") {
+    process.stdout.write(JSON.stringify({ default_experience: defaultExperience(appManifestPath) }, null, 2) + "\n");
+    return;
+  }
+  if (command === "bundle-build") {
+    process.stdout.write(JSON.stringify(bundleAndBuild(appManifestPath), null, 2) + "\n");
+    return;
+  }
   if (command === "build") {
     process.stdout.write(JSON.stringify(writeMatrix(appManifestPath), null, 2) + "\n");
     return;
   }
   if (command === "serve") {
     serveExperience(appManifestPath, experienceId);
+    return;
+  }
+  if (command === "serve-default") {
+    serveDefault(appManifestPath);
     return;
   }
   if (command === "catalog") {
@@ -5453,7 +6052,9 @@ function runCli() {
     process.stdout.write(JSON.stringify(buildMatrix(appManifestPath), null, 2) + "\n");
     return;
   }
-  process.stderr.write(`unknown command '${command}'. expected bundle-client, build, serve, catalog, experience, actor-plan, system-contract, ui-schema, actor-report, or print\n`);
+  process.stderr.write(
+    `unknown command '${command}'. expected bundle-client, default-experience, bundle-build, build, serve, serve-default, catalog, experience, actor-plan, system-contract, ui-schema, actor-report, or print\n`
+  );
   process.exitCode = 1;
 }
 

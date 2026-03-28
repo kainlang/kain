@@ -1,0 +1,26 @@
+use std::javascript::site_runtime
+
+pub fn js_site_build_report(
+    app_manifest_path: String,
+    template_name: String,
+    archetypes: String,
+    outputs: String
+) -> String:
+    let summary = js_site_write_matrix(app_manifest_path)
+    let catalog = js_site_catalog(app_manifest_path)
+    let app = js_site_load_app(app_manifest_path)
+    let client_features = app.site_runtime.client_features
+
+    let report = "Kain web template build\n"
+    let report = report + "template: " + template_name + "\n"
+    let report = report + "default_experience: " + summary.default_experience + "\n"
+    let report = report + "experience_count: " + str(summary.experience_count) + "\n"
+    let report = report + "artifact_count: " + str(summary.artifact_count) + "\n"
+    let report = report + "output_root: " + summary.output_root + "\n"
+    let report = report + "server_port: " + str(summary.server_port) + "\n"
+    let report = report + "modes: " + str(summary.modes) + "\n"
+    let report = report + "catalog_default: " + catalog.default_experience + "\n"
+    let report = report + "client_features: " + str(client_features) + "\n"
+    let report = report + "outputs: " + outputs + "\n"
+    let report = report + "archetypes: " + archetypes
+    return report

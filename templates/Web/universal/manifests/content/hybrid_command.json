@@ -31,6 +31,10 @@
       "href": "#ui-runtime"
     },
     {
+      "label": "UI Systems",
+      "href": "#ui-stacks"
+    },
+    {
       "label": "Auth",
       "href": "#auth"
     },
@@ -91,6 +95,22 @@
       "href": "#agents"
     },
     {
+      "label": "Agent Studio",
+      "href": "#agent-studio"
+    },
+    {
+      "label": "PWA",
+      "href": "#pwa"
+    },
+    {
+      "label": "Offline",
+      "href": "#offline"
+    },
+    {
+      "label": "Personalization",
+      "href": "#personalization"
+    },
+    {
       "label": "Chat Runtime",
       "href": "#chat-runtime"
     },
@@ -109,6 +129,22 @@
     {
       "label": "Analytics",
       "href": "#analytics"
+    },
+    {
+      "label": "Analytics Stack",
+      "href": "#analytics-stack"
+    },
+    {
+      "label": "Attribution",
+      "href": "#attribution"
+    },
+    {
+      "label": "Warehouse",
+      "href": "#data-warehouse"
+    },
+    {
+      "label": "CDP",
+      "href": "#cdp-stack"
     },
     {
       "label": "Releases",
@@ -211,8 +247,32 @@
       "href": "#routes"
     },
     {
+      "label": "Actor Ops",
+      "href": "#actor-ops"
+    },
+    {
+      "label": "Contract",
+      "href": "#system-contract"
+    },
+    {
       "label": "Actor Runtime",
       "href": "#actor-runtime"
+    },
+    {
+      "label": "Server Runtime",
+      "href": "#server-runtime"
+    },
+    {
+      "label": "Client Runtime",
+      "href": "#client-runtime"
+    },
+    {
+      "label": "FFI",
+      "href": "#ffi"
+    },
+    {
+      "label": "KainScript",
+      "href": "#kain-script"
     },
     {
       "label": "Actor Jobs",

@@ -57,6 +57,12 @@
         "caption": "registered shell surfaces"
       },
       {
+        "id": "report_count",
+        "label": "Reports",
+        "metric_source": "report_count",
+        "caption": "registry report kinds"
+      },
+      {
         "id": "runtime_pack_count",
         "label": "Packs",
         "metric_source": "runtime_pack_count",
@@ -145,6 +151,7 @@
       "status_item_ids": [
         "command_count",
         "pipeline_step_count",
+        "report_count",
         "automation_job_count",
         "extension_seam_count"
       ],
@@ -220,6 +227,7 @@
       "summary": "The workstation should feel like one durable editor frame with mounted subsystems, not stacked demo cards.",
       "notes": [
         "Command spotlight remains shell-owned so operators can bootstrap, switch lanes, preview, and publish without hunting through page-local inspectors.",
+        "The report browser should make mesh and topology lineage obvious alongside rig, render, tensor, automation, and publish receipts.",
         "The authored frame should feel intentionally dense instead of generic or toy-like."
       ]
     }

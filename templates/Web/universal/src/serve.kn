@@ -1,0 +1,8 @@
+use std::javascript::site_runtime
+
+fn main() -> String:
+    let experience = js_site_default_experience("manifests/app.json")
+    js_site_serve_default("manifests/app.json")
+    if experience == "":
+        return "serving"
+    return experience

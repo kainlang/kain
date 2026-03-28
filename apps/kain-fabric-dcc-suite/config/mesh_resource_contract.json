@@ -32,6 +32,14 @@
       "kind": "value",
       "source": "topology_rebuild_projection",
       "summary": "Replacement mesh document emitted by topology rebuild analysis."
+    },
+    {
+      "id": "topology_history_mesh_document",
+      "resource_uri": "mesh://topology/history/current",
+      "owner": "app",
+      "kind": "value",
+      "source": "topology_history_projection",
+      "summary": "Durable mesh topology history document that retains authored topology decisions and replacement lineage."
     }
   ],
   "semantic_rules": {

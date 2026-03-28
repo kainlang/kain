@@ -675,6 +675,10 @@ export type KainSiteData = {
   commerce?: KainCommerceDescriptor | null;
   uploads?: KainUploadsDescriptor | null;
   analytics?: KainAnalyticsDescriptor | null;
+  analytics_stack?: KainCardEntry[] | null;
+  attribution_stack?: KainCardEntry[] | null;
+  data_warehouse?: KainCardEntry[] | null;
+  cdp_stack?: KainCardEntry[] | null;
   status?: KainStatusDescriptor | null;
   roadmap?: KainRoadmapItem[] | null;
   team_members?: KainTeamMember[] | null;

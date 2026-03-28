@@ -55,6 +55,15 @@
       "summary": "Topology rebuild output contract for mesh edit passes and downstream consumers."
     },
     {
+      "id": "topology_history_mesh_document",
+      "resource_uri": "mesh://topology/history/current",
+      "kind": "value",
+      "producer_step": "topology_history_projection",
+      "output_name": "topology_history_mesh_document",
+      "storage": "fabric-report",
+      "summary": "Durable topology history contract for authored topology decisions and replacement lineage."
+    },
+    {
       "id": "material_authoring_document",
       "resource_uri": "material://current/authoring-contract",
       "kind": "value",
@@ -143,6 +152,33 @@
       "output_name": "material_texture_export_report",
       "storage": "fabric-report",
       "summary": "Packed material texture export descriptor for downstream DCC and runtime consumers."
+    },
+    {
+      "id": "rig_control_state_document",
+      "resource_uri": "rig://control/current",
+      "kind": "value",
+      "producer_step": "rig_sync_projection",
+      "output_name": "rig_sync_report",
+      "storage": "fabric-report",
+      "summary": "App-owned rig control state document that tracks control targets and pose readiness."
+    },
+    {
+      "id": "rig_deformation_output_document",
+      "resource_uri": "rig://deformation/output/current",
+      "kind": "value",
+      "producer_step": "rig_sync_projection",
+      "output_name": "rig_sync_report",
+      "storage": "fabric-report",
+      "summary": "App-owned rig deformation output document for solved transforms and downstream consumers."
+    },
+    {
+      "id": "rig_solver_bridge_document",
+      "resource_uri": "rig://solver/bridge/current",
+      "kind": "value",
+      "producer_step": "rig_sync_projection",
+      "output_name": "rig_sync_report",
+      "storage": "fabric-report",
+      "summary": "Extension seam document for the native Rust/C++ solver adapter expected to own IK and bone evaluation."
     }
   ]
 }

@@ -35,6 +35,110 @@
       "source": "content.ui_runtime"
     },
     {
+      "id": "ui-stacks",
+      "kind": "ui_stacks",
+      "eyebrow": "UI Systems",
+      "title": "UI stack inventory"
+    },
+    {
+      "id": "ui-state",
+      "kind": "card_grid",
+      "eyebrow": "UI State",
+      "title": "State and cache systems",
+      "source": "content.ui_state_stack"
+    },
+    {
+      "id": "ui-routing",
+      "kind": "card_grid",
+      "eyebrow": "Routing",
+      "title": "Routing contracts",
+      "source": "content.ui_routing_stack"
+    },
+    {
+      "id": "ui-data",
+      "kind": "card_grid",
+      "eyebrow": "Data",
+      "title": "UI data layer",
+      "source": "content.ui_data_stack"
+    },
+    {
+      "id": "ui-forms",
+      "kind": "card_grid",
+      "eyebrow": "Forms",
+      "title": "Form and intake stack",
+      "source": "content.ui_form_stack"
+    },
+    {
+      "id": "ui-motion",
+      "kind": "card_grid",
+      "eyebrow": "Motion",
+      "title": "Motion and interaction",
+      "source": "content.ui_motion_stack"
+    },
+    {
+      "id": "ui-testing",
+      "kind": "card_grid",
+      "eyebrow": "Testing",
+      "title": "UI testing lanes",
+      "source": "content.ui_testing_stack"
+    },
+    {
+      "id": "ui-tooling",
+      "kind": "card_grid",
+      "eyebrow": "Tooling",
+      "title": "UI tooling and workbench",
+      "source": "content.ui_tooling_stack"
+    },
+    {
+      "id": "client-runtime",
+      "kind": "card_grid",
+      "eyebrow": "Client Runtime",
+      "title": "React-like client runtime",
+      "source": "content.client_runtime_stack"
+    },
+    {
+      "id": "server-runtime",
+      "kind": "card_grid",
+      "eyebrow": "Server Runtime",
+      "title": "Server runtime systems",
+      "source": "content.server_runtime_stack"
+    },
+    {
+      "id": "ffi",
+      "kind": "card_grid",
+      "eyebrow": "FFI",
+      "title": "FFI bridge lanes",
+      "source": "content.ffi_bridges"
+    },
+    {
+      "id": "kain-script",
+      "kind": "card_grid",
+      "eyebrow": "KainScript",
+      "title": "KainScript module stack",
+      "source": "content.kain_script_stack"
+    },
+    {
+      "id": "pwa",
+      "kind": "card_grid",
+      "eyebrow": "PWA",
+      "title": "Progressive web app stack",
+      "source": "content.pwa_stack"
+    },
+    {
+      "id": "offline",
+      "kind": "card_grid",
+      "eyebrow": "Offline",
+      "title": "Offline support",
+      "source": "content.offline_support"
+    },
+    {
+      "id": "personalization",
+      "kind": "card_grid",
+      "eyebrow": "Personalization",
+      "title": "Personalization stack",
+      "source": "content.personalization_stack"
+    },
+    {
       "id": "auth",
       "kind": "auth_panel",
       "eyebrow": "Auth",

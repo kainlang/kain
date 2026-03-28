@@ -17,6 +17,62 @@
       "produces": ["asset_ingest_report"]
     },
     {
+      "id": "mesh.open_document",
+      "label": "Open Mesh Document",
+      "lane": "mesh",
+      "graph": "fabric/intents/mesh_session.fabric.toml",
+      "debounce_ms": 0,
+      "produces": ["mesh_contract_report"]
+    },
+    {
+      "id": "mesh.set_edit_target",
+      "label": "Set Mesh Edit Target",
+      "lane": "mesh",
+      "graph": "fabric/intents/mesh_session.fabric.toml",
+      "debounce_ms": 0,
+      "produces": ["mesh_contract_report"]
+    },
+    {
+      "id": "mesh.set_authoring_policy",
+      "label": "Set Mesh Authoring Policy",
+      "lane": "mesh",
+      "graph": "fabric/intents/mesh_session.fabric.toml",
+      "debounce_ms": 0,
+      "produces": ["mesh_contract_report"]
+    },
+    {
+      "id": "mesh.create_primitive",
+      "label": "Create Mesh Primitive",
+      "lane": "mesh",
+      "graph": "fabric/intents/mesh_session.fabric.toml",
+      "debounce_ms": 0,
+      "produces": ["mesh_contract_report"]
+    },
+    {
+      "id": "mesh.import_asset",
+      "label": "Import Mesh Asset",
+      "lane": "mesh",
+      "graph": "fabric/intents/mesh_session.fabric.toml",
+      "debounce_ms": 0,
+      "produces": ["mesh_contract_report"]
+    },
+    {
+      "id": "mesh.edit_topology",
+      "label": "Edit Mesh Topology",
+      "lane": "mesh",
+      "graph": "fabric/intents/mesh_session.fabric.toml",
+      "debounce_ms": 0,
+      "produces": ["mesh_contract_report"]
+    },
+    {
+      "id": "mesh.rebuild_topology",
+      "label": "Rebuild Mesh Topology",
+      "lane": "mesh",
+      "graph": "fabric/intents/mesh_session.fabric.toml",
+      "debounce_ms": 0,
+      "produces": ["topology_report"]
+    },
+    {
       "id": "sculpt.apply_stroke",
       "label": "Sculpt Stroke",
       "lane": "sculpt",

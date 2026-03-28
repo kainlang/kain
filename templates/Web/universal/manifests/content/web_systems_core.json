@@ -1400,6 +1400,74 @@
       "body": "Data export schedules and audit policy."
     }
   ],
+  "analytics_stack": [
+    {
+      "kicker": "Analytics",
+      "title": "Event capture",
+      "body": "Client and server event capture lanes plus schema naming."
+    },
+    {
+      "kicker": "Analytics",
+      "title": "Funnel tracking",
+      "body": "Activation, retention, and conversion tracking metadata."
+    },
+    {
+      "kicker": "Analytics",
+      "title": "Dashboard reporting",
+      "body": "Operator-facing dashboards and weekly reporting cadence."
+    }
+  ],
+  "attribution_stack": [
+    {
+      "kicker": "Attribution",
+      "title": "Campaign mapping",
+      "body": "UTM, ad, and partner attribution rules."
+    },
+    {
+      "kicker": "Attribution",
+      "title": "Multi-touch models",
+      "body": "First/last touch and blended attribution models."
+    },
+    {
+      "kicker": "Attribution",
+      "title": "Partner payout",
+      "body": "Affiliate and referral payout metadata."
+    }
+  ],
+  "data_warehouse": [
+    {
+      "kicker": "Warehouse",
+      "title": "Event streams",
+      "body": "Event streaming pipes into data warehouse targets."
+    },
+    {
+      "kicker": "Warehouse",
+      "title": "Model layers",
+      "body": "Metrics, dimensional models, and marts."
+    },
+    {
+      "kicker": "Warehouse",
+      "title": "Access policies",
+      "body": "Access, governance, and PII restrictions."
+    }
+  ],
+  "cdp_stack": [
+    {
+      "kicker": "CDP",
+      "title": "Profile stitching",
+      "body": "Identity resolution and profile enrichment."
+    },
+    {
+      "kicker": "CDP",
+      "title": "Segment sync",
+      "body": "Segment definitions and downstream activation."
+    },
+    {
+      "kicker": "CDP",
+      "title": "Destinations",
+      "body": "Outbound destinations and integration targets."
+    }
+  ],
   "cms": {
     "kicker": "CMS",
     "title": "Content pipeline and governance",
@@ -2236,6 +2304,57 @@
       }
     ]
   },
+  "pwa_stack": [
+    {
+      "kicker": "PWA",
+      "title": "Installable shell",
+      "body": "Manifest, icons, and install prompts for app-like launches."
+    },
+    {
+      "kicker": "PWA",
+      "title": "Service worker lane",
+      "body": "Service worker bootstrap, cache policy, and offline routing."
+    },
+    {
+      "kicker": "PWA",
+      "title": "App badges",
+      "body": "Badge counts and install state surfaced for app shells."
+    }
+  ],
+  "offline_support": [
+    {
+      "kicker": "Offline",
+      "title": "Offline fallback",
+      "body": "Graceful offline states for launch, docs, and chat surfaces."
+    },
+    {
+      "kicker": "Offline",
+      "title": "Cached routes",
+      "body": "Route-level cache rules for core shells and system data."
+    },
+    {
+      "kicker": "Offline",
+      "title": "Sync queue",
+      "body": "Queued submissions for forms, uploads, and analytics."
+    }
+  ],
+  "personalization_stack": [
+    {
+      "kicker": "Personalization",
+      "title": "Segment registry",
+      "body": "Audience segments for launches, memberships, and portals."
+    },
+    {
+      "kicker": "Personalization",
+      "title": "Content variants",
+      "body": "Variant definitions for hero, pricing, and CTA rails."
+    },
+    {
+      "kicker": "Personalization",
+      "title": "Context signals",
+      "body": "Signal sources for routing, recommendations, and onboarding."
+    }
+  ],
   "brand_system": [
     {
       "kicker": "Brand",

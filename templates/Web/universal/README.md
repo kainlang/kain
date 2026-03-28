@@ -11,6 +11,10 @@
 
 - `src/main.kn`
   - builds the full experience matrix into `outputs/sites`
+- `src/build.kn`
+  - bundles client islands and builds the full experience matrix
+- `src/serve.kn`
+  - serves the default experience over the Node runtime
 - `src/native_preview.kn`
   - semantic Kain UI preview surface for the pack
 - `src/actor_server.kn`
@@ -23,9 +27,9 @@
   - HTML and client-island renderer
   - client bundler (Preact + Three.js) for React/TypeScript-esque islands
   - KainScript (`.ks`) support in the client bundle loader
-  - local search, frontend stack + UI runtime, chat runtime, actor runtime, agent knowledge/memory/tool registries, chat (playbooks/tools/memory), prompt-deck, UI kit, catalog, app/auth/commerce/data/realtime, 3D scene assets/materials/lighting/cameras/animation/physics/audio/XR/shaders, growth/experiments/service catalog, support + feedback + survey + messaging + payments + scheduling + privacy lanes, actor jobs/schedules/hosts, runtime hosts + deployment targets, session, uploads, analytics, form, and route APIs
+  - local search, frontend stack + UI runtime + UI state/routing/data/forms/motion/testing/tooling stacks, chat runtime, actor runtime, agent knowledge/memory/tool registries, chat (playbooks/tools/memory), prompt-deck, UI kit, catalog, app/auth/commerce/data/realtime, 3D scene assets/materials/lighting/cameras/animation/physics/audio/XR/shaders, growth/experiments/service catalog, support + feedback + survey + messaging + payments + scheduling + privacy lanes, actor jobs/schedules/hosts, runtime hosts + deployment targets, session, uploads, analytics, form, and route APIs
   - static artifact writer
-  - actor-aware local HTTP + SSE + WebSocket server
+  - actor-aware local HTTP + SSE + WebSocket server with agent-scoped chat routing
 - `package.json`
   - Node scripts for build, inspect, and local serving
 
@@ -88,6 +92,8 @@ Use the Kain entrypoint:
 
 ```powershell
 kain run src/main.kn
+kain run src/build.kn
+kain run src/serve.kn
 ```
 
 Use the Node-only scripts:
@@ -144,7 +150,11 @@ New reusable section kinds in this pass:
 - `process_steps` with `content.actor_playbooks`
 - `card_grid` with `content.actor_tools`
 - `actor_topology`
+- `actor_ops` (actor control island)
+- `agent_studio` (agent routing + workflow island)
 - `ui_kit` (UI components + layouts + tokens island)
+- `ui_stacks` (UI runtime + state/routing/data/forms/motion/testing/tooling island)
+- `system_contract` (system contract explorer island)
 - `metric_grid` with `content.actor_metrics`
 - `status_board`
 - `roadmap_timeline`
@@ -189,12 +199,20 @@ New system registries in this pass:
 - automation flows and webhook event contracts
 - API reference registry + developer portal tools
 - SEO targets and social metadata
+- PWA stack registry (install, service worker, app badge)
+- offline support registry (fallback, cache, sync)
+- personalization registry (segments, variants, context signals)
 - chat agent roster, tools, and workflows
 - UI components, layouts, and design token registries
 - frontend stack registry (TypeScript/React-like runtime, routing, state, data, build)
+- UI state, routing, data, form, motion, testing, and tooling stack registries for React/TypeScript-style shells
 - UI runtime registry (schema, modules, islands, tokens, layouts)
 - chat runtime registry (streaming, personas, playbooks, tools, memory, safety)
 - actor runtime registry (routes, mesh, supervision, queues, metrics, tools)
+- FFI bridge registry (Node, browser, and native adapters)
+- KainScript module registry for client islands and utilities
+- client runtime stack registry (islands, state, hydration)
+- server runtime stack registry (actor server runtime, routing, persistence)
 - frontend framework targets (React/Next/Remix/Astro/SvelteKit/Vue/Solid compatibility planning)
 - expanded UI component + layout recipes (portfolio, docs, commerce, realtime)
 - expanded infrastructure + observability stack metadata (edge, serverless, data, logs, cost)
@@ -213,6 +231,10 @@ New system registries in this pass:
 - paid acquisition and personalization stack registries
 - customer portal registry
 - data platform registry
+- analytics stack registry
+- attribution stack registry
+- data warehouse registry
+- CDP registry
 - release notes and changelog entries
 - feature flag registry
 - incident response playbooks

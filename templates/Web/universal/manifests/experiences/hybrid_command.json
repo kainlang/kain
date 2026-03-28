@@ -63,6 +63,61 @@
       "source": "content.ui_runtime"
     },
     {
+      "id": "ui-stacks",
+      "kind": "ui_stacks",
+      "eyebrow": "UI Systems",
+      "title": "UI stack inventory"
+    },
+    {
+      "id": "ui-state",
+      "kind": "card_grid",
+      "eyebrow": "UI State",
+      "title": "State and cache systems",
+      "source": "content.ui_state_stack"
+    },
+    {
+      "id": "ui-routing",
+      "kind": "card_grid",
+      "eyebrow": "Routing",
+      "title": "Routing contracts",
+      "source": "content.ui_routing_stack"
+    },
+    {
+      "id": "ui-data",
+      "kind": "card_grid",
+      "eyebrow": "Data",
+      "title": "UI data layer",
+      "source": "content.ui_data_stack"
+    },
+    {
+      "id": "ui-forms",
+      "kind": "card_grid",
+      "eyebrow": "Forms",
+      "title": "Form and intake stack",
+      "source": "content.ui_form_stack"
+    },
+    {
+      "id": "ui-motion",
+      "kind": "card_grid",
+      "eyebrow": "Motion",
+      "title": "Motion and interaction",
+      "source": "content.ui_motion_stack"
+    },
+    {
+      "id": "ui-testing",
+      "kind": "card_grid",
+      "eyebrow": "Testing",
+      "title": "UI testing lanes",
+      "source": "content.ui_testing_stack"
+    },
+    {
+      "id": "ui-tooling",
+      "kind": "card_grid",
+      "eyebrow": "Tooling",
+      "title": "UI tooling and workbench",
+      "source": "content.ui_tooling_stack"
+    },
+    {
       "id": "auth",
       "kind": "auth_panel",
       "eyebrow": "Auth",
@@ -203,6 +258,27 @@
       "source": "content.seo_stack.targets"
     },
     {
+      "id": "pwa",
+      "kind": "card_grid",
+      "eyebrow": "PWA",
+      "title": "Progressive web app stack",
+      "source": "content.pwa_stack"
+    },
+    {
+      "id": "offline",
+      "kind": "card_grid",
+      "eyebrow": "Offline",
+      "title": "Offline support",
+      "source": "content.offline_support"
+    },
+    {
+      "id": "personalization",
+      "kind": "card_grid",
+      "eyebrow": "Personalization",
+      "title": "Personalization stack",
+      "source": "content.personalization_stack"
+    },
+    {
       "id": "brand-system",
       "kind": "card_grid",
       "eyebrow": "Brand",
@@ -271,6 +347,13 @@
       "eyebrow": "Agent Flow",
       "title": "Agent workflows",
       "source": "content.ai_agents.workflows"
+    },
+    {
+      "id": "agent-studio",
+      "kind": "agent_studio",
+      "eyebrow": "Studio",
+      "title": "Agent studio",
+      "body": "Live agent cockpit with workflows, tool routing, and memory context."
     },
     {
       "id": "knowledge",
@@ -425,6 +508,34 @@
       "eyebrow": "Analytics",
       "title": "Capture local events",
       "source": "content.analytics"
+    },
+    {
+      "id": "analytics-stack",
+      "kind": "card_grid",
+      "eyebrow": "Analytics",
+      "title": "Analytics stack",
+      "source": "content.analytics_stack"
+    },
+    {
+      "id": "attribution",
+      "kind": "card_grid",
+      "eyebrow": "Attribution",
+      "title": "Attribution stack",
+      "source": "content.attribution_stack"
+    },
+    {
+      "id": "data-warehouse",
+      "kind": "card_grid",
+      "eyebrow": "Warehouse",
+      "title": "Data warehouse",
+      "source": "content.data_warehouse"
+    },
+    {
+      "id": "cdp-stack",
+      "kind": "card_grid",
+      "eyebrow": "CDP",
+      "title": "Customer data platform",
+      "source": "content.cdp_stack"
     },
     {
       "id": "scene",
@@ -646,11 +757,53 @@
       "source": "content.server_routes"
     },
     {
+      "id": "actor-ops",
+      "kind": "actor_ops",
+      "eyebrow": "Ops Console",
+      "title": "Actor ops console",
+      "body": "Live actor control surface for hybrid runtime routes, queues, and topology."
+    },
+    {
+      "id": "system-contract",
+      "kind": "system_contract",
+      "eyebrow": "Contract",
+      "title": "System contract explorer",
+      "body": "Inspect the full contract emitted by the hybrid archetype."
+    },
+    {
       "id": "actor-runtime",
       "kind": "card_grid",
       "eyebrow": "Actor Runtime",
       "title": "Actor server systems",
       "source": "content.actor_runtime"
+    },
+    {
+      "id": "server-runtime",
+      "kind": "card_grid",
+      "eyebrow": "Server Runtime",
+      "title": "Server runtime systems",
+      "source": "content.server_runtime_stack"
+    },
+    {
+      "id": "client-runtime",
+      "kind": "card_grid",
+      "eyebrow": "Client Runtime",
+      "title": "React-like client runtime",
+      "source": "content.client_runtime_stack"
+    },
+    {
+      "id": "ffi",
+      "kind": "card_grid",
+      "eyebrow": "FFI",
+      "title": "FFI bridge lanes",
+      "source": "content.ffi_bridges"
+    },
+    {
+      "id": "kain-script",
+      "kind": "card_grid",
+      "eyebrow": "KainScript",
+      "title": "KainScript module stack",
+      "source": "content.kain_script_stack"
     },
     {
       "id": "playbooks",
