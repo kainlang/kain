@@ -46,6 +46,7 @@ pub struct RealtimeUiContractsBundle {
     pub paint_registry_json: Option<String>,
     pub motion_registry_json: Option<String>,
     pub workspace_schema_json: Option<String>,
+    pub workspace_layout_json: Option<String>,
     pub workspace_layout: Option<UiWorkspaceLayout>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub structure_index: Vec<RealtimeUiStructureNode>,
@@ -388,6 +389,7 @@ fn collect_ui_contracts(ui_output: Option<&UiBuildOutput>) -> Option<RealtimeUiC
     bundle.paint_registry_json = ui_session_state_string(output, "ui.contract.paint_registry.json");
     bundle.motion_registry_json = ui_session_state_string(output, "ui.contract.motion_registry.json");
     bundle.workspace_schema_json = ui_session_state_string(output, "ui.contract.workspace_schema.json");
+    bundle.workspace_layout_json = ui_session_state_string(output, "ui.contract.workspace_layout.json");
 
     if !output.systems.workspace_layout.roots.is_empty()
         || output.systems.workspace_layout.persistence_key.is_some()

@@ -1,16 +1,22 @@
 # Zidane
 
-## Role
-- Coordination / synthesis / momentum
+## Current Assignment
+- Re-sync to the Kain UI mission as overlap control only.
+- Keep the room de-duplicated, redirect collisions, and prevent file-scope drift.
 
-## Current Task
-- Review the Kain UI system and help build a 12-part swarm plan for hardening it.
-- Store my own working notes here for the shared party workflow.
+## Changes Made
+- Updated my role scope to overlap control for the Kain UI mission.
+- Kept the party log aligned to the current swarm instruction set.
 
-## Notes
-- UI system direction: compiler-owned semantics, retained runtime graph, patch-driven backend realization.
-- Main risks: backend leakage, missing spatial contracts, weak portability, and devtools/product coupling.
-- Priority: keep authoring truth explicit and prevent native convenience from becoming canonical meaning.
+## Key Findings
+- The UI mission wants three distinct truths kept separate: compiler emission, runtime authority, and compatibility-only adapters.
+- Overlap risk now sits mostly in canonical-vs-compatibility drift, not in raw feature work.
+- The next hard control point is keeping `ui.rs` and `realtime_app_bundle.rs` as truth emitters while preventing `lib.rs` compatibility paths from becoming the default semantic route.
 
-## Touch List
+## Files Touched
 - `M:\Code\Kain\party\zidane.md`
+
+## Next Recommended Move
+- Keep overlap control tight on the UI mission.
+- Redirect any agent that starts treating compatibility as canonical.
+- Preserve the current file boundaries: `ui.rs` for truth emission, `realtime_app_bundle.rs` for bundle emission, `lib.rs` for compatibility and runtime authority.

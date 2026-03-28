@@ -1261,8 +1261,11 @@ impl Default for UiSelectionModel {
     }
 }
 
-/// Flat raw-native projection of the semantic tree for runtimes that do not yet
-/// consume the full retained tree format directly.
+/// Flat raw-native projection of the semantic tree.
+///
+/// Compatibility-only sidecar for legacy native/C consumers.
+/// Keep this out of the canonical cross-backend ABI and do not
+/// let new authoring paths depend on it.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct UiNativeProjection {
     pub root_id: Option<u64>,
@@ -1361,6 +1364,8 @@ pub fn ui_runtime_bundle_from_output(
 ) -> UiRuntimeBundle {
     let mut output = output;
     if output.systems.is_empty() {
+        // Compatibility-only fallback for legacy bundles.
+        // New authored UI must emit runtime systems explicitly.
         output.systems = ui_runtime_systems_from_tree(&output.tree);
     }
     let native_projection = ui_native_projection_from_output(&output);
@@ -1401,6 +1406,8 @@ pub fn validate_ui_runtime_bundle(bundle: &UiRuntimeBundle) -> Result<(), IoErro
     Ok(())
 }
 
+/// Legacy-only inference path that backfills runtime systems from tree shape.
+/// New authored UI must emit runtime systems explicitly.
 pub fn ui_runtime_systems_from_tree(tree: &UiTree) -> UiRuntimeSystems {
     let mut systems = UiRuntimeSystems::default();
     let mut theme_scopes = BTreeSet::new();

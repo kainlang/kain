@@ -599,6 +599,13 @@ impl AuthoredUiSystemsAccumulator {
             }
         }
 
+        if let Some(json) = serialize_workspace_layout_contract(&output.systems.workspace_layout) {
+            output.systems.session_state.insert(
+                "ui.contract.workspace_layout.json".to_string(),
+                UiValue::String(json),
+            );
+        }
+
         self.apply_workspace_contract(output);
         self.apply_compat_backfill(output);
     }
@@ -878,7 +885,8 @@ fn build_event_route_contracts(
                 .unwrap_or_else(|| "unknown".to_string());
             let command = ui_session_state_string(output, &format!("{route_key}.command"))
                 .or_else(|| route.dispatch_command.clone());
-            let transaction = ui_session_state_string(output, &format!("{route_key}.transaction"));
+            let transaction_label = ui_session_state_string(output, &format!("{route_key}.transaction"))
+                .or_else(|| route.transaction_label.clone());
 
             serde_json::json!({
                 "route_id": route.route_id.clone(),
@@ -887,7 +895,9 @@ fn build_event_route_contracts(
                 "phase": route.phase,
                 "handler_id": handler,
                 "dispatch_command": command,
-                "transaction": transaction,
+                "transaction_label": transaction_label,
+                // Back-compat alias for older readers that still expect the shorter key.
+                "transaction": transaction_label,
             })
         })
         .collect()
@@ -895,6 +905,10 @@ fn build_event_route_contracts(
 
 fn serialize_contract_json(value: &[serde_json::Value]) -> Option<String> {
     serde_json::to_string_pretty(value).ok()
+}
+
+fn serialize_workspace_layout_contract(layout: &kain_ui::UiWorkspaceLayout) -> Option<String> {
+    serde_json::to_string_pretty(layout).ok()
 }
 
 fn render_authored_expr_contract(expr: &Expr) -> String {
@@ -1952,6 +1966,7 @@ impl AuthoredUiSystemsAccumulator {
                 phase,
                 handler_id: Some(handler_id.clone()),
                 dispatch_command: command.clone(),
+                transaction_label: transaction.clone(),
             });
 
             self.session_state.insert(
@@ -1977,9 +1992,14 @@ impl AuthoredUiSystemsAccumulator {
                 );
             }
             if let Some(label) = transaction.as_deref() {
+                let label = label.to_string();
                 self.session_state.insert(
                     format!("{route_prefix}.transaction"),
-                    UiValue::String(label.to_string()),
+                    UiValue::String(label.clone()),
+                );
+                self.session_state.insert(
+                    format!("{route_prefix}.transaction_label"),
+                    UiValue::String(label),
                 );
             }
         }
@@ -2919,8 +2939,10 @@ fn attrs_to_props_map(attrs: &[UIAttr]) -> HashMap<String, Value> {
             UIAttr::Bool { name, value } => {
                 props.insert(name.clone(), Value::Bool(*value));
             }
-            UIAttr::Event { name, handler, .. } => {
-                props.insert(name.clone(), handler.clone());
+            UIAttr::Event { .. } => {
+                // Events are semantic routes, not component props.
+                // Keep them out of the runtime prop map so we don't smuggle
+                // event meaning through a backend-shaped shortcut.
             }
         }
     }
@@ -2937,8 +2959,10 @@ fn render_attr_to_string(attr: &UIAttr) -> String {
                 String::new()
             }
         }
-        UIAttr::Event { name, event, .. } => {
-            format!(r#"{}="[event:{}]""#, name, event_name(event))
+        UIAttr::Event { name, .. } => {
+            // Keep debug-string rendering opaque so event semantics do not leak back
+            // out through HTML-like debug output.
+            format!(r#"{}="[event-route]""#, name)
         }
     }
 }

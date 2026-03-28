@@ -3,26 +3,22 @@
 ## Purpose
 - Track my local notes, touched files, decisions, blockers, and next actions for the Kain UI swarm.
 
-## Current Task
-- Reviewing the new UI system for expressiveness, legibility, contract boundaries, and missing semantics.
-- Preparing a roster-wide swarm plan with one plan per agent.
+## Current Assignment
+- Keep the party outputs mergeable while the Kain UI overhaul swarm runs.
+- Normalize incoming findings into a compact issue/severity/file/owner/dependency/next-action shape.
 
-## Source Docs Reviewed
-- `M:\Code\Kain\docs\kainplan\ui_slate_x100\target_architecture.md`
-- `M:\Code\Kain\docs\kainplan\ui_slate_x100\k_os_shell_lessons.md`
+## Changes Made
+- Reviewed `M:\Code\Kain\docs\kainplan\ui_slate_x100\target_architecture.md` and `M:\Code\Kain\docs\kainplan\ui_slate_x100\k_os_shell_lessons.md`.
+- Created `M:\Code\Kain\party\Tifa.md` as my durable swarm memory.
+- Prepared to coordinate the roster around compiler-owned truth, runtime-owned authority, and thin adapters.
 
-## Key Read
-- The UI system is trying to be compiler-owned, runtime-owned, and highly legible to LLMs.
-- Main architectural risk is implicit behavior creeping into runtime/backends instead of explicit contracts.
-- Strong areas: explicit workspace graph, command registry, motion policy, geometry verification, and backend-neutral intent.
+## Key Findings
+- The UI system is aiming for React-class expressiveness without surrendering meaning to backend-local behavior.
+- Biggest risk is implicit semantics leaking through props, strings, tree shape, or native-only convenience layers.
+- The most valuable missing contracts are typed events, geometry/containment, focus traversal, reload/state transfer, and explicit widget registry depth.
 
 ## Files Touched
 - `M:\Code\Kain\party\Tifa.md`
 
-## Open Questions
-- Which UI semantics are still inferred from tree shape or host-local behavior?
-- Which contracts need to be promoted before the native/web/Slate adapters can stay thin?
-
-## Next Steps
-- Draft a swarm prompt that forces each agent to report: current shape, risks, missing semantics, phase plan, personal ownership, and what they refuse to touch yet.
-- Compare responses by depth and architectural honesty, not style.
+## Next Recommended Move
+- Wait for each agent's output, collapse it into a single de-duplicated task list, then fan implementation out by exact files/modules.
