@@ -1,7 +1,7 @@
 # Balthier
 
 ## Current Assignment
-Ruthless architecture cut for Kain UI. Identify the 5 highest-value seams where meaning is still inferred instead of emitted, patch only tiny docs/plan gaps, and return the exact execution order for the rest.
+Execution-order enforcement and high-value seam prioritization for the Kain UI wave. Stay out of general wandering, keep overlap control sharp, and restate the dependency order whenever the room starts drifting.
 
 ## Changes Made
 - Audited the current Kain UI boundary docs and runtime surface notes.

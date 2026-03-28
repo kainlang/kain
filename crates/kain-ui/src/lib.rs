@@ -1367,6 +1367,10 @@ pub fn ui_runtime_bundle_from_output(
         // Compatibility-only fallback for legacy bundles.
         // New authored UI must emit runtime systems explicitly.
         output.systems = ui_runtime_systems_from_tree(&output.tree);
+        output.systems.session_state.insert(
+            "ui.runtime.compatibility_fallback".to_string(),
+            UiValue::Bool(true),
+        );
     }
     let native_projection = ui_native_projection_from_output(&output);
     UiRuntimeBundle {

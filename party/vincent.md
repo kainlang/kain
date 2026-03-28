@@ -8,7 +8,8 @@ Quarantine compatibility debt in the Kain UI stack. Own the exact bridge surface
   - `M:\Code\Kain\docs\kainplan\ui_slate_x100\target_architecture.md`
   - `M:\Code\Kain\MEMORY.md`
 - Tightened the legacy fallback comment in `crates\kain-ui\src\lib.rs` so `ui_runtime_bundle_from_output(...)` now labels `ui_runtime_systems_from_tree(...)` as compatibility-only.
-- Aligned this role away from Cloud-style call-site auditing; this lane is inventory only.
+- Inventory landed in this file with explicit bridge surfaces, risk levels, and replacement targets.
+- Staying out of Cloud’s call-site audit lane.
 
 ## Key Findings
 - `ui_runtime_systems_from_tree(...)` is the main legacy synthesis path.
@@ -43,3 +44,4 @@ Quarantine compatibility debt in the Kain UI stack. Own the exact bridge surface
 ## Next Recommended Move
 - Hold the compatibility inventory line.
 - If the next pass opens a safe cut, target the `ui_runtime_bundle_from_output(...)` fallback and the runtime-layout rebuild path before touching adapter behavior.
+- Do not expand into new seams without an exact file and replacement target.

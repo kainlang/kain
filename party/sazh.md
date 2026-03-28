@@ -10,6 +10,7 @@ Ownership marshal for the implementation wave: lock collision-safe file slices, 
   - `kain-ui` owns runtime interpretation, invalidation, and patch authority
   - legacy inference stays compatibility-only
 - Reframed the swarm so each lane has a narrow, exact file scope.
+- Preparing to convert Tifa's normalized artifact into dependency-safe file slices once it lands.
 
 ## Key Findings
 - The repo already has the right semantic surfaces: docking, tabs, signals, computed values, event routes, motion, workspace layout, and realtime bundle export.
@@ -23,74 +24,53 @@ Ownership marshal for the implementation wave: lock collision-safe file slices, 
 - `M:\Code\Kain\party\sazh.md` — updated
 
 ## Next Recommended Move
-Use this collision-safe wave split:
+Keep the implementation wave split collision-safe:
 
-1. `Cecil` — compiler-owned UI truth
-   - `crates/kain-core/src/ui.rs`
-   - `crates/kain-core/src/realtime_app_bundle.rs`
-   - Scope: emitted truth only
-   - Work: `workspace_layout`, `focus_graph`, `selection_model`, `signal_values`, `computed`, `event_routes`, transaction labels, structure index, and bundle serialization for explicit UI contracts
+1. `Cecil`
+   - `M:\Code\Kain\crates\kain-core\src\ui.rs`
+   - `M:\Code\Kain\crates\kain-core\src\realtime_app_bundle.rs`
+   - emitted truth only
 
-2. `Cloud` — runtime authority and fallback boundary
-   - `crates/kain-ui/src/lib.rs`
-   - Scope: runtime execution only
-   - Work: `ui_runtime_systems_from_tree(...)`, `UiNativeProjection`, reload/patch application, invalidation routing, and explicit labels on compatibility-only paths
+2. `Rikku`
+   - `M:\Code\Kain\crates\kain-ui\src\lib.rs`
+   - `M:\Code\Kain\crates\kain-core\src\ui.rs`
+   - semantic leak cleanup only
 
-3. `Rikku` — semantic leak cleanup
-   - `crates/kain-ui/src/lib.rs`
-   - `crates/kain-core/src/ui.rs`
-   - Scope: remove accidental host-local meaning
-   - Work: props/string leakage, focus/selection/reload/overlay shortcuts, host-local assumptions, and any path that re-infers semantics from widget shape
+3. `Cloud`
+   - `M:\Code\Kain\crates\kain-ui\src\lib.rs`
+   - runtime fallback call-site audit only
 
-4. `Vivi` — contract coverage gap list
-   - `docs/kainplan/ui_slate_x100/authoring_contract.md`
-   - `docs/kainplan/ui_slate_x100/runtime_execution_model.md`
-   - `docs/kainplan/ui_slate_x100/current_state_map.md`
-   - Scope: enumerate missing or weak contract fields
-   - Work: typed events, geometry/containment, anchors, focus traversal, reload/state transfer, widget registry depth, and any verifiability hole still not represented in docs or emitted schema
+4. `Vincent`
+   - `M:\Code\Kain\party\vincent.md`
+   - compatibility-debt inventory only
 
-5. `Balthier` — architecture seam audit
-   - `architecture.md`
-   - `README.md`
-   - Scope: identify the highest-value meaning-inference cuts
-   - Work: map where compat inference should stop, where docs are stale, and where the next exact implementation order should be enforced
+5. `Vivi`
+   - top 5 contract gaps only
+   - owner / file / acceptance signal attached
 
-6. `Barret` — proof matrix
-   - `smoketest/UI/*`
-   - `smoketest/allinone/*`
-   - Scope: runtime proofs only
-   - Work: reload, tabs, docking, focus, selection, overlays, event routing, computed invalidation, and a pass/fail matrix tied back to contract fields
+6. `Barret`
+   - minimum non-test validation spine only
+   - later surfaces: reload, tabs, docking, focus, selection, overlays, event routing, computed invalidation
 
-7. `Tifa` — mergeability normalization
-   - `party/*.md` outputs
-   - Scope: synthesis shape only
-   - Work: normalize every lane report into `issue / severity / file / owner / dependency / next-action` so Tidus can merge without re-reading prose
+7. `Tifa`
+   - normalize live outputs into merge artifact now
 
-8. `Tidus` — global task list merge captain
-   - `party/*.md` outputs
-   - Scope: canonical task list only
-   - Work: dedupe all lane reports, order by dependency, publish the merged execution list
+8. `Tidus`
+   - publish implementation wave v1 immediately after Tifa + Sazh land
 
-9. `Vincent` — compatibility debt quarantine
-   - `crates/kain-ui/src/lib.rs`
-   - `crates/kain-core/src/ui.rs`
-   - Scope: acceptable bridge vs dangerous doctrine
-   - Work: name file-level warnings, replacement targets, and any bridge that must stay explicitly legacy-only
+9. `Balthier`
+   - execution-order enforcement and seam prioritization only
 
-10. `Zidane` — coordination control
-    - `party/*.md`
-    - Scope: overlap control only
-    - Work: watch duplicate effort, redirect collisions, and assign drop/pickup recommendations as the wave changes
+10. `Zidane`
+   - overlap control only
 
-11. `Sazh` — ownership marshal
-    - `M:\Code\Kain\party\sazh.md`
-    - Scope: lane ownership and handoff hygiene
-    - Work: keep the split clean, keep the files/modules explicit, and prevent duplicate ownership from creeping back in
+11. `Sazh`
+   - ownership marshal
+   - convert Tifa’s artifact into exact file slices
+   - keep updates current in `M:\Code\Kain\party\sazh.md`
 
-12. `Tifa` + `Tidus` merge pass
-    - `party/*.md`
-    - Scope: final consolidation only
-    - Work: compact comparable shapes and emit the dependency-ordered master list
+12. `Tifa` + `Tidus`
+   - final consolidation / master list
 
 ## Notes
 - Keep compatibility bridges alive only when explicitly marked legacy-only.

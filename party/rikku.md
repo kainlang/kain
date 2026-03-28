@@ -1,25 +1,20 @@
 # Rikku
 
 ## Current Assignment
-Audit semantic leaks in the Kain UI overhaul. Patch small obvious leaks where safe; otherwise return exact handoff points.
+Audit semantic leaks in `crates/kain-ui/src/lib.rs` now that `kain-core` leaks are being cut. Keep compatibility bridges marked as compatibility-only.
 
 ## Changes Made
-- Patched `crates/kain-core/src/ui.rs` so HTML-like debug rendering no longer prints concrete event names in attribute strings.
-- Event attrs now render as opaque `[event-route]` markers instead of name-bearing placeholder strings.
+- Patched `crates/kain-ui/src/lib.rs` so legacy runtime-system backfill now stamps `ui.runtime.compatibility_fallback=true` into session state when it has to infer from tree shape.
+- This makes the fallback path explicit instead of silently looking canonical.
 
 ## Key Findings
-- `attrs_to_props_map(...)` already keeps event attrs out of component prop maps; that leak is cut.
-- `render_attr_to_string(...)` was still exposing event meaning through debug strings. That is now opaque.
-- Remaining semantic-leak candidates are mostly intentional compatibility surfaces, especially:
-  - `ui.state_signal.*` props in `record_component_state_signals`
-  - `ui.signal.key.*` / `ui.signal.owner.*` session-state bridges
-  - `overlay.node.*` compatibility ids in `ui_runtime_systems_from_tree`
-  - hot-reload/session-state transfer keys such as `ui.reload.*`
-- Those look like the next cut if the goal is to reduce stringly runtime leakage further without breaking the contract layer.
+- `ui_runtime_bundle_from_output(...)` was the next leak site: it still auto-filled runtime systems from tree shape when the bundle lacked authored systems.
+- The fallback itself is still allowed, but it was too quiet.
+- The new session-state marker gives downstream callers a clean way to distinguish authored-first bundles from compatibility backfills.
 
 ## Files Touched
-- `M:\Code\Kain\crates\kain-core\src\ui.rs`
+- `M:\Code\Kain\crates\kain-ui\src\lib.rs`
 - `M:\Code\Kain\party\rikku.md`
 
 ## Next Recommended Move
-- Audit `crates/kain-core/src/ui.rs` and `crates/kain-ui/src/lib.rs` for the remaining compatibility bridges above, then decide whether to keep them as explicit contract surfaces or replace them with structured metadata.
+- Keep auditing `crates/kain-ui/src/lib.rs` for other compatibility paths that still look canonical, especially any code that synthesizes focus, selection, overlays, or workspace layout from tree shape without a visible compatibility label.

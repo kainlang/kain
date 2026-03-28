@@ -13,6 +13,21 @@
 - Labeled `UiNativeProjection` as compatibility-only in code comments.
 - Labeled `ui_runtime_systems_from_tree(...)` as a legacy-only inference path and marked the bundle fallback as compatibility-only.
 - Updated this lane note so the boundary cut stays explicit.
+- Audited the fallback call sites in `crates/kain-ui/src/lib.rs` and `crates/kain-ui/src/runtime_execution.rs` for the next cut.
+
+## Fallback Call-Site List
+- `crates/kain-ui/src/lib.rs:1366-1369` — **replace**. `ui_runtime_bundle_from_output(...)` still backfills `output.systems` from `ui_runtime_systems_from_tree(...)` when emitted systems are empty.
+- `crates/kain-ui/src/lib.rs:1896` — **tighten**. Workspace-layout rebuild still seeds from `ui_runtime_systems_from_tree(tree)` and needs a compatibility-only label or a cleaner contract split.
+- `crates/kain-ui/src/lib.rs:3180` — **keep-label**. Test/compat path still exercises inference and should remain explicitly legacy-only until retired.
+- `crates/kain-ui/src/runtime_execution.rs:1343` — **keep-label**. Runtime execution test path still calls the fallback inference helper and should stay marked as a bridge, not doctrine.
+- `crates/kain-ui/src/lib.rs:2773-3065` — **keep-label**. `ui_native_projection_from_output(...)` and its helpers are compatibility projection logic, not canonical semantic truth.
+
+## Key Findings
+- The UI split is mostly right in architecture docs, but the code still needs the same discipline stamped onto the fallback seams.
+- `ui_runtime_systems_from_tree(...)` is not canonical truth. It is a legacy repair path for old bundles that never emitted runtime systems.
+- `UiNativeProjection` is a convenience ABI for native/C consumers. It should not be treated as the semantic IR for Slate, web, or future adapters.
+- The existing docs already say the right thing. The remaining work is to make the code stop sounding ambiguous.
+- The real canonical surface belongs in compiler-emitted UI truth and runtime-owned retained graph state. Heuristics belong in the gutter.
 
 ## Key Findings
 - The UI split is mostly right in architecture docs, but the code still needs the same discipline stamped onto the fallback seams.
