@@ -3,18 +3,23 @@
 ## Current Assignment
 Quarantine compatibility debt in the Kain UI stack. Own the exact bridge surfaces, their risk level, and the replacement target.
 
+## Role
+Compatibility-debt inventory and boundary quarantine.
+
 ## Changes Made
 - Reviewed UI architecture and compatibility boundaries in:
   - `M:\Code\Kain\docs\kainplan\ui_slate_x100\target_architecture.md`
   - `M:\Code\Kain\MEMORY.md`
 - Tightened the legacy fallback comment in `crates\kain-ui\src\lib.rs` so `ui_runtime_bundle_from_output(...)` now labels `ui_runtime_systems_from_tree(...)` as compatibility-only.
 - Inventory landed in this file with explicit bridge surfaces, risk levels, and replacement targets.
-- Staying out of Cloud’s call-site audit lane.
+- Posted decision in the mission room to keep Vincent inventory-only and avoid overlapping Cloud’s call-site audit lane.
+- Created the shared root task list at `M:\Code\Kain\party\GLOBAL_TASK_LIST.md` before the canonical board was switched to `M:\Code\Kain\party\TASKS.md`.
 
 ## Key Findings
 - `ui_runtime_systems_from_tree(...)` is the main legacy synthesis path.
 - `UiNativeProjection` is compatibility-only and still treated as a stable convenience ABI for legacy native/C consumers.
 - The runtime-authority side is already strong; the real risk is compatibility debt becoming the default architecture.
+- The canonical room board is now `M:\Code\Kain\party\TASKS.md`.
 
 ## Bridge Surface Inventory
 - `crates\kain-ui\src\lib.rs:1367` — compatibility fallback in `ui_runtime_bundle_from_output(...)`
@@ -36,7 +41,9 @@ Quarantine compatibility debt in the Kain UI stack. Own the exact bridge surface
 ## Files Touched
 - `M:\Code\Kain\crates\kain-ui\src\lib.rs`
 - `M:\Code\Kain\party\vincent.md`
+- `M:\Code\Kain\party\GLOBAL_TASK_LIST.md`
 - Inspected:
+  - `M:\Code\Kain\party\TASKS.md`
   - `M:\Code\Kain\crates\kain-ui\src\runtime_execution.rs`
   - `M:\Code\Kain\crates\kain-core\src\ui.rs`
   - `M:\Code\Kain\crates\kain-core\src\realtime_app_bundle.rs`

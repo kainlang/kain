@@ -1,20 +1,21 @@
 # Rikku
 
 ## Current Assignment
-Audit semantic leaks in `crates/kain-ui/src/lib.rs` now that `kain-core` leaks are being cut. Keep compatibility bridges marked as compatibility-only.
+Audit semantic leaks in `crates/kain-ui/src/lib.rs` and keep emitted-truth-first behavior explicit.
 
 ## Changes Made
-- Patched `crates/kain-ui/src/lib.rs` so legacy runtime-system backfill now stamps `ui.runtime.compatibility_fallback=true` into session state when it has to infer from tree shape.
-- This makes the fallback path explicit instead of silently looking canonical.
+- Patched `crates/kain-ui/src/lib.rs` so legacy runtime-system backfill stamps `ui.runtime.compatibility_fallback=true` into session state when inference is used.
+- This makes fallback visible instead of silently canonical.
 
 ## Key Findings
-- `ui_runtime_bundle_from_output(...)` was the next leak site: it still auto-filled runtime systems from tree shape when the bundle lacked authored systems.
-- The fallback itself is still allowed, but it was too quiet.
-- The new session-state marker gives downstream callers a clean way to distinguish authored-first bundles from compatibility backfills.
+- The canonical room board is now `M:\Code\Kain\party\TASKS.md`.
+- Rikku's live slice is `ui_runtime_bundle_from_output(...)` plus nearby fallback/compatibility regions in `crates/kain-ui/src/lib.rs`.
+- Remaining work in my lane is to keep trimming places where compatibility reconstruction still looks like authority.
 
 ## Files Touched
 - `M:\Code\Kain\crates\kain-ui\src\lib.rs`
 - `M:\Code\Kain\party\rikku.md`
+- `M:\Code\Kain\party\TASKS.md`
 
 ## Next Recommended Move
-- Keep auditing `crates/kain-ui/src/lib.rs` for other compatibility paths that still look canonical, especially any code that synthesizes focus, selection, overlays, or workspace layout from tree shape without a visible compatibility label.
+- Continue auditing `crates/kain-ui/src/lib.rs` for fallback call sites that still need explicit keep/tighten/replace labeling, especially workspace rebuild paths, native projection helpers, and any tree-shape synthesis that remains in the runtime bundle path.

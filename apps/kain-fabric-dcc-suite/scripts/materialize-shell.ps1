@@ -354,6 +354,14 @@ function New-ShellMetrics {
         @($RuntimePacks).Count
     }
 
+    $runtimeLaneCount = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lanes) {
+        @($Snapshot.runtime_lanes).Count
+    } elseif ($null -ne $RuntimeLanes) {
+        @($RuntimeLanes).Count
+    } else {
+        0
+    }
+
     $extensionSeamCount = if ($null -ne $Snapshot -and $null -ne $Snapshot.extension_seams) {
         @($Snapshot.extension_seams).Count
     } else {
@@ -365,6 +373,7 @@ function New-ShellMetrics {
         workspace_mode_count = @($Modes).Count
         surface_count = @($Surfaces).Count
         runtime_pack_count = $runtimePackCount
+        runtime_lane_count = $runtimeLaneCount
         command_count = @($Commands).Count
         pipeline_step_count = @($Pipeline).Count
         intent_count = @($Intents).Count
@@ -866,6 +875,7 @@ $Intents = (Get-Content (Join-Path $AppRoot "config/fabric_intents.json") -Raw |
 $Resources = (Get-Content (Join-Path $AppRoot "config/resource_kinds.json") -Raw | ConvertFrom-Json).resource_kinds
 $Reports = (Get-Content (Join-Path $AppRoot "config/report_kinds.json") -Raw | ConvertFrom-Json).report_kinds
 $RuntimePacks = (Get-Content (Join-Path $AppRoot "config/runtime_packs.json") -Raw | ConvertFrom-Json).runtime_packs
+$RuntimeLanes = (Get-Content (Join-Path $AppRoot "config/runtime_lanes.json") -Raw | ConvertFrom-Json).runtime_lanes
 $Jobs = (Get-Content (Join-Path $AppRoot "config/automation_jobs.json") -Raw | ConvertFrom-Json).jobs
 $Theme = Get-Content (Join-Path $AppRoot "config/ui_theme.json") -Raw | ConvertFrom-Json
 $UiShell = Get-Content (Join-Path $AppRoot "config/ui_shell.json") -Raw | ConvertFrom-Json
@@ -878,6 +888,7 @@ $Snapshot = if (Test-Path $SnapshotPath) {
     [pscustomobject]@{
         latest_fabric_status = "idle"
         runtime_packs = $RuntimePacks
+        runtime_lanes = $RuntimeLanes
         extension_seams = @(
             "runtime snapshot not materialized yet",
             "run materialize-session-state.ps1 after a Fabric pass to project live status"

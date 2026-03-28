@@ -69,6 +69,12 @@
         "caption": "runtime packs projected"
       },
       {
+        "id": "runtime_lane_count",
+        "label": "Lanes",
+        "metric_source": "runtime_lane_count",
+        "caption": "runtime ownership matrix"
+      },
+      {
         "id": "command_count",
         "label": "Commands",
         "metric_source": "command_count",
@@ -152,6 +158,7 @@
         "command_count",
         "pipeline_step_count",
         "report_count",
+        "runtime_lane_count",
         "automation_job_count",
         "extension_seam_count"
       ],
@@ -228,6 +235,7 @@
       "notes": [
         "Command spotlight remains shell-owned so operators can bootstrap, switch lanes, preview, and publish without hunting through page-local inspectors.",
         "The report browser should make mesh and topology lineage obvious alongside rig, render, tensor, automation, and publish receipts.",
+        "The runtime-lane matrix should stay visible in the chrome so Kain, Fabric, Python, GPU, native C, Rust, and Node ownership never has to be inferred.",
         "The authored frame should feel intentionally dense instead of generic or toy-like."
       ]
     }

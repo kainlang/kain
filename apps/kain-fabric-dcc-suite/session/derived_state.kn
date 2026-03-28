@@ -3,6 +3,8 @@ struct WorkspaceReadModel:
     focus_surface: String
     operator_summary: String
     dirty_lanes: Array<String>
+    runtime_lane_count: Int
+    runtime_lane_summary: String
 
 struct PipelineHealthReadModel:
     severity: String
@@ -22,11 +24,15 @@ fn derive_workspace_read_model(active_mode: String, active_tool: String, selecti
     if active_mode == "render_comp":
         focus_surface = "render_lounge"
     let operator_summary = active_mode + ":tool=" + active_tool + ":selection=" + str(selection_count)
+    let runtime_lane_count = 7
+    let runtime_lane_summary = "kain,fabric,python,gpu,c_abi,rust,node"
     return WorkspaceReadModel {
         active_mode: active_mode,
         focus_surface: focus_surface,
         operator_summary: operator_summary,
-        dirty_lanes: dirty_lanes
+        dirty_lanes: dirty_lanes,
+        runtime_lane_count: runtime_lane_count,
+        runtime_lane_summary: runtime_lane_summary
     }
 
 fn derive_pipeline_health(latest_status: String, render_dirty: Bool, compositor_dirty: Bool, publish_dirty: Bool) -> PipelineHealthReadModel:

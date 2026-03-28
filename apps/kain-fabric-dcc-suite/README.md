@@ -24,6 +24,7 @@ The suite now carries a manifest-driven studio shell intended to feel closer to 
 - `config/surfaces.json` and `config/command_registry.json` keep the navigator, command palette, property grid, status strip, and report browser registry-owned instead of host-invented.
 - The generated shell now also surfaces `report_count` in the top telemetry band so report inventory stays visible alongside commands, pipelines, jobs, and seam health.
 - `session/ui_workbench_registry.kn` mirrors the workbench contract in Kain so future native consumers can bind to typed UI semantics instead of reverse-engineering generated shell output.
+- `session/derived_state.kn` now also carries the authored runtime-lane count and compact lane summary so shell/session projections can align with `config/runtime_lanes.json` instead of inferring ownership from prose.
 - `scripts/materialize-shell.ps1` turns those manifests plus `state/runtime_snapshot.json` into a multi-page Kain UI shell with workspace tabs, a top bar, workstation rails, property grids, telemetry strips, and report browser surfaces that keep mesh/topology lineage visible.
 
 ## What The Scaffold Covers

@@ -646,12 +646,21 @@ impl AuthoredUiSystemsAccumulator {
     }
 
     fn apply_compat_backfill(&self, output: &mut UiBuildOutput) {
-        // Compatibility: unless an app opts into the authored-first contract marker, preserve the
-        // legacy behavior where `kain-ui` infers missing systems from tree shape.
+        // Compatibility-only backfill: unless an app opts into the authored-first contract
+        // marker, preserve the legacy behavior where `kain-ui` infers missing systems from tree shape.
         let opted_in = output.systems.session_state.contains_key("ui.contract.version");
         if opted_in {
             return;
         }
+
+        output.systems.session_state.insert(
+            "ui.runtime.compatibility_fallback".to_string(),
+            UiValue::Bool(true),
+        );
+        output.systems.session_state.insert(
+            "ui.runtime.compatibility_mode".to_string(),
+            UiValue::String("legacy_tree_inference".to_string()),
+        );
 
         let inferred = ui_runtime_systems_from_tree(&output.tree);
 

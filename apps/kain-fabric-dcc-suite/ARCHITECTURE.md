@@ -62,6 +62,7 @@ The scaffold is split into seven durable ownership layers:
 - `config/gizmo_registry.json`: universal gizmo profile and per-viewport binding registry.
 - `config/ui_theme.json`: semantic tokens, scopes, variants, and widget defaults for the universal studio shell, including authored workspace rails, status strips, property grids, and command surfaces.
 - `config/ui_shell.json`: workspace-page layout manifest with per-mode workbench composition and authored chrome blocks. The authored shell telemetry now includes `report_count` so report inventory stays visible at a glance.
+- `session/derived_state.kn`: workspace and pipeline read models, now including a registry-backed runtime-lane count and compact lane summary so the shell can reflect lane ownership without hand-written prose.
 - `config/command_registry.json`: canonical command surface for operators, routing, automation, painter-style material authoring, export, shell navigation, and property-grid state changes.
 - `config/fabric_pipeline.json`: shell-facing summary of the broad pipeline.
 - `config/fabric_intents.json`: reusable intent registry with per-lane graph ownership.

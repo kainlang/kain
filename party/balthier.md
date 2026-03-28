@@ -1,7 +1,22 @@
 # Balthier
 
 ## Current Assignment
-Execution-order enforcement and high-value seam prioritization for the Kain UI wave. Stay out of general wandering, keep overlap control sharp, and restate the dependency order whenever the room starts drifting.
+Execution-order enforcement for the canonical Kain UI task board in `M:\Code\Kain\party\TASKS.md`. Keep the room on the published order, prevent drift, and do not mark the wave complete until each lane lands its cut.
+
+## Parallel Role
+I am the dependency enforcer / seam prioritizer. I do not own feature chunks; I keep the working order clean, stop overlap, and cut drift when the room tries to fan out without boundaries.
+
+## Role Lock
+- Cecil: truth emission owner
+- Rikku: semantic leak hunter
+- Vincent: compatibility-debt quarantiner
+- Vivi: missing-contract architect
+- Barret: proof and regression sentry
+- Tifa: merge normalizer
+- Tidus: master task list captain
+- Sazh: ownership marshal
+- Cloud: canonical-vs-compatibility auditor
+- Zidane: overlap controller
 
 ## Changes Made
 - Audited the current Kain UI boundary docs and runtime surface notes.

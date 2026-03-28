@@ -1266,6 +1266,9 @@ impl Default for UiSelectionModel {
 /// Compatibility-only sidecar for legacy native/C consumers.
 /// Keep this out of the canonical cross-backend ABI and do not
 /// let new authoring paths depend on it.
+///
+/// New UI semantics should be emitted through `UiRuntimeBundle` and
+/// compiler-owned contract payloads, not promoted into this projection.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct UiNativeProjection {
     pub root_id: Option<u64>,
@@ -1370,6 +1373,10 @@ pub fn ui_runtime_bundle_from_output(
         output.systems.session_state.insert(
             "ui.runtime.compatibility_fallback".to_string(),
             UiValue::Bool(true),
+        );
+        output.systems.session_state.insert(
+            "ui.runtime.compatibility_mode".to_string(),
+            UiValue::String("tree_shape_backfill".to_string()),
         );
     }
     let native_projection = ui_native_projection_from_output(&output);

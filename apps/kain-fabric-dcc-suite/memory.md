@@ -18,6 +18,12 @@ Next recommended step:
 
 - Keep the report browser and report-count telemetry mirrored in both docs and materializer output when new report families land.
 
+## 2026-03-28 - Runtime Lane Registry Now Surfaces In Derived Workspace State
+
+- Extended `session/derived_state.kn` so the workspace read model now carries the authored runtime-lane count and a compact lane summary (`kain,fabric,python,gpu,c_abi,rust,node`).
+- This makes the session projection line up more directly with `config/runtime_lanes.json` instead of keeping lane ownership only in config prose.
+- Next clean seam: thread the same registry-backed lane summary into the live bridge snapshot so chrome and reducer truth stay identical.
+
 
 This file preserves the durable design intent for `apps/kain-fabric-dcc-suite`.
 
@@ -360,6 +366,24 @@ Next recommended step:
 - The doc mirrors the app's durable boundaries: registries, session truth, Fabric intent graphs, Kain projection writers, and the narrow file-backed native bridge.
 - It also records the same honest extension seams for mesh normalization, topology history, rig solving, tensor, sim, compositor, and sculpt runtime work.
 - This was a safe, high-leverage cleanup step: it improves future agent navigation without changing app semantics.
+
+## 2026-03-28 - Runtime Lane Ownership Is Now Visible In The Shell Chrome
+
+- Extended `config/ui_shell.json` so the authored shell now surfaces a `runtime_lane_count` status pill and includes the runtime-lane matrix in the system rack notes.
+- Updated `scripts/materialize-shell.ps1` to count and project `runtime_lanes` from `config/runtime_lanes.json`, keeping the generated shell aligned with the app-owned Kain / Fabric / Python / GPU / native C / Rust / Node ownership matrix.
+- This is a safe visibility pass: no runtime semantics changed, but the multi-runtime power lanes are now inspectable in the product frame instead of only in docs and registries.
+
+Important design decision:
+
+- Runtime-lane ownership should stay data-driven and visible in shell chrome so operators can audit Kain, Fabric, Python, GPU, native C, Rust, and Node at a glance.
+
+Current risk:
+
+- The lane matrix is still projection-driven, so future registry drift would need a shell materializer refresh to stay visible.
+
+Next recommended step:
+
+- Mirror the same runtime-lane signal into any host-side status surfaces or session-derived views that need the ownership matrix without opening docs.
 
 ## 2026-03-28 - Report Browser Now Surfaces Mesh And Topology Lineage
 

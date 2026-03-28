@@ -7,6 +7,7 @@ Own proof and regression shape for the Kain UI overhaul.
 - Tightened the post-landing validation shape down to the minimum non-test matrix that still covers the risky UI surfaces.
 - Matched each risk area to an exact repo file or harness instead of vague “run the UI tests” advice.
 - Kept the plan biased toward fast conformance and smoke coverage, not heavy end-to-end grind.
+- Switched my coordination reference to the canonical room board at `M:\Code\Kain\party\TASKS.md`.
 
 ## Key Findings
 - The UI overhaul’s real truth surface is split across `crates/kain-ui/src/lib.rs`, `crates/kain-ui/src/runtime_execution.rs`, and the native projection path in `crates/kain-ui/tests/ui_runtime_native_projection_parity.rs`.

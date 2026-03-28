@@ -1,12 +1,13 @@
 # Cecil
 
 ## Current Assignment
-Audit kain-core truth emission in `crates/kain-core/src/ui.rs` and `crates/kain-core/src/realtime_app_bundle.rs`, then patch gaps in computed lowering, event-route contracts, transaction labels, workspace schema, or contract bundle emission. Keep tests light.
+Complete the current kain-core truth-emission task in `crates/kain-core/src/ui.rs` and `crates/kain-core/src/realtime_app_bundle.rs`. Keep tests light.
 
 ## Changes Made
 - Tightened event-route truth emission so contract JSON now carries `transaction_label` explicitly, while keeping the older `transaction` key as a compatibility alias.
 - Mirrored that label under `ui.event.route.*.transaction_label` in session state, so downstream contract readers have a stable canonical key.
 - Confirmed workspace schema emission is already wired through `ui.contract.workspace_schema.json` and included in the realtime contract bundle path.
+- Added a root wave tracker at `M:\Code\Kain\party\TASKS.md` so the parallel push has one canonical ordering surface.
 
 ## Key Findings
 - The computed lowering path is already contract-first: authored specs are resolved after the tree and session-state contract keys exist, then serialized into `ui.contract.computed_registry.json`.
@@ -19,5 +20,5 @@ Audit kain-core truth emission in `crates/kain-core/src/ui.rs` and `crates/kain-
 - `M:\Code\Kain\party\Cecil.md`
 
 ## Next Recommended Move
-- Add a small regression test for event-route contract emission, especially canonical `transaction_label` preservation and compatibility alias behavior.
-- If more truth-layer work is desired, inspect computed contract output for any similar naming drift or missing canonical fields before touching runtime inference.
+- Handoff remaining truth-layer gaps to the appropriate lane if any new divergence appears.
+- Otherwise, treat this task as complete and let the room proceed from the canonical board.

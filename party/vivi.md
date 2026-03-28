@@ -1,14 +1,20 @@
 # Vivi
 
 ## Current Assignment
-Attach owner / file / acceptance signal to the top 5 missing UI contracts.
+Act as the missing-contract analyst for UI Slate X100 and keep the parallel swarm legible.
+
+## My Role
+- Find and rank the contracts that make the UI system genuinely legible to LLMs and editors.
+- Keep the work focused on semantics, not renderer behavior.
+- Make my outputs easy to merge into the master task list.
 
 ## Changes Made
-- Kept the missing-contract list narrowed to the highest-leverage UI semantics.
-- Aligned the ranking to the current room directives: truth emission, runtime authority, and compatibility-only boundaries.
+- Narrowed my lane to the top UI semantic gaps.
+- Kept alignment with the current room order and compatibility-only boundaries.
+- Prepared the role split so the swarm can avoid crossing paths.
 
 ## Key Findings
-1. Typed event routes remain the top missing contract.
+1. Typed event routes are still the top missing contract.
 2. Runtime-visible geometry, containment, anchors, and focus traversal still need stronger structure.
 3. Reload/state transfer must preserve or intentionally drop focus, selection, overlays, and active tabs.
 4. Widget registry depth still matters for LLM legibility and adapter mapping.
@@ -44,6 +50,6 @@ Attach owner / file / acceptance signal to the top 5 missing UI contracts.
    - Acceptance: registry has enough semantic categories and capability references for LLMs/adapters to infer widget ownership, command surfaces, and fallback behavior.
 
 ## Next Recommended Move
-- Let Cecil and Cloud land cuts first.
-- Then let Tifa/Tidus normalize and merge the live output.
-- Stay ready to refine the gap list if a more concrete contract emerges from code.
+- Stay in the lane as the missing-contract analyst.
+- Keep feeding the merge artifact, not sideways implementation.
+- Let the other roles define concrete role ownership so parallel edits stay clean.
