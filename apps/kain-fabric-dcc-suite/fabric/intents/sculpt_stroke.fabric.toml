@@ -63,6 +63,16 @@ kind = "value"
 name = "sculpt_report"
 kind = "value"
 
+[[steps]]
+id = "sculpt_brush_projection"
+runtime = "kain"
+entry = "src/sculpt_brush_projection.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "native_sculpt_kernel"]
+
+[[steps.outputs]]
+name = "sculpt_brush_report"
+kind = "value"
+
 [reports]
 directory = ".kain/fabric/intents/sculpt_stroke"
 emit_jsonl_events = true

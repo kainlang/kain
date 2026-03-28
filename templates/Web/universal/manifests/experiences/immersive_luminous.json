@@ -7,31 +7,244 @@
   "page_title": "Luminous Port",
   "eyebrow": "Immersive 3D Website",
   "sections": [
-    { "id": "world", "kind": "scene_spotlight", "eyebrow": "Scene", "title": "Immersive reveal", "source": "scene" },
-    { "id": "system", "kind": "card_grid", "eyebrow": "System", "title": "Release systems", "source": "content.feature_cards" },
-    { "id": "pipeline", "kind": "card_grid", "eyebrow": "Pipeline", "title": "Scene pipeline", "source": "content.scene_pipeline" },
-    { "id": "render", "kind": "card_grid", "eyebrow": "Render", "title": "Render stack", "source": "content.render_stack" },
-    { "id": "interaction", "kind": "card_grid", "eyebrow": "Interaction", "title": "Interaction modes", "source": "content.interaction_modes" },
-    { "id": "devices", "kind": "card_grid", "eyebrow": "Devices", "title": "Device profiles", "source": "content.device_profiles" },
-    { "id": "assets", "kind": "card_grid", "eyebrow": "Assets", "title": "Scene assets", "source": "content.scene_assets" },
-    { "id": "materials", "kind": "card_grid", "eyebrow": "Materials", "title": "Material library", "source": "content.material_library" },
-    { "id": "lighting", "kind": "card_grid", "eyebrow": "Lighting", "title": "Lighting rigs", "source": "content.lighting_rigs" },
-    { "id": "cameras", "kind": "card_grid", "eyebrow": "Cameras", "title": "Camera rigs", "source": "content.camera_rigs" },
-    { "id": "animation", "kind": "card_grid", "eyebrow": "Animation", "title": "Animation stack", "source": "content.animation_stack" },
-    { "id": "physics", "kind": "card_grid", "eyebrow": "Physics", "title": "Physics stack", "source": "content.physics_stack" },
-    { "id": "audio", "kind": "card_grid", "eyebrow": "Audio", "title": "Spatial audio", "source": "content.spatial_audio" },
-    { "id": "xr", "kind": "card_grid", "eyebrow": "XR", "title": "XR modes", "source": "content.xr_modes" },
-    { "id": "shaders", "kind": "card_grid", "eyebrow": "Shaders", "title": "Shader stack", "source": "content.shader_stack" },
-    { "id": "proof", "kind": "testimonials", "eyebrow": "Proof", "title": "Release reactions", "source": "content.testimonials" },
-    { "id": "editions", "kind": "pricing", "eyebrow": "Editions", "title": "Release editions", "source": "content.pricing_tiers" },
-    { "id": "status", "kind": "status_board", "eyebrow": "Status", "title": "Release status", "source": "content.status" },
-    { "id": "roadmap", "kind": "roadmap_timeline", "eyebrow": "Roadmap", "title": "Release roadmap", "source": "content.roadmap" },
-    { "id": "press", "kind": "press_kit", "eyebrow": "Press", "title": "Press kit", "source": "content.press_kit" },
-    { "id": "support", "kind": "support_grid", "eyebrow": "Support", "title": "Support channels", "source": "content.support_channels" },
-    { "id": "legal", "kind": "legal_links", "eyebrow": "Legal", "title": "Policies", "source": "content.legal" },
-    { "id": "commands", "kind": "command_lines", "eyebrow": "Command", "title": "Operator setup", "source": "content.command_lines" },
-    { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Immersive lane questions", "source": "content.faq_items" },
-    { "id": "intake", "kind": "form_panel", "eyebrow": "Reservation", "title": "Capture reservation intent", "source": "content.forms.reservation" },
-    { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }
+    {
+      "id": "world",
+      "kind": "scene_spotlight",
+      "eyebrow": "Scene",
+      "title": "Immersive reveal",
+      "source": "scene"
+    },
+    {
+      "id": "system",
+      "kind": "card_grid",
+      "eyebrow": "System",
+      "title": "Release systems",
+      "source": "content.feature_cards"
+    },
+    {
+      "id": "pipeline",
+      "kind": "card_grid",
+      "eyebrow": "Pipeline",
+      "title": "Scene pipeline",
+      "source": "content.scene_pipeline"
+    },
+    {
+      "id": "render",
+      "kind": "card_grid",
+      "eyebrow": "Render",
+      "title": "Render stack",
+      "source": "content.render_stack"
+    },
+    {
+      "id": "interaction",
+      "kind": "card_grid",
+      "eyebrow": "Interaction",
+      "title": "Interaction modes",
+      "source": "content.interaction_modes"
+    },
+    {
+      "id": "devices",
+      "kind": "card_grid",
+      "eyebrow": "Devices",
+      "title": "Device profiles",
+      "source": "content.device_profiles"
+    },
+    {
+      "id": "assets",
+      "kind": "card_grid",
+      "eyebrow": "Assets",
+      "title": "Scene assets",
+      "source": "content.scene_assets"
+    },
+    {
+      "id": "materials",
+      "kind": "card_grid",
+      "eyebrow": "Materials",
+      "title": "Material library",
+      "source": "content.material_library"
+    },
+    {
+      "id": "lighting",
+      "kind": "card_grid",
+      "eyebrow": "Lighting",
+      "title": "Lighting rigs",
+      "source": "content.lighting_rigs"
+    },
+    {
+      "id": "cameras",
+      "kind": "card_grid",
+      "eyebrow": "Cameras",
+      "title": "Camera rigs",
+      "source": "content.camera_rigs"
+    },
+    {
+      "id": "animation",
+      "kind": "card_grid",
+      "eyebrow": "Animation",
+      "title": "Animation stack",
+      "source": "content.animation_stack"
+    },
+    {
+      "id": "physics",
+      "kind": "card_grid",
+      "eyebrow": "Physics",
+      "title": "Physics stack",
+      "source": "content.physics_stack"
+    },
+    {
+      "id": "audio",
+      "kind": "card_grid",
+      "eyebrow": "Audio",
+      "title": "Spatial audio",
+      "source": "content.spatial_audio"
+    },
+    {
+      "id": "xr",
+      "kind": "card_grid",
+      "eyebrow": "XR",
+      "title": "XR modes",
+      "source": "content.xr_modes"
+    },
+    {
+      "id": "shaders",
+      "kind": "card_grid",
+      "eyebrow": "Shaders",
+      "title": "Shader stack",
+      "source": "content.shader_stack"
+    },
+    {
+      "id": "proof",
+      "kind": "testimonials",
+      "eyebrow": "Proof",
+      "title": "Release reactions",
+      "source": "content.testimonials"
+    },
+    {
+      "id": "editions",
+      "kind": "pricing",
+      "eyebrow": "Editions",
+      "title": "Release editions",
+      "source": "content.pricing_tiers"
+    },
+    {
+      "id": "status",
+      "kind": "status_board",
+      "eyebrow": "Status",
+      "title": "Release status",
+      "source": "content.status"
+    },
+    {
+      "id": "roadmap",
+      "kind": "roadmap_timeline",
+      "eyebrow": "Roadmap",
+      "title": "Release roadmap",
+      "source": "content.roadmap"
+    },
+    {
+      "id": "press",
+      "kind": "press_kit",
+      "eyebrow": "Press",
+      "title": "Press kit",
+      "source": "content.press_kit"
+    },
+    {
+      "id": "support",
+      "kind": "support_grid",
+      "eyebrow": "Support",
+      "title": "Support channels",
+      "source": "content.support_channels"
+    },
+    {
+      "id": "legal",
+      "kind": "legal_links",
+      "eyebrow": "Legal",
+      "title": "Policies",
+      "source": "content.legal"
+    },
+    {
+      "id": "commands",
+      "kind": "command_lines",
+      "eyebrow": "Command",
+      "title": "Operator setup",
+      "source": "content.command_lines"
+    },
+    {
+      "id": "faq",
+      "kind": "faq",
+      "eyebrow": "FAQ",
+      "title": "Immersive lane questions",
+      "source": "content.faq_items"
+    },
+    {
+      "id": "intake",
+      "kind": "form_panel",
+      "eyebrow": "Reservation",
+      "title": "Capture reservation intent",
+      "source": "content.forms.reservation"
+    },
+    {
+      "id": "edge-runtime",
+      "kind": "card_grid",
+      "eyebrow": "Edge",
+      "title": "Edge runtime",
+      "source": "content.edge_runtime"
+    },
+    {
+      "id": "worker-runtime",
+      "kind": "card_grid",
+      "eyebrow": "Workers",
+      "title": "Worker runtime",
+      "source": "content.worker_runtime"
+    },
+    {
+      "id": "api-gateway",
+      "kind": "card_grid",
+      "eyebrow": "Gateway",
+      "title": "API gateway",
+      "source": "content.api_gateway"
+    },
+    {
+      "id": "rate-limits",
+      "kind": "card_grid",
+      "eyebrow": "Limits",
+      "title": "Rate limits",
+      "source": "content.rate_limits"
+    },
+    {
+      "id": "cache-stack",
+      "kind": "card_grid",
+      "eyebrow": "Cache",
+      "title": "Cache stack",
+      "source": "content.cache_stack"
+    },
+    {
+      "id": "search-stack",
+      "kind": "card_grid",
+      "eyebrow": "Search",
+      "title": "Search stack",
+      "source": "content.search_stack"
+    },
+    {
+      "id": "storage-stack",
+      "kind": "card_grid",
+      "eyebrow": "Storage",
+      "title": "Storage stack",
+      "source": "content.storage_stack"
+    },
+    {
+      "id": "session-store",
+      "kind": "card_grid",
+      "eyebrow": "Sessions",
+      "title": "Session store",
+      "source": "content.session_store"
+    },
+    {
+      "id": "cta",
+      "kind": "cta",
+      "eyebrow": "CTA",
+      "title_source": "content.cta.title",
+      "body_source": "content.cta.body",
+      "actions_source": "content.cta.actions"
+    }
   ]
 }

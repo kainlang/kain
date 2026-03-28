@@ -9,10 +9,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ui_solve_workspace_layout, ui_step_animation_runtime, UiAnimationFrame, UiCommand,
-    UiCommandRejection, UiComputed, UiDerivedExpr, UiEventPhase, UiInvalidationResult, UiLayoutKind,
-    UiNodeId, UiOverflowBehavior, UiPatch, UiRect, UiResolvedLayout, UiSchedulerEntry,
-    UiSchedulerPhase, UiSignalId, UiSignalUpdate, UiTransaction, UiTree, UiValue, UiWorkspaceLayout,
+    ui_solve_workspace_layout, ui_step_animation_runtime, ui_transfer_hot_reload_state,
+    UiAnimationFrame, UiBuildOutput, UiCommand, UiCommandRejection, UiComputed, UiDerivedExpr,
+    UiEventPhase, UiHotReloadTransferReport, UiInvalidationResult, UiLayoutKind, UiNodeId,
+    UiOverflowBehavior, UiPatch, UiRect, UiResolvedLayout, UiSchedulerEntry, UiSchedulerPhase,
+    UiSignalId, UiSignalUpdate, UiTransaction, UiTree, UiValue, UiWorkspaceLayout,
 };
 
 /// Runtime entrypoint that owns:
@@ -45,6 +46,80 @@ impl UiRuntime {
 
     pub fn rebuild_indexes(&mut self) {
         self.indexes = UiRuntimeIndexes::build(&self.tree, &self.systems.computed);
+    }
+
+    /// Applies a newly compiled output using the explicit hot-reload transfer contract.
+    ///
+    /// This keeps state preservation, invalidation, and reconciliation visible in runtime-owned
+    /// data rather than collapsing into a backend-local "just swap the tree" shortcut.
+    pub fn reload(&mut self, mut next: UiBuildOutput) -> UiRuntimeReloadOutput {
+        let previous_output = UiBuildOutput {
+            tree: self.tree.clone(),
+            patches: Vec::new(),
+            systems: self.systems.clone(),
+        };
+        let pre_active_tabs = self.systems.workspace_layout.active_tabs.clone();
+        let pre_focus = self.systems.focus_graph.focused.clone();
+        let pre_selection_primary = self.systems.selection_model.primary.clone();
+
+        let report = ui_transfer_hot_reload_state(&previous_output, &mut next);
+
+        self.tree = next.tree;
+        self.systems = next.systems;
+        self.rebuild_indexes();
+
+        let mut output = UiRuntimeReloadOutput {
+            report: report.clone(),
+            ..UiRuntimeReloadOutput::default()
+        };
+        output
+            .system_patches
+            .push(UiRuntimeSystemPatch::HotReloadApplied {
+                report: report.clone(),
+            });
+        output
+            .system_patches
+            .extend(runtime_state_delta_patches(
+                &pre_active_tabs,
+                &pre_focus,
+                &pre_selection_primary,
+                &self.systems.workspace_layout.active_tabs,
+                &self.systems.focus_graph.focused,
+                &self.systems.selection_model.primary,
+            ));
+
+        if !report.invalidated_nodes.is_empty() {
+            let scheduler_entry = UiSchedulerEntry {
+                phase: UiSchedulerPhase::Layout,
+                label: "hot_reload".to_string(),
+                target_nodes: report.invalidated_nodes.clone(),
+            };
+            self.systems.scheduler.pending.push(scheduler_entry.clone());
+
+            let transaction = UiTransaction {
+                label: "hot_reload".to_string(),
+                touched_nodes: report.invalidated_nodes.clone(),
+                ..UiTransaction::default_runtime(self.next_transaction_id)
+            };
+            self.next_transaction_id = self.next_transaction_id.saturating_add(1);
+            self.systems.transactions.push(transaction.clone());
+
+            let invalidation = UiInvalidationResult {
+                changed_signals: Vec::new(),
+                invalidated_nodes: report.invalidated_nodes.clone(),
+                scheduled: vec![scheduler_entry],
+                transaction: Some(transaction),
+            };
+            output.invalidation = Some(invalidation);
+            output
+                .system_patches
+                .push(UiRuntimeSystemPatch::HotReloadInvalidated {
+                    invalidated_nodes: report.invalidated_nodes.clone(),
+                });
+        }
+
+        output.scheduler = Some(ui_coalesce_scheduler_entries(&mut self.systems.scheduler.pending));
+        output
     }
 
     /// Executes a runtime step:
@@ -252,12 +327,14 @@ impl UiRuntime {
                     name: command_name.to_string(),
                     target: Some(event.target),
                     payload: event.payload.clone(),
+                    transaction_label: route.transaction_label.clone(),
                 });
             } else if let Some(handler_id) = route.handler_id.as_deref() {
                 commands.push(UiCommand {
                     name: handler_id.to_string(),
                     target: Some(event.target),
                     payload: event.payload.clone(),
+                    transaction_label: route.transaction_label.clone(),
                 });
             }
         }
@@ -271,7 +348,10 @@ impl UiRuntime {
         // Always record the transaction, even if the command is rejected; that
         // keeps "patch authority" inspectable.
         let mut tx = UiTransaction {
-            label: format!("cmd:{}", command.name),
+            label: command
+                .transaction_label
+                .clone()
+                .unwrap_or_else(|| format!("cmd:{}", command.name)),
             ..UiTransaction::default_runtime(self.next_transaction_id)
         };
         self.next_transaction_id = self.next_transaction_id.saturating_add(1);
@@ -397,6 +477,15 @@ pub struct UiRuntimeStepOutput {
     pub animation_frames: Vec<UiAnimationFrame>,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct UiRuntimeReloadOutput {
+    pub report: UiHotReloadTransferReport,
+    #[serde(default)]
+    pub system_patches: Vec<UiRuntimeSystemPatch>,
+    pub invalidation: Option<UiInvalidationResult>,
+    pub scheduler: Option<UiSchedulerCoalesceReport>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UiRuntimeEvent {
     pub event: String,
@@ -437,6 +526,12 @@ pub enum UiRuntimeSystemPatch {
     ExternalCommandDispatched {
         command: String,
     },
+    HotReloadApplied {
+        report: UiHotReloadTransferReport,
+    },
+    HotReloadInvalidated {
+        invalidated_nodes: Vec<UiNodeId>,
+    },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -458,6 +553,62 @@ impl UiCommandExecutionOutput {
         self.system_patches.extend(other.system_patches);
         self.rejections.extend(other.rejections);
     }
+}
+
+fn runtime_state_delta_patches(
+    previous_active_tabs: &BTreeMap<String, String>,
+    previous_focus: &BTreeMap<String, UiNodeId>,
+    previous_selection_primary: &BTreeMap<String, UiNodeId>,
+    next_active_tabs: &BTreeMap<String, String>,
+    next_focus: &BTreeMap<String, UiNodeId>,
+    next_selection_primary: &BTreeMap<String, UiNodeId>,
+) -> Vec<UiRuntimeSystemPatch> {
+    let mut patches = Vec::new();
+
+    for (group_id, layout_id) in next_active_tabs {
+        if previous_active_tabs.get(group_id) != Some(layout_id) {
+            patches.push(UiRuntimeSystemPatch::WorkspaceActiveTabChanged {
+                group_id: group_id.clone(),
+                active_layout_id: layout_id.clone(),
+            });
+        }
+    }
+
+    for (scope, focused) in next_focus {
+        if previous_focus.get(scope) != Some(focused) {
+            patches.push(UiRuntimeSystemPatch::FocusChanged {
+                scope: scope.clone(),
+                focused: Some(*focused),
+            });
+        }
+    }
+    for scope in previous_focus.keys() {
+        if !next_focus.contains_key(scope) {
+            patches.push(UiRuntimeSystemPatch::FocusChanged {
+                scope: scope.clone(),
+                focused: None,
+            });
+        }
+    }
+
+    for (scope, primary) in next_selection_primary {
+        if previous_selection_primary.get(scope) != Some(primary) {
+            patches.push(UiRuntimeSystemPatch::SelectionChanged {
+                scope: scope.clone(),
+                primary: Some(*primary),
+            });
+        }
+    }
+    for scope in previous_selection_primary.keys() {
+        if !next_selection_primary.contains_key(scope) {
+            patches.push(UiRuntimeSystemPatch::SelectionChanged {
+                scope: scope.clone(),
+                primary: None,
+            });
+        }
+    }
+
+    patches
 }
 
 #[derive(Debug)]

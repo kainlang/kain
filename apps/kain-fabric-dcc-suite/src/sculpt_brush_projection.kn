@@ -1,0 +1,46 @@
+fn app_state_root() -> String:
+    return "apps/kain-fabric-dcc-suite/state"
+
+fn sculpt_brush_report_path() -> String:
+    return app_state_root() + "/sculpt_brush_report.json"
+
+fn build_sculpt_brush_report_json(settings: Any, state: Any, intent: Any) -> String:
+    let active_mesh_resource_id = state.mesh.active_edit_target_id
+    let brush_data = intent.payload.get_as::<SculptBrushData>("brush_data")
+    let json = "{\n"
+    let json = json + "  \"kind\": \"sculpt_brush_report\",\n"
+    let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
+    let json = json + "  \"workspace_mode\": \"" + settings.workspace_mode + "\",\n"
+    let json = json + "  \"active_mesh_resource_id\": \"" + active_mesh_resource_id + "\",\n"
+    let json = json + "  \"resource_contract\": \"config/mesh_resource_contract.json\",\n"
+    let json = json + "  \"brush_origin\": [" + str(brush_data.origin.x) + ", " + str(brush_data.origin.y) + ", " + str(brush_data.origin.z) + "],\n"
+    let json = json + "  \"brush_direction\": [" + str(brush_data.direction.x) + ", " + str(brush_data.direction.y) + ", " + str(brush_data.direction.z) + "],\n"
+    let json = json + "  \"radius\": " + str(brush_data.radius) + ",\n"
+    let json = json + "  \"strength\": " + str(brush_data.strength) + ",\n"
+    let json = json + "  \"falloff_curve\": \"" + brush_data.falloff_curve + "\",\n"
+    let json = json + "  \"extension_seam\": \"native C++/Rust compute kernel over shared buffers\",\n"
+    let json = json + "  \"limitation\": \"Kain does not yet own a native high-performance BVH or spatial hash\"\n"
+    let json = json + "}\n"
+    return json
+
+public fn execute_sculpt_brush_step(intent: Intent, state: State) -> State {
+    let settings = state.settings
+    let report_json = build_sculpt_brush_report_json(settings, state, intent)
+
+    write_file(sculpt_brush_report_path(), report_json)
+
+    // The sculpt lane edits the active mesh resource id; it does not own the
+    // mesh object itself inside this step. This seam only projects the brush
+    // request and makes the extension boundary explicit.
+    log::info("Projected sculpt_brush_stroke for active mesh resource id into a durable seam report.")
+
+    state
+}
+
+struct SculptBrushData {
+    pub origin: Vec3,
+    pub direction: Vec3,
+    pub radius: f32,
+    pub strength: f32,
+    pub falloff_curve: String,
+}

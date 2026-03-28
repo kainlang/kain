@@ -24,6 +24,48 @@
       }
     },
     {
+      "id": "ui.show_command_palette",
+      "label": "Show Command Palette",
+      "surface": "command_palette",
+      "summary": "Opens the registry-owned command palette for search, recents, and global shell actions.",
+      "intent": "ui.show_command_palette",
+      "payload_schema": {
+        "query": "string",
+        "scope": "string"
+      }
+    },
+    {
+      "id": "ui.focus_workspace_navigator",
+      "label": "Focus Workspace Navigator",
+      "surface": "workspace_navigator",
+      "summary": "Moves focus to the lane rail so operators can jump between authored workbenches.",
+      "intent": "ui.focus_workspace_navigator",
+      "payload_schema": {
+        "mode_id": "workspace_mode_id"
+      }
+    },
+    {
+      "id": "ui.open_property_grid",
+      "label": "Open Property Grid",
+      "surface": "property_grid",
+      "summary": "Raises the property-grid rail for the current selection and authored metadata.",
+      "intent": "ui.open_property_grid",
+      "payload_schema": {
+        "surface_id": "string",
+        "selection_scope": "string"
+      }
+    },
+    {
+      "id": "ui.toggle_status_strip",
+      "label": "Toggle Status Strip",
+      "surface": "status_strip",
+      "summary": "Shows or hides the docked status strip without changing session truth.",
+      "intent": "ui.toggle_status_strip",
+      "payload_schema": {
+        "visible": "bool"
+      }
+    },
+    {
       "id": "asset.ingest_package",
       "label": "Ingest Package",
       "surface": "asset_ingest",

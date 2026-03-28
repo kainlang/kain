@@ -1,12 +1,13 @@
 # Signalcraft Landing Smoke
 
-This smoke pushes the native UI lane toward a website-style landing page:
+This smoke pushes the native UI lane toward a product-like editorial page, not a tool inspector:
 
 - top navigation
 - hero section
 - stacked landing sections
 - horizontal and vertical scrolling regions
 - mount-time entrance motion in the native host
+- a visual language that should read differently from the operator and probe lanes
 
 Run:
 

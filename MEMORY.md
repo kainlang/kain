@@ -10,6 +10,77 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-28 - Universal Web Template Added Trust + Risk + Consent + Marketplace Systems
+
+The universal web template now includes additional web-critical systems that previously lived only as implicit gaps: identity verification, fraud/risk controls, consent management, audit logging, data exports, marketplace ops, and content syndication.
+
+Update:
+
+- Added manifest-driven registries for identity verification, fraud/risk, consent center, audit logs, data exports, marketplace stack, and content syndication in `web_systems_core`.
+- Exposed the new systems through the Node helper runtime site data, system contracts, UI schema counts, and API endpoints.
+- Wired the new sections into the hybrid experience so the full-spectrum archetype surfaces the trust/risk/consent lanes alongside billing and commerce.
+- Expanded template docs and limitations to describe the new metadata lanes and the missing Kain-native adapters.
+
+What future work should preserve:
+
+- keep trust/risk/consent systems manifest-driven and surfaced through the system contract
+- keep helper runtime as the single API owner until Kain-native adapters exist
+- keep the hybrid archetype as the “kitchen sink” proof for these systems before copying them into narrower experiences
+
+## 2026-03-27 - Universal Web Template Added Enablement + Reliability + Retention Systems
+
+The universal web template now includes explicit enablement, onboarding, reliability SLO, data retention, and incident history systems, wired end-to-end through the runtime contract.
+
+Update:
+
+- Added enablement programs, onboarding flows, reliability SLOs, data retention policies, and incident history registries to the shared web systems core.
+- Wired the new systems into the hybrid and operator experiences with nav anchors and sections.
+- Extended the Node helper runtime with site-data fields, system-contract endpoints, and API routes (`/api/enablement`, `/api/onboarding`, `/api/reliability`, `/api/data-retention`, `/api/incidents/history`).
+- Updated client site-data typings and template docs to cover the new systems.
+
+What future work should preserve:
+
+- keep the new systems manifest-driven and exposed through the system contract
+- keep the helper runtime as the single API owner until a Kain-native web runtime exists
+- keep enablement/reliability/retention defaults visible in the hybrid and operator archetypes
+
+## 2026-03-27 - Alpha Made Reload And Derived UI Semantics Compiler-To-Runtime Contract Data
+
+The UI Slate X100 lane now treats hot reload and derived UI state as first-class contract data instead of mostly retained-tree heuristics.
+
+Update:
+
+- `crates/kain-core/src/ui.rs` now lowers authored `<computed>` declarations into runtime `UiComputed` entries with explicit `writes_signal`, executable `expr`, invalidation targets, and scheduler phase metadata.
+- Compiler-emitted event routes now carry stable route ids plus explicit command and transaction metadata, and the emitted contract registry includes computed and event-route JSON payloads.
+- `crates/kain-ui` now has a first-class `UiRuntime::reload(...)` path that applies explicit hot-reload transfer, preserves state through stable node/layout identity, emits reload system patches, and bounds post-reload invalidation instead of hiding the swap behind backend-local behavior.
+- The reload contract now explicitly covers workspace layout, active tabs, focus, selection, overlays, motion policy, signal values, session state, and animation playback through `UiHotReloadPlan` plus `UiHotReloadTransferReport`.
+- `crates/kain-core/src/realtime_app_bundle.rs` now surfaces computed, route, reload, focus, selection, overlay, motion, and workspace contract payloads in the realtime UI contract bundle so downstream native hosts do not need to invent their own interpretation layer.
+
+What future work should preserve:
+
+- keep authored reload meaning in compiler-emitted ids, aliases, signals, routes, and workspace metadata instead of moving it back into tree-shape inference
+- keep `UiRuntime::reload(...)` as the semantic reload authority; renderer/native hosts should consume its transfer report and patch stream rather than swapping UI trees privately
+- extend contract JSON and runtime-system types together when new UI semantics are added; do not add native-host-only state models for focus, selection, overlays, or transactions
+- compatibility backfill in `kain-core` is still a bridge for older outputs, not the target architecture; new semantics should enter through authored-first contract data
+
+## 2026-03-27 - Gamma Stabilized The Native Packaging Loop And Proof Surface Boundaries
+
+Gamma's current durable contribution is not a new UI semantics layer. It is the operator and proof shell around the semantics that already exist.
+
+Update:
+
+- `crates/kain-driver` now functions as the native packaging boundary for UI iteration: it materializes the runtime bundle, runtime contract, realtime bundle, `app_manifest.json`, `runtime_snapshot.json`, and packaged sidecars into the app artifact set.
+- The generated runtime snapshot is the explicit reload/control surface. It already carries a `runtime.reload` command plus provider, session, workspace, and capability records, which keeps the operator loop data-driven instead of hidden in launcher state.
+- `smoketest/UI` remains the proof matrix for the UI overhaul. The durable signal is not just visual polish, but distinct product modes and reusable proof shells: editorial, operator, workbench/property-grid, shader-canvas, and tabbed workspace surfaces.
+- Devtools must remain opt-in and visibly separate from product mode. The docs now treat that as a packaging rule, not a style preference.
+
+What future work should preserve:
+
+- keep the package/reload loop file-backed and inspectable through manifest plus snapshot sidecars
+- keep product mode clean by default; do not let inspection chrome become ambient app furniture
+- keep the showcase smokes reusable and platform-shaped instead of converting them into one-off local hacks
+- if launcher or snapshot shapes change, refresh the Gamma operator notes before changing showcase content
+
 ## 2026-03-27 - UI Slate X100 Now Treats Spatial Verifiability And LLM Legibility As Platform Requirements
 
 The current UI overhaul plan has sharpened around a critical realization: the main failure is not only visual sameness. The deeper failure is that Kain UI still hides too much layout, ownership, motion, and interaction meaning behind generic props, backend-local behavior, and host contamination. That makes strong LLMs collapse into the same blocky shell because the system does not expose enough explicit structure to support more ambitious authorship.
@@ -1492,4 +1563,23 @@ What future work should preserve:
 
 - keep the additional systems registry-driven in `web_systems_core` so every archetype can opt in without new boilerplate
 - keep the helper runtime as the single place that emits system contract + actor plan updates for web; avoid duplicating routing logic per archetype
+
+
+## 2026-03-27 - Universal Web Template Runtime Ops Expansion
+
+The universal web template now covers runtime ops layers (edge, workers, gateway, rate limits, cache, search, storage, sessions) as manifest-driven systems with API exposure.
+
+Update:
+
+- Added edge/worker/gateway/rate-limit/cache/search/storage/session registries to web_systems_core and wired them through site data, system contract, UI schema counts, search indexing, and the Node helper runtime API.
+- Injected the new runtime ops sections into experience manifests and nav entries across content archetypes.
+- Extended the Kain native preview to surface runtime ops cards and refreshed the universal README; synced updates into M:\Code\Kain\templates\Web and K:\templates\Web.
+
+What future work should preserve:
+
+- keep runtime ops registries manifest-driven and exposed through the system contract + helper API surface
+- keep experience sections aligned to the new runtime ops registries across archetypes
+- keep the helper runtime as the single API owner until a Kain-native web backend lands
+
+Current run recorded at 2026-03-27T23:13:40-04:00.
 

@@ -503,6 +503,12 @@ export type KainIncidentResponseDescriptor = {
   playbooks?: KainIncidentPlaybook[] | null;
 };
 
+export type KainIncidentHistoryEntry = {
+  phase?: string | null;
+  title?: string | null;
+  body?: string | null;
+};
+
 export type KainCrmStage = {
   stage?: string | null;
   goal?: string | null;
@@ -614,6 +620,13 @@ export type KainSiteData = {
   scene?: KainSceneDescriptor;
   auth?: KainAuthDescriptor | null;
   identity?: KainIdentityDescriptor | null;
+  identity_verification?: KainCardEntry[] | null;
+  fraud_risk?: KainCardEntry[] | null;
+  consent_center?: KainCardEntry[] | null;
+  audit_logs?: KainCardEntry[] | null;
+  data_exports?: KainCardEntry[] | null;
+  marketplace_stack?: KainCardEntry[] | null;
+  content_syndication?: KainCardEntry[] | null;
   billing?: KainBillingDescriptor | null;
   subscriptions?: KainSubscriptionDescriptor | null;
   cms?: KainCmsDescriptor | null;
@@ -676,11 +689,24 @@ export type KainSiteData = {
   backup_plan?: KainCardEntry[];
   observability?: KainObservabilityDescriptor | null;
   infrastructure?: KainInfrastructureDescriptor | null;
+  edge_runtime?: KainCardEntry[];
+  worker_runtime?: KainCardEntry[];
+  api_gateway?: KainCardEntry[];
+  rate_limits?: KainCardEntry[];
+  cache_stack?: KainCardEntry[];
+  search_stack?: KainCardEntry[];
+  storage_stack?: KainCardEntry[];
+  session_store?: KainCardEntry[];
   runtime_hosts?: KainCardEntry[];
   deployment_targets?: KainCardEntry[];
   localization?: KainLocalizationDescriptor | null;
   accessibility?: KainAccessibilityDescriptor | null;
   performance?: KainPerformanceDescriptor | null;
+  enablement_programs?: KainCardEntry[];
+  onboarding_flows?: KainProcessStep[];
+  data_retention?: KainCardEntry[];
+  reliability_slos?: KainCardEntry[];
+  incident_history?: KainIncidentHistoryEntry[];
   growth?: KainGrowthDescriptor | null;
   experiments?: KainExperimentDescriptor | null;
   service_catalog?: KainServiceCatalog | null;

@@ -22,32 +22,39 @@ fn default_resources() -> Array<ResourceDescriptor>:
             summary: "Asset ingest and package catalog"
         },
         ResourceDescriptor {
+            id: "mesh_resource_contract_document",
+            resource_uri: "mesh://contract/current",
+            kind: "value",
+            producer_step: "dcc_suite_seed",
+            summary: "Durable app-owned mesh resource contract describing imported payloads, authored primitives, active edit targets, and topology outputs; see config/mesh_resource_contract.json"
+        },
+        ResourceDescriptor {
             id: "imported_mesh_payload_document",
             resource_uri: "mesh://imports/current/payloads",
             kind: "value",
             producer_step: "mesh_import_projection",
-            summary: "Imported mesh payload manifest for app-owned ingest targets and retained source payloads"
+            summary: "Imported mesh payload manifest for app-owned ingest targets and retained source payloads; see config/mesh_resource_contract.json for durable ids"
         },
         ResourceDescriptor {
             id: "authored_primitive_definition_document",
             resource_uri: "mesh://primitives/authored/definitions",
             kind: "value",
             producer_step: "primitive_mesh_authoring",
-            summary: "App-authored primitive mesh definitions, including the startup cube and future procedural primitives"
+            summary: "App-authored primitive mesh definitions, including the startup cube and future procedural primitives; see config/mesh_resource_contract.json"
         },
         ResourceDescriptor {
             id: "active_editable_mesh_document",
             resource_uri: "mesh://editing/active",
             kind: "value",
             producer_step: "mesh_edit_session",
-            summary: "Current editable mesh target that imported assets and primitive edits resolve into"
+            summary: "Current editable mesh target that imported assets and primitive edits resolve into; this is the shared edit target seam"
         },
         ResourceDescriptor {
             id: "topology_output_mesh_document",
             resource_uri: "mesh://topology/output/current",
             kind: "value",
             producer_step: "topology_rebuild_projection",
-            summary: "Topology rebuild output contract for mesh edit passes and downstream consumers"
+            summary: "Topology rebuild output contract for mesh edit passes and downstream consumers; topology returns replacement mesh ids"
         },
         ResourceDescriptor {
             id: "material_authoring_document",

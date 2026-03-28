@@ -126,6 +126,31 @@
       "name": "widget.viewport3d.surface.mode",
       "category": "surface",
       "value": "canvas"
+    },
+    {
+      "name": "widget.nav_rail.surface.mode",
+      "category": "surface",
+      "value": "ghost"
+    },
+    {
+      "name": "widget.command_surface.surface.mode",
+      "category": "surface",
+      "value": "glass"
+    },
+    {
+      "name": "widget.property_grid.surface.mode",
+      "category": "surface",
+      "value": "layered"
+    },
+    {
+      "name": "widget.status_strip.surface.mode",
+      "category": "surface",
+      "value": "layered"
+    },
+    {
+      "name": "widget.overlay_card.surface.mode",
+      "category": "surface",
+      "value": "glass"
     }
   ],
   "variants": [
@@ -509,6 +534,27 @@
     },
     {
       "scope": "dcc_shell",
+      "name": "workspace_banner",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "glass"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 16
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
       "name": "quiet_card",
       "tokens": [
         {
@@ -530,6 +576,48 @@
     },
     {
       "scope": "dcc_shell",
+      "name": "nav_rail",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "ghost"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 8
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "command_surface",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "glass"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 10
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
       "name": "status_card",
       "tokens": [
         {
@@ -541,6 +629,90 @@
           "name": "surface.padding",
           "category": "space",
           "value": 8
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "status_strip",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "layered"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 6
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "property_grid",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "layered"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 10
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "property_row",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "flat"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 6
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "overlay_card",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "glass"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 12
         },
         {
           "name": "title.visible",
@@ -700,6 +872,42 @@
     {
       "kind": "panel",
       "scope": "dcc_shell",
+      "variant": "workspace_banner",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "comfortable"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "nav_rail",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "command_surface",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
       "variant": "menu_pill",
       "tokens": [
         {
@@ -742,6 +950,54 @@
           "name": "density",
           "category": "layout",
           "value": "compact"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "status_strip",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "property_grid",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "property_row",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "compact"
+        }
+      ]
+    },
+    {
+      "kind": "panel",
+      "scope": "dcc_shell",
+      "variant": "overlay_card",
+      "tokens": [
+        {
+          "name": "density",
+          "category": "layout",
+          "value": "comfortable"
         }
       ]
     }

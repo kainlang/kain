@@ -6,7 +6,7 @@
 - Swarm Status: active
 - Swarm Owner: Sovereign
 - Created At: 2026-03-26 21:24 EDT
-- Updated At: 2026-03-27 18:58 EDT
+- Updated At: 2026-03-27 20:10 EDT
 - Completion Rule: When every lane is done or cancelled, Sovereign moves this file into ./Swarm/completed/.
 
 ## Objectives
@@ -133,9 +133,9 @@
 ## Lane: Delta
 
 - Role: Native host reset, widget/chrome realization, backend capability delivery, and proof-of-look integration.
-- Status: blocked
-- Claimed By: unclaimed
-- Claimed At: unclaimed
+- Status: in_progress
+- Claimed By: Delta
+- Claimed At: 2026-03-27 19:55 EDT
 - Depends On: Atlas, Forge, Vector
 - Deliverables:
   - `kain-ui-native` default app-mode reset with debug chrome opt-in
@@ -143,15 +143,16 @@
   - `smoketest/UI` showcase refresh proving genuinely different visual languages
   - `docs/kainplan/ui_slate_x100/native_host_reset.md`
 - Task List:
-  - [ ] Remove hardcoded host labels, default inspector posture, and other debug-first shell elements from normal packaged apps.
-  - [ ] Make authored chrome first-class so tabs, top bars, workspace frames, panels, badges, menus, and status strips can be owned by semantic UI rather than injected by host scaffolding.
-  - [ ] Expand the native realization of widgets and paint surfaces so typography, backgrounds, overlay stacks, motion, and dense tooling layouts do not all flatten into the same egui look.
+  - [x] Remove hardcoded host labels, default inspector posture, and other debug-first shell elements from normal packaged apps.
+  - [x] Make authored chrome first-class so tabs, top bars, workspace frames, panels, badges, menus, and status strips can be owned by semantic UI rather than injected by host scaffolding.
+  - [x] Expand the native realization of widgets and paint surfaces so typography, backgrounds, overlay stacks, motion, and dense tooling layouts do not all flatten into the same egui look.
   - [ ] Introduce capability-driven fallbacks rather than silent visual degradation when a backend cannot yet realize a semantic feature.
   - [ ] Build new showcase apps that prove bold editorial shells, data-dense operator tools, serious property-grid workflows, and viewport-adjacent editor chrome without looking like the current debug host.
-  - [ ] Keep the native host aligned with future backend contracts instead of turning it into a second UI framework with its own semantics.
+  - [x] Keep the native host aligned with future backend contracts instead of turning it into a second UI framework with its own semantics.
 - Notes:
   - Delta owns the “stop looking generic and glitchy” mandate. Product UI must visually overpower host scaffolding, not the other way around.
   - Delta may inventory contamination immediately, but major realization work stays blocked until Atlas, Forge, and Vector are done.
+  - 2026-03-27 20:10 EDT: Beta landed the native host cleanup plus the first flagship adopter pass in `apps/kain-fabric-dcc-suite`. Remaining Delta work is broader showcase/capability-proof follow-through rather than basic product-shell realization.
 
 ## Lane: Aegis
 

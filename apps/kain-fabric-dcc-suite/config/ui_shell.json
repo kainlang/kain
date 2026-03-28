@@ -4,29 +4,37 @@
   "shell_chrome": {
     "brand": {
       "eyebrow": "KAIN FABRIC SUITE",
-      "title": "Fabric cockpit shell",
-      "summary": "Navigation, launch control, and runtime telemetry stay fused into one operator bar above every authored lane."
+      "title": "Fabric workstation frame",
+      "summary": "Navigation, authored chrome, command decks, and runtime telemetry stay fused into one product shell above every authored lane."
     },
     "menu_items": [
       {
         "label": "File",
-        "summary": "Bootstrap, ingest, and publish."
+        "summary": "Bootstrap, ingest, package, and recover sessions."
       },
       {
         "label": "Edit",
-        "summary": "Selection, tools, and gizmos."
+        "summary": "Selection, transforms, and command routing."
       },
       {
         "label": "View",
-        "summary": "Lanes, docks, and layout."
+        "summary": "Lanes, docks, overlays, and stage visibility."
       },
       {
-        "label": "Jobs",
-        "summary": "Sessions, jobs, and packs."
+        "label": "Workspace",
+        "summary": "Mode rails and authored page frames."
+      },
+      {
+        "label": "Tools",
+        "summary": "Gizmo policies, palettes, and inspectors."
+      },
+      {
+        "label": "Publish",
+        "summary": "Delivery, receipts, and automation."
       },
       {
         "label": "Help",
-        "summary": "Reports and guidance."
+        "summary": "Guides, reports, shell notes, and recovery."
       }
     ],
     "status_items": [
@@ -38,7 +46,7 @@
       },
       {
         "id": "workspace_count",
-        "label": "Workspaces",
+        "label": "Modes",
         "metric_source": "workspace_mode_count",
         "caption": "authored page lanes"
       },
@@ -62,7 +70,7 @@
       },
       {
         "id": "pipeline_step_count",
-        "label": "Pipeline",
+        "label": "Pipelines",
         "metric_source": "pipeline_step_count",
         "caption": "fabric runtime steps"
       },
@@ -81,11 +89,15 @@
     ],
     "command_spotlight": {
       "eyebrow": "Command Spotlight",
-      "title": "Global operator quick-actions",
-      "summary": "Shell-level commands that should stay one gesture away no matter which workbench is active.",
+      "title": "Authoring quick-actions",
+      "summary": "Global commands that should stay one gesture away whether the operator is in a viewport, property rail, or publish deck.",
       "command_ids": [
         "project.bootstrap",
         "workspace.switch_mode",
+        "ui.show_command_palette",
+        "ui.open_property_grid",
+        "ui.toggle_status_strip",
+        "ui.focus_workspace_navigator",
         "render.preview",
         "publish.package"
       ]
@@ -93,7 +105,38 @@
     "workspace_switcher": {
       "eyebrow": "Workspace Switcher",
       "title": "Global lane navigation",
-      "summary": "Each lane chip mirrors an authored workbench page so the shell keeps one workspace model."
+      "summary": "Each lane chip mirrors an authored workbench page so the shell keeps one workspace model and one layout vocabulary."
+    },
+    "workspace_navigator": {
+      "eyebrow": "Workspace Navigator",
+      "title": "Pinned workbench lanes",
+      "summary": "The lane rail stays registry-owned so operators can jump between authored workbenches without losing context.",
+      "properties": [
+        {
+          "label": "Active lane",
+          "value": "Current workbench page",
+          "detail": "session-owned"
+        },
+        {
+          "label": "Pinned modes",
+          "value": "7 authored pages",
+          "detail": "mode rail"
+        },
+        {
+          "label": "Switch target",
+          "value": "workspace.switch_mode",
+          "detail": "registry command"
+        },
+        {
+          "label": "Return path",
+          "value": "One gesture",
+          "detail": "layout memory"
+        }
+      ],
+      "notes": [
+        "page tabs stay aligned to session truth and never drift into host-local navigation.",
+        "the active lane should always be obvious from the authored frame."
+      ]
     },
     "system_rack": {
       "eyebrow": "System Rack",
@@ -109,12 +152,75 @@
         "shell telemetry should read like instrumentation, not like a second inspector rail"
       ]
     },
+    "status_strip": {
+      "eyebrow": "Status Strip",
+      "title": "Live operator status",
+      "summary": "Mode, selection, bridge, and dirty-state readouts stay visible without cracking open devtools.",
+      "properties": [
+        {
+          "label": "Mode",
+          "value": "Workbench active",
+          "detail": "registry-owned"
+        },
+        {
+          "label": "Selection",
+          "value": "Context visible",
+          "detail": "page-local"
+        },
+        {
+          "label": "Bridge",
+          "value": "Live",
+          "detail": "session mirror"
+        },
+        {
+          "label": "Dirty state",
+          "value": "Tracked",
+          "detail": "refresh on change"
+        }
+      ],
+      "notes": [
+        "status belongs in the product frame, not in host debug chrome.",
+        "dense pages should still leave one clean glance path for the operator."
+      ]
+    },
+    "property_grid": {
+      "eyebrow": "Property Grid",
+      "title": "Selection properties",
+      "summary": "The shell keeps a reserved property grid surface for context-sensitive selection, mode, and publish metadata.",
+      "properties": [
+        {
+          "label": "Surface",
+          "value": "Current selection",
+          "detail": "property rail"
+        },
+        {
+          "label": "Mode",
+          "value": "Registry-owned",
+          "detail": "layout truth"
+        },
+        {
+          "label": "Commands",
+          "value": "Searchable",
+          "detail": "spotlight + palette"
+        },
+        {
+          "label": "Session",
+          "value": "Projected",
+          "detail": "durable state"
+        }
+      ],
+      "notes": [
+        "property rows should stay data-driven and inspectable.",
+        "dense editing surfaces should read like a workstation pane, not a card."
+      ]
+    },
     "operator_notes": {
       "eyebrow": "Operator Context",
-      "title": "Shell system guidance",
-      "summary": "The cockpit should feel like one durable editor frame with mounted subsystems, not stacked demo cards.",
+      "title": "Operator notes",
+      "summary": "The workstation should feel like one durable editor frame with mounted subsystems, not stacked demo cards.",
       "notes": [
-        "Command spotlight remains shell-owned so operators can bootstrap, switch lanes, preview, and publish without hunting through page-local inspectors."
+        "Command spotlight remains shell-owned so operators can bootstrap, switch lanes, preview, and publish without hunting through page-local inspectors.",
+        "The authored frame should feel intentionally dense instead of generic or toy-like."
       ]
     }
   },
@@ -133,6 +239,7 @@
       "quick_command_ids": [
         "project.bootstrap",
         "workspace.switch_mode",
+        "ui.show_command_palette",
         "asset.ingest_package",
         "render.preview"
       ],
@@ -143,10 +250,13 @@
       ],
       "right_surface_ids": [
         "selection_inspector",
+        "workspace_navigator",
+        "property_grid",
         "tool_shelf",
         "report_browser"
       ],
       "bottom_surface_ids": [
+        "status_strip",
         "animation_timeline",
         "jobs_monitor"
       ],
@@ -172,6 +282,7 @@
       "quick_command_ids": [
         "tool.activate",
         "selection.set",
+        "ui.open_property_grid",
         "sculpt.apply_stroke",
         "topology.rebuild"
       ],
@@ -182,10 +293,13 @@
       ],
       "right_surface_ids": [
         "selection_inspector",
+        "workspace_navigator",
+        "property_grid",
         "tool_shelf",
         "report_browser"
       ],
       "bottom_surface_ids": [
+        "status_strip",
         "rig_graph",
         "jobs_monitor"
       ],
@@ -213,6 +327,7 @@
       "quick_command_ids": [
         "material.bake_preview",
         "material.author_texture_set",
+        "ui.open_property_grid",
         "material.paint_layer",
         "material.edit_svg_mask",
         "material.export_textures"
@@ -225,10 +340,13 @@
       "right_surface_ids": [
         "material_layers",
         "texture_set_inspector",
+        "workspace_navigator",
+        "property_grid",
         "material_export_board",
         "report_browser"
       ],
       "bottom_surface_ids": [
+        "status_strip",
         "compositor_stack",
         "jobs_monitor"
       ],
@@ -253,6 +371,7 @@
       "quick_command_ids": [
         "rig.sync_controls",
         "selection.set",
+        "ui.open_property_grid",
         "render.preview"
       ],
       "center_surface_ids": [
@@ -262,10 +381,13 @@
       ],
       "right_surface_ids": [
         "selection_inspector",
+        "workspace_navigator",
+        "property_grid",
         "tool_shelf",
         "report_browser"
       ],
       "bottom_surface_ids": [
+        "status_strip",
         "simulation_board",
         "jobs_monitor"
       ],
@@ -287,6 +409,7 @@
       ],
       "quick_command_ids": [
         "sim.tick",
+        "ui.show_command_palette",
         "render.preview",
         "compositor.rebuild"
       ],
@@ -297,9 +420,12 @@
       ],
       "right_surface_ids": [
         "selection_inspector",
+        "workspace_navigator",
+        "property_grid",
         "report_browser"
       ],
       "bottom_surface_ids": [
+        "status_strip",
         "animation_timeline",
         "jobs_monitor"
       ],
@@ -324,6 +450,7 @@
       "quick_command_ids": [
         "render.preview",
         "compositor.rebuild",
+        "ui.open_property_grid",
         "publish.package"
       ],
       "center_surface_ids": [
@@ -333,10 +460,13 @@
       ],
       "right_surface_ids": [
         "selection_inspector",
+        "workspace_navigator",
+        "property_grid",
         "report_browser",
         "publish_console"
       ],
       "bottom_surface_ids": [
+        "status_strip",
         "animation_timeline",
         "jobs_monitor"
       ],
@@ -357,6 +487,8 @@
         "publish_bundle"
       ],
       "quick_command_ids": [
+        "ui.show_command_palette",
+        "ui.open_property_grid",
         "publish.package",
         "tensor.train_step",
         "tensor.infer_step",
@@ -369,9 +501,13 @@
       ],
       "right_surface_ids": [
         "material_export_board",
+        "workspace_navigator",
+        "command_palette",
+        "property_grid",
         "selection_inspector"
       ],
       "bottom_surface_ids": [
+        "status_strip",
         "jobs_monitor",
         "compositor_stack"
       ],

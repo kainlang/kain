@@ -190,3 +190,14 @@ Current template approach:
 Requested upstream capability:
 
 - first-class Kain web targets or adapter lanes for major web frameworks so the registry entries can become runnable without retooling the helper runtime
+
+### 17. Consent, verification, fraud, audit, export, and marketplace lanes are metadata-only
+
+Current template approach:
+
+- consent center, identity verification, fraud/risk, audit logs, data exports, marketplace, and syndication systems are declared as manifest data
+- the helper runtime only exposes JSON endpoints for these lanes, without provider adapters or runtime enforcement
+
+Requested upstream capability:
+
+- first-class Kain-side contracts and adapter lanes for consent/cookies, identity verification, fraud/risk, audit logs, data exports, marketplace payouts, and content syndication so these systems can move beyond static metadata

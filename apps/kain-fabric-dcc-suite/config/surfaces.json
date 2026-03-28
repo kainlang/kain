@@ -37,7 +37,145 @@
       "title": "Selection Inspector",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Transforms, metadata, relationships, and lane-specific detail panels."
+      "summary": "Transforms, metadata, relationships, and lane-specific detail panels.",
+      "properties": [
+        {
+          "label": "Selection",
+          "value": "Context-sensitive",
+          "detail": "multi-target aware"
+        },
+        {
+          "label": "Space",
+          "value": "Local",
+          "detail": "follows the current gizmo"
+        },
+        {
+          "label": "Dirty state",
+          "value": "Tracked",
+          "detail": "refreshes on edit"
+        },
+        {
+          "label": "Focus surface",
+          "value": "Current page",
+          "detail": "session-owned"
+        }
+      ]
+    },
+    {
+      "id": "workspace_navigator",
+      "title": "Workspace Navigator",
+      "dock": "left",
+      "kind": "tree",
+      "summary": "Pinned workbench lanes, current mode, and registry-owned switch targets.",
+      "properties": [
+        {
+          "label": "Active lane",
+          "value": "Current workbench",
+          "detail": "page tab"
+        },
+        {
+          "label": "Pinned modes",
+          "value": "7 lanes",
+          "detail": "scene through publish"
+        },
+        {
+          "label": "Return path",
+          "value": "One gesture",
+          "detail": "keeps layout memory"
+        },
+        {
+          "label": "Switch command",
+          "value": "workspace.switch_mode",
+          "detail": "registry-owned"
+        }
+      ]
+    },
+    {
+      "id": "command_palette",
+      "title": "Command Palette",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Searchable command dispatch, recent actions, and registry-owned shortcuts.",
+      "properties": [
+        {
+          "label": "Query scope",
+          "value": "Global",
+          "detail": "spotlight + search"
+        },
+        {
+          "label": "Recent action",
+          "value": "render.preview",
+          "detail": "one gesture away"
+        },
+        {
+          "label": "Hotkey hint",
+          "value": "Ctrl+K",
+          "detail": "launcher chord"
+        },
+        {
+          "label": "Dispatch surface",
+          "value": "Shell",
+          "detail": "registry-owned"
+        }
+      ]
+    },
+    {
+      "id": "property_grid",
+      "title": "Property Grid",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Context-sensitive selection, mode, and publish metadata for the active workbench.",
+      "properties": [
+        {
+          "label": "Surface",
+          "value": "Current selection",
+          "detail": "property rail"
+        },
+        {
+          "label": "Mode",
+          "value": "Registry-owned",
+          "detail": "layout truth"
+        },
+        {
+          "label": "Commands",
+          "value": "Searchable",
+          "detail": "spotlight + palette"
+        },
+        {
+          "label": "Session",
+          "value": "Projected",
+          "detail": "durable state"
+        }
+      ]
+    },
+    {
+      "id": "status_strip",
+      "title": "Status Strip",
+      "dock": "bottom",
+      "kind": "inspector",
+      "summary": "Mode, selection, bridge, and dirty-state readouts that stay visible in the product frame.",
+      "properties": [
+        {
+          "label": "Mode",
+          "value": "Workbench active",
+          "detail": "registry-owned"
+        },
+        {
+          "label": "Selection",
+          "value": "Context visible",
+          "detail": "page-local"
+        },
+        {
+          "label": "Bridge",
+          "value": "Live",
+          "detail": "session mirror"
+        },
+        {
+          "label": "Dirty state",
+          "value": "Tracked",
+          "detail": "refresh on change"
+        }
+      ]
     },
     {
       "id": "material_graph",
@@ -51,7 +189,29 @@
       "title": "Material Layers",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Layer stacks, generators, fill layers, paint layers, and channel blend modes."
+      "summary": "Layer stacks, generators, fill layers, paint layers, and channel blend modes.",
+      "properties": [
+        {
+          "label": "Layer count",
+          "value": "8",
+          "detail": "stacked edit lanes"
+        },
+        {
+          "label": "Blend policy",
+          "value": "Smart materials",
+          "detail": "authoring default"
+        },
+        {
+          "label": "Paint target",
+          "value": "Current texture set",
+          "detail": "selection aware"
+        },
+        {
+          "label": "Dirty state",
+          "value": "Tracked",
+          "detail": "rebakes on change"
+        }
+      ]
     },
     {
       "id": "svg_mask_canvas",
@@ -65,14 +225,58 @@
       "title": "Texture Set Inspector",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Texture set membership, UDIM coverage, channel packs, and bake preset assignment."
+      "summary": "Texture set membership, UDIM coverage, channel packs, and bake preset assignment.",
+      "properties": [
+        {
+          "label": "Texture set",
+          "value": "Hero body",
+          "detail": "current material target"
+        },
+        {
+          "label": "UDIM range",
+          "value": "1001-1004",
+          "detail": "coverage set"
+        },
+        {
+          "label": "Resolution",
+          "value": "4K",
+          "detail": "authoring default"
+        },
+        {
+          "label": "Bake preset",
+          "value": "Packed PBR",
+          "detail": "publish ready"
+        }
+      ]
     },
     {
       "id": "material_export_board",
       "title": "Material Export Board",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Target packers, channel routing, export presets, and downstream DCC/runtime consumers."
+      "summary": "Target packers, channel routing, export presets, and downstream DCC/runtime consumers.",
+      "properties": [
+        {
+          "label": "Profile",
+          "value": "Packed PBR",
+          "detail": "delivery preset"
+        },
+        {
+          "label": "Target",
+          "value": "Runtime pack",
+          "detail": "downstream consumer"
+        },
+        {
+          "label": "Channel routing",
+          "value": "Roughness/metalness",
+          "detail": "registry-owned"
+        },
+        {
+          "label": "Receipt",
+          "value": "Pending",
+          "detail": "publish review"
+        }
+      ]
     },
     {
       "id": "rig_graph",
@@ -114,21 +318,87 @@
       "title": "Publish Console",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Packages, receipts, validators, deliverables, and client-facing summaries."
+      "summary": "Packages, receipts, validators, deliverables, and client-facing summaries.",
+      "properties": [
+        {
+          "label": "Package",
+          "value": "Staged",
+          "detail": "awaiting review"
+        },
+        {
+          "label": "Receipts",
+          "value": "Present",
+          "detail": "app-owned outputs"
+        },
+        {
+          "label": "Validator state",
+          "value": "Tracked",
+          "detail": "registry checks"
+        },
+        {
+          "label": "Delivery",
+          "value": "Pending publish",
+          "detail": "operator action"
+        }
+      ]
     },
     {
       "id": "report_browser",
       "title": "Report Browser",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Topology, tensor, render, automation, and publish reports."
+      "summary": "Topology, tensor, render, automation, and publish reports.",
+      "properties": [
+        {
+          "label": "Latest report",
+          "value": "Render + publish",
+          "detail": "most recent lane"
+        },
+        {
+          "label": "Filters",
+          "value": "Topology, render, publish",
+          "detail": "operator indexed"
+        },
+        {
+          "label": "Retention",
+          "value": "Durable",
+          "detail": "state-backed"
+        },
+        {
+          "label": "Reader",
+          "value": "Shell",
+          "detail": "product frame"
+        }
+      ]
     },
     {
       "id": "jobs_monitor",
       "title": "Jobs Monitor",
       "dock": "bottom",
       "kind": "timeline",
-      "summary": "Background jobs, Fabric sessions, automation schedules, and retry state."
+      "summary": "Background jobs, Fabric sessions, automation schedules, and retry state.",
+      "properties": [
+        {
+          "label": "Running jobs",
+          "value": "2",
+          "detail": "active work"
+        },
+        {
+          "label": "Retry policy",
+          "value": "Enabled",
+          "detail": "automation aware"
+        },
+        {
+          "label": "Fabric session",
+          "value": "Live",
+          "detail": "bridge mirrored"
+        },
+        {
+          "label": "Queue depth",
+          "value": "Tracked",
+          "detail": "dispatch safe"
+        }
+      ]
     }
   ]
 }

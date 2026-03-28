@@ -84,10 +84,30 @@ name = "sculpt_delta"
 kind = "shared_buffer"
 
 [[steps]]
+id = "mesh_import_projection"
+runtime = "kain"
+entry = "src/mesh_import_projection.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed"]
+
+[[steps.outputs]]
+name = "imported_mesh_payload_report"
+kind = "value"
+
+[[steps]]
+id = "primitive_mesh_authoring"
+runtime = "kain"
+entry = "src/primitive_mesh_authoring.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "mesh_import_projection"]
+
+[[steps.outputs]]
+name = "authored_primitive_report"
+kind = "value"
+
+[[steps]]
 id = "material_authoring_projection"
 runtime = "kain"
 entry = "src/material_authoring_projection.kn"
-depends_on = ["python_suite_bootstrap", "dcc_suite_seed"]
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "primitive_mesh_authoring"]
 
 [[steps.outputs]]
 name = "material_authoring_report"
@@ -117,6 +137,16 @@ kind = "value"
 
 [[steps.outputs]]
 name = "sculpt_report"
+kind = "value"
+
+[[steps]]
+id = "sculpt_brush_projection"
+runtime = "kain"
+entry = "src/sculpt_brush_projection.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "native_sculpt_kernel"]
+
+[[steps.outputs]]
+name = "sculpt_brush_report"
 kind = "value"
 
 [[steps]]

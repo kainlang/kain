@@ -1,6 +1,6 @@
 # SPV UI Surface Probe
 
-This smoke is the current native proof for Kain's shader-canvas UI lane.
+This smoke is the opt-in verification surface for Kain's shader-canvas UI lane.
 
 It deliberately combines:
 
@@ -36,6 +36,7 @@ Notes:
 
 - `build_native_exe.bat` is the supported executable path for this smoke because it stages `assets/ui_smoke_default.ttf` from the local Windows font directory if the smoke asset is missing.
 - the schema visual for this smoke lives in `docs/shader_canvas_ui_schema.svg`
+- this lane is for verification, not product-mode default shell posture
 
 Artifact inspection:
 

@@ -8,8 +8,9 @@ The app is intentionally organized around repo-native ownership boundaries:
 - `session/*.kn` owns the canonical live session document, reducer layer, derived read models, registries, and intent planning logic.
 - `KAIN.fabric.toml` owns the broad runtime execution graph across `python`, `kain`, `c_abi`, `rust_crate`, `gpu_compute`, and node-bridged publishing through Kain.
 - `fabric/intents/*.fabric.toml` owns reusable per-lane graphs for ingest, sculpt, rig, sim, material, render, compositor, publish, and tensor-oriented work.
-- `src/material_authoring_projection.kn`, `src/svg_material_mask_projection.kn`, and `src/material_texture_export_projection.kn` own the painter-style material authoring receipts for texture sets, SVG masks, and packed exports.
+- `src/mesh_import_projection.kn`, `src/primitive_mesh_authoring.kn`, `src/material_authoring_projection.kn`, `src/svg_material_mask_projection.kn`, and `src/material_texture_export_projection.kn` own the mesh and painter-style receipts for imported payloads, authored primitives, texture sets, SVG masks, and packed exports.
 - `config/shader_catalog.json` owns the suite-level shader map so material, sculpt, render, compositor, and viewport GPU work can grow without rediscovering ownership every pass.
+- `config/mesh_resource_contract.json` now owns the first app-level mesh resource contract for imported payloads, authored primitives, the active edit target, and topology outputs, with a matching `mesh_resource_contract_document` registry entry.
 - `generated/main.generated.kn` is the materialized native shell projection, not the semantic source of truth.
 - `state/runtime_snapshot.json` is the projected runtime-side snapshot consumed by native shell materialization and operator tooling.
 
@@ -18,9 +19,10 @@ The app is intentionally organized around repo-native ownership boundaries:
 The suite now carries a manifest-driven studio shell intended to feel closer to a real editor framework than a static dashboard.
 
 - `config/ui_theme.json` defines theme scopes, variants, text variants, and widget defaults for the shell.
-- `config/ui_shell.json` defines workspace pages, hero copy, quick-command decks, and per-page surface placement.
+- `config/ui_shell.json` defines workspace pages, authored chrome blocks, quick-command decks, and per-page surface placement.
+- `config/surfaces.json` and `config/command_registry.json` keep the navigator, command palette, property grid, and status strip registry-owned instead of host-invented.
 - `session/ui_workbench_registry.kn` mirrors the workbench contract in Kain so future native consumers can bind to typed UI semantics instead of reverse-engineering generated shell output.
-- `scripts/materialize-shell.ps1` turns those manifests plus `state/runtime_snapshot.json` into a multi-page Kain UI shell with workspace tabs, docked stages, inspector rails, and telemetry trays.
+- `scripts/materialize-shell.ps1` turns those manifests plus `state/runtime_snapshot.json` into a multi-page Kain UI shell with workspace tabs, a top bar, workstation rails, property grids, and telemetry strips.
 
 ## What The Scaffold Covers
 

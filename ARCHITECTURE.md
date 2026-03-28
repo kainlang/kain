@@ -37,9 +37,11 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [README.md](/M:/Code/Kain/README.md): repo-level operating brief
 - [repomap.md](/M:/Code/Kain/repomap.md): top-level folder map
 - [MEMORY.md](/M:/Code/Kain/MEMORY.md): durable architectural task memory
+- [docs/kainplan/ui_slate_x100](/M:/Code/Kain/docs/kainplan/ui_slate_x100): active UI overhaul docs, acceptance criteria, regression notes, and Gamma operator guidance
 - [crates](/M:/Code/Kain/crates): workspace crates
 - [runtime](/M:/Code/Kain/runtime): native runtime substrate, conformance, fixtures, and companion lanes
 - [smoketest](/M:/Code/Kain/smoketest): capability proof matrix for bridges, UI, 3D, and mixed runtimes
+- [smoketest/UI](/M:/Code/Kain/smoketest/UI): UI proof surface for authored shells, dense operator layouts, shader-canvas proofs, and packaged native launches
 - [smoketest/allinone](/M:/Code/Kain/smoketest/allinone): broad regression harness that replays importers, standalone FFI bridges, GPU artifacts, Omni, Fabric, and UE5 codegen into per-lane output folders
 - [docs](/M:/Code/Kain/docs): doctrine, plans, pipeline notes, validation notes, and research
 - [apps](/M:/Code/Kain/apps): first-class applications and prototypes
@@ -52,7 +54,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 ## Key Crates
 
 - [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, typechecker, comptime, runtime contract emission, realtime bundle metadata
-- [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, native app materialization, compute residency sidecars
+- [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, native app materialization, packaged launcher snapshots, compute residency sidecars
 - [cli](/M:/Code/Kain/crates/cli): `kain` command surface
 - [kain-host](/M:/Code/Kain/crates/kain-host): Rust embedding and native function registration
 - [kain-reflect](/M:/Code/Kain/crates/kain-reflect): reflection schemas and type identity
@@ -114,6 +116,26 @@ Semantic authored tabs now follow the same ownership rule:
 - host-side tab rendering is allowed to optimize presentation, but it must not invent a second tab schema or bypass the emitted UI/runtime bundle truth
 
 `smoketest/UI/kinetic_ui_atlas` is now the durable repo-local proof for this lane: a fresh four-page native executable that uses semantic top tabs, docked shells, shader canvases, and a real viewport workspace without reusing the older smoketest compositions.
+
+### Reload-Safe UI Contract Lane
+
+UI reload and derived-value semantics now follow an explicit compiler-to-runtime contract:
+
+- `kain-core` emits stable signal ids, computed lowering (`writes_signal`, runtime `expr`, invalidation targets, scheduler phase), and event-route metadata including route ids, command routes, and transaction labels
+- `kain-ui` owns runtime execution of those contracts, including derived recompute, exact invalidation, hot-reload state transfer, reload patch reporting, and bounded reconciliation
+- `realtime_app_bundle.ui_contracts` now exposes computed, event-route, reload, focus, selection, overlay, motion, and workspace payloads so downstream native hosts can inspect semantic truth without rediscovering it from local widget state
+
+The architectural rule is the same as every other lane: reload behavior may be optimized by hosts, but the host must not become the source of truth for identity transfer, derived state, focus/selection state, or transaction semantics.
+
+### Native Packaging And Operator Loop
+
+The native packaging lane is the operator-facing loop for UI iteration:
+
+- `kain-driver` materializes native apps as a package set, writing the runtime bundle, runtime contract, realtime bundle, `app_manifest.json`, `runtime_snapshot.json`, and any required sidecars into the app artifact tree.
+- Generated launchers resolve those packaged sidecars beside the executable so the app boots from authored bundle truth instead of a debug-host template.
+- The runtime snapshot is the reload/control surface, not hidden launcher state. It carries explicit provider, session, workspace, command, and capability records, including the `runtime.reload` command already emitted by the packaging path.
+- Devtools and inspectors must stay opt-in and remain represented in packaged truth, not injected as default product chrome.
+- When a packaged launch stops reflecting a change, check the materialized manifest and snapshot sidecars first. That is the stable operator boundary before assuming the host itself is wrong.
 
 ### Viewport Contract Lane
 
@@ -183,6 +205,7 @@ If the debug CLI is missing:
 - The compute pipeline is mid-transition from heuristic metadata to compiler-owned truth. When touching it, prefer extending bundle contracts over adding new runtime-only inference.
 - Frontend bridge registration must be target-scoped. Host/runtime extensions that are valid for `Interpret` or `Test` must not leak into shader artifact compilation or other non-host targets, or Fabric and direct driver paths will diverge.
 - The native shader-canvas lane is SPIR-V-canonical at the bundle level, but the current WGPU host still resolves WGSL for execution. Do not mistake that compatibility bridge for permission to move shader-canvas truth out of the emitted bundles.
+- The native packaging loop is file-backed. If hot reload or packaged state looks stale, verify the generated `app_manifest.json`, `runtime_snapshot.json`, and launcher env vars before blaming the runtime.
 - Fabric Python execution should stay behind `kain-python` helpers. Do not make `kain-host` reach directly into `pyo3` imports or `PythonScopeState` internals when the Python lane can expose a narrower execution API.
 - Fabric runtime ownership is now split cleanly: `kain-omni` owns `KAIN.fabric.toml` schema/validation/report types, while `kain-host` owns local execution, dependency plumbing, and runtime adapter behavior.
 - Fabric step inputs now flow through raw `fabric_inputs` for every runtime adapter. Kain/C/Rust glue consumes canonical host objects directly, while the Python and Node bridge crates project shared buffer/image payloads into language-native contract objects with `bytearray` and `Uint8Array` bytes views.

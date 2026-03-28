@@ -2,6 +2,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::compute_residency::{
     write_compute_residency_sidecars, COMPUTE_RESIDENCY_ENV_VAR, COMPUTE_RESIDENCY_FILE_NAME,
@@ -246,7 +247,7 @@ pub struct NativeAppMaterializedPaths {
     pub executable_path: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct NativeAppManifest {
     app_id: String,
     name: String,
@@ -258,28 +259,87 @@ struct NativeAppManifest {
     target_outputs: Vec<String>,
     manifests: NativeAppManifestPaths,
     runtime_sidecars: NativeAppRuntimeSidecars,
+    launcher: NativeAppLauncherMetadata,
+    hot_reload: NativeAppHotReloadMetadata,
     host_bridges: Vec<kain_c_ffi::PackagedBridgeImport>,
     host_sidecars: Vec<NativeAppManifestHostSidecar>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct NativeAppManifestPaths {
     host_bridges: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct NativeAppRuntimeSidecars {
     runtime_bundle: String,
     runtime_contract: String,
     runtime_compatibility: String,
     realtime_bundle: String,
     shader_bundle: Option<String>,
+    runtime_snapshot: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct NativeAppManifestHostSidecar {
     packaged_file_name: String,
     env_var: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct NativeAppLauncherMetadata {
+    kind: String,
+    function_name: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct NativeAppHotReloadPolicy {
+    product_mode_default: bool,
+    devtools_opt_in: bool,
+    preserve_focus: bool,
+    preserve_selection: bool,
+    preserve_docking: bool,
+    preserve_overlays: bool,
+    preserve_motion_policy: bool,
+    preserve_animation_state: bool,
+    preserve_signal_values: bool,
+    preserve_session_state: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct NativeAppHotReloadIdentity {
+    app_id: String,
+    name: String,
+    window_title: String,
+    root_component: String,
+    layout_id: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct NativeAppHotReloadArtifact {
+    role: String,
+    path: String,
+    fingerprint: String,
+    byte_length: usize,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct NativeAppHotReloadMetadata {
+    summary: String,
+    launcher: NativeAppLauncherMetadata,
+    policy: NativeAppHotReloadPolicy,
+    identity: NativeAppHotReloadIdentity,
+    artifact_fingerprints: Vec<NativeAppHotReloadArtifact>,
+    materialization_fingerprint: String,
+    previous_materialization_fingerprint: Option<String>,
+    changed_artifact_roles: Vec<String>,
+    reload_compatible_with_previous: bool,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+struct PreviousNativeAppManifestMetadata {
+    launcher: NativeAppLauncherMetadata,
+    hot_reload: NativeAppHotReloadMetadata,
 }
 
 #[derive(Debug, Clone)]
@@ -325,6 +385,8 @@ struct NativeAppRuntimeSnapshot {
     sessions: NativeAppRuntimeSessions,
     recent_sessions: Vec<NativeAppRuntimeRecentSession>,
     workspaces: Vec<NativeAppRuntimeWorkspace>,
+    launcher: NativeAppLauncherMetadata,
+    hot_reload: NativeAppHotReloadMetadata,
     updated_at: String,
 }
 
@@ -579,14 +641,14 @@ impl DriverSession {
             artifact_paths.push(reflection_payload_path);
         }
 
-        let shader_bundle_path = if let Some(shader_bundle) = &bundle.shader_bundle {
+        let (shader_bundle_path, shader_bundle_json) = if let Some(shader_bundle) = &bundle.shader_bundle {
             let path = artifact_root.join(NATIVE_APP_SHADER_BUNDLE_FILE_NAME);
-            fs::write(&path, shader_bundle.bundle_json.as_bytes())
-                .map_err(io_error("write native app shader bundle"))?;
+            let json = shader_bundle.bundle_json.clone();
+            fs::write(&path, json.as_bytes()).map_err(io_error("write native app shader bundle"))?;
             artifact_paths.push(path.clone());
-            Some(path)
+            (Some(path), Some(json))
         } else {
-            None
+            (None, None)
         };
         let (packaged_c_ffi_imports, packaged_c_ffi_manifest_path, c_ffi_artifact_paths) =
             materialize_c_ffi_bridge_sidecars(source, &artifact_root)?;
@@ -618,6 +680,26 @@ impl DriverSession {
 
         let app_manifest_path = config_dir.join(NATIVE_APP_MANIFEST_FILE_NAME);
         let runtime_snapshot_path = state_dir.join(NATIVE_APP_RUNTIME_SNAPSHOT_FILE_NAME);
+        let launcher_metadata = build_native_app_launcher_metadata(&config.launcher_entrypoint);
+        let previous_manifest_metadata = read_previous_native_app_manifest_metadata(&app_manifest_path);
+        let hot_reload = build_native_app_hot_reload_metadata(
+            project_dir,
+            &source_copy_path,
+            source,
+            bundle,
+            &launcher_metadata,
+            previous_manifest_metadata.as_ref(),
+            &runtime_bundle_path,
+            &runtime_bundle_json,
+            &runtime_contract_path,
+            &runtime_contract_json,
+            &runtime_compatibility_path,
+            &runtime_compatibility_json,
+            &realtime_bundle_path,
+            &realtime_bundle_json,
+            shader_bundle_path.as_ref(),
+            shader_bundle_json.as_deref(),
+        );
         let app_manifest = build_native_app_manifest(
             bundle,
             &packaged_c_ffi_imports,
@@ -628,6 +710,9 @@ impl DriverSession {
             &runtime_compatibility_path,
             &realtime_bundle_path,
             shader_bundle_path.as_ref(),
+            &runtime_snapshot_path,
+            launcher_metadata,
+            hot_reload.clone(),
         );
         fs::write(
             &app_manifest_path,
@@ -638,7 +723,8 @@ impl DriverSession {
         .map_err(io_error("write native app manifest"))?;
         artifact_paths.push(app_manifest_path.clone());
 
-        let runtime_snapshot = build_native_app_runtime_snapshot(bundle, &app_manifest);
+        let runtime_snapshot =
+            build_native_app_runtime_snapshot(bundle, &app_manifest, project_dir);
         fs::write(
             &runtime_snapshot_path,
             serde_json::to_string_pretty(&runtime_snapshot).map_err(|err| {
@@ -1266,6 +1352,9 @@ fn build_native_app_manifest(
     runtime_compatibility_path: &Path,
     realtime_bundle_path: &Path,
     shader_bundle_path: Option<&PathBuf>,
+    runtime_snapshot_path: &Path,
+    launcher: NativeAppLauncherMetadata,
+    hot_reload: NativeAppHotReloadMetadata,
 ) -> NativeAppManifest {
     let version = bundle
         .runtime_version
@@ -1299,7 +1388,10 @@ fn build_native_app_manifest(
             runtime_compatibility: sidecar_file_name(runtime_compatibility_path),
             realtime_bundle: sidecar_file_name(realtime_bundle_path),
             shader_bundle: shader_bundle_path.map(|path| sidecar_file_name(path)),
+            runtime_snapshot: sidecar_file_name(runtime_snapshot_path),
         },
+        launcher,
+        hot_reload,
         host_bridges: packaged_c_ffi_imports.to_vec(),
         host_sidecars: packaged_host_sidecars
             .iter()
@@ -1314,8 +1406,16 @@ fn build_native_app_manifest(
 fn build_native_app_runtime_snapshot(
     bundle: &NativeAppBundle,
     app_manifest: &NativeAppManifest,
+    project_dir: &Path,
 ) -> NativeAppRuntimeSnapshot {
-    let updated_at = "2026-03-25T00:00:00Z".to_string();
+    let updated_at = current_timestamp_string();
+    let workspace_root = bundle
+        .metadata
+        .source_root
+        .clone()
+        .unwrap_or_else(|| project_dir.to_path_buf())
+        .display()
+        .to_string();
     NativeAppRuntimeSnapshot {
         app_id: app_manifest.app_id.clone(),
         name: app_manifest.name.clone(),
@@ -1371,25 +1471,219 @@ fn build_native_app_runtime_snapshot(
             title: bundle.metadata.window_title.clone(),
             provider_id: "native_runtime".to_string(),
             status: "active".to_string(),
-            workspace_root: std::env::current_dir()
-                .ok()
-                .map(|path| path.display().to_string())
-                .unwrap_or_else(|| ".".to_string()),
+            workspace_root: workspace_root.clone(),
             updated_at: updated_at.clone(),
             message_count: 1,
             last_message_role: "system".to_string(),
             last_message_preview: "Native app materialization snapshot".to_string(),
         }],
         workspaces: vec![NativeAppRuntimeWorkspace {
-            root: std::env::current_dir()
-                .ok()
-                .map(|path| path.display().to_string())
-                .unwrap_or_else(|| ".".to_string()),
+            root: workspace_root,
             session_count: 1,
             recent_session_title: bundle.metadata.window_title.clone(),
         }],
+        launcher: app_manifest.launcher.clone(),
+        hot_reload: app_manifest.hot_reload.clone(),
         updated_at,
     }
+}
+
+fn build_native_app_launcher_metadata(
+    launcher_entrypoint: &NativeAppLauncherEntrypoint,
+) -> NativeAppLauncherMetadata {
+    match launcher_entrypoint {
+        NativeAppLauncherEntrypoint::RunBundledAppJson { function_name } => {
+            NativeAppLauncherMetadata {
+                kind: "run_bundled_app_json".to_string(),
+                function_name: function_name.clone(),
+            }
+        }
+        NativeAppLauncherEntrypoint::RunNoArgFunction { function_name } => {
+            NativeAppLauncherMetadata {
+                kind: "run_no_arg_function".to_string(),
+                function_name: function_name.clone(),
+            }
+        }
+    }
+}
+
+fn build_native_app_hot_reload_metadata(
+    project_dir: &Path,
+    source_copy_path: &Path,
+    source_text: &str,
+    bundle: &NativeAppBundle,
+    launcher: &NativeAppLauncherMetadata,
+    previous_manifest_metadata: Option<&PreviousNativeAppManifestMetadata>,
+    runtime_bundle_path: &Path,
+    runtime_bundle_json: &str,
+    runtime_contract_path: &Path,
+    runtime_contract_json: &str,
+    runtime_compatibility_path: &Path,
+    runtime_compatibility_json: &str,
+    realtime_bundle_path: &Path,
+    realtime_bundle_json: &str,
+    shader_bundle_path: Option<&PathBuf>,
+    shader_bundle_json: Option<&str>,
+) -> NativeAppHotReloadMetadata {
+    let hot_reload_plan = &bundle.ui.systems.hot_reload;
+    let policy = NativeAppHotReloadPolicy {
+        product_mode_default: true,
+        devtools_opt_in: true,
+        preserve_focus: hot_reload_plan.preserve_focus,
+        preserve_selection: hot_reload_plan.preserve_selection,
+        preserve_docking: hot_reload_plan.preserve_docking,
+        preserve_overlays: hot_reload_plan.preserve_overlays,
+        preserve_motion_policy: hot_reload_plan.preserve_motion_policy,
+        preserve_animation_state: hot_reload_plan.preserve_animation_state,
+        preserve_signal_values: hot_reload_plan.preserve_signal_values,
+        preserve_session_state: hot_reload_plan.preserve_session_state,
+    };
+    let identity = NativeAppHotReloadIdentity {
+        app_id: bundle.metadata.app_name.replace('-', "."),
+        name: bundle.metadata.window_title.clone(),
+        window_title: bundle.metadata.window_title.clone(),
+        root_component: bundle.metadata.root_component.clone(),
+        layout_id: format!("{}_shell", bundle.metadata.app_name.replace('-', "_")),
+    };
+    let mut artifact_fingerprints = vec![
+        NativeAppHotReloadArtifact {
+            role: "source_input".to_string(),
+            path: reload_path_string(project_dir, source_copy_path),
+            fingerprint: fingerprint_text(source_text),
+            byte_length: source_text.len(),
+        },
+        NativeAppHotReloadArtifact {
+            role: "runtime_bundle".to_string(),
+            path: reload_path_string(project_dir, runtime_bundle_path),
+            fingerprint: fingerprint_text(runtime_bundle_json),
+            byte_length: runtime_bundle_json.len(),
+        },
+        NativeAppHotReloadArtifact {
+            role: "runtime_contract".to_string(),
+            path: reload_path_string(project_dir, runtime_contract_path),
+            fingerprint: fingerprint_text(runtime_contract_json),
+            byte_length: runtime_contract_json.len(),
+        },
+        NativeAppHotReloadArtifact {
+            role: "runtime_compatibility".to_string(),
+            path: reload_path_string(project_dir, runtime_compatibility_path),
+            fingerprint: fingerprint_text(runtime_compatibility_json),
+            byte_length: runtime_compatibility_json.len(),
+        },
+        NativeAppHotReloadArtifact {
+            role: "realtime_bundle".to_string(),
+            path: reload_path_string(project_dir, realtime_bundle_path),
+            fingerprint: fingerprint_text(realtime_bundle_json),
+            byte_length: realtime_bundle_json.len(),
+        },
+    ];
+
+    if let (Some(path), Some(json)) = (shader_bundle_path, shader_bundle_json) {
+        artifact_fingerprints.push(NativeAppHotReloadArtifact {
+            role: "shader_bundle".to_string(),
+            path: reload_path_string(project_dir, path),
+            fingerprint: fingerprint_text(json),
+            byte_length: json.len(),
+        });
+    }
+
+    let materialization_fingerprint = fingerprint_text(
+        &artifact_fingerprints
+            .iter()
+            .map(|artifact| {
+                format!(
+                    "{}:{}:{}:{}",
+                    artifact.role, artifact.path, artifact.fingerprint, artifact.byte_length
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("|"),
+    );
+
+    let changed_artifact_roles = previous_manifest_metadata
+        .map(|previous| {
+            artifact_fingerprints
+                .iter()
+                .filter(|artifact| {
+                    previous
+                        .hot_reload
+                        .artifact_fingerprints
+                        .iter()
+                        .find(|previous_artifact| previous_artifact.role == artifact.role)
+                        .map(|previous_artifact| previous_artifact.fingerprint != artifact.fingerprint)
+                        .unwrap_or(true)
+                })
+                .map(|artifact| artifact.role.clone())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let previous_materialization_fingerprint = previous_manifest_metadata
+        .map(|previous| previous.hot_reload.materialization_fingerprint.clone());
+    let reload_compatible_with_previous = previous_manifest_metadata
+        .map(|previous| {
+            previous.launcher == *launcher && previous.hot_reload.identity == identity
+        })
+        .unwrap_or(false);
+    let summary = if previous_manifest_metadata.is_some() {
+        format!(
+            "Product mode stays default and devtools stay opt-in. Changed artifacts: {}. State-preserving reload remains {} when launcher and authored identity still match.",
+            if changed_artifact_roles.is_empty() {
+                "none".to_string()
+            } else {
+                changed_artifact_roles.join(", ")
+            },
+            if reload_compatible_with_previous {
+                "eligible"
+            } else {
+                "gated"
+            }
+        )
+    } else {
+        "Product mode stays default and devtools stay opt-in. This is the first materialized reload baseline for the packaged app.".to_string()
+    };
+
+    NativeAppHotReloadMetadata {
+        summary,
+        launcher: launcher.clone(),
+        policy,
+        identity,
+        artifact_fingerprints,
+        materialization_fingerprint,
+        previous_materialization_fingerprint,
+        changed_artifact_roles,
+        reload_compatible_with_previous,
+    }
+}
+
+fn read_previous_native_app_manifest_metadata(
+    app_manifest_path: &Path,
+) -> Option<PreviousNativeAppManifestMetadata> {
+    let manifest_json = fs::read_to_string(app_manifest_path).ok()?;
+    serde_json::from_str(&manifest_json).ok()
+}
+
+fn reload_path_string(project_dir: &Path, path: &Path) -> String {
+    relative_path_from_directory(project_dir, path)
+        .unwrap_or_else(|| path.to_path_buf())
+        .display()
+        .to_string()
+}
+
+fn fingerprint_text(value: &str) -> String {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in value.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    format!("{hash:016x}")
+}
+
+fn current_timestamp_string() -> String {
+    let seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    format!("unix:{seconds}")
 }
 
 fn resolve_workspace_crate_dependency(

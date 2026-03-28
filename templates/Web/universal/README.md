@@ -177,6 +177,11 @@ New reusable section kinds in this pass:
 New system registries in this pass:
 
 - identity providers, roles, and access policies
+- identity verification lanes
+- fraud and risk controls
+- consent and preference center metadata
+- audit log metadata
+- data export pipelines
 - billing plans, invoices, and tax metadata
 - subscription tiers and entitlements
 - CMS content types and editorial workflow
@@ -201,6 +206,7 @@ New system registries in this pass:
 - data governance and backup plan registries
 - support tickets, feedback loops, and survey programs
 - messaging, payments, scheduling, and privacy request registries
+- enablement programs, onboarding flows, reliability SLOs, data retention policies, and incident history registries
 - product catalog and inventory stack registries
 - fulfillment, shipping, and returns policy registries
 - loyalty and referral program registries
@@ -223,3 +229,13 @@ New system registries in this pass:
 - QA program registry
 - domain + edge stack registry
 - trust center registry
+- edge runtime registry (edge execution + cache routing)
+- worker runtime registry (cron + queue workers)
+- API gateway registry (routing + validation)
+- rate limit registry (route + actor throttling)
+- cache stack registry (edge/session/search cache lanes)
+- search stack registry (text + vector + hybrid)
+- storage stack registry (artifacts, uploads, archives)
+- session store registry (cookie + token + actor sessions)
+- marketplace stack registry
+- content syndication registry (rss, email, partner embeds)

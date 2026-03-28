@@ -1,5 +1,8 @@
 {
-  "includes": ["blog_shared", "web_systems_core"],
+  "includes": [
+    "blog_shared",
+    "web_systems_core"
+  ],
   "brand": "Hybrid Command",
   "seo": {
     "title": "Hybrid Command | Kain Universal Web System",
@@ -7,96 +10,430 @@
     "image": "social-card.svg"
   },
   "nav": [
-    { "label": "System", "href": "#system" },
-    { "label": "App", "href": "#app" },
-    { "label": "UI Kit", "href": "#ui-kit" },
-    { "label": "Frontend", "href": "#frontend-stack" },
-    { "label": "UI Runtime", "href": "#ui-runtime" },
-    { "label": "Auth", "href": "#auth" },
-    { "label": "Session", "href": "#session" },
-    { "label": "Identity", "href": "#identity" },
-    { "label": "Billing", "href": "#billing" },
-    { "label": "CMS", "href": "#cms" },
-    { "label": "Automation", "href": "#automation" },
-    { "label": "API", "href": "#api" },
-    { "label": "Agents", "href": "#agents" },
-    { "label": "Chat Runtime", "href": "#chat-runtime" },
-    { "label": "Commerce", "href": "#commerce" },
-    { "label": "Realtime", "href": "#realtime" },
-    { "label": "Uploads", "href": "#uploads" },
-    { "label": "Analytics", "href": "#analytics" },
-    { "label": "Releases", "href": "#releases" },
-    { "label": "Flags", "href": "#flags" },
-    { "label": "Incidents", "href": "#incidents" },
-    { "label": "CRM", "href": "#crm" },
-    { "label": "Brand", "href": "#brand-system" },
-    { "label": "Social", "href": "#social-presence" },
-    { "label": "Calendar", "href": "#content-calendar" },
-    { "label": "Release", "href": "#release-pipeline" },
-    { "label": "QA", "href": "#qa-program" },
-    { "label": "Domains", "href": "#domain-stack" },
-    { "label": "Trust", "href": "#trust-center" },
-    { "label": "Scene", "href": "#scene" },
-    { "label": "Assets", "href": "#scene-assets" },
-    { "label": "Materials", "href": "#materials" },
-    { "label": "Lighting", "href": "#lighting" },
-    { "label": "Cameras", "href": "#cameras" },
-    { "label": "Animation", "href": "#animation" },
-    { "label": "Physics", "href": "#physics" },
-    { "label": "Audio", "href": "#audio" },
-    { "label": "XR", "href": "#xr" },
-    { "label": "Shaders", "href": "#shaders" },
-    { "label": "Proof", "href": "#proof" },
-    { "label": "Search", "href": "#search" },
-    { "label": "Blog", "href": "#blog" },
-    { "label": "Routes", "href": "#routes" },
-    { "label": "Actor Runtime", "href": "#actor-runtime" },
-    { "label": "Actor Jobs", "href": "#actor-jobs" },
-    { "label": "Actor Schedules", "href": "#actor-schedules" },
-    { "label": "Actor Hosts", "href": "#actor-hosts" },
-    { "label": "Streaming", "href": "#streaming" },
-    { "label": "Knowledge", "href": "#knowledge" },
-    { "label": "Memory", "href": "#memory" },
-    { "label": "Tool Registry", "href": "#tool-registry" },
-    { "label": "Deploy", "href": "#deploy" },
-    { "label": "Start", "href": "#intake" }
+    {
+      "label": "System",
+      "href": "#system"
+    },
+    {
+      "label": "App",
+      "href": "#app"
+    },
+    {
+      "label": "UI Kit",
+      "href": "#ui-kit"
+    },
+    {
+      "label": "Frontend",
+      "href": "#frontend-stack"
+    },
+    {
+      "label": "UI Runtime",
+      "href": "#ui-runtime"
+    },
+    {
+      "label": "Auth",
+      "href": "#auth"
+    },
+    {
+      "label": "Session",
+      "href": "#session"
+    },
+    {
+      "label": "Identity",
+      "href": "#identity"
+    },
+    {
+      "label": "Verification",
+      "href": "#identity-verification"
+    },
+    {
+      "label": "Risk",
+      "href": "#fraud-risk"
+    },
+    {
+      "label": "Consent",
+      "href": "#consent"
+    },
+    {
+      "label": "Audit",
+      "href": "#audit-logs"
+    },
+    {
+      "label": "Exports",
+      "href": "#data-exports"
+    },
+    {
+      "label": "Marketplace",
+      "href": "#marketplace"
+    },
+    {
+      "label": "Syndication",
+      "href": "#syndication"
+    },
+    {
+      "label": "Billing",
+      "href": "#billing"
+    },
+    {
+      "label": "CMS",
+      "href": "#cms"
+    },
+    {
+      "label": "Automation",
+      "href": "#automation"
+    },
+    {
+      "label": "API",
+      "href": "#api"
+    },
+    {
+      "label": "Agents",
+      "href": "#agents"
+    },
+    {
+      "label": "Chat Runtime",
+      "href": "#chat-runtime"
+    },
+    {
+      "label": "Commerce",
+      "href": "#commerce"
+    },
+    {
+      "label": "Realtime",
+      "href": "#realtime"
+    },
+    {
+      "label": "Uploads",
+      "href": "#uploads"
+    },
+    {
+      "label": "Analytics",
+      "href": "#analytics"
+    },
+    {
+      "label": "Releases",
+      "href": "#releases"
+    },
+    {
+      "label": "Flags",
+      "href": "#flags"
+    },
+    {
+      "label": "Incidents",
+      "href": "#incidents"
+    },
+    {
+      "label": "CRM",
+      "href": "#crm"
+    },
+    {
+      "label": "Brand",
+      "href": "#brand-system"
+    },
+    {
+      "label": "Social",
+      "href": "#social-presence"
+    },
+    {
+      "label": "Calendar",
+      "href": "#content-calendar"
+    },
+    {
+      "label": "Release",
+      "href": "#release-pipeline"
+    },
+    {
+      "label": "QA",
+      "href": "#qa-program"
+    },
+    {
+      "label": "Domains",
+      "href": "#domain-stack"
+    },
+    {
+      "label": "Trust",
+      "href": "#trust-center"
+    },
+    {
+      "label": "Scene",
+      "href": "#scene"
+    },
+    {
+      "label": "Assets",
+      "href": "#scene-assets"
+    },
+    {
+      "label": "Materials",
+      "href": "#materials"
+    },
+    {
+      "label": "Lighting",
+      "href": "#lighting"
+    },
+    {
+      "label": "Cameras",
+      "href": "#cameras"
+    },
+    {
+      "label": "Animation",
+      "href": "#animation"
+    },
+    {
+      "label": "Physics",
+      "href": "#physics"
+    },
+    {
+      "label": "Audio",
+      "href": "#audio"
+    },
+    {
+      "label": "XR",
+      "href": "#xr"
+    },
+    {
+      "label": "Shaders",
+      "href": "#shaders"
+    },
+    {
+      "label": "Proof",
+      "href": "#proof"
+    },
+    {
+      "label": "Search",
+      "href": "#search"
+    },
+    {
+      "label": "Blog",
+      "href": "#blog"
+    },
+    {
+      "label": "Routes",
+      "href": "#routes"
+    },
+    {
+      "label": "Actor Runtime",
+      "href": "#actor-runtime"
+    },
+    {
+      "label": "Actor Jobs",
+      "href": "#actor-jobs"
+    },
+    {
+      "label": "Actor Schedules",
+      "href": "#actor-schedules"
+    },
+    {
+      "label": "Actor Hosts",
+      "href": "#actor-hosts"
+    },
+    {
+      "label": "Streaming",
+      "href": "#streaming"
+    },
+    {
+      "label": "Knowledge",
+      "href": "#knowledge"
+    },
+    {
+      "label": "Memory",
+      "href": "#memory"
+    },
+    {
+      "label": "Tool Registry",
+      "href": "#tool-registry"
+    },
+    {
+      "label": "Enablement",
+      "href": "#enablement"
+    },
+    {
+      "label": "Onboarding",
+      "href": "#onboarding"
+    },
+    {
+      "label": "Reliability",
+      "href": "#reliability"
+    },
+    {
+      "label": "Retention",
+      "href": "#retention"
+    },
+    {
+      "label": "Incident History",
+      "href": "#incident-history"
+    },
+    {
+      "label": "Deploy",
+      "href": "#deploy"
+    },
+    {
+      "label": "Start",
+      "href": "#intake"
+    },
+    {
+      "label": "Edge",
+      "href": "#edge-runtime"
+    },
+    {
+      "label": "Workers",
+      "href": "#worker-runtime"
+    },
+    {
+      "label": "Gateway",
+      "href": "#api-gateway"
+    },
+    {
+      "label": "Rate Limits",
+      "href": "#rate-limits"
+    },
+    {
+      "label": "Cache",
+      "href": "#cache-stack"
+    },
+    {
+      "label": "Search",
+      "href": "#search-stack"
+    },
+    {
+      "label": "Storage",
+      "href": "#storage-stack"
+    },
+    {
+      "label": "Sessions",
+      "href": "#session-store"
+    }
   ],
   "hero": {
     "kicker": "Hybrid archetype",
     "title": "One Kain starter for the full website stack.",
     "body": "Hybrid Command is the kitchen-sink archetype: business messaging, portfolio proof, 3D staging, docs/search, chat, intake, and actor-backed local runtime all live in one manifest-driven system.",
     "actions": [
-      { "label": "Inspect the stack", "href": "#system", "style": "primary" },
-      { "label": "Open intake", "href": "#intake", "style": "secondary" }
+      {
+        "label": "Inspect the stack",
+        "href": "#system",
+        "style": "primary"
+      },
+      {
+        "label": "Open intake",
+        "href": "#intake",
+        "style": "secondary"
+      }
     ]
   },
   "metrics": [
-    { "value": "11", "label": "archetypes in the pack" },
-    { "value": "09", "label": "artifacts per site" },
-    { "value": "18", "label": "systems exposed in one shell" }
+    {
+      "value": "11",
+      "label": "archetypes in the pack"
+    },
+    {
+      "value": "09",
+      "label": "artifacts per site"
+    },
+    {
+      "value": "18",
+      "label": "systems exposed in one shell"
+    }
   ],
   "logos": [
-    { "label": "Business", "detail": "launch narrative" },
-    { "label": "Portfolio", "detail": "selected work" },
-    { "label": "Immersive", "detail": "scene staging" },
-    { "label": "Chat", "detail": "prompt surfaces" },
-    { "label": "Search", "detail": "local docs index" },
-    { "label": "Actors", "detail": "runtime routes" }
+    {
+      "label": "Business",
+      "detail": "launch narrative"
+    },
+    {
+      "label": "Portfolio",
+      "detail": "selected work"
+    },
+    {
+      "label": "Immersive",
+      "detail": "scene staging"
+    },
+    {
+      "label": "Chat",
+      "detail": "prompt surfaces"
+    },
+    {
+      "label": "Search",
+      "detail": "local docs index"
+    },
+    {
+      "label": "Actors",
+      "detail": "runtime routes"
+    }
   ],
   "feature_cards": [
-    { "kicker": "Site", "title": "Launch surfaces", "body": "Hero, proof, pricing, FAQ, docs, and intake come prewired." },
-    { "kicker": "Scene", "title": "3D staging", "body": "Scene manifests and spotlight sections give premium launches a serious visual lane." },
-    { "kicker": "Runtime", "title": "Actor-ready local server", "body": "Search, chat, route docs, form capture, and health endpoints ship together." }
+    {
+      "kicker": "Site",
+      "title": "Launch surfaces",
+      "body": "Hero, proof, pricing, FAQ, docs, and intake come prewired."
+    },
+    {
+      "kicker": "Scene",
+      "title": "3D staging",
+      "body": "Scene manifests and spotlight sections give premium launches a serious visual lane."
+    },
+    {
+      "kicker": "Runtime",
+      "title": "Actor-ready local server",
+      "body": "Search, chat, route docs, form capture, and health endpoints ship together."
+    }
   ],
   "blueprints": [
-    { "kicker": "Authoring", "title": "Manifest registries", "body": "Themes, content, scenes, and experiences expand through data instead of copied app code.", "owned_by": ["kain", "registry"] },
-    { "kicker": "Runtime", "title": "Node FFI web lane", "body": "Serving, chat, search, and form capture stay outside Cargo while Kain remains the orchestrator.", "owned_by": ["node", "ffi"] },
-    { "kicker": "Preview", "title": "Semantic UI preview", "body": "Kain UI still owns the native preview surface and design intent loop.", "owned_by": ["kain-ui", "preview"] }
+    {
+      "kicker": "Authoring",
+      "title": "Manifest registries",
+      "body": "Themes, content, scenes, and experiences expand through data instead of copied app code.",
+      "owned_by": [
+        "kain",
+        "registry"
+      ]
+    },
+    {
+      "kicker": "Runtime",
+      "title": "Node FFI web lane",
+      "body": "Serving, chat, search, and form capture stay outside Cargo while Kain remains the orchestrator.",
+      "owned_by": [
+        "node",
+        "ffi"
+      ]
+    },
+    {
+      "kicker": "Preview",
+      "title": "Semantic UI preview",
+      "body": "Kain UI still owns the native preview surface and design intent loop.",
+      "owned_by": [
+        "kain-ui",
+        "preview"
+      ]
+    }
   ],
   "app_modules": [
-    { "name": "Launch workspace", "route": "/workspace/launch", "summary": "Hero, pricing, proof, and CTA composition for business-style delivery.", "tags": ["launch", "workspace"] },
-    { "name": "Knowledge workspace", "route": "/workspace/knowledge", "summary": "Docs search, onboarding rails, and artifact notes.", "tags": ["docs", "search"] },
-    { "name": "Operator workspace", "route": "/workspace/operator", "summary": "Route contracts, actor topology, and command surfaces.", "tags": ["ops", "actors"] }
+    {
+      "name": "Launch workspace",
+      "route": "/workspace/launch",
+      "summary": "Hero, pricing, proof, and CTA composition for business-style delivery.",
+      "tags": [
+        "launch",
+        "workspace"
+      ]
+    },
+    {
+      "name": "Knowledge workspace",
+      "route": "/workspace/knowledge",
+      "summary": "Docs search, onboarding rails, and artifact notes.",
+      "tags": [
+        "docs",
+        "search"
+      ]
+    },
+    {
+      "name": "Operator workspace",
+      "route": "/workspace/operator",
+      "summary": "Route contracts, actor topology, and command surfaces.",
+      "tags": [
+        "ops",
+        "actors"
+      ]
+    }
   ],
   "auth": {
     "kicker": "Identity",
@@ -105,30 +442,147 @@
     "session_title": "Local session endpoints",
     "session_body": "The web runtime includes a dev-only cookie session so uploads, chat, and operator lanes can bind identity without a provider yet.",
     "methods": [
-      { "label": "Passwordless email", "detail": "Low-friction link sign-in for product and member surfaces.", "scope": "member", "status": "template-ready" },
-      { "label": "Invite codes", "detail": "Private launches and gated operator rooms.", "scope": "operator", "status": "template-ready" },
-      { "label": "SSO bridge", "detail": "Enterprise-ready connector shape for external identity providers.", "scope": "enterprise", "status": "manifest-contract" }
+      {
+        "label": "Passwordless email",
+        "detail": "Low-friction link sign-in for product and member surfaces.",
+        "scope": "member",
+        "status": "template-ready"
+      },
+      {
+        "label": "Invite codes",
+        "detail": "Private launches and gated operator rooms.",
+        "scope": "operator",
+        "status": "template-ready"
+      },
+      {
+        "label": "SSO bridge",
+        "detail": "Enterprise-ready connector shape for external identity providers.",
+        "scope": "enterprise",
+        "status": "manifest-contract"
+      }
     ]
   },
   "commerce": {
     "offers": [
-      { "kicker": "Starter", "cadence": "one-time", "name": "Launch system", "price": "$4k", "summary": "Launch, proof, intake, and docs setup.", "features": ["Hero + proof rails", "Forms", "Search-ready docs"], "actions": [{ "label": "Start launch", "href": "#intake", "style": "primary" }] },
-      { "kicker": "Growth", "cadence": "project", "name": "Experience system", "price": "$9k", "summary": "Adds scene, chat, and workspace modules.", "features": ["Scene spotlight", "Prompt deck", "App shell"], "actions": [{ "label": "Inspect app", "href": "#app", "style": "secondary" }] },
-      { "kicker": "Ops", "cadence": "retainer", "name": "Realtime command system", "price": "$15k", "summary": "Operator lanes with route and stream metadata.", "features": ["Realtime channels", "Actor mesh", "System contract"], "actions": [{ "label": "Inspect realtime", "href": "#realtime", "style": "primary" }] }
+      {
+        "kicker": "Starter",
+        "cadence": "one-time",
+        "name": "Launch system",
+        "price": "$4k",
+        "summary": "Launch, proof, intake, and docs setup.",
+        "features": [
+          "Hero + proof rails",
+          "Forms",
+          "Search-ready docs"
+        ],
+        "actions": [
+          {
+            "label": "Start launch",
+            "href": "#intake",
+            "style": "primary"
+          }
+        ]
+      },
+      {
+        "kicker": "Growth",
+        "cadence": "project",
+        "name": "Experience system",
+        "price": "$9k",
+        "summary": "Adds scene, chat, and workspace modules.",
+        "features": [
+          "Scene spotlight",
+          "Prompt deck",
+          "App shell"
+        ],
+        "actions": [
+          {
+            "label": "Inspect app",
+            "href": "#app",
+            "style": "secondary"
+          }
+        ]
+      },
+      {
+        "kicker": "Ops",
+        "cadence": "retainer",
+        "name": "Realtime command system",
+        "price": "$15k",
+        "summary": "Operator lanes with route and stream metadata.",
+        "features": [
+          "Realtime channels",
+          "Actor mesh",
+          "System contract"
+        ],
+        "actions": [
+          {
+            "label": "Inspect realtime",
+            "href": "#realtime",
+            "style": "primary"
+          }
+        ]
+      }
     ]
   },
   "integrations": [
-    { "name": "CRM bridge", "category": "sales", "detail": "Capture launch and commerce leads into an external CRM.", "transport": "http webhook", "status": "template-ready" },
-    { "name": "Docs sync", "category": "knowledge", "detail": "Mirror docs summaries into the local search index.", "transport": "json import", "status": "template-ready" },
-    { "name": "Ops bus", "category": "operations", "detail": "Feed route and actor summaries to external dashboards.", "transport": "sse preview", "status": "preview" }
+    {
+      "name": "CRM bridge",
+      "category": "sales",
+      "detail": "Capture launch and commerce leads into an external CRM.",
+      "transport": "http webhook",
+      "status": "template-ready"
+    },
+    {
+      "name": "Docs sync",
+      "category": "knowledge",
+      "detail": "Mirror docs summaries into the local search index.",
+      "transport": "json import",
+      "status": "template-ready"
+    },
+    {
+      "name": "Ops bus",
+      "category": "operations",
+      "detail": "Feed route and actor summaries to external dashboards.",
+      "transport": "sse preview",
+      "status": "preview"
+    }
   ],
   "realtime_channels": [
-    { "name": "Launch pulse", "protocol": "sse", "cadence": "burst", "producer": "prompt_router", "consumers": ["launch workspace"], "summary": "Push staged launch-state updates into the workspace shell." },
-    { "name": "Operator watch", "protocol": "sse", "cadence": "steady", "producer": "mesh_supervisor", "consumers": ["operator workspace"], "summary": "Broadcast actor and route state changes for control-room surfaces." }
+    {
+      "name": "Launch pulse",
+      "protocol": "sse",
+      "cadence": "burst",
+      "producer": "prompt_router",
+      "consumers": [
+        "launch workspace"
+      ],
+      "summary": "Push staged launch-state updates into the workspace shell."
+    },
+    {
+      "name": "Operator watch",
+      "protocol": "sse",
+      "cadence": "steady",
+      "producer": "mesh_supervisor",
+      "consumers": [
+        "operator workspace"
+      ],
+      "summary": "Broadcast actor and route state changes for control-room surfaces."
+    }
   ],
   "data_collections": [
-    { "name": "site_intakes", "schema": "lead.capture.v1", "retention": "jsonl-local", "actor": "intake_collector", "purpose": "Stores launch, commerce, and operator interest payloads." },
-    { "name": "prompt_sessions", "schema": "chat.session.v1", "retention": "ephemeral-local", "actor": "prompt_router", "purpose": "Keeps lightweight local prompt handoff state for chat-first flows." }
+    {
+      "name": "site_intakes",
+      "schema": "lead.capture.v1",
+      "retention": "jsonl-local",
+      "actor": "intake_collector",
+      "purpose": "Stores launch, commerce, and operator interest payloads."
+    },
+    {
+      "name": "prompt_sessions",
+      "schema": "chat.session.v1",
+      "retention": "ephemeral-local",
+      "actor": "prompt_router",
+      "purpose": "Keeps lightweight local prompt handoff state for chat-first flows."
+    }
   ],
   "uploads": {
     "kicker": "Uploads",
@@ -141,62 +595,282 @@
     "body": "Emit local analytics events so operator dashboards can reason about usage before integrating external analytics."
   },
   "process_steps": [
-    { "title": "Pick the lane mix", "body": "Use hybrid when launch, search, prompts, 3D, and routes need to coexist." },
-    { "title": "Inspect the catalog", "body": "Route into the narrower business, portfolio, docs, chat, or operator experiences as needed." },
-    { "title": "Specialize from data", "body": "Move by editing manifests and reusable section systems before you touch helper runtime code." }
+    {
+      "title": "Pick the lane mix",
+      "body": "Use hybrid when launch, search, prompts, 3D, and routes need to coexist."
+    },
+    {
+      "title": "Inspect the catalog",
+      "body": "Route into the narrower business, portfolio, docs, chat, or operator experiences as needed."
+    },
+    {
+      "title": "Specialize from data",
+      "body": "Move by editing manifests and reusable section systems before you touch helper runtime code."
+    }
   ],
   "capability_matrix": {
-    "columns": ["Launch", "Knowledge", "Operations"],
+    "columns": [
+      "Launch",
+      "Knowledge",
+      "Operations"
+    ],
     "rows": [
-      { "label": "Content rails", "values": ["pricing + proof", "docs + search", "routes + commands"] },
-      { "label": "Interaction", "values": ["forms", "search", "chat + prompts"] },
-      { "label": "Runtime", "values": ["static build", "catalog APIs", "actor server"] }
+      {
+        "label": "Content rails",
+        "values": [
+          "pricing + proof",
+          "docs + search",
+          "routes + commands"
+        ]
+      },
+      {
+        "label": "Interaction",
+        "values": [
+          "forms",
+          "search",
+          "chat + prompts"
+        ]
+      },
+      {
+        "label": "Runtime",
+        "values": [
+          "static build",
+          "catalog APIs",
+          "actor server"
+        ]
+      }
     ]
   },
   "prompt_presets": [
-    { "kicker": "Business", "title": "Business launch brief", "prompt": "Build a premium business launch site with docs and pricing", "body": "Move the hybrid lane toward business-first delivery.", "button_label": "Ask business" },
-    { "kicker": "Docs", "title": "Knowledge hub brief", "prompt": "Build a searchable docs and onboarding hub", "body": "Shift into knowledge-base and search-heavy flows.", "button_label": "Ask docs" },
-    { "kicker": "Ops", "title": "Operator hub brief", "prompt": "Build an actor-backed operator dashboard with commands", "body": "Route toward route catalogs, actors, and operator prompts.", "button_label": "Ask ops" }
+    {
+      "kicker": "Business",
+      "title": "Business launch brief",
+      "prompt": "Build a premium business launch site with docs and pricing",
+      "body": "Move the hybrid lane toward business-first delivery.",
+      "button_label": "Ask business"
+    },
+    {
+      "kicker": "Docs",
+      "title": "Knowledge hub brief",
+      "prompt": "Build a searchable docs and onboarding hub",
+      "body": "Shift into knowledge-base and search-heavy flows.",
+      "button_label": "Ask docs"
+    },
+    {
+      "kicker": "Ops",
+      "title": "Operator hub brief",
+      "prompt": "Build an actor-backed operator dashboard with commands",
+      "body": "Route toward route catalogs, actors, and operator prompts.",
+      "button_label": "Ask ops"
+    }
   ],
   "chat_personas": [
-    { "kicker": "Persona", "title": "Hybrid Conductor", "body": "Balances launch, docs, chat, and operator lanes while keeping the plan coherent." },
-    { "kicker": "Persona", "title": "Scene Producer", "body": "Turns scene descriptors into narrative beats and 3D staging guidance." },
-    { "kicker": "Persona", "title": "Ops Steward", "body": "Routes runtime questions to the right actor, form, or command lane." }
+    {
+      "kicker": "Persona",
+      "title": "Hybrid Conductor",
+      "body": "Balances launch, docs, chat, and operator lanes while keeping the plan coherent."
+    },
+    {
+      "kicker": "Persona",
+      "title": "Scene Producer",
+      "body": "Turns scene descriptors into narrative beats and 3D staging guidance."
+    },
+    {
+      "kicker": "Persona",
+      "title": "Ops Steward",
+      "body": "Routes runtime questions to the right actor, form, or command lane."
+    }
   ],
   "chat_modes": [
-    { "kicker": "Mode", "title": "Full-stack brief", "body": "Captures launch, scene, docs, and runtime needs in one pass." },
-    { "kicker": "Mode", "title": "Catalog navigator", "body": "Routes into the most relevant archetype without losing context." },
-    { "kicker": "Mode", "title": "Escalation handoff", "body": "Moves complex requests into structured intake forms." }
+    {
+      "kicker": "Mode",
+      "title": "Full-stack brief",
+      "body": "Captures launch, scene, docs, and runtime needs in one pass."
+    },
+    {
+      "kicker": "Mode",
+      "title": "Catalog navigator",
+      "body": "Routes into the most relevant archetype without losing context."
+    },
+    {
+      "kicker": "Mode",
+      "title": "Escalation handoff",
+      "body": "Moves complex requests into structured intake forms."
+    }
   ],
   "portfolio_entries": [
-    { "year": "2026", "title": "Signalcraft Launch Rail", "summary": "Business narrative + docs + pricing system.", "tags": ["business", "launch"] },
-    { "year": "2026", "title": "Orbit Chat Surface", "summary": "Prompt-first local site with route-aware replies.", "tags": ["chat", "search"] },
-    { "year": "2026", "title": "Atrium Reveal", "summary": "Immersive release shell with operator notes.", "tags": ["3d", "premium"] }
+    {
+      "year": "2026",
+      "title": "Signalcraft Launch Rail",
+      "summary": "Business narrative + docs + pricing system.",
+      "tags": [
+        "business",
+        "launch"
+      ]
+    },
+    {
+      "year": "2026",
+      "title": "Orbit Chat Surface",
+      "summary": "Prompt-first local site with route-aware replies.",
+      "tags": [
+        "chat",
+        "search"
+      ]
+    },
+    {
+      "year": "2026",
+      "title": "Atrium Reveal",
+      "summary": "Immersive release shell with operator notes.",
+      "tags": [
+        "3d",
+        "premium"
+      ]
+    }
   ],
   "pricing_tiers": [
-    { "kicker": "Lane", "name": "Site Core", "price": "$4k", "summary": "Business + proof + intake.", "features": ["Pricing", "FAQ", "Local forms"], "actions": [{ "label": "Open intake", "href": "#intake", "style": "primary" }] },
-    { "kicker": "Lane", "name": "Experience", "price": "$9k", "summary": "Scene, chat, and search layers added.", "features": ["Scene spotlight", "Search panel", "Chat lab"], "actions": [{ "label": "Inspect scene", "href": "#scene", "style": "secondary" }] },
-    { "kicker": "Lane", "name": "Operator", "price": "$15k", "summary": "Actor-backed local server and control plane.", "features": ["Route docs", "Actor mesh", "Health + forms"], "actions": [{ "label": "Inspect routes", "href": "#routes", "style": "primary" }] }
+    {
+      "kicker": "Lane",
+      "name": "Site Core",
+      "price": "$4k",
+      "summary": "Business + proof + intake.",
+      "features": [
+        "Pricing",
+        "FAQ",
+        "Local forms"
+      ],
+      "actions": [
+        {
+          "label": "Open intake",
+          "href": "#intake",
+          "style": "primary"
+        }
+      ]
+    },
+    {
+      "kicker": "Lane",
+      "name": "Experience",
+      "price": "$9k",
+      "summary": "Scene, chat, and search layers added.",
+      "features": [
+        "Scene spotlight",
+        "Search panel",
+        "Chat lab"
+      ],
+      "actions": [
+        {
+          "label": "Inspect scene",
+          "href": "#scene",
+          "style": "secondary"
+        }
+      ]
+    },
+    {
+      "kicker": "Lane",
+      "name": "Operator",
+      "price": "$15k",
+      "summary": "Actor-backed local server and control plane.",
+      "features": [
+        "Route docs",
+        "Actor mesh",
+        "Health + forms"
+      ],
+      "actions": [
+        {
+          "label": "Inspect routes",
+          "href": "#routes",
+          "style": "primary"
+        }
+      ]
+    }
   ],
   "testimonials": [
-    { "quote": "This finally looks like a serious template lane instead of a demo starter.", "name": "Dana Roe", "role": "Platform Lead" },
-    { "quote": "The same pack now covers launch sites, docs, chat, and ops dashboards.", "name": "Ilan Cross", "role": "Founding Engineer" }
+    {
+      "quote": "This finally looks like a serious template lane instead of a demo starter.",
+      "name": "Dana Roe",
+      "role": "Platform Lead"
+    },
+    {
+      "quote": "The same pack now covers launch sites, docs, chat, and ops dashboards.",
+      "name": "Ilan Cross",
+      "role": "Founding Engineer"
+    }
   ],
   "command_lines": [
-    { "kicker": "Serve", "title": "Run the hybrid experience", "command": "npm run serve:hybrid", "body": "Boot the full-spectrum runtime with scene, search, chat, route, and form surfaces." },
-    { "kicker": "Inspect", "title": "Print the hybrid experience payload", "command": "npm run experience:hybrid", "body": "Inspect the emitted site data and artifact bundle without opening the browser." }
+    {
+      "kicker": "Serve",
+      "title": "Run the hybrid experience",
+      "command": "npm run serve:hybrid",
+      "body": "Boot the full-spectrum runtime with scene, search, chat, route, and form surfaces."
+    },
+    {
+      "kicker": "Inspect",
+      "title": "Print the hybrid experience payload",
+      "command": "npm run experience:hybrid",
+      "body": "Inspect the emitted site data and artifact bundle without opening the browser."
+    }
   ],
   "docs_links": [
-    { "kicker": "Runtime", "title": "Artifact contract", "summary": "Every experience emits HTML, manifests, site data, feed, robots, and sitemap files.", "href": "#system", "label": "Read contract" },
-    { "kicker": "Docs", "title": "Search + prompts", "summary": "Docs search and chat prompts share one local site index.", "href": "#search", "label": "Open docs" },
-    { "kicker": "Ops", "title": "Actor route surface", "summary": "Hybrid exposes local JSON endpoints for routes, actors, and health.", "href": "#routes", "label": "Read routes" }
+    {
+      "kicker": "Runtime",
+      "title": "Artifact contract",
+      "summary": "Every experience emits HTML, manifests, site data, feed, robots, and sitemap files.",
+      "href": "#system",
+      "label": "Read contract"
+    },
+    {
+      "kicker": "Docs",
+      "title": "Search + prompts",
+      "summary": "Docs search and chat prompts share one local site index.",
+      "href": "#search",
+      "label": "Open docs"
+    },
+    {
+      "kicker": "Ops",
+      "title": "Actor route surface",
+      "summary": "Hybrid exposes local JSON endpoints for routes, actors, and health.",
+      "href": "#routes",
+      "label": "Read routes"
+    }
   ],
   "link_groups": [
-    { "kicker": "Jump", "title": "Hybrid quick links", "body": "Use the hybrid archetype to test every lane before splitting into a more focused site.", "links": [{ "label": "Open scene", "href": "#scene" }, { "label": "Try chat", "href": "#chat" }, { "label": "Search docs", "href": "#search" }, { "label": "Inspect routes", "href": "#routes" }] }
+    {
+      "kicker": "Jump",
+      "title": "Hybrid quick links",
+      "body": "Use the hybrid archetype to test every lane before splitting into a more focused site.",
+      "links": [
+        {
+          "label": "Open scene",
+          "href": "#scene"
+        },
+        {
+          "label": "Try chat",
+          "href": "#chat"
+        },
+        {
+          "label": "Search docs",
+          "href": "#search"
+        },
+        {
+          "label": "Inspect routes",
+          "href": "#routes"
+        }
+      ]
+    }
   ],
   "faq_items": [
-    { "question": "Why keep one hybrid archetype?", "answer": ["It is the proving ground for the whole website system.", "Use it to test content, scene, search, chat, and actor surfaces together before specializing."] },
-    { "question": "Does this still avoid Rust?", "answer": ["Yes. The end-user runtime path stays on Node while Kain owns the orchestrating entrypoints."] }
+    {
+      "question": "Why keep one hybrid archetype?",
+      "answer": [
+        "It is the proving ground for the whole website system.",
+        "Use it to test content, scene, search, chat, and actor surfaces together before specializing."
+      ]
+    },
+    {
+      "question": "Does this still avoid Rust?",
+      "answer": [
+        "Yes. The end-user runtime path stays on Node while Kain owns the orchestrating entrypoints."
+      ]
+    }
   ],
   "forms": {
     "hybrid_intake": {
@@ -207,70 +881,262 @@
       "submit_label": "Capture intent",
       "action": "/api/forms/hybrid_intake",
       "fields": [
-        { "name": "name", "label": "Name", "type": "text", "placeholder": "Operator or studio" },
-        { "name": "email", "label": "Email", "type": "email", "placeholder": "hello@example.com" },
-        { "name": "lanes", "label": "Lanes", "type": "text", "placeholder": "business / 3d / chat / actors" },
-        { "name": "goal", "label": "Goal", "type": "textarea", "rows": 6, "placeholder": "What should the website system do end to end?" }
+        {
+          "name": "name",
+          "label": "Name",
+          "type": "text",
+          "placeholder": "Operator or studio"
+        },
+        {
+          "name": "email",
+          "label": "Email",
+          "type": "email",
+          "placeholder": "hello@example.com"
+        },
+        {
+          "name": "lanes",
+          "label": "Lanes",
+          "type": "text",
+          "placeholder": "business / 3d / chat / actors"
+        },
+        {
+          "name": "goal",
+          "label": "Goal",
+          "type": "textarea",
+          "rows": 6,
+          "placeholder": "What should the website system do end to end?"
+        }
       ]
     }
   },
   "search_documents": [
-    { "kind": "system", "title": "Artifact contract", "summary": "Nine files emitted per experience.", "href": "#system", "tags": ["artifacts"] },
-    { "kind": "system", "title": "Scene spotlight", "summary": "Immersive 3D staging entry point.", "href": "#scene", "tags": ["3d"] },
-    { "kind": "system", "title": "Actor route surface", "summary": "JSON endpoints for actors, routes, search, and health.", "href": "#routes", "tags": ["actors", "runtime"] },
-    { "kind": "system", "title": "UI schema", "summary": "React-like layout metadata for app-shell composition.", "href": "#app", "tags": ["ui", "app"] }
+    {
+      "kind": "system",
+      "title": "Artifact contract",
+      "summary": "Nine files emitted per experience.",
+      "href": "#system",
+      "tags": [
+        "artifacts"
+      ]
+    },
+    {
+      "kind": "system",
+      "title": "Scene spotlight",
+      "summary": "Immersive 3D staging entry point.",
+      "href": "#scene",
+      "tags": [
+        "3d"
+      ]
+    },
+    {
+      "kind": "system",
+      "title": "Actor route surface",
+      "summary": "JSON endpoints for actors, routes, search, and health.",
+      "href": "#routes",
+      "tags": [
+        "actors",
+        "runtime"
+      ]
+    },
+    {
+      "kind": "system",
+      "title": "UI schema",
+      "summary": "React-like layout metadata for app-shell composition.",
+      "href": "#app",
+      "tags": [
+        "ui",
+        "app"
+      ]
+    }
   ],
   "chat_seed": [
-    { "role": "assistant", "text": "Describe the kind of website you need and I will route you to the right lane mix." },
-    { "role": "assistant", "text": "Hybrid Command can explain pricing, routes, scene layers, and next build steps from one shell." }
+    {
+      "role": "assistant",
+      "text": "Describe the kind of website you need and I will route you to the right lane mix."
+    },
+    {
+      "role": "assistant",
+      "text": "Hybrid Command can explain pricing, routes, scene layers, and next build steps from one shell."
+    }
   ],
   "actor_roles": [
-    { "name": "site_renderer", "responsibility": "Serves the hybrid shell and static artifacts.", "channel": "http.root" },
-    { "name": "prompt_router", "responsibility": "Routes chat prompts to the right lane or next action.", "channel": "api.chat" },
-    { "name": "search_indexer", "responsibility": "Queries the local docs and systems index.", "channel": "api.search" },
-    { "name": "mesh_supervisor", "responsibility": "Reports health, routes, and actor topology.", "channel": "api.actors" },
-    { "name": "auth_gateway", "responsibility": "Publishes authentication strategy metadata to app and member surfaces.", "channel": "api.auth" },
-    { "name": "upload_gate", "responsibility": "Captures uploads and persists them under the local runtime folder.", "channel": "api.uploads" },
-    { "name": "analytics_sentinel", "responsibility": "Captures analytics events and exposes local event logs for operator surfaces.", "channel": "api.analytics" },
-    { "name": "commerce_orchestrator", "responsibility": "Publishes offer and handoff metadata for pricing and checkout flows.", "channel": "api.commerce" },
-    { "name": "signal_broker", "responsibility": "Publishes live channel metadata for realtime dashboards and chat.", "channel": "api.realtime" }
+    {
+      "name": "site_renderer",
+      "responsibility": "Serves the hybrid shell and static artifacts.",
+      "channel": "http.root"
+    },
+    {
+      "name": "prompt_router",
+      "responsibility": "Routes chat prompts to the right lane or next action.",
+      "channel": "api.chat"
+    },
+    {
+      "name": "search_indexer",
+      "responsibility": "Queries the local docs and systems index.",
+      "channel": "api.search"
+    },
+    {
+      "name": "mesh_supervisor",
+      "responsibility": "Reports health, routes, and actor topology.",
+      "channel": "api.actors"
+    },
+    {
+      "name": "auth_gateway",
+      "responsibility": "Publishes authentication strategy metadata to app and member surfaces.",
+      "channel": "api.auth"
+    },
+    {
+      "name": "upload_gate",
+      "responsibility": "Captures uploads and persists them under the local runtime folder.",
+      "channel": "api.uploads"
+    },
+    {
+      "name": "analytics_sentinel",
+      "responsibility": "Captures analytics events and exposes local event logs for operator surfaces.",
+      "channel": "api.analytics"
+    },
+    {
+      "name": "commerce_orchestrator",
+      "responsibility": "Publishes offer and handoff metadata for pricing and checkout flows.",
+      "channel": "api.commerce"
+    },
+    {
+      "name": "signal_broker",
+      "responsibility": "Publishes live channel metadata for realtime dashboards and chat.",
+      "channel": "api.realtime"
+    }
   ],
   "actor_playbooks": [
-    { "kicker": "Playbook", "title": "Hybrid launch checklist", "body": "Validate launch, scene, chat, and operator surfaces before go-live." },
-    { "kicker": "Playbook", "title": "Ops escalation", "body": "Promote high-signal prompts into the operator intake flow." },
-    { "kicker": "Playbook", "title": "Realtime briefing", "body": "Summarize channel status and actor ownership for live updates." }
+    {
+      "kicker": "Playbook",
+      "title": "Hybrid launch checklist",
+      "body": "Validate launch, scene, chat, and operator surfaces before go-live."
+    },
+    {
+      "kicker": "Playbook",
+      "title": "Ops escalation",
+      "body": "Promote high-signal prompts into the operator intake flow."
+    },
+    {
+      "kicker": "Playbook",
+      "title": "Realtime briefing",
+      "body": "Summarize channel status and actor ownership for live updates."
+    }
   ],
   "actor_tools": [
-    { "kicker": "Tool", "title": "Experience router", "body": "Map prompts to the most relevant archetype and output slug." },
-    { "kicker": "Tool", "title": "Form intake queue", "body": "Aggregate submissions from hybrid intake and chat escalation forms." },
-    { "kicker": "Tool", "title": "Search indexer", "body": "Rebuild the local search document list after content updates." }
+    {
+      "kicker": "Tool",
+      "title": "Experience router",
+      "body": "Map prompts to the most relevant archetype and output slug."
+    },
+    {
+      "kicker": "Tool",
+      "title": "Form intake queue",
+      "body": "Aggregate submissions from hybrid intake and chat escalation forms."
+    },
+    {
+      "kicker": "Tool",
+      "title": "Search indexer",
+      "body": "Rebuild the local search document list after content updates."
+    }
   ],
   "server_routes": [
-    { "method": "GET", "path": "/api/runtime", "purpose": "returns the active hybrid runtime metadata" },
-    { "method": "GET", "path": "/api/search", "purpose": "returns local docs and system search results" },
-    { "method": "GET", "path": "/api/app", "purpose": "returns app shell module metadata" },
-    { "method": "GET", "path": "/api/auth", "purpose": "returns auth strategy metadata" },
-    { "method": "GET", "path": "/api/auth/session", "purpose": "returns the active cookie-backed session identity" },
-    { "method": "POST", "path": "/api/auth/session/login", "purpose": "creates a local session identity (dev-only)" },
-    { "method": "POST", "path": "/api/auth/session/logout", "purpose": "clears the local session identity" },
-    { "method": "GET", "path": "/api/commerce", "purpose": "returns offer and membership metadata" },
-    { "method": "GET", "path": "/api/realtime", "purpose": "returns realtime channel metadata" },
-    { "method": "GET", "path": "/api/routes", "purpose": "returns the hybrid route contract" },
-    { "method": "POST", "path": "/api/uploads", "purpose": "captures a base64 file upload to the local runtime folder" },
-    { "method": "GET", "path": "/uploads/*", "purpose": "serves uploaded files while the local server is running" },
-    { "method": "POST", "path": "/api/analytics/event", "purpose": "captures a local analytics event to JSONL" },
-    { "method": "GET", "path": "/api/analytics/events", "purpose": "returns recent analytics events (local server only)" },
-    { "method": "POST", "path": "/api/forms/hybrid_intake", "purpose": "captures a full-site intent payload locally" }
+    {
+      "method": "GET",
+      "path": "/api/runtime",
+      "purpose": "returns the active hybrid runtime metadata"
+    },
+    {
+      "method": "GET",
+      "path": "/api/search",
+      "purpose": "returns local docs and system search results"
+    },
+    {
+      "method": "GET",
+      "path": "/api/app",
+      "purpose": "returns app shell module metadata"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth",
+      "purpose": "returns auth strategy metadata"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/session",
+      "purpose": "returns the active cookie-backed session identity"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/session/login",
+      "purpose": "creates a local session identity (dev-only)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/session/logout",
+      "purpose": "clears the local session identity"
+    },
+    {
+      "method": "GET",
+      "path": "/api/commerce",
+      "purpose": "returns offer and membership metadata"
+    },
+    {
+      "method": "GET",
+      "path": "/api/realtime",
+      "purpose": "returns realtime channel metadata"
+    },
+    {
+      "method": "GET",
+      "path": "/api/routes",
+      "purpose": "returns the hybrid route contract"
+    },
+    {
+      "method": "POST",
+      "path": "/api/uploads",
+      "purpose": "captures a base64 file upload to the local runtime folder"
+    },
+    {
+      "method": "GET",
+      "path": "/uploads/*",
+      "purpose": "serves uploaded files while the local server is running"
+    },
+    {
+      "method": "POST",
+      "path": "/api/analytics/event",
+      "purpose": "captures a local analytics event to JSONL"
+    },
+    {
+      "method": "GET",
+      "path": "/api/analytics/events",
+      "purpose": "returns recent analytics events (local server only)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/forms/hybrid_intake",
+      "purpose": "captures a full-site intent payload locally"
+    }
   ],
   "news_items": [
-    { "title": "Hybrid lane added", "summary": "The pack now ships a full-spectrum archetype to validate every major system together." }
+    {
+      "title": "Hybrid lane added",
+      "summary": "The pack now ships a full-spectrum archetype to validate every major system together."
+    }
   ],
   "cta": {
     "title": "Start with the whole system, then specialize.",
     "body": "Hybrid Command is the proving ground for the universal web pack.",
     "actions": [
-      { "label": "Open intake", "href": "#intake", "style": "primary" },
-      { "label": "Inspect routes", "href": "#routes", "style": "secondary" }
+      {
+        "label": "Open intake",
+        "href": "#intake",
+        "style": "primary"
+      },
+      {
+        "label": "Inspect routes",
+        "href": "#routes",
+        "style": "secondary"
+      }
     ]
   },
   "footer": "hybrid experience"

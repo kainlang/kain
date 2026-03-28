@@ -158,6 +158,41 @@ component App():
             </panel>
         </panel>
 
+        <panel title="Runtime Operations" scope="web_pack" variant="section" layout="grid" columns={4} gap={14}>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Edge Runtime</text>
+                <text role="caption">Edge execution, cache routing, and SSR lanes.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Worker Runtime</text>
+                <text role="caption">Cron and queue-backed workers for actors.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">API Gateway</text>
+                <text role="caption">Unified routing and contract validation.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Rate Limits</text>
+                <text role="caption">Per-route throttling and queue backpressure.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Cache Stack</text>
+                <text role="caption">Edge, session, and search cache lanes.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Search Stack</text>
+                <text role="caption">Text + vector retrieval registry.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Storage Stack</text>
+                <text role="caption">Artifacts, uploads, and archive storage.</text>
+            </panel>
+            <panel scope="web_pack" variant="card">
+                <text role="title">Session Store</text>
+                <text role="caption">Cookie, token, and actor session lanes.</text>
+            </panel>
+        </panel>
+
         <panel title="3D Production Systems" scope="web_pack" variant="section" layout="grid" columns={3} gap={14}>
             <panel scope="web_pack" variant="card">
                 <text role="title">Scene Assets</text>

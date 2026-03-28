@@ -7,38 +7,289 @@
   "page_title": "Orbit Chat Lab",
   "eyebrow": "Chat Website",
   "sections": [
-    { "id": "systems", "kind": "card_grid", "eyebrow": "System", "title": "Chat systems", "source": "content.feature_cards" },
-    { "id": "prompts", "kind": "prompt_deck", "eyebrow": "Prompts", "title": "Launch prompt rails", "source": "content.prompt_presets" },
-    { "id": "personas", "kind": "card_grid", "eyebrow": "Personas", "title": "Chat personas", "source": "content.chat_personas" },
-    { "id": "chat-modes", "kind": "card_grid", "eyebrow": "Modes", "title": "Conversation modes", "source": "content.chat_modes" },
-    { "id": "chat-workflows", "kind": "process_steps", "eyebrow": "Workflows", "title": "Conversation playbooks", "source": "content.chat_playbooks" },
-    { "id": "chat-tools", "kind": "card_grid", "eyebrow": "Tools", "title": "Chat tooling", "source": "content.chat_tools" },
-    { "id": "chat-memory", "kind": "card_grid", "eyebrow": "Memory", "title": "Conversation memory lanes", "source": "content.chat_memory" },
-    { "id": "model-stack", "kind": "card_grid", "eyebrow": "Models", "title": "Model stack", "source": "content.model_stack" },
-    { "id": "voice-stack", "kind": "card_grid", "eyebrow": "Voice", "title": "Voice stack", "source": "content.voice_stack" },
-    { "id": "moderation", "kind": "card_grid", "eyebrow": "Moderation", "title": "Safety + escalation", "source": "content.moderation_stack" },
-    { "id": "chat-runtime", "kind": "card_grid", "eyebrow": "Chat Runtime", "title": "Chat runtime systems", "source": "content.chat_runtime" },
-    { "id": "streaming", "kind": "card_grid", "eyebrow": "Streaming", "title": "Streaming stack", "source": "content.streaming_stack" },
-    { "id": "agents", "kind": "card_grid", "eyebrow": "Agents", "title": "Agent roster", "source": "content.ai_agents.agents" },
-    { "id": "agent-tools", "kind": "card_grid", "eyebrow": "Agent Tools", "title": "Agent tool registry", "source": "content.tool_registry" },
-    { "id": "knowledge", "kind": "card_grid", "eyebrow": "Knowledge", "title": "Knowledge sources", "source": "content.knowledge_sources" },
-    { "id": "memory", "kind": "card_grid", "eyebrow": "Memory", "title": "Memory stores", "source": "content.memory_stores" },
-    { "id": "agent-workflows", "kind": "process_steps", "eyebrow": "Agent Flow", "title": "Agent workflows", "source": "content.agent_workflows" },
-    { "id": "chat", "kind": "chat_lab", "eyebrow": "Chat", "title": "Prompt studio", "source": "content.chat_seed", "placeholder": "Describe the site you want built", "button_label": "Route" },
-    { "id": "capabilities", "kind": "capability_matrix", "eyebrow": "Capability", "title": "Conversation systems", "source": "content.capability_matrix" },
-    { "id": "process", "kind": "process_steps", "eyebrow": "Flow", "title": "How chat becomes a site workflow", "source": "content.process_steps" },
-    { "id": "status", "kind": "status_board", "eyebrow": "Status", "title": "Chat runtime status", "source": "content.status" },
-    { "id": "roadmap", "kind": "roadmap_timeline", "eyebrow": "Roadmap", "title": "Chat roadmap", "source": "content.roadmap" },
-    { "id": "community", "kind": "community_hub", "eyebrow": "Community", "title": "Chat community", "source": "content.community" },
-    { "id": "events", "kind": "event_schedule", "eyebrow": "Events", "title": "Chat briefings", "source": "content.events" },
-    { "id": "newsletter", "kind": "newsletter_panel", "eyebrow": "Newsletter", "title": "Chat updates", "source": "content.newsletter" },
-    { "id": "support", "kind": "support_grid", "eyebrow": "Support", "title": "Support channels", "source": "content.support_channels" },
-    { "id": "legal", "kind": "legal_links", "eyebrow": "Legal", "title": "Policies", "source": "content.legal" },
-    { "id": "search", "kind": "search_panel", "eyebrow": "Search", "title": "Search prompts and docs", "source": "experience.search_panel" },
-    { "id": "flows", "kind": "link_groups", "eyebrow": "Flows", "title": "Prompt rails", "source": "content.link_groups" },
-    { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Conversation lane questions", "source": "content.faq_items" },
-    { "id": "intake", "kind": "form_panel", "eyebrow": "Handoff", "title": "Escalate the conversation", "source": "content.forms.handoff" },
-    { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }
+    {
+      "id": "systems",
+      "kind": "card_grid",
+      "eyebrow": "System",
+      "title": "Chat systems",
+      "source": "content.feature_cards"
+    },
+    {
+      "id": "prompts",
+      "kind": "prompt_deck",
+      "eyebrow": "Prompts",
+      "title": "Launch prompt rails",
+      "source": "content.prompt_presets"
+    },
+    {
+      "id": "personas",
+      "kind": "card_grid",
+      "eyebrow": "Personas",
+      "title": "Chat personas",
+      "source": "content.chat_personas"
+    },
+    {
+      "id": "chat-modes",
+      "kind": "card_grid",
+      "eyebrow": "Modes",
+      "title": "Conversation modes",
+      "source": "content.chat_modes"
+    },
+    {
+      "id": "chat-workflows",
+      "kind": "process_steps",
+      "eyebrow": "Workflows",
+      "title": "Conversation playbooks",
+      "source": "content.chat_playbooks"
+    },
+    {
+      "id": "chat-tools",
+      "kind": "card_grid",
+      "eyebrow": "Tools",
+      "title": "Chat tooling",
+      "source": "content.chat_tools"
+    },
+    {
+      "id": "chat-memory",
+      "kind": "card_grid",
+      "eyebrow": "Memory",
+      "title": "Conversation memory lanes",
+      "source": "content.chat_memory"
+    },
+    {
+      "id": "model-stack",
+      "kind": "card_grid",
+      "eyebrow": "Models",
+      "title": "Model stack",
+      "source": "content.model_stack"
+    },
+    {
+      "id": "voice-stack",
+      "kind": "card_grid",
+      "eyebrow": "Voice",
+      "title": "Voice stack",
+      "source": "content.voice_stack"
+    },
+    {
+      "id": "moderation",
+      "kind": "card_grid",
+      "eyebrow": "Moderation",
+      "title": "Safety + escalation",
+      "source": "content.moderation_stack"
+    },
+    {
+      "id": "chat-runtime",
+      "kind": "card_grid",
+      "eyebrow": "Chat Runtime",
+      "title": "Chat runtime systems",
+      "source": "content.chat_runtime"
+    },
+    {
+      "id": "streaming",
+      "kind": "card_grid",
+      "eyebrow": "Streaming",
+      "title": "Streaming stack",
+      "source": "content.streaming_stack"
+    },
+    {
+      "id": "agents",
+      "kind": "card_grid",
+      "eyebrow": "Agents",
+      "title": "Agent roster",
+      "source": "content.ai_agents.agents"
+    },
+    {
+      "id": "agent-tools",
+      "kind": "card_grid",
+      "eyebrow": "Agent Tools",
+      "title": "Agent tool registry",
+      "source": "content.tool_registry"
+    },
+    {
+      "id": "knowledge",
+      "kind": "card_grid",
+      "eyebrow": "Knowledge",
+      "title": "Knowledge sources",
+      "source": "content.knowledge_sources"
+    },
+    {
+      "id": "memory",
+      "kind": "card_grid",
+      "eyebrow": "Memory",
+      "title": "Memory stores",
+      "source": "content.memory_stores"
+    },
+    {
+      "id": "agent-workflows",
+      "kind": "process_steps",
+      "eyebrow": "Agent Flow",
+      "title": "Agent workflows",
+      "source": "content.agent_workflows"
+    },
+    {
+      "id": "chat",
+      "kind": "chat_lab",
+      "eyebrow": "Chat",
+      "title": "Prompt studio",
+      "source": "content.chat_seed",
+      "placeholder": "Describe the site you want built",
+      "button_label": "Route"
+    },
+    {
+      "id": "capabilities",
+      "kind": "capability_matrix",
+      "eyebrow": "Capability",
+      "title": "Conversation systems",
+      "source": "content.capability_matrix"
+    },
+    {
+      "id": "process",
+      "kind": "process_steps",
+      "eyebrow": "Flow",
+      "title": "How chat becomes a site workflow",
+      "source": "content.process_steps"
+    },
+    {
+      "id": "status",
+      "kind": "status_board",
+      "eyebrow": "Status",
+      "title": "Chat runtime status",
+      "source": "content.status"
+    },
+    {
+      "id": "roadmap",
+      "kind": "roadmap_timeline",
+      "eyebrow": "Roadmap",
+      "title": "Chat roadmap",
+      "source": "content.roadmap"
+    },
+    {
+      "id": "community",
+      "kind": "community_hub",
+      "eyebrow": "Community",
+      "title": "Chat community",
+      "source": "content.community"
+    },
+    {
+      "id": "events",
+      "kind": "event_schedule",
+      "eyebrow": "Events",
+      "title": "Chat briefings",
+      "source": "content.events"
+    },
+    {
+      "id": "newsletter",
+      "kind": "newsletter_panel",
+      "eyebrow": "Newsletter",
+      "title": "Chat updates",
+      "source": "content.newsletter"
+    },
+    {
+      "id": "support",
+      "kind": "support_grid",
+      "eyebrow": "Support",
+      "title": "Support channels",
+      "source": "content.support_channels"
+    },
+    {
+      "id": "legal",
+      "kind": "legal_links",
+      "eyebrow": "Legal",
+      "title": "Policies",
+      "source": "content.legal"
+    },
+    {
+      "id": "search",
+      "kind": "search_panel",
+      "eyebrow": "Search",
+      "title": "Search prompts and docs",
+      "source": "experience.search_panel"
+    },
+    {
+      "id": "flows",
+      "kind": "link_groups",
+      "eyebrow": "Flows",
+      "title": "Prompt rails",
+      "source": "content.link_groups"
+    },
+    {
+      "id": "faq",
+      "kind": "faq",
+      "eyebrow": "FAQ",
+      "title": "Conversation lane questions",
+      "source": "content.faq_items"
+    },
+    {
+      "id": "intake",
+      "kind": "form_panel",
+      "eyebrow": "Handoff",
+      "title": "Escalate the conversation",
+      "source": "content.forms.handoff"
+    },
+    {
+      "id": "edge-runtime",
+      "kind": "card_grid",
+      "eyebrow": "Edge",
+      "title": "Edge runtime",
+      "source": "content.edge_runtime"
+    },
+    {
+      "id": "worker-runtime",
+      "kind": "card_grid",
+      "eyebrow": "Workers",
+      "title": "Worker runtime",
+      "source": "content.worker_runtime"
+    },
+    {
+      "id": "api-gateway",
+      "kind": "card_grid",
+      "eyebrow": "Gateway",
+      "title": "API gateway",
+      "source": "content.api_gateway"
+    },
+    {
+      "id": "rate-limits",
+      "kind": "card_grid",
+      "eyebrow": "Limits",
+      "title": "Rate limits",
+      "source": "content.rate_limits"
+    },
+    {
+      "id": "cache-stack",
+      "kind": "card_grid",
+      "eyebrow": "Cache",
+      "title": "Cache stack",
+      "source": "content.cache_stack"
+    },
+    {
+      "id": "search-stack",
+      "kind": "card_grid",
+      "eyebrow": "Search",
+      "title": "Search stack",
+      "source": "content.search_stack"
+    },
+    {
+      "id": "storage-stack",
+      "kind": "card_grid",
+      "eyebrow": "Storage",
+      "title": "Storage stack",
+      "source": "content.storage_stack"
+    },
+    {
+      "id": "session-store",
+      "kind": "card_grid",
+      "eyebrow": "Sessions",
+      "title": "Session store",
+      "source": "content.session_store"
+    },
+    {
+      "id": "cta",
+      "kind": "cta",
+      "eyebrow": "CTA",
+      "title_source": "content.cta.title",
+      "body_source": "content.cta.body",
+      "actions_source": "content.cta.actions"
+    }
   ],
   "search_panel": {
     "kicker": "Search",

@@ -1,6 +1,6 @@
 //! KAIN UI subsystem primitives and JSX evaluation helpers.
 
-use crate::ast::{Component, JSXAttrValue, JSXNode, Program};
+use crate::ast::{BinaryOp, CallArg, Component, Expr, JSXAttrValue, JSXNode, Program, UnaryOp};
 use crate::diagnostics::SpanMapper;
 use crate::error::KainResult;
 use crate::lexer::Lexer;
@@ -10,8 +10,8 @@ use crate::span::Span;
 use kain_ui::{
     default_layout_for_tag, render_debug_tree, ui_runtime_systems_from_tree, widget_kind_for_tag,
     UiAnimationTrack, UiAnimationTrigger, UiBuildOutput, UiComputed, UiDockNode, UiDockPlacement,
-    UiEasingKind, UiEventPhase, UiEventRoute, UiLayoutAlignment, UiLength, UiLengthUnit, UiNode,
-    UiOverflowBehavior, UiSchedulerPhase, UiSignalId, UiStyleState, UiSurface,
+    UiDerivedExpr, UiEasingKind, UiEventPhase, UiEventRoute, UiLayoutAlignment, UiLength,
+    UiLengthUnit, UiNode, UiOverflowBehavior, UiSchedulerPhase, UiSignalId, UiStyleState, UiSurface,
     UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference, UiSurfaceShaderBinding,
     UiThemeRegistry, UiThemeScope, UiThemeToken, UiThemeVariant, UiTreeBuilder, UiValue,
     UiWidgetKind,
@@ -94,6 +94,7 @@ pub enum UIAttr {
     Property {
         name: String,
         value: Value,
+        expr: Option<Expr>,
     },
     Bool {
         name: String,
@@ -103,6 +104,7 @@ pub enum UIAttr {
         name: String,
         event: UIEvent,
         handler: Value,
+        expr: Option<Expr>,
     },
 }
 
@@ -487,6 +489,8 @@ struct AuthoredComputedSpec {
     pub id: String,
     pub label: String,
     pub depends_on: Vec<String>,
+    pub writes_signal: Option<String>,
+    pub expr: Option<Expr>,
     pub invalidates: Vec<String>,
     pub scheduler_phase: UiSchedulerPhase,
 }
@@ -553,12 +557,45 @@ impl AuthoredUiSystemsAccumulator {
             output.systems.session_state.insert(key, value);
         }
 
-        // Computed declarations can reference nodes by identity keys, so resolve them once the
-        // full tree is available.
-        if !self.computed_specs.is_empty() {
-            let identity_index = build_identity_key_index(output);
-            for spec in self.computed_specs.drain(..) {
-                output.systems.computed.push(resolve_authored_computed_spec(spec, &identity_index));
+        // Computed declarations can reference nodes and signals by stable authoring keys, so
+        // resolve them once the full tree and session-state contract keys are available.
+        let computed_specs = std::mem::take(&mut self.computed_specs);
+        if !computed_specs.is_empty() {
+            let node_ref_index = build_node_ref_index(output);
+            let node_contract_index = build_node_contract_index(output);
+            let mut computed_registry = Vec::new();
+
+            for spec in computed_specs {
+                let resolved = resolve_authored_computed_spec(&spec, &node_ref_index);
+                computed_registry.push(build_computed_contract_entry(
+                    &spec,
+                    &resolved,
+                    output,
+                    &node_contract_index,
+                ));
+                output.systems.computed.push(resolved);
+            }
+
+            if let Some(json) = serialize_contract_json(&computed_registry) {
+                output.systems.session_state.insert(
+                    "ui.contract.computed_registry.json".to_string(),
+                    UiValue::String(json),
+                );
+            }
+        }
+
+        if !output.systems.event_routes.is_empty() {
+            let node_contract_index = build_node_contract_index(output);
+            let event_routes = build_event_route_contracts(
+                &output.systems.event_routes,
+                output,
+                &node_contract_index,
+            );
+            if let Some(json) = serialize_contract_json(&event_routes) {
+                output.systems.session_state.insert(
+                    "ui.contract.event_routes.json".to_string(),
+                    UiValue::String(json),
+                );
             }
         }
 
@@ -639,56 +676,606 @@ impl AuthoredUiSystemsAccumulator {
     }
 }
 
-fn build_identity_key_index(output: &UiBuildOutput) -> HashMap<String, kain_ui::UiNodeId> {
+fn build_node_ref_index(output: &UiBuildOutput) -> HashMap<String, kain_ui::UiNodeId> {
     let mut index = HashMap::new();
     for (id, node) in &output.tree.nodes {
         if let Some(key) = node.identity_key.as_deref() {
+            let canonical = canonical_node_contract_key(key);
             index.insert(key.to_string(), *id);
+            index.insert(canonical.clone(), *id);
+            index.insert(format!("ui.node::{canonical}"), *id);
         }
+        if let Some(persistent_layout_id) = node.layout.persistent_layout_id.as_deref() {
+            let canonical = canonical_node_contract_key(persistent_layout_id);
+            index.insert(persistent_layout_id.to_string(), *id);
+            index.insert(canonical.clone(), *id);
+            index.insert(format!("ui.node::{canonical}"), *id);
+        }
+        let layout_id = node_layout_id(node);
+        let canonical = canonical_node_contract_key(&layout_id);
+        index.insert(layout_id.clone(), *id);
+        index.insert(canonical.clone(), *id);
+        index.insert(format!("ui.node::{canonical}"), *id);
     }
     index
 }
 
 fn resolve_authored_computed_spec(
-    spec: AuthoredComputedSpec,
-    identity_index: &HashMap<String, kain_ui::UiNodeId>,
+    spec: &AuthoredComputedSpec,
+    node_ref_index: &HashMap<String, kain_ui::UiNodeId>,
 ) -> UiComputed {
+    let signal_index = resolve_signal_index_from_spec(spec);
     let depends_on = spec
         .depends_on
         .iter()
-        .map(|entry| parse_signal_ref(entry))
+        .map(|entry| resolve_signal_ref(entry))
         .collect::<Vec<_>>();
+    let writes_signal = spec
+        .writes_signal
+        .as_deref()
+        .map(resolve_signal_ref)
+        .or_else(|| spec.expr.as_ref().map(|_| resolve_signal_ref(&spec.id)));
+    let expr = spec
+        .expr
+        .as_ref()
+        .and_then(|expr| lower_authored_derived_expr(expr, &signal_index));
     let invalidates_nodes = spec
         .invalidates
         .iter()
-        .filter_map(|entry| parse_node_ref(entry, identity_index))
+        .filter_map(|entry| parse_node_ref(entry, node_ref_index))
         .collect::<Vec<_>>();
     UiComputed {
-        id: spec.id,
-        label: spec.label,
+        id: spec.id.clone(),
+        label: spec.label.clone(),
         depends_on,
-        writes_signal: None,
-        expr: None,
+        writes_signal,
+        expr,
         invalidates_nodes,
         scheduler_phase: spec.scheduler_phase,
     }
+}
+
+fn resolve_signal_index_from_spec(spec: &AuthoredComputedSpec) -> HashMap<String, UiSignalId> {
+    let mut index = HashMap::new();
+    for entry in &spec.depends_on {
+        index.insert(canonical_signal_contract_key(entry), resolve_signal_ref(entry));
+    }
+    if let Some(writes_signal) = spec.writes_signal.as_deref() {
+        index.insert(canonical_signal_contract_key(writes_signal), resolve_signal_ref(writes_signal));
+    }
+    index.insert(
+        canonical_signal_contract_key(&spec.id),
+        resolve_signal_ref(&spec.id),
+    );
+    index
 }
 
 fn parse_node_ref(
     entry: &str,
     identity_index: &HashMap<String, kain_ui::UiNodeId>,
 ) -> Option<kain_ui::UiNodeId> {
-    if let Ok(parsed) = entry.parse::<u64>() {
+    let trimmed = entry.trim();
+    if let Ok(parsed) = trimmed.parse::<u64>() {
         return Some(kain_ui::UiNodeId(parsed));
     }
-    identity_index.get(entry).cloned()
+    let canonical = canonical_node_contract_key(trimmed);
+    identity_index
+        .get(trimmed)
+        .cloned()
+        .or_else(|| identity_index.get(&canonical).cloned())
+        .or_else(|| identity_index.get(&format!("ui.node::{canonical}")).cloned())
 }
 
-fn parse_signal_ref(entry: &str) -> UiSignalId {
-    if let Ok(parsed) = entry.parse::<u64>() {
+fn resolve_signal_ref(entry: &str) -> UiSignalId {
+    let trimmed = entry.trim();
+    if let Ok(parsed) = trimmed.parse::<u64>() {
         return UiSignalId(parsed);
     }
-    UiSignalId(stable_hash_u64(entry))
+    UiSignalId(stable_hash_u64(&canonical_signal_contract_key(trimmed)))
+}
+
+fn canonical_signal_contract_key(entry: &str) -> String {
+    let trimmed = entry.trim();
+    if trimmed.starts_with("ui.signal::") {
+        trimmed.to_string()
+    } else if let Some(rest) = trimmed.strip_prefix("ui.signal.") {
+        format!("ui.signal::{rest}")
+    } else {
+        format!("ui.signal::{trimmed}")
+    }
+}
+
+fn canonical_node_contract_key(entry: &str) -> String {
+    let trimmed = entry.trim();
+    if trimmed.starts_with("ui.node::") {
+        trimmed.strip_prefix("ui.node::").unwrap_or(trimmed).to_string()
+    } else if let Some(rest) = trimmed.strip_prefix("ui.node.") {
+        rest.to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn build_node_contract_index(output: &UiBuildOutput) -> HashMap<kain_ui::UiNodeId, String> {
+    let mut index = HashMap::new();
+    for node in output.tree.nodes.values() {
+        index.insert(node.id, stable_node_contract_key(node));
+    }
+    index
+}
+
+fn stable_node_contract_key(node: &UiNode) -> String {
+    format!("ui.node::{}", canonical_node_contract_key(&node_layout_id(node)))
+}
+
+fn ui_signal_contract_key(output: &UiBuildOutput, signal: UiSignalId) -> String {
+    ui_session_state_string(output, &format!("ui.signal.key.{}", signal.0))
+        .unwrap_or_else(|| format!("ui.signal::{}", signal.0))
+}
+
+fn ui_node_contract_key(
+    output: &UiBuildOutput,
+    node_contract_index: &HashMap<kain_ui::UiNodeId, String>,
+    node: kain_ui::UiNodeId,
+) -> String {
+    node_contract_index
+        .get(&node)
+        .cloned()
+        .or_else(|| output.tree.nodes.get(&node).map(stable_node_contract_key))
+        .unwrap_or_else(|| format!("ui.node::node-{}", node.0))
+}
+
+fn build_computed_contract_entry(
+    spec: &AuthoredComputedSpec,
+    resolved: &UiComputed,
+    output: &UiBuildOutput,
+    node_contract_index: &HashMap<kain_ui::UiNodeId, String>,
+) -> serde_json::Value {
+    let depends_on = resolved
+        .depends_on
+        .iter()
+        .map(|signal| ui_signal_contract_key(output, *signal))
+        .collect::<Vec<_>>();
+    let invalidates_nodes = resolved
+        .invalidates_nodes
+        .iter()
+        .map(|node| ui_node_contract_key(output, node_contract_index, *node))
+        .collect::<Vec<_>>();
+    let expr = spec
+        .expr
+        .as_ref()
+        .map(render_authored_expr_contract);
+    let runtime_expr = resolved
+        .expr
+        .as_ref()
+        .map(|expr| render_runtime_derived_expr_contract(expr, output));
+
+    serde_json::json!({
+        "id": spec.id.clone(),
+        "label": spec.label.clone(),
+        "depends_on": depends_on,
+        "writes_signal": resolved.writes_signal.map(|signal| ui_signal_contract_key(output, signal)),
+        "expr": expr,
+        "runtime_expr": runtime_expr,
+        "invalidates_nodes": invalidates_nodes,
+        "scheduler_phase": resolved.scheduler_phase,
+        "expr_lowered": resolved.expr.is_some() && resolved.writes_signal.is_some(),
+    })
+}
+
+fn build_event_route_contracts(
+    routes: &[UiEventRoute],
+    output: &UiBuildOutput,
+    node_contract_index: &HashMap<kain_ui::UiNodeId, String>,
+) -> Vec<serde_json::Value> {
+    routes
+        .iter()
+        .map(|route| {
+            let route_key = format!("ui.event.route.{}", route.route_id);
+            let target = ui_node_contract_key(output, node_contract_index, route.target);
+            let handler = ui_session_state_string(output, &format!("{route_key}.handler"))
+                .or_else(|| route.handler_id.clone())
+                .unwrap_or_else(|| "unknown".to_string());
+            let command = ui_session_state_string(output, &format!("{route_key}.command"))
+                .or_else(|| route.dispatch_command.clone());
+            let transaction = ui_session_state_string(output, &format!("{route_key}.transaction"));
+
+            serde_json::json!({
+                "route_id": route.route_id.clone(),
+                "target": target,
+                "event": route.event.clone(),
+                "phase": route.phase,
+                "handler_id": handler,
+                "dispatch_command": command,
+                "transaction": transaction,
+            })
+        })
+        .collect()
+}
+
+fn serialize_contract_json(value: &[serde_json::Value]) -> Option<String> {
+    serde_json::to_string_pretty(value).ok()
+}
+
+fn render_authored_expr_contract(expr: &Expr) -> String {
+    match expr {
+        Expr::Int(value, _) => value.to_string(),
+        Expr::Float(value, _) => value.to_string(),
+        Expr::String(value, _) => serde_json::to_string(value).unwrap_or_else(|_| format!(r#""{}""#, value)),
+        Expr::Bool(value, _) => value.to_string(),
+        Expr::None(_) => "null".to_string(),
+        Expr::Ident(name, _) => name.clone(),
+        Expr::Paren(inner, _) => format!("({})", render_authored_expr_contract(inner)),
+        Expr::Unary {
+            op: UnaryOp::Not,
+            operand,
+            ..
+        } => format!("!{}", render_authored_expr_contract(operand)),
+        Expr::Binary {
+            left,
+            op: BinaryOp::Add,
+            right,
+            ..
+        } => format!(
+            "({} + {})",
+            render_authored_expr_contract(left),
+            render_authored_expr_contract(right)
+        ),
+        Expr::Binary {
+            left,
+            op: BinaryOp::Sub,
+            right,
+            ..
+        } => format!(
+            "({} - {})",
+            render_authored_expr_contract(left),
+            render_authored_expr_contract(right)
+        ),
+        Expr::Binary {
+            left,
+            op: BinaryOp::Mul,
+            right,
+            ..
+        } => format!(
+            "({} * {})",
+            render_authored_expr_contract(left),
+            render_authored_expr_contract(right)
+        ),
+        Expr::Binary {
+            left,
+            op: BinaryOp::Div,
+            right,
+            ..
+        } => format!(
+            "({} / {})",
+            render_authored_expr_contract(left),
+            render_authored_expr_contract(right)
+        ),
+        Expr::Binary {
+            left,
+            op: BinaryOp::Eq,
+            right,
+            ..
+        } => format!(
+            "({} == {})",
+            render_authored_expr_contract(left),
+            render_authored_expr_contract(right)
+        ),
+        Expr::Binary {
+            left,
+            op: BinaryOp::Ne,
+            right,
+            ..
+        } => format!(
+            "({} != {})",
+            render_authored_expr_contract(left),
+            render_authored_expr_contract(right)
+        ),
+        Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            right,
+            ..
+        } => format!(
+            "({} && {})",
+            render_authored_expr_contract(left),
+            render_authored_expr_contract(right)
+        ),
+        Expr::Binary {
+            left,
+            op: BinaryOp::Or,
+            right,
+            ..
+        } => format!(
+            "({} || {})",
+            render_authored_expr_contract(left),
+            render_authored_expr_contract(right)
+        ),
+        Expr::Call {
+            callee,
+            args,
+            ..
+        } => {
+            let callee_text = render_authored_expr_contract(callee);
+            let rendered_args = args
+                .iter()
+                .map(render_authored_call_arg_contract)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{callee_text}({rendered_args})")
+        }
+        Expr::MethodCall {
+            receiver,
+            method,
+            args,
+            ..
+        } => {
+            let rendered_args = args
+                .iter()
+                .map(render_authored_call_arg_contract)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(
+                "{}.{method}({rendered_args})",
+                render_authored_expr_contract(receiver)
+            )
+        }
+        Expr::Field { object, field, .. } => format!("{}.{}", render_authored_expr_contract(object), field),
+        Expr::Index { object, index, .. } => format!(
+            "{}[{}]",
+            render_authored_expr_contract(object),
+            render_authored_expr_contract(index)
+        ),
+        Expr::Lambda { params, body, .. } => {
+            let rendered_params = params
+                .iter()
+                .map(|param| param.name.clone())
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("|{rendered_params}| {}", render_authored_expr_contract(body))
+        }
+        Expr::FString(_, _)
+        | Expr::MacroCall { .. }
+        | Expr::Assign { .. }
+        | Expr::Struct { .. }
+        | Expr::AggregateInit { .. }
+        | Expr::EnumVariant { .. }
+        | Expr::Array(_, _)
+        | Expr::Tuple(_, _)
+        | Expr::Range { .. }
+        | Expr::If { .. }
+        | Expr::Match { .. }
+        | Expr::Ref { .. }
+        | Expr::AddrOf { .. }
+        | Expr::Deref(_, _)
+        | Expr::PtrOffset { .. }
+        | Expr::MemLoad { .. }
+        | Expr::MemStore { .. }
+        | Expr::SizeOfType { .. }
+        | Expr::AlignOfType { .. }
+        | Expr::Alloca { .. }
+        | Expr::Uninit { .. }
+        | Expr::Alloc { .. }
+        | Expr::Realloc { .. }
+        | Expr::Cast { .. }
+        | Expr::Try(_, _)
+        | Expr::Await(_, _)
+        | Expr::AsyncBlock(_, _)
+        | Expr::Spawn { .. }
+        | Expr::SendMsg { .. }
+        | Expr::Comptime(_, _)
+        | Expr::Block(_, _)
+        | Expr::JSX(_, _)
+        | Expr::Return(_, _)
+        | Expr::Break(_, _)
+        | Expr::Continue(_) => format!("{:?}", expr),
+    }
+}
+
+fn render_authored_call_arg_contract(arg: &CallArg) -> String {
+    match arg.name.as_deref() {
+        Some(name) => format!("{name}: {}", render_authored_expr_contract(&arg.value)),
+        None => render_authored_expr_contract(&arg.value),
+    }
+}
+
+fn authored_signal_contract_path(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Ident(name, _) => Some(name.clone()),
+        Expr::Field { object, field, .. } => authored_signal_contract_path(object)
+            .map(|prefix| format!("{prefix}.{field}")),
+        Expr::Index { object, index, .. } => authored_signal_contract_path(object).and_then(|prefix| {
+            match &**index {
+                Expr::String(value, _) => Some(format!("{prefix}.{value}")),
+                Expr::Ident(value, _) => Some(format!("{prefix}.{value}")),
+                _ => None,
+            }
+        }),
+        Expr::Paren(inner, _) => authored_signal_contract_path(inner),
+        _ => None,
+    }
+}
+
+fn render_runtime_derived_expr_contract(expr: &UiDerivedExpr, output: &UiBuildOutput) -> String {
+    match expr {
+        UiDerivedExpr::Literal(value) => render_ui_value_contract(value),
+        UiDerivedExpr::Signal(signal) => ui_signal_contract_key(output, *signal),
+        UiDerivedExpr::Not(inner) => format!("!{}", render_runtime_derived_expr_contract(inner, output)),
+        UiDerivedExpr::And(left, right) => format!(
+            "({} && {})",
+            render_runtime_derived_expr_contract(left, output),
+            render_runtime_derived_expr_contract(right, output)
+        ),
+        UiDerivedExpr::Or(left, right) => format!(
+            "({} || {})",
+            render_runtime_derived_expr_contract(left, output),
+            render_runtime_derived_expr_contract(right, output)
+        ),
+        UiDerivedExpr::Eq(left, right) => format!(
+            "({} == {})",
+            render_runtime_derived_expr_contract(left, output),
+            render_runtime_derived_expr_contract(right, output)
+        ),
+        UiDerivedExpr::Add(left, right) => format!(
+            "({} + {})",
+            render_runtime_derived_expr_contract(left, output),
+            render_runtime_derived_expr_contract(right, output)
+        ),
+        UiDerivedExpr::Sub(left, right) => format!(
+            "({} - {})",
+            render_runtime_derived_expr_contract(left, output),
+            render_runtime_derived_expr_contract(right, output)
+        ),
+        UiDerivedExpr::Mul(left, right) => format!(
+            "({} * {})",
+            render_runtime_derived_expr_contract(left, output),
+            render_runtime_derived_expr_contract(right, output)
+        ),
+        UiDerivedExpr::Div(left, right) => format!(
+            "({} / {})",
+            render_runtime_derived_expr_contract(left, output),
+            render_runtime_derived_expr_contract(right, output)
+        ),
+        UiDerivedExpr::ToString(inner) => {
+            format!("to_string({})", render_runtime_derived_expr_contract(inner, output))
+        }
+    }
+}
+
+fn render_ui_value_contract(value: &UiValue) -> String {
+    match value {
+        UiValue::Null => "null".to_string(),
+        UiValue::Bool(value) => value.to_string(),
+        UiValue::Int(value) => value.to_string(),
+        UiValue::Float(value) => value.to_string(),
+        UiValue::String(value) => serde_json::to_string(value).unwrap_or_else(|_| format!(r#""{}""#, value)),
+    }
+}
+
+fn lower_authored_derived_expr(
+    expr: &Expr,
+    signal_index: &HashMap<String, UiSignalId>,
+) -> Option<UiDerivedExpr> {
+    match expr {
+        Expr::Int(value, _) => Some(UiDerivedExpr::Literal(UiValue::Int(*value))),
+        Expr::Float(value, _) => Some(UiDerivedExpr::Literal(UiValue::Float(*value))),
+        Expr::String(value, _) => Some(UiDerivedExpr::Literal(UiValue::String(value.clone()))),
+        Expr::Bool(value, _) => Some(UiDerivedExpr::Literal(UiValue::Bool(*value))),
+        Expr::None(_) => Some(UiDerivedExpr::Literal(UiValue::Null)),
+        Expr::Ident(_) | Expr::Field { .. } | Expr::Index { .. } => {
+            authored_signal_contract_path(expr).and_then(|signal_name| {
+                signal_index
+                    .get(&canonical_signal_contract_key(&signal_name))
+                    .cloned()
+                    .map(UiDerivedExpr::Signal)
+            })
+        }
+        Expr::Paren(inner, _) => lower_authored_derived_expr(inner, signal_index),
+        Expr::Unary {
+            op: UnaryOp::Not,
+            operand,
+            ..
+        } => lower_authored_derived_expr(operand, signal_index).map(|expr| UiDerivedExpr::Not(Box::new(expr))),
+        Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            right,
+            ..
+        } => Some(UiDerivedExpr::And(
+            Box::new(lower_authored_derived_expr(left, signal_index)?),
+            Box::new(lower_authored_derived_expr(right, signal_index)?),
+        )),
+        Expr::Binary {
+            left,
+            op: BinaryOp::Or,
+            right,
+            ..
+        } => Some(UiDerivedExpr::Or(
+            Box::new(lower_authored_derived_expr(left, signal_index)?),
+            Box::new(lower_authored_derived_expr(right, signal_index)?),
+        )),
+        Expr::Binary {
+            left,
+            op: BinaryOp::Eq,
+            right,
+            ..
+        } => Some(UiDerivedExpr::Eq(
+            Box::new(lower_authored_derived_expr(left, signal_index)?),
+            Box::new(lower_authored_derived_expr(right, signal_index)?),
+        )),
+        Expr::Binary {
+            left,
+            op: BinaryOp::Ne,
+            right,
+            ..
+        } => Some(UiDerivedExpr::Not(Box::new(UiDerivedExpr::Eq(
+            Box::new(lower_authored_derived_expr(left, signal_index)?),
+            Box::new(lower_authored_derived_expr(right, signal_index)?),
+        )))),
+        Expr::Binary {
+            left,
+            op: BinaryOp::Add,
+            right,
+            ..
+        } => Some(UiDerivedExpr::Add(
+            Box::new(lower_authored_derived_expr(left, signal_index)?),
+            Box::new(lower_authored_derived_expr(right, signal_index)?),
+        )),
+        Expr::Binary {
+            left,
+            op: BinaryOp::Sub,
+            right,
+            ..
+        } => Some(UiDerivedExpr::Sub(
+            Box::new(lower_authored_derived_expr(left, signal_index)?),
+            Box::new(lower_authored_derived_expr(right, signal_index)?),
+        )),
+        Expr::Binary {
+            left,
+            op: BinaryOp::Mul,
+            right,
+            ..
+        } => Some(UiDerivedExpr::Mul(
+            Box::new(lower_authored_derived_expr(left, signal_index)?),
+            Box::new(lower_authored_derived_expr(right, signal_index)?),
+        )),
+        Expr::Binary {
+            left,
+            op: BinaryOp::Div,
+            right,
+            ..
+        } => Some(UiDerivedExpr::Div(
+            Box::new(lower_authored_derived_expr(left, signal_index)?),
+            Box::new(lower_authored_derived_expr(right, signal_index)?),
+        )),
+        Expr::Call { callee, args, .. } => {
+            if let Expr::Ident(name, _) = callee.as_ref() {
+                if (name == "to_string" || name == "string") && args.len() == 1 {
+                    return lower_authored_derived_expr(&args[0].value, signal_index)
+                        .map(|expr| UiDerivedExpr::ToString(Box::new(expr)));
+                }
+                if name == "signal" && args.len() == 1 {
+                    if let Expr::String(signal_name, _) = &args[0].value {
+                        return signal_index
+                            .get(&canonical_signal_contract_key(signal_name))
+                            .cloned()
+                            .map(UiDerivedExpr::Signal);
+                    }
+                }
+            }
+            None
+        }
+        Expr::MethodCall {
+            receiver,
+            method,
+            args,
+            ..
+        } if args.is_empty() && (method == "to_string" || method == "toString") => {
+            lower_authored_derived_expr(receiver, signal_index)
+                .map(|expr| UiDerivedExpr::ToString(Box::new(expr)))
+        }
+        _ => None,
+    }
 }
 
 fn stable_hash_u64(input: &str) -> u64 {
@@ -821,7 +1408,7 @@ fn lower_vnode_into_tree(lowering: &mut UiLowering, node: &VNode) -> Option<kain
 fn apply_attrs_to_ui_props(props: &mut BTreeMap<String, UiValue>, attrs: &[UIAttr]) {
     for attr in attrs {
         match attr {
-            UIAttr::Property { name, value } => {
+            UIAttr::Property { name, value, .. } => {
                 if should_skip_prop_attr(name) {
                     continue;
                 }
@@ -875,93 +1462,93 @@ fn layout_from_attrs(tag: &str, attrs: &[UIAttr]) -> kain_ui::UiLayoutSpec {
     let mut layout = default_layout_for_tag(tag);
     for attr in attrs {
         match attr {
-            UIAttr::Property { name, value } if name == "layout" => {
+            UIAttr::Property { name, value, .. } if name == "layout" => {
                 if let Value::String(name) = value {
                     if let Some(kind) = parse_layout_kind(name) {
                         layout.kind = kind;
                     }
                 }
             }
-            UIAttr::Property { name, value } if name == "gap" => {
+            UIAttr::Property { name, value, .. } if name == "gap" => {
                 layout.gap = runtime_value_to_f32(value).unwrap_or(layout.gap);
             }
-            UIAttr::Property { name, value } if name == "padding" => {
+            UIAttr::Property { name, value, .. } if name == "padding" => {
                 layout.padding = runtime_value_to_f32(value).unwrap_or(layout.padding);
             }
-            UIAttr::Property { name, value } if name == "min_width" => {
+            UIAttr::Property { name, value, .. } if name == "min_width" => {
                 layout.min_width = runtime_value_to_f32(value).or(layout.min_width);
             }
-            UIAttr::Property { name, value } if name == "min_height" => {
+            UIAttr::Property { name, value, .. } if name == "min_height" => {
                 layout.min_height = runtime_value_to_f32(value).or(layout.min_height);
             }
-            UIAttr::Property { name, value } if name == "max_width" => {
+            UIAttr::Property { name, value, .. } if name == "max_width" => {
                 layout.max_width = runtime_value_to_f32(value).or(layout.max_width);
             }
-            UIAttr::Property { name, value } if name == "max_height" => {
+            UIAttr::Property { name, value, .. } if name == "max_height" => {
                 layout.max_height = runtime_value_to_f32(value).or(layout.max_height);
             }
-            UIAttr::Property { name, value } if name == "width" => {
+            UIAttr::Property { name, value, .. } if name == "width" => {
                 layout.width = parse_ui_length_value(value).or(layout.width);
             }
-            UIAttr::Property { name, value } if name == "height" => {
+            UIAttr::Property { name, value, .. } if name == "height" => {
                 layout.height = parse_ui_length_value(value).or(layout.height);
             }
-            UIAttr::Property { name, value } if name == "flex_grow" => {
+            UIAttr::Property { name, value, .. } if name == "flex_grow" => {
                 layout.flex_grow = runtime_value_to_f32(value).unwrap_or(layout.flex_grow);
             }
-            UIAttr::Property { name, value } if name == "flex_shrink" => {
+            UIAttr::Property { name, value, .. } if name == "flex_shrink" => {
                 layout.flex_shrink = runtime_value_to_f32(value).unwrap_or(layout.flex_shrink);
             }
-            UIAttr::Property { name, value } if name == "align" || name == "align_items" => {
+            UIAttr::Property { name, value, .. } if name == "align" || name == "align_items" => {
                 if let Some(alignment) = value_as_str(value).and_then(parse_layout_alignment) {
                     layout.align_items = alignment;
                 }
             }
-            UIAttr::Property { name, value } if name == "justify" || name == "justify_content" => {
+            UIAttr::Property { name, value, .. } if name == "justify" || name == "justify_content" => {
                 if let Some(alignment) = value_as_str(value).and_then(parse_layout_alignment) {
                     layout.justify_content = alignment;
                 }
             }
-            UIAttr::Property { name, value } if name == "overflow" => {
+            UIAttr::Property { name, value, .. } if name == "overflow" => {
                 if let Some(behavior) = value_as_str(value).and_then(parse_overflow_behavior) {
                     layout.overflow_x = behavior;
                     layout.overflow_y = behavior;
                 }
             }
-            UIAttr::Property { name, value } if name == "overflow_x" => {
+            UIAttr::Property { name, value, .. } if name == "overflow_x" => {
                 if let Some(behavior) = value_as_str(value).and_then(parse_overflow_behavior) {
                     layout.overflow_x = behavior;
                 }
             }
-            UIAttr::Property { name, value } if name == "overflow_y" => {
+            UIAttr::Property { name, value, .. } if name == "overflow_y" => {
                 if let Some(behavior) = value_as_str(value).and_then(parse_overflow_behavior) {
                     layout.overflow_y = behavior;
                 }
             }
-            UIAttr::Property { name, value } if name == "dock" => {
+            UIAttr::Property { name, value, .. } if name == "dock" => {
                 layout.dock = value_as_str(value)
                     .and_then(parse_dock_placement)
                     .or(layout.dock);
             }
-            UIAttr::Property { name, value } if name == "split_ratio" => {
+            UIAttr::Property { name, value, .. } if name == "split_ratio" => {
                 layout.split_ratio = runtime_value_to_f32(value).or(layout.split_ratio);
             }
-            UIAttr::Property { name, value } if name == "persistent_layout_id" => {
+            UIAttr::Property { name, value, .. } if name == "persistent_layout_id" => {
                 layout.persistent_layout_id = value_as_str(value).map(ToString::to_string);
             }
-            UIAttr::Property { name, value } if name == "tab_group_id" => {
+            UIAttr::Property { name, value, .. } if name == "tab_group_id" => {
                 layout.tab_group_id = value_as_str(value).map(ToString::to_string);
             }
-            UIAttr::Property { name, value } if name == "tab_label" => {
+            UIAttr::Property { name, value, .. } if name == "tab_label" => {
                 layout.tab_label = value_as_str(value).map(ToString::to_string);
             }
-            UIAttr::Property { name, value } if name == "tab_order" => {
+            UIAttr::Property { name, value, .. } if name == "tab_order" => {
                 layout.tab_order = runtime_value_to_i32(value).or(layout.tab_order);
             }
             UIAttr::Bool { name, value } if name == "tab_default_active" => {
                 layout.tab_default_active = *value;
             }
-            UIAttr::Property { name, value } if name == "tab_default_active" => {
+            UIAttr::Property { name, value, .. } if name == "tab_default_active" => {
                 if let Some(value) = value_as_bool(value) {
                     layout.tab_default_active = value;
                 }
@@ -969,7 +1556,7 @@ fn layout_from_attrs(tag: &str, attrs: &[UIAttr]) -> kain_ui::UiLayoutSpec {
             UIAttr::Bool { name, value } if name == "tab_closable" => {
                 layout.tab_closable = *value;
             }
-            UIAttr::Property { name, value } if name == "tab_closable" => {
+            UIAttr::Property { name, value, .. } if name == "tab_closable" => {
                 if let Some(value) = value_as_bool(value) {
                     layout.tab_closable = value;
                 }
@@ -977,7 +1564,7 @@ fn layout_from_attrs(tag: &str, attrs: &[UIAttr]) -> kain_ui::UiLayoutSpec {
             UIAttr::Bool { name, value } if name == "resizable" => {
                 layout.resizable = *value;
             }
-            UIAttr::Property { name, value } if name == "resizable" => {
+            UIAttr::Property { name, value, .. } if name == "resizable" => {
                 if let Some(value) = value_as_bool(value) {
                     layout.resizable = value;
                 }
@@ -1050,7 +1637,7 @@ fn apply_canonical_attrs_to_ui_node(node: &mut UiNode, tag: &str, attrs: &[UIAtt
 
     // Style and paint values are explicit semantic data, not backend-local props.
     for attr in attrs {
-        let UIAttr::Property { name, value } = attr else {
+        let UIAttr::Property { name, value, .. } = attr else {
             continue;
         };
         if let Some(key) = name.strip_prefix("style_") {
@@ -1162,6 +1749,17 @@ fn extract_computed_decl(systems: &mut AuthoredUiSystemsAccumulator, attrs: &[UI
     };
     let label = attr_string(attrs, "label").unwrap_or_else(|| id.clone());
     let depends_on = attr_list(attrs, &["depends_on", "depends", "signals"]);
+    let writes_signal = attr_string_any(
+        attrs,
+        &[
+            "writes_signal",
+            "signal",
+            "target_signal",
+            "output_signal",
+            "output",
+        ],
+    );
+    let expr = attr_expr(attrs, &["expr", "value", "derived", "expression"]).cloned();
     let invalidates = attr_list(attrs, &["invalidates_nodes", "invalidates", "nodes"]);
     let scheduler_phase = attr_string(attrs, "phase")
         .and_then(parse_scheduler_phase)
@@ -1170,6 +1768,8 @@ fn extract_computed_decl(systems: &mut AuthoredUiSystemsAccumulator, attrs: &[UI
         id,
         label,
         depends_on,
+        writes_signal,
+        expr,
         invalidates,
         scheduler_phase,
     });
@@ -1274,7 +1874,12 @@ fn extract_selection_scope_decl(systems: &mut AuthoredUiSystemsAccumulator, attr
 }
 
 impl AuthoredUiSystemsAccumulator {
-    fn record_authored_semantics_for_node(&mut self, id: kain_ui::UiNodeId, node: &UiNode, attrs: &[UIAttr]) {
+    fn record_authored_semantics_for_node(
+        &mut self,
+        id: kain_ui::UiNodeId,
+        node: &UiNode,
+        attrs: &[UIAttr],
+    ) {
         if let Some(scope) = node.focus_scope.as_deref() {
             self.focus_scopes.insert(scope.to_string());
             if attr_string(attrs, "focus_scope_default")
@@ -1295,12 +1900,17 @@ impl AuthoredUiSystemsAccumulator {
             }
         }
 
-        self.record_event_routes_and_handlers(id, attrs);
+        self.record_event_routes_and_handlers(id, node, attrs);
         self.record_motion_tracks(id, node, attrs);
         self.record_surface_decl(id, node, attrs);
     }
 
-    fn record_event_routes_and_handlers(&mut self, id: kain_ui::UiNodeId, attrs: &[UIAttr]) {
+    fn record_event_routes_and_handlers(
+        &mut self,
+        id: kain_ui::UiNodeId,
+        node: &UiNode,
+        attrs: &[UIAttr],
+    ) {
         let phase = match attr_string(attrs, "event_phase")
             .unwrap_or_else(|| "bubble".to_string())
             .as_str()
@@ -1312,15 +1922,31 @@ impl AuthoredUiSystemsAccumulator {
         };
         let command = attr_string(attrs, "command");
         let transaction = attr_string(attrs, "transaction");
+        let target_key = stable_node_contract_key(node);
+        let phase_key = match phase {
+            UiEventPhase::Bubble => "bubble",
+            UiEventPhase::Capture => "capture",
+            UiEventPhase::Direct => "direct",
+        };
 
         for attr in attrs {
-            let UIAttr::Event { event, handler, .. } = attr else {
+            let UIAttr::Event {
+                event,
+                handler,
+                expr,
+                ..
+            } = attr else {
                 continue;
             };
             let event_name = event_name(event).to_string();
-            let handler_id = handler_ref_string(handler);
+            let handler_id = expr
+                .as_ref()
+                .map(render_authored_expr_contract)
+                .unwrap_or_else(|| handler_ref_string(handler));
+            let route_id = format!("{target_key}::{event_name}::{phase_key}");
+            let route_prefix = format!("ui.event.route.{route_id}");
             self.event_routes.push(UiEventRoute {
-                route_id: format!("route_{}_{}", id.0, event_name),
+                route_id: route_id.clone(),
                 event: event_name.clone(),
                 target: id,
                 phase,
@@ -1329,18 +1955,30 @@ impl AuthoredUiSystemsAccumulator {
             });
 
             self.session_state.insert(
-                format!("ui.event.handler.{}.{}", id.0, event_name),
+                format!("{route_prefix}.target"),
+                UiValue::String(target_key.clone()),
+            );
+            self.session_state.insert(
+                format!("{route_prefix}.event"),
+                UiValue::String(event_name.clone()),
+            );
+            self.session_state.insert(
+                format!("{route_prefix}.phase"),
+                UiValue::String(phase_key.to_string()),
+            );
+            self.session_state.insert(
+                format!("{route_prefix}.handler"),
                 UiValue::String(handler_id),
             );
             if let Some(command) = command.as_deref() {
                 self.session_state.insert(
-                    format!("ui.event.command.{}.{}", id.0, event_name),
+                    format!("{route_prefix}.command"),
                     UiValue::String(command.to_string()),
                 );
             }
             if let Some(label) = transaction.as_deref() {
                 self.session_state.insert(
-                    format!("ui.event.transaction.{}.{}", id.0, event_name),
+                    format!("{route_prefix}.transaction"),
                     UiValue::String(label.to_string()),
                 );
             }
@@ -1934,6 +2572,7 @@ fn extract_theme_directive(
                 widget_attrs.push(UIAttr::Property {
                     name: "kind".to_string(),
                     value: Value::String("text".to_string()),
+                    expr: None,
                 });
             }
             if attr_string(attrs, "variant").is_none() {
@@ -1941,6 +2580,7 @@ fn extract_theme_directive(
                     widget_attrs.push(UIAttr::Property {
                         name: "variant".to_string(),
                         value: Value::String(name),
+                        expr: None,
                     });
                 }
             }
@@ -2111,9 +2751,40 @@ fn attr_value<'a>(attrs: &'a [UIAttr], name: &str) -> Option<&'a Value> {
         UIAttr::Property {
             name: attr_name,
             value,
+            ..
         } if attr_name == name => Some(value),
         _ => None,
     })
+}
+
+fn attr_expr<'a>(attrs: &'a [UIAttr], names: &[&str]) -> Option<&'a Expr> {
+    for name in names {
+        if let Some(expr) = attrs.iter().find_map(|attr| match attr {
+            UIAttr::Property {
+                name: attr_name,
+                expr: Some(expr),
+                ..
+            } if attr_name == name => Some(expr),
+            UIAttr::Event {
+                name: attr_name,
+                expr: Some(expr),
+                ..
+            } if attr_name == name => Some(expr),
+            _ => None,
+        }) {
+            return Some(expr);
+        }
+    }
+    None
+}
+
+fn attr_string_any(attrs: &[UIAttr], names: &[&str]) -> Option<String> {
+    for name in names {
+        if let Some(value) = attr_string(attrs, name) {
+            return Some(value);
+        }
+    }
+    None
 }
 
 fn attr_string(attrs: &[UIAttr], name: &str) -> Option<String> {
@@ -2179,6 +2850,7 @@ fn eval_attrs(env: &mut Env, attributes: &[crate::ast::JSXAttribute]) -> KainRes
             JSXAttrValue::String(s) => UIAttr::Property {
                 name: attr.name.clone(),
                 value: Value::String(s.clone()),
+                expr: None,
             },
             JSXAttrValue::Bool(b) => UIAttr::Bool {
                 name: attr.name.clone(),
@@ -2191,11 +2863,13 @@ fn eval_attrs(env: &mut Env, attributes: &[crate::ast::JSXAttribute]) -> KainRes
                         name: attr.name.clone(),
                         event,
                         handler: value,
+                        expr: Some(expr.clone()),
                     }
                 } else {
                     UIAttr::Property {
                         name: attr.name.clone(),
                         value,
+                        expr: Some(expr.clone()),
                     }
                 }
             }
@@ -2239,7 +2913,7 @@ fn attrs_to_props_map(attrs: &[UIAttr]) -> HashMap<String, Value> {
     let mut props = HashMap::new();
     for attr in attrs {
         match attr {
-            UIAttr::Property { name, value } => {
+            UIAttr::Property { name, value, .. } => {
                 props.insert(name.clone(), value.clone());
             }
             UIAttr::Bool { name, value } => {
@@ -2255,7 +2929,7 @@ fn attrs_to_props_map(attrs: &[UIAttr]) -> HashMap<String, Value> {
 
 fn render_attr_to_string(attr: &UIAttr) -> String {
     match attr {
-        UIAttr::Property { name, value } => format!(r#"{}="{}""#, name, value),
+        UIAttr::Property { name, value, .. } => format!(r#"{}="{}""#, name, value),
         UIAttr::Bool { name, value } => {
             if *value {
                 name.clone()
@@ -2330,6 +3004,7 @@ fn find_attr_key(attrs: &[UIAttr], name: &str) -> Option<String> {
             UIAttr::Property {
                 name: attr_name,
                 value,
+                ..
             } if attr_name == name => return Some(value_to_key_string(value)),
             UIAttr::Bool {
                 name: attr_name,
@@ -2508,6 +3183,7 @@ mod tests {
             attrs: vec![UIAttr::Property {
                 name: "title".to_string(),
                 value: Value::String("Inspector".to_string()),
+                expr: None,
             }],
             children: vec![VNode::Text("Body".to_string())],
             key: None,

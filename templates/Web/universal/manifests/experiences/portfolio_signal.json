@@ -7,24 +7,189 @@
   "page_title": "Spectrum Portfolio",
   "eyebrow": "Portfolio Website",
   "sections": [
-    { "id": "proof", "kind": "card_grid", "eyebrow": "System", "title": "Portfolio systems", "source": "content.feature_cards" },
-    { "id": "brand-system", "kind": "card_grid", "eyebrow": "Brand", "title": "Brand system", "source": "content.brand_system" },
-    { "id": "social-presence", "kind": "card_grid", "eyebrow": "Social", "title": "Social presence", "source": "content.social_presence" },
-    { "id": "content-calendar", "kind": "process_steps", "eyebrow": "Calendar", "title": "Content calendar", "source": "content.content_calendar" },
-    { "id": "qa-program", "kind": "card_grid", "eyebrow": "QA", "title": "Quality program", "source": "content.qa_program" },
-    { "id": "trust-center", "kind": "card_grid", "eyebrow": "Trust", "title": "Trust center", "source": "content.trust_center" },
-    { "id": "work", "kind": "portfolio_grid", "eyebrow": "Work", "title": "Selected work", "source": "content.portfolio_entries" },
-    { "id": "voices", "kind": "testimonials", "eyebrow": "Proof", "title": "Client and peer proof", "source": "content.testimonials" },
-    { "id": "timeline", "kind": "timeline", "eyebrow": "Flow", "title": "How the portfolio reads", "source": "content.timeline" },
-    { "id": "team", "kind": "team_grid", "eyebrow": "Team", "title": "Portfolio team", "source": "content.team_members" },
-    { "id": "press", "kind": "press_kit", "eyebrow": "Press", "title": "Press kit", "source": "content.press_kit" },
-    { "id": "support", "kind": "support_grid", "eyebrow": "Support", "title": "Support channels", "source": "content.support_channels" },
-    { "id": "legal", "kind": "legal_links", "eyebrow": "Legal", "title": "Policies", "source": "content.legal" },
-    { "id": "blog", "kind": "blog_roll", "eyebrow": "Blog", "title": "Process notes", "source": "content.blog_posts" },
-    { "id": "search", "kind": "search_panel", "eyebrow": "Search", "title": "Search project notes", "source": "experience.search_panel" },
-    { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Portfolio questions", "source": "content.faq_items" },
-    { "id": "brief", "kind": "form_panel", "eyebrow": "Brief", "title": "Start a conversation", "source": "content.forms.brief" },
-    { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }
+    {
+      "id": "proof",
+      "kind": "card_grid",
+      "eyebrow": "System",
+      "title": "Portfolio systems",
+      "source": "content.feature_cards"
+    },
+    {
+      "id": "brand-system",
+      "kind": "card_grid",
+      "eyebrow": "Brand",
+      "title": "Brand system",
+      "source": "content.brand_system"
+    },
+    {
+      "id": "social-presence",
+      "kind": "card_grid",
+      "eyebrow": "Social",
+      "title": "Social presence",
+      "source": "content.social_presence"
+    },
+    {
+      "id": "content-calendar",
+      "kind": "process_steps",
+      "eyebrow": "Calendar",
+      "title": "Content calendar",
+      "source": "content.content_calendar"
+    },
+    {
+      "id": "qa-program",
+      "kind": "card_grid",
+      "eyebrow": "QA",
+      "title": "Quality program",
+      "source": "content.qa_program"
+    },
+    {
+      "id": "trust-center",
+      "kind": "card_grid",
+      "eyebrow": "Trust",
+      "title": "Trust center",
+      "source": "content.trust_center"
+    },
+    {
+      "id": "work",
+      "kind": "portfolio_grid",
+      "eyebrow": "Work",
+      "title": "Selected work",
+      "source": "content.portfolio_entries"
+    },
+    {
+      "id": "voices",
+      "kind": "testimonials",
+      "eyebrow": "Proof",
+      "title": "Client and peer proof",
+      "source": "content.testimonials"
+    },
+    {
+      "id": "timeline",
+      "kind": "timeline",
+      "eyebrow": "Flow",
+      "title": "How the portfolio reads",
+      "source": "content.timeline"
+    },
+    {
+      "id": "team",
+      "kind": "team_grid",
+      "eyebrow": "Team",
+      "title": "Portfolio team",
+      "source": "content.team_members"
+    },
+    {
+      "id": "press",
+      "kind": "press_kit",
+      "eyebrow": "Press",
+      "title": "Press kit",
+      "source": "content.press_kit"
+    },
+    {
+      "id": "support",
+      "kind": "support_grid",
+      "eyebrow": "Support",
+      "title": "Support channels",
+      "source": "content.support_channels"
+    },
+    {
+      "id": "legal",
+      "kind": "legal_links",
+      "eyebrow": "Legal",
+      "title": "Policies",
+      "source": "content.legal"
+    },
+    {
+      "id": "blog",
+      "kind": "blog_roll",
+      "eyebrow": "Blog",
+      "title": "Process notes",
+      "source": "content.blog_posts"
+    },
+    {
+      "id": "search",
+      "kind": "search_panel",
+      "eyebrow": "Search",
+      "title": "Search project notes",
+      "source": "experience.search_panel"
+    },
+    {
+      "id": "faq",
+      "kind": "faq",
+      "eyebrow": "FAQ",
+      "title": "Portfolio questions",
+      "source": "content.faq_items"
+    },
+    {
+      "id": "brief",
+      "kind": "form_panel",
+      "eyebrow": "Brief",
+      "title": "Start a conversation",
+      "source": "content.forms.brief"
+    },
+    {
+      "id": "edge-runtime",
+      "kind": "card_grid",
+      "eyebrow": "Edge",
+      "title": "Edge runtime",
+      "source": "content.edge_runtime"
+    },
+    {
+      "id": "worker-runtime",
+      "kind": "card_grid",
+      "eyebrow": "Workers",
+      "title": "Worker runtime",
+      "source": "content.worker_runtime"
+    },
+    {
+      "id": "api-gateway",
+      "kind": "card_grid",
+      "eyebrow": "Gateway",
+      "title": "API gateway",
+      "source": "content.api_gateway"
+    },
+    {
+      "id": "rate-limits",
+      "kind": "card_grid",
+      "eyebrow": "Limits",
+      "title": "Rate limits",
+      "source": "content.rate_limits"
+    },
+    {
+      "id": "cache-stack",
+      "kind": "card_grid",
+      "eyebrow": "Cache",
+      "title": "Cache stack",
+      "source": "content.cache_stack"
+    },
+    {
+      "id": "search-stack",
+      "kind": "card_grid",
+      "eyebrow": "Search",
+      "title": "Search stack",
+      "source": "content.search_stack"
+    },
+    {
+      "id": "storage-stack",
+      "kind": "card_grid",
+      "eyebrow": "Storage",
+      "title": "Storage stack",
+      "source": "content.storage_stack"
+    },
+    {
+      "id": "session-store",
+      "kind": "card_grid",
+      "eyebrow": "Sessions",
+      "title": "Session store",
+      "source": "content.session_store"
+    },
+    {
+      "id": "cta",
+      "kind": "cta",
+      "eyebrow": "CTA",
+      "title_source": "content.cta.title",
+      "body_source": "content.cta.body",
+      "actions_source": "content.cta.actions"
+    }
   ],
   "search_panel": {
     "kicker": "Search",

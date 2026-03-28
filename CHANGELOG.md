@@ -5,6 +5,163 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=e1f3dfd0657d3476 -->
+## 2026-03-27 20:10:01 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b27b14c`
+- Changed files: 16
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/ui.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `crates/kain-ui/src/runtime_execution.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/README.md`
+- [.M] `smoketest/UI/build_all_native_exes.bat`
+- [.M] `smoketest/UI/kinetic_ui_atlas/README.md`
+- [.M] `smoketest/UI/launch_all_native_exes.bat`
+- [.M] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [.M] `smoketest/UI/website_clone_signalcraft/README.md`
+- [??] `smoketest/UI/operator_guide.md`
+
+<!-- polytools-changelog:fingerprint=a4764a97dd62974d -->
+## 2026-03-27 20:05:22 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b27b14c`
+- Changed files: 15
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-core/src/ui.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `crates/kain-ui/src/runtime_execution.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/README.md`
+- [.M] `smoketest/UI/build_all_native_exes.bat`
+- [.M] `smoketest/UI/kinetic_ui_atlas/README.md`
+- [.M] `smoketest/UI/launch_all_native_exes.bat`
+- [.M] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [.M] `smoketest/UI/website_clone_signalcraft/README.md`
+- [??] `smoketest/UI/operator_guide.md`
+
+<!-- polytools-changelog:fingerprint=b4b1d0f8f5360bb1 -->
+## 2026-03-27 20:03:50 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b27b14c`
+- Changed files: 14
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-core/src/ui.rs`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/README.md`
+- [.M] `smoketest/UI/build_all_native_exes.bat`
+- [.M] `smoketest/UI/kinetic_ui_atlas/README.md`
+- [.M] `smoketest/UI/launch_all_native_exes.bat`
+- [.M] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [.M] `smoketest/UI/website_clone_signalcraft/README.md`
+- [??] `smoketest/UI/operator_guide.md`
+
+<!-- polytools-changelog:fingerprint=481baed6a0952e46 -->
+## 2026-03-27 20:00:54 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b27b14c`
+- Changed files: 13
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/README.md`
+- [.M] `smoketest/UI/build_all_native_exes.bat`
+- [.M] `smoketest/UI/kinetic_ui_atlas/README.md`
+- [.M] `smoketest/UI/launch_all_native_exes.bat`
+- [.M] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [.M] `smoketest/UI/website_clone_signalcraft/README.md`
+- [??] `smoketest/UI/operator_guide.md`
+
+<!-- polytools-changelog:fingerprint=91ff8c0b3456e7d9 -->
+## 2026-03-27 20:00:07 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b27b14c`
+- Changed files: 11
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `crates/repomap.md`
+- [.M] `smoketest/UI/README.md`
+- [.M] `smoketest/UI/build_all_native_exes.bat`
+- [.M] `smoketest/UI/kinetic_ui_atlas/README.md`
+- [.M] `smoketest/UI/launch_all_native_exes.bat`
+- [.M] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [.M] `smoketest/UI/website_clone_signalcraft/README.md`
+- [??] `smoketest/UI/operator_guide.md`
+
+<!-- polytools-changelog:fingerprint=3ddb8009a627b721 -->
+## 2026-03-27 19:59:24 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b27b14c`
+- Changed files: 10
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `smoketest/UI/README.md`
+- [.M] `smoketest/UI/build_all_native_exes.bat`
+- [.M] `smoketest/UI/kinetic_ui_atlas/README.md`
+- [.M] `smoketest/UI/launch_all_native_exes.bat`
+- [.M] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [.M] `smoketest/UI/website_clone_signalcraft/README.md`
+- [??] `smoketest/UI/operator_guide.md`
+
+<!-- polytools-changelog:fingerprint=70e8fd92f232802c -->
+## 2026-03-27 19:58:48 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b27b14c`
+- Changed files: 9
+- [.M] `crates/kain-driver/src/native_app.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `smoketest/UI/README.md`
+- [.M] `smoketest/UI/build_all_native_exes.bat`
+- [.M] `smoketest/UI/kinetic_ui_atlas/README.md`
+- [.M] `smoketest/UI/launch_all_native_exes.bat`
+- [.M] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [.M] `smoketest/UI/website_clone_signalcraft/README.md`
+- [??] `smoketest/UI/operator_guide.md`
+
+<!-- polytools-changelog:fingerprint=c4476396f378b689 -->
+## 2026-03-27 19:57:58 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b27b14c`
+- Changed files: 8
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `smoketest/UI/README.md`
+- [.M] `smoketest/UI/build_all_native_exes.bat`
+- [.M] `smoketest/UI/kinetic_ui_atlas/README.md`
+- [.M] `smoketest/UI/launch_all_native_exes.bat`
+- [.M] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [.M] `smoketest/UI/website_clone_signalcraft/README.md`
+- [??] `smoketest/UI/operator_guide.md`
+
+<!-- polytools-changelog:fingerprint=ee740484c4c60800 -->
+## 2026-03-27 19:56:47 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4b27b14c`
+- Changed files: 7
+- [.M] `smoketest/UI/README.md`
+- [.M] `smoketest/UI/build_all_native_exes.bat`
+- [.M] `smoketest/UI/kinetic_ui_atlas/README.md`
+- [.M] `smoketest/UI/launch_all_native_exes.bat`
+- [.M] `smoketest/UI/spv_ui_surface_probe/README.md`
+- [.M] `smoketest/UI/website_clone_signalcraft/README.md`
+- [??] `smoketest/UI/operator_guide.md`
+
 <!-- polytools-changelog:fingerprint=c80fd4f63ecdeb26 -->
 ## 2026-03-27 19:25:33 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

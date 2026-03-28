@@ -58,12 +58,14 @@ The scaffold is split into seven durable ownership layers:
 - `config/surfaces.json`: docked shell surface registry.
 - `config/tool_catalog.json`: tool and operator rail, including smart material, SVG mask, channel-pack export tools, and per-tool gizmo defaults.
 - `config/gizmo_registry.json`: universal gizmo profile and per-viewport binding registry.
-- `config/ui_theme.json`: semantic tokens, scopes, variants, and widget defaults for the universal studio shell.
-- `config/ui_shell.json`: workspace-page layout manifest with per-mode workbench composition.
-- `config/command_registry.json`: canonical command surface for operators, routing, automation, painter-style material authoring, export, and gizmo state changes.
+- `config/ui_theme.json`: semantic tokens, scopes, variants, and widget defaults for the universal studio shell, including authored workspace rails, status strips, property grids, and command surfaces.
+- `config/ui_shell.json`: workspace-page layout manifest with per-mode workbench composition and authored chrome blocks.
+- `config/command_registry.json`: canonical command surface for operators, routing, automation, painter-style material authoring, export, shell navigation, and property-grid state changes.
 - `config/fabric_pipeline.json`: shell-facing summary of the broad pipeline.
 - `config/fabric_intents.json`: reusable intent registry with per-lane graph ownership.
 - `config/resource_kinds.json`: resource registry schema for scene, asset, preview, tensor, sculpt, and publish artifacts.
+- `config/mesh_resource_contract.json`: first-class mesh document contract for imported payloads, authored primitives, active edit targets, and topology outputs.
+- `session/resource_registry.kn`: canonical mesh resource registry entries, including the contract document itself and the active edit-target seam.
 - `config/report_kinds.json`: report registry schema for bootstrap, ingest, topology, rig, tensor, publish, and automation artifacts.
 - `config/sculpt_pipeline.json`: data-driven sculpt grid, brush, and height-range defaults for the GPU sculpt lane.
 - `config/runtime_packs.json`: data-driven runtime pack catalog inspired by K_OS registry patterns.
@@ -119,6 +121,7 @@ The scaffold is split into seven durable ownership layers:
 - The tensor lane now emits explicit dispatch, checkpoint, and inference-result receipts in `state/*.json`. A first-class typed tensor artifact contract across Python, Kain, and GPU runtime lanes is still future work.
 - The sim lane now emits durable plan and report receipts in `state/*.json` rather than a mock string return, but it is still not a real solver runtime. That keeps the current repo honest until a durable sim contract exists.
 - The compositor lane now emits durable rebuild-plan and rebuild-report receipts in `state/*.json`, but real graph execution and frame assembly should still arrive through a broader runtime extension rather than by overloading shell presentation code.
+- The mesh lane now has real Kain-authored projection writers for imported payloads and authored primitives, but those writers are still orchestration-grade receipts rather than persistent mesh normalization or serializer ownership.
 - The material lane now emits durable authoring, SVG mask, and export receipts in `state/*.json`, but it is still not a native painter engine with tiled brush evaluation, GPU bakers, or live sparse texture streaming. Those remain explicit extension seams.
 - The sculpt lane now emits a real GPU-owned heightfield delta buffer and native-facing sculpt receipts, but it is still not a production mesh sculpt engine with BVH queries, voxel remeshing, multiresolution data, or tablet-pressure sampling. Those remain explicit extension seams.
 - The sculpt and topology seam modules should be read as resource-contract adapters, not as mesh owners. They are expected to operate on active edit targets identified by resource id and hand the mutated or rebuilt mesh back through the app-owned resource contract.
@@ -142,7 +145,8 @@ powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/buil
 
 - Keep semantic ownership in Kain, session modules, and config plus Fabric graphs, not in the native host.
 - Keep registry truth in `config/*.json`; generated shell output is a projection.
-- Keep page, theme, and workbench truth in `config/ui_*.json` plus `session/ui_workbench_registry.kn`; the generated shell remains disposable output.
+- Keep page, theme, chrome, and workbench truth in `config/ui_*.json` plus `session/ui_workbench_registry.kn`; the generated shell remains disposable output.
+- Keep navigator, command palette, property grid, and status strip meaning in the app registries instead of inventing it inside the native host.
 - Keep universal gizmo defaults, hotkeys, drag triggers, and snap policy in `config/gizmo_registry.json` and viewport-authored props rather than re-hardcoding them inside `kain-ui-native`.
 - Keep session truth in `session/*.kn`; reports and runtime snapshots are derivative artifacts.
 - Keep the C and Rust helpers narrow and replaceable. If a concept becomes true DCC semantics, move it back into Kain or registry data.

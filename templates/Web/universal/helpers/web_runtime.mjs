@@ -1841,6 +1841,30 @@ function buildDerivedSearchDocuments(model) {
       tags: [integration.category, integration.transport, integration.status].filter(Boolean)
     });
   }
+  for (const entry of model.content.edge_runtime || []) {
+    pushDocument("edge-runtime", entry.title || entry.kicker, entry.body || entry.summary || "", "#edge-runtime");
+  }
+  for (const entry of model.content.worker_runtime || []) {
+    pushDocument("worker-runtime", entry.title || entry.kicker, entry.body || entry.summary || "", "#worker-runtime");
+  }
+  for (const entry of model.content.api_gateway || []) {
+    pushDocument("api-gateway", entry.title || entry.kicker, entry.body || entry.summary || "", "#api-gateway");
+  }
+  for (const entry of model.content.rate_limits || []) {
+    pushDocument("rate-limits", entry.title || entry.kicker, entry.body || entry.summary || "", "#rate-limits");
+  }
+  for (const entry of model.content.cache_stack || []) {
+    pushDocument("cache-stack", entry.title || entry.kicker, entry.body || entry.summary || "", "#cache-stack");
+  }
+  for (const entry of model.content.search_stack || []) {
+    pushDocument("search-stack", entry.title || entry.kicker, entry.body || entry.summary || "", "#search-stack");
+  }
+  for (const entry of model.content.storage_stack || []) {
+    pushDocument("storage-stack", entry.title || entry.kicker, entry.body || entry.summary || "", "#storage-stack");
+  }
+  for (const entry of model.content.session_store || []) {
+    pushDocument("session-store", entry.title || entry.kicker, entry.body || entry.summary || "", "#session-store");
+  }
   for (const channel of model.content.realtime_channels || []) {
     documents.push({
       kind: "realtime",
@@ -2420,6 +2444,13 @@ function buildSiteData(model) {
     capability_matrix: model.content.capability_matrix || null,
     auth: model.content.auth || null,
     identity: model.content.identity || null,
+    identity_verification: model.content.identity_verification || [],
+    fraud_risk: model.content.fraud_risk || [],
+    consent_center: model.content.consent_center || [],
+    audit_logs: model.content.audit_logs || [],
+    data_exports: model.content.data_exports || [],
+    marketplace_stack: model.content.marketplace_stack || [],
+    content_syndication: model.content.content_syndication || [],
     billing: model.content.billing || null,
     subscriptions: model.content.subscriptions || null,
     cms: model.content.cms || null,
@@ -2505,11 +2536,24 @@ function buildSiteData(model) {
     backup_plan: model.content.backup_plan || [],
     observability: model.content.observability || null,
     infrastructure: model.content.infrastructure || null,
+    edge_runtime: model.content.edge_runtime || [],
+    worker_runtime: model.content.worker_runtime || [],
+    api_gateway: model.content.api_gateway || [],
+    rate_limits: model.content.rate_limits || [],
+    cache_stack: model.content.cache_stack || [],
+    search_stack: model.content.search_stack || [],
+    storage_stack: model.content.storage_stack || [],
+    session_store: model.content.session_store || [],
     runtime_hosts: model.content.runtime_hosts || [],
     deployment_targets: model.content.deployment_targets || [],
     localization: model.content.localization || null,
     accessibility: model.content.accessibility || null,
-    performance: model.content.performance || null
+    performance: model.content.performance || null,
+    enablement_programs: model.content.enablement_programs || [],
+    onboarding_flows: model.content.onboarding_flows || [],
+    data_retention: model.content.data_retention || [],
+    reliability_slos: model.content.reliability_slos || [],
+    incident_history: model.content.incident_history || []
   };
 }
 
@@ -3388,6 +3432,13 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     feature_flags: "/api/feature-flags",
     incident_response: "/api/incidents",
     crm_pipeline: "/api/crm",
+    identity_verification: "/api/identity/verification",
+    fraud_risk: "/api/risk",
+    consent_center: "/api/consent",
+    audit_logs: "/api/audit",
+    data_exports: "/api/data-exports",
+    marketplace_stack: "/api/marketplace",
+    content_syndication: "/api/syndication",
     actor_topology: "/api/actors/topology",
     actor_policies: "/api/actors/policies",
     actor_metrics: "/api/actors/metrics",
@@ -3430,17 +3481,37 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     backup_plan: "/api/backups",
     observability: "/api/observability",
     infrastructure: "/api/infrastructure",
+    edge_runtime: "/api/runtime/edge",
+    worker_runtime: "/api/runtime/workers",
+    api_gateway: "/api/runtime/gateway",
+    rate_limits: "/api/runtime/rate-limits",
+    cache_stack: "/api/runtime/cache",
+    search_stack: "/api/runtime/search",
+    storage_stack: "/api/runtime/storage",
+    session_store: "/api/runtime/sessions",
     runtime_hosts: "/api/runtime/hosts",
     deployment_targets: "/api/runtime/deployments",
     localization: "/api/localization",
     accessibility: "/api/accessibility",
     performance: "/api/performance",
+    enablement_programs: "/api/enablement",
+    onboarding_flows: "/api/onboarding",
+    data_retention: "/api/data-retention",
+    reliability_slos: "/api/reliability",
+    incident_history: "/api/incidents/history",
     team: "/api/team",
     partners: "/api/partners",
     press: "/api/press",
     careers: "/api/careers",
     auth: siteData.auth || null,
     identity: siteData.identity || null,
+    identity_verification: siteData.identity_verification || [],
+    fraud_risk: siteData.fraud_risk || [],
+    consent_center: siteData.consent_center || [],
+    audit_logs: siteData.audit_logs || [],
+    data_exports: siteData.data_exports || [],
+    marketplace_stack: siteData.marketplace_stack || [],
+    content_syndication: siteData.content_syndication || [],
     billing: siteData.billing || null,
     subscriptions: siteData.subscriptions || null,
     cms: siteData.cms || null,
@@ -3518,6 +3589,11 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     localization: siteData.localization || null,
     accessibility: siteData.accessibility || null,
     performance: siteData.performance || null,
+    enablement_programs: siteData.enablement_programs || [],
+    onboarding_flows: siteData.onboarding_flows || [],
+    data_retention: siteData.data_retention || [],
+    reliability_slos: siteData.reliability_slos || [],
+    incident_history: siteData.incident_history || [],
     actor_policies: siteData.actor_policies || [],
     actor_metrics: siteData.actor_metrics || [],
     actor_supervision: siteData.actor_supervision || [],
@@ -3642,6 +3718,13 @@ function buildUiSchema(model, siteData) {
       qa_program: (siteData.qa_program || []).length,
       domain_stack: (siteData.domain_stack || []).length,
       trust_center: (siteData.trust_center || []).length,
+      identity_verification: (siteData.identity_verification || []).length,
+      fraud_risk: (siteData.fraud_risk || []).length,
+      consent_center: (siteData.consent_center || []).length,
+      audit_logs: (siteData.audit_logs || []).length,
+      data_exports: (siteData.data_exports || []).length,
+      marketplace_stack: (siteData.marketplace_stack || []).length,
+      content_syndication: (siteData.content_syndication || []).length,
       actor_nodes: (siteData.actor_topology?.nodes || []).length,
       actor_supervision: (siteData.actor_supervision || []).length,
       actor_queues: (siteData.actor_queues || []).length,
@@ -3666,9 +3749,22 @@ function buildUiSchema(model, siteData) {
       backup_plan: (siteData.backup_plan || []).length,
       observability_signals: (siteData.observability?.signals || []).length,
       infrastructure_stack: (siteData.infrastructure?.stack || []).length,
+      edge_runtime: (siteData.edge_runtime || []).length,
+      worker_runtime: (siteData.worker_runtime || []).length,
+      api_gateway: (siteData.api_gateway || []).length,
+      rate_limits: (siteData.rate_limits || []).length,
+      cache_stack: (siteData.cache_stack || []).length,
+      search_stack: (siteData.search_stack || []).length,
+      storage_stack: (siteData.storage_stack || []).length,
+      session_store: (siteData.session_store || []).length,
       localization_languages: (siteData.localization?.languages || []).length,
       accessibility_checks: (siteData.accessibility?.checks || []).length,
       performance_targets: (siteData.performance?.targets || []).length,
+      enablement_programs: (siteData.enablement_programs || []).length,
+      onboarding_flows: (siteData.onboarding_flows || []).length,
+      data_retention: (siteData.data_retention || []).length,
+      reliability_slos: (siteData.reliability_slos || []).length,
+      incident_history: (siteData.incident_history || []).length,
       scene_pipeline: (siteData.scene_pipeline || []).length,
       render_stack: (siteData.render_stack || []).length,
       interaction_modes: (siteData.interaction_modes || []).length,
@@ -3927,6 +4023,13 @@ function buildApiRoutes(model, siteData) {
     { method: "POST", path: "/api/auth/session/login", purpose: "creates a local session identity (dev-only)", actor: "auth_gateway" },
     { method: "POST", path: "/api/auth/session/logout", purpose: "clears the active session identity", actor: "auth_gateway" },
     { method: "GET", path: "/api/identity", purpose: "returns identity providers, roles, and policy metadata", actor: "auth_gateway" },
+    { method: "GET", path: "/api/identity/verification", purpose: "returns identity verification metadata", actor: "auth_gateway" },
+    { method: "GET", path: "/api/risk", purpose: "returns fraud and risk metadata", actor: "mesh_supervisor" },
+    { method: "GET", path: "/api/consent", purpose: "returns consent and preference metadata", actor: "auth_gateway" },
+    { method: "GET", path: "/api/audit", purpose: "returns audit log metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/data-exports", purpose: "returns data export metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/marketplace", purpose: "returns marketplace stack metadata", actor: "commerce_orchestrator" },
+    { method: "GET", path: "/api/syndication", purpose: "returns content syndication metadata", actor: "content_keeper" },
     { method: "GET", path: "/api/billing", purpose: "returns billing plans and invoice metadata", actor: "commerce_orchestrator" },
     { method: "GET", path: "/api/subscriptions", purpose: "returns subscription tier metadata", actor: "commerce_orchestrator" },
     { method: "GET", path: "/api/cms", purpose: "returns content type and workflow metadata", actor: "content_keeper" },
@@ -3988,6 +4091,14 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/compliance", purpose: "returns compliance and governance metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/observability", purpose: "returns operational signals metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/infrastructure", purpose: "returns infrastructure stack metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/runtime/edge", purpose: "returns edge runtime metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/runtime/workers", purpose: "returns worker runtime metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/runtime/gateway", purpose: "returns API gateway metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/runtime/rate-limits", purpose: "returns rate limit policy metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/runtime/cache", purpose: "returns cache stack metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/runtime/search", purpose: "returns search stack metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/runtime/storage", purpose: "returns storage stack metadata", actor: "runtime_reporter" },
+    { method: "GET", path: "/api/runtime/sessions", purpose: "returns session store metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/runtime/hosts", purpose: "returns runtime host metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/runtime/deployments", purpose: "returns deployment target metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/localization", purpose: "returns localization metadata", actor: "runtime_reporter" },
@@ -4135,6 +4246,14 @@ export function buildActorServerPlan(appManifestPath, experienceId) {
     backup_plan: siteData.backup_plan || [],
     observability: siteData.observability || null,
     infrastructure: siteData.infrastructure || null,
+    edge_runtime: siteData.edge_runtime || [],
+    worker_runtime: siteData.worker_runtime || [],
+    api_gateway: siteData.api_gateway || [],
+    rate_limits: siteData.rate_limits || [],
+    cache_stack: siteData.cache_stack || [],
+    search_stack: siteData.search_stack || [],
+    storage_stack: siteData.storage_stack || [],
+    session_store: siteData.session_store || [],
     runtime_hosts: siteData.runtime_hosts || [],
     deployment_targets: siteData.deployment_targets || [],
     runtime_hosts: siteData.runtime_hosts || [],
@@ -4603,6 +4722,34 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, bundle.site_data.identity || {});
       return;
     }
+    if (request.method === "GET" && pathname === "/api/identity/verification") {
+      sendJson(response, 200, bundle.site_data.identity_verification || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/risk") {
+      sendJson(response, 200, bundle.site_data.fraud_risk || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/consent") {
+      sendJson(response, 200, bundle.site_data.consent_center || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/audit") {
+      sendJson(response, 200, bundle.site_data.audit_logs || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/data-exports") {
+      sendJson(response, 200, bundle.site_data.data_exports || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/marketplace") {
+      sendJson(response, 200, bundle.site_data.marketplace_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/syndication") {
+      sendJson(response, 200, bundle.site_data.content_syndication || []);
+      return;
+    }
     if (request.method === "GET" && pathname === "/api/billing") {
       sendJson(response, 200, bundle.site_data.billing || {});
       return;
@@ -4904,6 +5051,38 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, bundle.site_data.infrastructure || {});
       return;
     }
+    if (request.method === "GET" && pathname === "/api/runtime/edge") {
+      sendJson(response, 200, bundle.site_data.edge_runtime || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/runtime/workers") {
+      sendJson(response, 200, bundle.site_data.worker_runtime || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/runtime/gateway") {
+      sendJson(response, 200, bundle.site_data.api_gateway || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/runtime/rate-limits") {
+      sendJson(response, 200, bundle.site_data.rate_limits || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/runtime/cache") {
+      sendJson(response, 200, bundle.site_data.cache_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/runtime/search") {
+      sendJson(response, 200, bundle.site_data.search_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/runtime/storage") {
+      sendJson(response, 200, bundle.site_data.storage_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/runtime/sessions") {
+      sendJson(response, 200, bundle.site_data.session_store || []);
+      return;
+    }
     if (request.method === "GET" && pathname === "/api/runtime/hosts") {
       sendJson(response, 200, bundle.site_data.runtime_hosts || []);
       return;
@@ -4922,6 +5101,26 @@ async function serveExperience(appManifestPath, experienceId) {
     }
     if (request.method === "GET" && pathname === "/api/performance") {
       sendJson(response, 200, bundle.site_data.performance || {});
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/enablement") {
+      sendJson(response, 200, bundle.site_data.enablement_programs || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/onboarding") {
+      sendJson(response, 200, bundle.site_data.onboarding_flows || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/data-retention") {
+      sendJson(response, 200, bundle.site_data.data_retention || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/reliability") {
+      sendJson(response, 200, bundle.site_data.reliability_slos || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/incidents/history") {
+      sendJson(response, 200, bundle.site_data.incident_history || []);
       return;
     }
     if (request.method === "GET" && pathname === "/api/team") {

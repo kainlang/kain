@@ -7,128 +7,1002 @@
   "page_title": "Hybrid Command",
   "eyebrow": "Hybrid Website System",
   "sections": [
-    { "id": "system", "kind": "logo_strip", "eyebrow": "Stack", "title": "Every lane in one shell", "source": "content.logos" },
-    { "id": "proof", "kind": "card_grid", "eyebrow": "System", "title": "Universal web systems", "source": "content.feature_cards" },
-    { "id": "blueprints", "kind": "blueprint_grid", "eyebrow": "Blueprints", "title": "Core subsystems", "source": "content.blueprints" },
-    { "id": "capabilities", "kind": "capability_matrix", "eyebrow": "Capability", "title": "How the lanes combine", "source": "content.capability_matrix" },
-    { "id": "app", "kind": "app_shell", "eyebrow": "App", "title": "Workspace modules", "source": "content.app_modules" },
-    { "id": "ui-kit", "kind": "ui_kit", "eyebrow": "UI", "title": "Component kit and layout patterns" },
-    { "id": "frontend-stack", "kind": "card_grid", "eyebrow": "Frontend", "title": "React/TypeScript stack", "source": "content.frontend_stack" },
-    { "id": "ui-runtime", "kind": "card_grid", "eyebrow": "UI Runtime", "title": "React-like runtime contracts", "source": "content.ui_runtime" },
-    { "id": "auth", "kind": "auth_panel", "eyebrow": "Auth", "title": "Identity strategy", "source": "content.auth" },
-    { "id": "session", "kind": "auth_session", "eyebrow": "Session", "title": "Local identity preview", "source": "content.auth" },
-    { "id": "identity", "kind": "card_grid", "eyebrow": "Identity", "title": "Identity providers", "source": "content.identity.providers" },
-    { "id": "identity-roles", "kind": "card_grid", "eyebrow": "Identity", "title": "Roles and policies", "source": "content.identity.roles" },
-    { "id": "billing", "kind": "card_grid", "eyebrow": "Billing", "title": "Billing systems", "source": "content.billing.plans" },
-    { "id": "subscriptions", "kind": "card_grid", "eyebrow": "Subscriptions", "title": "Subscription tiers", "source": "content.subscriptions.tiers" },
-    { "id": "cms", "kind": "card_grid", "eyebrow": "CMS", "title": "Content types", "source": "content.cms.content_types" },
-    { "id": "media", "kind": "card_grid", "eyebrow": "Media", "title": "Media libraries", "source": "content.media_library.libraries" },
-    { "id": "automation", "kind": "card_grid", "eyebrow": "Automation", "title": "Automation flows", "source": "content.automation.flows" },
-    { "id": "webhooks", "kind": "card_grid", "eyebrow": "Webhooks", "title": "Webhook events", "source": "content.webhooks.events" },
-    { "id": "api", "kind": "route_grid", "eyebrow": "API", "title": "Runtime API reference", "source": "content.api_reference.endpoints" },
-    { "id": "developer", "kind": "card_grid", "eyebrow": "Developers", "title": "Developer portal tools", "source": "content.developer_portal.tools" },
-    { "id": "seo", "kind": "card_grid", "eyebrow": "SEO", "title": "Search and social posture", "source": "content.seo_stack.targets" },
-    { "id": "brand-system", "kind": "card_grid", "eyebrow": "Brand", "title": "Brand system", "source": "content.brand_system" },
-    { "id": "social-presence", "kind": "card_grid", "eyebrow": "Social", "title": "Social presence", "source": "content.social_presence" },
-    { "id": "content-calendar", "kind": "process_steps", "eyebrow": "Calendar", "title": "Content calendar", "source": "content.content_calendar" },
-    { "id": "release-pipeline", "kind": "process_steps", "eyebrow": "Release", "title": "Release pipeline", "source": "content.release_pipeline" },
-    { "id": "qa-program", "kind": "card_grid", "eyebrow": "QA", "title": "Quality program", "source": "content.qa_program" },
-    { "id": "domain-stack", "kind": "card_grid", "eyebrow": "Domain", "title": "Domain + edge stack", "source": "content.domain_stack" },
-    { "id": "trust-center", "kind": "card_grid", "eyebrow": "Trust", "title": "Trust center", "source": "content.trust_center" },
-    { "id": "agents", "kind": "card_grid", "eyebrow": "Agents", "title": "Agent roster", "source": "content.ai_agents.agents" },
-    { "id": "agent-tools", "kind": "card_grid", "eyebrow": "Agent Tools", "title": "Agent tools", "source": "content.ai_agents.tools" },
-    { "id": "agent-workflows", "kind": "process_steps", "eyebrow": "Agent Flow", "title": "Agent workflows", "source": "content.ai_agents.workflows" },
-    { "id": "knowledge", "kind": "card_grid", "eyebrow": "Knowledge", "title": "Knowledge sources", "source": "content.knowledge_sources" },
-    { "id": "memory", "kind": "card_grid", "eyebrow": "Memory", "title": "Memory stores", "source": "content.memory_stores" },
-    { "id": "tool-registry", "kind": "card_grid", "eyebrow": "Tooling", "title": "Tool registry", "source": "content.tool_registry" },
-    { "id": "agent-orchestration", "kind": "process_steps", "eyebrow": "Orchestration", "title": "Agent orchestration flows", "source": "content.agent_workflows" },
-    { "id": "commerce", "kind": "commerce_stack", "eyebrow": "Commerce", "title": "Offer and handoff systems", "source": "content.commerce" },
-    { "id": "integrations", "kind": "integration_grid", "eyebrow": "Integrations", "title": "Connectors and transports", "source": "content.integrations" },
-    { "id": "growth", "kind": "growth_stack", "eyebrow": "Growth", "title": "Campaigns and funnels", "source": "content.growth" },
-    { "id": "experiments", "kind": "experiment_board", "eyebrow": "Experiments", "title": "Live experiments", "source": "content.experiments" },
-    { "id": "services", "kind": "service_catalog", "eyebrow": "Services", "title": "Service catalog", "source": "content.service_catalog" },
-    { "id": "success", "kind": "success_playbooks", "eyebrow": "Success", "title": "Customer success playbooks", "source": "content.success" },
-    { "id": "notifications", "kind": "notification_matrix", "eyebrow": "Notifications", "title": "Messaging lanes", "source": "content.notifications" },
-    { "id": "releases", "kind": "release_notes", "eyebrow": "Releases", "title": "Release notes and changelog", "source": "content.release_notes" },
-    { "id": "flags", "kind": "feature_flags", "eyebrow": "Flags", "title": "Feature flag registry", "source": "content.feature_flags" },
-    { "id": "incidents", "kind": "incident_response", "eyebrow": "Incident", "title": "Incident response playbooks", "source": "content.incident_response" },
-    { "id": "crm", "kind": "crm_pipeline", "eyebrow": "CRM", "title": "CRM pipeline", "source": "content.crm_pipeline" },
-    { "id": "realtime", "kind": "realtime_channels", "eyebrow": "Realtime", "title": "Live channel previews", "source": "content.realtime_channels" },
-    { "id": "streaming", "kind": "card_grid", "eyebrow": "Streaming", "title": "Streaming stack", "source": "content.streaming_stack" },
-    { "id": "data", "kind": "data_collections", "eyebrow": "Data", "title": "Typed local collections", "source": "content.data_collections" },
-    { "id": "data-governance", "kind": "card_grid", "eyebrow": "Governance", "title": "Data governance", "source": "content.data_governance" },
-    { "id": "backups", "kind": "card_grid", "eyebrow": "Backups", "title": "Backup and restore", "source": "content.backup_plan" },
-    { "id": "uploads", "kind": "uploads_lab", "eyebrow": "Uploads", "title": "Capture attachments locally", "source": "content.uploads" },
-    { "id": "analytics", "kind": "analytics_lab", "eyebrow": "Analytics", "title": "Capture local events", "source": "content.analytics" },
-    { "id": "scene", "kind": "scene_spotlight", "eyebrow": "Scene", "title": "Signal Atrium", "source": "scene" },
-    { "id": "scene-pipeline", "kind": "card_grid", "eyebrow": "Pipeline", "title": "Scene pipeline", "source": "content.scene_pipeline" },
-    { "id": "render-stack", "kind": "card_grid", "eyebrow": "Render", "title": "Render stack", "source": "content.render_stack" },
-    { "id": "interaction-modes", "kind": "card_grid", "eyebrow": "Interaction", "title": "Interaction modes", "source": "content.interaction_modes" },
-    { "id": "device-profiles", "kind": "card_grid", "eyebrow": "Devices", "title": "Device profiles", "source": "content.device_profiles" },
-    { "id": "scene-assets", "kind": "card_grid", "eyebrow": "Assets", "title": "Scene assets", "source": "content.scene_assets" },
-    { "id": "materials", "kind": "card_grid", "eyebrow": "Materials", "title": "Material library", "source": "content.material_library" },
-    { "id": "lighting", "kind": "card_grid", "eyebrow": "Lighting", "title": "Lighting rigs", "source": "content.lighting_rigs" },
-    { "id": "cameras", "kind": "card_grid", "eyebrow": "Cameras", "title": "Camera rigs", "source": "content.camera_rigs" },
-    { "id": "animation", "kind": "card_grid", "eyebrow": "Animation", "title": "Animation stack", "source": "content.animation_stack" },
-    { "id": "physics", "kind": "card_grid", "eyebrow": "Physics", "title": "Physics stack", "source": "content.physics_stack" },
-    { "id": "audio", "kind": "card_grid", "eyebrow": "Audio", "title": "Spatial audio", "source": "content.spatial_audio" },
-    { "id": "xr", "kind": "card_grid", "eyebrow": "XR", "title": "XR modes", "source": "content.xr_modes" },
-    { "id": "shaders", "kind": "card_grid", "eyebrow": "Shaders", "title": "Shader stack", "source": "content.shader_stack" },
-    { "id": "process", "kind": "process_steps", "eyebrow": "Flow", "title": "How to use hybrid well", "source": "content.process_steps" },
-    { "id": "work", "kind": "portfolio_grid", "eyebrow": "Proof", "title": "Example lane capsules", "source": "content.portfolio_entries" },
-    { "id": "pricing", "kind": "pricing", "eyebrow": "Lanes", "title": "Choose the stack depth", "source": "content.pricing_tiers" },
-    { "id": "voices", "kind": "testimonials", "eyebrow": "Proof", "title": "Why keep a hybrid lane", "source": "content.testimonials" },
-    { "id": "commands", "kind": "command_lines", "eyebrow": "Command", "title": "Operator commands", "source": "content.command_lines" },
-    { "id": "docs", "kind": "docs_grid", "eyebrow": "Docs", "title": "Runtime notes and route docs", "source": "content.docs_links" },
-    { "id": "blog", "kind": "blog_roll", "eyebrow": "Blog", "title": "System notes", "source": "content.blog_posts" },
-    { "id": "prompts", "kind": "prompt_deck", "eyebrow": "Prompts", "title": "Route the system by prompt", "source": "content.prompt_presets" },
-    { "id": "personas", "kind": "card_grid", "eyebrow": "Personas", "title": "Hybrid chat personas", "source": "content.chat_personas" },
-    { "id": "chat-modes", "kind": "card_grid", "eyebrow": "Modes", "title": "Conversation modes", "source": "content.chat_modes" },
-    { "id": "model-stack", "kind": "card_grid", "eyebrow": "Models", "title": "Model stack", "source": "content.model_stack" },
-    { "id": "voice-stack", "kind": "card_grid", "eyebrow": "Voice", "title": "Voice stack", "source": "content.voice_stack" },
-    { "id": "moderation", "kind": "card_grid", "eyebrow": "Moderation", "title": "Safety + escalation", "source": "content.moderation_stack" },
-    { "id": "chat-runtime", "kind": "card_grid", "eyebrow": "Chat Runtime", "title": "Chat runtime systems", "source": "content.chat_runtime" },
-    { "id": "chat", "kind": "chat_lab", "eyebrow": "Chat", "title": "Prompt the site system", "source": "content.chat_seed", "placeholder": "What kind of website should I build?", "button_label": "Ask" },
-    { "id": "search", "kind": "search_panel", "eyebrow": "Search", "title": "Search the hybrid system", "source": "experience.search_panel" },
-    { "id": "routes", "kind": "route_grid", "eyebrow": "Runtime", "title": "Actor-backed route contract", "source": "content.server_routes" },
-    { "id": "actor-runtime", "kind": "card_grid", "eyebrow": "Actor Runtime", "title": "Actor server systems", "source": "content.actor_runtime" },
-    { "id": "playbooks", "kind": "process_steps", "eyebrow": "Playbooks", "title": "Operator playbooks", "source": "content.actor_playbooks" },
-    { "id": "tools", "kind": "card_grid", "eyebrow": "Tools", "title": "Actor tools", "source": "content.actor_tools" },
-    { "id": "supervision", "kind": "card_grid", "eyebrow": "Supervision", "title": "Actor supervision", "source": "content.actor_supervision" },
-    { "id": "queues", "kind": "card_grid", "eyebrow": "Queues", "title": "Actor queues", "source": "content.actor_queues" },
-    { "id": "actor-jobs", "kind": "card_grid", "eyebrow": "Jobs", "title": "Actor jobs", "source": "content.actor_jobs" },
-    { "id": "actor-schedules", "kind": "card_grid", "eyebrow": "Schedules", "title": "Actor schedules", "source": "content.actor_schedules" },
-    { "id": "actor-hosts", "kind": "card_grid", "eyebrow": "Hosts", "title": "Actor hosts", "source": "content.actor_hosts" },
-    { "id": "status", "kind": "status_board", "eyebrow": "Status", "title": "Runtime status and incidents", "source": "content.status" },
-    { "id": "roadmap", "kind": "roadmap_timeline", "eyebrow": "Roadmap", "title": "What ships next", "source": "content.roadmap" },
-    { "id": "community", "kind": "community_hub", "eyebrow": "Community", "title": "Community channels", "source": "content.community" },
-    { "id": "events", "kind": "event_schedule", "eyebrow": "Events", "title": "Launch schedule", "source": "content.events" },
-    { "id": "newsletter", "kind": "newsletter_panel", "eyebrow": "Newsletter", "title": "Get the launch notes", "source": "content.newsletter" },
-    { "id": "compliance", "kind": "compliance_grid", "eyebrow": "Compliance", "title": "Governance posture", "source": "content.compliance" },
-    { "id": "observability", "kind": "observability_stack", "eyebrow": "Observability", "title": "Signals and reporting", "source": "content.observability" },
-    { "id": "infrastructure", "kind": "infrastructure_stack", "eyebrow": "Infrastructure", "title": "Hosting stack", "source": "content.infrastructure" },
-    { "id": "runtime-hosts", "kind": "card_grid", "eyebrow": "Runtime", "title": "Runtime hosts", "source": "content.runtime_hosts" },
-    { "id": "deploy", "kind": "card_grid", "eyebrow": "Deploy", "title": "Deployment targets", "source": "content.deployment_targets" },
-    { "id": "localization", "kind": "localization_grid", "eyebrow": "Localization", "title": "Languages and regions", "source": "content.localization" },
-    { "id": "accessibility", "kind": "accessibility_grid", "eyebrow": "Accessibility", "title": "Inclusive design checklist", "source": "content.accessibility" },
-    { "id": "performance", "kind": "performance_targets", "eyebrow": "Performance", "title": "Runtime budgets", "source": "content.performance" },
-    { "id": "partners", "kind": "partner_grid", "eyebrow": "Partners", "title": "Ecosystem signals", "source": "content.partners" },
-    { "id": "press", "kind": "press_kit", "eyebrow": "Press", "title": "Press kit", "source": "content.press_kit" },
-    { "id": "team", "kind": "team_grid", "eyebrow": "Team", "title": "Systems team", "source": "content.team_members" },
-    { "id": "careers", "kind": "careers_list", "eyebrow": "Careers", "title": "Open roles", "source": "content.careers" },
-    { "id": "support", "kind": "support_grid", "eyebrow": "Support", "title": "Support channels", "source": "content.support_channels" },
-    { "id": "support-tickets", "kind": "card_grid", "eyebrow": "Support", "title": "Support ticket queues", "source": "content.support_tickets" },
-    { "id": "feedback", "kind": "card_grid", "eyebrow": "Feedback", "title": "Feedback loops", "source": "content.feedback_loops" },
-    { "id": "surveys", "kind": "card_grid", "eyebrow": "Surveys", "title": "Survey programs", "source": "content.survey_programs" },
-    { "id": "messaging", "kind": "card_grid", "eyebrow": "Messaging", "title": "Messaging stack", "source": "content.messaging_stack" },
-    { "id": "payments", "kind": "card_grid", "eyebrow": "Payments", "title": "Payments stack", "source": "content.payments_stack" },
-    { "id": "scheduling", "kind": "card_grid", "eyebrow": "Scheduling", "title": "Scheduling stack", "source": "content.scheduling_stack" },
-    { "id": "privacy", "kind": "card_grid", "eyebrow": "Privacy", "title": "Privacy requests", "source": "content.privacy_requests" },
-    { "id": "security", "kind": "security_grid", "eyebrow": "Security", "title": "Security controls", "source": "content.security" },
-    { "id": "legal", "kind": "legal_links", "eyebrow": "Legal", "title": "Policies", "source": "content.legal" },
-    { "id": "faq", "kind": "faq", "eyebrow": "FAQ", "title": "Hybrid lane questions", "source": "content.faq_items" },
-    { "id": "intake", "kind": "form_panel", "eyebrow": "Intake", "title": "Describe the full site system", "source": "content.forms.hybrid_intake" },
-    { "id": "cta", "kind": "cta", "eyebrow": "CTA", "title_source": "content.cta.title", "body_source": "content.cta.body", "actions_source": "content.cta.actions" }
+    {
+      "id": "system",
+      "kind": "logo_strip",
+      "eyebrow": "Stack",
+      "title": "Every lane in one shell",
+      "source": "content.logos"
+    },
+    {
+      "id": "proof",
+      "kind": "card_grid",
+      "eyebrow": "System",
+      "title": "Universal web systems",
+      "source": "content.feature_cards"
+    },
+    {
+      "id": "blueprints",
+      "kind": "blueprint_grid",
+      "eyebrow": "Blueprints",
+      "title": "Core subsystems",
+      "source": "content.blueprints"
+    },
+    {
+      "id": "capabilities",
+      "kind": "capability_matrix",
+      "eyebrow": "Capability",
+      "title": "How the lanes combine",
+      "source": "content.capability_matrix"
+    },
+    {
+      "id": "app",
+      "kind": "app_shell",
+      "eyebrow": "App",
+      "title": "Workspace modules",
+      "source": "content.app_modules"
+    },
+    {
+      "id": "ui-kit",
+      "kind": "ui_kit",
+      "eyebrow": "UI",
+      "title": "Component kit and layout patterns"
+    },
+    {
+      "id": "frontend-stack",
+      "kind": "card_grid",
+      "eyebrow": "Frontend",
+      "title": "React/TypeScript stack",
+      "source": "content.frontend_stack"
+    },
+    {
+      "id": "ui-runtime",
+      "kind": "card_grid",
+      "eyebrow": "UI Runtime",
+      "title": "React-like runtime contracts",
+      "source": "content.ui_runtime"
+    },
+    {
+      "id": "auth",
+      "kind": "auth_panel",
+      "eyebrow": "Auth",
+      "title": "Identity strategy",
+      "source": "content.auth"
+    },
+    {
+      "id": "session",
+      "kind": "auth_session",
+      "eyebrow": "Session",
+      "title": "Local identity preview",
+      "source": "content.auth"
+    },
+    {
+      "id": "identity",
+      "kind": "card_grid",
+      "eyebrow": "Identity",
+      "title": "Identity providers",
+      "source": "content.identity.providers"
+    },
+    {
+      "id": "identity-roles",
+      "kind": "card_grid",
+      "eyebrow": "Identity",
+      "title": "Roles and policies",
+      "source": "content.identity.roles"
+    },
+    {
+      "id": "identity-verification",
+      "kind": "card_grid",
+      "eyebrow": "Identity",
+      "title": "Verification and recovery",
+      "source": "content.identity_verification"
+    },
+    {
+      "id": "fraud-risk",
+      "kind": "card_grid",
+      "eyebrow": "Risk",
+      "title": "Fraud and risk controls",
+      "source": "content.fraud_risk"
+    },
+    {
+      "id": "consent",
+      "kind": "card_grid",
+      "eyebrow": "Consent",
+      "title": "Consent and preference center",
+      "source": "content.consent_center"
+    },
+    {
+      "id": "audit-logs",
+      "kind": "card_grid",
+      "eyebrow": "Audit",
+      "title": "Audit logging",
+      "source": "content.audit_logs"
+    },
+    {
+      "id": "data-exports",
+      "kind": "card_grid",
+      "eyebrow": "Exports",
+      "title": "Data export pipelines",
+      "source": "content.data_exports"
+    },
+    {
+      "id": "marketplace",
+      "kind": "card_grid",
+      "eyebrow": "Marketplace",
+      "title": "Marketplace systems",
+      "source": "content.marketplace_stack"
+    },
+    {
+      "id": "syndication",
+      "kind": "card_grid",
+      "eyebrow": "Syndication",
+      "title": "Content syndication",
+      "source": "content.content_syndication"
+    },
+    {
+      "id": "billing",
+      "kind": "card_grid",
+      "eyebrow": "Billing",
+      "title": "Billing systems",
+      "source": "content.billing.plans"
+    },
+    {
+      "id": "subscriptions",
+      "kind": "card_grid",
+      "eyebrow": "Subscriptions",
+      "title": "Subscription tiers",
+      "source": "content.subscriptions.tiers"
+    },
+    {
+      "id": "cms",
+      "kind": "card_grid",
+      "eyebrow": "CMS",
+      "title": "Content types",
+      "source": "content.cms.content_types"
+    },
+    {
+      "id": "media",
+      "kind": "card_grid",
+      "eyebrow": "Media",
+      "title": "Media libraries",
+      "source": "content.media_library.libraries"
+    },
+    {
+      "id": "automation",
+      "kind": "card_grid",
+      "eyebrow": "Automation",
+      "title": "Automation flows",
+      "source": "content.automation.flows"
+    },
+    {
+      "id": "webhooks",
+      "kind": "card_grid",
+      "eyebrow": "Webhooks",
+      "title": "Webhook events",
+      "source": "content.webhooks.events"
+    },
+    {
+      "id": "api",
+      "kind": "route_grid",
+      "eyebrow": "API",
+      "title": "Runtime API reference",
+      "source": "content.api_reference.endpoints"
+    },
+    {
+      "id": "developer",
+      "kind": "card_grid",
+      "eyebrow": "Developers",
+      "title": "Developer portal tools",
+      "source": "content.developer_portal.tools"
+    },
+    {
+      "id": "seo",
+      "kind": "card_grid",
+      "eyebrow": "SEO",
+      "title": "Search and social posture",
+      "source": "content.seo_stack.targets"
+    },
+    {
+      "id": "brand-system",
+      "kind": "card_grid",
+      "eyebrow": "Brand",
+      "title": "Brand system",
+      "source": "content.brand_system"
+    },
+    {
+      "id": "social-presence",
+      "kind": "card_grid",
+      "eyebrow": "Social",
+      "title": "Social presence",
+      "source": "content.social_presence"
+    },
+    {
+      "id": "content-calendar",
+      "kind": "process_steps",
+      "eyebrow": "Calendar",
+      "title": "Content calendar",
+      "source": "content.content_calendar"
+    },
+    {
+      "id": "release-pipeline",
+      "kind": "process_steps",
+      "eyebrow": "Release",
+      "title": "Release pipeline",
+      "source": "content.release_pipeline"
+    },
+    {
+      "id": "qa-program",
+      "kind": "card_grid",
+      "eyebrow": "QA",
+      "title": "Quality program",
+      "source": "content.qa_program"
+    },
+    {
+      "id": "domain-stack",
+      "kind": "card_grid",
+      "eyebrow": "Domain",
+      "title": "Domain + edge stack",
+      "source": "content.domain_stack"
+    },
+    {
+      "id": "trust-center",
+      "kind": "card_grid",
+      "eyebrow": "Trust",
+      "title": "Trust center",
+      "source": "content.trust_center"
+    },
+    {
+      "id": "agents",
+      "kind": "card_grid",
+      "eyebrow": "Agents",
+      "title": "Agent roster",
+      "source": "content.ai_agents.agents"
+    },
+    {
+      "id": "agent-tools",
+      "kind": "card_grid",
+      "eyebrow": "Agent Tools",
+      "title": "Agent tools",
+      "source": "content.ai_agents.tools"
+    },
+    {
+      "id": "agent-workflows",
+      "kind": "process_steps",
+      "eyebrow": "Agent Flow",
+      "title": "Agent workflows",
+      "source": "content.ai_agents.workflows"
+    },
+    {
+      "id": "knowledge",
+      "kind": "card_grid",
+      "eyebrow": "Knowledge",
+      "title": "Knowledge sources",
+      "source": "content.knowledge_sources"
+    },
+    {
+      "id": "memory",
+      "kind": "card_grid",
+      "eyebrow": "Memory",
+      "title": "Memory stores",
+      "source": "content.memory_stores"
+    },
+    {
+      "id": "tool-registry",
+      "kind": "card_grid",
+      "eyebrow": "Tooling",
+      "title": "Tool registry",
+      "source": "content.tool_registry"
+    },
+    {
+      "id": "agent-orchestration",
+      "kind": "process_steps",
+      "eyebrow": "Orchestration",
+      "title": "Agent orchestration flows",
+      "source": "content.agent_workflows"
+    },
+    {
+      "id": "commerce",
+      "kind": "commerce_stack",
+      "eyebrow": "Commerce",
+      "title": "Offer and handoff systems",
+      "source": "content.commerce"
+    },
+    {
+      "id": "integrations",
+      "kind": "integration_grid",
+      "eyebrow": "Integrations",
+      "title": "Connectors and transports",
+      "source": "content.integrations"
+    },
+    {
+      "id": "growth",
+      "kind": "growth_stack",
+      "eyebrow": "Growth",
+      "title": "Campaigns and funnels",
+      "source": "content.growth"
+    },
+    {
+      "id": "experiments",
+      "kind": "experiment_board",
+      "eyebrow": "Experiments",
+      "title": "Live experiments",
+      "source": "content.experiments"
+    },
+    {
+      "id": "services",
+      "kind": "service_catalog",
+      "eyebrow": "Services",
+      "title": "Service catalog",
+      "source": "content.service_catalog"
+    },
+    {
+      "id": "success",
+      "kind": "success_playbooks",
+      "eyebrow": "Success",
+      "title": "Customer success playbooks",
+      "source": "content.success"
+    },
+    {
+      "id": "notifications",
+      "kind": "notification_matrix",
+      "eyebrow": "Notifications",
+      "title": "Messaging lanes",
+      "source": "content.notifications"
+    },
+    {
+      "id": "releases",
+      "kind": "release_notes",
+      "eyebrow": "Releases",
+      "title": "Release notes and changelog",
+      "source": "content.release_notes"
+    },
+    {
+      "id": "flags",
+      "kind": "feature_flags",
+      "eyebrow": "Flags",
+      "title": "Feature flag registry",
+      "source": "content.feature_flags"
+    },
+    {
+      "id": "incidents",
+      "kind": "incident_response",
+      "eyebrow": "Incident",
+      "title": "Incident response playbooks",
+      "source": "content.incident_response"
+    },
+    {
+      "id": "crm",
+      "kind": "crm_pipeline",
+      "eyebrow": "CRM",
+      "title": "CRM pipeline",
+      "source": "content.crm_pipeline"
+    },
+    {
+      "id": "realtime",
+      "kind": "realtime_channels",
+      "eyebrow": "Realtime",
+      "title": "Live channel previews",
+      "source": "content.realtime_channels"
+    },
+    {
+      "id": "streaming",
+      "kind": "card_grid",
+      "eyebrow": "Streaming",
+      "title": "Streaming stack",
+      "source": "content.streaming_stack"
+    },
+    {
+      "id": "data",
+      "kind": "data_collections",
+      "eyebrow": "Data",
+      "title": "Typed local collections",
+      "source": "content.data_collections"
+    },
+    {
+      "id": "data-governance",
+      "kind": "card_grid",
+      "eyebrow": "Governance",
+      "title": "Data governance",
+      "source": "content.data_governance"
+    },
+    {
+      "id": "backups",
+      "kind": "card_grid",
+      "eyebrow": "Backups",
+      "title": "Backup and restore",
+      "source": "content.backup_plan"
+    },
+    {
+      "id": "uploads",
+      "kind": "uploads_lab",
+      "eyebrow": "Uploads",
+      "title": "Capture attachments locally",
+      "source": "content.uploads"
+    },
+    {
+      "id": "analytics",
+      "kind": "analytics_lab",
+      "eyebrow": "Analytics",
+      "title": "Capture local events",
+      "source": "content.analytics"
+    },
+    {
+      "id": "scene",
+      "kind": "scene_spotlight",
+      "eyebrow": "Scene",
+      "title": "Signal Atrium",
+      "source": "scene"
+    },
+    {
+      "id": "scene-pipeline",
+      "kind": "card_grid",
+      "eyebrow": "Pipeline",
+      "title": "Scene pipeline",
+      "source": "content.scene_pipeline"
+    },
+    {
+      "id": "render-stack",
+      "kind": "card_grid",
+      "eyebrow": "Render",
+      "title": "Render stack",
+      "source": "content.render_stack"
+    },
+    {
+      "id": "interaction-modes",
+      "kind": "card_grid",
+      "eyebrow": "Interaction",
+      "title": "Interaction modes",
+      "source": "content.interaction_modes"
+    },
+    {
+      "id": "device-profiles",
+      "kind": "card_grid",
+      "eyebrow": "Devices",
+      "title": "Device profiles",
+      "source": "content.device_profiles"
+    },
+    {
+      "id": "scene-assets",
+      "kind": "card_grid",
+      "eyebrow": "Assets",
+      "title": "Scene assets",
+      "source": "content.scene_assets"
+    },
+    {
+      "id": "materials",
+      "kind": "card_grid",
+      "eyebrow": "Materials",
+      "title": "Material library",
+      "source": "content.material_library"
+    },
+    {
+      "id": "lighting",
+      "kind": "card_grid",
+      "eyebrow": "Lighting",
+      "title": "Lighting rigs",
+      "source": "content.lighting_rigs"
+    },
+    {
+      "id": "cameras",
+      "kind": "card_grid",
+      "eyebrow": "Cameras",
+      "title": "Camera rigs",
+      "source": "content.camera_rigs"
+    },
+    {
+      "id": "animation",
+      "kind": "card_grid",
+      "eyebrow": "Animation",
+      "title": "Animation stack",
+      "source": "content.animation_stack"
+    },
+    {
+      "id": "physics",
+      "kind": "card_grid",
+      "eyebrow": "Physics",
+      "title": "Physics stack",
+      "source": "content.physics_stack"
+    },
+    {
+      "id": "audio",
+      "kind": "card_grid",
+      "eyebrow": "Audio",
+      "title": "Spatial audio",
+      "source": "content.spatial_audio"
+    },
+    {
+      "id": "xr",
+      "kind": "card_grid",
+      "eyebrow": "XR",
+      "title": "XR modes",
+      "source": "content.xr_modes"
+    },
+    {
+      "id": "shaders",
+      "kind": "card_grid",
+      "eyebrow": "Shaders",
+      "title": "Shader stack",
+      "source": "content.shader_stack"
+    },
+    {
+      "id": "process",
+      "kind": "process_steps",
+      "eyebrow": "Flow",
+      "title": "How to use hybrid well",
+      "source": "content.process_steps"
+    },
+    {
+      "id": "work",
+      "kind": "portfolio_grid",
+      "eyebrow": "Proof",
+      "title": "Example lane capsules",
+      "source": "content.portfolio_entries"
+    },
+    {
+      "id": "pricing",
+      "kind": "pricing",
+      "eyebrow": "Lanes",
+      "title": "Choose the stack depth",
+      "source": "content.pricing_tiers"
+    },
+    {
+      "id": "voices",
+      "kind": "testimonials",
+      "eyebrow": "Proof",
+      "title": "Why keep a hybrid lane",
+      "source": "content.testimonials"
+    },
+    {
+      "id": "commands",
+      "kind": "command_lines",
+      "eyebrow": "Command",
+      "title": "Operator commands",
+      "source": "content.command_lines"
+    },
+    {
+      "id": "docs",
+      "kind": "docs_grid",
+      "eyebrow": "Docs",
+      "title": "Runtime notes and route docs",
+      "source": "content.docs_links"
+    },
+    {
+      "id": "blog",
+      "kind": "blog_roll",
+      "eyebrow": "Blog",
+      "title": "System notes",
+      "source": "content.blog_posts"
+    },
+    {
+      "id": "prompts",
+      "kind": "prompt_deck",
+      "eyebrow": "Prompts",
+      "title": "Route the system by prompt",
+      "source": "content.prompt_presets"
+    },
+    {
+      "id": "personas",
+      "kind": "card_grid",
+      "eyebrow": "Personas",
+      "title": "Hybrid chat personas",
+      "source": "content.chat_personas"
+    },
+    {
+      "id": "chat-modes",
+      "kind": "card_grid",
+      "eyebrow": "Modes",
+      "title": "Conversation modes",
+      "source": "content.chat_modes"
+    },
+    {
+      "id": "model-stack",
+      "kind": "card_grid",
+      "eyebrow": "Models",
+      "title": "Model stack",
+      "source": "content.model_stack"
+    },
+    {
+      "id": "voice-stack",
+      "kind": "card_grid",
+      "eyebrow": "Voice",
+      "title": "Voice stack",
+      "source": "content.voice_stack"
+    },
+    {
+      "id": "moderation",
+      "kind": "card_grid",
+      "eyebrow": "Moderation",
+      "title": "Safety + escalation",
+      "source": "content.moderation_stack"
+    },
+    {
+      "id": "chat-runtime",
+      "kind": "card_grid",
+      "eyebrow": "Chat Runtime",
+      "title": "Chat runtime systems",
+      "source": "content.chat_runtime"
+    },
+    {
+      "id": "chat",
+      "kind": "chat_lab",
+      "eyebrow": "Chat",
+      "title": "Prompt the site system",
+      "source": "content.chat_seed",
+      "placeholder": "What kind of website should I build?",
+      "button_label": "Ask"
+    },
+    {
+      "id": "search",
+      "kind": "search_panel",
+      "eyebrow": "Search",
+      "title": "Search the hybrid system",
+      "source": "experience.search_panel"
+    },
+    {
+      "id": "routes",
+      "kind": "route_grid",
+      "eyebrow": "Runtime",
+      "title": "Actor-backed route contract",
+      "source": "content.server_routes"
+    },
+    {
+      "id": "actor-runtime",
+      "kind": "card_grid",
+      "eyebrow": "Actor Runtime",
+      "title": "Actor server systems",
+      "source": "content.actor_runtime"
+    },
+    {
+      "id": "playbooks",
+      "kind": "process_steps",
+      "eyebrow": "Playbooks",
+      "title": "Operator playbooks",
+      "source": "content.actor_playbooks"
+    },
+    {
+      "id": "tools",
+      "kind": "card_grid",
+      "eyebrow": "Tools",
+      "title": "Actor tools",
+      "source": "content.actor_tools"
+    },
+    {
+      "id": "supervision",
+      "kind": "card_grid",
+      "eyebrow": "Supervision",
+      "title": "Actor supervision",
+      "source": "content.actor_supervision"
+    },
+    {
+      "id": "queues",
+      "kind": "card_grid",
+      "eyebrow": "Queues",
+      "title": "Actor queues",
+      "source": "content.actor_queues"
+    },
+    {
+      "id": "actor-jobs",
+      "kind": "card_grid",
+      "eyebrow": "Jobs",
+      "title": "Actor jobs",
+      "source": "content.actor_jobs"
+    },
+    {
+      "id": "actor-schedules",
+      "kind": "card_grid",
+      "eyebrow": "Schedules",
+      "title": "Actor schedules",
+      "source": "content.actor_schedules"
+    },
+    {
+      "id": "actor-hosts",
+      "kind": "card_grid",
+      "eyebrow": "Hosts",
+      "title": "Actor hosts",
+      "source": "content.actor_hosts"
+    },
+    {
+      "id": "status",
+      "kind": "status_board",
+      "eyebrow": "Status",
+      "title": "Runtime status and incidents",
+      "source": "content.status"
+    },
+    {
+      "id": "roadmap",
+      "kind": "roadmap_timeline",
+      "eyebrow": "Roadmap",
+      "title": "What ships next",
+      "source": "content.roadmap"
+    },
+    {
+      "id": "community",
+      "kind": "community_hub",
+      "eyebrow": "Community",
+      "title": "Community channels",
+      "source": "content.community"
+    },
+    {
+      "id": "events",
+      "kind": "event_schedule",
+      "eyebrow": "Events",
+      "title": "Launch schedule",
+      "source": "content.events"
+    },
+    {
+      "id": "newsletter",
+      "kind": "newsletter_panel",
+      "eyebrow": "Newsletter",
+      "title": "Get the launch notes",
+      "source": "content.newsletter"
+    },
+    {
+      "id": "compliance",
+      "kind": "compliance_grid",
+      "eyebrow": "Compliance",
+      "title": "Governance posture",
+      "source": "content.compliance"
+    },
+    {
+      "id": "observability",
+      "kind": "observability_stack",
+      "eyebrow": "Observability",
+      "title": "Signals and reporting",
+      "source": "content.observability"
+    },
+    {
+      "id": "infrastructure",
+      "kind": "infrastructure_stack",
+      "eyebrow": "Infrastructure",
+      "title": "Hosting stack",
+      "source": "content.infrastructure"
+    },
+    {
+      "id": "edge-runtime",
+      "kind": "card_grid",
+      "eyebrow": "Edge",
+      "title": "Edge runtime",
+      "source": "content.edge_runtime"
+    },
+    {
+      "id": "worker-runtime",
+      "kind": "card_grid",
+      "eyebrow": "Workers",
+      "title": "Worker runtime",
+      "source": "content.worker_runtime"
+    },
+    {
+      "id": "api-gateway",
+      "kind": "card_grid",
+      "eyebrow": "Gateway",
+      "title": "API gateway",
+      "source": "content.api_gateway"
+    },
+    {
+      "id": "rate-limits",
+      "kind": "card_grid",
+      "eyebrow": "Limits",
+      "title": "Rate limits",
+      "source": "content.rate_limits"
+    },
+    {
+      "id": "cache-stack",
+      "kind": "card_grid",
+      "eyebrow": "Cache",
+      "title": "Cache stack",
+      "source": "content.cache_stack"
+    },
+    {
+      "id": "search-stack",
+      "kind": "card_grid",
+      "eyebrow": "Search",
+      "title": "Search stack",
+      "source": "content.search_stack"
+    },
+    {
+      "id": "storage-stack",
+      "kind": "card_grid",
+      "eyebrow": "Storage",
+      "title": "Storage stack",
+      "source": "content.storage_stack"
+    },
+    {
+      "id": "session-store",
+      "kind": "card_grid",
+      "eyebrow": "Sessions",
+      "title": "Session store",
+      "source": "content.session_store"
+    },
+    {
+      "id": "runtime-hosts",
+      "kind": "card_grid",
+      "eyebrow": "Runtime",
+      "title": "Runtime hosts",
+      "source": "content.runtime_hosts"
+    },
+    {
+      "id": "deploy",
+      "kind": "card_grid",
+      "eyebrow": "Deploy",
+      "title": "Deployment targets",
+      "source": "content.deployment_targets"
+    },
+    {
+      "id": "localization",
+      "kind": "localization_grid",
+      "eyebrow": "Localization",
+      "title": "Languages and regions",
+      "source": "content.localization"
+    },
+    {
+      "id": "accessibility",
+      "kind": "accessibility_grid",
+      "eyebrow": "Accessibility",
+      "title": "Inclusive design checklist",
+      "source": "content.accessibility"
+    },
+    {
+      "id": "performance",
+      "kind": "performance_targets",
+      "eyebrow": "Performance",
+      "title": "Runtime budgets",
+      "source": "content.performance"
+    },
+    {
+      "id": "enablement",
+      "kind": "card_grid",
+      "eyebrow": "Enablement",
+      "title": "Enablement programs",
+      "source": "content.enablement_programs"
+    },
+    {
+      "id": "onboarding",
+      "kind": "process_steps",
+      "eyebrow": "Onboarding",
+      "title": "Onboarding flows",
+      "source": "content.onboarding_flows"
+    },
+    {
+      "id": "reliability",
+      "kind": "card_grid",
+      "eyebrow": "Reliability",
+      "title": "Reliability SLOs",
+      "source": "content.reliability_slos"
+    },
+    {
+      "id": "retention",
+      "kind": "card_grid",
+      "eyebrow": "Retention",
+      "title": "Data retention policies",
+      "source": "content.data_retention"
+    },
+    {
+      "id": "incident-history",
+      "kind": "timeline",
+      "eyebrow": "Incidents",
+      "title": "Recent incident history",
+      "source": "content.incident_history"
+    },
+    {
+      "id": "partners",
+      "kind": "partner_grid",
+      "eyebrow": "Partners",
+      "title": "Ecosystem signals",
+      "source": "content.partners"
+    },
+    {
+      "id": "press",
+      "kind": "press_kit",
+      "eyebrow": "Press",
+      "title": "Press kit",
+      "source": "content.press_kit"
+    },
+    {
+      "id": "team",
+      "kind": "team_grid",
+      "eyebrow": "Team",
+      "title": "Systems team",
+      "source": "content.team_members"
+    },
+    {
+      "id": "careers",
+      "kind": "careers_list",
+      "eyebrow": "Careers",
+      "title": "Open roles",
+      "source": "content.careers"
+    },
+    {
+      "id": "support",
+      "kind": "support_grid",
+      "eyebrow": "Support",
+      "title": "Support channels",
+      "source": "content.support_channels"
+    },
+    {
+      "id": "support-tickets",
+      "kind": "card_grid",
+      "eyebrow": "Support",
+      "title": "Support ticket queues",
+      "source": "content.support_tickets"
+    },
+    {
+      "id": "feedback",
+      "kind": "card_grid",
+      "eyebrow": "Feedback",
+      "title": "Feedback loops",
+      "source": "content.feedback_loops"
+    },
+    {
+      "id": "surveys",
+      "kind": "card_grid",
+      "eyebrow": "Surveys",
+      "title": "Survey programs",
+      "source": "content.survey_programs"
+    },
+    {
+      "id": "messaging",
+      "kind": "card_grid",
+      "eyebrow": "Messaging",
+      "title": "Messaging stack",
+      "source": "content.messaging_stack"
+    },
+    {
+      "id": "payments",
+      "kind": "card_grid",
+      "eyebrow": "Payments",
+      "title": "Payments stack",
+      "source": "content.payments_stack"
+    },
+    {
+      "id": "scheduling",
+      "kind": "card_grid",
+      "eyebrow": "Scheduling",
+      "title": "Scheduling stack",
+      "source": "content.scheduling_stack"
+    },
+    {
+      "id": "privacy",
+      "kind": "card_grid",
+      "eyebrow": "Privacy",
+      "title": "Privacy requests",
+      "source": "content.privacy_requests"
+    },
+    {
+      "id": "security",
+      "kind": "security_grid",
+      "eyebrow": "Security",
+      "title": "Security controls",
+      "source": "content.security"
+    },
+    {
+      "id": "legal",
+      "kind": "legal_links",
+      "eyebrow": "Legal",
+      "title": "Policies",
+      "source": "content.legal"
+    },
+    {
+      "id": "faq",
+      "kind": "faq",
+      "eyebrow": "FAQ",
+      "title": "Hybrid lane questions",
+      "source": "content.faq_items"
+    },
+    {
+      "id": "intake",
+      "kind": "form_panel",
+      "eyebrow": "Intake",
+      "title": "Describe the full site system",
+      "source": "content.forms.hybrid_intake"
+    },
+    {
+      "id": "cta",
+      "kind": "cta",
+      "eyebrow": "CTA",
+      "title_source": "content.cta.title",
+      "body_source": "content.cta.body",
+      "actions_source": "content.cta.actions"
+    }
   ],
   "search_panel": {
     "kicker": "Search",

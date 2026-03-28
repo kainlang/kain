@@ -1,0 +1,30 @@
+fn app_state_root() -> String:
+    return "apps/kain-fabric-dcc-suite/state"
+
+fn authored_primitive_report_path() -> String:
+    return app_state_root() + "/authored_primitive_report.json"
+
+fn build_authored_primitive_report_json(settings: Any, mesh_document: String) -> String:
+    let primitive_count = settings.runtime_pack_count + 2
+    let json = "{\n"
+    let json = json + "  \"kind\": \"authored_primitive_report\",\n"
+    let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
+    let json = json + "  \"workspace_mode\": \"" + settings.workspace_mode + "\",\n"
+    let json = json + "  \"mesh_document_id\": \"mesh_document/authored_primitives\",\n"
+    let json = json + "  \"resource_uri\": \"mesh://primitives/authored/definitions\",\n"
+    let json = json + "  \"authoring_policy\": \"primitives_first_then_imports\",\n"
+    let json = json + "  \"primitive_count\": " + str(primitive_count) + ",\n"
+    let json = json + "  \"startup_primitive_id\": \"mesh://primitives/authored/startup-cube\",\n"
+    let json = json + "  \"active_edit_target\": \"mesh://editing/active\",\n"
+    let json = json + "  \"upstream_mesh_document\": \"" + mesh_document + "\"\n"
+    let json = json + "}\n"
+    return json
+
+fn main() -> String:
+    let settings = fabric_inputs.python_suite_bootstrap.project_settings
+    let mesh_document = fabric_inputs.dcc_suite_seed.scene_graph_document
+    let report_json = build_authored_primitive_report_json(settings, mesh_document)
+
+    write_file(authored_primitive_report_path(), report_json)
+
+    return "primitive-mesh:" + settings.workspace_mode + ":primitives=" + str(settings.runtime_pack_count + 2)

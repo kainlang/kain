@@ -663,6 +663,9 @@ pub struct UiEventRoute {
     /// Optional command name to dispatch when this route fires.
     #[serde(default)]
     pub dispatch_command: Option<String>,
+    /// Optional transaction label to stamp on the resulting runtime command.
+    #[serde(default)]
+    pub transaction_label: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -934,6 +937,8 @@ pub struct UiCommand {
     pub name: String,
     pub target: Option<UiNodeId>,
     pub payload: BTreeMap<String, UiValue>,
+    #[serde(default)]
+    pub transaction_label: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1107,12 +1112,38 @@ pub struct UiReloadIdentityAlias {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiHotReloadNodeLink {
+    pub stable_identity: String,
+    pub previous_node: Option<UiNodeId>,
+    pub next_node: Option<UiNodeId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiHotReloadSignalLink {
+    pub signal_key: String,
+    pub previous_signal: Option<UiSignalId>,
+    pub next_signal: Option<UiSignalId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiHotReloadOverlayLink {
+    pub overlay_id: String,
+    pub previous_node: Option<UiNodeId>,
+    pub next_node: Option<UiNodeId>,
+    pub previous_anchor_target: Option<UiNodeId>,
+    pub next_anchor_target: Option<UiNodeId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct UiHotReloadPlan {
     pub preserve_focus: bool,
     pub preserve_selection: bool,
     pub preserve_docking: bool,
+    pub preserve_overlays: bool,
+    pub preserve_motion_policy: bool,
     pub preserve_animation_state: bool,
+    pub preserve_signal_values: bool,
     pub preserve_session_state: bool,
     pub identity_aliases: Vec<UiReloadIdentityAlias>,
 }
@@ -1123,7 +1154,10 @@ impl Default for UiHotReloadPlan {
             preserve_focus: true,
             preserve_selection: true,
             preserve_docking: true,
+            preserve_overlays: true,
+            preserve_motion_policy: true,
             preserve_animation_state: true,
+            preserve_signal_values: true,
             preserve_session_state: true,
             identity_aliases: Vec::new(),
         }
@@ -1198,7 +1232,7 @@ impl UiRuntimeSystems {
             && self.command_registry.commands_by_source.is_empty()
             && self.theme_registry.is_empty()
             && self.workspace_layout.is_empty()
-            && self.hot_reload.identity_aliases.is_empty()
+            && self.hot_reload == UiHotReloadPlan::default()
             && self.signal_values.is_empty()
             && self.animation_state.is_empty()
             && self.session_state.is_empty()
@@ -1467,13 +1501,24 @@ pub fn ui_runtime_systems_from_tree(tree: &UiTree) -> UiRuntimeSystems {
         }
 
         if let Some(identity_key) = node.identity_key.clone() {
-            systems
-                .hot_reload
-                .identity_aliases
-                .push(UiReloadIdentityAlias {
-                    from: identity_key.clone(),
-                    to: identity_key,
-                });
+            if let Some(layout_key) = node.layout.persistent_layout_id.clone() {
+                if layout_key != identity_key {
+                    systems
+                        .hot_reload
+                        .identity_aliases
+                        .push(UiReloadIdentityAlias {
+                            from: identity_key.clone(),
+                            to: layout_key.clone(),
+                        });
+                    systems
+                        .hot_reload
+                        .identity_aliases
+                        .push(UiReloadIdentityAlias {
+                            from: layout_key,
+                            to: identity_key,
+                        });
+                }
+            }
         }
 
         // Compatibility: treat `Overlay` nodes as members of an explicit overlay stack so
@@ -2171,10 +2216,31 @@ fn ease_progress(easing: UiEasingKind, progress: f32) -> f32 {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct UiHotReloadTransferReport {
     pub focus_transferred: bool,
+    pub focus_nodes_transferred: usize,
+    pub focus_traversal_edges_transferred: usize,
     pub selection_transferred: bool,
+    pub selection_nodes_transferred: usize,
     pub docking_transferred: bool,
+    pub workspace_nodes_transferred: usize,
+    pub overlay_transferred: bool,
+    pub overlay_entries_transferred: usize,
+    pub motion_policy_transferred: bool,
     pub animation_tracks_transferred: usize,
+    pub signal_values_transferred: usize,
     pub session_values_transferred: usize,
+    pub identity_links: Vec<UiHotReloadNodeLink>,
+    pub workspace_layout_links: Vec<UiHotReloadNodeLink>,
+    pub overlay_links: Vec<UiHotReloadOverlayLink>,
+    pub animation_track_links: Vec<UiHotReloadNodeLink>,
+    pub signal_links: Vec<UiHotReloadSignalLink>,
+    pub focus_scopes_preserved: Vec<String>,
+    pub focus_scopes_dropped: Vec<String>,
+    pub selection_scopes_preserved: Vec<String>,
+    pub selection_scopes_dropped: Vec<String>,
+    pub session_keys_preserved: Vec<String>,
+    pub session_keys_dropped: Vec<String>,
+    pub dropped_previous_nodes: Vec<UiNodeId>,
+    pub invalidated_nodes: Vec<UiNodeId>,
 }
 
 pub fn ui_transfer_hot_reload_state(
@@ -2182,34 +2248,10 @@ pub fn ui_transfer_hot_reload_state(
     next: &mut UiBuildOutput,
 ) -> UiHotReloadTransferReport {
     let mut report = UiHotReloadTransferReport::default();
-
-    if next.systems.hot_reload.preserve_focus {
-        next.systems.focus_graph.default_scope = previous.systems.focus_graph.default_scope.clone();
-        report.focus_transferred = next.systems.focus_graph.default_scope.is_some();
-    }
-
-    if next.systems.hot_reload.preserve_selection {
-        next.systems.selection_model.active_scope =
-            previous.systems.selection_model.active_scope.clone();
-        report.selection_transferred = next.systems.selection_model.active_scope.is_some();
-    }
-
-    if next.systems.hot_reload.preserve_docking {
-        next.systems.workspace_layout = previous.systems.workspace_layout.clone();
-        report.docking_transferred = !next.systems.workspace_layout.roots.is_empty();
-    }
-
-    if next.systems.hot_reload.preserve_session_state {
-        for (key, value) in &previous.systems.session_state {
-            next.systems
-                .session_state
-                .insert(key.clone(), value.clone());
-            report.session_values_transferred += 1;
-        }
-    }
-
-    let previous_identity_map = node_identity_map(&previous.tree);
-    let next_identity_map = node_identity_map(&next.tree);
+    let previous_reload_identity_map = node_identity_map(&previous.tree);
+    let next_reload_identity_map = node_identity_map(&next.tree);
+    let previous_layout_identity_map = node_layout_identity_map(&previous.tree);
+    let next_layout_identity_map = node_layout_identity_map(&next.tree);
     let aliases = next
         .systems
         .hot_reload
@@ -2218,51 +2260,316 @@ pub fn ui_transfer_hot_reload_state(
         .map(|alias| (alias.from.clone(), alias.to.clone()))
         .collect::<BTreeMap<_, _>>();
 
-    for track in &next.systems.animation_tracks {
-        if !track.preserve_on_reload {
-            continue;
+    report.identity_links = build_node_links(&previous_reload_identity_map, &next_reload_identity_map);
+    report.workspace_layout_links =
+        build_node_links(&previous_layout_identity_map, &next_layout_identity_map);
+    report.dropped_previous_nodes =
+        dropped_previous_nodes(&previous_reload_identity_map, &next_reload_identity_map);
+    report.invalidated_nodes = Vec::new();
+
+    if next.systems.hot_reload.preserve_motion_policy {
+        next.systems.motion_policy = previous.systems.motion_policy.clone();
+        next.systems.motion_policy.recompute_capacitor();
+        report.motion_policy_transferred = true;
+    }
+
+    if next.systems.hot_reload.preserve_docking {
+        let snapshot = ui_workspace_layout_snapshot(&previous.tree, &previous.systems);
+        let applied = ui_apply_workspace_layout_snapshot(&mut next.tree, &mut next.systems, &snapshot);
+        report.docking_transferred = applied > 0
+            || snapshot.persistence_key.is_some()
+            || !snapshot.active_tabs.is_empty();
+        report.workspace_nodes_transferred = applied;
+    }
+
+    if next.systems.hot_reload.preserve_focus {
+        let previous_scopes = previous
+            .systems
+            .focus_graph
+            .scopes
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let next_scopes = next
+            .systems
+            .focus_graph
+            .scopes
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        report.focus_scopes_preserved = previous_scopes
+            .intersection(&next_scopes)
+            .cloned()
+            .collect::<Vec<_>>();
+        report.focus_scopes_dropped = previous_scopes
+            .difference(&next_scopes)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        if let Some(default_scope) = previous.systems.focus_graph.default_scope.clone() {
+            if next_scopes.contains(&default_scope) {
+                next.systems.focus_graph.default_scope = Some(default_scope);
+                report.focus_transferred = true;
+            }
         }
 
-        let Some(target_identity) = next_identity_map.get(&track.target) else {
-            continue;
-        };
-        let previous_identity = aliases
-            .iter()
-            .find_map(|(from, to)| {
-                if to == target_identity {
-                    Some(from.clone())
-                } else {
-                    None
-                }
-            })
-            .unwrap_or_else(|| target_identity.clone());
-        let Some(previous_node) = previous_identity_map
-            .iter()
-            .find_map(|(node_id, identity)| {
-                if identity == &previous_identity {
-                    Some(node_id)
-                } else {
-                    None
-                }
-            })
-        else {
-            continue;
-        };
+        let remapped_focus = remap_scoped_node_map(
+            &previous.systems.focus_graph.focused,
+            &next_scopes,
+            &previous_reload_identity_map,
+            &next_reload_identity_map,
+            &aliases,
+        );
+        report.focus_nodes_transferred = remapped_focus.len();
+        next.systems.focus_graph.focused = remapped_focus;
 
-        let Some(previous_track) = previous.systems.animation_tracks.iter().find(|candidate| {
-            candidate.target == *previous_node && candidate.property == track.property
-        }) else {
-            continue;
-        };
-
-        if let Some(state) = previous.systems.animation_state.get(&previous_track.id) {
-            next.systems
-                .animation_state
-                .insert(track.id.clone(), state.clone());
-            report.animation_tracks_transferred += 1;
+        let mut traversal_edges = Vec::new();
+        for edge in &previous.systems.focus_graph.traversal_edges {
+            if !next_scopes.contains(&edge.scope) {
+                continue;
+            }
+            let Some(from_identity) = previous_reload_identity_map
+                .iter()
+                .find_map(|(node_id, identity)| if *node_id == edge.from { Some(identity.clone()) } else { None }) else {
+                continue;
+            };
+            let Some(to_identity) = previous_reload_identity_map
+                .iter()
+                .find_map(|(node_id, identity)| if *node_id == edge.to { Some(identity.clone()) } else { None }) else {
+                continue;
+            };
+            let Some(from_node) = resolve_identity_to_node(
+                &from_identity,
+                &next_reload_identity_map,
+                &aliases,
+            ) else {
+                continue;
+            };
+            let Some(to_node) = resolve_identity_to_node(
+                &to_identity,
+                &next_reload_identity_map,
+                &aliases,
+            ) else {
+                continue;
+            };
+            traversal_edges.push(UiFocusTraversalEdge {
+                scope: edge.scope.clone(),
+                kind: edge.kind,
+                from: from_node,
+                to: to_node,
+            });
+        }
+        report.focus_traversal_edges_transferred = traversal_edges.len();
+        if !traversal_edges.is_empty() {
+            next.systems.focus_graph.traversal_edges = traversal_edges;
+            report.focus_transferred = true;
         }
     }
 
+    if next.systems.hot_reload.preserve_selection {
+        let previous_scopes = previous
+            .systems
+            .selection_model
+            .scopes
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let next_scopes = next
+            .systems
+            .selection_model
+            .scopes
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        report.selection_scopes_preserved = previous_scopes
+            .intersection(&next_scopes)
+            .cloned()
+            .collect::<Vec<_>>();
+        report.selection_scopes_dropped = previous_scopes
+            .difference(&next_scopes)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        if let Some(active_scope) = previous.systems.selection_model.active_scope.clone() {
+            if next_scopes.contains(&active_scope) {
+                next.systems.selection_model.active_scope = Some(active_scope);
+                report.selection_transferred = true;
+            }
+        }
+
+        let remapped_primary = remap_scoped_node_map(
+            &previous.systems.selection_model.primary,
+            &next_scopes,
+            &previous_reload_identity_map,
+            &next_reload_identity_map,
+            &aliases,
+        );
+        report.selection_nodes_transferred += remapped_primary.len();
+        next.systems.selection_model.primary = remapped_primary;
+
+        let remapped_selected = remap_scoped_node_vec_map(
+            &previous.systems.selection_model.selected,
+            &next_scopes,
+            &previous_reload_identity_map,
+            &next_reload_identity_map,
+            &aliases,
+        );
+        report.selection_nodes_transferred += remapped_selected.len();
+        next.systems.selection_model.selected = remapped_selected;
+        report.selection_transferred = report.selection_transferred || report.selection_nodes_transferred > 0;
+    }
+
+    if next.systems.hot_reload.preserve_overlays {
+        let mut remapped_entries = Vec::new();
+        for overlay in &previous.systems.overlay_stack.entries {
+            let Some(previous_node_identity) = previous_reload_identity_map
+                .iter()
+                .find_map(|(node_id, identity)| if *node_id == overlay.node { Some(identity.clone()) } else { None }) else {
+                continue;
+            };
+            let Some(next_node) = resolve_identity_to_node(
+                &previous_node_identity,
+                &next_reload_identity_map,
+                &aliases,
+            ) else {
+                continue;
+            };
+            let previous_anchor_target = overlay.anchor.as_ref().map(|anchor| anchor.target);
+            let next_anchor_target = overlay
+                .anchor
+                .as_ref()
+                .and_then(|anchor| {
+                    previous_reload_identity_map
+                        .iter()
+                        .find_map(|(node_id, identity)| if *node_id == anchor.target { Some(identity.clone()) } else { None })
+                })
+                .and_then(|identity| resolve_identity_to_node(&identity, &next_reload_identity_map, &aliases));
+            let remapped_anchor = overlay.anchor.as_ref().and_then(|anchor| {
+                next_anchor_target.map(|target| UiAnchorSpec {
+                    target,
+                    placement: anchor.placement,
+                    offset_px: anchor.offset_px,
+                    constraint: anchor.constraint,
+                })
+            });
+
+            if overlay.anchor.is_some() && remapped_anchor.is_none() {
+                report.invalidated_nodes.push(next_node);
+            }
+
+            remapped_entries.push(UiOverlayEntry {
+                id: overlay.id.clone(),
+                node: next_node,
+                order: overlay.order,
+                anchor: remapped_anchor,
+                modal: overlay.modal,
+            });
+            report.overlay_links.push(UiHotReloadOverlayLink {
+                overlay_id: overlay.id.clone(),
+                previous_node: Some(overlay.node),
+                next_node: Some(next_node),
+                previous_anchor_target,
+                next_anchor_target,
+            });
+        }
+        remapped_entries.sort_by(|a, b| (a.order, a.id.clone()).cmp(&(b.order, b.id.clone())));
+        report.overlay_entries_transferred = remapped_entries.len();
+        report.overlay_transferred = report.overlay_entries_transferred > 0;
+        next.systems.overlay_stack.entries = remapped_entries;
+    }
+
+    if next.systems.hot_reload.preserve_signal_values {
+        let previous_signal_keys = build_signal_key_index(previous);
+        let next_signal_keys = build_signal_key_index(next);
+        let mut remapped_signals = Vec::new();
+        let mut transferred_signal_ids = BTreeSet::<UiSignalId>::new();
+
+        for (signal_key, previous_signal) in previous_signal_keys {
+            let Some(next_signal) = next_signal_keys.get(&signal_key).copied() else {
+                continue;
+            };
+            let Some(previous_value) = previous.systems.signal_values.get(&previous_signal).cloned() else {
+                continue;
+            };
+            next.systems.signal_values.insert(next_signal, previous_value);
+            remapped_signals.push(UiHotReloadSignalLink {
+                signal_key: signal_key.clone(),
+                previous_signal: Some(previous_signal),
+                next_signal: Some(next_signal),
+            });
+            transferred_signal_ids.insert(next_signal);
+        }
+
+        report.signal_values_transferred = remapped_signals.len();
+        report.signal_links = remapped_signals;
+        report.invalidated_nodes.extend(
+            transferred_signal_ids
+                .into_iter()
+                .filter_map(|signal| signal_owner_node(&next.tree, &next.systems, signal)),
+        );
+    }
+
+    if next.systems.hot_reload.preserve_session_state {
+        let mut preserved = Vec::new();
+        let mut dropped = Vec::new();
+        for (key, value) in &previous.systems.session_state {
+            if is_reload_transient_session_key(key) {
+                dropped.push(key.clone());
+                continue;
+            }
+            next.systems.session_state.insert(key.clone(), value.clone());
+            preserved.push(key.clone());
+        }
+        report.session_values_transferred = preserved.len();
+        report.session_keys_preserved = preserved;
+        report.session_keys_dropped = dropped;
+    }
+
+    if next.systems.hot_reload.preserve_animation_state {
+        let next_animation_identity_map = node_reload_identity_map(&next.tree);
+        let mut remapped_tracks = Vec::new();
+        for track in &next.systems.animation_tracks {
+            if !track.preserve_on_reload {
+                continue;
+            }
+
+            let Some(target_identity) = next_animation_identity_map.get(&track.target) else {
+                continue;
+            };
+            let previous_identity = aliases
+                .iter()
+                .find_map(|(from, to)| if to == target_identity { Some(from.clone()) } else { None })
+                .unwrap_or_else(|| target_identity.clone());
+            let Some(previous_node) = previous_reload_identity_map
+                .iter()
+                .find_map(|(node_id, identity)| if identity == &previous_identity { Some(*node_id) } else { None }) else {
+                continue;
+            };
+            let Some(previous_track) = previous.systems.animation_tracks.iter().find(|candidate| {
+                candidate.target == previous_node && candidate.property == track.property
+            }) else {
+                continue;
+            };
+
+            if let Some(state) = previous.systems.animation_state.get(&previous_track.id) {
+                next.systems
+                    .animation_state
+                    .insert(track.id.clone(), state.clone());
+                remapped_tracks.push(UiHotReloadNodeLink {
+                    stable_identity: track.id.clone(),
+                    previous_node: Some(previous_node),
+                    next_node: Some(track.target),
+                });
+                report.animation_tracks_transferred += 1;
+            }
+        }
+        report.animation_track_links = remapped_tracks;
+    }
+
+    report.invalidated_nodes.sort();
+    report.invalidated_nodes.dedup();
+    report.dropped_previous_nodes.sort();
+    report.dropped_previous_nodes.dedup();
     report
 }
 
@@ -2276,6 +2583,180 @@ fn node_identity_map(tree: &UiTree) -> BTreeMap<UiNodeId, String> {
                 .map(|identity| (node.id, identity))
         })
         .collect()
+}
+
+fn node_reload_identity_map(tree: &UiTree) -> BTreeMap<UiNodeId, String> {
+    node_identity_map(tree)
+}
+
+fn node_layout_identity_map(tree: &UiTree) -> BTreeMap<UiNodeId, String> {
+    tree.nodes
+        .values()
+        .filter_map(|node| {
+            node.layout
+                .persistent_layout_id
+                .clone()
+                .or_else(|| node.identity_key.clone())
+                .map(|identity| (node.id, identity))
+        })
+        .collect()
+}
+
+fn build_node_links(
+    previous: &BTreeMap<UiNodeId, String>,
+    next: &BTreeMap<UiNodeId, String>,
+) -> Vec<UiHotReloadNodeLink> {
+    let mut identities = BTreeSet::<String>::new();
+    identities.extend(previous.values().cloned());
+    identities.extend(next.values().cloned());
+
+    identities
+        .into_iter()
+        .map(|stable_identity| UiHotReloadNodeLink {
+            previous_node: previous
+                .iter()
+                .find_map(|(node, identity)| (identity == &stable_identity).then_some(*node)),
+            next_node: next
+                .iter()
+                .find_map(|(node, identity)| (identity == &stable_identity).then_some(*node)),
+            stable_identity,
+        })
+        .collect()
+}
+
+fn dropped_previous_nodes(
+    previous: &BTreeMap<UiNodeId, String>,
+    next: &BTreeMap<UiNodeId, String>,
+) -> Vec<UiNodeId> {
+    let next_identities = next.values().cloned().collect::<BTreeSet<_>>();
+    previous
+        .iter()
+        .filter_map(|(node, identity)| (!next_identities.contains(identity)).then_some(*node))
+        .collect()
+}
+
+fn resolve_identity_to_node(
+    identity: &str,
+    next: &BTreeMap<UiNodeId, String>,
+    aliases: &BTreeMap<String, String>,
+) -> Option<UiNodeId> {
+    let mut visited = BTreeSet::<String>::new();
+    let mut cursor = identity.to_string();
+    loop {
+        if !visited.insert(cursor.clone()) {
+            return None;
+        }
+        if let Some(node) = next
+            .iter()
+            .find_map(|(node_id, candidate)| (candidate == &cursor).then_some(*node_id))
+        {
+            return Some(node);
+        }
+        let Some(next_identity) = aliases.get(&cursor).cloned() else {
+            return None;
+        };
+        cursor = next_identity;
+    }
+}
+
+fn remap_scoped_node_map(
+    previous: &BTreeMap<String, UiNodeId>,
+    next_scopes: &BTreeSet<String>,
+    previous_identity_map: &BTreeMap<UiNodeId, String>,
+    next_identity_map: &BTreeMap<UiNodeId, String>,
+    aliases: &BTreeMap<String, String>,
+) -> BTreeMap<String, UiNodeId> {
+    let mut remapped = BTreeMap::new();
+    for (scope, node) in previous {
+        if !next_scopes.contains(scope) {
+            continue;
+        }
+        let Some(identity) = previous_identity_map.get(node) else {
+            continue;
+        };
+        let Some(next_node) = resolve_identity_to_node(identity, next_identity_map, aliases) else {
+            continue;
+        };
+        remapped.insert(scope.clone(), next_node);
+    }
+    remapped
+}
+
+fn remap_scoped_node_vec_map(
+    previous: &BTreeMap<String, Vec<UiNodeId>>,
+    next_scopes: &BTreeSet<String>,
+    previous_identity_map: &BTreeMap<UiNodeId, String>,
+    next_identity_map: &BTreeMap<UiNodeId, String>,
+    aliases: &BTreeMap<String, String>,
+) -> BTreeMap<String, Vec<UiNodeId>> {
+    let mut remapped = BTreeMap::new();
+    for (scope, nodes) in previous {
+        if !next_scopes.contains(scope) {
+            continue;
+        }
+        let mut remapped_nodes = nodes
+            .iter()
+            .filter_map(|node| previous_identity_map.get(node))
+            .filter_map(|identity| resolve_identity_to_node(identity, next_identity_map, aliases))
+            .collect::<Vec<_>>();
+        remapped_nodes.sort();
+        remapped_nodes.dedup();
+        if !remapped_nodes.is_empty() {
+            remapped.insert(scope.clone(), remapped_nodes);
+        }
+    }
+    remapped
+}
+
+fn build_signal_key_index(output: &UiBuildOutput) -> BTreeMap<String, UiSignalId> {
+    let mut index = BTreeMap::new();
+    for (key, value) in &output.systems.session_state {
+        let Some(raw_id) = key.strip_prefix("ui.signal.key.") else {
+            continue;
+        };
+        let Ok(parsed_id) = raw_id.parse::<u64>() else {
+            continue;
+        };
+        let UiValue::String(signal_key) = value else {
+            continue;
+        };
+        index.insert(signal_key.clone(), UiSignalId(parsed_id));
+    }
+    index
+}
+
+fn signal_owner_node(
+    tree: &UiTree,
+    systems: &UiRuntimeSystems,
+    signal: UiSignalId,
+) -> Option<UiNodeId> {
+    let signal_key = systems
+        .session_state
+        .get(&format!("ui.signal.key.{}", signal.0))
+        .and_then(|value| match value {
+            UiValue::String(value) => Some(value.as_str()),
+            _ => None,
+        });
+
+    tree.nodes.values().find_map(|node| {
+        if node.watches.contains(&signal) {
+            return Some(node.id);
+        }
+        let prop_match = node.props.values().any(|value| match value {
+            UiValue::String(value) => {
+                value == &signal.0.to_string() || signal_key.is_some_and(|key| value == key)
+            }
+            _ => false,
+        });
+        prop_match.then_some(node.id)
+    })
+}
+
+fn is_reload_transient_session_key(key: &str) -> bool {
+    key.starts_with("ui.reload.")
+        || key.starts_with("ui.runtime.")
+        || key.starts_with("ui.devtools.")
+        || key.ends_with(".transient")
 }
 
 pub fn ui_native_projection_from_output(output: &UiBuildOutput) -> UiNativeProjection {

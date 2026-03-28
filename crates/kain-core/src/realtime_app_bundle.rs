@@ -3,8 +3,9 @@ use serde::{Deserialize, Serialize};
 use crate::ast::{ComputeMetadata, ShaderStage, Type, COMPUTE_PLAN_CAPABILITY_KEY};
 use crate::{CompileTarget, TypedItem, TypedProgram, TypedShader};
 use kain_ui::{
-    UiBuildOutput, UiDockPlacement, UiLayoutKind, UiNode, UiNodeId, UiSurfaceCompositionMode,
-    UiSurfaceKind, UiSurfaceRendererPreference, UiValue, UiWidgetKind, UiWorkspaceLayout,
+    UiBuildOutput, UiDockPlacement, UiHotReloadPlan, UiLayoutKind, UiMotionPolicy, UiNode,
+    UiNodeId, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference, UiValue,
+    UiWidgetKind, UiWorkspaceLayout,
 };
 use std::collections::{BTreeMap, HashMap};
 
@@ -35,6 +36,12 @@ pub struct RealtimeUiContractsBundle {
     pub contract_version: Option<String>,
     pub widget_registry_json: Option<String>,
     pub command_registry_json: Option<String>,
+    pub computed_registry_json: Option<String>,
+    pub event_routes_json: Option<String>,
+    pub hot_reload_json: Option<String>,
+    pub focus_graph_json: Option<String>,
+    pub selection_model_json: Option<String>,
+    pub overlay_stack_json: Option<String>,
     pub motion_policy_json: Option<String>,
     pub paint_registry_json: Option<String>,
     pub motion_registry_json: Option<String>,
@@ -375,6 +382,8 @@ fn collect_ui_contracts(ui_output: Option<&UiBuildOutput>) -> Option<RealtimeUiC
     bundle.contract_version = ui_session_state_string(output, "ui.contract.version");
     bundle.widget_registry_json = ui_session_state_string(output, "ui.contract.widget_registry.json");
     bundle.command_registry_json = ui_session_state_string(output, "ui.contract.command_registry.json");
+    bundle.computed_registry_json = ui_session_state_string(output, "ui.contract.computed_registry.json");
+    bundle.event_routes_json = ui_session_state_string(output, "ui.contract.event_routes.json");
     bundle.motion_policy_json = ui_session_state_string(output, "ui.contract.motion_policy.json");
     bundle.paint_registry_json = ui_session_state_string(output, "ui.contract.paint_registry.json");
     bundle.motion_registry_json = ui_session_state_string(output, "ui.contract.motion_registry.json");
@@ -388,11 +397,41 @@ fn collect_ui_contracts(ui_output: Option<&UiBuildOutput>) -> Option<RealtimeUiC
         bundle.workspace_layout = Some(output.systems.workspace_layout.clone());
     }
 
+    if output.systems.hot_reload != UiHotReloadPlan::default() {
+        bundle.hot_reload_json = serialize_contract_value(&output.systems.hot_reload);
+    }
+    if !output.systems.focus_graph.scopes.is_empty()
+        || output.systems.focus_graph.default_scope.is_some()
+        || !output.systems.focus_graph.focused.is_empty()
+        || !output.systems.focus_graph.traversal_edges.is_empty()
+    {
+        bundle.focus_graph_json = serialize_contract_value(&output.systems.focus_graph);
+    }
+    if !output.systems.selection_model.scopes.is_empty()
+        || output.systems.selection_model.active_scope.is_some()
+        || !output.systems.selection_model.primary.is_empty()
+        || !output.systems.selection_model.selected.is_empty()
+    {
+        bundle.selection_model_json = serialize_contract_value(&output.systems.selection_model);
+    }
+    if !output.systems.overlay_stack.entries.is_empty() {
+        bundle.overlay_stack_json = serialize_contract_value(&output.systems.overlay_stack);
+    }
+    if bundle.motion_policy_json.is_none() && output.systems.motion_policy != UiMotionPolicy::default() {
+        bundle.motion_policy_json = serialize_contract_value(&output.systems.motion_policy);
+    }
+
     bundle.structure_index = build_ui_structure_index(output);
 
     let has_any = bundle.contract_version.is_some()
         || bundle.widget_registry_json.is_some()
         || bundle.command_registry_json.is_some()
+        || bundle.computed_registry_json.is_some()
+        || bundle.event_routes_json.is_some()
+        || bundle.hot_reload_json.is_some()
+        || bundle.focus_graph_json.is_some()
+        || bundle.selection_model_json.is_some()
+        || bundle.overlay_stack_json.is_some()
         || bundle.motion_policy_json.is_some()
         || bundle.paint_registry_json.is_some()
         || bundle.motion_registry_json.is_some()
@@ -414,6 +453,10 @@ fn ui_session_state_string(output: &UiBuildOutput, key: &str) -> Option<String> 
             UiValue::Bool(value) => Some(value.to_string()),
             UiValue::Null => None,
         })
+}
+
+fn serialize_contract_value<T: Serialize>(value: &T) -> Option<String> {
+    serde_json::to_string_pretty(value).ok()
 }
 
 fn build_ui_structure_index(output: &UiBuildOutput) -> Vec<RealtimeUiStructureNode> {

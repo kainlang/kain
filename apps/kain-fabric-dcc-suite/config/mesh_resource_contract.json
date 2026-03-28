@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "mesh_documents": [
+    {
+      "id": "imported_mesh_payload_document",
+      "resource_uri": "mesh://imports/current/payloads",
+      "owner": "app",
+      "kind": "value",
+      "source": "mesh_import_projection",
+      "summary": "Retained manifest of imported mesh payloads and their source packages."
+    },
+    {
+      "id": "authored_primitive_definition_document",
+      "resource_uri": "mesh://primitives/authored/definitions",
+      "owner": "app",
+      "kind": "value",
+      "source": "primitive_mesh_authoring",
+      "summary": "App-authored primitive definitions, including startup primitives and future procedural shapes."
+    },
+    {
+      "id": "active_editable_mesh_document",
+      "resource_uri": "mesh://editing/active",
+      "owner": "app",
+      "kind": "value",
+      "source": "mesh_edit_session",
+      "summary": "Canonical active mesh edit target that sculpt and topology lanes bind to."
+    },
+    {
+      "id": "topology_output_mesh_document",
+      "resource_uri": "mesh://topology/output/current",
+      "owner": "app",
+      "kind": "value",
+      "source": "topology_rebuild_projection",
+      "summary": "Replacement mesh document emitted by topology rebuild analysis."
+    }
+  ],
+  "semantic_rules": {
+    "stable_ids": true,
+    "session_owned_truth": true,
+    "native_helpers_are_adapters": true,
+    "import_normalization_future_work": true,
+    "undo_history_future_work": true
+  }
+}

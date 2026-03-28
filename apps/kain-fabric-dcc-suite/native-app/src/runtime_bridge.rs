@@ -10,6 +10,18 @@ use serde_json::{json, Value};
 
 const BRIDGE_POLL_INTERVAL_MS: u64 = 150;
 
+const MESH_CONTRACT_DOCUMENT_ID: &str = "mesh_resource_contract_document";
+const MESH_ACTIVE_EDIT_TARGET_ID: &str = "active_editable_mesh_document";
+const MESH_IMPORTED_PAYLOAD_DOCUMENT_ID: &str = "imported_mesh_payload_document";
+const MESH_AUTHORED_PRIMITIVE_DOCUMENT_ID: &str = "authored_primitive_definition_document";
+const MESH_TOPOLOGY_OUTPUT_DOCUMENT_ID: &str = "topology_output_mesh_document";
+
+const MESH_CONTRACT_DOCUMENT_URI: &str = "mesh://contract/current";
+const MESH_ACTIVE_EDIT_TARGET_URI: &str = "mesh://editing/active";
+const MESH_IMPORTED_PAYLOAD_URI: &str = "mesh://imports/current/payloads";
+const MESH_AUTHORED_PRIMITIVE_URI: &str = "mesh://primitives/authored/definitions";
+const MESH_TOPOLOGY_OUTPUT_URI: &str = "mesh://topology/output/current";
+
 #[derive(Clone, Debug)]
 pub struct LiveBridgePaths {
     pub command_queue_path: PathBuf,
@@ -271,16 +283,26 @@ fn apply_asset_ingest(session_document: &mut Value, processed_command_count: usi
     }
 }
 
-fn apply_mesh_open_document(session_document: &mut Value, processed_command_count: usize) {
+fn apply_mesh_open_document(session_document: &mut Value, _processed_command_count: usize) {
     set_string_at_path(
         session_document,
         &["mesh", "active_document_id"],
-        format!("mesh/document/bridge_open_{processed_command_count:04}"),
+        MESH_CONTRACT_DOCUMENT_ID,
+    );
+    set_string_at_path(
+        session_document,
+        &["mesh", "active_document_uri"],
+        MESH_CONTRACT_DOCUMENT_URI,
     );
     set_string_at_path(
         session_document,
         &["mesh", "active_edit_target_id"],
-        format!("entity/bridge_mesh_target_{processed_command_count:04}"),
+        MESH_ACTIVE_EDIT_TARGET_ID,
+    );
+    set_string_at_path(
+        session_document,
+        &["mesh", "active_edit_target_uri"],
+        MESH_ACTIVE_EDIT_TARGET_URI,
     );
     set_string_at_path(
         session_document,
@@ -290,21 +312,29 @@ fn apply_mesh_open_document(session_document: &mut Value, processed_command_coun
     set_string_array_at_path(
         session_document,
         &["selection", "entity_ids"],
-        &[format!("entity/bridge_mesh_target_{processed_command_count:04}")],
+        &[MESH_ACTIVE_EDIT_TARGET_ID.to_string()],
     );
     for dirty_key in ["render_dirty", "session_needs_save"] {
         set_bool_at_path(session_document, &["dirty", dirty_key], true);
     }
 }
 
-fn apply_mesh_set_edit_target(session_document: &mut Value, processed_command_count: usize) {
-    let edit_target_id = format!("entity/bridge_mesh_edit_target_{processed_command_count:04}");
+fn apply_mesh_set_edit_target(session_document: &mut Value, _processed_command_count: usize) {
     set_string_at_path(
         session_document,
         &["mesh", "active_edit_target_id"],
-        edit_target_id.clone(),
+        MESH_ACTIVE_EDIT_TARGET_ID,
     );
-    set_string_array_at_path(session_document, &["selection", "entity_ids"], &[edit_target_id]);
+    set_string_at_path(
+        session_document,
+        &["mesh", "active_edit_target_uri"],
+        MESH_ACTIVE_EDIT_TARGET_URI,
+    );
+    set_string_array_at_path(
+        session_document,
+        &["selection", "entity_ids"],
+        &[MESH_ACTIVE_EDIT_TARGET_ID.to_string()],
+    );
     for dirty_key in ["render_dirty", "session_needs_save"] {
         set_bool_at_path(session_document, &["dirty", dirty_key], true);
     }
@@ -334,7 +364,7 @@ fn apply_mesh_set_authoring_policy(session_document: &mut Value) {
 fn apply_mesh_create_primitive(
     session_document: &mut Value,
     runtime_snapshot: &Value,
-    processed_command_count: usize,
+    _processed_command_count: usize,
 ) {
     if tool_exists(runtime_snapshot, "select") {
         apply_tool_defaults_from_snapshot(session_document, runtime_snapshot, "select");
@@ -357,17 +387,25 @@ fn apply_mesh_create_primitive(
             next_template,
         );
     }
-    let mesh_document_id = format!("mesh/document/primitive_{processed_command_count:04}");
-    let entity_id = format!("entity/primitive_mesh_{processed_command_count:04}");
     set_string_at_path(
         session_document,
         &["mesh", "active_document_id"],
-        mesh_document_id,
+        MESH_AUTHORED_PRIMITIVE_DOCUMENT_ID,
+    );
+    set_string_at_path(
+        session_document,
+        &["mesh", "active_document_uri"],
+        MESH_AUTHORED_PRIMITIVE_URI,
     );
     set_string_at_path(
         session_document,
         &["mesh", "active_edit_target_id"],
-        entity_id.clone(),
+        MESH_ACTIVE_EDIT_TARGET_ID,
+    );
+    set_string_at_path(
+        session_document,
+        &["mesh", "active_edit_target_uri"],
+        MESH_ACTIVE_EDIT_TARGET_URI,
     );
     set_string_at_path(
         session_document,
@@ -379,7 +417,11 @@ fn apply_mesh_create_primitive(
         &["mesh", "topology_edit_mode"],
         "object",
     );
-    set_string_array_at_path(session_document, &["selection", "entity_ids"], &[entity_id]);
+    set_string_array_at_path(
+        session_document,
+        &["selection", "entity_ids"],
+        &[MESH_ACTIVE_EDIT_TARGET_ID.to_string()],
+    );
     for dirty_key in [
         "asset_dirty",
         "topology_dirty",
@@ -391,29 +433,31 @@ fn apply_mesh_create_primitive(
     }
 }
 
-fn apply_mesh_import_asset(session_document: &mut Value, processed_command_count: usize) {
-    let mesh_document_id = format!("mesh/document/import_{processed_command_count:04}");
-    let entity_id = format!("entity/imported_mesh_{processed_command_count:04}");
+fn apply_mesh_import_asset(session_document: &mut Value, _processed_command_count: usize) {
     set_string_at_path(
         session_document,
         &["mesh", "active_document_id"],
-        mesh_document_id,
+        MESH_IMPORTED_PAYLOAD_DOCUMENT_ID,
     );
     set_string_at_path(
         session_document,
         &["mesh", "active_edit_target_id"],
-        entity_id.clone(),
+        MESH_ACTIVE_EDIT_TARGET_ID,
     );
     set_string_at_path(
         session_document,
         &["mesh", "mesh_authoring_policy_id"],
         "mesh_authoring_policy/imported_asset_preferred",
     );
-    set_string_array_at_path(session_document, &["selection", "entity_ids"], &[entity_id]);
+    set_string_array_at_path(
+        session_document,
+        &["selection", "entity_ids"],
+        &[MESH_ACTIVE_EDIT_TARGET_ID.to_string()],
+    );
     set_string_at_path(
         session_document,
         &["ingest", "last_package_uri"],
-        format!("asset://bridge/imported_mesh_{processed_command_count:04}"),
+        MESH_IMPORTED_PAYLOAD_URI,
     );
     set_string_at_path(session_document, &["ingest", "last_package_kind"], "gltf");
     increment_i64_at_path(session_document, &["ingest", "staged_package_count"], 1);
@@ -458,6 +502,26 @@ fn apply_mesh_edit_topology(session_document: &mut Value) {
 }
 
 fn apply_mesh_rebuild_topology(session_document: &mut Value) {
+    set_string_at_path(
+        session_document,
+        &["mesh", "active_document_id"],
+        MESH_TOPOLOGY_OUTPUT_DOCUMENT_ID,
+    );
+    set_string_at_path(
+        session_document,
+        &["mesh", "active_document_uri"],
+        MESH_TOPOLOGY_OUTPUT_URI,
+    );
+    set_string_at_path(
+        session_document,
+        &["mesh", "active_edit_target_id"],
+        MESH_ACTIVE_EDIT_TARGET_ID,
+    );
+    set_string_at_path(
+        session_document,
+        &["mesh", "active_edit_target_uri"],
+        MESH_ACTIVE_EDIT_TARGET_URI,
+    );
     set_string_at_path(
         session_document,
         &["mesh", "mesh_authoring_policy_id"],
@@ -1134,3 +1198,5 @@ fn ensure_array_object_at_index<'a>(
     }
     array.get_mut(index).map(ensure_object_value)
 }
+
+

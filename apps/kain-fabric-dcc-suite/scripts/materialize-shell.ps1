@@ -130,6 +130,99 @@ function Get-ResolvedItems {
     return ,$resolved
 }
 
+function Render-PropertyRow {
+    param(
+        $Property,
+        [string]$Scope,
+        [string]$Indent = ""
+    )
+
+    $label = if ($null -ne $Property.label -and -not [string]::IsNullOrWhiteSpace([string]$Property.label)) {
+        [string]$Property.label
+    } elseif ($null -ne $Property.name -and -not [string]::IsNullOrWhiteSpace([string]$Property.name)) {
+        [string]$Property.name
+    } else {
+        "Property"
+    }
+
+    $value = if ($null -ne $Property.value -and -not [string]::IsNullOrWhiteSpace([string]$Property.value)) {
+        [string]$Property.value
+    } else {
+        "n/a"
+    }
+
+    $detail = if ($null -ne $Property.detail -and -not [string]::IsNullOrWhiteSpace([string]$Property.detail)) {
+        [string]$Property.detail
+    } else {
+        ""
+    }
+
+    $persistentLayoutId = ConvertTo-KnSafeId ($label + "_" + $value)
+    $lines = New-Object System.Collections.Generic.List[string]
+    Add-Line $lines "$Indent<panel title=`"$label`" scope=`"$Scope`" variant=`"property_row`" layout=`"column`" gap={1} persistent_layout_id=`"$persistentLayoutId`">"
+    Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $label.ToUpperInvariant() -Indent "$Indent    ")
+    Add-Line $lines (Render-TextNode -Role "title" -Value $value -Indent "$Indent    ")
+    if (-not [string]::IsNullOrWhiteSpace($detail)) {
+        Add-Line $lines (Render-TextNode -Role "caption" -Value $detail -Indent "$Indent    ")
+    }
+    Add-Line $lines "$Indent</panel>"
+    return $lines
+}
+
+function Render-PropertyRows {
+    param(
+        [System.Collections.IEnumerable]$Properties,
+        [string]$Scope,
+        [string]$Indent = "",
+        [int]$Columns = 2,
+        [string]$PersistentLayoutIdPrefix = "property_grid"
+    )
+
+    $propertyItems = @($Properties)
+    $lines = New-Object System.Collections.Generic.List[string]
+
+    if ($propertyItems.Count -eq 0) {
+        return $lines
+    }
+
+    $columnCount = [Math]::Max(1, $Columns)
+    Add-Line $lines "$Indent<panel title=`"Properties`" scope=`"$Scope`" variant=`"property_grid`" layout=`"grid`" columns={$columnCount} gap={6} persistent_layout_id=`"$(ConvertTo-KnSafeId ($PersistentLayoutIdPrefix + "_" + [string]$propertyItems.Count))`">"
+    foreach ($property in $propertyItems) {
+        Add-Lines $lines (Render-PropertyRow -Property $property -Scope $Scope -Indent "$Indent    ")
+    }
+    Add-Line $lines "$Indent</panel>"
+    return $lines
+}
+
+function Render-PropertyGrid {
+    param(
+        $Block,
+        [string]$Variant,
+        [string]$Scope,
+        [string]$Indent = "",
+        [int]$Columns = 2,
+        [string]$PersistentLayoutId = ""
+    )
+
+    $resolvedPersistentLayoutId = if ([string]::IsNullOrWhiteSpace($PersistentLayoutId)) {
+        ConvertTo-KnSafeId ($Block.title + "_block")
+    } else {
+        ConvertTo-KnSafeId $PersistentLayoutId
+    }
+
+    $lines = New-Object System.Collections.Generic.List[string]
+    Add-Line $lines "$Indent<panel title=`"$($Block.title)`" scope=`"$Scope`" variant=`"$Variant`" layout=`"column`" gap={6} persistent_layout_id=`"$resolvedPersistentLayoutId`">"
+    Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $Block.eyebrow -Indent "$Indent    ")
+    Add-Line $lines (Render-TextNode -Role "title" -Value $Block.title -Indent "$Indent    ")
+    Add-Line $lines (Render-TextNode -Role "caption" -Value $Block.summary -Indent "$Indent    ")
+    Add-Lines $lines (Render-PropertyRows -Properties $Block.properties -Scope $Scope -Indent "$Indent    " -Columns $Columns -PersistentLayoutIdPrefix $resolvedPersistentLayoutId)
+    if ($null -ne $Block.notes) {
+        Add-Lines $lines (Render-TextLines -Items $Block.notes -Formatter { param($note) $note } -Role "caption" -Indent "$Indent    ")
+    }
+    Add-Line $lines "$Indent</panel>"
+    return $lines
+}
+
 function Render-ThemeBlock {
     param(
         $Theme,
@@ -325,14 +418,62 @@ function Render-SurfaceWidget {
     if ($kind -eq "tree") {
         Add-Line $lines "$Indent<tree title=`"$($Surface.title)`">"
         Add-Line $lines (Render-TextNode -Role "caption" -Value $Surface.summary -Indent "$Indent    ")
+        Add-Lines $lines (Render-PropertyRows -Properties $Surface.properties -Scope "dcc_shell" -Indent "$Indent    " -Columns 2 -PersistentLayoutIdPrefix (ConvertTo-KnSafeId ($Surface.id + "_tree")))
         Add-Line $lines "$Indent</tree>"
         return $lines
     }
 
     Add-Line $lines "$Indent<inspector title=`"$($Surface.title)`">"
     Add-Line $lines (Render-TextNode -Role "caption" -Value $Surface.summary -Indent "$Indent    ")
+    Add-Lines $lines (Render-PropertyRows -Properties $Surface.properties -Scope "dcc_shell" -Indent "$Indent    " -Columns 2 -PersistentLayoutIdPrefix (ConvertTo-KnSafeId ($Surface.id + "_inspector")))
     Add-Line $lines "$Indent</inspector>"
     return $lines
+}
+
+function Get-SurfaceCardVariant {
+    param(
+        $Surface,
+        [string]$FallbackVariant
+    )
+
+    $variant = $FallbackVariant
+    switch ([string]$Surface.id) {
+        "workspace_navigator" { return "nav_rail" }
+        "command_palette" { return "command_surface" }
+        "property_grid" { return "property_grid" }
+        "status_strip" { return "status_strip" }
+        "selection_inspector" { return "property_grid" }
+        "tool_shelf" { return "overlay_card" }
+        "material_layers" { return "property_grid" }
+        "texture_set_inspector" { return "property_grid" }
+        "material_export_board" { return "property_grid" }
+        "publish_console" { return "overlay_card" }
+        "report_browser" { return "overlay_card" }
+        "jobs_monitor" { return "status_strip" }
+    }
+
+    switch ([string]$Surface.kind) {
+        "tree" {
+            if ($variant -eq "surface_card" -or [string]::IsNullOrWhiteSpace($variant)) {
+                return "nav_rail"
+            }
+        }
+        "timeline" {
+            return "status_strip"
+        }
+        "inspector" {
+            if ($variant -eq "surface_card" -or [string]::IsNullOrWhiteSpace($variant)) {
+                return "property_grid"
+            }
+        }
+        "graph" {
+            if ($variant -eq "surface_card" -or [string]::IsNullOrWhiteSpace($variant)) {
+                return "overlay_card"
+            }
+        }
+    }
+
+    return $variant
 }
 
 function Render-SurfaceCard {
@@ -350,7 +491,8 @@ function Render-SurfaceCard {
     } else {
         ConvertTo-KnSafeId $PersistentLayoutId
     }
-    Add-Line $lines "$Indent<panel title=`"$($Surface.title)`" scope=`"$Scope`" variant=`"$Variant`" layout=`"column`" gap={8} persistent_layout_id=`"$resolvedPersistentLayoutId`">"
+    $resolvedVariant = Get-SurfaceCardVariant -Surface $Surface -FallbackVariant $Variant
+    Add-Line $lines "$Indent<panel title=`"$($Surface.title)`" scope=`"$Scope`" variant=`"$resolvedVariant`" layout=`"column`" gap={8} persistent_layout_id=`"$resolvedPersistentLayoutId`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value ([string]$Surface.kind).ToUpperInvariant() -Indent "$Indent    ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value $Surface.summary -Indent "$Indent    ")
     Add-Lines $lines (Render-SurfaceWidget -Surface $Surface -Indent "$Indent    ")
@@ -489,9 +631,9 @@ function Render-ShellTopBar {
     $topBarStatusItems = @($statusItems | Select-Object -First 4)
 
     $lines = New-Object System.Collections.Generic.List[string]
-    Add-Line $lines "$Indent<panel title=`"Global Top Bar`" scope=`"$Scope`" variant=`"topbar`" layout=`"column`" gap={8} persistent_layout_id=`"dcc_topbar`">"
+    Add-Line $lines "$Indent<panel title=`"Workbench Top Bar`" scope=`"$Scope`" variant=`"topbar`" layout=`"column`" gap={8} persistent_layout_id=`"dcc_topbar`">"
 
-    Add-Line $lines "$Indent    <panel title=`"Top Bar Frame`" scope=`"$Scope`" variant=`"topbar_frame`" layout=`"column`" gap={6} persistent_layout_id=`"dcc_topbar_frame`">"
+    Add-Line $lines "$Indent    <panel title=`"Authored Top Bar`" scope=`"$Scope`" variant=`"topbar_frame`" layout=`"column`" gap={6} persistent_layout_id=`"dcc_topbar_frame`">"
     Add-Line $lines "$Indent        <slot layout=`"row`" gap={8} persistent_layout_id=`"dcc_topbar_header`">"
     Add-Line $lines "$Indent            <panel title=`"Brand Console`" scope=`"$Scope`" variant=`"brand_console`" layout=`"column`" gap={2} min_width={320} persistent_layout_id=`"dcc_brand_console`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $ShellChrome.brand.eyebrow -Indent "$Indent            ")
@@ -499,7 +641,7 @@ function Render-ShellTopBar {
     Add-Line $lines (Render-TextNode -Role "caption" -Value $ShellChrome.brand.summary -Indent "$Indent            ")
     Add-Line $lines "$Indent            </panel>"
 
-    Add-Line $lines "$Indent            <panel title=`"Status Rack`" scope=`"$Scope`" variant=`"status_rack`" layout=`"column`" gap={4} persistent_layout_id=`"dcc_status_rack`">"
+    Add-Line $lines "$Indent            <panel title=`"Status Strip`" scope=`"$Scope`" variant=`"status_rack`" layout=`"column`" gap={4} persistent_layout_id=`"dcc_status_rack`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value "RUNTIME STATUS" -Indent "$Indent            ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value "Live session scale and pipeline health for the active shell." -Indent "$Indent            ")
     Add-Line $lines "$Indent                <slot layout=`"row`" gap={6} overflow_x=`"scroll`" persistent_layout_id=`"dcc_status_metrics`">"
@@ -540,7 +682,7 @@ function Render-ShellContextStrip {
     $spotlightCommands = Get-ResolvedItems -Ids $ShellChrome.command_spotlight.command_ids -Lookup $CommandById
 
     $lines = New-Object System.Collections.Generic.List[string]
-    Add-Line $lines "$Indent<panel title=`"Shell Context Strip`" scope=`"$Scope`" variant=`"context_strip`" layout=`"column`" gap={10} persistent_layout_id=`"dcc_shell_context`">"
+    Add-Line $lines "$Indent<panel title=`"Workbench Block Rack`" scope=`"$Scope`" variant=`"context_strip`" layout=`"column`" gap={10} persistent_layout_id=`"dcc_shell_context`">"
 
     Add-Line $lines "$Indent    <panel title=`"$($ShellChrome.workspace_switcher.title)`" scope=`"$Scope`" variant=`"workspace_strip`" layout=`"column`" gap={6} persistent_layout_id=`"dcc_workspace_strip`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $ShellChrome.workspace_switcher.eyebrow -Indent "$Indent        ")
@@ -566,7 +708,7 @@ function Render-ShellContextStrip {
     Add-Line $lines "$Indent        </slot>"
     Add-Line $lines "$Indent    </panel>"
 
-    Add-Line $lines "$Indent    <panel title=`"Shell Context Blocks`" scope=`"$Scope`" variant=`"context_strip`" layout=`"grid`" columns={2} gap={8} persistent_layout_id=`"dcc_context_blocks`">"
+    Add-Line $lines "$Indent    <panel title=`"Workbench Blocks`" scope=`"$Scope`" variant=`"context_strip`" layout=`"grid`" columns={2} gap={8} persistent_layout_id=`"dcc_context_blocks`">"
 
     Add-Line $lines "$Indent        <panel title=`"$($ShellChrome.command_spotlight.title)`" scope=`"$Scope`" variant=`"command_spotlight`" layout=`"column`" gap={6} persistent_layout_id=`"dcc_command_spotlight`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $ShellChrome.command_spotlight.eyebrow -Indent "$Indent            ")
@@ -579,7 +721,13 @@ function Render-ShellContextStrip {
     Add-Line $lines "$Indent            </slot>"
     Add-Line $lines "$Indent        </panel>"
 
+    Add-Lines $lines (Render-PropertyGrid -Block $ShellChrome.workspace_navigator -Variant "nav_rail" -Scope $Scope -Columns 2 -PersistentLayoutId "dcc_workspace_navigator" -Indent "$Indent        ")
+
     Add-Lines $lines (Render-SystemRack -SystemRack $ShellChrome.system_rack -StatusItemById $StatusItemById -ShellMetrics $ShellMetrics -Scope $Scope -Indent "$Indent        ")
+
+    Add-Lines $lines (Render-PropertyGrid -Block $ShellChrome.status_strip -Variant "status_strip" -Scope $Scope -Columns 2 -PersistentLayoutId "dcc_status_strip" -Indent "$Indent        ")
+
+    Add-Lines $lines (Render-PropertyGrid -Block $ShellChrome.property_grid -Variant "property_grid" -Scope $Scope -Columns 2 -PersistentLayoutId "dcc_property_grid" -Indent "$Indent        ")
 
     Add-Line $lines "$Indent        <panel title=`"$($ShellChrome.operator_notes.title)`" scope=`"$Scope`" variant=`"operator_console`" layout=`"column`" gap={4} persistent_layout_id=`"dcc_operator_console`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $ShellChrome.operator_notes.eyebrow -Indent "$Indent            ")
@@ -628,29 +776,29 @@ function Render-WorkspacePage {
 
     Add-Line $lines "            <panel title=`"$($Page.title)`" scope=`"$Scope`" variant=`"page`" layout=`"dock`" gap={14} persistent_layout_id=`"$pageLayoutPrefix`" tab_group_id=`"$PageTabGroupId`" tab_label=`"$($Page.tab_label)`" tab_order={$TabOrder}$defaultActiveLiteral>"
 
-    Add-Line $lines "                <panel title=`"Lane Console`" dock=`"left`" split_ratio={0.18} min_width={250} max_width={340} resizable={true} layout=`"column`" gap={10} persistent_layout_id=`"${pageLayoutPrefix}_lane_console`">"
-    Add-Line $lines "                    <panel title=`"Hero`" scope=`"$Scope`" variant=`"hero_card`" layout=`"column`" gap={6} persistent_layout_id=`"${pageLayoutPrefix}_hero`">"
+    Add-Line $lines "                <panel title=`"Workbench Rail`" dock=`"left`" split_ratio={0.18} min_width={250} max_width={340} resizable={true} layout=`"column`" gap={10} persistent_layout_id=`"${pageLayoutPrefix}_lane_console`">"
+    Add-Line $lines "                    <panel title=`"Workspace Banner`" scope=`"$Scope`" variant=`"workspace_banner`" layout=`"column`" gap={6} persistent_layout_id=`"${pageLayoutPrefix}_hero`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $Mode.label.ToUpperInvariant() -Indent "                        ")
     Add-Line $lines (Render-TextNode -Role "hero" -Value $Page.hero_title -Indent "                        ")
     Add-Line $lines (Render-TextNode -Role "body" -Value $Page.hero_summary -Indent "                        ")
     Add-Line $lines "                    </panel>"
-    Add-Line $lines "                    <inspector title=`"Featured Tools`" persistent_layout_id=`"${pageLayoutPrefix}_featured_tools`">"
+    Add-Line $lines "                    <inspector title=`"Featured Tool Rack`" persistent_layout_id=`"${pageLayoutPrefix}_featured_tools`">"
     Add-Lines $lines (Render-TextLines -Items $featuredTools -Formatter { param($tool) "$($tool.label) | $($tool.summary)" } -Role "body" -Indent "                        ")
     Add-Line $lines "                    </inspector>"
-    Add-Line $lines "                    <inspector title=`"Quick Commands`" persistent_layout_id=`"${pageLayoutPrefix}_quick_commands`">"
+    Add-Line $lines "                    <inspector title=`"Command Surface`" persistent_layout_id=`"${pageLayoutPrefix}_quick_commands`">"
     Add-Lines $lines (Render-TextLines -Items $quickCommands -Formatter { param($command) "$($command.label) | $($command.summary)" } -Role "body" -Indent "                        ")
     Add-Line $lines "                    </inspector>"
     if ($null -ne $focusSurface) {
-        Add-Line $lines "                    <tree title=`"Focus Surface`" persistent_layout_id=`"${pageLayoutPrefix}_focus_surface`">"
+        Add-Line $lines "                    <tree title=`"Focus Map`" persistent_layout_id=`"${pageLayoutPrefix}_focus_surface`">"
         Add-Line $lines (Render-TextNode -Role "caption" -Value $focusSurface.title -Indent "                        ")
         Add-Line $lines (Render-TextNode -Role "caption" -Value $focusSurface.summary -Indent "                        ")
         Add-Line $lines "                    </tree>"
     }
     Add-Line $lines "                </panel>"
 
-    Add-Line $lines "                <panel title=`"Workbench Stage`" dock=`"center`" layout=`"column`" gap={12} persistent_layout_id=`"${pageLayoutPrefix}_workbench_stage`">"
+    Add-Line $lines "                <panel title=`"Workspace Frame`" dock=`"center`" layout=`"column`" gap={12} persistent_layout_id=`"${pageLayoutPrefix}_workbench_stage`">"
     Add-Line $lines "                    <panel title=`"Viewport Frame`" scope=`"$Scope`" variant=`"viewport_frame`" layout=`"column`" gap={10} persistent_layout_id=`"${pageLayoutPrefix}_viewport_frame`">"
-    Add-Line $lines "                        <panel title=`"Cockpit Strip`" layout=`"grid`" columns={4} gap={8} persistent_layout_id=`"${pageLayoutPrefix}_cockpit_strip`">"
+    Add-Line $lines "                        <panel title=`"Status Strip`" layout=`"grid`" columns={4} gap={8} persistent_layout_id=`"${pageLayoutPrefix}_cockpit_strip`">"
     Add-Line $lines "                            <panel title=`"Mode`" scope=`"$Scope`" variant=`"quiet_card`" layout=`"column`" gap={2} persistent_layout_id=`"${pageLayoutPrefix}_mode_metric`">"
     Add-Line $lines (Render-TextNode -Role "metric" -Value $Mode.label -Indent "                            ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value $focusCaption -Indent "                            ")
@@ -670,15 +818,15 @@ function Render-WorkspacePage {
     Add-Line $lines "                        </panel>"
     Add-Line $lines "                        <viewport3d $ViewportProps />"
     Add-Line $lines "                    </panel>"
-    Add-Line $lines "                    <panel title=`"Surface Deck`" layout=`"grid`" columns={$surfaceDeckColumns} gap={10} persistent_layout_id=`"${pageLayoutPrefix}_surface_deck`">"
+    Add-Line $lines "                    <panel title=`"Surface Matrix`" layout=`"grid`" columns={$surfaceDeckColumns} gap={10} persistent_layout_id=`"${pageLayoutPrefix}_surface_deck`">"
     foreach ($surface in $centerSurfaces) {
         Add-Lines $lines (Render-SurfaceCard -Surface $surface -Scope $Scope -Variant "surface_card" -PersistentLayoutId "${pageLayoutPrefix}_center_$($surface.id)" -Indent "                        ")
     }
     Add-Line $lines "                    </panel>"
     Add-Line $lines "                </panel>"
 
-    Add-Line $lines "                <panel title=`"Inspector Rail`" dock=`"right`" split_ratio={0.22} min_width={300} max_width={420} resizable={true} layout=`"column`" gap={10} persistent_layout_id=`"${pageLayoutPrefix}_inspector_rail`">"
-    Add-Line $lines "                    <inspector title=`"Intent Routes`" persistent_layout_id=`"${pageLayoutPrefix}_intent_routes`">"
+    Add-Line $lines "                <panel title=`"Property Rail`" dock=`"right`" split_ratio={0.22} min_width={300} max_width={420} resizable={true} layout=`"column`" gap={10} persistent_layout_id=`"${pageLayoutPrefix}_inspector_rail`">"
+    Add-Line $lines "                    <inspector title=`"Command Registry`" persistent_layout_id=`"${pageLayoutPrefix}_intent_routes`">"
     Add-Lines $lines (Render-TextLines -Items $intents -Formatter { param($intent) "$($intent.label) | $($intent.graph)" } -Role "body" -Indent "                        ")
     Add-Line $lines "                    </inspector>"
     foreach ($surface in $rightSurfaces) {
@@ -686,13 +834,13 @@ function Render-WorkspacePage {
     }
     Add-Line $lines "                </panel>"
 
-    Add-Line $lines "                <panel title=`"Telemetry Tray`" dock=`"bottom`" split_ratio={0.2} min_height={180} max_height={320} resizable={true} layout=`"column`" gap={10} persistent_layout_id=`"${pageLayoutPrefix}_telemetry_tray`">"
+    Add-Line $lines "                <panel title=`"Execution Strip`" dock=`"bottom`" split_ratio={0.2} min_height={180} max_height={320} resizable={true} layout=`"column`" gap={10} persistent_layout_id=`"${pageLayoutPrefix}_telemetry_tray`">"
     Add-Line $lines "                    <panel title=`"Execution Surfaces`" layout=`"grid`" columns={$telemetryDeckColumns} gap={10} persistent_layout_id=`"${pageLayoutPrefix}_execution_surfaces`">"
     foreach ($surface in $bottomSurfaces) {
         Add-Lines $lines (Render-SurfaceCard -Surface $surface -Scope $Scope -Variant "quiet_card" -PersistentLayoutId "${pageLayoutPrefix}_bottom_$($surface.id)" -Indent "                        ")
     }
     Add-Line $lines "                    </panel>"
-    Add-Line $lines "                    <inspector title=`"Extension Seams`" persistent_layout_id=`"${pageLayoutPrefix}_extension_seams`">"
+    Add-Line $lines "                    <inspector title=`"Capability Notes`" persistent_layout_id=`"${pageLayoutPrefix}_extension_seams`">"
     Add-Lines $lines (Render-TextLines -Items $Snapshot.extension_seams -Formatter { param($item) $item } -Role "caption" -Indent "                        ")
     Add-Line $lines "                    </inspector>"
     Add-Line $lines "                </panel>"

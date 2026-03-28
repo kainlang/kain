@@ -41,10 +41,26 @@
     ]
   },
   "actor_roles": [
-    { "name": "content_keeper", "responsibility": "Tracks CMS content types, workflow, and publication states.", "channel": "api.cms" },
-    { "name": "media_keeper", "responsibility": "Owns media library metadata and asset pipeline contracts.", "channel": "api.media" },
-    { "name": "automation_orchestrator", "responsibility": "Publishes automation flow definitions and run states.", "channel": "api.automation" },
-    { "name": "billing_orchestrator", "responsibility": "Publishes billing and subscription metadata for app shells.", "channel": "api.billing" }
+    {
+      "name": "content_keeper",
+      "responsibility": "Tracks CMS content types, workflow, and publication states.",
+      "channel": "api.cms"
+    },
+    {
+      "name": "media_keeper",
+      "responsibility": "Owns media library metadata and asset pipeline contracts.",
+      "channel": "api.media"
+    },
+    {
+      "name": "automation_orchestrator",
+      "responsibility": "Publishes automation flow definitions and run states.",
+      "channel": "api.automation"
+    },
+    {
+      "name": "billing_orchestrator",
+      "responsibility": "Publishes billing and subscription metadata for app shells.",
+      "channel": "api.billing"
+    }
   ],
   "roadmap": [
     {
@@ -105,12 +121,28 @@
     "title": "Press and media kit",
     "body": "Logos, launch story, and background assets ready for reuse.",
     "assets": [
-      { "label": "Brand overview", "detail": "Logo, usage, and palette", "href": "#" },
-      { "label": "Launch deck", "detail": "Narrative summary", "href": "#" },
-      { "label": "Screenshots", "detail": "Interface and 3D scenes", "href": "#" }
+      {
+        "label": "Brand overview",
+        "detail": "Logo, usage, and palette",
+        "href": "#"
+      },
+      {
+        "label": "Launch deck",
+        "detail": "Narrative summary",
+        "href": "#"
+      },
+      {
+        "label": "Screenshots",
+        "detail": "Interface and 3D scenes",
+        "href": "#"
+      }
     ],
     "contacts": [
-      { "name": "Press Desk", "role": "Media", "email": "press@example.com" }
+      {
+        "name": "Press Desk",
+        "role": "Media",
+        "email": "press@example.com"
+      }
     ]
   },
   "careers": {
@@ -124,7 +156,10 @@
         "type": "Full-time",
         "summary": "Owns cross-lane component systems and UI schema cohesion.",
         "href": "#",
-        "tags": ["ui", "design-systems"]
+        "tags": [
+          "ui",
+          "design-systems"
+        ]
       },
       {
         "title": "Runtime Engineer",
@@ -132,7 +167,10 @@
         "type": "Contract",
         "summary": "Expands actor routes, status, and streaming lanes.",
         "href": "#",
-        "tags": ["runtime", "node"]
+        "tags": [
+          "runtime",
+          "node"
+        ]
       }
     ]
   },
@@ -157,39 +195,123 @@
     }
   ],
   "support_tickets": [
-    { "kicker": "Ticket", "title": "Intake triage", "body": "Capture launch, ops, and product requests with a consistent queue contract." },
-    { "kicker": "Ticket", "title": "Incident escalation", "body": "Route SEV incidents into the operator lane with explicit ownership." },
-    { "kicker": "Ticket", "title": "Docs + search", "body": "Tag knowledge-base gaps and documentation requests." }
+    {
+      "kicker": "Ticket",
+      "title": "Intake triage",
+      "body": "Capture launch, ops, and product requests with a consistent queue contract."
+    },
+    {
+      "kicker": "Ticket",
+      "title": "Incident escalation",
+      "body": "Route SEV incidents into the operator lane with explicit ownership."
+    },
+    {
+      "kicker": "Ticket",
+      "title": "Docs + search",
+      "body": "Tag knowledge-base gaps and documentation requests."
+    }
   ],
   "feedback_loops": [
-    { "kicker": "Feedback", "title": "Customer feedback", "body": "Collect qualitative feedback alongside chat transcripts and intake forms." },
-    { "kicker": "Feedback", "title": "Feature requests", "body": "Track high-signal feature requests and map them to roadmap items." },
-    { "kicker": "Feedback", "title": "Experience audits", "body": "Capture UX/3D feedback for immersive and portfolio surfaces." }
+    {
+      "kicker": "Feedback",
+      "title": "Customer feedback",
+      "body": "Collect qualitative feedback alongside chat transcripts and intake forms."
+    },
+    {
+      "kicker": "Feedback",
+      "title": "Feature requests",
+      "body": "Track high-signal feature requests and map them to roadmap items."
+    },
+    {
+      "kicker": "Feedback",
+      "title": "Experience audits",
+      "body": "Capture UX/3D feedback for immersive and portfolio surfaces."
+    }
   ],
   "survey_programs": [
-    { "kicker": "Survey", "title": "Launch survey", "body": "Post-launch pulse surveys for early adopter cohorts." },
-    { "kicker": "Survey", "title": "Operator satisfaction", "body": "Track operator workflow health and response friction." },
-    { "kicker": "Survey", "title": "Portfolio signal", "body": "Capture hiring, client, or partner response to case studies." }
+    {
+      "kicker": "Survey",
+      "title": "Launch survey",
+      "body": "Post-launch pulse surveys for early adopter cohorts."
+    },
+    {
+      "kicker": "Survey",
+      "title": "Operator satisfaction",
+      "body": "Track operator workflow health and response friction."
+    },
+    {
+      "kicker": "Survey",
+      "title": "Portfolio signal",
+      "body": "Capture hiring, client, or partner response to case studies."
+    }
   ],
   "messaging_stack": [
-    { "kicker": "Messaging", "title": "Email lanes", "body": "Transactional and marketing email routing metadata." },
-    { "kicker": "Messaging", "title": "SMS + push", "body": "Multi-channel notification planning for realtime surfaces." },
-    { "kicker": "Messaging", "title": "Inbox routing", "body": "Operator inbox rules and escalation handoffs." }
+    {
+      "kicker": "Messaging",
+      "title": "Email lanes",
+      "body": "Transactional and marketing email routing metadata."
+    },
+    {
+      "kicker": "Messaging",
+      "title": "SMS + push",
+      "body": "Multi-channel notification planning for realtime surfaces."
+    },
+    {
+      "kicker": "Messaging",
+      "title": "Inbox routing",
+      "body": "Operator inbox rules and escalation handoffs."
+    }
   ],
   "payments_stack": [
-    { "kicker": "Payments", "title": "Payment providers", "body": "Declare Stripe/PayPal/etc. before wiring real checkout flows." },
-    { "kicker": "Payments", "title": "Billing events", "body": "Track payment intents, refunds, and invoice state changes." },
-    { "kicker": "Payments", "title": "Tax + compliance", "body": "Capture tax rules and compliance notes for billing." }
+    {
+      "kicker": "Payments",
+      "title": "Payment providers",
+      "body": "Declare Stripe/PayPal/etc. before wiring real checkout flows."
+    },
+    {
+      "kicker": "Payments",
+      "title": "Billing events",
+      "body": "Track payment intents, refunds, and invoice state changes."
+    },
+    {
+      "kicker": "Payments",
+      "title": "Tax + compliance",
+      "body": "Capture tax rules and compliance notes for billing."
+    }
   ],
   "scheduling_stack": [
-    { "kicker": "Scheduling", "title": "Appointments", "body": "Capture booking, consultation, and onboarding schedules." },
-    { "kicker": "Scheduling", "title": "Events + demos", "body": "Route live demo and workshop scheduling into event calendars." },
-    { "kicker": "Scheduling", "title": "Operator rotations", "body": "Model on-call calendars for actor supervision lanes." }
+    {
+      "kicker": "Scheduling",
+      "title": "Appointments",
+      "body": "Capture booking, consultation, and onboarding schedules."
+    },
+    {
+      "kicker": "Scheduling",
+      "title": "Events + demos",
+      "body": "Route live demo and workshop scheduling into event calendars."
+    },
+    {
+      "kicker": "Scheduling",
+      "title": "Operator rotations",
+      "body": "Model on-call calendars for actor supervision lanes."
+    }
   ],
   "privacy_requests": [
-    { "kicker": "Privacy", "title": "Data access", "body": "Track user data access and export requests." },
-    { "kicker": "Privacy", "title": "Deletion requests", "body": "Plan data deletion workflows and acknowledgements." },
-    { "kicker": "Privacy", "title": "Consent updates", "body": "Maintain consent and preference updates over time." }
+    {
+      "kicker": "Privacy",
+      "title": "Data access",
+      "body": "Track user data access and export requests."
+    },
+    {
+      "kicker": "Privacy",
+      "title": "Deletion requests",
+      "body": "Plan data deletion workflows and acknowledgements."
+    },
+    {
+      "kicker": "Privacy",
+      "title": "Consent updates",
+      "body": "Maintain consent and preference updates over time."
+    }
   ],
   "legal": [
     {
@@ -219,14 +341,46 @@
     "title": "Security controls",
     "body": "Contract-ready security metadata for operator and client review.",
     "controls": [
-      { "title": "Rate limiting", "detail": "Local enforcement on API routes", "status": "template-ready" },
-      { "title": "Audit trails", "detail": "JSONL capture for auth + analytics", "status": "template-ready" },
-      { "title": "Session isolation", "detail": "Cookie-backed local sessions", "status": "template-ready" },
-      { "title": "Secrets hygiene", "detail": "Env-based tokens with rotation schedule", "status": "planned" },
-      { "title": "CSP posture", "detail": "Content security policy for client islands", "status": "planned" },
-      { "title": "Dependency scanning", "detail": "Supply-chain guardrails for runtime deps", "status": "planned" },
-      { "title": "DDoS readiness", "detail": "Edge throttle + traffic shaping plan", "status": "planned" },
-      { "title": "Data encryption", "detail": "Encryption at rest + in transit targets", "status": "planned" }
+      {
+        "title": "Rate limiting",
+        "detail": "Local enforcement on API routes",
+        "status": "template-ready"
+      },
+      {
+        "title": "Audit trails",
+        "detail": "JSONL capture for auth + analytics",
+        "status": "template-ready"
+      },
+      {
+        "title": "Session isolation",
+        "detail": "Cookie-backed local sessions",
+        "status": "template-ready"
+      },
+      {
+        "title": "Secrets hygiene",
+        "detail": "Env-based tokens with rotation schedule",
+        "status": "planned"
+      },
+      {
+        "title": "CSP posture",
+        "detail": "Content security policy for client islands",
+        "status": "planned"
+      },
+      {
+        "title": "Dependency scanning",
+        "detail": "Supply-chain guardrails for runtime deps",
+        "status": "planned"
+      },
+      {
+        "title": "DDoS readiness",
+        "detail": "Edge throttle + traffic shaping plan",
+        "status": "planned"
+      },
+      {
+        "title": "Data encryption",
+        "detail": "Encryption at rest + in transit targets",
+        "status": "planned"
+      }
     ]
   },
   "community": {
@@ -234,9 +388,30 @@
     "title": "Operator and builder community",
     "body": "Community lanes are captured in data so you can wire Discord, forum, and beta cohorts without rewriting pages.",
     "channels": [
-      { "name": "Operator Discord", "platform": "Discord", "summary": "Daily operator standups and runtime triage.", "members": "1.2k", "cadence": "daily", "href": "#" },
-      { "name": "Builder Forum", "platform": "Forum", "summary": "Docs Q&A, build logs, and template updates.", "members": "4.8k", "cadence": "weekly", "href": "#" },
-      { "name": "Early Access Group", "platform": "Invite", "summary": "Closed cohort for actor-server pilots.", "members": "120", "cadence": "monthly", "href": "#" }
+      {
+        "name": "Operator Discord",
+        "platform": "Discord",
+        "summary": "Daily operator standups and runtime triage.",
+        "members": "1.2k",
+        "cadence": "daily",
+        "href": "#"
+      },
+      {
+        "name": "Builder Forum",
+        "platform": "Forum",
+        "summary": "Docs Q&A, build logs, and template updates.",
+        "members": "4.8k",
+        "cadence": "weekly",
+        "href": "#"
+      },
+      {
+        "name": "Early Access Group",
+        "platform": "Invite",
+        "summary": "Closed cohort for actor-server pilots.",
+        "members": "120",
+        "cadence": "monthly",
+        "href": "#"
+      }
     ]
   },
   "events": {
@@ -245,9 +420,30 @@
     "body": "Track upcoming launches, training, and live demos from one schedule lane.",
     "rsvp_form_id": "event_rsvp",
     "upcoming": [
-      { "title": "Hybrid Command Briefing", "date": "2026-04-08", "format": "Live stream", "summary": "Walkthrough of the hybrid archetype, actor routes, and chat systems.", "focus": "hybrid", "href": "#" },
-      { "title": "3D Web Systems Lab", "date": "2026-04-15", "format": "Workshop", "summary": "Scene islands, WebGL previews, and manifest-driven 3D layouts.", "focus": "3d", "href": "#" },
-      { "title": "Actor Server Clinic", "date": "2026-04-22", "format": "Office hours", "summary": "Routes, playbooks, tools, and operator handoff patterns.", "focus": "actors", "href": "#" }
+      {
+        "title": "Hybrid Command Briefing",
+        "date": "2026-04-08",
+        "format": "Live stream",
+        "summary": "Walkthrough of the hybrid archetype, actor routes, and chat systems.",
+        "focus": "hybrid",
+        "href": "#"
+      },
+      {
+        "title": "3D Web Systems Lab",
+        "date": "2026-04-15",
+        "format": "Workshop",
+        "summary": "Scene islands, WebGL previews, and manifest-driven 3D layouts.",
+        "focus": "3d",
+        "href": "#"
+      },
+      {
+        "title": "Actor Server Clinic",
+        "date": "2026-04-22",
+        "format": "Office hours",
+        "summary": "Routes, playbooks, tools, and operator handoff patterns.",
+        "focus": "actors",
+        "href": "#"
+      }
     ]
   },
   "newsletter": {
@@ -255,7 +451,12 @@
     "title": "Stay synced on template drops",
     "body": "A local-first newsletter intake that can be wired to any provider later.",
     "cadence": "Bi-weekly",
-    "topics": ["web template upgrades", "actor runtime lanes", "chat systems", "3D web islands"],
+    "topics": [
+      "web template upgrades",
+      "actor runtime lanes",
+      "chat systems",
+      "3D web islands"
+    ],
     "form_id": "newsletter_signup"
   },
   "compliance": {
@@ -263,33 +464,104 @@
     "title": "Compliance and governance",
     "body": "Contract-friendly compliance metadata for regulated launches.",
     "controls": [
-      { "title": "SOC 2 posture", "detail": "Template-ready compliance outline", "status": "draft" },
-      { "title": "GDPR readiness", "detail": "Data retention + consent notes", "status": "template-ready" },
-      { "title": "Data residency", "detail": "Region and storage policies", "status": "template-ready" }
+      {
+        "title": "SOC 2 posture",
+        "detail": "Template-ready compliance outline",
+        "status": "draft"
+      },
+      {
+        "title": "GDPR readiness",
+        "detail": "Data retention + consent notes",
+        "status": "template-ready"
+      },
+      {
+        "title": "Data residency",
+        "detail": "Region and storage policies",
+        "status": "template-ready"
+      }
     ]
   },
   "data_governance": [
-    { "kicker": "Governance", "title": "Retention policies", "body": "Describe data retention and purge cadences." },
-    { "kicker": "Governance", "title": "Access tiers", "body": "Who can see analytics, chat logs, and intake data." },
-    { "kicker": "Governance", "title": "PII handling", "body": "Guidance for user-submitted content and forms." }
+    {
+      "kicker": "Governance",
+      "title": "Retention policies",
+      "body": "Describe data retention and purge cadences."
+    },
+    {
+      "kicker": "Governance",
+      "title": "Access tiers",
+      "body": "Who can see analytics, chat logs, and intake data."
+    },
+    {
+      "kicker": "Governance",
+      "title": "PII handling",
+      "body": "Guidance for user-submitted content and forms."
+    }
   ],
   "backup_plan": [
-    { "kicker": "Backup", "title": "Snapshot cadence", "body": "Daily export and weekly archive schedule." },
-    { "kicker": "Backup", "title": "Restore drills", "body": "Track recovery time targets per system." },
-    { "kicker": "Backup", "title": "Artifact escrow", "body": "Store build artifacts and content manifests." }
+    {
+      "kicker": "Backup",
+      "title": "Snapshot cadence",
+      "body": "Daily export and weekly archive schedule."
+    },
+    {
+      "kicker": "Backup",
+      "title": "Restore drills",
+      "body": "Track recovery time targets per system."
+    },
+    {
+      "kicker": "Backup",
+      "title": "Artifact escrow",
+      "body": "Store build artifacts and content manifests."
+    }
   ],
   "observability": {
     "kicker": "Observability",
     "title": "Operational visibility",
     "body": "Signals, logs, and alerting summaries for operator surfaces.",
     "signals": [
-      { "title": "Route latency", "detail": "Local SSE + WS latency capture", "owner": "signal_broker", "cadence": "1s" },
-      { "title": "Actor health", "detail": "Actor mesh and tool status", "owner": "mesh_supervisor", "cadence": "5s" },
-      { "title": "Search index drift", "detail": "Diff-friendly index snapshots", "owner": "search_indexer", "cadence": "daily" },
-      { "title": "Error budget", "detail": "Incident and availability tracking", "owner": "mesh_supervisor", "cadence": "daily" },
-      { "title": "Log streams", "detail": "Structured runtime logs + trace IDs", "owner": "runtime_reporter", "cadence": "continuous" },
-      { "title": "Client telemetry", "detail": "Island hydration and interaction timings", "owner": "signal_broker", "cadence": "per session" },
-      { "title": "Cost posture", "detail": "Infra + storage cost snapshots", "owner": "runtime_reporter", "cadence": "weekly" }
+      {
+        "title": "Route latency",
+        "detail": "Local SSE + WS latency capture",
+        "owner": "signal_broker",
+        "cadence": "1s"
+      },
+      {
+        "title": "Actor health",
+        "detail": "Actor mesh and tool status",
+        "owner": "mesh_supervisor",
+        "cadence": "5s"
+      },
+      {
+        "title": "Search index drift",
+        "detail": "Diff-friendly index snapshots",
+        "owner": "search_indexer",
+        "cadence": "daily"
+      },
+      {
+        "title": "Error budget",
+        "detail": "Incident and availability tracking",
+        "owner": "mesh_supervisor",
+        "cadence": "daily"
+      },
+      {
+        "title": "Log streams",
+        "detail": "Structured runtime logs + trace IDs",
+        "owner": "runtime_reporter",
+        "cadence": "continuous"
+      },
+      {
+        "title": "Client telemetry",
+        "detail": "Island hydration and interaction timings",
+        "owner": "signal_broker",
+        "cadence": "per session"
+      },
+      {
+        "title": "Cost posture",
+        "detail": "Infra + storage cost snapshots",
+        "owner": "runtime_reporter",
+        "cadence": "weekly"
+      }
     ]
   },
   "infrastructure": {
@@ -297,39 +569,264 @@
     "title": "Hosting and delivery stack",
     "body": "Describe deployment, CDN, and runtime edge decisions in data.",
     "stack": [
-      { "title": "Edge CDN", "detail": "Static artifact delivery with purge controls.", "tier": "edge", "status": "template-ready" },
-      { "title": "Actor runtime", "detail": "Node-backed host with Kain contract ownership.", "tier": "runtime", "status": "template-ready" },
-      { "title": "Artifact storage", "detail": "Static build outputs and uploads.", "tier": "storage", "status": "template-ready" },
-      { "title": "Serverless functions", "detail": "Edge-friendly handlers for chat + webhooks.", "tier": "compute", "status": "planned" },
-      { "title": "Database layer", "detail": "Postgres or KV options for production data.", "tier": "data", "status": "planned" },
-      { "title": "Cache tier", "detail": "Redis-like cache for sessions and feeds.", "tier": "data", "status": "planned" },
-      { "title": "Queue system", "detail": "Background jobs for actors + automation.", "tier": "data", "status": "planned" },
-      { "title": "Search index", "detail": "Full-text + vector search adapter.", "tier": "data", "status": "planned" },
-      { "title": "Media pipeline", "detail": "Image/video transform + CDN cache.", "tier": "media", "status": "planned" }
+      {
+        "title": "Edge CDN",
+        "detail": "Static artifact delivery with purge controls.",
+        "tier": "edge",
+        "status": "template-ready"
+      },
+      {
+        "title": "Actor runtime",
+        "detail": "Node-backed host with Kain contract ownership.",
+        "tier": "runtime",
+        "status": "template-ready"
+      },
+      {
+        "title": "Artifact storage",
+        "detail": "Static build outputs and uploads.",
+        "tier": "storage",
+        "status": "template-ready"
+      },
+      {
+        "title": "Serverless functions",
+        "detail": "Edge-friendly handlers for chat + webhooks.",
+        "tier": "compute",
+        "status": "planned"
+      },
+      {
+        "title": "Database layer",
+        "detail": "Postgres or KV options for production data.",
+        "tier": "data",
+        "status": "planned"
+      },
+      {
+        "title": "Cache tier",
+        "detail": "Redis-like cache for sessions and feeds.",
+        "tier": "data",
+        "status": "planned"
+      },
+      {
+        "title": "Queue system",
+        "detail": "Background jobs for actors + automation.",
+        "tier": "data",
+        "status": "planned"
+      },
+      {
+        "title": "Search index",
+        "detail": "Full-text + vector search adapter.",
+        "tier": "data",
+        "status": "planned"
+      },
+      {
+        "title": "Media pipeline",
+        "detail": "Image/video transform + CDN cache.",
+        "tier": "media",
+        "status": "planned"
+      }
     ]
   },
+  "edge_runtime": [
+    {
+      "kicker": "Edge",
+      "title": "Global edge runtime",
+      "body": "Edge execution and cache-aware routing for web experiences."
+    },
+    {
+      "kicker": "Edge",
+      "title": "SSR edge lane",
+      "body": "Optional SSR for chat and app shells with low-latency responses."
+    },
+    {
+      "kicker": "Edge",
+      "title": "Edge KV",
+      "body": "Low-latency key-value lookups for personalization and routing."
+    }
+  ],
+  "worker_runtime": [
+    {
+      "kicker": "Workers",
+      "title": "Actor job runner",
+      "body": "Background job lanes for actor workflows and automation."
+    },
+    {
+      "kicker": "Workers",
+      "title": "Cron scheduler",
+      "body": "Scheduled reports, ingestion, and maintenance tasks."
+    },
+    {
+      "kicker": "Workers",
+      "title": "Queue consumers",
+      "body": "Queue-driven workers with retries and escalation hooks."
+    }
+  ],
+  "api_gateway": [
+    {
+      "kicker": "Gateway",
+      "title": "Unified API gateway",
+      "body": "Route ownership, auth, and versioning in one contract surface."
+    },
+    {
+      "kicker": "Gateway",
+      "title": "Contract validation",
+      "body": "Schema-aware request/response validation for runtime routes."
+    },
+    {
+      "kicker": "Gateway",
+      "title": "Gateway observability",
+      "body": "Trace IDs and request sampling baked into the gateway layer."
+    }
+  ],
+  "rate_limits": [
+    {
+      "kicker": "Limits",
+      "title": "Per-route limits",
+      "body": "Route-specific limits for chat, uploads, and actor endpoints."
+    },
+    {
+      "kicker": "Limits",
+      "title": "Actor queue gating",
+      "body": "Queue-aware backpressure and autoscale triggers."
+    },
+    {
+      "kicker": "Limits",
+      "title": "Burst control",
+      "body": "Burst windows with cooldown and escalation policy."
+    }
+  ],
+  "cache_stack": [
+    {
+      "kicker": "Cache",
+      "title": "Edge cache",
+      "body": "Static HTML, CSS, and bundle caching at the edge."
+    },
+    {
+      "kicker": "Cache",
+      "title": "Session cache",
+      "body": "Session state caching and auth token reuse."
+    },
+    {
+      "kicker": "Cache",
+      "title": "Search cache",
+      "body": "Search query caching and ranking snapshots."
+    }
+  ],
+  "search_stack": [
+    {
+      "kicker": "Search",
+      "title": "Full-text index",
+      "body": "Local full-text search for docs and content."
+    },
+    {
+      "kicker": "Search",
+      "title": "Vector retrieval",
+      "body": "Pluggable vector store for semantic queries."
+    },
+    {
+      "kicker": "Search",
+      "title": "Hybrid ranking",
+      "body": "Combine keyword and vector ranking for relevance."
+    }
+  ],
+  "storage_stack": [
+    {
+      "kicker": "Storage",
+      "title": "Static artifact store",
+      "body": "Build outputs, client bundles, and static assets."
+    },
+    {
+      "kicker": "Storage",
+      "title": "Upload bucket",
+      "body": "User uploads with retention and audit hooks."
+    },
+    {
+      "kicker": "Storage",
+      "title": "Content archive",
+      "body": "Blog, media, and release artifact storage."
+    }
+  ],
+  "session_store": [
+    {
+      "kicker": "Sessions",
+      "title": "Cookie-backed sessions",
+      "body": "Local session store for dev + preview flows."
+    },
+    {
+      "kicker": "Sessions",
+      "title": "Token sessions",
+      "body": "JWT or opaque token sessions for production."
+    },
+    {
+      "kicker": "Sessions",
+      "title": "Actor sessions",
+      "body": "Actor-level session metadata for chat workflows."
+    }
+  ],
   "runtime_hosts": [
-    { "kicker": "Runtime", "title": "Local preview host", "body": "Local Node runtime with filesystem access." },
-    { "kicker": "Runtime", "title": "Container host", "body": "Dockerized runtime for staging and production." },
-    { "kicker": "Runtime", "title": "Edge worker", "body": "Distributed host for low-latency routing." }
+    {
+      "kicker": "Runtime",
+      "title": "Local preview host",
+      "body": "Local Node runtime with filesystem access."
+    },
+    {
+      "kicker": "Runtime",
+      "title": "Container host",
+      "body": "Dockerized runtime for staging and production."
+    },
+    {
+      "kicker": "Runtime",
+      "title": "Edge worker",
+      "body": "Distributed host for low-latency routing."
+    }
   ],
   "deployment_targets": [
-    { "kicker": "Target", "title": "Static hosting", "body": "Static deploy for launch and portfolio sites." },
-    { "kicker": "Target", "title": "Edge runtime", "body": "Edge deploy for actor and chat routes." },
-    { "kicker": "Target", "title": "Hybrid container", "body": "Full runtime deploy with uploads and analytics." }
+    {
+      "kicker": "Target",
+      "title": "Static hosting",
+      "body": "Static deploy for launch and portfolio sites."
+    },
+    {
+      "kicker": "Target",
+      "title": "Edge runtime",
+      "body": "Edge deploy for actor and chat routes."
+    },
+    {
+      "kicker": "Target",
+      "title": "Hybrid container",
+      "body": "Full runtime deploy with uploads and analytics."
+    }
   ],
   "localization": {
     "kicker": "Localization",
     "title": "Languages and regions",
     "body": "Use manifest data to plan localization without changing page logic.",
     "languages": [
-      { "name": "English", "coverage": "full", "status": "template-ready" },
-      { "name": "Japanese", "coverage": "partial", "status": "planned" },
-      { "name": "German", "coverage": "partial", "status": "planned" }
+      {
+        "name": "English",
+        "coverage": "full",
+        "status": "template-ready"
+      },
+      {
+        "name": "Japanese",
+        "coverage": "partial",
+        "status": "planned"
+      },
+      {
+        "name": "German",
+        "coverage": "partial",
+        "status": "planned"
+      }
     ],
     "regions": [
-      { "name": "North America", "timezone": "America/New_York", "status": "active" },
-      { "name": "Europe", "timezone": "Europe/Berlin", "status": "planned" }
+      {
+        "name": "North America",
+        "timezone": "America/New_York",
+        "status": "active"
+      },
+      {
+        "name": "Europe",
+        "timezone": "Europe/Berlin",
+        "status": "planned"
+      }
     ]
   },
   "accessibility": {
@@ -337,12 +834,36 @@
     "title": "Inclusive interface checklist",
     "body": "Declare accessibility posture in one reusable manifest.",
     "checks": [
-      { "title": "Semantic headings", "detail": "H1-H3 hierarchy maintained", "status": "template-ready" },
-      { "title": "Color contrast", "detail": "Theme tokens tracked per surface", "status": "in-review" },
-      { "title": "Keyboard navigation", "detail": "Forms and nav include focus states", "status": "template-ready" },
-      { "title": "Reduced motion", "detail": "Motion tokens respect reduced motion", "status": "planned" },
-      { "title": "Screen reader labels", "detail": "ARIA labels for islands and nav", "status": "planned" },
-      { "title": "Focus visibility", "detail": "Visible focus rings across panels", "status": "planned" }
+      {
+        "title": "Semantic headings",
+        "detail": "H1-H3 hierarchy maintained",
+        "status": "template-ready"
+      },
+      {
+        "title": "Color contrast",
+        "detail": "Theme tokens tracked per surface",
+        "status": "in-review"
+      },
+      {
+        "title": "Keyboard navigation",
+        "detail": "Forms and nav include focus states",
+        "status": "template-ready"
+      },
+      {
+        "title": "Reduced motion",
+        "detail": "Motion tokens respect reduced motion",
+        "status": "planned"
+      },
+      {
+        "title": "Screen reader labels",
+        "detail": "ARIA labels for islands and nav",
+        "status": "planned"
+      },
+      {
+        "title": "Focus visibility",
+        "detail": "Visible focus rings across panels",
+        "status": "planned"
+      }
     ]
   },
   "performance": {
@@ -350,48 +871,324 @@
     "title": "Performance targets",
     "body": "Declare latency and asset budgets alongside runtime metadata.",
     "targets": [
-      { "title": "LCP", "detail": "Largest contentful paint", "target": "< 2.5s" },
-      { "title": "TBT", "detail": "Total blocking time", "target": "< 150ms" },
-      { "title": "Bundle size", "detail": "Client island payload", "target": "< 260kb" },
-      { "title": "CLS", "detail": "Cumulative layout shift", "target": "< 0.1" },
-      { "title": "INP", "detail": "Interaction to next paint", "target": "< 200ms" },
-      { "title": "CPU budget", "detail": "Main-thread time per route", "target": "< 50ms" }
+      {
+        "title": "LCP",
+        "detail": "Largest contentful paint",
+        "target": "< 2.5s"
+      },
+      {
+        "title": "TBT",
+        "detail": "Total blocking time",
+        "target": "< 150ms"
+      },
+      {
+        "title": "Bundle size",
+        "detail": "Client island payload",
+        "target": "< 260kb"
+      },
+      {
+        "title": "CLS",
+        "detail": "Cumulative layout shift",
+        "target": "< 0.1"
+      },
+      {
+        "title": "INP",
+        "detail": "Interaction to next paint",
+        "target": "< 200ms"
+      },
+      {
+        "title": "CPU budget",
+        "detail": "Main-thread time per route",
+        "target": "< 50ms"
+      }
     ]
   },
+  "enablement_programs": [
+    {
+      "kicker": "Enablement",
+      "title": "Operator onboarding",
+      "body": "Train new operators on the launch, chat, and actor lanes before production handoff."
+    },
+    {
+      "kicker": "Enablement",
+      "title": "Customer success enablement",
+      "body": "Document the standard onboarding path for member and customer portals."
+    },
+    {
+      "kicker": "Enablement",
+      "title": "Partner certification",
+      "body": "Define partner training and certification checkpoints for ecosystem rollouts."
+    }
+  ],
+  "onboarding_flows": [
+    {
+      "title": "Welcome briefing",
+      "body": "Share the system overview, runtime constraints, and escalation rules."
+    },
+    {
+      "title": "Workspace tour",
+      "body": "Walk through app modules, actor routes, and observability panels."
+    },
+    {
+      "title": "Simulation",
+      "body": "Run a staged incident or launch drill before handing over production."
+    }
+  ],
+  "data_retention": [
+    {
+      "kicker": "Retention",
+      "title": "Prompt sessions",
+      "body": "Ephemeral chat sessions retained 7 days with weekly purge."
+    },
+    {
+      "kicker": "Retention",
+      "title": "Operator intakes",
+      "body": "Workflow requests retained 180 days for audit review."
+    },
+    {
+      "kicker": "Retention",
+      "title": "Uploads",
+      "body": "Local uploads retained 30 days before archival or export."
+    }
+  ],
+  "reliability_slos": [
+    {
+      "kicker": "SLO",
+      "title": "Launch surface availability",
+      "body": "99.9% availability during launch windows with rollback triggers."
+    },
+    {
+      "kicker": "SLO",
+      "title": "Chat latency",
+      "body": "P95 response time under 900ms for local prompt routing."
+    },
+    {
+      "kicker": "SLO",
+      "title": "Actor route freshness",
+      "body": "Actor topology updates published within 2 minutes of change."
+    }
+  ],
+  "incident_history": [
+    {
+      "phase": "Resolved",
+      "title": "Realtime channel saturation",
+      "body": "Scaled operator stream fanout after sustained traffic spike."
+    },
+    {
+      "phase": "Resolved",
+      "title": "Search index drift",
+      "body": "Rebuilt the local search document cache and added health checks."
+    }
+  ],
   "identity": {
     "kicker": "Identity",
     "title": "Identity and access control",
     "body": "Declare identity providers, roles, and access policies without baking them into page code.",
     "providers": [
-      { "kicker": "SSO", "title": "OIDC + SAML bridge", "body": "Enterprise identity hooks that stay manifest-driven until wiring the real provider." },
-      { "kicker": "Member", "title": "Passwordless email", "body": "Lightweight sign-in for launch or portfolio gated content." },
-      { "kicker": "Operator", "title": "Invite-only access", "body": "Gate operator consoles, actor dashboards, and incident rooms." }
+      {
+        "kicker": "SSO",
+        "title": "OIDC + SAML bridge",
+        "body": "Enterprise identity hooks that stay manifest-driven until wiring the real provider."
+      },
+      {
+        "kicker": "Member",
+        "title": "Passwordless email",
+        "body": "Lightweight sign-in for launch or portfolio gated content."
+      },
+      {
+        "kicker": "Operator",
+        "title": "Invite-only access",
+        "body": "Gate operator consoles, actor dashboards, and incident rooms."
+      }
     ],
     "roles": [
-      { "kicker": "Role", "title": "Owner", "body": "Full access to runtime configuration and publishing." },
-      { "kicker": "Role", "title": "Editor", "body": "Content and CMS access without infrastructure controls." },
-      { "kicker": "Role", "title": "Operator", "body": "Actor routes, health surfaces, and realtime lanes." }
+      {
+        "kicker": "Role",
+        "title": "Owner",
+        "body": "Full access to runtime configuration and publishing."
+      },
+      {
+        "kicker": "Role",
+        "title": "Editor",
+        "body": "Content and CMS access without infrastructure controls."
+      },
+      {
+        "kicker": "Role",
+        "title": "Operator",
+        "body": "Actor routes, health surfaces, and realtime lanes."
+      }
     ],
     "policies": [
-      { "kicker": "Policy", "title": "MFA required", "body": "Require multi-factor for operator and billing surfaces." },
-      { "kicker": "Policy", "title": "Session timeouts", "body": "Short-lived sessions for control-plane access." }
+      {
+        "kicker": "Policy",
+        "title": "MFA required",
+        "body": "Require multi-factor for operator and billing surfaces."
+      },
+      {
+        "kicker": "Policy",
+        "title": "Session timeouts",
+        "body": "Short-lived sessions for control-plane access."
+      }
     ]
   },
+  "identity_verification": [
+    {
+      "kicker": "Verify",
+      "title": "KYC / identity proofing",
+      "body": "ID document and selfie checks for high-trust workflows."
+    },
+    {
+      "kicker": "Verify",
+      "title": "Device trust",
+      "body": "Device fingerprinting and trusted device enrollment."
+    },
+    {
+      "kicker": "Verify",
+      "title": "Account recovery",
+      "body": "Recovery workflows with explicit proof-of-identity steps."
+    }
+  ],
+  "fraud_risk": [
+    {
+      "kicker": "Risk",
+      "title": "Fraud scoring",
+      "body": "Risk signals for signups, checkout, and actor actions."
+    },
+    {
+      "kicker": "Risk",
+      "title": "Chargeback monitoring",
+      "body": "Track dispute rates and transaction review thresholds."
+    },
+    {
+      "kicker": "Risk",
+      "title": "Bot defense",
+      "body": "Bot detection, rate fences, and abuse throttles."
+    }
+  ],
+  "consent_center": [
+    {
+      "kicker": "Consent",
+      "title": "Cookie banner",
+      "body": "First-visit cookie and tracking consent prompt metadata."
+    },
+    {
+      "kicker": "Consent",
+      "title": "Preference center",
+      "body": "Opt-in and opt-out controls for messaging and analytics."
+    },
+    {
+      "kicker": "Consent",
+      "title": "Data sharing",
+      "body": "Explicit consent requirements for sharing and data exports."
+    }
+  ],
+  "audit_logs": [
+    {
+      "kicker": "Audit",
+      "title": "Auth events",
+      "body": "Login, logout, and role changes captured for review."
+    },
+    {
+      "kicker": "Audit",
+      "title": "Billing changes",
+      "body": "Plan changes, refunds, and billing actions logged."
+    },
+    {
+      "kicker": "Audit",
+      "title": "Content publishes",
+      "body": "Editorial and CMS changes with actor attribution."
+    }
+  ],
+  "data_exports": [
+    {
+      "kicker": "Export",
+      "title": "User data export",
+      "body": "Export a user's data bundle for compliance requests."
+    },
+    {
+      "kicker": "Export",
+      "title": "Analytics snapshot",
+      "body": "Scheduled analytics and KPI export cadence."
+    },
+    {
+      "kicker": "Export",
+      "title": "Compliance archive",
+      "body": "Immutable archive for audit and legal review."
+    }
+  ],
+  "marketplace_stack": [
+    {
+      "kicker": "Marketplace",
+      "title": "Vendor onboarding",
+      "body": "Multi-vendor onboarding and store readiness checks."
+    },
+    {
+      "kicker": "Marketplace",
+      "title": "Payout routing",
+      "body": "Split payments, payouts, and settlement metadata."
+    },
+    {
+      "kicker": "Marketplace",
+      "title": "Ratings + reviews",
+      "body": "UGC reviews, moderation, and dispute workflows."
+    }
+  ],
+  "content_syndication": [
+    {
+      "kicker": "Syndication",
+      "title": "RSS + email",
+      "body": "Syndicate updates to RSS and email campaigns."
+    },
+    {
+      "kicker": "Syndication",
+      "title": "Social cross-post",
+      "body": "Push releases and posts to social channels."
+    },
+    {
+      "kicker": "Syndication",
+      "title": "Partner embeds",
+      "body": "Embeddable widgets and partner site shares."
+    }
+  ],
   "billing": {
     "kicker": "Billing",
     "title": "Billing and finance",
     "body": "Plan, invoice, and tax metadata stay consistent across commerce and app surfaces.",
     "plans": [
-      { "kicker": "Plan", "title": "Usage tiers", "body": "Starter, growth, and enterprise usage bands." },
-      { "kicker": "Plan", "title": "Seat-based access", "body": "Workspace and operator seat pricing." },
-      { "kicker": "Plan", "title": "One-time launch", "body": "Project-based pricing for premium site builds." }
+      {
+        "kicker": "Plan",
+        "title": "Usage tiers",
+        "body": "Starter, growth, and enterprise usage bands."
+      },
+      {
+        "kicker": "Plan",
+        "title": "Seat-based access",
+        "body": "Workspace and operator seat pricing."
+      },
+      {
+        "kicker": "Plan",
+        "title": "One-time launch",
+        "body": "Project-based pricing for premium site builds."
+      }
     ],
     "invoices": [
-      { "kicker": "Invoice", "title": "Invoice scheduling", "body": "Monthly and annual invoice cadence metadata." },
-      { "kicker": "Invoice", "title": "PO support", "body": "Enterprise purchase order and approval workflow." }
+      {
+        "kicker": "Invoice",
+        "title": "Invoice scheduling",
+        "body": "Monthly and annual invoice cadence metadata."
+      },
+      {
+        "kicker": "Invoice",
+        "title": "PO support",
+        "body": "Enterprise purchase order and approval workflow."
+      }
     ],
     "taxes": [
-      { "kicker": "Tax", "title": "VAT / Sales tax", "body": "Tax collection strategy captured in policy data." }
+      {
+        "kicker": "Tax",
+        "title": "VAT / Sales tax",
+        "body": "Tax collection strategy captured in policy data."
+      }
     ]
   },
   "subscriptions": {
@@ -399,78 +1196,242 @@
     "title": "Subscription and entitlement lanes",
     "body": "Model entitlements, tiers, and renewal policies in one shared registry.",
     "tiers": [
-      { "kicker": "Tier", "title": "Core", "body": "Launch + docs + forms with basic analytics." },
-      { "kicker": "Tier", "title": "Pro", "body": "Chat, operator lanes, and realtime channels." },
-      { "kicker": "Tier", "title": "Enterprise", "body": "SSO, audit trails, and dedicated actor meshes." }
+      {
+        "kicker": "Tier",
+        "title": "Core",
+        "body": "Launch + docs + forms with basic analytics."
+      },
+      {
+        "kicker": "Tier",
+        "title": "Pro",
+        "body": "Chat, operator lanes, and realtime channels."
+      },
+      {
+        "kicker": "Tier",
+        "title": "Enterprise",
+        "body": "SSO, audit trails, and dedicated actor meshes."
+      }
     ]
   },
   "product_catalog": [
-    { "kicker": "Product", "title": "Launch Kit", "body": "Hero narrative, pricing, and launch readiness bundle." },
-    { "kicker": "Product", "title": "Operator Console", "body": "Actor mesh, realtime dashboards, and status surfaces." },
-    { "kicker": "Product", "title": "Immersive Scene Pack", "body": "Scene staging, lighting presets, and WebGL islands." }
+    {
+      "kicker": "Product",
+      "title": "Launch Kit",
+      "body": "Hero narrative, pricing, and launch readiness bundle."
+    },
+    {
+      "kicker": "Product",
+      "title": "Operator Console",
+      "body": "Actor mesh, realtime dashboards, and status surfaces."
+    },
+    {
+      "kicker": "Product",
+      "title": "Immersive Scene Pack",
+      "body": "Scene staging, lighting presets, and WebGL islands."
+    }
   ],
   "inventory_stack": [
-    { "kicker": "Inventory", "title": "Stock lanes", "body": "Capture availability, backorder status, and supply notes." },
-    { "kicker": "Inventory", "title": "Warehouses", "body": "Track fulfillment hubs and coverage regions." },
-    { "kicker": "Inventory", "title": "Forecasting", "body": "Demand signals and restock cadence metadata." }
+    {
+      "kicker": "Inventory",
+      "title": "Stock lanes",
+      "body": "Capture availability, backorder status, and supply notes."
+    },
+    {
+      "kicker": "Inventory",
+      "title": "Warehouses",
+      "body": "Track fulfillment hubs and coverage regions."
+    },
+    {
+      "kicker": "Inventory",
+      "title": "Forecasting",
+      "body": "Demand signals and restock cadence metadata."
+    }
   ],
   "fulfillment_stack": [
-    { "kicker": "Fulfillment", "title": "Order routing", "body": "Describe routing, batching, and handoff flow." },
-    { "kicker": "Fulfillment", "title": "Delivery SLAs", "body": "Expected ship windows and service levels." },
-    { "kicker": "Fulfillment", "title": "Partner handoff", "body": "Carrier and 3PL integration notes." }
+    {
+      "kicker": "Fulfillment",
+      "title": "Order routing",
+      "body": "Describe routing, batching, and handoff flow."
+    },
+    {
+      "kicker": "Fulfillment",
+      "title": "Delivery SLAs",
+      "body": "Expected ship windows and service levels."
+    },
+    {
+      "kicker": "Fulfillment",
+      "title": "Partner handoff",
+      "body": "Carrier and 3PL integration notes."
+    }
   ],
   "shipping_stack": [
-    { "kicker": "Shipping", "title": "Carrier mix", "body": "UPS, FedEx, and regional carriers metadata." },
-    { "kicker": "Shipping", "title": "Rate bands", "body": "Shipping tiers and thresholds for free delivery." },
-    { "kicker": "Shipping", "title": "International lanes", "body": "Customs and cross-border notes." }
+    {
+      "kicker": "Shipping",
+      "title": "Carrier mix",
+      "body": "UPS, FedEx, and regional carriers metadata."
+    },
+    {
+      "kicker": "Shipping",
+      "title": "Rate bands",
+      "body": "Shipping tiers and thresholds for free delivery."
+    },
+    {
+      "kicker": "Shipping",
+      "title": "International lanes",
+      "body": "Customs and cross-border notes."
+    }
   ],
   "returns_policy": [
-    { "kicker": "Returns", "title": "Return windows", "body": "Capture return eligibility and time frames." },
-    { "kicker": "Returns", "title": "Condition rules", "body": "Notes on acceptable condition and restocking fees." },
-    { "kicker": "Returns", "title": "Refund routing", "body": "Refund timing and escalation policies." }
+    {
+      "kicker": "Returns",
+      "title": "Return windows",
+      "body": "Capture return eligibility and time frames."
+    },
+    {
+      "kicker": "Returns",
+      "title": "Condition rules",
+      "body": "Notes on acceptable condition and restocking fees."
+    },
+    {
+      "kicker": "Returns",
+      "title": "Refund routing",
+      "body": "Refund timing and escalation policies."
+    }
   ],
   "loyalty_program": [
-    { "kicker": "Loyalty", "title": "Tiered rewards", "body": "Points, credits, and upgrade lanes for repeat buyers." },
-    { "kicker": "Loyalty", "title": "Member perks", "body": "Early access, private drops, and bonus content." },
-    { "kicker": "Loyalty", "title": "Retention prompts", "body": "Win-back and renewal narratives." }
+    {
+      "kicker": "Loyalty",
+      "title": "Tiered rewards",
+      "body": "Points, credits, and upgrade lanes for repeat buyers."
+    },
+    {
+      "kicker": "Loyalty",
+      "title": "Member perks",
+      "body": "Early access, private drops, and bonus content."
+    },
+    {
+      "kicker": "Loyalty",
+      "title": "Retention prompts",
+      "body": "Win-back and renewal narratives."
+    }
   ],
   "referral_program": [
-    { "kicker": "Referral", "title": "Affiliate cohorts", "body": "Partner and affiliate incentive lanes." },
-    { "kicker": "Referral", "title": "Tracking links", "body": "Referral attribution and payout schedules." },
-    { "kicker": "Referral", "title": "Partner onboarding", "body": "Enablement docs and approval workflow." }
+    {
+      "kicker": "Referral",
+      "title": "Affiliate cohorts",
+      "body": "Partner and affiliate incentive lanes."
+    },
+    {
+      "kicker": "Referral",
+      "title": "Tracking links",
+      "body": "Referral attribution and payout schedules."
+    },
+    {
+      "kicker": "Referral",
+      "title": "Partner onboarding",
+      "body": "Enablement docs and approval workflow."
+    }
   ],
   "ads_stack": [
-    { "kicker": "Ads", "title": "Paid acquisition", "body": "Search, social, and display campaign metadata." },
-    { "kicker": "Ads", "title": "Creative lanes", "body": "Asset variants, messaging, and CTA testing." },
-    { "kicker": "Ads", "title": "Budget controls", "body": "Spend caps and pacing strategy." }
+    {
+      "kicker": "Ads",
+      "title": "Paid acquisition",
+      "body": "Search, social, and display campaign metadata."
+    },
+    {
+      "kicker": "Ads",
+      "title": "Creative lanes",
+      "body": "Asset variants, messaging, and CTA testing."
+    },
+    {
+      "kicker": "Ads",
+      "title": "Budget controls",
+      "body": "Spend caps and pacing strategy."
+    }
   ],
   "personalization_stack": [
-    { "kicker": "Personalization", "title": "Segment mapping", "body": "Segment-to-experience routing rules." },
-    { "kicker": "Personalization", "title": "Recommendations", "body": "Product and content recommendation logic." },
-    { "kicker": "Personalization", "title": "Dynamic offers", "body": "Adaptive pricing and offer stacking." }
+    {
+      "kicker": "Personalization",
+      "title": "Segment mapping",
+      "body": "Segment-to-experience routing rules."
+    },
+    {
+      "kicker": "Personalization",
+      "title": "Recommendations",
+      "body": "Product and content recommendation logic."
+    },
+    {
+      "kicker": "Personalization",
+      "title": "Dynamic offers",
+      "body": "Adaptive pricing and offer stacking."
+    }
   ],
   "customer_portal": [
-    { "kicker": "Portal", "title": "Account overview", "body": "Orders, subscriptions, and profile management." },
-    { "kicker": "Portal", "title": "Billing center", "body": "Invoices, payment methods, and tax docs." },
-    { "kicker": "Portal", "title": "Support hub", "body": "Tickets, returns, and messaging history." }
+    {
+      "kicker": "Portal",
+      "title": "Account overview",
+      "body": "Orders, subscriptions, and profile management."
+    },
+    {
+      "kicker": "Portal",
+      "title": "Billing center",
+      "body": "Invoices, payment methods, and tax docs."
+    },
+    {
+      "kicker": "Portal",
+      "title": "Support hub",
+      "body": "Tickets, returns, and messaging history."
+    }
   ],
   "data_platform": [
-    { "kicker": "Data", "title": "Warehouse targets", "body": "Analytics and product event warehousing metadata." },
-    { "kicker": "Data", "title": "ETL lanes", "body": "Batch and streaming pipelines for site data." },
-    { "kicker": "Data", "title": "Governed exports", "body": "Data export schedules and audit policy." }
+    {
+      "kicker": "Data",
+      "title": "Warehouse targets",
+      "body": "Analytics and product event warehousing metadata."
+    },
+    {
+      "kicker": "Data",
+      "title": "ETL lanes",
+      "body": "Batch and streaming pipelines for site data."
+    },
+    {
+      "kicker": "Data",
+      "title": "Governed exports",
+      "body": "Data export schedules and audit policy."
+    }
   ],
   "cms": {
     "kicker": "CMS",
     "title": "Content pipeline and governance",
     "body": "Define content types, workflow steps, and review cadence without reauthoring templates.",
     "content_types": [
-      { "kicker": "Type", "title": "Case study", "body": "Portfolio-driven longform content." },
-      { "kicker": "Type", "title": "Release note", "body": "Launch updates and product changelogs." },
-      { "kicker": "Type", "title": "Operator runbook", "body": "Procedural playbooks for actor-driven systems." }
+      {
+        "kicker": "Type",
+        "title": "Case study",
+        "body": "Portfolio-driven longform content."
+      },
+      {
+        "kicker": "Type",
+        "title": "Release note",
+        "body": "Launch updates and product changelogs."
+      },
+      {
+        "kicker": "Type",
+        "title": "Operator runbook",
+        "body": "Procedural playbooks for actor-driven systems."
+      }
     ],
     "workflow": [
-      { "kicker": "Workflow", "title": "Draft → Review → Publish", "body": "Editorial chain for docs and public updates." },
-      { "kicker": "Workflow", "title": "Ops approval", "body": "Operator surfaces require a second reviewer." }
+      {
+        "kicker": "Workflow",
+        "title": "Draft \u2192 Review \u2192 Publish",
+        "body": "Editorial chain for docs and public updates."
+      },
+      {
+        "kicker": "Workflow",
+        "title": "Ops approval",
+        "body": "Operator surfaces require a second reviewer."
+      }
     ]
   },
   "media_library": {
@@ -478,95 +1439,303 @@
     "title": "Media library and asset pipeline",
     "body": "Capture media, brand, and 3D assets with consistent metadata.",
     "libraries": [
-      { "kicker": "Library", "title": "Brand kit", "body": "Logos, colors, and typography references." },
-      { "kicker": "Library", "title": "Scene assets", "body": "3D scene payloads, textures, and preview renders." },
-      { "kicker": "Library", "title": "Product visuals", "body": "Screenshots, UI clips, and launch imagery." }
+      {
+        "kicker": "Library",
+        "title": "Brand kit",
+        "body": "Logos, colors, and typography references."
+      },
+      {
+        "kicker": "Library",
+        "title": "Scene assets",
+        "body": "3D scene payloads, textures, and preview renders."
+      },
+      {
+        "kicker": "Library",
+        "title": "Product visuals",
+        "body": "Screenshots, UI clips, and launch imagery."
+      }
     ],
     "pipelines": [
-      { "kicker": "Pipeline", "title": "Transform presets", "body": "Responsive variants and social crops." },
-      { "kicker": "Pipeline", "title": "CDN metadata", "body": "Capture caching and delivery policies." }
+      {
+        "kicker": "Pipeline",
+        "title": "Transform presets",
+        "body": "Responsive variants and social crops."
+      },
+      {
+        "kicker": "Pipeline",
+        "title": "CDN metadata",
+        "body": "Capture caching and delivery policies."
+      }
     ]
   },
   "scene_pipeline": [
-    { "kicker": "Pipeline", "title": "Scene ingest", "body": "Track how GLB, USD, or mesh payloads enter the web runtime." },
-    { "kicker": "Pipeline", "title": "Material staging", "body": "Define texture, shader, and lighting preparation steps." },
-    { "kicker": "Pipeline", "title": "Preview capture", "body": "Emit poster frames and social cards from the scene plan." },
-    { "kicker": "Pipeline", "title": "Scene activation", "body": "Describe when the WebGL/Three island should load." }
+    {
+      "kicker": "Pipeline",
+      "title": "Scene ingest",
+      "body": "Track how GLB, USD, or mesh payloads enter the web runtime."
+    },
+    {
+      "kicker": "Pipeline",
+      "title": "Material staging",
+      "body": "Define texture, shader, and lighting preparation steps."
+    },
+    {
+      "kicker": "Pipeline",
+      "title": "Preview capture",
+      "body": "Emit poster frames and social cards from the scene plan."
+    },
+    {
+      "kicker": "Pipeline",
+      "title": "Scene activation",
+      "body": "Describe when the WebGL/Three island should load."
+    }
   ],
   "render_stack": [
-    { "kicker": "Render", "title": "WebGL core", "body": "Default renderer and shader readiness for broad browser coverage." },
-    { "kicker": "Render", "title": "WebGPU pilot", "body": "Optional path when WebGPU is available." },
-    { "kicker": "Render", "title": "Post stack", "body": "Bloom, color grading, and tone mapping configuration." },
-    { "kicker": "Render", "title": "Fallback mode", "body": "Static poster + motion fallback when GPU is constrained." }
+    {
+      "kicker": "Render",
+      "title": "WebGL core",
+      "body": "Default renderer and shader readiness for broad browser coverage."
+    },
+    {
+      "kicker": "Render",
+      "title": "WebGPU pilot",
+      "body": "Optional path when WebGPU is available."
+    },
+    {
+      "kicker": "Render",
+      "title": "Post stack",
+      "body": "Bloom, color grading, and tone mapping configuration."
+    },
+    {
+      "kicker": "Render",
+      "title": "Fallback mode",
+      "body": "Static poster + motion fallback when GPU is constrained."
+    }
   ],
   "interaction_modes": [
-    { "kicker": "Interaction", "title": "Guided camera", "body": "Scroll or waypoint-driven story mode." },
-    { "kicker": "Interaction", "title": "Free orbit", "body": "User-controlled orbit with limited bounds." },
-    { "kicker": "Interaction", "title": "Actor spotlight", "body": "Highlight and focus on narrative beats or product nodes." }
+    {
+      "kicker": "Interaction",
+      "title": "Guided camera",
+      "body": "Scroll or waypoint-driven story mode."
+    },
+    {
+      "kicker": "Interaction",
+      "title": "Free orbit",
+      "body": "User-controlled orbit with limited bounds."
+    },
+    {
+      "kicker": "Interaction",
+      "title": "Actor spotlight",
+      "body": "Highlight and focus on narrative beats or product nodes."
+    }
   ],
   "device_profiles": [
-    { "kicker": "Device", "title": "Desktop GPU", "body": "Full shader and particle budgets." },
-    { "kicker": "Device", "title": "Mobile GPU", "body": "Reduced particles + baked lighting." },
-    { "kicker": "Device", "title": "Fallback", "body": "Poster image + micro interactions." }
+    {
+      "kicker": "Device",
+      "title": "Desktop GPU",
+      "body": "Full shader and particle budgets."
+    },
+    {
+      "kicker": "Device",
+      "title": "Mobile GPU",
+      "body": "Reduced particles + baked lighting."
+    },
+    {
+      "kicker": "Device",
+      "title": "Fallback",
+      "body": "Poster image + micro interactions."
+    }
   ],
   "scene_assets": [
-    { "kicker": "Asset", "title": "Hero scene GLB", "body": "Primary hero scene with multi-LOD variants." },
-    { "kicker": "Asset", "title": "Product turntable", "body": "Feature model with baked lightmaps." },
-    { "kicker": "Asset", "title": "Scene decals", "body": "Brand textures and UI overlays." }
+    {
+      "kicker": "Asset",
+      "title": "Hero scene GLB",
+      "body": "Primary hero scene with multi-LOD variants."
+    },
+    {
+      "kicker": "Asset",
+      "title": "Product turntable",
+      "body": "Feature model with baked lightmaps."
+    },
+    {
+      "kicker": "Asset",
+      "title": "Scene decals",
+      "body": "Brand textures and UI overlays."
+    }
   ],
   "material_library": [
-    { "kicker": "Material", "title": "Anodized metal", "body": "PBR metal with calibrated roughness ranges." },
-    { "kicker": "Material", "title": "Volumetric glass", "body": "Glass preset with refraction and bloom tuning." },
-    { "kicker": "Material", "title": "Fabric weave", "body": "Tactile material used in portfolio or product shots." }
+    {
+      "kicker": "Material",
+      "title": "Anodized metal",
+      "body": "PBR metal with calibrated roughness ranges."
+    },
+    {
+      "kicker": "Material",
+      "title": "Volumetric glass",
+      "body": "Glass preset with refraction and bloom tuning."
+    },
+    {
+      "kicker": "Material",
+      "title": "Fabric weave",
+      "body": "Tactile material used in portfolio or product shots."
+    }
   ],
   "lighting_rigs": [
-    { "kicker": "Lighting", "title": "Studio softbox", "body": "Neutral launch lighting for hero shots." },
-    { "kicker": "Lighting", "title": "Cinematic rim", "body": "High-contrast lighting for immersive scenes." },
-    { "kicker": "Lighting", "title": "Ambient gallery", "body": "Low-contrast lighting for portfolio walkthroughs." }
+    {
+      "kicker": "Lighting",
+      "title": "Studio softbox",
+      "body": "Neutral launch lighting for hero shots."
+    },
+    {
+      "kicker": "Lighting",
+      "title": "Cinematic rim",
+      "body": "High-contrast lighting for immersive scenes."
+    },
+    {
+      "kicker": "Lighting",
+      "title": "Ambient gallery",
+      "body": "Low-contrast lighting for portfolio walkthroughs."
+    }
   ],
   "camera_rigs": [
-    { "kicker": "Camera", "title": "Guided rails", "body": "Timeline-driven scene capture for narrative pages." },
-    { "kicker": "Camera", "title": "Orbit rig", "body": "Interactive orbit for product or scene inspection." },
-    { "kicker": "Camera", "title": "Cinematic dolly", "body": "Slow dolly path for premium launches." }
+    {
+      "kicker": "Camera",
+      "title": "Guided rails",
+      "body": "Timeline-driven scene capture for narrative pages."
+    },
+    {
+      "kicker": "Camera",
+      "title": "Orbit rig",
+      "body": "Interactive orbit for product or scene inspection."
+    },
+    {
+      "kicker": "Camera",
+      "title": "Cinematic dolly",
+      "body": "Slow dolly path for premium launches."
+    }
   ],
   "animation_stack": [
-    { "kicker": "Animation", "title": "Keyframe rails", "body": "Pre-authored keyframes tied to scroll positions." },
-    { "kicker": "Animation", "title": "Interaction loops", "body": "Hover or idle loops for realtime surfaces." },
-    { "kicker": "Animation", "title": "Event triggers", "body": "Event-driven animation hooks for actor events." }
+    {
+      "kicker": "Animation",
+      "title": "Keyframe rails",
+      "body": "Pre-authored keyframes tied to scroll positions."
+    },
+    {
+      "kicker": "Animation",
+      "title": "Interaction loops",
+      "body": "Hover or idle loops for realtime surfaces."
+    },
+    {
+      "kicker": "Animation",
+      "title": "Event triggers",
+      "body": "Event-driven animation hooks for actor events."
+    }
   ],
   "physics_stack": [
-    { "kicker": "Physics", "title": "Rigid body", "body": "Lightweight collisions for interactive objects." },
-    { "kicker": "Physics", "title": "Soft constraints", "body": "Elastic interactions for UI and scene props." },
-    { "kicker": "Physics", "title": "Motion damping", "body": "Stable motion budgets for mobile devices." }
+    {
+      "kicker": "Physics",
+      "title": "Rigid body",
+      "body": "Lightweight collisions for interactive objects."
+    },
+    {
+      "kicker": "Physics",
+      "title": "Soft constraints",
+      "body": "Elastic interactions for UI and scene props."
+    },
+    {
+      "kicker": "Physics",
+      "title": "Motion damping",
+      "body": "Stable motion budgets for mobile devices."
+    }
   ],
   "spatial_audio": [
-    { "kicker": "Audio", "title": "Ambient beds", "body": "Looped ambience per scene mode." },
-    { "kicker": "Audio", "title": "Focus cues", "body": "Audio cues for feature highlights." },
-    { "kicker": "Audio", "title": "Voice overlays", "body": "Narration tracks for guided tours." }
+    {
+      "kicker": "Audio",
+      "title": "Ambient beds",
+      "body": "Looped ambience per scene mode."
+    },
+    {
+      "kicker": "Audio",
+      "title": "Focus cues",
+      "body": "Audio cues for feature highlights."
+    },
+    {
+      "kicker": "Audio",
+      "title": "Voice overlays",
+      "body": "Narration tracks for guided tours."
+    }
   ],
   "xr_modes": [
-    { "kicker": "XR", "title": "WebXR preview", "body": "Optional XR lane for supported devices." },
-    { "kicker": "XR", "title": "Spatial walkthrough", "body": "Room-scale preview for immersive stories." },
-    { "kicker": "XR", "title": "Fallback capture", "body": "Capture alternative when XR is unavailable." }
+    {
+      "kicker": "XR",
+      "title": "WebXR preview",
+      "body": "Optional XR lane for supported devices."
+    },
+    {
+      "kicker": "XR",
+      "title": "Spatial walkthrough",
+      "body": "Room-scale preview for immersive stories."
+    },
+    {
+      "kicker": "XR",
+      "title": "Fallback capture",
+      "body": "Capture alternative when XR is unavailable."
+    }
   ],
   "shader_stack": [
-    { "kicker": "Shader", "title": "Surface stylization", "body": "Toon, glass, and emission shader presets." },
-    { "kicker": "Shader", "title": "Post FX", "body": "Bloom, LUT, and grain passes." },
-    { "kicker": "Shader", "title": "Data-driven shaders", "body": "Shader parameters bound to content metadata." }
+    {
+      "kicker": "Shader",
+      "title": "Surface stylization",
+      "body": "Toon, glass, and emission shader presets."
+    },
+    {
+      "kicker": "Shader",
+      "title": "Post FX",
+      "body": "Bloom, LUT, and grain passes."
+    },
+    {
+      "kicker": "Shader",
+      "title": "Data-driven shaders",
+      "body": "Shader parameters bound to content metadata."
+    }
   ],
   "streaming_stack": [
-    { "kicker": "Streaming", "title": "Realtime preview", "body": "SSE and WS streams for chat + ops." },
-    { "kicker": "Streaming", "title": "Scene sync", "body": "Scene state streaming for multi-device previews." },
-    { "kicker": "Streaming", "title": "Telemetry feed", "body": "Event streaming for operator dashboards." }
+    {
+      "kicker": "Streaming",
+      "title": "Realtime preview",
+      "body": "SSE and WS streams for chat + ops."
+    },
+    {
+      "kicker": "Streaming",
+      "title": "Scene sync",
+      "body": "Scene state streaming for multi-device previews."
+    },
+    {
+      "kicker": "Streaming",
+      "title": "Telemetry feed",
+      "body": "Event streaming for operator dashboards."
+    }
   ],
   "automation": {
     "kicker": "Automation",
     "title": "Workflow automation",
     "body": "Declarative automation for launch, content, and operator surfaces.",
     "flows": [
-      { "kicker": "Flow", "title": "Launch intake routing", "body": "Promote form submissions into the right workspace." },
-      { "kicker": "Flow", "title": "Chat escalation", "body": "Route high-signal prompts into operator review queues." },
-      { "kicker": "Flow", "title": "Status updates", "body": "Broadcast incident changes to realtime channels." }
+      {
+        "kicker": "Flow",
+        "title": "Launch intake routing",
+        "body": "Promote form submissions into the right workspace."
+      },
+      {
+        "kicker": "Flow",
+        "title": "Chat escalation",
+        "body": "Route high-signal prompts into operator review queues."
+      },
+      {
+        "kicker": "Flow",
+        "title": "Status updates",
+        "body": "Broadcast incident changes to realtime channels."
+      }
     ]
   },
   "webhooks": {
@@ -574,9 +1743,21 @@
     "title": "Event and webhook registry",
     "body": "Track outbound and inbound webhook payloads as a runtime contract.",
     "events": [
-      { "kicker": "Event", "title": "form.submitted", "body": "Fires when intake or newsletter forms are captured." },
-      { "kicker": "Event", "title": "chat.escalated", "body": "Triggered when a chat session becomes an operator ticket." },
-      { "kicker": "Event", "title": "incident.updated", "body": "Broadcasts status updates to external tools." }
+      {
+        "kicker": "Event",
+        "title": "form.submitted",
+        "body": "Fires when intake or newsletter forms are captured."
+      },
+      {
+        "kicker": "Event",
+        "title": "chat.escalated",
+        "body": "Triggered when a chat session becomes an operator ticket."
+      },
+      {
+        "kicker": "Event",
+        "title": "incident.updated",
+        "body": "Broadcasts status updates to external tools."
+      }
     ]
   },
   "api_reference": {
@@ -584,79 +1765,431 @@
     "title": "Runtime API reference",
     "body": "Document the runtime APIs as a first-class contract.",
     "endpoints": [
-      { "method": "GET", "path": "/api/api-reference", "purpose": "returns the API reference registry" },
-      { "method": "GET", "path": "/api/identity", "purpose": "returns identity providers, roles, and access policy metadata" },
-      { "method": "GET", "path": "/api/billing", "purpose": "returns billing plans and invoice metadata" },
-      { "method": "GET", "path": "/api/subscriptions", "purpose": "returns subscription tier and entitlement data" },
-      { "method": "GET", "path": "/api/commerce/catalog", "purpose": "returns product catalog metadata" },
-      { "method": "GET", "path": "/api/commerce/inventory", "purpose": "returns inventory stack metadata" },
-      { "method": "GET", "path": "/api/commerce/fulfillment", "purpose": "returns fulfillment stack metadata" },
-      { "method": "GET", "path": "/api/commerce/shipping", "purpose": "returns shipping stack metadata" },
-      { "method": "GET", "path": "/api/commerce/returns", "purpose": "returns return policy metadata" },
-      { "method": "GET", "path": "/api/commerce/loyalty", "purpose": "returns loyalty program metadata" },
-      { "method": "GET", "path": "/api/commerce/referrals", "purpose": "returns referral program metadata" },
-      { "method": "GET", "path": "/api/commerce/ads", "purpose": "returns paid acquisition metadata" },
-      { "method": "GET", "path": "/api/commerce/personalization", "purpose": "returns personalization stack metadata" },
-      { "method": "GET", "path": "/api/commerce/portal", "purpose": "returns customer portal metadata" },
-      { "method": "GET", "path": "/api/cms", "purpose": "returns content types and workflow metadata" },
-      { "method": "GET", "path": "/api/media", "purpose": "returns media library and pipeline metadata" },
-      { "method": "GET", "path": "/api/automation", "purpose": "returns automation flow metadata" },
-      { "method": "GET", "path": "/api/webhooks", "purpose": "returns webhook event metadata" },
-      { "method": "GET", "path": "/api/developer", "purpose": "returns developer portal metadata" },
-      { "method": "GET", "path": "/api/seo", "purpose": "returns SEO target metadata" },
-      { "method": "GET", "path": "/api/ui-kit", "purpose": "returns UI kit components, layouts, and tokens" },
-      { "method": "GET", "path": "/api/frontend", "purpose": "returns frontend stack metadata" },
-      { "method": "GET", "path": "/api/ui-runtime", "purpose": "returns UI runtime metadata" },
-      { "method": "GET", "path": "/api/chat/runtime", "purpose": "returns chat runtime metadata" },
-      { "method": "GET", "path": "/api/actors/runtime", "purpose": "returns actor runtime metadata" },
-      { "method": "GET", "path": "/api/chat/playbooks", "purpose": "returns chat playbook metadata" },
-      { "method": "GET", "path": "/api/chat/tools", "purpose": "returns chat tool metadata" },
-      { "method": "GET", "path": "/api/chat/memory", "purpose": "returns chat memory lane metadata" },
-      { "method": "GET", "path": "/api/chat/models", "purpose": "returns model stack metadata" },
-      { "method": "GET", "path": "/api/voice", "purpose": "returns voice stack metadata" },
-      { "method": "GET", "path": "/api/moderation", "purpose": "returns moderation policy metadata" },
-      { "method": "GET", "path": "/api/actors/policies", "purpose": "returns actor policy metadata" },
-      { "method": "GET", "path": "/api/actors/metrics", "purpose": "returns actor metric metadata" },
-      { "method": "GET", "path": "/api/actors/supervision", "purpose": "returns actor supervision metadata" },
-      { "method": "GET", "path": "/api/actors/queues", "purpose": "returns actor queue metadata" },
-      { "method": "GET", "path": "/api/3d/pipeline", "purpose": "returns 3D scene pipeline metadata" },
-      { "method": "GET", "path": "/api/3d/render", "purpose": "returns render stack metadata" },
-      { "method": "GET", "path": "/api/3d/interaction", "purpose": "returns 3D interaction mode metadata" },
-      { "method": "GET", "path": "/api/3d/devices", "purpose": "returns 3D device profile metadata" },
-      { "method": "GET", "path": "/api/3d/assets", "purpose": "returns 3D scene asset metadata" },
-      { "method": "GET", "path": "/api/3d/materials", "purpose": "returns 3D material library metadata" },
-      { "method": "GET", "path": "/api/3d/lighting", "purpose": "returns 3D lighting rig metadata" },
-      { "method": "GET", "path": "/api/3d/cameras", "purpose": "returns 3D camera rig metadata" },
-      { "method": "GET", "path": "/api/3d/animation", "purpose": "returns 3D animation stack metadata" },
-      { "method": "GET", "path": "/api/3d/physics", "purpose": "returns 3D physics stack metadata" },
-      { "method": "GET", "path": "/api/3d/audio", "purpose": "returns spatial audio stack metadata" },
-      { "method": "GET", "path": "/api/3d/xr", "purpose": "returns XR mode metadata" },
-      { "method": "GET", "path": "/api/3d/shaders", "purpose": "returns shader stack metadata" },
-      { "method": "GET", "path": "/api/streaming", "purpose": "returns streaming stack metadata" },
-      { "method": "GET", "path": "/api/data-governance", "purpose": "returns data governance metadata" },
-      { "method": "GET", "path": "/api/backups", "purpose": "returns backup plan metadata" },
-      { "method": "GET", "path": "/api/data-platform", "purpose": "returns data platform metadata" },
-      { "method": "GET", "path": "/api/support/tickets", "purpose": "returns support ticket queue metadata" },
-      { "method": "GET", "path": "/api/feedback", "purpose": "returns feedback loop metadata" },
-      { "method": "GET", "path": "/api/surveys", "purpose": "returns survey program metadata" },
-      { "method": "GET", "path": "/api/messaging", "purpose": "returns messaging stack metadata" },
-      { "method": "GET", "path": "/api/payments", "purpose": "returns payments stack metadata" },
-      { "method": "GET", "path": "/api/scheduling", "purpose": "returns scheduling stack metadata" },
-      { "method": "GET", "path": "/api/privacy/requests", "purpose": "returns privacy request metadata" },
-      { "method": "GET", "path": "/api/agents", "purpose": "returns chat + agent roster metadata" },
-      { "method": "GET", "path": "/api/agents/knowledge", "purpose": "returns knowledge source metadata" },
-      { "method": "GET", "path": "/api/agents/memory", "purpose": "returns agent memory store metadata" },
-      { "method": "GET", "path": "/api/agents/tools", "purpose": "returns agent tool registry metadata" },
-      { "method": "GET", "path": "/api/agents/workflows", "purpose": "returns agent workflow metadata" },
-      { "method": "GET", "path": "/api/releases", "purpose": "returns release notes and changelog metadata" },
-      { "method": "GET", "path": "/api/feature-flags", "purpose": "returns feature flag registry metadata" },
-      { "method": "GET", "path": "/api/incidents", "purpose": "returns incident response playbooks" },
-      { "method": "GET", "path": "/api/crm", "purpose": "returns CRM pipeline metadata" },
-      { "method": "GET", "path": "/api/actors/jobs", "purpose": "returns actor job metadata" },
-      { "method": "GET", "path": "/api/actors/schedules", "purpose": "returns actor schedule metadata" },
-      { "method": "GET", "path": "/api/actors/hosts", "purpose": "returns actor host metadata" },
-      { "method": "GET", "path": "/api/runtime/hosts", "purpose": "returns runtime host metadata" },
-      { "method": "GET", "path": "/api/runtime/deployments", "purpose": "returns deployment target metadata" }
+      {
+        "method": "GET",
+        "path": "/api/api-reference",
+        "purpose": "returns the API reference registry"
+      },
+      {
+        "method": "GET",
+        "path": "/api/identity",
+        "purpose": "returns identity providers, roles, and access policy metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/identity/verification",
+        "purpose": "returns identity verification metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/consent",
+        "purpose": "returns consent and preference metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/audit",
+        "purpose": "returns audit log metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/data-exports",
+        "purpose": "returns data export metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/risk",
+        "purpose": "returns fraud and risk metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/marketplace",
+        "purpose": "returns marketplace stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/syndication",
+        "purpose": "returns content syndication metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/billing",
+        "purpose": "returns billing plans and invoice metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/subscriptions",
+        "purpose": "returns subscription tier and entitlement data"
+      },
+      {
+        "method": "GET",
+        "path": "/api/commerce/catalog",
+        "purpose": "returns product catalog metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/commerce/inventory",
+        "purpose": "returns inventory stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/commerce/fulfillment",
+        "purpose": "returns fulfillment stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/commerce/shipping",
+        "purpose": "returns shipping stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/commerce/returns",
+        "purpose": "returns return policy metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/commerce/loyalty",
+        "purpose": "returns loyalty program metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/commerce/referrals",
+        "purpose": "returns referral program metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/commerce/ads",
+        "purpose": "returns paid acquisition metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/commerce/personalization",
+        "purpose": "returns personalization stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/commerce/portal",
+        "purpose": "returns customer portal metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/cms",
+        "purpose": "returns content types and workflow metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/media",
+        "purpose": "returns media library and pipeline metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/automation",
+        "purpose": "returns automation flow metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/webhooks",
+        "purpose": "returns webhook event metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/developer",
+        "purpose": "returns developer portal metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/seo",
+        "purpose": "returns SEO target metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/ui-kit",
+        "purpose": "returns UI kit components, layouts, and tokens"
+      },
+      {
+        "method": "GET",
+        "path": "/api/frontend",
+        "purpose": "returns frontend stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/ui-runtime",
+        "purpose": "returns UI runtime metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/chat/runtime",
+        "purpose": "returns chat runtime metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/actors/runtime",
+        "purpose": "returns actor runtime metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/chat/playbooks",
+        "purpose": "returns chat playbook metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/chat/tools",
+        "purpose": "returns chat tool metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/chat/memory",
+        "purpose": "returns chat memory lane metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/chat/models",
+        "purpose": "returns model stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/voice",
+        "purpose": "returns voice stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/moderation",
+        "purpose": "returns moderation policy metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/actors/policies",
+        "purpose": "returns actor policy metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/actors/metrics",
+        "purpose": "returns actor metric metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/actors/supervision",
+        "purpose": "returns actor supervision metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/actors/queues",
+        "purpose": "returns actor queue metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/3d/pipeline",
+        "purpose": "returns 3D scene pipeline metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/3d/render",
+        "purpose": "returns render stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/3d/interaction",
+        "purpose": "returns 3D interaction mode metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/3d/devices",
+        "purpose": "returns 3D device profile metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/3d/assets",
+        "purpose": "returns 3D scene asset metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/3d/materials",
+        "purpose": "returns 3D material library metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/3d/lighting",
+        "purpose": "returns 3D lighting rig metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/3d/cameras",
+        "purpose": "returns 3D camera rig metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/3d/animation",
+        "purpose": "returns 3D animation stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/3d/physics",
+        "purpose": "returns 3D physics stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/3d/audio",
+        "purpose": "returns spatial audio stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/3d/xr",
+        "purpose": "returns XR mode metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/3d/shaders",
+        "purpose": "returns shader stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/streaming",
+        "purpose": "returns streaming stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/data-governance",
+        "purpose": "returns data governance metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/backups",
+        "purpose": "returns backup plan metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/data-platform",
+        "purpose": "returns data platform metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/support/tickets",
+        "purpose": "returns support ticket queue metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/feedback",
+        "purpose": "returns feedback loop metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/surveys",
+        "purpose": "returns survey program metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/messaging",
+        "purpose": "returns messaging stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/payments",
+        "purpose": "returns payments stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/scheduling",
+        "purpose": "returns scheduling stack metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/privacy/requests",
+        "purpose": "returns privacy request metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/agents",
+        "purpose": "returns chat + agent roster metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/agents/knowledge",
+        "purpose": "returns knowledge source metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/agents/memory",
+        "purpose": "returns agent memory store metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/agents/tools",
+        "purpose": "returns agent tool registry metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/agents/workflows",
+        "purpose": "returns agent workflow metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/releases",
+        "purpose": "returns release notes and changelog metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/feature-flags",
+        "purpose": "returns feature flag registry metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/incidents",
+        "purpose": "returns incident response playbooks"
+      },
+      {
+        "method": "GET",
+        "path": "/api/crm",
+        "purpose": "returns CRM pipeline metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/actors/jobs",
+        "purpose": "returns actor job metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/actors/schedules",
+        "purpose": "returns actor schedule metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/actors/hosts",
+        "purpose": "returns actor host metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/runtime/hosts",
+        "purpose": "returns runtime host metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/runtime/deployments",
+        "purpose": "returns deployment target metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/enablement",
+        "purpose": "returns enablement programs"
+      },
+      {
+        "method": "GET",
+        "path": "/api/onboarding",
+        "purpose": "returns onboarding flows"
+      },
+      {
+        "method": "GET",
+        "path": "/api/reliability",
+        "purpose": "returns reliability SLO targets"
+      },
+      {
+        "method": "GET",
+        "path": "/api/data-retention",
+        "purpose": "returns data retention policies"
+      },
+      {
+        "method": "GET",
+        "path": "/api/incidents/history",
+        "purpose": "returns recent incident history"
+      }
     ]
   },
   "developer_portal": {
@@ -664,9 +2197,21 @@
     "title": "Developer portal",
     "body": "SDKs, sandboxes, and integration docs are first-class systems.",
     "tools": [
-      { "kicker": "SDK", "title": "REST + WebSocket SDK", "body": "Typed client for runtime routes and realtime channels." },
-      { "kicker": "Sandbox", "title": "Actor sandbox", "body": "Local simulation of actor routes and tools." },
-      { "kicker": "Docs", "title": "API playbooks", "body": "Operator and developer quickstart guides." }
+      {
+        "kicker": "SDK",
+        "title": "REST + WebSocket SDK",
+        "body": "Typed client for runtime routes and realtime channels."
+      },
+      {
+        "kicker": "Sandbox",
+        "title": "Actor sandbox",
+        "body": "Local simulation of actor routes and tools."
+      },
+      {
+        "kicker": "Docs",
+        "title": "API playbooks",
+        "body": "Operator and developer quickstart guides."
+      }
     ]
   },
   "seo_stack": {
@@ -674,244 +2219,852 @@
     "title": "Search and social metadata",
     "body": "SEO, social preview, and keyword strategy are part of the contract.",
     "targets": [
-      { "kicker": "SEO", "title": "Primary keywords", "body": "Launch, 3D, chat, and operator systems." },
-      { "kicker": "SEO", "title": "Open Graph", "body": "Social previews and share assets." },
-      { "kicker": "SEO", "title": "Structured data", "body": "Schema.org data for products and events." }
+      {
+        "kicker": "SEO",
+        "title": "Primary keywords",
+        "body": "Launch, 3D, chat, and operator systems."
+      },
+      {
+        "kicker": "SEO",
+        "title": "Open Graph",
+        "body": "Social previews and share assets."
+      },
+      {
+        "kicker": "SEO",
+        "title": "Structured data",
+        "body": "Schema.org data for products and events."
+      }
     ]
   },
   "brand_system": [
-    { "kicker": "Brand", "title": "Narrative voice", "body": "Tone, copy guardrails, and narrative beats for the launch." },
-    { "kicker": "Brand", "title": "Visual identity", "body": "Logo, type, and color usage rules for every section." },
-    { "kicker": "Brand", "title": "Motion signature", "body": "Motion cadence and interaction style guidance." }
+    {
+      "kicker": "Brand",
+      "title": "Narrative voice",
+      "body": "Tone, copy guardrails, and narrative beats for the launch."
+    },
+    {
+      "kicker": "Brand",
+      "title": "Visual identity",
+      "body": "Logo, type, and color usage rules for every section."
+    },
+    {
+      "kicker": "Brand",
+      "title": "Motion signature",
+      "body": "Motion cadence and interaction style guidance."
+    }
   ],
   "social_presence": [
-    { "kicker": "Social", "title": "Channel map", "body": "Define priority channels and cross-post cadence." },
-    { "kicker": "Social", "title": "Launch beats", "body": "Launch announcement and follow-up content plan." },
-    { "kicker": "Social", "title": "Community ops", "body": "Guidelines for responding to inbound signals." }
+    {
+      "kicker": "Social",
+      "title": "Channel map",
+      "body": "Define priority channels and cross-post cadence."
+    },
+    {
+      "kicker": "Social",
+      "title": "Launch beats",
+      "body": "Launch announcement and follow-up content plan."
+    },
+    {
+      "kicker": "Social",
+      "title": "Community ops",
+      "body": "Guidelines for responding to inbound signals."
+    }
   ],
   "content_calendar": [
-    { "title": "Week -2", "body": "Prep launch narrative, assets, and blog posts." },
-    { "title": "Week -1", "body": "Publish teaser, schedule events, and align operator staff." },
-    { "title": "Week 0", "body": "Launch day content and realtime monitoring." },
-    { "title": "Week +1", "body": "Release notes, follow-up case study, and feedback review." }
+    {
+      "title": "Week -2",
+      "body": "Prep launch narrative, assets, and blog posts."
+    },
+    {
+      "title": "Week -1",
+      "body": "Publish teaser, schedule events, and align operator staff."
+    },
+    {
+      "title": "Week 0",
+      "body": "Launch day content and realtime monitoring."
+    },
+    {
+      "title": "Week +1",
+      "body": "Release notes, follow-up case study, and feedback review."
+    }
   ],
   "release_pipeline": [
-    { "title": "Draft → Review", "body": "Stakeholder review and QA for site updates." },
-    { "title": "Stage → Verify", "body": "Preview site in staging with full artifact output." },
-    { "title": "Publish → Monitor", "body": "Deploy and monitor status, chat, and actor routes." }
+    {
+      "title": "Draft \u2192 Review",
+      "body": "Stakeholder review and QA for site updates."
+    },
+    {
+      "title": "Stage \u2192 Verify",
+      "body": "Preview site in staging with full artifact output."
+    },
+    {
+      "title": "Publish \u2192 Monitor",
+      "body": "Deploy and monitor status, chat, and actor routes."
+    }
   ],
   "qa_program": [
-    { "kicker": "QA", "title": "Content QA", "body": "Check copy, links, and CTA routes." },
-    { "kicker": "QA", "title": "Accessibility QA", "body": "Keyboard, contrast, and aria checks." },
-    { "kicker": "QA", "title": "Performance QA", "body": "Lighthouse, bundle, and asset audit." }
+    {
+      "kicker": "QA",
+      "title": "Content QA",
+      "body": "Check copy, links, and CTA routes."
+    },
+    {
+      "kicker": "QA",
+      "title": "Accessibility QA",
+      "body": "Keyboard, contrast, and aria checks."
+    },
+    {
+      "kicker": "QA",
+      "title": "Performance QA",
+      "body": "Lighthouse, bundle, and asset audit."
+    }
   ],
   "domain_stack": [
-    { "kicker": "Domain", "title": "DNS + SSL", "body": "Certificate management and DNS ownership." },
-    { "kicker": "Domain", "title": "CDN + caching", "body": "Cache rules and purge policy." },
-    { "kicker": "Domain", "title": "Edge routing", "body": "Edge routing rules for chat and actor routes." }
+    {
+      "kicker": "Domain",
+      "title": "DNS + SSL",
+      "body": "Certificate management and DNS ownership."
+    },
+    {
+      "kicker": "Domain",
+      "title": "CDN + caching",
+      "body": "Cache rules and purge policy."
+    },
+    {
+      "kicker": "Domain",
+      "title": "Edge routing",
+      "body": "Edge routing rules for chat and actor routes."
+    }
   ],
   "trust_center": [
-    { "kicker": "Trust", "title": "Security posture", "body": "Controls, audit coverage, and incident readiness." },
-    { "kicker": "Trust", "title": "Privacy commitments", "body": "Data retention and privacy requests in the runtime contract." },
-    { "kicker": "Trust", "title": "Compliance readiness", "body": "Compliance scope and governance workflows." }
+    {
+      "kicker": "Trust",
+      "title": "Security posture",
+      "body": "Controls, audit coverage, and incident readiness."
+    },
+    {
+      "kicker": "Trust",
+      "title": "Privacy commitments",
+      "body": "Data retention and privacy requests in the runtime contract."
+    },
+    {
+      "kicker": "Trust",
+      "title": "Compliance readiness",
+      "body": "Compliance scope and governance workflows."
+    }
   ],
   "ai_agents": {
     "kicker": "Agents",
     "title": "Chat and agent roster",
     "body": "Define agent roles, workflows, and tool routing in manifest data.",
     "agents": [
-      { "kicker": "Agent", "title": "Launch Conductor", "body": "Routes business and portfolio requests into launch plans." },
-      { "kicker": "Agent", "title": "Scene Director", "body": "Specializes in 3D staging and immersive story rails." },
-      { "kicker": "Agent", "title": "Operator Steward", "body": "Handles actor routes, incidents, and realtime orchestration." }
+      {
+        "kicker": "Agent",
+        "title": "Launch Conductor",
+        "body": "Routes business and portfolio requests into launch plans."
+      },
+      {
+        "kicker": "Agent",
+        "title": "Scene Director",
+        "body": "Specializes in 3D staging and immersive story rails."
+      },
+      {
+        "kicker": "Agent",
+        "title": "Operator Steward",
+        "body": "Handles actor routes, incidents, and realtime orchestration."
+      }
     ],
     "tools": [
-      { "kicker": "Tool", "title": "Prompt router", "body": "Maps prompt intent to the right archetype and workflow." },
-      { "kicker": "Tool", "title": "Knowledge retriever", "body": "Pulls docs and system notes into chat replies." },
-      { "kicker": "Tool", "title": "Action handoff", "body": "Turns chat into structured intake or operator tasks." }
+      {
+        "kicker": "Tool",
+        "title": "Prompt router",
+        "body": "Maps prompt intent to the right archetype and workflow."
+      },
+      {
+        "kicker": "Tool",
+        "title": "Knowledge retriever",
+        "body": "Pulls docs and system notes into chat replies."
+      },
+      {
+        "kicker": "Tool",
+        "title": "Action handoff",
+        "body": "Turns chat into structured intake or operator tasks."
+      }
     ],
     "workflows": [
-      { "title": "Brief → Plan → Execute", "body": "Standard flow for complex site builds." },
-      { "title": "Prompt → Escalate", "body": "Escalate high-signal prompts into operator queues." }
+      {
+        "title": "Brief \u2192 Plan \u2192 Execute",
+        "body": "Standard flow for complex site builds."
+      },
+      {
+        "title": "Prompt \u2192 Escalate",
+        "body": "Escalate high-signal prompts into operator queues."
+      }
     ]
   },
   "knowledge_sources": [
-    { "kicker": "Knowledge", "title": "Docs index", "body": "Structured knowledge base for search + chat retrieval." },
-    { "kicker": "Knowledge", "title": "Runbooks", "body": "Operator playbooks and escalation notes." },
-    { "kicker": "Knowledge", "title": "Scene notes", "body": "3D scene and asset metadata for assisted navigation." }
+    {
+      "kicker": "Knowledge",
+      "title": "Docs index",
+      "body": "Structured knowledge base for search + chat retrieval."
+    },
+    {
+      "kicker": "Knowledge",
+      "title": "Runbooks",
+      "body": "Operator playbooks and escalation notes."
+    },
+    {
+      "kicker": "Knowledge",
+      "title": "Scene notes",
+      "body": "3D scene and asset metadata for assisted navigation."
+    }
   ],
   "memory_stores": [
-    { "kicker": "Memory", "title": "Session buffer", "body": "Short-lived memory for chat flows." },
-    { "kicker": "Memory", "title": "Brief archive", "body": "Structured briefs captured from chat and intake." },
-    { "kicker": "Memory", "title": "Ops ledger", "body": "Operator handoffs and incident summaries." }
+    {
+      "kicker": "Memory",
+      "title": "Session buffer",
+      "body": "Short-lived memory for chat flows."
+    },
+    {
+      "kicker": "Memory",
+      "title": "Brief archive",
+      "body": "Structured briefs captured from chat and intake."
+    },
+    {
+      "kicker": "Memory",
+      "title": "Ops ledger",
+      "body": "Operator handoffs and incident summaries."
+    }
   ],
   "tool_registry": [
-    { "kicker": "Tool", "title": "Search retriever", "body": "Docs + manifest retrieval for chat." },
-    { "kicker": "Tool", "title": "Scene inspector", "body": "Pulls 3D asset and lighting metadata." },
-    { "kicker": "Tool", "title": "Ops handoff", "body": "Creates operator tasks from chat sessions." }
+    {
+      "kicker": "Tool",
+      "title": "Search retriever",
+      "body": "Docs + manifest retrieval for chat."
+    },
+    {
+      "kicker": "Tool",
+      "title": "Scene inspector",
+      "body": "Pulls 3D asset and lighting metadata."
+    },
+    {
+      "kicker": "Tool",
+      "title": "Ops handoff",
+      "body": "Creates operator tasks from chat sessions."
+    }
   ],
   "agent_workflows": [
-    { "title": "Discover → Design → Build", "body": "Standard path for new site builds." },
-    { "title": "Prompt → Enrich → Deploy", "body": "Chat-first build flow for rapid prototypes." },
-    { "title": "Incident → Triage → Resolve", "body": "Agent-led incident response lane." }
+    {
+      "title": "Discover \u2192 Design \u2192 Build",
+      "body": "Standard path for new site builds."
+    },
+    {
+      "title": "Prompt \u2192 Enrich \u2192 Deploy",
+      "body": "Chat-first build flow for rapid prototypes."
+    },
+    {
+      "title": "Incident \u2192 Triage \u2192 Resolve",
+      "body": "Agent-led incident response lane."
+    }
   ],
   "model_stack": [
-    { "kicker": "Model", "title": "Local seed router", "body": "Default offline prompt routing for preview builds." },
-    { "kicker": "Model", "title": "Hosted LLM adapter", "body": "Pluggable provider bridge for production chat." },
-    { "kicker": "Model", "title": "Tool routing", "body": "Structured tool call registry for actor and ops flows." }
+    {
+      "kicker": "Model",
+      "title": "Local seed router",
+      "body": "Default offline prompt routing for preview builds."
+    },
+    {
+      "kicker": "Model",
+      "title": "Hosted LLM adapter",
+      "body": "Pluggable provider bridge for production chat."
+    },
+    {
+      "kicker": "Model",
+      "title": "Tool routing",
+      "body": "Structured tool call registry for actor and ops flows."
+    }
   ],
   "voice_stack": [
-    { "kicker": "Voice", "title": "Voice input", "body": "Capture speech prompts with browser media APIs." },
-    { "kicker": "Voice", "title": "Voice output", "body": "Stream or batch voice responses for chat-first sites." },
-    { "kicker": "Voice", "title": "Latency budget", "body": "Targets for interactive voice mode." }
+    {
+      "kicker": "Voice",
+      "title": "Voice input",
+      "body": "Capture speech prompts with browser media APIs."
+    },
+    {
+      "kicker": "Voice",
+      "title": "Voice output",
+      "body": "Stream or batch voice responses for chat-first sites."
+    },
+    {
+      "kicker": "Voice",
+      "title": "Latency budget",
+      "body": "Targets for interactive voice mode."
+    }
   ],
   "moderation_stack": [
-    { "kicker": "Moderation", "title": "Safety rules", "body": "Policy rails for prompt intake and route escalation." },
-    { "kicker": "Moderation", "title": "Escalation paths", "body": "Move risky conversations into operator review." },
-    { "kicker": "Moderation", "title": "Audit capture", "body": "Structured transcript + decision logs." }
+    {
+      "kicker": "Moderation",
+      "title": "Safety rules",
+      "body": "Policy rails for prompt intake and route escalation."
+    },
+    {
+      "kicker": "Moderation",
+      "title": "Escalation paths",
+      "body": "Move risky conversations into operator review."
+    },
+    {
+      "kicker": "Moderation",
+      "title": "Audit capture",
+      "body": "Structured transcript + decision logs."
+    }
   ],
   "ui_components": [
-    { "kicker": "Component", "title": "Hero stack", "body": "Primary headline + CTA framing with metric cards and proof rails." },
-    { "kicker": "Component", "title": "Feature grid", "body": "Card grid for system features, tools, or services." },
-    { "kicker": "Component", "title": "Prompt deck", "body": "Prompt buttons wired into chat and form routing." },
-    { "kicker": "Component", "title": "Route catalog", "body": "Route cards with method, path, and purpose metadata." },
-    { "kicker": "Component", "title": "Scene spotlight", "body": "3D scene staging with WebGL island support." },
-    { "kicker": "Component", "title": "Form intake", "body": "Reusable form panel wired to local JSONL capture." },
-    { "kicker": "Component", "title": "Navigation rails", "body": "Sidebar + top nav combinations for app shells." },
-    { "kicker": "Component", "title": "Status pills", "body": "Inline status indicators for operators and launches." },
-    { "kicker": "Component", "title": "Case study cards", "body": "Portfolio tiles with tags, metrics, and launch stats." },
-    { "kicker": "Component", "title": "Chat transcript", "body": "Chat history window with persona and tool call metadata." },
-    { "kicker": "Component", "title": "Code highlight", "body": "Docs-ready code panels and copy affordances." }
+    {
+      "kicker": "Component",
+      "title": "Hero stack",
+      "body": "Primary headline + CTA framing with metric cards and proof rails."
+    },
+    {
+      "kicker": "Component",
+      "title": "Feature grid",
+      "body": "Card grid for system features, tools, or services."
+    },
+    {
+      "kicker": "Component",
+      "title": "Prompt deck",
+      "body": "Prompt buttons wired into chat and form routing."
+    },
+    {
+      "kicker": "Component",
+      "title": "Route catalog",
+      "body": "Route cards with method, path, and purpose metadata."
+    },
+    {
+      "kicker": "Component",
+      "title": "Scene spotlight",
+      "body": "3D scene staging with WebGL island support."
+    },
+    {
+      "kicker": "Component",
+      "title": "Form intake",
+      "body": "Reusable form panel wired to local JSONL capture."
+    },
+    {
+      "kicker": "Component",
+      "title": "Navigation rails",
+      "body": "Sidebar + top nav combinations for app shells."
+    },
+    {
+      "kicker": "Component",
+      "title": "Status pills",
+      "body": "Inline status indicators for operators and launches."
+    },
+    {
+      "kicker": "Component",
+      "title": "Case study cards",
+      "body": "Portfolio tiles with tags, metrics, and launch stats."
+    },
+    {
+      "kicker": "Component",
+      "title": "Chat transcript",
+      "body": "Chat history window with persona and tool call metadata."
+    },
+    {
+      "kicker": "Component",
+      "title": "Code highlight",
+      "body": "Docs-ready code panels and copy affordances."
+    }
   ],
   "ui_layouts": [
-    { "kicker": "Layout", "title": "Launch stack", "body": "Hero → proof → pricing → FAQ → intake." },
-    { "kicker": "Layout", "title": "Chat-first", "body": "Prompt deck → personas → chat lab → escalation forms." },
-    { "kicker": "Layout", "title": "Operator hub", "body": "Routes → actor mesh → command lines → status board." },
-    { "kicker": "Layout", "title": "App shell", "body": "Workspace modules → auth → integrations → data collections." },
-    { "kicker": "Layout", "title": "Portfolio signal", "body": "Case studies → capabilities → testimonials → contact." },
-    { "kicker": "Layout", "title": "Docs hub", "body": "Docs nav → search → API reference → guides." },
-    { "kicker": "Layout", "title": "Commerce funnel", "body": "Offer stack → personalization → checkout → retention." },
-    { "kicker": "Layout", "title": "Realtime command", "body": "Status board → incidents → notifications → runbooks." }
+    {
+      "kicker": "Layout",
+      "title": "Launch stack",
+      "body": "Hero \u2192 proof \u2192 pricing \u2192 FAQ \u2192 intake."
+    },
+    {
+      "kicker": "Layout",
+      "title": "Chat-first",
+      "body": "Prompt deck \u2192 personas \u2192 chat lab \u2192 escalation forms."
+    },
+    {
+      "kicker": "Layout",
+      "title": "Operator hub",
+      "body": "Routes \u2192 actor mesh \u2192 command lines \u2192 status board."
+    },
+    {
+      "kicker": "Layout",
+      "title": "App shell",
+      "body": "Workspace modules \u2192 auth \u2192 integrations \u2192 data collections."
+    },
+    {
+      "kicker": "Layout",
+      "title": "Portfolio signal",
+      "body": "Case studies \u2192 capabilities \u2192 testimonials \u2192 contact."
+    },
+    {
+      "kicker": "Layout",
+      "title": "Docs hub",
+      "body": "Docs nav \u2192 search \u2192 API reference \u2192 guides."
+    },
+    {
+      "kicker": "Layout",
+      "title": "Commerce funnel",
+      "body": "Offer stack \u2192 personalization \u2192 checkout \u2192 retention."
+    },
+    {
+      "kicker": "Layout",
+      "title": "Realtime command",
+      "body": "Status board \u2192 incidents \u2192 notifications \u2192 runbooks."
+    }
   ],
   "ui_tokens": [
-    { "kicker": "Token", "title": "Surface elevation", "body": "Define base, raised, and overlay surfaces per theme." },
-    { "kicker": "Token", "title": "Type scale", "body": "Hero, title, body, and caption tiers." },
-    { "kicker": "Token", "title": "Motion cadence", "body": "Micro + macro motion timing for island transitions." },
-    { "kicker": "Token", "title": "Accent lanes", "body": "Primary, soft, and highlight accent colors." },
-    { "kicker": "Token", "title": "Spacing scale", "body": "Consistent spacing and grid cadence." },
-    { "kicker": "Token", "title": "Radius system", "body": "Corner radii for panels, cards, and buttons." },
-    { "kicker": "Token", "title": "Shadow tiers", "body": "Drop shadow elevation steps per surface." }
+    {
+      "kicker": "Token",
+      "title": "Surface elevation",
+      "body": "Define base, raised, and overlay surfaces per theme."
+    },
+    {
+      "kicker": "Token",
+      "title": "Type scale",
+      "body": "Hero, title, body, and caption tiers."
+    },
+    {
+      "kicker": "Token",
+      "title": "Motion cadence",
+      "body": "Micro + macro motion timing for island transitions."
+    },
+    {
+      "kicker": "Token",
+      "title": "Accent lanes",
+      "body": "Primary, soft, and highlight accent colors."
+    },
+    {
+      "kicker": "Token",
+      "title": "Spacing scale",
+      "body": "Consistent spacing and grid cadence."
+    },
+    {
+      "kicker": "Token",
+      "title": "Radius system",
+      "body": "Corner radii for panels, cards, and buttons."
+    },
+    {
+      "kicker": "Token",
+      "title": "Shadow tiers",
+      "body": "Drop shadow elevation steps per surface."
+    }
   ],
   "frontend_stack": [
-    { "kicker": "Language", "title": "TypeScript-first UI", "body": "Typed manifests, client islands, and app shell modules authored in TS." },
-    { "kicker": "Runtime", "title": "Preact + islands", "body": "Lightweight React-like runtime with partial hydration where it matters." },
-    { "kicker": "Routing", "title": "Module route map", "body": "Routes live in manifest data and surface via `ui.schema.json`." },
-    { "kicker": "State", "title": "Signal store", "body": "Local state store contracts for modules, chat, and operators." },
-    { "kicker": "Data", "title": "Typed fetchers", "body": "Typed fetch + schema-driven responses from the Node runtime." },
-    { "kicker": "Forms", "title": "Schema validation", "body": "Form contracts stay in manifests and emit structured JSONL." },
-    { "kicker": "Testing", "title": "Component + route checks", "body": "Islands are isolated for rapid preview testing." },
-    { "kicker": "Build", "title": "Bundled client pipeline", "body": "Esbuild bundles islands, scene previews, and app shells." },
-    { "kicker": "Frameworks", "title": "React-compatible lanes", "body": "React, Next, Remix, Astro, SvelteKit, SolidStart, and Vue/Nuxt targets mapped." },
-    { "kicker": "Styling", "title": "Token-driven styling", "body": "CSS variables + theme tokens keep UI consistent across shells." },
-    { "kicker": "SSR", "title": "Hybrid rendering", "body": "Static HTML plus optional server-rendered islands." },
-    { "kicker": "Tooling", "title": "Vite + TSX", "body": "Fast dev loop for client islands and UI kits." },
-    { "kicker": "Docs", "title": "Story-driven previews", "body": "Component previews aligned to manifest-driven sections." }
+    {
+      "kicker": "Language",
+      "title": "TypeScript-first UI",
+      "body": "Typed manifests, client islands, and app shell modules authored in TS."
+    },
+    {
+      "kicker": "Runtime",
+      "title": "Preact + islands",
+      "body": "Lightweight React-like runtime with partial hydration where it matters."
+    },
+    {
+      "kicker": "Routing",
+      "title": "Module route map",
+      "body": "Routes live in manifest data and surface via `ui.schema.json`."
+    },
+    {
+      "kicker": "State",
+      "title": "Signal store",
+      "body": "Local state store contracts for modules, chat, and operators."
+    },
+    {
+      "kicker": "Data",
+      "title": "Typed fetchers",
+      "body": "Typed fetch + schema-driven responses from the Node runtime."
+    },
+    {
+      "kicker": "Forms",
+      "title": "Schema validation",
+      "body": "Form contracts stay in manifests and emit structured JSONL."
+    },
+    {
+      "kicker": "Testing",
+      "title": "Component + route checks",
+      "body": "Islands are isolated for rapid preview testing."
+    },
+    {
+      "kicker": "Build",
+      "title": "Bundled client pipeline",
+      "body": "Esbuild bundles islands, scene previews, and app shells."
+    },
+    {
+      "kicker": "Frameworks",
+      "title": "React-compatible lanes",
+      "body": "React, Next, Remix, Astro, SvelteKit, SolidStart, and Vue/Nuxt targets mapped."
+    },
+    {
+      "kicker": "Styling",
+      "title": "Token-driven styling",
+      "body": "CSS variables + theme tokens keep UI consistent across shells."
+    },
+    {
+      "kicker": "SSR",
+      "title": "Hybrid rendering",
+      "body": "Static HTML plus optional server-rendered islands."
+    },
+    {
+      "kicker": "Tooling",
+      "title": "Vite + TSX",
+      "body": "Fast dev loop for client islands and UI kits."
+    },
+    {
+      "kicker": "Docs",
+      "title": "Story-driven previews",
+      "body": "Component previews aligned to manifest-driven sections."
+    }
   ],
   "ui_runtime": [
-    { "kicker": "Schema", "title": "ui.schema.json contract", "body": "Declarative section + island map for React-like shells." },
-    { "kicker": "Modules", "title": "App shell modules", "body": "Workspace navigation stays data-driven and route-ready." },
-    { "kicker": "Islands", "title": "Selective hydration", "body": "Chat, app shell, realtime, and 3D islands hydrate on demand." },
-    { "kicker": "Tokens", "title": "Design token system", "body": "Tokens keep typography, surfaces, and motion consistent across themes." },
-    { "kicker": "Layouts", "title": "Layout recipes", "body": "Reusable launch, chat-first, operator, and app-shell layouts." },
-    { "kicker": "Router", "title": "Route contracts", "body": "Routes bind to manifest + server contract metadata." },
-    { "kicker": "Data cache", "title": "Shared query layer", "body": "Cache + invalidation tied to runtime API endpoints." },
-    { "kicker": "Module registry", "title": "Module registry", "body": "App modules align to roles, permissions, and navigation slots." }
+    {
+      "kicker": "Schema",
+      "title": "ui.schema.json contract",
+      "body": "Declarative section + island map for React-like shells."
+    },
+    {
+      "kicker": "Modules",
+      "title": "App shell modules",
+      "body": "Workspace navigation stays data-driven and route-ready."
+    },
+    {
+      "kicker": "Islands",
+      "title": "Selective hydration",
+      "body": "Chat, app shell, realtime, and 3D islands hydrate on demand."
+    },
+    {
+      "kicker": "Tokens",
+      "title": "Design token system",
+      "body": "Tokens keep typography, surfaces, and motion consistent across themes."
+    },
+    {
+      "kicker": "Layouts",
+      "title": "Layout recipes",
+      "body": "Reusable launch, chat-first, operator, and app-shell layouts."
+    },
+    {
+      "kicker": "Router",
+      "title": "Route contracts",
+      "body": "Routes bind to manifest + server contract metadata."
+    },
+    {
+      "kicker": "Data cache",
+      "title": "Shared query layer",
+      "body": "Cache + invalidation tied to runtime API endpoints."
+    },
+    {
+      "kicker": "Module registry",
+      "title": "Module registry",
+      "body": "App modules align to roles, permissions, and navigation slots."
+    }
   ],
   "chat_runtime": [
-    { "kicker": "Streaming", "title": "SSE + WS preview", "body": "Local streaming channels keep chat experience lifelike." },
-    { "kicker": "Personas", "title": "Persona routing", "body": "Route prompts through persona and mode metadata." },
-    { "kicker": "Playbooks", "title": "Structured chat flows", "body": "Prompt intake and escalation playbooks stay explicit." },
-    { "kicker": "Tools", "title": "Tool routing", "body": "Tools and actions surface in manifest-driven routing tables." },
-    { "kicker": "Memory", "title": "Session + brief memory", "body": "Memory lanes describe short-term context and follow-up." },
-    { "kicker": "Safety", "title": "Moderation rails", "body": "Safety, audit, and escalation policies live in data." },
-    { "kicker": "Retrieval", "title": "Knowledge retrieval", "body": "Search + vector sources feed chat context." },
-    { "kicker": "Tool calls", "title": "Action dispatch", "body": "Structured tool calling for actor and operator handoff." },
-    { "kicker": "Multimodal", "title": "Voice + image", "body": "Voice input/output and image attachment surfaces." }
+    {
+      "kicker": "Streaming",
+      "title": "SSE + WS preview",
+      "body": "Local streaming channels keep chat experience lifelike."
+    },
+    {
+      "kicker": "Personas",
+      "title": "Persona routing",
+      "body": "Route prompts through persona and mode metadata."
+    },
+    {
+      "kicker": "Playbooks",
+      "title": "Structured chat flows",
+      "body": "Prompt intake and escalation playbooks stay explicit."
+    },
+    {
+      "kicker": "Tools",
+      "title": "Tool routing",
+      "body": "Tools and actions surface in manifest-driven routing tables."
+    },
+    {
+      "kicker": "Memory",
+      "title": "Session + brief memory",
+      "body": "Memory lanes describe short-term context and follow-up."
+    },
+    {
+      "kicker": "Safety",
+      "title": "Moderation rails",
+      "body": "Safety, audit, and escalation policies live in data."
+    },
+    {
+      "kicker": "Retrieval",
+      "title": "Knowledge retrieval",
+      "body": "Search + vector sources feed chat context."
+    },
+    {
+      "kicker": "Tool calls",
+      "title": "Action dispatch",
+      "body": "Structured tool calling for actor and operator handoff."
+    },
+    {
+      "kicker": "Multimodal",
+      "title": "Voice + image",
+      "body": "Voice input/output and image attachment surfaces."
+    }
   ],
   "actor_runtime": [
-    { "kicker": "Routing", "title": "Actor route matrix", "body": "Actor routes stay explicit with purpose and ownership metadata." },
-    { "kicker": "Mesh", "title": "Actor topology", "body": "Mesh nodes and edges map ownership across routes." },
-    { "kicker": "Supervision", "title": "Health + escalation", "body": "Supervision playbooks coordinate uptime and recovery." },
-    { "kicker": "Queues", "title": "Intake + ops queues", "body": "Queues keep chat escalation and ops workflows aligned." },
-    { "kicker": "Metrics", "title": "Actor metrics", "body": "Metrics stay in data so dashboards stay consistent." },
-    { "kicker": "Tools", "title": "Actor tool registry", "body": "Actor tools define action routes and handoff contracts." },
-    { "kicker": "State", "title": "Stateful actors", "body": "Actor state store contracts for sessions and queues." },
-    { "kicker": "Workflow", "title": "Workflow engine", "body": "Actor workflows map long-running orchestration steps." },
-    { "kicker": "Scaling", "title": "Scale policy", "body": "Queue depth and autoscale triggers stay explicit." }
+    {
+      "kicker": "Routing",
+      "title": "Actor route matrix",
+      "body": "Actor routes stay explicit with purpose and ownership metadata."
+    },
+    {
+      "kicker": "Mesh",
+      "title": "Actor topology",
+      "body": "Mesh nodes and edges map ownership across routes."
+    },
+    {
+      "kicker": "Supervision",
+      "title": "Health + escalation",
+      "body": "Supervision playbooks coordinate uptime and recovery."
+    },
+    {
+      "kicker": "Queues",
+      "title": "Intake + ops queues",
+      "body": "Queues keep chat escalation and ops workflows aligned."
+    },
+    {
+      "kicker": "Metrics",
+      "title": "Actor metrics",
+      "body": "Metrics stay in data so dashboards stay consistent."
+    },
+    {
+      "kicker": "Tools",
+      "title": "Actor tool registry",
+      "body": "Actor tools define action routes and handoff contracts."
+    },
+    {
+      "kicker": "State",
+      "title": "Stateful actors",
+      "body": "Actor state store contracts for sessions and queues."
+    },
+    {
+      "kicker": "Workflow",
+      "title": "Workflow engine",
+      "body": "Actor workflows map long-running orchestration steps."
+    },
+    {
+      "kicker": "Scaling",
+      "title": "Scale policy",
+      "body": "Queue depth and autoscale triggers stay explicit."
+    }
   ],
   "chat_playbooks": [
-    { "title": "Prompt intake", "body": "Collect intent, lane mix, and timing in one flow." },
-    { "title": "Persona routing", "body": "Route prompts to the right persona or actor tool." },
-    { "title": "Escalation handoff", "body": "Convert high-signal chat into structured intake forms." }
+    {
+      "title": "Prompt intake",
+      "body": "Collect intent, lane mix, and timing in one flow."
+    },
+    {
+      "title": "Persona routing",
+      "body": "Route prompts to the right persona or actor tool."
+    },
+    {
+      "title": "Escalation handoff",
+      "body": "Convert high-signal chat into structured intake forms."
+    }
   ],
   "chat_tools": [
-    { "kicker": "Tool", "title": "Prompt router", "body": "Map intent to archetype and output slug." },
-    { "kicker": "Tool", "title": "Context assembler", "body": "Pull docs + system notes into chat responses." },
-    { "kicker": "Tool", "title": "Escalation trigger", "body": "Push critical prompts into operator queues." }
+    {
+      "kicker": "Tool",
+      "title": "Prompt router",
+      "body": "Map intent to archetype and output slug."
+    },
+    {
+      "kicker": "Tool",
+      "title": "Context assembler",
+      "body": "Pull docs + system notes into chat responses."
+    },
+    {
+      "kicker": "Tool",
+      "title": "Escalation trigger",
+      "body": "Push critical prompts into operator queues."
+    }
   ],
   "chat_memory": [
-    { "kicker": "Memory", "title": "Session buffer", "body": "Ephemeral per-session context window." },
-    { "kicker": "Memory", "title": "Brief archive", "body": "Structured intent snapshots for later follow-up." },
-    { "kicker": "Memory", "title": "Route history", "body": "Last-known archetype + route context." }
+    {
+      "kicker": "Memory",
+      "title": "Session buffer",
+      "body": "Ephemeral per-session context window."
+    },
+    {
+      "kicker": "Memory",
+      "title": "Brief archive",
+      "body": "Structured intent snapshots for later follow-up."
+    },
+    {
+      "kicker": "Memory",
+      "title": "Route history",
+      "body": "Last-known archetype + route context."
+    }
   ],
   "actor_policies": [
-    { "kicker": "Policy", "title": "Rate limits", "body": "Declare per-route rate limits before wiring enforcement." },
-    { "kicker": "Policy", "title": "Escalation rules", "body": "Define when actors must hand off to operators." },
-    { "kicker": "Policy", "title": "Audit coverage", "body": "Track which actor routes emit audit trails." }
+    {
+      "kicker": "Policy",
+      "title": "Rate limits",
+      "body": "Declare per-route rate limits before wiring enforcement."
+    },
+    {
+      "kicker": "Policy",
+      "title": "Escalation rules",
+      "body": "Define when actors must hand off to operators."
+    },
+    {
+      "kicker": "Policy",
+      "title": "Audit coverage",
+      "body": "Track which actor routes emit audit trails."
+    }
   ],
   "actor_metrics": [
-    { "value": "18", "label": "routes tracked" },
-    { "value": "6", "label": "actors online" },
-    { "value": "95%", "label": "route coverage" },
-    { "value": "1.2s", "label": "median response" }
+    {
+      "value": "18",
+      "label": "routes tracked"
+    },
+    {
+      "value": "6",
+      "label": "actors online"
+    },
+    {
+      "value": "95%",
+      "label": "route coverage"
+    },
+    {
+      "value": "1.2s",
+      "label": "median response"
+    }
   ],
   "actor_supervision": [
-    { "kicker": "Supervision", "title": "Health probes", "body": "Periodic health checks across routes and actors." },
-    { "kicker": "Supervision", "title": "Escalation ladder", "body": "Define who handles SEV-1/SEV-2 events." },
-    { "kicker": "Supervision", "title": "Recovery playbooks", "body": "Restart and fallback steps per actor group." }
+    {
+      "kicker": "Supervision",
+      "title": "Health probes",
+      "body": "Periodic health checks across routes and actors."
+    },
+    {
+      "kicker": "Supervision",
+      "title": "Escalation ladder",
+      "body": "Define who handles SEV-1/SEV-2 events."
+    },
+    {
+      "kicker": "Supervision",
+      "title": "Recovery playbooks",
+      "body": "Restart and fallback steps per actor group."
+    }
   ],
   "actor_queues": [
-    { "kicker": "Queue", "title": "Intake queue", "body": "Handoff from chat into operator review." },
-    { "kicker": "Queue", "title": "Ops queue", "body": "Runtime changes and incident tasks." },
-    { "kicker": "Queue", "title": "Build queue", "body": "Website build and release tasks." }
+    {
+      "kicker": "Queue",
+      "title": "Intake queue",
+      "body": "Handoff from chat into operator review."
+    },
+    {
+      "kicker": "Queue",
+      "title": "Ops queue",
+      "body": "Runtime changes and incident tasks."
+    },
+    {
+      "kicker": "Queue",
+      "title": "Build queue",
+      "body": "Website build and release tasks."
+    }
   ],
   "actor_jobs": [
-    { "kicker": "Job", "title": "Nightly report", "body": "Summarize routes, actors, and backlog state." },
-    { "kicker": "Job", "title": "Scene refresh", "body": "Rebuild preview captures after scene updates." },
-    { "kicker": "Job", "title": "Search rebuild", "body": "Re-index docs and runtime artifacts." }
+    {
+      "kicker": "Job",
+      "title": "Nightly report",
+      "body": "Summarize routes, actors, and backlog state."
+    },
+    {
+      "kicker": "Job",
+      "title": "Scene refresh",
+      "body": "Rebuild preview captures after scene updates."
+    },
+    {
+      "kicker": "Job",
+      "title": "Search rebuild",
+      "body": "Re-index docs and runtime artifacts."
+    }
   ],
   "actor_schedules": [
-    { "kicker": "Schedule", "title": "Daily ops sync", "body": "Operator standup cadence and ownership handoff." },
-    { "kicker": "Schedule", "title": "Weekly release", "body": "Template and site release cadence." },
-    { "kicker": "Schedule", "title": "Incident drills", "body": "Monthly incident rehearsal for operator readiness." }
+    {
+      "kicker": "Schedule",
+      "title": "Daily ops sync",
+      "body": "Operator standup cadence and ownership handoff."
+    },
+    {
+      "kicker": "Schedule",
+      "title": "Weekly release",
+      "body": "Template and site release cadence."
+    },
+    {
+      "kicker": "Schedule",
+      "title": "Incident drills",
+      "body": "Monthly incident rehearsal for operator readiness."
+    }
   ],
   "actor_hosts": [
-    { "kicker": "Host", "title": "Local Node runtime", "body": "Development and preview host for actor servers." },
-    { "kicker": "Host", "title": "Container runtime", "body": "Deployable actor host for production." },
-    { "kicker": "Host", "title": "Edge worker", "body": "Lightweight edge runtime for routing and webhooks." }
+    {
+      "kicker": "Host",
+      "title": "Local Node runtime",
+      "body": "Development and preview host for actor servers."
+    },
+    {
+      "kicker": "Host",
+      "title": "Container runtime",
+      "body": "Deployable actor host for production."
+    },
+    {
+      "kicker": "Host",
+      "title": "Edge worker",
+      "body": "Lightweight edge runtime for routing and webhooks."
+    }
   ],
   "growth": {
     "kicker": "Growth",
     "title": "Growth campaigns and funnels",
     "body": "Plan launch campaigns, funnels, and acquisition lanes without rewriting page logic.",
     "campaigns": [
-      { "title": "Launch Countdown", "channel": "email", "summary": "10-day narrative drip leading to launch day.", "status": "ready" },
-      { "title": "Operator Briefing", "channel": "live", "summary": "Live walkthrough of actor-server capabilities.", "status": "scheduled" },
-      { "title": "Docs Activation", "channel": "docs", "summary": "Search-driven onboarding for knowledge hubs.", "status": "active" }
+      {
+        "title": "Launch Countdown",
+        "channel": "email",
+        "summary": "10-day narrative drip leading to launch day.",
+        "status": "ready"
+      },
+      {
+        "title": "Operator Briefing",
+        "channel": "live",
+        "summary": "Live walkthrough of actor-server capabilities.",
+        "status": "scheduled"
+      },
+      {
+        "title": "Docs Activation",
+        "channel": "docs",
+        "summary": "Search-driven onboarding for knowledge hubs.",
+        "status": "active"
+      }
     ],
     "funnels": [
-      { "stage": "Awareness", "metric": "site visits", "owner": "growth_ops" },
-      { "stage": "Activation", "metric": "prompted chat sessions", "owner": "chat_ops" },
-      { "stage": "Conversion", "metric": "intake submissions", "owner": "intake_collector" }
+      {
+        "stage": "Awareness",
+        "metric": "site visits",
+        "owner": "growth_ops"
+      },
+      {
+        "stage": "Activation",
+        "metric": "prompted chat sessions",
+        "owner": "chat_ops"
+      },
+      {
+        "stage": "Conversion",
+        "metric": "intake submissions",
+        "owner": "intake_collector"
+      }
     ]
   },
   "experiments": {
@@ -919,9 +3072,27 @@
     "title": "A/B testing and feature flags",
     "body": "Track experiments, hypotheses, and rollout status as data.",
     "tests": [
-      { "name": "Hero CTA variant", "hypothesis": "Short CTA increases intake conversion.", "status": "running", "metric": "form_submit", "owner": "growth_ops" },
-      { "name": "Chat-first nav", "hypothesis": "Chat entry point reduces bounce rate.", "status": "planned", "metric": "chat_start", "owner": "chat_ops" },
-      { "name": "Scene-first layout", "hypothesis": "Scene-led storytelling increases engagement.", "status": "completed", "metric": "time_on_page", "owner": "experience_design" }
+      {
+        "name": "Hero CTA variant",
+        "hypothesis": "Short CTA increases intake conversion.",
+        "status": "running",
+        "metric": "form_submit",
+        "owner": "growth_ops"
+      },
+      {
+        "name": "Chat-first nav",
+        "hypothesis": "Chat entry point reduces bounce rate.",
+        "status": "planned",
+        "metric": "chat_start",
+        "owner": "chat_ops"
+      },
+      {
+        "name": "Scene-first layout",
+        "hypothesis": "Scene-led storytelling increases engagement.",
+        "status": "completed",
+        "metric": "time_on_page",
+        "owner": "experience_design"
+      }
     ]
   },
   "service_catalog": {
@@ -929,9 +3100,27 @@
     "title": "Service catalog and SLAs",
     "body": "Describe what the site system offers and how it is supported.",
     "services": [
-      { "name": "Launch Site", "tier": "core", "summary": "Business + pricing + docs stack.", "sla": "2-day turnaround", "owner": "launch_ops" },
-      { "name": "Chat System", "tier": "extended", "summary": "Prompt decks, persona rails, streaming chat.", "sla": "weekly iteration", "owner": "chat_ops" },
-      { "name": "Actor Runtime", "tier": "operator", "summary": "Route contracts, actor mesh, control plane.", "sla": "on-call coverage", "owner": "mesh_supervisor" }
+      {
+        "name": "Launch Site",
+        "tier": "core",
+        "summary": "Business + pricing + docs stack.",
+        "sla": "2-day turnaround",
+        "owner": "launch_ops"
+      },
+      {
+        "name": "Chat System",
+        "tier": "extended",
+        "summary": "Prompt decks, persona rails, streaming chat.",
+        "sla": "weekly iteration",
+        "owner": "chat_ops"
+      },
+      {
+        "name": "Actor Runtime",
+        "tier": "operator",
+        "summary": "Route contracts, actor mesh, control plane.",
+        "sla": "on-call coverage",
+        "owner": "mesh_supervisor"
+      }
     ]
   },
   "success": {
@@ -939,9 +3128,24 @@
     "title": "Customer success playbooks",
     "body": "Track onboarding, adoption, and renewal workflows in one place.",
     "playbooks": [
-      { "title": "Launch onboarding", "goal": "Move launch teams to first publish.", "owner": "success_lead", "cadence": "weekly" },
-      { "title": "Chat adoption", "goal": "Drive prompt-led engagement.", "owner": "chat_ops", "cadence": "daily" },
-      { "title": "Operator expansion", "goal": "Expand actor runtime coverage.", "owner": "mesh_supervisor", "cadence": "bi-weekly" }
+      {
+        "title": "Launch onboarding",
+        "goal": "Move launch teams to first publish.",
+        "owner": "success_lead",
+        "cadence": "weekly"
+      },
+      {
+        "title": "Chat adoption",
+        "goal": "Drive prompt-led engagement.",
+        "owner": "chat_ops",
+        "cadence": "daily"
+      },
+      {
+        "title": "Operator expansion",
+        "goal": "Expand actor runtime coverage.",
+        "owner": "mesh_supervisor",
+        "cadence": "bi-weekly"
+      }
     ]
   },
   "notifications": {
@@ -949,9 +3153,27 @@
     "title": "Messaging and alert channels",
     "body": "Declare notification channels and responsibilities for live systems.",
     "channels": [
-      { "name": "Launch Updates", "purpose": "Notify on new releases.", "owner": "growth_ops", "cadence": "daily", "transport": "email" },
-      { "name": "Actor Alerts", "purpose": "Route failures and escalation signals.", "owner": "mesh_supervisor", "cadence": "immediate", "transport": "webhook" },
-      { "name": "Chat Insights", "purpose": "Prompt trends and routing outcomes.", "owner": "chat_ops", "cadence": "weekly", "transport": "dashboard" }
+      {
+        "name": "Launch Updates",
+        "purpose": "Notify on new releases.",
+        "owner": "growth_ops",
+        "cadence": "daily",
+        "transport": "email"
+      },
+      {
+        "name": "Actor Alerts",
+        "purpose": "Route failures and escalation signals.",
+        "owner": "mesh_supervisor",
+        "cadence": "immediate",
+        "transport": "webhook"
+      },
+      {
+        "name": "Chat Insights",
+        "purpose": "Prompt trends and routing outcomes.",
+        "owner": "chat_ops",
+        "cadence": "weekly",
+        "transport": "dashboard"
+      }
     ]
   },
   "release_notes": {
@@ -964,21 +3186,33 @@
         "date": "2026-03-20",
         "summary": "Universal pack expands across chat, ops, and 3D launch surfaces.",
         "owner": "release_ops",
-        "highlights": ["Scene spotlight refinements", "Operator runtime lanes", "Expanded UI kit + app shell"]
+        "highlights": [
+          "Scene spotlight refinements",
+          "Operator runtime lanes",
+          "Expanded UI kit + app shell"
+        ]
       },
       {
         "version": "v1.7",
         "date": "2026-03-26",
         "summary": "Governance, community, and growth systems shipped as first-class registries.",
         "owner": "release_ops",
-        "highlights": ["Compliance + observability", "Growth and experiments", "Actor topology surfaces"]
+        "highlights": [
+          "Compliance + observability",
+          "Growth and experiments",
+          "Actor topology surfaces"
+        ]
       },
       {
         "version": "v1.8",
         "date": "2026-03-27",
         "summary": "Frontend stack, UI runtime, chat runtime, and actor runtime registries added.",
         "owner": "release_ops",
-        "highlights": ["React/TypeScript stack metadata", "UI runtime contract lanes", "Chat + actor runtime expansions"]
+        "highlights": [
+          "React/TypeScript stack metadata",
+          "UI runtime contract lanes",
+          "Chat + actor runtime expansions"
+        ]
       }
     ]
   },
@@ -987,9 +3221,24 @@
     "title": "Feature flag registry",
     "body": "Track rollout status and ownership for experiments and staged launches.",
     "flags": [
-      { "name": "chat_streaming", "status": "on", "owner": "chat_ops", "impact": "SSE + WS streaming preview enabled" },
-      { "name": "ui_kit_islands", "status": "on", "owner": "ui_systems", "impact": "Preact island for UI kit summaries" },
-      { "name": "actor_incident_alerts", "status": "beta", "owner": "mesh_supervisor", "impact": "Incident notifications routed through actor mesh" }
+      {
+        "name": "chat_streaming",
+        "status": "on",
+        "owner": "chat_ops",
+        "impact": "SSE + WS streaming preview enabled"
+      },
+      {
+        "name": "ui_kit_islands",
+        "status": "on",
+        "owner": "ui_systems",
+        "impact": "Preact island for UI kit summaries"
+      },
+      {
+        "name": "actor_incident_alerts",
+        "status": "beta",
+        "owner": "mesh_supervisor",
+        "impact": "Incident notifications routed through actor mesh"
+      }
     ]
   },
   "incident_response": {
@@ -997,9 +3246,27 @@
     "title": "Incident response playbooks",
     "body": "Declare severity levels, ownership, and response paths for runtime incidents.",
     "playbooks": [
-      { "severity": "SEV-1", "title": "Runtime outage", "summary": "Critical runtime availability or routing outage.", "owner": "mesh_supervisor", "sla": "15m response" },
-      { "severity": "SEV-2", "title": "Degraded experience", "summary": "Chat or realtime degradation beyond error budget.", "owner": "signal_broker", "sla": "60m response" },
-      { "severity": "SEV-3", "title": "Minor regression", "summary": "Non-blocking UI or content regressions.", "owner": "experience_ops", "sla": "1 business day" }
+      {
+        "severity": "SEV-1",
+        "title": "Runtime outage",
+        "summary": "Critical runtime availability or routing outage.",
+        "owner": "mesh_supervisor",
+        "sla": "15m response"
+      },
+      {
+        "severity": "SEV-2",
+        "title": "Degraded experience",
+        "summary": "Chat or realtime degradation beyond error budget.",
+        "owner": "signal_broker",
+        "sla": "60m response"
+      },
+      {
+        "severity": "SEV-3",
+        "title": "Minor regression",
+        "summary": "Non-blocking UI or content regressions.",
+        "owner": "experience_ops",
+        "sla": "1 business day"
+      }
     ]
   },
   "crm_pipeline": {
@@ -1007,10 +3274,30 @@
     "title": "CRM pipeline and lead routing",
     "body": "Track lead stages, conversion goals, and ownership for business and portfolio sites.",
     "stages": [
-      { "stage": "Discovery", "goal": "Qualify launch or portfolio needs.", "owner": "launch_ops", "sla": "48h" },
-      { "stage": "Briefing", "goal": "Capture detailed requirements and lane mix.", "owner": "experience_design", "sla": "5d" },
-      { "stage": "Proposal", "goal": "Deliver a scoped system plan and estimate.", "owner": "growth_ops", "sla": "7d" },
-      { "stage": "Activation", "goal": "Kick off the build and operator lane setup.", "owner": "runtime_lead", "sla": "14d" }
+      {
+        "stage": "Discovery",
+        "goal": "Qualify launch or portfolio needs.",
+        "owner": "launch_ops",
+        "sla": "48h"
+      },
+      {
+        "stage": "Briefing",
+        "goal": "Capture detailed requirements and lane mix.",
+        "owner": "experience_design",
+        "sla": "5d"
+      },
+      {
+        "stage": "Proposal",
+        "goal": "Deliver a scoped system plan and estimate.",
+        "owner": "growth_ops",
+        "sla": "7d"
+      },
+      {
+        "stage": "Activation",
+        "goal": "Kick off the build and operator lane setup.",
+        "owner": "runtime_lead",
+        "sla": "14d"
+      }
     ]
   },
   "forms": {
@@ -1022,8 +3309,18 @@
       "submit_label": "Join newsletter",
       "action": "/api/forms/newsletter_signup",
       "fields": [
-        { "name": "email", "label": "Email", "type": "email", "placeholder": "you@studio.com" },
-        { "name": "role", "label": "Role", "type": "text", "placeholder": "operator / founder / builder" }
+        {
+          "name": "email",
+          "label": "Email",
+          "type": "email",
+          "placeholder": "you@studio.com"
+        },
+        {
+          "name": "role",
+          "label": "Role",
+          "type": "text",
+          "placeholder": "operator / founder / builder"
+        }
       ]
     },
     "event_rsvp": {
@@ -1034,9 +3331,24 @@
       "submit_label": "RSVP",
       "action": "/api/forms/event_rsvp",
       "fields": [
-        { "name": "name", "label": "Name", "type": "text", "placeholder": "Your name" },
-        { "name": "email", "label": "Email", "type": "email", "placeholder": "you@studio.com" },
-        { "name": "interest", "label": "Focus", "type": "text", "placeholder": "hybrid / 3d / actor" }
+        {
+          "name": "name",
+          "label": "Name",
+          "type": "text",
+          "placeholder": "Your name"
+        },
+        {
+          "name": "email",
+          "label": "Email",
+          "type": "email",
+          "placeholder": "you@studio.com"
+        },
+        {
+          "name": "interest",
+          "label": "Focus",
+          "type": "text",
+          "placeholder": "hybrid / 3d / actor"
+        }
       ]
     }
   }
