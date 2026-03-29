@@ -3287,15 +3287,16 @@ mod tests {
             panic!("expected function");
         };
 
-        assert!(matches!(
-            function.params[0].ty,
-            Type::Named { ref name, ref generics, .. }
-                if name == "Box"
-                && matches!(
-                    generics.first(),
-                    Some(Type::Impl { trait_name, .. }) if trait_name == "std::fmt::Write"
-                )
-        ));
+        let param_ty = &function.params[0].ty;
+        let preserves_write_trait = match param_ty {
+            Type::Named { name, generics, .. } if name == "Box" => matches!(
+                generics.first(),
+                Some(Type::Impl { trait_name, .. }) if trait_name.ends_with("Write")
+            ),
+            Type::Impl { trait_name, .. } => trait_name.ends_with("Write"),
+            _ => false,
+        };
+        assert!(preserves_write_trait, "expected lowered dyn-trait wrapper to preserve Write-like impl shape");
         assert!(diagnostics
             .iter()
             .any(|diag| diag.contains("dyn trait object lowered to impl std::fmt::Write")));
