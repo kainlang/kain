@@ -25,6 +25,24 @@ fn command_handlers() -> Array<CommandHandlerDescriptor>:
             immediate_effect: "stage asset package and mark downstream lanes dirty"
         },
         CommandHandlerDescriptor {
+            command_kind: "asset.route_source_manifest",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "route source-id-first manifests through interchange and scene exchange"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "asset.route_scene_exchange",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "bind imported assets to the scene exchange contract"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "asset.route_asset_lineage",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "record asset lineage and residency edges"
+        },
+        CommandHandlerDescriptor {
             command_kind: "mesh.open_document",
             reducer_owner: "session.reducers",
             planner_owner: "session.intent_planner",

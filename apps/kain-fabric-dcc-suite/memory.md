@@ -77,6 +77,13 @@
 - Validation succeeded: queueing both new commands now runs Fabric and materializes `render.delegate_preview:succeeded` and `lighting.review_preview:succeeded`.
 - The suite is now moving from preview-only render plumbing into a more believable render room with delegated preview and lighting review contracts.
 
+## 2026-03-29 - Render Room Got AOV, Capture, And Visibility Fuel
+
+- Added `render.review_capture` plus a new `fabric/intents/render_review.fabric.toml` lane so the render room now has a dedicated AOV packing and review-capture branch instead of keeping that work implicit.
+- Added authored projection receipts for `render_aov_pack`, `render_review_capture`, and `render_visibility` so the room can speak in capture/evidence/culling telemetry rather than only preview and pathtrace summaries.
+- Wired the new lane into the app registries, the command/intent plumbing, the native bridge, and the shell-facing docs so review capture now follows the same app-owned contract path as the earlier render-room steps.
+- The staged `shaders/render_aov_pack.kn` shader is now consumed as a render-room AOV packing seam, which makes the render stack feel closer to an AAA review bench without pretending the final compositor runtime already exists.
+
 ## 2026-03-29 - Shell Workbench Tightened Toward Slate-Like Density
 
 - `config/ui_shell.json` and `config/surfaces.json` were tightened so the shell reads more like a real workbench frame: shorter labels, denser chrome language, clearer lane return paths, and less toy-like page copy.
@@ -89,3 +96,10 @@
 - Threaded the new schedule report into render delegation and lighting review so the room can cite a concrete frame queue while still keeping the actual GPU/runtime seams honest.
 - The progressive render spine is now easier to read as a room contract: delegated preview -> pathtrace -> accumulation -> denoise -> frame scheduling.
 - Next clean step is to back these report receipts with a real temporal-history or render queue runtime if the platform seam opens up.
+
+## 2026-03-29 - Asset Import Pipeline Now Has Real Lane Structure
+
+- Pushed the asset import uplift in `kain-fabric-dcc-suite` so ingest now speaks in source-id-first manifests, interchange transcode, scene exchange, asset lineage, and media ingest terms instead of a single generic import step.
+- Added app-owned projection writers for `asset_source_manifest`, `interchange_transcode`, `scene_exchange`, `asset_lineage`, and `media_ingest` receipts, and routed `asset.ingest_package` through them in `fabric/intents/asset_ingest.fabric.toml`.
+- Extended the session registries and command planner so asset import can fan out into explicit routing intents instead of pretending one reducer owns the whole import story.
+- The clean next seam is to back these receipts with a native importer or typed interchange runtime, because the current Kain-side projections are still orchestration-grade contracts.

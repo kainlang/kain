@@ -40,6 +40,34 @@ fn plan_for_command(
             priority: 95,
             debounce_ms: 0
         })
+    if command_kind == "asset.ingest_package":
+        intents.push(PlannedIntent {
+            intent_id: "asset.ingest_package",
+            reason: "asset ingest requested source-id-first manifest routing and downstream refresh",
+            priority: 97,
+            debounce_ms: 0
+        })
+    if command_kind == "asset.route_source_manifest":
+        intents.push(PlannedIntent {
+            intent_id: "asset.route_source_manifest",
+            reason: "source manifest needs interchange transcode and scene exchange routing",
+            priority: 96,
+            debounce_ms: 0
+        })
+    if command_kind == "asset.route_scene_exchange":
+        intents.push(PlannedIntent {
+            intent_id: "asset.route_scene_exchange",
+            reason: "scene exchange contract needs asset resolver and topology refresh",
+            priority: 95,
+            debounce_ms: 0
+        })
+    if command_kind == "asset.route_asset_lineage":
+        intents.push(PlannedIntent {
+            intent_id: "asset.route_asset_lineage",
+            reason: "asset registry lineage and residency edges need capture",
+            priority: 94,
+            debounce_ms: 0
+        })
     if command_kind == "mesh.open_document":
         intents.push(PlannedIntent {
             intent_id: "mesh.open_document",

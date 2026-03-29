@@ -66,6 +66,21 @@
       "summary": "Builds the delegated render-room routing report from preview and pathtrace outputs."
     },
     {
+      "id": "render_aov_pack_projection",
+      "runtime": "kain",
+      "summary": "Builds the AOV packing and review-capture budget report from render preview products."
+    },
+    {
+      "id": "render_review_capture_projection",
+      "runtime": "kain",
+      "summary": "Builds the review evidence capture and playback-routing report from AOV and preview outputs."
+    },
+    {
+      "id": "render_visibility_projection",
+      "runtime": "kain",
+      "summary": "Builds the visibility and culling telemetry report for the render room."
+    },
+    {
       "id": "lighting_review_projection",
       "runtime": "kain",
       "summary": "Builds the lighting review report from render, pathtrace, delegation, and material receipts."

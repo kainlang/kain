@@ -92,11 +92,11 @@ fn default_ui_workbenches() -> Array<UiWorkbenchDescriptor>:
             hero_summary: "Render and comp should feel like a real production room with visible outputs, not a final step hidden behind a single preview button.",
             focus_surface: "render_lounge",
             featured_tools: ["render_preview", "comp_rebuild"],
-            quick_commands: ["render.preview", "compositor.rebuild", "ui.open_property_grid", "publish.package"],
+            quick_commands: ["render.preview", "render.review_capture", "compositor.rebuild", "ui.open_property_grid", "publish.package"],
             center_surfaces: ["render_lounge", "compositor_stack", "publish_console"],
             right_surfaces: ["selection_inspector", "workspace_navigator", "property_grid", "report_browser", "publish_console"],
             bottom_surfaces: ["status_strip", "animation_timeline", "jobs_monitor"],
-            intent_ids: ["render.preview", "compositor.rebuild", "publish.package"]
+            intent_ids: ["render.preview", "render.review_capture", "compositor.rebuild", "publish.package"]
         },
         UiWorkbenchDescriptor {
             mode_id: "publish_automation",

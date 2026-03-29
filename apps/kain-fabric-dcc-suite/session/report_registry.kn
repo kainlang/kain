@@ -19,6 +19,36 @@ fn default_reports() -> Array<ReportDescriptor>:
             summary: "Asset ingest session report"
         },
         ReportDescriptor {
+            id: "asset_source_manifest_report",
+            report_uri: "report://asset/source-manifest",
+            producer_step: "asset_source_manifest_projection",
+            summary: "Source-id-first asset source manifest report"
+        },
+        ReportDescriptor {
+            id: "interchange_transcode_report",
+            report_uri: "report://interchange/transcode",
+            producer_step: "interchange_transcode_projection",
+            summary: "Interchange transcode routing report"
+        },
+        ReportDescriptor {
+            id: "scene_exchange_report",
+            report_uri: "report://scene/exchange",
+            producer_step: "scene_exchange_projection",
+            summary: "Scene exchange routing report"
+        },
+        ReportDescriptor {
+            id: "asset_lineage_report",
+            report_uri: "report://asset/lineage",
+            producer_step: "asset_registry_lineage_projection",
+            summary: "Asset lineage and residency routing report"
+        },
+        ReportDescriptor {
+            id: "media_ingest_report",
+            report_uri: "report://media/ingest",
+            producer_step: "media_ingest_projection",
+            summary: "Media ingest and proxy-safe transcode report"
+        },
+        ReportDescriptor {
             id: "mesh_contract_report",
             report_uri: "report://mesh/contract",
             producer_step: "mesh_session_projection",

@@ -2894,6 +2894,29 @@ mod tests {
     }
 
     #[test]
+    fn unwraps_grouped_expressions_without_loss() {
+        let program = transform_source(
+            r#"
+            fn demo() {
+                let value = (((1 + 2)));
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Let {
+            value: Some(Expr::Binary { .. }),
+            ..
+        } = &func.body.stmts[0]
+        else {
+            panic!("expected grouped expression to unwrap");
+        };
+    }
+
+    #[test]
     fn lowers_if_let_to_match_without_strict_diagnostic() {
         let (program, diagnostics) = transform_with_diagnostics(
             r#"

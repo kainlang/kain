@@ -52,7 +52,7 @@ fn reduce_command(command_kind: String, payload_summary: String, current_tool: S
             compositor_dirty: false,
             publish_dirty: true,
             tensor_dirty: true,
-            queued_intents: ["asset.ingest_package", "render.preview", "publish.package", "tensor.infer_step"],
+            queued_intents: ["asset.ingest_package", "asset.route_source_manifest", "asset.route_scene_exchange", "asset.route_asset_lineage", "render.preview", "publish.package", "tensor.infer_step"],
             session_needs_save: true
         }
     if command_kind == "mesh.open_document":

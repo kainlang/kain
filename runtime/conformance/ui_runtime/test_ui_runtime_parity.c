@@ -142,10 +142,10 @@ int main(void) {
         goto cleanup;
     }
 
-    if (!test_true(runtime_panel->id == compiled_panel->id, "runtime panel id should match compiled projection")) {
+    if (!test_true(runtime_panel->id == compiled_panel->id, "runtime panel id should match compiled bundle node")) {
         goto cleanup;
     }
-    if (!test_true(runtime_viewport->id == compiled_viewport->id, "runtime viewport id should match compiled projection")) {
+    if (!test_true(runtime_viewport->id == compiled_viewport->id, "runtime viewport id should match compiled bundle node")) {
         goto cleanup;
     }
     if (!test_true(runtime_state->validation.valid, "runtime validation should be valid")) {

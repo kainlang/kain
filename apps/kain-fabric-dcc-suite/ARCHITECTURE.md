@@ -20,7 +20,7 @@ The scaffold is split into seven durable ownership layers:
 `KAIN.fabric.toml` is the broad bootstrap and reporting graph that converges `python`, `kain`, `c_abi`, `rust_crate`, `gpu_compute`, and node-bridged publishing through Kain.
 
 4. Intent graphs
-`fabric/intents/*.fabric.toml` splits interactive or lane-specific work into reusable graphs for bootstrap, ingest, sculpt, topology, rig, sim, material, render, compositor, publish, and tensor work. The material graph now runs as authored contract projection -> SVG mask projection -> GPU preview -> packed export projection, the render pathtrace graph now emits both a pathtrace report and a temporal accumulation report so the lane can grow toward a real progressive-preview spine, and the render-room branch now carries an explicit frame-scheduling report for delegation and lighting review.
+`fabric/intents/*.fabric.toml` splits interactive or lane-specific work into reusable graphs for bootstrap, ingest, sculpt, topology, rig, sim, material, render, compositor, publish, and tensor work. The material graph now runs as authored contract projection -> SVG mask projection -> GPU preview -> packed export projection, the render pathtrace graph now emits both a pathtrace report and a temporal accumulation report so the lane can grow toward a real progressive-preview spine, and the render-room branch now carries explicit frame-scheduling plus AOV/review-capture/visibility telemetry reports for delegation and lighting review.
 
 5. Runtime seam modules
 `src/*.kn`, `native/*`, `local_crate/*`, `shaders/*`, and `scripts/*` provide the narrow per-runtime seams behind the Fabric manifests.
@@ -124,6 +124,7 @@ The scaffold is split into seven durable ownership layers:
 
 ## Extension Seams That Are Intentional
 
+- The asset import lane now speaks in source-id-first manifests, interchange transcode, scene exchange, asset lineage, and media ingest receipts. The current contracts are app-owned projections and routing state, not a native interchange runtime or serializer ownership.
 - The tensor lane now emits explicit dispatch, checkpoint, and inference-result receipts in `state/*.json`. A first-class typed tensor artifact contract across Python, Kain, and GPU runtime lanes is still future work.
 - The sim lane now emits durable plan and report receipts in `state/*.json` rather than a mock string return, but it is still not a real solver runtime. That keeps the current repo honest until a durable sim contract exists.
 - The compositor lane now emits durable rebuild-plan and rebuild-report receipts in `state/*.json`, but real graph execution and frame assembly should still arrive through a broader runtime extension rather than by overloading shell presentation code.

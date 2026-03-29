@@ -8206,7 +8206,7 @@ mod tests {
     }
 
     #[test]
-    fn runtime_bundle_loads_shared_native_projection_fixture() {
+    fn runtime_bundle_prefers_canonical_output_tree_in_shared_fixture() {
         let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../runtime/conformance/ui_runtime/fixtures/ui_runtime_parity_bundle.json");
         let json = fs::read_to_string(&fixture).expect("shared UI bundle fixture should exist");
@@ -8218,19 +8218,36 @@ mod tests {
             KAIN_UI_NATIVE_RUNTIME_BUNDLE_SCHEMA_VERSION
         );
         assert_eq!(bundle.metadata.window_title, "Kain UI Parity Fixture");
-        assert_eq!(bundle.native_projection.root_id, Some(1));
+        assert_eq!(bundle.output.tree.root, Some(UiNodeId(1)));
+        assert_eq!(bundle.output.tree.nodes.len(), 3);
         assert_eq!(
-            bundle.native_projection.primary_panel_title.as_deref(),
-            Some("UI Surface")
+            bundle
+                .output
+                .tree
+                .nodes
+                .get(&UiNodeId(1))
+                .map(|node| &node.kind),
+            Some(&UiWidgetKind::Panel)
         );
         assert_eq!(
-            bundle.native_projection.primary_viewport_title.as_deref(),
-            Some("Viewport")
+            bundle
+                .output
+                .tree
+                .nodes
+                .get(&UiNodeId(2))
+                .map(|node| &node.kind),
+            Some(UiWidgetKind::Element("input".to_string())).as_ref()
         );
         assert_eq!(
-            bundle.native_projection.primary_viewport_scene.as_deref(),
-            Some("magma_terraces")
+            bundle
+                .output
+                .tree
+                .nodes
+                .get(&UiNodeId(3))
+                .map(|node| &node.kind),
+            Some(&UiWidgetKind::Viewport3D)
         );
+        assert_eq!(bundle.native_projection.root_id, bundle.output.tree.root.map(|id| id.0));
         assert!(bundle
             .native_projection
             .nodes
@@ -8241,8 +8258,6 @@ mod tests {
             .nodes
             .iter()
             .any(|node| matches!(node.kind, UiNativeProjectionKind::Panel)));
-        assert_eq!(bundle.output.tree.root, Some(UiNodeId(1)));
-        assert_eq!(bundle.output.tree.nodes.len(), 3);
         assert!(matches!(
             bundle
                 .output
