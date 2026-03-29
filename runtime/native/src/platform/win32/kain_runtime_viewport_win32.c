@@ -1138,7 +1138,7 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
     overlay_spec.panel_alpha = 0.78f;
     overlay_spec.show_help = app->settings.show_help;
     overlay_spec.draw_crosshair = 1;
-    overlay_spec.fallback_title = "KAIN RAW NATIVE VIEWPORT";
+    overlay_spec.fallback_title = "KAIN NATIVE VIEWPORT";
     overlay_spec.fallback_subtitle = subtitle_line;
     overlay_spec.live_lines = live_lines;
     overlay_spec.live_line_count = 7;

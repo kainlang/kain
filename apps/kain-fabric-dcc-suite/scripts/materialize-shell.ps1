@@ -812,7 +812,6 @@ function Render-WorkspacePage {
         [string]$ViewportProps
     )
 
-    $featuredTools = Get-ResolvedItems -Ids $Page.featured_tool_ids -Lookup $ToolById
     $quickCommands = Get-ResolvedItems -Ids $Page.quick_command_ids -Lookup $CommandById
     $centerSurfaces = Get-ResolvedItems -Ids $Page.center_surface_ids -Lookup $SurfaceById
     $rightSurfaces = Get-ResolvedItems -Ids $Page.right_surface_ids -Lookup $SurfaceById
@@ -837,46 +836,11 @@ function Render-WorkspacePage {
     Add-Line $lines (Render-TextNode -Role "hero" -Value $Page.hero_title -Indent "                        ")
     Add-Line $lines (Render-TextNode -Role "body" -Value $Page.hero_summary -Indent "                        ")
     Add-Line $lines "                    </panel>"
-    Add-Line $lines "                    <inspector title=`"Featured Tool Rack`" persistent_layout_id=`"${pageLayoutPrefix}_featured_tools`">"
-    Add-Lines $lines (Render-TextLines -Items $featuredTools -Formatter { param($tool) "$($tool.label) | $($tool.summary)" } -Role "body" -Indent "                        ")
-    Add-Line $lines "                    </inspector>"
-    Add-Line $lines "                    <inspector title=`"Command Surface`" persistent_layout_id=`"${pageLayoutPrefix}_quick_commands`">"
-    Add-Lines $lines (Render-TextLines -Items $quickCommands -Formatter { param($command) "$($command.label) | $($command.summary)" } -Role "body" -Indent "                        ")
-    Add-Line $lines "                    </inspector>"
-    if ($null -ne $focusSurface) {
-        Add-Line $lines "                    <tree title=`"Focus Map`" persistent_layout_id=`"${pageLayoutPrefix}_focus_surface`">"
-        Add-Line $lines (Render-TextNode -Role "caption" -Value $focusSurface.title -Indent "                        ")
-        Add-Line $lines (Render-TextNode -Role "caption" -Value $focusSurface.summary -Indent "                        ")
-        Add-Line $lines "                    </tree>"
-    }
     Add-Line $lines "                </panel>"
 
-    Add-Line $lines "                <panel title=`"Workspace Frame`" dock=`"center`" layout=`"column`" gap={12} persistent_layout_id=`"${pageLayoutPrefix}_workbench_stage`">"
-    Add-Line $lines "                    <panel title=`"Viewport Frame`" scope=`"$Scope`" variant=`"viewport_frame`" layout=`"column`" gap={10} persistent_layout_id=`"${pageLayoutPrefix}_viewport_frame`">"
-    Add-Line $lines "                        <panel title=`"Status Strip`" layout=`"grid`" columns={4} gap={8} persistent_layout_id=`"${pageLayoutPrefix}_cockpit_strip`">"
-    Add-Line $lines "                            <panel title=`"Mode`" scope=`"$Scope`" variant=`"quiet_card`" layout=`"column`" gap={2} persistent_layout_id=`"${pageLayoutPrefix}_mode_metric`">"
-    Add-Line $lines (Render-TextNode -Role "metric" -Value $Mode.label -Indent "                            ")
-    Add-Line $lines (Render-TextNode -Role "caption" -Value $focusCaption -Indent "                            ")
-    Add-Line $lines "                            </panel>"
-    Add-Line $lines "                            <panel title=`"Fabric`" scope=`"$Scope`" variant=`"status_card`" layout=`"column`" gap={2} persistent_layout_id=`"${pageLayoutPrefix}_fabric_metric`">"
-    Add-Line $lines (Render-TextNode -Role "metric" -Value ([string]$latestFabricStatus).ToUpperInvariant() -Indent "                            ")
-    Add-Line $lines (Render-TextNode -Role "caption" -Value ("intent routes " + @($intents).Count) -Indent "                            ")
-    Add-Line $lines "                            </panel>"
-    Add-Line $lines "                            <panel title=`"Scale`" scope=`"$Scope`" variant=`"quiet_card`" layout=`"column`" gap={2} persistent_layout_id=`"${pageLayoutPrefix}_scale_metric`">"
-    Add-Line $lines (Render-TextNode -Role "metric" -Value ([string]$runtimePackCount) -Indent "                            ")
-    Add-Line $lines (Render-TextNode -Role "caption" -Value "runtime packs online" -Indent "                            ")
-    Add-Line $lines "                            </panel>"
-    Add-Line $lines "                            <panel title=`"Commands`" scope=`"$Scope`" variant=`"quiet_card`" layout=`"column`" gap={2} persistent_layout_id=`"${pageLayoutPrefix}_commands_metric`">"
-    Add-Line $lines (Render-TextNode -Role "metric" -Value ([string]@($quickCommands).Count) -Indent "                            ")
-    Add-Line $lines (Render-TextNode -Role "caption" -Value "quick actions armed" -Indent "                            ")
-    Add-Line $lines "                            </panel>"
-    Add-Line $lines "                        </panel>"
+    Add-Line $lines "                <panel title=`"Workspace Frame`" dock=`"center`" layout=`"column`" gap={8} persistent_layout_id=`"${pageLayoutPrefix}_workbench_stage`">"
+    Add-Line $lines "                    <panel title=`"Viewport Frame`" scope=`"$Scope`" variant=`"viewport_frame`" layout=`"column`" gap={4} persistent_layout_id=`"${pageLayoutPrefix}_viewport_frame`">"
     Add-Line $lines "                        <viewport3d $ViewportProps />"
-    Add-Line $lines "                    </panel>"
-    Add-Line $lines "                    <panel title=`"Surface Matrix`" layout=`"grid`" columns={$surfaceDeckColumns} gap={10} persistent_layout_id=`"${pageLayoutPrefix}_surface_deck`">"
-    foreach ($surface in $centerSurfaces) {
-        Add-Lines $lines (Render-SurfaceCard -Surface $surface -ShellMetrics $ShellMetrics -Reports $Reports -Scope $Scope -Variant "surface_card" -PersistentLayoutId "${pageLayoutPrefix}_center_$($surface.id)" -Indent "                        ")
-    }
     Add-Line $lines "                    </panel>"
     Add-Line $lines "                </panel>"
 

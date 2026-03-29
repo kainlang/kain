@@ -10,7 +10,7 @@
     {
       "name": "theme.chrome.topbar.visible",
       "category": "state",
-      "value": true
+      "value": false
     },
     {
       "name": "theme.chrome.inspector.visible",

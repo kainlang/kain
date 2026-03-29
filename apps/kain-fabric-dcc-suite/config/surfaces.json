@@ -153,27 +153,42 @@
       "title": "Runtime Lane Map",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Right-rail runtime matrix for Kain, Fabric, Python, GPU, C ABI, Rust, and Node.",
+      "summary": "Right-rail ownership matrix for Kain-authored semantics and the multi-runtime power lanes.",
       "properties": [
         {
           "label": "Kain",
           "value": "Session truth",
-          "detail": "intent routing and registries"
+          "detail": "intent routing, registries, and operator meaning"
         },
         {
           "label": "Fabric",
           "value": "Orchestration",
-          "detail": "step ordering and reports"
+          "detail": "step ordering, dependency edges, and reports"
         },
         {
-          "label": "Python / GPU",
-          "value": "Bootstrap + compute",
-          "detail": "preflight, preview, sculpt"
+          "label": "Python",
+          "value": "Bootstrap + preflight",
+          "detail": "registry hydration and tensor lane setup"
         },
         {
-          "label": "C ABI / Rust / Node",
-          "value": "Bridge lanes",
-          "detail": "narrow helper seams"
+          "label": "GPU compute",
+          "value": "Preview + sculpt + pack",
+          "detail": "pathtrace, accumulation, material bake, and heightfield seams"
+        },
+        {
+          "label": "C ABI",
+          "value": "Narrow host seam",
+          "detail": "signature and report bridges only"
+        },
+        {
+          "label": "Rust crate",
+          "value": "Graph analysis",
+          "detail": "topology health and helper logic"
+        },
+        {
+          "label": "Node bridge",
+          "value": "Publish hop",
+          "detail": "delivery and host-adjacent bridge surfaces"
         }
       ]
     },

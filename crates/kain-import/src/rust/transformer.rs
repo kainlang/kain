@@ -1772,6 +1772,15 @@ impl RustTransformer {
                 Ok(Expr::Comptime(Box::new(Expr::Block(block, S)), S))
             }
 
+            // ── Infer / type placeholder `_` ───────────────────────────────
+            syn::Expr::Infer(_) => {
+                self.note_lossy_class(
+                    "unsupported_expr_lowering",
+                    "type placeholder `_` in expression position erased",
+                );
+                Ok(Expr::None(S))
+            }
+
             // ── Verbatim / unknown ─────────────────────────────────────────
             other => {
                 self.note_lossy_class(
@@ -2726,6 +2735,9 @@ impl RustTransformer {
     fn resolve_value_path(&mut self, path: &syn::Path) -> String {
         let resolved = self.type_mapper.resolve_path_segments(path);
         if resolved.len() == 1 {
+            if resolved[0] == "Self" {
+                return "Self".to_string();
+            }
             self.rename_value(&resolved[0])
         } else {
             resolved.join("::")
@@ -2735,6 +2747,9 @@ impl RustTransformer {
     fn resolve_type_path(&mut self, path: &syn::Path) -> String {
         let resolved = self.type_mapper.resolve_path_segments(path);
         if resolved.len() == 1 {
+            if resolved[0] == "Self" {
+                return "Self".to_string();
+            }
             self.rename_type(&resolved[0])
         } else {
             resolved.join("::")

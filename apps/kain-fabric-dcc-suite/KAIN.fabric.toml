@@ -72,6 +72,10 @@ kind = "shared_buffer"
 name = "session_report"
 kind = "value"
 
+[[steps.outputs]]
+name = "mesh_resource_contract_document"
+kind = "value"
+
 [[steps]]
 id = "gpu_sculpt_displacement"
 runtime = "gpu_compute"

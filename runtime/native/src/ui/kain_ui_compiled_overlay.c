@@ -188,7 +188,7 @@ void kain_ui_compiled_overlay_render(
     KainUiOverlayTheme theme;
     KainUiOverlayPanel panel;
     const char* lines[KAIN_UI_COMPILED_OVERLAY_MAX_LINES];
-    char generated_lines[4][KAIN_UI_COMPILED_BUNDLE_MAX_TEXT];
+    char generated_lines[4][KAIN_UI_COMPILED_BUNDLE_MAX_TEXT] = {{0}};
     int line_count = 0;
     int generated_count = 0;
     const char* panel_title;
@@ -205,10 +205,10 @@ void kain_ui_compiled_overlay_render(
         return;
     }
 
-    panel_title = kain_ui_overlay_value_or_default(spec->fallback_title, "KAIN NATIVE APP");
+    panel_title = kain_ui_overlay_value_or_default(spec->fallback_title, "KAIN");
     subtitle_line = spec->fallback_subtitle;
-    viewport_title = spec->profile ? spec->profile->label : "native viewport";
-    scene_name = spec->profile ? spec->profile->id : "default";
+    viewport_title = spec->profile ? spec->profile->label : NULL;
+    scene_name = spec->profile ? spec->profile->id : NULL;
 
     if (bundle && bundle->loaded) {
         panel_node = kain_ui_overlay_find_primary_panel_node(bundle);
@@ -219,10 +219,20 @@ void kain_ui_compiled_overlay_render(
         panel_title = kain_ui_overlay_resolve_panel_title(bundle, panel_title);
         viewport_title = kain_ui_overlay_resolve_viewport_title(bundle, viewport_title);
         scene_name = kain_ui_overlay_resolve_scene_name(bundle, scene_name);
-        snprintf(generated_lines[generated_count], sizeof(generated_lines[generated_count]), "compiled ui  |  %s  |  scene %s", viewport_title, scene_name);
-        kain_ui_overlay_push_line(lines, &line_count, generated_lines[generated_count]);
-        generated_count += 1;
-    } else if (subtitle_line && subtitle_line[0]) {
+        if (spec->show_help) {
+            if (viewport_title && scene_name) {
+                snprintf(generated_lines[generated_count], sizeof(generated_lines[generated_count]), "%s  |  %s", viewport_title, scene_name);
+            } else if (viewport_title) {
+                snprintf(generated_lines[generated_count], sizeof(generated_lines[generated_count]), "%s", viewport_title);
+            } else if (scene_name) {
+                snprintf(generated_lines[generated_count], sizeof(generated_lines[generated_count]), "%s", scene_name);
+            }
+            if (generated_lines[generated_count][0]) {
+                kain_ui_overlay_push_line(lines, &line_count, generated_lines[generated_count]);
+                generated_count += 1;
+            }
+        }
+    } else if (subtitle_line && subtitle_line[0] && spec->show_help) {
         kain_ui_overlay_push_line(lines, &line_count, subtitle_line);
     }
 
@@ -248,7 +258,7 @@ void kain_ui_compiled_overlay_render(
                     sizeof(generated_lines[generated_count]),
                     inspector,
                     "compiled inspector",
-                    tree && tree->title[0] ? "asset tree active" : NULL
+                    NULL
                 );
                 kain_ui_overlay_push_line(lines, &line_count, generated_lines[generated_count]);
                 generated_count += 1;
@@ -260,7 +270,7 @@ void kain_ui_compiled_overlay_render(
                     sizeof(generated_lines[generated_count]),
                     timeline,
                     "timeline",
-                    "playback surface ready"
+                    NULL
                 );
                 kain_ui_overlay_push_line(lines, &line_count, generated_lines[generated_count]);
                 generated_count += 1;
@@ -270,7 +280,7 @@ void kain_ui_compiled_overlay_render(
                     sizeof(generated_lines[generated_count]),
                     viewport_node,
                     "viewport",
-                    scene_name
+                    NULL
                 );
                 kain_ui_overlay_push_line(lines, &line_count, generated_lines[generated_count]);
                 generated_count += 1;

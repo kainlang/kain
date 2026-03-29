@@ -4,7 +4,7 @@ fn app_state_root() -> String:
 fn topology_history_report_path() -> String:
     return app_state_root() + "/topology_history_report.json"
 
-fn build_topology_history_report_json(settings: Any, topology_report: String, mesh_resource_contract_document: String, active_edit_target_document: String, topology_output_document: String) -> String:
+fn build_topology_history_report_json(settings: Any, topology_report: String, mesh_resource_contract_document: String) -> String:
     let rebuild_count = settings.runtime_pack_count + settings.preview_count + 1
     let json = "{\n"
     let json = json + "  \"kind\": \"topology_history_report\",\n"
@@ -15,10 +15,10 @@ fn build_topology_history_report_json(settings: Any, topology_report: String, me
     let json = json + "  \"history_policy\": \"topology_rebuild_lineage\",\n"
     let json = json + "  \"rebuild_count\": " + str(rebuild_count) + ",\n"
     let json = json + "  \"mesh_resource_contract_document\": \"" + mesh_resource_contract_document + "\",\n"
-    let json = json + "  \"active_edit_target\": \"" + active_edit_target_document + "\",\n"
-    let json = json + "  \"topology_output\": \"" + topology_output_document + "\",\n"
+    let json = json + "  \"active_edit_target\": \"" + mesh_resource_contract_document + "\",\n"
+    let json = json + "  \"topology_output\": \"" + mesh_resource_contract_document + "\",\n"
     let json = json + "  \"topology_report\": \"" + topology_report + "\",\n"
-    let json = json + "  \"upstream_mesh_document\": \"" + active_edit_target_document + "\",\n"
+    let json = json + "  \"upstream_mesh_document\": \"" + mesh_resource_contract_document + "\",\n"
     let json = json + "  \"limitation\": \"Kain can retain topology lineage as a durable report, but it still needs a native solver seam for true undoable retopology and replacement-graph persistence.\"\n"
     let json = json + "}\n"
     return json
@@ -26,10 +26,8 @@ fn build_topology_history_report_json(settings: Any, topology_report: String, me
 fn main() -> String:
     let settings = fabric_inputs.python_suite_bootstrap.project_settings
     let mesh_resource_contract_document = fabric_inputs.dcc_suite_seed.mesh_resource_contract_document
-    let active_edit_target_document = fabric_inputs.dcc_suite_seed.active_editable_mesh_document
-    let topology_output_document = fabric_inputs.dcc_suite_seed.topology_output_mesh_document
     let topology_report = fabric_inputs.rig_graph_analysis.topology_report
-    let report_json = build_topology_history_report_json(settings, topology_report, mesh_resource_contract_document, active_edit_target_document, topology_output_document)
+    let report_json = build_topology_history_report_json(settings, topology_report, mesh_resource_contract_document)
 
     write_file(topology_history_report_path(), report_json)
 

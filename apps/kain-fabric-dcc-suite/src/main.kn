@@ -5,6 +5,7 @@ struct DccSuiteSeedOutputs:
     asset_catalog_document: String
     material_authoring_document: String
     svg_mask_document: String
+    mesh_resource_contract_document: String
     preview_src: Any
     preview_dst: Any
     pathtrace_dst: Any
@@ -157,6 +158,7 @@ fn build_session_report(settings: Any) -> String:
 
 fn main() -> DccSuiteSeedOutputs:
     let settings = fabric_inputs.python_suite_bootstrap.project_settings
+    let mesh_resource_contract_document = build_mesh_resource_contract()
     let preview_src_bytes = build_preview_stream(settings.preview_count, settings.brush_accent)
     let preview_dst_bytes = build_zero_stream(settings.preview_count)
     let pathtrace_dst_bytes = build_zero_stream(settings.preview_count)
@@ -228,6 +230,7 @@ fn main() -> DccSuiteSeedOutputs:
         asset_catalog_document: build_asset_catalog_document(settings),
         material_authoring_document: build_material_authoring_document(settings),
         svg_mask_document: build_svg_mask_document(settings),
+        mesh_resource_contract_document: mesh_resource_contract_document,
         preview_src: preview_src,
         preview_dst: preview_dst,
         pathtrace_dst: pathtrace_dst,

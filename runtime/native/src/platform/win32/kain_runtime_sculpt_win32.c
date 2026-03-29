@@ -596,7 +596,7 @@ static void kain_sculpt_render_overlay(KainNativeSculptApp* app) {
     overlay_spec.panel_alpha = 0.84f;
     overlay_spec.show_help = app->settings.show_help;
     overlay_spec.draw_crosshair = 0;
-    overlay_spec.fallback_title = "KAIN RAW SCULPT LAB";
+    overlay_spec.fallback_title = "KAIN SCULPT LAB";
     overlay_spec.fallback_subtitle = subtitle_line;
     overlay_spec.live_lines = live_lines;
     overlay_spec.live_line_count = 4;

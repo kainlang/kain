@@ -5,6 +5,34 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=46b90712bccb47d0 -->
+## 2026-03-29 17:28:31 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4fef80db`
+- Changed files: 5
+- [.M] `crates/kain-import/src/rust/transformer.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_sculpt_win32.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [.M] `runtime/native/src/ui/kain_ui_compiled_overlay.c`
+
+<!-- polytools-changelog:fingerprint=b4e93bc61078d985 -->
+## 2026-03-29 17:20:58 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4fef80db`
+- Changed files: 4
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_sculpt_win32.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [.M] `runtime/native/src/ui/kain_ui_compiled_overlay.c`
+
+<!-- polytools-changelog:fingerprint=74c2d42841f83269 -->
+## 2026-03-29 17:03:06 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `4fef80db`
+- Changed files: 1
+- [.M] `crates/kain-ui-native/src/lib.rs`
+
 <!-- polytools-changelog:fingerprint=edcb2e2fd9df7328 -->
 ## 2026-03-29 17:00:58 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`
