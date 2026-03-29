@@ -1,0 +1,46 @@
+// Asset registry, dependency lineage, and residency auditing contracts.
+
+struct AssetRegistryDescriptor:
+    registry_id: String
+    registry_kind: String
+    storage_policy: String
+
+struct AssetLineageDescriptor:
+    lineage_id: String
+    lineage_scope: String
+    tensor_pipeline_id: String
+
+struct ResidencyAuditDescriptor:
+    audit_id: String
+    audit_policy: String
+    result_scope: String
+
+struct AssetRegistryRuntimeProfile:
+    asset_registry: AssetRegistryDescriptor
+    asset_lineage: AssetLineageDescriptor
+    residency_audit: ResidencyAuditDescriptor
+    package_provenance: AssetLineageDescriptor
+
+fn default_asset_registry_runtime_profile() -> AssetRegistryRuntimeProfile with Pure:
+    let profile = AssetRegistryRuntimeProfile()
+
+    profile.asset_registry = AssetRegistryDescriptor()
+    profile.asset_registry.registry_id = "asset_registry"
+    profile.asset_registry.registry_kind = "workspace_stage_and_release_catalog"
+    profile.asset_registry.storage_policy = "snapshot_and_incremental_catalog"
+
+    profile.asset_lineage = AssetLineageDescriptor()
+    profile.asset_lineage.lineage_id = "asset_lineage_runtime"
+    profile.asset_lineage.lineage_scope = "source_bake_publish_and_delivery_edges"
+    profile.asset_lineage.tensor_pipeline_id = "asset_registry_tensor_pipeline"
+
+    profile.residency_audit = ResidencyAuditDescriptor()
+    profile.residency_audit.audit_id = "asset_residency_audit"
+    profile.residency_audit.audit_policy = "viewport_world_and_delivery_scope"
+    profile.residency_audit.result_scope = "resident_missing_or_promotable"
+
+    profile.package_provenance = AssetLineageDescriptor()
+    profile.package_provenance.lineage_id = "package_provenance_runtime"
+    profile.package_provenance.lineage_scope = "bundle_package_and_release_edges"
+    profile.package_provenance.tensor_pipeline_id = "asset_registry_tensor_pipeline"
+    profile

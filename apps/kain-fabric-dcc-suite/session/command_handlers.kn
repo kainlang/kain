@@ -73,10 +73,22 @@ fn command_handlers() -> Array<CommandHandlerDescriptor>:
             immediate_effect: "switch authoring tool and inherit its gizmo contract"
         },
         CommandHandlerDescriptor {
+            command_kind: "scene.open_document",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "open the active scene document and refresh dependent scene/query lanes"
+        },
+        CommandHandlerDescriptor {
             command_kind: "selection.set",
             reducer_owner: "session.reducers",
             planner_owner: "session.intent_planner",
             immediate_effect: "replace live selection and preserve transform gizmo anchor"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "selection.set_scope",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "update the active selection scope without changing tool context"
         },
         CommandHandlerDescriptor {
             command_kind: "gizmo.set_mode",

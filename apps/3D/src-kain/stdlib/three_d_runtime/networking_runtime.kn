@@ -1,0 +1,40 @@
+// Runtime networking, authority, and replication contracts for shared engines and tools.
+
+struct ReplicationDescriptor:
+    replication_id: String
+    topology: String
+    tensor_pipeline_id: String
+
+struct AuthorityDescriptor:
+    authority_id: String
+    ownership_policy: String
+    rollback_policy: String
+
+struct SessionTransportDescriptor:
+    transport_id: String
+    transport_kind: String
+    qos_policy: String
+
+struct NetworkingRuntimeProfile:
+    replication: ReplicationDescriptor
+    authority: AuthorityDescriptor
+    session_transport: SessionTransportDescriptor
+
+fn default_networking_runtime_profile() -> NetworkingRuntimeProfile with Pure:
+    let profile = NetworkingRuntimeProfile()
+
+    profile.replication = ReplicationDescriptor()
+    profile.replication.replication_id = "network_replication_runtime"
+    profile.replication.topology = "client_server_peer_or_editor_session"
+    profile.replication.tensor_pipeline_id = "network_replication_tensor_pipeline"
+
+    profile.authority = AuthorityDescriptor()
+    profile.authority.authority_id = "network_authority_runtime"
+    profile.authority.ownership_policy = "entity_scene_and_tool_scope"
+    profile.authority.rollback_policy = "snapshot_and_deterministic_reconcile"
+
+    profile.session_transport = SessionTransportDescriptor()
+    profile.session_transport.transport_id = "network_session_transport"
+    profile.session_transport.transport_kind = "reliable_unreliable_and_streaming_mix"
+    profile.session_transport.qos_policy = "latency_budget_and_priority_aware"
+    profile

@@ -1,0 +1,1108 @@
+[
+   {
+      "domain" : "render",
+      "id" : "renderer_frame_tensor_pipeline",
+      "passes" : [
+         "visibility_cluster_cull",
+         "material_layer_stack_tensor",
+         "viewport_composite_tensor"
+      ],
+      "label" : "Renderer Frame Tensor Pipeline",
+      "residency" : "gpu_preferred",
+      "priority" : "interactive"
+   },
+   {
+      "label" : "Sculpt Stroke Tensor Pipeline",
+      "priority" : "latency_critical",
+      "residency" : "gpu_required",
+      "id" : "sculpt_stroke_tensor_pipeline",
+      "domain" : "sculpt",
+      "passes" : [
+         "sculpt_brush_tensor",
+         "dyntopo_voxel_remesh"
+      ]
+   },
+   {
+      "label" : "Animation Pose Tensor Pipeline",
+      "priority" : "realtime",
+      "residency" : "gpu_preferred",
+      "id" : "animation_pose_tensor_pipeline",
+      "domain" : "animation",
+      "passes" : [
+         "rig_skinning_pose_resolve",
+         "mocap_retarget_pose_tensor"
+      ]
+   },
+   {
+      "label" : "Cloth Live Tensor Pipeline",
+      "priority" : "realtime",
+      "residency" : "gpu_preferred",
+      "id" : "cloth_live_tensor_pipeline",
+      "domain" : "simulation",
+      "passes" : [
+         "cloth_constraint_solver"
+      ]
+   },
+   {
+      "label" : "Particle FX Tensor Pipeline",
+      "priority" : "realtime",
+      "residency" : "gpu_preferred",
+      "id" : "particle_fx_tensor_pipeline",
+      "domain" : "simulation",
+      "passes" : [
+         "particle_advection_tensor"
+      ]
+   },
+   {
+      "domain" : "simulation",
+      "id" : "fluid_solver_tensor_pipeline",
+      "passes" : [
+         "fluid_pressure_project"
+      ],
+      "label" : "Fluid Solver Tensor Pipeline",
+      "priority" : "batch_or_realtime",
+      "residency" : "gpu_required"
+   },
+   {
+      "passes" : [
+         "terrain_clipmap_bake",
+         "world_partition_visibility"
+      ],
+      "domain" : "world",
+      "id" : "world_streaming_tensor_pipeline",
+      "priority" : "background_interactive",
+      "residency" : "gpu_preferred",
+      "label" : "World Streaming Tensor Pipeline"
+   },
+   {
+      "passes" : [
+         "procedural_field_scatter"
+      ],
+      "domain" : "procedural",
+      "id" : "procedural_authoring_tensor_pipeline",
+      "priority" : "interactive",
+      "residency" : "gpu_required",
+      "label" : "Procedural Authoring Tensor Pipeline"
+   },
+   {
+      "passes" : [
+         "groom_strand_interpolate"
+      ],
+      "domain" : "groom",
+      "id" : "groom_authoring_tensor_pipeline",
+      "residency" : "gpu_required",
+      "priority" : "interactive",
+      "label" : "Groom Authoring Tensor Pipeline"
+   },
+   {
+      "priority" : "interactive_or_baked",
+      "residency" : "gpu_required",
+      "label" : "Volumetric Authoring Tensor Pipeline",
+      "passes" : [
+         "volumetric_fog_integrate"
+      ],
+      "id" : "volumetric_authoring_tensor_pipeline",
+      "domain" : "volume"
+   },
+   {
+      "priority" : "batch",
+      "residency" : "gpu_preferred",
+      "label" : "Photogrammetry Reconstruction Tensor Pipeline",
+      "passes" : [
+         "scan_reconstruction_fuse"
+      ],
+      "domain" : "photogrammetry",
+      "id" : "photogrammetry_reconstruction_tensor_pipeline"
+   },
+   {
+      "residency" : "gpu_preferred",
+      "priority" : "realtime",
+      "label" : "Audio Analysis Tensor Pipeline",
+      "passes" : [
+         "audio_reactive_spectrum"
+      ],
+      "domain" : "audio",
+      "id" : "audio_analysis_tensor_pipeline"
+   },
+   {
+      "label" : "Collaboration Sync Tensor Pipeline",
+      "residency" : "gpu_preferred",
+      "priority" : "interactive",
+      "domain" : "collaboration",
+      "id" : "collaboration_sync_tensor_pipeline",
+      "passes" : [
+         "collaboration_presence_resolve"
+      ]
+   },
+   {
+      "domain" : "orchestration",
+      "id" : "artifact_materialization_tensor_pipeline",
+      "passes" : [
+         "artifact_materialization_resolve"
+      ],
+      "label" : "Artifact Materialization Tensor Pipeline",
+      "residency" : "gpu_preferred",
+      "priority" : "batch"
+   },
+   {
+      "label" : "Constraint Solver Tensor Pipeline",
+      "priority" : "realtime",
+      "residency" : "gpu_required",
+      "id" : "constraint_solver_tensor_pipeline",
+      "domain" : "constraints",
+      "passes" : [
+         "constraint_jacobi_solve"
+      ]
+   },
+   {
+      "residency" : "gpu_required",
+      "priority" : "background_interactive",
+      "label" : "Biome World Tensor Pipeline",
+      "passes" : [
+         "biome_ecosystem_resolve"
+      ],
+      "domain" : "biome",
+      "id" : "biome_world_tensor_pipeline"
+   },
+   {
+      "label" : "Destruction Authoring Tensor Pipeline",
+      "priority" : "interactive_or_baked",
+      "residency" : "gpu_required",
+      "id" : "destruction_authoring_tensor_pipeline",
+      "domain" : "destruction",
+      "passes" : [
+         "fracture_cluster_resolve"
+      ]
+   },
+   {
+      "passes" : [
+         "review_annotation_raster"
+      ],
+      "id" : "review_overlay_tensor_pipeline",
+      "domain" : "review",
+      "priority" : "interactive_or_batch",
+      "residency" : "gpu_preferred",
+      "label" : "Review Overlay Tensor Pipeline"
+   },
+   {
+      "domain" : "renderer_graph",
+      "id" : "renderer_graph_tensor_pipeline",
+      "passes" : [
+         "renderer_graph_schedule"
+      ],
+      "label" : "Renderer Graph Tensor Pipeline",
+      "priority" : "interactive",
+      "residency" : "gpu_required"
+   },
+   {
+      "id" : "behavior_runtime_tensor_pipeline",
+      "domain" : "behavior",
+      "passes" : [
+         "behavior_state_resolve"
+      ],
+      "label" : "Behavior Runtime Tensor Pipeline",
+      "residency" : "gpu_preferred",
+      "priority" : "interactive_or_realtime"
+   },
+   {
+      "label" : "CAD Surface Tensor Pipeline",
+      "priority" : "interactive_or_batch",
+      "residency" : "gpu_preferred",
+      "id" : "cad_surface_tensor_pipeline",
+      "domain" : "cad",
+      "passes" : [
+         "nurbs_surface_tessellate"
+      ]
+   },
+   {
+      "passes" : [
+         "toolpath_kinematics_resolve"
+      ],
+      "domain" : "robotics",
+      "id" : "robotics_toolpath_tensor_pipeline",
+      "residency" : "gpu_required",
+      "priority" : "interactive_or_batch",
+      "label" : "Robotics Toolpath Tensor Pipeline"
+   },
+   {
+      "passes" : [
+         "live_asset_delta_merge"
+      ],
+      "domain" : "live_sync",
+      "id" : "live_sync_tensor_pipeline",
+      "priority" : "interactive",
+      "residency" : "gpu_preferred",
+      "label" : "Live Sync Tensor Pipeline"
+   },
+   {
+      "label" : "Compositor Finishing Tensor Pipeline",
+      "residency" : "gpu_required",
+      "priority" : "interactive_or_batch",
+      "domain" : "compositor",
+      "id" : "compositor_finishing_tensor_pipeline",
+      "passes" : [
+         "video_frame_compose"
+      ]
+   },
+   {
+      "residency" : "gpu_preferred",
+      "priority" : "interactive_or_batch",
+      "label" : "Scene Exchange Tensor Pipeline",
+      "passes" : [
+         "scene_exchange_stage_resolve"
+      ],
+      "domain" : "scene_exchange",
+      "id" : "scene_exchange_tensor_pipeline"
+   },
+   {
+      "domain" : "metrology",
+      "id" : "metrology_inspection_tensor_pipeline",
+      "passes" : [
+         "surface_deviation_resolve"
+      ],
+      "label" : "Metrology Inspection Tensor Pipeline",
+      "priority" : "interactive_or_batch",
+      "residency" : "gpu_preferred"
+   },
+   {
+      "id" : "fabrication_scheduling_tensor_pipeline",
+      "domain" : "fabrication",
+      "passes" : [
+         "fabrication_schedule_resolve"
+      ],
+      "label" : "Fabrication Scheduling Tensor Pipeline",
+      "residency" : "gpu_preferred",
+      "priority" : "batch_or_interactive"
+   },
+   {
+      "residency" : "gpu_preferred",
+      "priority" : "background_interactive",
+      "label" : "Review Database Tensor Pipeline",
+      "passes" : [
+         "review_evidence_index"
+      ],
+      "id" : "review_database_tensor_pipeline",
+      "domain" : "review_database"
+   },
+   {
+      "domain" : "scene_semantics",
+      "id" : "scene_semantics_tensor_pipeline",
+      "passes" : [
+         "scene_semantic_index_resolve"
+      ],
+      "label" : "Scene Semantics Tensor Pipeline",
+      "priority" : "interactive_or_background",
+      "residency" : "gpu_preferred"
+   },
+   {
+      "label" : "Query Selection Tensor Pipeline",
+      "residency" : "gpu_required",
+      "priority" : "latency_critical",
+      "domain" : "query_selection",
+      "id" : "query_selection_tensor_pipeline",
+      "passes" : [
+         "selection_query_resolve"
+      ]
+   },
+   {
+      "id" : "runtime_bundle_tensor_pipeline",
+      "domain" : "runtime_bundles",
+      "passes" : [
+         "runtime_bundle_assemble"
+      ],
+      "label" : "Runtime Bundle Tensor Pipeline",
+      "priority" : "batch_or_interactive",
+      "residency" : "gpu_preferred"
+   },
+   {
+      "label" : "Materialization Receipt Tensor Pipeline",
+      "priority" : "batch",
+      "residency" : "gpu_preferred",
+      "id" : "materialization_receipt_tensor_pipeline",
+      "domain" : "materialization",
+      "passes" : [
+         "materialization_receipt_index"
+      ]
+   },
+   {
+      "domain" : "asset_registry",
+      "id" : "asset_registry_tensor_pipeline",
+      "passes" : [
+         "asset_lineage_resolve"
+      ],
+      "label" : "Asset Registry Tensor Pipeline",
+      "priority" : "background_interactive",
+      "residency" : "gpu_preferred"
+   },
+   {
+      "passes" : [
+         "facial_pose_solve"
+      ],
+      "domain" : "character",
+      "id" : "character_facial_tensor_pipeline",
+      "priority" : "interactive_or_realtime",
+      "residency" : "gpu_required",
+      "label" : "Character Facial Tensor Pipeline"
+   },
+   {
+      "label" : "Virtual Production Stage Tensor Pipeline",
+      "priority" : "interactive_or_realtime",
+      "residency" : "gpu_required",
+      "id" : "virtual_production_stage_tensor_pipeline",
+      "domain" : "virtual_production",
+      "passes" : [
+         "led_volume_sync"
+      ]
+   },
+   {
+      "priority" : "background_interactive",
+      "residency" : "gpu_preferred",
+      "label" : "Geospatial Stream Tensor Pipeline",
+      "passes" : [
+         "geospatial_tile_resolve"
+      ],
+      "id" : "geospatial_stream_tensor_pipeline",
+      "domain" : "geospatial"
+   },
+   {
+      "id" : "xr_immersive_tensor_pipeline",
+      "domain" : "xr",
+      "passes" : [
+         "xr_stereo_frame_resolve"
+      ],
+      "label" : "XR Immersive Tensor Pipeline",
+      "priority" : "latency_critical",
+      "residency" : "gpu_required"
+   },
+   {
+      "id" : "network_replication_tensor_pipeline",
+      "domain" : "networking",
+      "passes" : [
+         "network_replication_resolve"
+      ],
+      "label" : "Network Replication Tensor Pipeline",
+      "residency" : "gpu_required",
+      "priority" : "realtime"
+   },
+   {
+      "residency" : "gpu_preferred",
+      "priority" : "latency_or_safety_gated",
+      "label" : "Device Orchestration Tensor Pipeline",
+      "passes" : [
+         "device_frame_sync_resolve"
+      ],
+      "domain" : "device_runtime",
+      "id" : "device_orchestration_tensor_pipeline"
+   },
+   {
+      "passes" : [
+         "runtime_schema_index_resolve"
+      ],
+      "domain" : "runtime_reflection",
+      "id" : "runtime_reflection_tensor_pipeline",
+      "residency" : "gpu_preferred",
+      "priority" : "background_interactive",
+      "label" : "Runtime Reflection Tensor Pipeline"
+   },
+   {
+      "residency" : "gpu_required",
+      "priority" : "interactive_or_batch",
+      "label" : "Lookdev Review Tensor Pipeline",
+      "passes" : [
+         "lookdev_lighting_review_resolve"
+      ],
+      "domain" : "lookdev",
+      "id" : "lookdev_review_tensor_pipeline"
+   },
+   {
+      "label" : "Simulation Authoring Tensor Pipeline",
+      "residency" : "gpu_required",
+      "priority" : "interactive_or_baked",
+      "domain" : "simulation_authoring",
+      "id" : "simulation_authoring_tensor_pipeline",
+      "passes" : [
+         "simulation_solver_graph_resolve"
+      ]
+   },
+   {
+      "label" : "Delivery Materializer Tensor Pipeline",
+      "residency" : "gpu_preferred",
+      "priority" : "batch_or_promoted",
+      "id" : "delivery_materializer_tensor_pipeline",
+      "domain" : "delivery_materializer",
+      "passes" : [
+         "delivery_batch_materialize_resolve"
+      ]
+   },
+   {
+      "domain" : "scene_bundles",
+      "id" : "scene_bundle_tensor_pipeline",
+      "passes" : [
+         "scene_bundle_graph_resolve"
+      ],
+      "label" : "Scene Bundle Tensor Pipeline",
+      "priority" : "interactive_or_batch",
+      "residency" : "gpu_preferred"
+   },
+   {
+      "label" : "Native Widget Tensor Pipeline",
+      "priority" : "latency_critical",
+      "residency" : "gpu_required",
+      "domain" : "native_widgets",
+      "id" : "native_widget_tensor_pipeline",
+      "passes" : [
+         "widget_surface_layout_resolve"
+      ]
+   },
+   {
+      "residency" : "gpu_preferred",
+      "priority" : "batch_or_interactive",
+      "label" : "Interchange Tensor Pipeline",
+      "passes" : [
+         "interchange_transcode_resolve"
+      ],
+      "id" : "interchange_tensor_pipeline",
+      "domain" : "interchange"
+   },
+   {
+      "residency" : "gpu_preferred",
+      "priority" : "batch_or_event_driven",
+      "label" : "Automation Recipe Tensor Pipeline",
+      "passes" : [
+         "automation_recipe_schedule_resolve"
+      ],
+      "id" : "automation_recipe_tensor_pipeline",
+      "domain" : "automation"
+   },
+   {
+      "label" : "Knowledge Ops Tensor Pipeline",
+      "priority" : "background_interactive",
+      "residency" : "gpu_preferred",
+      "id" : "knowledge_ops_tensor_pipeline",
+      "domain" : "knowledge",
+      "passes" : [
+         "knowledge_graph_index_resolve"
+      ]
+   },
+   {
+      "id" : "sequencing_timeline_tensor_pipeline",
+      "domain" : "sequencing",
+      "passes" : [
+         "shot_sequence_timeline_resolve"
+      ],
+      "label" : "Sequencing Timeline Tensor Pipeline",
+      "residency" : "gpu_preferred",
+      "priority" : "interactive_or_editorial"
+   },
+   {
+      "domain" : "navigation",
+      "id" : "navigation_runtime_tensor_pipeline",
+      "passes" : [
+         "navigation_navmesh_corridor_resolve"
+      ],
+      "label" : "Navigation Runtime Tensor Pipeline",
+      "priority" : "realtime_or_baked",
+      "residency" : "gpu_required"
+   },
+   {
+      "label" : "Vehicle Dynamics Tensor Pipeline",
+      "priority" : "realtime",
+      "residency" : "gpu_required",
+      "id" : "vehicle_dynamics_tensor_pipeline",
+      "domain" : "vehicle",
+      "passes" : [
+         "vehicle_dynamics_integrate"
+      ]
+   },
+   {
+      "label" : "Lighting Pipeline Tensor Pipeline",
+      "residency" : "gpu_required",
+      "priority" : "interactive_or_baked",
+      "domain" : "lighting",
+      "id" : "lighting_pipeline_tensor_pipeline",
+      "passes" : [
+         "lighting_probe_grid_resolve"
+      ]
+   },
+   {
+      "id" : "broadcast_control_tensor_pipeline",
+      "domain" : "broadcast",
+      "passes" : [
+         "broadcast_program_mix_resolve"
+      ],
+      "label" : "Broadcast Control Tensor Pipeline",
+      "priority" : "latency_critical",
+      "residency" : "gpu_required"
+   },
+   {
+      "passes" : [
+         "scene_evaluation_schedule_resolve"
+      ],
+      "domain" : "evaluation",
+      "id" : "evaluation_graph_tensor_pipeline",
+      "priority" : "latency_critical_or_batch",
+      "residency" : "gpu_preferred",
+      "label" : "Evaluation Graph Tensor Pipeline"
+   },
+   {
+      "passes" : [
+         "viewport_frame_packet_resolve"
+      ],
+      "id" : "viewport_frame_tensor_pipeline",
+      "domain" : "viewport",
+      "priority" : "latency_critical",
+      "residency" : "gpu_required",
+      "label" : "Viewport Frame Tensor Pipeline"
+   },
+   {
+      "priority" : "latency_critical",
+      "residency" : "gpu_required",
+      "label" : "Interaction Gizmo Tensor Pipeline",
+      "passes" : [
+         "interaction_gizmo_resolve"
+      ],
+      "domain" : "interaction",
+      "id" : "interaction_gizmo_tensor_pipeline"
+   },
+   {
+      "passes" : [
+         "persistence_snapshot_delta_resolve"
+      ],
+      "id" : "persistence_snapshot_tensor_pipeline",
+      "domain" : "persistence",
+      "priority" : "background_interactive",
+      "residency" : "gpu_preferred",
+      "label" : "Persistence Snapshot Tensor Pipeline"
+   },
+   {
+      "id" : "jobs_dispatch_tensor_pipeline",
+      "domain" : "jobs",
+      "passes" : [
+         "job_queue_dispatch_resolve",
+         "job_receipt_materialize"
+      ],
+      "label" : "Jobs Dispatch Tensor Pipeline",
+      "priority" : "batch_or_deadline_driven",
+      "residency" : "gpu_preferred"
+   },
+   {
+      "passes" : [
+         "telemetry_frame_profile_resolve"
+      ],
+      "id" : "telemetry_profile_tensor_pipeline",
+      "domain" : "telemetry",
+      "priority" : "background_interactive",
+      "residency" : "gpu_preferred",
+      "label" : "Telemetry Profile Tensor Pipeline"
+   },
+   {
+      "residency" : "gpu_preferred",
+      "priority" : "latency_or_policy_critical",
+      "label" : "Security Policy Tensor Pipeline",
+      "passes" : [
+         "security_capability_policy_resolve"
+      ],
+      "id" : "security_policy_tensor_pipeline",
+      "domain" : "security"
+   },
+   {
+      "label" : "Entity Runtime Tensor Pipeline",
+      "residency" : "gpu_preferred",
+      "priority" : "latency_critical_or_realtime",
+      "id" : "entity_runtime_tensor_pipeline",
+      "domain" : "entity",
+      "passes" : [
+         "entity_component_delta_resolve"
+      ]
+   },
+   {
+      "passes" : [
+         "prefab_variant_compose"
+      ],
+      "id" : "prefab_assembly_tensor_pipeline",
+      "domain" : "prefab",
+      "priority" : "interactive_or_batch",
+      "residency" : "gpu_preferred",
+      "label" : "Prefab Assembly Tensor Pipeline"
+   },
+   {
+      "priority" : "latency_critical_or_batch",
+      "residency" : "gpu_preferred",
+      "label" : "Command Runtime Tensor Pipeline",
+      "passes" : [
+         "command_stream_replay_resolve"
+      ],
+      "id" : "command_runtime_tensor_pipeline",
+      "domain" : "commands"
+   },
+   {
+      "label" : "State Migration Tensor Pipeline",
+      "priority" : "batch_or_recovery_critical",
+      "residency" : "gpu_preferred",
+      "id" : "state_migration_tensor_pipeline",
+      "domain" : "state_migration",
+      "passes" : [
+         "state_schema_migration_resolve"
+      ]
+   },
+   {
+      "passes" : [
+         "workspace_layout_flow_resolve"
+      ],
+      "domain" : "workspace_layout",
+      "id" : "workspace_layout_tensor_pipeline",
+      "residency" : "gpu_required",
+      "priority" : "latency_critical",
+      "label" : "Workspace Layout Tensor Pipeline"
+   },
+   {
+      "id" : "workspace_preset_tensor_pipeline",
+      "domain" : "workspace_preset",
+      "passes" : [
+         "workspace_preset_launch_receipt_resolve"
+      ],
+      "label" : "Workspace Preset Tensor Pipeline",
+      "priority" : "background_interactive_or_delivery_critical",
+      "residency" : "gpu_preferred"
+   },
+   {
+      "label" : "Gameplay Framework Tensor Pipeline",
+      "priority" : "realtime",
+      "residency" : "gpu_required",
+      "domain" : "gameplay",
+      "id" : "gameplay_framework_tensor_pipeline",
+      "passes" : [
+         "gameplay_state_resolve"
+      ]
+   },
+   {
+      "domain" : "presentation",
+      "id" : "presentation_shell_tensor_pipeline",
+      "passes" : [
+         "presentation_ui_route_resolve"
+      ],
+      "label" : "Presentation Shell Tensor Pipeline",
+      "residency" : "gpu_required",
+      "priority" : "latency_critical"
+   },
+   {
+      "domain" : "replay",
+      "id" : "replay_capture_tensor_pipeline",
+      "passes" : [
+         "replay_timeline_capture_resolve"
+      ],
+      "label" : "Replay Capture Tensor Pipeline",
+      "priority" : "interactive_or_batch",
+      "residency" : "gpu_preferred"
+   },
+   {
+      "label" : "Localization Bundle Tensor Pipeline",
+      "priority" : "background_interactive",
+      "residency" : "gpu_preferred",
+      "domain" : "localization",
+      "id" : "localization_bundle_tensor_pipeline",
+      "passes" : [
+         "localization_bundle_resolve"
+      ]
+   },
+   {
+      "domain" : "streaming",
+      "id" : "remote_streaming_tensor_pipeline",
+      "passes" : [
+         "remote_stream_session_resolve"
+      ],
+      "label" : "Remote Streaming Tensor Pipeline",
+      "priority" : "latency_critical",
+      "residency" : "gpu_required"
+   },
+   {
+      "priority" : "interactive_or_streaming",
+      "residency" : "gpu_required",
+      "label" : "Point Cloud Tensor Pipeline",
+      "passes" : [
+         "point_cloud_stream_resolve"
+      ],
+      "id" : "point_cloud_tensor_pipeline",
+      "domain" : "point_cloud"
+   },
+   {
+      "residency" : "gpu_preferred",
+      "priority" : "interactive_or_batch",
+      "label" : "Scene Source Tensor Pipeline",
+      "passes" : [
+         "scene_source_document_resolve"
+      ],
+      "domain" : "scene_source",
+      "id" : "scene_source_tensor_pipeline"
+   },
+   {
+      "label" : "Widget Primitives Tensor Pipeline",
+      "residency" : "gpu_required",
+      "priority" : "latency_critical",
+      "id" : "widget_primitives_tensor_pipeline",
+      "domain" : "widget_primitives",
+      "passes" : [
+         "widget_primitive_composition_resolve"
+      ]
+   },
+   {
+      "label" : "Graph Materialization Tensor Pipeline",
+      "priority" : "batch_or_promoted",
+      "residency" : "gpu_preferred",
+      "domain" : "graph_materialization",
+      "id" : "graph_materialization_tensor_pipeline",
+      "passes" : [
+         "graph_materialization_plan_resolve"
+      ]
+   },
+   {
+      "id" : "input_action_tensor_pipeline",
+      "domain" : "input",
+      "passes" : [
+         "input_action_map_resolve"
+      ],
+      "label" : "Input Action Tensor Pipeline",
+      "residency" : "gpu_required",
+      "priority" : "latency_critical"
+   },
+   {
+      "residency" : "gpu_required",
+      "priority" : "latency_critical_or_editorial",
+      "label" : "Camera Rig Tensor Pipeline",
+      "passes" : [
+         "camera_rig_packet_resolve"
+      ],
+      "domain" : "camera",
+      "id" : "camera_rig_tensor_pipeline"
+   },
+   {
+      "residency" : "gpu_preferred",
+      "priority" : "background_interactive_or_recovery_critical",
+      "label" : "Cache Runtime Tensor Pipeline",
+      "passes" : [
+         "cache_lineage_stream_resolve"
+      ],
+      "domain" : "cache",
+      "id" : "cache_runtime_tensor_pipeline"
+   },
+   {
+      "passes" : [
+         "scene_object_graph_resolve"
+      ],
+      "id" : "scene_object_tensor_pipeline",
+      "domain" : "scene_objects",
+      "priority" : "interactive_or_batch",
+      "residency" : "gpu_preferred",
+      "label" : "Scene Object Tensor Pipeline"
+   },
+   {
+      "id" : "native_controls_tensor_pipeline",
+      "domain" : "native_controls",
+      "passes" : [
+         "native_control_state_resolve"
+      ],
+      "label" : "Native Controls Tensor Pipeline",
+      "priority" : "latency_critical_or_editorial",
+      "residency" : "gpu_required"
+   },
+   {
+      "id" : "schema_contract_tensor_pipeline",
+      "domain" : "schemas",
+      "passes" : [
+         "schema_contract_index_resolve"
+      ],
+      "label" : "Schema Contract Tensor Pipeline",
+      "priority" : "background_interactive_or_gate_critical",
+      "residency" : "gpu_preferred"
+   },
+   {
+      "label" : "Physics Authoring Tensor Pipeline",
+      "priority" : "realtime_or_baked",
+      "residency" : "gpu_required",
+      "id" : "physics_authoring_tensor_pipeline",
+      "domain" : "physics",
+      "passes" : [
+         "rigid_body_island_resolve"
+      ]
+   },
+   {
+      "label" : "Shader Permutation Tensor Pipeline",
+      "residency" : "gpu_required",
+      "priority" : "interactive_or_batch",
+      "id" : "shader_permutation_tensor_pipeline",
+      "domain" : "shader",
+      "passes" : [
+         "shader_permutation_schedule_resolve"
+      ]
+   },
+   {
+      "passes" : [
+         "resource_residency_resolve"
+      ],
+      "id" : "resource_residency_tensor_pipeline",
+      "domain" : "resources",
+      "priority" : "latency_or_budget_critical",
+      "residency" : "gpu_required",
+      "label" : "Resource Residency Tensor Pipeline"
+   },
+   {
+      "priority" : "interactive_or_preview_critical",
+      "residency" : "gpu_preferred",
+      "label" : "Material Source Tensor Pipeline",
+      "passes" : [
+         "material_source_document_resolve"
+      ],
+      "id" : "material_source_tensor_pipeline",
+      "domain" : "material_source"
+   },
+   {
+      "passes" : [
+         "editor_widget_suite_resolve"
+      ],
+      "id" : "editor_widget_tensor_pipeline",
+      "domain" : "editor_widgets",
+      "priority" : "latency_critical",
+      "residency" : "gpu_required",
+      "label" : "Editor Widget Tensor Pipeline"
+   },
+   {
+      "domain" : "scene_mutation",
+      "id" : "scene_mutation_tensor_pipeline",
+      "passes" : [
+         "scene_mutation_delta_resolve"
+      ],
+      "label" : "Scene Mutation Tensor Pipeline",
+      "priority" : "interactive_or_replay_critical",
+      "residency" : "gpu_preferred"
+   },
+   {
+      "passes" : [
+         "render_delegate_packet_resolve"
+      ],
+      "id" : "render_delegation_tensor_pipeline",
+      "domain" : "render_delegation",
+      "residency" : "gpu_required",
+      "priority" : "latency_critical_or_capture_aware",
+      "label" : "Render Delegation Tensor Pipeline"
+   },
+   {
+      "id" : "resource_reflection_tensor_pipeline",
+      "domain" : "resource_reflection",
+      "passes" : [
+         "resource_reflection_catalog_resolve"
+      ],
+      "label" : "Resource Reflection Tensor Pipeline",
+      "priority" : "background_interactive_or_gate_critical",
+      "residency" : "gpu_preferred"
+   },
+   {
+      "priority" : "gate_critical",
+      "residency" : "gpu_preferred",
+      "label" : "Runtime Compatibility Tensor Pipeline",
+      "passes" : [
+         "runtime_compatibility_resolve"
+      ],
+      "id" : "runtime_compatibility_tensor_pipeline",
+      "domain" : "runtime_compatibility"
+   },
+   {
+      "residency" : "gpu_required",
+      "priority" : "interactive_or_baked",
+      "label" : "Mesh Topology Tensor Pipeline",
+      "passes" : [
+         "mesh_topology_cluster_resolve"
+      ],
+      "id" : "mesh_topology_tensor_pipeline",
+      "domain" : "mesh"
+   },
+   {
+      "label" : "Baking Atlas Tensor Pipeline",
+      "priority" : "batch_or_preview",
+      "residency" : "gpu_required",
+      "id" : "baking_atlas_tensor_pipeline",
+      "domain" : "baking",
+      "passes" : [
+         "bake_atlas_schedule_resolve"
+      ]
+   },
+   {
+      "passes" : [
+         "script_host_schedule_resolve"
+      ],
+      "domain" : "scripting",
+      "id" : "scripting_host_tensor_pipeline",
+      "residency" : "gpu_preferred",
+      "priority" : "interactive_or_automation",
+      "label" : "Scripting Host Tensor Pipeline"
+   },
+   {
+      "passes" : [
+         "agent_behavior_planner_resolve"
+      ],
+      "id" : "ai_agent_planner_tensor_pipeline",
+      "domain" : "ai",
+      "residency" : "gpu_required",
+      "priority" : "realtime_or_job",
+      "label" : "AI Agent Planner Tensor Pipeline"
+   },
+   {
+      "id" : "modding_mount_tensor_pipeline",
+      "domain" : "modding",
+      "passes" : [
+         "mod_package_mount_resolve"
+      ],
+      "label" : "Modding Mount Tensor Pipeline",
+      "priority" : "gate_critical_or_background",
+      "residency" : "gpu_preferred"
+   },
+   {
+      "label" : "Identity Entitlement Tensor Pipeline",
+      "priority" : "gate_critical_or_interactive",
+      "residency" : "gpu_preferred",
+      "domain" : "identity",
+      "id" : "identity_entitlement_tensor_pipeline",
+      "passes" : [
+         "identity_entitlement_resolve"
+      ]
+   },
+   {
+      "domain" : "cloud",
+      "id" : "cloud_burst_tensor_pipeline",
+      "passes" : [
+         "cloud_session_burst_resolve"
+      ],
+      "label" : "Cloud Burst Tensor Pipeline",
+      "residency" : "gpu_preferred",
+      "priority" : "deadline_or_cost_critical"
+   },
+   {
+      "residency" : "gpu_preferred",
+      "priority" : "gate_critical_or_background",
+      "label" : "Marketplace Catalog Tensor Pipeline",
+      "passes" : [
+         "marketplace_catalog_resolve"
+      ],
+      "domain" : "marketplace",
+      "id" : "marketplace_catalog_tensor_pipeline"
+   },
+   {
+      "id" : "dataops_lineage_tensor_pipeline",
+      "domain" : "dataops",
+      "passes" : [
+         "dataops_lineage_resolve"
+      ],
+      "label" : "DataOps Lineage Tensor Pipeline",
+      "priority" : "batch_or_governance_critical",
+      "residency" : "gpu_required"
+   },
+   {
+      "domain" : "fleet",
+      "id" : "fleet_dispatch_tensor_pipeline",
+      "passes" : [
+         "fleet_capacity_dispatch_resolve"
+      ],
+      "label" : "Fleet Dispatch Tensor Pipeline",
+      "priority" : "deadline_critical_or_background",
+      "residency" : "gpu_preferred"
+   },
+   {
+      "domain" : "rigging",
+      "id" : "rigging_control_tensor_pipeline",
+      "passes" : [
+         "control_rig_solve_resolve"
+      ],
+      "label" : "Rigging Control Tensor Pipeline",
+      "residency" : "gpu_required",
+      "priority" : "interactive_or_realtime"
+   },
+   {
+      "passes" : [
+         "deformer_stack_resolve"
+      ],
+      "domain" : "deformation",
+      "id" : "deformation_stack_tensor_pipeline",
+      "residency" : "gpu_required",
+      "priority" : "latency_critical_or_preview",
+      "label" : "Deformation Stack Tensor Pipeline"
+   },
+   {
+      "label" : "Painting Layer Tensor Pipeline",
+      "residency" : "gpu_required",
+      "priority" : "latency_critical",
+      "id" : "painting_layer_tensor_pipeline",
+      "domain" : "painting",
+      "passes" : [
+         "paint_layer_blend_tensor"
+      ]
+   },
+   {
+      "passes" : [
+         "uv_chart_pack_resolve"
+      ],
+      "domain" : "uv",
+      "id" : "uv_layout_tensor_pipeline",
+      "residency" : "gpu_preferred",
+      "priority" : "interactive_or_batch",
+      "label" : "UV Layout Tensor Pipeline"
+   },
+   {
+      "id" : "brush_engine_tensor_pipeline",
+      "domain" : "brush",
+      "passes" : [
+         "brush_dab_accumulate_resolve"
+      ],
+      "label" : "Brush Engine Tensor Pipeline",
+      "priority" : "latency_critical",
+      "residency" : "gpu_required"
+   },
+   {
+      "id" : "color_management_tensor_pipeline",
+      "domain" : "color",
+      "passes" : [
+         "color_pipeline_resolve"
+      ],
+      "label" : "Color Management Tensor Pipeline",
+      "priority" : "interactive_or_review_critical",
+      "residency" : "gpu_preferred"
+   },
+   {
+      "id" : "media_pipeline_tensor_pipeline",
+      "domain" : "media",
+      "passes" : [
+         "media_plate_stream_resolve"
+      ],
+      "label" : "Media Pipeline Tensor Pipeline",
+      "priority" : "latency_or_delivery_critical",
+      "residency" : "gpu_preferred"
+   },
+   {
+      "id" : "narrative_state_tensor_pipeline",
+      "domain" : "narrative",
+      "passes" : [
+         "narrative_state_graph_resolve"
+      ],
+      "label" : "Narrative State Tensor Pipeline",
+      "priority" : "interactive_or_checkpoint_critical",
+      "residency" : "gpu_preferred"
+   },
+   {
+      "id" : "haptics_feedback_tensor_pipeline",
+      "domain" : "haptics",
+      "passes" : [
+         "haptic_feedback_route_resolve"
+      ],
+      "label" : "Haptics Feedback Tensor Pipeline",
+      "priority" : "latency_critical",
+      "residency" : "gpu_required"
+   },
+   {
+      "id" : "updates_channel_tensor_pipeline",
+      "domain" : "updates",
+      "passes" : [
+         "update_channel_manifest_resolve"
+      ],
+      "label" : "Updates Channel Tensor Pipeline",
+      "priority" : "approval_or_background_critical",
+      "residency" : "gpu_preferred"
+   }
+]

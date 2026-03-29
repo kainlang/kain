@@ -47,5 +47,17 @@ fn default_workspaces() -> Array<WorkspaceDescriptor>:
             label: "Publish And Automation",
             focus_surface: "publish_console",
             summary: "Package review, delivery, and recurring automation"
+        },
+        WorkspaceDescriptor {
+            id: "jobs_orchestration",
+            label: "Jobs And Orchestration",
+            focus_surface: "jobs_monitor",
+            summary: "Retry ledgers, queue dispatch, receipts, and launch gating"
+        },
+        WorkspaceDescriptor {
+            id: "runtime_reflection",
+            label: "Runtime Reflection",
+            focus_surface: "report_browser",
+            summary: "Schema catalogs, registry views, and reflected launch metadata"
         }
     ]

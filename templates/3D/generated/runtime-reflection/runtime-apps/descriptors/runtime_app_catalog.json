@@ -1,0 +1,1534 @@
+{
+    "descriptor_document_id":  "runtime_app_catalog_descriptor_document",
+    "descriptor_path":  "generated/runtime-reflection/runtime-apps/descriptors/runtime_app_catalog.json",
+    "descriptor_kind":  "runtime_app_catalog",
+    "descriptor_id":  "runtime_app_catalog",
+    "descriptor_scope":  "runtime_app_host_runtime_output_metadata",
+    "policy":  {
+                   "name":  "runtime_app_policy",
+                   "value":  "runtime_app_host_runtime_output_metadata"
+               },
+    "runtime_links":  {
+                          "tensor_pipeline_id":  "tensor_pipeline_catalog",
+                          "manifest_source":  "manifests/runtime_apps.json",
+                          "source_registry_catalog_id":  "source_registry_catalog"
+                      },
+    "catalog_id":  "runtime_app_catalog",
+    "catalog_scope":  "runtime_app_host_runtime_output_metadata",
+    "tensor_pipeline_id":  "tensor_pipeline_catalog",
+    "manifest_source":  "manifests/runtime_apps.json",
+    "source_registry_catalog":  "source_registry_catalog",
+    "entry_count":  31,
+    "entries":  [
+                    {
+                        "runtime_app_id":  "artifact_orchestration_studio",
+                        "label":  "Artifact Orchestration Studio",
+                        "namespace":  "artifact_orchestration_studio",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "desktop_orchestrator",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/artifact_orchestration_studio/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/artifact_orchestration_studio/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/artifact_orchestration_studio/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/artifact_orchestration_studio/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "asset_pipeline_studio",
+                        "label":  "Asset Pipeline Studio",
+                        "namespace":  "asset_pipeline_studio",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "desktop_tool_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/asset_pipeline_studio/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/asset_pipeline_studio/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/asset_pipeline_studio/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/asset_pipeline_studio/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "asset_registry_console",
+                        "label":  "Asset Registry Console",
+                        "namespace":  "asset_registry_console",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_registry_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/asset_registry_console/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/asset_registry_console/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/asset_registry_console/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/asset_registry_console/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "automation_recipe_tower",
+                        "label":  "Automation Recipe Tower",
+                        "namespace":  "automation_recipe_tower",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "ks_runtime",
+                        "runtime_kind":  "automation_recipe_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/automation_recipe_tower/main.ks"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/automation_recipe_tower/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/automation_recipe_tower/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "character_facial_lab",
+                        "label":  "Character Facial Lab",
+                        "namespace":  "character_facial_lab",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_character_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/character_facial_lab/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/character_facial_lab/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/character_facial_lab/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/character_facial_lab/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "collaboration_review_stage",
+                        "label":  "Collaboration Review Stage",
+                        "namespace":  "collaboration_review_stage",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_review_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/collaboration_review_stage/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/collaboration_review_stage/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/collaboration_review_stage/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/collaboration_review_stage/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "compositor_finishing_studio",
+                        "label":  "Compositor Finishing Studio",
+                        "namespace":  "compositor_finishing_studio",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_finishing_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/compositor_finishing_studio/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/compositor_finishing_studio/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/compositor_finishing_studio/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/compositor_finishing_studio/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "delivery_materializer_tower",
+                        "label":  "Delivery Materializer Tower",
+                        "namespace":  "delivery_materializer_tower",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "ks_runtime",
+                        "runtime_kind":  "delivery_orchestration_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/delivery_materializer_tower/main.ks"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/delivery_materializer_tower/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/delivery_materializer_tower/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "device_control_center",
+                        "label":  "Device Control Center",
+                        "namespace":  "device_control_center",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_device_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/device_control_center/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/device_control_center/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/device_control_center/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/device_control_center/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "fabrication_schedule_tower",
+                        "label":  "Fabrication Schedule Tower",
+                        "namespace":  "fabrication_schedule_tower",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_fabrication_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/fabrication_schedule_tower/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/fabrication_schedule_tower/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/fabrication_schedule_tower/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/fabrication_schedule_tower/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "game_runtime_shell",
+                        "label":  "Game Runtime Shell",
+                        "namespace":  "game_runtime_shell",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "hybrid",
+                        "runtime_kind":  "hybrid_module",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "ts",
+                                               "wasm"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/game_runtime_shell/module.hybrid"
+                                        },
+                                        {
+                                            "target":  "wasm",
+                                            "path":  "generated/runtime/wasm/game_runtime_shell/module.wasm"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/game_runtime_shell/bindings.ts"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "geospatial_twin_studio",
+                        "label":  "Geospatial Twin Studio",
+                        "namespace":  "geospatial_twin_studio",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_geospatial_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/geospatial_twin_studio/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/geospatial_twin_studio/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/geospatial_twin_studio/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/geospatial_twin_studio/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "headless_build_orchestrator",
+                        "label":  "Headless Build Orchestrator",
+                        "namespace":  "headless_build_orchestrator",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "ks_runtime",
+                        "runtime_kind":  "desktop_script",
+                        "output_targets":  [
+                                               "js",
+                                               "ks"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/headless_build_orchestrator/main.ks"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/headless_build_orchestrator/main.js"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "knowledge_ops_console",
+                        "label":  "Knowledge Ops Console",
+                        "namespace":  "knowledge_ops_console",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_knowledge_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/knowledge_ops_console/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/knowledge_ops_console/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/knowledge_ops_console/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/knowledge_ops_console/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "live_sync_control_tower",
+                        "label":  "Live Sync Control Tower",
+                        "namespace":  "live_sync_control_tower",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_sync_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/live_sync_control_tower/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/live_sync_control_tower/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/live_sync_control_tower/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/live_sync_control_tower/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "lookdev_review_stage",
+                        "label":  "Lookdev Review Stage",
+                        "namespace":  "lookdev_review_stage",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_lookdev_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/lookdev_review_stage/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/lookdev_review_stage/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/lookdev_review_stage/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/lookdev_review_stage/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "materialization_control_center",
+                        "label":  "Materialization Control Center",
+                        "namespace":  "materialization_control_center",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_materialization_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/materialization_control_center/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/materialization_control_center/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/materialization_control_center/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/materialization_control_center/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "metrology_inspection_lab",
+                        "label":  "Metrology Inspection Lab",
+                        "namespace":  "metrology_inspection_lab",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_inspection_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/metrology_inspection_lab/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/metrology_inspection_lab/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/metrology_inspection_lab/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/metrology_inspection_lab/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "native_widget_designer",
+                        "label":  "Native Widget Designer",
+                        "namespace":  "native_widget_designer",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_widget_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/native_widget_designer/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/native_widget_designer/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/native_widget_designer/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/native_widget_designer/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "network_replication_console",
+                        "label":  "Network Replication Console",
+                        "namespace":  "network_replication_console",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_network_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/network_replication_console/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/network_replication_console/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/network_replication_console/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/network_replication_console/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "plugin_package_builder",
+                        "label":  "Plugin Package Builder",
+                        "namespace":  "plugin_package_builder",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "desktop_packager",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/plugin_package_builder/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/plugin_package_builder/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/plugin_package_builder/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/plugin_package_builder/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "query_selection_lab",
+                        "label":  "Query Selection Lab",
+                        "namespace":  "query_selection_lab",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_query_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/query_selection_lab/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/query_selection_lab/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/query_selection_lab/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/query_selection_lab/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "release_publisher",
+                        "label":  "Release Publisher",
+                        "namespace":  "release_publisher",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "desktop_publisher",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/release_publisher/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/release_publisher/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/release_publisher/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/release_publisher/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "runtime_bundle_manager",
+                        "label":  "Runtime Bundle Manager",
+                        "namespace":  "runtime_bundle_manager",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_bundle_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/runtime_bundle_manager/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/runtime_bundle_manager/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/runtime_bundle_manager/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/runtime_bundle_manager/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "runtime_reflection_console",
+                        "label":  "Runtime Reflection Console",
+                        "namespace":  "runtime_reflection_console",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_reflection_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/runtime_reflection_console/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/runtime_reflection_console/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/runtime_reflection_console/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/runtime_reflection_console/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "scene_exchange_hub",
+                        "label":  "Scene Exchange Hub",
+                        "namespace":  "scene_exchange_hub",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_exchange_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/scene_exchange_hub/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/scene_exchange_hub/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/scene_exchange_hub/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/scene_exchange_hub/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "scene_semantics_studio",
+                        "label":  "Scene Semantics Studio",
+                        "namespace":  "scene_semantics_studio",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_scene_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/scene_semantics_studio/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/scene_semantics_studio/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/scene_semantics_studio/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/scene_semantics_studio/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "simulation_authoring_lab",
+                        "label":  "Simulation Authoring Lab",
+                        "namespace":  "simulation_authoring_lab",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_solver_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/simulation_authoring_lab/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/simulation_authoring_lab/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/simulation_authoring_lab/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/simulation_authoring_lab/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "universal_3d_workbench",
+                        "label":  "Universal 3D Workbench",
+                        "namespace":  "universal_3d_workbench",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_workbench",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts",
+                                               "wasm"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/universal_3d_workbench/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/universal_3d_workbench/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/universal_3d_workbench/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/universal_3d_workbench/module.hybrid"
+                                        },
+                                        {
+                                            "target":  "wasm",
+                                            "path":  "generated/runtime/wasm/universal_3d_workbench/module.wasm"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "virtual_production_stage",
+                        "label":  "Virtual Production Stage",
+                        "namespace":  "virtual_production_stage",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_stage_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/virtual_production_stage/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/virtual_production_stage/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/virtual_production_stage/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/virtual_production_stage/module.hybrid"
+                                        }
+                                    ]
+                    },
+                    {
+                        "runtime_app_id":  "xr_experience_lab",
+                        "label":  "XR Experience Lab",
+                        "namespace":  "xr_experience_lab",
+                        "source_id":  "universal_3d_workbench_app",
+                        "source_path":  "src-kain/apps/universal_3d_workbench/main.kn",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_xr_suite",
+                        "output_targets":  [
+                                               "hybrid",
+                                               "js",
+                                               "ks",
+                                               "ts"
+                                           ],
+                        "outputs":  [
+                                        {
+                                            "target":  "ks",
+                                            "path":  "generated/runtime/ks/xr_experience_lab/main.ks"
+                                        },
+                                        {
+                                            "target":  "ts",
+                                            "path":  "generated/runtime/ts/xr_experience_lab/main.ts"
+                                        },
+                                        {
+                                            "target":  "js",
+                                            "path":  "generated/runtime/js/xr_experience_lab/main.js"
+                                        },
+                                        {
+                                            "target":  "hybrid",
+                                            "path":  "generated/runtime/hybrid/xr_experience_lab/module.hybrid"
+                                        }
+                                    ]
+                    }
+                ],
+    "indexes":  {
+                    "by_runtime_app_id":  {
+                                              "artifact_orchestration_studio":  [
+                                                                                    "universal_3d_workbench_app"
+                                                                                ],
+                                              "asset_pipeline_studio":  [
+                                                                            "universal_3d_workbench_app"
+                                                                        ],
+                                              "asset_registry_console":  [
+                                                                             "universal_3d_workbench_app"
+                                                                         ],
+                                              "automation_recipe_tower":  [
+                                                                              "universal_3d_workbench_app"
+                                                                          ],
+                                              "character_facial_lab":  [
+                                                                           "universal_3d_workbench_app"
+                                                                       ],
+                                              "collaboration_review_stage":  [
+                                                                                 "universal_3d_workbench_app"
+                                                                             ],
+                                              "compositor_finishing_studio":  [
+                                                                                  "universal_3d_workbench_app"
+                                                                              ],
+                                              "delivery_materializer_tower":  [
+                                                                                  "universal_3d_workbench_app"
+                                                                              ],
+                                              "device_control_center":  [
+                                                                            "universal_3d_workbench_app"
+                                                                        ],
+                                              "fabrication_schedule_tower":  [
+                                                                                 "universal_3d_workbench_app"
+                                                                             ],
+                                              "game_runtime_shell":  [
+                                                                         "universal_3d_workbench_app"
+                                                                     ],
+                                              "geospatial_twin_studio":  [
+                                                                             "universal_3d_workbench_app"
+                                                                         ],
+                                              "headless_build_orchestrator":  [
+                                                                                  "universal_3d_workbench_app"
+                                                                              ],
+                                              "knowledge_ops_console":  [
+                                                                            "universal_3d_workbench_app"
+                                                                        ],
+                                              "live_sync_control_tower":  [
+                                                                              "universal_3d_workbench_app"
+                                                                          ],
+                                              "lookdev_review_stage":  [
+                                                                           "universal_3d_workbench_app"
+                                                                       ],
+                                              "materialization_control_center":  [
+                                                                                     "universal_3d_workbench_app"
+                                                                                 ],
+                                              "metrology_inspection_lab":  [
+                                                                               "universal_3d_workbench_app"
+                                                                           ],
+                                              "native_widget_designer":  [
+                                                                             "universal_3d_workbench_app"
+                                                                         ],
+                                              "network_replication_console":  [
+                                                                                  "universal_3d_workbench_app"
+                                                                              ],
+                                              "plugin_package_builder":  [
+                                                                             "universal_3d_workbench_app"
+                                                                         ],
+                                              "query_selection_lab":  [
+                                                                          "universal_3d_workbench_app"
+                                                                      ],
+                                              "release_publisher":  [
+                                                                        "universal_3d_workbench_app"
+                                                                    ],
+                                              "runtime_bundle_manager":  [
+                                                                             "universal_3d_workbench_app"
+                                                                         ],
+                                              "runtime_reflection_console":  [
+                                                                                 "universal_3d_workbench_app"
+                                                                             ],
+                                              "scene_exchange_hub":  [
+                                                                         "universal_3d_workbench_app"
+                                                                     ],
+                                              "scene_semantics_studio":  [
+                                                                             "universal_3d_workbench_app"
+                                                                         ],
+                                              "simulation_authoring_lab":  [
+                                                                               "universal_3d_workbench_app"
+                                                                           ],
+                                              "universal_3d_workbench":  [
+                                                                             "universal_3d_workbench_app"
+                                                                         ],
+                                              "virtual_production_stage":  [
+                                                                               "universal_3d_workbench_app"
+                                                                           ],
+                                              "xr_experience_lab":  [
+                                                                        "universal_3d_workbench_app"
+                                                                    ]
+                                          },
+                    "by_source_id":  {
+                                         "universal_3d_workbench_app":  [
+                                                                            "artifact_orchestration_studio",
+                                                                            "asset_pipeline_studio",
+                                                                            "asset_registry_console",
+                                                                            "automation_recipe_tower",
+                                                                            "character_facial_lab",
+                                                                            "collaboration_review_stage",
+                                                                            "compositor_finishing_studio",
+                                                                            "delivery_materializer_tower",
+                                                                            "device_control_center",
+                                                                            "fabrication_schedule_tower",
+                                                                            "game_runtime_shell",
+                                                                            "geospatial_twin_studio",
+                                                                            "headless_build_orchestrator",
+                                                                            "knowledge_ops_console",
+                                                                            "live_sync_control_tower",
+                                                                            "lookdev_review_stage",
+                                                                            "materialization_control_center",
+                                                                            "metrology_inspection_lab",
+                                                                            "native_widget_designer",
+                                                                            "network_replication_console",
+                                                                            "plugin_package_builder",
+                                                                            "query_selection_lab",
+                                                                            "release_publisher",
+                                                                            "runtime_bundle_manager",
+                                                                            "runtime_reflection_console",
+                                                                            "scene_exchange_hub",
+                                                                            "scene_semantics_studio",
+                                                                            "simulation_authoring_lab",
+                                                                            "universal_3d_workbench",
+                                                                            "virtual_production_stage",
+                                                                            "xr_experience_lab"
+                                                                        ]
+                                     },
+                    "by_namespace":  {
+                                         "artifact_orchestration_studio":  [
+                                                                               "artifact_orchestration_studio"
+                                                                           ],
+                                         "asset_pipeline_studio":  [
+                                                                       "asset_pipeline_studio"
+                                                                   ],
+                                         "asset_registry_console":  [
+                                                                        "asset_registry_console"
+                                                                    ],
+                                         "automation_recipe_tower":  [
+                                                                         "automation_recipe_tower"
+                                                                     ],
+                                         "character_facial_lab":  [
+                                                                      "character_facial_lab"
+                                                                  ],
+                                         "collaboration_review_stage":  [
+                                                                            "collaboration_review_stage"
+                                                                        ],
+                                         "compositor_finishing_studio":  [
+                                                                             "compositor_finishing_studio"
+                                                                         ],
+                                         "delivery_materializer_tower":  [
+                                                                             "delivery_materializer_tower"
+                                                                         ],
+                                         "device_control_center":  [
+                                                                       "device_control_center"
+                                                                   ],
+                                         "fabrication_schedule_tower":  [
+                                                                            "fabrication_schedule_tower"
+                                                                        ],
+                                         "game_runtime_shell":  [
+                                                                    "game_runtime_shell"
+                                                                ],
+                                         "geospatial_twin_studio":  [
+                                                                        "geospatial_twin_studio"
+                                                                    ],
+                                         "headless_build_orchestrator":  [
+                                                                             "headless_build_orchestrator"
+                                                                         ],
+                                         "knowledge_ops_console":  [
+                                                                       "knowledge_ops_console"
+                                                                   ],
+                                         "live_sync_control_tower":  [
+                                                                         "live_sync_control_tower"
+                                                                     ],
+                                         "lookdev_review_stage":  [
+                                                                      "lookdev_review_stage"
+                                                                  ],
+                                         "materialization_control_center":  [
+                                                                                "materialization_control_center"
+                                                                            ],
+                                         "metrology_inspection_lab":  [
+                                                                          "metrology_inspection_lab"
+                                                                      ],
+                                         "native_widget_designer":  [
+                                                                        "native_widget_designer"
+                                                                    ],
+                                         "network_replication_console":  [
+                                                                             "network_replication_console"
+                                                                         ],
+                                         "plugin_package_builder":  [
+                                                                        "plugin_package_builder"
+                                                                    ],
+                                         "query_selection_lab":  [
+                                                                     "query_selection_lab"
+                                                                 ],
+                                         "release_publisher":  [
+                                                                   "release_publisher"
+                                                               ],
+                                         "runtime_bundle_manager":  [
+                                                                        "runtime_bundle_manager"
+                                                                    ],
+                                         "runtime_reflection_console":  [
+                                                                            "runtime_reflection_console"
+                                                                        ],
+                                         "scene_exchange_hub":  [
+                                                                    "scene_exchange_hub"
+                                                                ],
+                                         "scene_semantics_studio":  [
+                                                                        "scene_semantics_studio"
+                                                                    ],
+                                         "simulation_authoring_lab":  [
+                                                                          "simulation_authoring_lab"
+                                                                      ],
+                                         "universal_3d_workbench":  [
+                                                                        "universal_3d_workbench"
+                                                                    ],
+                                         "virtual_production_stage":  [
+                                                                          "virtual_production_stage"
+                                                                      ],
+                                         "xr_experience_lab":  [
+                                                                   "xr_experience_lab"
+                                                               ]
+                                     },
+                    "by_host_kind":  {
+                                         "hybrid":  [
+                                                        "game_runtime_shell"
+                                                    ],
+                                         "ks_runtime":  [
+                                                            "automation_recipe_tower",
+                                                            "delivery_materializer_tower",
+                                                            "headless_build_orchestrator"
+                                                        ],
+                                         "native_ui":  [
+                                                           "artifact_orchestration_studio",
+                                                           "asset_pipeline_studio",
+                                                           "asset_registry_console",
+                                                           "character_facial_lab",
+                                                           "collaboration_review_stage",
+                                                           "compositor_finishing_studio",
+                                                           "device_control_center",
+                                                           "fabrication_schedule_tower",
+                                                           "geospatial_twin_studio",
+                                                           "knowledge_ops_console",
+                                                           "live_sync_control_tower",
+                                                           "lookdev_review_stage",
+                                                           "materialization_control_center",
+                                                           "metrology_inspection_lab",
+                                                           "native_widget_designer",
+                                                           "network_replication_console",
+                                                           "plugin_package_builder",
+                                                           "query_selection_lab",
+                                                           "release_publisher",
+                                                           "runtime_bundle_manager",
+                                                           "runtime_reflection_console",
+                                                           "scene_exchange_hub",
+                                                           "scene_semantics_studio",
+                                                           "simulation_authoring_lab",
+                                                           "universal_3d_workbench",
+                                                           "virtual_production_stage",
+                                                           "xr_experience_lab"
+                                                       ]
+                                     },
+                    "by_runtime_kind":  {
+                                            "automation_recipe_suite":  [
+                                                                            "automation_recipe_tower"
+                                                                        ],
+                                            "delivery_orchestration_suite":  [
+                                                                                 "delivery_materializer_tower"
+                                                                             ],
+                                            "desktop_orchestrator":  [
+                                                                         "artifact_orchestration_studio"
+                                                                     ],
+                                            "desktop_packager":  [
+                                                                     "plugin_package_builder"
+                                                                 ],
+                                            "desktop_publisher":  [
+                                                                      "release_publisher"
+                                                                  ],
+                                            "desktop_script":  [
+                                                                   "headless_build_orchestrator"
+                                                               ],
+                                            "desktop_tool_suite":  [
+                                                                       "asset_pipeline_studio"
+                                                                   ],
+                                            "hybrid_module":  [
+                                                                  "game_runtime_shell"
+                                                              ],
+                                            "native_bundle_suite":  [
+                                                                        "runtime_bundle_manager"
+                                                                    ],
+                                            "native_character_suite":  [
+                                                                           "character_facial_lab"
+                                                                       ],
+                                            "native_device_suite":  [
+                                                                        "device_control_center"
+                                                                    ],
+                                            "native_exchange_suite":  [
+                                                                          "scene_exchange_hub"
+                                                                      ],
+                                            "native_fabrication_suite":  [
+                                                                             "fabrication_schedule_tower"
+                                                                         ],
+                                            "native_finishing_suite":  [
+                                                                           "compositor_finishing_studio"
+                                                                       ],
+                                            "native_geospatial_suite":  [
+                                                                            "geospatial_twin_studio"
+                                                                        ],
+                                            "native_inspection_suite":  [
+                                                                            "metrology_inspection_lab"
+                                                                        ],
+                                            "native_knowledge_suite":  [
+                                                                           "knowledge_ops_console"
+                                                                       ],
+                                            "native_lookdev_suite":  [
+                                                                         "lookdev_review_stage"
+                                                                     ],
+                                            "native_materialization_suite":  [
+                                                                                 "materialization_control_center"
+                                                                             ],
+                                            "native_network_suite":  [
+                                                                         "network_replication_console"
+                                                                     ],
+                                            "native_query_suite":  [
+                                                                       "query_selection_lab"
+                                                                   ],
+                                            "native_reflection_suite":  [
+                                                                            "runtime_reflection_console"
+                                                                        ],
+                                            "native_registry_suite":  [
+                                                                          "asset_registry_console"
+                                                                      ],
+                                            "native_review_suite":  [
+                                                                        "collaboration_review_stage"
+                                                                    ],
+                                            "native_scene_suite":  [
+                                                                       "scene_semantics_studio"
+                                                                   ],
+                                            "native_solver_suite":  [
+                                                                        "simulation_authoring_lab"
+                                                                    ],
+                                            "native_stage_suite":  [
+                                                                       "virtual_production_stage"
+                                                                   ],
+                                            "native_sync_suite":  [
+                                                                      "live_sync_control_tower"
+                                                                  ],
+                                            "native_widget_suite":  [
+                                                                        "native_widget_designer"
+                                                                    ],
+                                            "native_workbench":  [
+                                                                     "universal_3d_workbench"
+                                                                 ],
+                                            "native_xr_suite":  [
+                                                                    "xr_experience_lab"
+                                                                ]
+                                        },
+                    "by_output_target":  {
+                                             "hybrid":  [
+                                                            "artifact_orchestration_studio",
+                                                            "asset_pipeline_studio",
+                                                            "asset_registry_console",
+                                                            "automation_recipe_tower",
+                                                            "character_facial_lab",
+                                                            "collaboration_review_stage",
+                                                            "compositor_finishing_studio",
+                                                            "delivery_materializer_tower",
+                                                            "device_control_center",
+                                                            "fabrication_schedule_tower",
+                                                            "game_runtime_shell",
+                                                            "geospatial_twin_studio",
+                                                            "knowledge_ops_console",
+                                                            "live_sync_control_tower",
+                                                            "lookdev_review_stage",
+                                                            "materialization_control_center",
+                                                            "metrology_inspection_lab",
+                                                            "native_widget_designer",
+                                                            "network_replication_console",
+                                                            "plugin_package_builder",
+                                                            "query_selection_lab",
+                                                            "release_publisher",
+                                                            "runtime_bundle_manager",
+                                                            "runtime_reflection_console",
+                                                            "scene_exchange_hub",
+                                                            "scene_semantics_studio",
+                                                            "simulation_authoring_lab",
+                                                            "universal_3d_workbench",
+                                                            "virtual_production_stage",
+                                                            "xr_experience_lab"
+                                                        ],
+                                             "js":  [
+                                                        "artifact_orchestration_studio",
+                                                        "asset_pipeline_studio",
+                                                        "asset_registry_console",
+                                                        "automation_recipe_tower",
+                                                        "character_facial_lab",
+                                                        "collaboration_review_stage",
+                                                        "compositor_finishing_studio",
+                                                        "delivery_materializer_tower",
+                                                        "device_control_center",
+                                                        "fabrication_schedule_tower",
+                                                        "geospatial_twin_studio",
+                                                        "headless_build_orchestrator",
+                                                        "knowledge_ops_console",
+                                                        "live_sync_control_tower",
+                                                        "lookdev_review_stage",
+                                                        "materialization_control_center",
+                                                        "metrology_inspection_lab",
+                                                        "native_widget_designer",
+                                                        "network_replication_console",
+                                                        "plugin_package_builder",
+                                                        "query_selection_lab",
+                                                        "release_publisher",
+                                                        "runtime_bundle_manager",
+                                                        "runtime_reflection_console",
+                                                        "scene_exchange_hub",
+                                                        "scene_semantics_studio",
+                                                        "simulation_authoring_lab",
+                                                        "universal_3d_workbench",
+                                                        "virtual_production_stage",
+                                                        "xr_experience_lab"
+                                                    ],
+                                             "ks":  [
+                                                        "artifact_orchestration_studio",
+                                                        "asset_pipeline_studio",
+                                                        "asset_registry_console",
+                                                        "automation_recipe_tower",
+                                                        "character_facial_lab",
+                                                        "collaboration_review_stage",
+                                                        "compositor_finishing_studio",
+                                                        "delivery_materializer_tower",
+                                                        "device_control_center",
+                                                        "fabrication_schedule_tower",
+                                                        "geospatial_twin_studio",
+                                                        "headless_build_orchestrator",
+                                                        "knowledge_ops_console",
+                                                        "live_sync_control_tower",
+                                                        "lookdev_review_stage",
+                                                        "materialization_control_center",
+                                                        "metrology_inspection_lab",
+                                                        "native_widget_designer",
+                                                        "network_replication_console",
+                                                        "plugin_package_builder",
+                                                        "query_selection_lab",
+                                                        "release_publisher",
+                                                        "runtime_bundle_manager",
+                                                        "runtime_reflection_console",
+                                                        "scene_exchange_hub",
+                                                        "scene_semantics_studio",
+                                                        "simulation_authoring_lab",
+                                                        "universal_3d_workbench",
+                                                        "virtual_production_stage",
+                                                        "xr_experience_lab"
+                                                    ],
+                                             "ts":  [
+                                                        "artifact_orchestration_studio",
+                                                        "asset_pipeline_studio",
+                                                        "asset_registry_console",
+                                                        "character_facial_lab",
+                                                        "collaboration_review_stage",
+                                                        "compositor_finishing_studio",
+                                                        "device_control_center",
+                                                        "fabrication_schedule_tower",
+                                                        "game_runtime_shell",
+                                                        "geospatial_twin_studio",
+                                                        "knowledge_ops_console",
+                                                        "live_sync_control_tower",
+                                                        "lookdev_review_stage",
+                                                        "materialization_control_center",
+                                                        "metrology_inspection_lab",
+                                                        "native_widget_designer",
+                                                        "network_replication_console",
+                                                        "plugin_package_builder",
+                                                        "query_selection_lab",
+                                                        "release_publisher",
+                                                        "runtime_bundle_manager",
+                                                        "runtime_reflection_console",
+                                                        "scene_exchange_hub",
+                                                        "scene_semantics_studio",
+                                                        "simulation_authoring_lab",
+                                                        "universal_3d_workbench",
+                                                        "virtual_production_stage",
+                                                        "xr_experience_lab"
+                                                    ],
+                                             "wasm":  [
+                                                          "game_runtime_shell",
+                                                          "universal_3d_workbench"
+                                                      ]
+                                         }
+                },
+    "artifact_roots":  [
+                           "generated/runtime-reflection/runtime-apps",
+                           "generated/runtime-reflection/runtime-apps/descriptors"
+                       ],
+    "reflection_catalogs":  [
+                                "source_registry_catalog",
+                                "launch_profile_catalog",
+                                "workspace_preset_catalog"
+                            ],
+    "descriptor_count":  1,
+    "descriptor_root":  "generated/runtime-reflection/runtime-apps/descriptors",
+    "descriptor_paths":  [
+                             "generated/runtime-reflection/runtime-apps/descriptors/runtime_app_catalog.json"
+                         ]
+}

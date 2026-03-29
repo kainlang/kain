@@ -1,0 +1,17 @@
+// SPIR-V cloth constraint solver seed.
+
+shader compute cloth_constraint_solver(id: UVec3) -> Vec4:
+    uniform cloth_particles: StorageBuffer<Vec4> @0
+    uniform cloth_constraints: StorageBuffer<Vec4> @1
+    uniform next_cloth_particles: StorageBuffer<Vec4> @2
+    let particle_index = id.x
+    let particle = cloth_particles[particle_index]
+    let constraint = cloth_constraints[particle_index]
+    let output = vec4(
+        particle.x + constraint.x,
+        particle.y + constraint.y,
+        particle.z + constraint.z,
+        particle.w
+    )
+    next_cloth_particles[particle_index] = output
+    return output

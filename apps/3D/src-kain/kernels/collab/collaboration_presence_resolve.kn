@@ -1,0 +1,19 @@
+// SPIR-V collaboration presence resolution seed.
+
+shader compute collaboration_presence_resolve(id: UVec3) -> Vec4:
+    uniform peer_cursor_state: StorageBuffer<Vec4> @0
+    uniform peer_selection_state: StorageBuffer<Vec4> @1
+    uniform session_latency_state: StorageBuffer<Vec4> @2
+    uniform resolved_presence: StorageBuffer<Vec4> @3
+    let peer_index = id.x
+    let cursor = peer_cursor_state[peer_index]
+    let selection = peer_selection_state[peer_index]
+    let latency = session_latency_state[peer_index]
+    let output = vec4(
+        cursor.x + selection.x,
+        cursor.y + latency.y,
+        selection.z + latency.z,
+        1.0
+    )
+    resolved_presence[peer_index] = output
+    return output

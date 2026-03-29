@@ -24,6 +24,12 @@
 - `scripts/materialize-shell.ps1` and `config/ui_shell.json` now expose that summary as a first-class chrome metric, which makes the Kain / Fabric / Python / GPU / C ABI / Rust / Node ownership split visible in the shell instead of only in docs.
 - The runtime-lane summary currently reads `kain | fabric | python | gpu_compute | c_abi | rust_crate | node_bridge`; if that registry ever changes, the shell should stay driven by the registry instead of hand-edited prose.
 
+## 2026-03-29 - DCC Shell Fuel Pulled From `apps/3D`
+
+- Reviewed `M:/Code/Kain/apps/3D` for reusable shell/workbench material and found the strongest carry-over candidates in `manifests/ui_surfaces.json`, `manifests/workspace_presets.json`, `manifests/runtime_apps.json`, `manifests/sources.json`, and the `src-kain/stdlib/three_d_runtime/*.kn` catalog.
+- The most useful shell patterns were the explicit workspace navigator, command spotlight, status strip, report browser, and jobs monitor framing, plus the DCC-style notion that the shell should keep the active lane obvious and maintain a clear return path.
+- Made a small shell reinforcement in `config/ui_shell.json` so the system rack and operator notes now call out lane visibility, report visibility, and workbench return-path clarity more directly.
+
 ## 2026-03-29 - Pathtrace Preview Lane Now Has Its Own Projection
 
 - Added `fabric/intents/render_pathtrace.fabric.toml`, `shaders/pathtrace_preview_lighting.kn`, and `src/pathtrace_preview_projection.kn` so the render preview lane now has a dedicated path-traced branch instead of borrowing generic preview semantics.

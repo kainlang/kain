@@ -1,0 +1,6 @@
+// Native widget primitive composition seed for dock atoms, overlays, tool chrome, and source-bound widget bindings.
+
+kernel widget_primitive_composition_resolve:
+    stage = "widget_primitive_composition"
+    domain = "widget_primitives"
+    intent = "Resolve widget primitives, source-level bindings, overlay chrome, and modal-safe dock composition."

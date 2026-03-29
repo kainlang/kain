@@ -1,0 +1,29 @@
+// Simulation contracts for cloth, particles, fluids, fields, and destructive workflows.
+
+struct SimulationDomainDescriptor:
+    domain_id: String
+    solver_kind: String
+    tensor_pipeline_id: String
+    update_policy: String
+
+struct SimulationRuntimeProfile:
+    cloth: SimulationDomainDescriptor
+    particles: SimulationDomainDescriptor
+    fluids: SimulationDomainDescriptor
+    destruction: SimulationDomainDescriptor
+
+fn default_simulation_domain(domain_id: String, solver_kind: String, tensor_pipeline_id: String) -> SimulationDomainDescriptor with Pure:
+    let descriptor = SimulationDomainDescriptor()
+    descriptor.domain_id = domain_id
+    descriptor.solver_kind = solver_kind
+    descriptor.tensor_pipeline_id = tensor_pipeline_id
+    descriptor.update_policy = "interactive_or_baked"
+    descriptor
+
+fn default_simulation_runtime_profile() -> SimulationRuntimeProfile with Pure:
+    let profile = SimulationRuntimeProfile()
+    profile.cloth = default_simulation_domain("cloth", "constraints", "cloth_live_tensor_pipeline")
+    profile.particles = default_simulation_domain("particles", "advection", "particle_fx_tensor_pipeline")
+    profile.fluids = default_simulation_domain("fluids", "pressure_project", "fluid_solver_tensor_pipeline")
+    profile.destruction = default_simulation_domain("destruction", "fracture_and_fields", "")
+    profile

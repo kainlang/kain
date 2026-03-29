@@ -1,0 +1,47 @@
+// Compositor, sequence, and finishing contracts for realtime and offline 3D presentation.
+
+struct CompositorStackDescriptor:
+    stack_id: String
+    stack_kind: String
+    tensor_pipeline_id: String
+    output_policy: String
+
+struct SequenceTimelineDescriptor:
+    timeline_id: String
+    clip_binding: String
+    playback_policy: String
+
+struct ColorFinishingDescriptor:
+    finishing_id: String
+    color_policy: String
+    delivery_profile: String
+
+struct CompositorRuntimeProfile:
+    realtime_compositor: CompositorStackDescriptor
+    offline_compositor: CompositorStackDescriptor
+    sequence_timeline: SequenceTimelineDescriptor
+    color_finishing: ColorFinishingDescriptor
+
+fn default_compositor_stack(stack_id: String, stack_kind: String, output_policy: String) -> CompositorStackDescriptor with Pure:
+    let descriptor = CompositorStackDescriptor()
+    descriptor.stack_id = stack_id
+    descriptor.stack_kind = stack_kind
+    descriptor.tensor_pipeline_id = "compositor_finishing_tensor_pipeline"
+    descriptor.output_policy = output_policy
+    descriptor
+
+fn default_compositor_runtime_profile() -> CompositorRuntimeProfile with Pure:
+    let profile = CompositorRuntimeProfile()
+    profile.realtime_compositor = default_compositor_stack("realtime_compositor", "viewport_finishing_stack", "interactive_review_and_capture")
+    profile.offline_compositor = default_compositor_stack("offline_compositor", "sequence_finishing_stack", "frame_sequence_and_delivery")
+
+    profile.sequence_timeline = SequenceTimelineDescriptor()
+    profile.sequence_timeline.timeline_id = "sequence_timeline"
+    profile.sequence_timeline.clip_binding = "review_and_editor_timeline"
+    profile.sequence_timeline.playback_policy = "frame_accurate"
+
+    profile.color_finishing = ColorFinishingDescriptor()
+    profile.color_finishing.finishing_id = "color_finishing"
+    profile.color_finishing.color_policy = "display_referred_and_scene_referred"
+    profile.color_finishing.delivery_profile = "review_drop_or_release_master"
+    profile

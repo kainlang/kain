@@ -1,0 +1,12 @@
+// SPIR-V viewport composite pass seed.
+
+shader compute viewport_composite_tensor(id: UVec3) -> Vec4:
+    uniform hdr_color: StorageBuffer<Vec4> @0
+    uniform ui_overlay: StorageBuffer<Vec4> @1
+    uniform present_color: StorageBuffer<Vec4> @2
+    let pixel_index = id.y * 4096 + id.x
+    let base = hdr_color[pixel_index]
+    let overlay = ui_overlay[pixel_index]
+    let output = vec4(base.x + overlay.x, base.y + overlay.y, base.z + overlay.z, 1.0)
+    present_color[pixel_index] = output
+    return output

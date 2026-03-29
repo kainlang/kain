@@ -1,0 +1,40 @@
+// UV charting, UDIM layout, seam policy, texel density, and bake/exchange-safe packing contracts.
+
+struct UVChartDescriptor:
+    chart_id: String
+    chart_scope: String
+    seam_policy: String
+
+struct UVPackingDescriptor:
+    packing_id: String
+    packing_kind: String
+    tensor_pipeline_id: String
+
+struct TexelDensityDescriptor:
+    density_id: String
+    density_policy: String
+    validation_scope: String
+
+struct UVRuntimeProfile:
+    chart_runtime: UVChartDescriptor
+    packing_runtime: UVPackingDescriptor
+    texel_density_runtime: TexelDensityDescriptor
+
+fn default_uv_runtime_profile() -> UVRuntimeProfile with Pure:
+    let profile = UVRuntimeProfile()
+
+    profile.chart_runtime = UVChartDescriptor()
+    profile.chart_runtime.chart_id = "uv_chart_runtime"
+    profile.chart_runtime.chart_scope = "mesh_subd_cad_scan_and_runtime_bundle_surfaces"
+    profile.chart_runtime.seam_policy = "deformation_bake_exchange_and_material_source_safe"
+
+    profile.packing_runtime = UVPackingDescriptor()
+    profile.packing_runtime.packing_id = "uv_packing_runtime"
+    profile.packing_runtime.packing_kind = "udim_tile_island_rotation_margin_and_priority_packing"
+    profile.packing_runtime.tensor_pipeline_id = "uv_layout_tensor_pipeline"
+
+    profile.texel_density_runtime = TexelDensityDescriptor()
+    profile.texel_density_runtime.density_id = "texel_density_runtime"
+    profile.texel_density_runtime.density_policy = "viewport_paint_bake_and_delivery_consistent"
+    profile.texel_density_runtime.validation_scope = "selection_asset_registry_and_bundle_receipt_visible"
+    profile

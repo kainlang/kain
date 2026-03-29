@@ -91,15 +91,45 @@ fn default_reports() -> Array<ReportDescriptor>:
             summary: "Tensor training readiness report"
         },
         ReportDescriptor {
+            id: "tensor_training_corpus_report",
+            report_uri: "report://tensor/training-corpus",
+            producer_step: "python_suite_bootstrap",
+            summary: "Tensor corpus and dataset lineage report"
+        },
+        ReportDescriptor {
             id: "tensor_inference_report",
             report_uri: "report://tensor/inference",
             producer_step: "tensor_infer_stage",
             summary: "Tensor inference readiness report"
         },
         ReportDescriptor {
+            id: "tensor_checkpoint_report",
+            report_uri: "report://tensor/checkpoint",
+            producer_step: "tensor_train_stage",
+            summary: "Tensor checkpoint projection report"
+        },
+        ReportDescriptor {
             id: "publish_summary",
             report_uri: "artifact://publish/summary",
             producer_step: "publish_suite_report",
             summary: "Publish summary report"
+        },
+        ReportDescriptor {
+            id: "jobs_receipt_report",
+            report_uri: "report://jobs/receipts",
+            producer_step: "job_receipt_materialize",
+            summary: "Jobs receipts, retry ledgers, and promotion handoff report"
+        },
+        ReportDescriptor {
+            id: "launch_manifest_report",
+            report_uri: "report://workspace/launch-manifest",
+            producer_step: "workspace_launch_materialize",
+            summary: "Workspace launch manifest and bundle routing report"
+        },
+        ReportDescriptor {
+            id: "runtime_reflection_report",
+            report_uri: "report://runtime/reflection",
+            producer_step: "runtime_reflection_index",
+            summary: "Runtime reflection catalog and registry surface report"
         }
     ]

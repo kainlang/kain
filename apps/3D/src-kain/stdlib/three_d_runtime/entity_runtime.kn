@@ -1,0 +1,42 @@
+// Entity, component, archetype, and scene-mutation contracts for authored 3D runtime state.
+
+struct EntityDescriptor:
+    entity_id: String
+    entity_kind: String
+    composition_policy: String
+    mutation_policy: String
+
+struct ComponentSchemaDescriptor:
+    schema_id: String
+    schema_scope: String
+    reflection_policy: String
+
+struct ArchetypeDescriptor:
+    archetype_id: String
+    spawn_policy: String
+    residency_policy: String
+
+struct EntityRuntimeProfile:
+    root_entity: EntityDescriptor
+    component_schema: ComponentSchemaDescriptor
+    runtime_archetype: ArchetypeDescriptor
+
+fn default_entity_runtime_profile() -> EntityRuntimeProfile with Pure:
+    let profile = EntityRuntimeProfile()
+
+    profile.root_entity = EntityDescriptor()
+    profile.root_entity.entity_id = "scene_root_entity"
+    profile.root_entity.entity_kind = "authorable_scene_runtime_entity"
+    profile.root_entity.composition_policy = "scene_bundle_prefab_and_graph_composed"
+    profile.root_entity.mutation_policy = "command_transaction_and_authority_bound"
+
+    profile.component_schema = ComponentSchemaDescriptor()
+    profile.component_schema.schema_id = "entity_component_schema"
+    profile.component_schema.schema_scope = "render_scene_simulation_ui_and_delivery"
+    profile.component_schema.reflection_policy = "runtime_reflection_and_widget_binding_exported"
+
+    profile.runtime_archetype = ArchetypeDescriptor()
+    profile.runtime_archetype.archetype_id = "universal_runtime_archetype"
+    profile.runtime_archetype.spawn_policy = "authored_prefab_or_runtime_materialized"
+    profile.runtime_archetype.residency_policy = "streaming_capable_and_checkpoint_aware"
+    profile

@@ -1,0 +1,19 @@
+// SPIR-V procedural field scatter seed.
+
+shader compute procedural_field_scatter(id: UVec3) -> Vec4:
+    uniform source_points: StorageBuffer<Vec4> @0
+    uniform density_field: StorageBuffer<Vec4> @1
+    uniform surface_frames: StorageBuffer<Vec4> @2
+    uniform scattered_instances: StorageBuffer<Vec4> @3
+    let point_index = id.x
+    let point = source_points[point_index]
+    let density = density_field[point_index]
+    let frame = surface_frames[point_index]
+    let output = vec4(
+        point.x + frame.x * density.x,
+        point.y + frame.y * density.x,
+        point.z + frame.z * density.x,
+        1.0
+    )
+    scattered_instances[point_index] = output
+    return output

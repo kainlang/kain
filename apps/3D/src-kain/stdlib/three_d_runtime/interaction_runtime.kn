@@ -1,0 +1,40 @@
+// Input routing, gizmos, tools, shortcuts, and interaction-context contracts.
+
+struct InputRoutingDescriptor:
+    routing_id: String
+    device_scope: String
+    authority_policy: String
+
+struct GizmoDescriptor:
+    gizmo_id: String
+    gizmo_kind: String
+    binding_policy: String
+
+struct ToolContextDescriptor:
+    context_id: String
+    command_policy: String
+    undo_policy: String
+
+struct InteractionRuntimeProfile:
+    input_routing: InputRoutingDescriptor
+    gizmo: GizmoDescriptor
+    tool_context: ToolContextDescriptor
+
+fn default_interaction_runtime_profile() -> InteractionRuntimeProfile with Pure:
+    let profile = InteractionRuntimeProfile()
+
+    profile.input_routing = InputRoutingDescriptor()
+    profile.input_routing.routing_id = "interaction_input_router"
+    profile.input_routing.device_scope = "mouse_pen_touch_keyboard_controller_tracker_and_haptics"
+    profile.input_routing.authority_policy = "viewport_focus_tool_mode_and_session_authority_gated"
+
+    profile.gizmo = GizmoDescriptor()
+    profile.gizmo.gizmo_id = "tool_gizmo_runtime"
+    profile.gizmo.gizmo_kind = "transform_sculpt_rig_measure_and_stage_gizmo_stack"
+    profile.gizmo.binding_policy = "scene_selection_and_tool_context_bound"
+
+    profile.tool_context = ToolContextDescriptor()
+    profile.tool_context.context_id = "interactive_tool_context"
+    profile.tool_context.command_policy = "mode_shortcut_macro_and_command_palette_linked"
+    profile.tool_context.undo_policy = "transactional_delta_and_checkpoint_aware"
+    profile

@@ -1,0 +1,40 @@
+// Haptics contracts for stylus, controller, XR, and machine-feedback routes across editor and runtime surfaces.
+
+struct HapticDeviceDescriptor:
+    device_id: String
+    device_scope: String
+    authority_policy: String
+
+struct HapticFeedbackDescriptor:
+    feedback_id: String
+    feedback_kind: String
+    routing_policy: String
+
+struct ForceProfileDescriptor:
+    profile_id: String
+    profile_scope: String
+    safety_policy: String
+
+struct HapticsRuntimeProfile:
+    device_runtime: HapticDeviceDescriptor
+    feedback_runtime: HapticFeedbackDescriptor
+    force_profile_runtime: ForceProfileDescriptor
+
+fn default_haptics_runtime_profile() -> HapticsRuntimeProfile with Pure:
+    let profile = HapticsRuntimeProfile()
+
+    profile.device_runtime = HapticDeviceDescriptor()
+    profile.device_runtime.device_id = "haptic_device_runtime"
+    profile.device_runtime.device_scope = "stylus_controller_xr_glove_surface_and_machine_feedback_devices"
+    profile.device_runtime.authority_policy = "device_runtime_identity_and_session_safe"
+
+    profile.feedback_runtime = HapticFeedbackDescriptor()
+    profile.feedback_runtime.feedback_id = "haptic_feedback_runtime"
+    profile.feedback_runtime.feedback_kind = "brush_collision_ui_prompt_spatial_and_machine_feedback"
+    profile.feedback_runtime.routing_policy = "tool_context_viewport_focus_and_operator_role_bound"
+
+    profile.force_profile_runtime = ForceProfileDescriptor()
+    profile.force_profile_runtime.profile_id = "haptic_force_profile_runtime"
+    profile.force_profile_runtime.profile_scope = "pressure_response_material_contact_and_sim_feedback_profiles"
+    profile.force_profile_runtime.safety_policy = "latency_bounded_calibrated_and_audit_visible"
+    profile

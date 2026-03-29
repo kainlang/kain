@@ -1,0 +1,40 @@
+// Higher-order editor widget suite contracts for inspectors, spreadsheets, node views, timelines, browser panes, and modal desktop tooling.
+
+struct EditorWidgetSuiteDescriptor:
+    suite_id: String
+    suite_scope: String
+    routing_policy: String
+
+struct EditorWidgetStateDescriptor:
+    state_id: String
+    state_scope: String
+    persistence_policy: String
+
+struct EditorWidgetBindingDescriptor:
+    binding_id: String
+    binding_scope: String
+    reflection_policy: String
+
+struct EditorWidgetRuntimeProfile:
+    widget_suite: EditorWidgetSuiteDescriptor
+    widget_state: EditorWidgetStateDescriptor
+    widget_binding: EditorWidgetBindingDescriptor
+
+fn default_editor_widget_runtime_profile() -> EditorWidgetRuntimeProfile with Pure:
+    let profile = EditorWidgetRuntimeProfile()
+
+    profile.widget_suite = EditorWidgetSuiteDescriptor()
+    profile.widget_suite.suite_id = "editor_widget_suite_runtime"
+    profile.widget_suite.suite_scope = "inspectors_outliners_tables_timelines_curve_graph_browser_and_command_widgets"
+    profile.widget_suite.routing_policy = "workspace_layout_input_focus_and_overlay_safe"
+
+    profile.widget_state = EditorWidgetStateDescriptor()
+    profile.widget_state.state_id = "editor_widget_state_runtime"
+    profile.widget_state.state_scope = "selection_tool_context_document_and_modal_widget_state"
+    profile.widget_state.persistence_policy = "session_restore_and_crash_recovery_visible"
+
+    profile.widget_binding = EditorWidgetBindingDescriptor()
+    profile.widget_binding.binding_id = "editor_widget_binding_runtime"
+    profile.widget_binding.binding_scope = "scene_schema_material_command_and_runtime_reflection_bound"
+    profile.widget_binding.reflection_policy = "native_controls_widget_primitives_and_schema_aligned"
+    profile

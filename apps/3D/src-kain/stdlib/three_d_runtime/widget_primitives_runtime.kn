@@ -1,0 +1,40 @@
+// Source-level native widget primitive contracts for dock graphs, overlays, tool chrome, and runtime-bound layout atoms.
+
+struct WidgetPrimitiveDescriptor:
+    primitive_id: String
+    primitive_kind: String
+    layout_policy: String
+
+struct WidgetBindingDescriptor:
+    binding_id: String
+    binding_scope: String
+    reflection_policy: String
+
+struct OverlayChromeDescriptor:
+    chrome_id: String
+    chrome_kind: String
+    routing_policy: String
+
+struct WidgetPrimitivesRuntimeProfile:
+    widget_primitive: WidgetPrimitiveDescriptor
+    widget_binding: WidgetBindingDescriptor
+    overlay_chrome: OverlayChromeDescriptor
+
+fn default_widget_primitives_runtime_profile() -> WidgetPrimitivesRuntimeProfile with Pure:
+    let profile = WidgetPrimitivesRuntimeProfile()
+
+    profile.widget_primitive = WidgetPrimitiveDescriptor()
+    profile.widget_primitive.primitive_id = "native_widget_primitive"
+    profile.widget_primitive.primitive_kind = "dock_inspector_graph_timeline_overlay_and_toolbar_atoms"
+    profile.widget_primitive.layout_policy = "workspace_persistent_focus_and_modal_safe"
+
+    profile.widget_binding = WidgetBindingDescriptor()
+    profile.widget_binding.binding_id = "native_widget_binding"
+    profile.widget_binding.binding_scope = "scene_runtime_command_and_reflection_bound"
+    profile.widget_binding.reflection_policy = "schema_and_runtime_contract_driven"
+
+    profile.overlay_chrome = OverlayChromeDescriptor()
+    profile.overlay_chrome.chrome_id = "viewport_chrome_surface"
+    profile.overlay_chrome.chrome_kind = "selection_gizmo_measure_review_and_capture_chrome"
+    profile.overlay_chrome.routing_policy = "camera_input_and_workspace_context_aware"
+    profile

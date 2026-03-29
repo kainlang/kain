@@ -1,0 +1,36 @@
+// Fracture, debris, and simulation cache authoring contracts.
+
+struct DestructionAssetDescriptor:
+    asset_id: String
+    fracture_kind: String
+    cache_policy: String
+    tensor_pipeline_id: String
+
+struct DebrisFieldDescriptor:
+    field_id: String
+    field_kind: String
+    playback_policy: String
+
+struct DestructionRuntimeProfile:
+    fracture_asset: DestructionAssetDescriptor
+    soft_body_asset: DestructionAssetDescriptor
+    debris_field: DebrisFieldDescriptor
+
+fn default_destruction_asset(asset_id: String, fracture_kind: String) -> DestructionAssetDescriptor with Pure:
+    let descriptor = DestructionAssetDescriptor()
+    descriptor.asset_id = asset_id
+    descriptor.fracture_kind = fracture_kind
+    descriptor.cache_policy = "checkpoint_and_stream"
+    descriptor.tensor_pipeline_id = "destruction_authoring_tensor_pipeline"
+    descriptor
+
+fn default_destruction_runtime_profile() -> DestructionRuntimeProfile with Pure:
+    let profile = DestructionRuntimeProfile()
+    profile.fracture_asset = default_destruction_asset("fracture_asset", "clustered_fracture")
+    profile.soft_body_asset = default_destruction_asset("soft_body_asset", "constraint_driven_soft_body")
+
+    profile.debris_field = DebrisFieldDescriptor()
+    profile.debris_field.field_id = "debris_field"
+    profile.debris_field.field_kind = "debris_and_dust_runtime"
+    profile.debris_field.playback_policy = "interactive_or_baked"
+    profile

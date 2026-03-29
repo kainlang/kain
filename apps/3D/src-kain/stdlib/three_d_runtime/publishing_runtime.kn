@@ -1,0 +1,45 @@
+// Release channel, catalog publication, and package delivery contracts.
+
+struct DistributionChannelDescriptor:
+    channel_id: String
+    channel_kind: String
+    approval_policy: String
+    delivery_target: String
+
+struct PublishedArtifactDescriptor:
+    artifact_id: String
+    artifact_kind: String
+    manifest_source: String
+    package_policy: String
+
+struct PublishingRuntimeProfile:
+    internal_channel: DistributionChannelDescriptor
+    review_channel: DistributionChannelDescriptor
+    public_channel: DistributionChannelDescriptor
+    runtime_artifact: PublishedArtifactDescriptor
+    plugin_artifact: PublishedArtifactDescriptor
+
+fn default_distribution_channel(channel_id: String, channel_kind: String, delivery_target: String) -> DistributionChannelDescriptor with Pure:
+    let descriptor = DistributionChannelDescriptor()
+    descriptor.channel_id = channel_id
+    descriptor.channel_kind = channel_kind
+    descriptor.approval_policy = "gated_manifest_release"
+    descriptor.delivery_target = delivery_target
+    descriptor
+
+fn default_published_artifact(artifact_id: String, artifact_kind: String, manifest_source: String) -> PublishedArtifactDescriptor with Pure:
+    let descriptor = PublishedArtifactDescriptor()
+    descriptor.artifact_id = artifact_id
+    descriptor.artifact_kind = artifact_kind
+    descriptor.manifest_source = manifest_source
+    descriptor.package_policy = "registered_bundle_required"
+    descriptor
+
+fn default_publishing_runtime_profile() -> PublishingRuntimeProfile with Pure:
+    let profile = PublishingRuntimeProfile()
+    profile.internal_channel = default_distribution_channel("internal_channel", "workspace_registry", "generated/distribution/internal")
+    profile.review_channel = default_distribution_channel("review_channel", "review_drop", "generated/distribution/review")
+    profile.public_channel = default_distribution_channel("public_channel", "release_catalog", "generated/distribution/public")
+    profile.runtime_artifact = default_published_artifact("runtime_artifact", "runtime_bundle", "manifests/runtime_apps.json")
+    profile.plugin_artifact = default_published_artifact("plugin_artifact", "plugin_bundle", "manifests/distribution_channels.json")
+    profile

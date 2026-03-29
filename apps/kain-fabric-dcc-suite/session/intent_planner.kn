@@ -33,6 +33,13 @@ fn plan_for_command(
             ]
         }
     let intents = []
+    if command_kind == "scene.open_document":
+        intents.push(PlannedIntent {
+            intent_id: "scene.open_document",
+            reason: "scene document changed and the scene/query/evaluation lanes must refresh",
+            priority: 95,
+            debounce_ms: 0
+        })
     if command_kind == "mesh.open_document":
         intents.push(PlannedIntent {
             intent_id: "mesh.open_document",
@@ -80,6 +87,34 @@ fn plan_for_command(
             intent_id: "mesh.rebuild_topology",
             reason: "mesh topology resources need a dedicated rebuild pass",
             priority: 91,
+            debounce_ms: 0
+        })
+    if command_kind == "selection.set_scope":
+        intents.push(PlannedIntent {
+            intent_id: "selection.set_scope",
+            reason: "selection scope changed and related scene query state must refresh",
+            priority: 88,
+            debounce_ms: 0
+        })
+    if command_kind == "persistence.snapshot":
+        intents.push(PlannedIntent {
+            intent_id: "persistence.snapshot",
+            reason: "session state needs a durable snapshot",
+            priority: 62,
+            debounce_ms: 0
+        })
+    if command_kind == "replay.capture":
+        intents.push(PlannedIntent {
+            intent_id: "replay.capture",
+            reason: "replay capture requested for branch review or repro",
+            priority: 68,
+            debounce_ms: 0
+        })
+    if command_kind == "evaluation.recompute_graph":
+        intents.push(PlannedIntent {
+            intent_id: "evaluation.recompute_graph",
+            reason: "evaluation graph requested a recompute",
+            priority: 66,
             debounce_ms: 0
         })
     if asset_dirty:

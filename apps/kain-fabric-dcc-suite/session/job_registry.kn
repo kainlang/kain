@@ -46,12 +46,42 @@ fn default_jobs() -> Array<AutomationJobDescriptor>:
             id: "tensor_readiness_probe",
             label: "Tensor Readiness Probe",
             schedule: "manual_or_nightly",
-            summary: "Checks tensor lane readiness and records PyTorch availability"
+            summary: "Checks tensor lane readiness, training corpus shape, and PyTorch availability"
+        },
+        AutomationJobDescriptor {
+            id: "tensor_artifact_audit",
+            label: "Tensor Artifact Audit",
+            schedule: "on_publish_candidate",
+            summary: "Verifies tensor feature buffers, checkpoints, and inference outputs before publish"
         },
         AutomationJobDescriptor {
             id: "publish_receipt_archive",
             label: "Publish Receipt Archive",
             schedule: "on_publish",
             summary: "Archives publish receipts and operator-facing reports"
+        },
+        AutomationJobDescriptor {
+            id: "jobs_retry_requeue",
+            label: "Jobs Retry And Requeue",
+            schedule: "on_job_failure",
+            summary: "Requeues failed jobs using retry ledgers and resumable receipts"
+        },
+        AutomationJobDescriptor {
+            id: "launch_manifest_materialize",
+            label: "Launch Manifest Materialize",
+            schedule: "on_workspace_preset_change",
+            summary: "Materializes launch manifests and bundle-ready workspace presets"
+        },
+        AutomationJobDescriptor {
+            id: "runtime_reflection_refresh",
+            label: "Runtime Reflection Refresh",
+            schedule: "on_schema_or_registry_change",
+            summary: "Refreshes runtime reflection catalogs and registry-driven metadata views"
+        },
+        AutomationJobDescriptor {
+            id: "delivery_materialization_pass",
+            label: "Delivery Materialization Pass",
+            schedule: "nightly_or_promoted",
+            summary: "Runs delivery materialization and promotion-safe receipt generation"
         }
     ]

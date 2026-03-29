@@ -1,0 +1,40 @@
+// Input, action-map, shortcut-layer, and device-routing contracts for editor, runtime, XR, and stage surfaces.
+
+struct InputDeviceDescriptor:
+    device_id: String
+    device_kind: String
+    authority_policy: String
+
+struct InputActionMapDescriptor:
+    action_map_id: String
+    action_scope: String
+    routing_policy: String
+
+struct ShortcutLayerDescriptor:
+    layer_id: String
+    layer_kind: String
+    modal_policy: String
+
+struct InputRuntimeProfile:
+    primary_device: InputDeviceDescriptor
+    action_map: InputActionMapDescriptor
+    shortcut_layer: ShortcutLayerDescriptor
+
+fn default_input_runtime_profile() -> InputRuntimeProfile with Pure:
+    let profile = InputRuntimeProfile()
+
+    profile.primary_device = InputDeviceDescriptor()
+    profile.primary_device.device_id = "primary_input_device_family"
+    profile.primary_device.device_kind = "mouse_keyboard_pen_tablet_controller_touch_and_xr_input"
+    profile.primary_device.authority_policy = "workspace_role_runtime_mode_and_stage_context_bound"
+
+    profile.action_map = InputActionMapDescriptor()
+    profile.action_map.action_map_id = "universal_input_action_map"
+    profile.action_map.action_scope = "editor_runtime_gameplay_stage_and_review_actions"
+    profile.action_map.routing_policy = "contextual_focus_shortcut_and_tool_state_bound"
+
+    profile.shortcut_layer = ShortcutLayerDescriptor()
+    profile.shortcut_layer.layer_id = "universal_shortcut_layer"
+    profile.shortcut_layer.layer_kind = "tool_modal_and_accessibility_aware_shortcut_sets"
+    profile.shortcut_layer.modal_policy = "transaction_safe_override_stack"
+    profile

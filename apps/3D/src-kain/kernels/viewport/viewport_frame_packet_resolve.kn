@@ -1,0 +1,6 @@
+// Viewport frame-packet and overlay-composition seed for native renderer surfaces.
+
+kernel viewport_frame_packet_resolve:
+    stage = "viewport_frame_packets"
+    domain = "viewport"
+    intent = "Resolve renderer-facing frame packets, multi-viewport presentation state, and overlay composition feeds."

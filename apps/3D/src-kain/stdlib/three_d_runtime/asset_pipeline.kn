@@ -1,0 +1,49 @@
+// Asset ingest, processing, validation, and export contracts for content-heavy 3D runtime applications.
+
+struct AssetImportProfile:
+    profile_id: String
+    source_kind: String
+    conversion_policy: String
+    validation_policy: String
+
+struct AssetBakeProfile:
+    profile_id: String
+    bake_kind: String
+    output_policy: String
+    cache_policy: String
+
+struct AssetPipelineRuntime:
+    geometry_import: AssetImportProfile
+    texture_import: AssetImportProfile
+    scene_import: AssetImportProfile
+    scan_import: AssetImportProfile
+    render_bake: AssetBakeProfile
+    simulation_bake: AssetBakeProfile
+    package_export: AssetBakeProfile
+
+fn default_asset_import_profile(profile_id: String, source_kind: String) -> AssetImportProfile with Pure:
+    let profile = AssetImportProfile()
+    profile.profile_id = profile_id
+    profile.source_kind = source_kind
+    profile.conversion_policy = "canonicalize_and_index"
+    profile.validation_policy = "strict"
+    profile
+
+fn default_asset_bake_profile(profile_id: String, bake_kind: String) -> AssetBakeProfile with Pure:
+    let profile = AssetBakeProfile()
+    profile.profile_id = profile_id
+    profile.bake_kind = bake_kind
+    profile.output_policy = "generated_artifacts"
+    profile.cache_policy = "content_addressed"
+    profile
+
+fn default_asset_pipeline_runtime() -> AssetPipelineRuntime with Pure:
+    let runtime = AssetPipelineRuntime()
+    runtime.geometry_import = default_asset_import_profile("geometry_import", "mesh_or_point_cloud")
+    runtime.texture_import = default_asset_import_profile("texture_import", "texture_or_volume")
+    runtime.scene_import = default_asset_import_profile("scene_import", "scene_bundle")
+    runtime.scan_import = default_asset_import_profile("scan_import", "images_depth_or_lidar")
+    runtime.render_bake = default_asset_bake_profile("render_bake", "materials_and_lighting")
+    runtime.simulation_bake = default_asset_bake_profile("simulation_bake", "cloth_fluid_particles")
+    runtime.package_export = default_asset_bake_profile("package_export", "plugin_runtime_and_publish")
+    runtime

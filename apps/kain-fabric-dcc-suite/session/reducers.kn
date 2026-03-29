@@ -188,6 +188,101 @@ fn reduce_command(command_kind: String, payload_summary: String, current_tool: S
             queued_intents: ["mesh.rebuild_topology", "rig.sync_controls", "render.preview", "publish.package"],
             session_needs_save: true
         }
+    if command_kind == "scene.open_document":
+        return ReducerOutcome {
+            next_workspace_mode: "scene_assembly",
+            next_active_tool: "select",
+            status_banner: "scene document opened",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: false,
+            publish_dirty: false,
+            tensor_dirty: false,
+            queued_intents: ["scene.open_document", "render.preview"],
+            session_needs_save: true
+        }
+    if command_kind == "selection.set_scope":
+        return ReducerOutcome {
+            next_workspace_mode: current_mode,
+            next_active_tool: current_tool,
+            status_banner: "selection scope updated",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: false,
+            compositor_dirty: false,
+            publish_dirty: false,
+            tensor_dirty: false,
+            queued_intents: ["selection.set_scope"],
+            session_needs_save: true
+        }
+    if command_kind == "persistence.snapshot":
+        return ReducerOutcome {
+            next_workspace_mode: current_mode,
+            next_active_tool: current_tool,
+            status_banner: "persistence snapshot queued",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: false,
+            compositor_dirty: false,
+            publish_dirty: false,
+            tensor_dirty: false,
+            queued_intents: ["persistence.snapshot"],
+            session_needs_save: false
+        }
+    if command_kind == "replay.capture":
+        return ReducerOutcome {
+            next_workspace_mode: "review_replay",
+            next_active_tool: current_tool,
+            status_banner: "replay capture queued",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: false,
+            publish_dirty: false,
+            tensor_dirty: false,
+            queued_intents: ["replay.capture", "render.preview"],
+            session_needs_save: true
+        }
+    if command_kind == "evaluation.recompute_graph":
+        return ReducerOutcome {
+            next_workspace_mode: current_mode,
+            next_active_tool: current_tool,
+            status_banner: "evaluation graph recompute requested",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: false,
+            compositor_dirty: false,
+            publish_dirty: false,
+            tensor_dirty: true,
+            queued_intents: ["evaluation.recompute_graph", "tensor.infer_step"],
+            session_needs_save: false
+        }
     if command_kind == "tool.activate":
         return ReducerOutcome {
             next_workspace_mode: current_mode,

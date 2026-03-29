@@ -1,0 +1,19 @@
+// SPIR-V seed for paint layer evaluation, stroke application, and non-destructive canvas updates.
+
+shader compute paint_layer_blend_tensor(id: UVec3) -> Vec4:
+    uniform paint_layers: StorageBuffer<Vec4> @0
+    uniform stroke_masks: StorageBuffer<Vec4> @1
+    uniform canvas_inputs: StorageBuffer<Vec4> @2
+    uniform painted_canvas: StorageBuffer<Vec4> @3
+    let pixel_index = id.y * 4096 + id.x
+    let layer = paint_layers[pixel_index]
+    let mask = stroke_masks[pixel_index]
+    let canvas = canvas_inputs[pixel_index]
+    let output = vec4(
+        canvas.x * (1.0 - mask.x) + layer.x * mask.x,
+        canvas.y * (1.0 - mask.y) + layer.y * mask.y,
+        canvas.z * (1.0 - mask.z) + layer.z * mask.z,
+        1.0
+    )
+    painted_canvas[pixel_index] = output
+    return output

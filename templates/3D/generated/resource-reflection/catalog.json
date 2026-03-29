@@ -36,6 +36,7 @@
                                                             "generated/distribution/resource-reflection"
                                                         ],
                         "gpu_kernel_id":  "resource_reflection_catalog_resolve",
+                        "gpu_kernel_source_id":  "resource_reflection_catalog_resolve",
                         "gpu_kernel_stage":  "resource_reflection",
                         "gpu_kernel_entry":  "resource_reflection_catalog_resolve",
                         "gpu_kernel_tensor_role":  "resource_reflection",
@@ -102,6 +103,7 @@
                                                             "generated/distribution/resource-reflection"
                                                         ],
                         "gpu_kernel_id":  "resource_reflection_catalog_resolve",
+                        "gpu_kernel_source_id":  "resource_reflection_catalog_resolve",
                         "gpu_kernel_stage":  "resource_reflection",
                         "gpu_kernel_entry":  "resource_reflection_catalog_resolve",
                         "gpu_kernel_tensor_role":  "resource_reflection",
@@ -168,6 +170,7 @@
                                                             "generated/distribution/resource-reflection"
                                                         ],
                         "gpu_kernel_id":  "resource_reflection_catalog_resolve",
+                        "gpu_kernel_source_id":  "resource_reflection_catalog_resolve",
                         "gpu_kernel_stage":  "resource_reflection",
                         "gpu_kernel_entry":  "resource_reflection_catalog_resolve",
                         "gpu_kernel_tensor_role":  "resource_reflection",
@@ -316,6 +319,13 @@
                                                                                   "resource_reflection_catalog"
                                                                               ]
                                   },
+                    "by_kernel_source_id":  {
+                                                "resource_reflection_catalog_resolve":  [
+                                                                                            "resource_compatibility_runtime",
+                                                                                            "resource_inspection_runtime",
+                                                                                            "resource_reflection_catalog"
+                                                                                        ]
+                                            },
                     "by_kernel_stage":  {
                                             "resource_reflection":  [
                                                                         "resource_compatibility_runtime",

@@ -1,0 +1,6 @@
+// Editor-widget suite seed for dock-aware inspectors, browser panes, timelines, tables, graph widgets, and modal-safe authoring surfaces.
+
+kernel editor_widget_suite_resolve:
+    stage = "editor_widget_suite"
+    domain = "editor_widgets"
+    intent = "Resolve editor widget suites, focus-safe pane routing, widget state persistence, and schema-bound desktop tooling packets."

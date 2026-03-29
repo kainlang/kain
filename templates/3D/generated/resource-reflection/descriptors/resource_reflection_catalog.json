@@ -39,6 +39,7 @@
                       },
     "kernel":  {
                    "id":  "resource_reflection_catalog_resolve",
+                   "source_id":  "resource_reflection_catalog_resolve",
                    "stage":  "resource_reflection",
                    "entry":  "resource_reflection_catalog_resolve",
                    "tensor_role":  "resource_reflection",

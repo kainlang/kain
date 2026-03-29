@@ -1,0 +1,40 @@
+// Localization, subtitle/audio routing, and region-aware runtime contracts.
+
+struct LocalizationBundleDescriptor:
+    bundle_id: String
+    bundle_kind: String
+    coverage_policy: String
+
+struct SubtitleDescriptor:
+    subtitle_id: String
+    subtitle_kind: String
+    timing_policy: String
+
+struct RegionPolicyDescriptor:
+    region_policy_id: String
+    region_kind: String
+    asset_route_policy: String
+
+struct LocalizationRuntimeProfile:
+    bundles: LocalizationBundleDescriptor
+    subtitles: SubtitleDescriptor
+    region_policy: RegionPolicyDescriptor
+
+fn default_localization_runtime_profile() -> LocalizationRuntimeProfile with Pure:
+    let profile = LocalizationRuntimeProfile()
+
+    profile.bundles = LocalizationBundleDescriptor()
+    profile.bundles.bundle_id = "localization_bundle_runtime"
+    profile.bundles.bundle_kind = "text_audio_and_asset_variant_bundles"
+    profile.bundles.coverage_policy = "locale_complete_and_fallback_safe"
+
+    profile.subtitles = SubtitleDescriptor()
+    profile.subtitles.subtitle_id = "subtitle_runtime"
+    profile.subtitles.subtitle_kind = "caption_prompt_and_speaker_timed_tracks"
+    profile.subtitles.timing_policy = "sequence_and_replay_aligned"
+
+    profile.region_policy = RegionPolicyDescriptor()
+    profile.region_policy.region_policy_id = "regional_route_policy"
+    profile.region_policy.region_kind = "language_market_and_operator_region"
+    profile.region_policy.asset_route_policy = "manifest_driven_locale_variant_selection"
+    profile

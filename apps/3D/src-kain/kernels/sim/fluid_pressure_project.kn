@@ -1,0 +1,19 @@
+// SPIR-V fluid pressure projection seed.
+
+shader compute fluid_pressure_project(id: UVec3) -> Vec4:
+    uniform fluid_velocity_grid: StorageBuffer<Vec4> @0
+    uniform fluid_divergence_grid: StorageBuffer<Vec4> @1
+    uniform boundary_mask: StorageBuffer<Vec4> @2
+    uniform projected_velocity_grid: StorageBuffer<Vec4> @3
+    let cell_index = id.z * 4096 + id.y * 64 + id.x
+    let velocity = fluid_velocity_grid[cell_index]
+    let divergence = fluid_divergence_grid[cell_index]
+    let boundary = boundary_mask[cell_index]
+    let output = vec4(
+        velocity.x - divergence.x * (1.0 - boundary.x),
+        velocity.y - divergence.y * (1.0 - boundary.y),
+        velocity.z - divergence.z * (1.0 - boundary.z),
+        1.0
+    )
+    projected_velocity_grid[cell_index] = output
+    return output

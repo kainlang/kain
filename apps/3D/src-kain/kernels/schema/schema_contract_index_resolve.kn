@@ -1,0 +1,11 @@
+// Schema-contract indexing seed for runtime, interchange, plugin, and delivery compatibility catalogs.
+
+fn schema_contract_index_resolve() -> Void:
+    let schema_scope = "runtime_import_export_plugin_and_delivery_schemas"
+    let compatibility_scope = "bundle_project_exchange_and_publish_compatibility_windows"
+    let validation_scope = "reflection_contract_manifest_and_receipt_validation"
+    let evolution_scope = "versioned_schema_catalogs_and_upgrade_paths"
+    schema_scope
+    compatibility_scope
+    validation_scope
+    evolution_scope

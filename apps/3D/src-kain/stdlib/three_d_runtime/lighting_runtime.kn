@@ -1,0 +1,40 @@
+// Lighting pipeline, probe baking, shadow atlas, and exposure-control contracts.
+
+struct LightingPipelineDescriptor:
+    pipeline_id: String
+    pipeline_kind: String
+    continuity_policy: String
+
+struct ProbeBakeDescriptor:
+    bake_id: String
+    bake_scope: String
+    residency_policy: String
+
+struct ExposureControlDescriptor:
+    control_id: String
+    adaptation_policy: String
+    review_policy: String
+
+struct LightingRuntimeProfile:
+    lighting_pipeline: LightingPipelineDescriptor
+    probe_bake: ProbeBakeDescriptor
+    exposure_control: ExposureControlDescriptor
+
+fn default_lighting_runtime_profile() -> LightingRuntimeProfile with Pure:
+    let profile = LightingRuntimeProfile()
+
+    profile.lighting_pipeline = LightingPipelineDescriptor()
+    profile.lighting_pipeline.pipeline_id = "lighting_pipeline"
+    profile.lighting_pipeline.pipeline_kind = "stage_runtime_and_lookdev_lighting"
+    profile.lighting_pipeline.continuity_policy = "editor_runtime_and_delivery_bound"
+
+    profile.probe_bake = ProbeBakeDescriptor()
+    profile.probe_bake.bake_id = "lighting_probe_bake"
+    profile.probe_bake.bake_scope = "probe_grids_reflection_capture_and_shadow_context"
+    profile.probe_bake.residency_policy = "streamable_cached_and_reviewable"
+
+    profile.exposure_control = ExposureControlDescriptor()
+    profile.exposure_control.control_id = "lighting_exposure_control"
+    profile.exposure_control.adaptation_policy = "shot_stage_and_runtime_profile_switchable"
+    profile.exposure_control.review_policy = "continuity_and_reference_approval_gated"
+    profile

@@ -34,7 +34,31 @@
                                              "distribution_channel_id":  "jobs_delivery_registry",
                                              "retry_ledger_id":  "jobs_retry_ledger",
                                              "job_state":  "completed",
-                                             "promotion_state":  "ready_for_distribution"
+                                             "promotion_state":  "ready_for_distribution",
+                                             "lifecycle_class":  "terminal",
+                                             "artifact_kinds":  [
+                                                                    "job_output_bundle",
+                                                                    "receipt_schema_bundle"
+                                                                ],
+                                             "submitted_at":  "2026-03-26T03:40:00Z",
+                                             "completed_at":  "2026-03-26T03:42:00Z"
+                                         },
+                                         {
+                                             "receipt_id":  "job_materialization_receipt_queued",
+                                             "receipt_path":  "generated/jobs/receipts/job-materialization-receipt-queued.json",
+                                             "queue_id":  "jobs_dispatch_queue",
+                                             "dispatch_graph_id":  "jobs_dispatch_graph",
+                                             "distribution_channel_id":  "jobs_delivery_registry",
+                                             "retry_ledger_id":  "jobs_retry_ledger",
+                                             "job_state":  "queued",
+                                             "promotion_state":  "waiting_for_worker_assignment",
+                                             "lifecycle_class":  "in_flight",
+                                             "artifact_kinds":  [
+                                                                    "job_output_bundle",
+                                                                    "receipt_schema_bundle"
+                                                                ],
+                                             "submitted_at":  "2026-03-26T03:43:30Z",
+                                             "completed_at":  "2026-03-26T03:44:00Z"
                                          },
                                          {
                                              "receipt_id":  "job_materialization_receipt_retry_pending",
@@ -44,7 +68,15 @@
                                              "distribution_channel_id":  "jobs_delivery_registry",
                                              "retry_ledger_id":  "jobs_retry_ledger",
                                              "job_state":  "failed",
-                                             "promotion_state":  "blocked_for_retry"
+                                             "promotion_state":  "blocked_for_retry",
+                                             "lifecycle_class":  "terminal",
+                                             "artifact_kinds":  [
+                                                                    "job_output_bundle",
+                                                                    "receipt_schema_bundle",
+                                                                    "retry_ledger_bundle"
+                                                                ],
+                                             "submitted_at":  "2026-03-26T03:50:00Z",
+                                             "completed_at":  "2026-03-26T03:53:00Z"
                                          },
                                          {
                                              "receipt_id":  "job_materialization_receipt_running",
@@ -54,7 +86,15 @@
                                              "distribution_channel_id":  "jobs_delivery_registry",
                                              "retry_ledger_id":  "jobs_retry_ledger",
                                              "job_state":  "running",
-                                             "promotion_state":  "waiting_for_completion"
+                                             "promotion_state":  "waiting_for_completion",
+                                             "lifecycle_class":  "in_flight",
+                                             "artifact_kinds":  [
+                                                                    "job_output_bundle",
+                                                                    "receipt_schema_bundle",
+                                                                    "receipt_index_bundle"
+                                                                ],
+                                             "submitted_at":  "2026-03-26T03:45:00Z",
+                                             "completed_at":  "2026-03-26T03:46:30Z"
                                          }
                                      ]
                     }
@@ -106,12 +146,18 @@
     "artifact_roots":  [
                            "generated/schemas/jobs/receipts/templates",
                            "generated/schemas/jobs/receipts/indexes",
-                           "generated/runtime-reflection/jobs-receipt-templates"
+                           "generated/runtime-reflection/jobs-receipt-templates",
+                           "generated/runtime-reflection/jobs-receipt-templates/descriptors"
                        ],
     "reflection_catalogs":  [
                                 "jobs_receipt_schema_catalog",
                                 "jobs_retry_ledger_catalog",
                                 "build_graph_catalog",
                                 "distribution_receipt_catalog"
-                            ]
+                            ],
+    "descriptor_count":  1,
+    "descriptor_root":  "generated/runtime-reflection/jobs-receipt-templates/descriptors",
+    "descriptor_paths":  [
+                             "generated/runtime-reflection/jobs-receipt-templates/descriptors/jobs_receipt_template_catalog.json"
+                         ]
 }

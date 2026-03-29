@@ -1,0 +1,14 @@
+// SPIR-V seed for mesh topology clustering, remesh-region planning, and geometry mutation receipts.
+
+kernel mesh_topology_cluster_resolve:
+    stage = "compute"
+    domain = "mesh"
+    dispatch = [128, 1, 1]
+
+    input mesh_segments: Tensor
+    input topology_constraints: Tensor
+    input lod_targets: Tensor
+    input mutation_context: Tensor
+
+    output resolved_mesh_clusters: Tensor
+    output mesh_topology_receipts: Tensor

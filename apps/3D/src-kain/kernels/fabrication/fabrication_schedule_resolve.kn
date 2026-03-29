@@ -1,0 +1,19 @@
+// SPIR-V fabrication scheduling and nesting seed.
+
+shader compute fabrication_schedule_resolve(id: UVec3) -> Vec4:
+    uniform fabrication_jobs: StorageBuffer<Vec4> @0
+    uniform machine_capacity: StorageBuffer<Vec4> @1
+    uniform material_nesting_state: StorageBuffer<Vec4> @2
+    uniform fabrication_schedule: StorageBuffer<Vec4> @3
+    let job_index = id.x
+    let job = fabrication_jobs[job_index]
+    let machine = machine_capacity[job_index]
+    let nesting = material_nesting_state[0]
+    let output = vec4(
+        job.x + machine.x,
+        job.y + nesting.y,
+        machine.z + nesting.z,
+        1.0
+    )
+    fabrication_schedule[job_index] = output
+    return output

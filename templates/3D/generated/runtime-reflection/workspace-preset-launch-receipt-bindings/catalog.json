@@ -1,75 +1,177 @@
 {
-  "catalog_id": "workspace_preset_launch_receipt_binding_catalog",
-  "catalog_scope": "workspace_preset_launch_receipt_schema_template_and_delivery_binding_metadata",
-  "tensor_pipeline_id": "runtime_reflection_tensor_pipeline",
-  "materializer_kernel_id": "workspace_preset_launch_receipt_resolve",
-  "build_graph_id": "workspace_preset_materialization_graph",
-  "delivery_registry_id": "workspace_preset_delivery_registry",
-  "launch_schema_catalog_id": "workspace_preset_launch_schema_catalog",
-  "launch_template_catalog_id": "workspace_preset_launch_template_catalog",
-  "receipt_schema_catalog_id": "workspace_preset_receipt_schema_catalog",
-  "receipt_template_catalog_id": "workspace_preset_receipt_template_catalog",
-  "entries": [
-    {
-      "preset_id": "sculpt_studio",
-      "focus_lane": "sculpt",
-      "launch_manifest_id": "workspace_preset_launch_manifest_example",
-      "launch_manifest_path": "generated/workspace-presets/launch/workspace-preset-launch-manifest.json",
-      "receipt_id": "workspace_preset_materialization_receipt_example",
-      "receipt_path": "generated/workspace-presets/receipts/workspace-preset-materialization-receipt.json",
-      "launch_schema_id": "workspace_preset_launch_manifest_schema",
-      "launch_template_id": "workspace_preset_launch_manifest_template_v1",
-      "receipt_schema_id": "workspace_preset_delivery_receipt_schema",
-      "receipt_template_id": "workspace_preset_delivery_receipt_template_v1",
-      "launch_index_path": "generated/schemas/workspace-presets/launch-manifests/indexes/catalog.json",
-      "receipt_index_path": "generated/schemas/workspace-presets/receipts/indexes/catalog.json"
-    },
-    {
-      "preset_id": "render_lab",
-      "focus_lane": "render",
-      "launch_manifest_id": "render_lab_launch_manifest_example",
-      "launch_manifest_path": "generated/workspace-presets/launch/render-lab-launch-manifest.json",
-      "receipt_id": "render_lab_materialization_receipt_example",
-      "receipt_path": "generated/workspace-presets/receipts/render-lab-materialization-receipt.json",
-      "launch_schema_id": "workspace_preset_launch_manifest_schema",
-      "launch_template_id": "workspace_preset_launch_manifest_template_v1",
-      "receipt_schema_id": "workspace_preset_delivery_receipt_schema",
-      "receipt_template_id": "workspace_preset_delivery_receipt_template_v1",
-      "launch_index_path": "generated/schemas/workspace-presets/launch-manifests/indexes/catalog.json",
-      "receipt_index_path": "generated/schemas/workspace-presets/receipts/indexes/catalog.json"
-    },
-    {
-      "preset_id": "collaboration_review_stage",
-      "focus_lane": "review",
-      "launch_manifest_id": "collaboration_review_stage_launch_manifest_example",
-      "launch_manifest_path": "generated/workspace-presets/launch/collaboration-review-stage-launch-manifest.json",
-      "receipt_id": "collaboration_review_stage_materialization_receipt_example",
-      "receipt_path": "generated/workspace-presets/receipts/collaboration-review-stage-materialization-receipt.json",
-      "launch_schema_id": "workspace_preset_launch_manifest_schema",
-      "launch_template_id": "workspace_preset_launch_manifest_template_v1",
-      "receipt_schema_id": "workspace_preset_delivery_receipt_schema",
-      "receipt_template_id": "workspace_preset_delivery_receipt_template_v1",
-      "launch_index_path": "generated/schemas/workspace-presets/launch-manifests/indexes/catalog.json",
-      "receipt_index_path": "generated/schemas/workspace-presets/receipts/indexes/catalog.json"
-    }
-  ],
-  "artifact_roots": [
-    "generated/workspace-presets/launch",
-    "generated/workspace-presets/receipts",
-    "generated/schemas/workspace-presets/launch-manifests",
-    "generated/schemas/workspace-presets/launch-manifests/templates",
-    "generated/schemas/workspace-presets/launch-manifests/indexes",
-    "generated/schemas/workspace-presets/receipts",
-    "generated/schemas/workspace-presets/receipts/templates",
-    "generated/schemas/workspace-presets/receipts/indexes",
-    "generated/runtime-reflection/workspace-preset-launch-receipt-bindings"
-  ],
-  "reflection_catalogs": [
-    "workspace_preset_catalog",
-    "workspace_preset_launch_schema_catalog",
-    "workspace_preset_launch_template_catalog",
-    "workspace_preset_receipt_schema_catalog",
-    "workspace_preset_receipt_template_catalog",
-    "workspace_preset_receipt_catalog"
-  ]
+    "catalog_id":  "workspace_preset_launch_receipt_binding_catalog",
+    "catalog_scope":  "workspace_preset_launch_receipt_schema_template_and_delivery_binding_metadata",
+    "tensor_pipeline_id":  "tensor_pipeline_catalog",
+    "materializer_kernel_id":  "workspace_preset_launch_receipt_resolve",
+    "build_graph_id":  "workspace_preset_materialization_graph",
+    "delivery_registry_id":  "workspace_preset_delivery_registry",
+    "launch_schema_catalog_id":  "workspace_preset_launch_schema_catalog",
+    "launch_template_catalog_id":  "workspace_preset_launch_template_catalog",
+    "receipt_schema_catalog_id":  "workspace_preset_receipt_schema_catalog",
+    "receipt_template_catalog_id":  "workspace_preset_receipt_template_catalog",
+    "entry_count":  3,
+    "entries":  [
+                    {
+                        "preset_id":  "sculpt_studio",
+                        "focus_lane":  "sculpt",
+                        "runtime_app_id":  "universal_3d_workbench",
+                        "runtime_app_source_id":  "universal_3d_workbench_app",
+                        "launch_manifest_id":  "workspace_preset_launch_manifest_example",
+                        "launch_manifest_path":  "generated/workspace-presets/launch/workspace-preset-launch-manifest.json",
+                        "receipt_id":  "workspace_preset_materialization_receipt_example",
+                        "receipt_path":  "generated/workspace-presets/receipts/workspace-preset-materialization-receipt.json",
+                        "launch_schema_id":  "workspace_preset_launch_manifest_schema",
+                        "launch_template_id":  "workspace_preset_launch_manifest_template_v1",
+                        "receipt_schema_id":  "workspace_preset_delivery_receipt_schema",
+                        "receipt_template_id":  "workspace_preset_delivery_receipt_template_v1",
+                        "launch_index_path":  "generated/schemas/workspace-presets/launch-manifests/indexes/catalog.json",
+                        "receipt_index_path":  "generated/schemas/workspace-presets/receipts/indexes/catalog.json"
+                    },
+                    {
+                        "preset_id":  "render_lab",
+                        "focus_lane":  "render",
+                        "runtime_app_id":  "universal_3d_workbench",
+                        "runtime_app_source_id":  "universal_3d_workbench_app",
+                        "launch_manifest_id":  "render_lab_launch_manifest_example",
+                        "launch_manifest_path":  "generated/workspace-presets/launch/render-lab-launch-manifest.json",
+                        "receipt_id":  "render_lab_materialization_receipt_example",
+                        "receipt_path":  "generated/workspace-presets/receipts/render-lab-materialization-receipt.json",
+                        "launch_schema_id":  "workspace_preset_launch_manifest_schema",
+                        "launch_template_id":  "workspace_preset_launch_manifest_template_v1",
+                        "receipt_schema_id":  "workspace_preset_delivery_receipt_schema",
+                        "receipt_template_id":  "workspace_preset_delivery_receipt_template_v1",
+                        "launch_index_path":  "generated/schemas/workspace-presets/launch-manifests/indexes/catalog.json",
+                        "receipt_index_path":  "generated/schemas/workspace-presets/receipts/indexes/catalog.json"
+                    },
+                    {
+                        "preset_id":  "collaboration_review_stage",
+                        "focus_lane":  "review",
+                        "runtime_app_id":  "collaboration_review_stage",
+                        "runtime_app_source_id":  "universal_3d_workbench_app",
+                        "launch_manifest_id":  "collaboration_review_stage_launch_manifest_example",
+                        "launch_manifest_path":  "generated/workspace-presets/launch/collaboration-review-stage-launch-manifest.json",
+                        "receipt_id":  "collaboration_review_stage_materialization_receipt_example",
+                        "receipt_path":  "generated/workspace-presets/receipts/collaboration-review-stage-materialization-receipt.json",
+                        "launch_schema_id":  "workspace_preset_launch_manifest_schema",
+                        "launch_template_id":  "workspace_preset_launch_manifest_template_v1",
+                        "receipt_schema_id":  "workspace_preset_delivery_receipt_schema",
+                        "receipt_template_id":  "workspace_preset_delivery_receipt_template_v1",
+                        "launch_index_path":  "generated/schemas/workspace-presets/launch-manifests/indexes/catalog.json",
+                        "receipt_index_path":  "generated/schemas/workspace-presets/receipts/indexes/catalog.json"
+                    }
+                ],
+    "indexes":  {
+                    "by_preset_id":  {
+                                         "collaboration_review_stage":  [
+                                                                            "collaboration_review_stage_materialization_receipt_example"
+                                                                        ],
+                                         "render_lab":  [
+                                                            "render_lab_materialization_receipt_example"
+                                                        ],
+                                         "sculpt_studio":  [
+                                                               "workspace_preset_materialization_receipt_example"
+                                                           ]
+                                     },
+                    "by_focus_lane":  {
+                                          "render":  [
+                                                         "render_lab_materialization_receipt_example"
+                                                     ],
+                                          "review":  [
+                                                         "collaboration_review_stage_materialization_receipt_example"
+                                                     ],
+                                          "sculpt":  [
+                                                         "workspace_preset_materialization_receipt_example"
+                                                     ]
+                                      },
+                    "by_runtime_app":  {
+                                           "collaboration_review_stage":  [
+                                                                              "collaboration_review_stage_materialization_receipt_example"
+                                                                          ],
+                                           "universal_3d_workbench":  [
+                                                                          "render_lab_materialization_receipt_example",
+                                                                          "workspace_preset_materialization_receipt_example"
+                                                                      ]
+                                       },
+                    "by_runtime_app_source_id":  {
+                                                     "universal_3d_workbench_app":  [
+                                                                                        "collaboration_review_stage_materialization_receipt_example",
+                                                                                        "render_lab_materialization_receipt_example",
+                                                                                        "workspace_preset_materialization_receipt_example"
+                                                                                    ]
+                                                 },
+                    "by_launch_manifest_id":  {
+                                                  "collaboration_review_stage_launch_manifest_example":  [
+                                                                                                             "collaboration_review_stage_materialization_receipt_example"
+                                                                                                         ],
+                                                  "render_lab_launch_manifest_example":  [
+                                                                                             "render_lab_materialization_receipt_example"
+                                                                                         ],
+                                                  "workspace_preset_launch_manifest_example":  [
+                                                                                                   "workspace_preset_materialization_receipt_example"
+                                                                                               ]
+                                              },
+                    "by_receipt_id":  {
+                                          "collaboration_review_stage_materialization_receipt_example":  [
+                                                                                                             "collaboration_review_stage_launch_manifest_example"
+                                                                                                         ],
+                                          "render_lab_materialization_receipt_example":  [
+                                                                                             "render_lab_launch_manifest_example"
+                                                                                         ],
+                                          "workspace_preset_materialization_receipt_example":  [
+                                                                                                   "workspace_preset_launch_manifest_example"
+                                                                                               ]
+                                      },
+                    "by_launch_schema_id":  {
+                                                "workspace_preset_launch_manifest_schema":  [
+                                                                                                "collaboration_review_stage",
+                                                                                                "render_lab",
+                                                                                                "sculpt_studio"
+                                                                                            ]
+                                            },
+                    "by_receipt_schema_id":  {
+                                                 "workspace_preset_delivery_receipt_schema":  [
+                                                                                                  "collaboration_review_stage",
+                                                                                                  "render_lab",
+                                                                                                  "sculpt_studio"
+                                                                                              ]
+                                             },
+                    "by_launch_template_id":  {
+                                                  "workspace_preset_launch_manifest_template_v1":  [
+                                                                                                       "collaboration_review_stage",
+                                                                                                       "render_lab",
+                                                                                                       "sculpt_studio"
+                                                                                                   ]
+                                              },
+                    "by_receipt_template_id":  {
+                                                   "workspace_preset_delivery_receipt_template_v1":  [
+                                                                                                         "collaboration_review_stage",
+                                                                                                         "render_lab",
+                                                                                                         "sculpt_studio"
+                                                                                                     ]
+                                               }
+                },
+    "artifact_roots":  [
+                           "generated/workspace-presets/launch",
+                           "generated/workspace-presets/receipts",
+                           "generated/schemas/workspace-presets/launch-manifests",
+                           "generated/schemas/workspace-presets/launch-manifests/templates",
+                           "generated/schemas/workspace-presets/launch-manifests/indexes",
+                           "generated/schemas/workspace-presets/receipts",
+                           "generated/schemas/workspace-presets/receipts/templates",
+                           "generated/schemas/workspace-presets/receipts/indexes",
+                           "generated/runtime-reflection/workspace-preset-launch-receipt-bindings"
+                       ],
+    "reflection_catalogs":  [
+                                "workspace_preset_catalog",
+                                "workspace_preset_launch_schema_catalog",
+                                "workspace_preset_launch_template_catalog",
+                                "workspace_preset_receipt_schema_catalog",
+                                "workspace_preset_receipt_template_catalog",
+                                "workspace_preset_receipt_catalog"
+                            ],
+    "descriptor_count":  1,
+    "descriptor_root":  "generated/runtime-reflection/workspace-preset-launch-receipt-bindings/descriptors",
+    "descriptor_paths":  [
+                             "generated/runtime-reflection/workspace-preset-launch-receipt-bindings/descriptors/workspace_preset_launch_receipt_binding_catalog.json"
+                         ]
 }

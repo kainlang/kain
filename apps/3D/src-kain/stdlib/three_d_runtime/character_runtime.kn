@@ -1,0 +1,40 @@
+// Character, facial, and performer runtime contracts for engines, DCC suites, and sculpt-heavy applications.
+
+struct CharacterRigDescriptor:
+    rig_id: String
+    rig_kind: String
+    deformation_policy: String
+
+struct FacialSolveDescriptor:
+    solve_id: String
+    solve_space: String
+    tensor_pipeline_id: String
+
+struct PerformerVariantDescriptor:
+    variant_id: String
+    performer_role: String
+    groom_binding_policy: String
+
+struct CharacterRuntimeProfile:
+    hero_rig: CharacterRigDescriptor
+    facial_solver: FacialSolveDescriptor
+    performer_variant: PerformerVariantDescriptor
+
+fn default_character_runtime_profile() -> CharacterRuntimeProfile with Pure:
+    let profile = CharacterRuntimeProfile()
+
+    profile.hero_rig = CharacterRigDescriptor()
+    profile.hero_rig.rig_id = "hero_character_rig"
+    profile.hero_rig.rig_kind = "body_face_and_corrective_stack"
+    profile.hero_rig.deformation_policy = "gpu_deformation_with_pose_layers"
+
+    profile.facial_solver = FacialSolveDescriptor()
+    profile.facial_solver.solve_id = "hero_facial_solver"
+    profile.facial_solver.solve_space = "blendshape_joint_and_wrinkle_masks"
+    profile.facial_solver.tensor_pipeline_id = "character_facial_tensor_pipeline"
+
+    profile.performer_variant = PerformerVariantDescriptor()
+    profile.performer_variant.variant_id = "performer_variant_runtime"
+    profile.performer_variant.performer_role = "hero_background_or_digital_double"
+    profile.performer_variant.groom_binding_policy = "character_to_groom_and_costume_binding"
+    profile

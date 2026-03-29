@@ -1,0 +1,40 @@
+// Render-delegation contracts for backend routing, frame packet ownership, capture/debug lanes, and multi-host presentation control.
+
+struct RenderDelegateDescriptor:
+    delegate_id: String
+    delegate_scope: String
+    backend_policy: String
+
+struct RenderCaptureDescriptor:
+    capture_id: String
+    capture_scope: String
+    delivery_policy: String
+
+struct PresentationRouteDescriptor:
+    route_id: String
+    route_scope: String
+    focus_policy: String
+
+struct RenderDelegationRuntimeProfile:
+    delegate_runtime: RenderDelegateDescriptor
+    capture_runtime: RenderCaptureDescriptor
+    presentation_route: PresentationRouteDescriptor
+
+fn default_render_delegation_runtime_profile() -> RenderDelegationRuntimeProfile with Pure:
+    let profile = RenderDelegationRuntimeProfile()
+
+    profile.delegate_runtime = RenderDelegateDescriptor()
+    profile.delegate_runtime.delegate_id = "render_delegate_runtime"
+    profile.delegate_runtime.delegate_scope = "native_hybrid_headless_stage_xr_and_streaming_backend_routes"
+    profile.delegate_runtime.backend_policy = "renderer_graph_budget_and_device_authority_aware"
+
+    profile.capture_runtime = RenderCaptureDescriptor()
+    profile.capture_runtime.capture_id = "render_capture_runtime"
+    profile.capture_runtime.capture_scope = "frame_debug_review_broadcast_replay_and_delivery_capture_paths"
+    profile.capture_runtime.delivery_policy = "provenance_visible_and_materialization_safe"
+
+    profile.presentation_route = PresentationRouteDescriptor()
+    profile.presentation_route.route_id = "render_presentation_route_runtime"
+    profile.presentation_route.route_scope = "viewport_overlay_stage_stream_and_review_surface_routing"
+    profile.presentation_route.focus_policy = "input_camera_and_workspace_layout_safe"
+    profile

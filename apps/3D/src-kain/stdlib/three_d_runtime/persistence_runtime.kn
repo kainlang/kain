@@ -1,0 +1,40 @@
+// Project persistence, autosave, branching, and recovery contracts.
+
+struct SnapshotDescriptor:
+    snapshot_id: String
+    snapshot_kind: String
+    retention_policy: String
+
+struct SessionPersistenceDescriptor:
+    persistence_id: String
+    scope_policy: String
+    merge_policy: String
+
+struct RecoveryDescriptor:
+    recovery_id: String
+    recovery_kind: String
+    audit_policy: String
+
+struct PersistenceRuntimeProfile:
+    snapshots: SnapshotDescriptor
+    session_persistence: SessionPersistenceDescriptor
+    recovery: RecoveryDescriptor
+
+fn default_persistence_runtime_profile() -> PersistenceRuntimeProfile with Pure:
+    let profile = PersistenceRuntimeProfile()
+
+    profile.snapshots = SnapshotDescriptor()
+    profile.snapshots.snapshot_id = "project_snapshot_runtime"
+    profile.snapshots.snapshot_kind = "scene_asset_ui_and_delivery_state_snapshot"
+    profile.snapshots.retention_policy = "autosave_branch_review_and_release_milestone_tiered"
+
+    profile.session_persistence = SessionPersistenceDescriptor()
+    profile.session_persistence.persistence_id = "workspace_session_persistence"
+    profile.session_persistence.scope_policy = "local_collaborative_and_cloud_mirror_capable"
+    profile.session_persistence.merge_policy = "delta_bundle_conflict_resolved_and_authority_aware"
+
+    profile.recovery = RecoveryDescriptor()
+    profile.recovery.recovery_id = "runtime_recovery"
+    profile.recovery.recovery_kind = "crash_resume_checkpoint_restore_and_audit_replay"
+    profile.recovery.audit_policy = "tamper_visible_operator_acknowledged_and_receipt_bound"
+    profile

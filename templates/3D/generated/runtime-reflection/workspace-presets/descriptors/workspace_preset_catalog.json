@@ -1,0 +1,190 @@
+{
+    "descriptor_document_id":  "workspace_preset_catalog_descriptor_document",
+    "descriptor_path":  "generated/runtime-reflection/workspace-presets/descriptors/workspace_preset_catalog.json",
+    "descriptor_kind":  "workspace_preset_catalog",
+    "descriptor_id":  "workspace_preset_catalog",
+    "descriptor_scope":  "workspace_preset_focus_lane_and_host_selection_metadata",
+    "policy":  {
+                   "name":  "catalog_policy",
+                   "value":  "workspace_preset_focus_lane_and_host_selection_metadata"
+               },
+    "runtime_links":  {
+                          "tensor_pipeline_id":  "tensor_pipeline_catalog",
+                          "runtime_app_manifest":  "manifests/runtime_apps.json",
+                          "distribution_manifest":  "manifests/distribution_channels.json"
+                      },
+    "catalog_id":  "workspace_preset_catalog",
+    "catalog_scope":  "workspace_preset_focus_lane_and_host_selection_metadata",
+    "tensor_pipeline_id":  "tensor_pipeline_catalog",
+    "manifest_source":  "manifests/workspace_presets.json",
+    "runtime_app_manifest":  "manifests/runtime_apps.json",
+    "distribution_manifest":  "manifests/distribution_channels.json",
+    "entry_count":  3,
+    "entries":  [
+                    {
+                        "preset_id":  "sculpt_studio",
+                        "preset_kind":  "workspace_lane",
+                        "focus_lane":  "sculpt",
+                        "runtime_app_id":  "universal_3d_workbench",
+                        "runtime_app_source_id":  "universal_3d_workbench_app",
+                        "runtime_app_namespace":  "universal_3d_workbench",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_workbench",
+                        "launch_manifest_id":  "workspace_preset_launch_manifest_example",
+                        "receipt_id":  "workspace_preset_materialization_receipt_example",
+                        "schema":  {
+                                       "launch":  "workspace_preset_launch_manifest_schema",
+                                       "receipt":  "workspace_preset_delivery_receipt_schema"
+                                   },
+                        "artifacts":  {
+                                          "launch_manifest":  "generated/workspace-presets/launch/workspace-preset-launch-manifest.json",
+                                          "materialization_receipt":  "generated/workspace-presets/receipts/workspace-preset-materialization-receipt.json"
+                                      }
+                    },
+                    {
+                        "preset_id":  "render_lab",
+                        "preset_kind":  "workspace_lane",
+                        "focus_lane":  "render",
+                        "runtime_app_id":  "universal_3d_workbench",
+                        "runtime_app_source_id":  "universal_3d_workbench_app",
+                        "runtime_app_namespace":  "universal_3d_workbench",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_workbench",
+                        "launch_manifest_id":  "render_lab_launch_manifest_example",
+                        "receipt_id":  "render_lab_materialization_receipt_example",
+                        "schema":  {
+                                       "launch":  "workspace_preset_launch_manifest_schema",
+                                       "receipt":  "workspace_preset_delivery_receipt_schema"
+                                   },
+                        "artifacts":  {
+                                          "launch_manifest":  "generated/workspace-presets/launch/render-lab-launch-manifest.json",
+                                          "materialization_receipt":  "generated/workspace-presets/receipts/render-lab-materialization-receipt.json"
+                                      }
+                    },
+                    {
+                        "preset_id":  "collaboration_review_stage",
+                        "preset_kind":  "workspace_lane",
+                        "focus_lane":  "review",
+                        "runtime_app_id":  "collaboration_review_stage",
+                        "runtime_app_source_id":  "universal_3d_workbench_app",
+                        "runtime_app_namespace":  "collaboration_review_stage",
+                        "host_kind":  "native_ui",
+                        "runtime_kind":  "native_review_suite",
+                        "launch_manifest_id":  "collaboration_review_stage_launch_manifest_example",
+                        "receipt_id":  "collaboration_review_stage_materialization_receipt_example",
+                        "schema":  {
+                                       "launch":  "workspace_preset_launch_manifest_schema",
+                                       "receipt":  "workspace_preset_delivery_receipt_schema"
+                                   },
+                        "artifacts":  {
+                                          "launch_manifest":  "generated/workspace-presets/launch/collaboration-review-stage-launch-manifest.json",
+                                          "materialization_receipt":  "generated/workspace-presets/receipts/collaboration-review-stage-materialization-receipt.json"
+                                      }
+                    }
+                ],
+    "indexes":  {
+                    "by_preset_id":  {
+                                         "collaboration_review_stage":  [
+                                                                            "collaboration_review_stage"
+                                                                        ],
+                                         "render_lab":  [
+                                                            "universal_3d_workbench"
+                                                        ],
+                                         "sculpt_studio":  [
+                                                               "universal_3d_workbench"
+                                                           ]
+                                     },
+                    "by_preset_kind":  {
+                                           "workspace_lane":  [
+                                                                  "collaboration_review_stage",
+                                                                  "render_lab",
+                                                                  "sculpt_studio"
+                                                              ]
+                                       },
+                    "by_focus_lane":  {
+                                          "render":  [
+                                                         "render_lab"
+                                                     ],
+                                          "review":  [
+                                                         "collaboration_review_stage"
+                                                     ],
+                                          "sculpt":  [
+                                                         "sculpt_studio"
+                                                     ]
+                                      },
+                    "by_runtime_app":  {
+                                           "collaboration_review_stage":  [
+                                                                              "collaboration_review_stage"
+                                                                          ],
+                                           "universal_3d_workbench":  [
+                                                                          "render_lab",
+                                                                          "sculpt_studio"
+                                                                      ]
+                                       },
+                    "by_runtime_app_source_id":  {
+                                                     "universal_3d_workbench_app":  [
+                                                                                        "collaboration_review_stage",
+                                                                                        "render_lab",
+                                                                                        "sculpt_studio"
+                                                                                    ]
+                                                 },
+                    "by_runtime_kind":  {
+                                            "native_review_suite":  [
+                                                                        "collaboration_review_stage"
+                                                                    ],
+                                            "native_workbench":  [
+                                                                     "render_lab",
+                                                                     "sculpt_studio"
+                                                                 ]
+                                        },
+                    "by_host_kind":  {
+                                         "native_ui":  [
+                                                           "collaboration_review_stage",
+                                                           "render_lab",
+                                                           "sculpt_studio"
+                                                       ]
+                                     },
+                    "by_launch_manifest_id":  {
+                                                  "collaboration_review_stage_launch_manifest_example":  [
+                                                                                                             "collaboration_review_stage"
+                                                                                                         ],
+                                                  "render_lab_launch_manifest_example":  [
+                                                                                             "render_lab"
+                                                                                         ],
+                                                  "workspace_preset_launch_manifest_example":  [
+                                                                                                   "sculpt_studio"
+                                                                                               ]
+                                              },
+                    "by_receipt_id":  {
+                                          "collaboration_review_stage_materialization_receipt_example":  [
+                                                                                                             "collaboration_review_stage"
+                                                                                                         ],
+                                          "render_lab_materialization_receipt_example":  [
+                                                                                             "render_lab"
+                                                                                         ],
+                                          "workspace_preset_materialization_receipt_example":  [
+                                                                                                   "sculpt_studio"
+                                                                                               ]
+                                      }
+                },
+    "artifact_roots":  [
+                           "generated/workspace-presets/launch",
+                           "generated/workspace-presets/receipts",
+                           "generated/schemas/workspace-presets/launch-manifests",
+                           "generated/schemas/workspace-presets/receipts",
+                           "generated/runtime-reflection/workspace-preset-launch-receipt-bindings"
+                       ],
+    "reflection_catalogs":  [
+                                "workspace_preset_launch_receipt_binding_catalog",
+                                "workspace_preset_launch_schema_catalog",
+                                "workspace_preset_launch_template_catalog",
+                                "workspace_preset_receipt_schema_catalog",
+                                "workspace_preset_receipt_template_catalog",
+                                "workspace_preset_receipt_catalog"
+                            ],
+    "descriptor_count":  1,
+    "descriptor_root":  "generated/runtime-reflection/workspace-presets/descriptors",
+    "descriptor_paths":  [
+                             "generated/runtime-reflection/workspace-presets/descriptors/workspace_preset_catalog.json"
+                         ]
+}

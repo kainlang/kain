@@ -1,0 +1,19 @@
+// SPIR-V lookdev lighting review seed.
+
+shader compute lookdev_lighting_review_resolve(id: UVec3) -> Vec4:
+    uniform lighting_rigs: StorageBuffer<Vec4> @0
+    uniform material_variants: StorageBuffer<Vec4> @1
+    uniform reference_scores: StorageBuffer<Vec4> @2
+    uniform reviewed_looks: StorageBuffer<Vec4> @3
+    let look_index = id.x
+    let lighting = lighting_rigs[look_index]
+    let material = material_variants[look_index]
+    let reference = reference_scores[look_index]
+    let output = vec4(
+        lighting.x + material.x,
+        lighting.y + reference.y,
+        material.z + reference.z,
+        1.0
+    )
+    reviewed_looks[look_index] = output
+    return output

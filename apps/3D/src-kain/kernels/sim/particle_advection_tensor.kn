@@ -1,0 +1,19 @@
+// SPIR-V particle advection seed.
+
+shader compute particle_advection_tensor(id: UVec3) -> Vec4:
+    uniform particle_positions: StorageBuffer<Vec4> @0
+    uniform particle_velocity: StorageBuffer<Vec4> @1
+    uniform force_field: StorageBuffer<Vec4> @2
+    uniform next_particle_positions: StorageBuffer<Vec4> @3
+    let particle_index = id.x
+    let position = particle_positions[particle_index]
+    let velocity = particle_velocity[particle_index]
+    let force = force_field[particle_index]
+    let output = vec4(
+        position.x + velocity.x + force.x,
+        position.y + velocity.y + force.y,
+        position.z + velocity.z + force.z,
+        1.0
+    )
+    next_particle_positions[particle_index] = output
+    return output

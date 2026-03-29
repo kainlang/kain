@@ -1,7 +1,7 @@
 {
     "catalog_id":  "distribution_receipt_catalog",
     "catalog_scope":  "distribution_channel_delivery_and_receipt_metadata",
-    "tensor_pipeline_id":  "runtime_reflection_tensor_pipeline",
+    "tensor_pipeline_id":  "tensor_pipeline_catalog",
     "manifest_source":  "manifests/distribution_channels.json",
     "channel_count":  87,
     "entries":  [
@@ -2537,5 +2537,10 @@
     "reflection_catalogs":  [
                                 "build_graph_catalog",
                                 "launch_profile_catalog"
-                            ]
+                            ],
+    "descriptor_root":  "generated/runtime-reflection/distribution/descriptors",
+    "descriptor_paths":  [
+                             "generated/runtime-reflection/distribution/descriptors/distribution_receipt_catalog.json"
+                         ],
+    "descriptor_count":  1
 }

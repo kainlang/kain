@@ -1,0 +1,40 @@
+// Procedural modeling, scatter, and field-driven authoring contracts.
+
+struct ProceduralGraphDescriptor:
+    graph_id: String
+    graph_kind: String
+    tensor_pipeline_id: String
+    output_domain: String
+
+struct ScatterRuntimeDescriptor:
+    scatter_id: String
+    placement_policy: String
+    density_policy: String
+    residency: String
+
+struct ProceduralRuntimeProfile:
+    geometry_graph: ProceduralGraphDescriptor
+    scatter_graph: ProceduralGraphDescriptor
+    field_graph: ProceduralGraphDescriptor
+    scatter_runtime: ScatterRuntimeDescriptor
+
+fn default_procedural_graph(graph_id: String, graph_kind: String, output_domain: String) -> ProceduralGraphDescriptor with Pure:
+    let graph = ProceduralGraphDescriptor()
+    graph.graph_id = graph_id
+    graph.graph_kind = graph_kind
+    graph.tensor_pipeline_id = "procedural_authoring_tensor_pipeline"
+    graph.output_domain = output_domain
+    graph
+
+fn default_procedural_runtime_profile() -> ProceduralRuntimeProfile with Pure:
+    let profile = ProceduralRuntimeProfile()
+    profile.geometry_graph = default_procedural_graph("geometry_graph", "node_graph", "mesh")
+    profile.scatter_graph = default_procedural_graph("scatter_graph", "distribution_graph", "instances")
+    profile.field_graph = default_procedural_graph("field_graph", "field_graph", "fields")
+
+    profile.scatter_runtime = ScatterRuntimeDescriptor()
+    profile.scatter_runtime.scatter_id = "world_scatter_runtime"
+    profile.scatter_runtime.placement_policy = "surface_and_volume"
+    profile.scatter_runtime.density_policy = "field_driven"
+    profile.scatter_runtime.residency = "streaming_gpu_preferred"
+    profile

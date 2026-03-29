@@ -1,0 +1,323 @@
+// Kain UI shell defaults for a desktop-grade 3D authoring suite.
+
+struct WorkbenchSurfaceDescriptor:
+    surface_id: String
+    widget_kind: String
+    title: String
+    dock_region: String
+
+struct WorkbenchThemeDescriptor:
+    theme_id: String
+    palette_mode: String
+    accent_color: String
+    viewport_chrome: String
+
+struct WorkbenchPresetCatalogDescriptor:
+    registry_id: String
+    manifest_source: String
+    presentation_policy: String
+
+struct WorkbenchPresetShortcutDescriptor:
+    preset_id: String
+    label: String
+    focus_lane: String
+
+fn default_primary_surfaces() -> Array<WorkbenchSurfaceDescriptor> with Pure:
+    let surfaces = []
+
+    let viewport = WorkbenchSurfaceDescriptor()
+    viewport.surface_id = "viewport_stage"
+    viewport.widget_kind = "Viewport3D"
+    viewport.title = "Primary Viewport"
+    viewport.dock_region = "center"
+    push(surfaces, viewport)
+
+    let outliner = WorkbenchSurfaceDescriptor()
+    outliner.surface_id = "scene_outliner"
+    outliner.widget_kind = "Tree"
+    outliner.title = "Scene Graph"
+    outliner.dock_region = "left"
+    push(surfaces, outliner)
+
+    let inspector = WorkbenchSurfaceDescriptor()
+    inspector.surface_id = "selection_inspector"
+    inspector.widget_kind = "Inspector"
+    inspector.title = "Selection Inspector"
+    inspector.dock_region = "right"
+    push(surfaces, inspector)
+
+    let procedural = WorkbenchSurfaceDescriptor()
+    procedural.surface_id = "procedural_stack"
+    procedural.widget_kind = "Graph"
+    procedural.title = "Procedural Stack"
+    procedural.dock_region = "bottom"
+    push(surfaces, procedural)
+
+    let material_graph = WorkbenchSurfaceDescriptor()
+    material_graph.surface_id = "material_graph"
+    material_graph.widget_kind = "Graph"
+    material_graph.title = "Material Graph"
+    material_graph.dock_region = "bottom"
+    push(surfaces, material_graph)
+
+    let timeline = WorkbenchSurfaceDescriptor()
+    timeline.surface_id = "timeline_surface"
+    timeline.widget_kind = "Timeline"
+    timeline.title = "Timeline"
+    timeline.dock_region = "bottom"
+    push(surfaces, timeline)
+
+    let orchestration = WorkbenchSurfaceDescriptor()
+    orchestration.surface_id = "artifact_orchestration"
+    orchestration.widget_kind = "Graph"
+    orchestration.title = "Artifact Orchestration"
+    orchestration.dock_region = "bottom"
+    push(surfaces, orchestration)
+
+    let constraints = WorkbenchSurfaceDescriptor()
+    constraints.surface_id = "constraint_graph"
+    constraints.widget_kind = "Graph"
+    constraints.title = "Constraint Graph"
+    constraints.dock_region = "bottom"
+    push(surfaces, constraints)
+
+    let biome = WorkbenchSurfaceDescriptor()
+    biome.surface_id = "biome_authoring"
+    biome.widget_kind = "Graph"
+    biome.title = "Biome Authoring"
+    biome.dock_region = "bottom"
+    push(surfaces, biome)
+
+    let destruction = WorkbenchSurfaceDescriptor()
+    destruction.surface_id = "destruction_lab"
+    destruction.widget_kind = "Inspector"
+    destruction.title = "Destruction Lab"
+    destruction.dock_region = "right"
+    push(surfaces, destruction)
+
+    let annotations = WorkbenchSurfaceDescriptor()
+    annotations.surface_id = "review_annotations"
+    annotations.widget_kind = "Inspector"
+    annotations.title = "Review Annotations"
+    annotations.dock_region = "right"
+    push(surfaces, annotations)
+
+    let publishing = WorkbenchSurfaceDescriptor()
+    publishing.surface_id = "distribution_publisher"
+    publishing.widget_kind = "Inspector"
+    publishing.title = "Distribution Publisher"
+    publishing.dock_region = "right"
+    push(surfaces, publishing)
+
+    let collaboration = WorkbenchSurfaceDescriptor()
+    collaboration.surface_id = "collaboration_review_surface"
+    collaboration.widget_kind = "Inspector"
+    collaboration.title = "Collaboration Review"
+    collaboration.dock_region = "right"
+    push(surfaces, collaboration)
+
+    let compositor = WorkbenchSurfaceDescriptor()
+    compositor.surface_id = "compositor_finishing_surface"
+    compositor.widget_kind = "Graph"
+    compositor.title = "Compositor Finishing"
+    compositor.dock_region = "bottom"
+    push(surfaces, compositor)
+
+    let exchange = WorkbenchSurfaceDescriptor()
+    exchange.surface_id = "scene_exchange_surface"
+    exchange.widget_kind = "Inspector"
+    exchange.title = "Scene Exchange"
+    exchange.dock_region = "right"
+    push(surfaces, exchange)
+
+    let metrology = WorkbenchSurfaceDescriptor()
+    metrology.surface_id = "metrology_inspection_surface"
+    metrology.widget_kind = "Inspector"
+    metrology.title = "Metrology Inspection"
+    metrology.dock_region = "right"
+    push(surfaces, metrology)
+
+    let fabrication = WorkbenchSurfaceDescriptor()
+    fabrication.surface_id = "fabrication_schedule_surface"
+    fabrication.widget_kind = "Inspector"
+    fabrication.title = "Fabrication Scheduling"
+    fabrication.dock_region = "right"
+    push(surfaces, fabrication)
+
+    let review_database = WorkbenchSurfaceDescriptor()
+    let scene_semantics = WorkbenchSurfaceDescriptor()
+    scene_semantics.surface_id = "scene_semantics_surface"
+    scene_semantics.widget_kind = "Inspector"
+    scene_semantics.title = "Scene Semantics"
+    scene_semantics.dock_region = "right"
+    push(surfaces, scene_semantics)
+
+    let query_surface = WorkbenchSurfaceDescriptor()
+    query_surface.surface_id = "query_selection_surface"
+    query_surface.widget_kind = "Graph"
+    query_surface.title = "Query Selection"
+    query_surface.dock_region = "bottom"
+    push(surfaces, query_surface)
+
+    let runtime_bundle = WorkbenchSurfaceDescriptor()
+    runtime_bundle.surface_id = "runtime_bundle_surface"
+    runtime_bundle.widget_kind = "Inspector"
+    runtime_bundle.title = "Runtime Bundles"
+    runtime_bundle.dock_region = "right"
+    push(surfaces, runtime_bundle)
+
+    let materialization = WorkbenchSurfaceDescriptor()
+    materialization.surface_id = "materialization_surface"
+    materialization.widget_kind = "Graph"
+    materialization.title = "Materialization"
+    materialization.dock_region = "bottom"
+    push(surfaces, materialization)
+
+    let workspace_presets = WorkbenchSurfaceDescriptor()
+    workspace_presets.surface_id = "workspace_preset_surface"
+    workspace_presets.widget_kind = "Graph"
+    workspace_presets.title = "Workspace Preset Catalog"
+    workspace_presets.dock_region = "bottom"
+    push(surfaces, workspace_presets)
+
+    let jobs_receipts = WorkbenchSurfaceDescriptor()
+    jobs_receipts.surface_id = "jobs_receipt_surface"
+    jobs_receipts.widget_kind = "Graph"
+    jobs_receipts.title = "Jobs Receipt Ledger"
+    jobs_receipts.dock_region = "bottom"
+    push(surfaces, jobs_receipts)
+
+    let asset_registry = WorkbenchSurfaceDescriptor()
+    asset_registry.surface_id = "asset_registry_surface"
+    asset_registry.widget_kind = "Graph"
+    asset_registry.title = "Asset Registry"
+    asset_registry.dock_region = "bottom"
+    push(surfaces, asset_registry)
+
+    let sequencing = WorkbenchSurfaceDescriptor()
+    sequencing.surface_id = "sequencing_surface"
+    sequencing.widget_kind = "Timeline"
+    sequencing.title = "Sequencing Studio"
+    sequencing.dock_region = "bottom"
+    push(surfaces, sequencing)
+
+    let navigation = WorkbenchSurfaceDescriptor()
+    navigation.surface_id = "navigation_surface"
+    navigation.widget_kind = "Graph"
+    navigation.title = "Navigation Crowd Lab"
+    navigation.dock_region = "bottom"
+    push(surfaces, navigation)
+
+    let vehicle = WorkbenchSurfaceDescriptor()
+    vehicle.surface_id = "vehicle_surface"
+    vehicle.widget_kind = "Inspector"
+    vehicle.title = "Vehicle Dynamics Lab"
+    vehicle.dock_region = "right"
+    push(surfaces, vehicle)
+
+    let lighting = WorkbenchSurfaceDescriptor()
+    lighting.surface_id = "lighting_surface"
+    lighting.widget_kind = "Inspector"
+    lighting.title = "Lighting Pipeline Stage"
+    lighting.dock_region = "right"
+    push(surfaces, lighting)
+
+    let broadcast = WorkbenchSurfaceDescriptor()
+    broadcast.surface_id = "broadcast_surface"
+    broadcast.widget_kind = "Inspector"
+    broadcast.title = "Broadcast Control Room"
+    broadcast.dock_region = "right"
+    push(surfaces, broadcast)
+
+    let color = WorkbenchSurfaceDescriptor()
+    color.surface_id = "color_surface"
+    color.widget_kind = "Graph"
+    color.title = "Color Management Control Room"
+    color.dock_region = "bottom"
+    push(surfaces, color)
+
+    let media = WorkbenchSurfaceDescriptor()
+    media.surface_id = "media_surface"
+    media.widget_kind = "Graph"
+    media.title = "Media Pipeline Stage"
+    media.dock_region = "bottom"
+    push(surfaces, media)
+
+    let narrative = WorkbenchSurfaceDescriptor()
+    narrative.surface_id = "narrative_surface"
+    narrative.widget_kind = "Graph"
+    narrative.title = "Narrative State Studio"
+    narrative.dock_region = "bottom"
+    push(surfaces, narrative)
+
+    let haptics = WorkbenchSurfaceDescriptor()
+    haptics.surface_id = "haptics_surface"
+    haptics.widget_kind = "Graph"
+    haptics.title = "Haptics Routing Lab"
+    haptics.dock_region = "bottom"
+    push(surfaces, haptics)
+
+    let updates = WorkbenchSurfaceDescriptor()
+    updates.surface_id = "updates_surface"
+    updates.widget_kind = "Graph"
+    updates.title = "Update Channel Registry"
+    updates.dock_region = "bottom"
+    push(surfaces, updates)
+
+    review_database.surface_id = "review_database_surface"
+    review_database.widget_kind = "Graph"
+    review_database.title = "Review Database"
+    review_database.dock_region = "bottom"
+    push(surfaces, review_database)
+
+    surfaces
+
+fn default_workspace_preset_catalog() -> WorkbenchPresetCatalogDescriptor with Pure:
+    let catalog = WorkbenchPresetCatalogDescriptor()
+    catalog.registry_id = "workspace_preset_registry"
+    catalog.manifest_source = "manifests/workspace_presets.json"
+    catalog.presentation_policy = "manifest_catalog_with_workbench_shortcuts"
+    catalog
+
+fn default_workspace_preset_shortcuts() -> Array<WorkbenchPresetShortcutDescriptor> with Pure:
+    let shortcuts = []
+
+    let sculpt = WorkbenchPresetShortcutDescriptor()
+    sculpt.preset_id = "sculpt_studio"
+    sculpt.label = "Sculpt Studio"
+    sculpt.focus_lane = "sculpt"
+    push(shortcuts, sculpt)
+
+    let render = WorkbenchPresetShortcutDescriptor()
+    render.preset_id = "render_lab"
+    render.label = "Render Lab"
+    render.focus_lane = "render"
+    push(shortcuts, render)
+
+    let review = WorkbenchPresetShortcutDescriptor()
+    review.preset_id = "collaboration_review_stage"
+    review.label = "Collaboration Review Stage"
+    review.focus_lane = "review"
+    push(shortcuts, review)
+
+    let bundles = WorkbenchPresetShortcutDescriptor()
+    bundles.preset_id = "runtime_bundle_manager"
+    bundles.label = "Runtime Bundle Manager"
+    bundles.focus_lane = "runtime_bundles"
+    push(shortcuts, bundles)
+
+    let color = WorkbenchPresetShortcutDescriptor()
+    color.preset_id = "color_management_control_room"
+    color.label = "Color Management Control Room"
+    color.focus_lane = "color_management"
+    push(shortcuts, color)
+
+    shortcuts
+
+fn default_workbench_theme() -> WorkbenchThemeDescriptor with Pure:
+    let theme = WorkbenchThemeDescriptor()
+    theme.theme_id = "industrial_sunrise"
+    theme.palette_mode = "dark"
+    theme.accent_color = "#f97316"
+    theme.viewport_chrome = "high_contrast"
+    theme

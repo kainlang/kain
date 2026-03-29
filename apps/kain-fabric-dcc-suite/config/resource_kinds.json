@@ -19,6 +19,15 @@
       "summary": "Asset ingest and package catalog bootstrap document."
     },
     {
+      "id": "asset_source_manifest_document",
+      "resource_uri": "asset://sources/current",
+      "kind": "value",
+      "producer_step": "asset.ingest_package",
+      "output_name": "asset_source_manifest_document",
+      "storage": "fabric-report",
+      "summary": "Source-id-first manifest for imported asset packages, source URIs, and transcode profile selection."
+    },
+    {
       "id": "imported_mesh_payload_document",
       "resource_uri": "mesh://imports/current/payloads",
       "kind": "value",

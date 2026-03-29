@@ -1,0 +1,14 @@
+// SPIR-V seed for mod package mount planning, dependency resolution, and sandbox-safe registry receipts.
+
+kernel mod_package_mount_resolve:
+    stage = "compute"
+    domain = "modding"
+    dispatch = [64, 1, 1]
+
+    input mod_packages: Tensor
+    input dependency_graph: Tensor
+    input trust_zones: Tensor
+    input channel_approvals: Tensor
+
+    output resolved_mod_mounts: Tensor
+    output mod_registry_receipts: Tensor

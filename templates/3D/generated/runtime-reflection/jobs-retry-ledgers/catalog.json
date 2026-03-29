@@ -14,15 +14,32 @@
                         "delivery_approval_policy":  "job_dispatch_gate",
                         "linked_receipt_ids":  [
                                                    "job_materialization_receipt_example",
+                                                   "job_materialization_receipt_queued",
                                                    "job_materialization_receipt_retry_pending",
                                                    "job_materialization_receipt_running"
                                                ],
+                        "active_receipt_ids":  [
+                                                   "job_materialization_receipt_queued",
+                                                   "job_materialization_receipt_running"
+                                               ],
+                        "terminal_receipt_ids":  [
+                                                     "job_materialization_receipt_example",
+                                                     "job_materialization_receipt_retry_pending"
+                                                 ],
                         "states":  [
                                        "completed",
                                        "failed",
+                                       "queued",
                                        "running"
                                    ],
+                        "latest_state":  "failed",
+                        "state_transitions":  [
+                                                  "completed-\u003erunning",
+                                                  "queued-\u003ecompleted",
+                                                  "running-\u003efailed"
+                                              ],
                         "resume_policies":  [
+                                                "dispatch_queue_wait_before_worker_assignment",
                                                 "failure_gate_before_requeue",
                                                 "retry_safe_receipt_resume_and_worker_requeue_bound",
                                                 "worker_completion_watch_before_retry"
@@ -65,11 +82,33 @@
                                      "failed":  [
                                                     "jobs_retry_ledger"
                                                 ],
+                                     "queued":  [
+                                                    "jobs_retry_ledger"
+                                                ],
                                      "running":  [
                                                      "jobs_retry_ledger"
                                                  ]
                                  },
+                    "by_latest_state":  {
+                                            "failed":  [
+                                                           "jobs_retry_ledger"
+                                                       ]
+                                        },
+                    "by_state_transition":  {
+                                                "completed-\u003erunning":  [
+                                                                                "jobs_retry_ledger"
+                                                                            ],
+                                                "queued-\u003ecompleted":  [
+                                                                               "jobs_retry_ledger"
+                                                                           ],
+                                                "running-\u003efailed":  [
+                                                                             "jobs_retry_ledger"
+                                                                         ]
+                                            },
                     "by_resume_policy":  {
+                                             "dispatch_queue_wait_before_worker_assignment":  [
+                                                                                                  "jobs_retry_ledger"
+                                                                                              ],
                                              "failure_gate_before_requeue":  [
                                                                                  "jobs_retry_ledger"
                                                                              ],
@@ -84,6 +123,9 @@
                                           "job_materialization_receipt_example":  [
                                                                                       "jobs_retry_ledger"
                                                                                   ],
+                                          "job_materialization_receipt_queued":  [
+                                                                                     "jobs_retry_ledger"
+                                                                                 ],
                                           "job_materialization_receipt_retry_pending":  [
                                                                                             "jobs_retry_ledger"
                                                                                         ],
@@ -91,6 +133,22 @@
                                                                                       "jobs_retry_ledger"
                                                                                   ]
                                       },
+                    "by_active_receipt_id":  {
+                                                 "job_materialization_receipt_queued":  [
+                                                                                            "jobs_retry_ledger"
+                                                                                        ],
+                                                 "job_materialization_receipt_running":  [
+                                                                                             "jobs_retry_ledger"
+                                                                                         ]
+                                             },
+                    "by_terminal_receipt_id":  {
+                                                   "job_materialization_receipt_example":  [
+                                                                                               "jobs_retry_ledger"
+                                                                                           ],
+                                                   "job_materialization_receipt_retry_pending":  [
+                                                                                                     "jobs_retry_ledger"
+                                                                                                 ]
+                                               },
                     "by_kernel":  {
                                       "job_queue_dispatch_resolve":  [
                                                                          "jobs_retry_ledger"
@@ -102,12 +160,18 @@
                 },
     "artifact_roots":  [
                            "generated/jobs/retries",
-                           "generated/runtime-reflection/jobs-retry-ledgers"
+                           "generated/runtime-reflection/jobs-retry-ledgers",
+                           "generated/runtime-reflection/jobs-retry-ledgers/descriptors"
                        ],
     "reflection_catalogs":  [
                                 "jobs_receipt_schema_catalog",
                                 "jobs_receipt_template_catalog",
                                 "build_graph_catalog",
                                 "distribution_receipt_catalog"
-                            ]
+                            ],
+    "descriptor_count":  1,
+    "descriptor_root":  "generated/runtime-reflection/jobs-retry-ledgers/descriptors",
+    "descriptor_paths":  [
+                             "generated/runtime-reflection/jobs-retry-ledgers/descriptors/jobs_retry_ledger_catalog.json"
+                         ]
 }

@@ -1,0 +1,40 @@
+// Texture, vertex, mask, projection, and layer-stack painting contracts for DCC and engine authoring.
+
+struct PaintCanvasDescriptor:
+    canvas_id: String
+    canvas_scope: String
+    storage_policy: String
+
+struct PaintLayerDescriptor:
+    layer_stack_id: String
+    blend_policy: String
+    tensor_pipeline_id: String
+
+struct StrokeDescriptor:
+    stroke_id: String
+    stroke_kind: String
+    sampling_policy: String
+
+struct PaintingRuntimeProfile:
+    canvas_runtime: PaintCanvasDescriptor
+    layer_runtime: PaintLayerDescriptor
+    stroke_runtime: StrokeDescriptor
+
+fn default_painting_runtime_profile() -> PaintingRuntimeProfile with Pure:
+    let profile = PaintingRuntimeProfile()
+
+    profile.canvas_runtime = PaintCanvasDescriptor()
+    profile.canvas_runtime.canvas_id = "paint_canvas_runtime"
+    profile.canvas_runtime.canvas_scope = "texture_vertex_mask_id_projection_and_udim_canvas_sets"
+    profile.canvas_runtime.storage_policy = "tile_streamed_color_space_aware_and_bake_ready"
+
+    profile.layer_runtime = PaintLayerDescriptor()
+    profile.layer_runtime.layer_stack_id = "paint_layer_stack_runtime"
+    profile.layer_runtime.blend_policy = "non_destructive_material_linked_and_review_visible"
+    profile.layer_runtime.tensor_pipeline_id = "painting_layer_tensor_pipeline"
+
+    profile.stroke_runtime = StrokeDescriptor()
+    profile.stroke_runtime.stroke_id = "paint_stroke_runtime"
+    profile.stroke_runtime.stroke_kind = "stylus_projection_fill_clone_and_smart_mask_strokes"
+    profile.stroke_runtime.sampling_policy = "pressure_tilt_velocity_symmetry_and_surface_aware"
+    profile

@@ -1,0 +1,630 @@
+// Universal 3D template profile.
+// Keep project, feature-pack, and packaging policy here instead of scattering literals across runtime files.
+
+struct ThreeDProjectIdentity:
+    project_id: String
+    display_name: String
+    product_kind: String
+    workspace_mode: String
+    organization_id: String
+
+struct ThreeDFeatureToggles:
+    enable_native_ui: Bool
+    enable_spirv_kernels: Bool
+    enable_tensor_pipelines: Bool
+    enable_ffi_bridges: Bool
+    enable_mocap: Bool
+    enable_simulation: Bool
+    enable_material_graph: Bool
+    enable_world_streaming: Bool
+    enable_asset_pipeline: Bool
+    enable_game_runtime: Bool
+    enable_collaboration: Bool
+    enable_photogrammetry: Bool
+    enable_audio: Bool
+    enable_plugin_packaging: Bool
+    enable_orchestration: Bool
+    enable_constraints: Bool
+    enable_biome_authoring: Bool
+    enable_destruction: Bool
+    enable_review_annotations: Bool
+    enable_publishing: Bool
+    enable_renderer_graph_authoring: Bool
+    enable_behavior_graphs: Bool
+    enable_cad_nurbs: Bool
+    enable_robotics_toolpaths: Bool
+    enable_live_asset_sync: Bool
+    enable_compositor_finishing: Bool
+    enable_scene_exchange: Bool
+    enable_metrology_inspection: Bool
+    enable_fabrication_scheduling: Bool
+    enable_review_database: Bool
+    enable_scene_semantics: Bool
+    enable_query_selection: Bool
+    enable_runtime_bundles: Bool
+    enable_materialization_runtime: Bool
+    enable_asset_registry: Bool
+    enable_character_runtime: Bool
+    enable_virtual_production: Bool
+    enable_geospatial_runtime: Bool
+    enable_xr_runtime: Bool
+    enable_networking_runtime: Bool
+    enable_device_runtime: Bool
+    enable_runtime_reflection: Bool
+    enable_lookdev_runtime: Bool
+    enable_simulation_authoring: Bool
+    enable_delivery_runtime: Bool
+    enable_scene_bundle_runtime: Bool
+    enable_native_widget_runtime: Bool
+    enable_interchange_runtime: Bool
+    enable_automation_runtime: Bool
+    enable_knowledge_runtime: Bool
+    enable_sequencing_runtime: Bool
+    enable_navigation_runtime: Bool
+    enable_vehicle_runtime: Bool
+    enable_lighting_runtime: Bool
+    enable_broadcast_runtime: Bool
+    enable_evaluation_runtime: Bool
+    enable_viewport_runtime: Bool
+    enable_interaction_runtime: Bool
+    enable_persistence_runtime: Bool
+    enable_jobs_runtime: Bool
+    enable_telemetry_runtime: Bool
+    enable_security_runtime: Bool
+    enable_entity_runtime: Bool
+    enable_prefab_runtime: Bool
+    enable_command_runtime: Bool
+    enable_state_migration_runtime: Bool
+    enable_workspace_layout_runtime: Bool
+    enable_workspace_preset_runtime: Bool
+    enable_gameplay_runtime: Bool
+    enable_presentation_runtime: Bool
+    enable_replay_runtime: Bool
+    enable_localization_runtime: Bool
+    enable_streaming_runtime: Bool
+    enable_point_cloud_runtime: Bool
+    enable_scene_source_runtime: Bool
+    enable_widget_primitives_runtime: Bool
+    enable_graph_materialization_runtime: Bool
+    enable_input_runtime: Bool
+    enable_camera_runtime: Bool
+    enable_cache_runtime: Bool
+    enable_scene_object_runtime: Bool
+    enable_native_controls_runtime: Bool
+    enable_schema_runtime: Bool
+    enable_physics_runtime: Bool
+    enable_shader_runtime: Bool
+    enable_resource_runtime: Bool
+    enable_mesh_runtime: Bool
+    enable_baking_runtime: Bool
+    enable_scripting_runtime: Bool
+    enable_ai_runtime: Bool
+    enable_modding_runtime: Bool
+    enable_identity_runtime: Bool
+    enable_cloud_runtime: Bool
+    enable_marketplace_runtime: Bool
+    enable_dataops_runtime: Bool
+    enable_fleet_runtime: Bool
+    enable_color_runtime: Bool
+    enable_media_runtime: Bool
+    enable_narrative_runtime: Bool
+    enable_haptics_runtime: Bool
+    enable_updates_runtime: Bool
+
+struct ThreeDDomainPackToggles:
+    enable_sculpt_pack: Bool
+    enable_render_pack: Bool
+    enable_material_pack: Bool
+    enable_animation_pack: Bool
+    enable_simulation_pack: Bool
+    enable_world_pack: Bool
+    enable_pipeline_pack: Bool
+    enable_procedural_pack: Bool
+    enable_groom_pack: Bool
+    enable_volumetric_pack: Bool
+    enable_photogrammetry_pack: Bool
+    enable_audio_pack: Bool
+    enable_collaboration_pack: Bool
+    enable_plugin_pack: Bool
+    enable_orchestration_pack: Bool
+    enable_constraint_pack: Bool
+    enable_biome_pack: Bool
+    enable_destruction_pack: Bool
+    enable_review_pack: Bool
+    enable_publishing_pack: Bool
+    enable_renderer_graph_pack: Bool
+    enable_behavior_pack: Bool
+    enable_cad_pack: Bool
+    enable_robotics_pack: Bool
+    enable_live_sync_pack: Bool
+    enable_compositor_pack: Bool
+    enable_scene_exchange_pack: Bool
+    enable_metrology_pack: Bool
+    enable_fabrication_pack: Bool
+    enable_review_database_pack: Bool
+    enable_scene_semantics_pack: Bool
+    enable_query_selection_pack: Bool
+    enable_runtime_bundle_pack: Bool
+    enable_materialization_pack: Bool
+    enable_asset_registry_pack: Bool
+    enable_character_pack: Bool
+    enable_virtual_production_pack: Bool
+    enable_geospatial_pack: Bool
+    enable_xr_pack: Bool
+    enable_networking_pack: Bool
+    enable_device_pack: Bool
+    enable_runtime_reflection_pack: Bool
+    enable_lookdev_pack: Bool
+    enable_simulation_authoring_pack: Bool
+    enable_delivery_pack: Bool
+    enable_scene_bundle_pack: Bool
+    enable_native_widget_pack: Bool
+    enable_interchange_pack: Bool
+    enable_automation_pack: Bool
+    enable_knowledge_pack: Bool
+    enable_sequencing_pack: Bool
+    enable_navigation_pack: Bool
+    enable_vehicle_pack: Bool
+    enable_lighting_pack: Bool
+    enable_broadcast_pack: Bool
+    enable_evaluation_pack: Bool
+    enable_viewport_pack: Bool
+    enable_interaction_pack: Bool
+    enable_persistence_pack: Bool
+    enable_jobs_pack: Bool
+    enable_telemetry_pack: Bool
+    enable_security_pack: Bool
+    enable_entity_pack: Bool
+    enable_prefab_pack: Bool
+    enable_command_pack: Bool
+    enable_state_migration_pack: Bool
+    enable_workspace_layout_pack: Bool
+    enable_workspace_preset_pack: Bool
+    enable_gameplay_pack: Bool
+    enable_presentation_pack: Bool
+    enable_replay_pack: Bool
+    enable_localization_pack: Bool
+    enable_streaming_pack: Bool
+    enable_point_cloud_pack: Bool
+    enable_scene_source_pack: Bool
+    enable_widget_primitives_pack: Bool
+    enable_graph_materialization_pack: Bool
+    enable_input_pack: Bool
+    enable_camera_pack: Bool
+    enable_cache_pack: Bool
+    enable_scene_object_pack: Bool
+    enable_native_controls_pack: Bool
+    enable_schema_pack: Bool
+    enable_physics_pack: Bool
+    enable_shader_pack: Bool
+    enable_resource_pack: Bool
+    enable_mesh_pack: Bool
+    enable_baking_pack: Bool
+    enable_scripting_pack: Bool
+    enable_ai_pack: Bool
+    enable_modding_pack: Bool
+    enable_identity_pack: Bool
+    enable_cloud_pack: Bool
+    enable_marketplace_pack: Bool
+    enable_dataops_pack: Bool
+    enable_fleet_pack: Bool
+    enable_color_pack: Bool
+    enable_media_pack: Bool
+    enable_narrative_pack: Bool
+    enable_haptics_pack: Bool
+    enable_updates_pack: Bool
+
+struct ThreeDBuildOutputs:
+    generate_ks: Bool
+    generate_ts: Bool
+    generate_js: Bool
+    generate_wasm: Bool
+    generate_hybrid: Bool
+    generate_native_ui_bundle: Bool
+    generate_gpu_reflection: Bool
+    generate_runtime_contracts: Bool
+    generate_plugin_packages: Bool
+    generate_distribution_bundles: Bool
+    generate_review_captures: Bool
+    generate_compositor_outputs: Bool
+    generate_scene_exchange_bundles: Bool
+    generate_inspection_reports: Bool
+    generate_fabrication_packages: Bool
+    generate_review_database_exports: Bool
+    generate_runtime_bundles: Bool
+    generate_materialization_receipts: Bool
+    generate_asset_registry_exports: Bool
+    generate_character_exports: Bool
+    generate_virtual_production_exports: Bool
+    generate_geospatial_exports: Bool
+    generate_xr_exports: Bool
+    generate_network_exports: Bool
+    generate_device_exports: Bool
+    generate_runtime_reflection_exports: Bool
+    generate_lookdev_exports: Bool
+    generate_simulation_authoring_exports: Bool
+    generate_delivery_exports: Bool
+    generate_scene_bundle_exports: Bool
+    generate_widget_schema_exports: Bool
+    generate_interchange_exports: Bool
+    generate_automation_exports: Bool
+    generate_knowledge_exports: Bool
+    generate_sequence_exports: Bool
+    generate_navigation_exports: Bool
+    generate_vehicle_exports: Bool
+    generate_lighting_exports: Bool
+    generate_broadcast_exports: Bool
+    generate_evaluation_exports: Bool
+    generate_viewport_exports: Bool
+    generate_interaction_exports: Bool
+    generate_persistence_exports: Bool
+    generate_jobs_exports: Bool
+    generate_telemetry_exports: Bool
+    generate_security_exports: Bool
+    generate_entity_exports: Bool
+    generate_prefab_exports: Bool
+    generate_command_exports: Bool
+    generate_state_migration_exports: Bool
+    generate_workspace_layout_exports: Bool
+    generate_workspace_preset_exports: Bool
+    generate_gameplay_exports: Bool
+    generate_presentation_exports: Bool
+    generate_replay_exports: Bool
+    generate_localization_exports: Bool
+    generate_streaming_exports: Bool
+    generate_point_cloud_exports: Bool
+    generate_scene_source_exports: Bool
+    generate_widget_primitives_exports: Bool
+    generate_graph_materialization_exports: Bool
+    generate_input_exports: Bool
+    generate_camera_exports: Bool
+    generate_cache_exports: Bool
+    generate_scene_object_exports: Bool
+    generate_native_controls_exports: Bool
+    generate_schema_exports: Bool
+    generate_physics_exports: Bool
+    generate_shader_exports: Bool
+    generate_resource_exports: Bool
+    generate_mesh_exports: Bool
+    generate_baking_exports: Bool
+    generate_scripting_exports: Bool
+    generate_ai_exports: Bool
+    generate_modding_exports: Bool
+    generate_identity_exports: Bool
+    generate_cloud_exports: Bool
+    generate_marketplace_exports: Bool
+    generate_dataops_exports: Bool
+    generate_fleet_exports: Bool
+    generate_color_exports: Bool
+    generate_media_exports: Bool
+    generate_narrative_exports: Bool
+    generate_haptics_exports: Bool
+    generate_updates_exports: Bool
+
+struct ThreeDDeploymentPolicy:
+    native_shell_kind: String
+    default_viewport_backend: String
+    runtime_bundle_policy: String
+    workspace_preset_manifest: String
+    plugin_policy: String
+    review_policy: String
+    release_channel_policy: String
+
+struct ThreeDProjectProfile:
+    identity: ThreeDProjectIdentity
+    features: ThreeDFeatureToggles
+    domain_packs: ThreeDDomainPackToggles
+    outputs: ThreeDBuildOutputs
+    deployment: ThreeDDeploymentPolicy
+
+fn default_three_d_project_profile() -> ThreeDProjectProfile with Pure:
+    let profile = ThreeDProjectProfile()
+    profile.identity = ThreeDProjectIdentity()
+    profile.identity.project_id = "universal_kain_3d"
+    profile.identity.display_name = "Universal Kain 3D"
+    profile.identity.product_kind = "dcc_suite_or_runtime_engine"
+    profile.identity.workspace_mode = "native_workbench"
+    profile.identity.organization_id = "template_workspace"
+
+    profile.features = ThreeDFeatureToggles()
+    profile.features.enable_native_ui = true
+    profile.features.enable_spirv_kernels = true
+    profile.features.enable_tensor_pipelines = true
+    profile.features.enable_ffi_bridges = true
+    profile.features.enable_mocap = true
+    profile.features.enable_simulation = true
+    profile.features.enable_material_graph = true
+    profile.features.enable_world_streaming = true
+    profile.features.enable_asset_pipeline = true
+    profile.features.enable_game_runtime = true
+    profile.features.enable_collaboration = true
+    profile.features.enable_photogrammetry = true
+    profile.features.enable_audio = true
+    profile.features.enable_plugin_packaging = true
+    profile.features.enable_orchestration = true
+    profile.features.enable_constraints = true
+    profile.features.enable_biome_authoring = true
+    profile.features.enable_destruction = true
+    profile.features.enable_review_annotations = true
+    profile.features.enable_publishing = true
+    profile.features.enable_renderer_graph_authoring = true
+    profile.features.enable_behavior_graphs = true
+    profile.features.enable_cad_nurbs = true
+    profile.features.enable_robotics_toolpaths = true
+    profile.features.enable_live_asset_sync = true
+    profile.features.enable_compositor_finishing = true
+    profile.features.enable_scene_exchange = true
+    profile.features.enable_metrology_inspection = true
+    profile.features.enable_fabrication_scheduling = true
+    profile.features.enable_review_database = true
+    profile.features.enable_scene_semantics = true
+    profile.features.enable_query_selection = true
+    profile.features.enable_runtime_bundles = true
+    profile.features.enable_materialization_runtime = true
+    profile.features.enable_asset_registry = true
+    profile.features.enable_character_runtime = true
+    profile.features.enable_virtual_production = true
+    profile.features.enable_geospatial_runtime = true
+    profile.features.enable_xr_runtime = true
+    profile.features.enable_networking_runtime = true
+    profile.features.enable_device_runtime = true
+    profile.features.enable_runtime_reflection = true
+    profile.features.enable_lookdev_runtime = true
+    profile.features.enable_simulation_authoring = true
+    profile.features.enable_delivery_runtime = true
+    profile.features.enable_scene_bundle_runtime = true
+    profile.features.enable_native_widget_runtime = true
+    profile.features.enable_interchange_runtime = true
+    profile.features.enable_automation_runtime = true
+    profile.features.enable_knowledge_runtime = true
+    profile.features.enable_sequencing_runtime = true
+    profile.features.enable_navigation_runtime = true
+    profile.features.enable_vehicle_runtime = true
+    profile.features.enable_lighting_runtime = true
+    profile.features.enable_broadcast_runtime = true
+    profile.features.enable_evaluation_runtime = true
+    profile.features.enable_viewport_runtime = true
+    profile.features.enable_interaction_runtime = true
+    profile.features.enable_persistence_runtime = true
+    profile.features.enable_jobs_runtime = true
+    profile.features.enable_telemetry_runtime = true
+    profile.features.enable_security_runtime = true
+    profile.features.enable_entity_runtime = true
+    profile.features.enable_prefab_runtime = true
+    profile.features.enable_command_runtime = true
+    profile.features.enable_state_migration_runtime = true
+    profile.features.enable_workspace_layout_runtime = true
+    profile.features.enable_workspace_preset_runtime = true
+    profile.features.enable_gameplay_runtime = true
+    profile.features.enable_presentation_runtime = true
+    profile.features.enable_replay_runtime = true
+    profile.features.enable_localization_runtime = true
+    profile.features.enable_streaming_runtime = true
+    profile.features.enable_point_cloud_runtime = true
+    profile.features.enable_scene_source_runtime = true
+    profile.features.enable_widget_primitives_runtime = true
+    profile.features.enable_graph_materialization_runtime = true
+    profile.features.enable_input_runtime = true
+    profile.features.enable_camera_runtime = true
+    profile.features.enable_cache_runtime = true
+    profile.features.enable_scene_object_runtime = true
+    profile.features.enable_native_controls_runtime = true
+    profile.features.enable_schema_runtime = true
+    profile.features.enable_physics_runtime = true
+    profile.features.enable_shader_runtime = true
+    profile.features.enable_resource_runtime = true
+    profile.features.enable_mesh_runtime = true
+    profile.features.enable_baking_runtime = true
+    profile.features.enable_scripting_runtime = true
+    profile.features.enable_ai_runtime = true
+    profile.features.enable_modding_runtime = true
+    profile.features.enable_identity_runtime = true
+    profile.features.enable_cloud_runtime = true
+    profile.features.enable_marketplace_runtime = true
+    profile.features.enable_dataops_runtime = true
+    profile.features.enable_fleet_runtime = true
+    profile.features.enable_color_runtime = true
+    profile.features.enable_media_runtime = true
+    profile.features.enable_narrative_runtime = true
+    profile.features.enable_haptics_runtime = true
+    profile.features.enable_updates_runtime = true
+
+    profile.domain_packs = ThreeDDomainPackToggles()
+    profile.domain_packs.enable_sculpt_pack = true
+    profile.domain_packs.enable_render_pack = true
+    profile.domain_packs.enable_material_pack = true
+    profile.domain_packs.enable_animation_pack = true
+    profile.domain_packs.enable_simulation_pack = true
+    profile.domain_packs.enable_world_pack = true
+    profile.domain_packs.enable_pipeline_pack = true
+    profile.domain_packs.enable_procedural_pack = true
+    profile.domain_packs.enable_groom_pack = true
+    profile.domain_packs.enable_volumetric_pack = true
+    profile.domain_packs.enable_photogrammetry_pack = true
+    profile.domain_packs.enable_audio_pack = true
+    profile.domain_packs.enable_collaboration_pack = true
+    profile.domain_packs.enable_plugin_pack = true
+    profile.domain_packs.enable_orchestration_pack = true
+    profile.domain_packs.enable_constraint_pack = true
+    profile.domain_packs.enable_biome_pack = true
+    profile.domain_packs.enable_destruction_pack = true
+    profile.domain_packs.enable_review_pack = true
+    profile.domain_packs.enable_publishing_pack = true
+    profile.domain_packs.enable_renderer_graph_pack = true
+    profile.domain_packs.enable_behavior_pack = true
+    profile.domain_packs.enable_cad_pack = true
+    profile.domain_packs.enable_robotics_pack = true
+    profile.domain_packs.enable_live_sync_pack = true
+    profile.domain_packs.enable_compositor_pack = true
+    profile.domain_packs.enable_scene_exchange_pack = true
+    profile.domain_packs.enable_metrology_pack = true
+    profile.domain_packs.enable_fabrication_pack = true
+    profile.domain_packs.enable_review_database_pack = true
+    profile.domain_packs.enable_scene_semantics_pack = true
+    profile.domain_packs.enable_query_selection_pack = true
+    profile.domain_packs.enable_runtime_bundle_pack = true
+    profile.domain_packs.enable_materialization_pack = true
+    profile.domain_packs.enable_asset_registry_pack = true
+    profile.domain_packs.enable_character_pack = true
+    profile.domain_packs.enable_virtual_production_pack = true
+    profile.domain_packs.enable_geospatial_pack = true
+    profile.domain_packs.enable_xr_pack = true
+    profile.domain_packs.enable_networking_pack = true
+    profile.domain_packs.enable_device_pack = true
+    profile.domain_packs.enable_runtime_reflection_pack = true
+    profile.domain_packs.enable_lookdev_pack = true
+    profile.domain_packs.enable_simulation_authoring_pack = true
+    profile.domain_packs.enable_delivery_pack = true
+    profile.domain_packs.enable_scene_bundle_pack = true
+    profile.domain_packs.enable_native_widget_pack = true
+    profile.domain_packs.enable_interchange_pack = true
+    profile.domain_packs.enable_automation_pack = true
+    profile.domain_packs.enable_knowledge_pack = true
+    profile.domain_packs.enable_sequencing_pack = true
+    profile.domain_packs.enable_navigation_pack = true
+    profile.domain_packs.enable_vehicle_pack = true
+    profile.domain_packs.enable_lighting_pack = true
+    profile.domain_packs.enable_broadcast_pack = true
+    profile.domain_packs.enable_evaluation_pack = true
+    profile.domain_packs.enable_viewport_pack = true
+    profile.domain_packs.enable_interaction_pack = true
+    profile.domain_packs.enable_persistence_pack = true
+    profile.domain_packs.enable_jobs_pack = true
+    profile.domain_packs.enable_telemetry_pack = true
+    profile.domain_packs.enable_security_pack = true
+    profile.domain_packs.enable_entity_pack = true
+    profile.domain_packs.enable_prefab_pack = true
+    profile.domain_packs.enable_command_pack = true
+    profile.domain_packs.enable_state_migration_pack = true
+    profile.domain_packs.enable_workspace_layout_pack = true
+    profile.domain_packs.enable_workspace_preset_pack = true
+    profile.domain_packs.enable_gameplay_pack = true
+    profile.domain_packs.enable_presentation_pack = true
+    profile.domain_packs.enable_replay_pack = true
+    profile.domain_packs.enable_localization_pack = true
+    profile.domain_packs.enable_streaming_pack = true
+    profile.domain_packs.enable_point_cloud_pack = true
+    profile.domain_packs.enable_scene_source_pack = true
+    profile.domain_packs.enable_widget_primitives_pack = true
+    profile.domain_packs.enable_graph_materialization_pack = true
+    profile.domain_packs.enable_input_pack = true
+    profile.domain_packs.enable_camera_pack = true
+    profile.domain_packs.enable_cache_pack = true
+    profile.domain_packs.enable_scene_object_pack = true
+    profile.domain_packs.enable_native_controls_pack = true
+    profile.domain_packs.enable_schema_pack = true
+    profile.domain_packs.enable_physics_pack = true
+    profile.domain_packs.enable_shader_pack = true
+    profile.domain_packs.enable_resource_pack = true
+    profile.domain_packs.enable_mesh_pack = true
+    profile.domain_packs.enable_baking_pack = true
+    profile.domain_packs.enable_scripting_pack = true
+    profile.domain_packs.enable_ai_pack = true
+    profile.domain_packs.enable_modding_pack = true
+    profile.domain_packs.enable_identity_pack = true
+    profile.domain_packs.enable_cloud_pack = true
+    profile.domain_packs.enable_marketplace_pack = true
+    profile.domain_packs.enable_dataops_pack = true
+    profile.domain_packs.enable_fleet_pack = true
+    profile.domain_packs.enable_color_pack = true
+    profile.domain_packs.enable_media_pack = true
+    profile.domain_packs.enable_narrative_pack = true
+    profile.domain_packs.enable_haptics_pack = true
+    profile.domain_packs.enable_updates_pack = true
+
+    profile.outputs = ThreeDBuildOutputs()
+    profile.outputs.generate_ks = true
+    profile.outputs.generate_ts = true
+    profile.outputs.generate_js = true
+    profile.outputs.generate_wasm = true
+    profile.outputs.generate_hybrid = true
+    profile.outputs.generate_native_ui_bundle = true
+    profile.outputs.generate_gpu_reflection = true
+    profile.outputs.generate_runtime_contracts = true
+    profile.outputs.generate_plugin_packages = true
+    profile.outputs.generate_distribution_bundles = true
+    profile.outputs.generate_review_captures = true
+    profile.outputs.generate_compositor_outputs = true
+    profile.outputs.generate_scene_exchange_bundles = true
+    profile.outputs.generate_inspection_reports = true
+    profile.outputs.generate_fabrication_packages = true
+    profile.outputs.generate_review_database_exports = true
+    profile.outputs.generate_runtime_bundles = true
+    profile.outputs.generate_materialization_receipts = true
+    profile.outputs.generate_asset_registry_exports = true
+    profile.outputs.generate_character_exports = true
+    profile.outputs.generate_virtual_production_exports = true
+    profile.outputs.generate_geospatial_exports = true
+    profile.outputs.generate_xr_exports = true
+    profile.outputs.generate_network_exports = true
+    profile.outputs.generate_device_exports = true
+    profile.outputs.generate_runtime_reflection_exports = true
+    profile.outputs.generate_lookdev_exports = true
+    profile.outputs.generate_simulation_authoring_exports = true
+    profile.outputs.generate_delivery_exports = true
+    profile.outputs.generate_scene_bundle_exports = true
+    profile.outputs.generate_widget_schema_exports = true
+    profile.outputs.generate_interchange_exports = true
+    profile.outputs.generate_automation_exports = true
+    profile.outputs.generate_knowledge_exports = true
+    profile.outputs.generate_sequence_exports = true
+    profile.outputs.generate_navigation_exports = true
+    profile.outputs.generate_vehicle_exports = true
+    profile.outputs.generate_lighting_exports = true
+    profile.outputs.generate_broadcast_exports = true
+    profile.outputs.generate_evaluation_exports = true
+    profile.outputs.generate_viewport_exports = true
+    profile.outputs.generate_interaction_exports = true
+    profile.outputs.generate_persistence_exports = true
+    profile.outputs.generate_jobs_exports = true
+    profile.outputs.generate_telemetry_exports = true
+    profile.outputs.generate_security_exports = true
+    profile.outputs.generate_entity_exports = true
+    profile.outputs.generate_prefab_exports = true
+    profile.outputs.generate_command_exports = true
+    profile.outputs.generate_state_migration_exports = true
+    profile.outputs.generate_workspace_layout_exports = true
+    profile.outputs.generate_workspace_preset_exports = true
+    profile.outputs.generate_gameplay_exports = true
+    profile.outputs.generate_presentation_exports = true
+    profile.outputs.generate_replay_exports = true
+    profile.outputs.generate_localization_exports = true
+    profile.outputs.generate_streaming_exports = true
+    profile.outputs.generate_point_cloud_exports = true
+    profile.outputs.generate_scene_source_exports = true
+    profile.outputs.generate_widget_primitives_exports = true
+    profile.outputs.generate_graph_materialization_exports = true
+    profile.outputs.generate_input_exports = true
+    profile.outputs.generate_camera_exports = true
+    profile.outputs.generate_cache_exports = true
+    profile.outputs.generate_scene_object_exports = true
+    profile.outputs.generate_native_controls_exports = true
+    profile.outputs.generate_schema_exports = true
+    profile.outputs.generate_physics_exports = true
+    profile.outputs.generate_shader_exports = true
+    profile.outputs.generate_resource_exports = true
+    profile.outputs.generate_mesh_exports = true
+    profile.outputs.generate_baking_exports = true
+    profile.outputs.generate_scripting_exports = true
+    profile.outputs.generate_ai_exports = true
+    profile.outputs.generate_modding_exports = true
+    profile.outputs.generate_identity_exports = true
+    profile.outputs.generate_cloud_exports = true
+    profile.outputs.generate_marketplace_exports = true
+    profile.outputs.generate_dataops_exports = true
+    profile.outputs.generate_fleet_exports = true
+    profile.outputs.generate_color_exports = true
+    profile.outputs.generate_media_exports = true
+    profile.outputs.generate_narrative_exports = true
+    profile.outputs.generate_haptics_exports = true
+    profile.outputs.generate_updates_exports = true
+
+    profile.deployment = ThreeDDeploymentPolicy()
+    profile.deployment.native_shell_kind = "kain_native_ui"
+    profile.deployment.default_viewport_backend = "native"
+    profile.deployment.runtime_bundle_policy = "multi_target"
+    profile.deployment.workspace_preset_manifest = "manifests/workspace_presets.json"
+    profile.deployment.plugin_policy = "contract_driven_optional"
+    profile.deployment.review_policy = "collaborative_or_local"
+    profile.deployment.release_channel_policy = "manifest_gated"
+    profile

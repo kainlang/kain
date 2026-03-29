@@ -1,0 +1,892 @@
+[
+   {
+      "approval_policy" : "workspace_owner_approval",
+      "id" : "internal_workspace_registry",
+      "artifact_roots" : [
+         "generated/runtime",
+         "generated/packages"
+      ],
+      "channel_kind" : "workspace_registry",
+      "label" : "Internal Workspace Registry"
+   },
+   {
+      "label" : "Review Drop",
+      "channel_kind" : "review_delivery",
+      "artifact_roots" : [
+         "generated/review",
+         "generated/distribution/review"
+      ],
+      "id" : "review_drop",
+      "approval_policy" : "review_lead_approval"
+   },
+   {
+      "artifact_roots" : [
+         "generated/distribution/public"
+      ],
+      "label" : "Public Release Catalog",
+      "channel_kind" : "release_catalog",
+      "approval_policy" : "release_gate",
+      "id" : "public_release_catalog"
+   },
+   {
+      "channel_kind" : "workspace_sync",
+      "label" : "Live Sync Mirror",
+      "artifact_roots" : [
+         "generated/sync",
+         "generated/runtime"
+      ],
+      "id" : "live_sync_mirror",
+      "approval_policy" : "session_authority_gate"
+   },
+   {
+      "channel_kind" : "fabrication_delivery",
+      "label" : "Machine Delivery Registry",
+      "artifact_roots" : [
+         "generated/cad",
+         "generated/toolpaths",
+         "generated/distribution/machines"
+      ],
+      "id" : "machine_delivery_registry",
+      "approval_policy" : "machine_program_approval"
+   },
+   {
+      "artifact_roots" : [
+         "generated/exchange",
+         "generated/distribution/exchange"
+      ],
+      "label" : "Scene Exchange Registry",
+      "channel_kind" : "scene_exchange_delivery",
+      "approval_policy" : "exchange_supervisor_gate",
+      "id" : "scene_exchange_registry"
+   },
+   {
+      "approval_policy" : "review_data_retention_gate",
+      "id" : "review_database_registry",
+      "artifact_roots" : [
+         "generated/review-db",
+         "generated/distribution/review-db"
+      ],
+      "label" : "Review Database Registry",
+      "channel_kind" : "review_database_delivery"
+   },
+   {
+      "label" : "Runtime Bundle Registry",
+      "channel_kind" : "runtime_bundle_delivery",
+      "artifact_roots" : [
+         "generated/bundles",
+         "generated/distribution/bundles"
+      ],
+      "id" : "runtime_bundle_registry",
+      "approval_policy" : "bundle_gate"
+   },
+   {
+      "channel_kind" : "materialization_delivery",
+      "label" : "Materialization Receipt Registry",
+      "artifact_roots" : [
+         "generated/materialized",
+         "generated/distribution/materialized"
+      ],
+      "id" : "materialization_receipt_registry",
+      "approval_policy" : "receipt_gate"
+   },
+   {
+      "channel_kind" : "workspace_preset_delivery",
+      "label" : "Workspace Preset Delivery Registry",
+      "artifact_roots" : [
+         "generated/workspace-presets",
+         "generated/workspace-presets/launch",
+         "generated/workspace-presets/receipts",
+         "generated/distribution/workspace-presets",
+         "generated/schemas/workspace-presets/launch-manifests",
+         "generated/schemas/workspace-presets/launch-manifests/templates",
+         "generated/schemas/workspace-presets/launch-manifests/indexes",
+         "generated/schemas/workspace-presets/receipts",
+         "generated/schemas/workspace-presets/receipts/templates",
+         "generated/schemas/workspace-presets/receipts/indexes",
+         "generated/runtime-reflection/workspace-presets",
+         "generated/runtime-reflection/workspace-preset-launch-schemas",
+         "generated/runtime-reflection/workspace-preset-launch-templates",
+         "generated/runtime-reflection/workspace-preset-receipt-schemas",
+         "generated/runtime-reflection/workspace-preset-receipt-templates",
+         "generated/runtime-reflection/workspace-preset-launch-receipt-bindings",
+         "generated/runtime-reflection/workspace-preset-receipts"
+      ],
+      "id" : "workspace_preset_delivery_registry",
+      "approval_policy" : "workspace_owner_and_schema_compatible"
+   },
+   {
+      "id" : "asset_registry_delivery",
+      "approval_policy" : "registry_curator_gate",
+      "channel_kind" : "asset_registry_delivery",
+      "label" : "Asset Registry Delivery",
+      "artifact_roots" : [
+         "generated/asset-registry",
+         "generated/distribution/asset-registry"
+      ]
+   },
+   {
+      "id" : "character_delivery_registry",
+      "approval_policy" : "character_supervisor_gate",
+      "label" : "Character Delivery Registry",
+      "channel_kind" : "character_delivery",
+      "artifact_roots" : [
+         "generated/character",
+         "generated/distribution/character"
+      ]
+   },
+   {
+      "channel_kind" : "virtual_production_delivery",
+      "label" : "Virtual Production Stage Registry",
+      "artifact_roots" : [
+         "generated/stage",
+         "generated/distribution/stage"
+      ],
+      "id" : "virtual_production_stage_registry",
+      "approval_policy" : "stage_supervisor_gate"
+   },
+   {
+      "channel_kind" : "geospatial_delivery",
+      "label" : "Geospatial Delivery Registry",
+      "artifact_roots" : [
+         "generated/geospatial",
+         "generated/distribution/geospatial"
+      ],
+      "id" : "geospatial_delivery_registry",
+      "approval_policy" : "survey_authority_gate"
+   },
+   {
+      "approval_policy" : "immersive_release_gate",
+      "id" : "xr_delivery_registry",
+      "artifact_roots" : [
+         "generated/xr",
+         "generated/distribution/xr"
+      ],
+      "label" : "XR Delivery Registry",
+      "channel_kind" : "xr_delivery"
+   },
+   {
+      "id" : "network_delivery_registry",
+      "approval_policy" : "session_authority_gate",
+      "label" : "Network Delivery Registry",
+      "channel_kind" : "network_delivery",
+      "artifact_roots" : [
+         "generated/network",
+         "generated/distribution/network"
+      ]
+   },
+   {
+      "approval_policy" : "device_supervisor_gate",
+      "id" : "device_delivery_registry",
+      "artifact_roots" : [
+         "generated/device",
+         "generated/distribution/device"
+      ],
+      "channel_kind" : "device_delivery",
+      "label" : "Device Delivery Registry"
+   },
+   {
+      "channel_kind" : "runtime_reflection_delivery",
+      "label" : "Runtime Reflection Registry",
+      "artifact_roots" : [
+         "generated/runtime-reflection",
+         "generated/reflection"
+      ],
+      "id" : "runtime_reflection_registry",
+      "approval_policy" : "schema_compatibility_gate"
+   },
+   {
+      "artifact_roots" : [
+         "generated/lookdev",
+         "generated/distribution/lookdev"
+      ],
+      "label" : "Lookdev Delivery Registry",
+      "channel_kind" : "lookdev_delivery",
+      "approval_policy" : "lookdev_supervisor_gate",
+      "id" : "lookdev_delivery_registry"
+   },
+   {
+      "id" : "simulation_authoring_registry",
+      "approval_policy" : "simulation_director_gate",
+      "label" : "Simulation Authoring Registry",
+      "channel_kind" : "simulation_authoring_delivery",
+      "artifact_roots" : [
+         "generated/simulation-authoring",
+         "generated/distribution/simulation-authoring"
+      ]
+   },
+   {
+      "artifact_roots" : [
+         "generated/delivery",
+         "generated/distribution/delivery"
+      ],
+      "label" : "Delivery Materializer Registry",
+      "channel_kind" : "delivery_materializer",
+      "approval_policy" : "delivery_gate",
+      "id" : "delivery_materializer_registry"
+   },
+   {
+      "artifact_roots" : [
+         "generated/scene-bundles",
+         "generated/distribution/scene-bundles"
+      ],
+      "channel_kind" : "scene_bundle_delivery",
+      "label" : "Scene Bundle Registry",
+      "approval_policy" : "scene_bundle_gate",
+      "id" : "scene_bundle_registry"
+   },
+   {
+      "artifact_roots" : [
+         "generated/widgets",
+         "generated/distribution/widgets"
+      ],
+      "channel_kind" : "widget_schema_delivery",
+      "label" : "Widget Schema Registry",
+      "approval_policy" : "widget_schema_gate",
+      "id" : "widget_schema_registry"
+   },
+   {
+      "id" : "interchange_delivery_registry",
+      "approval_policy" : "interchange_supervisor_gate",
+      "label" : "Interchange Delivery Registry",
+      "channel_kind" : "interchange_delivery",
+      "artifact_roots" : [
+         "generated/interchange",
+         "generated/distribution/interchange"
+      ]
+   },
+   {
+      "artifact_roots" : [
+         "generated/automation",
+         "generated/distribution/automation"
+      ],
+      "channel_kind" : "automation_delivery",
+      "label" : "Automation Recipe Registry",
+      "approval_policy" : "automation_supervisor_gate",
+      "id" : "automation_recipe_registry"
+   },
+   {
+      "id" : "knowledge_ops_registry",
+      "approval_policy" : "knowledge_curator_gate",
+      "label" : "Knowledge Ops Registry",
+      "channel_kind" : "knowledge_delivery",
+      "artifact_roots" : [
+         "generated/knowledge",
+         "generated/distribution/knowledge"
+      ]
+   },
+   {
+      "label" : "Sequencing Delivery Registry",
+      "channel_kind" : "sequencing_delivery",
+      "artifact_roots" : [
+         "generated/sequencing",
+         "generated/distribution/sequencing"
+      ],
+      "id" : "sequencing_delivery_registry",
+      "approval_policy" : "editorial_supervisor_gate"
+   },
+   {
+      "channel_kind" : "navigation_delivery",
+      "label" : "Navigation Delivery Registry",
+      "artifact_roots" : [
+         "generated/navigation",
+         "generated/distribution/navigation"
+      ],
+      "id" : "navigation_delivery_registry",
+      "approval_policy" : "runtime_navigation_gate"
+   },
+   {
+      "id" : "vehicle_delivery_registry",
+      "approval_policy" : "vehicle_supervisor_gate",
+      "label" : "Vehicle Delivery Registry",
+      "channel_kind" : "vehicle_delivery",
+      "artifact_roots" : [
+         "generated/vehicle",
+         "generated/distribution/vehicle"
+      ]
+   },
+   {
+      "approval_policy" : "lighting_supervisor_gate",
+      "id" : "lighting_delivery_registry",
+      "artifact_roots" : [
+         "generated/lighting",
+         "generated/distribution/lighting"
+      ],
+      "label" : "Lighting Delivery Registry",
+      "channel_kind" : "lighting_delivery"
+   },
+   {
+      "id" : "broadcast_delivery_registry",
+      "approval_policy" : "broadcast_supervisor_gate",
+      "label" : "Broadcast Delivery Registry",
+      "channel_kind" : "broadcast_delivery",
+      "artifact_roots" : [
+         "generated/broadcast",
+         "generated/distribution/broadcast"
+      ]
+   },
+   {
+      "id" : "evaluation_delivery_registry",
+      "approval_policy" : "evaluation_supervisor_gate",
+      "label" : "Evaluation Delivery Registry",
+      "channel_kind" : "evaluation_delivery",
+      "artifact_roots" : [
+         "generated/evaluation",
+         "generated/distribution/evaluation"
+      ]
+   },
+   {
+      "artifact_roots" : [
+         "generated/viewport",
+         "generated/distribution/viewport"
+      ],
+      "label" : "Viewport Delivery Registry",
+      "channel_kind" : "viewport_delivery",
+      "approval_policy" : "viewport_supervisor_gate",
+      "id" : "viewport_delivery_registry"
+   },
+   {
+      "id" : "interaction_delivery_registry",
+      "approval_policy" : "interaction_supervisor_gate",
+      "label" : "Interaction Delivery Registry",
+      "channel_kind" : "interaction_delivery",
+      "artifact_roots" : [
+         "generated/interaction",
+         "generated/distribution/interaction"
+      ]
+   },
+   {
+      "label" : "Persistence Delivery Registry",
+      "channel_kind" : "persistence_delivery",
+      "artifact_roots" : [
+         "generated/persistence",
+         "generated/distribution/persistence"
+      ],
+      "id" : "persistence_delivery_registry",
+      "approval_policy" : "persistence_supervisor_gate"
+   },
+   {
+      "id" : "jobs_delivery_registry",
+      "approval_policy" : "job_dispatch_gate",
+      "channel_kind" : "jobs_delivery",
+      "label" : "Jobs Delivery Registry",
+      "artifact_roots" : [
+         "generated/jobs/receipts",
+         "generated/jobs/retries",
+         "generated/jobs",
+         "generated/distribution/jobs",
+         "generated/schemas/jobs/receipts",
+         "generated/schemas/jobs/receipts/templates",
+         "generated/schemas/jobs/receipts/indexes"
+      ]
+   },
+   {
+      "label" : "Telemetry Delivery Registry",
+      "channel_kind" : "telemetry_delivery",
+      "artifact_roots" : [
+         "generated/telemetry",
+         "generated/distribution/telemetry"
+      ],
+      "id" : "telemetry_delivery_registry",
+      "approval_policy" : "telemetry_supervisor_gate"
+   },
+   {
+      "channel_kind" : "security_delivery",
+      "label" : "Security Delivery Registry",
+      "artifact_roots" : [
+         "generated/security",
+         "generated/distribution/security"
+      ],
+      "id" : "security_delivery_registry",
+      "approval_policy" : "security_supervisor_gate"
+   },
+   {
+      "id" : "entity_delivery_registry",
+      "approval_policy" : "entity_supervisor_gate",
+      "channel_kind" : "entity_delivery",
+      "label" : "Entity Delivery Registry",
+      "artifact_roots" : [
+         "generated/entity",
+         "generated/distribution/entity"
+      ]
+   },
+   {
+      "artifact_roots" : [
+         "generated/prefabs",
+         "generated/distribution/prefabs"
+      ],
+      "channel_kind" : "prefab_delivery",
+      "label" : "Prefab Delivery Registry",
+      "approval_policy" : "prefab_supervisor_gate",
+      "id" : "prefab_delivery_registry"
+   },
+   {
+      "approval_policy" : "command_authority_gate",
+      "id" : "command_receipt_registry",
+      "artifact_roots" : [
+         "generated/commands",
+         "generated/distribution/commands"
+      ],
+      "label" : "Command Receipt Registry",
+      "channel_kind" : "command_delivery"
+   },
+   {
+      "artifact_roots" : [
+         "generated/state-migration",
+         "generated/distribution/state-migration"
+      ],
+      "label" : "State Migration Registry",
+      "channel_kind" : "state_migration_delivery",
+      "approval_policy" : "schema_compatibility_gate",
+      "id" : "state_migration_registry"
+   },
+   {
+      "id" : "workspace_layout_registry",
+      "approval_policy" : "workspace_layout_gate",
+      "label" : "Workspace Layout Registry",
+      "channel_kind" : "workspace_layout_delivery",
+      "artifact_roots" : [
+         "generated/workspace-layouts",
+         "generated/distribution/workspace-layouts"
+      ]
+   },
+   {
+      "approval_policy" : "gameplay_authority_gate",
+      "id" : "gameplay_delivery_registry",
+      "artifact_roots" : [
+         "generated/gameplay",
+         "generated/distribution/gameplay"
+      ],
+      "label" : "Gameplay Delivery Registry",
+      "channel_kind" : "gameplay_delivery"
+   },
+   {
+      "artifact_roots" : [
+         "generated/presentation",
+         "generated/distribution/presentation"
+      ],
+      "label" : "Presentation Delivery Registry",
+      "channel_kind" : "presentation_delivery",
+      "approval_policy" : "presentation_accessibility_gate",
+      "id" : "presentation_delivery_registry"
+   },
+   {
+      "id" : "replay_delivery_registry",
+      "approval_policy" : "replay_integrity_gate",
+      "channel_kind" : "replay_delivery",
+      "label" : "Replay Delivery Registry",
+      "artifact_roots" : [
+         "generated/replay",
+         "generated/distribution/replay"
+      ]
+   },
+   {
+      "approval_policy" : "locale_coverage_gate",
+      "id" : "localization_delivery_registry",
+      "artifact_roots" : [
+         "generated/localization",
+         "generated/distribution/localization"
+      ],
+      "label" : "Localization Delivery Registry",
+      "channel_kind" : "localization_delivery"
+   },
+   {
+      "id" : "streaming_delivery_registry",
+      "approval_policy" : "streaming_authority_gate",
+      "channel_kind" : "streaming_delivery",
+      "label" : "Streaming Delivery Registry",
+      "artifact_roots" : [
+         "generated/streaming",
+         "generated/distribution/streaming"
+      ]
+   },
+   {
+      "id" : "point_cloud_delivery_registry",
+      "approval_policy" : "point_cloud_quality_gate",
+      "channel_kind" : "point_cloud_delivery",
+      "label" : "Point Cloud Delivery Registry",
+      "artifact_roots" : [
+         "generated/point-cloud",
+         "generated/distribution/point-cloud"
+      ]
+   },
+   {
+      "approval_policy" : "scene_source_schema_gate",
+      "id" : "scene_source_delivery_registry",
+      "artifact_roots" : [
+         "generated/scene-source",
+         "generated/distribution/scene-source"
+      ],
+      "label" : "Scene Source Delivery Registry",
+      "channel_kind" : "scene_source_delivery"
+   },
+   {
+      "artifact_roots" : [
+         "generated/widget-primitives",
+         "generated/distribution/widget-primitives"
+      ],
+      "label" : "Widget Primitives Delivery Registry",
+      "channel_kind" : "widget_primitives_delivery",
+      "approval_policy" : "widget_primitive_schema_gate",
+      "id" : "widget_primitives_delivery_registry"
+   },
+   {
+      "channel_kind" : "graph_materialization_delivery",
+      "label" : "Graph Materialization Delivery Registry",
+      "artifact_roots" : [
+         "generated/graph-materialization",
+         "generated/distribution/graph-materialization"
+      ],
+      "id" : "graph_materialization_delivery_registry",
+      "approval_policy" : "graph_materialization_gate"
+   },
+   {
+      "approval_policy" : "input_authority_gate",
+      "id" : "input_delivery_registry",
+      "artifact_roots" : [
+         "generated/input",
+         "generated/distribution/input"
+      ],
+      "channel_kind" : "input_delivery",
+      "label" : "Input Delivery Registry"
+   },
+   {
+      "approval_policy" : "camera_authority_gate",
+      "id" : "camera_delivery_registry",
+      "artifact_roots" : [
+         "generated/camera",
+         "generated/distribution/camera"
+      ],
+      "label" : "Camera Delivery Registry",
+      "channel_kind" : "camera_delivery"
+   },
+   {
+      "channel_kind" : "cache_delivery",
+      "label" : "Cache Delivery Registry",
+      "artifact_roots" : [
+         "generated/cache",
+         "generated/distribution/cache"
+      ],
+      "id" : "cache_delivery_registry",
+      "approval_policy" : "cache_integrity_gate"
+   },
+   {
+      "channel_kind" : "scene_object_delivery",
+      "label" : "Scene Object Delivery Registry",
+      "artifact_roots" : [
+         "generated/scene-objects",
+         "generated/distribution/scene-objects"
+      ],
+      "id" : "scene_object_delivery_registry",
+      "approval_policy" : "scene_object_authority_gate"
+   },
+   {
+      "approval_policy" : "native_controls_schema_gate",
+      "id" : "native_controls_delivery_registry",
+      "artifact_roots" : [
+         "generated/native-controls",
+         "generated/distribution/native-controls"
+      ],
+      "label" : "Native Controls Delivery Registry",
+      "channel_kind" : "native_controls_delivery"
+   },
+   {
+      "id" : "schema_delivery_registry",
+      "approval_policy" : "schema_compatibility_gate",
+      "channel_kind" : "schema_delivery",
+      "label" : "Schema Delivery Registry",
+      "artifact_roots" : [
+         "generated/schemas",
+         "generated/distribution/schemas"
+      ]
+   },
+   {
+      "approval_policy" : "physics_safety_gate",
+      "id" : "physics_delivery_registry",
+      "artifact_roots" : [
+         "generated/physics",
+         "generated/distribution/physics"
+      ],
+      "channel_kind" : "physics_delivery",
+      "label" : "Physics Delivery Registry"
+   },
+   {
+      "channel_kind" : "shader_delivery",
+      "label" : "Shader Delivery Registry",
+      "artifact_roots" : [
+         "generated/shaders",
+         "generated/distribution/shaders"
+      ],
+      "id" : "shader_delivery_registry",
+      "approval_policy" : "shader_compatibility_gate"
+   },
+   {
+      "artifact_roots" : [
+         "generated/resources",
+         "generated/distribution/resources"
+      ],
+      "channel_kind" : "resource_delivery",
+      "label" : "Resource Delivery Registry",
+      "approval_policy" : "resource_budget_gate",
+      "id" : "resource_delivery_registry"
+   },
+   {
+      "id" : "material_source_delivery_registry",
+      "approval_policy" : "material_source_schema_gate",
+      "label" : "Material Source Delivery Registry",
+      "channel_kind" : "material_source_delivery",
+      "artifact_roots" : [
+         "generated/material-source",
+         "generated/distribution/material-source"
+      ]
+   },
+   {
+      "artifact_roots" : [
+         "generated/editor-widgets",
+         "generated/distribution/editor-widgets"
+      ],
+      "channel_kind" : "editor_widget_delivery",
+      "label" : "Editor Widget Delivery Registry",
+      "approval_policy" : "editor_widget_schema_gate",
+      "id" : "editor_widget_delivery_registry"
+   },
+   {
+      "id" : "scene_mutation_delivery_registry",
+      "approval_policy" : "scene_mutation_authority_gate",
+      "channel_kind" : "scene_mutation_delivery",
+      "label" : "Scene Mutation Delivery Registry",
+      "artifact_roots" : [
+         "generated/scene-mutation",
+         "generated/distribution/scene-mutation"
+      ]
+   },
+   {
+      "artifact_roots" : [
+         "generated/render-delegation",
+         "generated/distribution/render-delegation"
+      ],
+      "label" : "Render Delegation Delivery Registry",
+      "channel_kind" : "render_delegation_delivery",
+      "approval_policy" : "render_delegate_gate",
+      "id" : "render_delegation_delivery_registry"
+   },
+   {
+      "id" : "resource_reflection_delivery_registry",
+      "approval_policy" : "resource_reflection_gate",
+      "channel_kind" : "resource_reflection_delivery",
+      "label" : "Resource Reflection Delivery Registry",
+      "artifact_roots" : [
+         "generated/resource-reflection",
+         "generated/distribution/resource-reflection"
+      ]
+   },
+   {
+      "artifact_roots" : [
+         "generated/runtime-compatibility",
+         "generated/distribution/runtime-compatibility"
+      ],
+      "label" : "Runtime Compatibility Delivery Registry",
+      "channel_kind" : "runtime_compatibility_delivery",
+      "approval_policy" : "runtime_compatibility_gate",
+      "id" : "runtime_compatibility_delivery_registry"
+   },
+   {
+      "id" : "mesh_delivery_registry",
+      "approval_policy" : "mesh_integrity_gate",
+      "label" : "Mesh Delivery Registry",
+      "channel_kind" : "mesh_delivery",
+      "artifact_roots" : [
+         "generated/mesh",
+         "generated/distribution/mesh"
+      ]
+   },
+   {
+      "approval_policy" : "bake_quality_gate",
+      "id" : "baking_delivery_registry",
+      "artifact_roots" : [
+         "generated/baking",
+         "generated/distribution/baking"
+      ],
+      "label" : "Baking Delivery Registry",
+      "channel_kind" : "baking_delivery"
+   },
+   {
+      "approval_policy" : "script_sandbox_gate",
+      "id" : "scripting_delivery_registry",
+      "artifact_roots" : [
+         "generated/scripting",
+         "generated/distribution/scripting"
+      ],
+      "label" : "Scripting Delivery Registry",
+      "channel_kind" : "scripting_delivery"
+   },
+   {
+      "label" : "AI Delivery Registry",
+      "channel_kind" : "ai_delivery",
+      "artifact_roots" : [
+         "generated/ai",
+         "generated/distribution/ai"
+      ],
+      "id" : "ai_delivery_registry",
+      "approval_policy" : "ai_safety_gate"
+   },
+   {
+      "id" : "modding_delivery_registry",
+      "approval_policy" : "mod_registry_gate",
+      "channel_kind" : "modding_delivery",
+      "label" : "Modding Delivery Registry",
+      "artifact_roots" : [
+         "generated/modding",
+         "generated/distribution/modding"
+      ]
+   },
+   {
+      "channel_kind" : "identity_delivery",
+      "label" : "Identity Delivery Registry",
+      "artifact_roots" : [
+         "generated/identity",
+         "generated/distribution/identity"
+      ],
+      "id" : "identity_delivery_registry",
+      "approval_policy" : "identity_authority_gate"
+   },
+   {
+      "approval_policy" : "cloud_cost_and_security_gate",
+      "id" : "cloud_delivery_registry",
+      "artifact_roots" : [
+         "generated/cloud",
+         "generated/distribution/cloud"
+      ],
+      "label" : "Cloud Delivery Registry",
+      "channel_kind" : "cloud_delivery"
+   },
+   {
+      "approval_policy" : "marketplace_license_gate",
+      "id" : "marketplace_delivery_registry",
+      "artifact_roots" : [
+         "generated/marketplace",
+         "generated/distribution/marketplace"
+      ],
+      "channel_kind" : "marketplace_delivery",
+      "label" : "Marketplace Delivery Registry"
+   },
+   {
+      "id" : "dataops_delivery_registry",
+      "approval_policy" : "dataops_governance_gate",
+      "label" : "DataOps Delivery Registry",
+      "channel_kind" : "dataops_delivery",
+      "artifact_roots" : [
+         "generated/dataops",
+         "generated/distribution/dataops"
+      ]
+   },
+   {
+      "label" : "Fleet Delivery Registry",
+      "channel_kind" : "fleet_delivery",
+      "artifact_roots" : [
+         "generated/fleet",
+         "generated/distribution/fleet"
+      ],
+      "id" : "fleet_delivery_registry",
+      "approval_policy" : "fleet_capacity_gate"
+   },
+   {
+      "approval_policy" : "rigging_integrity_gate",
+      "id" : "rigging_delivery_registry",
+      "artifact_roots" : [
+         "generated/rigging",
+         "generated/distribution/rigging"
+      ],
+      "label" : "Rigging Delivery Registry",
+      "channel_kind" : "rigging_delivery"
+   },
+   {
+      "channel_kind" : "deformation_delivery",
+      "label" : "Deformation Delivery Registry",
+      "artifact_roots" : [
+         "generated/deformation",
+         "generated/distribution/deformation"
+      ],
+      "id" : "deformation_delivery_registry",
+      "approval_policy" : "deformation_validation_gate"
+   },
+   {
+      "artifact_roots" : [
+         "generated/painting",
+         "generated/distribution/painting"
+      ],
+      "channel_kind" : "painting_delivery",
+      "label" : "Painting Delivery Registry",
+      "approval_policy" : "paint_color_and_license_gate",
+      "id" : "painting_delivery_registry"
+   },
+   {
+      "artifact_roots" : [
+         "generated/uv",
+         "generated/distribution/uv"
+      ],
+      "channel_kind" : "uv_delivery",
+      "label" : "UV Delivery Registry",
+      "approval_policy" : "uv_layout_quality_gate",
+      "id" : "uv_delivery_registry"
+   },
+   {
+      "approval_policy" : "brush_preset_trust_gate",
+      "id" : "brush_delivery_registry",
+      "artifact_roots" : [
+         "generated/brush",
+         "generated/distribution/brush"
+      ],
+      "label" : "Brush Delivery Registry",
+      "channel_kind" : "brush_delivery"
+   },
+   {
+      "approval_policy" : "color_consistency_gate",
+      "id" : "color_delivery_registry",
+      "artifact_roots" : [
+         "generated/color",
+         "generated/distribution/color"
+      ],
+      "label" : "Color Delivery Registry",
+      "channel_kind" : "color_delivery"
+   },
+   {
+      "approval_policy" : "media_timing_and_codec_gate",
+      "id" : "media_delivery_registry",
+      "artifact_roots" : [
+         "generated/media",
+         "generated/distribution/media"
+      ],
+      "label" : "Media Delivery Registry",
+      "channel_kind" : "media_delivery"
+   },
+   {
+      "approval_policy" : "narrative_state_gate",
+      "id" : "narrative_delivery_registry",
+      "artifact_roots" : [
+         "generated/narrative",
+         "generated/distribution/narrative"
+      ],
+      "label" : "Narrative Delivery Registry",
+      "channel_kind" : "narrative_delivery"
+   },
+   {
+      "approval_policy" : "haptics_safety_gate",
+      "id" : "haptics_delivery_registry",
+      "artifact_roots" : [
+         "generated/haptics",
+         "generated/distribution/haptics"
+      ],
+      "label" : "Haptics Delivery Registry",
+      "channel_kind" : "haptics_delivery"
+   },
+   {
+      "approval_policy" : "update_compatibility_gate",
+      "id" : "updates_delivery_registry",
+      "artifact_roots" : [
+         "generated/updates",
+         "generated/distribution/updates"
+      ],
+      "label" : "Updates Delivery Registry",
+      "channel_kind" : "updates_delivery"
+   }
+]

@@ -1,0 +1,40 @@
+// Presentation shell, accessibility, and HUD/menu contracts for runtime/editor parity.
+
+struct PresentationShellDescriptor:
+    shell_id: String
+    shell_kind: String
+    parity_policy: String
+
+struct AccessibilityDescriptor:
+    accessibility_id: String
+    accessibility_scope: String
+    policy: String
+
+struct OverlayDescriptor:
+    overlay_id: String
+    overlay_kind: String
+    route_policy: String
+
+struct PresentationRuntimeProfile:
+    shell: PresentationShellDescriptor
+    accessibility: AccessibilityDescriptor
+    overlays: OverlayDescriptor
+
+fn default_presentation_runtime_profile() -> PresentationRuntimeProfile with Pure:
+    let profile = PresentationRuntimeProfile()
+
+    profile.shell = PresentationShellDescriptor()
+    profile.shell.shell_id = "presentation_shell_runtime"
+    profile.shell.shell_kind = "hud_menu_prompt_subtitle_and_diegetic_overlay"
+    profile.shell.parity_policy = "native_ui_and_in_game_surface_parity"
+
+    profile.accessibility = AccessibilityDescriptor()
+    profile.accessibility.accessibility_id = "presentation_accessibility_runtime"
+    profile.accessibility.accessibility_scope = "subtitle_contrast_input_scale_and_prompt_policy"
+    profile.accessibility.policy = "operator_user_and_region_aware"
+
+    profile.overlays = OverlayDescriptor()
+    profile.overlays.overlay_id = "presentation_overlay_router"
+    profile.overlays.overlay_kind = "hud_prompt_marker_and_notification_layers"
+    profile.overlays.route_policy = "viewport_context_and_locale_bound"
+    profile

@@ -1,7 +1,7 @@
 {
     "catalog_id":  "build_graph_catalog",
     "catalog_scope":  "build_graph_queue_output_and_promotion_metadata",
-    "tensor_pipeline_id":  "runtime_reflection_tensor_pipeline",
+    "tensor_pipeline_id":  "tensor_pipeline_catalog",
     "manifest_source":  "manifests/build_graphs.json",
     "graph_count":  87,
     "entries":  [
@@ -3499,5 +3499,10 @@
     "reflection_catalogs":  [
                                 "distribution_receipt_catalog",
                                 "runtime_contract_catalog"
-                            ]
+                            ],
+    "descriptor_root":  "generated/runtime-reflection/build-graphs/descriptors",
+    "descriptor_paths":  [
+                             "generated/runtime-reflection/build-graphs/descriptors/build_graph_catalog.json"
+                         ],
+    "descriptor_count":  1
 }

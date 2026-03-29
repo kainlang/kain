@@ -1,0 +1,40 @@
+// Scripting contracts for KainScript/editor/gameplay execution, sandboxing, and automation-safe runtime bridges.
+
+struct ScriptHostDescriptor:
+    host_id: String
+    host_scope: String
+    sandbox_policy: String
+
+struct ScriptBindingDescriptor:
+    binding_id: String
+    binding_scope: String
+    reflection_policy: String
+
+struct ScriptPackageDescriptor:
+    package_id: String
+    package_kind: String
+    distribution_policy: String
+
+struct ScriptingRuntimeProfile:
+    script_host: ScriptHostDescriptor
+    script_binding: ScriptBindingDescriptor
+    script_package: ScriptPackageDescriptor
+
+fn default_scripting_runtime_profile() -> ScriptingRuntimeProfile with Pure:
+    let profile = ScriptingRuntimeProfile()
+
+    profile.script_host = ScriptHostDescriptor()
+    profile.script_host.host_id = "universal_kainscript_host"
+    profile.script_host.host_scope = "editor_runtime_gameplay_pipeline_and_tooling_scripts"
+    profile.script_host.sandbox_policy = "capability_gated_audit_visible_and_ffi_contract_bound"
+
+    profile.script_binding = ScriptBindingDescriptor()
+    profile.script_binding.binding_id = "script_binding_runtime"
+    profile.script_binding.binding_scope = "scene_commands_ui_actions_asset_tools_and_runtime_events"
+    profile.script_binding.reflection_policy = "schema_and_runtime_contract_aligned"
+
+    profile.script_package = ScriptPackageDescriptor()
+    profile.script_package.package_id = "script_package_runtime"
+    profile.script_package.package_kind = "ks_ts_js_hybrid_script_bundle_exports"
+    profile.script_package.distribution_policy = "workspace_review_and_mod_safe"
+    profile

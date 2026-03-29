@@ -1,0 +1,19 @@
+// SPIR-V volumetric fog integration seed.
+
+shader compute volumetric_fog_integrate(id: UVec3) -> Vec4:
+    uniform density_grid: StorageBuffer<Vec4> @0
+    uniform lighting_grid: StorageBuffer<Vec4> @1
+    uniform phase_grid: StorageBuffer<Vec4> @2
+    uniform integrated_grid: StorageBuffer<Vec4> @3
+    let voxel_index = id.z * 4096 + id.y * 64 + id.x
+    let density = density_grid[voxel_index]
+    let lighting = lighting_grid[voxel_index]
+    let phase = phase_grid[voxel_index]
+    let output = vec4(
+        density.x * lighting.x,
+        density.y * lighting.y + phase.y,
+        density.z * lighting.z + phase.z,
+        1.0
+    )
+    integrated_grid[voxel_index] = output
+    return output

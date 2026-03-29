@@ -1,0 +1,63 @@
+{
+    "descriptor_document_id":  "workspace_preset_launch_template_catalog_descriptor_document",
+    "descriptor_path":  "generated/runtime-reflection/workspace-preset-launch-templates/descriptors/workspace_preset_launch_template_catalog.json",
+    "descriptor_kind":  "workspace_preset_launch_template",
+    "descriptor_id":  "workspace_preset_launch_template_catalog",
+    "descriptor_scope":  "workspace_preset_launch_manifest_template_and_index_metadata",
+    "policy":  {
+                   "name":  "template_policy",
+                   "value":  "workspace_preset_launch_manifest_template_and_index_metadata"
+               },
+    "runtime_links":  {
+                          "tensor_pipeline_id":  "tensor_pipeline_catalog",
+                          "template_root":  "generated/schemas/workspace-presets/launch-manifests/templates",
+                          "index_root":  "generated/schemas/workspace-presets/launch-manifests/indexes"
+                      },
+    "catalog_id":  "workspace_preset_launch_template_catalog",
+    "catalog_scope":  "workspace_preset_launch_manifest_template_and_index_metadata",
+    "tensor_pipeline_id":  "tensor_pipeline_catalog",
+    "templates":  [
+                      {
+                          "template_id":  "workspace_preset_launch_manifest_template_v1",
+                          "schema_id":  "workspace_preset_launch_manifest_schema",
+                          "template_path":  "generated/schemas/workspace-presets/launch-manifests/templates/workspace-preset-launch-manifest.template.json",
+                          "index_path":  "generated/schemas/workspace-presets/launch-manifests/indexes/catalog.json",
+                          "applies_to_presets":  [
+                                                     "collaboration_review_stage",
+                                                     "render_lab",
+                                                     "sculpt_studio"
+                                                 ]
+                      }
+                  ],
+    "indexes":  {
+                    "by_template_id":  {
+                                           "workspace_preset_launch_manifest_template_v1":  [
+                                                                                                "workspace_preset_launch_manifest_schema"
+                                                                                            ]
+                                       },
+                    "by_preset_id":  {
+                                         "collaboration_review_stage":  [
+                                                                            "workspace_preset_launch_manifest_template_v1"
+                                                                        ],
+                                         "render_lab":  [
+                                                            "workspace_preset_launch_manifest_template_v1"
+                                                        ],
+                                         "sculpt_studio":  [
+                                                               "workspace_preset_launch_manifest_template_v1"
+                                                           ]
+                                     }
+                },
+    "artifact_roots":  [
+                           "generated/schemas/workspace-presets/launch-manifests/templates",
+                           "generated/schemas/workspace-presets/launch-manifests/indexes"
+                       ],
+    "reflection_catalogs":  [
+                                "workspace_preset_launch_schema_catalog",
+                                "workspace_preset_catalog"
+                            ],
+    "descriptor_count":  1,
+    "descriptor_root":  "generated/runtime-reflection/workspace-preset-launch-templates/descriptors",
+    "descriptor_paths":  [
+                             "generated/runtime-reflection/workspace-preset-launch-templates/descriptors/workspace_preset_launch_template_catalog.json"
+                         ]
+}

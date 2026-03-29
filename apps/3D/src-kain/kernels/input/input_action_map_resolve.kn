@@ -1,0 +1,6 @@
+// Input action-map resolution seed for devices, shortcuts, modal stacks, and gameplay/editor/runtime routing.
+
+kernel input_action_map_resolve:
+    stage = "input_action_mapping"
+    domain = "input"
+    intent = "Resolve device families, action maps, shortcut layers, modal overrides, and context-aware input routing."

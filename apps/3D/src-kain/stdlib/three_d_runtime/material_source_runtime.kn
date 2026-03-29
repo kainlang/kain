@@ -1,0 +1,40 @@
+// Source-level material authoring contracts for authored surface documents, layer stacks, shader hooks, and preview-safe graph generation.
+
+struct MaterialSourceDocumentDescriptor:
+    document_id: String
+    document_scope: String
+    compile_policy: String
+
+struct MaterialLayerAuthoringDescriptor:
+    layer_id: String
+    layer_scope: String
+    blend_policy: String
+
+struct MaterialPreviewDescriptor:
+    preview_id: String
+    preview_scope: String
+    residency_policy: String
+
+struct MaterialSourceRuntimeProfile:
+    material_document: MaterialSourceDocumentDescriptor
+    layer_authoring: MaterialLayerAuthoringDescriptor
+    preview_runtime: MaterialPreviewDescriptor
+
+fn default_material_source_runtime_profile() -> MaterialSourceRuntimeProfile with Pure:
+    let profile = MaterialSourceRuntimeProfile()
+
+    profile.material_document = MaterialSourceDocumentDescriptor()
+    profile.material_document.document_id = "universal_material_source_document"
+    profile.material_document.document_scope = "surface_decal_volume_post_and_tool_material_source_documents"
+    profile.material_document.compile_policy = "shader_family_reflection_and_schema_bound"
+
+    profile.layer_authoring = MaterialLayerAuthoringDescriptor()
+    profile.layer_authoring.layer_id = "material_layer_authoring_runtime"
+    profile.layer_authoring.layer_scope = "layer_masks_function_blocks_textures_and_material_variants"
+    profile.layer_authoring.blend_policy = "preview_safe_and_delivery_compatible"
+
+    profile.preview_runtime = MaterialPreviewDescriptor()
+    profile.preview_runtime.preview_id = "material_source_preview_runtime"
+    profile.preview_runtime.preview_scope = "viewport_swatch_lookdev_and_graph_bound_previews"
+    profile.preview_runtime.residency_policy = "resource_budget_and_tensor_pipeline_aware"
+    profile

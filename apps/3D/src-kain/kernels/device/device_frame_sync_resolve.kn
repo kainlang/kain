@@ -1,0 +1,19 @@
+// SPIR-V device/runtime synchronization seed.
+
+shader compute device_frame_sync_resolve(id: UVec3) -> Vec4:
+    uniform device_profiles: StorageBuffer<Vec4> @0
+    uniform device_telemetry: StorageBuffer<Vec4> @1
+    uniform authority_state: StorageBuffer<Vec4> @2
+    uniform synchronized_devices: StorageBuffer<Vec4> @3
+    let device_index = id.x
+    let profile = device_profiles[device_index]
+    let telemetry = device_telemetry[device_index]
+    let authority = authority_state[0]
+    let output = vec4(
+        profile.x + telemetry.x,
+        profile.y + authority.y,
+        telemetry.z + authority.z,
+        1.0
+    )
+    synchronized_devices[device_index] = output
+    return output

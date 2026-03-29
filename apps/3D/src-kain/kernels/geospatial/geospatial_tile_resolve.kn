@@ -1,0 +1,19 @@
+// SPIR-V geospatial tile resolve seed.
+
+shader compute geospatial_tile_resolve(id: UVec3) -> Vec4:
+    uniform visible_tile_coords: StorageBuffer<Vec4> @0
+    uniform tile_metadata: StorageBuffer<Vec4> @1
+    uniform survey_offsets: StorageBuffer<Vec4> @2
+    uniform resolved_tile_payload: StorageBuffer<Vec4> @3
+    let tile_index = id.x
+    let coords = visible_tile_coords[tile_index]
+    let metadata = tile_metadata[tile_index]
+    let survey = survey_offsets[0]
+    let output = vec4(
+        coords.x + survey.x,
+        coords.y + survey.y,
+        metadata.z + survey.z,
+        1.0
+    )
+    resolved_tile_payload[tile_index] = output
+    return output

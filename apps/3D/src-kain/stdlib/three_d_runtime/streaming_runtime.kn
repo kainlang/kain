@@ -1,0 +1,40 @@
+// Remote-streaming, thin-client, and cloud-operated runtime contracts.
+
+struct StreamSessionDescriptor:
+    session_id: String
+    session_kind: String
+    authority_policy: String
+
+struct StreamQualityDescriptor:
+    quality_id: String
+    adaptation_kind: String
+    budget_policy: String
+
+struct ThinClientDescriptor:
+    thin_client_id: String
+    client_kind: String
+    handoff_policy: String
+
+struct StreamingRuntimeProfile:
+    stream_session: StreamSessionDescriptor
+    quality: StreamQualityDescriptor
+    thin_client: ThinClientDescriptor
+
+fn default_streaming_runtime_profile() -> StreamingRuntimeProfile with Pure:
+    let profile = StreamingRuntimeProfile()
+
+    profile.stream_session = StreamSessionDescriptor()
+    profile.stream_session.session_id = "remote_stream_runtime"
+    profile.stream_session.session_kind = "cloud_editor_runtime_and_thin_client"
+    profile.stream_session.authority_policy = "operator_and_manifest_bound"
+
+    profile.quality = StreamQualityDescriptor()
+    profile.quality.quality_id = "adaptive_stream_quality"
+    profile.quality.adaptation_kind = "latency_bandwidth_and_frame_budget_scaling"
+    profile.quality.budget_policy = "viewport_priority_and_session_role_aware"
+
+    profile.thin_client = ThinClientDescriptor()
+    profile.thin_client.thin_client_id = "thin_client_runtime"
+    profile.thin_client.client_kind = "review_edit_and_runtime_control_clients"
+    profile.thin_client.handoff_policy = "local_remote_and_hybrid_session_safe"
+    profile

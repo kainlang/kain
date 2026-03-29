@@ -1,7 +1,7 @@
 {
     "catalog_id":  "launch_profile_catalog",
     "catalog_scope":  "runtime_bundle_launch_profile_and_workspace_preset_binding_metadata",
-    "tensor_pipeline_id":  "runtime_reflection_tensor_pipeline",
+    "tensor_pipeline_id":  "tensor_pipeline_catalog",
     "profile_id":  "runtime_bundle_launch_profile",
     "manifest_source":  "manifests/workspace_presets.json",
     "runtime_app_manifest":  "manifests/runtime_apps.json",
@@ -111,11 +111,17 @@
     "artifact_roots":  [
                            "generated/workspace-presets/launch",
                            "generated/workspace-presets/receipts",
-                           "generated/runtime-reflection/launch-profiles"
+                           "generated/runtime-reflection/launch-profiles",
+                           "generated/runtime-reflection/launch-profiles/descriptors"
                        ],
     "reflection_catalogs":  [
                                 "workspace_preset_catalog",
                                 "workspace_preset_receipt_catalog",
                                 "distribution_receipt_catalog"
-                            ]
+                            ],
+    "descriptor_root":  "generated/runtime-reflection/launch-profiles/descriptors",
+    "descriptor_paths":  [
+                             "generated/runtime-reflection/launch-profiles/descriptors/launch_profile_catalog.json"
+                         ],
+    "descriptor_count":  1
 }

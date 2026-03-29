@@ -1,0 +1,1763 @@
+[
+   {
+      "label" : "Universal 3D Workbench App",
+      "source_path" : "src-kain/apps/universal_3d_workbench/main.kn",
+      "domain" : "ui",
+      "id" : "universal_3d_workbench_app",
+      "target" : "native-ui"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/project_profile.kn",
+      "label" : "3D Project Profile",
+      "target" : "run",
+      "id" : "three_d_project_profile",
+      "domain" : "stdlib"
+   },
+   {
+      "label" : "3D Engine Systems",
+      "source_path" : "src-kain/stdlib/three_d_runtime/engine_systems.kn",
+      "domain" : "stdlib",
+      "id" : "three_d_engine_systems",
+      "target" : "run"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_render_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/render_runtime.kn",
+      "label" : "3D Render Runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/scene_runtime.kn",
+      "label" : "3D Scene Runtime",
+      "target" : "run",
+      "id" : "three_d_scene_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "id" : "three_d_tensor_runtime",
+      "domain" : "stdlib",
+      "target" : "run",
+      "label" : "3D Tensor Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/tensor_runtime.kn"
+   },
+   {
+      "label" : "3D Asset Pipeline",
+      "source_path" : "src-kain/stdlib/three_d_runtime/asset_pipeline.kn",
+      "domain" : "stdlib",
+      "id" : "three_d_asset_pipeline",
+      "target" : "run"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_material_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/material_runtime.kn",
+      "label" : "3D Material Runtime"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_animation_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/animation_runtime.kn",
+      "label" : "3D Animation Runtime"
+   },
+   {
+      "domain" : "stdlib",
+      "id" : "three_d_simulation_runtime",
+      "target" : "run",
+      "label" : "3D Simulation Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/simulation_runtime.kn"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_world_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/world_runtime.kn",
+      "label" : "3D World Runtime"
+   },
+   {
+      "id" : "three_d_editor_runtime",
+      "domain" : "stdlib",
+      "target" : "run",
+      "label" : "3D Editor Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/editor_runtime.kn"
+   },
+   {
+      "domain" : "stdlib",
+      "id" : "three_d_ui_workbench",
+      "target" : "run",
+      "label" : "3D UI Workbench",
+      "source_path" : "src-kain/stdlib/three_d_runtime/ui_workbench.kn"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/ffi_runtime.kn",
+      "label" : "3D FFI Runtime",
+      "target" : "run",
+      "id" : "three_d_ffi_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "label" : "3D Procedural Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/procedural_runtime.kn",
+      "domain" : "stdlib",
+      "id" : "three_d_procedural_runtime",
+      "target" : "run"
+   },
+   {
+      "label" : "3D Grooming Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/grooming_runtime.kn",
+      "id" : "three_d_grooming_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_volumetric_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/volumetric_runtime.kn",
+      "label" : "3D Volumetric Runtime"
+   },
+   {
+      "label" : "3D Photogrammetry Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/photogrammetry_runtime.kn",
+      "id" : "three_d_photogrammetry_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/audio_runtime.kn",
+      "label" : "3D Audio Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_audio_runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/collaboration_runtime.kn",
+      "label" : "3D Collaboration Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_collaboration_runtime"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_plugin_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/plugin_runtime.kn",
+      "label" : "3D Plugin Runtime"
+   },
+   {
+      "label" : "Visibility Cluster Cull",
+      "source_path" : "src-kain/kernels/render/visibility_cluster_cull.kn",
+      "id" : "visibility_cluster_cull",
+      "domain" : "render",
+      "compiled_path" : "generated/spv/render/visibility_cluster_cull.spv",
+      "target" : "spirv"
+   },
+   {
+      "target" : "spirv",
+      "id" : "viewport_composite_tensor",
+      "compiled_path" : "generated/spv/render/viewport_composite_tensor.spv",
+      "domain" : "render",
+      "source_path" : "src-kain/kernels/render/viewport_composite_tensor.kn",
+      "label" : "Viewport Composite Tensor"
+   },
+   {
+      "target" : "spirv",
+      "id" : "material_layer_stack_tensor",
+      "domain" : "material",
+      "compiled_path" : "generated/spv/material/material_layer_stack_tensor.spv",
+      "source_path" : "src-kain/kernels/material/material_layer_stack_tensor.kn",
+      "label" : "Material Layer Stack Tensor"
+   },
+   {
+      "target" : "spirv",
+      "id" : "sculpt_brush_tensor",
+      "domain" : "sculpt",
+      "compiled_path" : "generated/spv/sculpt/sculpt_brush_tensor.spv",
+      "source_path" : "src-kain/kernels/sculpt/sculpt_brush_tensor.kn",
+      "label" : "Sculpt Brush Tensor"
+   },
+   {
+      "label" : "Dyntopo Voxel Remesh",
+      "source_path" : "src-kain/kernels/sculpt/dyntopo_voxel_remesh.kn",
+      "id" : "dyntopo_voxel_remesh",
+      "domain" : "sculpt",
+      "compiled_path" : "generated/spv/sculpt/dyntopo_voxel_remesh.spv",
+      "target" : "spirv"
+   },
+   {
+      "source_path" : "src-kain/kernels/animation/rig_skinning_pose_resolve.kn",
+      "label" : "Rig Skinning Pose Resolve",
+      "target" : "spirv",
+      "id" : "rig_skinning_pose_resolve",
+      "compiled_path" : "generated/spv/animation/rig_skinning_pose_resolve.spv",
+      "domain" : "animation"
+   },
+   {
+      "label" : "Mocap Retarget Pose Tensor",
+      "source_path" : "src-kain/kernels/animation/mocap_retarget_pose_tensor.kn",
+      "id" : "mocap_retarget_pose_tensor",
+      "compiled_path" : "generated/spv/animation/mocap_retarget_pose_tensor.spv",
+      "domain" : "animation",
+      "target" : "spirv"
+   },
+   {
+      "id" : "cloth_constraint_solver",
+      "compiled_path" : "generated/spv/sim/cloth_constraint_solver.spv",
+      "domain" : "simulation",
+      "target" : "spirv",
+      "label" : "Cloth Constraint Solver",
+      "source_path" : "src-kain/kernels/sim/cloth_constraint_solver.kn"
+   },
+   {
+      "source_path" : "src-kain/kernels/sim/particle_advection_tensor.kn",
+      "label" : "Particle Advection Tensor",
+      "target" : "spirv",
+      "id" : "particle_advection_tensor",
+      "domain" : "simulation",
+      "compiled_path" : "generated/spv/sim/particle_advection_tensor.spv"
+   },
+   {
+      "target" : "spirv",
+      "domain" : "simulation",
+      "compiled_path" : "generated/spv/sim/fluid_pressure_project.spv",
+      "id" : "fluid_pressure_project",
+      "source_path" : "src-kain/kernels/sim/fluid_pressure_project.kn",
+      "label" : "Fluid Pressure Project"
+   },
+   {
+      "source_path" : "src-kain/kernels/world/terrain_clipmap_bake.kn",
+      "label" : "Terrain Clipmap Bake",
+      "target" : "spirv",
+      "compiled_path" : "generated/spv/world/terrain_clipmap_bake.spv",
+      "domain" : "world",
+      "id" : "terrain_clipmap_bake"
+   },
+   {
+      "label" : "World Partition Visibility",
+      "source_path" : "src-kain/kernels/world/world_partition_visibility.kn",
+      "domain" : "world",
+      "compiled_path" : "generated/spv/world/world_partition_visibility.spv",
+      "id" : "world_partition_visibility",
+      "target" : "spirv"
+   },
+   {
+      "domain" : "procedural",
+      "compiled_path" : "generated/spv/procedural/procedural_field_scatter.spv",
+      "id" : "procedural_field_scatter",
+      "target" : "spirv",
+      "label" : "Procedural Field Scatter",
+      "source_path" : "src-kain/kernels/procedural/procedural_field_scatter.kn"
+   },
+   {
+      "target" : "spirv",
+      "compiled_path" : "generated/spv/groom/groom_strand_interpolate.spv",
+      "domain" : "groom",
+      "id" : "groom_strand_interpolate",
+      "source_path" : "src-kain/kernels/groom/groom_strand_interpolate.kn",
+      "label" : "Groom Strand Interpolate"
+   },
+   {
+      "label" : "Volumetric Fog Integrate",
+      "source_path" : "src-kain/kernels/volume/volumetric_fog_integrate.kn",
+      "compiled_path" : "generated/spv/volume/volumetric_fog_integrate.spv",
+      "domain" : "volume",
+      "id" : "volumetric_fog_integrate",
+      "target" : "spirv"
+   },
+   {
+      "label" : "Scan Reconstruction Fuse",
+      "source_path" : "src-kain/kernels/scan/scan_reconstruction_fuse.kn",
+      "id" : "scan_reconstruction_fuse",
+      "compiled_path" : "generated/spv/photogrammetry/scan_reconstruction_fuse.spv",
+      "domain" : "photogrammetry",
+      "target" : "spirv"
+   },
+   {
+      "id" : "audio_reactive_spectrum",
+      "domain" : "audio",
+      "compiled_path" : "generated/spv/audio/audio_reactive_spectrum.spv",
+      "target" : "spirv",
+      "label" : "Audio Reactive Spectrum",
+      "source_path" : "src-kain/kernels/audio/audio_reactive_spectrum.kn"
+   },
+   {
+      "label" : "Collaboration Presence Resolve",
+      "source_path" : "src-kain/kernels/collab/collaboration_presence_resolve.kn",
+      "domain" : "collaboration",
+      "compiled_path" : "generated/spv/collaboration/collaboration_presence_resolve.spv",
+      "id" : "collaboration_presence_resolve",
+      "target" : "spirv"
+   },
+   {
+      "label" : "3D Orchestration Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/orchestration_runtime.kn",
+      "id" : "three_d_orchestration_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_constraint_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/constraint_runtime.kn",
+      "label" : "3D Constraint Runtime"
+   },
+   {
+      "label" : "3D Biome Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/biome_runtime.kn",
+      "id" : "three_d_biome_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "label" : "3D Destruction Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/destruction_runtime.kn",
+      "id" : "three_d_destruction_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "id" : "three_d_review_annotation_runtime",
+      "domain" : "stdlib",
+      "target" : "run",
+      "label" : "3D Review Annotation Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/review_annotation_runtime.kn"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_publishing_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/publishing_runtime.kn",
+      "label" : "3D Publishing Runtime"
+   },
+   {
+      "source_path" : "src-kain/kernels/orchestration/artifact_materialization_resolve.kn",
+      "label" : "Artifact Materialization Resolve",
+      "target" : "spirv",
+      "id" : "artifact_materialization_resolve",
+      "compiled_path" : "generated/spv/orchestration/artifact_materialization_resolve.spv",
+      "domain" : "orchestration"
+   },
+   {
+      "source_path" : "src-kain/kernels/constraints/constraint_jacobi_solve.kn",
+      "label" : "Constraint Jacobi Solve",
+      "target" : "spirv",
+      "id" : "constraint_jacobi_solve",
+      "domain" : "constraints",
+      "compiled_path" : "generated/spv/constraints/constraint_jacobi_solve.spv"
+   },
+   {
+      "target" : "spirv",
+      "compiled_path" : "generated/spv/biome/biome_ecosystem_resolve.spv",
+      "domain" : "biome",
+      "id" : "biome_ecosystem_resolve",
+      "source_path" : "src-kain/kernels/biome/biome_ecosystem_resolve.kn",
+      "label" : "Biome Ecosystem Resolve"
+   },
+   {
+      "source_path" : "src-kain/kernels/destruction/fracture_cluster_resolve.kn",
+      "label" : "Fracture Cluster Resolve",
+      "target" : "spirv",
+      "compiled_path" : "generated/spv/destruction/fracture_cluster_resolve.spv",
+      "domain" : "destruction",
+      "id" : "fracture_cluster_resolve"
+   },
+   {
+      "label" : "Review Annotation Raster",
+      "source_path" : "src-kain/kernels/review/review_annotation_raster.kn",
+      "domain" : "review",
+      "compiled_path" : "generated/spv/review/review_annotation_raster.spv",
+      "id" : "review_annotation_raster",
+      "target" : "spirv"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_renderer_graph_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/renderer_graph_runtime.kn",
+      "label" : "3D Renderer Graph Runtime"
+   },
+   {
+      "label" : "3D Behavior Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/behavior_runtime.kn",
+      "id" : "three_d_behavior_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_cad_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/cad_runtime.kn",
+      "label" : "3D CAD Runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/robotics_runtime.kn",
+      "label" : "3D Robotics Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_robotics_runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/live_sync_runtime.kn",
+      "label" : "3D Live Sync Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_live_sync_runtime"
+   },
+   {
+      "source_path" : "src-kain/kernels/render/renderer_graph_schedule.kn",
+      "label" : "Renderer Graph Schedule",
+      "target" : "spirv",
+      "domain" : "renderer_graph",
+      "compiled_path" : "generated/spv/render/renderer_graph_schedule.spv",
+      "id" : "renderer_graph_schedule"
+   },
+   {
+      "source_path" : "src-kain/kernels/behavior/behavior_state_resolve.kn",
+      "label" : "Behavior State Resolve",
+      "target" : "spirv",
+      "id" : "behavior_state_resolve",
+      "domain" : "behavior",
+      "compiled_path" : "generated/spv/behavior/behavior_state_resolve.spv"
+   },
+   {
+      "target" : "spirv",
+      "id" : "nurbs_surface_tessellate",
+      "domain" : "cad",
+      "compiled_path" : "generated/spv/cad/nurbs_surface_tessellate.spv",
+      "source_path" : "src-kain/kernels/cad/nurbs_surface_tessellate.kn",
+      "label" : "NURBS Surface Tessellate"
+   },
+   {
+      "source_path" : "src-kain/kernels/robotics/toolpath_kinematics_resolve.kn",
+      "label" : "Toolpath Kinematics Resolve",
+      "target" : "spirv",
+      "id" : "toolpath_kinematics_resolve",
+      "compiled_path" : "generated/spv/robotics/toolpath_kinematics_resolve.spv",
+      "domain" : "robotics"
+   },
+   {
+      "target" : "spirv",
+      "id" : "live_asset_delta_merge",
+      "domain" : "live_sync",
+      "compiled_path" : "generated/spv/sync/live_asset_delta_merge.spv",
+      "source_path" : "src-kain/kernels/sync/live_asset_delta_merge.kn",
+      "label" : "Live Asset Delta Merge"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/compositor_runtime.kn",
+      "label" : "3D Compositor Runtime",
+      "target" : "run",
+      "id" : "three_d_compositor_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_scene_exchange_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/scene_exchange_runtime.kn",
+      "label" : "3D Scene Exchange Runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/metrology_runtime.kn",
+      "label" : "3D Metrology Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_metrology_runtime"
+   },
+   {
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_fabrication_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/fabrication_runtime.kn",
+      "label" : "3D Fabrication Runtime"
+   },
+   {
+      "label" : "3D Review Database Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/review_database_runtime.kn",
+      "id" : "three_d_review_database_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "label" : "Video Frame Compose",
+      "source_path" : "src-kain/kernels/compositor/video_frame_compose.kn",
+      "domain" : "compositor",
+      "compiled_path" : "generated/spv/compositor/video_frame_compose.spv",
+      "id" : "video_frame_compose",
+      "target" : "spirv"
+   },
+   {
+      "target" : "spirv",
+      "id" : "scene_exchange_stage_resolve",
+      "domain" : "scene_exchange",
+      "compiled_path" : "generated/spv/exchange/scene_exchange_stage_resolve.spv",
+      "source_path" : "src-kain/kernels/exchange/scene_exchange_stage_resolve.kn",
+      "label" : "Scene Exchange Stage Resolve"
+   },
+   {
+      "source_path" : "src-kain/kernels/metrology/surface_deviation_resolve.kn",
+      "label" : "Surface Deviation Resolve",
+      "target" : "spirv",
+      "id" : "surface_deviation_resolve",
+      "domain" : "metrology",
+      "compiled_path" : "generated/spv/metrology/surface_deviation_resolve.spv"
+   },
+   {
+      "compiled_path" : "generated/spv/fabrication/fabrication_schedule_resolve.spv",
+      "domain" : "fabrication",
+      "id" : "fabrication_schedule_resolve",
+      "target" : "spirv",
+      "label" : "Fabrication Schedule Resolve",
+      "source_path" : "src-kain/kernels/fabrication/fabrication_schedule_resolve.kn"
+   },
+   {
+      "label" : "Review Evidence Index",
+      "source_path" : "src-kain/kernels/review/review_evidence_index.kn",
+      "compiled_path" : "generated/spv/review/review_evidence_index.spv",
+      "domain" : "review_database",
+      "id" : "review_evidence_index",
+      "target" : "spirv"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_scene_semantics_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/scene_semantics_runtime.kn",
+      "label" : "3D Scene Semantics Runtime"
+   },
+   {
+      "id" : "three_d_query_runtime",
+      "domain" : "stdlib",
+      "target" : "run",
+      "label" : "3D Query Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/query_runtime.kn"
+   },
+   {
+      "label" : "3D Runtime Bundle Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/runtime_bundle_runtime.kn",
+      "domain" : "stdlib",
+      "id" : "three_d_runtime_bundle_runtime",
+      "target" : "run"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/materialization_runtime.kn",
+      "label" : "3D Materialization Runtime",
+      "target" : "run",
+      "id" : "three_d_materialization_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "label" : "3D Asset Registry Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/asset_registry_runtime.kn",
+      "id" : "three_d_asset_registry_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "source_path" : "src-kain/kernels/scene/scene_semantic_index_resolve.kn",
+      "label" : "Scene Semantic Index Resolve",
+      "target" : "spirv",
+      "id" : "scene_semantic_index_resolve",
+      "domain" : "scene_semantics",
+      "compiled_path" : "generated/spv/scene/scene_semantic_index_resolve.spv"
+   },
+   {
+      "source_path" : "src-kain/kernels/query/selection_query_resolve.kn",
+      "label" : "Selection Query Resolve",
+      "target" : "spirv",
+      "compiled_path" : "generated/spv/query/selection_query_resolve.spv",
+      "domain" : "query_selection",
+      "id" : "selection_query_resolve"
+   },
+   {
+      "id" : "runtime_bundle_assemble",
+      "compiled_path" : "generated/spv/bundles/runtime_bundle_assemble.spv",
+      "domain" : "runtime_bundles",
+      "target" : "spirv",
+      "label" : "Runtime Bundle Assemble",
+      "source_path" : "src-kain/kernels/bundles/runtime_bundle_assemble.kn"
+   },
+   {
+      "domain" : "materialization",
+      "compiled_path" : "generated/spv/materialization/materialization_receipt_index.spv",
+      "id" : "materialization_receipt_index",
+      "target" : "spirv",
+      "label" : "Materialization Receipt Index",
+      "source_path" : "src-kain/kernels/materialization/materialization_receipt_index.kn"
+   },
+   {
+      "source_path" : "src-kain/kernels/assets/asset_lineage_resolve.kn",
+      "label" : "Asset Lineage Resolve",
+      "target" : "spirv",
+      "id" : "asset_lineage_resolve",
+      "domain" : "asset_registry",
+      "compiled_path" : "generated/spv/assets/asset_lineage_resolve.spv"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/character_runtime.kn",
+      "label" : "3D Character Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_character_runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/virtual_production_runtime.kn",
+      "label" : "3D Virtual Production Runtime",
+      "target" : "run",
+      "id" : "three_d_virtual_production_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "label" : "3D Geospatial Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/geospatial_runtime.kn",
+      "id" : "three_d_geospatial_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "label" : "3D XR Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/xr_runtime.kn",
+      "id" : "three_d_xr_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "domain" : "stdlib",
+      "id" : "three_d_networking_runtime",
+      "target" : "run",
+      "label" : "3D Networking Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/networking_runtime.kn"
+   },
+   {
+      "id" : "facial_pose_solve",
+      "domain" : "character",
+      "compiled_path" : "generated/spv/character/facial_pose_solve.spv",
+      "target" : "spirv",
+      "label" : "Facial Pose Solve",
+      "source_path" : "src-kain/kernels/character/facial_pose_solve.kn"
+   },
+   {
+      "target" : "spirv",
+      "id" : "led_volume_sync",
+      "compiled_path" : "generated/spv/virtual_production/led_volume_sync.spv",
+      "domain" : "virtual_production",
+      "source_path" : "src-kain/kernels/virtual_production/led_volume_sync.kn",
+      "label" : "LED Volume Sync"
+   },
+   {
+      "id" : "geospatial_tile_resolve",
+      "compiled_path" : "generated/spv/geospatial/geospatial_tile_resolve.spv",
+      "domain" : "geospatial",
+      "target" : "spirv",
+      "label" : "Geospatial Tile Resolve",
+      "source_path" : "src-kain/kernels/geospatial/geospatial_tile_resolve.kn"
+   },
+   {
+      "label" : "XR Stereo Frame Resolve",
+      "source_path" : "src-kain/kernels/xr/xr_stereo_frame_resolve.kn",
+      "id" : "xr_stereo_frame_resolve",
+      "domain" : "xr",
+      "compiled_path" : "generated/spv/xr/xr_stereo_frame_resolve.spv",
+      "target" : "spirv"
+   },
+   {
+      "source_path" : "src-kain/kernels/networking/network_replication_resolve.kn",
+      "label" : "Network Replication Resolve",
+      "target" : "spirv",
+      "id" : "network_replication_resolve",
+      "domain" : "networking",
+      "compiled_path" : "generated/spv/networking/network_replication_resolve.spv"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_device_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/device_runtime.kn",
+      "label" : "3D Device Runtime"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_reflection_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/reflection_runtime.kn",
+      "label" : "3D Reflection Runtime"
+   },
+   {
+      "label" : "3D Lookdev Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/lookdev_runtime.kn",
+      "domain" : "stdlib",
+      "id" : "three_d_lookdev_runtime",
+      "target" : "run"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/simulation_authoring_runtime.kn",
+      "label" : "3D Simulation Authoring Runtime",
+      "target" : "run",
+      "id" : "three_d_simulation_authoring_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/delivery_runtime.kn",
+      "label" : "3D Delivery Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_delivery_runtime"
+   },
+   {
+      "label" : "Device Frame Sync Resolve",
+      "source_path" : "src-kain/kernels/device/device_frame_sync_resolve.kn",
+      "id" : "device_frame_sync_resolve",
+      "domain" : "device_runtime",
+      "compiled_path" : "generated/spv/device/device_frame_sync_resolve.spv",
+      "target" : "spirv"
+   },
+   {
+      "source_path" : "src-kain/kernels/reflection/runtime_schema_index_resolve.kn",
+      "label" : "Runtime Schema Index Resolve",
+      "target" : "spirv",
+      "domain" : "runtime_reflection",
+      "compiled_path" : "generated/spv/reflection/runtime_schema_index_resolve.spv",
+      "id" : "runtime_schema_index_resolve"
+   },
+   {
+      "label" : "Lookdev Lighting Review Resolve",
+      "source_path" : "src-kain/kernels/lookdev/lookdev_lighting_review_resolve.kn",
+      "id" : "lookdev_lighting_review_resolve",
+      "domain" : "lookdev",
+      "compiled_path" : "generated/spv/lookdev/lookdev_lighting_review_resolve.spv",
+      "target" : "spirv"
+   },
+   {
+      "id" : "simulation_solver_graph_resolve",
+      "domain" : "simulation_authoring",
+      "compiled_path" : "generated/spv/sim_authoring/simulation_solver_graph_resolve.spv",
+      "target" : "spirv",
+      "label" : "Simulation Solver Graph Resolve",
+      "source_path" : "src-kain/kernels/sim_authoring/simulation_solver_graph_resolve.kn"
+   },
+   {
+      "compiled_path" : "generated/spv/delivery/delivery_batch_materialize_resolve.spv",
+      "domain" : "delivery_materializer",
+      "id" : "delivery_batch_materialize_resolve",
+      "target" : "spirv",
+      "label" : "Delivery Batch Materialize Resolve",
+      "source_path" : "src-kain/kernels/delivery/delivery_batch_materialize_resolve.kn"
+   },
+   {
+      "label" : "3D Scene Bundle Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/scene_bundle_runtime.kn",
+      "id" : "three_d_scene_bundle_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "domain" : "stdlib",
+      "id" : "three_d_widget_runtime",
+      "target" : "run",
+      "label" : "3D Widget Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/widget_runtime.kn"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/interchange_runtime.kn",
+      "label" : "3D Interchange Runtime",
+      "target" : "run",
+      "id" : "three_d_interchange_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/automation_runtime.kn",
+      "label" : "3D Automation Runtime",
+      "target" : "run",
+      "id" : "three_d_automation_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "label" : "3D Knowledge Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/knowledge_runtime.kn",
+      "id" : "three_d_knowledge_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "target" : "spirv",
+      "id" : "scene_bundle_graph_resolve",
+      "compiled_path" : "generated/spv/scene/scene_bundle_graph_resolve.spv",
+      "domain" : "scene_bundles",
+      "source_path" : "src-kain/kernels/scene/scene_bundle_graph_resolve.kn",
+      "label" : "Scene Bundle Graph Resolve"
+   },
+   {
+      "source_path" : "src-kain/kernels/render/widget_surface_layout_resolve.kn",
+      "label" : "Widget Surface Layout Resolve",
+      "target" : "spirv",
+      "id" : "widget_surface_layout_resolve",
+      "compiled_path" : "generated/spv/render/widget_surface_layout_resolve.spv",
+      "domain" : "native_widgets"
+   },
+   {
+      "label" : "Interchange Transcode Resolve",
+      "source_path" : "src-kain/kernels/exchange/interchange_transcode_resolve.kn",
+      "id" : "interchange_transcode_resolve",
+      "domain" : "interchange",
+      "compiled_path" : "generated/spv/exchange/interchange_transcode_resolve.spv",
+      "target" : "spirv"
+   },
+   {
+      "label" : "Automation Recipe Schedule Resolve",
+      "source_path" : "src-kain/kernels/orchestration/automation_recipe_schedule_resolve.kn",
+      "id" : "automation_recipe_schedule_resolve",
+      "domain" : "automation",
+      "compiled_path" : "generated/spv/orchestration/automation_recipe_schedule_resolve.spv",
+      "target" : "spirv"
+   },
+   {
+      "target" : "spirv",
+      "id" : "knowledge_graph_index_resolve",
+      "domain" : "knowledge",
+      "compiled_path" : "generated/spv/reflection/knowledge_graph_index_resolve.spv",
+      "source_path" : "src-kain/kernels/reflection/knowledge_graph_index_resolve.kn",
+      "label" : "Knowledge Graph Index Resolve"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/sequencing_runtime.kn",
+      "label" : "3D Sequencing Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_sequencing_runtime"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_navigation_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/navigation_runtime.kn",
+      "label" : "3D Navigation Runtime"
+   },
+   {
+      "label" : "3D Vehicle Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/vehicle_runtime.kn",
+      "domain" : "stdlib",
+      "id" : "three_d_vehicle_runtime",
+      "target" : "run"
+   },
+   {
+      "domain" : "stdlib",
+      "id" : "three_d_lighting_runtime",
+      "target" : "run",
+      "label" : "3D Lighting Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/lighting_runtime.kn"
+   },
+   {
+      "id" : "three_d_broadcast_runtime",
+      "domain" : "stdlib",
+      "target" : "run",
+      "label" : "3D Broadcast Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/broadcast_runtime.kn"
+   },
+   {
+      "source_path" : "src-kain/kernels/sequencing/shot_sequence_timeline_resolve.kn",
+      "label" : "Shot Sequence Timeline Resolve",
+      "target" : "spirv",
+      "domain" : "sequencing",
+      "compiled_path" : "generated/spv/sequencing/shot_sequence_timeline_resolve.spv",
+      "id" : "shot_sequence_timeline_resolve"
+   },
+   {
+      "id" : "navigation_navmesh_corridor_resolve",
+      "compiled_path" : "generated/spv/navigation/navigation_navmesh_corridor_resolve.spv",
+      "domain" : "navigation",
+      "target" : "spirv",
+      "label" : "Navigation Navmesh Corridor Resolve",
+      "source_path" : "src-kain/kernels/navigation/navigation_navmesh_corridor_resolve.kn"
+   },
+   {
+      "label" : "Vehicle Dynamics Integrate",
+      "source_path" : "src-kain/kernels/vehicle/vehicle_dynamics_integrate.kn",
+      "domain" : "vehicle",
+      "compiled_path" : "generated/spv/vehicle/vehicle_dynamics_integrate.spv",
+      "id" : "vehicle_dynamics_integrate",
+      "target" : "spirv"
+   },
+   {
+      "label" : "Lighting Probe Grid Resolve",
+      "source_path" : "src-kain/kernels/lighting/lighting_probe_grid_resolve.kn",
+      "domain" : "lighting",
+      "compiled_path" : "generated/spv/lighting/lighting_probe_grid_resolve.spv",
+      "id" : "lighting_probe_grid_resolve",
+      "target" : "spirv"
+   },
+   {
+      "label" : "Broadcast Program Mix Resolve",
+      "source_path" : "src-kain/kernels/broadcast/broadcast_program_mix_resolve.kn",
+      "id" : "broadcast_program_mix_resolve",
+      "compiled_path" : "generated/spv/broadcast/broadcast_program_mix_resolve.spv",
+      "domain" : "broadcast",
+      "target" : "spirv"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_evaluation_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/evaluation_runtime.kn",
+      "label" : "3D Evaluation Runtime"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_viewport_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/viewport_runtime.kn",
+      "label" : "3D Viewport Runtime"
+   },
+   {
+      "label" : "3D Interaction Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/interaction_runtime.kn",
+      "domain" : "stdlib",
+      "id" : "three_d_interaction_runtime",
+      "target" : "run"
+   },
+   {
+      "label" : "3D Persistence Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/persistence_runtime.kn",
+      "domain" : "stdlib",
+      "id" : "three_d_persistence_runtime",
+      "target" : "run"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/jobs_runtime.kn",
+      "label" : "3D Jobs Runtime",
+      "target" : "run",
+      "id" : "three_d_jobs_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "id" : "three_d_telemetry_runtime",
+      "domain" : "stdlib",
+      "target" : "run",
+      "label" : "3D Telemetry Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/telemetry_runtime.kn"
+   },
+   {
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_security_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/security_runtime.kn",
+      "label" : "3D Security Runtime"
+   },
+   {
+      "label" : "Scene Evaluation Schedule Resolve",
+      "source_path" : "src-kain/kernels/evaluation/scene_evaluation_schedule_resolve.kn",
+      "domain" : "evaluation",
+      "compiled_path" : "generated/spv/evaluation/scene_evaluation_schedule_resolve.spv",
+      "id" : "scene_evaluation_schedule_resolve",
+      "target" : "spirv"
+   },
+   {
+      "id" : "viewport_frame_packet_resolve",
+      "compiled_path" : "generated/spv/viewport/viewport_frame_packet_resolve.spv",
+      "domain" : "viewport",
+      "target" : "spirv",
+      "label" : "Viewport Frame Packet Resolve",
+      "source_path" : "src-kain/kernels/viewport/viewport_frame_packet_resolve.kn"
+   },
+   {
+      "source_path" : "src-kain/kernels/interaction/interaction_gizmo_resolve.kn",
+      "label" : "Interaction Gizmo Resolve",
+      "target" : "spirv",
+      "id" : "interaction_gizmo_resolve",
+      "domain" : "interaction",
+      "compiled_path" : "generated/spv/interaction/interaction_gizmo_resolve.spv"
+   },
+   {
+      "id" : "persistence_snapshot_delta_resolve",
+      "domain" : "persistence",
+      "compiled_path" : "generated/spv/persistence/persistence_snapshot_delta_resolve.spv",
+      "target" : "spirv",
+      "label" : "Persistence Snapshot Delta Resolve",
+      "source_path" : "src-kain/kernels/persistence/persistence_snapshot_delta_resolve.kn"
+   },
+   {
+      "label" : "Job Queue Dispatch Resolve",
+      "source_path" : "src-kain/kernels/jobs/job_queue_dispatch_resolve.kn",
+      "compiled_path" : "generated/spv/jobs/job_queue_dispatch_resolve.spv",
+      "domain" : "jobs",
+      "id" : "job_queue_dispatch_resolve",
+      "target" : "spirv"
+   },
+   {
+      "label" : "Job Receipt Materialize",
+      "source_path" : "src-kain/kernels/jobs/job_receipt_materialize.kn",
+      "compiled_path" : "generated/spv/jobs/job_receipt_materialize.spv",
+      "domain" : "jobs",
+      "id" : "job_receipt_materialize",
+      "target" : "spirv"
+   },
+   {
+      "domain" : "telemetry",
+      "compiled_path" : "generated/spv/telemetry/telemetry_frame_profile_resolve.spv",
+      "id" : "telemetry_frame_profile_resolve",
+      "target" : "spirv",
+      "label" : "Telemetry Frame Profile Resolve",
+      "source_path" : "src-kain/kernels/telemetry/telemetry_frame_profile_resolve.kn"
+   },
+   {
+      "target" : "spirv",
+      "domain" : "security",
+      "compiled_path" : "generated/spv/security/security_capability_policy_resolve.spv",
+      "id" : "security_capability_policy_resolve",
+      "source_path" : "src-kain/kernels/security/security_capability_policy_resolve.kn",
+      "label" : "Security Capability Policy Resolve"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_entity_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/entity_runtime.kn",
+      "label" : "3D Entity Runtime"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_prefab_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/prefab_runtime.kn",
+      "label" : "3D Prefab Runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/command_runtime.kn",
+      "label" : "3D Command Runtime",
+      "target" : "run",
+      "id" : "three_d_command_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "label" : "3D State Migration Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/state_migration_runtime.kn",
+      "id" : "three_d_state_migration_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "id" : "three_d_workspace_layout_runtime",
+      "domain" : "stdlib",
+      "target" : "run",
+      "label" : "3D Workspace Layout Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/workspace_layout_runtime.kn"
+   },
+   {
+      "id" : "entity_component_delta_resolve",
+      "domain" : "entity",
+      "compiled_path" : "generated/spv/scene/entity_component_delta_resolve.spv",
+      "target" : "spirv",
+      "label" : "Entity Component Delta Resolve",
+      "source_path" : "src-kain/kernels/scene/entity_component_delta_resolve.kn"
+   },
+   {
+      "label" : "Prefab Variant Compose",
+      "source_path" : "src-kain/kernels/scene/prefab_variant_compose.kn",
+      "domain" : "prefab",
+      "compiled_path" : "generated/spv/scene/prefab_variant_compose.spv",
+      "id" : "prefab_variant_compose",
+      "target" : "spirv"
+   },
+   {
+      "id" : "command_stream_replay_resolve",
+      "compiled_path" : "generated/spv/orchestration/command_stream_replay_resolve.spv",
+      "domain" : "commands",
+      "target" : "spirv",
+      "label" : "Command Stream Replay Resolve",
+      "source_path" : "src-kain/kernels/orchestration/command_stream_replay_resolve.kn"
+   },
+   {
+      "label" : "State Schema Migration Resolve",
+      "source_path" : "src-kain/kernels/persistence/state_schema_migration_resolve.kn",
+      "id" : "state_schema_migration_resolve",
+      "domain" : "state_migration",
+      "compiled_path" : "generated/spv/persistence/state_schema_migration_resolve.spv",
+      "target" : "spirv"
+   },
+   {
+      "domain" : "workspace_layout",
+      "compiled_path" : "generated/spv/render/workspace_layout_flow_resolve.spv",
+      "id" : "workspace_layout_flow_resolve",
+      "target" : "spirv",
+      "label" : "Workspace Layout Flow Resolve",
+      "source_path" : "src-kain/kernels/render/workspace_layout_flow_resolve.kn"
+   },
+   {
+      "domain" : "workspace_preset",
+      "compiled_path" : "generated/spv/orchestration/workspace_preset_launch_receipt_resolve.spv",
+      "id" : "workspace_preset_launch_receipt_resolve",
+      "target" : "spirv",
+      "label" : "Workspace Preset Launch Receipt Resolve",
+      "source_path" : "src-kain/kernels/orchestration/workspace_preset_launch_receipt_resolve.kn"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/workspace_preset_runtime.kn",
+      "label" : "3D Workspace Preset Runtime",
+      "target" : "run",
+      "id" : "three_d_workspace_preset_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/gameplay_runtime.kn",
+      "label" : "3D Gameplay Runtime",
+      "target" : "run",
+      "id" : "three_d_gameplay_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/presentation_runtime.kn",
+      "label" : "3D Presentation Runtime",
+      "target" : "run",
+      "id" : "three_d_presentation_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "label" : "3D Replay Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/replay_runtime.kn",
+      "domain" : "stdlib",
+      "id" : "three_d_replay_runtime",
+      "target" : "run"
+   },
+   {
+      "domain" : "stdlib",
+      "id" : "three_d_localization_runtime",
+      "target" : "run",
+      "label" : "3D Localization Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/localization_runtime.kn"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/streaming_runtime.kn",
+      "label" : "3D Streaming Runtime",
+      "target" : "run",
+      "id" : "three_d_streaming_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "id" : "three_d_point_cloud_runtime",
+      "domain" : "stdlib",
+      "target" : "run",
+      "label" : "3D Point Cloud Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/point_cloud_runtime.kn"
+   },
+   {
+      "source_path" : "src-kain/kernels/gameplay/gameplay_state_resolve.kn",
+      "label" : "Gameplay State Resolve",
+      "target" : "spirv",
+      "domain" : "gameplay",
+      "compiled_path" : "generated/spv/gameplay/gameplay_state_resolve.spv",
+      "id" : "gameplay_state_resolve"
+   },
+   {
+      "target" : "spirv",
+      "domain" : "presentation",
+      "compiled_path" : "generated/spv/presentation/presentation_ui_route_resolve.spv",
+      "id" : "presentation_ui_route_resolve",
+      "source_path" : "src-kain/kernels/presentation/presentation_ui_route_resolve.kn",
+      "label" : "Presentation UI Route Resolve"
+   },
+   {
+      "source_path" : "src-kain/kernels/replay/replay_timeline_capture_resolve.kn",
+      "label" : "Replay Timeline Capture Resolve",
+      "target" : "spirv",
+      "compiled_path" : "generated/spv/replay/replay_timeline_capture_resolve.spv",
+      "domain" : "replay",
+      "id" : "replay_timeline_capture_resolve"
+   },
+   {
+      "label" : "Localization Bundle Resolve",
+      "source_path" : "src-kain/kernels/localization/localization_bundle_resolve.kn",
+      "compiled_path" : "generated/spv/localization/localization_bundle_resolve.spv",
+      "domain" : "localization",
+      "id" : "localization_bundle_resolve",
+      "target" : "spirv"
+   },
+   {
+      "source_path" : "src-kain/kernels/streaming/remote_stream_session_resolve.kn",
+      "label" : "Remote Stream Session Resolve",
+      "target" : "spirv",
+      "compiled_path" : "generated/spv/streaming/remote_stream_session_resolve.spv",
+      "domain" : "streaming",
+      "id" : "remote_stream_session_resolve"
+   },
+   {
+      "domain" : "point_cloud",
+      "compiled_path" : "generated/spv/point_cloud/point_cloud_stream_resolve.spv",
+      "id" : "point_cloud_stream_resolve",
+      "target" : "spirv",
+      "label" : "Point Cloud Stream Resolve",
+      "source_path" : "src-kain/kernels/point_cloud/point_cloud_stream_resolve.kn"
+   },
+   {
+      "label" : "3D Scene Source Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/scene_source_runtime.kn",
+      "id" : "three_d_scene_source_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_widget_primitives_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/widget_primitives_runtime.kn",
+      "label" : "3D Widget Primitives Runtime"
+   },
+   {
+      "id" : "three_d_graph_materialization_runtime",
+      "domain" : "stdlib",
+      "target" : "run",
+      "label" : "3D Graph Materialization Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/graph_materialization_runtime.kn"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/input_runtime.kn",
+      "label" : "3D Input Runtime",
+      "target" : "run",
+      "id" : "three_d_input_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/camera_runtime.kn",
+      "label" : "3D Camera Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_camera_runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/cache_runtime.kn",
+      "label" : "3D Cache Runtime",
+      "target" : "run",
+      "id" : "three_d_cache_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "target" : "spirv",
+      "id" : "scene_source_document_resolve",
+      "compiled_path" : "generated/spv/scene/scene_source_document_resolve.spv",
+      "domain" : "scene_source",
+      "source_path" : "src-kain/kernels/scene/scene_source_document_resolve.kn",
+      "label" : "Scene Source Document Resolve"
+   },
+   {
+      "domain" : "widget_primitives",
+      "compiled_path" : "generated/spv/render/widget_primitive_composition_resolve.spv",
+      "id" : "widget_primitive_composition_resolve",
+      "target" : "spirv",
+      "label" : "Widget Primitive Composition Resolve",
+      "source_path" : "src-kain/kernels/render/widget_primitive_composition_resolve.kn"
+   },
+   {
+      "target" : "spirv",
+      "compiled_path" : "generated/spv/orchestration/graph_materialization_plan_resolve.spv",
+      "domain" : "graph_materialization",
+      "id" : "graph_materialization_plan_resolve",
+      "source_path" : "src-kain/kernels/orchestration/graph_materialization_plan_resolve.kn",
+      "label" : "Graph Materialization Plan Resolve"
+   },
+   {
+      "target" : "spirv",
+      "domain" : "input",
+      "compiled_path" : "generated/spv/input/input_action_map_resolve.spv",
+      "id" : "input_action_map_resolve",
+      "source_path" : "src-kain/kernels/input/input_action_map_resolve.kn",
+      "label" : "Input Action Map Resolve"
+   },
+   {
+      "source_path" : "src-kain/kernels/camera/camera_rig_packet_resolve.kn",
+      "label" : "Camera Rig Packet Resolve",
+      "target" : "spirv",
+      "compiled_path" : "generated/spv/camera/camera_rig_packet_resolve.spv",
+      "domain" : "camera",
+      "id" : "camera_rig_packet_resolve"
+   },
+   {
+      "target" : "spirv",
+      "id" : "cache_lineage_stream_resolve",
+      "domain" : "cache",
+      "compiled_path" : "generated/spv/cache/cache_lineage_stream_resolve.spv",
+      "source_path" : "src-kain/kernels/cache/cache_lineage_stream_resolve.kn",
+      "label" : "Cache Lineage Stream Resolve"
+   },
+   {
+      "id" : "three_d_scene_object_runtime",
+      "domain" : "stdlib",
+      "target" : "run",
+      "label" : "3D Scene Object Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/scene_object_runtime.kn"
+   },
+   {
+      "label" : "3D Native Controls Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/native_controls_runtime.kn",
+      "id" : "three_d_native_controls_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "domain" : "stdlib",
+      "id" : "three_d_schema_runtime",
+      "target" : "run",
+      "label" : "3D Schema Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/schema_runtime.kn"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/physics_runtime.kn",
+      "label" : "3D Physics Runtime",
+      "target" : "run",
+      "id" : "three_d_physics_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "label" : "3D Shader Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/shader_runtime.kn",
+      "domain" : "stdlib",
+      "id" : "three_d_shader_runtime",
+      "target" : "run"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/resource_runtime.kn",
+      "label" : "3D Resource Runtime",
+      "target" : "run",
+      "id" : "three_d_resource_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "target" : "spirv",
+      "id" : "scene_object_graph_resolve",
+      "domain" : "scene_objects",
+      "compiled_path" : "generated/spv/scene/scene_object_graph_resolve.spv",
+      "source_path" : "src-kain/kernels/scene/scene_object_graph_resolve.kn",
+      "label" : "Scene Object Graph Resolve"
+   },
+   {
+      "target" : "spirv",
+      "compiled_path" : "generated/spv/ui/native_control_state_resolve.spv",
+      "domain" : "native_controls",
+      "id" : "native_control_state_resolve",
+      "source_path" : "src-kain/kernels/ui/native_control_state_resolve.kn",
+      "label" : "Native Control State Resolve"
+   },
+   {
+      "domain" : "schemas",
+      "compiled_path" : "generated/spv/schema/schema_contract_index_resolve.spv",
+      "id" : "schema_contract_index_resolve",
+      "target" : "spirv",
+      "label" : "Schema Contract Index Resolve",
+      "source_path" : "src-kain/kernels/schema/schema_contract_index_resolve.kn"
+   },
+   {
+      "id" : "rigid_body_island_resolve",
+      "compiled_path" : "generated/spv/physics/rigid_body_island_resolve.spv",
+      "domain" : "physics",
+      "target" : "spirv",
+      "label" : "Rigid Body Island Resolve",
+      "source_path" : "src-kain/kernels/physics/rigid_body_island_resolve.kn"
+   },
+   {
+      "label" : "Shader Permutation Schedule Resolve",
+      "source_path" : "src-kain/kernels/shader/shader_permutation_schedule_resolve.kn",
+      "id" : "shader_permutation_schedule_resolve",
+      "domain" : "shader",
+      "compiled_path" : "generated/spv/shader/shader_permutation_schedule_resolve.spv",
+      "target" : "spirv"
+   },
+   {
+      "label" : "Resource Residency Resolve",
+      "source_path" : "src-kain/kernels/resources/resource_residency_resolve.kn",
+      "compiled_path" : "generated/spv/resources/resource_residency_resolve.spv",
+      "domain" : "resources",
+      "id" : "resource_residency_resolve",
+      "target" : "spirv"
+   },
+   {
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_material_source_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/material_source_runtime.kn",
+      "label" : "3D Material Source Runtime"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_editor_widget_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/editor_widget_runtime.kn",
+      "label" : "3D Editor Widget Runtime"
+   },
+   {
+      "target" : "run",
+      "id" : "three_d_scene_mutation_runtime",
+      "domain" : "stdlib",
+      "source_path" : "src-kain/stdlib/three_d_runtime/scene_mutation_runtime.kn",
+      "label" : "3D Scene Mutation Runtime"
+   },
+   {
+      "label" : "3D Render Delegation Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/render_delegation_runtime.kn",
+      "domain" : "stdlib",
+      "id" : "three_d_render_delegation_runtime",
+      "target" : "run"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/resource_reflection_runtime.kn",
+      "label" : "3D Resource Reflection Runtime",
+      "target" : "run",
+      "id" : "three_d_resource_reflection_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/runtime_compatibility_runtime.kn",
+      "label" : "3D Runtime Compatibility Runtime",
+      "target" : "run",
+      "id" : "three_d_runtime_compatibility_runtime",
+      "domain" : "stdlib"
+   },
+   {
+      "label" : "Material Source Document Resolve",
+      "source_path" : "src-kain/kernels/material/material_source_document_resolve.kn",
+      "domain" : "material_source",
+      "compiled_path" : "generated/spv/material/material_source_document_resolve.spv",
+      "id" : "material_source_document_resolve",
+      "target" : "spirv"
+   },
+   {
+      "source_path" : "src-kain/kernels/ui/editor_widget_suite_resolve.kn",
+      "label" : "Editor Widget Suite Resolve",
+      "target" : "spirv",
+      "id" : "editor_widget_suite_resolve",
+      "compiled_path" : "generated/spv/ui/editor_widget_suite_resolve.spv",
+      "domain" : "editor_widgets"
+   },
+   {
+      "target" : "spirv",
+      "domain" : "scene_mutation",
+      "compiled_path" : "generated/spv/scene/scene_mutation_delta_resolve.spv",
+      "id" : "scene_mutation_delta_resolve",
+      "source_path" : "src-kain/kernels/scene/scene_mutation_delta_resolve.kn",
+      "label" : "Scene Mutation Delta Resolve"
+   },
+   {
+      "label" : "Render Delegate Packet Resolve",
+      "source_path" : "src-kain/kernels/render/render_delegate_packet_resolve.kn",
+      "id" : "render_delegate_packet_resolve",
+      "domain" : "render_delegation",
+      "compiled_path" : "generated/spv/render/render_delegate_packet_resolve.spv",
+      "target" : "spirv"
+   },
+   {
+      "id" : "resource_reflection_catalog_resolve",
+      "compiled_path" : "generated/spv/reflection/resource_reflection_catalog_resolve.spv",
+      "domain" : "resource_reflection",
+      "target" : "spirv",
+      "label" : "Resource Reflection Catalog Resolve",
+      "source_path" : "src-kain/kernels/reflection/resource_reflection_catalog_resolve.kn"
+   },
+   {
+      "compiled_path" : "generated/spv/schema/runtime_compatibility_resolve.spv",
+      "domain" : "runtime_compatibility",
+      "id" : "runtime_compatibility_resolve",
+      "target" : "spirv",
+      "label" : "Runtime Compatibility Resolve",
+      "source_path" : "src-kain/kernels/schema/runtime_compatibility_resolve.kn"
+   },
+   {
+      "label" : "3D Mesh Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/mesh_runtime.kn",
+      "domain" : "stdlib",
+      "id" : "three_d_mesh_runtime",
+      "target" : "run"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/baking_runtime.kn",
+      "label" : "3D Baking Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_baking_runtime"
+   },
+   {
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_scripting_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/scripting_runtime.kn",
+      "label" : "3D Scripting Runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/ai_runtime.kn",
+      "label" : "3D AI Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_ai_runtime"
+   },
+   {
+      "label" : "3D Modding Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/modding_runtime.kn",
+      "domain" : "stdlib",
+      "id" : "three_d_modding_runtime",
+      "target" : "run"
+   },
+   {
+      "source_path" : "src-kain/kernels/mesh/mesh_topology_cluster_resolve.kn",
+      "label" : "Mesh Topology Cluster Resolve",
+      "target" : "spirv",
+      "compiled_path" : "generated/spv/mesh/mesh_topology_cluster_resolve.spv",
+      "domain" : "mesh",
+      "id" : "mesh_topology_cluster_resolve"
+   },
+   {
+      "label" : "Bake Atlas Schedule Resolve",
+      "source_path" : "src-kain/kernels/baking/bake_atlas_schedule_resolve.kn",
+      "id" : "bake_atlas_schedule_resolve",
+      "domain" : "baking",
+      "compiled_path" : "generated/spv/baking/bake_atlas_schedule_resolve.spv",
+      "target" : "spirv"
+   },
+   {
+      "compiled_path" : "generated/spv/scripting/script_host_schedule_resolve.spv",
+      "domain" : "scripting",
+      "id" : "script_host_schedule_resolve",
+      "target" : "spirv",
+      "label" : "Script Host Schedule Resolve",
+      "source_path" : "src-kain/kernels/scripting/script_host_schedule_resolve.kn"
+   },
+   {
+      "domain" : "ai",
+      "compiled_path" : "generated/spv/ai/agent_behavior_planner_resolve.spv",
+      "id" : "agent_behavior_planner_resolve",
+      "target" : "spirv",
+      "label" : "Agent Behavior Planner Resolve",
+      "source_path" : "src-kain/kernels/ai/agent_behavior_planner_resolve.kn"
+   },
+   {
+      "label" : "Mod Package Mount Resolve",
+      "source_path" : "src-kain/kernels/modding/mod_package_mount_resolve.kn",
+      "id" : "mod_package_mount_resolve",
+      "compiled_path" : "generated/spv/modding/mod_package_mount_resolve.spv",
+      "domain" : "modding",
+      "target" : "spirv"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/identity_runtime.kn",
+      "label" : "3D Identity Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_identity_runtime"
+   },
+   {
+      "domain" : "stdlib",
+      "id" : "three_d_cloud_runtime",
+      "target" : "run",
+      "label" : "3D Cloud Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/cloud_runtime.kn"
+   },
+   {
+      "label" : "3D Marketplace Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/marketplace_runtime.kn",
+      "id" : "three_d_marketplace_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_dataops_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/dataops_runtime.kn",
+      "label" : "3D DataOps Runtime"
+   },
+   {
+      "id" : "three_d_fleet_runtime",
+      "domain" : "stdlib",
+      "target" : "run",
+      "label" : "3D Fleet Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/fleet_runtime.kn"
+   },
+   {
+      "source_path" : "src-kain/kernels/identity/identity_entitlement_resolve.kn",
+      "label" : "Identity Entitlement Resolve",
+      "target" : "spirv",
+      "id" : "identity_entitlement_resolve",
+      "compiled_path" : "generated/spv/identity/identity_entitlement_resolve.spv",
+      "domain" : "identity"
+   },
+   {
+      "target" : "spirv",
+      "id" : "cloud_session_burst_resolve",
+      "compiled_path" : "generated/spv/cloud/cloud_session_burst_resolve.spv",
+      "domain" : "cloud",
+      "source_path" : "src-kain/kernels/cloud/cloud_session_burst_resolve.kn",
+      "label" : "Cloud Session Burst Resolve"
+   },
+   {
+      "source_path" : "src-kain/kernels/marketplace/marketplace_catalog_resolve.kn",
+      "label" : "Marketplace Catalog Resolve",
+      "target" : "spirv",
+      "compiled_path" : "generated/spv/marketplace/marketplace_catalog_resolve.spv",
+      "domain" : "marketplace",
+      "id" : "marketplace_catalog_resolve"
+   },
+   {
+      "target" : "spirv",
+      "compiled_path" : "generated/spv/dataops/dataops_lineage_resolve.spv",
+      "domain" : "dataops",
+      "id" : "dataops_lineage_resolve",
+      "source_path" : "src-kain/kernels/dataops/dataops_lineage_resolve.kn",
+      "label" : "DataOps Lineage Resolve"
+   },
+   {
+      "label" : "Fleet Capacity Dispatch Resolve",
+      "source_path" : "src-kain/kernels/fleet/fleet_capacity_dispatch_resolve.kn",
+      "domain" : "fleet",
+      "compiled_path" : "generated/spv/fleet/fleet_capacity_dispatch_resolve.spv",
+      "id" : "fleet_capacity_dispatch_resolve",
+      "target" : "spirv"
+   },
+   {
+      "label" : "3D Rigging Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/rigging_runtime.kn",
+      "id" : "three_d_rigging_runtime",
+      "domain" : "stdlib",
+      "target" : "run"
+   },
+   {
+      "label" : "3D Deformation Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/deformation_runtime.kn",
+      "domain" : "stdlib",
+      "id" : "three_d_deformation_runtime",
+      "target" : "run"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/painting_runtime.kn",
+      "label" : "3D Painting Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_painting_runtime"
+   },
+   {
+      "id" : "three_d_uv_runtime",
+      "domain" : "stdlib",
+      "target" : "run",
+      "label" : "3D UV Runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/uv_runtime.kn"
+   },
+   {
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_brush_runtime",
+      "source_path" : "src-kain/stdlib/three_d_runtime/brush_runtime.kn",
+      "label" : "3D Brush Runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/color_runtime.kn",
+      "label" : "3D Color Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_color_runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/media_runtime.kn",
+      "label" : "3D Media Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_media_runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/narrative_runtime.kn",
+      "label" : "3D Narrative Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_narrative_runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/haptics_runtime.kn",
+      "label" : "3D Haptics Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_haptics_runtime"
+   },
+   {
+      "source_path" : "src-kain/stdlib/three_d_runtime/updates_runtime.kn",
+      "label" : "3D Updates Runtime",
+      "target" : "run",
+      "domain" : "stdlib",
+      "id" : "three_d_updates_runtime"
+   },
+   {
+      "label" : "Color Pipeline Resolve",
+      "source_path" : "src-kain/kernels/color/color_pipeline_resolve.kn",
+      "domain" : "color",
+      "compiled_path" : "generated/spv/color/color_pipeline_resolve.spv",
+      "id" : "color_pipeline_resolve",
+      "target" : "spirv"
+   },
+   {
+      "label" : "Media Plate Stream Resolve",
+      "source_path" : "src-kain/kernels/media/media_plate_stream_resolve.kn",
+      "domain" : "media",
+      "compiled_path" : "generated/spv/media/media_plate_stream_resolve.spv",
+      "id" : "media_plate_stream_resolve",
+      "target" : "spirv"
+   },
+   {
+      "label" : "Narrative State Graph Resolve",
+      "source_path" : "src-kain/kernels/narrative/narrative_state_graph_resolve.kn",
+      "domain" : "narrative",
+      "compiled_path" : "generated/spv/narrative/narrative_state_graph_resolve.spv",
+      "id" : "narrative_state_graph_resolve",
+      "target" : "spirv"
+   },
+   {
+      "label" : "Haptic Feedback Route Resolve",
+      "source_path" : "src-kain/kernels/haptics/haptic_feedback_route_resolve.kn",
+      "domain" : "haptics",
+      "compiled_path" : "generated/spv/haptics/haptic_feedback_route_resolve.spv",
+      "id" : "haptic_feedback_route_resolve",
+      "target" : "spirv"
+   },
+   {
+      "label" : "Update Channel Manifest Resolve",
+      "source_path" : "src-kain/kernels/updates/update_channel_manifest_resolve.kn",
+      "domain" : "updates",
+      "compiled_path" : "generated/spv/updates/update_channel_manifest_resolve.spv",
+      "id" : "update_channel_manifest_resolve",
+      "target" : "spirv"
+   },
+   {
+      "label" : "Control Rig Solve Resolve",
+      "source_path" : "src-kain/kernels/rigging/control_rig_solve_resolve.kn",
+      "domain" : "rigging",
+      "compiled_path" : "generated/spv/rigging/control_rig_solve_resolve.spv",
+      "id" : "control_rig_solve_resolve",
+      "target" : "spirv"
+   },
+   {
+      "label" : "Deformer Stack Resolve",
+      "source_path" : "src-kain/kernels/deformation/deformer_stack_resolve.kn",
+      "domain" : "deformation",
+      "compiled_path" : "generated/spv/deformation/deformer_stack_resolve.spv",
+      "id" : "deformer_stack_resolve",
+      "target" : "spirv"
+   },
+   {
+      "domain" : "painting",
+      "compiled_path" : "generated/spv/painting/paint_layer_blend_tensor.spv",
+      "id" : "paint_layer_blend_tensor",
+      "target" : "spirv",
+      "label" : "Paint Layer Blend Tensor",
+      "source_path" : "src-kain/kernels/painting/paint_layer_blend_tensor.kn"
+   },
+   {
+      "label" : "UV Chart Pack Resolve",
+      "source_path" : "src-kain/kernels/uv/uv_chart_pack_resolve.kn",
+      "compiled_path" : "generated/spv/uv/uv_chart_pack_resolve.spv",
+      "domain" : "uv",
+      "id" : "uv_chart_pack_resolve",
+      "target" : "spirv"
+   },
+   {
+      "label" : "Brush Dab Accumulate Resolve",
+      "source_path" : "src-kain/kernels/brush/brush_dab_accumulate_resolve.kn",
+      "compiled_path" : "generated/spv/brush/brush_dab_accumulate_resolve.spv",
+      "domain" : "brush",
+      "id" : "brush_dab_accumulate_resolve",
+      "target" : "spirv"
+   }
+]

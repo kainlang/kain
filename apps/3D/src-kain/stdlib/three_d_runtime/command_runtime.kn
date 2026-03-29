@@ -1,0 +1,42 @@
+// Command, macro, tool-action, and transaction contracts for universal 3D applications.
+
+struct CommandDescriptor:
+    command_id: String
+    command_kind: String
+    transaction_policy: String
+    audit_policy: String
+
+struct MacroDescriptor:
+    macro_id: String
+    execution_policy: String
+    receipt_policy: String
+
+struct ToolActionDescriptor:
+    action_id: String
+    routing_scope: String
+    context_policy: String
+
+struct CommandRuntimeProfile:
+    command: CommandDescriptor
+    macro_command: MacroDescriptor
+    tool_action: ToolActionDescriptor
+
+fn default_command_runtime_profile() -> CommandRuntimeProfile with Pure:
+    let profile = CommandRuntimeProfile()
+
+    profile.command = CommandDescriptor()
+    profile.command.command_id = "authoring_command"
+    profile.command.command_kind = "scene_asset_ui_and_delivery_transaction"
+    profile.command.transaction_policy = "undo_redo_branchable_and_authority_aware"
+    profile.command.audit_policy = "operator_visible_and_receipt_bound"
+
+    profile.macro_command = MacroDescriptor()
+    profile.macro_command.macro_id = "tool_macro_command"
+    profile.macro_command.execution_policy = "scheduled_event_driven_or_operator_invoked"
+    profile.macro_command.receipt_policy = "telemetry_and_materialization_receipts_exported"
+
+    profile.tool_action = ToolActionDescriptor()
+    profile.tool_action.action_id = "tool_context_action"
+    profile.tool_action.routing_scope = "viewport_widget_graph_and_command_bar"
+    profile.tool_action.context_policy = "selection_modal_and_workspace_role_resolved"
+    profile

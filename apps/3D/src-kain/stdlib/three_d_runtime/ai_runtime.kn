@@ -1,0 +1,40 @@
+// AI contracts for agent planning, utility scoring, crowd behaviors, and authorable runtime-safe decision systems.
+
+struct AiPlannerDescriptor:
+    planner_id: String
+    planner_scope: String
+    evaluation_policy: String
+
+struct AiAgentDescriptor:
+    agent_id: String
+    agent_kind: String
+    authority_policy: String
+
+struct AiKnowledgeDescriptor:
+    knowledge_id: String
+    knowledge_scope: String
+    update_policy: String
+
+struct AiRuntimeProfile:
+    planner_runtime: AiPlannerDescriptor
+    agent_runtime: AiAgentDescriptor
+    knowledge_runtime: AiKnowledgeDescriptor
+
+fn default_ai_runtime_profile() -> AiRuntimeProfile with Pure:
+    let profile = AiRuntimeProfile()
+
+    profile.planner_runtime = AiPlannerDescriptor()
+    profile.planner_runtime.planner_id = "universal_ai_planner_runtime"
+    profile.planner_runtime.planner_scope = "utility_goal_behavior_and_task_planning_for_3d_applications"
+    profile.planner_runtime.evaluation_policy = "frame_budget_job_safe_and_replay_visible"
+
+    profile.agent_runtime = AiAgentDescriptor()
+    profile.agent_runtime.agent_id = "runtime_ai_agent_family"
+    profile.agent_runtime.agent_kind = "npc_tool_agent_crowd_operator_and_assistant_agents"
+    profile.agent_runtime.authority_policy = "network_session_editor_and_simulation_safe"
+
+    profile.knowledge_runtime = AiKnowledgeDescriptor()
+    profile.knowledge_runtime.knowledge_id = "ai_knowledge_runtime"
+    profile.knowledge_runtime.knowledge_scope = "nav_scene_semantic_world_state_and_operator_intent_context"
+    profile.knowledge_runtime.update_policy = "schema_bound_reflection_visible_and_cache_safe"
+    profile

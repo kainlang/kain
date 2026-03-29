@@ -1,0 +1,6 @@
+// SPIR-V seed for manifest-driven update channels, patch bundles, and rollback-safe install planning.
+
+kernel update_channel_manifest_resolve:
+    stage = "updates_channel"
+    domain = "updates"
+    intent = "Resolve channel manifests, patch eligibility, and rollback-safe installation plans into resumable update and promotion packets."

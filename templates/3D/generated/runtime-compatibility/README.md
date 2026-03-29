@@ -8,6 +8,7 @@ It also includes descriptor-scoped snapshots so downstream tools can query matri
 Contents:
 
 - `catalog.json`: query-ready runtime compatibility metadata with indexes for `by_matrix_cell_id`, `by_backend_kind`, `by_target_kind`, `by_runtime_app`, `by_runtime_app_source_id`, `by_output_target`, `by_source_path`, `by_source_id`, `by_feature_pack_tier`, `by_budget_window_tier`, and `by_policy_bundle_id`
+- `descriptors/README.md`: descriptor-folder guide for the matrix, window, launch-readiness, and feature-pack tier snapshots
 - `descriptors/*.json`: per-descriptor committed snapshots with policy, runtime-link, kernel, and contract metadata for downstream tools that prefer descriptor-scoped documents, including `runtime_feature_pack_windows.json`
 
 Regenerate this snapshot with:

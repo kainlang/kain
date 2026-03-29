@@ -170,7 +170,8 @@
         "extension_seam_count"
       ],
       "notes": [
-        "shell telemetry should read like instrumentation, not like a second inspector rail"
+        "shell telemetry should read like instrumentation, not like a second inspector rail",
+        "keep the lane matrix and report counts visible so operators never have to guess where the work lives"
       ]
     },
     "status_strip": {
@@ -243,6 +244,7 @@
         "Command spotlight remains shell-owned so operators can bootstrap, switch lanes, preview, and publish without hunting through page-local inspectors.",
         "The report browser should make mesh and topology lineage obvious alongside rig, render, tensor, automation, and publish receipts.",
         "The runtime-lane matrix should stay visible in the chrome so Kain, Fabric, Python, GPU, native C, Rust, and Node ownership never has to be inferred.",
+        "The shell should keep the active lane obvious and leave one clean return path to the authored workbench frame.",
         "The authored frame should feel intentionally dense instead of generic or toy-like."
       ]
     }

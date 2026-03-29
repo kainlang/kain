@@ -3,6 +3,13 @@
   "ledger_kind": "worker_requeue_retry_state_and_receipt_resume_ledger",
   "entries": [
     {
+      "job_receipt_id": "job_materialization_receipt_queued",
+      "attempt": 0,
+      "state": "queued",
+      "resume_policy": "dispatch_queue_wait_before_worker_assignment",
+      "last_transition_at": "2026-03-26T03:44:00Z"
+    },
+    {
       "job_receipt_id": "job_materialization_receipt_example",
       "attempt": 1,
       "state": "completed",

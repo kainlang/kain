@@ -1,0 +1,138 @@
+// Farm queues, background jobs, operator approvals, and materialization job contracts.
+
+struct JobQueueDescriptor:
+    queue_id: String
+    queue_kind: String
+    dispatch_policy: String
+    build_graph_id: String
+    tensor_pipeline_id: String
+
+struct JobDispatchGraphDescriptor:
+    graph_id: String
+    graph_kind: String
+    queue_id: String
+    manifest_inputs: String
+
+struct WorkerPoolDescriptor:
+    pool_id: String
+    worker_scope: String
+    capability_policy: String
+    capability_matrix_id: String
+    execution_roots: String
+
+struct JobOutputsDescriptor:
+    output_root: String
+    distribution_root: String
+    receipt_root: String
+    retry_state_root: String
+
+struct JobReceiptDescriptor:
+    receipt_id: String
+    receipt_kind: String
+    promotion_policy: String
+    receipt_root: String
+    delivery_registry_id: String
+    resume_policy: String
+
+struct JobReceiptSchemaDescriptor:
+    schema_id: String
+    schema_root: String
+    validation_policy: String
+    reflection_catalog_id: String
+
+struct JobReceiptEmitterDescriptor:
+    emitter_id: String
+    schema_id: String
+    template_root: String
+    index_root: String
+    retry_ledger_root: String
+    emission_policy: String
+    reflection_catalog_id: String
+
+struct JobsRetryLedgerDescriptor:
+    ledger_id: String
+    ledger_kind: String
+    retry_state_root: String
+    reflection_catalog_id: String
+
+struct JobsDeliveryRegistryDescriptor:
+    registry_id: String
+    channel_kind: String
+    approval_policy: String
+    promotion_policy: String
+
+struct JobsRuntimeProfile:
+    queue: JobQueueDescriptor
+    dispatch_graph: JobDispatchGraphDescriptor
+    workers: WorkerPoolDescriptor
+    outputs: JobOutputsDescriptor
+    receipts: JobReceiptDescriptor
+    receipt_schema: JobReceiptSchemaDescriptor
+    receipt_emitter: JobReceiptEmitterDescriptor
+    retry_ledger: JobsRetryLedgerDescriptor
+    delivery_registry: JobsDeliveryRegistryDescriptor
+
+fn default_jobs_runtime_profile() -> JobsRuntimeProfile with Pure:
+    let profile = JobsRuntimeProfile()
+
+    profile.queue = JobQueueDescriptor()
+    profile.queue.queue_id = "jobs_dispatch_queue"
+    profile.queue.queue_kind = "asset_bake_simulation_delivery_and_review_queue"
+    profile.queue.dispatch_policy = "priority_deadline_operator_gate_and_capacity_aware"
+    profile.queue.build_graph_id = "jobs_dispatch_graph"
+    profile.queue.tensor_pipeline_id = "jobs_dispatch_tensor_pipeline"
+
+    profile.dispatch_graph = JobDispatchGraphDescriptor()
+    profile.dispatch_graph.graph_id = "jobs_dispatch_graph"
+    profile.dispatch_graph.graph_kind = "jobs_graph"
+    profile.dispatch_graph.queue_id = "jobs_dispatch_queue"
+    profile.dispatch_graph.manifest_inputs = "build_graphs.json_sources.json_and_distribution_channels.json"
+
+    profile.workers = WorkerPoolDescriptor()
+    profile.workers.pool_id = "runtime_worker_pool"
+    profile.workers.worker_scope = "local_remote_gpu_headless_and_machine_adjacent_workers"
+    profile.workers.capability_policy = "manifest_declared_contract_and_device_profile_matched"
+    profile.workers.capability_matrix_id = "runtime_worker_capability_matrix"
+    profile.workers.execution_roots = "generated/jobs_and_generated/distribution/jobs_roots"
+
+    profile.outputs = JobOutputsDescriptor()
+    profile.outputs.output_root = "generated/jobs"
+    profile.outputs.distribution_root = "generated/distribution/jobs"
+    profile.outputs.receipt_root = "generated/jobs/receipts"
+    profile.outputs.retry_state_root = "generated/jobs/retries"
+
+    profile.receipts = JobReceiptDescriptor()
+    profile.receipts.receipt_id = "job_materialization_receipts"
+    profile.receipts.receipt_kind = "execution_audit_retry_resume_and_promotion_records"
+    profile.receipts.promotion_policy = "approval_channel_and_distribution_registry_bound"
+    profile.receipts.receipt_root = "generated/jobs/receipts"
+    profile.receipts.delivery_registry_id = "jobs_delivery_registry"
+    profile.receipts.resume_policy = "retry_safe_receipt_resume_and_worker_requeue_bound"
+
+    profile.receipt_schema = JobReceiptSchemaDescriptor()
+    profile.receipt_schema.schema_id = "jobs_delivery_receipt_schema"
+    profile.receipt_schema.schema_root = "generated/schemas/jobs/receipts"
+    profile.receipt_schema.validation_policy = "gate_before_job_promotion_receipt_resume_or_worker_requeue"
+    profile.receipt_schema.reflection_catalog_id = "jobs_receipt_schema_catalog"
+
+    profile.receipt_emitter = JobReceiptEmitterDescriptor()
+    profile.receipt_emitter.emitter_id = "jobs_delivery_receipt_schema_emitter"
+    profile.receipt_emitter.schema_id = "jobs_delivery_receipt_schema"
+    profile.receipt_emitter.template_root = "generated/schemas/jobs/receipts/templates"
+    profile.receipt_emitter.index_root = "generated/schemas/jobs/receipts/indexes"
+    profile.receipt_emitter.retry_ledger_root = "generated/jobs/retries"
+    profile.receipt_emitter.emission_policy = "emit_canonical_job_receipt_templates_before_retry_resume_or_distribution_promotion"
+    profile.receipt_emitter.reflection_catalog_id = "jobs_receipt_template_catalog"
+
+    profile.retry_ledger = JobsRetryLedgerDescriptor()
+    profile.retry_ledger.ledger_id = "jobs_retry_ledger"
+    profile.retry_ledger.ledger_kind = "worker_requeue_retry_state_and_receipt_resume_ledger"
+    profile.retry_ledger.retry_state_root = "generated/jobs/retries"
+    profile.retry_ledger.reflection_catalog_id = "jobs_retry_ledger_catalog"
+
+    profile.delivery_registry = JobsDeliveryRegistryDescriptor()
+    profile.delivery_registry.registry_id = "jobs_delivery_registry"
+    profile.delivery_registry.channel_kind = "jobs_delivery"
+    profile.delivery_registry.approval_policy = "job_dispatch_gate"
+    profile.delivery_registry.promotion_policy = "dispatch_receipt_and_distribution_registry_bound"
+    profile

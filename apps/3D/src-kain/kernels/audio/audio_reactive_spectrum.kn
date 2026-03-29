@@ -1,0 +1,19 @@
+// SPIR-V audio reactive spectrum seed.
+
+shader compute audio_reactive_spectrum(id: UVec3) -> Vec4:
+    uniform audio_frames: StorageBuffer<Vec4> @0
+    uniform scene_metrics: StorageBuffer<Vec4> @1
+    uniform reactive_controls: StorageBuffer<Vec4> @2
+    uniform spectrum_output: StorageBuffer<Vec4> @3
+    let frame_index = id.x
+    let audio = audio_frames[frame_index]
+    let metric = scene_metrics[frame_index]
+    let control = reactive_controls[frame_index]
+    let output = vec4(
+        audio.x * control.x,
+        audio.y + metric.y * control.y,
+        audio.z + metric.z * control.z,
+        1.0
+    )
+    spectrum_output[frame_index] = output
+    return output

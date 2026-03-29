@@ -1,0 +1,19 @@
+// SPIR-V biome and ecosystem distribution seed.
+
+shader compute biome_ecosystem_resolve(id: UVec3) -> Vec4:
+    uniform climate_field: StorageBuffer<Vec4> @0
+    uniform terrain_field: StorageBuffer<Vec4> @1
+    uniform ecosystem_controls: StorageBuffer<Vec4> @2
+    uniform biome_distribution: StorageBuffer<Vec4> @3
+    let cell_index = id.x
+    let climate = climate_field[cell_index]
+    let terrain = terrain_field[cell_index]
+    let controls = ecosystem_controls[cell_index]
+    let output = vec4(
+        climate.x + terrain.x * controls.x,
+        climate.y + terrain.y * controls.y,
+        climate.z + terrain.z * controls.z,
+        1.0
+    )
+    biome_distribution[cell_index] = output
+    return output

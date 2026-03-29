@@ -1,0 +1,40 @@
+// Vehicle dynamics, suspension, drivetrain, and machine-motion contracts.
+
+struct VehicleRigDescriptor:
+    rig_id: String
+    vehicle_family: String
+    authority_policy: String
+
+struct DrivetrainDescriptor:
+    drivetrain_id: String
+    drivetrain_kind: String
+    response_policy: String
+
+struct VehicleDynamicsDescriptor:
+    dynamics_id: String
+    contact_policy: String
+    stability_policy: String
+
+struct VehicleRuntimeProfile:
+    vehicle_rig: VehicleRigDescriptor
+    drivetrain: DrivetrainDescriptor
+    dynamics: VehicleDynamicsDescriptor
+
+fn default_vehicle_runtime_profile() -> VehicleRuntimeProfile with Pure:
+    let profile = VehicleRuntimeProfile()
+
+    profile.vehicle_rig = VehicleRigDescriptor()
+    profile.vehicle_rig.rig_id = "primary_vehicle_rig"
+    profile.vehicle_rig.vehicle_family = "wheeled_tracked_flight_and_machine_platforms"
+    profile.vehicle_rig.authority_policy = "runtime_or_operator_controlled"
+
+    profile.drivetrain = DrivetrainDescriptor()
+    profile.drivetrain.drivetrain_id = "vehicle_drivetrain"
+    profile.drivetrain.drivetrain_kind = "electric_combustion_hybrid_or_direct_drive"
+    profile.drivetrain.response_policy = "handling_profile_and_surface_aware"
+
+    profile.dynamics = VehicleDynamicsDescriptor()
+    profile.dynamics.dynamics_id = "vehicle_dynamics"
+    profile.dynamics.contact_policy = "wheel_track_or_surface_contact_patch"
+    profile.dynamics.stability_policy = "traction_slip_and_suspension_gated"
+    profile

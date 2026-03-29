@@ -1,0 +1,53 @@
+// SPIR-V seed for canonical jobs receipt, schema-template, retry-ledger, and reflection materialization.
+
+shader compute job_receipt_materialize(id: UVec3) -> Vec4:
+    uniform resolved_job_dispatches: StorageBuffer<Vec4> @0
+    uniform worker_capability_state: StorageBuffer<Vec4> @1
+    uniform retry_resume_state: StorageBuffer<Vec4> @2
+    uniform distribution_registry_state: StorageBuffer<Vec4> @3
+    uniform materialized_job_receipts: StorageBuffer<Vec4> @4
+    uniform emitted_receipt_templates: StorageBuffer<Vec4> @5
+    uniform emitted_receipt_indexes: StorageBuffer<Vec4> @6
+    uniform emitted_retry_ledgers: StorageBuffer<Vec4> @7
+    uniform emitted_receipt_reflection: StorageBuffer<Vec4> @8
+    let receipt_index = id.x
+    let dispatch = resolved_job_dispatches[receipt_index]
+    let worker = worker_capability_state[receipt_index]
+    let retry = retry_resume_state[receipt_index]
+    let distribution = distribution_registry_state[0]
+    let materialized_receipt = vec4(
+        dispatch.x + worker.x,
+        dispatch.y + retry.y,
+        dispatch.z + distribution.z,
+        1.0
+    )
+    let emitted_template = vec4(
+        materialized_receipt.x + retry.x,
+        materialized_receipt.y + distribution.y,
+        worker.z + retry.z,
+        1.0
+    )
+    let emitted_index = vec4(
+        emitted_template.x + distribution.x,
+        emitted_template.y + retry.y,
+        materialized_receipt.z + worker.z,
+        1.0
+    )
+    let emitted_retry_ledger = vec4(
+        retry.x + worker.x,
+        retry.y + materialized_receipt.y,
+        retry.z + distribution.z,
+        1.0
+    )
+    let emitted_reflection = vec4(
+        emitted_index.x + emitted_retry_ledger.x,
+        emitted_index.y + emitted_template.y,
+        materialized_receipt.z + emitted_retry_ledger.z,
+        1.0
+    )
+    materialized_job_receipts[receipt_index] = materialized_receipt
+    emitted_receipt_templates[receipt_index] = emitted_template
+    emitted_receipt_indexes[receipt_index] = emitted_index
+    emitted_retry_ledgers[receipt_index] = emitted_retry_ledger
+    emitted_receipt_reflection[receipt_index] = emitted_reflection
+    return emitted_reflection

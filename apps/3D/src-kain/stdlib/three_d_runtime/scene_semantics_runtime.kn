@@ -1,0 +1,46 @@
+// Scene semantics, authored collections, and semantic view contracts for large 3D applications.
+
+struct SemanticCollectionDescriptor:
+    collection_id: String
+    collection_kind: String
+    membership_policy: String
+
+struct SceneVariantDescriptor:
+    variant_set_id: String
+    active_variant: String
+    switching_policy: String
+
+struct SemanticViewDescriptor:
+    view_id: String
+    semantic_scope: String
+    visibility_policy: String
+
+struct SceneSemanticsRuntimeProfile:
+    primary_collections: SemanticCollectionDescriptor
+    review_collections: SemanticCollectionDescriptor
+    scene_variants: SceneVariantDescriptor
+    semantic_view: SemanticViewDescriptor
+
+fn default_scene_semantics_runtime_profile() -> SceneSemanticsRuntimeProfile with Pure:
+    let profile = SceneSemanticsRuntimeProfile()
+
+    profile.primary_collections = SemanticCollectionDescriptor()
+    profile.primary_collections.collection_id = "primary_scene_collections"
+    profile.primary_collections.collection_kind = "asset_layer_and_functional_group"
+    profile.primary_collections.membership_policy = "manifest_and_scene_authored"
+
+    profile.review_collections = SemanticCollectionDescriptor()
+    profile.review_collections.collection_id = "review_scene_collections"
+    profile.review_collections.collection_kind = "approval_issue_and_delivery_group"
+    profile.review_collections.membership_policy = "annotation_and_publish_bound"
+
+    profile.scene_variants = SceneVariantDescriptor()
+    profile.scene_variants.variant_set_id = "scene_variant_sets"
+    profile.scene_variants.active_variant = "default"
+    profile.scene_variants.switching_policy = "workspace_or_delivery_scope"
+
+    profile.semantic_view = SemanticViewDescriptor()
+    profile.semantic_view.view_id = "semantic_view_runtime"
+    profile.semantic_view.semantic_scope = "scene_collection_variant_and_context_tags"
+    profile.semantic_view.visibility_policy = "semantic_filter_and_lane_bindings"
+    profile

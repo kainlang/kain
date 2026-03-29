@@ -1,0 +1,19 @@
+// SPIR-V compositor and finishing seed for sequence and viewport output.
+
+shader compute video_frame_compose(id: UVec3) -> Vec4:
+    uniform source_frames: StorageBuffer<Vec4> @0
+    uniform overlay_frames: StorageBuffer<Vec4> @1
+    uniform finishing_state: StorageBuffer<Vec4> @2
+    uniform composed_frames: StorageBuffer<Vec4> @3
+    let frame_index = id.x
+    let source = source_frames[frame_index]
+    let overlay = overlay_frames[frame_index]
+    let finishing = finishing_state[0]
+    let output = vec4(
+        source.x + overlay.x,
+        source.y + finishing.y,
+        overlay.z + finishing.z,
+        1.0
+    )
+    composed_frames[frame_index] = output
+    return output

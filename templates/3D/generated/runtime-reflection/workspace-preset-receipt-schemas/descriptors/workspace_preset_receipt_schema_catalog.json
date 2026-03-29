@@ -1,0 +1,70 @@
+{
+    "descriptor_document_id":  "workspace_preset_receipt_schema_catalog_descriptor_document",
+    "descriptor_path":  "generated/runtime-reflection/workspace-preset-receipt-schemas/descriptors/workspace_preset_receipt_schema_catalog.json",
+    "descriptor_kind":  "workspace_preset_receipt_schema",
+    "descriptor_id":  "workspace_preset_receipt_schema_catalog",
+    "descriptor_scope":  "workspace_preset_delivery_receipt_schema_and_promotion_contract_metadata",
+    "policy":  {
+                   "name":  "schema_policy",
+                   "value":  "workspace_preset_delivery_receipt_schema_and_promotion_contract_metadata"
+               },
+    "runtime_links":  {
+                          "tensor_pipeline_id":  "tensor_pipeline_catalog",
+                          "schema_root":  "generated/schemas/workspace-presets/receipts",
+                          "template_root":  "generated/schemas/workspace-presets/receipts/templates",
+                          "index_root":  "generated/schemas/workspace-presets/receipts/indexes",
+                          "artifact_index":  "generated/schemas/workspace-presets/receipts/indexes/catalog.json"
+                      },
+    "catalog_id":  "workspace_preset_receipt_schema_catalog",
+    "catalog_scope":  "workspace_preset_delivery_receipt_schema_and_promotion_contract_metadata",
+    "tensor_pipeline_id":  "tensor_pipeline_catalog",
+    "schema_id":  "workspace_preset_delivery_receipt_schema",
+    "document_kind":  "workspace_preset_delivery_receipt_schema_bundle",
+    "emitter_id":  "workspace_preset_delivery_receipt_schema_emitter",
+    "schema_root":  "generated/schemas/workspace-presets/receipts",
+    "template_root":  "generated/schemas/workspace-presets/receipts/templates",
+    "index_root":  "generated/schemas/workspace-presets/receipts/indexes",
+    "artifact_index":  "generated/schemas/workspace-presets/receipts/indexes/catalog.json",
+    "examples":  [
+                     {
+                         "receipt_id":  "workspace_preset_materialization_receipt_example",
+                         "receipt_path":  "generated/workspace-presets/receipts/workspace-preset-materialization-receipt.json"
+                     },
+                     {
+                         "receipt_id":  "render_lab_materialization_receipt_example",
+                         "receipt_path":  "generated/workspace-presets/receipts/render-lab-materialization-receipt.json"
+                     },
+                     {
+                         "receipt_id":  "collaboration_review_stage_materialization_receipt_example",
+                         "receipt_path":  "generated/workspace-presets/receipts/collaboration-review-stage-materialization-receipt.json"
+                     }
+                 ],
+    "indexes":  {
+                    "by_receipt_id":  {
+                                          "collaboration_review_stage_materialization_receipt_example":  [
+                                                                                                             "generated/workspace-presets/receipts/collaboration-review-stage-materialization-receipt.json"
+                                                                                                         ],
+                                          "render_lab_materialization_receipt_example":  [
+                                                                                             "generated/workspace-presets/receipts/render-lab-materialization-receipt.json"
+                                                                                         ],
+                                          "workspace_preset_materialization_receipt_example":  [
+                                                                                                   "generated/workspace-presets/receipts/workspace-preset-materialization-receipt.json"
+                                                                                               ]
+                                      }
+                },
+    "artifact_roots":  [
+                           "generated/workspace-presets/receipts",
+                           "generated/schemas/workspace-presets/receipts",
+                           "generated/schemas/workspace-presets/receipts/templates",
+                           "generated/schemas/workspace-presets/receipts/indexes"
+                       ],
+    "reflection_catalogs":  [
+                                "workspace_preset_receipt_template_catalog",
+                                "workspace_preset_receipt_catalog"
+                            ],
+    "descriptor_count":  1,
+    "descriptor_root":  "generated/runtime-reflection/workspace-preset-receipt-schemas/descriptors",
+    "descriptor_paths":  [
+                             "generated/runtime-reflection/workspace-preset-receipt-schemas/descriptors/workspace_preset_receipt_schema_catalog.json"
+                         ]
+}

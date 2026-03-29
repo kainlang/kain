@@ -1,0 +1,132 @@
+// Manifest-backed workspace preset contracts for lane selection, launch policy, and curated workbench shortcuts.
+
+struct WorkspacePresetRegistryDescriptor:
+    registry_id: String
+    manifest_source: String
+    selection_policy: String
+
+struct WorkspacePresetShortcutDescriptor:
+    preset_id: String
+    label: String
+    focus_lane: String
+
+struct WorkspacePresetExportDescriptor:
+    export_id: String
+    manifest_source: String
+    export_root: String
+    routing_policy: String
+    reflection_catalog_id: String
+
+struct WorkspacePresetLaunchManifestDescriptor:
+    manifest_id: String
+    export_root: String
+    runtime_bundle_profile_id: String
+    workspace_layout_runtime_id: String
+    tensor_pipeline_id: String
+    schema_emitter_id: String
+
+struct WorkspacePresetSchemaDescriptor:
+    schema_id: String
+    schema_version: String
+    schema_root: String
+    compatibility_policy: String
+    reflection_catalog_id: String
+
+struct WorkspacePresetRuntimeBindingDescriptor:
+    binding_id: String
+    preset_manifest_source: String
+    runtime_app_manifest_source: String
+    bundle_registry_id: String
+    launch_policy: String
+
+struct WorkspacePresetReceiptDescriptor:
+    receipt_id: String
+    build_graph_id: String
+    distribution_channel_id: String
+    output_root: String
+    promotion_policy: String
+    tensor_pipeline_id: String
+    reflection_catalog_id: String
+    schema_emitter_id: String
+
+struct WorkspacePresetRuntimeProfile:
+    preset_registry: WorkspacePresetRegistryDescriptor
+    export_descriptor: WorkspacePresetExportDescriptor
+    launch_manifest_descriptor: WorkspacePresetLaunchManifestDescriptor
+    launch_manifest_schema: WorkspacePresetSchemaDescriptor
+    runtime_binding_descriptor: WorkspacePresetRuntimeBindingDescriptor
+    receipt_descriptor: WorkspacePresetReceiptDescriptor
+    receipt_schema: WorkspacePresetSchemaDescriptor
+    sculpt_shortcut: WorkspacePresetShortcutDescriptor
+    render_shortcut: WorkspacePresetShortcutDescriptor
+    review_shortcut: WorkspacePresetShortcutDescriptor
+    bundle_shortcut: WorkspacePresetShortcutDescriptor
+    color_shortcut: WorkspacePresetShortcutDescriptor
+
+fn default_workspace_preset_shortcut(preset_id: String, label: String, focus_lane: String) -> WorkspacePresetShortcutDescriptor with Pure:
+    let shortcut = WorkspacePresetShortcutDescriptor()
+    shortcut.preset_id = preset_id
+    shortcut.label = label
+    shortcut.focus_lane = focus_lane
+    shortcut
+
+fn default_workspace_preset_runtime_profile() -> WorkspacePresetRuntimeProfile with Pure:
+    let profile = WorkspacePresetRuntimeProfile()
+
+    profile.preset_registry = WorkspacePresetRegistryDescriptor()
+    profile.preset_registry.registry_id = "workspace_preset_registry"
+    profile.preset_registry.manifest_source = "manifests/workspace_presets.json"
+    profile.preset_registry.selection_policy = "manifest_driven_runtime_app_bound_and_workspace_layout_aware"
+
+    profile.export_descriptor = WorkspacePresetExportDescriptor()
+    profile.export_descriptor.export_id = "workspace_preset_export_descriptor"
+    profile.export_descriptor.manifest_source = "manifests/workspace_presets.json"
+    profile.export_descriptor.export_root = "generated/workspace-presets"
+    profile.export_descriptor.routing_policy = "focus_lane_runtime_app_host_kind_and_layout_bound"
+    profile.export_descriptor.reflection_catalog_id = "workspace_preset_receipt_catalog"
+
+    profile.launch_manifest_descriptor = WorkspacePresetLaunchManifestDescriptor()
+    profile.launch_manifest_descriptor.manifest_id = "workspace_preset_launch_manifest_export"
+    profile.launch_manifest_descriptor.export_root = "generated/workspace-presets/launch"
+    profile.launch_manifest_descriptor.runtime_bundle_profile_id = "runtime_bundle_launch_profile"
+    profile.launch_manifest_descriptor.workspace_layout_runtime_id = "workspace_layout_runtime"
+    profile.launch_manifest_descriptor.tensor_pipeline_id = "workspace_preset_tensor_pipeline"
+    profile.launch_manifest_descriptor.schema_emitter_id = "workspace_preset_launch_manifest_schema_emitter"
+
+    profile.launch_manifest_schema = WorkspacePresetSchemaDescriptor()
+    profile.launch_manifest_schema.schema_id = "workspace_preset_launch_manifest_schema"
+    profile.launch_manifest_schema.schema_version = "1.0.0"
+    profile.launch_manifest_schema.schema_root = "generated/schemas/workspace-presets/launch-manifests"
+    profile.launch_manifest_schema.compatibility_policy = "workspace_preset_runtime_bundle_workspace_layout_and_host_kind_compatible"
+    profile.launch_manifest_schema.reflection_catalog_id = "workspace_preset_launch_schema_catalog"
+
+    profile.runtime_binding_descriptor = WorkspacePresetRuntimeBindingDescriptor()
+    profile.runtime_binding_descriptor.binding_id = "workspace_preset_runtime_binding_registry"
+    profile.runtime_binding_descriptor.preset_manifest_source = "manifests/workspace_presets.json"
+    profile.runtime_binding_descriptor.runtime_app_manifest_source = "manifests/runtime_apps.json"
+    profile.runtime_binding_descriptor.bundle_registry_id = "runtime_bundle_registry"
+    profile.runtime_binding_descriptor.launch_policy = "manifest_selected_bundle_registry_and_workspace_layout_bound"
+
+    profile.receipt_descriptor = WorkspacePresetReceiptDescriptor()
+    profile.receipt_descriptor.receipt_id = "workspace_preset_materialization_receipts"
+    profile.receipt_descriptor.build_graph_id = "workspace_preset_materialization_graph"
+    profile.receipt_descriptor.distribution_channel_id = "workspace_preset_delivery_registry"
+    profile.receipt_descriptor.output_root = "generated/workspace-presets/receipts"
+    profile.receipt_descriptor.promotion_policy = "workspace_owner_and_schema_compatible"
+    profile.receipt_descriptor.tensor_pipeline_id = "workspace_preset_tensor_pipeline"
+    profile.receipt_descriptor.reflection_catalog_id = "workspace_preset_receipt_catalog"
+    profile.receipt_descriptor.schema_emitter_id = "workspace_preset_delivery_receipt_schema_emitter"
+
+    profile.receipt_schema = WorkspacePresetSchemaDescriptor()
+    profile.receipt_schema.schema_id = "workspace_preset_delivery_receipt_schema"
+    profile.receipt_schema.schema_version = "1.0.0"
+    profile.receipt_schema.schema_root = "generated/schemas/workspace-presets/receipts"
+    profile.receipt_schema.compatibility_policy = "workspace_preset_delivery_channel_bundle_receipt_and_reflection_compatible"
+    profile.receipt_schema.reflection_catalog_id = "workspace_preset_receipt_schema_catalog"
+
+    profile.sculpt_shortcut = default_workspace_preset_shortcut("sculpt_studio", "Sculpt Studio", "sculpt")
+    profile.render_shortcut = default_workspace_preset_shortcut("render_lab", "Render Lab", "render")
+    profile.review_shortcut = default_workspace_preset_shortcut("collaboration_review_stage", "Collaboration Review Stage", "review")
+    profile.bundle_shortcut = default_workspace_preset_shortcut("runtime_bundle_manager", "Runtime Bundle Manager", "runtime_bundles")
+    profile.color_shortcut = default_workspace_preset_shortcut("color_management_control_room", "Color Management Control Room", "color_management")
+    profile

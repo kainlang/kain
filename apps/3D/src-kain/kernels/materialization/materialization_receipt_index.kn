@@ -1,0 +1,19 @@
+// SPIR-V materialization receipt indexing seed.
+
+shader compute materialization_receipt_index(id: UVec3) -> Vec4:
+    uniform build_intents: StorageBuffer<Vec4> @0
+    uniform output_receipts: StorageBuffer<Vec4> @1
+    uniform promotion_state: StorageBuffer<Vec4> @2
+    uniform indexed_receipts: StorageBuffer<Vec4> @3
+    let receipt_index = id.x
+    let intent = build_intents[receipt_index]
+    let receipt = output_receipts[receipt_index]
+    let promotion = promotion_state[0]
+    let output = vec4(
+        intent.x + receipt.x,
+        intent.y + promotion.y,
+        receipt.z + promotion.z,
+        1.0
+    )
+    indexed_receipts[receipt_index] = output
+    return output

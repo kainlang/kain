@@ -1,0 +1,6 @@
+// Scene-object graph resolution seed for authored object classes, relationships, component mounts, and mutation-safe runtime composition.
+
+kernel scene_object_graph_resolve:
+    stage = "scene_object_graph"
+    domain = "scene_objects"
+    intent = "Resolve authored scene-object graphs, object classes, component mounts, runtime-safe relationships, and mutation receipts."

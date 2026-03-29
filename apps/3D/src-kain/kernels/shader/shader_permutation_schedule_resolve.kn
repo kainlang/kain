@@ -1,0 +1,6 @@
+// Shader permutation scheduling seed for shader-family variants, material keywords, pipeline layouts, and reflection-safe program assembly.
+
+kernel shader_permutation_schedule_resolve:
+    stage = "shader_permutations"
+    domain = "shader"
+    intent = "Resolve shader families, material and platform permutations, program layouts, and reflection-linked binding schedules."

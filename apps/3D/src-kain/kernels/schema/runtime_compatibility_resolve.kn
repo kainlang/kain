@@ -1,0 +1,6 @@
+// Runtime-compatibility seed for target matrices, backend/device windows, launch readiness, and schema-safe promotion gates.
+
+kernel runtime_compatibility_resolve:
+    stage = "runtime_compatibility"
+    domain = "runtime_compatibility"
+    intent = "Resolve runtime target compatibility matrices, launch-readiness gates, backend/device windows, and schema-safe promotion policy."

@@ -72,8 +72,10 @@
       "summary": "Stages a new asset package into the suite ingest lane and updates runtime pack bookkeeping.",
       "intent": "asset.ingest_package",
       "payload_schema": {
+        "source_id": "string",
         "source_uri": "string",
-        "package_kind": "string"
+        "package_kind": "string",
+        "import_profile_id": "string"
       }
     },
     {
@@ -128,8 +130,10 @@
       "intent": "mesh.import_asset",
       "payload_schema": {
         "mesh_document_id": "string",
+        "source_id": "string",
         "source_uri": "string",
-        "import_profile_id": "string"
+        "import_profile_id": "string",
+        "transcode_profile_id": "string"
       }
     },
     {

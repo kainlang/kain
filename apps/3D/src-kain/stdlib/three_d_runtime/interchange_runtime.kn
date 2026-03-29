@@ -1,0 +1,51 @@
+// Broad import/export and pipeline-handoff contracts for DCC, engine, archive, and review exchange workflows.
+
+struct InterchangeFormatDescriptor:
+    format_id: String
+    format_family: String
+    direction: String
+    validation_policy: String
+
+struct TranscodeJobDescriptor:
+    job_id: String
+    source_family: String
+    target_family: String
+    artifact_policy: String
+
+struct InterchangeRegistryDescriptor:
+    registry_id: String
+    registry_kind: String
+    approval_policy: String
+
+struct InterchangeRuntimeProfile:
+    authoring_exchange: InterchangeFormatDescriptor
+    delivery_exchange: InterchangeFormatDescriptor
+    transcode_job: TranscodeJobDescriptor
+    interchange_registry: InterchangeRegistryDescriptor
+
+fn default_interchange_runtime_profile() -> InterchangeRuntimeProfile with Pure:
+    let profile = InterchangeRuntimeProfile()
+
+    profile.authoring_exchange = InterchangeFormatDescriptor()
+    profile.authoring_exchange.format_id = "authoring_exchange_bundle"
+    profile.authoring_exchange.format_family = "usd_gltf_fbx_alembic_materialx_and_custom"
+    profile.authoring_exchange.direction = "import_export"
+    profile.authoring_exchange.validation_policy = "schema_and_dependency_validated"
+
+    profile.delivery_exchange = InterchangeFormatDescriptor()
+    profile.delivery_exchange.format_id = "delivery_exchange_bundle"
+    profile.delivery_exchange.format_family = "runtime_archive_review_and_publish_bundle"
+    profile.delivery_exchange.direction = "export_promote_archive"
+    profile.delivery_exchange.validation_policy = "delivery_channel_gated"
+
+    profile.transcode_job = TranscodeJobDescriptor()
+    profile.transcode_job.job_id = "interchange_transcode_job"
+    profile.transcode_job.source_family = "scene_asset_material_animation_and_cache"
+    profile.transcode_job.target_family = "runtime_review_publish_or_machine_package"
+    profile.transcode_job.artifact_policy = "generated_receipt_and_registry_tracked"
+
+    profile.interchange_registry = InterchangeRegistryDescriptor()
+    profile.interchange_registry.registry_id = "interchange_registry"
+    profile.interchange_registry.registry_kind = "workspace_exchange_and_delivery_catalog"
+    profile.interchange_registry.approval_policy = "exchange_supervisor_and_delivery_gate"
+    profile

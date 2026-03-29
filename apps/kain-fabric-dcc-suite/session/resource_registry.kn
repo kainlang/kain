@@ -15,11 +15,25 @@ fn default_resources() -> Array<ResourceDescriptor>:
             summary: "Scene graph bootstrap document"
         },
         ResourceDescriptor {
+            id: "scene_selection_context_document",
+            resource_uri: "scene://current/selection",
+            kind: "value",
+            producer_step: "dcc_suite_seed",
+            summary: "Live selection context for viewport and inspector routing"
+        },
+        ResourceDescriptor {
             id: "asset_catalog_document",
             resource_uri: "asset://catalog/current",
             kind: "value",
             producer_step: "dcc_suite_seed",
             summary: "Asset ingest and package catalog"
+        },
+        ResourceDescriptor {
+            id: "asset_source_manifest_document",
+            resource_uri: "asset://sources/current",
+            kind: "value",
+            producer_step: "asset.ingest_package",
+            summary: "Source-id-first manifest for imported asset packages, source URIs, and transcode profile selection"
         },
         ResourceDescriptor {
             id: "mesh_resource_contract_document",
@@ -64,6 +78,27 @@ fn default_resources() -> Array<ResourceDescriptor>:
             summary: "Durable topology history contract that retains authored topology decisions and replacement lineage"
         },
         ResourceDescriptor {
+            id: "evaluation_graph_document",
+            resource_uri: "graph://evaluation/current",
+            kind: "value",
+            producer_step: "dcc_suite_seed",
+            summary: "Scene evaluation graph contract for dirty propagation and dependency scheduling"
+        },
+        ResourceDescriptor {
+            id: "persistence_snapshot_document",
+            resource_uri: "session://current/snapshot",
+            kind: "value",
+            producer_step: "dcc_suite_seed",
+            summary: "Workspace persistence snapshot and recovery state"
+        },
+        ResourceDescriptor {
+            id: "replay_capture_document",
+            resource_uri: "replay://current/capture",
+            kind: "value",
+            producer_step: "dcc_suite_seed",
+            summary: "Deterministic replay capture and scrub bundle"
+        },
+        ResourceDescriptor {
             id: "material_authoring_document",
             resource_uri: "material://current/authoring-contract",
             kind: "value",
@@ -104,6 +139,27 @@ fn default_resources() -> Array<ResourceDescriptor>:
             kind: "shared_buffer",
             producer_step: "dcc_suite_seed",
             summary: "Tensor planning feature buffer"
+        },
+        ResourceDescriptor {
+            id: "tensor_training_corpus",
+            resource_uri: "dataset://tensor/training-corpus",
+            kind: "value",
+            producer_step: "python_suite_bootstrap",
+            summary: "Tensor training corpus contract seeded from the authored project settings"
+        },
+        ResourceDescriptor {
+            id: "tensor_model_checkpoint",
+            resource_uri: "artifact://tensor/model-checkpoint",
+            kind: "value",
+            producer_step: "tensor_train_stage",
+            summary: "Tensor checkpoint contract for the current preview model"
+        },
+        ResourceDescriptor {
+            id: "tensor_inference_output",
+            resource_uri: "buffer://tensor/inference/output",
+            kind: "shared_buffer",
+            producer_step: "tensor_infer_stage",
+            summary: "Tensor inference output buffer"
         },
         ResourceDescriptor {
             id: "sculpt_heightfield_source",

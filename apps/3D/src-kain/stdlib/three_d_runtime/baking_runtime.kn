@@ -1,0 +1,40 @@
+// Baking contracts for texture/light/probe generation, atlas scheduling, and artifact-safe bake receipts.
+
+struct BakeTargetDescriptor:
+    target_id: String
+    target_scope: String
+    capture_policy: String
+
+struct BakeAtlasDescriptor:
+    atlas_id: String
+    atlas_kind: String
+    packing_policy: String
+
+struct BakeReceiptDescriptor:
+    receipt_id: String
+    receipt_scope: String
+    audit_policy: String
+
+struct BakingRuntimeProfile:
+    bake_target: BakeTargetDescriptor
+    atlas_runtime: BakeAtlasDescriptor
+    receipt_runtime: BakeReceiptDescriptor
+
+fn default_baking_runtime_profile() -> BakingRuntimeProfile with Pure:
+    let profile = BakingRuntimeProfile()
+
+    profile.bake_target = BakeTargetDescriptor()
+    profile.bake_target.target_id = "universal_bake_target_runtime"
+    profile.bake_target.target_scope = "texture_light_probe_curvature_ao_and_cache_bake_targets"
+    profile.bake_target.capture_policy = "editor_preview_farm_dispatch_and_delivery_safe"
+
+    profile.atlas_runtime = BakeAtlasDescriptor()
+    profile.atlas_runtime.atlas_id = "bake_atlas_runtime"
+    profile.atlas_runtime.atlas_kind = "uv_chart_tile_probe_and_volume_atlas_scheduling"
+    profile.atlas_runtime.packing_policy = "quality_budget_and_residency_aligned"
+
+    profile.receipt_runtime = BakeReceiptDescriptor()
+    profile.receipt_runtime.receipt_id = "bake_receipt_runtime"
+    profile.receipt_runtime.receipt_scope = "material_probe_lightmap_and_validation_receipts"
+    profile.receipt_runtime.audit_policy = "materialization_cache_and_review_visible"
+    profile

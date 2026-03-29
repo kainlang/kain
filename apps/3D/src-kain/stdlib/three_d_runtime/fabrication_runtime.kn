@@ -1,0 +1,47 @@
+// Fabrication scheduling, nesting, and machine handoff contracts.
+
+struct FabricationJobDescriptor:
+    job_id: String
+    job_kind: String
+    tensor_pipeline_id: String
+    delivery_policy: String
+
+struct NestingRuntimeDescriptor:
+    nesting_id: String
+    material_policy: String
+    utilization_goal: String
+
+struct MachineScheduleDescriptor:
+    schedule_id: String
+    queue_policy: String
+    approval_policy: String
+
+struct FabricationRuntimeProfile:
+    subtractive_job: FabricationJobDescriptor
+    additive_job: FabricationJobDescriptor
+    nesting_runtime: NestingRuntimeDescriptor
+    machine_schedule: MachineScheduleDescriptor
+
+fn default_fabrication_job(job_id: String, job_kind: String, delivery_policy: String) -> FabricationJobDescriptor with Pure:
+    let descriptor = FabricationJobDescriptor()
+    descriptor.job_id = job_id
+    descriptor.job_kind = job_kind
+    descriptor.tensor_pipeline_id = "fabrication_scheduling_tensor_pipeline"
+    descriptor.delivery_policy = delivery_policy
+    descriptor
+
+fn default_fabrication_runtime_profile() -> FabricationRuntimeProfile with Pure:
+    let profile = FabricationRuntimeProfile()
+    profile.subtractive_job = default_fabrication_job("subtractive_job", "cnc_or_robotic_cutting", "machine_delivery_registry")
+    profile.additive_job = default_fabrication_job("additive_job", "additive_or_hybrid_fabrication", "machine_delivery_registry")
+
+    profile.nesting_runtime = NestingRuntimeDescriptor()
+    profile.nesting_runtime.nesting_id = "fabrication_nesting_runtime"
+    profile.nesting_runtime.material_policy = "sheet_plate_or_build_volume"
+    profile.nesting_runtime.utilization_goal = "throughput_and_material_efficiency"
+
+    profile.machine_schedule = MachineScheduleDescriptor()
+    profile.machine_schedule.schedule_id = "fabrication_machine_schedule"
+    profile.machine_schedule.queue_policy = "capability_and_deadline_aware"
+    profile.machine_schedule.approval_policy = "simulation_then_operator_gate"
+    profile

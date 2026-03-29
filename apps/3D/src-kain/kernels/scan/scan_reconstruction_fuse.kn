@@ -1,0 +1,19 @@
+// SPIR-V scan reconstruction fusion seed.
+
+shader compute scan_reconstruction_fuse(id: UVec3) -> Vec4:
+    uniform camera_samples: StorageBuffer<Vec4> @0
+    uniform depth_samples: StorageBuffer<Vec4> @1
+    uniform confidence_grid: StorageBuffer<Vec4> @2
+    uniform fused_surface: StorageBuffer<Vec4> @3
+    let sample_index = id.x
+    let camera = camera_samples[sample_index]
+    let depth = depth_samples[sample_index]
+    let confidence = confidence_grid[sample_index]
+    let output = vec4(
+        camera.x + depth.x * confidence.x,
+        camera.y + depth.y * confidence.y,
+        camera.z + depth.z * confidence.z,
+        1.0
+    )
+    fused_surface[sample_index] = output
+    return output

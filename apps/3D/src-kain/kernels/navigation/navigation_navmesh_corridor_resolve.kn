@@ -1,0 +1,19 @@
+// SPIR-V navigation/navmesh/corridor solve seed.
+
+shader compute navigation_navmesh_corridor_resolve(id: UVec3) -> Vec4:
+    uniform navmesh_tiles: StorageBuffer<Vec4> @0
+    uniform crowd_agents: StorageBuffer<Vec4> @1
+    uniform avoidance_fields: StorageBuffer<Vec4> @2
+    uniform resolved_navigation_corridors: StorageBuffer<Vec4> @3
+    let agent_index = id.x
+    let tile = navmesh_tiles[agent_index]
+    let agent = crowd_agents[agent_index]
+    let avoidance = avoidance_fields[agent_index]
+    let output = vec4(
+        tile.x + agent.x,
+        tile.y + avoidance.y,
+        agent.z + avoidance.z,
+        1.0
+    )
+    resolved_navigation_corridors[agent_index] = output
+    return output

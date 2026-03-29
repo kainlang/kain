@@ -1,0 +1,49 @@
+// Picking, selection, and scene-query contracts for interactive 3D authoring surfaces.
+
+struct QueryDescriptor:
+    query_id: String
+    query_kind: String
+    tensor_pipeline_id: String
+    execution_policy: String
+
+struct SelectionMaskDescriptor:
+    mask_id: String
+    scope_kind: String
+    filter_policy: String
+
+struct PickingRuntimeDescriptor:
+    picking_id: String
+    viewport_binding: String
+    result_policy: String
+
+struct QueryRuntimeProfile:
+    selection_query: QueryDescriptor
+    scene_probe_query: QueryDescriptor
+    selection_mask: SelectionMaskDescriptor
+    viewport_picking: PickingRuntimeDescriptor
+
+fn default_query_runtime_profile() -> QueryRuntimeProfile with Pure:
+    let profile = QueryRuntimeProfile()
+
+    profile.selection_query = QueryDescriptor()
+    profile.selection_query.query_id = "selection_query_runtime"
+    profile.selection_query.query_kind = "mask_and_semantic_selection"
+    profile.selection_query.tensor_pipeline_id = "query_selection_tensor_pipeline"
+    profile.selection_query.execution_policy = "interactive"
+
+    profile.scene_probe_query = QueryDescriptor()
+    profile.scene_probe_query.query_id = "scene_probe_runtime"
+    profile.scene_probe_query.query_kind = "raycast_bounds_and_metadata_probe"
+    profile.scene_probe_query.tensor_pipeline_id = "query_selection_tensor_pipeline"
+    profile.scene_probe_query.execution_policy = "interactive_or_batched"
+
+    profile.selection_mask = SelectionMaskDescriptor()
+    profile.selection_mask.mask_id = "selection_mask_runtime"
+    profile.selection_mask.scope_kind = "lane_scene_and_semantic_scope"
+    profile.selection_mask.filter_policy = "visibility_lock_and_role_filtered"
+
+    profile.viewport_picking = PickingRuntimeDescriptor()
+    profile.viewport_picking.picking_id = "viewport_picking_runtime"
+    profile.viewport_picking.viewport_binding = "primary_scene_viewport"
+    profile.viewport_picking.result_policy = "ranked_hit_and_context_bundle"
+    profile
