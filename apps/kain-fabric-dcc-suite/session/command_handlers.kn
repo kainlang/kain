@@ -67,6 +67,18 @@ fn command_handlers() -> Array<CommandHandlerDescriptor>:
             immediate_effect: "refresh topology-derived mesh resources after import, primitive authoring, or edit work"
         },
         CommandHandlerDescriptor {
+            command_kind: "mesh.subdivide",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "run Catmull-Clark-style subdivision against the active edit target"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "mesh.pack_uv",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "pack UV charts for the active edit target and baked topology output"
+        },
+        CommandHandlerDescriptor {
             command_kind: "tool.activate",
             reducer_owner: "session.reducers",
             planner_owner: "session.intent_planner",

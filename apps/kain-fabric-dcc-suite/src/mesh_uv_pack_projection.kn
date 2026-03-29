@@ -1,0 +1,22 @@
+fn mesh_uv_pack_report_path() -> String:
+    return app_state_root() + "/mesh_uv_pack_report.json"
+
+fn build_mesh_uv_pack_report_json(settings: Any, mesh_document: String, edit_target: String) -> String:
+    let json = "{\n"
+    let json = json + "  \"kind\": \"mesh_uv_pack_report\",\n"
+    let json = json + "  \"mesh_document_id\": \"mesh_document/uv_pack\",\n"
+    let json = json + "  \"resource_uri\": \"mesh://uv/layout/current\",\n"
+    let json = json + "  \"uv_policy\": \"udim_tile_island_rotation_margin_and_priority_packing\",\n"
+    let json = json + "  \"edit_target_mesh_document\": \"" + edit_target + "\",\n"
+    let json = json + "  \"upstream_mesh_document\": \"" + mesh_document + "\",\n"
+    let json = json + "  \"limitation\": \"Kain can project UV packing contracts, but the atlas solve remains a native or GPU-owned seam.\"\n"
+    let json = json + "}\n"
+    return json
+
+fn main() -> String:
+    let settings = fabric_inputs.python_suite_bootstrap.project_settings
+    let mesh_document = fabric_inputs.dcc_suite_seed.scene_graph_document
+    let edit_target = fabric_inputs.dcc_suite_seed.mesh_resource_contract_document
+    let report_json = build_mesh_uv_pack_report_json(settings, mesh_document, edit_target)
+    write_file(mesh_uv_pack_report_path(), report_json)
+    return "mesh-uv-pack:" + settings.workspace_mode + ":policy=udim_tile_island_rotation_margin_and_priority_packing"

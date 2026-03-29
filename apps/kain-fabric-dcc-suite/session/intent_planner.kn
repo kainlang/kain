@@ -89,6 +89,20 @@ fn plan_for_command(
             priority: 91,
             debounce_ms: 0
         })
+    if command_kind == "mesh.subdivide":
+        intents.push(PlannedIntent {
+            intent_id: "mesh.subdivide",
+            reason: "catmull-clark-style subdivision requested for the active edit target",
+            priority: 94,
+            debounce_ms: 0
+        })
+    if command_kind == "mesh.pack_uv":
+        intents.push(PlannedIntent {
+            intent_id: "mesh.pack_uv",
+            reason: "uv packing requested for the active mesh surface contract",
+            priority: 82,
+            debounce_ms: 8
+        })
     if command_kind == "selection.set_scope":
         intents.push(PlannedIntent {
             intent_id: "selection.set_scope",

@@ -163,7 +163,8 @@ depends_on = [
     "svg_material_mask_projection",
     "render_preview_projection",
     "pathtrace_preview_projection",
-    "render_delegation_projection"
+    "render_delegation_projection",
+    "render_frame_schedule_projection"
 ]
 
 [[steps.outputs]]

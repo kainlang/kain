@@ -10,6 +10,7 @@ fn build_render_accumulation_report_json(settings: Any, pathtrace_buffer: Any, m
     let pathtrace_info = interop_shared_buffer_info(pathtrace_buffer)
     let pathtrace_sample_count = pathtrace_info.shape[0]
     let accumulation_passes = settings.runtime_pack_count + settings.preview_count + 1
+    let aov_count = settings.runtime_pack_count + 3
 
     let json = "{\n"
     let json = json + "  \"kind\": \"render_accumulation_report\",\n"
@@ -20,6 +21,7 @@ fn build_render_accumulation_report_json(settings: Any, pathtrace_buffer: Any, m
     let json = json + "  \"pathtrace_buffer_bytes\": " + str(pathtrace_info.byte_length) + ",\n"
     let json = json + "  \"pathtrace_sample_count\": " + str(pathtrace_sample_count) + ",\n"
     let json = json + "  \"accumulation_pass_count\": " + str(accumulation_passes) + ",\n"
+    let json = json + "  \"aov_count\": " + str(aov_count) + ",\n"
     let json = json + "  \"upstream_material_summary\": \"" + material_summary + "\",\n"
     let json = json + "  \"upstream_svg_summary\": \"" + svg_summary + "\"\n"
     let json = json + "}\n"
@@ -34,4 +36,4 @@ fn main() -> String:
 
     write_file(render_accumulation_report_path(), report_json)
 
-    return "render-accumulation:" + settings.workspace_mode + ":bytes=" + str(interop_shared_buffer_info(pathtrace_buffer).byte_length) + ":passes=" + str(settings.runtime_pack_count + settings.preview_count + 1)
+    return "render-accumulation:" + settings.workspace_mode + ":bytes=" + str(interop_shared_buffer_info(pathtrace_buffer).byte_length) + ":passes=" + str(settings.runtime_pack_count + settings.preview_count + 1) + ":aov=" + str(settings.runtime_pack_count + 3)

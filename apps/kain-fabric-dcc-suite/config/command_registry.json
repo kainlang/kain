@@ -160,6 +160,30 @@
       }
     },
     {
+      "id": "mesh.subdivide",
+      "label": "Subdivide Mesh",
+      "surface": "viewport",
+      "summary": "Runs Catmull-Clark-style subdivision against the active edit target and stages replacement topology.",
+      "intent": "mesh.subdivide",
+      "payload_schema": {
+        "mesh_document_id": "string",
+        "edit_target_id": "string",
+        "subdivision_policy_id": "string"
+      }
+    },
+    {
+      "id": "mesh.pack_uv",
+      "label": "Pack Mesh UVs",
+      "surface": "material_lookdev",
+      "summary": "Packs UV charts for the active edit target and topology output so bake and export lanes stay aligned.",
+      "intent": "mesh.pack_uv",
+      "payload_schema": {
+        "mesh_document_id": "string",
+        "edit_target_id": "string",
+        "uv_policy_id": "string"
+      }
+    },
+    {
       "id": "tool.activate",
       "label": "Activate Tool",
       "surface": "tool_shelf",

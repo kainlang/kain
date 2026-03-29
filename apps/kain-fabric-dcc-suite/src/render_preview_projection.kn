@@ -10,6 +10,7 @@ fn build_render_preview_report_json(settings: Any, preview_buffer: Any, material
     let preview_info = interop_shared_buffer_info(preview_buffer)
     let preview_sample_count = preview_info.shape[0]
     let aov_count = settings.runtime_pack_count + 2
+    let review_capture_count = settings.preview_count + 2
 
     let json = "{\n"
     let json = json + "  \"kind\": \"render_preview_report\",\n"
@@ -20,6 +21,7 @@ fn build_render_preview_report_json(settings: Any, preview_buffer: Any, material
     let json = json + "  \"preview_buffer_bytes\": " + str(preview_info.byte_length) + ",\n"
     let json = json + "  \"preview_sample_count\": " + str(preview_sample_count) + ",\n"
     let json = json + "  \"aov_count\": " + str(aov_count) + ",\n"
+    let json = json + "  \"review_capture_count\": " + str(review_capture_count) + ",\n"
     let json = json + "  \"upstream_material_summary\": \"" + material_summary + "\",\n"
     let json = json + "  \"upstream_svg_summary\": \"" + svg_summary + "\",\n"
     let json = json + "  \"upstream_export_summary\": \"" + export_summary + "\"\n"
@@ -36,4 +38,4 @@ fn main() -> String:
 
     write_file(render_preview_report_path(), report_json)
 
-    return "render-preview:" + settings.workspace_mode + ":bytes=" + str(interop_shared_buffer_info(preview_buffer).byte_length) + ":aov=" + str(settings.runtime_pack_count + 2)
+    return "render-preview:" + settings.workspace_mode + ":bytes=" + str(interop_shared_buffer_info(preview_buffer).byte_length) + ":aov=" + str(settings.runtime_pack_count + 2) + ":captures=" + str(settings.preview_count + 2)

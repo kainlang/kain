@@ -1,3 +1,5 @@
+use crate::bridge_contract::{NativeBridgeContract, CONTRACT_ROOT_REPORT_URI, CONTRACT_ROOT_URI};
+
 use std::{
     collections::BTreeSet,
     fs,
@@ -110,6 +112,7 @@ fn process_command_queue(
             &request,
             *processed_line_count,
             paths,
+            &NativeBridgeContract::new(),
         );
     }
 
@@ -132,6 +135,7 @@ fn apply_command_request(
     request: &RuntimeCommandRequest,
     processed_command_count: usize,
     paths: &LiveBridgePaths,
+    contract: &NativeBridgeContract,
 ) {
     ensure_mode_for_command(session_document, runtime_snapshot, &request.command_id);
 
@@ -150,6 +154,8 @@ fn apply_command_request(
         "mesh.import_asset" => apply_mesh_import_asset(session_document, processed_command_count),
         "mesh.edit_topology" => apply_mesh_edit_topology(session_document),
         "mesh.rebuild_topology" => apply_mesh_rebuild_topology(session_document),
+        "mesh.subdivide" => apply_mesh_subdivide(session_document),
+        "mesh.pack_uv" => apply_mesh_pack_uv(session_document),
         "tool.activate" => apply_tool_cycle(session_document, runtime_snapshot),
         "gizmo.set_mode" => apply_gizmo_mode_cycle(session_document),
         "gizmo.set_space" => apply_gizmo_space_toggle(session_document),
@@ -172,11 +178,17 @@ fn apply_command_request(
         "publish.package" => apply_publish_package(session_document, runtime_snapshot),
         "tensor.train_step" => apply_tensor_train_step(session_document),
         "tensor.infer_step" => apply_tensor_infer_step(session_document),
-        _ => set_bool_at_path(
-            session_document,
-            &["dirty", "session_needs_save"],
-            true,
-        ),
+        _ => {
+            if let Some(seam) = contract.seam_for_command(&request.command_id) {
+                set_string_at_path(
+                    session_document,
+                    &["reports", seam.report_key],
+                    format!("{}/{}", contract.report_uri, seam.topic),
+                );
+                set_bool_at_path(session_document, &["dirty", seam.active_dirty_key], true);
+            }
+            set_bool_at_path(session_document, &["dirty", "session_needs_save"], true);
+        }
     }
 
     sync_runtime_snapshot_from_session(
@@ -584,6 +596,38 @@ fn apply_mesh_rebuild_topology(session_document: &mut Value) {
     );
     set_bool_at_path(session_document, &["dirty", "topology_dirty"], false);
     set_bool_at_path(session_document, &["dirty", "rig_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "render_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "publish_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "session_needs_save"], true);
+}
+
+fn apply_mesh_subdivide(session_document: &mut Value) {
+    set_string_at_path(session_document, &["mesh", "topology_edit_mode"], "subdivide");
+    set_string_at_path(
+        session_document,
+        &["mesh", "mesh_authoring_policy_id"],
+        "mesh_authoring_policy/topology_edit_session",
+    );
+    set_string_at_path(
+        session_document,
+        &["topology_history", "last_lineage_reason"],
+        "mesh.subdivide",
+    );
+    set_bool_at_path(session_document, &["dirty", "topology_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "rig_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "render_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "publish_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "session_needs_save"], true);
+}
+
+fn apply_mesh_pack_uv(session_document: &mut Value) {
+    set_string_at_path(session_document, &["mesh", "topology_edit_mode"], "uv_pack");
+    set_string_at_path(
+        session_document,
+        &["topology_history", "last_lineage_reason"],
+        "mesh.pack_uv",
+    );
+    set_bool_at_path(session_document, &["dirty", "material_dirty"], true);
     set_bool_at_path(session_document, &["dirty", "render_dirty"], true);
     set_bool_at_path(session_document, &["dirty", "publish_dirty"], true);
     set_bool_at_path(session_document, &["dirty", "session_needs_save"], true);

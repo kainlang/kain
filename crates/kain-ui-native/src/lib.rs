@@ -12,22 +12,17 @@ use ab_glyph::{point, Font, FontArc, ScaleFont};
 use eframe::egui::{self, Align, Color32, Frame, Layout, RichText, Stroke, Vec2};
 use egui_wgpu::{self, CallbackTrait, ScreenDescriptor};
 use fdsm::{
-    bezier::scanline::FillRule,
-    generate::generate_mtsdf,
-    render::correct_sign_mtsdf,
-    shape::Shape,
+    bezier::scanline::FillRule, generate::generate_mtsdf, render::correct_sign_mtsdf, shape::Shape,
     transform::Transform,
 };
 use fdsm_ttf_parser::{load_shape_from_face, ttf_parser::Face};
 use image::RgbaImage;
-use nalgebra::{Affine2, Similarity2, Vector2};
 use kain_3d::{
     default_viewport_shader_bundle, prepare_wgpu_frame, wgsl_module_source, CameraPose,
-    CpuPickingService, GizmoVertex, GpuVertex, ManipulatorMode, ManipulatorSpace,
-    ParticleVertex, PickingHit, PickingQuery, PickingRay, PreparedWgpuFrame, RenderBackend,
-    RenderResolution, RenderStats, RenderViewSettings, SceneCatalog, SceneDescription,
-    SceneUniforms, SoftwareRenderer, Transform as SceneTransform, Vec3, WgpuRenderer,
-    VIEWPORT_SHADER_MODULE_NAME,
+    CpuPickingService, GizmoVertex, GpuVertex, ManipulatorMode, ManipulatorSpace, ParticleVertex,
+    PickingHit, PickingQuery, PickingRay, PreparedWgpuFrame, RenderBackend, RenderResolution,
+    RenderStats, RenderViewSettings, SceneCatalog, SceneDescription, SceneUniforms,
+    SoftwareRenderer, Transform as SceneTransform, Vec3, WgpuRenderer, VIEWPORT_SHADER_MODULE_NAME,
 };
 use kain_core::{
     build_ui_output_from_source, realtime_app_bundle_from_json, render_ui_output_debug,
@@ -41,14 +36,14 @@ use kain_core::{
 };
 use kain_ui::{
     ui_resolve_theme_for_node, ui_runtime_bundle_from_json, ui_runtime_bundle_from_output,
-    ui_runtime_bundle_to_json, ui_step_animation_runtime,
-    validate_ui_runtime_bundle, UiBuildOutput, UiLayoutAlignment, UiLayoutKind, UiLength,
-    UiLengthUnit, UiNode, UiNodeId, UiOverflowBehavior, UiPatch, UiResolvedTheme, UiRuntime,
-    UiRuntimeBundle, UiRuntimeMetadata, UiRuntimeStepInput, UiStyleState, UiSurface,
-    UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference, UiThemeRegistry, UiTree,
-    UiValue, UiWidgetKind,
+    ui_runtime_bundle_to_json, ui_step_animation_runtime, validate_ui_runtime_bundle,
+    UiBuildOutput, UiLayoutAlignment, UiLayoutKind, UiLength, UiLengthUnit, UiNode, UiNodeId,
+    UiOverflowBehavior, UiPatch, UiResolvedTheme, UiRuntime, UiRuntimeBundle, UiRuntimeMetadata,
+    UiRuntimeStepInput, UiStyleState, UiSurface, UiSurfaceCompositionMode, UiSurfaceKind,
+    UiSurfaceRendererPreference, UiThemeRegistry, UiTree, UiValue, UiWidgetKind,
     UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
 };
+use nalgebra::{Affine2, Similarity2, Vector2};
 use wgpu::util::DeviceExt;
 
 pub const KAIN_UI_NATIVE_RUNTIME_BUNDLE_SCHEMA_VERSION: u32 = UI_RUNTIME_BUNDLE_SCHEMA_VERSION;
@@ -2955,7 +2950,12 @@ fn resolved_viewport_gizmo_binding(
 }
 
 fn manipulator_mode_from_binding_value(value: Option<&str>) -> ManipulatorMode {
-    match value.unwrap_or("translate").trim().to_ascii_lowercase().as_str() {
+    match value
+        .unwrap_or("translate")
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
         "rotate" => ManipulatorMode::Rotate,
         "scale" => ManipulatorMode::Scale,
         _ => ManipulatorMode::Translate,
@@ -2963,7 +2963,12 @@ fn manipulator_mode_from_binding_value(value: Option<&str>) -> ManipulatorMode {
 }
 
 fn manipulator_space_from_binding_value(value: Option<&str>) -> ManipulatorSpace {
-    match value.unwrap_or("world").trim().to_ascii_lowercase().as_str() {
+    match value
+        .unwrap_or("world")
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
         "local" => ManipulatorSpace::Local,
         _ => ManipulatorSpace::World,
     }
@@ -2985,7 +2990,12 @@ fn manipulator_space_label(space: ManipulatorSpace) -> &'static str {
 }
 
 fn viewport_drag_trigger_from_binding_value(value: Option<&str>) -> ViewportManipulatorDragTrigger {
-    match value.unwrap_or("ctrl_primary_drag").trim().to_ascii_lowercase().as_str() {
+    match value
+        .unwrap_or("ctrl_primary_drag")
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
         "primary_drag" => ViewportManipulatorDragTrigger::PrimaryDrag,
         "alt_primary_drag" => ViewportManipulatorDragTrigger::AltPrimaryDrag,
         _ => ViewportManipulatorDragTrigger::CtrlPrimaryDrag,
@@ -3012,7 +3022,8 @@ fn viewport_drag_trigger_label(drag_trigger: ViewportManipulatorDragTrigger) -> 
 }
 
 fn viewport_hotkey_label(value: Option<&str>, fallback: &str) -> String {
-    value.map(str::trim)
+    value
+        .map(str::trim)
         .filter(|token| !token.is_empty())
         .map(|token| token.to_ascii_uppercase())
         .unwrap_or_else(|| fallback.to_string())
@@ -3064,9 +3075,13 @@ fn capture_viewport_pressed_hotkeys(input: &egui::InputState) -> BTreeSet<String
         .collect()
 }
 
-fn viewport_gizmo_snap_settings(binding: &RealtimeViewportGizmoBinding) -> ViewportGizmoSnapSettings {
+fn viewport_gizmo_snap_settings(
+    binding: &RealtimeViewportGizmoBinding,
+) -> ViewportGizmoSnapSettings {
     ViewportGizmoSnapSettings {
-        translation_step: binding.translate_snap_units.filter(|value| *value > f32::EPSILON),
+        translation_step: binding
+            .translate_snap_units
+            .filter(|value| *value > f32::EPSILON),
         rotation_step_radians: binding
             .rotate_snap_degrees
             .filter(|value| value.abs() > f32::EPSILON)
@@ -3228,6 +3243,25 @@ impl KainUiNativeApp {
         self.output.systems = self.runtime.systems.clone();
         self.output.patches = patches;
         self.debug_tree = render_ui_output_debug(&self.output);
+    }
+
+    fn sync_runtime_from_render_output(&mut self) {
+        self.runtime.tree = self.output.tree.clone();
+        self.runtime.systems = self.output.systems.clone();
+        self.runtime.rebuild_indexes();
+    }
+
+    fn remember_active_tab_layout(&mut self, group_id: &str, layout_id: String) {
+        self.runtime
+            .systems
+            .workspace_layout
+            .active_tabs
+            .insert(group_id.to_string(), layout_id.clone());
+        self.output
+            .systems
+            .workspace_layout
+            .active_tabs
+            .insert(group_id.to_string(), layout_id);
     }
 
     fn emit_runtime_command(&self, command: &NativeAppRuntimeCommand) {
@@ -3409,7 +3443,8 @@ impl KainUiNativeApp {
                     app_theme.palette.accent_soft,
                     app_theme.palette.accent_soft,
                 );
-            } else if !dcc_state.session.gizmo.mode.is_empty() || !dcc_state.session.gizmo.space.is_empty()
+            } else if !dcc_state.session.gizmo.mode.is_empty()
+                || !dcc_state.session.gizmo.space.is_empty()
             {
                 show_badge(
                     format!(
@@ -3529,6 +3564,7 @@ impl KainUiNativeApp {
         }
 
         let previous_output = self.runtime_output_snapshot();
+        let bundle_patches = bundle.output.patches.clone();
         let reload_output = self.runtime.reload(bundle.output);
         let next_output = self.runtime_output_snapshot();
         let previous_viewport_surfaces = std::mem::take(&mut self.viewport_surfaces);
@@ -3538,7 +3574,7 @@ impl KainUiNativeApp {
         self.shader_surfaces =
             transfer_surface_state_map(&previous_output, &next_output, previous_shader_surfaces);
         self.shader_surface_texture_cache.clear();
-        self.sync_render_output_from_runtime(Vec::new());
+        self.sync_render_output_from_runtime(bundle_patches);
         self.config.window_title = bundle.metadata.window_title.clone();
         self.config.root_component = bundle.metadata.root_component.clone();
         self.config.initial_window_size = bundle.metadata.initial_window_size;
@@ -4756,7 +4792,6 @@ fn rasterize_shader_surface_font_atlas_bitmap(
     }
 }
 
-
 fn resolve_shader_canvas_text_color(
     theme: &NativeWidgetTheme,
     color_token: &str,
@@ -5130,7 +5165,8 @@ impl eframe::App for KainUiNativeApp {
         let app_theme = resolve_app_theme(&self.output);
         apply_runtime_visuals(ctx, &app_theme);
         let theme_registry = self.output.systems.theme_registry.clone();
-        let product_shell = is_product_desktop_theme(&app_theme, self.app_runtime_snapshot.as_ref());
+        let product_shell =
+            is_product_desktop_theme(&app_theme, self.app_runtime_snapshot.as_ref());
         let show_topbar = show_runtime_topbar(&app_theme, !product_shell);
         let show_inspector = show_runtime_inspector(
             &app_theme,
@@ -5162,7 +5198,9 @@ impl eframe::App for KainUiNativeApp {
                                             .sessions
                                             .recent_session_title
                                             .clone()
-                                            .unwrap_or_else(|| snapshot.sessions.active_provider.clone());
+                                            .unwrap_or_else(|| {
+                                                snapshot.sessions.active_provider.clone()
+                                            });
                                         ui.label(
                                             RichText::new(subtitle)
                                                 .size(app_theme.typography.small)
@@ -5179,9 +5217,11 @@ impl eframe::App for KainUiNativeApp {
                                             .inner_margin(app_theme.metrics.tight_padding)
                                             .show(ui, |ui| {
                                                 ui.label(
-                                                    RichText::new(snapshot.sessions.active_provider.clone())
-                                                        .size(app_theme.typography.small)
-                                                        .color(app_theme.palette.accent_soft),
+                                                    RichText::new(
+                                                        snapshot.sessions.active_provider.clone(),
+                                                    )
+                                                    .size(app_theme.typography.small)
+                                                    .color(app_theme.palette.accent_soft),
                                                 );
                                             });
                                         ui.add_space(8.0);
@@ -5560,6 +5600,7 @@ impl eframe::App for KainUiNativeApp {
                     render_node(self, ui, ctx, &tree, &theme_registry, &app_theme, root_id);
                 }
             });
+        self.sync_runtime_from_render_output();
         trace_runtime("app_update: end");
     }
 }
@@ -5581,206 +5622,259 @@ fn render_node(
     let node_identity = node_layout_identity(node);
     ui.push_id(node_identity, |ui| {
         ui.scope(|ui| {
-        let presentation = resolve_node_presentation(&app.output, node);
-        let product_shell = is_product_desktop_theme(app_theme, app.app_runtime_snapshot.as_ref());
-        if presentation.translate_y > f32::EPSILON {
-            ui.add_space(presentation.translate_y);
-        }
-        apply_node_layout_constraints(ui, node);
+            let presentation = resolve_node_presentation(&app.output, node);
+            let product_shell =
+                is_product_desktop_theme(app_theme, app.app_runtime_snapshot.as_ref());
+            if presentation.translate_y > f32::EPSILON {
+                ui.add_space(presentation.translate_y);
+            }
+            apply_node_layout_constraints(ui, node);
 
-        match &node.kind {
-            UiWidgetKind::Text => {
-                render_text_node(ui, node, app_theme, presentation);
-            }
-            UiWidgetKind::Panel => {
-                let title = prop_text(node, "title").unwrap_or("Panel");
-                let theme = apply_node_presentation_to_theme(
-                    resolve_widget_theme(node, theme_registry, app_theme),
-                    presentation,
-                );
-                let show_title = widget_title_visible(node, theme_registry, app_theme);
-                themed_frame(&theme).show(ui, |ui| {
-                    let header_title = if show_title { title } else { "Panel" };
-                    render_widget_header(ui, &theme, header_title, node, "panel");
-                    ui.add_space(theme.gap * 0.68);
-                    render_widget_body_frame(ui, &theme, |ui| {
-                        render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+            match &node.kind {
+                UiWidgetKind::Text => {
+                    render_text_node(ui, node, app_theme, presentation);
+                }
+                UiWidgetKind::Panel => {
+                    let title = prop_text(node, "title").unwrap_or("Panel");
+                    let theme = apply_node_presentation_to_theme(
+                        resolve_widget_theme(node, theme_registry, app_theme),
+                        presentation,
+                    );
+                    let show_title = widget_title_visible(node, theme_registry, app_theme);
+                    themed_frame(&theme).show(ui, |ui| {
+                        let header_title = if show_title { title } else { "Panel" };
+                        render_widget_header(ui, &theme, header_title, node, "panel");
+                        ui.add_space(theme.gap * 0.68);
+                        render_widget_body_frame(ui, &theme, |ui| {
+                            render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+                        });
                     });
-                });
-            }
-            UiWidgetKind::Inspector => {
-                let title = prop_text(node, "title").unwrap_or("Inspector");
-                let theme = apply_node_presentation_to_theme(
-                    resolve_widget_theme(node, theme_registry, app_theme),
-                    presentation,
-                );
-                let show_title = widget_title_visible(node, theme_registry, app_theme);
-                themed_frame(&theme).show(ui, |ui| {
-                    if product_shell {
-                        let header_title = if show_title { title } else { "Inspector" };
-                        render_widget_header(ui, &theme, header_title, node, "inspector");
-                        ui.add_space(theme.gap * 0.62);
-                        render_widget_body_frame(ui, &theme, |ui| {
-                            render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
-                        });
-                    } else {
-                        egui::CollapsingHeader::new(
-                            RichText::new(title)
-                                .strong()
-                                .size(theme.title_size)
-                                .color(theme.title_color),
-                        )
-                        .default_open(true)
-                        .show(ui, |ui| {
-                            render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
-                        });
-                    }
-                });
-            }
-            UiWidgetKind::Tree => {
-                let title = prop_text(node, "title").unwrap_or("Tree");
-                let theme = apply_node_presentation_to_theme(
-                    resolve_widget_theme(node, theme_registry, app_theme),
-                    presentation,
-                );
-                let show_title = widget_title_visible(node, theme_registry, app_theme);
-                themed_frame(&theme).show(ui, |ui| {
-                    if product_shell {
-                        let header_title = if show_title { title } else { "Tree" };
-                        render_widget_header(ui, &theme, header_title, node, "tree");
-                        ui.add_space(theme.gap * 0.52);
-                        render_widget_body_frame(ui, &theme, |ui| {
-                            render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
-                        });
-                    } else {
-                        egui::CollapsingHeader::new(
-                            RichText::new(title)
-                                .size(theme.title_size)
-                                .color(theme.title_color),
-                        )
-                        .default_open(true)
-                        .show(ui, |ui| {
-                            render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
-                        });
-                    }
-                });
-            }
-            UiWidgetKind::Graph => {
-                render_surface_frame(
-                    ui,
-                    node,
-                    theme_registry,
-                    app_theme,
-                    presentation,
-                    "Graph Canvas",
-                    Vec2::new(ui.available_width().max(280.0), 220.0),
-                    egui::Sense::hover(),
-                    |ui, rect, _response, theme| {
-                        let painter = ui.painter();
-                        let inner_radius = (theme.radius - 4.0).max(6.0);
-                        painter.rect_filled(rect.shrink(4.0), inner_radius, theme.canvas_fill);
-                        for i in 0..3 {
-                            let x = rect.left() + 40.0 + (i as f32 * 140.0);
-                            let y = rect.top() + 50.0 + ((i % 2) as f32 * 70.0);
-                            let node_rect =
-                                egui::Rect::from_min_size(egui::pos2(x, y), Vec2::new(112.0, 50.0));
-                            painter.rect_filled(node_rect, 10.0, alpha_tint(theme.accent, 0.22));
-                            painter.rect_stroke(
-                                node_rect,
-                                10.0,
-                                Stroke::new(1.0, theme.tag_color),
-                                egui::StrokeKind::Inside,
-                            );
+                }
+                UiWidgetKind::Inspector => {
+                    let title = prop_text(node, "title").unwrap_or("Inspector");
+                    let theme = apply_node_presentation_to_theme(
+                        resolve_widget_theme(node, theme_registry, app_theme),
+                        presentation,
+                    );
+                    let show_title = widget_title_visible(node, theme_registry, app_theme);
+                    themed_frame(&theme).show(ui, |ui| {
+                        if product_shell {
+                            let header_title = if show_title { title } else { "Inspector" };
+                            render_widget_header(ui, &theme, header_title, node, "inspector");
+                            ui.add_space(theme.gap * 0.62);
+                            render_widget_body_frame(ui, &theme, |ui| {
+                                render_children(
+                                    app,
+                                    ui,
+                                    ctx,
+                                    tree,
+                                    theme_registry,
+                                    app_theme,
+                                    node,
+                                );
+                            });
+                        } else {
+                            egui::CollapsingHeader::new(
+                                RichText::new(title)
+                                    .strong()
+                                    .size(theme.title_size)
+                                    .color(theme.title_color),
+                            )
+                            .default_open(true)
+                            .show(ui, |ui| {
+                                render_children(
+                                    app,
+                                    ui,
+                                    ctx,
+                                    tree,
+                                    theme_registry,
+                                    app_theme,
+                                    node,
+                                );
+                            });
                         }
-                    },
-                );
-            }
-            UiWidgetKind::Timeline => {
-                render_surface_frame(
-                    ui,
-                    node,
-                    theme_registry,
-                    app_theme,
-                    presentation,
-                    "Timeline",
-                    Vec2::new(ui.available_width().max(280.0), 120.0),
-                    egui::Sense::hover(),
-                    |ui, rect, _response, theme| {
-                        let painter = ui.painter();
-                        let inner_radius = (theme.radius - 4.0).max(6.0);
-                        painter.rect_filled(rect.shrink(4.0), inner_radius, theme.canvas_fill);
-                        for tick in 0..12 {
-                            let x = rect.left() + 20.0 + (tick as f32 * 48.0);
-                            painter.line_segment(
-                                [
-                                    egui::pos2(x, rect.top() + 16.0),
-                                    egui::pos2(x, rect.bottom() - 16.0),
-                                ],
-                                Stroke::new(1.0, theme.stroke),
-                            );
+                    });
+                }
+                UiWidgetKind::Tree => {
+                    let title = prop_text(node, "title").unwrap_or("Tree");
+                    let theme = apply_node_presentation_to_theme(
+                        resolve_widget_theme(node, theme_registry, app_theme),
+                        presentation,
+                    );
+                    let show_title = widget_title_visible(node, theme_registry, app_theme);
+                    themed_frame(&theme).show(ui, |ui| {
+                        if product_shell {
+                            let header_title = if show_title { title } else { "Tree" };
+                            render_widget_header(ui, &theme, header_title, node, "tree");
+                            ui.add_space(theme.gap * 0.52);
+                            render_widget_body_frame(ui, &theme, |ui| {
+                                render_children(
+                                    app,
+                                    ui,
+                                    ctx,
+                                    tree,
+                                    theme_registry,
+                                    app_theme,
+                                    node,
+                                );
+                            });
+                        } else {
+                            egui::CollapsingHeader::new(
+                                RichText::new(title)
+                                    .size(theme.title_size)
+                                    .color(theme.title_color),
+                            )
+                            .default_open(true)
+                            .show(ui, |ui| {
+                                render_children(
+                                    app,
+                                    ui,
+                                    ctx,
+                                    tree,
+                                    theme_registry,
+                                    app_theme,
+                                    node,
+                                );
+                            });
                         }
-                        let clip = egui::Rect::from_min_size(
-                            egui::pos2(rect.left() + 64.0, rect.center().y - 14.0),
-                            Vec2::new(220.0, 28.0),
-                        );
-                        painter.rect_filled(clip, 8.0, alpha_tint(theme.accent, 0.9));
-                    },
-                );
-            }
-            UiWidgetKind::Viewport2D | UiWidgetKind::Viewport3D => {
-                let label = match node.kind {
-                    UiWidgetKind::Viewport2D => "Viewport 2D",
-                    _ => "Viewport 3D",
-                };
-                render_viewport_surface(
-                    app,
-                    ui,
-                    ctx,
-                    node,
-                    theme_registry,
-                    app_theme,
-                    presentation,
-                    label,
-                );
-            }
-            UiWidgetKind::ComponentRef(name) => {
-                let theme = apply_node_presentation_to_theme(
-                    resolve_widget_theme(node, theme_registry, app_theme),
-                    presentation,
-                );
-                if product_shell {
-                    render_widget_header(ui, &theme, name, node, "component");
-                    ui.add_space(theme.gap * 0.52);
-                } else {
-                    ui.label(
-                        RichText::new(format!("component {name}"))
-                            .monospace()
-                            .color(apply_node_presentation_to_color(
-                                app_theme.palette.highlight,
-                                presentation,
-                            )),
+                    });
+                }
+                UiWidgetKind::Graph => {
+                    render_surface_frame(
+                        ui,
+                        node,
+                        theme_registry,
+                        app_theme,
+                        presentation,
+                        "Graph Canvas",
+                        Vec2::new(ui.available_width().max(280.0), 220.0),
+                        egui::Sense::hover(),
+                        |ui, rect, _response, theme| {
+                            let painter = ui.painter();
+                            let inner_radius = (theme.radius - 4.0).max(6.0);
+                            painter.rect_filled(rect.shrink(4.0), inner_radius, theme.canvas_fill);
+                            for i in 0..3 {
+                                let x = rect.left() + 40.0 + (i as f32 * 140.0);
+                                let y = rect.top() + 50.0 + ((i % 2) as f32 * 70.0);
+                                let node_rect = egui::Rect::from_min_size(
+                                    egui::pos2(x, y),
+                                    Vec2::new(112.0, 50.0),
+                                );
+                                painter.rect_filled(
+                                    node_rect,
+                                    10.0,
+                                    alpha_tint(theme.accent, 0.22),
+                                );
+                                painter.rect_stroke(
+                                    node_rect,
+                                    10.0,
+                                    Stroke::new(1.0, theme.tag_color),
+                                    egui::StrokeKind::Inside,
+                                );
+                            }
+                        },
                     );
                 }
-                render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
-            }
-            UiWidgetKind::Element(tag) => {
-                if let Some(surface) = surface_descriptor_for_node(app, node).cloned() {
-                    if surface.kind == UiSurfaceKind::Canvas
-                        || surface.shader.is_some()
-                        || surface.gpu_backing_required
-                    {
-                        render_gpu_canvas_surface(
-                            app,
-                            ui,
-                            ctx,
-                            tree,
-                            theme_registry,
-                            app_theme,
-                            node,
-                            tag,
-                            &surface,
-                            presentation,
+                UiWidgetKind::Timeline => {
+                    render_surface_frame(
+                        ui,
+                        node,
+                        theme_registry,
+                        app_theme,
+                        presentation,
+                        "Timeline",
+                        Vec2::new(ui.available_width().max(280.0), 120.0),
+                        egui::Sense::hover(),
+                        |ui, rect, _response, theme| {
+                            let painter = ui.painter();
+                            let inner_radius = (theme.radius - 4.0).max(6.0);
+                            painter.rect_filled(rect.shrink(4.0), inner_radius, theme.canvas_fill);
+                            for tick in 0..12 {
+                                let x = rect.left() + 20.0 + (tick as f32 * 48.0);
+                                painter.line_segment(
+                                    [
+                                        egui::pos2(x, rect.top() + 16.0),
+                                        egui::pos2(x, rect.bottom() - 16.0),
+                                    ],
+                                    Stroke::new(1.0, theme.stroke),
+                                );
+                            }
+                            let clip = egui::Rect::from_min_size(
+                                egui::pos2(rect.left() + 64.0, rect.center().y - 14.0),
+                                Vec2::new(220.0, 28.0),
+                            );
+                            painter.rect_filled(clip, 8.0, alpha_tint(theme.accent, 0.9));
+                        },
+                    );
+                }
+                UiWidgetKind::Viewport2D | UiWidgetKind::Viewport3D => {
+                    let label = match node.kind {
+                        UiWidgetKind::Viewport2D => "Viewport 2D",
+                        _ => "Viewport 3D",
+                    };
+                    render_viewport_surface(
+                        app,
+                        ui,
+                        ctx,
+                        node,
+                        theme_registry,
+                        app_theme,
+                        presentation,
+                        label,
+                    );
+                }
+                UiWidgetKind::ComponentRef(name) => {
+                    let theme = apply_node_presentation_to_theme(
+                        resolve_widget_theme(node, theme_registry, app_theme),
+                        presentation,
+                    );
+                    if product_shell {
+                        render_widget_header(ui, &theme, name, node, "component");
+                        ui.add_space(theme.gap * 0.52);
+                    } else {
+                        ui.label(
+                            RichText::new(format!("component {name}"))
+                                .monospace()
+                                .color(apply_node_presentation_to_color(
+                                    app_theme.palette.highlight,
+                                    presentation,
+                                )),
                         );
+                    }
+                    render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+                }
+                UiWidgetKind::Element(tag) => {
+                    if let Some(surface) = surface_descriptor_for_node(app, node).cloned() {
+                        if surface.kind == UiSurfaceKind::Canvas
+                            || surface.shader.is_some()
+                            || surface.gpu_backing_required
+                        {
+                            render_gpu_canvas_surface(
+                                app,
+                                ui,
+                                ctx,
+                                tree,
+                                theme_registry,
+                                app_theme,
+                                node,
+                                tag,
+                                &surface,
+                                presentation,
+                            );
+                        } else {
+                            render_generic_element_node(
+                                app,
+                                ui,
+                                ctx,
+                                tree,
+                                theme_registry,
+                                app_theme,
+                                node,
+                                tag,
+                                presentation,
+                                product_shell,
+                            );
+                        }
                     } else {
                         render_generic_element_node(
                             app,
@@ -5795,41 +5889,27 @@ fn render_node(
                             product_shell,
                         );
                     }
-                } else {
-                    render_generic_element_node(
-                        app,
-                        ui,
-                        ctx,
-                        tree,
-                        theme_registry,
-                        app_theme,
-                        node,
-                        tag,
+                }
+                UiWidgetKind::Table | UiWidgetKind::Overlay | UiWidgetKind::Slot => {
+                    let title = prop_text(node, "title").unwrap_or(match &node.kind {
+                        UiWidgetKind::Table => "Table",
+                        UiWidgetKind::Overlay => "Overlay",
+                        UiWidgetKind::Slot => "Slot",
+                        _ => "Surface",
+                    });
+                    let theme = apply_node_presentation_to_theme(
+                        resolve_widget_theme(node, theme_registry, app_theme),
                         presentation,
-                        product_shell,
                     );
+                    themed_frame(&theme).show(ui, |ui| {
+                        render_widget_header(ui, &theme, title, node, widget_kind_key(&node.kind));
+                        ui.add_space(theme.gap * 0.55);
+                        render_widget_body_frame(ui, &theme, |ui| {
+                            render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+                        });
+                    });
                 }
             }
-            UiWidgetKind::Table | UiWidgetKind::Overlay | UiWidgetKind::Slot => {
-                let title = prop_text(node, "title").unwrap_or(match &node.kind {
-                    UiWidgetKind::Table => "Table",
-                    UiWidgetKind::Overlay => "Overlay",
-                    UiWidgetKind::Slot => "Slot",
-                    _ => "Surface",
-                });
-                let theme = apply_node_presentation_to_theme(
-                    resolve_widget_theme(node, theme_registry, app_theme),
-                    presentation,
-                );
-                themed_frame(&theme).show(ui, |ui| {
-                    render_widget_header(ui, &theme, title, node, widget_kind_key(&node.kind));
-                    ui.add_space(theme.gap * 0.55);
-                    render_widget_body_frame(ui, &theme, |ui| {
-                        render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
-                    });
-                });
-            }
-        }
         });
     });
 }
@@ -6499,16 +6579,16 @@ fn render_children(
             .id_salt(node_layout_identity(node))
             .auto_shrink([false, false])
             .show(ui, |ui| {
-            render_children_content(
-                app,
-                ui,
-                ctx,
-                tree,
-                theme_registry,
-                app_theme,
-                node,
-                layout_gap,
-            );
+                render_children_content(
+                    app,
+                    ui,
+                    ctx,
+                    tree,
+                    theme_registry,
+                    app_theme,
+                    node,
+                    layout_gap,
+                );
             });
     } else {
         render_children_content(
@@ -6529,7 +6609,10 @@ fn render_children(
 #[derive(Clone, Debug)]
 enum ChildRenderEntry {
     Single(UiNodeId),
-    TabGroup { group_id: String, tabs: Vec<UiNodeId> },
+    TabGroup {
+        group_id: String,
+        tabs: Vec<UiNodeId>,
+    },
 }
 
 fn node_layout_identity(node: &UiNode) -> String {
@@ -6606,7 +6689,16 @@ fn render_child_entry(
             render_node(app, ui, ctx, tree, theme_registry, app_theme, *id);
         }
         ChildRenderEntry::TabGroup { group_id, tabs } => {
-            render_tab_group(app, ui, ctx, tree, theme_registry, app_theme, group_id, tabs);
+            render_tab_group(
+                app,
+                ui,
+                ctx,
+                tree,
+                theme_registry,
+                app_theme,
+                group_id,
+                tabs,
+            );
         }
     }
 }
@@ -6655,11 +6747,7 @@ fn resolve_active_tab_child(
         .or_else(|| resolved_tabs.first())
         .cloned();
     if let Some((tab_id, layout_id, _)) = fallback {
-        app.output
-            .systems
-            .workspace_layout
-            .active_tabs
-            .insert(group_id.to_string(), layout_id);
+        app.remember_active_tab_layout(group_id, layout_id);
         Some(tab_id)
     } else {
         None
@@ -6693,7 +6781,10 @@ fn render_tab_group(
 
     Frame::new()
         .fill(alpha_tint(chrome_theme.header_fill, 0.9))
-        .stroke(Stroke::new(1.0, alpha_tint(chrome_theme.header_stroke, 0.92)))
+        .stroke(Stroke::new(
+            1.0,
+            alpha_tint(chrome_theme.header_stroke, 0.92),
+        ))
         .corner_radius(app_theme.metrics.radius_large)
         .inner_margin(app_theme.metrics.frame_padding)
         .show(ui, |ui| {
@@ -6764,11 +6855,7 @@ fn render_tab_group(
                 });
             });
             if let Some(layout_id) = pending_layout_id.take() {
-                app.output
-                    .systems
-                    .workspace_layout
-                    .active_tabs
-                    .insert(group_id.to_string(), layout_id);
+                app.remember_active_tab_layout(group_id, layout_id);
             }
             ui.add_space(chrome_theme.gap * 0.8);
             render_node(app, ui, ctx, tree, theme_registry, app_theme, active_tab_id);
@@ -6810,17 +6897,20 @@ fn render_children_content(
                 .and_then(ui_value_as_i64)
                 .unwrap_or(2)
                 .max(1) as usize;
-            egui::Grid::new(format!("kain_ui_native_grid_{}", node_layout_identity(node)))
-                .num_columns(columns)
-                .spacing(egui::vec2(layout_gap, layout_gap))
-                .show(ui, |ui| {
-                    for (index, entry) in child_entries.iter().enumerate() {
-                        render_child_entry(app, ui, ctx, tree, theme_registry, app_theme, entry);
-                        if (index + 1) % columns == 0 {
-                            ui.end_row();
-                        }
+            egui::Grid::new(format!(
+                "kain_ui_native_grid_{}",
+                node_layout_identity(node)
+            ))
+            .num_columns(columns)
+            .spacing(egui::vec2(layout_gap, layout_gap))
+            .show(ui, |ui| {
+                for (index, entry) in child_entries.iter().enumerate() {
+                    render_child_entry(app, ui, ctx, tree, theme_registry, app_theme, entry);
+                    if (index + 1) % columns == 0 {
+                        ui.end_row();
                     }
-                });
+                }
+            });
         }
         UiLayoutKind::Stack | UiLayoutKind::Absolute => {
             let overlay_theme = resolve_widget_theme(node, theme_registry, app_theme);
@@ -6869,7 +6959,15 @@ fn render_children_content(
                     ui.scope(|ui| {
                         ui.set_width(width);
                         for entry in &left {
-                            render_child_entry(app, ui, ctx, tree, theme_registry, app_theme, entry);
+                            render_child_entry(
+                                app,
+                                ui,
+                                ctx,
+                                tree,
+                                theme_registry,
+                                app_theme,
+                                entry,
+                            );
                         }
                     });
                     ui.add_space(layout_gap);
@@ -6887,7 +6985,15 @@ fn render_children_content(
                     ui.scope(|ui| {
                         ui.set_width(width);
                         for entry in &right {
-                            render_child_entry(app, ui, ctx, tree, theme_registry, app_theme, entry);
+                            render_child_entry(
+                                app,
+                                ui,
+                                ctx,
+                                tree,
+                                theme_registry,
+                                app_theme,
+                                entry,
+                            );
                         }
                     });
                 }
@@ -6985,7 +7091,8 @@ fn render_viewport_surface(
                 return;
             };
             trace_runtime(format!("viewport: resolved scene node={}", node.id.0));
-            let initial_gizmo_binding = resolved_viewport_gizmo_binding(binding.presentation.as_ref());
+            let initial_gizmo_binding =
+                resolved_viewport_gizmo_binding(binding.presentation.as_ref());
             let surface =
                 app.viewport_surfaces
                     .entry(node.id)
@@ -7008,9 +7115,7 @@ fn render_viewport_surface(
                         manipulator_space: manipulator_space_from_binding_value(
                             initial_gizmo_binding.default_space.as_deref(),
                         ),
-                        snap_enabled: initial_gizmo_binding
-                            .snap_default_enabled
-                            .unwrap_or(false),
+                        snap_enabled: initial_gizmo_binding.snap_default_enabled.unwrap_or(false),
                         last_pick: None,
                         instance_transform_overrides: BTreeMap::new(),
                         active_manipulation: None,
@@ -7043,8 +7148,9 @@ fn render_viewport_surface(
                 surface.active_manipulation = None;
                 let reset_gizmo_binding =
                     resolved_viewport_gizmo_binding(binding.presentation.as_ref());
-                surface.manipulator_mode =
-                    manipulator_mode_from_binding_value(reset_gizmo_binding.default_mode.as_deref());
+                surface.manipulator_mode = manipulator_mode_from_binding_value(
+                    reset_gizmo_binding.default_mode.as_deref(),
+                );
                 surface.manipulator_space = manipulator_space_from_binding_value(
                     reset_gizmo_binding.default_space.as_deref(),
                 );
@@ -7066,7 +7172,8 @@ fn render_viewport_surface(
                 surface.bundle_presentation = binding.presentation.clone();
                 surface.bundle_warning = binding.warning.clone();
             }
-            let gizmo_binding = resolved_viewport_gizmo_binding(surface.bundle_presentation.as_ref());
+            let gizmo_binding =
+                resolved_viewport_gizmo_binding(surface.bundle_presentation.as_ref());
             let drag_trigger =
                 viewport_drag_trigger_from_binding_value(gizmo_binding.drag_trigger.as_deref());
             sync_viewport_input(
@@ -7142,7 +7249,9 @@ fn render_viewport_surface(
                     .and_then(|presentation| presentation.fog_density),
                 instance_transform_overrides: surface.instance_transform_overrides.clone(),
             };
-            if response.clicked() && !viewport_drag_trigger_active(&app.viewport_input, drag_trigger) {
+            if response.clicked()
+                && !viewport_drag_trigger_active(&app.viewport_input, drag_trigger)
+            {
                 if let Some(pointer_pos) = response.interact_pointer_pos() {
                     if inner_rect.contains(pointer_pos) {
                         let relative = pointer_pos - inner_rect.min;
@@ -7693,7 +7802,8 @@ fn sync_viewport_manipulation(
         surface.active_manipulation = None;
         return;
     }
-    let drag_trigger = viewport_drag_trigger_from_binding_value(gizmo_binding.drag_trigger.as_deref());
+    let drag_trigger =
+        viewport_drag_trigger_from_binding_value(gizmo_binding.drag_trigger.as_deref());
     if !viewport_drag_trigger_active(input, drag_trigger) {
         surface.active_manipulation = None;
         return;
@@ -7783,9 +7893,9 @@ fn manipulated_transform_from_drag(
     snap_settings: ViewportGizmoSnapSettings,
 ) -> SceneTransform {
     let viewport_scale = (resolution.width.min(resolution.height) as f32).max(1.0);
-    let depth_scale =
-        (camera.position.distance(drag_origin_transform.translation) * 2.4 / viewport_scale)
-            .clamp(0.006, 0.18);
+    let depth_scale = (camera.position.distance(drag_origin_transform.translation) * 2.4
+        / viewport_scale)
+        .clamp(0.006, 0.18);
     let camera_right = camera.right();
     let camera_up = camera.right().cross(camera.forward()).normalize();
 
@@ -7812,8 +7922,7 @@ fn manipulated_transform_from_drag(
             }
         }
         ManipulatorMode::Scale => {
-            let scale_factor =
-                (1.0 + (pointer_delta.x - pointer_delta.y) * 0.004).clamp(0.25, 5.0);
+            let scale_factor = (1.0 + (pointer_delta.x - pointer_delta.y) * 0.004).clamp(0.25, 5.0);
             updated_transform.scale = drag_origin_transform.scale * scale_factor;
             if snap_enabled {
                 if let Some(step) = snap_settings.scale_step {
@@ -7928,10 +8037,9 @@ fn resolve_viewport_camera_binding_from_node(
 fn resolve_viewport_presentation_binding_from_node(
     node: &UiNode,
 ) -> Option<RealtimeViewportPresentationBinding> {
-    let particle_budget =
-        prop_i64(node, "viewport.particle_budget")
-            .or_else(|| prop_i64(node, "viewport_particle_budget"))
-            .and_then(|value| u32::try_from(value).ok());
+    let particle_budget = prop_i64(node, "viewport.particle_budget")
+        .or_else(|| prop_i64(node, "viewport_particle_budget"))
+        .and_then(|value| u32::try_from(value).ok());
     let gizmo = resolve_viewport_gizmo_binding_from_node(node);
     let presentation = RealtimeViewportPresentationBinding {
         profile: prop_text(node, "viewport.profile")
@@ -8454,8 +8562,8 @@ mod tests {
                 key: "atlas.primary".to_string(),
                 family: "kain.builtin.bitmap_5x7".to_string(),
                 asset_key: None,
-                        encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA.to_string(),
-                        distance_range_px: 0,
+                encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA.to_string(),
+                distance_range_px: 0,
                 glyphs: "ABC".to_string(),
                 cell_size_px: [8, 8],
                 texture_size_px: [24, 8],
@@ -8466,8 +8574,8 @@ mod tests {
                 key: "atlas.metrics".to_string(),
                 family: "kain.builtin.bitmap_5x7".to_string(),
                 asset_key: None,
-                        encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA.to_string(),
-                        distance_range_px: 0,
+                encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA.to_string(),
+                distance_range_px: 0,
                 glyphs: "123456".to_string(),
                 cell_size_px: [8, 8],
                 texture_size_px: [48, 8],
@@ -8529,8 +8637,8 @@ mod tests {
                     key: "atlas.primary".to_string(),
                     family: "kain.builtin.bitmap_5x7".to_string(),
                     asset_key: None,
-                        encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA.to_string(),
-                        distance_range_px: 0,
+                    encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA.to_string(),
+                    distance_range_px: 0,
                     glyphs: "ABC".to_string(),
                     cell_size_px: [8, 8],
                     texture_size_px: [24, 8],
@@ -8541,8 +8649,8 @@ mod tests {
                     key: "atlas.metrics".to_string(),
                     family: "kain.builtin.bitmap_5x7".to_string(),
                     asset_key: None,
-                        encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA.to_string(),
-                        distance_range_px: 0,
+                    encoding: SHADER_CANVAS_FONT_ATLAS_ENCODING_BITMAP_ALPHA.to_string(),
+                    distance_range_px: 0,
                     glyphs: "123456".to_string(),
                     cell_size_px: [8, 8],
                     texture_size_px: [48, 8],
@@ -8564,7 +8672,11 @@ mod tests {
         assert_eq!(first.size_px, second.size_px);
         assert_eq!(first.atlases.len(), second.atlases.len());
         assert_eq!(
-            first.atlases.iter().map(|atlas| atlas.origin_px).collect::<Vec<_>>(),
+            first
+                .atlases
+                .iter()
+                .map(|atlas| atlas.origin_px)
+                .collect::<Vec<_>>(),
             second
                 .atlases
                 .iter()

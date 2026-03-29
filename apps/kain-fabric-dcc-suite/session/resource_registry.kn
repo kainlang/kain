@@ -71,6 +71,20 @@ fn default_resources() -> Array<ResourceDescriptor>:
             summary: "Topology rebuild output contract for mesh edit passes and downstream consumers; topology returns replacement mesh ids"
         },
         ResourceDescriptor {
+            id: "mesh_subdivision_report",
+            resource_uri: "report://mesh/subdivision",
+            kind: "value",
+            producer_step: "mesh_subdivision_projection",
+            summary: "Catmull-Clark-style subdivision receipt for the active edit target and topology output seam"
+        },
+        ResourceDescriptor {
+            id: "mesh_uv_pack_report",
+            resource_uri: "report://mesh/uv-pack",
+            kind: "value",
+            producer_step: "mesh_uv_pack_projection",
+            summary: "UV packing receipt for the active edit target and baked topology seam"
+        },
+        ResourceDescriptor {
             id: "topology_history_mesh_document",
             resource_uri: "mesh://topology/history/current",
             kind: "value",

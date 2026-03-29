@@ -188,6 +188,44 @@ fn reduce_command(command_kind: String, payload_summary: String, current_tool: S
             queued_intents: ["mesh.rebuild_topology", "rig.sync_controls", "render.preview", "publish.package"],
             session_needs_save: true
         }
+    if command_kind == "mesh.subdivide":
+        return ReducerOutcome {
+            next_workspace_mode: "sculpt_model",
+            next_active_tool: current_tool,
+            status_banner: "mesh subdivision requested",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: true,
+            material_dirty: false,
+            rig_dirty: true,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: false,
+            publish_dirty: true,
+            tensor_dirty: false,
+            queued_intents: ["mesh.subdivide", "mesh.rebuild_topology", "rig.sync_controls", "mesh.pack_uv", "render.preview", "publish.package"],
+            session_needs_save: true
+        }
+    if command_kind == "mesh.pack_uv":
+        return ReducerOutcome {
+            next_workspace_mode: "material_lookdev",
+            next_active_tool: current_tool,
+            status_banner: "mesh UV pack requested",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: true,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: true,
+            compositor_dirty: false,
+            publish_dirty: true,
+            tensor_dirty: false,
+            queued_intents: ["mesh.pack_uv", "material.bake_preview", "render.preview", "publish.package"],
+            session_needs_save: true
+        }
     if command_kind == "scene.open_document":
         return ReducerOutcome {
             next_workspace_mode: "scene_assembly",

@@ -30,18 +30,18 @@
       "title": "Tool Shelf",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Context-sensitive authoring tools across sculpt, material, rig, sim, and publish."
+      "summary": "Context tools for the active lane."
     },
     {
       "id": "selection_inspector",
       "title": "Selection Inspector",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Transforms, metadata, relationships, and lane-specific detail panels.",
+      "summary": "Selection, transform, and metadata details.",
       "properties": [
         {
           "label": "Selection",
-          "value": "Context-sensitive",
+          "value": "Context-aware",
           "detail": "multi-target aware"
         },
         {
@@ -66,16 +66,16 @@
       "title": "Workspace Navigator",
       "dock": "left",
       "kind": "tree",
-      "summary": "Pinned workbench lanes, current mode, and registry-owned switch targets.",
+      "summary": "Pinned workbench lanes and the current mode.",
       "properties": [
         {
           "label": "Active lane",
-          "value": "Current workbench",
+          "value": "Current lane",
           "detail": "page tab"
         },
         {
           "label": "Pinned modes",
-          "value": "7 lanes",
+          "value": "7 pages",
           "detail": "scene through publish"
         },
         {
@@ -95,7 +95,7 @@
       "title": "Command Palette",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Searchable command dispatch, recent actions, and registry-owned shortcuts.",
+      "summary": "Search, launch, and route commands from one place.",
       "properties": [
         {
           "label": "Query scope",
@@ -124,7 +124,7 @@
       "title": "Property Grid",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Context-sensitive selection, mode, and publish metadata for the active workbench.",
+      "summary": "Context-sensitive properties for the active surface.",
       "properties": [
         {
           "label": "Surface",
@@ -153,7 +153,7 @@
       "title": "Status Strip",
       "dock": "bottom",
       "kind": "inspector",
-      "summary": "Mode, selection, bridge, and dirty-state readouts that stay visible in the product frame.",
+      "summary": "Mode, selection, bridge, and dirty state.",
       "properties": [
         {
           "label": "Mode",
@@ -182,7 +182,7 @@
       "title": "Material Graph",
       "dock": "bottom",
       "kind": "graph",
-      "summary": "Shading, texture-routing, anchor points, and smart material composition."
+      "summary": "Layered shading, texture routing, and smart materials."
     },
     {
       "id": "material_layers",
@@ -304,7 +304,7 @@
       "title": "Render Lounge",
       "dock": "bottom",
       "kind": "graph",
-      "summary": "Render products, preview budgets, frame queues, and AOV targets."
+      "summary": "Preview frames, history, and render budgets."
     },
     {
       "id": "compositor_stack",
@@ -318,7 +318,7 @@
       "title": "Publish Console",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Packages, receipts, validators, deliverables, and client-facing summaries.",
+      "summary": "Packages, validators, and delivery receipts.",
       "properties": [
         {
           "label": "Package",
@@ -337,7 +337,7 @@
         },
         {
           "label": "Delivery",
-          "value": "Pending publish",
+          "value": "Ready to publish",
           "detail": "operator action"
         }
       ]
@@ -347,7 +347,7 @@
       "title": "Report Browser",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Mesh, topology lineage, rig, tensor, render, automation, and publish reports.",
+      "summary": "Mesh, topology, rig, render, and publish reports.",
       "properties": [
         {
           "label": "Latest report",
@@ -376,7 +376,7 @@
       "title": "Jobs Monitor",
       "dock": "bottom",
       "kind": "timeline",
-      "summary": "Background jobs, Fabric sessions, automation schedules, and retry state.",
+      "summary": "Background jobs, retries, and automation state.",
       "properties": [
         {
           "label": "Running jobs",

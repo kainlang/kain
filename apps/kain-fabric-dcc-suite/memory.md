@@ -61,6 +61,13 @@
 - Priorities now: render/pathtrace/accumulation/denoise, asset import pipelines, UI/shell wiring, and native host/FFI seams.
 - Docs only matter when they directly unblock shipping or explain a real runtime limitation.
 
+## 2026-03-29 - Mesh Pipeline Now Carries Primitive, Subdivision, and UV Pack Seams
+
+- Added `fabric/intents/mesh_session.fabric.toml` steps for primitive generation, topology projection, Catmull-Clark-style subdivision, UV packing, and the existing mesh session projection so the mesh lane now has a clearer authored pipeline instead of only a coarse contract report.
+- Added Kain projection receipts for subdivision and UV packing, plus session/bridge command handling for `mesh.subdivide` and `mesh.pack_uv`, so the active edit target can stay explicit while heavy geometry work remains an external/native seam.
+- Extended the mesh command registry and intent registry so the new mesh actions are discoverable from the shell and can be routed through the same reducer/plan path as the older mesh commands.
+- The next clean step is to back the new receipts with a real native mesh solver and UV atlas seam instead of just durable orchestration reports.
+
 ## 2026-03-29 - Render-Room Lanes Wired In
 
 - Added the first dedicated render-room lanes to `kain-fabric-dcc-suite`: `render.delegate_preview` and `lighting.review_preview`.
@@ -69,3 +76,16 @@
 - Extended the suite registries so these lanes are first-class in `runtime_packs`, `report_kinds`, `command_registry`, `fabric_intents`, `report_registry`, `command_handlers`, `reducers`, `intent_planner`, and the dispatcher hot-path list.
 - Validation succeeded: queueing both new commands now runs Fabric and materializes `render.delegate_preview:succeeded` and `lighting.review_preview:succeeded`.
 - The suite is now moving from preview-only render plumbing into a more believable render room with delegated preview and lighting review contracts.
+
+## 2026-03-29 - Shell Workbench Tightened Toward Slate-Like Density
+
+- `config/ui_shell.json` and `config/surfaces.json` were tightened so the shell reads more like a real workbench frame: shorter labels, denser chrome language, clearer lane return paths, and less toy-like page copy.
+- The workbench now leans harder on compact navigator / command / property / status terminology, which should make the generated shell feel more deliberate once materialized.
+- Keep future shell edits similarly terse and registry-driven; avoid expanding the shell back into decorative prose cards.
+
+## 2026-03-29 - Render Room Progression Now Includes Frame Scheduling
+
+- Added a dedicated `render_frame_schedule_projection` seam plus `render_frame_schedule_report` so the render-room path now has an explicit frame-budget and capture-scheduling receipt instead of only preview, accumulation, and denoise summaries.
+- Threaded the new schedule report into render delegation and lighting review so the room can cite a concrete frame queue while still keeping the actual GPU/runtime seams honest.
+- The progressive render spine is now easier to read as a room contract: delegated preview -> pathtrace -> accumulation -> denoise -> frame scheduling.
+- Next clean step is to back these report receipts with a real temporal-history or render queue runtime if the platform seam opens up.

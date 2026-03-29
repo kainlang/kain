@@ -4,9 +4,10 @@ fn app_state_root() -> String:
 fn lighting_review_report_path() -> String:
     return app_state_root() + "/lighting_review_report.json"
 
-fn build_lighting_review_report_json(settings: Any, render_report: String, pathtrace_report: String, delegation_report: String, material_report: String) -> String:
+fn build_lighting_review_report_json(settings: Any, render_report: String, pathtrace_report: String, delegation_report: String, material_report: String, schedule_report: String) -> String:
     let bounce_budget = settings.runtime_pack_count + 5
     let review_targets = settings.preview_count + settings.tensor_feature_count + 2
+    let frame_schedule_slots = settings.runtime_pack_count + settings.preview_count + 3
     let json = "{\n"
     let json = json + "  \"kind\": \"lighting_review_report\",\n"
     let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
@@ -14,9 +15,11 @@ fn build_lighting_review_report_json(settings: Any, render_report: String, patht
     let json = json + "  \"lighting_profile\": \"lighting_review_room\",\n"
     let json = json + "  \"bounce_budget\": " + str(bounce_budget) + ",\n"
     let json = json + "  \"review_targets\": " + str(review_targets) + ",\n"
+    let json = json + "  \"frame_schedule_slots\": " + str(frame_schedule_slots) + ",\n"
     let json = json + "  \"upstream_render_preview_report\": \"" + render_report + "\",\n"
     let json = json + "  \"upstream_pathtrace_report\": \"" + pathtrace_report + "\",\n"
     let json = json + "  \"upstream_render_delegation_report\": \"" + delegation_report + "\",\n"
+    let json = json + "  \"upstream_frame_schedule_report\": \"" + schedule_report + "\",\n"
     let json = json + "  \"upstream_material_report\": \"" + material_report + "\"\n"
     let json = json + "}\n"
     return json
@@ -27,8 +30,9 @@ fn main() -> String:
     let pathtrace_report = fabric_inputs.pathtrace_preview_projection.pathtrace_preview_report
     let delegation_report = fabric_inputs.render_delegation_projection.render_delegation_report
     let material_report = fabric_inputs.material_authoring_projection.material_authoring_report
-    let report_json = build_lighting_review_report_json(settings, render_report, pathtrace_report, delegation_report, material_report)
+    let schedule_report = fabric_inputs.render_frame_schedule_projection.render_frame_schedule_report
+    let report_json = build_lighting_review_report_json(settings, render_report, pathtrace_report, delegation_report, material_report, schedule_report)
 
     write_file(lighting_review_report_path(), report_json)
 
-    return "lighting-review:" + settings.workspace_mode + ":bounces=" + str(settings.runtime_pack_count + 5) + ":targets=" + str(settings.preview_count + settings.tensor_feature_count + 2)
+    return "lighting-review:" + settings.workspace_mode + ":bounces=" + str(settings.runtime_pack_count + 5) + ":targets=" + str(settings.preview_count + settings.tensor_feature_count + 2) + ":frames=" + str(settings.runtime_pack_count + settings.preview_count + 3)

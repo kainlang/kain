@@ -77,16 +77,14 @@ impl UiRuntime {
             .push(UiRuntimeSystemPatch::HotReloadApplied {
                 report: report.clone(),
             });
-        output
-            .system_patches
-            .extend(runtime_state_delta_patches(
-                &pre_active_tabs,
-                &pre_focus,
-                &pre_selection_primary,
-                &self.systems.workspace_layout.active_tabs,
-                &self.systems.focus_graph.focused,
-                &self.systems.selection_model.primary,
-            ));
+        output.system_patches.extend(runtime_state_delta_patches(
+            &pre_active_tabs,
+            &pre_focus,
+            &pre_selection_primary,
+            &self.systems.workspace_layout.active_tabs,
+            &self.systems.focus_graph.focused,
+            &self.systems.selection_model.primary,
+        ));
 
         if !report.invalidated_nodes.is_empty() {
             let scheduler_entry = UiSchedulerEntry {
@@ -118,7 +116,9 @@ impl UiRuntime {
                 });
         }
 
-        output.scheduler = Some(ui_coalesce_scheduler_entries(&mut self.systems.scheduler.pending));
+        output.scheduler = Some(ui_coalesce_scheduler_entries(
+            &mut self.systems.scheduler.pending,
+        ));
         output
     }
 
@@ -133,9 +133,11 @@ impl UiRuntime {
         for event in &input.events {
             let routed = self.route_event_to_commands(event);
             for command in routed {
-                output.system_patches.push(UiRuntimeSystemPatch::CommandQueued {
-                    command: command.clone(),
-                });
+                output
+                    .system_patches
+                    .push(UiRuntimeSystemPatch::CommandQueued {
+                        command: command.clone(),
+                    });
                 self.systems.command_buffer.pending.push(command);
             }
         }
@@ -146,23 +148,31 @@ impl UiRuntime {
             let exec_one = self.execute_command(command.clone());
             let applied = exec_one.rejections.is_empty();
             command_exec.merge(exec_one);
-            output.system_patches.push(UiRuntimeSystemPatch::CommandExecuted {
-                command,
-                applied,
-            });
+            output
+                .system_patches
+                .push(UiRuntimeSystemPatch::CommandExecuted { command, applied });
         }
-        self.systems.command_buffer.executed.extend(command_exec.executed);
-        self.systems.command_buffer.rejections.extend(command_exec.rejections);
+        self.systems
+            .command_buffer
+            .executed
+            .extend(command_exec.executed);
+        self.systems
+            .command_buffer
+            .rejections
+            .extend(command_exec.rejections);
         output.tree_patches.extend(command_exec.tree_patches);
         output.system_patches.extend(command_exec.system_patches);
 
         if !input.signal_updates.is_empty() {
-            let invalidation = self.apply_signal_updates(&input.signal_updates, input.transaction_label.as_deref());
+            let invalidation = self
+                .apply_signal_updates(&input.signal_updates, input.transaction_label.as_deref());
             output.invalidation = Some(invalidation.clone());
-            output.system_patches.push(UiRuntimeSystemPatch::SignalsUpdated {
-                changed_signals: invalidation.changed_signals.clone(),
-                invalidated_nodes: invalidation.invalidated_nodes.clone(),
-            });
+            output
+                .system_patches
+                .push(UiRuntimeSystemPatch::SignalsUpdated {
+                    changed_signals: invalidation.changed_signals.clone(),
+                    invalidated_nodes: invalidation.invalidated_nodes.clone(),
+                });
         }
 
         if input.delta_ms > 0 {
@@ -171,14 +181,17 @@ impl UiRuntime {
                 let frames = ui_step_animation_runtime(&mut self.systems, input.delta_ms);
                 if !frames.is_empty() {
                     output.animation_frames = frames.clone();
-                    output.system_patches
+                    output
+                        .system_patches
                         .push(UiRuntimeSystemPatch::AnimationAdvanced { frames });
                 }
             }
         }
 
         // Coalesce scheduler entries to keep the contract bounded and explainable.
-        output.scheduler = Some(ui_coalesce_scheduler_entries(&mut self.systems.scheduler.pending));
+        output.scheduler = Some(ui_coalesce_scheduler_entries(
+            &mut self.systems.scheduler.pending,
+        ));
 
         output
     }
@@ -198,7 +211,8 @@ impl UiRuntime {
 
         // Seed worklist with direct updates.
         for update in updates {
-            let changed_value = self.systems.signal_values.get(&update.signal) != Some(&update.value);
+            let changed_value =
+                self.systems.signal_values.get(&update.signal) != Some(&update.value);
             if !changed_value {
                 continue;
             }
@@ -241,9 +255,12 @@ impl UiRuntime {
                     };
 
                     // Derived-signal recompute path.
-                    if let (Some(out_signal), Some(expr)) = (computed.writes_signal, computed.expr.clone()) {
+                    if let (Some(out_signal), Some(expr)) =
+                        (computed.writes_signal, computed.expr.clone())
+                    {
                         let next_value = ui_eval_derived_expr(&expr, &self.systems.signal_values);
-                        let changed_value = self.systems.signal_values.get(&out_signal) != Some(&next_value);
+                        let changed_value =
+                            self.systems.signal_values.get(&out_signal) != Some(&next_value);
                         if changed_value {
                             self.systems.signal_values.insert(out_signal, next_value);
                             if changed.insert(out_signal) {
@@ -368,9 +385,11 @@ impl UiRuntime {
             if desc.effect == crate::UiCommandEffectKind::ExternalEffect {
                 tx.dispatched_commands.push(command.name.clone());
                 output.executed.push(command.clone());
-                output.system_patches.push(UiRuntimeSystemPatch::ExternalCommandDispatched {
-                    command: command.name.clone(),
-                });
+                output
+                    .system_patches
+                    .push(UiRuntimeSystemPatch::ExternalCommandDispatched {
+                        command: command.name.clone(),
+                    });
                 self.systems.transactions.push(tx);
                 return output;
             }
@@ -681,7 +700,11 @@ impl UiRuntimeIndexes {
 
         for (idx, computed) in computed.iter().enumerate() {
             for signal in &computed.depends_on {
-                indexes.signal_to_computed.entry(*signal).or_default().push(idx);
+                indexes
+                    .signal_to_computed
+                    .entry(*signal)
+                    .or_default()
+                    .push(idx);
             }
         }
 
@@ -860,7 +883,12 @@ pub fn ui_spatial_snapshot_from_layout(
         let (anchor_target, anchor_target_rect) = overlay
             .anchor
             .as_ref()
-            .and_then(|anchor| rect_index.get(&anchor.target).copied().map(|r| (anchor.target, r)))
+            .and_then(|anchor| {
+                rect_index
+                    .get(&anchor.target)
+                    .copied()
+                    .map(|r| (anchor.target, r))
+            })
             .map(|(id, rect)| (Some(id), Some(rect)))
             .unwrap_or((None, None));
         snapshot.overlays.push(UiOverlayResolved {
@@ -898,25 +926,29 @@ pub fn ui_spatial_snapshot_from_layout(
             && (child_rect.x < parent_rect.x
                 || child_rect.x + child_rect.width > parent_rect.x + parent_rect.width)
         {
-            snapshot.containment_violations.push(UiContainmentViolation {
-                parent: *parent,
-                child: *child,
-                parent_rect,
-                child_rect,
-                reason: "overflow_x".to_string(),
-            });
+            snapshot
+                .containment_violations
+                .push(UiContainmentViolation {
+                    parent: *parent,
+                    child: *child,
+                    parent_rect,
+                    child_rect,
+                    reason: "overflow_x".to_string(),
+                });
         }
         if overflow_y != UiOverflowBehavior::Visible
             && (child_rect.y < parent_rect.y
                 || child_rect.y + child_rect.height > parent_rect.y + parent_rect.height)
         {
-            snapshot.containment_violations.push(UiContainmentViolation {
-                parent: *parent,
-                child: *child,
-                parent_rect,
-                child_rect,
-                reason: "overflow_y".to_string(),
-            });
+            snapshot
+                .containment_violations
+                .push(UiContainmentViolation {
+                    parent: *parent,
+                    child: *child,
+                    parent_rect,
+                    child_rect,
+                    reason: "overflow_y".to_string(),
+                });
         }
     }
 
@@ -931,7 +963,9 @@ pub fn ui_spatial_snapshot_from_layout(
     }
     for scope in scopes {
         let order = ui_derive_focus_traversal_order(tree, systems, &scope);
-        snapshot.focus_traversal.push(UiFocusTraversalSnapshot { scope, order });
+        snapshot
+            .focus_traversal
+            .push(UiFocusTraversalSnapshot { scope, order });
     }
 
     snapshot
@@ -989,7 +1023,12 @@ fn ui_derive_focus_traversal_order(
     order
 }
 
-fn ui_collect_focusable_preorder(tree: &UiTree, node: UiNodeId, scope: &str, out: &mut Vec<UiNodeId>) {
+fn ui_collect_focusable_preorder(
+    tree: &UiTree,
+    node: UiNodeId,
+    scope: &str,
+    out: &mut Vec<UiNodeId>,
+) {
     let Some(entry) = tree.node(node) else { return };
     if entry.focus_scope.as_deref() == Some(scope) {
         out.push(node);
@@ -1034,7 +1073,9 @@ fn ui_eval_derived_expr(expr: &UiDerivedExpr, signals: &BTreeMap<UiSignalId, UiV
     match expr {
         UiDerivedExpr::Literal(value) => value.clone(),
         UiDerivedExpr::Signal(id) => signals.get(id).cloned().unwrap_or(UiValue::Null),
-        UiDerivedExpr::Not(inner) => UiValue::Bool(!ui_value_truthy(&ui_eval_derived_expr(inner, signals))),
+        UiDerivedExpr::Not(inner) => {
+            UiValue::Bool(!ui_value_truthy(&ui_eval_derived_expr(inner, signals)))
+        }
         UiDerivedExpr::And(a, b) => UiValue::Bool(
             ui_value_truthy(&ui_eval_derived_expr(a, signals))
                 && ui_value_truthy(&ui_eval_derived_expr(b, signals)),
@@ -1043,7 +1084,9 @@ fn ui_eval_derived_expr(expr: &UiDerivedExpr, signals: &BTreeMap<UiSignalId, UiV
             ui_value_truthy(&ui_eval_derived_expr(a, signals))
                 || ui_value_truthy(&ui_eval_derived_expr(b, signals)),
         ),
-        UiDerivedExpr::Eq(a, b) => UiValue::Bool(ui_eval_derived_expr(a, signals) == ui_eval_derived_expr(b, signals)),
+        UiDerivedExpr::Eq(a, b) => {
+            UiValue::Bool(ui_eval_derived_expr(a, signals) == ui_eval_derived_expr(b, signals))
+        }
         UiDerivedExpr::Add(a, b) => ui_value_binary_numeric_op(a, b, signals, |x, y| x + y),
         UiDerivedExpr::Sub(a, b) => ui_value_binary_numeric_op(a, b, signals, |x, y| x - y),
         UiDerivedExpr::Mul(a, b) => ui_value_binary_numeric_op(a, b, signals, |x, y| x * y),
@@ -1055,7 +1098,9 @@ fn ui_eval_derived_expr(expr: &UiDerivedExpr, signals: &BTreeMap<UiSignalId, UiV
                 _ => ui_value_binary_numeric_op(a, b, signals, |x, y| x / y),
             }
         }
-        UiDerivedExpr::ToString(inner) => UiValue::String(ui_value_to_string(&ui_eval_derived_expr(inner, signals))),
+        UiDerivedExpr::ToString(inner) => {
+            UiValue::String(ui_value_to_string(&ui_eval_derived_expr(inner, signals)))
+        }
     }
 }
 
@@ -1140,7 +1185,10 @@ fn ui_apply_builtin_command(
                 return true;
             }
 
-            systems.workspace_layout.active_tabs.insert(group_id, layout_id);
+            systems
+                .workspace_layout
+                .active_tabs
+                .insert(group_id, layout_id);
             transaction.touched_nodes.clear();
             true
         }
@@ -1223,7 +1271,10 @@ fn ui_apply_builtin_command(
                 _ => None,
             };
             if let Some(node_id) = node_id {
-                systems.selection_model.primary.insert(scope.clone(), node_id);
+                systems
+                    .selection_model
+                    .primary
+                    .insert(scope.clone(), node_id);
                 systems
                     .selection_model
                     .selected
@@ -1251,7 +1302,11 @@ fn ui_apply_builtin_command(
                 "failed" => crate::UiResourceState::Failed,
                 _ => return false,
             };
-            if let Some(resource) = systems.resources.iter_mut().find(|res| res.id == resource_id) {
+            if let Some(resource) = systems
+                .resources
+                .iter_mut()
+                .find(|res| res.id == resource_id)
+            {
                 resource.state = state;
             } else {
                 systems.resources.push(crate::UiResource {

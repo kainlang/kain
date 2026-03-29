@@ -33,10 +33,50 @@ name = "mesh_resource_contract_document"
 kind = "value"
 
 [[steps]]
+id = "mesh_primitive_generation"
+runtime = "kain"
+entry = "src/primitive_mesh_authoring.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed"]
+
+[[steps.outputs]]
+name = "authored_primitive_definition_document"
+kind = "value"
+
+[[steps]]
+id = "mesh_topology_projection"
+runtime = "kain"
+entry = "src/mesh_import_projection.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed"]
+
+[[steps.outputs]]
+name = "imported_mesh_payload_document"
+kind = "value"
+
+[[steps]]
+id = "mesh_subdivision_projection"
+runtime = "kain"
+entry = "src/mesh_subdivision_projection.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "mesh_primitive_generation"]
+
+[[steps.outputs]]
+name = "mesh_subdivision_report"
+kind = "value"
+
+[[steps]]
+id = "mesh_uv_pack_projection"
+runtime = "kain"
+entry = "src/mesh_uv_pack_projection.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "mesh_subdivision_projection"]
+
+[[steps.outputs]]
+name = "mesh_uv_pack_report"
+kind = "value"
+
+[[steps]]
 id = "mesh_session_projection"
 runtime = "kain"
 entry = "src/mesh_session_projection.kn"
-depends_on = ["python_suite_bootstrap", "dcc_suite_seed"]
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "mesh_topology_projection", "mesh_subdivision_projection", "mesh_uv_pack_projection"]
 
 [[steps.outputs]]
 name = "mesh_contract_report"

@@ -10,6 +10,7 @@ fn build_render_denoise_report_json(settings: Any, accumulation_buffer: Any, mat
     let accumulation_info = interop_shared_buffer_info(accumulation_buffer)
     let accumulation_sample_count = accumulation_info.shape[0]
     let denoise_strength = settings.preview_count + 1
+    let aov_count = settings.runtime_pack_count + 3
 
     let json = "{\n"
     let json = json + "  \"kind\": \"render_denoise_report\",\n"
@@ -20,6 +21,7 @@ fn build_render_denoise_report_json(settings: Any, accumulation_buffer: Any, mat
     let json = json + "  \"accumulation_buffer_bytes\": " + str(accumulation_info.byte_length) + ",\n"
     let json = json + "  \"accumulation_sample_count\": " + str(accumulation_sample_count) + ",\n"
     let json = json + "  \"denoise_strength_hint\": " + str(denoise_strength) + ",\n"
+    let json = json + "  \"aov_count\": " + str(aov_count) + ",\n"
     let json = json + "  \"upstream_material_summary\": \"" + material_summary + "\",\n"
     let json = json + "  \"upstream_svg_summary\": \"" + svg_summary + "\"\n"
     let json = json + "}\n"
@@ -34,4 +36,4 @@ fn main() -> String:
 
     write_file(render_denoise_report_path(), report_json)
 
-    return "render-denoise:" + settings.workspace_mode + ":bytes=" + str(interop_shared_buffer_info(accumulation_buffer).byte_length) + ":strength=" + str(settings.preview_count + 1)
+    return "render-denoise:" + settings.workspace_mode + ":bytes=" + str(interop_shared_buffer_info(accumulation_buffer).byte_length) + ":strength=" + str(settings.preview_count + 1) + ":aov=" + str(settings.runtime_pack_count + 3)

@@ -4,8 +4,8 @@
   "shell_chrome": {
     "brand": {
       "eyebrow": "KAIN FABRIC SUITE",
-      "title": "Fabric workstation frame",
-      "summary": "Navigation, authored chrome, command decks, and runtime telemetry stay fused into one product shell above every authored lane."
+      "title": "Workbench shell",
+      "summary": "Dense dock, command, and inspector chrome for a Slate-like authoring frame."
     },
     "menu_items": [
       {
@@ -42,37 +42,37 @@
         "id": "fabric_status",
         "label": "Fabric",
         "metric_source": "latest_fabric_status",
-        "caption": "latest pipeline session"
+        "caption": "latest session"
       },
       {
         "id": "workspace_count",
         "label": "Modes",
         "metric_source": "workspace_mode_count",
-        "caption": "authored page lanes"
+        "caption": "authored pages"
       },
       {
         "id": "surface_count",
         "label": "Surfaces",
         "metric_source": "surface_count",
-        "caption": "registered shell surfaces"
+        "caption": "shell surfaces"
       },
       {
         "id": "report_count",
         "label": "Reports",
         "metric_source": "report_count",
-        "caption": "registry report kinds"
+        "caption": "report kinds"
       },
       {
         "id": "runtime_pack_count",
         "label": "Packs",
         "metric_source": "runtime_pack_count",
-        "caption": "runtime packs projected"
+        "caption": "runtime packs"
       },
       {
         "id": "runtime_lane_count",
         "label": "Lanes",
         "metric_source": "runtime_lane_count",
-        "caption": "runtime ownership matrix"
+        "caption": "lane matrix"
       },
       {
         "id": "runtime_lane_summary",
@@ -84,31 +84,31 @@
         "id": "command_count",
         "label": "Commands",
         "metric_source": "command_count",
-        "caption": "global shell actions"
+        "caption": "shell actions"
       },
       {
         "id": "pipeline_step_count",
         "label": "Pipelines",
         "metric_source": "pipeline_step_count",
-        "caption": "fabric runtime steps"
+        "caption": "fabric steps"
       },
       {
         "id": "automation_job_count",
         "label": "Jobs",
         "metric_source": "automation_job_count",
-        "caption": "scheduled automations"
+        "caption": "scheduled jobs"
       },
       {
         "id": "extension_seam_count",
         "label": "Seams",
         "metric_source": "extension_seam_count",
-        "caption": "known bridge seams"
+        "caption": "bridge seams"
       }
     ],
     "command_spotlight": {
       "eyebrow": "Command Spotlight",
-      "title": "Authoring quick-actions",
-      "summary": "Global commands that should stay one gesture away whether the operator is in a viewport, property rail, or publish deck.",
+      "title": "Search, launch, route",
+      "summary": "One shell launcher for mode switches, focused commands, and inspector jumps.",
       "command_ids": [
         "project.bootstrap",
         "workspace.switch_mode",
@@ -125,13 +125,13 @@
     },
     "workspace_switcher": {
       "eyebrow": "Workspace Switcher",
-      "title": "Global lane navigation",
-      "summary": "Each lane chip mirrors an authored workbench page so the shell keeps one workspace model and one layout vocabulary."
+      "title": "Lane navigation",
+      "summary": "Mode chips mirror workbench pages and keep the current lane obvious."
     },
     "workspace_navigator": {
       "eyebrow": "Workspace Navigator",
-      "title": "Pinned workbench lanes",
-      "summary": "The lane rail stays registry-owned so operators can jump between authored workbenches without losing context.",
+      "title": "Pinned lanes",
+      "summary": "The lane rail stays registry-owned so the operator can return without losing layout state.",
       "properties": [
         {
           "label": "Active lane",
@@ -161,8 +161,8 @@
     },
     "system_rack": {
       "eyebrow": "System Rack",
-      "title": "Fabric runtime telemetry",
-      "summary": "Core registry scale and known seams stay visible in shell chrome so workbench pages can stay focused.",
+      "title": "Shell telemetry",
+      "summary": "Registry scale, lane ownership, and report density stay visible without opening a second inspector.",
       "status_item_ids": [
         "command_count",
         "pipeline_step_count",
@@ -178,8 +178,8 @@
     },
     "status_strip": {
       "eyebrow": "Status Strip",
-      "title": "Live operator status",
-      "summary": "Mode, selection, bridge, and dirty-state readouts stay visible without cracking open devtools.",
+      "title": "Status line",
+      "summary": "Mode, selection, bridge, and dirty-state readouts stay in the product frame.",
       "properties": [
         {
           "label": "Mode",
@@ -209,8 +209,8 @@
     },
     "property_grid": {
       "eyebrow": "Property Grid",
-      "title": "Selection properties",
-      "summary": "The shell keeps a reserved property grid surface for context-sensitive selection, mode, and publish metadata.",
+      "title": "Property rail",
+      "summary": "Context-sensitive selection, mode, and publish metadata stay dense and inspectable.",
       "properties": [
         {
           "label": "Surface",
@@ -240,15 +240,13 @@
     },
     "operator_notes": {
       "eyebrow": "Operator Context",
-      "title": "Operator notes",
-      "summary": "The workstation should feel like one durable editor frame with mounted subsystems, not stacked demo cards.",
+      "title": "Workbench stance",
+      "summary": "The shell should feel like one durable editor frame with mounted subsystems.",
       "notes": [
-        "Command spotlight remains shell-owned so operators can bootstrap, switch lanes, preview, and publish without hunting through page-local inspectors.",
-        "The report browser should make mesh and topology lineage obvious alongside rig, render, tensor, automation, and publish receipts.",
-        "The progressive render chain should stay legible as pathtrace -> accumulation -> denoise so preview fuel is visible, not implied.",
-        "The runtime-lane matrix should stay visible in the chrome so Kain, Fabric, Python, GPU, native C, Rust, and Node ownership never has to be inferred.",
-        "The shell should keep the active lane obvious and leave one clean return path to the authored workbench frame.",
-        "The authored frame should feel intentionally dense instead of generic or toy-like."
+        "Keep the active lane obvious at all times.",
+        "Favor compact chrome over airy demo-card spacing.",
+        "Keep command dispatch, inspector routing, and layout return paths obvious.",
+        "Use the shell as a real workstation frame, not a showcase scaffold."
       ]
     }
   },
@@ -256,9 +254,9 @@
     {
       "mode_id": "scene_assembly",
       "tab_label": "Scene",
-      "title": "Scene Assembly Workbench",
-      "hero_title": "Scene-first assembly and ingest mission control",
-      "hero_summary": "Stage layout, intake, placement, and downstream review stay in one operator surface instead of scattering across separate host-owned tools.",
+      "title": "Scene Workbench",
+      "hero_title": "Scene assembly in a dense workstation frame",
+      "hero_summary": "Ingest, layout, and review stay inside one persistent workbench.",
       "focus_surface_id": "scene_graph",
       "featured_tool_ids": [
         "select",
@@ -280,8 +278,8 @@
       "right_surface_ids": [
         "selection_inspector",
         "workspace_navigator",
+        "command_palette",
         "property_grid",
-        "tool_shelf",
         "report_browser"
       ],
       "bottom_surface_ids": [
@@ -300,9 +298,9 @@
     {
       "mode_id": "sculpt_model",
       "tab_label": "Model",
-      "title": "Sculpt And Modeling Forge",
-      "hero_title": "Viewport-dominant modeling and sculpt layout",
-      "hero_summary": "Brush operations, topology refresh, and publish invalidation are grouped as one sculpt workbench instead of separate one-off inspectors.",
+      "title": "Modeling Workbench",
+      "hero_title": "Sculpt and modeling in one focused lane",
+      "hero_summary": "Brush, topology, and viewport validation stay coupled to one layout.",
       "focus_surface_id": "viewport_stage",
       "featured_tool_ids": [
         "poly_extrude",
@@ -345,9 +343,9 @@
     {
       "mode_id": "material_lookdev",
       "tab_label": "Lookdev",
-      "title": "Material And Lookdev Studio",
-      "hero_title": "Painter-style material authoring with SVG and packed export lanes",
-      "hero_summary": "Texture sets, smart materials, SVG masks, and export presets are treated as first-class authored surfaces instead of metadata hidden behind a bake button.",
+      "title": "Material Workbench",
+      "hero_title": "Lookdev with layered material density",
+      "hero_summary": "Texture sets, masks, and export presets stay first-class.",
       "focus_surface_id": "material_graph",
       "featured_tool_ids": [
         "material_layer_paint",
@@ -394,9 +392,9 @@
     {
       "mode_id": "rig_anim",
       "tab_label": "Rig",
-      "title": "Rig And Animation Bench",
-      "hero_title": "Graph, timeline, and deformation review in one bench",
-      "hero_summary": "Rig sync, clip blocking, and viewport validation share one workbench so animation state stays coupled to the same authored contracts.",
+      "title": "Rig Workbench",
+      "hero_title": "Rig and animation in one bench",
+      "hero_summary": "Graphs, clips, and validation stay inside the same frame.",
       "focus_surface_id": "rig_graph",
       "featured_tool_ids": [
         "control_rig_edit",
@@ -436,9 +434,9 @@
     {
       "mode_id": "sim_fx",
       "tab_label": "Sim",
-      "title": "Simulation And FX Board",
-      "hero_title": "Plan, cache, and review simulation work as a first-class lane",
-      "hero_summary": "This page keeps simulation planning visible, links it to downstream render and comp work, and makes the current solver seam honest instead of pretending it is complete.",
+      "title": "Simulation Workbench",
+      "hero_title": "Simulation and FX in a single control lane",
+      "hero_summary": "Cache planning and review stay visible and honest.",
       "focus_surface_id": "simulation_board",
       "featured_tool_ids": [
         "cache_solver"
@@ -477,9 +475,9 @@
     {
       "mode_id": "render_comp",
       "tab_label": "Render",
-      "title": "Render And Composite Control Room",
-      "hero_title": "Review renders, composite plans, and final publish risk in one control room",
-      "hero_summary": "Render and comp should feel like a real production room with visible outputs, not a final step hidden behind a single preview button. The progressive preview chain stays legible from pathtrace through accumulation and denoise.",
+      "title": "Render Workbench",
+      "hero_title": "Render and composite control room",
+      "hero_summary": "Preview, accumulation, and denoise remain explicit in the frame.",
       "focus_surface_id": "render_lounge",
       "featured_tool_ids": [
         "render_preview",
@@ -519,9 +517,9 @@
     {
       "mode_id": "publish_automation",
       "tab_label": "Publish",
-      "title": "Publish And Automation Command Deck",
-      "hero_title": "Delivery, receipts, automation, and tensor readiness under one publish deck",
-      "hero_summary": "The delivery lane should own bundle readiness, recurring jobs, and release artifacts without forcing operators to leave the authored session model.",
+      "title": "Publish Workbench",
+      "hero_title": "Delivery and automation under one deck",
+      "hero_summary": "Packages, jobs, and receipts stay on the operator surface.",
       "focus_surface_id": "publish_console",
       "featured_tool_ids": [
         "publish_bundle"
@@ -541,7 +539,7 @@
         "render_lounge"
       ],
       "right_surface_ids": [
-        "material_export_board",
+        "publish_console",
         "workspace_navigator",
         "command_palette",
         "property_grid",

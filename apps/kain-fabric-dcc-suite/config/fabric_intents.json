@@ -93,6 +93,26 @@
       ]
     },
     {
+      "id": "mesh.subdivide",
+      "label": "Subdivide Mesh",
+      "lane": "mesh",
+      "graph": "fabric/intents/mesh_session.fabric.toml",
+      "debounce_ms": 0,
+      "produces": [
+        "mesh_subdivision_report"
+      ]
+    },
+    {
+      "id": "mesh.pack_uv",
+      "label": "Pack Mesh UVs",
+      "lane": "mesh",
+      "graph": "fabric/intents/mesh_session.fabric.toml",
+      "debounce_ms": 8,
+      "produces": [
+        "mesh_uv_pack_report"
+      ]
+    },
+    {
       "id": "sculpt.apply_stroke",
       "label": "Sculpt Stroke",
       "lane": "sculpt",

@@ -105,6 +105,16 @@ depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "material_authoring_pr
 name = "render_denoise_report"
 kind = "value"
 
+[[steps]]
+id = "render_frame_schedule_projection"
+runtime = "kain"
+entry = "src/render_frame_schedule_projection.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "render_preview_projection", "pathtrace_preview_projection", "render_accumulation_projection", "render_denoise_projection"]
+
+[[steps.outputs]]
+name = "render_frame_schedule_report"
+kind = "value"
+
 [reports]
 directory = ".kain/fabric/intents/render_pathtrace"
 emit_jsonl_events = true

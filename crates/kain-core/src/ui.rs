@@ -10,12 +10,12 @@ use crate::runtime::{eval_expr, Env, Value};
 use crate::span::Span;
 use kain_ui::{
     default_layout_for_tag, render_debug_tree, ui_runtime_systems_from_tree, widget_kind_for_tag,
-    UiAnimationTrack, UiAnimationTrigger, UiBuildOutput, UiComputed, UiDockNode, UiDockPlacement,
-    UiDerivedExpr, UiEasingKind, UiEventPhase, UiEventRoute, UiLayoutAlignment, UiLength,
-    UiLengthUnit, UiNode, UiOverflowBehavior, UiSchedulerPhase, UiSignalId, UiStyleState, UiSurface,
-    UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference, UiSurfaceShaderBinding,
-    UiThemeRegistry, UiThemeScope, UiThemeToken, UiThemeVariant, UiTreeBuilder, UiValue,
-    UiWidgetKind,
+    UiAnimationTrack, UiAnimationTrigger, UiBuildOutput, UiComputed, UiDerivedExpr, UiDockNode,
+    UiDockPlacement, UiEasingKind, UiEventPhase, UiEventRoute, UiLayoutAlignment, UiLength,
+    UiLengthUnit, UiNode, UiOverflowBehavior, UiSchedulerPhase, UiSignalId, UiStyleState,
+    UiSurface, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
+    UiSurfaceShaderBinding, UiThemeRegistry, UiThemeScope, UiThemeToken, UiThemeVariant,
+    UiTreeBuilder, UiValue, UiWidgetKind,
 };
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
@@ -614,7 +614,8 @@ impl AuthoredUiSystemsAccumulator {
 
     fn apply_workspace_contract(&self, output: &mut UiBuildOutput) {
         if output.systems.workspace_layout.persistence_key.is_none() {
-            output.systems.workspace_layout.persistence_key = self.workspace_persistence_key.clone();
+            output.systems.workspace_layout.persistence_key =
+                self.workspace_persistence_key.clone();
         }
         if !output.systems.workspace_layout.virtualization_enabled {
             if let Some(enabled) = self.workspace_virtualization_enabled {
@@ -643,7 +644,8 @@ impl AuthoredUiSystemsAccumulator {
         }
 
         if output.systems.workspace_layout.active_tabs.is_empty() {
-            output.systems.workspace_layout.active_tabs = resolve_active_tabs_from_tree(&output.tree);
+            output.systems.workspace_layout.active_tabs =
+                resolve_active_tabs_from_tree(&output.tree);
         }
     }
 
@@ -658,9 +660,12 @@ impl AuthoredUiSystemsAccumulator {
                 .get("ui.runtime.force_compatibility_backfill"),
             Some(UiValue::Bool(true))
         );
-        let has_authored_contract = output.systems.session_state.contains_key("ui.contract.version");
-        let needs_legacy_backfill =
-            force_legacy_backfill || (!has_authored_contract && !compiler_emitted_runtime_truth_exists(output));
+        let has_authored_contract = output
+            .systems
+            .session_state
+            .contains_key("ui.contract.version");
+        let needs_legacy_backfill = force_legacy_backfill
+            || (!has_authored_contract && !compiler_emitted_runtime_truth_exists(output));
         if !needs_legacy_backfill {
             return;
         }
@@ -680,7 +685,8 @@ impl AuthoredUiSystemsAccumulator {
             output.systems.workspace_layout.roots = inferred.workspace_layout.roots;
         }
         if output.systems.workspace_layout.persistence_key.is_none() {
-            output.systems.workspace_layout.persistence_key = inferred.workspace_layout.persistence_key;
+            output.systems.workspace_layout.persistence_key =
+                inferred.workspace_layout.persistence_key;
         }
         if output.systems.workspace_layout.active_tabs.is_empty() {
             output.systems.workspace_layout.active_tabs = inferred.workspace_layout.active_tabs;
@@ -689,7 +695,9 @@ impl AuthoredUiSystemsAccumulator {
         if output.systems.focus_graph.scopes.is_empty() && !inferred.focus_graph.scopes.is_empty() {
             output.systems.focus_graph = inferred.focus_graph;
         }
-        if output.systems.selection_model.scopes.is_empty() && !inferred.selection_model.scopes.is_empty() {
+        if output.systems.selection_model.scopes.is_empty()
+            && !inferred.selection_model.scopes.is_empty()
+        {
             output.systems.selection_model = inferred.selection_model;
         }
         if output.systems.surfaces.is_empty() && !inferred.surfaces.is_empty() {
@@ -698,7 +706,9 @@ impl AuthoredUiSystemsAccumulator {
         if output.systems.animation_tracks.is_empty() && !inferred.animation_tracks.is_empty() {
             output.systems.animation_tracks = inferred.animation_tracks;
         }
-        if output.systems.theme_registry.scopes.is_empty() && !inferred.theme_registry.scopes.is_empty() {
+        if output.systems.theme_registry.scopes.is_empty()
+            && !inferred.theme_registry.scopes.is_empty()
+        {
             output.systems.theme_registry = inferred.theme_registry;
         }
     }
@@ -766,10 +776,16 @@ fn resolve_authored_computed_spec(
 fn resolve_signal_index_from_spec(spec: &AuthoredComputedSpec) -> HashMap<String, UiSignalId> {
     let mut index = HashMap::new();
     for entry in &spec.depends_on {
-        index.insert(canonical_signal_contract_key(entry), resolve_signal_ref(entry));
+        index.insert(
+            canonical_signal_contract_key(entry),
+            resolve_signal_ref(entry),
+        );
     }
     if let Some(writes_signal) = spec.writes_signal.as_deref() {
-        index.insert(canonical_signal_contract_key(writes_signal), resolve_signal_ref(writes_signal));
+        index.insert(
+            canonical_signal_contract_key(writes_signal),
+            resolve_signal_ref(writes_signal),
+        );
     }
     index.insert(
         canonical_signal_contract_key(&spec.id),
@@ -791,7 +807,11 @@ fn parse_node_ref(
         .get(trimmed)
         .cloned()
         .or_else(|| identity_index.get(&canonical).cloned())
-        .or_else(|| identity_index.get(&format!("ui.node::{canonical}")).cloned())
+        .or_else(|| {
+            identity_index
+                .get(&format!("ui.node::{canonical}"))
+                .cloned()
+        })
 }
 
 fn resolve_signal_ref(entry: &str) -> UiSignalId {
@@ -816,7 +836,10 @@ fn canonical_signal_contract_key(entry: &str) -> String {
 fn canonical_node_contract_key(entry: &str) -> String {
     let trimmed = entry.trim();
     if trimmed.starts_with("ui.node::") {
-        trimmed.strip_prefix("ui.node::").unwrap_or(trimmed).to_string()
+        trimmed
+            .strip_prefix("ui.node::")
+            .unwrap_or(trimmed)
+            .to_string()
     } else if let Some(rest) = trimmed.strip_prefix("ui.node.") {
         rest.to_string()
     } else {
@@ -833,7 +856,10 @@ fn build_node_contract_index(output: &UiBuildOutput) -> HashMap<kain_ui::UiNodeI
 }
 
 fn stable_node_contract_key(node: &UiNode) -> String {
-    format!("ui.node::{}", canonical_node_contract_key(&node_layout_id(node)))
+    format!(
+        "ui.node::{}",
+        canonical_node_contract_key(&node_layout_id(node))
+    )
 }
 
 fn ui_signal_contract_key(output: &UiBuildOutput, signal: UiSignalId) -> String {
@@ -869,10 +895,7 @@ fn build_computed_contract_entry(
         .iter()
         .map(|node| ui_node_contract_key(output, node_contract_index, *node))
         .collect::<Vec<_>>();
-    let expr = spec
-        .expr
-        .as_ref()
-        .map(render_authored_expr_contract);
+    let expr = spec.expr.as_ref().map(render_authored_expr_contract);
     let runtime_expr = resolved
         .expr
         .as_ref()
@@ -906,8 +929,9 @@ fn build_event_route_contracts(
                 .unwrap_or_else(|| "unknown".to_string());
             let command = ui_session_state_string(output, &format!("{route_key}.command"))
                 .or_else(|| route.dispatch_command.clone());
-            let transaction_label = ui_session_state_string(output, &format!("{route_key}.transaction"))
-                .or_else(|| route.transaction_label.clone());
+            let transaction_label =
+                ui_session_state_string(output, &format!("{route_key}.transaction"))
+                    .or_else(|| route.transaction_label.clone());
 
             serde_json::json!({
                 "route_id": route.route_id.clone(),
@@ -933,7 +957,11 @@ fn serialize_workspace_layout_contract(layout: &kain_ui::UiWorkspaceLayout) -> O
 }
 
 fn ensure_compiler_owned_ui_contract_version(output: &mut UiBuildOutput) {
-    if output.systems.session_state.contains_key("ui.contract.version") {
+    if output
+        .systems
+        .session_state
+        .contains_key("ui.contract.version")
+    {
         return;
     }
     if !compiler_emitted_runtime_truth_exists(output) {
@@ -967,7 +995,9 @@ fn render_authored_expr_contract(expr: &Expr) -> String {
     match expr {
         Expr::Int(value, _) => value.to_string(),
         Expr::Float(value, _) => value.to_string(),
-        Expr::String(value, _) => serde_json::to_string(value).unwrap_or_else(|_| format!(r#""{}""#, value)),
+        Expr::String(value, _) => {
+            serde_json::to_string(value).unwrap_or_else(|_| format!(r#""{}""#, value))
+        }
         Expr::Bool(value, _) => value.to_string(),
         Expr::None(_) => "null".to_string(),
         Expr::Ident(name, _) => name.clone(),
@@ -1057,11 +1087,7 @@ fn render_authored_expr_contract(expr: &Expr) -> String {
             render_authored_expr_contract(left),
             render_authored_expr_contract(right)
         ),
-        Expr::Call {
-            callee,
-            args,
-            ..
-        } => {
+        Expr::Call { callee, args, .. } => {
             let callee_text = render_authored_expr_contract(callee);
             let rendered_args = args
                 .iter()
@@ -1086,7 +1112,9 @@ fn render_authored_expr_contract(expr: &Expr) -> String {
                 render_authored_expr_contract(receiver)
             )
         }
-        Expr::Field { object, field, .. } => format!("{}.{}", render_authored_expr_contract(object), field),
+        Expr::Field { object, field, .. } => {
+            format!("{}.{}", render_authored_expr_contract(object), field)
+        }
         Expr::Index { object, index, .. } => format!(
             "{}[{}]",
             render_authored_expr_contract(object),
@@ -1098,7 +1126,10 @@ fn render_authored_expr_contract(expr: &Expr) -> String {
                 .map(|param| param.name.clone())
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!("|{rendered_params}| {}", render_authored_expr_contract(body))
+            format!(
+                "|{rendered_params}| {}",
+                render_authored_expr_contract(body)
+            )
         }
         Expr::Unary { .. } | Expr::Binary { .. } => format!("{:?}", expr),
         Expr::FString(_, _)
@@ -1149,15 +1180,16 @@ fn render_authored_call_arg_contract(arg: &CallArg) -> String {
 fn authored_signal_contract_path(expr: &Expr) -> Option<String> {
     match expr {
         Expr::Ident(name, _) => Some(name.clone()),
-        Expr::Field { object, field, .. } => authored_signal_contract_path(object)
-            .map(|prefix| format!("{prefix}.{field}")),
-        Expr::Index { object, index, .. } => authored_signal_contract_path(object).and_then(|prefix| {
-            match &**index {
+        Expr::Field { object, field, .. } => {
+            authored_signal_contract_path(object).map(|prefix| format!("{prefix}.{field}"))
+        }
+        Expr::Index { object, index, .. } => {
+            authored_signal_contract_path(object).and_then(|prefix| match &**index {
                 Expr::String(value, _) => Some(format!("{prefix}.{value}")),
                 Expr::Ident(value, _) => Some(format!("{prefix}.{value}")),
                 _ => None,
-            }
-        }),
+            })
+        }
         Expr::Paren(inner, _) => authored_signal_contract_path(inner),
         _ => None,
     }
@@ -1167,7 +1199,9 @@ fn render_runtime_derived_expr_contract(expr: &UiDerivedExpr, output: &UiBuildOu
     match expr {
         UiDerivedExpr::Literal(value) => render_ui_value_contract(value),
         UiDerivedExpr::Signal(signal) => ui_signal_contract_key(output, *signal),
-        UiDerivedExpr::Not(inner) => format!("!{}", render_runtime_derived_expr_contract(inner, output)),
+        UiDerivedExpr::Not(inner) => {
+            format!("!{}", render_runtime_derived_expr_contract(inner, output))
+        }
         UiDerivedExpr::And(left, right) => format!(
             "({} && {})",
             render_runtime_derived_expr_contract(left, output),
@@ -1204,7 +1238,10 @@ fn render_runtime_derived_expr_contract(expr: &UiDerivedExpr, output: &UiBuildOu
             render_runtime_derived_expr_contract(right, output)
         ),
         UiDerivedExpr::ToString(inner) => {
-            format!("to_string({})", render_runtime_derived_expr_contract(inner, output))
+            format!(
+                "to_string({})",
+                render_runtime_derived_expr_contract(inner, output)
+            )
         }
     }
 }
@@ -1215,7 +1252,9 @@ fn render_ui_value_contract(value: &UiValue) -> String {
         UiValue::Bool(value) => value.to_string(),
         UiValue::Int(value) => value.to_string(),
         UiValue::Float(value) => value.to_string(),
-        UiValue::String(value) => serde_json::to_string(value).unwrap_or_else(|_| format!(r#""{}""#, value)),
+        UiValue::String(value) => {
+            serde_json::to_string(value).unwrap_or_else(|_| format!(r#""{}""#, value))
+        }
     }
 }
 
@@ -1242,7 +1281,8 @@ fn lower_authored_derived_expr(
             op: UnaryOp::Not,
             operand,
             ..
-        } => lower_authored_derived_expr(operand, signal_index).map(|expr| UiDerivedExpr::Not(Box::new(expr))),
+        } => lower_authored_derived_expr(operand, signal_index)
+            .map(|expr| UiDerivedExpr::Not(Box::new(expr))),
         Expr::Binary {
             left,
             op: BinaryOp::And,
@@ -1460,9 +1500,13 @@ fn lower_vnode_into_tree(lowering: &mut UiLowering, node: &VNode) -> Option<kain
                     .props
                     .insert(name.clone(), runtime_value_to_ui_value(value));
             }
-            lowering
-                .authored_systems
-                .record_component_state_signals(id, &instance.name, &instance.props, &instance.state, &mut ui_node);
+            lowering.authored_systems.record_component_state_signals(
+                id,
+                &instance.name,
+                &instance.props,
+                &instance.state,
+                &mut ui_node,
+            );
             lowering.builder.add_node(ui_node);
             if let Some(rendered_id) = rendered_id {
                 lowering.builder.replace_children(id, vec![rendered_id]);
@@ -1571,7 +1615,9 @@ fn layout_from_attrs(tag: &str, attrs: &[UIAttr]) -> kain_ui::UiLayoutSpec {
                     layout.align_items = alignment;
                 }
             }
-            UIAttr::Property { name, value, .. } if name == "justify" || name == "justify_content" => {
+            UIAttr::Property { name, value, .. }
+                if name == "justify" || name == "justify_content" =>
+            {
                 if let Some(alignment) = value_as_str(value).and_then(parse_layout_alignment) {
                     layout.justify_content = alignment;
                 }
@@ -1731,10 +1777,7 @@ fn normalize_style_key(input: &str) -> String {
 }
 
 fn should_skip_prop_attr(name: &str) -> bool {
-    if name.starts_with("style_")
-        || name.starts_with("paint_")
-        || name.starts_with("motion_")
-    {
+    if name.starts_with("style_") || name.starts_with("paint_") || name.starts_with("motion_") {
         return true;
     }
 
@@ -1858,10 +1901,9 @@ fn extract_workspace_decl(systems: &mut AuthoredUiSystemsAccumulator, attrs: &[U
     }
 
     if let Some(preset) = attr_string(attrs, "preset") {
-        systems.session_state.insert(
-            "ui.workspace.preset".to_string(),
-            UiValue::String(preset),
-        );
+        systems
+            .session_state
+            .insert("ui.workspace.preset".to_string(), UiValue::String(preset));
     }
 }
 
@@ -2002,7 +2044,8 @@ impl AuthoredUiSystemsAccumulator {
                 handler,
                 expr,
                 ..
-            } = attr else {
+            } = attr
+            else {
                 continue;
             };
             let event_name = event_name(event).to_string();
@@ -2059,8 +2102,8 @@ impl AuthoredUiSystemsAccumulator {
     }
 
     fn record_motion_tracks(&mut self, id: kain_ui::UiNodeId, node: &UiNode, attrs: &[UIAttr]) {
-        let Some(property) = attr_string(attrs, "motion_property")
-            .or_else(|| attr_string(attrs, "motion_prop"))
+        let Some(property) =
+            attr_string(attrs, "motion_property").or_else(|| attr_string(attrs, "motion_prop"))
         else {
             return;
         };
