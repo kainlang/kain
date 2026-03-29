@@ -411,6 +411,7 @@ function New-ShellMetrics {
         runtime_pack_count = $runtimePackCount
         runtime_lane_count = $runtimeLaneCount
         runtime_lane_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_summary) { [string]$Snapshot.runtime_lane_summary } else { "n/a" }
+        bridge_status = if ($null -ne $Snapshot -and $null -ne $Snapshot.bridge_status) { [string]$Snapshot.bridge_status } elseif ($null -ne $Snapshot -and $null -ne $Snapshot.bridge -and $null -ne $Snapshot.bridge.status) { [string]$Snapshot.bridge.status } else { "n/a" }
         command_count = @($Commands).Count
         pipeline_step_count = @($Pipeline).Count
         intent_count = @($Intents).Count
@@ -736,7 +737,7 @@ function Render-ShellContextStrip {
     $spotlightCommands = Get-ResolvedItems -Ids $ShellChrome.command_spotlight.command_ids -Lookup $CommandById
 
     $lines = New-Object System.Collections.Generic.List[string]
-    Add-Line $lines "$Indent<panel title=`"Workbench Block Rack`" scope=`"$Scope`" variant=`"context_strip`" layout=`"column`" gap={10} persistent_layout_id=`"dcc_shell_context`">"
+    Add-Line $lines "$Indent<panel title=`"Workbench Frame Rack`" scope=`"$Scope`" variant=`"context_strip`" layout=`"column`" gap={10} persistent_layout_id=`"dcc_shell_context`">"
 
     Add-Line $lines "$Indent    <panel title=`"$($ShellChrome.workspace_switcher.title)`" scope=`"$Scope`" variant=`"workspace_strip`" layout=`"column`" gap={6} persistent_layout_id=`"dcc_workspace_strip`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value $ShellChrome.workspace_switcher.eyebrow -Indent "$Indent        ")
@@ -823,12 +824,12 @@ function Render-WorkspacePage {
     $runtimePackCount = @($Snapshot.runtime_packs).Count
     $surfaceDeckColumns = [Math]::Min(3, [Math]::Max(1, @($centerSurfaces).Count))
     $telemetryDeckColumns = [Math]::Min(3, [Math]::Max(1, @($bottomSurfaces).Count))
-    $pageLayoutPrefix = ConvertTo-KnSafeId ("dcc_page_" + $Page.mode_id)
+    $pageLayoutPrefix = ConvertTo-KnSafeId ("dcc_workbench_" + $Page.mode_id)
 
     $lines = New-Object System.Collections.Generic.List[string]
     $defaultActiveLiteral = if ($IsDefaultActive) { " tab_default_active={true}" } else { "" }
 
-    Add-Line $lines "            <panel title=`"$($Page.title)`" scope=`"$Scope`" variant=`"page`" layout=`"dock`" gap={14} persistent_layout_id=`"$pageLayoutPrefix`" tab_group_id=`"$PageTabGroupId`" tab_label=`"$($Page.tab_label)`" tab_order={$TabOrder}$defaultActiveLiteral>"
+    Add-Line $lines "            <panel title=`"$($Page.title)`" scope=`"$Scope`" variant=`"workbench_page`" layout=`"dock`" gap={14} persistent_layout_id=`"$pageLayoutPrefix`" tab_group_id=`"$PageTabGroupId`" tab_label=`"$($Page.tab_label)`" tab_order={$TabOrder}$defaultActiveLiteral>"
 
     Add-Line $lines "                <panel title=`"Workbench Rail`" dock=`"left`" split_ratio={0.18} min_width={250} max_width={340} resizable={true} layout=`"column`" gap={10} persistent_layout_id=`"${pageLayoutPrefix}_lane_console`">"
     Add-Line $lines "                    <panel title=`"Workspace Banner`" scope=`"$Scope`" variant=`"workspace_banner`" layout=`"column`" gap={6} persistent_layout_id=`"${pageLayoutPrefix}_hero`">"
@@ -958,12 +959,12 @@ $ShellMetrics = New-ShellMetrics `
 
 $lines = New-Object System.Collections.Generic.List[string]
 Add-Line $lines "component App():"
-Add-Line $lines "    render <slot layout=`"column`" gap={10} padding={10} overflow_y=`"scroll`" persistent_layout_id=`"dcc_root_slot`">"
+Add-Line $lines "    render <slot layout=`"column`" gap={10} padding={10} overflow_y=`"hidden`" persistent_layout_id=`"dcc_root_slot`">"
 Add-Lines $lines (Render-ThemeBlock -Theme $Theme -Indent "        ")
-Add-Line $lines "        <panel title=`"$($Manifest.window_title)`" scope=`"dcc_shell`" variant=`"shell_root`" layout=`"column`" gap={10} persistent_layout_id=`"dcc_shell_root`">"
+Add-Line $lines "        <panel title=`"$($Manifest.window_title)`" scope=`"dcc_shell`" variant=`"shell_root`" layout=`"dock`" gap={10} persistent_layout_id=`"dcc_shell_root`">"
 Add-Lines $lines (Render-ShellTopBar -ShellChrome $ShellChrome -ShellMetrics $ShellMetrics -Scope "dcc_shell" -Indent "            ")
 Add-Lines $lines (Render-ShellContextStrip -ShellChrome $ShellChrome -Pages $UiShell.workspace_pages -ModeById $ModeById -CommandById $CommandById -StatusItemById $StatusItemById -ShellMetrics $ShellMetrics -Scope "dcc_shell" -Indent "            ")
-Add-Line $lines "            <panel title=`"Workbench Pages`" scope=`"dcc_shell`" variant=`"page`" layout=`"column`" gap={12} persistent_layout_id=`"dcc_workbench_pages`">"
+Add-Line $lines "            <panel title=`"Fixed Workstation Shell`" scope=`"dcc_shell`" variant=`"workbench_frame`" layout=`"dock`" gap={12} persistent_layout_id=`"dcc_workbench_pages`">"
 
 $pageIndex = 0
 foreach ($page in $UiShell.workspace_pages) {
@@ -989,7 +990,7 @@ foreach ($page in $UiShell.workspace_pages) {
 }
 
 Add-Line $lines "            </panel>"
-Add-Line $lines "            <panel title=`"Global Registries`" scope=`"dcc_shell`" variant=`"page`" layout=`"grid`" columns={4} gap={12} persistent_layout_id=`"dcc_global_registries`">"
+Add-Line $lines "            <panel title=`"Global Registries`" scope=`"dcc_shell`" variant=`"registry_frame`" layout=`"grid`" columns={4} gap={12} persistent_layout_id=`"dcc_global_registries`">"
 Add-Line $lines "                <inspector title=`"Pipeline`" persistent_layout_id=`"dcc_registry_pipeline`">"
 Add-Lines $lines (Render-TextLines -Items $Pipeline -Formatter { param($step) "$($step.id) | $($step.runtime)" } -Role "caption" -Indent "                    ")
 Add-Line $lines "                </inspector>"

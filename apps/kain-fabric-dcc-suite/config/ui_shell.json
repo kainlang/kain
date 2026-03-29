@@ -4,8 +4,8 @@
   "shell_chrome": {
     "brand": {
       "eyebrow": "KAIN FABRIC SUITE",
-      "title": "Workbench shell",
-      "summary": "Dense dock, command, and inspector chrome for a Slate-like authoring frame."
+      "title": "DCC Workstation",
+      "summary": "Docked workstation frame with a real viewport, rails, inspectors, and execution strip."
     },
     "menu_items": [
       {
@@ -22,7 +22,7 @@
       },
       {
         "label": "Workspace",
-        "summary": "Mode rails and authored page frames."
+        "summary": "Mode rails and authored workstation shells."
       },
       {
         "label": "Tools",
@@ -48,7 +48,7 @@
         "id": "workspace_count",
         "label": "Modes",
         "metric_source": "workspace_mode_count",
-        "caption": "authored pages"
+        "caption": "authored workbenches"
       },
       {
         "id": "surface_count",
@@ -81,6 +81,12 @@
         "caption": "kain | fabric | python | gpu_compute | c_abi | rust_crate | node_bridge"
       },
       {
+        "id": "bridge_status",
+        "label": "Bridge",
+        "metric_source": "bridge_status",
+        "caption": "native session mirror"
+      },
+      {
         "id": "command_count",
         "label": "Commands",
         "metric_source": "command_count",
@@ -107,8 +113,8 @@
     ],
     "command_spotlight": {
       "eyebrow": "Command Spotlight",
-      "title": "Search, launch, route",
-      "summary": "One shell launcher for mode switches, focused commands, and inspector jumps.",
+      "title": "Command Launcher",
+      "summary": "One shell launcher for mode switches, focused commands, and rail jumps.",
       "command_ids": [
         "project.bootstrap",
         "workspace.switch_mode",
@@ -131,36 +137,36 @@
     "workspace_switcher": {
       "eyebrow": "Workspace Switcher",
       "title": "Lane navigation",
-      "summary": "Mode chips mirror workbench pages and keep the current lane obvious."
+      "summary": "Mode chips mirror workstation modes and keep the current lane obvious."
     },
     "workspace_navigator": {
       "eyebrow": "Workspace Navigator",
-      "title": "Pinned lanes",
-      "summary": "The lane rail stays registry-owned so the operator can return without losing layout state.",
+      "title": "Lane Rail",
+      "summary": "Docked lane rail keeps the active mode and return path obvious.",
       "properties": [
         {
-          "label": "Active lane",
-          "value": "Current workbench page",
+          "label": "Active scene",
+          "value": "Current workspace",
           "detail": "session-owned"
         },
         {
-          "label": "Pinned modes",
-          "value": "7 authored pages",
+          "label": "Pinned scenes",
+          "value": "7 authored workbenches",
           "detail": "mode rail"
-        },
-        {
-          "label": "Switch target",
-          "value": "workspace.switch_mode",
-          "detail": "registry command"
         },
         {
           "label": "Return path",
           "value": "One gesture",
           "detail": "layout memory"
+        },
+        {
+          "label": "Switch command",
+          "value": "workspace.switch_mode",
+          "detail": "registry command"
         }
       ],
       "notes": [
-        "page tabs stay aligned to session truth and never drift into host-local navigation.",
+        "mode tabs stay aligned to session truth and never drift into host-local navigation.",
         "the active lane should always be obvious from the authored frame."
       ]
     },
@@ -193,7 +199,7 @@
     },
     "system_rack": {
       "eyebrow": "System Rack",
-      "title": "Shell telemetry",
+      "title": "System Rack",
       "summary": "Registry scale, lane ownership, and report density stay visible without opening a second inspector.",
       "status_item_ids": [
         "command_count",
@@ -210,8 +216,8 @@
     },
     "status_strip": {
       "eyebrow": "Status Strip",
-      "title": "Status line",
-      "summary": "Mode, selection, bridge, and dirty-state readouts stay in the product frame.",
+      "title": "Status Rail",
+      "summary": "Persistent bottom rail for mode, selection, bridge, and dirty state.",
       "properties": [
         {
           "label": "Mode",
@@ -221,7 +227,7 @@
         {
           "label": "Selection",
           "value": "Context visible",
-          "detail": "page-local"
+          "detail": "mode-local"
         },
         {
           "label": "Bridge",
@@ -241,8 +247,8 @@
     },
     "property_grid": {
       "eyebrow": "Property Grid",
-      "title": "Property rail",
-      "summary": "Context-sensitive selection, mode, and publish metadata stay dense and inspectable.",
+      "title": "Property Rail",
+      "summary": "Dense inspector rail for context-sensitive properties.",
       "properties": [
         {
           "label": "Surface",
@@ -273,15 +279,20 @@
     "operator_notes": {
       "eyebrow": "Operator Context",
       "title": "Workbench stance",
-      "summary": "The shell should feel like one durable editor frame with mounted subsystems.",
+      "summary": "The shell should feel like a mounted DCC workstation: docked, dense, and unapologetically functional.",
       "notes": [
         "Keep the active lane obvious at all times.",
-        "Favor compact chrome over airy demo-card spacing.",
+        "Favor docked panes over card stacks and feed-like layouts.",
         "Keep command dispatch, inspector routing, and layout return paths obvious.",
         "Keep the runtime lane map one click away so bridge seams stay inspectable.",
         "Favor Kain-authored orchestration over hidden host magic; keep the native C ABI, Rust crate, GPU, Python, and Node seams visible.",
         "Treat the render spine as pathtrace -> accumulation -> denoise, with report receipts visible even before the runtime seam exists.",
-        "Use the shell as a real workstation frame, not a showcase scaffold."
+        "Use the shell as a real workstation frame, not a showcase scaffold.",
+        "Prefer fixed dock regions over document-flow panes.",
+        "Keep viewport, rails, and inspector stacks anchored instead of expanding like a web page.",
+        "If a surface reads like a card or feed, restyle it as a docked workstation pane or remove it from the main frame.",
+        "Treat scroll as an exception, not the default navigation model.",
+        "Make the viewport, lane rail, inspectors, and status strip feel mechanically mounted to the shell."
       ]
     }
   },
@@ -289,10 +300,10 @@
     {
       "mode_id": "scene_assembly",
       "tab_label": "Scene",
-      "title": "Scene Workbench",
-      "hero_title": "Scene assembly in a dense workstation frame",
-      "hero_summary": "Ingest, layout, and review stay inside one persistent workbench.",
-      "focus_surface_id": "scene_graph",
+      "title": "Scene Deck",
+      "hero_title": "Viewport-first scene assembly",
+      "hero_summary": "The docked outliner and tools stay pinned left, attributes and registries stay right, and the timeline and jobs sit on the bottom rail.",
+      "focus_surface_id": "viewport_stage",
       "featured_tool_ids": [
         "select",
         "kitbash_placement"
@@ -310,13 +321,10 @@
         "render.review_capture"
       ],
       "center_surface_ids": [
-        "scene_graph",
-        "asset_ingest",
-        "render_lounge"
+        "viewport_stage"
       ],
       "right_surface_ids": [
         "selection_inspector",
-        "workspace_navigator",
         "runtime_lane_map",
         "command_palette",
         "property_grid",
@@ -336,14 +344,20 @@
         "render.pathtrace_preview",
         "render.review_capture",
         "publish.package"
+      ],
+      "left_surface_ids": [
+        "scene_graph",
+        "asset_ingest",
+        "workspace_navigator",
+        "tool_shelf"
       ]
     },
     {
       "mode_id": "sculpt_model",
       "tab_label": "Model",
-      "title": "Modeling Workbench",
-      "hero_title": "Sculpt and modeling in one focused lane",
-      "hero_summary": "Brush, topology, and viewport validation stay coupled to one layout.",
+      "title": "Model Deck",
+      "hero_title": "Viewport-dominant sculpting",
+      "hero_summary": "Brushes, topology, and attribute inspection stay wrapped around the central viewport.",
       "focus_surface_id": "viewport_stage",
       "featured_tool_ids": [
         "poly_extrude",
@@ -359,14 +373,13 @@
         "render.pathtrace_preview"
       ],
       "center_surface_ids": [
-        "scene_graph",
-        "material_graph",
-        "simulation_board"
+        "viewport_stage"
       ],
       "right_surface_ids": [
         "selection_inspector",
         "workspace_navigator",
         "runtime_lane_map",
+        "asset_pipeline_manifest",
         "property_grid",
         "tool_shelf",
         "report_browser"
@@ -382,15 +395,20 @@
         "material.bake_preview",
         "publish.package",
         "render.pathtrace_preview"
+      ],
+      "left_surface_ids": [
+        "scene_graph",
+        "tool_shelf",
+        "workspace_navigator"
       ]
     },
     {
       "mode_id": "material_lookdev",
       "tab_label": "Lookdev",
-      "title": "Material Workbench",
-      "hero_title": "Lookdev with layered material density",
-      "hero_summary": "Texture sets, paint layers, UV policy, masks, and export presets stay first-class.",
-      "focus_surface_id": "material_graph",
+      "title": "Lookdev Deck",
+      "hero_title": "Viewport-led lookdev",
+      "hero_summary": "Texture sets, paint layers, UV policy, masks, and export presets stay first-class around the viewport.",
+      "focus_surface_id": "viewport_stage",
       "featured_tool_ids": [
         "material_layer_paint",
         "texture_bake",
@@ -411,16 +429,14 @@
         "render.pathtrace_preview"
       ],
       "center_surface_ids": [
-        "material_graph",
-        "svg_mask_canvas",
-        "material_paint_runtime_surface",
-        "render_lounge"
+        "viewport_stage"
       ],
       "right_surface_ids": [
         "material_layers",
         "texture_set_inspector",
         "workspace_navigator",
         "runtime_lane_map",
+        "asset_pipeline_manifest",
         "property_grid",
         "material_uv_policy_surface",
         "material_deformation_surface",
@@ -438,6 +454,10 @@
         "render.preview",
         "render.pathtrace_preview",
         "compositor.rebuild"
+      ],
+      "left_surface_ids": [
+        "tool_shelf",
+        "workspace_navigator"
       ]
     },
     {
@@ -446,7 +466,7 @@
       "title": "Rig Workbench",
       "hero_title": "Rig and animation in one bench",
       "hero_summary": "Graphs, clips, and validation stay inside the same frame.",
-      "focus_surface_id": "rig_graph",
+      "focus_surface_id": "viewport_stage",
       "featured_tool_ids": [
         "control_rig_edit",
         "clip_blocking"
@@ -459,9 +479,7 @@
         "render.pathtrace_preview"
       ],
       "center_surface_ids": [
-        "rig_graph",
-        "animation_timeline",
-        "render_lounge"
+        "viewport_stage"
       ],
       "right_surface_ids": [
         "selection_inspector",
@@ -481,15 +499,20 @@
         "render.preview",
         "render.pathtrace_preview",
         "publish.package"
+      ],
+      "left_surface_ids": [
+        "scene_graph",
+        "tool_shelf",
+        "workspace_navigator"
       ]
     },
     {
       "mode_id": "sim_fx",
       "tab_label": "Sim",
-      "title": "Simulation Workbench",
-      "hero_title": "Simulation and FX in a single control lane",
+      "title": "Simulation Board",
+      "hero_title": "Simulation in the viewport frame",
       "hero_summary": "Cache planning and review stay visible and honest.",
-      "focus_surface_id": "simulation_board",
+      "focus_surface_id": "viewport_stage",
       "featured_tool_ids": [
         "cache_solver"
       ],
@@ -501,9 +524,7 @@
         "compositor.rebuild"
       ],
       "center_surface_ids": [
-        "simulation_board",
-        "render_lounge",
-        "compositor_stack"
+        "viewport_stage"
       ],
       "right_surface_ids": [
         "selection_inspector",
@@ -523,14 +544,18 @@
         "render.pathtrace_preview",
         "compositor.rebuild",
         "publish.package"
+      ],
+      "left_surface_ids": [
+        "scene_graph",
+        "workspace_navigator"
       ]
     },
     {
       "mode_id": "render_comp",
       "tab_label": "Render",
-      "title": "Render Workbench",
+      "title": "Render Room",
       "hero_title": "Render and composite control room",
-      "hero_summary": "Delegated preview, pathtrace, accumulation, denoise, frame scheduling, and multi-runtime bridge seams stay explicit in the frame.",
+      "hero_summary": "Delegated preview, pathtrace, accumulation, denoise, frame scheduling, and bridge seams stay explicit in the docked control frame.",
       "focus_surface_id": "render_lounge",
       "featured_tool_ids": [
         "render_preview",
@@ -540,19 +565,22 @@
         "render.preview",
         "render.pathtrace_preview",
         "render.review_capture",
+        "render.delegate_preview",
+        "lighting.review_preview",
+        "ui.focus_runtime_lane_map",
         "compositor.rebuild",
         "ui.open_property_grid",
         "publish.package"
       ],
       "center_surface_ids": [
-        "render_lounge",
-        "compositor_stack",
-        "publish_console"
+        "viewport_stage",
+        "render_lounge"
       ],
       "right_surface_ids": [
         "selection_inspector",
         "workspace_navigator",
         "runtime_lane_map",
+        "asset_pipeline_manifest",
         "property_grid",
         "report_browser",
         "publish_console"
@@ -568,15 +596,19 @@
         "render.review_capture",
         "compositor.rebuild",
         "publish.package"
+      ],
+      "left_surface_ids": [
+        "workspace_navigator",
+        "tool_shelf"
       ]
     },
     {
       "mode_id": "publish_automation",
       "tab_label": "Publish",
       "title": "Publish Workbench",
-      "hero_title": "Delivery and automation under one deck",
-      "hero_summary": "Packages, lineage, jobs, and receipts stay on the operator surface.",
-      "focus_surface_id": "publish_console",
+      "hero_title": "Delivery in the operator frame",
+      "hero_summary": "Packages, lineage, jobs, and receipts stay on the operator rail.",
+      "focus_surface_id": "viewport_stage",
       "featured_tool_ids": [
         "publish_bundle"
       ],
@@ -590,10 +622,7 @@
         "render.pathtrace_preview"
       ],
       "center_surface_ids": [
-        "publish_console",
-        "report_browser",
-        "asset_registry",
-        "render_lounge"
+        "viewport_stage"
       ],
       "right_surface_ids": [
         "publish_console",
@@ -614,6 +643,10 @@
         "tensor.train_step",
         "tensor.infer_step",
         "render.pathtrace_preview"
+      ],
+      "left_surface_ids": [
+        "asset_ingest",
+        "workspace_navigator"
       ]
     }
   ]

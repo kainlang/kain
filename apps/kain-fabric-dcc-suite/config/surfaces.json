@@ -9,21 +9,21 @@
       "scene": "dcc_suite_scene",
       "presentation_profile": "dcc_authoring_balanced",
       "gizmo_binding": "primary_dcc_viewport",
-      "summary": "Primary 3D authoring viewport for scene, model, rig, and render review."
+      "summary": "Fixed central viewport editor surface for authoring, review, and capture."
     },
     {
       "id": "scene_graph",
       "title": "Scene Graph",
       "dock": "left",
       "kind": "tree",
-      "summary": "Hierarchy, collections, instancing groups, and publish roots."
+      "summary": "Persistent scene hierarchy rail anchored beside the viewport."
     },
     {
       "id": "asset_ingest",
       "title": "Asset Ingest",
       "dock": "left",
       "kind": "tree",
-      "summary": "USD, GLTF, material, groom, cache, and runtime pack intake."
+      "summary": "Persistent intake rail for source manifests, imports, and asset staging."
     },
     {
       "id": "asset_registry",
@@ -85,17 +85,17 @@
     },
     {
       "id": "tool_shelf",
-      "title": "Tool Shelf",
-      "dock": "right",
+      "title": "Tool Rail",
+      "dock": "left",
       "kind": "inspector",
-      "summary": "Context tools for the active lane."
+      "summary": "Persistent tool rail for the active lane and viewport actions."
     },
     {
       "id": "selection_inspector",
       "title": "Selection Inspector",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Selection, transform, and metadata details.",
+      "summary": "Primary inspector rail for selection, transform, and metadata.",
       "properties": [
         {
           "label": "Selection",
@@ -114,22 +114,22 @@
         },
         {
           "label": "Focus surface",
-          "value": "Current page",
+          "value": "Current mode",
           "detail": "session-owned"
         }
       ]
     },
     {
       "id": "workspace_navigator",
-      "title": "Workspace Navigator",
+      "title": "Lane Rail",
       "dock": "left",
       "kind": "tree",
-      "summary": "Pinned workbench lanes and the current mode.",
+      "summary": "Persistent lane rail that keeps the active mode and return path obvious.",
       "properties": [
         {
           "label": "Active lane",
           "value": "Current lane",
-          "detail": "page tab"
+          "detail": "mode tab"
         },
         {
           "label": "Pinned modes",
@@ -153,7 +153,7 @@
       "title": "Runtime Lane Map",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Kain, Fabric, Python, GPU, C ABI, Rust, and Node ownership stay visible as one authored matrix.",
+      "summary": "Right-rail runtime matrix for Kain, Fabric, Python, GPU, C ABI, Rust, and Node.",
       "properties": [
         {
           "label": "Kain",
@@ -179,15 +179,15 @@
     },
     {
       "id": "command_palette",
-      "title": "Command Palette",
-      "dock": "right",
+      "title": "Command Launcher",
+      "dock": "top",
       "kind": "inspector",
-      "summary": "Search, launch, and route commands from one place.",
+      "summary": "Top launcher for fast command search and routing.",
       "properties": [
         {
           "label": "Query scope",
           "value": "Global",
-          "detail": "spotlight + search"
+          "detail": "fast search"
         },
         {
           "label": "Recent action",
@@ -201,17 +201,17 @@
         },
         {
           "label": "Dispatch surface",
-          "value": "Shell",
+          "value": "Workstation",
           "detail": "registry-owned"
         }
       ]
     },
     {
       "id": "property_grid",
-      "title": "Property Grid",
+      "title": "Property Rail",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Context-sensitive properties for the active surface.",
+      "summary": "Secondary inspector rail for context-sensitive properties.",
       "properties": [
         {
           "label": "Surface",
@@ -237,10 +237,10 @@
     },
     {
       "id": "status_strip",
-      "title": "Status Strip",
+      "title": "Status Rail",
       "dock": "bottom",
       "kind": "inspector",
-      "summary": "Mode, selection, bridge, and dirty state.",
+      "summary": "Persistent bottom strip for mode, selection, bridge, and dirty state.",
       "properties": [
         {
           "label": "Mode",
@@ -250,7 +250,7 @@
         {
           "label": "Selection",
           "value": "Context visible",
-          "detail": "page-local"
+          "detail": "mode-local"
         },
         {
           "label": "Bridge",
@@ -449,7 +449,7 @@
       "title": "Animation Timeline",
       "dock": "bottom",
       "kind": "timeline",
-      "summary": "Clips, simulation triggers, preview markers, and publish cut ranges."
+      "summary": "Bottom timeline strip for clips, markers, and preview ranges."
     },
     {
       "id": "simulation_board",
@@ -467,7 +467,7 @@
       "properties": [
         {
           "label": "Preview chain",
-          "value": "Pathtrace → accumulation → denoise",
+          "value": "Pathtrace \u00e2\u2020\u2019 accumulation \u00e2\u2020\u2019 denoise",
           "detail": "authoring spine"
         },
         {
@@ -542,7 +542,7 @@
         },
         {
           "label": "Render receipt",
-          "value": "Pathtrace → accumulation → denoise",
+          "value": "Pathtrace \u00e2\u2020\u2019 accumulation \u00e2\u2020\u2019 denoise",
           "detail": "report-backed chain"
         },
         {
@@ -562,7 +562,7 @@
       "title": "Jobs Monitor",
       "dock": "bottom",
       "kind": "timeline",
-      "summary": "Background jobs, retries, and automation state.",
+      "summary": "Bottom jobs strip for automation, retries, and queue state.",
       "properties": [
         {
           "label": "Running jobs",

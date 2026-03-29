@@ -9,7 +9,7 @@ fn default_workspaces() -> Array<WorkspaceDescriptor>:
         WorkspaceDescriptor {
             id: "scene_assembly",
             label: "Scene Assembly",
-            focus_surface: "scene_graph",
+            focus_surface: "viewport_stage",
             summary: "Scene graph authoring, layout, and asset placement"
         },
         WorkspaceDescriptor {

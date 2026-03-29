@@ -2,9 +2,21 @@
   "app_id": "kain.fabric.dcc-suite",
   "name": "Kain Fabric DCC Suite",
   "version": "0.1.0",
-  "window_title": "Kain Fabric DCC Suite",
+  "window_title": "Kain Fabric DCC Suite — Workstation",
   "root_component": "App",
   "layout_id": "kain_fabric_dcc_suite_shell",
+  "native_presentation": {
+    "startup_workspace_mode": "scene_assembly",
+    "startup_focus_surface": "viewport_stage",
+    "startup_lane_rail": "workspace_navigator",
+    "show_bridge_lane_rail": true,
+    "show_status_strip": true,
+    "dense_workbench_frame": true,
+    "fixed_workspace_frame": true,
+    "lock_docked_regions": true,
+    "document_flow_surfaces": false,
+    "viewport_centered_layout": true
+  },
   "manifests": {
     "surfaces": "config/surfaces.json",
     "workspace_modes": "config/workspace_modes.json",

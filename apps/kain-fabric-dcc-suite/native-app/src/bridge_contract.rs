@@ -4,6 +4,10 @@ pub const RUNTIME_BUNDLE_ENV: &str = "KAIN_UI_NATIVE_RUNTIME_BUNDLE";
 pub const REALTIME_BUNDLE_ENV: &str = "KAIN_UI_NATIVE_REALTIME_BUNDLE";
 pub const APP_MANIFEST_ENV: &str = "KAIN_UI_NATIVE_APP_MANIFEST";
 pub const APP_SNAPSHOT_ENV: &str = "KAIN_UI_NATIVE_APP_SNAPSHOT";
+pub const PRESENTATION_PROFILE_ENV: &str = "KAIN_UI_NATIVE_PRESENTATION_PROFILE";
+pub const PRESENTATION_LAYOUT_ENV: &str = "KAIN_UI_NATIVE_PRESENTATION_LAYOUT";
+pub const PRESENTATION_FIXED_REGIONS_ENV: &str = "KAIN_UI_NATIVE_FIXED_REGIONS";
+pub const PRESENTATION_DOCUMENT_FLOW_ENV: &str = "KAIN_UI_NATIVE_DOCUMENT_FLOW";
 
 pub const CONTRACT_ROOT_URI: &str = "bridge://kain-fabric-dcc-suite/native";
 pub const CONTRACT_ROOT_REPORT_URI: &str = "report://bridge/native-contract";
@@ -77,12 +81,16 @@ impl NativeBridgeContract {
             .find(|seam| command_id.starts_with(seam.command_prefix))
     }
 
-    pub fn command_environment_pairs(&self) -> [(&'static str, &'static str); 4] {
+    pub fn command_environment_pairs(&self) -> [(&'static str, &'static str); 8] {
         [
             (RUNTIME_BUNDLE_ENV, "native_app_bundle.json"),
             (REALTIME_BUNDLE_ENV, "kain_realtime_app_bundle.json"),
             (APP_MANIFEST_ENV, "config/app_manifest.json"),
             (APP_SNAPSHOT_ENV, "state/runtime_snapshot.json"),
+            (PRESENTATION_PROFILE_ENV, "dcc_authoring_balanced"),
+            (PRESENTATION_LAYOUT_ENV, "dock"),
+            (PRESENTATION_FIXED_REGIONS_ENV, "center,left,right,bottom,top"),
+            (PRESENTATION_DOCUMENT_FLOW_ENV, "false"),
         ]
     }
 }

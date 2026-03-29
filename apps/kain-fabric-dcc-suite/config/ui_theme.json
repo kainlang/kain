@@ -10,27 +10,27 @@
     {
       "name": "theme.chrome.topbar.visible",
       "category": "state",
-      "value": false
+      "value": true
     },
     {
       "name": "theme.chrome.inspector.visible",
       "category": "state",
-      "value": false
+      "value": true
     },
     {
       "name": "theme.spacing.scale",
       "category": "space",
-      "value": 0.96
+      "value": 0.82
     },
     {
       "name": "theme.radius.scale",
       "category": "radius",
-      "value": 0.72
+      "value": 0.45
     },
     {
       "name": "theme.typography.scale",
       "category": "type",
-      "value": 1.05
+      "value": 0.98
     },
     {
       "name": "theme.background.top",
@@ -45,32 +45,32 @@
     {
       "name": "theme.surface.default",
       "category": "color",
-      "value": "#0f1823"
+      "value": "#0c141d"
     },
     {
       "name": "theme.surface.alt",
       "category": "color",
-      "value": "#162231"
+      "value": "#13202d"
     },
     {
       "name": "theme.surface.raised",
       "category": "color",
-      "value": "#223241"
+      "value": "#1d2c39"
     },
     {
       "name": "theme.surface.overlay",
       "category": "color",
-      "value": "#08111ae8"
+      "value": "#071018f0"
     },
     {
       "name": "theme.outline.soft",
       "category": "color",
-      "value": "#314556"
+      "value": "#3b5164"
     },
     {
       "name": "theme.outline.bright",
       "category": "color",
-      "value": "#8fc6d6"
+      "value": "#a2d3e1"
     },
     {
       "name": "theme.accent.primary",
@@ -755,6 +755,48 @@
           "name": "surface.padding",
           "category": "space",
           "value": 10
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "dock_frame",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "layered"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 8
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
+        }
+      ]
+    },
+    {
+      "scope": "dcc_shell",
+      "name": "dock_rail",
+      "tokens": [
+        {
+          "name": "surface.mode",
+          "category": "surface",
+          "value": "ghost"
+        },
+        {
+          "name": "surface.padding",
+          "category": "space",
+          "value": 6
+        },
+        {
+          "name": "title.visible",
+          "category": "state",
+          "value": false
         }
       ]
     }

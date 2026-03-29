@@ -379,6 +379,7 @@ $RuntimeSnapshot = [ordered]@{
             steps = $StepStatus
         }
         bridge = $BridgeStatus
+        bridge_status = $BridgeStatus.status
         runtime_lane_summary = $RuntimeLaneSummary
         extension_seams = @(
             "material lane still projects authoring receipts rather than a true native painter runtime",

@@ -922,6 +922,19 @@ fn sync_runtime_snapshot_from_session(
         next_intent_queue.len() as i64,
     );
     set_string_at_path(runtime_snapshot, &["dcc_suite_state", "bridge", "status"], "live");
+    set_value_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "presentation"],
+        json!({
+            "layout": "dock",
+            "fixed_workspace_frame": true,
+            "dock_regions": ["center", "left", "right", "bottom", "top"],
+            "document_flow_surfaces": false,
+            "viewport_centered_layout": true,
+            "startup_focus_surface": "viewport_stage",
+            "startup_lane_rail": "workspace_navigator"
+        }),
+    );
     set_string_at_path(
         runtime_snapshot,
         &["dcc_suite_state", "bridge", "command_queue_path"],

@@ -10,6 +10,25 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-29 - Universal Web Template Commerce/Portal/Data Platform Coverage
+
+The universal web template now exposes additional commerce, portal, and data-platform systems end-to-end through site data, system contracts, API routes, and search indexing without introducing Rust dependencies.
+
+Update:
+
+- `templates/Web/universal/helpers/web_runtime.mjs` now includes product catalog, inventory, fulfillment, shipping, returns, loyalty, referrals, ads, customer portal, and data platform metadata in site data, actor plans, system contracts, API route tables, and HTTP handlers, plus derived search indexing coverage.
+- `templates/Web/universal/manifests/experiences/commerce_signal.json` now surfaces the full commerce stack (catalog, inventory, fulfillment, shipping, returns, loyalty, referrals, ads, portal) as first-class sections.
+- `templates/Web/universal/manifests/experiences/app_foundry.json` and `templates/Web/universal/manifests/experiences/hybrid_command.json` now surface customer portal and data platform sections.
+- `templates/Web/universal/manifests/experiences/realtime_constellation.json` now includes incident history in the realtime surface.
+- Updated navigation in `templates/Web/universal/manifests/content/*.json`, expanded `templates/Web/universal/manifests/app.json` client features, and refreshed the universal README runtime surface list to match the new systems.
+
+What future work should preserve:
+
+- keep commerce + portal + data-platform registries manifest-driven, surfaced through the helper runtime, and discoverable via system contract endpoints
+- keep new commerce systems visible in the commerce archetype so the pack remains “full spectrum” for business/portfolio/app/actor sites
+
+Current run recorded at 2026-03-29T16:15:54.4511236-04:00.
+
 ## 2026-03-29 - UiRuntimeBundle Native Projection Became Explicit Compatibility Data
 
 The shared UI runtime bundle now treats `native_projection` as an opt-in compatibility sidecar instead of a normal contract surface.
