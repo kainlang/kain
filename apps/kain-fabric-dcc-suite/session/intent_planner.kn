@@ -138,6 +138,41 @@ fn plan_for_command(
             priority: 88,
             debounce_ms: 0
         })
+    if command_kind == "material.author_texture_set":
+        intents.push(PlannedIntent {
+            intent_id: "material.bake_preview",
+            reason: "texture set authoring changed and preview/export receipts must refresh",
+            priority: 71,
+            debounce_ms: 16
+        })
+    if command_kind == "material.paint_layer":
+        intents.push(PlannedIntent {
+            intent_id: "material.bake_preview",
+            reason: "paint-layer changes need material preview regeneration",
+            priority: 72,
+            debounce_ms: 16
+        })
+    if command_kind == "material.edit_svg_mask":
+        intents.push(PlannedIntent {
+            intent_id: "material.bake_preview",
+            reason: "svg mask edits need material preview regeneration",
+            priority: 72,
+            debounce_ms: 16
+        })
+    if command_kind == "material.export_textures":
+        intents.push(PlannedIntent {
+            intent_id: "material.export_textures",
+            reason: "texture export requested from current material contract",
+            priority: 74,
+            debounce_ms: 0
+        })
+    if command_kind == "render.pathtrace_preview":
+        intents.push(PlannedIntent {
+            intent_id: "render.pathtrace_preview",
+            reason: "path-traced preview requested",
+            priority: 67,
+            debounce_ms: 24
+        })
     if command_kind == "persistence.snapshot":
         intents.push(PlannedIntent {
             intent_id: "persistence.snapshot",
@@ -199,9 +234,9 @@ fn plan_for_command(
         let material_reason = "material preview state is dirty"
         let material_priority = 70
         if command_kind == "material.author_texture_set":
-            material_reason = "texture set membership or bake preset changed"
+            material_reason = "texture set membership, texel density, or bake preset changed"
         if command_kind == "material.paint_layer":
-            material_reason = "layer stack and brush response changed so deformation-aware preview textures must refresh"
+            material_reason = "layer stack, brush response, and deformation-aware UV policy changed so preview textures must refresh"
         if command_kind == "material.edit_svg_mask":
             material_reason = "svg mask stack changed and preview textures must refresh"
         if command_kind == "material.export_textures":

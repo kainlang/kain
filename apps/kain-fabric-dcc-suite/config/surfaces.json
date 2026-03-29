@@ -26,6 +26,35 @@
       "summary": "USD, GLTF, material, groom, cache, and runtime pack intake."
     },
     {
+      "id": "asset_registry",
+      "title": "Asset Registry",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Source manifests, scene exchange, lineage edges, and residency receipts.",
+      "properties": [
+        {
+          "label": "Manifest",
+          "value": "Source-id first",
+          "detail": "route-ready"
+        },
+        {
+          "label": "Scene exchange",
+          "value": "Tracked",
+          "detail": "session-owned"
+        },
+        {
+          "label": "Lineage",
+          "value": "Durable",
+          "detail": "report-backed"
+        },
+        {
+          "label": "Residency",
+          "value": "Inspectable",
+          "detail": "operator visible"
+        }
+      ]
+    },
+    {
       "id": "tool_shelf",
       "title": "Tool Shelf",
       "dock": "right",
@@ -87,6 +116,35 @@
           "label": "Switch command",
           "value": "workspace.switch_mode",
           "detail": "registry-owned"
+        }
+      ]
+    },
+    {
+      "id": "runtime_lane_map",
+      "title": "Runtime Lane Map",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Kain, Fabric, Python, GPU, C ABI, Rust, and Node ownership stay visible as one authored matrix.",
+      "properties": [
+        {
+          "label": "Kain",
+          "value": "Session truth",
+          "detail": "intent routing and registries"
+        },
+        {
+          "label": "Fabric",
+          "value": "Orchestration",
+          "detail": "step ordering and reports"
+        },
+        {
+          "label": "Python / GPU",
+          "value": "Bootstrap + compute",
+          "detail": "preflight, preview, sculpt"
+        },
+        {
+          "label": "C ABI / Rust / Node",
+          "value": "Bridge lanes",
+          "detail": "narrow helper seams"
         }
       ]
     },
@@ -279,6 +337,78 @@
       ]
     },
     {
+      "id": "material_paint_runtime_surface",
+      "title": "Paint Runtime Surface",
+      "dock": "bottom",
+      "kind": "graph",
+      "summary": "Paint-layer blend, brush response, and deformation-aware preview receipts.",
+      "properties": [
+        {
+          "label": "Brush response",
+          "value": "Pressure weighted",
+          "detail": "surface-tight"
+        },
+        {
+          "label": "Blend profile",
+          "value": "Smart stack",
+          "detail": "layer-aware"
+        },
+        {
+          "label": "Texel density",
+          "value": "256",
+          "detail": "hero surface target"
+        }
+      ]
+    },
+    {
+      "id": "material_uv_policy_surface",
+      "title": "UV Policy Surface",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "UDIM policy, chart rotation, and density targets for paint and export lanes.",
+      "properties": [
+        {
+          "label": "Policy",
+          "value": "UDIM tiled islands",
+          "detail": "registry-owned"
+        },
+        {
+          "label": "Density range",
+          "value": "192-320",
+          "detail": "target spread"
+        },
+        {
+          "label": "Padding",
+          "value": "2-4 px",
+          "detail": "dynamic"
+        }
+      ]
+    },
+    {
+      "id": "material_deformation_surface",
+      "title": "Deformation Surface",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Pose-safe material deformation policy and seam stability for hero surfaces.",
+      "properties": [
+        {
+          "label": "Profile",
+          "value": "Hero deformation preview",
+          "detail": "smoothed across seams"
+        },
+        {
+          "label": "Surface",
+          "value": "surface/hero_deformation_shell",
+          "detail": "edit target"
+        },
+        {
+          "label": "Blend stability",
+          "value": "Tracked",
+          "detail": "preview contract"
+        }
+      ]
+    },
+    {
       "id": "rig_graph",
       "title": "Rig Graph",
       "dock": "bottom",
@@ -304,7 +434,29 @@
       "title": "Render Lounge",
       "dock": "bottom",
       "kind": "graph",
-      "summary": "Preview frames, history, and render budgets."
+      "summary": "Preview frames, history, and render budgets.",
+      "properties": [
+        {
+          "label": "Preview chain",
+          "value": "Pathtrace → accumulation → denoise",
+          "detail": "authoring spine"
+        },
+        {
+          "label": "Budget",
+          "value": "Frame-aware",
+          "detail": "scheduling visible"
+        },
+        {
+          "label": "History",
+          "value": "Report-backed",
+          "detail": "no fake temporal runtime"
+        },
+        {
+          "label": "Review",
+          "value": "Delegated",
+          "detail": "lighting and capture ready"
+        }
+      ]
     },
     {
       "id": "compositor_stack",
@@ -351,13 +503,18 @@
       "properties": [
         {
           "label": "Latest report",
-          "value": "Mesh + topology lineage",
-          "detail": "most recent lineage"
+          "value": "Render frame schedule",
+          "detail": "temporal preview spine"
         },
         {
           "label": "Filters",
           "value": "Mesh, topology lineage, rig, tensor, render, publish",
           "detail": "operator indexed"
+        },
+        {
+          "label": "Render receipt",
+          "value": "Pathtrace → accumulation → denoise",
+          "detail": "report-backed chain"
         },
         {
           "label": "Retention",

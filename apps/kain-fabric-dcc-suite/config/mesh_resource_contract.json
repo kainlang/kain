@@ -42,6 +42,14 @@
       "summary": "UV packing layout contract for the active edit target and its baked topology output."
     },
     {
+      "id": "mesh_runtime_signature_document",
+      "resource_uri": "mesh://runtime/native-helper/current",
+      "owner": "app",
+      "kind": "value",
+      "source": "mesh_edit_session_projection",
+      "summary": "Native mesh helper signature that binds subdivision and UV packing into one durable mesh-runtime seam."
+    },
+    {
       "id": "topology_output_mesh_document",
       "resource_uri": "mesh://topology/output/current",
       "owner": "app",

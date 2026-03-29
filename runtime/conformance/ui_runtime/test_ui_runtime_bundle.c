@@ -10,9 +10,6 @@ static void kain_ui_runtime_test_fill_bundle(KainUiCompiledBundle* bundle) {
     bundle->has_root_id = 1;
     bundle->root_id = 1ull;
     snprintf(bundle->window_title, sizeof(bundle->window_title), "%s", "Kain UI Runtime Smoke");
-    snprintf(bundle->primary_panel_title, sizeof(bundle->primary_panel_title), "%s", "UI Surface");
-    snprintf(bundle->primary_viewport_title, sizeof(bundle->primary_viewport_title), "%s", "Viewport");
-    snprintf(bundle->primary_viewport_scene, sizeof(bundle->primary_viewport_scene), "%s", "magma_terraces");
 
     bundle->node_count = 3;
 

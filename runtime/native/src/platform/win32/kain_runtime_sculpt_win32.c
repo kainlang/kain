@@ -107,7 +107,7 @@ static const char* kain_native_sculpt_resolve_compiled_scene(const KainUiCompile
         return root_node->scene;
     }
 
-    return bundle ? bundle->primary_viewport_scene : NULL;
+    return NULL;
 }
 
 static void kain_native_sculpt_try_load_compiled_ui(KainNativeSculptApp* app) {

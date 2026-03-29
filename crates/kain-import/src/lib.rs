@@ -132,8 +132,21 @@ pub fn import_rust(path: &std::path::Path) -> Result<Program> {
 }
 
 #[cfg(feature = "rust")]
+pub fn import_rust_file_detailed(path: &std::path::Path) -> Result<(Program, Vec<String>)> {
+    rust::import_rust_file_detailed(path)
+}
+
+#[cfg(feature = "rust")]
 pub fn import_rust_dir(dir: &std::path::Path, flat: bool) -> Result<Program> {
     rust::import_rust_dir(dir, flat)
+}
+
+#[cfg(feature = "rust")]
+pub fn import_rust_dir_detailed(
+    dir: &std::path::Path,
+    flat: bool,
+) -> Result<(Program, Vec<String>)> {
+    rust::import_rust_dir_detailed(dir, flat)
 }
 
 #[cfg(feature = "rust")]

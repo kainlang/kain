@@ -36,10 +36,10 @@ use kain_core::{
 };
 use kain_ui::{
     ui_resolve_theme_for_node, ui_runtime_bundle_from_json, ui_runtime_bundle_from_output,
-    ui_runtime_bundle_to_json, ui_step_animation_runtime, validate_ui_runtime_bundle,
-    UiBuildOutput, UiLayoutAlignment, UiLayoutKind, UiLength, UiLengthUnit, UiNode, UiNodeId,
-    UiOverflowBehavior, UiPatch, UiResolvedTheme, UiRuntime, UiRuntimeBundle, UiRuntimeMetadata,
-    UiRuntimeStepInput, UiStyleState, UiSurface, UiSurfaceCompositionMode, UiSurfaceKind,
+    ui_runtime_bundle_to_json, validate_ui_runtime_bundle, UiBuildOutput, UiLayoutAlignment,
+    UiLayoutKind, UiLength, UiLengthUnit, UiNode, UiNodeId, UiOverflowBehavior, UiPatch,
+    UiResolvedTheme, UiRuntime, UiRuntimeBundle, UiRuntimeMetadata, UiRuntimeStepInput,
+    UiStyleState, UiSurface, UiSurfaceCompositionMode, UiSurfaceKind,
     UiSurfaceRendererPreference, UiThemeRegistry, UiTree, UiValue, UiWidgetKind,
     UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
 };
@@ -2126,6 +2126,7 @@ fn dock_placement_label(placement: kain_ui::UiDockPlacement) -> &'static str {
         kain_ui::UiDockPlacement::Top => "dock-top",
         kain_ui::UiDockPlacement::Bottom => "dock-bottom",
         kain_ui::UiDockPlacement::Center => "dock-center",
+        kain_ui::UiDockPlacement::Tab => "dock-tab",
     }
 }
 
@@ -8174,7 +8175,7 @@ mod tests {
         SHADER_ARTIFACT_SCHEMA_VERSION,
     };
     use kain_ui::{
-        ui_runtime_systems_from_tree, UiNativeProjectionKind, UiNodeId, UiReloadIdentityAlias,
+        ui_runtime_systems_from_tree, ui_step_animation_runtime, UiNodeId, UiReloadIdentityAlias,
         UiSurface, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
         UiSurfaceShaderBinding, UiTreeBuilder,
     };
@@ -8247,17 +8248,10 @@ mod tests {
                 .map(|node| &node.kind),
             Some(&UiWidgetKind::Viewport3D)
         );
-        assert_eq!(bundle.native_projection.root_id, bundle.output.tree.root.map(|id| id.0));
-        assert!(bundle
-            .native_projection
-            .nodes
-            .iter()
-            .any(|node| matches!(node.kind, UiNativeProjectionKind::Viewport3D)));
-        assert!(bundle
-            .native_projection
-            .nodes
-            .iter()
-            .any(|node| matches!(node.kind, UiNativeProjectionKind::Panel)));
+        assert!(
+            bundle.native_projection.is_empty(),
+            "shared canonical fixture should not require a compatibility projection"
+        );
         assert!(matches!(
             bundle
                 .output

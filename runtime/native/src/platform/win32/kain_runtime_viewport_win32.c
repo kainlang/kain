@@ -125,7 +125,7 @@ static const char* kain_native_viewport_resolve_compiled_scene(const KainUiCompi
         return root_node->scene;
     }
 
-    return bundle ? bundle->primary_viewport_scene : NULL;
+    return NULL;
 }
 
 static void kain_native_viewport_try_load_compiled_ui(KainNativeViewportApp* app) {

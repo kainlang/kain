@@ -1,4 +1,8 @@
-use kain_ui::{UiLayoutKind, UiNativeProjectionKind, UiWidgetKind};
+use kain_ui::{
+    ui_runtime_bundle_from_output, ui_runtime_bundle_from_output_with_native_projection,
+    ui_runtime_bundle_to_json, UiLayoutKind, UiNode, UiRuntimeMetadata, UiTreeBuilder,
+    UiWidgetKind,
+};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -34,7 +38,6 @@ struct UiParityLayout {
 struct UiParityBundle {
     metadata: UiParityMetadata,
     output: UiParityOutput,
-    native_projection: Option<serde_json::Value>,
 }
 
 #[test]
@@ -83,25 +86,50 @@ fn ui_runtime_bundle_fixture_keeps_canonical_output_tree_stable() {
     assert!(matches!(viewport.kind, UiWidgetKind::Viewport3D));
     assert!(viewport.children.is_empty());
     assert_eq!(viewport.layout.kind, UiLayoutKind::Absolute);
+}
 
-    let native_projection = bundle
-        .native_projection
-        .expect("compatibility sidecar should still exist while raw-native depends on it");
-    let projection_root_id = native_projection
-        .get("root_id")
-        .and_then(serde_json::Value::as_u64);
-    assert_eq!(projection_root_id, Some(bundle.output.tree.root));
+#[test]
+fn canonical_runtime_bundle_omits_native_projection_until_requested() {
+    let mut builder = UiTreeBuilder::new();
+    let root_id = builder.alloc_id();
 
-    let projection_nodes = native_projection
-        .get("nodes")
-        .and_then(serde_json::Value::as_array)
-        .expect("compatibility sidecar nodes should remain serializable");
-    assert_eq!(projection_nodes.len(), bundle.output.tree.nodes.len());
+    builder.add_node(UiNode::new(root_id, UiWidgetKind::Panel));
+    builder.set_root(root_id);
 
-    let kind_json = projection_nodes[2]
-        .get("kind")
-        .cloned()
-        .expect("compatibility node kind should exist")
-        .to_string();
-    assert_eq!(kind_json, "\"Viewport3D\"");
+    let output = builder.finish();
+    let metadata = UiRuntimeMetadata {
+        app_name: Some("parity-fixture".to_string()),
+        window_title: "Kain UI Parity Fixture".to_string(),
+        root_component: "App".to_string(),
+        source_file_name: Some("ui_runtime_parity.kn".to_string()),
+        initial_window_size: [1440.0, 920.0],
+    };
+
+    let canonical_bundle = ui_runtime_bundle_from_output(metadata.clone(), output.clone());
+    let canonical_json =
+        ui_runtime_bundle_to_json(&canonical_bundle).expect("canonical bundle should serialize");
+    let canonical_value: serde_json::Value =
+        serde_json::from_str(&canonical_json).expect("canonical bundle json should parse");
+
+    assert!(
+        canonical_value.get("native_projection").is_none(),
+        "canonical bundles should not serialize the compatibility sidecar"
+    );
+
+    let compatibility_bundle =
+        ui_runtime_bundle_from_output_with_native_projection(metadata, output);
+    let compatibility_json = ui_runtime_bundle_to_json(&compatibility_bundle)
+        .expect("compatibility bundle should serialize");
+    let compatibility_value: serde_json::Value = serde_json::from_str(&compatibility_json)
+        .expect("compatibility bundle json should parse");
+    let compatibility_projection = compatibility_value
+        .get("native_projection")
+        .expect("explicit compatibility helper should emit the sidecar");
+
+    assert_eq!(
+        compatibility_projection
+            .get("root_id")
+            .and_then(serde_json::Value::as_u64),
+        Some(root_id.0)
+    );
 }

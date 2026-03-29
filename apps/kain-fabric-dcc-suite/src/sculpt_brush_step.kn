@@ -7,35 +7,32 @@ import Kain::Fabric::Intent;
 import Kain::State;
 
 /// Handles the `sculpt_brush_stroke` Fabric intent.
-/// 
-/// RUNTIME LIMITATION:
-/// Kain does not currently have a native, high-performance spatial hash or 
-/// BVH (Bounding Volume Hierarchy) required for real-time vertex displacement
-/// on meshes exceeding 5-10 million polygons. 
 ///
-/// EXTENSION SEAM:
-/// This step packages the brush intent (radius, strength, falloff, ray hit)
-/// against the active mesh edit target and delegates the actual mutation to a
-/// native C++/Vulkan compute shader or a Rust-based CPU multithreading pool.
+/// Runtime limitation:
+/// Kain currently lacks a native high-performance spatial index and mesh edit
+/// kernel for interactive displacement on large meshes.
 ///
-/// The native boundary expects the active edit target to be addressed by mesh
-/// resource id, with shared buffers for vertex positions and normals used as the
-/// transfer path to avoid copy overhead.
+/// Clean extension seam:
+/// Package the brush intent (radius, strength, falloff, ray hit) against the
+/// active mesh edit target and delegate the actual mutation to the next owned
+/// runtime lane: a native C ABI surface, a GPU compute path, or a Rust worker
+/// pool. The step should stay resource-id driven so the session contract keeps
+/// ownership of the mesh while the runtime lane handles the heavy lift.
 
 public fn execute_sculpt_brush_step(intent: Intent, state: State) -> State {
     let brush_data = intent.payload.get_as::<SculptBrushData>("brush_data");
     let active_mesh_resource_id = intent.payload.get_string("target_mesh_id");
-    
+
     // The sculpt lane edits the active mesh resource id; it does not own the
     // mesh object itself inside this step.
     // 1. Resolve the active edit target from the session/resource contract.
-    // 2. Marshall the brush stroke parameters to the FFI boundary.
-    
-    log::info("Delegating sculpt_brush_stroke for active mesh resource id to native high-performance BVH/compute kernel.");
-    
-    // FFI call to native sculpt engine (placeholder)
-    // let result = NativeSculptEngine::apply_stroke(active_mesh_resource_id, brush_data);
-    
+    // 2. Marshal the brush stroke parameters to the chosen runtime boundary.
+
+    log::info("Delegating sculpt_brush_stroke for active mesh resource id through the data-driven sculpt seam.");
+
+    // Native/GPU/Rust execution belongs behind the runtime seam.
+    // let result = SculptRuntime::apply_stroke(active_mesh_resource_id, brush_data);
+
     // 3. Mark the active mesh resource dirty so downstream viewport and edit
     //    consumers know the resource contents changed.
     state

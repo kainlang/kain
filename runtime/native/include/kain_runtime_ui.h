@@ -92,9 +92,6 @@ typedef struct {
     int has_root_id;
     unsigned long long root_id;
     char window_title[KAIN_UI_COMPILED_BUNDLE_MAX_TITLE];
-    char primary_panel_title[KAIN_UI_COMPILED_BUNDLE_MAX_TITLE];
-    char primary_viewport_title[KAIN_UI_COMPILED_BUNDLE_MAX_TITLE];
-    char primary_viewport_scene[KAIN_UI_COMPILED_BUNDLE_MAX_TAG];
     int tab_group_count;
     KainUiCompiledTabGroup tab_groups[KAIN_UI_COMPILED_BUNDLE_MAX_TAB_GROUPS];
     int node_count;

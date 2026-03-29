@@ -1,0 +1,28 @@
+shader compute DccSuiteMaterialPaintRuntimePreview(id: UVec3) -> Vec4:
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    comptime:
+        let compute = (
+            [8, 1, 1],
+            [
+                ("src", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("dst", "f32", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("dcc_suite_material_paint_runtime_preview", "paint_runtime_preview", ["src"], ["dst"], false),
+            ],
+        )
+
+    let index = id.x
+    let source_value = src[index]
+    let layer_weight = (source_value * 0.4) + 0.1
+    let brush_response = (source_value * 0.3) + 0.08
+    let uv_density = (source_value * 0.2) + 0.16
+    let deformation = (source_value * 0.1) + 0.04
+    let blended_value = layer_weight + brush_response + uv_density + deformation
+    dst[index] = blended_value
+    return vec4(blended_value, layer_weight, brush_response, uv_density)

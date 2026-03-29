@@ -51,6 +51,36 @@ name = "material_authoring_report"
 kind = "value"
 
 [[steps]]
+id = "material_paint_runtime_projection"
+runtime = "kain"
+entry = "src/material_paint_runtime_projection.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "material_authoring_projection", "svg_material_mask_projection"]
+
+[[steps.outputs]]
+name = "material_paint_runtime_report"
+kind = "value"
+
+[[steps]]
+id = "material_uv_policy_projection"
+runtime = "kain"
+entry = "src/material_uv_policy_projection.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "material_authoring_projection"]
+
+[[steps.outputs]]
+name = "material_uv_policy_report"
+kind = "value"
+
+[[steps]]
+id = "material_deformation_surface_projection"
+runtime = "kain"
+entry = "src/material_deformation_surface_projection.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "material_authoring_projection"]
+
+[[steps.outputs]]
+name = "material_deformation_surface_report"
+kind = "value"
+
+[[steps]]
 id = "svg_material_mask_projection"
 runtime = "kain"
 entry = "src/svg_material_mask_projection.kn"
@@ -72,6 +102,17 @@ name = "preview_dst"
 kind = "shared_buffer"
 
 [[steps]]
+id = "gpu_material_paint_runtime"
+runtime = "gpu_compute"
+shader_source = "shaders/material_paint_runtime_preview.kn"
+compute_key = "DccSuiteMaterialPaintRuntimePreview"
+depends_on = ["dcc_suite_seed", "material_authoring_projection", "svg_material_mask_projection"]
+
+[[steps.outputs]]
+name = "paint_runtime_dst"
+kind = "shared_buffer"
+
+[[steps]]
 id = "material_texture_export_projection"
 runtime = "kain"
 entry = "src/material_texture_export_projection.kn"
@@ -79,8 +120,12 @@ depends_on = [
     "python_suite_bootstrap",
     "dcc_suite_seed",
     "material_authoring_projection",
+    "material_paint_runtime_projection",
+    "material_uv_policy_projection",
+    "material_deformation_surface_projection",
     "svg_material_mask_projection",
-    "gpu_material_preview"
+    "gpu_material_preview",
+    "gpu_material_paint_runtime"
 ]
 
 [[steps.outputs]]

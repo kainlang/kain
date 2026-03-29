@@ -19,6 +19,30 @@ fn command_handlers() -> Array<CommandHandlerDescriptor>:
             immediate_effect: "switch workspace and invalidate previews"
         },
         CommandHandlerDescriptor {
+            command_kind: "ui.show_command_palette",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "open the command palette for global shell actions"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "ui.focus_workspace_navigator",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "focus the lane rail and workspace navigator"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "ui.open_property_grid",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "raise the property grid for the active selection"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "ui.toggle_status_strip",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "toggle the docked status strip"
+        },
+        CommandHandlerDescriptor {
             command_kind: "asset.ingest_package",
             reducer_owner: "session.reducers",
             planner_owner: "session.intent_planner",
@@ -169,10 +193,40 @@ fn command_handlers() -> Array<CommandHandlerDescriptor>:
             immediate_effect: "refresh material preview buffers"
         },
         CommandHandlerDescriptor {
+            command_kind: "material.author_texture_set",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "author the active texture set and mark downstream preview lanes dirty"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "material.paint_layer",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "queue a paint-layer update against the active material stack"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "material.edit_svg_mask",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "queue an SVG mask edit against the active material graph"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "material.export_textures",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "build packed texture export receipts"
+        },
+        CommandHandlerDescriptor {
             command_kind: "render.preview",
             reducer_owner: "session.reducers",
             planner_owner: "session.intent_planner",
             immediate_effect: "request render preview planning"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "render.pathtrace_preview",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "request path-traced preview planning"
         },
         CommandHandlerDescriptor {
             command_kind: "render.delegate_preview",

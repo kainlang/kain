@@ -125,6 +125,12 @@
       "label": "Paint And UV Pack",
       "category": "runtime-pack",
       "summary": "Paint layer stacking, UV charts, brush behavior, and deformation-aware surfaces."
+    },
+    {
+      "id": "material_runtime_hardening_pack",
+      "label": "Material Runtime Hardening Pack",
+      "category": "runtime-pack",
+      "summary": "Paint blending, UV policy, brush response, deformation surfaces, and export polish for the lookdev bench."
     }
   ]
 }

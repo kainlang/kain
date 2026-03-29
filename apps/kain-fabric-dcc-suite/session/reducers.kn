@@ -534,7 +534,7 @@ fn reduce_command(command_kind: String, payload_summary: String, current_tool: S
         return ReducerOutcome {
             next_workspace_mode: "material_lookdev",
             next_active_tool: "material_layer_paint",
-            status_banner: "material layer paint queued with deformation-aware surface policy",
+            status_banner: "material layer paint queued with deformation-aware UV policy and brush response",
             asset_dirty: false,
             sculpt_dirty: false,
             topology_dirty: false,

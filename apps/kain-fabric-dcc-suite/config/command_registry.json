@@ -45,6 +45,16 @@
       }
     },
     {
+      "id": "ui.focus_runtime_lane_map",
+      "label": "Focus Runtime Lane Map",
+      "surface": "runtime_lane_map",
+      "summary": "Moves focus to the ownership matrix so the operator can inspect Kain, Fabric, Python, GPU, C ABI, Rust, and Node seams at a glance.",
+      "intent": "ui.focus_runtime_lane_map",
+      "payload_schema": {
+        "surface_id": "string"
+      }
+    },
+    {
       "id": "ui.open_property_grid",
       "label": "Open Property Grid",
       "surface": "property_grid",
@@ -308,7 +318,10 @@
       "payload_schema": {
         "layer_id": "string",
         "channel_target": "string",
-        "blend_mode": "string"
+        "blend_mode": "string",
+        "brush_response_profile": "string",
+        "texel_density_target": "number",
+        "deformation_surface_id": "string"
       }
     },
     {
@@ -332,6 +345,37 @@
       "payload_schema": {
         "preset_id": "string",
         "target_runtime": "string"
+      }
+    },
+    {
+      "id": "material.inspect_paint_runtime",
+      "label": "Inspect Paint Runtime",
+      "surface": "material_paint_runtime_surface",
+      "summary": "Shows the deformation-aware paint runtime report for layer blend and brush response tuning.",
+      "intent": "material.bake_preview",
+      "payload_schema": {
+        "layer_id": "string",
+        "channel_target": "string"
+      }
+    },
+    {
+      "id": "material.inspect_uv_policy",
+      "label": "Inspect UV Policy",
+      "surface": "material_uv_policy_surface",
+      "summary": "Shows UV policy and texel-density guidance for bake and export routing.",
+      "intent": "material.bake_preview",
+      "payload_schema": {
+        "preset_id": "string"
+      }
+    },
+    {
+      "id": "material.inspect_deformation_surface",
+      "label": "Inspect Deformation Surface",
+      "surface": "material_deformation_surface",
+      "summary": "Shows pose-safe deformation policy for hero paint previews.",
+      "intent": "material.bake_preview",
+      "payload_schema": {
+        "deformation_surface_id": "string"
       }
     },
     {

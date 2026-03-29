@@ -21,7 +21,7 @@
 - [x] State invalidation/dirty tracking (smoke-level)
 
 ### Rust-Native vs Raw-Native Parity
-- [x] Bundle interpretation parity for the raw-native ABI projection (`native_projection`)
+- [x] Bundle interpretation parity for the canonical `output.tree.root` and `output.tree.nodes` contract
 
 ---
 
@@ -41,4 +41,4 @@
 
 - The shared parity fixture lives at `fixtures/ui_runtime_parity_bundle.json`.
 - Override the fixture path for parity runs via `KAIN_UI_PARITY_FIXTURE=...`.
-- The raw-native runtime consumes `native_projection` from the serialized runtime bundle; Rust parses the same schema via Serde in `crates/kain-ui/tests/ui_runtime_native_projection_parity.rs`.
+- The raw-native runtime now treats the canonical output tree as authoritative and resolves titles/scenes directly from that tree before any host-local viewport defaults are applied.

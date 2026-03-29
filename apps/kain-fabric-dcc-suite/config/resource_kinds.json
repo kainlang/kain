@@ -163,6 +163,33 @@
       "summary": "Packed material texture export descriptor for downstream DCC and runtime consumers."
     },
     {
+      "id": "material_paint_runtime_document",
+      "resource_uri": "material://paint/runtime/current",
+      "kind": "value",
+      "producer_step": "material_paint_runtime_projection",
+      "output_name": "material_paint_runtime_report",
+      "storage": "fabric-report",
+      "summary": "Paint-layer blending, brush response, texel density, and deformation-aware preview contract."
+    },
+    {
+      "id": "material_uv_policy_document",
+      "resource_uri": "material://uv/policy/current",
+      "kind": "value",
+      "producer_step": "material_uv_policy_projection",
+      "output_name": "material_uv_policy_report",
+      "storage": "fabric-report",
+      "summary": "UV policy and texel-density contract used by bake and export lanes."
+    },
+    {
+      "id": "material_deformation_surface_document",
+      "resource_uri": "material://deformation/surface/current",
+      "kind": "value",
+      "producer_step": "material_deformation_surface_projection",
+      "output_name": "material_deformation_surface_report",
+      "storage": "fabric-report",
+      "summary": "Deformation-aware material surface contract for pose-safe paint evaluation."
+    },
+    {
       "id": "rig_control_state_document",
       "resource_uri": "rig://control/current",
       "kind": "value",

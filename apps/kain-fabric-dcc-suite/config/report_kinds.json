@@ -99,6 +99,27 @@
       "summary": "Material texture export and channel-packing report."
     },
     {
+      "id": "material_paint_runtime_report",
+      "report_uri": "report://material/paint-runtime",
+      "producer_step": "material_paint_runtime_projection",
+      "output_name": "material_paint_runtime_report",
+      "summary": "Paint-layer blend, brush response, and deformation-aware preview report."
+    },
+    {
+      "id": "material_uv_policy_report",
+      "report_uri": "report://material/uv-policy",
+      "producer_step": "material_uv_policy_projection",
+      "output_name": "material_uv_policy_report",
+      "summary": "UV policy and texel-density report for bake and export routing."
+    },
+    {
+      "id": "material_deformation_surface_report",
+      "report_uri": "report://material/deformation-surface",
+      "producer_step": "material_deformation_surface_projection",
+      "output_name": "material_deformation_surface_report",
+      "summary": "Deformation-aware material surface report for pose-safe paint previews."
+    },
+    {
       "id": "compositor_rebuild_report",
       "report_uri": "report://compositor/rebuild",
       "producer_step": "compositor_projection",

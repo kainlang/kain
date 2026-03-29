@@ -153,6 +153,16 @@ static void kain_ui_extract_string_field(
     size_t out_cap
 ) {
     const char* value_start = kain_ui_find_value_start(scope_start, scope_end, key);
+    if (value_start && value_start < scope_end && *value_start == '{') {
+        const char* value_end = kain_ui_find_matching(value_start, scope_end, '{', '}');
+        if (value_end) {
+            const char* tagged_string_value = kain_ui_find_value_start(value_start, value_end, "\"String\"");
+            if (tagged_string_value) {
+                kain_ui_copy_string_value(tagged_string_value, value_end, out, out_cap);
+                return;
+            }
+        }
+    }
     kain_ui_copy_string_value(value_start, scope_end, out, out_cap);
 }
 
@@ -465,92 +475,6 @@ static KainUiCompiledNodeKind kain_ui_parse_node_kind(const char* value) {
     return KAIN_UI_COMPILED_NODE_UNKNOWN;
 }
 
-static int kain_ui_parse_projection_node(
-    const char* object_start,
-    const char* object_end,
-    KainUiCompiledNode* node
-) {
-    char kind_value[64];
-    unsigned long long value = 0;
-
-    if (!object_start || !object_end || !node) {
-        return 0;
-    }
-
-    ZeroMemory(node, sizeof(*node));
-    if (!kain_ui_extract_u64_field(object_start, object_end, "\"id\"", &node->id)) {
-        return 0;
-    }
-    if (kain_ui_extract_u64_field(object_start, object_end, "\"parent_id\"", &value)) {
-        node->parent_id = value;
-        node->has_parent = 1;
-    }
-    if (kain_ui_extract_u64_field(object_start, object_end, "\"depth\"", &value)) {
-        node->depth = (unsigned int)value;
-    }
-    if (kain_ui_extract_u64_field(object_start, object_end, "\"child_count\"", &value)) {
-        node->child_count = (int)value;
-    }
-    kind_value[0] = '\0';
-    kain_ui_extract_string_field(object_start, object_end, "\"kind\"", kind_value, sizeof(kind_value));
-    node->kind = kain_ui_parse_node_kind(kind_value);
-    kain_ui_extract_string_field(object_start, object_end, "\"title\"", node->title, sizeof(node->title));
-    kain_ui_extract_string_field(object_start, object_end, "\"text\"", node->text, sizeof(node->text));
-    kain_ui_extract_string_field(object_start, object_end, "\"tag\"", node->tag, sizeof(node->tag));
-    kain_ui_extract_string_field(object_start, object_end, "\"scene\"", node->scene, sizeof(node->scene));
-    kain_ui_extract_string_field(
-        object_start,
-        object_end,
-        "\"layout_kind\"",
-        node->layout_kind,
-        sizeof(node->layout_kind)
-    );
-    kain_ui_extract_string_field(
-        object_start,
-        object_end,
-        "\"dock_placement\"",
-        node->dock_placement,
-        sizeof(node->dock_placement)
-    );
-    if (kain_ui_extract_f32_field(object_start, object_end, "\"split_ratio\"", &node->split_ratio)) {
-        node->has_split_ratio = 1;
-    }
-    kain_ui_extract_bool_field(object_start, object_end, "\"resizable\"", &node->resizable);
-    kain_ui_extract_string_field(
-        object_start,
-        object_end,
-        "\"persistent_layout_id\"",
-        node->persistent_layout_id,
-        sizeof(node->persistent_layout_id)
-    );
-    kain_ui_extract_string_field(
-        object_start,
-        object_end,
-        "\"tab_group_id\"",
-        node->tab_group_id,
-        sizeof(node->tab_group_id)
-    );
-    kain_ui_extract_string_field(
-        object_start,
-        object_end,
-        "\"tab_label\"",
-        node->tab_label,
-        sizeof(node->tab_label)
-    );
-    if (kain_ui_extract_i32_field(object_start, object_end, "\"tab_order\"", &node->tab_order)) {
-        node->has_tab_order = 1;
-    }
-    kain_ui_extract_bool_field(
-        object_start,
-        object_end,
-        "\"tab_default_active\"",
-        &node->tab_default_active
-    );
-    kain_ui_extract_bool_field(object_start, object_end, "\"tab_closable\"", &node->tab_closable);
-    kain_ui_extract_bool_field(object_start, object_end, "\"tab_is_active\"", &node->tab_is_active);
-    return 1;
-}
-
 static int kain_ui_parse_tree_node(
     const char* object_start,
     const char* object_end,
@@ -643,53 +567,6 @@ static int kain_ui_parse_tree_node(
     return 1;
 }
 
-static void kain_ui_backfill_node_from_projection(
-    KainUiCompiledNode* destination,
-    const KainUiCompiledNode* projection_node
-) {
-    if (!destination || !projection_node) {
-        return;
-    }
-
-    if (!destination->title[0] && projection_node->title[0]) {
-        strncpy_s(destination->title, sizeof(destination->title), projection_node->title, _TRUNCATE);
-    }
-    if (!destination->text[0] && projection_node->text[0]) {
-        strncpy_s(destination->text, sizeof(destination->text), projection_node->text, _TRUNCATE);
-    }
-    if (!destination->tag[0] && projection_node->tag[0]) {
-        strncpy_s(destination->tag, sizeof(destination->tag), projection_node->tag, _TRUNCATE);
-    }
-    if (!destination->scene[0] && projection_node->scene[0]) {
-        strncpy_s(destination->scene, sizeof(destination->scene), projection_node->scene, _TRUNCATE);
-    }
-}
-
-static int kain_ui_parse_projection_tab_group(
-    const char* object_start,
-    const char* object_end,
-    KainUiCompiledTabGroup* tab_group
-) {
-    if (!object_start || !object_end || !tab_group) {
-        return 0;
-    }
-
-    ZeroMemory(tab_group, sizeof(*tab_group));
-    kain_ui_extract_string_field(object_start, object_end, "\"id\"", tab_group->id, sizeof(tab_group->id));
-    if (!tab_group->id[0]) {
-        return 0;
-    }
-    kain_ui_extract_string_field(
-        object_start,
-        object_end,
-        "\"active_tab_layout_id\"",
-        tab_group->active_tab_layout_id,
-        sizeof(tab_group->active_tab_layout_id)
-    );
-    kain_ui_extract_i32_field(object_start, object_end, "\"tab_count\"", &tab_group->tab_count);
-    return 1;
-}
-
 const KainUiCompiledNode* kain_ui_compiled_bundle_find_first_kind(
     const KainUiCompiledBundle* bundle,
     KainUiCompiledNodeKind kind
@@ -710,12 +587,6 @@ int kain_ui_compiled_bundle_load_from_json(const char* json, KainUiCompiledBundl
     const char* tree_end;
     const char* tree_nodes_start;
     const char* tree_nodes_end;
-    const char* projection_key;
-    const char* projection_start;
-    const char* projection_end;
-    const char* nodes_key;
-    const char* nodes_array_start;
-    const char* nodes_array_end;
     const char* cursor;
     const char* tree_node_starts[KAIN_UI_COMPILED_BUNDLE_MAX_NODES];
     const char* tree_node_ends[KAIN_UI_COMPILED_BUNDLE_MAX_NODES];
@@ -817,102 +688,13 @@ int kain_ui_compiled_bundle_load_from_json(const char* json, KainUiCompiledBundl
         }
     }
 
-    projection_key = kain_ui_find_substring(json, json_end, "\"native_projection\"");
-    projection_start = NULL;
-    projection_end = NULL;
-    if (projection_key) {
-        projection_start = kain_ui_find_value_start(projection_key, json_end, "\"native_projection\"");
-        if (projection_start && projection_start < json_end && *projection_start == '{') {
-            projection_end = kain_ui_find_matching(projection_start, json_end, '{', '}');
-        }
+    if (!parsed_canonical_tree) {
+        return 0;
     }
-
-    if (projection_start && projection_end) {
-        if (!bundle->has_root_id && kain_ui_extract_u64_field(projection_start, projection_end, "\"root_id\"", &bundle->root_id)) {
-            bundle->has_root_id = 1;
-        }
-        kain_ui_extract_string_field(
-            projection_start,
-            projection_end,
-            "\"primary_panel_title\"",
-            bundle->primary_panel_title,
-            sizeof(bundle->primary_panel_title)
-        );
-        kain_ui_extract_string_field(
-            projection_start,
-            projection_end,
-            "\"primary_viewport_title\"",
-            bundle->primary_viewport_title,
-            sizeof(bundle->primary_viewport_title)
-        );
-        kain_ui_extract_string_field(
-            projection_start,
-            projection_end,
-            "\"primary_viewport_scene\"",
-            bundle->primary_viewport_scene,
-            sizeof(bundle->primary_viewport_scene)
-        );
-
-        nodes_key = kain_ui_find_substring(projection_start, projection_end, "\"nodes\"");
-        if (nodes_key) {
-            nodes_array_start = kain_ui_find_value_start(nodes_key, projection_end, "\"nodes\"");
-            if (nodes_array_start && nodes_array_start < projection_end && *nodes_array_start == '[') {
-                nodes_array_end = kain_ui_find_matching(nodes_array_start, projection_end + 1, '[', ']');
-                if (!nodes_array_end) {
-                    return 0;
-                }
-
-                cursor = nodes_array_start + 1;
-                while (cursor < nodes_array_end) {
-                    KainUiCompiledNode projection_node;
-                    int destination_index;
-                    const char* object_start = strchr(cursor, '{');
-                    const char* object_end;
-                    if (!object_start || object_start >= nodes_array_end) {
-                        break;
-                    }
-                    object_end = kain_ui_find_matching(object_start, nodes_array_end + 1, '{', '}');
-                    if (!object_end) {
-                        break;
-                    }
-                    if (!kain_ui_parse_projection_node(object_start, object_end, &projection_node)) {
-                        cursor = object_end + 1;
-                        continue;
-                    }
-
-                    destination_index = kain_ui_find_node_index_by_id(bundle, projection_node.id);
-                    if (destination_index >= 0) {
-                        kain_ui_backfill_node_from_projection(&bundle->nodes[destination_index], &projection_node);
-                    } else if (!parsed_canonical_tree && bundle->node_count < KAIN_UI_COMPILED_BUNDLE_MAX_NODES) {
-                        bundle->nodes[bundle->node_count] = projection_node;
-                        bundle->node_count += 1;
-                    }
-                    cursor = object_end + 1;
-                }
-            }
-        }
+    if (!bundle->has_root_id) {
+        return 0;
     }
-
-    if (!bundle->primary_panel_title[0]) {
-        const KainUiCompiledNode* panel = kain_ui_compiled_bundle_find_first_kind(bundle, KAIN_UI_COMPILED_NODE_PANEL);
-        if (panel && panel->title[0]) {
-            strncpy_s(bundle->primary_panel_title, sizeof(bundle->primary_panel_title), panel->title, _TRUNCATE);
-        }
-    }
-    if (!bundle->primary_viewport_title[0]) {
-        const KainUiCompiledNode* viewport = kain_ui_compiled_bundle_find_first_kind(bundle, KAIN_UI_COMPILED_NODE_VIEWPORT3D);
-        if (viewport && viewport->title[0]) {
-            strncpy_s(bundle->primary_viewport_title, sizeof(bundle->primary_viewport_title), viewport->title, _TRUNCATE);
-        }
-    }
-    if (!bundle->primary_viewport_scene[0]) {
-        const KainUiCompiledNode* viewport = kain_ui_compiled_bundle_find_first_kind(bundle, KAIN_UI_COMPILED_NODE_VIEWPORT3D);
-        if (viewport && viewport->scene[0]) {
-            strncpy_s(bundle->primary_viewport_scene, sizeof(bundle->primary_viewport_scene), viewport->scene, _TRUNCATE);
-        }
-    }
-
-    if (!parsed_canonical_tree && !projection_start) {
+    if (kain_ui_find_node_index_by_id(bundle, bundle->root_id) < 0) {
         return 0;
     }
 

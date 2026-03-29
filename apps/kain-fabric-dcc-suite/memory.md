@@ -65,6 +65,7 @@
 
 - Added `fabric/intents/mesh_session.fabric.toml` steps for primitive generation, topology projection, Catmull-Clark-style subdivision, UV packing, and the existing mesh session projection so the mesh lane now has a clearer authored pipeline instead of only a coarse contract report.
 - Added Kain projection receipts for subdivision and UV packing, plus session/bridge command handling for `mesh.subdivide` and `mesh.pack_uv`, so the active edit target can stay explicit while heavy geometry work remains an external/native seam.
+- Wired `src/mesh_edit_session_projection.kn` to emit a new native mesh runtime signature alongside the existing contract/topology signatures, backed by a C helper in `native/dcc_suite_ops.{h,c}`. That gives the mesh lane a concrete Catmull-Clark/UV helper seam instead of only orchestration text.
 - Extended the mesh command registry and intent registry so the new mesh actions are discoverable from the shell and can be routed through the same reducer/plan path as the older mesh commands.
 - The next clean step is to back the new receipts with a real native mesh solver and UV atlas seam instead of just durable orchestration reports.
 
@@ -103,3 +104,115 @@
 - Added app-owned projection writers for `asset_source_manifest`, `interchange_transcode`, `scene_exchange`, `asset_lineage`, and `media_ingest` receipts, and routed `asset.ingest_package` through them in `fabric/intents/asset_ingest.fabric.toml`.
 - Extended the session registries and command planner so asset import can fan out into explicit routing intents instead of pretending one reducer owns the whole import story.
 - The clean next seam is to back these receipts with a native importer or typed interchange runtime, because the current Kain-side projections are still orchestration-grade contracts.
+
+## 2026-03-29 - Render Review Capture Surface Brought Into The Shell
+
+- `config/ui_shell.json` now includes `render.review_capture` in the command spotlight and render workbench quick actions so the AOV / review-capture lane is visible from the main operator frame instead of being buried in registries only.
+- `session/ui_workbench_registry.kn` now mirrors that same render lane set, keeping the authored workbench descriptor aligned with the shell projection.
+- `generated/main.generated.kn`, `state/runtime_snapshot.json`, and `state/session_document.json` were regenerated after the shell change so the live bridge artifacts stayed in sync.
+- The clean extension seam is still the same: keep the review-capture lane app-authored until a real native/GPU compositor bridge is ready.
+
+## 2026-03-29 - Render Control Room Registry Kept In Sync
+
+- Mirrored the render control-room progression in `session/ui_workbench_registry.kn` so the authored workbench now names delegated preview, pathtrace, accumulation, denoise, and frame scheduling as part of the same control-room story.
+- Tightened `config/ui_shell.json` lane caption text so the live shell uses the explicit registry lane names: `kain | fabric | python | gpu_compute | c_abi | rust_crate | node_bridge`.
+- Regenerated `generated/main.generated.kn`, `state/runtime_snapshot.json`, and `state/session_document.json` after the registry update so the bridge artifacts stayed aligned with the authored shell/session data.
+- The next clean seam is still a real temporal-history or denoise runtime, but the shell and authored workbench now tell the same render story.
+## 2026-03-29 - Asset Routing Lanes Surfaced In The Shell
+
+- Added an `asset_registry` inspector surface to `config/surfaces.json` so the command registry's source-manifest, scene-exchange, and lineage routing commands now have a durable shell home instead of pointing at an undefined surface.
+- Surfaced `asset.route_source_manifest`, `asset.route_scene_exchange`, and `asset.route_asset_lineage` in the command spotlight and scene workbench quick actions inside `config/ui_shell.json`, which makes the source-id-first import chain visible from the operator frame instead of only in registries.
+- Regenerated `generated/main.generated.kn`, `state/runtime_snapshot.json`, and `state/session_document.json` after the shell update so the materialized bridge artifacts stayed in sync with the authored shell registry.
+- Clean next seam: wire the asset registry surface into the live native chrome once there is a real importer/runtime that can publish richer residency and lineage receipts.
+
+## 2026-03-29 - Asset Registry Joined The Scene Workbench
+
+- Wired `asset_registry` into the `scene_assembly` page's right-side surface set in `config/ui_shell.json`, so the scene workbench can land directly on source manifests, scene exchange, lineage, and residency receipts instead of only exposing them as a standalone surface.
+- Reran `scripts/materialize-shell.ps1` and `scripts/materialize-session-state.ps1` so `generated/main.generated.kn`, `state/runtime_snapshot.json`, and `state/session_document.json` stayed aligned with the authored workbench frame.
+- The next clean seam is still a richer importer/runtime-backed residency model; this pass just made the authored intake path easier to reach from the main scene page.
+
+## 2026-03-29 - Material Lookdev Now Exposes The New Runtime Seams
+
+- Added dedicated shell surfaces for `material_paint_runtime_surface`, `material_uv_policy_surface`, and `material_deformation_surface`, then surfaced them in both `config/ui_shell.json` and `session/ui_workbench_registry.kn` so the material bench now shows the newer paint/runtime/UV/deformation contracts instead of hiding them behind the generic material graph.
+- Added discoverable commands for `material.inspect_paint_runtime`, `material.inspect_uv_policy`, and `material.inspect_deformation_surface` so the shell can navigate directly into the new material seams without inventing host-local logic.
+- This is still an authored registry/shell pass, not a real painter runtime; the clean extension seam remains to back these reports with a native or GPU paint engine once the runtime lane is ready.
+
+## 2026-03-29 - Sculpt Brush Seam Now States The Runtime Limitation Cleanly
+
+- Tightened `src/sculpt_brush_step.kn` so the sculpt brush seam names the real limitation up front: Kain still lacks the native high-performance spatial index and mesh-edit kernel needed for interactive displacement on large meshes.
+- The step now frames the extension seam more cleanly around the actual multi-runtime lane choices: native C ABI, GPU compute, or Rust worker pool, with the active edit target still owned by the session/resource contract.
+- This is still a documentation-only seam, not a new sculpt runtime; the next clean extension path is to back the data-driven brush contract with a real native or GPU execution lane.
+
+## 2026-03-29 - Material Paint Runtime Shader Is Now Wired Into The Fabric Graph
+
+- Added `gpu_material_paint_runtime` to `fabric/intents/material_bake.fabric.toml` so the authored `shaders/material_paint_runtime_preview.kn` seam is no longer just a staged file; it now participates in the material bake graph.
+- The new GPU step consumes the same app-owned authoring inputs as the rest of the material lane and keeps the paint/runtime seam visible as a first-class multi-runtime lane instead of an orphaned shader.
+- The clean next seam is to back `paint_runtime_dst` with a richer native or GPU paint-runtime contract if the lane needs more than preview math.
+
+## 2026-03-29 - Material Registry Surfaces Materialized To The Live Shell
+
+- Materialized the new material paint runtime, UV policy, and deformation surfaces through `scripts/materialize-shell.ps1` and `scripts/materialize-session-state.ps1` so `generated/main.generated.kn`, `state/runtime_snapshot.json`, and `state/session_document.json` stay aligned with the authored registry after the shell/workbench expansion.
+- This keeps the new `material.inspect_*` commands and `material_*_surface` inspectors on the live bridge path instead of leaving them as config-only scaffolding.
+- The paint-runtime seam is still preview math, not a true tiled painter engine; the clean next seam is a richer native or GPU paint/deformation runtime once that lane is ready.
+
+## 2026-03-29 - Render Control Room Reaffirmed The Temporal Spine
+
+- Tightened the render control-room shell copy in `config/ui_shell.json` and `session/ui_workbench_registry.kn` so the progressive render spine reads as pathtrace -> accumulation -> denoise without implying that the temporal-history runtime already exists.
+- The highest-value safe improvement here is visibility, not fake execution: the authored report seams stay obvious while the real native/GPU extension lane is still pending.
+- Clean next seam: back the accumulation and denoise reports with a real temporal buffer or history-filter runtime when that host seam is ready.
+
+## 2026-03-29 - Material Registry And Bridge Outputs Re-Synced
+
+- Reran `scripts/materialize-shell.ps1` and `scripts/materialize-session-state.ps1` after the latest material runtime seam work so `generated/main.generated.kn`, `state/runtime_snapshot.json`, and `state/session_document.json` stay aligned with the authored registry.
+- The app now has the new material paint-runtime / UV-policy / deformation surfaces and their command/report seams reflected in the durable projections; the clean next step is still a real native or GPU-backed painter runtime if those seams need execution beyond preview/report contracts.
+
+## 2026-03-29 - Render Lounge And Report Browser Now Surface The Temporal Spine
+
+- Added explicit properties to `config/surfaces.json` for `render_lounge` and `report_browser` so the render workbench now shows the pathtrace -> accumulation -> denoise chain and the frame-schedule receipt directly in shell chrome.
+- Materialized the updated surface registry through `scripts/materialize-shell.ps1` and `scripts/materialize-session-state.ps1`, which refreshed `generated/main.generated.kn`, `state/runtime_snapshot.json`, and `state/session_document.json`.
+- This is still a safe authored-contract pass, not a real temporal-history runtime; the clean extension seam remains a native or GPU history buffer / temporal filter lane.
+
+## 2026-03-29 - Material Surface Projections Re-Synced After Scaffold Inspection
+
+- Inspected the scaffold and confirmed the new material seam files are wired through the shell/workbench registry: `material_paint_runtime_surface`, `material_uv_policy_surface`, and `material_deformation_surface` now show up in the lookdev frame and command spotlight.
+- Reran `scripts/materialize-shell.ps1` and `scripts/materialize-session-state.ps1` so `generated/main.generated.kn`, `state/runtime_snapshot.json`, and `state/session_document.json` stayed aligned with the authored registry after the inspection pass.
+- The current clean extension seam is still a real native or GPU paint/deformation runtime; the app-side work is intentionally limited to durable projections and bridge honesty until that lane exists.
+
+## 2026-03-29 - Material Materializer Re-Run Kept The Live Bridge Honest
+
+- Re-ran `scripts/materialize-shell.ps1` and `scripts/materialize-session-state.ps1` after the latest scaffold inspection so the generated shell and live session snapshot stayed in lockstep with the authored material surfaces and their command/report seams.
+- This pass did not change the runtime model; it just kept the new paint-runtime / UV-policy / deformation registry surfaces projected into `generated/main.generated.kn`, `state/runtime_snapshot.json`, and `state/session_document.json`.
+- Clean next seam: back `paint_runtime_dst` and the material deformation surface with a real native or GPU execution lane when preview math is no longer enough.
+
+## 2026-03-29 - Runtime Lane Map Surface Made Explicit
+
+- Added a dedicated `runtime_lane_map` inspector surface in `config/surfaces.json` and surfaced it in the scene assembly, render control room, and publish automation pages inside `config/ui_shell.json` plus the mirrored `session/ui_workbench_registry.kn`.
+- The new surface keeps the authored Kain / Fabric / Python / GPU / C ABI / Rust / Node ownership matrix visible in the same live shell frame operators already use for scene, render, and delivery work.
+- Re-ran `scripts/materialize-shell.ps1` and `scripts/materialize-session-state.ps1` so `generated/main.generated.kn`, `state/runtime_snapshot.json`, and `state/session_document.json` stayed aligned with the authored shell/session registry after the change.
+- Clean next seam: if the lane matrix ever needs richer live telemetry, wire this surface into actual bridge/runtime health instead of leaving it as a static registry view.
+
+## 2026-03-29 - Runtime Lane Map Reached Every Workbench
+
+- Expanded `config/ui_shell.json` and the mirrored `session/ui_workbench_registry.kn` so `runtime_lane_map` is now visible across all major workbenches instead of only scene/render/publish.
+- This keeps the Kain / Fabric / Python / GPU / C ABI / Rust / Node ownership matrix in the operator frame everywhere the suite already expects navigational and inspection context.
+- Reran `scripts/materialize-shell.ps1` and `scripts/materialize-session-state.ps1` so `generated/main.generated.kn`, `state/runtime_snapshot.json`, and `state/session_document.json` stayed aligned with the authored registry after the shell/workbench update.
+- The next clean seam is still richer live lane telemetry rather than another static registry view.
+
+## 2026-03-29 - Material Paint Runtime Is Now Wired Into The Graph
+
+- Added the staged `shaders/material_paint_runtime_preview.kn` seam to `fabric/intents/material_bake.fabric.toml` as `gpu_material_paint_runtime`, so the paint/runtime lane now participates in the authored Fabric graph instead of sitting as a dormant shader.
+- Added the supporting Kain projection receipts for `material_paint_runtime`, `material_uv_policy`, and `material_deformation_surface`, which keeps the lookdev bench multi-runtime-shaped while still honest about execution limits.
+- Reran `scripts/materialize-shell.ps1` and `scripts/materialize-session-state.ps1` so the generated shell and live session snapshot stayed aligned with the new material lane projections.
+- Clean extension seam: the paint/deformation runtime is still preview math, so a real native C ABI or GPU-backed painter engine is the next durable execution lane.
+
+## 2026-03-29 - Runtime Lane Map Got A Direct Focus Command
+
+- Added a new `ui.focus_runtime_lane_map` command to `config/command_registry.json` and surfaced it in the shell spotlight plus the scene/render workbench quick actions.
+- Kept `config/ui_shell.json` and `session/ui_workbench_registry.kn` aligned so the runtime ownership matrix is one gesture away from the operator frame instead of only being visible as a passive inspector.
+- Reran the shell and session materializers so the generated shell and live bridge projections stayed in sync with the authored registry.
+- Clean next seam: if bridge health gets richer telemetry, let the runtime lane map surface show live health instead of only static ownership.
+## 2026-03-29 - Publish Deck Now Surfaces Asset Lineage
+
+- In `M:\Code\Kain\apps\kain-fabric-dcc-suite`, added `asset_registry` to the publish workbench's center surfaces and tightened the publish hero copy so delivery now keeps lineage visible alongside packages, jobs, and receipts.
+- Mirrored the same publish-workbench change in `session/ui_workbench_registry.kn`, then reran `scripts/materialize-shell.ps1` and `scripts/materialize-session-state.ps1` so `generated/main.generated.kn`, `state/runtime_snapshot.json`, and `state/session_document.json` stayed aligned.
+- This is still an authored shell/workbench visibility pass, not a native publish runtime; the clean seam remains richer delivery validation and residency telemetry when a host-backed lane is ready.

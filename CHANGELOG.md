@@ -5,6 +5,77 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=57bc8765b8e164ca -->
+## 2026-03-29 14:29:13 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `7eb6c2df`
+- Changed files: 17
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-import/src/lib.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `crates/kain-ui/tests/ui_runtime_native_projection_parity.rs`
+- [.M] `runtime/conformance/ui_runtime/README.md`
+- [.M] `runtime/conformance/ui_runtime/fixtures/ui_runtime_parity_bundle.json`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_bundle.c`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_focus.c`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_parity.c`
+- [.M] `runtime/native/include/kain_runtime_ui.h`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_sculpt_win32.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [.M] `runtime/native/src/ui/kain_ui_compiled_bundle.c`
+- [.M] `runtime/native/src/ui/kain_ui_compiled_overlay.c`
+- [.M] `runtime/native/src/ui/kain_ui_runtime.c`
+
+<!-- polytools-changelog:fingerprint=62e2a532b8ec67b5 -->
+## 2026-03-29 04:35:13 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `7eb6c2df`
+- Changed files: 15
+- [.M] `crates/kain-import/src/lib.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `crates/kain-ui/tests/ui_runtime_native_projection_parity.rs`
+- [.M] `runtime/conformance/ui_runtime/README.md`
+- [.M] `runtime/conformance/ui_runtime/fixtures/ui_runtime_parity_bundle.json`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_bundle.c`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_focus.c`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_parity.c`
+- [.M] `runtime/native/include/kain_runtime_ui.h`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_sculpt_win32.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [.M] `runtime/native/src/ui/kain_ui_compiled_bundle.c`
+- [.M] `runtime/native/src/ui/kain_ui_compiled_overlay.c`
+- [.M] `runtime/native/src/ui/kain_ui_runtime.c`
+
+<!-- polytools-changelog:fingerprint=00e04cdd16c4659a -->
+## 2026-03-29 04:33:09 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `7eb6c2df`
+- Changed files: 14
+- [.M] `crates/kain-import/src/lib.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+- [.M] `crates/kain-ui/tests/ui_runtime_native_projection_parity.rs`
+- [.M] `runtime/conformance/ui_runtime/fixtures/ui_runtime_parity_bundle.json`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_bundle.c`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_focus.c`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_parity.c`
+- [.M] `runtime/native/include/kain_runtime_ui.h`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_sculpt_win32.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [.M] `runtime/native/src/ui/kain_ui_compiled_bundle.c`
+- [.M] `runtime/native/src/ui/kain_ui_compiled_overlay.c`
+- [.M] `runtime/native/src/ui/kain_ui_runtime.c`
+
+<!-- polytools-changelog:fingerprint=4ebe98925c1d2b53 -->
+## 2026-03-29 04:28:09 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `7eb6c2df`
+- Changed files: 1
+- [.M] `crates/kain-import/src/lib.rs`
+
 <!-- polytools-changelog:fingerprint=be82f0b0bb3f53ac -->
 ## 2026-03-29 04:25:13 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

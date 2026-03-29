@@ -96,6 +96,21 @@
       "summary": "Builds the temporal denoise readiness report from the accumulation buffer and upstream material/SVG receipts."
     },
     {
+      "id": "material_paint_runtime_projection",
+      "runtime": "kain",
+      "summary": "Builds paint-layer, brush-response, texel-density, and deformation-aware runtime receipts for lookdev authoring."
+    },
+    {
+      "id": "material_uv_policy_projection",
+      "runtime": "kain",
+      "summary": "Builds the UV policy and texel-density receipt used to keep bake and export routing honest."
+    },
+    {
+      "id": "material_deformation_surface_projection",
+      "runtime": "kain",
+      "summary": "Builds the deformation-aware surface receipt for pose-safe paint previews."
+    },
+    {
       "id": "material_texture_export_projection",
       "runtime": "kain",
       "summary": "Builds channel-pack export receipts for metal-rough, ORM, height, emissive, and custom packed delivery."

@@ -31,17 +31,6 @@ static int test_true(int condition, const char* message) {
     return 1;
 }
 
-static int test_str_eq(const char* actual, const char* expected, const char* message) {
-    if (!actual || !expected || strcmp(actual, expected) != 0) {
-        fprintf(stderr, "[FAIL] %s expected='%s' actual='%s'\n",
-            message,
-            expected ? expected : "<null>",
-            actual ? actual : "<null>");
-        return 0;
-    }
-    return 1;
-}
-
 static int test_root_and_nodes_are_canonical(
     const KainUiCompiledBundle* compiled_bundle,
     const KainUiRuntimeState* runtime_state
@@ -71,6 +60,12 @@ static int test_root_and_nodes_are_canonical(
         return 0;
     }
     if (!test_true(compiled_bundle->nodes[2].kind == KAIN_UI_COMPILED_NODE_VIEWPORT3D, "third canonical node should be a viewport3d")) {
+        return 0;
+    }
+    if (!test_true(strcmp(compiled_bundle->nodes[0].title, "Root Panel") == 0, "canonical root node should keep its authored title")) {
+        return 0;
+    }
+    if (!test_true(strcmp(compiled_bundle->nodes[2].scene, "magma_terraces") == 0, "canonical viewport node should keep its authored scene")) {
         return 0;
     }
     return 1;
@@ -109,18 +104,6 @@ int main(void) {
         goto cleanup;
     }
     if (!test_root_and_nodes_are_canonical(compiled_bundle, runtime_state)) {
-        goto cleanup;
-    }
-    if (!test_str_eq(compiled_bundle->primary_panel_title, "UI Surface", "compiled bundle compatibility panel title")) {
-        goto cleanup;
-    }
-    if (!test_str_eq(runtime_state->bundle.primary_panel_title, compiled_bundle->primary_panel_title, "runtime bundle compatibility panel title")) {
-        goto cleanup;
-    }
-    if (!test_str_eq(runtime_state->bundle.primary_viewport_title, "Viewport", "runtime bundle compatibility viewport title")) {
-        goto cleanup;
-    }
-    if (!test_str_eq(runtime_state->bundle.primary_viewport_scene, "magma_terraces", "runtime bundle compatibility viewport scene")) {
         goto cleanup;
     }
 

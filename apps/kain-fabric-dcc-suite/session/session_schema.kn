@@ -238,6 +238,9 @@ fn default_session_document() -> SessionDocument:
             preview_profile: "material_preview_balanced",
             channel_profile: "basecolor_normal_roughness_metallic_ao_height_emissive",
             layer_response_profile: "paint_fill_filter_smart_stack",
+            brush_response_profile: "pressure_weighted_surface_tight",
+            uv_policy_id: "uv_policy/udim_tiled_islands",
+            texel_density_target: 256,
             deformation_surface_id: "surface/hero_deformation_shell",
             paint_resolution: 4096
         },

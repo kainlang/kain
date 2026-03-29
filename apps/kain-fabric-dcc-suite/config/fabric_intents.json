@@ -167,6 +167,9 @@
       "debounce_ms": 16,
       "produces": [
         "material_authoring_report",
+        "material_paint_runtime_report",
+        "material_uv_policy_report",
+        "material_deformation_surface_report",
         "svg_mask_report",
         "preview_dst",
         "material_texture_export_report"
@@ -179,6 +182,9 @@
       "graph": "fabric/intents/material_bake.fabric.toml",
       "debounce_ms": 0,
       "produces": [
+        "material_paint_runtime_report",
+        "material_uv_policy_report",
+        "material_deformation_surface_report",
         "material_texture_export_report"
       ]
     },

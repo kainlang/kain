@@ -10,6 +10,24 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-29 - UiRuntimeBundle Native Projection Became Explicit Compatibility Data
+
+The shared UI runtime bundle now treats `native_projection` as an opt-in compatibility sidecar instead of a normal contract surface.
+
+Update:
+
+- `crates/kain-ui/src/lib.rs` now keeps `UiRuntimeBundle` canonical around `output.tree` plus `output.systems`, omitting `native_projection` from serialization when it is empty.
+- Added `ui_runtime_bundle_from_output_with_native_projection(...)` as the explicit helper for legacy raw-native consumers that still need the flat projection sidecar.
+- Updated the parity test to treat the canonical tree as authority and verify that the compatibility projection is optional rather than required.
+
+What future work should preserve:
+
+- keep bundle truth anchored on `output.tree` and `output.systems`
+- only materialize the flat projection through explicit compatibility helpers
+- do not reintroduce `native_projection` as a required field in the normal serialized contract
+
+Current run recorded at 2026-03-29T00:00:00-04:00.
+
 ## 2026-03-29 - Universal Web Template Added Database/Queue/Secrets/Config/Jobs Stacks
 
 The universal web template now includes database, queue, secrets, config, and background job stack registries with runtime endpoints, actor plan coverage, and archetype sections so full-stack web systems are modeled without Rust tooling.

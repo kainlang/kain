@@ -6,6 +6,7 @@ static char G_DCC_SUITE_SIGNATURE[160];
 static char G_DCC_SUITE_REPORT[192];
 static char G_DCC_SUITE_MESH_SIGNATURE[256];
 static char G_DCC_SUITE_TOPOLOGY_SIGNATURE[256];
+static char G_DCC_SUITE_RUNTIME_SIGNATURE[256];
 
 const char* dcc_suite_sculpt_signature(int grid_resolution, int checksum, int accent) {
     snprintf(
@@ -55,4 +56,17 @@ const char* dcc_suite_mesh_topology_signature(const char* topology_policy, int t
         edit_target_checksum
     );
     return G_DCC_SUITE_TOPOLOGY_SIGNATURE;
+}
+
+const char* dcc_suite_mesh_runtime_signature(const char* subdivision_policy, int target_subdivision_level, int uv_islands, int edit_target_checksum) {
+    snprintf(
+        G_DCC_SUITE_RUNTIME_SIGNATURE,
+        sizeof(G_DCC_SUITE_RUNTIME_SIGNATURE),
+        "mesh-runtime:subdivision=%s:%d:uv-islands=%d:edit-checksum=%d",
+        subdivision_policy,
+        target_subdivision_level,
+        uv_islands,
+        edit_target_checksum
+    );
+    return G_DCC_SUITE_RUNTIME_SIGNATURE;
 }

@@ -1,0 +1,29 @@
+fn app_state_root() -> String:
+    return "apps/kain-fabric-dcc-suite/state"
+
+fn material_deformation_surface_report_path() -> String:
+    return app_state_root() + "/material_deformation_surface_report.json"
+
+fn build_material_deformation_surface_report_json(settings: Any, material_document: String) -> String:
+    let deformation_surface_id = "surface/hero_deformation_shell"
+    let deformation_profile = "hero_deformation_preview"
+    let blend_stability = "smoothed_across_pose_and_uv_seams"
+    let json = "{\\n"
+    let json = json + "  \\\"kind\\\": \\\"material_deformation_surface_report\\\",\\n"
+    let json = json + "  \\\"project\\\": \\\"" + settings.project_name + "\\\",\\n"
+    let json = json + "  \\\"workspace_mode\\\": \\\"" + settings.workspace_mode + "\\\",\\n"
+    let json = json + "  \\\"deformation_surface_id\\\": \\\"" + deformation_surface_id + "\\\",\\n"
+    let json = json + "  \\\"deformation_profile\\\": \\\"" + deformation_profile + "\\\",\\n"
+    let json = json + "  \\\"blend_stability\\\": \\\"" + blend_stability + "\\\",\\n"
+    let json = json + "  \\\"material_document\\\": \\\"" + material_document + "\\\"\\n"
+    let json = json + "}\\n"
+    return json
+
+fn main() -> String:
+    let settings = fabric_inputs.python_suite_bootstrap.project_settings
+    let material_document = fabric_inputs.dcc_suite_seed.material_authoring_document
+    let report_json = build_material_deformation_surface_report_json(settings, material_document)
+
+    write_file(material_deformation_surface_report_path(), report_json)
+
+    return "material-deformation-surface:" + settings.workspace_mode + ":profile=hero_deformation_preview"

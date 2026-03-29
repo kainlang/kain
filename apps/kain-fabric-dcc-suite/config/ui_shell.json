@@ -78,7 +78,7 @@
         "id": "runtime_lane_summary",
         "label": "Lane Map",
         "metric_source": "runtime_lane_summary",
-        "caption": "kain | fabric | python | gpu | c_abi | rust | node"
+        "caption": "kain | fabric | python | gpu_compute | c_abi | rust_crate | node_bridge"
       },
       {
         "id": "command_count",
@@ -116,10 +116,15 @@
         "ui.open_property_grid",
         "ui.toggle_status_strip",
         "ui.focus_workspace_navigator",
+        "ui.focus_runtime_lane_map",
+        "asset.route_source_manifest",
+        "asset.route_scene_exchange",
+        "asset.route_asset_lineage",
         "render.preview",
         "render.pathtrace_preview",
         "lighting.review_preview",
         "render.delegate_preview",
+        "render.review_capture",
         "publish.package"
       ]
     },
@@ -246,6 +251,8 @@
         "Keep the active lane obvious at all times.",
         "Favor compact chrome over airy demo-card spacing.",
         "Keep command dispatch, inspector routing, and layout return paths obvious.",
+        "Keep the runtime lane map one click away so bridge seams stay inspectable.",
+        "Treat the render spine as pathtrace -> accumulation -> denoise, with report receipts visible even before the runtime seam exists.",
         "Use the shell as a real workstation frame, not a showcase scaffold."
       ]
     }
@@ -267,8 +274,12 @@
         "workspace.switch_mode",
         "ui.show_command_palette",
         "asset.ingest_package",
+        "asset.route_source_manifest",
+        "asset.route_scene_exchange",
+        "asset.route_asset_lineage",
         "render.preview",
-        "render.pathtrace_preview"
+        "render.pathtrace_preview",
+        "render.review_capture"
       ],
       "center_surface_ids": [
         "scene_graph",
@@ -278,9 +289,11 @@
       "right_surface_ids": [
         "selection_inspector",
         "workspace_navigator",
+        "runtime_lane_map",
         "command_palette",
         "property_grid",
-        "report_browser"
+        "report_browser",
+        "asset_registry"
       ],
       "bottom_surface_ids": [
         "status_strip",
@@ -292,6 +305,7 @@
         "asset.ingest_package",
         "render.preview",
         "render.pathtrace_preview",
+        "render.review_capture",
         "publish.package"
       ]
     },
@@ -323,6 +337,7 @@
       "right_surface_ids": [
         "selection_inspector",
         "workspace_navigator",
+        "runtime_lane_map",
         "property_grid",
         "tool_shelf",
         "report_browser"
@@ -361,18 +376,25 @@
         "material.paint_layer",
         "material.edit_svg_mask",
         "material.export_textures",
+        "material.inspect_paint_runtime",
+        "material.inspect_uv_policy",
+        "material.inspect_deformation_surface",
         "render.pathtrace_preview"
       ],
       "center_surface_ids": [
         "material_graph",
         "svg_mask_canvas",
+        "material_paint_runtime_surface",
         "render_lounge"
       ],
       "right_surface_ids": [
         "material_layers",
         "texture_set_inspector",
         "workspace_navigator",
+        "runtime_lane_map",
         "property_grid",
+        "material_uv_policy_surface",
+        "material_deformation_surface",
         "material_export_board",
         "report_browser"
       ],
@@ -415,6 +437,7 @@
       "right_surface_ids": [
         "selection_inspector",
         "workspace_navigator",
+        "runtime_lane_map",
         "property_grid",
         "tool_shelf",
         "report_browser"
@@ -456,6 +479,7 @@
       "right_surface_ids": [
         "selection_inspector",
         "workspace_navigator",
+        "runtime_lane_map",
         "property_grid",
         "report_browser"
       ],
@@ -486,6 +510,7 @@
       "quick_command_ids": [
         "render.preview",
         "render.pathtrace_preview",
+        "render.review_capture",
         "compositor.rebuild",
         "ui.open_property_grid",
         "publish.package"
@@ -498,6 +523,7 @@
       "right_surface_ids": [
         "selection_inspector",
         "workspace_navigator",
+        "runtime_lane_map",
         "property_grid",
         "report_browser",
         "publish_console"
@@ -510,6 +536,7 @@
       "intent_ids": [
         "render.preview",
         "render.pathtrace_preview",
+        "render.review_capture",
         "compositor.rebuild",
         "publish.package"
       ]
@@ -519,7 +546,7 @@
       "tab_label": "Publish",
       "title": "Publish Workbench",
       "hero_title": "Delivery and automation under one deck",
-      "hero_summary": "Packages, jobs, and receipts stay on the operator surface.",
+      "hero_summary": "Packages, lineage, jobs, and receipts stay on the operator surface.",
       "focus_surface_id": "publish_console",
       "featured_tool_ids": [
         "publish_bundle"
@@ -536,11 +563,13 @@
       "center_surface_ids": [
         "publish_console",
         "report_browser",
+        "asset_registry",
         "render_lounge"
       ],
       "right_surface_ids": [
         "publish_console",
         "workspace_navigator",
+        "runtime_lane_map",
         "command_palette",
         "property_grid",
         "selection_inspector"

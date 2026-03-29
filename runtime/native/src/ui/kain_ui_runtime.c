@@ -446,7 +446,7 @@ static int kain_ui_runtime_validate_bundle_inner(
     report->component_count = bundle->node_count;
     report->focusable_count = focusable_count;
     report->editable_count = editable_count;
-    report->overlay_compatible = bundle->loaded && (has_overlay_kind || bundle->primary_panel_title[0] || bundle->primary_viewport_title[0]);
+    report->overlay_compatible = bundle->loaded && has_overlay_kind;
     report->capability_flags = KAIN_UI_RUNTIME_CAP_BUNDLE_VALIDATED | KAIN_UI_RUNTIME_CAP_COMPONENT_RECORDS | KAIN_UI_RUNTIME_CAP_STATE_PERSISTENCE;
     if (report->overlay_compatible) {
         report->capability_flags |= KAIN_UI_RUNTIME_CAP_OVERLAY_COMPAT;

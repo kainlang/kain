@@ -106,6 +106,24 @@
       "summary": "Packs preview-derived channels into export-oriented values for metal-rough, ORM, height, and emissive delivery."
     },
     {
+      "id": "material_paint_runtime_preview",
+      "lane": "material_lookdev",
+      "status": "staged_library",
+      "shader_source": "shaders/material_paint_runtime_preview.kn",
+      "compute_key": "DccSuiteMaterialPaintRuntimePreview",
+      "primary_manifests": [
+        "fabric/intents/material_bake.fabric.toml",
+        "fabric/intents/publish_package.fabric.toml"
+      ],
+      "inputs": [
+        "preview_src"
+      ],
+      "outputs": [
+        "preview_dst"
+      ],
+      "summary": "Combines paint layer blending, brush response, texel density, and deformation-aware preview weighting for the lookdev bench."
+    },
+    {
       "id": "viewport_lighting_preview",
       "lane": "scene_assembly",
       "status": "staged_library",

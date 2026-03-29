@@ -1280,6 +1280,17 @@ pub struct UiNativeProjection {
     pub nodes: Vec<UiNativeProjectionNode>,
 }
 
+impl UiNativeProjection {
+    pub fn is_empty(&self) -> bool {
+        self.root_id.is_none()
+            && self.primary_panel_title.is_none()
+            && self.primary_viewport_title.is_none()
+            && self.primary_viewport_scene.is_none()
+            && self.tab_groups.is_empty()
+            && self.nodes.is_empty()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UiNativeProjectionNode {
     pub id: u64,
@@ -1363,11 +1374,19 @@ pub struct UiRuntimeBundle {
     pub metadata: UiRuntimeMetadata,
     pub output: UiBuildOutput,
     /// Compatibility-only sidecar for legacy raw-native consumers.
-    /// Semantic ownership stays on `output.tree` plus `output.systems`.
-    #[serde(default)]
+    ///
+    /// Canonical bundles keep semantic ownership on `output.tree` plus
+    /// `output.systems` and omit this field unless an explicit compatibility
+    /// helper asks for it.
+    #[serde(default, skip_serializing_if = "UiNativeProjection::is_empty")]
     pub native_projection: UiNativeProjection,
 }
 
+/// Canonical runtime bundle builder.
+///
+/// This keeps the bundle centered on `output.tree` and `output.systems`
+/// and leaves the compatibility projection empty unless a caller explicitly
+/// opts into the legacy helper.
 pub fn ui_runtime_bundle_from_output(
     metadata: UiRuntimeMetadata,
     output: UiBuildOutput,
@@ -1386,17 +1405,27 @@ pub fn ui_runtime_bundle_from_output(
             UiValue::String("tree_shape_backfill".to_string()),
         );
     }
-    output.systems.session_state.insert(
-        UI_RUNTIME_NATIVE_PROJECTION_MODE_KEY.to_string(),
-        UiValue::String("compatibility_sidecar".to_string()),
-    );
-    let native_projection = build_compatibility_native_projection(&output);
     UiRuntimeBundle {
         schema_version: UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
         metadata,
         output,
-        native_projection,
+        native_projection: UiNativeProjection::default(),
     }
+}
+
+/// Compatibility-only bundle builder that explicitly materializes the raw-native
+/// projection sidecar for legacy consumers.
+pub fn ui_runtime_bundle_from_output_with_native_projection(
+    metadata: UiRuntimeMetadata,
+    output: UiBuildOutput,
+) -> UiRuntimeBundle {
+    let mut bundle = ui_runtime_bundle_from_output(metadata, output);
+    bundle.output.systems.session_state.insert(
+        UI_RUNTIME_NATIVE_PROJECTION_MODE_KEY.to_string(),
+        UiValue::String("compatibility_sidecar".to_string()),
+    );
+    bundle.native_projection = build_compatibility_native_projection(&bundle.output);
+    bundle
 }
 
 fn ui_runtime_bundle_requires_compatibility_backfill(output: &UiBuildOutput) -> bool {
@@ -3423,26 +3452,46 @@ mod tests {
         builder.add_node(UiNode::new(root_id, UiWidgetKind::Panel));
         builder.set_root(root_id);
         let output = builder.finish();
+        let metadata = UiRuntimeMetadata {
+            app_name: Some("studio-shell".to_string()),
+            window_title: "Studio Shell".to_string(),
+            root_component: "App".to_string(),
+            source_file_name: Some("studio.kn".to_string()),
+            initial_window_size: [1600.0, 900.0],
+        };
 
-        let bundle = ui_runtime_bundle_from_output(
-            UiRuntimeMetadata {
-                app_name: Some("studio-shell".to_string()),
-                window_title: "Studio Shell".to_string(),
-                root_component: "App".to_string(),
-                source_file_name: Some("studio.kn".to_string()),
-                initial_window_size: [1600.0, 900.0],
-            },
-            output.clone(),
-        );
+        let bundle = ui_runtime_bundle_from_output(metadata.clone(), output.clone());
 
         let json = ui_runtime_bundle_to_json(&bundle).expect("bundle should serialize");
+        let json_value: serde_json::Value =
+            serde_json::from_str(&json).expect("bundle json should parse");
         let decoded = ui_runtime_bundle_from_json(&json).expect("bundle should deserialize");
 
         assert_eq!(decoded.schema_version, UI_RUNTIME_BUNDLE_SCHEMA_VERSION);
         assert_eq!(decoded.metadata.root_component, "App");
-        assert_eq!(decoded.output, output);
-        assert_eq!(decoded.native_projection.root_id, Some(root_id.0));
+        assert_eq!(decoded.output, bundle.output);
+        assert!(decoded.native_projection.is_empty());
+        assert!(
+            json_value.get("native_projection").is_none(),
+            "canonical bundles should omit the compatibility sidecar"
+        );
         validate_ui_runtime_bundle(&decoded).expect("bundle should validate");
+
+        let compatibility_bundle =
+            ui_runtime_bundle_from_output_with_native_projection(metadata, output.clone());
+        let compatibility_json = ui_runtime_bundle_to_json(&compatibility_bundle)
+            .expect("compatibility bundle should serialize");
+        let compatibility_value: serde_json::Value = serde_json::from_str(&compatibility_json)
+            .expect("compatibility bundle json should parse");
+        let compatibility_projection = compatibility_value
+            .get("native_projection")
+            .expect("legacy helper should materialize the compatibility sidecar");
+        assert_eq!(
+            compatibility_projection
+                .get("root_id")
+                .and_then(serde_json::Value::as_u64),
+            Some(root_id.0)
+        );
     }
 
     #[test]

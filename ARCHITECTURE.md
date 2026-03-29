@@ -127,6 +127,8 @@ UI reload and derived-value semantics now follow an explicit compiler-to-runtime
 
 The architectural rule is the same as every other lane: reload behavior may be optimized by hosts, but the host must not become the source of truth for identity transfer, derived state, focus/selection state, or transaction semantics.
 
+`UiRuntimeBundle.native_projection` is now a compatibility-only sidecar rather than a normal bundle contract surface. Canonical serialization keeps `output.tree` and `output.systems` authoritative and omits the projection when it is empty; legacy raw-native consumers should opt into the explicit projection helper when they still need the flat view.
+
 ### Native Packaging And Operator Loop
 
 The native packaging lane is the operator-facing loop for UI iteration:

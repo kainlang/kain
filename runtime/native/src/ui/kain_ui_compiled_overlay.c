@@ -68,10 +68,7 @@ static const char* kain_ui_overlay_resolve_panel_title(const KainUiCompiledBundl
         return panel_node->title;
     }
 
-    return kain_ui_overlay_value_or_default(
-        bundle ? bundle->primary_panel_title : NULL,
-        fallback_title
-    );
+    return fallback_title;
 }
 
 static const char* kain_ui_overlay_resolve_viewport_title(const KainUiCompiledBundle* bundle, const char* fallback_title) {
@@ -81,10 +78,7 @@ static const char* kain_ui_overlay_resolve_viewport_title(const KainUiCompiledBu
         return viewport_node->title;
     }
 
-    return kain_ui_overlay_value_or_default(
-        bundle ? bundle->primary_viewport_title : NULL,
-        fallback_title
-    );
+    return fallback_title;
 }
 
 static const char* kain_ui_overlay_resolve_scene_name(const KainUiCompiledBundle* bundle, const char* fallback_scene) {
@@ -98,10 +92,7 @@ static const char* kain_ui_overlay_resolve_scene_name(const KainUiCompiledBundle
         return root_node->scene;
     }
 
-    return kain_ui_overlay_value_or_default(
-        bundle ? bundle->primary_viewport_scene : NULL,
-        fallback_scene
-    );
+    return fallback_scene;
 }
 
 static void kain_ui_overlay_push_line(

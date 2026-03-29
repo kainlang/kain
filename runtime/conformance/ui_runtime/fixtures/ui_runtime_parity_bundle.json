@@ -15,9 +15,15 @@
           "id": 1,
           "kind": "Panel",
           "props": {
-            "title": "Root Panel",
-            "text": "compiled overlay",
-            "tag": "panel"
+            "title": {
+              "String": "Root Panel"
+            },
+            "text": {
+              "String": "compiled overlay"
+            },
+            "tag": {
+              "String": "panel"
+            }
           },
           "children": [2, 3],
           "layout": {
@@ -57,9 +63,15 @@
             "Element": "input"
           },
           "props": {
-            "title": "Name Field",
-            "text": "Ada",
-            "tag": "input"
+            "title": {
+              "String": "Name Field"
+            },
+            "text": {
+              "String": "Ada"
+            },
+            "tag": {
+              "String": "input"
+            }
           },
           "children": [],
           "layout": {
@@ -97,9 +109,15 @@
           "id": 3,
           "kind": "Viewport3D",
           "props": {
-            "title": "Viewport",
-            "tag": "viewport",
-            "scene": "magma_terraces"
+            "title": {
+              "String": "Viewport"
+            },
+            "tag": {
+              "String": "viewport"
+            },
+            "scene": {
+              "String": "magma_terraces"
+            }
           },
           "children": [],
           "layout": {
@@ -136,49 +154,5 @@
       }
     },
     "patches": []
-  },
-  "native_projection": {
-    "root_id": 1,
-    "primary_panel_title": "UI Surface",
-    "primary_viewport_title": "Viewport",
-    "primary_viewport_scene": "magma_terraces",
-    "nodes": [
-      {
-        "id": 1,
-        "parent_id": null,
-        "depth": 0,
-        "kind": "Panel",
-        "title": "Root Panel",
-        "text": "compiled overlay",
-        "tag": "panel",
-        "scene": "magma_terraces",
-        "layout_kind": "Stack",
-        "child_count": 2
-      },
-      {
-        "id": 2,
-        "parent_id": 1,
-        "depth": 1,
-        "kind": "Element",
-        "title": "Name Field",
-        "text": "Ada",
-        "tag": "input",
-        "scene": "magma_terraces",
-        "layout_kind": "Flow",
-        "child_count": 0
-      },
-      {
-        "id": 3,
-        "parent_id": 1,
-        "depth": 1,
-        "kind": "Viewport3D",
-        "title": "Viewport",
-        "text": "",
-        "tag": "viewport",
-        "scene": "magma_terraces",
-        "layout_kind": "Absolute",
-        "child_count": 0
-      }
-    ]
   }
 }
