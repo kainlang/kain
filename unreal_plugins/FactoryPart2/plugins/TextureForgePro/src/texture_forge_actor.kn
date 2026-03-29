@@ -1,0 +1,242 @@
+actor TextureForgeManager:
+    state active_project: String = ""
+    state texture_resolution: Int = 2048
+    state current_layers: Array<TextureLayer> = []
+    state render_target_a: String = ""
+    state render_target_b: String = ""
+    state current_buffer: Int = 0
+    
+    @replicated
+    state is_processing: Bool = false
+    
+    fn BeginPlay():
+        InitializeRenderTargets()
+        LoadDefaultProject()
+    
+    fn InitializeRenderTargets():
+        render_target_a = CreateRenderTarget(texture_resolution, texture_resolution)
+        render_target_b = CreateRenderTarget(texture_resolution, texture_resolution)
+    
+    fn LoadDefaultProject():
+        active_project = "DefaultProject"
+        current_layers = []
+        AddLayer("Base Layer", BlendMode::Normal, 1.0)
+    
+    @blueprint_callable
+    fn AddLayer(layer_name: String, blend_mode: BlendMode, opacity: Float):
+        let new_layer = TextureLayer {
+            layer_name: layer_name,
+            blend_mode: blend_mode,
+            opacity: opacity,
+            visible: true,
+            mask_texture: ""
+        }
+        push(current_layers, new_layer)
+    
+    @blueprint_callable
+    fn RemoveLayer(layer_index: Int):
+        if layer_index >= 0 and layer_index < len(current_layers):
+            let temp_layers = []
+            let i = 0
+            while i < len(current_layers):
+                if i != layer_index:
+                    push(temp_layers, current_layers[i])
+                i = i + 1
+            current_layers = temp_layers
+    
+    @blueprint_callable
+    fn SetLayerBlendMode(layer_index: Int, blend_mode: BlendMode):
+        if layer_index >= 0 and layer_index < len(current_layers):
+            current_layers[layer_index].blend_mode = blend_mode
+    
+    @blueprint_callable
+    fn SetLayerOpacity(layer_index: Int, opacity: Float):
+        if layer_index >= 0 and layer_index < len(current_layers):
+            current_layers[layer_index].opacity = clamp(opacity, 0.0, 1.0)
+    
+    @blueprint_callable
+    fn SetLayerVisibility(layer_index: Int, visible: Bool):
+        if layer_index >= 0 and layer_index < len(current_layers):
+            current_layers[layer_index].visible = visible
+    
+    @blueprint_callable
+    fn ApplyFilter(filter_type: FilterType, intensity: Float, radius: Float, threshold: Float):
+        is_processing = true
+        
+        let source_buffer = GetCurrentRenderTarget()
+        let target_buffer = GetNextRenderTarget()
+        
+        if filter_type == FilterType::Blur:
+            DispatchBlurShader(source_buffer, target_buffer, texture_resolution, radius, intensity)
+        
+        if filter_type == FilterType::Sharpen:
+            DispatchSharpenShader(source_buffer, target_buffer, texture_resolution, intensity)
+        
+        if filter_type == FilterType::EdgeDetect:
+            DispatchEdgeDetectShader(source_buffer, target_buffer, texture_resolution, threshold)
+        
+        if filter_type == FilterType::Emboss:
+            DispatchEmbossShader(source_buffer, target_buffer, texture_resolution, intensity)
+        
+        if filter_type == FilterType::ColorGrade:
+            DispatchColorGradeShader(source_buffer, target_buffer, texture_resolution, intensity, 1.0, 1.0, 0.0)
+        
+        SwapBuffers()
+        is_processing = false
+    
+    @blueprint_callable
+    fn GenerateProceduralTexture(generator_type: GeneratorType, params: GeneratorParameters):
+        is_processing = true
+        
+        let target_buffer = GetNextRenderTarget()
+        
+        if generator_type == GeneratorType::PerlinNoise:
+            GeneratePerlinNoise(target_buffer, params)
+        
+        if generator_type == GeneratorType::SimplexNoise:
+            GenerateSimplexNoise(target_buffer, params)
+        
+        if generator_type == GeneratorType::WorleyNoise:
+            GenerateWorleyNoise(target_buffer, params)
+        
+        if generator_type == GeneratorType::Gradient:
+            GenerateGradient(target_buffer, params)
+        
+        if generator_type == GeneratorType::Checkerboard:
+            GenerateCheckerboard(target_buffer, params)
+        
+        if generator_type == GeneratorType::Brick:
+            GenerateBrick(target_buffer, params)
+        
+        SwapBuffers()
+        is_processing = false
+    
+    @blueprint_callable
+    fn BlendLayers():
+        is_processing = true
+        
+        let base_buffer = GetCurrentRenderTarget()
+        let temp_buffer = GetNextRenderTarget()
+        
+        let i = 0
+        while i < len(current_layers):
+            let layer = current_layers[i]
+            if layer.visible:
+                BlendLayerToBuffer(base_buffer, temp_buffer, layer)
+                SwapBuffers()
+            i = i + 1
+        
+        is_processing = false
+    
+    fn BlendLayerToBuffer(base: String, target: String, layer: TextureLayer):
+        let blend_mode_int = 0
+        if layer.blend_mode == BlendMode::Multiply:
+            blend_mode_int = 1
+        if layer.blend_mode == BlendMode::Overlay:
+            blend_mode_int = 2
+        if layer.blend_mode == BlendMode::Screen:
+            blend_mode_int = 3
+        if layer.blend_mode == BlendMode::Add:
+            blend_mode_int = 4
+        if layer.blend_mode == BlendMode::Subtract:
+            blend_mode_int = 5
+    
+    @blueprint_callable
+    fn ExportTexture(output_path: String, channel: String) -> Bool:
+        let current_buffer = GetCurrentRenderTarget()
+        return SaveRenderTargetToFile(current_buffer, output_path)
+    
+    @blueprint_callable
+    fn SetTextureResolution(resolution: Int):
+        texture_resolution = resolution
+        InitializeRenderTargets()
+    
+    fn GetCurrentRenderTarget() -> String:
+        if current_buffer == 0:
+            return render_target_a
+        return render_target_b
+    
+    fn GetNextRenderTarget() -> String:
+        if current_buffer == 0:
+            return render_target_b
+        return render_target_a
+    
+    fn SwapBuffers():
+        current_buffer = 1 - current_buffer
+    
+    fn DispatchBlurShader(source: String, target: String, resolution: Int, radius: Float, strength: Float):
+        println("Dispatching Blur Shader")
+    
+    fn DispatchSharpenShader(source: String, target: String, resolution: Int, amount: Float):
+        println("Dispatching Sharpen Shader")
+    
+    fn DispatchEdgeDetectShader(source: String, target: String, resolution: Int, threshold: Float):
+        println("Dispatching Edge Detect Shader")
+    
+    fn DispatchEmbossShader(source: String, target: String, resolution: Int, strength: Float):
+        println("Dispatching Emboss Shader")
+    
+    fn DispatchColorGradeShader(source: String, target: String, resolution: Int, brightness: Float, contrast: Float, saturation: Float, hue: Float):
+        println("Dispatching Color Grade Shader")
+    
+    fn GeneratePerlinNoise(target: String, params: GeneratorParameters):
+        println("Generating Perlin Noise")
+    
+    fn GenerateSimplexNoise(target: String, params: GeneratorParameters):
+        println("Generating Simplex Noise")
+    
+    fn GenerateWorleyNoise(target: String, params: GeneratorParameters):
+        println("Generating Worley Noise")
+    
+    fn GenerateGradient(target: String, params: GeneratorParameters):
+        println("Generating Gradient")
+    
+    fn GenerateCheckerboard(target: String, params: GeneratorParameters):
+        println("Generating Checkerboard")
+    
+    fn GenerateBrick(target: String, params: GeneratorParameters):
+        println("Generating Brick")
+    
+    fn CreateRenderTarget(width: Int, height: Int) -> String:
+        return "RenderTarget_" + width + "x" + height
+    
+    fn SaveRenderTargetToFile(render_target: String, file_path: String) -> Bool:
+        println("Saving render target to: " + file_path)
+        return true
+
+@subsystem
+struct TextureForgeSubsystem:
+    active_managers: Array<String> = []
+    global_settings: String = ""
+    
+    @tick
+    fn Tick(delta_time: Float):
+        let i = 0
+        while i < len(active_managers):
+            i = i + 1
+    
+    @blueprint_callable
+    fn RegisterManager(manager_name: String):
+        push(active_managers, manager_name)
+    
+    @blueprint_callable
+    fn UnregisterManager(manager_name: String):
+        let temp_managers = []
+        let i = 0
+        while i < len(active_managers):
+            if active_managers[i] != manager_name:
+                push(temp_managers, active_managers[i])
+            i = i + 1
+        active_managers = temp_managers
+    
+    @blueprint_callable
+    fn GetActiveManagerCount() -> Int:
+        return len(active_managers)
+    
+    @blueprint_callable
+    fn LoadGlobalSettings(settings_path: String):
+        global_settings = settings_path
+    
+    @blueprint_callable
+    fn SaveGlobalSettings(settings_path: String) -> Bool:
+        return true

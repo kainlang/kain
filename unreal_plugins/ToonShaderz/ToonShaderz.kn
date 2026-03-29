@@ -1,0 +1,1268 @@
+# ============================================================================
+# TOONSHADERZ — GOD EDITION
+# The ultimate stylized shader pack for Unreal Engine 5.
+# 12 Shaders | Cel | Anime | Comic Ink | Painterly | Watercolor | Stylized PBR
+# Networked Director Actor | Full Slate Editor | DataTable-driven Presets
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# I. ENUMS
+# ----------------------------------------------------------------------------
+
+enum ToonStyle:
+    AnimeClean
+    AnimeHard
+    CelClassic
+    ComicInk
+    Painterly
+    Watercolor
+    NeonNoir
+    SketchHatch
+    StylizedPBR
+    RetroFlat
+    GlassStudio
+    DreamSoft
+    ToonStyle_MAX
+
+enum ShadowMode:
+    HardStep
+    SoftBand
+    MultiStep
+    RampTexture
+    ShadowMode_MAX
+
+enum OutlineMode:
+    DepthOnly
+    NormalOnly
+    Hybrid
+    InvertedHull
+    OutlineMode_MAX
+
+enum RimMode:
+    Classic
+    Fresnel
+    AnisotropicRim
+    RimMode_MAX
+
+enum SpecularMode:
+    Toon
+    Anisotropic
+    Matcap
+    SpecularMode_MAX
+
+enum HalftonePattern:
+    Dots
+    Lines
+    CrossHatch
+    Stipple
+    HalftonePattern_MAX
+
+enum WatercolorEffect:
+    None
+    PaperGrain
+    WetEdge
+    Bleed
+    WatercolorEffect_MAX
+
+enum PostFXMode:
+    None
+    ChromaticAberration
+    FilmGrain
+    Vignette
+    ScanLines
+    PostFXMode_MAX
+
+enum QualityTier:
+    Mobile
+    Standard
+    Cinematic
+    QualityTier_MAX
+
+# ----------------------------------------------------------------------------
+# II. DELEGATES
+# ----------------------------------------------------------------------------
+
+type OnStyleChanged = delegate(ToonStyle, ToonStyle)
+type OnPresetApplied = delegate(Int)
+type OnOutlineToggled = delegate(Bool)
+type OnQualityChanged = delegate(QualityTier)
+
+# ----------------------------------------------------------------------------
+# III. DATATABLES
+# ----------------------------------------------------------------------------
+
+@datatable
+struct ToonPresetData:
+    id: Int
+    name: String
+    style: ToonStyle
+    quality: QualityTier
+    shadow_mode: ShadowMode
+    outline_mode: OutlineMode
+    rim_mode: RimMode
+    specular_mode: SpecularMode
+    halftone_pattern: HalftonePattern
+    base_tint_r: Float
+    base_tint_g: Float
+    base_tint_b: Float
+    shadow_tint_r: Float
+    shadow_tint_g: Float
+    shadow_tint_b: Float
+    highlight_tint_r: Float
+    highlight_tint_g: Float
+    highlight_tint_b: Float
+    rim_color_r: Float
+    rim_color_g: Float
+    rim_color_b: Float
+    outline_color_r: Float
+    outline_color_g: Float
+    outline_color_b: Float
+    shadow_steps: Float
+    shadow_softness: Float
+    specular_steps: Float
+    specular_size: Float
+    rim_power: Float
+    rim_intensity: Float
+    outline_thickness: Float
+    halftone_scale: Float
+    halftone_opacity: Float
+    wrap_diffuse: Float
+    ambient_strength: Float
+
+@datatable
+struct ToonMaterialLayer:
+    id: Int
+    name: String
+    layer_weight: Float
+    roughness: Float
+    metallic: Float
+    subsurface_strength: Float
+    subsurface_color_r: Float
+    subsurface_color_g: Float
+    subsurface_color_b: Float
+    emissive_strength: Float
+    emissive_color_r: Float
+    emissive_color_g: Float
+    emissive_color_b: Float
+    normal_strength: Float
+    cavity_strength: Float
+
+@datatable
+struct ToonAtmosphereData:
+    id: Int
+    name: String
+    fog_color_r: Float
+    fog_color_g: Float
+    fog_color_b: Float
+    fog_density: Float
+    fog_start: Float
+    fog_end: Float
+    sky_tint_r: Float
+    sky_tint_g: Float
+    sky_tint_b: Float
+    ambient_r: Float
+    ambient_g: Float
+    ambient_b: Float
+    sun_color_r: Float
+    sun_color_g: Float
+    sun_color_b: Float
+    sun_intensity: Float
+
+# ----------------------------------------------------------------------------
+# IV. COMPONENTS
+# ----------------------------------------------------------------------------
+
+@component
+struct ToonRenderComponent:
+    active_style: ToonStyle
+    active_preset_id: Int
+    quality: QualityTier
+    enable_outline: Bool
+    enable_halftone: Bool
+    enable_rim: Bool
+    enable_specular: Bool
+    enable_subsurface: Bool
+    enable_emissive: Bool
+    override_outline_color: Bool
+    outline_color_r: Float
+    outline_color_g: Float
+    outline_color_b: Float
+
+@component
+struct ToonPostFXComponent:
+    active_fx: PostFXMode
+    chromatic_strength: Float
+    film_grain_intensity: Float
+    vignette_strength: Float
+    vignette_radius: Float
+    scanline_density: Float
+    scanline_opacity: Float
+    enable_dithering: Bool
+    dither_strength: Float
+
+@component
+struct ToonAtmosphereComponent:
+    atmosphere_id: Int
+    enable_toon_fog: Bool
+    fog_color_r: Float
+    fog_color_g: Float
+    fog_color_b: Float
+    fog_density: Float
+    fog_start: Float
+    fog_end: Float
+    enable_sky_tint: Bool
+
+# ----------------------------------------------------------------------------
+# V. BLUEPRINT UTILITIES
+# ----------------------------------------------------------------------------
+
+@blueprint
+fn ToonQuantize(v: Float, steps: Float) -> Float:
+    let safe = max(steps, 1.0)
+    return floor(max(0.0, min(v, 1.0)) * safe) / safe
+
+@blueprint
+fn ToonRemap(v: Float, lo: Float, hi: Float) -> Float:
+    let span = max(hi - lo, 0.00001)
+    return max(0.0, min((v - lo) / span, 1.0))
+
+@blueprint
+fn ToonFresnel(n_dot_v: Float, power: Float) -> Float:
+    return pow(max(0.0, 1.0 - n_dot_v), max(power, 0.0001))
+
+@blueprint
+fn ToonShadowSteps(quality: QualityTier) -> Float:
+    match quality:
+        QualityTier::Mobile => 3.0
+        QualityTier::Standard => 4.0
+        QualityTier::Cinematic => 6.0
+        _ => 4.0
+
+@blueprint
+fn ToonOutlineThickness(quality: QualityTier) -> Float:
+    match quality:
+        QualityTier::Mobile => 1.8
+        QualityTier::Standard => 1.3
+        QualityTier::Cinematic => 1.0
+        _ => 1.3
+
+@blueprint
+fn ToonLuminance(color: Vec3) -> Float:
+    return color.x * 0.299 + color.y * 0.587 + color.z * 0.114
+
+@blueprint
+fn ToonSaturate(color: Vec3, amount: Float) -> Vec3:
+    let lum = color.x * 0.299 + color.y * 0.587 + color.z * 0.114
+    let grey = vec3(lum, lum, lum)
+    return grey + (color - grey) * amount
+
+# ----------------------------------------------------------------------------
+# VI. THE DIRECTOR ACTOR
+# ----------------------------------------------------------------------------
+
+@uclass("Blueprintable", "BlueprintType")
+actor ToonDirector:
+    state render_settings: ToonRenderComponent = ToonRenderComponent()
+    state post_fx: ToonPostFXComponent = ToonPostFXComponent()
+    state atmosphere: ToonAtmosphereComponent = ToonAtmosphereComponent()
+
+    @replicated
+    state active_style: ToonStyle = ToonStyle::AnimeClean
+
+    @replicated
+    state base_tint: Vec3 = vec3(1.0, 1.0, 1.0)
+
+    @replicated
+    state shadow_tint: Vec3 = vec3(0.34, 0.40, 0.58)
+
+    @replicated
+    state highlight_tint: Vec3 = vec3(1.0, 0.98, 0.95)
+
+    @replicated
+    state rim_color: Vec3 = vec3(0.78, 0.88, 1.0)
+
+    @replicated
+    state outline_color: Vec3 = vec3(0.03, 0.03, 0.04)
+
+    @replicated
+    state shadow_steps: Float = 4.0
+
+    @replicated
+    state shadow_softness: Float = 0.04
+
+    @replicated
+    state specular_steps: Float = 3.0
+
+    @replicated
+    state specular_size: Float = 0.55
+
+    @replicated
+    state rim_power: Float = 2.75
+
+    @replicated
+    state rim_intensity: Float = 0.85
+
+    @replicated
+    state rim_softness: Float = 0.08
+
+    @replicated
+    state wrap_diffuse: Float = 0.25
+
+    @replicated
+    state ambient_strength: Float = 0.12
+
+    @replicated
+    state halftone_scale: Float = 120.0
+
+    @replicated
+    state halftone_contrast: Float = 0.55
+
+    @replicated
+    state halftone_rotation: Float = 0.45
+
+    @replicated
+    state halftone_opacity: Float = 0.22
+
+    @replicated
+    state edge_depth_weight: Float = 2.8
+
+    @replicated
+    state edge_normal_weight: Float = 1.7
+
+    @replicated
+    state edge_threshold: Float = 0.16
+
+    @replicated
+    state outline_thickness: Float = 1.2
+
+    @replicated
+    state enable_halftone: Bool = true
+
+    @replicated
+    state enable_outline: Bool = true
+
+    @replicated
+    state enable_rim: Bool = true
+
+    @replicated
+    state subsurface_strength: Float = 0.3
+
+    @replicated
+    state subsurface_color: Vec3 = vec3(1.0, 0.4, 0.3)
+
+    @replicated
+    state watercolor_bleed: Float = 0.0
+
+    @replicated
+    state watercolor_grain: Float = 0.0
+
+    @replicated
+    state sketch_density: Float = 0.0
+
+    @replicated
+    state sketch_angle: Float = 0.785
+
+    @replicated
+    state emissive_color: Vec3 = vec3(0.0, 0.0, 0.0)
+
+    @replicated
+    state emissive_strength: Float = 0.0
+
+    @replicated
+    state quality: QualityTier = QualityTier::Cinematic
+
+    on BeginPlay():
+        Server_ApplyStyle(ToonStyle::AnimeClean)
+
+    on Server_ApplyStyle(style: ToonStyle):
+        active_style = style
+        Multicast_OnStyleApplied(style)
+
+    on Multicast_OnStyleApplied(style: ToonStyle):
+        println("ToonShaderz: Style applied.")
+
+    @blueprint_callable
+    @category("ToonShaderz|Style")
+    fn ApplyAnimeClean():
+        base_tint = vec3(1.0, 1.0, 1.0)
+        shadow_tint = vec3(0.34, 0.40, 0.58)
+        highlight_tint = vec3(1.0, 0.98, 0.95)
+        rim_color = vec3(0.78, 0.88, 1.0)
+        outline_color = vec3(0.03, 0.03, 0.04)
+        shadow_steps = 4.0
+        specular_steps = 3.0
+        specular_size = 0.52
+        rim_power = 2.75
+        rim_intensity = 0.85
+        halftone_scale = 120.0
+        halftone_opacity = 0.16
+        watercolor_bleed = 0.0
+        sketch_density = 0.0
+        Server_ApplyStyle(ToonStyle::AnimeClean)
+
+    @blueprint_callable
+    @category("ToonShaderz|Style")
+    fn ApplyComicInk():
+        base_tint = vec3(1.05, 1.0, 0.97)
+        shadow_tint = vec3(0.18, 0.18, 0.23)
+        highlight_tint = vec3(1.0, 1.0, 1.0)
+        rim_color = vec3(0.95, 0.95, 0.95)
+        outline_color = vec3(0.01, 0.01, 0.01)
+        shadow_steps = 3.0
+        specular_steps = 2.0
+        specular_size = 0.64
+        rim_power = 2.0
+        rim_intensity = 0.45
+        halftone_scale = 200.0
+        halftone_opacity = 0.35
+        sketch_density = 0.6
+        sketch_angle = 0.785
+        Server_ApplyStyle(ToonStyle::ComicInk)
+
+    @blueprint_callable
+    @category("ToonShaderz|Style")
+    fn ApplyPainterly():
+        base_tint = vec3(1.0, 0.96, 0.9)
+        shadow_tint = vec3(0.42, 0.30, 0.24)
+        highlight_tint = vec3(1.0, 0.9, 0.75)
+        rim_color = vec3(1.0, 0.72, 0.48)
+        outline_color = vec3(0.08, 0.05, 0.03)
+        shadow_steps = 5.0
+        specular_steps = 2.0
+        rim_power = 3.5
+        rim_intensity = 0.92
+        halftone_opacity = 0.0
+        watercolor_bleed = 0.0
+        Server_ApplyStyle(ToonStyle::Painterly)
+
+    @blueprint_callable
+    @category("ToonShaderz|Style")
+    fn ApplyWatercolor():
+        base_tint = vec3(0.95, 0.93, 0.88)
+        shadow_tint = vec3(0.55, 0.62, 0.78)
+        highlight_tint = vec3(1.0, 0.98, 0.94)
+        rim_color = vec3(0.7, 0.8, 1.0)
+        outline_color = vec3(0.3, 0.25, 0.2)
+        shadow_steps = 3.0
+        specular_steps = 2.0
+        rim_power = 4.0
+        rim_intensity = 0.5
+        halftone_opacity = 0.0
+        watercolor_bleed = 0.65
+        watercolor_grain = 0.45
+        Server_ApplyStyle(ToonStyle::Watercolor)
+
+    @blueprint_callable
+    @category("ToonShaderz|Style")
+    fn ApplyNeonNoir():
+        base_tint = vec3(0.85, 0.92, 1.1)
+        shadow_tint = vec3(0.07, 0.02, 0.16)
+        highlight_tint = vec3(0.5, 1.0, 0.92)
+        rim_color = vec3(0.2, 0.95, 1.0)
+        outline_color = vec3(0.0, 0.0, 0.0)
+        shadow_steps = 6.0
+        specular_steps = 4.0
+        specular_size = 0.45
+        rim_power = 4.2
+        rim_intensity = 1.1
+        emissive_color = vec3(0.2, 0.95, 1.0)
+        emissive_strength = 0.4
+        halftone_scale = 140.0
+        halftone_opacity = 0.28
+        Server_ApplyStyle(ToonStyle::NeonNoir)
+
+    @blueprint_callable
+    @category("ToonShaderz|Style")
+    fn ApplySketchHatch():
+        base_tint = vec3(0.98, 0.96, 0.92)
+        shadow_tint = vec3(0.1, 0.1, 0.12)
+        highlight_tint = vec3(1.0, 1.0, 1.0)
+        rim_color = vec3(0.5, 0.5, 0.5)
+        outline_color = vec3(0.05, 0.04, 0.03)
+        shadow_steps = 4.0
+        specular_steps = 2.0
+        rim_power = 3.0
+        rim_intensity = 0.3
+        halftone_opacity = 0.0
+        sketch_density = 0.85
+        sketch_angle = 0.524
+        Server_ApplyStyle(ToonStyle::SketchHatch)
+
+    @blueprint_callable
+    @category("ToonShaderz|Style")
+    fn ApplyDreamSoft():
+        base_tint = vec3(1.0, 0.95, 1.0)
+        shadow_tint = vec3(0.6, 0.5, 0.75)
+        highlight_tint = vec3(1.0, 0.98, 1.0)
+        rim_color = vec3(0.9, 0.7, 1.0)
+        outline_color = vec3(0.5, 0.4, 0.6)
+        shadow_steps = 3.0
+        shadow_softness = 0.12
+        specular_steps = 2.0
+        rim_power = 1.8
+        rim_intensity = 0.7
+        subsurface_strength = 0.55
+        subsurface_color = vec3(1.0, 0.7, 0.9)
+        watercolor_bleed = 0.2
+        Server_ApplyStyle(ToonStyle::DreamSoft)
+
+    @blueprint_callable
+    @category("ToonShaderz|Quality")
+    fn SetQuality(tier: QualityTier):
+        quality = tier
+        shadow_steps = ToonShadowSteps(tier)
+        outline_thickness = ToonOutlineThickness(tier)
+
+    on Server_SetQuality(tier: QualityTier):
+        quality = tier
+        Multicast_OnQualitySet(tier)
+
+    on Multicast_OnQualitySet(tier: QualityTier):
+        println("ToonShaderz: Quality updated.")
+
+# ----------------------------------------------------------------------------
+# VII. SHADERS — 12 KERNELS
+# ----------------------------------------------------------------------------
+
+# --- 1. TOON MASTER — Core cel/anime/stylized lit shader ---
+shader fragment ToonMaster(uv: Vec2, world_pos: Vec3, normal: Vec3, view_dir: Vec3, light_dir: Vec3, albedo: Vec3) -> Vec4:
+    uniform base_tint: Vec3 @0
+    uniform shadow_tint: Vec3 @1
+    uniform highlight_tint: Vec3 @2
+    uniform rim_color: Vec3 @3
+    uniform shadow_steps: Float @4
+    uniform shadow_softness: Float @5
+    uniform specular_steps: Float @6
+    uniform specular_size: Float @7
+    uniform rim_power: Float @8
+    uniform rim_intensity: Float @9
+    uniform rim_softness: Float @10
+    uniform wrap_diffuse: Float @11
+    uniform ambient_strength: Float @12
+    uniform halftone_scale: Float @13
+    uniform halftone_contrast: Float @14
+    uniform halftone_rotation: Float @15
+    uniform halftone_opacity: Float @16
+    uniform enable_halftone: Float @17
+
+    let n = normalize(normal)
+    let l = normalize(light_dir)
+    let v = normalize(view_dir)
+    let h = normalize(l + v)
+
+    let ndl_raw = dot(n, l)
+    let wrapped = (ndl_raw + wrap_diffuse) / (1.0 + wrap_diffuse)
+    let ndl = max(0.0, min(wrapped, 1.0))
+
+    let safe_steps = max(shadow_steps, 1.0)
+    let band = floor(ndl * safe_steps) / safe_steps
+    let lo = band - shadow_softness
+    let hi = band + shadow_softness
+    let shadow_mix = max(0.0, min((ndl - lo) / max(hi - lo, 0.00001), 1.0))
+    let lit_color = shadow_tint * (1.0 - shadow_mix) + highlight_tint * shadow_mix
+
+    let ndh = max(0.0, dot(n, h))
+    let spec_base = pow(ndh, max(1.0, 128.0 * (1.0 - specular_size)))
+    let spec_step = floor(max(0.0, min(spec_base, 1.0)) * max(specular_steps, 1.0)) / max(specular_steps, 1.0)
+
+    let rim_dot = max(0.0, dot(n, v))
+    let rim_base = pow(1.0 - rim_dot, max(rim_power, 0.0001))
+    let rim = max(0.0, min((rim_base - 0.5 + rim_softness) / max(rim_softness * 2.0, 0.00001), 1.0)) * rim_intensity
+
+    let base = albedo * base_tint
+    let diffuse = base * lit_color
+    let ambient = base * ambient_strength
+    let specular = highlight_tint * spec_step
+    let rim_light = rim_color * rim
+    let toon = diffuse + ambient + specular + rim_light
+
+    let lum = dot(toon, vec3(0.299, 0.587, 0.114))
+    let c = cos(halftone_rotation)
+    let s = sin(halftone_rotation)
+    let centered = uv - vec2(0.5, 0.5)
+    let rotated = vec2(centered.x * c - centered.y * s, centered.x * s + centered.y * c)
+    let cell = fract(rotated * halftone_scale) - vec2(0.5, 0.5)
+    let dot_r = 0.48 * (1.0 - max(0.0, min(lum * halftone_contrast, 1.0)))
+    let hatch = 1.0 - smoothstep(dot_r - 0.04, dot_r + 0.04, length(cell))
+    let hatch_mix = max(0.0, min(enable_halftone, 1.0)) * halftone_opacity
+    let final_color = toon * (1.0 - hatch * hatch_mix)
+
+    return vec4(final_color, 1.0)
+
+# --- 2. TOON OUTLINE — Depth+Normal edge detection post-process ---
+shader fragment ToonOutline(uv: Vec2, depth: Float, normal: Vec3) -> Vec4:
+    uniform outline_color: Vec3 @0
+    uniform edge_depth_weight: Float @1
+    uniform edge_normal_weight: Float @2
+    uniform edge_threshold: Float @3
+    uniform outline_thickness: Float @4
+    uniform outline_mode: Float @5
+    uniform enable_outline: Float @6
+
+    let nd = normalize(normal)
+    let facing = 1.0 - abs(nd.z)
+    let depth_edge = max(0.0, min(depth * edge_depth_weight, 1.0))
+    let normal_edge = max(0.0, min(facing * edge_normal_weight, 1.0))
+
+    var edge = normal_edge
+    if outline_mode < 0.5:
+        edge = depth_edge
+    if outline_mode >= 1.5:
+        edge = max(depth_edge, normal_edge)
+
+    let threshold = edge_threshold / max(outline_thickness, 0.0001)
+    let line = smoothstep(threshold, threshold + 0.05, edge)
+    let mask = line * max(0.0, min(enable_outline, 1.0))
+    return vec4(outline_color, mask)
+
+# --- 3. TOON RAMP LUT — Baked diffuse/specular ramp texture ---
+shader compute ToonRampLUT(id: Vec3) -> Vec4:
+    uniform texture_size: Float @0
+    uniform shadow_steps: Float @1
+    uniform specular_steps: Float @2
+    uniform gamma: Float @3
+    uniform shadow_softness: Float @4
+
+    let uv = (vec2(id.x, id.y) + 0.5) / max(texture_size, 1.0)
+    let safe_shadow = max(shadow_steps, 1.0)
+    let safe_spec = max(specular_steps, 1.0)
+    let diffuse_band = floor(max(0.0, min(uv.x, 1.0)) * safe_shadow) / safe_shadow
+    let spec_band = floor(max(0.0, min(uv.y, 1.0)) * safe_spec) / safe_spec
+    let diffuse_curve = pow(diffuse_band, 1.0 / max(gamma, 0.0001))
+    let spec_curve = pow(spec_band, 1.0 / max(gamma, 0.0001))
+    return vec4(diffuse_curve, spec_curve, shadow_softness, 1.0)
+
+# --- 4. TOON SUBSURFACE — Skin/wax/leaf translucency ---
+shader fragment ToonSubsurface(uv: Vec2, normal: Vec3, light_dir: Vec3, view_dir: Vec3, albedo: Vec3) -> Vec4:
+    uniform base_tint: Vec3 @0
+    uniform shadow_tint: Vec3 @1
+    uniform subsurface_color: Vec3 @2
+    uniform subsurface_strength: Float @3
+    uniform subsurface_distortion: Float @4
+    uniform subsurface_power: Float @5
+    uniform subsurface_scale: Float @6
+    uniform shadow_steps: Float @7
+    uniform shadow_softness: Float @8
+    uniform ambient_strength: Float @9
+    uniform thickness_map: Sampler2D @10
+
+    let n = normalize(normal)
+    let l = normalize(light_dir)
+    let v = normalize(view_dir)
+
+    let ndl = max(0.0, dot(n, l))
+    let safe_steps = max(shadow_steps, 1.0)
+    let band = floor(ndl * safe_steps) / safe_steps
+    let shadow_mix = smoothstep(band - shadow_softness, band + shadow_softness, ndl)
+    let lit = mix(shadow_tint, base_tint, shadow_mix)
+
+    let thickness = sample(thickness_map, uv).x
+    let sss_dir = normalize(l + n * subsurface_distortion)
+    let sss_dot = pow(max(0.0, dot(v, -sss_dir)), max(subsurface_power, 0.001)) * subsurface_scale
+    let sss = subsurface_color * sss_dot * thickness * subsurface_strength
+
+    let base = albedo * lit + albedo * ambient_strength
+    return vec4(base + sss, 1.0)
+
+# --- 5. TOON WATERCOLOR — Paper bleed, wet edges, grain ---
+shader fragment ToonWatercolor(uv: Vec2, normal: Vec3, light_dir: Vec3, albedo: Vec3) -> Vec4:
+    uniform base_tint: Vec3 @0
+    uniform shadow_tint: Vec3 @1
+    uniform paper_color: Vec3 @2
+    uniform bleed_strength: Float @3
+    uniform grain_strength: Float @4
+    uniform wet_edge_strength: Float @5
+    uniform wet_edge_width: Float @6
+    uniform shadow_steps: Float @7
+    uniform shadow_softness: Float @8
+    uniform noise_tex: Sampler2D @9
+    uniform paper_tex: Sampler2D @10
+
+    let n = normalize(normal)
+    let l = normalize(light_dir)
+    let ndl = max(0.0, dot(n, l))
+
+    let noise = sample(noise_tex, uv * 3.7).x
+    let paper = sample(paper_tex, uv * 1.2).x
+
+    let bleed_uv = uv + vec2(noise - 0.5, noise - 0.5) * bleed_strength * 0.02
+    let safe_steps = max(shadow_steps, 1.0)
+    let band = floor(ndl * safe_steps) / safe_steps
+    let shadow_mix = smoothstep(band - shadow_softness, band + shadow_softness, ndl)
+    let lit = mix(shadow_tint, base_tint, shadow_mix)
+
+    let wet_edge = smoothstep(wet_edge_width, wet_edge_width + 0.05, noise) * wet_edge_strength
+    let grain = (paper - 0.5) * grain_strength
+    let color = albedo * lit * paper_color + vec3(grain, grain, grain) - vec3(wet_edge, wet_edge, wet_edge)
+
+    return vec4(max(vec3(0.0, 0.0, 0.0), color), 1.0)
+
+# --- 6. TOON SKETCH — Pencil/ink hatching lines ---
+shader fragment ToonSketch(uv: Vec2, normal: Vec3, light_dir: Vec3, albedo: Vec3) -> Vec4:
+    uniform base_tint: Vec3 @0
+    uniform ink_color: Vec3 @1
+    uniform paper_color: Vec3 @2
+    uniform hatch_density: Float @3
+    uniform hatch_angle: Float @4
+    uniform hatch_thickness: Float @5
+    uniform cross_hatch: Float @6
+    uniform shadow_steps: Float @7
+    uniform shadow_softness: Float @8
+    uniform noise_tex: Sampler2D @9
+
+    let n = normalize(normal)
+    let l = normalize(light_dir)
+    let ndl = max(0.0, dot(n, l))
+
+    let safe_steps = max(shadow_steps, 1.0)
+    let band = floor(ndl * safe_steps) / safe_steps
+    let shadow_mix = smoothstep(band - shadow_softness, band + shadow_softness, ndl)
+
+    let noise = sample(noise_tex, uv * 2.1).x * 0.02
+    let ca = cos(hatch_angle)
+    let sa = sin(hatch_angle)
+    let rot_uv = vec2(uv.x * ca - uv.y * sa, uv.x * sa + uv.y * ca) + vec2(noise, noise)
+    let lines = abs(fract(rot_uv.x * hatch_density) - 0.5)
+    let hatch_mask = smoothstep(hatch_thickness, hatch_thickness + 0.02, lines)
+
+    let ca2 = cos(hatch_angle + 1.5708)
+    let sa2 = sin(hatch_angle + 1.5708)
+    let rot_uv2 = vec2(uv.x * ca2 - uv.y * sa2, uv.x * sa2 + uv.y * ca2)
+    let lines2 = abs(fract(rot_uv2.x * hatch_density) - 0.5)
+    let hatch_mask2 = smoothstep(hatch_thickness, hatch_thickness + 0.02, lines2)
+
+    let cross = min(hatch_mask, mix(1.0, hatch_mask2, cross_hatch))
+    let shadow_hatch = 1.0 - (1.0 - shadow_mix) * (1.0 - cross * 0.8)
+    let color = mix(ink_color, paper_color * albedo * base_tint, shadow_hatch)
+
+    return vec4(color, 1.0)
+
+# --- 7. TOON EMISSIVE — Neon glow, energy, stylized emission ---
+shader fragment ToonEmissive(uv: Vec2, normal: Vec3, view_dir: Vec3, albedo: Vec3) -> Vec4:
+    uniform base_tint: Vec3 @0
+    uniform emissive_color: Vec3 @1
+    uniform emissive_strength: Float @2
+    uniform emissive_pulse_speed: Float @3
+    uniform emissive_pulse_amount: Float @4
+    uniform rim_color: Vec3 @5
+    uniform rim_power: Float @6
+    uniform rim_intensity: Float @7
+    uniform glow_falloff: Float @8
+    uniform time: Float @9
+    uniform noise_tex: Sampler2D @10
+
+    let n = normalize(normal)
+    let v = normalize(view_dir)
+    let ndv = max(0.0, dot(n, v))
+
+    let pulse = 1.0 + sin(time * emissive_pulse_speed) * emissive_pulse_amount
+    let noise = sample(noise_tex, uv * 4.0 + vec2(time * 0.1, 0.0)).x
+    let emissive_mask = pow(1.0 - ndv, max(glow_falloff, 0.001)) * (0.8 + noise * 0.2)
+
+    let rim = pow(1.0 - ndv, max(rim_power, 0.001)) * rim_intensity
+    let emissive = emissive_color * emissive_strength * pulse * emissive_mask
+    let rim_light = rim_color * rim
+
+    let base = albedo * base_tint
+    return vec4(base + emissive + rim_light, 1.0)
+
+# --- 8. TOON MATCAP — Sphere-mapped stylized reflection ---
+shader fragment ToonMatcap(uv: Vec2, normal: Vec3, view_dir: Vec3, albedo: Vec3) -> Vec4:
+    uniform base_tint: Vec3 @0
+    uniform shadow_tint: Vec3 @1
+    uniform matcap_tex: Sampler2D @2
+    uniform matcap_strength: Float @3
+    uniform matcap_tint: Vec3 @4
+    uniform shadow_steps: Float @5
+    uniform shadow_softness: Float @6
+    uniform light_dir: Vec3 @7
+    uniform ambient_strength: Float @8
+
+    let n = normalize(normal)
+    let v = normalize(view_dir)
+    let l = normalize(light_dir)
+
+    let right = normalize(cross(vec3(0.0, 1.0, 0.0), v))
+    let up = cross(v, right)
+    let matcap_uv = vec2(dot(right, n), dot(up, n)) * 0.5 + 0.5
+    let matcap = sample(matcap_tex, matcap_uv).rgb * matcap_tint
+
+    let ndl = max(0.0, dot(n, l))
+    let safe_steps = max(shadow_steps, 1.0)
+    let band = floor(ndl * safe_steps) / safe_steps
+    let shadow_mix = smoothstep(band - shadow_softness, band + shadow_softness, ndl)
+    let lit = mix(shadow_tint, base_tint, shadow_mix)
+
+    let base = albedo * lit + albedo * ambient_strength
+    let final_color = base + matcap * matcap_strength
+
+    return vec4(final_color, 1.0)
+
+# --- 9. TOON STYLIZED PBR — Toon-quantized roughness/metallic ---
+shader fragment ToonStylizedPBR(uv: Vec2, normal: Vec3, view_dir: Vec3, light_dir: Vec3, albedo: Vec3) -> Vec4:
+    uniform base_tint: Vec3 @0
+    uniform shadow_tint: Vec3 @1
+    uniform highlight_tint: Vec3 @2
+    uniform rim_color: Vec3 @3
+    uniform roughness_map: Sampler2D @4
+    uniform metallic_map: Sampler2D @5
+    uniform shadow_steps: Float @6
+    uniform shadow_softness: Float @7
+    uniform specular_steps: Float @8
+    uniform rim_power: Float @9
+    uniform rim_intensity: Float @10
+    uniform ambient_strength: Float @11
+    uniform quantize_roughness: Float @12
+
+    let n = normalize(normal)
+    let l = normalize(light_dir)
+    let v = normalize(view_dir)
+    let h = normalize(l + v)
+
+    let roughness = sample(roughness_map, uv).x
+    let metallic = sample(metallic_map, uv).x
+    let toon_rough = floor(roughness * max(quantize_roughness, 1.0)) / max(quantize_roughness, 1.0)
+
+    let ndl = max(0.0, dot(n, l))
+    let safe_steps = max(shadow_steps, 1.0)
+    let band = floor(ndl * safe_steps) / safe_steps
+    let shadow_mix = smoothstep(band - shadow_softness, band + shadow_softness, ndl)
+    let lit = mix(shadow_tint, base_tint, shadow_mix)
+
+    let ndh = max(0.0, dot(n, h))
+    let spec_power = max(1.0, (1.0 - toon_rough) * 128.0)
+    let spec_base = pow(ndh, spec_power)
+    let spec_step = floor(spec_base * max(specular_steps, 1.0)) / max(specular_steps, 1.0)
+    let spec_color = mix(highlight_tint, albedo, metallic)
+
+    let ndv = max(0.0, dot(n, v))
+    let rim = pow(1.0 - ndv, max(rim_power, 0.001)) * rim_intensity
+
+    let base = mix(albedo * lit, albedo * lit * spec_color, metallic)
+    let specular = spec_color * spec_step * (1.0 - toon_rough)
+    let ambient = albedo * ambient_strength
+    let rim_light = rim_color * rim
+
+    return vec4(base + specular + ambient + rim_light, 1.0)
+
+# --- 10. TOON INVERTED HULL OUTLINE — Geometry-based thick outline ---
+# Inverted hull: render back-faces scaled outward along vertex normals.
+# Requires a separate draw call with front-face culling flipped.
+shader vertex ToonHullOutline(pos: Vec3, normal: Vec3) -> Vec4:
+    uniform outline_thickness: Float @0
+    uniform outline_depth_scale: Float @1
+    uniform outline_distance_fade: Float @2
+    uniform camera_pos: Vec3 @3
+
+    let dist = length(pos - camera_pos)
+    let fade = 1.0 - clamp(dist / max(outline_distance_fade, 0.001), 0.0, 1.0)
+    let thickness = outline_thickness * (1.0 + dist * outline_depth_scale * 0.001) * fade
+
+    # Extrude vertex outward along its normal (inverted hull technique)
+    let n = normalize(normal)
+    let extruded = pos - n * thickness
+
+    # Return clip-space position (codegen must emit MVP transform here)
+    return vec4(extruded, 1.0)
+
+# --- 11. TOON FOG — Stylized distance fog with color banding ---
+shader fragment ToonFog(uv: Vec2, world_pos: Vec3, scene_color: Vec3) -> Vec4:
+    uniform fog_color_near: Vec3 @0
+    uniform fog_color_far: Vec3 @1
+    uniform fog_color_sky: Vec3 @2
+    uniform fog_start: Float @3
+    uniform fog_end: Float @4
+    uniform fog_density: Float @5
+    uniform fog_steps: Float @6
+    uniform fog_softness: Float @7
+    uniform camera_pos: Vec3 @8
+    uniform height_fog_strength: Float @9
+    uniform height_fog_falloff: Float @10
+
+    let dist = length(world_pos - camera_pos)
+    let t = clamp((dist - fog_start) / max(fog_end - fog_start, 0.001), 0.0, 1.0)
+
+    let safe_steps = max(fog_steps, 1.0)
+    let fog_band = floor(t * safe_steps) / safe_steps
+    let fog_mix = smoothstep(fog_band - fog_softness, fog_band + fog_softness, t)
+
+    let height_fog = exp(-max(world_pos.z, 0.0) * height_fog_falloff) * height_fog_strength
+    let fog_color = mix(fog_color_near, fog_color_far, fog_mix)
+    let final_fog = mix(fog_color, fog_color_sky, clamp(world_pos.z * 0.01, 0.0, 1.0))
+
+    let fog_amount = clamp(fog_mix * fog_density + height_fog, 0.0, 1.0)
+    let final_color = mix(scene_color, final_fog, fog_amount)
+
+    return vec4(final_color, 1.0)
+
+# --- 12. TOON POST FX — Chromatic aberration, vignette, scanlines ---
+shader fragment ToonPostFX(uv: Vec2) -> Vec4:
+    uniform scene_tex: Sampler2D @0
+    uniform chromatic_strength: Float @1
+    uniform vignette_strength: Float @2
+    uniform vignette_radius: Float @3
+    uniform film_grain_strength: Float @4
+    uniform scanline_density: Float @5
+    uniform scanline_opacity: Float @6
+    uniform time: Float @7
+    uniform noise_tex: Sampler2D @8
+    uniform color_quantize: Float @9
+
+    let offset = vec2(chromatic_strength * 0.005, 0.0)
+    let r = sample(scene_tex, uv + offset).r
+    let g = sample(scene_tex, uv).g
+    let b = sample(scene_tex, uv - offset).b
+    let color = vec3(r, g, b)
+
+    let safe_quant = max(color_quantize, 1.0)
+    color = floor(color * safe_quant) / safe_quant
+
+    let noise = sample(noise_tex, uv + vec2(time * 0.1, time * 0.07)).x
+    color = color + vec3((noise - 0.5) * film_grain_strength)
+
+    let scan = sin(uv.y * scanline_density * 3.14159) * 0.5 + 0.5
+    color = color * (1.0 - scan * scanline_opacity)
+
+    let dist_center = length(uv - vec2(0.5, 0.5))
+    let vignette = 1.0 - smoothstep(vignette_radius, vignette_radius + 0.3, dist_center) * vignette_strength
+    color = color * vignette
+
+    return vec4(max(vec3(0.0, 0.0, 0.0), color), 1.0)
+
+# ----------------------------------------------------------------------------
+# VIII. EDITOR UI — SLATE PANELS
+# ----------------------------------------------------------------------------
+
+@slate
+struct SToonStylePanel:
+    @argument
+    panel_width: Float
+    @argument
+    panel_height: Float
+    @attribute
+    active_style: Int
+    @attribute
+    preview_enabled: Bool
+    @event
+    on_style_changed: OnStyleChanged
+    @event
+    on_preview_toggled: OnOutlineToggled
+
+    fn Compose() -> Widget:
+        let root = VerticalBox()
+        let style_list = ListView()
+        root.Add(style_list)
+        let preview_check = CheckBox()
+        root.Add(preview_check)
+        return root
+
+@slate
+struct SToonShadingPanel:
+    @argument
+    panel_width: Float
+    @argument
+    panel_height: Float
+    @attribute
+    shadow_steps: Float
+    @attribute
+    shadow_softness: Float
+    @attribute
+    specular_steps: Float
+    @attribute
+    specular_size: Float
+    @attribute
+    wrap_diffuse: Float
+    @attribute
+    ambient_strength: Float
+    @event
+    on_shading_changed: OnPresetApplied
+
+    fn Compose() -> Widget:
+        let root = VerticalBox()
+        let shadow_slider = Slider()
+        shadow_slider.Value(shadow_steps)
+        root.Add(shadow_slider)
+        let softness_slider = Slider()
+        softness_slider.Value(shadow_softness)
+        root.Add(softness_slider)
+        let spec_slider = Slider()
+        spec_slider.Value(specular_steps)
+        root.Add(spec_slider)
+        return root
+
+@slate
+struct SToonOutlinePanel:
+    @argument
+    panel_width: Float
+    @argument
+    panel_height: Float
+    @attribute
+    enable_outline: Bool
+    @attribute
+    outline_thickness: Float
+    @attribute
+    edge_threshold: Float
+    @attribute
+    edge_depth_weight: Float
+    @attribute
+    edge_normal_weight: Float
+    @event
+    on_outline_toggled: OnOutlineToggled
+    @event
+    on_outline_changed: OnPresetApplied
+
+    fn Compose() -> Widget:
+        let root = VerticalBox()
+        let toggle = CheckBox()
+        root.Add(toggle)
+        let thickness_slider = Slider()
+        thickness_slider.Value(outline_thickness)
+        root.Add(thickness_slider)
+        let threshold_slider = Slider()
+        threshold_slider.Value(edge_threshold)
+        root.Add(threshold_slider)
+        return root
+
+@slate
+struct SToonColorPanel:
+    @argument
+    panel_width: Float
+    @argument
+    panel_height: Float
+    @attribute
+    rim_power: Float
+    @attribute
+    rim_intensity: Float
+    @event
+    on_color_changed: OnPresetApplied
+
+    fn Compose() -> Widget:
+        let root = VerticalBox()
+        let rim_power_slider = Slider()
+        rim_power_slider.Value(rim_power)
+        root.Add(rim_power_slider)
+        let rim_intensity_slider = Slider()
+        rim_intensity_slider.Value(rim_intensity)
+        root.Add(rim_intensity_slider)
+        return root
+
+@slate
+struct SToonEffectsPanel:
+    @argument
+    panel_width: Float
+    @argument
+    panel_height: Float
+    @attribute
+    enable_halftone: Bool
+    @attribute
+    halftone_scale: Float
+    @attribute
+    halftone_opacity: Float
+    @attribute
+    halftone_rotation: Float
+    @attribute
+    watercolor_bleed: Float
+    @attribute
+    sketch_density: Float
+    @attribute
+    emissive_strength: Float
+    @event
+    on_effects_changed: OnPresetApplied
+
+    fn Compose() -> Widget:
+        let root = VerticalBox()
+        let halftone_check = CheckBox()
+        root.Add(halftone_check)
+        let scale_slider = Slider()
+        scale_slider.Value(halftone_scale)
+        root.Add(scale_slider)
+        let opacity_slider = Slider()
+        opacity_slider.Value(halftone_opacity)
+        root.Add(opacity_slider)
+        let bleed_slider = Slider()
+        bleed_slider.Value(watercolor_bleed)
+        root.Add(bleed_slider)
+        let sketch_slider = Slider()
+        sketch_slider.Value(sketch_density)
+        root.Add(sketch_slider)
+        return root
+
+@slate
+struct SToonPostFXPanel:
+    @argument
+    panel_width: Float
+    @argument
+    panel_height: Float
+    @attribute
+    chromatic_strength: Float
+    @attribute
+    vignette_strength: Float
+    @attribute
+    film_grain_intensity: Float
+    @attribute
+    scanline_opacity: Float
+    @attribute
+    color_quantize: Float
+    @event
+    on_postfx_changed: OnPresetApplied
+
+    fn Compose() -> Widget:
+        let root = VerticalBox()
+        let chroma_slider = Slider()
+        chroma_slider.Value(chromatic_strength)
+        root.Add(chroma_slider)
+        let vignette_slider = Slider()
+        vignette_slider.Value(vignette_strength)
+        root.Add(vignette_slider)
+        let grain_slider = Slider()
+        grain_slider.Value(film_grain_intensity)
+        root.Add(grain_slider)
+        let quant_slider = Slider()
+        quant_slider.Value(color_quantize)
+        root.Add(quant_slider)
+        return root
+
+# ----------------------------------------------------------------------------
+# IX. DETAILS PANEL
+# ----------------------------------------------------------------------------
+
+@details
+struct ToonDirectorDetails:
+    @category("ToonShaderz|Colors")
+    @color_picker
+    base_tint: Vec3
+
+    @category("ToonShaderz|Colors")
+    @color_picker
+    shadow_tint: Vec3
+
+    @category("ToonShaderz|Colors")
+    @color_picker
+    highlight_tint: Vec3
+
+    @category("ToonShaderz|Colors")
+    @color_picker
+    rim_color: Vec3
+
+    @category("ToonShaderz|Colors")
+    @color_picker
+    outline_color: Vec3
+
+    @category("ToonShaderz|Shading")
+    @slider(1.0, 8.0)
+    shadow_steps: Float
+
+    @category("ToonShaderz|Shading")
+    @slider(0.0, 0.2)
+    shadow_softness: Float
+
+    @category("ToonShaderz|Shading")
+    @slider(1.0, 6.0)
+    specular_steps: Float
+
+    @category("ToonShaderz|Shading")
+    @slider(0.0, 1.0)
+    specular_size: Float
+
+    @category("ToonShaderz|Shading")
+    @slider(0.0, 0.5)
+    wrap_diffuse: Float
+
+    @category("ToonShaderz|Shading")
+    @slider(0.0, 0.5)
+    ambient_strength: Float
+
+    @category("ToonShaderz|Rim")
+    @slider(0.5, 8.0)
+    rim_power: Float
+
+    @category("ToonShaderz|Rim")
+    @slider(0.0, 2.0)
+    rim_intensity: Float
+
+    @category("ToonShaderz|Outline")
+    @slider(0.5, 4.0)
+    outline_thickness: Float
+
+    @category("ToonShaderz|Outline")
+    @slider(0.0, 1.0)
+    edge_threshold: Float
+
+    @category("ToonShaderz|Halftone")
+    @slider(40.0, 400.0)
+    halftone_scale: Float
+
+    @category("ToonShaderz|Halftone")
+    @slider(0.0, 1.0)
+    halftone_opacity: Float
+
+    @category("ToonShaderz|Halftone")
+    @slider(0.0, 6.28)
+    halftone_rotation: Float
+
+    @category("ToonShaderz|Subsurface")
+    @color_picker
+    subsurface_color: Vec3
+
+    @category("ToonShaderz|Subsurface")
+    @slider(0.0, 1.0)
+    subsurface_strength: Float
+
+    @category("ToonShaderz|Emissive")
+    @color_picker
+    emissive_color: Vec3
+
+    @category("ToonShaderz|Emissive")
+    @slider(0.0, 5.0)
+    emissive_strength: Float
+
+    @category("ToonShaderz|Style")
+    @dropdown
+    active_style: ToonStyle
+
+    @category("ToonShaderz|Quality")
+    @dropdown
+    quality: QualityTier
+
+    @category("ToonShaderz|Presets")
+    @button("Apply Anime Clean")
+    fn QuickAnime():
+        shadow_steps = 4.0
+        shadow_softness = 0.04
+
+    @category("ToonShaderz|Presets")
+    @button("Apply Comic Ink")
+    fn QuickComic():
+        shadow_steps = 3.0
+        halftone_opacity = 0.35
+
+    @category("ToonShaderz|Presets")
+    @button("Apply Watercolor")
+    fn QuickWatercolor():
+        shadow_steps = 3.0
+        shadow_softness = 0.1
+
+    @category("ToonShaderz|Presets")
+    @button("Apply Neon Noir")
+    fn QuickNeon():
+        shadow_steps = 6.0
+        emissive_strength = 0.4
+
+# ----------------------------------------------------------------------------
+# X. EDITOR MODULE
+# ----------------------------------------------------------------------------
+
+@editor_module
+struct ToonShadzModule:
+
+    @menu_entry(path: "Tools/Toon Shaderz", label: "Style Editor")
+    fn OpenStyleEditor():
+        SpawnTab("ToonStyleEditor")
+
+    @menu_entry(path: "Tools/Toon Shaderz", label: "Preset Browser")
+    fn OpenPresetBrowser():
+        SpawnTab("ToonPresetBrowser")
+
+    @menu_entry(path: "Tools/Toon Shaderz", label: "Post FX Editor")
+    fn OpenPostFXEditor():
+        SpawnTab("ToonPostFXEditor")

@@ -1,0 +1,847 @@
+// DialogueForge — Data Structures
+// Enums, structs, and data types for dialogue system
+
+enum DialogueNodeType:
+    Speaker
+    Choice
+    Condition
+    Branch
+    Event
+    Quest
+    Random
+    Delay
+    Animation
+    Camera
+    Sound
+    Variable
+    Jump
+    End
+
+enum ConditionType:
+    QuestComplete
+    QuestActive
+    QuestFailed
+    ItemInInventory
+    ItemCount
+    StatValue
+    FlagSet
+    FlagNotSet
+    VariableEquals
+    VariableGreater
+    VariableLess
+    ActorInRange
+    TimeOfDay
+    PlayerLevel
+    Reputation
+    Custom
+
+enum ResponseType:
+    Continue
+    Choice
+    End
+    Jump
+    StartQuest
+    CompleteQuest
+    FailQuest
+
+enum SpeakerEmotion:
+    Neutral
+    Happy
+    Sad
+    Angry
+    Surprised
+    Fearful
+    Disgusted
+    Confused
+    Excited
+    Bored
+
+enum CameraAngle:
+    CloseUp
+    MediumShot
+    WideShot
+    OverShoulder
+    TwoShot
+    Custom
+
+enum DialogueState:
+    Inactive
+    Active
+    Paused
+    Completed
+    Failed
+
+enum ChoiceAvailability:
+    Available
+    Locked
+    Hidden
+    Disabled
+
+struct DialogueSpeaker:
+    speaker_id: String
+    display_name: String
+    portrait_texture_path: String
+    voice_actor_name: String
+    default_emotion: SpeakerEmotion
+    actor_reference: Actor
+    is_player: Bool
+
+struct DialogueCondition:
+    condition_type: ConditionType
+    target_id: String
+    comparison_value: Float
+    string_value: String
+    invert: Bool
+    required: Bool
+
+struct DialogueChoice:
+    choice_id: Int
+    choice_text: String
+    hover_text: String
+    icon_path: String
+    conditions: Array<DialogueCondition>
+    availability: ChoiceAvailability
+    consequence_text: String
+    stat_requirements: Array<StatRequirement>
+    skill_check_stat: String
+    skill_check_difficulty: Int
+    success_node_id: Int
+    failure_node_id: Int
+    next_node_id: Int
+    one_time_only: Bool
+    has_been_chosen: Bool
+
+struct StatRequirement:
+    stat_name: String
+    min_value: Float
+    max_value: Float
+    display_in_ui: Bool
+
+struct DialogueNode:
+    node_id: Int
+    node_type: DialogueNodeType
+    speaker_id: String
+    dialogue_text: String
+    voice_line_path: String
+    subtitle_text: String
+    emotion: SpeakerEmotion
+    camera_angle: CameraAngle
+    animation_name: String
+    duration: Float
+    conditions: Array<DialogueCondition>
+    choices: Array<DialogueChoice>
+    next_node_id: Int
+    event_name: String
+    quest_id: String
+    variable_name: String
+    variable_value: Float
+    random_weights: Array<Float>
+    random_node_ids: Array<Int>
+    jump_target_id: Int
+    sound_path: String
+    is_skippable: Bool
+    auto_advance: Bool
+
+struct DialogueGraph:
+    graph_id: String
+    graph_name: String
+    description: String
+    entry_node_id: Int
+    nodes: Array<DialogueNode>
+    speakers: Array<DialogueSpeaker>
+    variables: Array<DialogueVariable>
+    tags: Array<String>
+    category: String
+    priority: Int
+
+struct DialogueVariable:
+    variable_name: String
+    variable_type: String
+    default_value: Float
+    current_value: Float
+    is_persistent: Bool
+    description: String
+
+struct DialogueInstance:
+    instance_id: Int
+    graph_id: String
+    current_node_id: Int
+    state: DialogueState
+    participants: Array<Actor>
+    active_speaker: Actor
+    listener: Actor
+    variables: Array<DialogueVariable>
+    chosen_choices: Array<Int>
+    visited_nodes: Array<Int>
+    start_time: Float
+    elapsed_time: Float
+    is_paused: Bool
+
+struct VoiceLineData:
+    voice_line_id: String
+    speaker_id: String
+    audio_path: String
+    subtitle_text: String
+    duration: Float
+    emotion: SpeakerEmotion
+    is_loaded: Bool
+    is_playing: Bool
+
+struct DialogueHistoryEntry:
+    node_id: Int
+    speaker_id: String
+    dialogue_text: String
+    timestamp: Float
+    choice_made: Int
+
+struct QuestTrigger:
+    quest_id: String
+    trigger_type: String
+    target_node_id: Int
+    is_start: Bool
+    is_complete: Bool
+    is_fail: Bool
+
+struct DialogueEvent:
+    event_name: String
+    event_params: Array<String>
+    target_actor: Actor
+    delay: Float
+    is_triggered: Bool
+
+struct CameraSettings:
+    camera_angle: CameraAngle
+    blend_time: Float
+    target_actor: Actor
+    offset: Vec3
+    fov: Float
+    use_custom_transform: Bool
+    custom_location: Vec3
+    custom_rotation: Vec3
+
+struct AnimationTrigger:
+    animation_name: String
+    target_actor: Actor
+    blend_in_time: Float
+    blend_out_time: Float
+    play_rate: Float
+    loop: Bool
+    start_position: Float
+
+struct SoundTrigger:
+    sound_path: String
+    volume: Float
+    pitch: Float
+    start_time: Float
+    fade_in_duration: Float
+    fade_out_duration: Float
+    is_2d: Bool
+    attenuation_settings: String
+
+struct SkillCheckResult:
+    success: Bool
+    stat_name: String
+    required_value: Int
+    actual_value: Int
+    roll_result: Int
+    critical_success: Bool
+    critical_failure: Bool
+
+struct DialogueUIState:
+    is_visible: Bool
+    current_speaker_name: String
+    current_dialogue_text: String
+    current_portrait_path: String
+    available_choices: Array<DialogueChoice>
+    subtitle_text: String
+    is_waiting_for_input: Bool
+    auto_advance_timer: Float
+
+@datatable
+struct SpeakerData:
+    speaker_id: String
+    display_name: String
+    portrait_texture_path: String
+    voice_actor_name: String
+    default_emotion: SpeakerEmotion
+    actor_class_name: String
+    description: String
+
+@datatable
+struct DialogueGraphData:
+    graph_id: String
+    graph_name: String
+    description: String
+    category: String
+    tags: Array<String>
+    entry_node_id: Int
+    asset_path: String
+
+@datatable
+struct EmotionData:
+    emotion: SpeakerEmotion
+    display_name: String
+    portrait_suffix: String
+    animation_name: String
+    voice_modulation: Float
+    color_tint: Vec3
+
+@datatable
+struct CameraAngleData:
+    camera_angle: CameraAngle
+    display_name: String
+    default_offset: Vec3
+    default_fov: Float
+    blend_time: Float
+    description: String
+
+fn create_default_speaker() -> DialogueSpeaker:
+    return DialogueSpeaker {
+        speaker_id: "default",
+        display_name: "Unknown",
+        portrait_texture_path: "",
+        voice_actor_name: "",
+        default_emotion: SpeakerEmotion::Neutral,
+        actor_reference: null,
+        is_player: false
+    }
+
+fn create_player_speaker() -> DialogueSpeaker:
+    return DialogueSpeaker {
+        speaker_id: "player",
+        display_name: "Player",
+        portrait_texture_path: "/Game/UI/Portraits/Player",
+        voice_actor_name: "",
+        default_emotion: SpeakerEmotion::Neutral,
+        actor_reference: null,
+        is_player: true
+    }
+
+fn create_dialogue_condition(cond_type: ConditionType, target: String, value: Float) -> DialogueCondition:
+    return DialogueCondition {
+        condition_type: cond_type,
+        target_id: target,
+        comparison_value: value,
+        string_value: "",
+        invert: false,
+        required: true
+    }
+
+fn create_dialogue_choice(id: Int, text: String, next_id: Int) -> DialogueChoice:
+    return DialogueChoice {
+        choice_id: id,
+        choice_text: text,
+        hover_text: "",
+        icon_path: "",
+        conditions: [],
+        availability: ChoiceAvailability::Available,
+        consequence_text: "",
+        stat_requirements: [],
+        skill_check_stat: "",
+        skill_check_difficulty: 0,
+        success_node_id: -1,
+        failure_node_id: -1,
+        next_node_id: next_id,
+        one_time_only: false,
+        has_been_chosen: false
+    }
+
+fn create_speaker_node(id: Int, speaker: String, text: String, next_id: Int) -> DialogueNode:
+    return DialogueNode {
+        node_id: id,
+        node_type: DialogueNodeType::Speaker,
+        speaker_id: speaker,
+        dialogue_text: text,
+        voice_line_path: "",
+        subtitle_text: text,
+        emotion: SpeakerEmotion::Neutral,
+        camera_angle: CameraAngle::MediumShot,
+        animation_name: "",
+        duration: 3.0,
+        conditions: [],
+        choices: [],
+        next_node_id: next_id,
+        event_name: "",
+        quest_id: "",
+        variable_name: "",
+        variable_value: 0.0,
+        random_weights: [],
+        random_node_ids: [],
+        jump_target_id: -1,
+        sound_path: "",
+        is_skippable: true,
+        auto_advance: false
+    }
+
+fn create_choice_node(id: Int, speaker: String, text: String, choices: Array<DialogueChoice>) -> DialogueNode:
+    return DialogueNode {
+        node_id: id,
+        node_type: DialogueNodeType::Choice,
+        speaker_id: speaker,
+        dialogue_text: text,
+        voice_line_path: "",
+        subtitle_text: text,
+        emotion: SpeakerEmotion::Neutral,
+        camera_angle: CameraAngle::MediumShot,
+        animation_name: "",
+        duration: 0.0,
+        conditions: [],
+        choices: choices,
+        next_node_id: -1,
+        event_name: "",
+        quest_id: "",
+        variable_name: "",
+        variable_value: 0.0,
+        random_weights: [],
+        random_node_ids: [],
+        jump_target_id: -1,
+        sound_path: "",
+        is_skippable: false,
+        auto_advance: false
+    }
+
+fn create_condition_node(id: Int, conditions: Array<DialogueCondition>, success_id: Int, failure_id: Int) -> DialogueNode:
+    return DialogueNode {
+        node_id: id,
+        node_type: DialogueNodeType::Condition,
+        speaker_id: "",
+        dialogue_text: "",
+        voice_line_path: "",
+        subtitle_text: "",
+        emotion: SpeakerEmotion::Neutral,
+        camera_angle: CameraAngle::MediumShot,
+        animation_name: "",
+        duration: 0.0,
+        conditions: conditions,
+        choices: [],
+        next_node_id: success_id,
+        event_name: "",
+        quest_id: "",
+        variable_name: "",
+        variable_value: 0.0,
+        random_weights: [],
+        random_node_ids: [],
+        jump_target_id: failure_id,
+        sound_path: "",
+        is_skippable: true,
+        auto_advance: true
+    }
+
+fn create_event_node(id: Int, event_name: String, next_id: Int) -> DialogueNode:
+    return DialogueNode {
+        node_id: id,
+        node_type: DialogueNodeType::Event,
+        speaker_id: "",
+        dialogue_text: "",
+        voice_line_path: "",
+        subtitle_text: "",
+        emotion: SpeakerEmotion::Neutral,
+        camera_angle: CameraAngle::MediumShot,
+        animation_name: "",
+        duration: 0.0,
+        conditions: [],
+        choices: [],
+        next_node_id: next_id,
+        event_name: event_name,
+        quest_id: "",
+        variable_name: "",
+        variable_value: 0.0,
+        random_weights: [],
+        random_node_ids: [],
+        jump_target_id: -1,
+        sound_path: "",
+        is_skippable: true,
+        auto_advance: true
+    }
+
+fn create_quest_node(id: Int, quest_id: String, is_start: Bool, next_id: Int) -> DialogueNode:
+    let node_type = if is_start { DialogueNodeType::Quest } else { DialogueNodeType::Quest }
+    return DialogueNode {
+        node_id: id,
+        node_type: node_type,
+        speaker_id: "",
+        dialogue_text: "",
+        voice_line_path: "",
+        subtitle_text: "",
+        emotion: SpeakerEmotion::Neutral,
+        camera_angle: CameraAngle::MediumShot,
+        animation_name: "",
+        duration: 0.0,
+        conditions: [],
+        choices: [],
+        next_node_id: next_id,
+        event_name: "",
+        quest_id: quest_id,
+        variable_name: "",
+        variable_value: 0.0,
+        random_weights: [],
+        random_node_ids: [],
+        jump_target_id: -1,
+        sound_path: "",
+        is_skippable: true,
+        auto_advance: true
+    }
+
+fn create_random_node(id: Int, weights: Array<Float>, target_ids: Array<Int>) -> DialogueNode:
+    return DialogueNode {
+        node_id: id,
+        node_type: DialogueNodeType::Random,
+        speaker_id: "",
+        dialogue_text: "",
+        voice_line_path: "",
+        subtitle_text: "",
+        emotion: SpeakerEmotion::Neutral,
+        camera_angle: CameraAngle::MediumShot,
+        animation_name: "",
+        duration: 0.0,
+        conditions: [],
+        choices: [],
+        next_node_id: -1,
+        event_name: "",
+        quest_id: "",
+        variable_name: "",
+        variable_value: 0.0,
+        random_weights: weights,
+        random_node_ids: target_ids,
+        jump_target_id: -1,
+        sound_path: "",
+        is_skippable: true,
+        auto_advance: true
+    }
+
+fn create_delay_node(id: Int, duration: Float, next_id: Int) -> DialogueNode:
+    return DialogueNode {
+        node_id: id,
+        node_type: DialogueNodeType::Delay,
+        speaker_id: "",
+        dialogue_text: "",
+        voice_line_path: "",
+        subtitle_text: "",
+        emotion: SpeakerEmotion::Neutral,
+        camera_angle: CameraAngle::MediumShot,
+        animation_name: "",
+        duration: duration,
+        conditions: [],
+        choices: [],
+        next_node_id: next_id,
+        event_name: "",
+        quest_id: "",
+        variable_name: "",
+        variable_value: 0.0,
+        random_weights: [],
+        random_node_ids: [],
+        jump_target_id: -1,
+        sound_path: "",
+        is_skippable: true,
+        auto_advance: true
+    }
+
+fn create_animation_node(id: Int, anim_name: String, target_speaker: String, next_id: Int) -> DialogueNode:
+    return DialogueNode {
+        node_id: id,
+        node_type: DialogueNodeType::Animation,
+        speaker_id: target_speaker,
+        dialogue_text: "",
+        voice_line_path: "",
+        subtitle_text: "",
+        emotion: SpeakerEmotion::Neutral,
+        camera_angle: CameraAngle::MediumShot,
+        animation_name: anim_name,
+        duration: 0.0,
+        conditions: [],
+        choices: [],
+        next_node_id: next_id,
+        event_name: "",
+        quest_id: "",
+        variable_name: "",
+        variable_value: 0.0,
+        random_weights: [],
+        random_node_ids: [],
+        jump_target_id: -1,
+        sound_path: "",
+        is_skippable: false,
+        auto_advance: true
+    }
+
+fn create_camera_node(id: Int, angle: CameraAngle, next_id: Int) -> DialogueNode:
+    return DialogueNode {
+        node_id: id,
+        node_type: DialogueNodeType::Camera,
+        speaker_id: "",
+        dialogue_text: "",
+        voice_line_path: "",
+        subtitle_text: "",
+        emotion: SpeakerEmotion::Neutral,
+        camera_angle: angle,
+        animation_name: "",
+        duration: 0.0,
+        conditions: [],
+        choices: [],
+        next_node_id: next_id,
+        event_name: "",
+        quest_id: "",
+        variable_name: "",
+        variable_value: 0.0,
+        random_weights: [],
+        random_node_ids: [],
+        jump_target_id: -1,
+        sound_path: "",
+        is_skippable: false,
+        auto_advance: true
+    }
+
+fn create_sound_node(id: Int, sound_path: String, next_id: Int) -> DialogueNode:
+    return DialogueNode {
+        node_id: id,
+        node_type: DialogueNodeType::Sound,
+        speaker_id: "",
+        dialogue_text: "",
+        voice_line_path: "",
+        subtitle_text: "",
+        emotion: SpeakerEmotion::Neutral,
+        camera_angle: CameraAngle::MediumShot,
+        animation_name: "",
+        duration: 0.0,
+        conditions: [],
+        choices: [],
+        next_node_id: next_id,
+        event_name: "",
+        quest_id: "",
+        variable_name: "",
+        variable_value: 0.0,
+        random_weights: [],
+        random_node_ids: [],
+        jump_target_id: -1,
+        sound_path: sound_path,
+        is_skippable: true,
+        auto_advance: true
+    }
+
+fn create_variable_node(id: Int, var_name: String, var_value: Float, next_id: Int) -> DialogueNode:
+    return DialogueNode {
+        node_id: id,
+        node_type: DialogueNodeType::Variable,
+        speaker_id: "",
+        dialogue_text: "",
+        voice_line_path: "",
+        subtitle_text: "",
+        emotion: SpeakerEmotion::Neutral,
+        camera_angle: CameraAngle::MediumShot,
+        animation_name: "",
+        duration: 0.0,
+        conditions: [],
+        choices: [],
+        next_node_id: next_id,
+        event_name: "",
+        quest_id: "",
+        variable_name: var_name,
+        variable_value: var_value,
+        random_weights: [],
+        random_node_ids: [],
+        jump_target_id: -1,
+        sound_path: "",
+        is_skippable: true,
+        auto_advance: true
+    }
+
+fn create_jump_node(id: Int, target_id: Int) -> DialogueNode:
+    return DialogueNode {
+        node_id: id,
+        node_type: DialogueNodeType::Jump,
+        speaker_id: "",
+        dialogue_text: "",
+        voice_line_path: "",
+        subtitle_text: "",
+        emotion: SpeakerEmotion::Neutral,
+        camera_angle: CameraAngle::MediumShot,
+        animation_name: "",
+        duration: 0.0,
+        conditions: [],
+        choices: [],
+        next_node_id: -1,
+        event_name: "",
+        quest_id: "",
+        variable_name: "",
+        variable_value: 0.0,
+        random_weights: [],
+        random_node_ids: [],
+        jump_target_id: target_id,
+        sound_path: "",
+        is_skippable: true,
+        auto_advance: true
+    }
+
+fn create_end_node(id: Int) -> DialogueNode:
+    return DialogueNode {
+        node_id: id,
+        node_type: DialogueNodeType::End,
+        speaker_id: "",
+        dialogue_text: "",
+        voice_line_path: "",
+        subtitle_text: "",
+        emotion: SpeakerEmotion::Neutral,
+        camera_angle: CameraAngle::MediumShot,
+        animation_name: "",
+        duration: 0.0,
+        conditions: [],
+        choices: [],
+        next_node_id: -1,
+        event_name: "",
+        quest_id: "",
+        variable_name: "",
+        variable_value: 0.0,
+        random_weights: [],
+        random_node_ids: [],
+        jump_target_id: -1,
+        sound_path: "",
+        is_skippable: true,
+        auto_advance: true
+    }
+
+fn evaluate_condition(condition: DialogueCondition, instance: DialogueInstance) -> Bool:
+    let result = false
+    
+    match condition.condition_type:
+        ConditionType::VariableEquals =>
+            let mut i = 0
+            while i < len(instance.variables):
+                if instance.variables[i].variable_name == condition.target_id:
+                    result = instance.variables[i].current_value == condition.comparison_value
+                i = i + 1
+        ConditionType::VariableGreater =>
+            let mut i = 0
+            while i < len(instance.variables):
+                if instance.variables[i].variable_name == condition.target_id:
+                    result = instance.variables[i].current_value > condition.comparison_value
+                i = i + 1
+        ConditionType::VariableLess =>
+            let mut i = 0
+            while i < len(instance.variables):
+                if instance.variables[i].variable_name == condition.target_id:
+                    result = instance.variables[i].current_value < condition.comparison_value
+                i = i + 1
+        _ =>
+            result = true
+    
+    if condition.invert:
+        return !result
+    return result
+
+fn evaluate_all_conditions(conditions: Array<DialogueCondition>, instance: DialogueInstance) -> Bool:
+    let mut i = 0
+    while i < len(conditions):
+        if conditions[i].required:
+            if !evaluate_condition(conditions[i], instance):
+                return false
+        i = i + 1
+    return true
+
+fn is_choice_available(choice: DialogueChoice, instance: DialogueInstance) -> Bool:
+    if choice.availability == ChoiceAvailability::Hidden:
+        return false
+    if choice.availability == ChoiceAvailability::Locked:
+        return false
+    if choice.one_time_only && choice.has_been_chosen:
+        return false
+    return evaluate_all_conditions(choice.conditions, instance)
+
+fn get_available_choices(node: DialogueNode, instance: DialogueInstance) -> Array<DialogueChoice>:
+    let mut available = []
+    let mut i = 0
+    while i < len(node.choices):
+        if is_choice_available(node.choices[i], instance):
+            push(available, node.choices[i])
+        i = i + 1
+    return available
+
+fn has_visited_node(instance: DialogueInstance, node_id: Int) -> Bool:
+    let mut i = 0
+    while i < len(instance.visited_nodes):
+        if instance.visited_nodes[i] == node_id:
+            return true
+        i = i + 1
+    return false
+
+fn get_variable_value(instance: DialogueInstance, var_name: String) -> Float:
+    let mut i = 0
+    while i < len(instance.variables):
+        if instance.variables[i].variable_name == var_name:
+            return instance.variables[i].current_value
+        i = i + 1
+    return 0.0
+
+fn set_variable_value(instance: DialogueInstance, var_name: String, value: Float):
+    let mut i = 0
+    while i < len(instance.variables):
+        if instance.variables[i].variable_name == var_name:
+            instance.variables[i].current_value = value
+            return
+        i = i + 1
+
+fn select_random_node(weights: Array<Float>, node_ids: Array<Int>) -> Int:
+    if len(weights) == 0 || len(node_ids) == 0:
+        return -1
+    
+    let mut total_weight = 0.0
+    let mut i = 0
+    while i < len(weights):
+        total_weight = total_weight + weights[i]
+        i = i + 1
+    
+    let random_value = random_float() * total_weight
+    let mut cumulative = 0.0
+    let mut j = 0
+    while j < len(weights):
+        cumulative = cumulative + weights[j]
+        if random_value <= cumulative:
+            return node_ids[j]
+        j = j + 1
+    
+    return node_ids[len(node_ids) - 1]
+
+fn calculate_dialogue_duration(text: String, words_per_minute: Float) -> Float:
+    let word_count = len(split(text, " "))
+    let words_per_second = words_per_minute / 60.0
+    return (word_count as Float) / words_per_second
+
+fn format_dialogue_text(text: String, speaker_name: String, emotion: SpeakerEmotion) -> String:
+    return "{speaker_name}: {text}"
+
+fn get_emotion_display_name(emotion: SpeakerEmotion) -> String:
+    match emotion:
+        SpeakerEmotion::Neutral => "Neutral"
+        SpeakerEmotion::Happy => "Happy"
+        SpeakerEmotion::Sad => "Sad"
+        SpeakerEmotion::Angry => "Angry"
+        SpeakerEmotion::Surprised => "Surprised"
+        SpeakerEmotion::Fearful => "Fearful"
+        SpeakerEmotion::Disgusted => "Disgusted"
+        SpeakerEmotion::Confused => "Confused"
+        SpeakerEmotion::Excited => "Excited"
+        SpeakerEmotion::Bored => "Bored"
+
+fn get_camera_angle_display_name(angle: CameraAngle) -> String:
+    match angle:
+        CameraAngle::CloseUp => "Close Up"
+        CameraAngle::MediumShot => "Medium Shot"
+        CameraAngle::WideShot => "Wide Shot"
+        CameraAngle::OverShoulder => "Over Shoulder"
+        CameraAngle::TwoShot => "Two Shot"
+        CameraAngle::Custom => "Custom"
+
+fn get_node_type_display_name(node_type: DialogueNodeType) -> String:
+    match node_type:
+        DialogueNodeType::Speaker => "Speaker"
+        DialogueNodeType::Choice => "Choice"
+        DialogueNodeType::Condition => "Condition"
+        DialogueNodeType::Branch => "Branch"
+        DialogueNodeType::Event => "Event"
+        DialogueNodeType::Quest => "Quest"
+        DialogueNodeType::Random => "Random"
+        DialogueNodeType::Delay => "Delay"
+        DialogueNodeType::Animation => "Animation"
+        DialogueNodeType::Camera => "Camera"
+        DialogueNodeType::Sound => "Sound"
+        DialogueNodeType::Variable => "Variable"
+        DialogueNodeType::Jump => "Jump"
+        DialogueNodeType::End => "End"

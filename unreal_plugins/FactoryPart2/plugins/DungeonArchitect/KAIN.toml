@@ -1,0 +1,28 @@
+[package]
+name = "DungeonArchitect"
+version = "1.0.0"
+authors = ["KAIN Compiler"]
+
+[ue5]
+plugin_name = "DungeonArchitect"
+engine_version = "5.4"
+category = "Level Design"
+description = "Procedural dungeon generation system with node-based graph editor, multiple algorithms, and runtime generation"
+
+sources = [
+    "src/dungeon_data_structures.kn",
+    "src/generation_algorithms.kn",
+    "src/dungeon_subsystem.kn",
+    "src/dungeon_graph_runtime.kn",
+    "src/dungeon_graph_editor.kn",
+    "src/room_actors.kn",
+]
+
+[[ue5.modules]]
+name = "DungeonArchitect"
+type = "Runtime"
+loading_phase = "Default"
+
+[build]
+targets = ["ue5"]
+output_dir = "Generated"

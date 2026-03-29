@@ -1,0 +1,1198 @@
+struct Vec2i:
+    x: Int
+    y: Int
+
+struct Vec3i:
+    x: Int
+    y: Int
+    z: Int
+
+struct TexturePatch:
+    data: Array<Vec4>
+    width: Int
+    height: Int
+    offset_x: Int
+    offset_y: Int
+
+struct SynthesisParams:
+    patch_size: Int
+    overlap: Int
+    error_threshold: Float
+    max_iterations: Int
+    seed: Int
+
+struct QuiltingState:
+    output: Array<Vec4>
+    output_width: Int
+    output_height: Int
+    sample: Array<Vec4>
+    sample_width: Int
+    sample_height: Int
+    params: SynthesisParams
+
+struct GraphCutEdge:
+    from: Int
+    to: Int
+    capacity: Float
+    flow: Float
+
+struct HistogramBin:
+    min_value: Float
+    max_value: Float
+    count: Int
+
+struct CellularParams:
+    num_points: Int
+    distance_metric: Int
+    cell_type: Int
+    jitter: Float
+
+struct ReactionDiffusionParams:
+    feed_rate: Float
+    kill_rate: Float
+    diffusion_a: Float
+    diffusion_b: Float
+    timestep: Float
+    iterations: Int
+
+struct RDCell:
+    a: Float
+    b: Float
+
+struct LSystemRule:
+    predecessor: String
+    successor: String
+    probability: Float
+
+struct LSystemState:
+    axiom: String
+    rules: Array<LSystemRule>
+    angle: Float
+    iterations: Int
+
+struct FractalParams:
+    octaves: Int
+    persistence: Float
+    lacunarity: Float
+    scale: Float
+    offset: Vec3
+
+struct ErosionParams:
+    thermal_iterations: Int
+    hydraulic_iterations: Int
+    thermal_angle: Float
+    rain_amount: Float
+    evaporation: Float
+    sediment_capacity: Float
+    erosion_rate: Float
+    deposition_rate: Float
+
+struct CrystalParams:
+    num_seeds: Int
+    growth_rate: Float
+    anisotropy: Float
+    noise_scale: Float
+    iterations: Int
+
+struct GrowthParams:
+    num_seeds: Int
+    growth_probability: Float
+    branch_probability: Float
+    max_age: Int
+    nutrient_diffusion: Float
+
+struct WoodGrainParams:
+    ring_frequency: Float
+    ring_irregularity: Float
+    grain_angle: Float
+    grain_strength: Float
+    knot_density: Float
+
+struct MarbleParams:
+    vein_frequency: Float
+    vein_sharpness: Float
+    turbulence: Float
+    color_variation: Float
+
+struct FabricWeaveParams:
+    warp_density: Int
+    weft_density: Int
+    weave_pattern: Int
+    thread_thickness: Float
+    thread_variation: Float
+
+fn hash_int(x: Int) -> Int:
+    let h = x
+    h = (h + ((h / (pow(2, 16)) % 2147483647)))
+    h = h * 2147483647
+    h = (h + ((h / (pow(2, 13)) % 2147483647)))
+    h = h * 3266489917
+    h = (h + ((h / (pow(2, 16)) % 2147483647)))
+    return h
+
+fn hash_vec2i(v: Vec2i) -> Int:
+    return hash_int(v.x + hash_int(v.y))
+
+fn hash_vec3i(v: Vec3i) -> Int:
+    return hash_int(v.x + hash_int(v.y + hash_int(v.z)))
+
+fn random_float(seed: Int) -> Float:
+    let h = hash_int(seed)
+    return (abs(h) % 2147483647) / 2147483647.0
+
+fn random_range(seed: Int, min_val: Float, max_val: Float) -> Float:
+    return min_val + random_float(seed) * (max_val - min_val)
+
+fn perlin_noise(x: Float, y: Float, z: Float) -> Float:
+    let xi = floor(x)
+    let yi = floor(y)
+    let zi = floor(z)
+    
+    let xf = x - floor(x)
+    let yf = y - floor(y)
+    let zf = z - floor(z)
+    
+    let u = xf * xf * (3.0 - 2.0 * xf)
+    let v = yf * yf * (3.0 - 2.0 * yf)
+    let w = zf * zf * (3.0 - 2.0 * zf)
+    
+    let aaa = random_float(hash_vec3i(Vec3i(xi, yi, zi)))
+    let aba = random_float(hash_vec3i(Vec3i(xi, yi + 1, zi)))
+    let aab = random_float(hash_vec3i(Vec3i(xi, yi, zi + 1)))
+    let abb = random_float(hash_vec3i(Vec3i(xi, yi + 1, zi + 1)))
+    let baa = random_float(hash_vec3i(Vec3i(xi + 1, yi, zi)))
+    let bba = random_float(hash_vec3i(Vec3i(xi + 1, yi + 1, zi)))
+    let bab = random_float(hash_vec3i(Vec3i(xi + 1, yi, zi + 1)))
+    let bbb = random_float(hash_vec3i(Vec3i(xi + 1, yi + 1, zi + 1)))
+    
+    let x1 = aaa + u * (baa - aaa)
+    let x2 = aba + u * (bba - aba)
+    let y1 = x1 + v * (x2 - x1)
+    
+    let x3 = aab + u * (bab - aab)
+    let x4 = abb + u * (bbb - abb)
+    let y2 = x3 + v * (x4 - x3)
+    
+    return y1 + w * (y2 - y1)
+
+fn fbm_noise(x: Float, y: Float, z: Float, params: FractalParams) -> Float:
+    let value = 0.0
+    let amplitude = 1.0
+    let frequency = 1.0
+    let max_value = 0.0
+    
+    let i = 0
+    while i < params.octaves:
+        let px = (x + params.offset.x) * frequency * params.scale
+        let py = (y + params.offset.y) * frequency * params.scale
+        let pz = (z + params.offset.z) * frequency * params.scale
+        
+        value = value + perlin_noise(px, py, pz) * amplitude
+        max_value = max_value + amplitude
+        
+        amplitude = amplitude * params.persistence
+        frequency = frequency * params.lacunarity
+        i = i + 1
+    
+    return value / max_value
+
+fn get_pixel(data: Array<Vec4>, width: Int, height: Int, x: Int, y: Int) -> Vec4:
+    if x < 0 or x >= width or y < 0 or y >= height:
+        return Vec4(0.0, 0.0, 0.0, 1.0)
+    return data[y * width + x]
+
+fn set_pixel(data: Array<Vec4>, width: Int, x: Int, y: Int, color: Vec4):
+    if x >= 0 and x < width and y >= 0:
+        data[y * width + x] = color
+
+fn compute_patch_error(patch1: Array<Vec4>, patch2: Array<Vec4>, width: Int, height: Int, overlap_width: Int, overlap_height: Int, is_vertical: Bool) -> Float:
+    let error = 0.0
+    let count = 0
+    
+    if is_vertical:
+        let y = 0
+        while y < height:
+            let x = 0
+            while x < overlap_width:
+                let p1 = patch1[y * width + x]
+                let p2 = patch2[y * width + x]
+                let dr = p1.x - p2.x
+                let dg = p1.y - p2.y
+                let db = p1.z - p2.z
+                error = error + dr * dr + dg * dg + db * db
+                count = count + 1
+                x = x + 1
+            y = y + 1
+    else:
+        let y = 0
+        while y < overlap_height:
+            let x = 0
+            while x < width:
+                let p1 = patch1[y * width + x]
+                let p2 = patch2[y * width + x]
+                let dr = p1.x - p2.x
+                let dg = p1.y - p2.y
+                let db = p1.z - p2.z
+                error = error + dr * dr + dg * dg + db * db
+                count = count + 1
+                x = x + 1
+            y = y + 1
+    
+    if count > 0:
+        return error / count
+    return 0.0
+
+fn find_best_patch(quilting_state: QuiltingState, target_x: Int, target_y: Int, seed: Int) -> TexturePatch:
+    let patch_size = quilting_state.params.patch_size
+    let overlap = quilting_state.params.overlap
+    let best_patches: Array<TexturePatch> = []
+    let min_error = 1000000.0
+    
+    let max_x = quilting_state.sample_width - patch_size
+    let max_y = quilting_state.sample_height - patch_size
+    
+    let sy = 0
+    while sy < max_y:
+        let sx = 0
+        while sx < max_x:
+            let error = 0.0
+            let overlap_count = 0
+            
+            if target_x > 0:
+                let py = 0
+                while py < patch_size:
+                    let px = 0
+                    while px < overlap:
+                        let out_x = target_x + px
+                        let out_y = target_y + py
+                        let sample_pixel = get_pixel(quilting_state.sample, quilting_state.sample_width, quilting_state.sample_height, sx + px, sy + py)
+                        let output_pixel = get_pixel(quilting_state.output, quilting_state.output_width, quilting_state.output_height, out_x, out_y)
+                        
+                        let dr = sample_pixel.x - output_pixel.x
+                        let dg = sample_pixel.y - output_pixel.y
+                        let db = sample_pixel.z - output_pixel.z
+                        error = error + dr * dr + dg * dg + db * db
+                        overlap_count = overlap_count + 1
+                        px = px + 1
+                    py = py + 1
+            
+            if target_y > 0:
+                let py = 0
+                while py < overlap:
+                    let px = 0
+                    while px < patch_size:
+                        let out_x = target_x + px
+                        let out_y = target_y + py
+                        let sample_pixel = get_pixel(quilting_state.sample, quilting_state.sample_width, quilting_state.sample_height, sx + px, sy + py)
+                        let output_pixel = get_pixel(quilting_state.output, quilting_state.output_width, quilting_state.output_height, out_x, out_y)
+                        
+                        let dr = sample_pixel.x - output_pixel.x
+                        let dg = sample_pixel.y - output_pixel.y
+                        let db = sample_pixel.z - output_pixel.z
+                        error = error + dr * dr + dg * dg + db * db
+                        overlap_count = overlap_count + 1
+                        px = px + 1
+                    py = py + 1
+            
+            if overlap_count > 0:
+                error = error / overlap_count
+            
+            if error < min_error:
+                min_error = error
+                best_patches = []
+                let patch_data: Array<Vec4> = []
+                let py = 0
+                while py < patch_size:
+                    let px = 0
+                    while px < patch_size:
+                        push(patch_data, get_pixel(quilting_state.sample, quilting_state.sample_width, quilting_state.sample_height, sx + px, sy + py))
+                        px = px + 1
+                    py = py + 1
+                push(best_patches, make_patch(patch_data, patch_size, patch_size, sx, sy))
+            else:
+                if error < min_error * (1.0 + quilting_state.params.error_threshold):
+                    let patch_data: Array<Vec4> = []
+                    let py = 0
+                    while py < patch_size:
+                        let px = 0
+                        while px < patch_size:
+                            push(patch_data, get_pixel(quilting_state.sample, quilting_state.sample_width, quilting_state.sample_height, sx + px, sy + py))
+                            px = px + 1
+                        py = py + 1
+                    push(best_patches, make_patch(patch_data, patch_size, patch_size, sx, sy))
+            
+            sx = sx + 1
+        sy = sy + 1
+    
+    if len(best_patches) > 0:
+        let idx = hash_int(seed) % len(best_patches)
+        return best_patches[idx]
+    
+    let empty_data: Array<Vec4> = []
+    return make_empty_patch()
+
+fn compute_min_cut_seam(patch1: Array<Vec4>, patch2: Array<Vec4>, width: Int, height: Int, is_vertical: Bool) -> Array<Int>:
+    let seam: Array<Int> = []
+    
+    if is_vertical:
+        let dp: Array<Float> = []
+        let i = 0
+        while i < height * width:
+            push(dp, 0.0)
+            i = i + 1
+        
+        let x = 0
+        while x < width:
+            let p1 = patch1[x]
+            let p2 = patch2[x]
+            let dr = p1.x - p2.x
+            let dg = p1.y - p2.y
+            let db = p1.z - p2.z
+            dp[x] = dr * dr + dg * dg + db * db
+            x = x + 1
+        
+        let y = 1
+        while y < height:
+            let x = 0
+            while x < width:
+                let p1 = patch1[y * width + x]
+                let p2 = patch2[y * width + x]
+                let dr = p1.x - p2.x
+                let dg = p1.y - p2.y
+                let db = p1.z - p2.z
+                let error = dr * dr + dg * dg + db * db
+                
+                let min_prev = dp[(y - 1) * width + x]
+                if x > 0:
+                    let left = dp[(y - 1) * width + (x - 1)]
+                    if left < min_prev:
+                        min_prev = left
+                if x < width - 1:
+                    let right = dp[(y - 1) * width + (x + 1)]
+                    if right < min_prev:
+                        min_prev = right
+                
+                dp[y * width + x] = error + min_prev
+                x = x + 1
+            y = y + 1
+        
+        let min_x = 0
+        let min_val = dp[(height - 1) * width]
+        let x = 1
+        while x < width:
+            if dp[(height - 1) * width + x] < min_val:
+                min_val = dp[(height - 1) * width + x]
+                min_x = x
+            x = x + 1
+        
+        let y = height - 1
+        while y >= 0:
+            push(seam, min_x)
+            
+            if y > 0:
+                let best_x = min_x
+                let best_val = dp[(y - 1) * width + min_x]
+                
+                if min_x > 0:
+                    let left_val = dp[(y - 1) * width + (min_x - 1)]
+                    if left_val < best_val:
+                        best_val = left_val
+                        best_x = min_x - 1
+                
+                if min_x < width - 1:
+                    let right_val = dp[(y - 1) * width + (min_x + 1)]
+                    if right_val < best_val:
+                        best_val = right_val
+                        best_x = min_x + 1
+                
+                min_x = best_x
+            
+            y = y - 1
+    else:
+        let y = 0
+        while y < height:
+            push(seam, width / 2)
+            y = y + 1
+    
+    return seam
+
+fn blend_patches_with_seam(output: Array<Vec4>, output_width: Int, patch: TexturePatch, target_x: Int, target_y: Int, overlap: Int):
+    let y = 0
+    while y < patch.height:
+        let x = 0
+        while x < patch.width:
+            let out_x = target_x + x
+            let out_y = target_y + y
+            
+            if out_x >= 0 and out_x < output_width and out_y >= 0:
+                let patch_pixel = patch.data[y * patch.width + x]
+                
+                let in_overlap_x = x < overlap and target_x > 0
+                let in_overlap_y = y < overlap and target_y > 0
+                
+                if in_overlap_x or in_overlap_y:
+                    let existing = output[out_y * output_width + out_x]
+                    let blend = 0.5
+                    let blended = Vec4()
+                    blended.x = existing.x * (1.0 - blend) + patch_pixel.x * blend
+                    blended.y = existing.y * (1.0 - blend) + patch_pixel.y * blend
+                    blended.z = existing.z * (1.0 - blend) + patch_pixel.z * blend
+                    blended.w = 1.0
+                    output[out_y * output_width + out_x] = blended
+                else:
+                    output[out_y * output_width + out_x] = patch_pixel
+            x = x + 1
+        y = y + 1
+
+@blueprint
+fn quilting_synthesis(sample: Array<Vec4>, sample_width: Int, sample_height: Int, output_width: Int, output_height: Int, params: SynthesisParams) -> Array<Vec4>:
+    let output: Array<Vec4> = []
+    let i = 0
+    while i < output_width * output_height:
+        push(output, vec4(0.0, 0.0, 0.0, 1.0))
+        i = i + 1
+    let qs = QuiltingState()
+    qs.output = output
+    qs.output_width = output_width
+    qs.output_height = output_height
+    qs.params = params
+    let y = 0
+    while y < output_height:
+        let x = 0
+        while x < output_width:
+            let patch = find_best_patch(qs, x, y, x * 1000 + y)
+            place_patch(patch, x, y, output, output_width, output_height, params.patch_size)
+            x = x + params.patch_size
+        y = y + params.patch_size
+    return output
+
+@blueprint
+fn graph_cut_synthesis(sample: Array<Vec4>, sample_width: Int, sample_height: Int, output_width: Int, output_height: Int, params: SynthesisParams) -> Array<Vec4>:
+    let output: Array<Vec4> = []
+    let i = 0
+    while i < output_width * output_height:
+        push(output, vec4(0.0, 0.0, 0.0, 1.0))
+        i = i + 1
+    let y = 0
+    while y < output_height:
+        let x = 0
+        while x < output_width:
+            let patch = find_best_patch_gc(sample, sample_width, sample_height, x, y, params)
+            place_patch_gc(patch, x, y, output, output_width, output_height, params)
+            x = x + params.patch_size
+        y = y + params.patch_size
+    return output
+
+@blueprint
+fn find_best_patch_gc(sample: Array<Vec4>, sample_width: Int, sample_height: Int, target_x: Int, target_y: Int, params: SynthesisParams) -> TexturePatch:
+    let patch = TexturePatch()
+    patch.data = []
+    patch.width = params.patch_size
+    patch.height = params.patch_size
+    patch.source_x = 0
+    patch.source_y = 0
+    patch.error = 0.0
+    let i = 0
+    while i < params.patch_size * params.patch_size:
+        let sx = (target_x + i % params.patch_size) % sample_width
+        let sy = (target_y + i / params.patch_size) % sample_height
+        push(patch.data, sample[sy * sample_width + sx])
+        i = i + 1
+    return patch
+
+@blueprint
+fn place_patch_gc(patch: TexturePatch, target_x: Int, target_y: Int, output: Array<Vec4>, output_width: Int, output_height: Int, params: SynthesisParams):
+    let y = 0
+    while y < patch.height:
+        let x = 0
+        while x < patch.width:
+            let out_x = target_x + x
+            let out_y = target_y + y
+            if out_x < output_width and out_y < output_height:
+                output[out_y * output_width + out_x] = patch.data[y * patch.width + x]
+            x = x + 1
+        y = y + 1
+
+# ============================================================================
+# TEXTURE ANALYSIS
+# ============================================================================
+
+@blueprint
+fn compute_texture_histogram(texture: Array<Vec4>, width: Int, height: Int, bins: Int) -> Array<Float>:
+    let histogram: Array<Float> = []
+    let i = 0
+    while i < bins * 4:
+        push(histogram, 0.0)
+        i = i + 1
+    let px = 0
+    while px < width * height:
+        let pixel = texture[px]
+        let r_bin = clamp(floor(pixel.x * bins), 0.0, bins - 1.0)
+        let g_bin = clamp(floor(pixel.y * bins), 0.0, bins - 1.0)
+        let b_bin = clamp(floor(pixel.z * bins), 0.0, bins - 1.0)
+        histogram[r_bin] = histogram[r_bin] + 1.0
+        histogram[bins + g_bin] = histogram[bins + g_bin] + 1.0
+        histogram[bins * 2 + b_bin] = histogram[bins * 2 + b_bin] + 1.0
+        px = px + 1
+    let total = width * height
+    i = 0
+    while i < bins * 3:
+        histogram[i] = histogram[i] / total
+        i = i + 1
+    return histogram
+
+@blueprint
+fn histogram_match(source: Array<Vec4>, target_histogram: Array<Float>, width: Int, height: Int, bins: Int) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let i = 0
+    while i < width * height:
+        push(result, source[i])
+        i = i + 1
+    return result
+
+@blueprint
+fn compute_texture_statistics(texture: Array<Vec4>, width: Int, height: Int) -> TextureStatistics:
+    let stats = TextureStatistics()
+    stats.mean_r = 0.0
+    stats.mean_g = 0.0
+    stats.mean_b = 0.0
+    stats.std_r = 0.0
+    stats.std_g = 0.0
+    stats.std_b = 0.0
+    stats.min_val = 1.0
+    stats.max_val = 0.0
+    let count = width * height
+    let i = 0
+    while i < width * height:
+        let p = texture[i]
+        stats.mean_r = stats.mean_r + p.x
+        stats.mean_g = stats.mean_g + p.y
+        stats.mean_b = stats.mean_b + p.z
+        i = i + 1
+    stats.mean_r = stats.mean_r / count
+    stats.mean_g = stats.mean_g / count
+    stats.mean_b = stats.mean_b / count
+    return stats
+
+# ============================================================================
+# SEAMLESS TILING
+# ============================================================================
+
+@blueprint
+fn make_seamless_mirror(texture: Array<Vec4>, width: Int, height: Int) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let src_x = if x < width / 2: x * 2 else: (width - 1 - x) * 2
+            let src_y = if y < height / 2: y * 2 else: (height - 1 - y) * 2
+            let clamped_x = clamp(src_x, 0, width - 1)
+            let clamped_y = clamp(src_y, 0, height - 1)
+            push(result, texture[clamped_y * width + clamped_x])
+            x = x + 1
+        y = y + 1
+    return result
+
+@blueprint
+fn make_seamless_offset(texture: Array<Vec4>, width: Int, height: Int) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let half_w = width / 2
+    let half_h = height / 2
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let src_x = (x + half_w) % width
+            let src_y = (y + half_h) % height
+            push(result, texture[src_y * width + src_x])
+            x = x + 1
+        y = y + 1
+    return result
+
+@blueprint
+fn blend_seamless_edges(texture: Array<Vec4>, width: Int, height: Int, blend_size: Int) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let i = 0
+    while i < width * height:
+        push(result, texture[i])
+        i = i + 1
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let dist_x = min(x, width - 1 - x)
+            let dist_y = min(y, height - 1 - y)
+            let dist = min(dist_x, dist_y)
+            if dist < blend_size:
+                let blend = dist / blend_size
+                let opp_x = (x + width / 2) % width
+                let opp_y = (y + height / 2) % height
+                let p1 = texture[y * width + x]
+                let p2 = texture[opp_y * width + opp_x]
+                let blended = vec4(lerp(p1.x, p2.x, blend), lerp(p1.y, p2.y, blend), lerp(p1.z, p2.z, blend), 1.0)
+                result[y * width + x] = blended
+            x = x + 1
+        y = y + 1
+    return result
+
+# ============================================================================
+# SUBSYSTEM
+# ============================================================================
+
+@subsystem
+struct TextureSynthesisManager:
+    synthesis_cache: Array<String>
+    active_jobs: Int
+
+    fn initialize_manager():
+        synthesis_cache = []
+        active_jobs = 0
+
+    @blueprint_callable
+    fn synthesize_texture(sample_path: String, output_width: Int, output_height: Int, mode: SeamlessMode) -> Bool:
+        active_jobs = active_jobs + 1
+        push(synthesis_cache, sample_path)
+        active_jobs = active_jobs - 1
+        return true
+
+    @blueprint_callable
+    fn get_active_job_count() -> Int:
+        return active_jobs
+
+# ============================================================================
+# UTILITY
+# ============================================================================
+
+@blueprint
+fn lerp(a: Float, b: Float, t: Float) -> Float:
+    return a + (b - a) * t
+
+@blueprint
+fn vec4(x: Float, y: Float, z: Float, w: Float) -> Vec4:
+    return Vec4(x, y, z, w)
+
+@blueprint
+fn vec3(x: Float, y: Float, z: Float) -> Vec3:
+    return Vec3(x, y, z)
+
+@blueprint
+fn vec2(x: Float, y: Float) -> Vec2:
+    return Vec2(x, y)
+
+fn make_patch(data: Array<Vec4>, width: Int, height: Int, offset_x: Int, offset_y: Int) -> TexturePatch:
+    let p = TexturePatch()
+    p.data = data
+    p.width = width
+    p.height = height
+    p.offset_x = offset_x
+    p.offset_y = offset_y
+    return p
+
+fn make_empty_patch() -> TexturePatch:
+    let p = TexturePatch()
+    p.data = []
+    p.width = 0
+    p.height = 0
+    p.offset_x = 0
+    p.offset_y = 0
+    return p
+
+fn place_patch(patch: TexturePatch, target_x: Int, target_y: Int, output: Array<Vec4>, output_width: Int, output_height: Int, patch_size: Int):
+    let y = 0
+    while y < patch.height:
+        let x = 0
+        while x < patch.width:
+            let out_x = target_x + x
+            let out_y = target_y + y
+            if out_x < output_width and out_y < output_height:
+                output[out_y * output_width + out_x] = patch.data[y * patch.width + x]
+            x = x + 1
+        y = y + 1
+
+struct TextureStatistics:
+    mean_r: Float
+    mean_g: Float
+    mean_b: Float
+    std_r: Float
+    std_g: Float
+    std_b: Float
+    min_val: Float
+    max_val: Float
+
+fn laplacian(grid: Array<Float>, x: Int, y: Int, width: Int, height: Int) -> Float:
+    let center = grid[y * width + x]
+    let left = if x > 0: grid[y * width + (x - 1)] else: center
+    let right = if x < width - 1: grid[y * width + (x + 1)] else: center
+    let up = if y > 0: grid[(y - 1) * width + x] else: center
+    let down = if y < height - 1: grid[(y + 1) * width + x] else: center
+    return left + right + up + down - 4.0 * center
+
+fn hsv_to_rgb(h: Float, s: Float, v: Float) -> Vec3:
+    let i = floor(h * 6.0)
+    let f = h * 6.0 - i
+    let p = v * (1.0 - s)
+    let q = v * (1.0 - f * s)
+    let t = v * (1.0 - (1.0 - f) * s)
+    let m = i % 6
+    if m == 0: return vec3(v, t, p)
+    if m == 1: return vec3(q, v, p)
+    if m == 2: return vec3(p, v, t)
+    if m == 3: return vec3(p, q, v)
+    if m == 4: return vec3(t, p, v)
+    return vec3(v, p, q)
+
+fn draw_line_on_grid(pixels: Array<Float>, width: Int, height: Int, x0: Float, y0: Float, x1: Float, y1: Float):
+    let dx = abs(x1 - x0)
+    let dy = abs(y1 - y0)
+    let steps = max(dx, dy)
+    if steps < 0.001:
+        return
+    let sx = (x1 - x0) / steps
+    let sy = (y1 - y0) / steps
+    let t = 0.0
+    while t <= steps:
+        let px = floor(x0 + sx * t)
+        let py = floor(y0 + sy * t)
+        if px >= 0 and px < width and py >= 0 and py < height:
+            pixels[py * width + px] = 1.0
+        t = t + 1.0
+
+# ============================================================================
+# CELLULAR AUTOMATA
+# ============================================================================
+
+@blueprint
+fn generate_cellular_texture(width: Int, height: Int, params: CellularParams, seed: Int) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let uf = x / width
+            let vf = y / height
+            let min_dist = 1000000.0
+            let second_dist = 1000000.0
+            let i = 0
+            while i < params.num_points:
+                let px = random_float(hash_int(seed * 1000 + i * 2))
+                let py = random_float(hash_int(seed * 1000 + i * 2 + 1))
+                let jx = (random_float(hash_int(i * 7 + seed)) - 0.5) * params.jitter
+                let jy = (random_float(hash_int(i * 7 + seed + 1)) - 0.5) * params.jitter
+                let dx = uf - (px + jx)
+                let dy = vf - (py + jy)
+                let dist = sqrt(dx * dx + dy * dy)
+                if dist < min_dist:
+                    second_dist = min_dist
+                    min_dist = dist
+                else:
+                    if dist < second_dist:
+                        second_dist = dist
+                i = i + 1
+            let cell_val = if params.cell_type == 1: second_dist - min_dist else: min_dist
+            push(result, vec4(cell_val, cell_val, cell_val, 1.0))
+            x = x + 1
+        y = y + 1
+    return result
+
+# ============================================================================
+# REACTION-DIFFUSION
+# ============================================================================
+
+@blueprint
+fn generate_reaction_diffusion(width: Int, height: Int, params: ReactionDiffusionParams, seed: Int) -> Array<Vec4>:
+    let cells_a: Array<Float> = []
+    let cells_b: Array<Float> = []
+    let i = 0
+    while i < width * height:
+        push(cells_a, 1.0)
+        push(cells_b, 0.0)
+        i = i + 1
+    let cx = width / 2
+    let cy = height / 2
+    let r = width / 10
+    let sy = cy - r
+    while sy < cy + r:
+        let sx = cx - r
+        while sx < cx + r:
+            if sx >= 0 and sx < width and sy >= 0 and sy < height:
+                cells_b[sy * width + sx] = 1.0
+            sx = sx + 1
+        sy = sy + 1
+    let iter = 0
+    while iter < params.iterations:
+        let new_a: Array<Float> = []
+        let new_b: Array<Float> = []
+        let j = 0
+        while j < width * height:
+            push(new_a, 0.0)
+            push(new_b, 0.0)
+            j = j + 1
+        let py = 0
+        while py < height:
+            let px = 0
+            while px < width:
+                let idx = py * width + px
+                let a = cells_a[idx]
+                let b = cells_b[idx]
+                let lap_a = laplacian(cells_a, px, py, width, height)
+                let lap_b = laplacian(cells_b, px, py, width, height)
+                let reaction = a * b * b
+                new_a[idx] = clamp(a + params.timestep * (params.diffusion_a * lap_a - reaction + params.feed_rate * (1.0 - a)), 0.0, 1.0)
+                new_b[idx] = clamp(b + params.timestep * (params.diffusion_b * lap_b + reaction - (params.kill_rate + params.feed_rate) * b), 0.0, 1.0)
+                px = px + 1
+            py = py + 1
+        let k = 0
+        while k < width * height:
+            cells_a[k] = new_a[k]
+            cells_b[k] = new_b[k]
+            k = k + 1
+        iter = iter + 1
+    let result: Array<Vec4> = []
+    let n = 0
+    while n < width * height:
+        let val = cells_b[n]
+        push(result, vec4(val, val, val, 1.0))
+        n = n + 1
+    return result
+
+# ============================================================================
+# EROSION
+# ============================================================================
+
+@blueprint
+fn apply_thermal_erosion(heightmap: Array<Float>, width: Int, height: Int, params: ErosionParams) -> Array<Float>:
+    let result: Array<Float> = []
+    let i = 0
+    while i < width * height:
+        push(result, heightmap[i])
+        i = i + 1
+    let iter = 0
+    while iter < params.thermal_iterations:
+        let py = 1
+        while py < height - 1:
+            let px = 1
+            while px < width - 1:
+                let idx = py * width + px
+                let h = result[idx]
+                let neighbors = [result[idx - 1], result[idx + 1], result[(py-1)*width+px], result[(py+1)*width+px]]
+                let j = 0
+                while j < 4:
+                    let diff = h - neighbors[j]
+                    if diff > params.thermal_angle:
+                        result[idx] = result[idx] - (diff - params.thermal_angle) * 0.5
+                    j = j + 1
+                px = px + 1
+            py = py + 1
+        iter = iter + 1
+    return result
+
+@blueprint
+fn apply_hydraulic_erosion(heightmap: Array<Float>, width: Int, height: Int, params: ErosionParams, seed: Int) -> Array<Float>:
+    let result: Array<Float> = []
+    let i = 0
+    while i < width * height:
+        push(result, heightmap[i])
+        i = i + 1
+    let iter = 0
+    while iter < params.hydraulic_iterations:
+        let drop_x = random_float(hash_int(seed + iter * 3)) * (width - 2) + 1.0
+        let drop_y = random_float(hash_int(seed + iter * 3 + 1)) * (height - 2) + 1.0
+        let water = 1.0
+        let sediment = 0.0
+        let vel_x = 0.0
+        let vel_y = 0.0
+        let step = 0
+        while step < 64 and water > 0.01:
+            let xi = floor(drop_x)
+            let yi = floor(drop_y)
+            if xi < 1 or xi >= width - 1 or yi < 1 or yi >= height - 1:
+                step = 64
+                continue
+            let idx = yi * width + xi
+            let gx = result[idx + 1] - result[idx - 1]
+            let gy = result[(yi+1)*width+xi] - result[(yi-1)*width+xi]
+            vel_x = vel_x * 0.9 - gx * 0.1
+            vel_y = vel_y * 0.9 - gy * 0.1
+            drop_x = drop_x + vel_x
+            drop_y = drop_y + vel_y
+            let capacity = max(0.01, sqrt(vel_x*vel_x + vel_y*vel_y)) * water * params.sediment_capacity
+            if sediment > capacity:
+                let deposit = (sediment - capacity) * params.deposition_rate
+                result[idx] = result[idx] + deposit
+                sediment = sediment - deposit
+            else:
+                let erode = min((capacity - sediment) * params.erosion_rate, result[idx] * 0.1)
+                result[idx] = result[idx] - erode
+                sediment = sediment + erode
+            water = water * (1.0 - params.evaporation)
+            step = step + 1
+        iter = iter + 1
+    return result
+
+# ============================================================================
+# FRACTAL HEIGHTMAP
+# ============================================================================
+
+@blueprint
+fn generate_fractal_heightmap(width: Int, height: Int, params: FractalParams, seed: Int) -> Array<Float>:
+    let result: Array<Float> = []
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let val = fbm_noise(x / width, y / height, 0.0, params)
+            push(result, (val + 1.0) * 0.5)
+            x = x + 1
+        y = y + 1
+    return result
+
+@blueprint
+fn heightmap_to_texture(heightmap: Array<Float>, width: Int, height: Int) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let i = 0
+    while i < width * height:
+        let h = heightmap[i]
+        push(result, vec4(h, h, h, 1.0))
+        i = i + 1
+    return result
+
+@blueprint
+fn heightmap_to_normal(heightmap: Array<Float>, width: Int, height: Int, strength: Float) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let l = if x > 0: heightmap[y * width + (x-1)] else: heightmap[y * width + x]
+            let r = if x < width-1: heightmap[y * width + (x+1)] else: heightmap[y * width + x]
+            let u = if y > 0: heightmap[(y-1) * width + x] else: heightmap[y * width + x]
+            let d = if y < height-1: heightmap[(y+1) * width + x] else: heightmap[y * width + x]
+            let nx = (l - r) * strength
+            let ny = (u - d) * strength
+            let nz = 1.0
+            let nlen = sqrt(nx*nx + ny*ny + nz*nz)
+            push(result, vec4(nx/nlen * 0.5 + 0.5, ny/nlen * 0.5 + 0.5, nz/nlen * 0.5 + 0.5, 1.0))
+            x = x + 1
+        y = y + 1
+    return result
+
+# ============================================================================
+# WOOD GRAIN
+# ============================================================================
+
+@blueprint
+fn generate_wood_grain(width: Int, height: Int, params: WoodGrainParams, seed: Int) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let fp = FractalParams()
+    fp.octaves = 4
+    fp.persistence = 0.5
+    fp.lacunarity = 2.0
+    fp.scale = 1.0
+    fp.offset = Vec3(0.0, 0.0, 0.0)
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let uf = x / width
+            let vf = y / height
+            let cos_a = cos(params.grain_angle)
+            let sin_a = sin(params.grain_angle)
+            let ru = uf * cos_a - vf * sin_a
+            let turbulence = fbm_noise(uf * 3.0, vf * 3.0, seed, fp) * params.ring_irregularity
+            let ring_val = sin((ru + turbulence) * params.ring_frequency * 6.28318)
+            let ring = (ring_val + 1.0) * 0.5
+            let grain = fbm_noise(uf * 20.0, vf * 2.0, seed + 1, fp) * params.grain_strength
+            let wood = clamp(ring + grain * 0.3, 0.0, 1.0)
+            push(result, vec4(lerp(0.35, 0.72, wood), lerp(0.18, 0.52, wood), lerp(0.05, 0.25, wood), 1.0))
+            x = x + 1
+        y = y + 1
+    return result
+
+# ============================================================================
+# MARBLE
+# ============================================================================
+
+@blueprint
+fn generate_marble(width: Int, height: Int, params: MarbleParams, seed: Int) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let fp = FractalParams()
+    fp.octaves = 6
+    fp.persistence = 0.5
+    fp.lacunarity = 2.0
+    fp.scale = params.turbulence
+    fp.offset = Vec3(0.0, 0.0, 0.0)
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let uf = x / width
+            let vf = y / height
+            let turb = fbm_noise(uf, vf, seed, fp)
+            let vein = sin((uf + turb) * params.vein_frequency * 6.28318)
+            let sharp = pow(abs(vein), params.vein_sharpness)
+            let variation = fbm_noise(uf * 2.0, vf * 2.0, seed + 100, fp) * params.color_variation
+            let v = clamp(sharp + variation, 0.0, 1.0)
+            push(result, vec4(clamp(lerp(0.9, 0.3, v), 0.0, 1.0), clamp(lerp(0.88, 0.25, v), 0.0, 1.0), clamp(lerp(0.85, 0.2, v), 0.0, 1.0), 1.0))
+            x = x + 1
+        y = y + 1
+    return result
+
+# ============================================================================
+# FABRIC WEAVE
+# ============================================================================
+
+@blueprint
+fn generate_fabric_weave(width: Int, height: Int, params: FabricWeaveParams, seed: Int) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let warp_cell = floor(x * params.warp_density / width)
+            let weft_cell = floor(y * params.weft_density / height)
+            let warp_u = (x * params.warp_density / width) - warp_cell
+            let weft_v = (y * params.weft_density / height) - weft_cell
+            let on_warp = abs(warp_u - 0.5) < params.thread_thickness * 0.5
+            let on_weft = abs(weft_v - 0.5) < params.thread_thickness * 0.5
+            let is_over = (warp_cell + weft_cell) % 2 == 0
+            let brightness = 0.3
+            if on_warp and on_weft:
+                brightness = if is_over: 0.9 else: 0.6
+            else:
+                if on_warp:
+                    brightness = 0.75
+                else:
+                    if on_weft:
+                        brightness = 0.65
+            let noise_val = random_float(hash_int(x * 1000 + y + seed)) * params.thread_variation
+            let fv = clamp(brightness + noise_val * 0.1, 0.0, 1.0)
+            push(result, vec4(fv, fv * 0.95, fv * 0.9, 1.0))
+            x = x + 1
+        y = y + 1
+    return result
+
+# ============================================================================
+# NOISE + BLEND UTILITIES
+# ============================================================================
+
+@blueprint
+fn generate_noise_texture(width: Int, height: Int, params: FractalParams, seed: Int) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let val = fbm_noise(x / width, y / height, seed, params)
+            let normalized = (val + 1.0) * 0.5
+            push(result, vec4(normalized, normalized, normalized, 1.0))
+            x = x + 1
+        y = y + 1
+    return result
+
+@blueprint
+fn blend_textures(a: Array<Vec4>, b: Array<Vec4>, blend: Float, width: Int, height: Int) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let i = 0
+    while i < width * height:
+        let pa = a[i]
+        let pb = b[i]
+        push(result, vec4(lerp(pa.x, pb.x, blend), lerp(pa.y, pb.y, blend), lerp(pa.z, pb.z, blend), 1.0))
+        i = i + 1
+    return result
+
+@blueprint
+fn apply_levels(texture: Array<Vec4>, width: Int, height: Int, in_min: Float, in_max: Float, gamma: Float, out_min: Float, out_max: Float) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let i = 0
+    while i < width * height:
+        let p = texture[i]
+        let rx = pow(clamp((p.x - in_min) / (in_max - in_min), 0.0, 1.0), 1.0 / gamma)
+        let ry = pow(clamp((p.y - in_min) / (in_max - in_min), 0.0, 1.0), 1.0 / gamma)
+        let rz = pow(clamp((p.z - in_min) / (in_max - in_min), 0.0, 1.0), 1.0 / gamma)
+        push(result, vec4(lerp(out_min, out_max, rx), lerp(out_min, out_max, ry), lerp(out_min, out_max, rz), p.w))
+        i = i + 1
+    return result
+
+@blueprint
+fn apply_gaussian_blur(texture: Array<Vec4>, width: Int, height: Int, radius: Int) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let sum_r = 0.0
+            let sum_g = 0.0
+            let sum_b = 0.0
+            let weight_sum = 0.0
+            let ky = -radius
+            while ky <= radius:
+                let kx = -radius
+                while kx <= radius:
+                    let sx = clamp(x + kx, 0, width - 1)
+                    let sy = clamp(y + ky, 0, height - 1)
+                    let sigma = radius / 2.0
+                    let w = exp(-(kx*kx + ky*ky) / (2.0 * sigma * sigma))
+                    let p = texture[sy * width + sx]
+                    sum_r = sum_r + p.x * w
+                    sum_g = sum_g + p.y * w
+                    sum_b = sum_b + p.z * w
+                    weight_sum = weight_sum + w
+                    kx = kx + 1
+                ky = ky + 1
+            push(result, vec4(sum_r / weight_sum, sum_g / weight_sum, sum_b / weight_sum, 1.0))
+            x = x + 1
+        y = y + 1
+    return result
+
+@blueprint
+fn apply_sharpen(texture: Array<Vec4>, width: Int, height: Int, strength: Float) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let c = texture[y * width + x]
+            let l = texture[y * width + clamp(x-1, 0, width-1)]
+            let r = texture[y * width + clamp(x+1, 0, width-1)]
+            let u = texture[clamp(y-1, 0, height-1) * width + x]
+            let d = texture[clamp(y+1, 0, height-1) * width + x]
+            let lap_r = c.x * 4.0 - l.x - r.x - u.x - d.x
+            let lap_g = c.y * 4.0 - l.y - r.y - u.y - d.y
+            let lap_b = c.z * 4.0 - l.z - r.z - u.z - d.z
+            push(result, vec4(clamp(c.x + lap_r * strength, 0.0, 1.0), clamp(c.y + lap_g * strength, 0.0, 1.0), clamp(c.z + lap_b * strength, 0.0, 1.0), c.w))
+            x = x + 1
+        y = y + 1
+    return result
+
+@blueprint
+fn generate_gradient_texture(width: Int, height: Int, color_a: Vec4, color_b: Vec4, angle: Float) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let cos_a = cos(angle)
+    let sin_a = sin(angle)
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let uf = x / width - 0.5
+            let vf = y / height - 0.5
+            let t = clamp(uf * cos_a + vf * sin_a + 0.5, 0.0, 1.0)
+            push(result, vec4(lerp(color_a.x, color_b.x, t), lerp(color_a.y, color_b.y, t), lerp(color_a.z, color_b.z, t), lerp(color_a.w, color_b.w, t)))
+            x = x + 1
+        y = y + 1
+    return result
+
+@blueprint
+fn generate_checkerboard(width: Int, height: Int, tiles_x: Int, tiles_y: Int, color_a: Vec4, color_b: Vec4) -> Array<Vec4>:
+    let result: Array<Vec4> = []
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let tx = floor(x * tiles_x / width)
+            let ty = floor(y * tiles_y / height)
+            let is_a = (tx + ty) % 2 == 0
+            push(result, if is_a: color_a else: color_b)
+            x = x + 1
+        y = y + 1
+    return result

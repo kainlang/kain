@@ -1,0 +1,15 @@
+[package]
+name = "AutoInstancer"
+version = "1.0.0"
+authors = ["KAIN Factory"]
+description = "Automatic mesh instancing and HISM conversion for performance optimization"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "AutoInstancer"
+plugin_dir = "."
+sources = ["auto_instancer.kn"]
+shaders = []
+modular_output = true

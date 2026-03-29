@@ -1,0 +1,83 @@
+# KAIN GAS Phase 7 - TargetActor Test File
+# Tests TargetActor codegen features
+
+# Line trace targeting - single target via line trace
+@target_actor
+struct LineTraceTarget:
+    trace_type: "Line"
+    max_range: 1000.0
+    trace_channel: "Visibility"
+    
+    filter:
+        self_filter: "Exclude"
+        required_actor_class: "ACharacter"
+        require_tags: ["Status.Alive"]
+        ignore_tags: ["Status.Dead"]
+    
+    reticle_class: "BP_LineTraceReticle"
+
+# Sphere trace targeting - AOE sphere targeting
+@target_actor
+struct SphereTraceTarget:
+    trace_type: "Sphere"
+    max_range: 2000.0
+    trace_channel: "Visibility"
+    
+    filter:
+        self_filter: "Exclude"
+        required_actor_class: "ACharacter"
+        require_tags: ["Status.Alive"]
+
+# Cone trace targeting - directional AOE
+@target_actor
+struct ConeTraceTarget:
+    trace_type: "Cone"
+    max_range: 1500.0
+    trace_channel: "Visibility"
+    
+    filter:
+        required_actor_class: "ACharacter"
+        ignore_tags: ["Status.Dead", "Status.Invulnerable"]
+
+# Box trace targeting - box-shaped AOE
+@target_actor
+struct BoxTraceTarget:
+    trace_type: "Box"
+    max_range: 1000.0
+    trace_channel: "Visibility"
+
+# Cylinder trace targeting - cylindrical AOE
+@target_actor
+struct CylinderTraceTarget:
+    trace_type: "Cylinder"
+    max_range: 2500.0
+    trace_channel: "Visibility"
+    
+    filter:
+        self_filter: "Include"
+        required_actor_class: "APawn"
+
+# Simple line trace with minimal config
+@target_actor
+struct SimpleLineTrace:
+    trace_type: "Line"
+    max_range: 5000.0
+
+# Ground targeting with reticle
+@target_actor
+struct GroundTarget:
+    trace_type: "Sphere"
+    max_range: 2000.0
+    trace_channel: "WorldStatic"
+    reticle_class: "BP_GroundTargetReticle"
+
+# Ally targeting
+@target_actor
+struct AllyTarget:
+    trace_type: "Line"
+    max_range: 3000.0
+    trace_channel: "Visibility"
+    
+    filter:
+        required_actor_class: "APlayerCharacter"
+        require_tags: ["Team.Friendly"]

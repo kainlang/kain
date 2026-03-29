@@ -1,0 +1,526 @@
+// DialogueForge — Subsystem
+// World subsystem for dialogue state management with tick
+
+@subsystem
+@tick
+struct DialogueManagerSubsystem:
+    active_instances: Array<DialogueInstance> = []
+    registered_speakers: Array<DialogueSpeaker> = []
+    loaded_graphs: Array<DialogueGraph> = []
+    dialogue_history: Array<DialogueHistoryEntry> = []
+    global_variables: Array<DialogueVariable> = []
+    persistent_flags: Array<String> = []
+    quest_triggers: Array<QuestTrigger> = []
+    pending_events: Array<DialogueEvent> = []
+    voice_line_cache: Array<VoiceLineData> = []
+    next_instance_id: Int = 0
+    max_concurrent_dialogues: Int = 10
+    auto_save_enabled: Bool = true
+    auto_save_interval: Float = 30.0
+    last_auto_save_time: Float = 0.0
+    debug_logging: Bool = false
+    tick_rate: Float = 0.1
+    accumulated_time: Float = 0.0
+    
+    fn tick(delta_time: Float):
+        accumulated_time = accumulated_time + delta_time
+        
+        if accumulated_time < tick_rate:
+            return
+        
+        accumulated_time = 0.0
+        
+        update_active_dialogues(delta_time)
+        process_pending_events(delta_time)
+        update_voice_lines(delta_time)
+        check_auto_save(delta_time)
+    
+    fn start_dialogue(graph_id: String, initiator: Actor, target: Actor) -> Int:
+        if len(active_instances) >= max_concurrent_dialogues:
+            if debug_logging:
+                println("Cannot start dialogue: max concurrent limit reached")
+            return -1
+        
+        let graph = find_dialogue_graph(graph_id)
+        if graph.graph_id == "":
+            if debug_logging:
+                println("Graph not found: {graph_id}")
+            return -1
+        
+        let instance = DialogueInstance {
+            instance_id: next_instance_id,
+            graph_id: graph_id,
+            current_node_id: graph.entry_node_id,
+            state: DialogueState::Active,
+            participants: [initiator, target],
+            active_speaker: target,
+            listener: initiator,
+            variables: graph.variables,
+            chosen_choices: [],
+            visited_nodes: [graph.entry_node_id],
+            start_time: get_world_time(),
+            elapsed_time: 0.0,
+            is_paused: false
+        }
+        
+        push(active_instances, instance)
+        next_instance_id = next_instance_id + 1
+        
+        if debug_logging:
+            println("Started dialogue: {graph_id} (Instance: {instance.instance_id})")
+        
+        return instance.instance_id
+    
+    fn end_dialogue(instance_id: Int) -> Bool:
+        let mut i = 0
+        while i < len(active_instances):
+            if active_instances[i].instance_id == instance_id:
+                active_instances[i].state = DialogueState::Completed
+                
+                if debug_logging:
+                    println("Ended dialogue: {instance_id}")
+                
+                return true
+            i = i + 1
+        return false
+    
+    fn pause_dialogue(instance_id: Int) -> Bool:
+        let mut i = 0
+        while i < len(active_instances):
+            if active_instances[i].instance_id == instance_id:
+                active_instances[i].is_paused = true
+                active_instances[i].state = DialogueState::Paused
+                return true
+            i = i + 1
+        return false
+    
+    fn resume_dialogue(instance_id: Int) -> Bool:
+        let mut i = 0
+        while i < len(active_instances):
+            if active_instances[i].instance_id == instance_id:
+                active_instances[i].is_paused = false
+                active_instances[i].state = DialogueState::Active
+                return true
+            i = i + 1
+        return false
+    
+    fn advance_dialogue(instance_id: Int, next_node_id: Int) -> Bool:
+        let mut i = 0
+        while i < len(active_instances):
+            if active_instances[i].instance_id == instance_id:
+                active_instances[i].current_node_id = next_node_id
+                push(active_instances[i].visited_nodes, next_node_id)
+                
+                add_to_history(instance_id, next_node_id)
+                
+                return true
+            i = i + 1
+        return false
+    
+    fn make_choice(instance_id: Int, choice_id: Int, next_node_id: Int) -> Bool:
+        let mut i = 0
+        while i < len(active_instances):
+            if active_instances[i].instance_id == instance_id:
+                push(active_instances[i].chosen_choices, choice_id)
+                active_instances[i].current_node_id = next_node_id
+                push(active_instances[i].visited_nodes, next_node_id)
+                
+                if debug_logging:
+                    println("Choice made: {choice_id}, advancing to node: {next_node_id}")
+                
+                return true
+            i = i + 1
+        return false
+    
+    fn register_speaker(speaker: DialogueSpeaker):
+        let mut i = 0
+        while i < len(registered_speakers):
+            if registered_speakers[i].speaker_id == speaker.speaker_id:
+                registered_speakers[i] = speaker
+                return
+            i = i + 1
+        
+        push(registered_speakers, speaker)
+        
+        if debug_logging:
+            println("Registered speaker: {speaker.speaker_id}")
+    
+    fn unregister_speaker(speaker_id: String):
+        let mut i = 0
+        while i < len(registered_speakers):
+            if registered_speakers[i].speaker_id == speaker_id:
+                if debug_logging:
+                    println("Unregistered speaker: {speaker_id}")
+                return
+            i = i + 1
+    
+    fn load_dialogue_graph(graph: DialogueGraph):
+        let mut i = 0
+        while i < len(loaded_graphs):
+            if loaded_graphs[i].graph_id == graph.graph_id:
+                loaded_graphs[i] = graph
+                return
+            i = i + 1
+        
+        push(loaded_graphs, graph)
+        
+        if debug_logging:
+            println("Loaded dialogue graph: {graph.graph_id}")
+    
+    fn unload_dialogue_graph(graph_id: String):
+        let mut i = 0
+        while i < len(loaded_graphs):
+            if loaded_graphs[i].graph_id == graph_id:
+                if debug_logging:
+                    println("Unloaded dialogue graph: {graph_id}")
+                return
+            i = i + 1
+    
+    fn set_global_variable(var_name: String, value: Float):
+        let mut i = 0
+        while i < len(global_variables):
+            if global_variables[i].variable_name == var_name:
+                global_variables[i].current_value = value
+                return
+            i = i + 1
+        
+        let new_var = DialogueVariable {
+            variable_name: var_name,
+            variable_type: "Float",
+            default_value: value,
+            current_value: value,
+            is_persistent: true,
+            description: ""
+        }
+        push(global_variables, new_var)
+    
+    fn get_global_variable(var_name: String) -> Float:
+        let mut i = 0
+        while i < len(global_variables):
+            if global_variables[i].variable_name == var_name:
+                return global_variables[i].current_value
+            i = i + 1
+        return 0.0
+    
+    fn set_persistent_flag(flag_name: String, value: Bool):
+        if value:
+            let mut found = false
+            let mut i = 0
+            while i < len(persistent_flags):
+                if persistent_flags[i] == flag_name:
+                    found = true
+                i = i + 1
+            
+            if !found:
+                push(persistent_flags, flag_name)
+        else:
+            let mut i = 0
+            while i < len(persistent_flags):
+                if persistent_flags[i] == flag_name:
+                    return
+                i = i + 1
+    
+    fn check_persistent_flag(flag_name: String) -> Bool:
+        let mut i = 0
+        while i < len(persistent_flags):
+            if persistent_flags[i] == flag_name:
+                return true
+            i = i + 1
+        return false
+    
+    fn add_quest_trigger(trigger: QuestTrigger):
+        push(quest_triggers, trigger)
+    
+    fn trigger_quest_event(quest_id: String, is_start: Bool, is_complete: Bool):
+        let mut i = 0
+        while i < len(quest_triggers):
+            if quest_triggers[i].quest_id == quest_id:
+                if is_start:
+                    quest_triggers[i].is_start = true
+                if is_complete:
+                    quest_triggers[i].is_complete = true
+            i = i + 1
+    
+    fn queue_dialogue_event(event: DialogueEvent):
+        push(pending_events, event)
+    
+    fn get_active_dialogue_count() -> Int:
+        return len(active_instances)
+    
+    fn is_dialogue_active(instance_id: Int) -> Bool:
+        let mut i = 0
+        while i < len(active_instances):
+            if active_instances[i].instance_id == instance_id:
+                return active_instances[i].state == DialogueState::Active
+            i = i + 1
+        return false
+    
+    fn get_dialogue_instance(instance_id: Int) -> DialogueInstance:
+        let mut i = 0
+        while i < len(active_instances):
+            if active_instances[i].instance_id == instance_id:
+                return active_instances[i]
+            i = i + 1
+        
+        return DialogueInstance {
+            instance_id: -1,
+            graph_id: "",
+            current_node_id: -1,
+            state: DialogueState::Inactive,
+            participants: [],
+            active_speaker: null,
+            listener: null,
+            variables: [],
+            chosen_choices: [],
+            visited_nodes: [],
+            start_time: 0.0,
+            elapsed_time: 0.0,
+            is_paused: false
+        }
+    
+    fn find_speaker(speaker_id: String) -> DialogueSpeaker:
+        let mut i = 0
+        while i < len(registered_speakers):
+            if registered_speakers[i].speaker_id == speaker_id:
+                return registered_speakers[i]
+            i = i + 1
+        return create_default_speaker()
+    
+    fn find_dialogue_graph(graph_id: String) -> DialogueGraph:
+        let mut i = 0
+        while i < len(loaded_graphs):
+            if loaded_graphs[i].graph_id == graph_id:
+                return loaded_graphs[i]
+            i = i + 1
+        
+        return DialogueGraph {
+            graph_id: "",
+            graph_name: "",
+            description: "",
+            entry_node_id: 0,
+            nodes: [],
+            speakers: [],
+            variables: [],
+            tags: [],
+            category: "",
+            priority: 0
+        }
+    
+    fn get_dialogue_history_count() -> Int:
+        return len(dialogue_history)
+    
+    fn clear_dialogue_history():
+        dialogue_history = []
+    
+    fn get_loaded_graph_count() -> Int:
+        return len(loaded_graphs)
+    
+    fn get_registered_speaker_count() -> Int:
+        return len(registered_speakers)
+    
+    fn enable_debug_logging(enabled: Bool):
+        debug_logging = enabled
+    
+    fn set_max_concurrent_dialogues(max_count: Int):
+        max_concurrent_dialogues = max_count
+    
+    fn enable_auto_save(enabled: Bool):
+        auto_save_enabled = enabled
+    
+    fn set_auto_save_interval(interval: Float):
+        auto_save_interval = interval
+    
+    fn save_dialogue_state():
+        if debug_logging:
+            println("Saving dialogue state...")
+    
+    fn load_dialogue_state():
+        if debug_logging:
+            println("Loading dialogue state...")
+    
+    fn clear_all_dialogues():
+        active_instances = []
+        next_instance_id = 0
+    
+    fn clear_all_speakers():
+        registered_speakers = []
+    
+    fn clear_all_graphs():
+        loaded_graphs = []
+    
+    fn reset_subsystem():
+        active_instances = []
+        registered_speakers = []
+        loaded_graphs = []
+        dialogue_history = []
+        global_variables = []
+        persistent_flags = []
+        quest_triggers = []
+        pending_events = []
+        voice_line_cache = []
+        next_instance_id = 0
+
+fn update_active_dialogues(delta_time: Float):
+    return
+
+fn process_pending_events(delta_time: Float):
+    return
+
+fn update_voice_lines(delta_time: Float):
+    return
+
+fn check_auto_save(delta_time: Float):
+    return
+
+fn add_to_history(instance_id: Int, node_id: Int):
+    return
+
+fn get_world_time() -> Float:
+    return 0.0
+
+@blueprint
+fn get_dialogue_subsystem() -> DialogueManagerSubsystem:
+    return DialogueManagerSubsystem {
+        active_instances: [],
+        registered_speakers: [],
+        loaded_graphs: [],
+        dialogue_history: [],
+        global_variables: [],
+        persistent_flags: [],
+        quest_triggers: [],
+        pending_events: [],
+        voice_line_cache: [],
+        next_instance_id: 0,
+        max_concurrent_dialogues: 10,
+        auto_save_enabled: true,
+        auto_save_interval: 30.0,
+        last_auto_save_time: 0.0,
+        debug_logging: false,
+        tick_rate: 0.1,
+        accumulated_time: 0.0
+    }
+
+@blueprint
+fn start_dialogue_from_subsystem(graph_id: String, initiator: Actor, target: Actor) -> Int:
+    return 0
+
+@blueprint
+fn end_dialogue_from_subsystem(instance_id: Int) -> Bool:
+    return true
+
+@blueprint
+fn pause_dialogue_from_subsystem(instance_id: Int) -> Bool:
+    return true
+
+@blueprint
+fn resume_dialogue_from_subsystem(instance_id: Int) -> Bool:
+    return true
+
+@blueprint
+fn advance_dialogue_from_subsystem(instance_id: Int, next_node_id: Int) -> Bool:
+    return true
+
+@blueprint
+fn make_choice_from_subsystem(instance_id: Int, choice_id: Int, next_node_id: Int) -> Bool:
+    return true
+
+@blueprint
+fn register_speaker_to_subsystem(speaker: DialogueSpeaker):
+    println("Registering speaker to subsystem")
+
+@blueprint
+fn unregister_speaker_from_subsystem(speaker_id: String):
+    println("Unregistering speaker from subsystem")
+
+@blueprint
+fn load_graph_to_subsystem(graph: DialogueGraph):
+    println("Loading graph to subsystem")
+
+@blueprint
+fn unload_graph_from_subsystem(graph_id: String):
+    println("Unloading graph from subsystem")
+
+@blueprint
+fn set_subsystem_global_variable(var_name: String, value: Float):
+    println("Setting global variable: {var_name} = {value}")
+
+@blueprint
+fn get_subsystem_global_variable(var_name: String) -> Float:
+    return 0.0
+
+@blueprint
+fn set_subsystem_persistent_flag(flag_name: String, value: Bool):
+    println("Setting persistent flag: {flag_name} = {value}")
+
+@blueprint
+fn check_subsystem_persistent_flag(flag_name: String) -> Bool:
+    return false
+
+@blueprint
+fn get_subsystem_active_dialogue_count() -> Int:
+    return 0
+
+@blueprint
+fn is_subsystem_dialogue_active(instance_id: Int) -> Bool:
+    return false
+
+@blueprint
+fn get_subsystem_dialogue_instance(instance_id: Int) -> DialogueInstance:
+    return DialogueInstance {
+        instance_id: -1,
+        graph_id: "",
+        current_node_id: -1,
+        state: DialogueState::Inactive,
+        participants: [],
+        active_speaker: null,
+        listener: null,
+        variables: [],
+        chosen_choices: [],
+        visited_nodes: [],
+        start_time: 0.0,
+        elapsed_time: 0.0,
+        is_paused: false
+    }
+
+@blueprint
+fn find_subsystem_speaker(speaker_id: String) -> DialogueSpeaker:
+    return create_default_speaker()
+
+@blueprint
+fn find_subsystem_dialogue_graph(graph_id: String) -> DialogueGraph:
+    return DialogueGraph {
+        graph_id: "",
+        graph_name: "",
+        description: "",
+        entry_node_id: 0,
+        nodes: [],
+        speakers: [],
+        variables: [],
+        tags: [],
+        category: "",
+        priority: 0
+    }
+
+@blueprint
+fn enable_subsystem_debug_logging(enabled: Bool):
+    println("Debug logging: {enabled}")
+
+@blueprint
+fn set_subsystem_max_concurrent_dialogues(max_count: Int):
+    println("Max concurrent dialogues: {max_count}")
+
+@blueprint
+fn save_subsystem_dialogue_state():
+    println("Saving dialogue state")
+
+@blueprint
+fn load_subsystem_dialogue_state():
+    println("Loading dialogue state")
+
+@blueprint
+fn clear_subsystem_all_dialogues():
+    println("Clearing all dialogues")
+
+@blueprint
+fn reset_dialogue_subsystem():
+    println("Resetting dialogue subsystem")

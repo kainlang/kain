@@ -1,0 +1,282 @@
+actor VoxelPhysicsSimulator:
+    state falling_blocks: Array<BlockPosition>
+    state fluid_blocks: Array<BlockPosition>
+    state physics_tick_rate: Float
+    state last_physics_tick: Float
+    
+    on BeginPlay():
+        physics_tick_rate = 0.05
+        last_physics_tick = 0.0
+        falling_blocks = []
+        fluid_blocks = []
+    
+    @tick
+    on Tick(delta: Float):
+        last_physics_tick = last_physics_tick + delta
+        
+        if last_physics_tick >= physics_tick_rate:
+            update_falling_blocks()
+            update_fluid_simulation()
+            last_physics_tick = 0.0
+    
+    fn update_falling_blocks():
+        let new_falling_blocks: Array<BlockPosition> = []
+        
+        for block_pos in falling_blocks:
+            let below_pos = BlockPosition {
+                x: block_pos.x,
+                y: block_pos.y - 1,
+                z: block_pos.z
+            }
+            
+            let below_voxel = get_voxel_at(below_pos)
+            
+            if below_voxel.voxel_type == VoxelType::Air:
+                set_voxel_at(block_pos, VoxelData {
+                    voxel_type: VoxelType::Air,
+                    light_level: 15,
+                    metadata: 0
+                })
+                
+                let current_voxel = get_voxel_at(block_pos)
+                set_voxel_at(below_pos, current_voxel)
+                
+                push(new_falling_blocks, below_pos)
+            else:
+                if below_voxel.voxel_type == VoxelType::Water:
+                    set_voxel_at(block_pos, VoxelData {
+                        voxel_type: VoxelType::Air,
+                        light_level: 15,
+                        metadata: 0
+                    })
+        
+        falling_blocks = new_falling_blocks
+    
+    fn update_fluid_simulation():
+        let new_fluid_blocks: Array<BlockPosition> = []
+        
+        for fluid_pos in fluid_blocks:
+            let fluid_voxel = get_voxel_at(fluid_pos)
+            
+            if fluid_voxel.voxel_type != VoxelType::Water:
+                continue
+            
+            let below_pos = BlockPosition {
+                x: fluid_pos.x,
+                y: fluid_pos.y - 1,
+                z: fluid_pos.z
+            }
+            
+            let below_voxel = get_voxel_at(below_pos)
+            
+            if below_voxel.voxel_type == VoxelType::Air:
+                set_voxel_at(below_pos, VoxelData {
+                    voxel_type: VoxelType::Water,
+                    light_level: 10,
+                    metadata: 0
+                })
+                push(new_fluid_blocks, below_pos)
+            else:
+                let spread_directions = [
+                    BlockPosition { x: fluid_pos.x + 1, y: fluid_pos.y, z: fluid_pos.z },
+                    BlockPosition { x: fluid_pos.x - 1, y: fluid_pos.y, z: fluid_pos.z },
+                    BlockPosition { x: fluid_pos.x, y: fluid_pos.y, z: fluid_pos.z + 1 },
+                    BlockPosition { x: fluid_pos.x, y: fluid_pos.y, z: fluid_pos.z - 1 }
+                ]
+                
+                for neighbor_pos in spread_directions:
+                    let neighbor_voxel = get_voxel_at(neighbor_pos)
+                    
+                    if neighbor_voxel.voxel_type == VoxelType::Air:
+                        if random_float(0.0, 1.0) < 0.25:
+                            set_voxel_at(neighbor_pos, VoxelData {
+                                voxel_type: VoxelType::Water,
+                                light_level: 10,
+                                metadata: 0
+                            })
+                            push(new_fluid_blocks, neighbor_pos)
+        
+        fluid_blocks = new_fluid_blocks
+    
+    @blueprint_callable
+    fn check_block_stability(position: BlockPosition) -> Bool:
+        let below_pos = BlockPosition {
+            x: position.x,
+            y: position.y - 1,
+            z: position.z
+        }
+        
+        let below_voxel = get_voxel_at(below_pos)
+        
+        if below_voxel.voxel_type == VoxelType::Air or below_voxel.voxel_type == VoxelType::Water:
+            return false
+        
+        return true
+    
+    @blueprint_callable
+    fn trigger_block_fall(position: BlockPosition):
+        let voxel = get_voxel_at(position)
+        
+        if voxel.voxel_type == VoxelType::Sand or voxel.voxel_type == VoxelType::Dirt:
+            if not check_block_stability(position):
+                push(falling_blocks, position)
+    
+    @blueprint_callable
+    fn trigger_fluid_spread(position: BlockPosition):
+        let voxel = get_voxel_at(position)
+        
+        if voxel.voxel_type == VoxelType::Water:
+            push(fluid_blocks, position)
+    
+    fn get_voxel_at(position: BlockPosition) -> VoxelData:
+        return VoxelData {
+            voxel_type: VoxelType::Air,
+            light_level: 15,
+            metadata: 0
+        }
+    
+    fn set_voxel_at(position: BlockPosition, voxel: VoxelData):
+        return
+
+@component
+struct VoxelCollisionComponent:
+    @replicated
+    collision_enabled: Bool
+    collision_bounds: Vec3
+    voxel_size: Float
+    
+    @tick
+    fn update(delta: Float):
+        if collision_enabled:
+            update_collision_mesh()
+    
+    fn update_collision_mesh():
+        return
+    
+    @blueprint_callable
+    fn check_voxel_collision(start: Vec3, end: Vec3) -> VoxelRaycastHit:
+        let direction = normalize(end - start)
+        let distance = length(end - start)
+        let step_size = voxel_size * 0.5
+        let steps = (distance / step_size) as Int
+        
+        for i in 0..steps:
+            let current_pos = start + direction * (step_size * (i as Float))
+            let block_pos = BlockPosition {
+                x: (current_pos.x / voxel_size) as Int,
+                y: (current_pos.y / voxel_size) as Int,
+                z: (current_pos.z / voxel_size) as Int
+            }
+            
+            let voxel = get_voxel_at_position(block_pos)
+            
+            if voxel.voxel_type != VoxelType::Air:
+                return VoxelRaycastHit {
+                    hit: true,
+                    position: current_pos,
+                    block_position: block_pos,
+                    normal: calculate_hit_normal(current_pos, block_pos),
+                    voxel_type: voxel.voxel_type,
+                    distance: step_size * (i as Float)
+                }
+        
+        return VoxelRaycastHit {
+            hit: false,
+            position: end,
+            block_position: BlockPosition { x: 0, y: 0, z: 0 },
+            normal: vec3(0.0, 1.0, 0.0),
+            voxel_type: VoxelType::Air,
+            distance: distance
+        }
+    
+    fn get_voxel_at_position(position: BlockPosition) -> VoxelData:
+        return VoxelData {
+            voxel_type: VoxelType::Air,
+            light_level: 15,
+            metadata: 0
+        }
+    
+    fn calculate_hit_normal(hit_pos: Vec3, block_pos: BlockPosition) -> Vec3:
+        let block_center = vec3(
+            (block_pos.x as Float) * voxel_size + voxel_size * 0.5,
+            (block_pos.y as Float) * voxel_size + voxel_size * 0.5,
+            (block_pos.z as Float) * voxel_size + voxel_size * 0.5
+        )
+        
+        let diff = hit_pos - block_center
+        let abs_x = abs(diff.x)
+        let abs_y = abs(diff.y)
+        let abs_z = abs(diff.z)
+        
+        if abs_x > abs_y and abs_x > abs_z:
+            if diff.x > 0.0:
+                return vec3(1.0, 0.0, 0.0)
+            else:
+                return vec3(-1.0, 0.0, 0.0)
+        else:
+            if abs_y > abs_z:
+                if diff.y > 0.0:
+                    return vec3(0.0, 1.0, 0.0)
+                else:
+                    return vec3(0.0, -1.0, 0.0)
+            else:
+                if diff.z > 0.0:
+                    return vec3(0.0, 0.0, 1.0)
+                else:
+                    return vec3(0.0, 0.0, -1.0)
+
+actor VoxelExplosion:
+    state explosion_center: Vec3
+    state explosion_radius: Float
+    state explosion_power: Float
+    state affected_blocks: Array<BlockPosition>
+    
+    on BeginPlay():
+        explosion_radius = 5.0
+        explosion_power = 10.0
+        affected_blocks = []
+    
+    @blueprint_callable
+    fn trigger_explosion(center: Vec3, radius: Float, power: Float):
+        explosion_center = center
+        explosion_radius = radius
+        explosion_power = power
+        
+        calculate_affected_blocks()
+        apply_explosion_damage()
+        spawn_explosion_particles()
+    
+    fn calculate_affected_blocks():
+        affected_blocks = []
+        
+        let min_x = ((explosion_center.x - explosion_radius) as Int)
+        let max_x = ((explosion_center.x + explosion_radius) as Int)
+        let min_y = ((explosion_center.y - explosion_radius) as Int)
+        let max_y = ((explosion_center.y + explosion_radius) as Int)
+        let min_z = ((explosion_center.z - explosion_radius) as Int)
+        let max_z = ((explosion_center.z + explosion_radius) as Int)
+        
+        for x in min_x..max_x + 1:
+            for y in min_y..max_y + 1:
+                for z in min_z..max_z + 1:
+                    let block_pos = BlockPosition { x: x, y: y, z: z }
+                    let block_center = vec3(x as Float, y as Float, z as Float)
+                    let distance = length(block_center - explosion_center)
+                    
+                    if distance <= explosion_radius:
+                        push(affected_blocks, block_pos)
+    
+    fn apply_explosion_damage():
+        for block_pos in affected_blocks:
+            let block_center = vec3(block_pos.x as Float, block_pos.y as Float, block_pos.z as Float)
+            let distance = length(block_center - explosion_center)
+            let damage_factor = 1.0 - (distance / explosion_radius)
+            
+            if damage_factor > 0.3:
+                destroy_voxel_at(block_pos)
+    
+    fn destroy_voxel_at(position: BlockPosition):
+        return
+    
+    fn spawn_explosion_particles():
+        DrawDebugSphere(explosion_center, explosion_radius, vec3(1.0, 0.5, 0.0), 2.0)

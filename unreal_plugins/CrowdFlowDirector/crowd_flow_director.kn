@@ -1,0 +1,814 @@
+# ============================================================================
+# CrowdFlowDirector - Procedural Crowd Choreography for Unreal Engine 5
+# ============================================================================
+# Solves production problem: directing large crowds with cinematic control while
+# preserving framerate through GPU motion fields + VAT playback.
+#
+# Core value:
+# - MoGraph-style formation and effector stack
+# - Fluid-inspired steering field for natural motion
+# - VAT-ready playback orchestration for massive instance counts
+# - Editor-first workflow with dedicated asset editor and viewport
+# ============================================================================
+
+# ============================================================================
+# ENUMS
+# ============================================================================
+
+enum CrowdLayoutMode:
+    Grid
+    Radial
+    Arc
+    SplineRibbon
+    SurfaceScatter
+    VolumeScatter
+
+enum CrowdEffectorShape:
+    Sphere
+    Box
+    Cylinder
+    Capsule
+    Plane
+
+enum CrowdFlowFieldMode:
+    Vortex
+    Directional
+    CurlNoise
+    GoalSeeking
+    ObstacleAvoidance
+
+enum CrowdPlaybackMode:
+    Loop
+    OneShot
+    PingPong
+    EventDriven
+
+enum CrowdLODPolicy:
+    Distance
+    ScreenSize
+    Hybrid
+
+enum CrowdDebugView:
+    Off
+    DensityHeatmap
+    VelocityVectors
+    LODMask
+
+# ============================================================================
+# DATATABLES - Data-driven orchestration
+# ============================================================================
+
+@datatable
+struct CrowdFormationPreset:
+    id: Int
+    name: String
+    layout: CrowdLayoutMode
+    count_x: Int
+    count_y: Int
+    count_z: Int
+    spacing: Vec3
+    radius: Float
+    arc_angle: Float
+    random_seed: Int
+
+@datatable
+struct CrowdVATClip:
+    id: Int
+    clip_name: String
+    texture_path: String
+    normal_texture_path: String
+    frame_start: Int
+    frame_end: Int
+    default_speed: Float
+    locomotion_speed: Float
+
+@datatable
+struct CrowdFlowProfile:
+    id: Int
+    profile_name: String
+    flow_mode: CrowdFlowFieldMode
+    base_strength: Float
+    turbulence: Float
+    drag: Float
+    avoidance_radius: Float
+    avoidance_weight: Float
+
+@datatable
+struct CrowdEventCue:
+    id: Int
+    cue_name: String
+    target_formation_id: Int
+    target_flow_profile_id: Int
+    vat_clip_id: Int
+    blend_time: Float
+
+# ============================================================================
+# COMPONENTS
+# ============================================================================
+
+@component
+struct CrowdDirectorComponent:
+    @editdefaults
+    max_agents: Int
+
+    @editdefaults
+    target_fps: Int
+
+    @savegame
+    active_formation_id: Int
+
+    @savegame
+    active_flow_profile_id: Int
+
+    @savegame
+    active_vat_clip_id: Int
+
+    @transient
+    live_agent_count: Int
+
+    @transient
+    is_playing: Bool
+
+@component
+struct CrowdFlowComponent:
+    @editdefaults
+    field_resolution: Vec3
+
+    @editdefaults
+    world_bounds_min: Vec3
+
+    @editdefaults
+    world_bounds_max: Vec3
+
+    @transient
+    average_speed: Float
+
+    @transient
+    peak_density: Float
+
+@component
+struct CrowdEffectorStackComponent:
+    @transient
+    effector_count: Int
+
+    @transient
+    global_weight: Float
+
+    @transient
+    enable_collision_push: Bool
+
+@component
+struct CrowdVATPlaybackComponent:
+    @editdefaults
+    playback_mode: CrowdPlaybackMode
+
+    @editdefaults
+    playback_speed: Float
+
+    @savegame
+    frame_offset_seed: Int
+
+    @transient
+    current_frame: Float
+
+    @transient
+    total_frames: Int
+
+@component
+struct CrowdAnalyticsComponent:
+    @transient
+    visible_instances: Int
+
+    @transient
+    culled_instances: Int
+
+    @transient
+    lod0_instances: Int
+
+    @transient
+    lod1_instances: Int
+
+    @transient
+    lod2_instances: Int
+
+# ============================================================================
+# COMPUTE SHADERS
+# ============================================================================
+
+# Generate agent target transforms from formation rules
+shader compute GenerateCrowdTargets(thread_id: Vec3) -> Unit:
+    uniform CFG_USE_JITTER: Float @0
+    uniform CFG_SURFACE_ALIGN: Float @1
+
+    uniform out_positions: RWBuffer<Vec4> @2
+    uniform out_targets: RWBuffer<Vec4> @3
+    uniform out_random: RWBuffer<Vec4> @4
+
+    uniform agent_count: Int @5
+    uniform layout_mode: Int @6
+    uniform spacing: Vec3 @7
+    uniform counts: Vec3 @8
+    uniform center: Vec3 @9
+    uniform radius: Float @10
+    uniform arc_angle: Float @11
+
+    let idx = thread_id.x
+    if idx >= agent_count:
+        return
+
+    let fx = float(idx % int(counts.x))
+    let fy = float((idx / int(counts.x)) % int(counts.y))
+    let fz = float(idx / int(counts.x * counts.y))
+
+    var p = center
+
+    if layout_mode == 0:
+        # Grid
+        p = center + vec3(
+            (fx - counts.x * 0.5) * spacing.x,
+            (fy - counts.y * 0.5) * spacing.y,
+            fz * spacing.z
+        )
+    else if layout_mode == 1:
+        # Radial ring
+        let a = (float(idx) / float(max(agent_count, 1))) * 6.28318
+        p = center + vec3(cos(a) * radius, sin(a) * radius, 0.0)
+    else if layout_mode == 2:
+        # Arc
+        let t = float(idx) / float(max(agent_count - 1, 1))
+        let a = (-0.5 + t) * arc_angle
+        p = center + vec3(cos(a) * radius, sin(a) * radius, 0.0)
+    else:
+        # Scatter fallback
+        let h = fract(sin(float(idx) * 12.9898) * 43758.5453)
+        let k = fract(sin(float(idx) * 78.2330) * 12345.6789)
+        p = center + vec3((h - 0.5) * radius * 2.0, (k - 0.5) * radius * 2.0, 0.0)
+
+    if CFG_USE_JITTER:
+        let jx = fract(sin(float(idx) * 19.13) * 21413.7) - 0.5
+        let jy = fract(sin(float(idx) * 27.51) * 91873.1) - 0.5
+        p = p + vec3(jx, jy, 0.0) * spacing * 0.2
+
+    out_positions[idx] = vec4(p, 1.0)
+    out_targets[idx] = vec4(p, 1.0)
+    out_random[idx] = vec4(fract(float(idx) * 0.123), fract(float(idx) * 0.456), fract(float(idx) * 0.789), 1.0)
+
+# Build velocity field from flow profile + target attraction
+shader compute SolveCrowdFlowField(thread_id: Vec3) -> Unit:
+    uniform CFG_TURBULENCE: Float @0
+
+    uniform in_positions: Buffer<Vec4> @1
+    uniform in_targets: Buffer<Vec4> @2
+    uniform io_velocity: RWBuffer<Vec4> @3
+
+    uniform agent_count: Int @4
+    uniform dt: Float @5
+    uniform flow_strength: Float @6
+    uniform drag: Float @7
+    uniform turbulence: Float @8
+    uniform max_speed: Float @9
+
+    let idx = thread_id.x
+    if idx >= agent_count:
+        return
+
+    let pos = in_positions[idx].xyz
+    let target = in_targets[idx].xyz
+    var vel = io_velocity[idx].xyz
+
+    let desired = normalize(target - pos) * max_speed
+    let steer = (desired - vel) * flow_strength
+    vel = vel + steer * dt
+
+    if CFG_TURBULENCE:
+        let n = vec3(
+            sin(pos.x * 0.03 + dt * 2.0),
+            cos(pos.y * 0.02 + dt * 1.7),
+            sin((pos.x + pos.y) * 0.015)
+        ) * turbulence
+        vel = vel + n * dt
+
+    vel = vel * max(0.0, 1.0 - drag * dt)
+
+    if length(vel) > max_speed:
+        vel = normalize(vel) * max_speed
+
+    io_velocity[idx] = vec4(vel, 0.0)
+
+# Integrate movement and write packed VAT playback index per instance
+shader compute IntegrateCrowdAgents(thread_id: Vec3) -> Unit:
+    uniform io_positions: RWBuffer<Vec4> @0
+    uniform in_velocity: Buffer<Vec4> @1
+    uniform io_playback: RWBuffer<Vec4> @2
+
+    uniform agent_count: Int @3
+    uniform dt: Float @4
+    uniform frame_count: Int @5
+    uniform playback_speed: Float @6
+
+    let idx = thread_id.x
+    if idx >= agent_count:
+        return
+
+    var p = io_positions[idx].xyz
+    let v = in_velocity[idx].xyz
+
+    p = p + v * dt
+
+    var frame = io_playback[idx].x
+    frame = frame + playback_speed * dt * 30.0
+
+    if frame >= float(frame_count):
+        frame = frame - float(frame_count)
+
+    io_positions[idx] = vec4(p, 1.0)
+    io_playback[idx] = vec4(frame, length(v), 0.0, 1.0)
+
+# LOD and visibility pass for large instance budgets
+shader compute BuildCrowdLodMask(thread_id: Vec3) -> Unit:
+    uniform in_positions: Buffer<Vec4> @0
+    uniform out_lod_mask: RWBuffer<Vec4> @1
+
+    uniform agent_count: Int @2
+    uniform camera_position: Vec3 @3
+    uniform lod0_distance: Float @4
+    uniform lod1_distance: Float @5
+    uniform lod2_distance: Float @6
+
+    let idx = thread_id.x
+    if idx >= agent_count:
+        return
+
+    let p = in_positions[idx].xyz
+    let d = length(p - camera_position)
+
+    var lod = 2.0
+    if d < lod0_distance:
+        lod = 0.0
+    else if d < lod1_distance:
+        lod = 1.0
+    else if d < lod2_distance:
+        lod = 2.0
+    else:
+        lod = 3.0
+
+    out_lod_mask[idx] = vec4(lod, d, 0.0, 1.0)
+
+# ============================================================================
+# MATERIALS
+# ============================================================================
+
+@material_graph
+material CrowdVATLit:
+    input albedo: Vec3 = vec3(0.35, 0.42, 0.55)
+    input roughness: Float = 0.65
+    input metallic: Float = 0.05
+    input accent: Vec3 = vec3(0.7, 0.75, 0.9)
+
+    let color_mix = multiply(albedo, constant_float(1.0))
+    let final_color = add(color_mix, multiply(accent, constant_float(0.1)))
+
+    output base_color = final_color
+    output roughness = roughness
+    output metallic = metallic
+
+@material_graph
+material CrowdDensityHeatmap:
+    input density: Float = 0.5
+
+    let low = vec3(0.1, 0.3, 0.8)
+    let high = vec3(1.0, 0.2, 0.1)
+    let mixed = lerp(low, high, density)
+
+    output base_color = mixed
+    output roughness = constant_float(0.4)
+    output metallic = constant_float(0.0)
+
+# ============================================================================
+# ACTORS
+# ============================================================================
+
+@dispatch("GenerateCrowdTargets", "SolveCrowdFlowField", "IntegrateCrowdAgents", "BuildCrowdLodMask")
+actor CrowdFlowDirectorActor:
+    @component
+    state director: CrowdDirectorComponent = CrowdDirectorComponent()
+
+    @component
+    state flow: CrowdFlowComponent = CrowdFlowComponent()
+
+    @component
+    state effectors: CrowdEffectorStackComponent = CrowdEffectorStackComponent()
+
+    @component
+    state vat: CrowdVATPlaybackComponent = CrowdVATPlaybackComponent()
+
+    @component
+    state analytics: CrowdAnalyticsComponent = CrowdAnalyticsComponent()
+
+    @replicated
+    state active_debug_view: CrowdDebugView = CrowdDebugView::Off
+
+    @replicated
+    state crowd_center: Vec3 = vec3(0, 0, 0)
+
+    @replicated
+    state max_speed: Float = 350.0
+
+    @replicated
+    state lod_policy: CrowdLODPolicy = CrowdLODPolicy::Hybrid
+
+    state lod0_distance: Float = 1200.0
+    state lod1_distance: Float = 2800.0
+    state lod2_distance: Float = 5200.0
+
+    on BeginPlay():
+        director.max_agents = 12000
+        director.target_fps = 60
+        director.is_playing = false
+        director.live_agent_count = 0
+
+        flow.field_resolution = vec3(128, 128, 32)
+        flow.world_bounds_min = vec3(-5000, -5000, 0)
+        flow.world_bounds_max = vec3(5000, 5000, 2000)
+
+        vat.playback_mode = CrowdPlaybackMode::Loop
+        vat.playback_speed = 1.0
+        vat.frame_offset_seed = 1337
+        vat.current_frame = 0.0
+        vat.total_frames = 120
+
+        effectors.global_weight = 1.0
+        effectors.effector_count = 0
+        effectors.enable_collision_push = true
+
+    on Tick(delta_time: Float):
+        if director.is_playing:
+            vat.current_frame = vat.current_frame + delta_time * vat.playback_speed * 30.0
+            if vat.current_frame >= float(vat.total_frames):
+                vat.current_frame = 0.0
+
+    on Server_LoadFormation(formation_id: Int):
+        director.active_formation_id = formation_id
+        Multicast_FormationLoaded(formation_id)
+
+    on Server_LoadFlowProfile(profile_id: Int):
+        director.active_flow_profile_id = profile_id
+        Multicast_FlowProfileLoaded(profile_id)
+
+    on Server_LoadVATClip(clip_id: Int):
+        director.active_vat_clip_id = clip_id
+        Multicast_VATClipLoaded(clip_id)
+
+    on Server_TriggerCue(cue_id: Int):
+        Multicast_CueTriggered(cue_id)
+
+    on Server_Play():
+        director.is_playing = true
+        Multicast_PlayStateChanged(true)
+
+    on Server_Stop():
+        director.is_playing = false
+        Multicast_PlayStateChanged(false)
+
+    on Server_SetAgentCount(count: Int):
+        director.live_agent_count = clamp(count, 0, director.max_agents)
+
+    on Multicast_FormationLoaded(formation_id: Int):
+        println("Crowd formation loaded: {formation_id}")
+
+    on Multicast_FlowProfileLoaded(profile_id: Int):
+        println("Crowd flow profile loaded: {profile_id}")
+
+    on Multicast_VATClipLoaded(clip_id: Int):
+        println("Crowd VAT clip loaded: {clip_id}")
+
+    on Multicast_CueTriggered(cue_id: Int):
+        println("Crowd cue triggered: {cue_id}")
+
+    on Multicast_PlayStateChanged(is_playing: Bool):
+        director.is_playing = is_playing
+
+    @blueprint_callable
+    fn SetDebugView(view: CrowdDebugView):
+        active_debug_view = view
+
+    @blueprint_callable
+    fn SetCrowdCenter(center: Vec3):
+        crowd_center = center
+
+    @blueprint_callable
+    fn SetMaxSpeed(speed: Float):
+        max_speed = max(10.0, speed)
+
+    @blueprint_callable
+    fn SetPlaybackSpeed(speed: Float):
+        vat.playback_speed = clamp(speed, 0.05, 3.0)
+
+    @blueprint_callable
+    fn SetLodDistances(d0: Float, d1: Float, d2: Float):
+        lod0_distance = d0
+        lod1_distance = d1
+        lod2_distance = d2
+
+    @blueprint_pure
+    fn IsPlaying() -> Bool:
+        return director.is_playing
+
+    @blueprint_pure
+    fn GetLiveAgentCount() -> Int:
+        return director.live_agent_count
+
+# ============================================================================
+# BLUEPRINT FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn EvaluateFormationCapacity(count_x: Int, count_y: Int, count_z: Int) -> Int:
+    return max(1, count_x * count_y * count_z)
+
+@blueprint
+fn EstimateCrowdMemoryMB(agent_count: Int, frame_count: Int) -> Float:
+    let bytes_positions = float(agent_count) * 16.0
+    let bytes_velocity = float(agent_count) * 16.0
+    let bytes_vat = float(agent_count * frame_count) * 4.0
+    let total = bytes_positions + bytes_velocity + bytes_vat
+    return total / (1024.0 * 1024.0)
+
+@blueprint_pure
+fn GetRecommendedFieldResolution(agent_count: Int) -> Vec3:
+    if agent_count < 2000:
+        return vec3(64, 64, 16)
+    else if agent_count < 8000:
+        return vec3(96, 96, 24)
+    else:
+        return vec3(128, 128, 32)
+
+@blueprint
+fn ComputeDensityScore(agent_count: Int, area_m2: Float) -> Float:
+    if area_m2 <= 0.01:
+        return 0.0
+    return float(agent_count) / area_m2
+
+@blueprint
+fn PickLODPolicyByBudget(target_fps: Int, agent_count: Int) -> CrowdLODPolicy:
+    if target_fps >= 60 && agent_count > 5000:
+        return CrowdLODPolicy::Hybrid
+    else if target_fps >= 60:
+        return CrowdLODPolicy::ScreenSize
+    else:
+        return CrowdLODPolicy::Distance
+
+# ============================================================================
+# SLATE UI
+# ============================================================================
+
+@slate
+struct CrowdDirectorPanel:
+    @property
+    is_playing: Bool
+
+    @property
+    live_count: Int
+
+    @property
+    playback_speed: Float
+
+    @property
+    debug_view: CrowdDebugView
+
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+@slate
+struct CrowdAnalyticsPanel:
+    @property
+    visible_instances: Int
+
+    @property
+    culled_instances: Int
+
+    @property
+    lod0_instances: Int
+
+    @property
+    lod1_instances: Int
+
+    @property
+    lod2_instances: Int
+
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+# ============================================================================
+# DETAILS
+# ============================================================================
+
+@details
+struct CrowdFlowDirectorDetails:
+    @category("Director")
+    @slider(100, 20000)
+    live_agent_count: Int
+
+    @category("Director")
+    @slider(1, 240)
+    target_fps: Int
+
+    @category("Playback")
+    playback_mode: CrowdPlaybackMode
+
+    @category("Playback")
+    @slider(0.05, 3.0)
+    playback_speed: Float
+
+    @category("Flow")
+    flow_mode: CrowdFlowFieldMode
+
+    @category("Flow")
+    @slider(0.0, 10.0)
+    flow_strength: Float
+
+    @category("Flow")
+    @slider(0.0, 2.0)
+    turbulence: Float
+
+    @category("LOD")
+    lod_policy: CrowdLODPolicy
+
+    @category("LOD")
+    @slider(100.0, 10000.0)
+    lod0_distance: Float
+
+    @category("LOD")
+    @slider(500.0, 20000.0)
+    lod1_distance: Float
+
+    @category("LOD")
+    @slider(1000.0, 40000.0)
+    lod2_distance: Float
+
+    @category("Actions")
+    @button("Play")
+    fn on_play():
+        println("Crowd playback started")
+
+    @category("Actions")
+    @button("Stop")
+    fn on_stop():
+        println("Crowd playback stopped")
+
+    @category("Actions")
+    @button("Rebuild Formation")
+    fn on_rebuild():
+        println("Rebuilding crowd formation")
+
+    @category("Actions")
+    @button("Bake Snapshot")
+    fn on_bake_snapshot():
+        println("Baking crowd snapshot")
+
+# ============================================================================
+# VIEWPORT
+# ============================================================================
+
+@viewport
+struct CrowdFlowViewport:
+    @scene_actor
+    crowd_preview_mesh: StaticMeshComponent
+
+    @scene_actor
+    flow_gizmo: StaticMeshComponent
+
+    @camera
+    preview_camera: CameraComponent
+
+    camera_orbit: Vec2
+    camera_distance: Float
+
+    fn on_viewport_tick(delta: Float):
+        preview_camera.SetRelativeLocation(vec3(
+            camera_distance * cos(camera_orbit.x) * cos(camera_orbit.y),
+            camera_distance * sin(camera_orbit.x) * cos(camera_orbit.y),
+            camera_distance * sin(camera_orbit.y)
+        ))
+        flow_gizmo.SetVisibility(true)
+
+# ============================================================================
+# TOOLBAR
+# ============================================================================
+
+@toolbar
+struct CrowdFlowToolbar:
+    @button("New Setup", icon: "Icons.Add", shortcut: "Ctrl+N")
+    fn on_new_setup():
+        println("Creating new CrowdFlow setup")
+
+    @button("Load Cue", icon: "Icons.Import")
+    fn on_load_cue():
+        println("Loading crowd cue")
+
+    @button("Save Cue", icon: "Icons.Save", shortcut: "Ctrl+S")
+    fn on_save_cue():
+        println("Saving crowd cue")
+
+    @separator
+
+    @button("Play", icon: "Icons.Play", shortcut: "Space")
+    fn on_play():
+        println("Play crowd choreography")
+
+    @button("Stop", icon: "Icons.Stop")
+    fn on_stop():
+        println("Stop crowd choreography")
+
+    @separator
+
+    @toggle("Debug Heatmap", default: false)
+    fn on_toggle_heatmap(enabled: Bool):
+        println("Debug heatmap: {enabled}")
+
+    @toggle("Velocity Vectors", default: false)
+    fn on_toggle_vectors(enabled: Bool):
+        println("Velocity vectors: {enabled}")
+
+# ============================================================================
+# ASSET EDITOR
+# ============================================================================
+
+@asset_editor
+struct CrowdFlowDirectorEditor:
+    @viewport
+    viewport: CrowdFlowViewport
+
+    @details
+    properties: CrowdFlowDirectorDetails
+
+    @toolbar
+    toolbar: CrowdFlowToolbar
+
+    @slate
+    director_panel: CrowdDirectorPanel
+
+    @slate
+    analytics_panel: CrowdAnalyticsPanel
+
+    fn on_asset_opened(asset: CrowdFlowAsset):
+        viewport.camera_distance = 1800.0
+        viewport.camera_orbit = vec2(0.2, 0.3)
+
+        properties.live_agent_count = asset.live_agent_count
+        properties.target_fps = 60
+        properties.playback_mode = CrowdPlaybackMode::Loop
+        properties.playback_speed = 1.0
+        properties.flow_mode = CrowdFlowFieldMode::CurlNoise
+        properties.flow_strength = 2.0
+        properties.turbulence = 0.35
+        properties.lod_policy = CrowdLODPolicy::Hybrid
+        properties.lod0_distance = 1200.0
+        properties.lod1_distance = 2800.0
+        properties.lod2_distance = 5200.0
+
+        director_panel.is_playing = false
+        director_panel.live_count = asset.live_agent_count
+        director_panel.playback_speed = 1.0
+        director_panel.debug_view = CrowdDebugView::Off
+
+        analytics_panel.visible_instances = asset.live_agent_count
+        analytics_panel.culled_instances = 0
+        analytics_panel.lod0_instances = asset.live_agent_count / 3
+        analytics_panel.lod1_instances = asset.live_agent_count / 3
+        analytics_panel.lod2_instances = asset.live_agent_count / 3
+
+        println("CrowdFlowDirector editor opened")
+
+    fn on_asset_saved():
+        println("CrowdFlowDirector asset saved")
+
+# ============================================================================
+# EDITOR MODULE
+# ============================================================================
+
+@editor_module
+struct CrowdFlowDirectorModule:
+    @menu_entry(path: "Tools/CrowdFlowDirector", label: "Open Director")
+    fn on_open_director():
+        println("Opening CrowdFlowDirector")
+
+    @menu_entry(path: "Tools/CrowdFlowDirector", label: "Create Stadium Preset")
+    fn on_stadium_preset():
+        println("Creating stadium crowd preset")
+
+    @menu_entry(path: "Tools/CrowdFlowDirector", label: "Create Festival Preset")
+    fn on_festival_preset():
+        println("Creating festival crowd preset")
+
+    @toolbar_button(section: "Content", label: "CrowdFlow Quick Play", icon: "Icons.Play")
+    fn on_quick_play():
+        println("Quick play CrowdFlow scene")
+
+    @toolbar_button(section: "Content", label: "CrowdFlow Bake", icon: "Icons.Bake")
+    fn on_quick_bake():
+        println("Baking CrowdFlow cache")
+
+# ============================================================================
+# END
+# ============================================================================

@@ -1,0 +1,319 @@
+// FluidDynamicsPro - Fluid Manager Subsystem
+// World subsystem for managing fluid simulations
+
+@subsystem
+struct FluidManager:
+    @tick
+    active_simulators: Array<Actor>
+    particle_pool: Array<FluidParticle>
+    max_particles: Int = 100000
+    current_particle_count: Int = 0
+    
+    global_params: FluidParams
+    performance_mode: Bool = false
+    enable_gpu_acceleration: Bool = true
+    
+    simulation_time_budget_ms: Float = 16.0
+    current_frame_time_ms: Float = 0.0
+    
+    registered_emitters: Array<Actor>
+    registered_colliders: Array<Actor>
+    
+    fn initialize():
+        println("FluidManager subsystem initialized")
+        
+        global_params.particle_count = 0
+        global_params.rest_density = 1000.0
+        global_params.gas_constant = 2000.0
+        global_params.viscosity = 0.01
+        global_params.surface_tension = 0.0728
+        global_params.gravity = vec3(0.0, 0.0, -980.0)
+        global_params.time_step = 0.016
+        global_params.substeps = 4
+        global_params.smoothing_radius = 0.1
+        global_params.boundary_condition = BoundaryCondition.Solid
+        global_params.quality = FluidQuality.High
+        global_params.enable_vorticity = true
+        global_params.vorticity_strength = 0.1
+        global_params.enable_surface_tension = true
+        
+        initialize_particle_pool()
+    
+    fn initialize_particle_pool():
+        particle_pool = []
+        
+        for i in 0..max_particles:
+            let particle: FluidParticle
+            particle.state = ParticleState.Inactive
+            particle.position = vec3(0.0, 0.0, 0.0)
+            particle.velocity = vec3(0.0, 0.0, 0.0)
+            particle.acceleration = vec3(0.0, 0.0, 0.0)
+            particle.density = 1000.0
+            particle.pressure = 0.0
+            particle.mass = 1.0
+            particle.viscosity = 0.01
+            particle.temperature = 20.0
+            particle.color = vec4(0.1, 0.3, 0.8, 0.9)
+            particle.lifetime = -1.0
+            
+            push(particle_pool, particle)
+    
+    fn tick(delta_time: Float):
+        current_frame_time_ms = 0.0
+        
+        update_all_simulators(delta_time)
+        update_particle_lifetimes(delta_time)
+        manage_performance()
+    
+    fn update_all_simulators(delta_time: Float):
+        for simulator in active_simulators:
+            if simulator != null:
+                let start_time = get_time_milliseconds()
+                
+                update_simulator(simulator, delta_time)
+                
+                let elapsed = get_time_milliseconds() - start_time
+                current_frame_time_ms = current_frame_time_ms + elapsed
+                
+                if current_frame_time_ms > simulation_time_budget_ms:
+                    break
+    
+    fn update_simulator(simulator: Actor, delta_time: Float):
+        println("Updating fluid simulator")
+    
+    fn update_particle_lifetimes(delta_time: Float):
+        for i in 0..len(particle_pool):
+            let particle = particle_pool[i]
+            
+            if particle.state == ParticleState.Active and particle.lifetime > 0.0:
+                particle.lifetime = particle.lifetime - delta_time
+                
+                if particle.lifetime <= 0.0:
+                    particle.state = ParticleState.Inactive
+                    current_particle_count = current_particle_count - 1
+    
+    fn manage_performance():
+        if current_frame_time_ms > simulation_time_budget_ms * 1.5:
+            if not performance_mode:
+                enable_performance_mode()
+        else if current_frame_time_ms < simulation_time_budget_ms * 0.5:
+            if performance_mode:
+                disable_performance_mode()
+    
+    fn enable_performance_mode():
+        performance_mode = true
+        global_params.substeps = 2
+        global_params.quality = FluidQuality.Medium
+        println("Performance mode enabled")
+    
+    fn disable_performance_mode():
+        performance_mode = false
+        global_params.substeps = 4
+        global_params.quality = FluidQuality.High
+        println("Performance mode disabled")
+    
+    fn register_simulator(simulator: Actor) -> Bool:
+        if simulator == null:
+            return false
+        
+        for existing in active_simulators:
+            if existing == simulator:
+                return false
+        
+        push(active_simulators, simulator)
+        println("Registered fluid simulator")
+        return true
+    
+    fn unregister_simulator(simulator: Actor) -> Bool:
+        if simulator == null:
+            return false
+        
+        let found_index = -1
+        
+        for i in 0..len(active_simulators):
+            if active_simulators[i] == simulator:
+                found_index = i
+                break
+        
+        if found_index >= 0:
+            println("Unregistered fluid simulator")
+            return true
+        
+        return false
+    
+    fn register_emitter(emitter: Actor) -> Bool:
+        if emitter == null:
+            return false
+        
+        push(registered_emitters, emitter)
+        println("Registered fluid emitter")
+        return true
+    
+    fn unregister_emitter(emitter: Actor) -> Bool:
+        if emitter == null:
+            return false
+        
+        println("Unregistered fluid emitter")
+        return true
+    
+    fn register_collider(collider: Actor) -> Bool:
+        if collider == null:
+            return false
+        
+        push(registered_colliders, collider)
+        println("Registered fluid collider")
+        return true
+    
+    fn unregister_collider(collider: Actor) -> Bool:
+        if collider == null:
+            return false
+        
+        println("Unregistered fluid collider")
+        return true
+    
+    fn allocate_particle() -> Int:
+        if current_particle_count >= max_particles:
+            return -1
+        
+        for i in 0..len(particle_pool):
+            if particle_pool[i].state == ParticleState.Inactive:
+                particle_pool[i].state = ParticleState.Active
+                current_particle_count = current_particle_count + 1
+                return i
+        
+        return -1
+    
+    fn free_particle(particle_index: Int):
+        if particle_index >= 0 and particle_index < len(particle_pool):
+            if particle_pool[particle_index].state == ParticleState.Active:
+                particle_pool[particle_index].state = ParticleState.Inactive
+                current_particle_count = current_particle_count - 1
+    
+    fn get_particle(particle_index: Int) -> FluidParticle:
+        if particle_index >= 0 and particle_index < len(particle_pool):
+            return particle_pool[particle_index]
+        
+        let empty: FluidParticle
+        return empty
+    
+    fn set_particle(particle_index: Int, particle: FluidParticle):
+        if particle_index >= 0 and particle_index < len(particle_pool):
+            particle_pool[particle_index] = particle
+    
+    fn get_active_particle_count() -> Int:
+        return current_particle_count
+    
+    fn get_available_particle_count() -> Int:
+        return max_particles - current_particle_count
+    
+    fn set_global_gravity(gravity: Vec3):
+        global_params.gravity = gravity
+        
+        for simulator in active_simulators:
+            if simulator != null:
+                println("Updated simulator gravity")
+    
+    fn set_global_viscosity(viscosity: Float):
+        global_params.viscosity = viscosity
+        
+        for simulator in active_simulators:
+            if simulator != null:
+                println("Updated simulator viscosity")
+    
+    fn set_time_budget(budget_ms: Float):
+        simulation_time_budget_ms = budget_ms
+    
+    fn get_current_frame_time() -> Float:
+        return current_frame_time_ms
+    
+    fn get_simulator_count() -> Int:
+        return len(active_simulators)
+    
+    fn get_emitter_count() -> Int:
+        return len(registered_emitters)
+    
+    fn get_collider_count() -> Int:
+        return len(registered_colliders)
+    
+    fn clear_all_particles():
+        for i in 0..len(particle_pool):
+            particle_pool[i].state = ParticleState.Inactive
+        
+        current_particle_count = 0
+        println("Cleared all particles")
+    
+    fn reset_all_simulators():
+        for simulator in active_simulators:
+            if simulator != null:
+                println("Reset simulator")
+        
+        clear_all_particles()
+    
+    fn enable_gpu_simulation():
+        enable_gpu_acceleration = true
+        println("GPU acceleration enabled")
+    
+    fn disable_gpu_simulation():
+        enable_gpu_acceleration = false
+        println("GPU acceleration disabled")
+    
+    fn get_memory_usage_mb() -> Float:
+        let particle_size_bytes = 128.0
+        let total_bytes = len(particle_pool) * particle_size_bytes
+        return total_bytes / (1024.0 * 1024.0)
+    
+    fn get_statistics() -> FluidStats:
+        let stats: FluidStats
+        stats.particle_count = max_particles
+        stats.active_particles = current_particle_count
+        stats.simulation_time_ms = current_frame_time_ms
+        stats.memory_usage_mb = get_memory_usage_mb()
+        stats.fps = 1000.0 / max(current_frame_time_ms, 1.0)
+        return stats
+    
+    fn get_time_milliseconds() -> Float:
+        return 0.0
+
+@blueprint
+fn get_fluid_manager() -> FluidManager:
+    let manager: FluidManager
+    return manager
+
+@blueprint
+fn create_fluid_simulator(particle_count: Int, bounds_min: Vec3, bounds_max: Vec3) -> Actor:
+    let simulator: Actor
+    return simulator
+
+@blueprint
+fn create_fluid_emitter(position: Vec3, emit_rate: Float) -> Actor:
+    let emitter: Actor
+    return emitter
+
+@blueprint
+fn create_fluid_collider(position: Vec3, collider_type: ColliderType) -> Actor:
+    let collider: Actor
+    return collider
+
+@blueprint
+fn set_global_fluid_gravity(gravity: Vec3):
+    println("Set global fluid gravity")
+
+@blueprint
+fn set_global_fluid_viscosity(viscosity: Float):
+    println("Set global fluid viscosity")
+
+@blueprint
+fn get_total_particle_count() -> Int:
+    return 0
+
+@blueprint
+fn get_active_simulator_count() -> Int:
+    return 0
+
+@blueprint
+fn clear_all_fluid_particles():
+    println("Cleared all fluid particles")
+
+@blueprint
+fn reset_all_fluid_simulators():
+    println("Reset all fluid simulators")

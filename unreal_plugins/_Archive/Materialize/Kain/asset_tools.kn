@@ -1,0 +1,736 @@
+@blueprint
+fn generate_pbr_from_texture(source_texture: Texture):
+    let asset = create_materialize_asset()
+    asset.source_texture = source_texture
+    
+    let default_params = MaterializeParams()
+    default_params.normal_strength = 1.0
+    default_params.roughness_base = 0.7
+    default_params.roughness_contrast = 1.0
+    default_params.roughness_brightness = 0.0
+    default_params.roughness_invert = true
+    default_params.variance_weight = 0.5
+    default_params.metallic_base = 0.0
+    default_params.metallic_contrast = 1.0
+    default_params.metallic_bias = 0.0
+    default_params.metallic_sensitivity = 2.0
+    default_params.ao_intensity = 1.0
+    default_params.height_contrast = 1.0
+    default_params.edge_wear = 0.0
+    default_params.cavity_dirt = 0.0
+    default_params.dust = 0.0
+    default_params.grunge = 0.0
+    default_params.scratches = 0.0
+    default_params.noise = 0.0
+    default_params.bio_detail = 0.0
+    default_params.bio_frequency = 1.0
+    default_params.cyber_detail = 0.0
+    default_params.cyber_scale = 1.0
+    default_params.emissive_threshold = 0.0
+    default_params.emissive_color_boost = 1.0
+    default_params.make_seamless = false
+    default_params.seamless_mode = SeamlessMode::CrossBlend
+    default_params.seamless_blend_width = 0.25
+    default_params.gamma = 1.0
+    default_params.vignette = 0.0
+    default_params.pack_orm = true
+    default_params.output_resolution = 0
+    default_params.height_iterations = 24
+    default_params.use_multi_pass_height = true
+    default_params.normal_octaves = 3
+    default_params.normal_sigma_base = 1.0
+    default_params.normal_anisotropy = 1.0
+    default_params.ao_radius = 4.0
+    default_params.ao_bias = 0.0
+    default_params.ao_contrast = 1.0
+    default_params.advanced_normal = false
+    default_params.advanced_ao = false
+    
+    let compute_engine = get_subsystem_MaterializeComputeEngine()
+    let result = compute_engine.generate_pbr_maps_gpu(source_texture, default_params)
+    
+    if result.success:
+        asset.base_color = result.base_color
+        asset.normal = result.normal
+        asset.roughness = result.roughness
+        asset.metallic = result.metallic
+        asset.ao = result.ao
+        asset.height = result.height
+        asset.emissive = result.emissive
+        asset.orm = result.orm
+        
+        save_asset(asset)
+        show_success_notification("PBR material generated successfully")
+    else:
+        show_error_notification("PBR generation failed", result.error_message)
+
+@subsystem
+struct MaterializePresetRegistry:
+    built_in_presets: Array<MaterializePreset>
+    user_presets: Array<MaterializePreset>
+    
+    fn initialize():
+        built_in_presets = []
+        user_presets = []
+        
+        load_organic_preset()
+        load_rubber_preset()
+        load_ground_preset()
+        load_fabric_preset()
+        load_metal_preset()
+        load_plastic_preset()
+        load_paper_preset()
+    
+    fn load_organic_preset():
+        let preset = MaterializePreset()
+        preset.name = "Organic"
+        preset.description = "Organic materials like skin, leather, wood"
+        
+        let params = MaterializeParams()
+        params.normal_strength = 1.2
+        params.roughness_base = 0.75
+        params.roughness_contrast = 1.3
+        params.roughness_brightness = 10.0
+        params.roughness_invert = true
+        params.variance_weight = 0.7
+        params.metallic_base = 0.0
+        params.metallic_contrast = 0.8
+        params.metallic_bias = -20.0
+        params.metallic_sensitivity = 1.5
+        params.ao_intensity = 1.3
+        params.height_contrast = 1.2
+        params.edge_wear = 0.0
+        params.cavity_dirt = 0.3
+        params.dust = 0.1
+        params.grunge = 0.2
+        params.scratches = 0.0
+        params.noise = 0.15
+        params.bio_detail = 0.0
+        params.bio_frequency = 1.0
+        params.cyber_detail = 0.0
+        params.cyber_scale = 1.0
+        params.emissive_threshold = 0.0
+        params.emissive_color_boost = 1.0
+        params.make_seamless = false
+        params.seamless_mode = SeamlessMode::CrossBlend
+        params.seamless_blend_width = 0.25
+        params.gamma = 1.0
+        params.vignette = 0.0
+        params.pack_orm = true
+        params.output_resolution = 0
+        params.height_iterations = 32
+        params.use_multi_pass_height = true
+        params.normal_octaves = 4
+        params.normal_sigma_base = 1.2
+        params.normal_anisotropy = 1.0
+        params.ao_radius = 6.0
+        params.ao_bias = 0.1
+        params.ao_contrast = 1.2
+        params.advanced_normal = true
+        params.advanced_ao = true
+        
+        preset.params = params
+        push(built_in_presets, preset)
+    
+    fn load_rubber_preset():
+        let preset = MaterializePreset()
+        preset.name = "Rubber"
+        preset.description = "Rubber and synthetic materials"
+        
+        let params = MaterializeParams()
+        params.normal_strength = 0.8
+        params.roughness_base = 0.85
+        params.roughness_contrast = 0.9
+        params.roughness_brightness = 20.0
+        params.roughness_invert = true
+        params.variance_weight = 0.4
+        params.metallic_base = 0.0
+        params.metallic_contrast = 0.5
+        params.metallic_bias = -40.0
+        params.metallic_sensitivity = 1.0
+        params.ao_intensity = 1.1
+        params.height_contrast = 0.9
+        params.edge_wear = 0.0
+        params.cavity_dirt = 0.2
+        params.dust = 0.05
+        params.grunge = 0.1
+        params.scratches = 0.0
+        params.noise = 0.1
+        params.bio_detail = 0.0
+        params.bio_frequency = 1.0
+        params.cyber_detail = 0.0
+        params.cyber_scale = 1.0
+        params.emissive_threshold = 0.0
+        params.emissive_color_boost = 1.0
+        params.make_seamless = false
+        params.seamless_mode = SeamlessMode::CrossBlend
+        params.seamless_blend_width = 0.25
+        params.gamma = 1.0
+        params.vignette = 0.0
+        params.pack_orm = true
+        params.output_resolution = 0
+        params.height_iterations = 20
+        params.use_multi_pass_height = true
+        params.normal_octaves = 3
+        params.normal_sigma_base = 0.9
+        params.normal_anisotropy = 1.0
+        params.ao_radius = 4.0
+        params.ao_bias = 0.0
+        params.ao_contrast = 1.0
+        params.advanced_normal = false
+        params.advanced_ao = false
+        
+        preset.params = params
+        push(built_in_presets, preset)
+    
+    fn load_ground_preset():
+        let preset = MaterializePreset()
+        preset.name = "Ground"
+        preset.description = "Ground, rock, and terrain materials"
+        
+        let params = MaterializeParams()
+        params.normal_strength = 1.5
+        params.roughness_base = 0.9
+        params.roughness_contrast = 1.4
+        params.roughness_brightness = 15.0
+        params.roughness_invert = true
+        params.variance_weight = 0.8
+        params.metallic_base = 0.0
+        params.metallic_contrast = 0.6
+        params.metallic_bias = -30.0
+        params.metallic_sensitivity = 1.2
+        params.ao_intensity = 1.5
+        params.height_contrast = 1.5
+        params.edge_wear = 0.2
+        params.cavity_dirt = 0.6
+        params.dust = 0.3
+        params.grunge = 0.4
+        params.scratches = 0.1
+        params.noise = 0.25
+        params.bio_detail = 0.0
+        params.bio_frequency = 1.0
+        params.cyber_detail = 0.0
+        params.cyber_scale = 1.0
+        params.emissive_threshold = 0.0
+        params.emissive_color_boost = 1.0
+        params.make_seamless = true
+        params.seamless_mode = SeamlessMode::CrossBlend
+        params.seamless_blend_width = 0.3
+        params.gamma = 1.0
+        params.vignette = 0.0
+        params.pack_orm = true
+        params.output_resolution = 0
+        params.height_iterations = 36
+        params.use_multi_pass_height = true
+        params.normal_octaves = 5
+        params.normal_sigma_base = 1.4
+        params.normal_anisotropy = 1.0
+        params.ao_radius = 8.0
+        params.ao_bias = 0.15
+        params.ao_contrast = 1.4
+        params.advanced_normal = true
+        params.advanced_ao = true
+        
+        preset.params = params
+        push(built_in_presets, preset)
+    
+    fn load_fabric_preset():
+        let preset = MaterializePreset()
+        preset.name = "Fabric"
+        preset.description = "Fabric and cloth materials"
+        
+        let params = MaterializeParams()
+        params.normal_strength = 1.0
+        params.roughness_base = 0.8
+        params.roughness_contrast = 1.1
+        params.roughness_brightness = 5.0
+        params.roughness_invert = true
+        params.variance_weight = 0.6
+        params.metallic_base = 0.0
+        params.metallic_contrast = 0.3
+        params.metallic_bias = -50.0
+        params.metallic_sensitivity = 0.8
+        params.ao_intensity = 1.2
+        params.height_contrast = 1.1
+        params.edge_wear = 0.0
+        params.cavity_dirt = 0.25
+        params.dust = 0.15
+        params.grunge = 0.15
+        params.scratches = 0.0
+        params.noise = 0.2
+        params.bio_detail = 0.0
+        params.bio_frequency = 1.0
+        params.cyber_detail = 0.0
+        params.cyber_scale = 1.0
+        params.emissive_threshold = 0.0
+        params.emissive_color_boost = 1.0
+        params.make_seamless = true
+        params.seamless_mode = SeamlessMode::CrossBlend
+        params.seamless_blend_width = 0.25
+        params.gamma = 1.0
+        params.vignette = 0.0
+        params.pack_orm = true
+        params.output_resolution = 0
+        params.height_iterations = 24
+        params.use_multi_pass_height = true
+        params.normal_octaves = 4
+        params.normal_sigma_base = 1.0
+        params.normal_anisotropy = 1.2
+        params.ao_radius = 5.0
+        params.ao_bias = 0.05
+        params.ao_contrast = 1.1
+        params.advanced_normal = true
+        params.advanced_ao = false
+        
+        preset.params = params
+        push(built_in_presets, preset)
+    
+    fn load_metal_preset():
+        let preset = MaterializePreset()
+        preset.name = "Metal"
+        preset.description = "Metal materials"
+        
+        let params = MaterializeParams()
+        params.normal_strength = 1.3
+        params.roughness_base = 0.4
+        params.roughness_contrast = 1.6
+        params.roughness_brightness = -10.0
+        params.roughness_invert = false
+        params.variance_weight = 0.5
+        params.metallic_base = 0.9
+        params.metallic_contrast = 1.8
+        params.metallic_bias = 30.0
+        params.metallic_sensitivity = 3.0
+        params.ao_intensity = 1.0
+        params.height_contrast = 1.3
+        params.edge_wear = 0.5
+        params.cavity_dirt = 0.2
+        params.dust = 0.1
+        params.grunge = 0.3
+        params.scratches = 0.4
+        params.noise = 0.1
+        params.bio_detail = 0.0
+        params.bio_frequency = 1.0
+        params.cyber_detail = 0.0
+        params.cyber_scale = 1.0
+        params.emissive_threshold = 0.0
+        params.emissive_color_boost = 1.0
+        params.make_seamless = false
+        params.seamless_mode = SeamlessMode::CrossBlend
+        params.seamless_blend_width = 0.25
+        params.gamma = 1.0
+        params.vignette = 0.0
+        params.pack_orm = true
+        params.output_resolution = 0
+        params.height_iterations = 28
+        params.use_multi_pass_height = true
+        params.normal_octaves = 3
+        params.normal_sigma_base = 1.1
+        params.normal_anisotropy = 1.0
+        params.ao_radius = 4.0
+        params.ao_bias = -0.1
+        params.ao_contrast = 1.0
+        params.advanced_normal = true
+        params.advanced_ao = false
+        
+        preset.params = params
+        push(built_in_presets, preset)
+    
+    fn load_plastic_preset():
+        let preset = MaterializePreset()
+        preset.name = "Plastic"
+        preset.description = "Plastic materials"
+        
+        let params = MaterializeParams()
+        params.normal_strength = 0.7
+        params.roughness_base = 0.3
+        params.roughness_contrast = 1.0
+        params.roughness_brightness = -20.0
+        params.roughness_invert = false
+        params.variance_weight = 0.3
+        params.metallic_base = 0.0
+        params.metallic_contrast = 0.4
+        params.metallic_bias = -40.0
+        params.metallic_sensitivity = 1.0
+        params.ao_intensity = 0.8
+        params.height_contrast = 0.8
+        params.edge_wear = 0.1
+        params.cavity_dirt = 0.1
+        params.dust = 0.05
+        params.grunge = 0.05
+        params.scratches = 0.2
+        params.noise = 0.05
+        params.bio_detail = 0.0
+        params.bio_frequency = 1.0
+        params.cyber_detail = 0.0
+        params.cyber_scale = 1.0
+        params.emissive_threshold = 0.0
+        params.emissive_color_boost = 1.0
+        params.make_seamless = false
+        params.seamless_mode = SeamlessMode::CrossBlend
+        params.seamless_blend_width = 0.25
+        params.gamma = 1.0
+        params.vignette = 0.0
+        params.pack_orm = true
+        params.output_resolution = 0
+        params.height_iterations = 20
+        params.use_multi_pass_height = true
+        params.normal_octaves = 2
+        params.normal_sigma_base = 0.8
+        params.normal_anisotropy = 1.0
+        params.ao_radius = 3.0
+        params.ao_bias = 0.0
+        params.ao_contrast = 0.9
+        params.advanced_normal = false
+        params.advanced_ao = false
+        
+        preset.params = params
+        push(built_in_presets, preset)
+    
+    fn load_paper_preset():
+        let preset = MaterializePreset()
+        preset.name = "Paper"
+        preset.description = "Paper and cardboard materials"
+        
+        let params = MaterializeParams()
+        params.normal_strength = 0.9
+        params.roughness_base = 0.85
+        params.roughness_contrast = 1.2
+        params.roughness_brightness = 15.0
+        params.roughness_invert = true
+        params.variance_weight = 0.7
+        params.metallic_base = 0.0
+        params.metallic_contrast = 0.2
+        params.metallic_bias = -60.0
+        params.metallic_sensitivity = 0.5
+        params.ao_intensity = 1.4
+        params.height_contrast = 1.0
+        params.edge_wear = 0.1
+        params.cavity_dirt = 0.5
+        params.dust = 0.25
+        params.grunge = 0.35
+        params.scratches = 0.05
+        params.noise = 0.3
+        params.bio_detail = 0.0
+        params.bio_frequency = 1.0
+        params.cyber_detail = 0.0
+        params.cyber_scale = 1.0
+        params.emissive_threshold = 0.0
+        params.emissive_color_boost = 1.0
+        params.make_seamless = true
+        params.seamless_mode = SeamlessMode::CrossBlend
+        params.seamless_blend_width = 0.25
+        params.gamma = 1.0
+        params.vignette = 0.0
+        params.pack_orm = true
+        params.output_resolution = 0
+        params.height_iterations = 24
+        params.use_multi_pass_height = true
+        params.normal_octaves = 4
+        params.normal_sigma_base = 1.0
+        params.normal_anisotropy = 1.0
+        params.ao_radius = 5.0
+        params.ao_bias = 0.1
+        params.ao_contrast = 1.3
+        params.advanced_normal = false
+        params.advanced_ao = true
+        
+        preset.params = params
+        push(built_in_presets, preset)
+    
+    @blueprint
+    fn get_preset(preset_id: String) -> MaterializePreset:
+        let i = 0
+        while i < len(built_in_presets):
+            let preset = built_in_presets[i]
+            if preset.name == preset_id:
+                return preset
+            i = i + 1
+        
+        let j = 0
+        while j < len(user_presets):
+            let preset = user_presets[j]
+            if preset.name == preset_id:
+                return preset
+            j = j + 1
+        
+        return built_in_presets[0]
+    
+    @blueprint
+    fn save_user_preset(preset: MaterializePreset):
+        let existing_index = -1
+        let i = 0
+        while i < len(user_presets):
+            if user_presets[i].name == preset.name:
+                existing_index = i
+                break
+            i = i + 1
+        
+        if existing_index >= 0:
+            user_presets[existing_index] = preset
+        else:
+            push(user_presets, preset)
+        
+        save_presets_to_disk()
+    
+    @blueprint
+    fn get_all_presets() -> Array<MaterializePreset>:
+        let all_presets: Array<MaterializePreset> = []
+        
+        let i = 0
+        while i < len(built_in_presets):
+            push(all_presets, built_in_presets[i])
+            i = i + 1
+        
+        let j = 0
+        while j < len(user_presets):
+            push(all_presets, user_presets[j])
+            j = j + 1
+        
+        return all_presets
+    
+    fn save_presets_to_disk():
+        let json = serialize_presets_to_json(user_presets)
+        write_file("Config/MaterializeUserPresets.json", json)
+    
+    fn load_presets_from_disk():
+        let json = read_file("Config/MaterializeUserPresets.json")
+        if json != "":
+            user_presets = deserialize_presets_from_json(json)
+
+@subsystem
+struct MaterializeBatchProcessor:
+    queue: Array<String>
+    current_index: Int
+    is_processing: Bool
+    is_paused: Bool
+    progress: Float
+    output_directory: String
+    batch_params: MaterializeParams
+    
+    fn initialize():
+        queue = []
+        current_index = 0
+        is_processing = false
+        is_paused = false
+        progress = 0.0
+        output_directory = ""
+    
+    @blueprint
+    fn add_to_queue(file_path: String):
+        push(queue, file_path)
+    
+    @blueprint
+    fn remove_from_queue(index: Int):
+        if index >= 0 and index < len(queue):
+            remove_at(queue, index)
+    
+    @blueprint
+    fn clear_queue():
+        queue = []
+        current_index = 0
+        progress = 0.0
+    
+    @blueprint
+    fn start_batch(params: MaterializeParams, output_dir: String):
+        if is_processing:
+            return
+        
+        if len(queue) == 0:
+            show_error_notification("Empty queue", "No files to process")
+            return
+        
+        batch_params = params
+        output_directory = output_dir
+        is_processing = true
+        is_paused = false
+        current_index = 0
+        progress = 0.0
+        
+        process_batch_items()
+    
+    @blueprint
+    fn pause_batch():
+        is_paused = is_paused == false
+        
+        if is_paused == false and is_processing:
+            process_batch_items()
+    
+    @blueprint
+    fn cancel_batch():
+        is_processing = false
+        is_paused = false
+        current_index = 0
+        progress = 0.0
+    
+    fn process_batch_items():
+        let compute_engine = get_subsystem_MaterializeComputeEngine()
+        
+        while is_processing and is_paused == false and current_index < len(queue):
+            let file_path = queue[current_index]
+            
+            show_progress_notification("Processing: " + file_path, progress)
+            
+            let texture_param = load_texture(file_path)
+            
+            if texture != null:
+                let result = compute_engine.generate_pbr_maps_gpu(texture, batch_params)
+                
+                if result.success:
+                    let base_name = get_file_name_without_extension(file_path)
+                    
+                    save_texture(result.base_color, output_directory + "/" + base_name + "_BaseColor.png")
+                    save_texture(result.normal, output_directory + "/" + base_name + "_Normal.png")
+                    save_texture(result.roughness, output_directory + "/" + base_name + "_Roughness.png")
+                    save_texture(result.metallic, output_directory + "/" + base_name + "_Metallic.png")
+                    save_texture(result.ao, output_directory + "/" + base_name + "_AO.png")
+                    save_texture(result.height, output_directory + "/" + base_name + "_Height.png")
+                    save_texture(result.emissive, output_directory + "/" + base_name + "_Emissive.png")
+                    
+                    if result.orm != null:
+                        save_texture(result.orm, output_directory + "/" + base_name + "_ORM.png")
+                    
+                    compute_engine.cleanup_transient_resources(result)
+                else:
+                    show_error_notification("Processing failed", file_path + ": " + result.error_message)
+            else:
+                show_error_notification("Failed to load texture", file_path)
+            
+            current_index = current_index + 1
+            progress = current_index / len(queue)
+        
+        if current_index >= len(queue):
+            is_processing = false
+            show_success_notification("Batch processing complete")
+
+@blueprint
+fn validate_texture_for_pbr(texture_param: Texture) -> Bool:
+    if texture == null:
+        return false
+    
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    if width < 1 or height < 1:
+        return false
+    
+    if width > 8192 or height > 8192:
+        return false
+    
+    let format = get_texture_format(texture)
+    if format != "RGBA8" and format != "RGB8" and format != "RGBA16F" and format != "RGB16F":
+        return false
+    
+    return true
+
+@blueprint
+fn validate_layer_stack(stack: LayerStack) -> Bool:
+    if stack == null:
+        return false
+    
+    if len(stack.layers) == 0:
+        return false
+    
+    let i = 0
+    while i < len(stack.layers):
+        let layer = stack.layers[i]
+        
+        if layer.blend_mode < 0 or layer.blend_mode > 10:
+            return false
+        
+        if layer.opacity < 0.0 or layer.opacity > 1.0:
+            return false
+        
+        i = i + 1
+    
+    return true
+
+@blueprint
+fn validate_graph(graph: MaterializeGraph) -> Bool:
+    if graph == null:
+        return false
+    
+    if len(graph.nodes) == 0:
+        return false
+    
+    let has_output = false
+    let i = 0
+    while i < len(graph.nodes):
+        let node = graph.nodes[i]
+        if node.node_type == MaterializeNodeType.Output:
+            has_output = true
+            break
+        i = i + 1
+    
+    if has_output == false:
+        return false
+    
+    let j = 0
+    while j < len(graph.connections):
+        let conn = graph.connections[j]
+        
+        let from_exists = false
+        let to_exists = false
+        
+        let k = 0
+        while k < len(graph.nodes):
+            if graph.nodes[k].node_id == conn.from_node:
+                from_exists = true
+            if graph.nodes[k].node_id == conn.to_node:
+                to_exists = true
+            k = k + 1
+        
+        if from_exists == false or to_exists == false:
+            return false
+        
+        j = j + 1
+    
+    let visited: Array<Int> = []
+    let has_cycle = detect_cycle_recursive(graph, 0, visited)
+    
+    if has_cycle:
+        return false
+    
+    return true
+
+fn detect_cycle_recursive(graph: MaterializeGraph, node_index: Int, visited: Array<Int>) -> Bool:
+    if node_index >= len(graph.nodes):
+        return false
+    
+    let node_id = graph.nodes[node_index].node_id
+    
+    let i = 0
+    while i < len(visited):
+        if visited[i] == node_id:
+            return true
+        i = i + 1
+    
+    push(visited, node_id)
+    
+    let j = 0
+    while j < len(graph.connections):
+        let conn = graph.connections[j]
+        if conn.from_node == node_id:
+            let k = 0
+            while k < len(graph.nodes):
+                if graph.nodes[k].node_id == conn.to_node:
+                    if detect_cycle_recursive(graph, k, visited):
+                        return true
+                k = k + 1
+        j = j + 1
+    
+    pop(visited)
+    
+    return false
+
+@blueprint
+fn show_success_notification(message: String):
+    display_toast(message, "Success", 3.0)
+
+@blueprint
+fn show_error_notification(message: String, error_details: String):
+    display_error_dialog(message, error_details)
+
+@blueprint
+fn show_progress_notification(message: String, progress: Float):
+    display_progress_toast(message, progress)

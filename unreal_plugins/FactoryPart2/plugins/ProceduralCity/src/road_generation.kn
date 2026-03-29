@@ -1,0 +1,646 @@
+// ProceduralCity - Road Generation
+// L-systems, graph-based algorithms, and intersection handling for road networks
+
+// ============================================================================
+// L-SYSTEM GENERATION
+// ============================================================================
+
+fn create_default_lsystem() -> LSystemState:
+    let rules = [
+        LSystemRule {
+            symbol: "F",
+            replacement: "F[+F]F[-F]F",
+            probability: 0.8,
+            angle: 25.0,
+            length_multiplier: 0.8
+        },
+        LSystemRule {
+            symbol: "F",
+            replacement: "FF",
+            probability: 0.2,
+            angle: 0.0,
+            length_multiplier: 1.0
+        }
+    ]
+    
+    return LSystemState {
+        axiom: "F",
+        rules: rules,
+        iterations: 4,
+        angle: 25.0,
+        initial_length: 100.0,
+        current_string: "F"
+    }
+
+fn lsystem_iterate(state: LSystemState) -> LSystemState:
+    let new_string = ""
+    
+    for i in 0..len(state.current_string):
+        let symbol = substring(state.current_string, i, i + 1)
+        let replaced = false
+        
+        for rule in state.rules:
+            if rule.symbol == symbol:
+                let random_val = (i * 374761393) % 1000
+                let probability = (random_val as Float) / 1000.0
+                
+                if probability < rule.probability:
+                    new_string = new_string + rule.replacement
+                    replaced = true
+                    break
+        
+        if not replaced:
+            new_string = new_string + symbol
+    
+    return LSystemState {
+        axiom: state.axiom,
+        rules: state.rules,
+        iterations: state.iterations,
+        angle: state.angle,
+        initial_length: state.initial_length,
+        current_string: new_string
+    }
+
+fn lsystem_generate_roads(state: LSystemState, start_pos: Vec2, start_angle: Float) -> Array<RoadSegment>:
+    let roads = []
+    let position_stack = []
+    let angle_stack = []
+    
+    let current_pos = start_pos
+    let current_angle = start_angle
+    let current_length = state.initial_length
+    let road_id = 0
+    
+    for i in 0..len(state.current_string):
+        let symbol = substring(state.current_string, i, i + 1)
+        
+        if symbol == "F":
+            let rad = current_angle * 3.14159 / 180.0
+            let end_x = current_pos.x + cos(rad) * current_length
+            let end_y = current_pos.y + sin(rad) * current_length
+            let end_pos = Vec2 { x: end_x, y: end_y }
+            
+            let segment = RoadSegment {
+                id: road_id,
+                start_pos: current_pos,
+                end_pos: end_pos,
+                road_type: RoadType::ResidentialStreet,
+                width: 8.0,
+                lanes: 2,
+                speed_limit: 40.0,
+                is_one_way: false,
+                connected_intersections: [],
+                traffic_density: 0.0
+            }
+            
+            push(roads, segment)
+            current_pos = end_pos
+            road_id = road_id + 1
+        
+        else if symbol == "+":
+            current_angle = current_angle + state.angle
+        
+        else if symbol == "-":
+            current_angle = current_angle - state.angle
+        
+        else if symbol == "[":
+            push(position_stack, current_pos)
+            push(angle_stack, current_angle)
+        
+        else if symbol == "]":
+            if len(position_stack) > 0:
+                current_pos = pop(position_stack)
+                current_angle = pop(angle_stack)
+    
+    return roads
+
+// ============================================================================
+// GRAPH-BASED ROAD NETWORK
+// ============================================================================
+
+fn create_grid_road_network(bounds: Bounds2D, spacing: Float, seed: Int) -> RoadNetwork:
+    let segments = []
+    let intersections = []
+    let intersection_id = 0
+    let segment_id = 0
+    
+    let width = bounds.max.x - bounds.min.x
+    let height = bounds.max.y - bounds.min.y
+    
+    let cols = (width / spacing) as Int
+    let rows = (height / spacing) as Int
+    
+    // Create intersection grid
+    for row in 0..rows:
+        for col in 0..cols:
+            let x = bounds.min.x + (col as Float) * spacing
+            let y = bounds.min.y + (row as Float) * spacing
+            
+            // Add some randomness
+            let hash_x = ((col + row * cols + seed) * 374761393) % 1000
+            let hash_y = ((col + row * cols + seed + 1) * 668265263) % 1000
+            let offset_x = ((hash_x as Float) / 1000.0 - 0.5) * spacing * 0.3
+            let offset_y = ((hash_y as Float) / 1000.0 - 0.5) * spacing * 0.3
+            
+            let intersection = Intersection {
+                id: intersection_id,
+                position: Vec2 { x: x + offset_x, y: y + offset_y },
+                intersection_type: IntersectionType::FourWay,
+                connected_roads: [],
+                has_traffic_light: true,
+                traffic_light_state: TrafficLightState::Red,
+                traffic_light_timer: 0.0,
+                priority_roads: []
+            }
+            
+            push(intersections, intersection)
+            intersection_id = intersection_id + 1
+    
+    // Create horizontal road segments
+    for row in 0..rows:
+        for col in 0..(cols - 1):
+            let start_idx = row * cols + col
+            let end_idx = row * cols + col + 1
+            
+            let segment = RoadSegment {
+                id: segment_id,
+                start_pos: intersections[start_idx].position,
+                end_pos: intersections[end_idx].position,
+                road_type: if row % 3 == 0 then RoadType::MainStreet else RoadType::ResidentialStreet,
+                width: if row % 3 == 0 then 12.0 else 8.0,
+                lanes: 2,
+                speed_limit: if row % 3 == 0 then 60.0 else 40.0,
+                is_one_way: false,
+                connected_intersections: [start_idx, end_idx],
+                traffic_density: 0.0
+            }
+            
+            push(segments, segment)
+            push(intersections[start_idx].connected_roads, segment_id)
+            push(intersections[end_idx].connected_roads, segment_id)
+            segment_id = segment_id + 1
+    
+    // Create vertical road segments
+    for col in 0..cols:
+        for row in 0..(rows - 1):
+            let start_idx = row * cols + col
+            let end_idx = (row + 1) * cols + col
+            
+            let segment = RoadSegment {
+                id: segment_id,
+                start_pos: intersections[start_idx].position,
+                end_pos: intersections[end_idx].position,
+                road_type: if col % 3 == 0 then RoadType::MainStreet else RoadType::ResidentialStreet,
+                width: if col % 3 == 0 then 12.0 else 8.0,
+                lanes: 2,
+                speed_limit: if col % 3 == 0 then 60.0 else 40.0,
+                is_one_way: false,
+                connected_intersections: [start_idx, end_idx],
+                traffic_density: 0.0
+            }
+            
+            push(segments, segment)
+            push(intersections[start_idx].connected_roads, segment_id)
+            push(intersections[end_idx].connected_roads, segment_id)
+            segment_id = segment_id + 1
+    
+    return RoadNetwork {
+        segments: segments,
+        intersections: intersections,
+        highway_nodes: [],
+        main_street_nodes: [],
+        residential_nodes: []
+    }
+
+fn create_radial_road_network(center: Vec2, radius: Float, rings: Int, spokes: Int, seed: Int) -> RoadNetwork:
+    let segments = []
+    let intersections = []
+    let intersection_id = 0
+    let segment_id = 0
+    
+    // Create center intersection
+    let center_intersection = Intersection {
+        id: intersection_id,
+        position: center,
+        intersection_type: IntersectionType::Roundabout,
+        connected_roads: [],
+        has_traffic_light: false,
+        traffic_light_state: TrafficLightState::Green,
+        traffic_light_timer: 0.0,
+        priority_roads: []
+    }
+    push(intersections, center_intersection)
+    intersection_id = intersection_id + 1
+    
+    // Create rings and spokes
+    for ring in 1..rings:
+        let ring_radius = (ring as Float) * radius / (rings as Float)
+        
+        for spoke in 0..spokes:
+            let angle = (spoke as Float) * 360.0 / (spokes as Float)
+            let rad = angle * 3.14159 / 180.0
+            
+            let x = center.x + cos(rad) * ring_radius
+            let y = center.y + sin(rad) * ring_radius
+            
+            let intersection = Intersection {
+                id: intersection_id,
+                position: Vec2 { x: x, y: y },
+                intersection_type: IntersectionType::FourWay,
+                connected_roads: [],
+                has_traffic_light: true,
+                traffic_light_state: TrafficLightState::Red,
+                traffic_light_timer: 0.0,
+                priority_roads: []
+            }
+            
+            push(intersections, intersection)
+            
+            // Create spoke segment (radial road)
+            if ring == 1:
+                let segment = RoadSegment {
+                    id: segment_id,
+                    start_pos: center,
+                    end_pos: intersection.position,
+                    road_type: RoadType::MainStreet,
+                    width: 12.0,
+                    lanes: 2,
+                    speed_limit: 60.0,
+                    is_one_way: false,
+                    connected_intersections: [0, intersection_id],
+                    traffic_density: 0.0
+                }
+                push(segments, segment)
+                push(intersections[0].connected_roads, segment_id)
+                push(intersections[intersection_id].connected_roads, segment_id)
+                segment_id = segment_id + 1
+            else:
+                let prev_ring_idx = 1 + (ring - 2) * spokes + spoke
+                let segment = RoadSegment {
+                    id: segment_id,
+                    start_pos: intersections[prev_ring_idx].position,
+                    end_pos: intersection.position,
+                    road_type: RoadType::MainStreet,
+                    width: 12.0,
+                    lanes: 2,
+                    speed_limit: 60.0,
+                    is_one_way: false,
+                    connected_intersections: [prev_ring_idx, intersection_id],
+                    traffic_density: 0.0
+                }
+                push(segments, segment)
+                push(intersections[prev_ring_idx].connected_roads, segment_id)
+                push(intersections[intersection_id].connected_roads, segment_id)
+                segment_id = segment_id + 1
+            
+            intersection_id = intersection_id + 1
+        
+        // Create ring segments (circular roads)
+        for spoke in 0..spokes:
+            let current_idx = 1 + (ring - 1) * spokes + spoke
+            let next_spoke = (spoke + 1) % spokes
+            let next_idx = 1 + (ring - 1) * spokes + next_spoke
+            
+            let segment = RoadSegment {
+                id: segment_id,
+                start_pos: intersections[current_idx].position,
+                end_pos: intersections[next_idx].position,
+                road_type: RoadType::ResidentialStreet,
+                width: 8.0,
+                lanes: 2,
+                speed_limit: 40.0,
+                is_one_way: false,
+                connected_intersections: [current_idx, next_idx],
+                traffic_density: 0.0
+            }
+            push(segments, segment)
+            push(intersections[current_idx].connected_roads, segment_id)
+            push(intersections[next_idx].connected_roads, segment_id)
+            segment_id = segment_id + 1
+    
+    return RoadNetwork {
+        segments: segments,
+        intersections: intersections,
+        highway_nodes: [],
+        main_street_nodes: [],
+        residential_nodes: []
+    }
+
+// ============================================================================
+// HIGHWAY GENERATION
+// ============================================================================
+
+fn generate_highway_network(bounds: Bounds2D, highway_count: Int, seed: Int) -> Array<RoadSegment>:
+    let highways = []
+    let segment_id = 0
+    
+    for i in 0..highway_count:
+        let hash_start_x = ((i + seed) * 374761393) % 1000
+        let hash_start_y = ((i + seed + 1) * 668265263) % 1000
+        let hash_end_x = ((i + seed + 2) * 1597334677) % 1000
+        let hash_end_y = ((i + seed + 3) * 2654435761) % 1000
+        
+        let start_x = bounds.min.x + ((hash_start_x as Float) / 1000.0) * (bounds.max.x - bounds.min.x)
+        let start_y = bounds.min.y + ((hash_start_y as Float) / 1000.0) * (bounds.max.y - bounds.min.y)
+        let end_x = bounds.min.x + ((hash_end_x as Float) / 1000.0) * (bounds.max.x - bounds.min.x)
+        let end_y = bounds.min.y + ((hash_end_y as Float) / 1000.0) * (bounds.max.y - bounds.min.y)
+        
+        // Create highway with multiple segments for curves
+        let segments_per_highway = 5
+        for j in 0..segments_per_highway:
+            let t0 = (j as Float) / (segments_per_highway as Float)
+            let t1 = ((j + 1) as Float) / (segments_per_highway as Float)
+            
+            let seg_start_x = start_x + (end_x - start_x) * t0
+            let seg_start_y = start_y + (end_y - start_y) * t0
+            let seg_end_x = start_x + (end_x - start_x) * t1
+            let seg_end_y = start_y + (end_y - start_y) * t1
+            
+            let segment = RoadSegment {
+                id: segment_id,
+                start_pos: Vec2 { x: seg_start_x, y: seg_start_y },
+                end_pos: Vec2 { x: seg_end_x, y: seg_end_y },
+                road_type: RoadType::Highway,
+                width: 20.0,
+                lanes: 4,
+                speed_limit: 100.0,
+                is_one_way: false,
+                connected_intersections: [],
+                traffic_density: 0.0
+            }
+            
+            push(highways, segment)
+            segment_id = segment_id + 1
+    
+    return highways
+
+// ============================================================================
+// INTERSECTION HANDLING
+// ============================================================================
+
+fn detect_intersections(network: RoadNetwork) -> RoadNetwork:
+    let new_intersections = network.intersections
+    let intersection_id = len(new_intersections)
+    
+    for i in 0..len(network.segments):
+        for j in (i + 1)..len(network.segments):
+            let seg_a = network.segments[i]
+            let seg_b = network.segments[j]
+            
+            // Skip if segments share an endpoint
+            let shares_endpoint = 
+                vec2_distance(seg_a.start_pos, seg_b.start_pos) < 1.0 or
+                vec2_distance(seg_a.start_pos, seg_b.end_pos) < 1.0 or
+                vec2_distance(seg_a.end_pos, seg_b.start_pos) < 1.0 or
+                vec2_distance(seg_a.end_pos, seg_b.end_pos) < 1.0
+            
+            if shares_endpoint:
+                continue
+            
+            // Calculate intersection point
+            let intersection_point = calculate_line_intersection(
+                seg_a.start_pos, seg_a.end_pos,
+                seg_b.start_pos, seg_b.end_pos
+            )
+            
+            if intersection_point.x >= 0.0:
+                let new_intersection = Intersection {
+                    id: intersection_id,
+                    position: intersection_point,
+                    intersection_type: determine_intersection_type(seg_a, seg_b),
+                    connected_roads: [i, j],
+                    has_traffic_light: should_have_traffic_light(seg_a, seg_b),
+                    traffic_light_state: TrafficLightState::Red,
+                    traffic_light_timer: 0.0,
+                    priority_roads: determine_priority_roads(seg_a, seg_b)
+                }
+                
+                push(new_intersections, new_intersection)
+                intersection_id = intersection_id + 1
+    
+    return RoadNetwork {
+        segments: network.segments,
+        intersections: new_intersections,
+        highway_nodes: network.highway_nodes,
+        main_street_nodes: network.main_street_nodes,
+        residential_nodes: network.residential_nodes
+    }
+
+fn calculate_line_intersection(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2) -> Vec2:
+    let dax = a2.x - a1.x
+    let day = a2.y - a1.y
+    let dbx = b2.x - b1.x
+    let dby = b2.y - b1.y
+    
+    let denominator = dax * dby - day * dbx
+    
+    if abs(denominator) < 0.0001:
+        return Vec2 { x: -1.0, y: -1.0 }
+    
+    let t = ((b1.x - a1.x) * dby - (b1.y - a1.y) * dbx) / denominator
+    let u = ((b1.x - a1.x) * day - (b1.y - a1.y) * dax) / denominator
+    
+    if t >= 0.0 and t <= 1.0 and u >= 0.0 and u <= 1.0:
+        return Vec2 {
+            x: a1.x + t * dax,
+            y: a1.y + t * day
+        }
+    
+    return Vec2 { x: -1.0, y: -1.0 }
+
+fn determine_intersection_type(seg_a: RoadSegment, seg_b: RoadSegment) -> IntersectionType:
+    if seg_a.road_type == RoadType::Highway or seg_b.road_type == RoadType::Highway:
+        return IntersectionType::Highway
+    
+    if seg_a.road_type == RoadType::MainStreet and seg_b.road_type == RoadType::MainStreet:
+        return IntersectionType::FourWay
+    
+    return IntersectionType::ThreeWay
+
+fn should_have_traffic_light(seg_a: RoadSegment, seg_b: RoadSegment) -> Bool:
+    let is_major_intersection = 
+        (seg_a.road_type == RoadType::MainStreet or seg_a.road_type == RoadType::Highway) and
+        (seg_b.road_type == RoadType::MainStreet or seg_b.road_type == RoadType::Highway)
+    
+    return is_major_intersection
+
+fn determine_priority_roads(seg_a: RoadSegment, seg_b: RoadSegment) -> Array<Int>:
+    let priority = []
+    
+    if seg_a.road_type == RoadType::Highway or seg_a.road_type == RoadType::MainStreet:
+        push(priority, seg_a.id)
+    
+    if seg_b.road_type == RoadType::Highway or seg_b.road_type == RoadType::MainStreet:
+        push(priority, seg_b.id)
+    
+    return priority
+
+// ============================================================================
+// TRAFFIC LIGHT MANAGEMENT
+// ============================================================================
+
+fn update_traffic_lights(network: RoadNetwork, delta_time: Float) -> RoadNetwork:
+    let updated_intersections = []
+    
+    for intersection in network.intersections:
+        if not intersection.has_traffic_light:
+            push(updated_intersections, intersection)
+            continue
+        
+        let new_timer = intersection.traffic_light_timer + delta_time
+        let cycle_time = calculate_traffic_light_cycle_time(intersection, network)
+        
+        let green_time = cycle_time * 0.6
+        let yellow_time = cycle_time * 0.1
+        let red_time = cycle_time * 0.3
+        
+        let new_state = intersection.traffic_light_state
+        
+        if new_timer < green_time:
+            new_state = TrafficLightState::Green
+        else if new_timer < green_time + yellow_time:
+            new_state = TrafficLightState::Yellow
+        else if new_timer < cycle_time:
+            new_state = TrafficLightState::Red
+        else:
+            new_timer = 0.0
+            new_state = TrafficLightState::Green
+        
+        let updated_intersection = Intersection {
+            id: intersection.id,
+            position: intersection.position,
+            intersection_type: intersection.intersection_type,
+            connected_roads: intersection.connected_roads,
+            has_traffic_light: intersection.has_traffic_light,
+            traffic_light_state: new_state,
+            traffic_light_timer: new_timer,
+            priority_roads: intersection.priority_roads
+        }
+        
+        push(updated_intersections, updated_intersection)
+    
+    return RoadNetwork {
+        segments: network.segments,
+        intersections: updated_intersections,
+        highway_nodes: network.highway_nodes,
+        main_street_nodes: network.main_street_nodes,
+        residential_nodes: network.residential_nodes
+    }
+
+// ============================================================================
+// ROAD NETWORK OPTIMIZATION
+// ============================================================================
+
+fn optimize_road_network(network: RoadNetwork) -> RoadNetwork:
+    let optimized_segments = []
+    
+    // Remove duplicate segments
+    for i in 0..len(network.segments):
+        let seg_a = network.segments[i]
+        let is_duplicate = false
+        
+        for j in 0..i:
+            let seg_b = network.segments[j]
+            
+            let same_direction = 
+                vec2_distance(seg_a.start_pos, seg_b.start_pos) < 1.0 and
+                vec2_distance(seg_a.end_pos, seg_b.end_pos) < 1.0
+            
+            let opposite_direction =
+                vec2_distance(seg_a.start_pos, seg_b.end_pos) < 1.0 and
+                vec2_distance(seg_a.end_pos, seg_b.start_pos) < 1.0
+            
+            if same_direction or opposite_direction:
+                is_duplicate = true
+                break
+        
+        if not is_duplicate:
+            push(optimized_segments, seg_a)
+    
+    // Merge collinear segments
+    let merged_segments = []
+    let merged_flags = []
+    
+    for i in 0..len(optimized_segments):
+        push(merged_flags, false)
+    
+    for i in 0..len(optimized_segments):
+        if merged_flags[i]:
+            continue
+        
+        let seg_a = optimized_segments[i]
+        let merged = false
+        
+        for j in (i + 1)..len(optimized_segments):
+            if merged_flags[j]:
+                continue
+            
+            let seg_b = optimized_segments[j]
+            
+            // Check if segments are connected and collinear
+            let connected = vec2_distance(seg_a.end_pos, seg_b.start_pos) < 1.0
+            
+            if connected:
+                let dir_a = vec2_normalize(Vec2 {
+                    x: seg_a.end_pos.x - seg_a.start_pos.x,
+                    y: seg_a.end_pos.y - seg_a.start_pos.y
+                })
+                let dir_b = vec2_normalize(Vec2 {
+                    x: seg_b.end_pos.x - seg_b.start_pos.x,
+                    y: seg_b.end_pos.y - seg_b.start_pos.y
+                })
+                
+                let dot = vec2_dot(dir_a, dir_b)
+                
+                if dot > 0.99:
+                    let merged_segment = RoadSegment {
+                        id: seg_a.id,
+                        start_pos: seg_a.start_pos,
+                        end_pos: seg_b.end_pos,
+                        road_type: seg_a.road_type,
+                        width: seg_a.width,
+                        lanes: seg_a.lanes,
+                        speed_limit: seg_a.speed_limit,
+                        is_one_way: seg_a.is_one_way,
+                        connected_intersections: seg_a.connected_intersections,
+                        traffic_density: seg_a.traffic_density
+                    }
+                    
+                    push(merged_segments, merged_segment)
+                    merged_flags[i] = true
+                    merged_flags[j] = true
+                    merged = true
+                    break
+        
+        if not merged:
+            push(merged_segments, seg_a)
+            merged_flags[i] = true
+    
+    return RoadNetwork {
+        segments: merged_segments,
+        intersections: network.intersections,
+        highway_nodes: network.highway_nodes,
+        main_street_nodes: network.main_street_nodes,
+        residential_nodes: network.residential_nodes
+    }
+
+fn calculate_road_network_stats(network: RoadNetwork) -> String:
+    let total_length = 0.0
+    let highway_length = 0.0
+    let main_street_length = 0.0
+    let residential_length = 0.0
+    
+    for segment in network.segments:
+        let length = vec2_distance(segment.start_pos, segment.end_pos)
+        total_length = total_length + length
+        
+        match segment.road_type:
+            RoadType::Highway => highway_length = highway_length + length
+            RoadType::MainStreet => main_street_length = main_street_length + length
+            RoadType::ResidentialStreet => residential_length = residential_length + length
+            _ => {}
+    
+    return "Road Network Stats: Total=" + (total_length as String) + 
+           "m, Highway=" + (highway_length as String) + 
+           "m, MainStreet=" + (main_street_length as String) + 
+           "m, Residential=" + (residential_length as String) + "m"

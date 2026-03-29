@@ -1,0 +1,753 @@
+// DungeonArchitect — Graph Runtime
+// NodeData + GraphInstance for runtime dungeon generation
+
+@graph_runtime
+graph DungeonGraphRuntime:
+    @node_data
+    node EntranceRoomNodeData:
+        RoomWidth: Int = 10
+        RoomHeight: Int = 10
+        SpawnPointCount: Int = 1
+        AllowMultipleExits: Bool = true
+        LightingPreset: String = "Bright"
+        AmbientSound: String = "Amb_Entrance"
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        on_generated: Exec
+        @output_pin
+        north_exit: Exec
+        @output_pin
+        south_exit: Exec
+        @output_pin
+        east_exit: Exec
+        @output_pin
+        west_exit: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Bool:
+            let room_bounds = RoomBounds {
+                min_x: 0,
+                min_y: 0,
+                max_x: RoomWidth,
+                max_y: RoomHeight,
+                width: RoomWidth,
+                height: RoomHeight
+            }
+            
+            let room = GeneratedRoom {
+                id: 0,
+                room_type: RoomType::Entrance,
+                bounds: room_bounds,
+                world_position: vec3(0.0, 0.0, 0.0),
+                connections: [],
+                connection_points: [],
+                is_generated: true,
+                is_populated: false,
+                actor_reference: null,
+                distance_from_entrance: 0,
+                visited: false
+            }
+            
+            instance.add_room(room)
+            instance.set_entrance_room(0)
+            
+            return true
+    
+    @node_data
+    node CorridorNodeData:
+        CorridorWidth: Int = 3
+        MinLength: Int = 5
+        MaxLength: Int = 15
+        AllowBends: Bool = true
+        MaxBends: Int = 2
+        PlaceTorches: Bool = true
+        TorchSpacing: Float = 5.0
+        
+        @input_pin
+        in_exec: Exec
+        @input_pin
+        start_point: Exec
+        
+        @output_pin
+        on_generated: Exec
+        @output_pin
+        end_point: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Bool:
+            let start_room_id = instance.get_last_room_id()
+            let start_room = instance.get_room(start_room_id)
+            
+            let start_center = bounds_get_center(start_room.bounds)
+            let length = MinLength + (instance.get_random_int() % (MaxLength - MinLength + 1))
+            
+            let direction = instance.get_random_int() % 4
+            let mut end_x = start_center.x
+            let mut end_y = start_center.y
+            
+            match direction:
+                0 => end_y = end_y + length
+                1 => end_y = end_y - length
+                2 => end_x = end_x + length
+                3 => end_x = end_x - length
+                _ => end_x = end_x + length
+            
+            let corridor = CorridorSegment {
+                start_pos: start_center,
+                end_pos: Vec2i { x: end_x, y: end_y },
+                width: CorridorWidth,
+                connects_rooms: [start_room_id]
+            }
+            
+            instance.add_corridor(corridor)
+            
+            return true
+    
+    @node_data
+    node TreasureRoomNodeData:
+        RoomWidth: Int = 8
+        RoomHeight: Int = 8
+        ChestCount: Int = 1
+        LootQuality: Float = 0.8
+        GuardianCount: Int = 2
+        RequiresKey: Bool = false
+        KeyID: Int = 0
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        on_generated: Exec
+        @output_pin
+        on_looted: Exec
+        @output_pin
+        exit: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Bool:
+            let position = instance.find_valid_room_position(RoomWidth, RoomHeight)
+            
+            let room_bounds = RoomBounds {
+                min_x: position.x,
+                min_y: position.y,
+                max_x: position.x + RoomWidth,
+                max_y: position.y + RoomHeight,
+                width: RoomWidth,
+                height: RoomHeight
+            }
+            
+            let room_id = instance.get_next_room_id()
+            let room = GeneratedRoom {
+                id: room_id,
+                room_type: RoomType::Treasure,
+                bounds: room_bounds,
+                world_position: vec3((position.x * 100) as Float, (position.y * 100) as Float, 0.0),
+                connections: [],
+                connection_points: [],
+                is_generated: true,
+                is_populated: false,
+                actor_reference: null,
+                distance_from_entrance: instance.calculate_distance_from_entrance(room_id),
+                visited: false
+            }
+            
+            instance.add_room(room)
+            instance.mark_as_treasure_room(room_id)
+            
+            return true
+    
+    @node_data
+    node BossRoomNodeData:
+        RoomWidth: Int = 20
+        RoomHeight: Int = 20
+        BossType: String = "DefaultBoss"
+        ArenaStyle: String = "Circular"
+        PillarCount: Int = 4
+        HasBarrier: Bool = true
+        LootMultiplier: Float = 2.0
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        on_generated: Exec
+        @output_pin
+        on_boss_defeated: Exec
+        @output_pin
+        exit: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Bool:
+            let position = instance.find_valid_room_position(RoomWidth, RoomHeight)
+            
+            let room_bounds = RoomBounds {
+                min_x: position.x,
+                min_y: position.y,
+                max_x: position.x + RoomWidth,
+                max_y: position.y + RoomHeight,
+                width: RoomWidth,
+                height: RoomHeight
+            }
+            
+            let room_id = instance.get_next_room_id()
+            let room = GeneratedRoom {
+                id: room_id,
+                room_type: RoomType::Boss,
+                bounds: room_bounds,
+                world_position: vec3((position.x * 100) as Float, (position.y * 100) as Float, 0.0),
+                connections: [],
+                connection_points: [],
+                is_generated: true,
+                is_populated: false,
+                actor_reference: null,
+                distance_from_entrance: instance.calculate_distance_from_entrance(room_id),
+                visited: false
+            }
+            
+            instance.add_room(room)
+            instance.mark_as_boss_room(room_id)
+            
+            return true
+    
+    @node_data
+    node PuzzleRoomNodeData:
+        RoomWidth: Int = 12
+        RoomHeight: Int = 12
+        PuzzleType: String = "Lever"
+        Difficulty: Float = 0.5
+        RewardQuality: Float = 0.6
+        TimeLimit: Float = 0.0
+        HintCount: Int = 2
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        on_generated: Exec
+        @output_pin
+        on_solved: Exec
+        @output_pin
+        on_failed: Exec
+        @output_pin
+        exit: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Bool:
+            let position = instance.find_valid_room_position(RoomWidth, RoomHeight)
+            
+            let room_bounds = RoomBounds {
+                min_x: position.x,
+                min_y: position.y,
+                max_x: position.x + RoomWidth,
+                max_y: position.y + RoomHeight,
+                width: RoomWidth,
+                height: RoomHeight
+            }
+            
+            let room_id = instance.get_next_room_id()
+            let room = GeneratedRoom {
+                id: room_id,
+                room_type: RoomType::Puzzle,
+                bounds: room_bounds,
+                world_position: vec3((position.x * 100) as Float, (position.y * 100) as Float, 0.0),
+                connections: [],
+                connection_points: [],
+                is_generated: true,
+                is_populated: false,
+                actor_reference: null,
+                distance_from_entrance: instance.calculate_distance_from_entrance(room_id),
+                visited: false
+            }
+            
+            instance.add_room(room)
+            
+            return true
+    
+    @node_data
+    node SecretRoomNodeData:
+        RoomWidth: Int = 6
+        RoomHeight: Int = 6
+        HiddenDoorType: String = "Breakable"
+        DiscoveryDifficulty: Float = 0.7
+        LootQuality: Float = 0.9
+        IsOptional: Bool = true
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        on_generated: Exec
+        @output_pin
+        on_discovered: Exec
+        @output_pin
+        exit: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Bool:
+            let position = instance.find_valid_room_position(RoomWidth, RoomHeight)
+            
+            let room_bounds = RoomBounds {
+                min_x: position.x,
+                min_y: position.y,
+                max_x: position.x + RoomWidth,
+                max_y: position.y + RoomHeight,
+                width: RoomWidth,
+                height: RoomHeight
+            }
+            
+            let room_id = instance.get_next_room_id()
+            let room = GeneratedRoom {
+                id: room_id,
+                room_type: RoomType::Secret,
+                bounds: room_bounds,
+                world_position: vec3((position.x * 100) as Float, (position.y * 100) as Float, 0.0),
+                connections: [],
+                connection_points: [],
+                is_generated: true,
+                is_populated: false,
+                actor_reference: null,
+                distance_from_entrance: instance.calculate_distance_from_entrance(room_id),
+                visited: false
+            }
+            
+            instance.add_room(room)
+            instance.mark_as_secret_room(room_id)
+            
+            return true
+    
+    @node_data
+    node HubRoomNodeData:
+        RoomWidth: Int = 15
+        RoomHeight: Int = 15
+        ExitCount: Int = 4
+        CentralFeature: String = "Fountain"
+        AllowFastTravel: Bool = true
+        IsCheckpoint: Bool = true
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        on_generated: Exec
+        @output_pin
+        north_exit: Exec
+        @output_pin
+        south_exit: Exec
+        @output_pin
+        east_exit: Exec
+        @output_pin
+        west_exit: Exec
+        @output_pin
+        north_east_exit: Exec
+        @output_pin
+        north_west_exit: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Bool:
+            let position = instance.find_valid_room_position(RoomWidth, RoomHeight)
+            
+            let room_bounds = RoomBounds {
+                min_x: position.x,
+                min_y: position.y,
+                max_x: position.x + RoomWidth,
+                max_y: position.y + RoomHeight,
+                width: RoomWidth,
+                height: RoomHeight
+            }
+            
+            let room_id = instance.get_next_room_id()
+            let room = GeneratedRoom {
+                id: room_id,
+                room_type: RoomType::Hub,
+                bounds: room_bounds,
+                world_position: vec3((position.x * 100) as Float, (position.y * 100) as Float, 0.0),
+                connections: [],
+                connection_points: [],
+                is_generated: true,
+                is_populated: false,
+                actor_reference: null,
+                distance_from_entrance: instance.calculate_distance_from_entrance(room_id),
+                visited: false
+            }
+            
+            instance.add_room(room)
+            
+            return true
+    
+    @node_data
+    node DeadEndRoomNodeData:
+        RoomWidth: Int = 6
+        RoomHeight: Int = 6
+        EnemyCount: Int = 3
+        HasLoot: Bool = true
+        LootQuality: Float = 0.3
+        Atmosphere: String = "Creepy"
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        on_generated: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Bool:
+            let position = instance.find_valid_room_position(RoomWidth, RoomHeight)
+            
+            let room_bounds = RoomBounds {
+                min_x: position.x,
+                min_y: position.y,
+                max_x: position.x + RoomWidth,
+                max_y: position.y + RoomHeight,
+                width: RoomWidth,
+                height: RoomHeight
+            }
+            
+            let room_id = instance.get_next_room_id()
+            let room = GeneratedRoom {
+                id: room_id,
+                room_type: RoomType::DeadEnd,
+                bounds: room_bounds,
+                world_position: vec3((position.x * 100) as Float, (position.y * 100) as Float, 0.0),
+                connections: [],
+                connection_points: [],
+                is_generated: true,
+                is_populated: false,
+                actor_reference: null,
+                distance_from_entrance: instance.calculate_distance_from_entrance(room_id),
+                visited: false
+            }
+            
+            instance.add_room(room)
+            
+            return true
+    
+    @node_data
+    node ConnectionRuleNodeData:
+        MinDistance: Int = 1
+        MaxDistance: Int = 10
+        RequireLineOfSight: Bool = false
+        AllowDiagonal: Bool = true
+        PreferShortest: Bool = true
+        AvoidCrossing: Bool = true
+        
+        @input_pin
+        in_exec: Exec
+        @input_pin
+        room_a: Exec
+        @input_pin
+        room_b: Exec
+        
+        @output_pin
+        on_connected: Exec
+        @output_pin
+        on_failed: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Bool:
+            let room_a_id = instance.get_pin_room_id("room_a")
+            let room_b_id = instance.get_pin_room_id("room_b")
+            
+            if room_a_id == -1 || room_b_id == -1:
+                return false
+            
+            let room_a = instance.get_room(room_a_id)
+            let room_b = instance.get_room(room_b_id)
+            
+            let center_a = bounds_get_center(room_a.bounds)
+            let center_b = bounds_get_center(room_b.bounds)
+            let distance = vec2i_manhattan_distance(center_a, center_b)
+            
+            if distance < MinDistance || distance > MaxDistance:
+                return false
+            
+            if RequireLineOfSight:
+                if !instance.has_line_of_sight(center_a, center_b):
+                    return false
+            
+            instance.connect_rooms(room_a_id, room_b_id)
+            
+            return true
+    
+    @node_data
+    node ConstraintNodeData:
+        ConstraintType: String = "MinDistance"
+        TargetRoomType: String = "Treasure"
+        MinValue: Float = 3.0
+        MaxValue: Float = 100.0
+        IsHardConstraint: Bool = true
+        Priority: Int = 5
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        on_validated: Exec
+        @output_pin
+        on_violated: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Bool:
+            let is_valid = instance.validate_constraint(ConstraintType, TargetRoomType, MinValue, MaxValue)
+            
+            if !is_valid && IsHardConstraint:
+                return false
+            
+            return true
+    
+    @node_data
+    node GenerationSettingsNodeData:
+        Algorithm: String = "BSPTree"
+        Seed: Int = 12345
+        TargetRoomCount: Int = 20
+        MinRoomSize: Int = 5
+        MaxRoomSize: Int = 15
+        EnableLoops: Bool = true
+        LoopProbability: Float = 0.15
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        on_configured: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Bool:
+            instance.set_seed(Seed)
+            instance.set_target_room_count(TargetRoomCount)
+            instance.set_room_size_range(MinRoomSize, MaxRoomSize)
+            instance.set_enable_loops(EnableLoops)
+            instance.set_loop_probability(LoopProbability)
+            
+            return true
+
+struct GraphInstanceState:
+    rooms: Array<GeneratedRoom>
+    corridors: Array<CorridorSegment>
+    entrance_room_id: Int
+    boss_room_ids: Array<Int>
+    treasure_room_ids: Array<Int>
+    secret_room_ids: Array<Int>
+    next_room_id: Int
+    random_seed: Int
+    random_state: Int
+    target_room_count: Int
+    min_room_size: Int
+    max_room_size: Int
+    enable_loops: Bool
+    loop_probability: Float
+    execution_stack: Array<Int>
+    pin_room_map: Array<Int>
+
+fn create_graph_instance() -> GraphInstanceState:
+    let instance = GraphInstanceState {
+        rooms: [],
+        corridors: [],
+        entrance_room_id: -1,
+        boss_room_ids: [],
+        treasure_room_ids: [],
+        secret_room_ids: [],
+        next_room_id: 0,
+        random_seed: 12345,
+        random_state: 12345,
+        target_room_count: 20,
+        min_room_size: 5,
+        max_room_size: 15,
+        enable_loops: true,
+        loop_probability: 0.15,
+        execution_stack: [],
+        pin_room_map: []
+    }
+    return instance
+
+fn graph_instance_add_room(instance: GraphInstanceState, room: GeneratedRoom) -> GraphInstanceState:
+    let mut updated = instance
+    push(updated.rooms, room)
+    updated.next_room_id = updated.next_room_id + 1
+    return updated
+
+fn graph_instance_add_corridor(instance: GraphInstanceState, corridor: CorridorSegment) -> GraphInstanceState:
+    let mut updated = instance
+    push(updated.corridors, corridor)
+    return updated
+
+fn graph_instance_set_entrance_room(instance: GraphInstanceState, room_id: Int) -> GraphInstanceState:
+    let mut updated = instance
+    updated.entrance_room_id = room_id
+    return updated
+
+fn graph_instance_mark_as_boss_room(instance: GraphInstanceState, room_id: Int) -> GraphInstanceState:
+    let mut updated = instance
+    push(updated.boss_room_ids, room_id)
+    return updated
+
+fn graph_instance_mark_as_treasure_room(instance: GraphInstanceState, room_id: Int) -> GraphInstanceState:
+    let mut updated = instance
+    push(updated.treasure_room_ids, room_id)
+    return updated
+
+fn graph_instance_mark_as_secret_room(instance: GraphInstanceState, room_id: Int) -> GraphInstanceState:
+    let mut updated = instance
+    push(updated.secret_room_ids, room_id)
+    return updated
+
+fn graph_instance_get_room(instance: GraphInstanceState, room_id: Int) -> GeneratedRoom:
+    if room_id >= 0 && room_id < len(instance.rooms):
+        return instance.rooms[room_id]
+    
+    return GeneratedRoom {
+        id: -1,
+        room_type: RoomType::DeadEnd,
+        bounds: RoomBounds { min_x: 0, min_y: 0, max_x: 0, max_y: 0, width: 0, height: 0 },
+        world_position: vec3(0.0, 0.0, 0.0),
+        connections: [],
+        connection_points: [],
+        is_generated: false,
+        is_populated: false,
+        actor_reference: null,
+        distance_from_entrance: 0,
+        visited: false
+    }
+
+fn graph_instance_get_next_room_id(instance: GraphInstanceState) -> Int:
+    return instance.next_room_id
+
+fn graph_instance_get_last_room_id(instance: GraphInstanceState) -> Int:
+    return len(instance.rooms) - 1
+
+fn graph_instance_get_random_int(instance: GraphInstanceState) -> Int:
+    let mut updated_state = instance.random_state
+    updated_state = (updated_state * 1103515245 + 12345) % 2147483648
+    return updated_state
+
+fn graph_instance_find_valid_room_position(instance: GraphInstanceState, width: Int, height: Int) -> Vec2i:
+    let max_attempts = 100
+    let mut attempt = 0
+    
+    while attempt < max_attempts:
+        let random_val = graph_instance_get_random_int(instance)
+        let x = (random_val % 100) - 50
+        let y = ((random_val / 100) % 100) - 50
+        
+        let test_bounds = RoomBounds {
+            min_x: x,
+            min_y: y,
+            max_x: x + width,
+            max_y: y + height,
+            width: width,
+            height: height
+        }
+        
+        let mut is_valid = true
+        let mut i = 0
+        while i < len(instance.rooms):
+            let room = instance.rooms[i]
+            if bounds_intersects(test_bounds, room.bounds):
+                is_valid = false
+            i = i + 1
+        
+        if is_valid:
+            return Vec2i { x: x, y: y }
+        
+        attempt = attempt + 1
+    
+    return Vec2i { x: 0, y: 0 }
+
+fn graph_instance_calculate_distance_from_entrance(instance: GraphInstanceState, room_id: Int) -> Int:
+    if instance.entrance_room_id == -1:
+        return 0
+    
+    if room_id == instance.entrance_room_id:
+        return 0
+    
+    let mut visited = []
+    let mut distances = []
+    let mut i = 0
+    while i < len(instance.rooms):
+        push(visited, false)
+        push(distances, 1000000)
+        i = i + 1
+    
+    let mut queue = []
+    push(queue, instance.entrance_room_id)
+    visited[instance.entrance_room_id] = true
+    distances[instance.entrance_room_id] = 0
+    
+    while len(queue) > 0:
+        let current = pop(queue)
+        let room = instance.rooms[current]
+        
+        let mut j = 0
+        while j < len(room.connections):
+            let neighbor = room.connections[j]
+            if !visited[neighbor]:
+                visited[neighbor] = true
+                distances[neighbor] = distances[current] + 1
+                push(queue, neighbor)
+            j = j + 1
+    
+    return distances[room_id]
+
+fn graph_instance_connect_rooms(instance: GraphInstanceState, room_a_id: Int, room_b_id: Int) -> GraphInstanceState:
+    let mut updated = instance
+    
+    if room_a_id >= 0 && room_a_id < len(updated.rooms):
+        let mut room_a = updated.rooms[room_a_id]
+        push(room_a.connections, room_b_id)
+        updated.rooms[room_a_id] = room_a
+    
+    if room_b_id >= 0 && room_b_id < len(updated.rooms):
+        let mut room_b = updated.rooms[room_b_id]
+        push(room_b.connections, room_a_id)
+        updated.rooms[room_b_id] = room_b
+    
+    return updated
+
+fn graph_instance_has_line_of_sight(instance: GraphInstanceState, start: Vec2i, end: Vec2i) -> Bool:
+    let dx = abs(end.x - start.x)
+    let dy = abs(end.y - start.y)
+    let steps = max(dx, dy)
+    
+    if steps == 0:
+        return true
+    
+    let x_inc = ((end.x - start.x) as Float) / (steps as Float)
+    let y_inc = ((end.y - start.y) as Float) / (steps as Float)
+    
+    let mut step = 0
+    while step <= steps:
+        let x = start.x + ((x_inc * (step as Float)) as Int)
+        let y = start.y + ((y_inc * (step as Float)) as Int)
+        let test_pos = Vec2i { x: x, y: y }
+        
+        let mut i = 0
+        while i < len(instance.rooms):
+            let room = instance.rooms[i]
+            if bounds_contains_point(room.bounds, test_pos):
+                return false
+            i = i + 1
+        
+        step = step + 1
+    
+    return true
+
+fn graph_instance_validate_constraint(instance: GraphInstanceState, constraint_type: String, target_room_type: String, min_value: Float, max_value: Float) -> Bool:
+    return true
+
+fn graph_instance_set_seed(instance: GraphInstanceState, seed: Int) -> GraphInstanceState:
+    let mut updated = instance
+    updated.random_seed = seed
+    updated.random_state = seed
+    return updated
+
+fn graph_instance_set_target_room_count(instance: GraphInstanceState, count: Int) -> GraphInstanceState:
+    let mut updated = instance
+    updated.target_room_count = count
+    return updated
+
+fn graph_instance_set_room_size_range(instance: GraphInstanceState, min_size: Int, max_size: Int) -> GraphInstanceState:
+    let mut updated = instance
+    updated.min_room_size = min_size
+    updated.max_room_size = max_size
+    return updated
+
+fn graph_instance_set_enable_loops(instance: GraphInstanceState, enable: Bool) -> GraphInstanceState:
+    let mut updated = instance
+    updated.enable_loops = enable
+    return updated
+
+fn graph_instance_set_loop_probability(instance: GraphInstanceState, probability: Float) -> GraphInstanceState:
+    let mut updated = instance
+    updated.loop_probability = probability
+    return updated

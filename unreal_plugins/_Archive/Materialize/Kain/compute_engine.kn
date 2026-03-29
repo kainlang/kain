@@ -1,0 +1,411 @@
+@subsystem
+struct MaterializeComputeEngine:
+    render_targets: Array<RenderTarget>
+    shader_cache: Array<ComputeShader>
+    active_dispatches: Int
+    max_concurrent_dispatches: Int
+    
+    fn initialize():
+        max_concurrent_dispatches = 8
+        active_dispatches = 0
+        render_targets = []
+        shader_cache = []
+    
+    @blueprint
+    fn generate_pbr_maps_gpu(source_texture: Texture, params: MaterializeParams) -> MaterializeResult:
+        let result = MaterializeResult()
+        result.success = false
+        
+        if validate_source_texture(source_texture) == false:
+            result.error_message = "Invalid source texture"
+            return result
+        
+        let width = get_texture_width(source_texture)
+        let height = get_texture_height(source_texture)
+        
+        let output_width = width
+        let output_height = height
+        
+        if params.output_resolution > 0:
+            output_width = params.output_resolution
+            output_height = params.output_resolution
+        
+        let gradient_rt = create_render_target(output_width, output_height, "RGBA16F")
+        let height_rt_a = create_render_target(output_width, output_height, "R16F")
+        let height_rt_b = create_render_target(output_width, output_height, "R16F")
+        let normal_rt = create_render_target(output_width, output_height, "RGBA16F")
+        let roughness_rt = create_render_target(output_width, output_height, "R16F")
+        let metallic_rt = create_render_target(output_width, output_height, "R16F")
+        let ao_rt = create_render_target(output_width, output_height, "R16F")
+        let emissive_rt = create_render_target(output_width, output_height, "RGBA16F")
+        
+        dispatch_gradient_shader(source_texture, gradient_rt, params)
+        
+        let current_height = height_rt_a
+        let next_height = height_rt_b
+        
+        let iterations = params.height_iterations
+        if params.use_multi_pass_height:
+            iterations = max(iterations, 24)
+        
+        let i = 0
+        while i < iterations:
+            dispatch_height_integration_shader(gradient_rt, current_height, next_height, params, i, iterations)
+            
+            let temp = current_height
+            current_height = next_height
+            next_height = temp
+            
+            i = i + 1
+        
+        let final_height = current_height
+        
+        dispatch_normal_shader(final_height, normal_rt, params)
+        
+        dispatch_roughness_shader(source_texture, final_height, normal_rt, roughness_rt, params)
+        
+        dispatch_metallic_shader(source_texture, final_height, normal_rt, metallic_rt, params)
+        
+        dispatch_ao_shader(final_height, normal_rt, ao_rt, params)
+        
+        dispatch_emissive_shader(source_texture, emissive_rt, params)
+        
+        if params.make_seamless:
+            normal_rt = make_seamless_internal(normal_rt, params.seamless_mode, params.seamless_blend_width)
+            roughness_rt = make_seamless_internal(roughness_rt, params.seamless_mode, params.seamless_blend_width)
+            metallic_rt = make_seamless_internal(metallic_rt, params.seamless_mode, params.seamless_blend_width)
+            ao_rt = make_seamless_internal(ao_rt, params.seamless_mode, params.seamless_blend_width)
+            final_height = make_seamless_internal(final_height, params.seamless_mode, params.seamless_blend_width)
+            emissive_rt = make_seamless_internal(emissive_rt, params.seamless_mode, params.seamless_blend_width)
+        
+        result.base_color = source_texture
+        result.normal = normal_rt
+        result.roughness = roughness_rt
+        result.metallic = metallic_rt
+        result.ao = ao_rt
+        result.height = final_height
+        result.emissive = emissive_rt
+        
+        if params.pack_orm:
+            result.orm = pack_orm_internal(ao_rt, roughness_rt, metallic_rt)
+        
+        result.success = true
+        result.width = output_width
+        result.height = output_height
+        
+        return result
+    
+    fn dispatch_gradient_shader(source: Texture, output: RenderTarget, params: MaterializeParams):
+        let compute_shader = get_or_load_shader("GradientCS")
+        
+        bind_shader_texture(compute_shader, "SourceTexture", source, 0)
+        bind_uav(compute_shader, "GradientOutput", output, 0)
+        bind_scalar(compute_shader, "HeightContrast", params.height_contrast)
+        bind_scalar(compute_shader, "Gamma", params.gamma)
+        bind_scalar(compute_shader, "Vignette", params.vignette)
+        
+        let width = get_render_target_width(output)
+        let height = get_render_target_height(output)
+        
+        dispatch_compute(compute_shader, width / 8, height / 8, 1)
+        
+        wait_for_completion()
+    
+    fn dispatch_height_integration_shader(gradient: RenderTarget, current: RenderTarget, output: RenderTarget, params: MaterializeParams, iteration: Int, total_iterations: Int):
+        let compute_shader = get_or_load_shader("HeightIntegrationCS")
+        
+        bind_shader_texture(compute_shader, "GradientTexture", gradient, 0)
+        bind_shader_texture(compute_shader, "CurrentHeight", current, 1)
+        bind_uav(compute_shader, "NextHeight", output, 0)
+        bind_scalar(compute_shader, "Iteration", iteration)
+        bind_scalar(compute_shader, "TotalIterations", total_iterations)
+        bind_scalar(compute_shader, "Damping", 0.95)
+        
+        let width = get_render_target_width(output)
+        let height = get_render_target_height(output)
+        
+        dispatch_compute(compute_shader, width / 8, height / 8, 1)
+        
+        wait_for_completion()
+    
+    fn dispatch_normal_shader(height: RenderTarget, output: RenderTarget, params: MaterializeParams):
+        let compute_shader = get_or_load_shader("NormalCS")
+        
+        bind_shader_texture(compute_shader, "HeightTexture", height, 0)
+        bind_uav(compute_shader, "NormalOutput", output, 0)
+        bind_scalar(compute_shader, "Strength", params.normal_strength)
+        bind_scalar(compute_shader, "Octaves", params.normal_octaves)
+        bind_scalar(compute_shader, "SigmaBase", params.normal_sigma_base)
+        bind_scalar(compute_shader, "Anisotropy", params.normal_anisotropy)
+        bind_scalar(compute_shader, "UseAdvanced", if params.advanced_normal: 1.0 else: 0.0)
+        
+        let width = get_render_target_width(output)
+        let height_val = get_render_target_height(output)
+        
+        dispatch_compute(compute_shader, width / 8, height_val / 8, 1)
+        
+        wait_for_completion()
+    
+    fn dispatch_roughness_shader(source: Texture, height: RenderTarget, normal: RenderTarget, output: RenderTarget, params: MaterializeParams):
+        let compute_shader = get_or_load_shader("RoughnessCS")
+        
+        bind_shader_texture(compute_shader, "SourceTexture", source, 0)
+        bind_shader_texture(compute_shader, "HeightTexture", height, 1)
+        bind_shader_texture(compute_shader, "NormalTexture", normal, 2)
+        bind_uav(compute_shader, "RoughnessOutput", output, 0)
+        bind_scalar(compute_shader, "BaseRoughness", params.roughness_base)
+        bind_scalar(compute_shader, "Contrast", params.roughness_contrast)
+        bind_scalar(compute_shader, "Brightness", params.roughness_brightness)
+        bind_scalar(compute_shader, "Invert", if params.roughness_invert: 1.0 else: 0.0)
+        bind_scalar(compute_shader, "VarianceWeight", params.variance_weight)
+        bind_scalar(compute_shader, "EdgeWear", params.edge_wear)
+        bind_scalar(compute_shader, "Grunge", params.grunge)
+        bind_scalar(compute_shader, "Noise", params.noise)
+        
+        let width = get_render_target_width(output)
+        let height_val = get_render_target_height(output)
+        
+        dispatch_compute(compute_shader, width / 8, height_val / 8, 1)
+        
+        wait_for_completion()
+    
+    fn dispatch_metallic_shader(source: Texture, height: RenderTarget, normal: RenderTarget, output: RenderTarget, params: MaterializeParams):
+        let compute_shader = get_or_load_shader("MetallicCS")
+        
+        bind_shader_texture(compute_shader, "SourceTexture", source, 0)
+        bind_shader_texture(compute_shader, "HeightTexture", height, 1)
+        bind_shader_texture(compute_shader, "NormalTexture", normal, 2)
+        bind_uav(compute_shader, "MetallicOutput", output, 0)
+        bind_scalar(compute_shader, "BaseMetallic", params.metallic_base)
+        bind_scalar(compute_shader, "Contrast", params.metallic_contrast)
+        bind_scalar(compute_shader, "Bias", params.metallic_bias)
+        bind_scalar(compute_shader, "Sensitivity", params.metallic_sensitivity)
+        bind_scalar(compute_shader, "EdgeWear", params.edge_wear)
+        bind_scalar(compute_shader, "Scratches", params.scratches)
+        
+        let width = get_render_target_width(output)
+        let height_val = get_render_target_height(output)
+        
+        dispatch_compute(compute_shader, width / 8, height_val / 8, 1)
+        
+        wait_for_completion()
+    
+    fn dispatch_ao_shader(height: RenderTarget, normal: RenderTarget, output: RenderTarget, params: MaterializeParams):
+        let compute_shader = get_or_load_shader("AOCS")
+        
+        bind_shader_texture(compute_shader, "HeightTexture", height, 0)
+        bind_shader_texture(compute_shader, "NormalTexture", normal, 1)
+        bind_uav(compute_shader, "AOOutput", output, 0)
+        bind_scalar(compute_shader, "Intensity", params.ao_intensity)
+        bind_scalar(compute_shader, "Radius", params.ao_radius)
+        bind_scalar(compute_shader, "Bias", params.ao_bias)
+        bind_scalar(compute_shader, "Contrast", params.ao_contrast)
+        bind_scalar(compute_shader, "CavityDirt", params.cavity_dirt)
+        bind_scalar(compute_shader, "Dust", params.dust)
+        bind_scalar(compute_shader, "UseAdvanced", if params.advanced_ao: 1.0 else: 0.0)
+        
+        let width = get_render_target_width(output)
+        let height_val = get_render_target_height(output)
+        
+        dispatch_compute(compute_shader, width / 8, height_val / 8, 1)
+        
+        wait_for_completion()
+    
+    fn dispatch_emissive_shader(source: Texture, output: RenderTarget, params: MaterializeParams):
+        let compute_shader = get_or_load_shader("EmissiveCS")
+        
+        bind_shader_texture(compute_shader, "SourceTexture", source, 0)
+        bind_uav(compute_shader, "EmissiveOutput", output, 0)
+        bind_scalar(compute_shader, "Threshold", params.emissive_threshold)
+        bind_scalar(compute_shader, "ColorBoost", params.emissive_color_boost)
+        
+        let width = get_render_target_width(output)
+        let height = get_render_target_height(output)
+        
+        dispatch_compute(compute_shader, width / 8, height / 8, 1)
+        
+        wait_for_completion()
+    
+    @blueprint
+    fn make_seamless(source: Texture, mode: SeamlessMode, blend_width: Float) -> Texture:
+        let width = get_texture_width(source)
+        let height = get_texture_height(source)
+        
+        let output = create_render_target(width, height, "RGBA16F")
+        
+        return make_seamless_internal(source, mode, blend_width)
+    
+    fn make_seamless_internal(source: Texture, mode: SeamlessMode, blend_width: Float) -> RenderTarget:
+        let compute_shader = get_or_load_shader("SeamlessCS")
+        
+        let width = get_texture_width(source)
+        let height = get_texture_height(source)
+        
+        let output = create_render_target(width, height, "RGBA16F")
+        
+        bind_shader_texture(compute_shader, "SourceTexture", source, 0)
+        bind_uav(compute_shader, "SeamlessOutput", output, 0)
+        bind_scalar(compute_shader, "Mode", mode)
+        bind_scalar(compute_shader, "BlendWidth", blend_width)
+        
+        dispatch_compute(compute_shader, width / 8, height / 8, 1)
+        
+        wait_for_completion()
+        
+        return output
+    
+    @blueprint
+    fn pack_orm(ao: Texture, roughness: Texture, metallic: Texture) -> Texture:
+        return pack_orm_internal(ao, roughness, metallic)
+    
+    fn pack_orm_internal(ao: Texture, roughness: Texture, metallic: Texture) -> RenderTarget:
+        let compute_shader = get_or_load_shader("PackORMCS")
+        
+        let width = get_texture_width(ao)
+        let height = get_texture_height(ao)
+        
+        let output = create_render_target(width, height, "RGBA8")
+        
+        bind_shader_texture(compute_shader, "AOTexture", ao, 0)
+        bind_shader_texture(compute_shader, "RoughnessTexture", roughness, 1)
+        bind_shader_texture(compute_shader, "MetallicTexture", metallic, 2)
+        bind_uav(compute_shader, "ORMOutput", output, 0)
+        
+        dispatch_compute(compute_shader, width / 8, height / 8, 1)
+        
+        wait_for_completion()
+        
+        return output
+    
+    @blueprint
+    fn readback_texture(source_texture: Texture) -> Array<Color>:
+        let width = get_texture_width(source_texture)
+        let height = get_texture_height(source_texture)
+        
+        let pixels: Array<Color> = []
+        
+        let staging_buffer = create_staging_buffer(width * height * 16)
+        
+        copy_texture_to_buffer(source_texture, staging_buffer)
+        
+        wait_for_completion()
+        
+        let data = map_buffer(staging_buffer)
+        
+        let y = 0
+        while y < height:
+            let x = 0
+            while x < width:
+                let index = (y * width + x) * 4
+                let r = read_float(data, index + 0)
+                let g = read_float(data, index + 1)
+                let b = read_float(data, index + 2)
+                let a = read_float(data, index + 3)
+                
+                let color = Color()
+                color.r = r
+                color.g = g
+                color.b = b
+                color.a = a
+                
+                push(pixels, color)
+                
+                x = x + 1
+            y = y + 1
+        
+        unmap_buffer(staging_buffer)
+        release_staging_buffer(staging_buffer)
+        
+        return pixels
+    
+    @blueprint
+    fn validate_rhi_resource(texture_rhi: TextureRHI) -> Bool:
+        if texture_rhi == null:
+            return false
+        
+        if is_valid_texture(texture_rhi) == false:
+            return false
+        
+        let width = get_texture_width(texture_rhi)
+        let height = get_texture_height(texture_rhi)
+        
+        if width < 1 or height < 1:
+            return false
+        
+        if width > 8192 or height > 8192:
+            return false
+        
+        return true
+    
+    @blueprint
+    fn cleanup_transient_resources(result: MaterializeResult):
+        if result.normal != null:
+            release_render_target(result.normal)
+        
+        if result.roughness != null:
+            release_render_target(result.roughness)
+        
+        if result.metallic != null:
+            release_render_target(result.metallic)
+        
+        if result.ao != null:
+            release_render_target(result.ao)
+        
+        if result.height != null:
+            release_render_target(result.height)
+        
+        if result.emissive != null:
+            release_render_target(result.emissive)
+        
+        if result.orm != null:
+            release_render_target(result.orm)
+    
+    fn validate_source_texture(source_texture: Texture) -> Bool:
+        if source_texture == null:
+            return false
+        
+        let width = get_texture_width(source_texture)
+        let height = get_texture_height(source_texture)
+        
+        if width < 1 or height < 1:
+            return false
+        
+        if width > 8192 or height > 8192:
+            return false
+        
+        return true
+    
+    fn get_or_load_shader(name: String) -> ComputeShader:
+        let i = 0
+        while i < len(shader_cache):
+            let cached = shader_cache[i]
+            if get_shader_name(cached) == name:
+                return cached
+            i = i + 1
+        
+        let compute_shader = load_compute_shader(name)
+        push(shader_cache, compute_shader)
+        return compute_shader
+    
+    fn create_render_target(width: Int, height: Int, format: String) -> RenderTarget:
+        let rt = allocate_render_target(width, height, format)
+        push(render_targets, rt)
+        return rt
+    
+    fn release_render_target(rt: RenderTarget):
+        deallocate_render_target(rt)
+    
+    fn bind_shader_texture(compute_shader: ComputeShader, param_name: String, texture_param: Texture, binding_slot: Int):
+        set_shader_texture(compute_shader, param_name, texture_param, binding_slot)
+    
+    fn bind_uav(compute_shader: ComputeShader, param_name: String, uav_target: RenderTarget, binding_slot: Int):
+        set_shader_uav(compute_shader, param_name, uav_target, binding_slot)
+    
+    fn bind_scalar(compute_shader: ComputeShader, param_name: String, scalar_value: Float):
+        set_shader_scalar(compute_shader, param_name, scalar_value)
+    
+    fn dispatch_compute(compute_shader: ComputeShader, thread_x: Int, thread_y: Int, thread_z: Int):
+        execute_compute_shader(compute_shader, thread_x, thread_y, thread_z)
+    
+    fn wait_for_completion():
+        flush_render_commands()

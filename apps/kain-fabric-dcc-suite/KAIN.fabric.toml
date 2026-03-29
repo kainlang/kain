@@ -203,6 +203,34 @@ name = "preview_dst"
 kind = "shared_buffer"
 
 [[steps]]
+id = "gpu_pathtrace_preview"
+runtime = "gpu_compute"
+shader_source = "shaders/pathtrace_preview_lighting.kn"
+compute_key = "DccSuitePathTracePreviewLighting"
+depends_on = ["dcc_suite_seed", "material_authoring_projection", "svg_material_mask_projection", "gpu_material_preview"]
+
+[[steps.outputs]]
+name = "pathtrace_dst"
+kind = "shared_buffer"
+
+[[steps]]
+id = "pathtrace_preview_projection"
+runtime = "kain"
+entry = "src/pathtrace_preview_projection.kn"
+depends_on = [
+    "python_suite_bootstrap",
+    "dcc_suite_seed",
+    "material_authoring_projection",
+    "svg_material_mask_projection",
+    "gpu_material_preview",
+    "gpu_pathtrace_preview"
+]
+
+[[steps.outputs]]
+name = "pathtrace_preview_report"
+kind = "value"
+
+[[steps]]
 id = "material_texture_export_projection"
 runtime = "kain"
 entry = "src/material_texture_export_projection.kn"

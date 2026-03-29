@@ -1,0 +1,32 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0.0",
+  "FriendlyName": "ZenMograph",
+  "Description": "Professional mograph system for UE5 inspired by Cinema4D's MoGraph",
+  "Category": "KAIN-PRO",
+  "CreatedBy": "KAIN-PRO Compiler",
+  "CreatedByURL": "",
+  "DocsURL": "",
+  "MarketplaceURL": "",
+  "SupportURL": "",
+  "CanContainContent": false,
+  "IsBetaVersion": false,
+  "IsExperimentalVersion": false,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "ZenMograph",
+      "Type": "Runtime",
+      "LoadingPhase": "PostConfigInit"
+    },
+    {
+      "Name": "ZenMographEditor",
+      "Type": "Editor",
+      "LoadingPhase": "PostEngineInit"
+    }
+  ],
+  "Plugins": [
+
+  ]
+}

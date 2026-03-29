@@ -1,0 +1,104 @@
+# ============================================================================
+# METAFITTER - Editor Toolbars
+# ============================================================================
+# Toolbar definitions for the MetaFitter editor windows.
+# Provides quick-access buttons for common operations.
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: CONFORMER TOOLBAR
+# ============================================================================
+
+@toolbar
+struct ConformerToolbar:
+    # Primary actions
+    @button(icon: "Icons.Play", tooltip: "Conform & Save")
+    fn on_conform():
+        println("MetaFitter Toolbar: Conform & Save")
+
+    @button(icon: "Icons.Stop", tooltip: "Cancel Conform")
+    fn on_cancel():
+        println("MetaFitter Toolbar: Cancel")
+
+    @button(icon: "Icons.Reset", tooltip: "Reset to Defaults")
+    fn on_reset():
+        println("MetaFitter Toolbar: Reset to defaults")
+
+    @separator
+
+    # View toggles
+    @toggle(label: "Wireframe", default: false)
+    fn on_toggle_wireframe(enabled: Bool):
+        println("MetaFitter Toolbar: Wireframe = {enabled}")
+
+    @toggle(label: "Bone Weights", default: false)
+    fn on_toggle_bone_weights(enabled: Bool):
+        println("MetaFitter Toolbar: Bone weights = {enabled}")
+
+    @toggle(label: "Collision", default: false)
+    fn on_toggle_collision(enabled: Bool):
+        println("MetaFitter Toolbar: Collision = {enabled}")
+
+    @toggle(label: "Physics", default: false)
+    fn on_toggle_physics(enabled: Bool):
+        println("MetaFitter Toolbar: Physics = {enabled}")
+
+    @toggle(label: "Hidden Faces", default: false)
+    fn on_toggle_hidden_faces(enabled: Bool):
+        println("MetaFitter Toolbar: Hidden faces = {enabled}")
+
+    @separator
+
+    # Animation controls
+    @button(icon: "Icons.Play", tooltip: "Play Animation")
+    fn on_play_animation():
+        println("MetaFitter Toolbar: Play animation")
+
+    @button(icon: "Icons.Stop", tooltip: "Stop Animation")
+    fn on_stop_animation():
+        println("MetaFitter Toolbar: Stop animation")
+
+    @button(icon: "Icons.Camera", tooltip: "Reset Camera")
+    fn on_reset_camera():
+        println("MetaFitter Toolbar: Reset camera")
+
+    @separator
+
+    # Presets
+    @dropdown(label: "Preset", options: ["Default", "Casual Shirt", "Tight Jeans", "Flowing Dress", "Leather Jacket", "Custom"])
+    fn on_preset_changed(preset: String):
+        println("MetaFitter Toolbar: Preset = " + preset)
+
+    @button(icon: "Icons.Save", tooltip: "Save Current as Preset")
+    fn on_save_preset():
+        println("MetaFitter Toolbar: Save preset")
+
+# ============================================================================
+# SECTION 2: BATCH TOOLBAR
+# ============================================================================
+
+@toolbar
+struct BatchToolbar:
+    # Batch actions
+    @button(icon: "Icons.Play", tooltip: "Start Batch")
+    fn on_start_batch():
+        println("MetaFitter Batch Toolbar: Start batch")
+
+    @button(icon: "Icons.Pause", tooltip: "Pause Batch")
+    fn on_pause_batch():
+        println("MetaFitter Batch Toolbar: Pause batch")
+
+    @button(icon: "Icons.Stop", tooltip: "Cancel Batch")
+    fn on_cancel_batch():
+        println("MetaFitter Batch Toolbar: Cancel batch")
+
+    @separator
+
+    # Folder actions
+    @button(icon: "Icons.FolderOpen", tooltip: "Browse Input Folder")
+    fn on_browse_input():
+        println("MetaFitter Batch Toolbar: Browse input folder")
+
+    @button(icon: "Icons.FolderClosed", tooltip: "Browse Output Folder")
+    fn on_browse_output():
+        println("MetaFitter Batch Toolbar: Browse output folder")

@@ -317,6 +317,17 @@
       }
     },
     {
+      "id": "render.pathtrace_preview",
+      "label": "Path Trace Preview",
+      "surface": "render_lounge",
+      "summary": "Stages a path-traced render preview with a heavier SPIR-V-flavored GPU lane and richer frame reports.",
+      "intent": "render.pathtrace_preview",
+      "payload_schema": {
+        "camera_id": "string",
+        "bounce_budget": "number"
+      }
+    },
+    {
       "id": "compositor.rebuild",
       "label": "Rebuild Composite",
       "surface": "compositor_stack",

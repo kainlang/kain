@@ -1,0 +1,642 @@
+# Materialize Preset System
+# 33 material presets across 7 categories + 4 blueprint functions
+
+# ============================================================================
+# ORGANIC MATERIALS (6 presets)
+# ============================================================================
+
+let skin_basic = MaterializePreset:
+    id: "skin_basic"
+    display_name: "Basic Skin"
+    category: MaterialCategory.Organic
+    params: MaterializeParams:
+        normal_strength: 0.02
+        roughness_contrast: 1.2
+        roughness_brightness: 20.0
+        roughness_invert: true
+        metallic_contrast: 0.0
+        metallic_bias: -100.0
+        ao_intensity: 0.8
+        bio_detail: 0.1
+
+let leather_worn = MaterializePreset:
+    id: "leather_worn"
+    display_name: "Worn Leather"
+    category: MaterialCategory.Organic
+    params: MaterializeParams:
+        normal_strength: 0.08
+        roughness_contrast: 1.5
+        roughness_brightness: 30.0
+        roughness_invert: true
+        metallic_contrast: 0.0
+        metallic_bias: -100.0
+        ao_intensity: 1.2
+        edge_wear: 0.2
+        cavity_dirt: 0.2
+        scratches: 0.3
+        vignette: 0.15
+
+let alien_bio = MaterializePreset:
+    id: "alien_bio"
+    display_name: "Alien Flesh"
+    category: MaterialCategory.Organic
+    params: MaterializeParams:
+        normal_strength: 0.12
+        roughness_contrast: 1.0
+        roughness_brightness: -20.0
+        metallic_contrast: 1.5
+        metallic_bias: 20.0
+        ao_intensity: 1.2
+        bio_detail: 0.6
+        bio_frequency: 0.3
+        cavity_dirt: 0.3
+        gamma: 1.1
+
+let bark = MaterializePreset:
+    id: "bark"
+    display_name: "Tree Bark"
+    category: MaterialCategory.Organic
+    params: MaterializeParams:
+        normal_strength: 0.15
+        roughness_contrast: 2.0
+        roughness_brightness: 40.0
+        roughness_invert: true
+        metallic_contrast: 0.0
+        metallic_bias: -100.0
+        ao_intensity: 1.5
+        bio_detail: 0.2
+        cavity_dirt: 0.4
+        grunge: 0.2
+        gamma: 0.95
+
+let zombie = MaterializePreset:
+    id: "zombie"
+    display_name: "Zombie Skin"
+    category: MaterialCategory.Organic
+    params: MaterializeParams:
+        normal_strength: 0.06
+        roughness_contrast: 1.3
+        roughness_brightness: 10.0
+        roughness_invert: true
+        metallic_contrast: 0.5
+        metallic_bias: -80.0
+        ao_intensity: 1.4
+        bio_detail: 0.3
+        bio_frequency: 0.4
+        cavity_dirt: 0.5
+        grunge: 0.4
+        gamma: 0.9
+        vignette: 0.2
+
+let dragon_scale = MaterializePreset:
+    id: "dragon_scale"
+    display_name: "Dragon Scale"
+    category: MaterialCategory.Organic
+    params: MaterializeParams:
+        normal_strength: 0.2
+        roughness_base: 0.4
+        roughness_contrast: 1.8
+        roughness_brightness: -10.0
+        metallic_base: 0.3
+        metallic_contrast: 1.5
+        metallic_bias: 10.0
+        ao_intensity: 1.6
+        bio_detail: 0.4
+        bio_frequency: 0.2
+        edge_wear: 0.1
+        scratches: 0.2
+        gamma: 1.05
+
+# ============================================================================
+# RUBBER/SYNTH MATERIALS (5 presets)
+# ============================================================================
+
+let rubber_matte = MaterializePreset:
+    id: "rubber_matte"
+    display_name: "Matte Rubber"
+    category: MaterialCategory.Rubber
+    params: MaterializeParams:
+        normal_strength: 0.03
+        roughness_base: 0.8
+        roughness_contrast: 0.8
+        roughness_brightness: 20.0
+        metallic_contrast: 0.0
+        metallic_bias: -100.0
+        ao_intensity: 0.7
+        dust: 0.1
+
+let latex_shiny = MaterializePreset:
+    id: "latex_shiny"
+    display_name: "Shiny Latex"
+    category: MaterialCategory.Rubber
+    params: MaterializeParams:
+        normal_strength: 0.01
+        roughness_base: 0.1
+        roughness_contrast: 0.5
+        roughness_brightness: -30.0
+        metallic_base: 0.2
+        metallic_contrast: 0.8
+        metallic_bias: -40.0
+        ao_intensity: 0.5
+
+let tire_worn = MaterializePreset:
+    id: "tire_worn"
+    display_name: "Worn Tire"
+    category: MaterialCategory.Rubber
+    params: MaterializeParams:
+        normal_strength: 0.1
+        roughness_base: 0.9
+        roughness_contrast: 1.5
+        roughness_brightness: 30.0
+        metallic_contrast: 0.0
+        metallic_bias: -100.0
+        ao_intensity: 1.3
+        edge_wear: 0.3
+        cavity_dirt: 0.4
+        dust: 0.3
+        grunge: 0.3
+        scratches: 0.2
+        gamma: 0.85
+
+let plastic_rough = MaterializePreset:
+    id: "plastic_rough"
+    display_name: "Rough Plastic"
+    category: MaterialCategory.Rubber
+    params: MaterializeParams:
+        normal_strength: 0.04
+        roughness_base: 0.6
+        roughness_contrast: 1.2
+        roughness_brightness: 15.0
+        metallic_contrast: 0.0
+        metallic_bias: -90.0
+        ao_intensity: 0.8
+        cavity_dirt: 0.1
+        dust: 0.1
+
+let gasket = MaterializePreset:
+    id: "gasket"
+    display_name: "Gasket"
+    category: MaterialCategory.Rubber
+    params: MaterializeParams:
+        normal_strength: 0.05
+        roughness_base: 0.7
+        roughness_contrast: 1.0
+        roughness_brightness: 10.0
+        metallic_contrast: 0.0
+        metallic_bias: -100.0
+        ao_intensity: 1.0
+        cavity_dirt: 0.2
+        grunge: 0.2
+        gamma: 0.9
+
+# ============================================================================
+# GROUND/ROCK MATERIALS (5 presets)
+# ============================================================================
+
+let ground_wet = MaterializePreset:
+    id: "ground_wet"
+    display_name: "Wet Mud"
+    category: MaterialCategory.Ground
+    params: MaterializeParams:
+        normal_strength: 0.08
+        roughness_base: 0.3
+        roughness_contrast: 2.5
+        roughness_brightness: -30.0
+        metallic_contrast: 0.8
+        metallic_bias: -60.0
+        ao_intensity: 1.5
+        bio_detail: 0.1
+        bio_frequency: 0.5
+        cavity_dirt: 0.3
+        dust: 0.1
+        gamma: 0.9
+
+let rock_rough = MaterializePreset:
+    id: "rock_rough"
+    display_name: "Rough Rock"
+    category: MaterialCategory.Ground
+    params: MaterializeParams:
+        normal_strength: 0.15
+        roughness_contrast: 2.0
+        roughness_brightness: 50.0
+        roughness_invert: true
+        metallic_contrast: 0.0
+        metallic_bias: -100.0
+        ao_intensity: 1.8
+        cavity_dirt: 0.2
+        dust: 0.2
+        grunge: 0.1
+        gamma: 0.95
+
+let concrete = MaterializePreset:
+    id: "concrete"
+    display_name: "Concrete"
+    category: MaterialCategory.Ground
+    params: MaterializeParams:
+        normal_strength: 0.05
+        roughness_contrast: 1.2
+        roughness_brightness: 30.0
+        metallic_contrast: 0.0
+        metallic_bias: -100.0
+        ao_intensity: 1.0
+        edge_wear: 0.1
+        cavity_dirt: 0.1
+        dust: 0.1
+        grunge: 0.1
+        vignette: 0.1
+
+let snow = MaterializePreset:
+    id: "snow"
+    display_name: "Snow"
+    category: MaterialCategory.Ground
+    params: MaterializeParams:
+        normal_strength: 0.04
+        roughness_base: 0.2
+        roughness_contrast: 0.8
+        roughness_brightness: -20.0
+        metallic_contrast: 0.0
+        metallic_bias: -100.0
+        ao_intensity: 0.6
+        gamma: 1.2
+
+let asphalt = MaterializePreset:
+    id: "asphalt"
+    display_name: "Asphalt"
+    category: MaterialCategory.Ground
+    params: MaterializeParams:
+        normal_strength: 0.06
+        roughness_base: 0.8
+        roughness_contrast: 1.3
+        roughness_brightness: 20.0
+        metallic_contrast: 0.0
+        metallic_bias: -100.0
+        ao_intensity: 1.1
+        cavity_dirt: 0.2
+        dust: 0.2
+        grunge: 0.3
+        gamma: 0.85
+        vignette: 0.15
+
+# ============================================================================
+# FABRIC MATERIALS (5 presets)
+# ============================================================================
+
+let denim = MaterializePreset:
+    id: "denim"
+    display_name: "Denim"
+    category: MaterialCategory.Fabric
+    params: MaterializeParams:
+        normal_strength: 0.06
+        roughness_contrast: 1.5
+        roughness_brightness: 40.0
+        metallic_contrast: 0.0
+        metallic_bias: -100.0
+        ao_intensity: 1.2
+        edge_wear: 0.1
+        vignette: 0.1
+
+let silk = MaterializePreset:
+    id: "silk"
+    display_name: "Silk"
+    category: MaterialCategory.Fabric
+    params: MaterializeParams:
+        normal_strength: 0.02
+        roughness_base: 0.2
+        roughness_contrast: 0.5
+        roughness_brightness: -20.0
+        metallic_contrast: 1.0
+        metallic_bias: -20.0
+        ao_intensity: 0.6
+
+let wool = MaterializePreset:
+    id: "wool"
+    display_name: "Wool"
+    category: MaterialCategory.Fabric
+    params: MaterializeParams:
+        normal_strength: 0.08
+        roughness_base: 0.9
+        roughness_contrast: 1.2
+        roughness_brightness: 30.0
+        metallic_contrast: 0.0
+        metallic_bias: -100.0
+        ao_intensity: 1.3
+        dust: 0.1
+
+let canvas = MaterializePreset:
+    id: "canvas"
+    display_name: "Canvas"
+    category: MaterialCategory.Fabric
+    params: MaterializeParams:
+        normal_strength: 0.07
+        roughness_base: 0.7
+        roughness_contrast: 1.3
+        roughness_brightness: 25.0
+        metallic_contrast: 0.0
+        metallic_bias: -100.0
+        ao_intensity: 1.1
+        edge_wear: 0.1
+        dust: 0.1
+        vignette: 0.1
+
+let velvet = MaterializePreset:
+    id: "velvet"
+    display_name: "Velvet"
+    category: MaterialCategory.Fabric
+    params: MaterializeParams:
+        normal_strength: 0.04
+        roughness_base: 0.4
+        roughness_contrast: 0.8
+        roughness_brightness: 10.0
+        metallic_contrast: 0.5
+        metallic_bias: -50.0
+        ao_intensity: 1.5
+
+# ============================================================================
+# METAL MATERIALS (5 presets)
+# ============================================================================
+
+let iron_rusty = MaterializePreset:
+    id: "iron_rusty"
+    display_name: "Rusted Iron"
+    category: MaterialCategory.Metal
+    params: MaterializeParams:
+        normal_strength: 0.1
+        roughness_contrast: 2.0
+        roughness_brightness: 40.0
+        metallic_base: 0.8
+        metallic_contrast: 1.0
+        ao_intensity: 1.6
+        cavity_dirt: 0.3
+        scratches: 0.4
+        gamma: 0.9
+        vignette: 0.2
+
+let gold_dirty = MaterializePreset:
+    id: "gold_dirty"
+    display_name: "Aged Gold"
+    category: MaterialCategory.Metal
+    params: MaterializeParams:
+        normal_strength: 0.03
+        roughness_base: 0.2
+        roughness_contrast: 1.5
+        roughness_brightness: 10.0
+        metallic_base: 0.95
+        metallic_contrast: 1.8
+        metallic_bias: 50.0
+        ao_intensity: 1.0
+        edge_wear: 0.2
+        cavity_dirt: 0.2
+        dust: 0.1
+        scratches: 0.2
+        gamma: 1.05
+
+let aluminum_brushed = MaterializePreset:
+    id: "aluminum_brushed"
+    display_name: "Brushed Aluminum"
+    category: MaterialCategory.Metal
+    params: MaterializeParams:
+        normal_strength: 0.02
+        roughness_base: 0.3
+        roughness_contrast: 1.0
+        roughness_brightness: 0.0
+        metallic_base: 0.9
+        metallic_contrast: 1.5
+        metallic_bias: 30.0
+        ao_intensity: 0.8
+        scratches: 0.3
+
+let scifi_panel = MaterializePreset:
+    id: "scifi_panel"
+    display_name: "Sci-Fi Panel"
+    category: MaterialCategory.Metal
+    params: MaterializeParams:
+        normal_strength: 0.05
+        roughness_base: 0.3
+        roughness_contrast: 1.2
+        roughness_brightness: -10.0
+        metallic_base: 0.9
+        metallic_contrast: 2.0
+        metallic_bias: 40.0
+        ao_intensity: 1.2
+        edge_wear: 0.3
+        cavity_dirt: 0.2
+        cyber_detail: 0.35
+        cyber_scale: 0.15
+        scratches: 0.2
+        vignette: 0.1
+
+let copper = MaterializePreset:
+    id: "copper"
+    display_name: "Copper"
+    category: MaterialCategory.Metal
+    params: MaterializeParams:
+        normal_strength: 0.04
+        roughness_base: 0.25
+        roughness_contrast: 1.3
+        roughness_brightness: 5.0
+        metallic_base: 0.95
+        metallic_contrast: 1.6
+        metallic_bias: 45.0
+        ao_intensity: 1.1
+        edge_wear: 0.15
+        cavity_dirt: 0.15
+        scratches: 0.15
+        gamma: 1.0
+
+# ============================================================================
+# PLASTIC MATERIALS (4 presets)
+# ============================================================================
+
+let plastic_glossy = MaterializePreset:
+    id: "plastic_glossy"
+    display_name: "Glossy Plastic"
+    category: MaterialCategory.Plastic
+    params: MaterializeParams:
+        normal_strength: 0.01
+        roughness_base: 0.05
+        roughness_contrast: 0.5
+        roughness_brightness: -30.0
+        metallic_contrast: 0.5
+        metallic_bias: -70.0
+        ao_intensity: 0.5
+
+let plastic_matte = MaterializePreset:
+    id: "plastic_matte"
+    display_name: "Matte Plastic"
+    category: MaterialCategory.Plastic
+    params: MaterializeParams:
+        normal_strength: 0.02
+        roughness_base: 0.6
+        roughness_contrast: 0.8
+        roughness_brightness: 10.0
+        metallic_contrast: 0.0
+        metallic_bias: -90.0
+        ao_intensity: 0.7
+        cavity_dirt: 0.1
+
+let bakelite = MaterializePreset:
+    id: "bakelite"
+    display_name: "Bakelite"
+    category: MaterialCategory.Plastic
+    params: MaterializeParams:
+        normal_strength: 0.03
+        roughness_base: 0.4
+        roughness_contrast: 1.0
+        roughness_brightness: 5.0
+        metallic_contrast: 0.3
+        metallic_bias: -80.0
+        ao_intensity: 0.9
+        cavity_dirt: 0.2
+        dust: 0.1
+        gamma: 0.95
+
+let pvc = MaterializePreset:
+    id: "pvc"
+    display_name: "PVC Pipe"
+    category: MaterialCategory.Plastic
+    params: MaterializeParams:
+        normal_strength: 0.02
+        roughness_base: 0.5
+        roughness_contrast: 0.9
+        roughness_brightness: 15.0
+        metallic_contrast: 0.0
+        metallic_bias: -85.0
+        ao_intensity: 0.8
+        cavity_dirt: 0.15
+        dust: 0.15
+        grunge: 0.1
+
+# ============================================================================
+# PAPER/CARD MATERIALS (3 presets)
+# ============================================================================
+
+let cardboard = MaterializePreset:
+    id: "cardboard"
+    display_name: "Cardboard"
+    category: MaterialCategory.Paper
+    params: MaterializeParams:
+        normal_strength: 0.06
+        roughness_base: 0.8
+        roughness_contrast: 1.5
+        roughness_brightness: 35.0
+        metallic_contrast: 0.0
+        metallic_bias: -100.0
+        ao_intensity: 1.2
+        cavity_dirt: 0.1
+        dust: 0.2
+        grunge: 0.2
+        vignette: 0.15
+
+let paper_clean = MaterializePreset:
+    id: "paper_clean"
+    display_name: "Clean Paper"
+    category: MaterialCategory.Paper
+    params: MaterializeParams:
+        normal_strength: 0.02
+        roughness_base: 0.7
+        roughness_contrast: 0.8
+        roughness_brightness: 20.0
+        metallic_contrast: 0.0
+        metallic_bias: -100.0
+        ao_intensity: 0.5
+        vignette: 0.1
+
+let parchment = MaterializePreset:
+    id: "parchment"
+    display_name: "Old Parchment"
+    category: MaterialCategory.Paper
+    params: MaterializeParams:
+        normal_strength: 0.04
+        roughness_base: 0.75
+        roughness_contrast: 1.2
+        roughness_brightness: 25.0
+        metallic_contrast: 0.0
+        metallic_bias: -100.0
+        ao_intensity: 0.8
+        cavity_dirt: 0.1
+        dust: 0.2
+        grunge: 0.3
+        gamma: 0.95
+        vignette: 0.2
+
+# ============================================================================
+# PRESET REGISTRY
+# ============================================================================
+
+let all_presets = [
+    skin_basic, leather_worn, alien_bio, bark, zombie, dragon_scale,
+    rubber_matte, latex_shiny, tire_worn, plastic_rough, gasket,
+    ground_wet, rock_rough, concrete, snow, asphalt,
+    denim, silk, wool, canvas, velvet,
+    iron_rusty, gold_dirty, aluminum_brushed, scifi_panel, copper,
+    plastic_glossy, plastic_matte, bakelite, pvc,
+    cardboard, paper_clean, parchment
+]
+
+# ============================================================================
+# BLUEPRINT FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn get_all_materialize_presets() -> Array<MaterializePreset>:
+    return all_presets
+
+@blueprint
+fn get_materialize_presets_by_category(category: MaterialCategory) -> Array<MaterializePreset>:
+    let result: Array<MaterializePreset> = []
+    for preset in all_presets:
+        if preset.category == category:
+            push(result, preset)
+    return result
+
+@blueprint
+fn get_materialize_preset_by_id(id: String) -> MaterializePreset?:
+    for preset in all_presets:
+        if preset.id == id:
+            return preset
+    return null
+
+@blueprint
+fn get_default_materialize_params() -> MaterializeParams:
+    return MaterializeParams:
+        normal_strength: 1.0
+        roughness_base: 0.7
+        roughness_contrast: 1.0
+        roughness_brightness: 0.0
+        roughness_invert: true
+        variance_weight: 0.5
+        metallic_base: 0.0
+        metallic_contrast: 1.0
+        metallic_bias: 0.0
+        metallic_sensitivity: 2.0
+        ao_intensity: 1.0
+        height_contrast: 1.0
+        edge_wear: 0.0
+        cavity_dirt: 0.0
+        dust: 0.0
+        grunge: 0.0
+        scratches: 0.0
+        noise: 0.0
+        bio_detail: 0.0
+        bio_frequency: 1.0
+        cyber_detail: 0.0
+        cyber_scale: 1.0
+        emissive_threshold: 0.0
+        emissive_color_boost: 1.0
+        make_seamless: false
+        seamless_mode: SeamlessMode.CrossBlend
+        seamless_blend_width: 0.25
+        gamma: 1.0
+        vignette: 0.0
+        pack_orm: true
+        output_resolution: 0
+        height_iterations: 24
+        use_multi_pass_height: true
+        normal_octaves: 3
+        normal_sigma_base: 1.0
+        normal_anisotropy: 1.0
+        ao_radius: 4.0
+        ao_bias: 0.0
+        ao_contrast: 1.0
+        advanced_normal: false
+        advanced_ao: false

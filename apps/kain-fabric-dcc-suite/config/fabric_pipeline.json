@@ -51,6 +51,26 @@
       "summary": "Runs a compute preview and material bake pass across the shared preview buffers after PBR and SVG authoring receipts are materialized."
     },
     {
+      "id": "gpu_pathtrace_preview",
+      "runtime": "gpu_compute",
+      "summary": "Runs a path-traced preview pass over the shared preview buffers with a heavier bounce budget and denser frame response."
+    },
+    {
+      "id": "pathtrace_preview_projection",
+      "runtime": "kain",
+      "summary": "Builds the path-traced render report from the GPU preview buffer and upstream material/SVG receipts."
+    },
+    {
+      "id": "render_accumulation_projection",
+      "runtime": "kain",
+      "summary": "Builds the temporal accumulation report from the path-traced buffer and upstream material/SVG receipts."
+    },
+    {
+      "id": "render_denoise_projection",
+      "runtime": "kain",
+      "summary": "Builds the temporal denoise readiness report from the accumulation buffer and upstream material/SVG receipts."
+    },
+    {
       "id": "material_texture_export_projection",
       "runtime": "kain",
       "summary": "Builds channel-pack export receipts for metal-rough, ORM, height, emissive, and custom packed delivery."

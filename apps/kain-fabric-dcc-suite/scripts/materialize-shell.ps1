@@ -115,6 +115,42 @@ function New-LookupTable {
     return $lookup
 }
 
+function Get-ReportBrowserFamilies {
+    param([System.Collections.IEnumerable]$Reports)
+
+    $familyOrder = @()
+    $familySeen = @{}
+    $familyByReportId = @{
+        'asset_ingest_report' = 'asset ingest'
+        'mesh_contract_report' = 'mesh'
+        'sculpt_report' = 'sculpt'
+        'topology_report' = 'topology'
+        'rig_sync_report' = 'rig'
+        'sim_tick_plan' = 'sim'
+        'material_authoring_report' = 'material'
+        'svg_mask_report' = 'material'
+        'render_preview_report' = 'render'
+        'topology_history_report' = 'topology lineage'
+        'material_texture_export_report' = 'publish'
+        'compositor_rebuild_report' = 'compositor'
+        'tensor_training_report' = 'tensor'
+        'tensor_inference_report' = 'tensor'
+        'publish_summary' = 'publish'
+        'session_report' = 'session'
+    }
+
+    foreach ($report in $Reports) {
+        $family = $familyByReportId[$report.id]
+        if ([string]::IsNullOrWhiteSpace($family)) { continue }
+        if (-not $familySeen.ContainsKey($family)) {
+            $familySeen[$family] = $true
+            $familyOrder += $family
+        }
+    }
+
+    return $familyOrder
+}
+
 function Get-ResolvedItems {
     param(
         [System.Collections.IEnumerable]$Ids,
@@ -374,6 +410,7 @@ function New-ShellMetrics {
         surface_count = @($Surfaces).Count
         runtime_pack_count = $runtimePackCount
         runtime_lane_count = $runtimeLaneCount
+        runtime_lane_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_summary) { [string]$Snapshot.runtime_lane_summary } else { "n/a" }
         command_count = @($Commands).Count
         pipeline_step_count = @($Pipeline).Count
         intent_count = @($Intents).Count
@@ -488,6 +525,8 @@ function Get-SurfaceCardVariant {
 function Render-SurfaceCard {
     param(
         $Surface,
+        [hashtable]$ShellMetrics,
+        [System.Collections.IEnumerable]$Reports,
         [string]$Scope,
         [string]$Variant,
         [string]$PersistentLayoutId = "",
@@ -505,7 +544,10 @@ function Render-SurfaceCard {
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value ([string]$Surface.kind).ToUpperInvariant() -Indent "$Indent    ")
     Add-Line $lines (Render-TextNode -Role "caption" -Value $Surface.summary -Indent "$Indent    ")
     if ([string]$Surface.id -eq "report_browser") {
+        $reportFamilies = Get-ReportBrowserFamilies -Reports $Reports
         Add-Line $lines (Render-TextNode -Role "callout" -Value "Mesh and topology lineage stay first in this browser." -Indent "$Indent    ")
+        Add-Line $lines (Render-TextNode -Role "caption" -Value (("Registry-backed report inventory: " + $ShellMetrics.report_count + " kinds") ) -Indent "$Indent    ")
+        Add-Line $lines (Render-TextNode -Role "caption" -Value (("Registry-backed families: " + ($reportFamilies -join ", ")) ) -Indent "$Indent    ")
     }
     Add-Lines $lines (Render-SurfaceWidget -Surface $Surface -Indent "$Indent    ")
     Add-Line $lines "$Indent</panel>"
@@ -832,7 +874,7 @@ function Render-WorkspacePage {
     Add-Line $lines "                    </panel>"
     Add-Line $lines "                    <panel title=`"Surface Matrix`" layout=`"grid`" columns={$surfaceDeckColumns} gap={10} persistent_layout_id=`"${pageLayoutPrefix}_surface_deck`">"
     foreach ($surface in $centerSurfaces) {
-        Add-Lines $lines (Render-SurfaceCard -Surface $surface -Scope $Scope -Variant "surface_card" -PersistentLayoutId "${pageLayoutPrefix}_center_$($surface.id)" -Indent "                        ")
+        Add-Lines $lines (Render-SurfaceCard -Surface $surface -ShellMetrics $ShellMetrics -Reports $Reports -Scope $Scope -Variant "surface_card" -PersistentLayoutId "${pageLayoutPrefix}_center_$($surface.id)" -Indent "                        ")
     }
     Add-Line $lines "                    </panel>"
     Add-Line $lines "                </panel>"
@@ -842,14 +884,14 @@ function Render-WorkspacePage {
     Add-Lines $lines (Render-TextLines -Items $intents -Formatter { param($intent) "$($intent.label) | $($intent.graph)" } -Role "body" -Indent "                        ")
     Add-Line $lines "                    </inspector>"
     foreach ($surface in $rightSurfaces) {
-        Add-Lines $lines (Render-SurfaceCard -Surface $surface -Scope $Scope -Variant "surface_card" -PersistentLayoutId "${pageLayoutPrefix}_right_$($surface.id)" -Indent "                    ")
+        Add-Lines $lines (Render-SurfaceCard -Surface $surface -ShellMetrics $ShellMetrics -Reports $Reports -Scope $Scope -Variant "surface_card" -PersistentLayoutId "${pageLayoutPrefix}_right_$($surface.id)" -Indent "                    ")
     }
     Add-Line $lines "                </panel>"
 
     Add-Line $lines "                <panel title=`"Execution Strip`" dock=`"bottom`" split_ratio={0.2} min_height={180} max_height={320} resizable={true} layout=`"column`" gap={10} persistent_layout_id=`"${pageLayoutPrefix}_telemetry_tray`">"
     Add-Line $lines "                    <panel title=`"Execution Surfaces`" layout=`"grid`" columns={$telemetryDeckColumns} gap={10} persistent_layout_id=`"${pageLayoutPrefix}_execution_surfaces`">"
     foreach ($surface in $bottomSurfaces) {
-        Add-Lines $lines (Render-SurfaceCard -Surface $surface -Scope $Scope -Variant "quiet_card" -PersistentLayoutId "${pageLayoutPrefix}_bottom_$($surface.id)" -Indent "                        ")
+        Add-Lines $lines (Render-SurfaceCard -Surface $surface -ShellMetrics $ShellMetrics -Reports $Reports -Scope $Scope -Variant "quiet_card" -PersistentLayoutId "${pageLayoutPrefix}_bottom_$($surface.id)" -Indent "                        ")
     }
     Add-Line $lines "                    </panel>"
     Add-Line $lines "                    <inspector title=`"Capability Notes`" persistent_layout_id=`"${pageLayoutPrefix}_extension_seams`">"

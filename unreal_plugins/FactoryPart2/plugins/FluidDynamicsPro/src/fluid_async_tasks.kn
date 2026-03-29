@@ -1,0 +1,350 @@
+// FluidDynamicsPro - Async Tasks
+// Background tasks for surface reconstruction and mesh generation
+
+@async_task
+struct SurfaceReconstructionTask:
+    @input
+    particles: Array<FluidParticle>
+    
+    @input
+    config: MarchingCubesConfig
+    
+    @output
+    result: SurfaceReconstructionResult
+    
+    @callback(thread: "game")
+    fn on_complete(reconstruction_result: SurfaceReconstructionResult):
+        println("Surface reconstruction complete")
+        println("Vertices: {reconstruction_result.vertex_count}")
+        println("Triangles: {reconstruction_result.triangle_count}")
+        println("Time: {reconstruction_result.time_taken_ms}ms")
+    
+    fn do_work():
+        let start_time = get_time_milliseconds()
+        
+        result.success = false
+        result.time_taken_ms = 0.0
+        result.vertex_count = 0
+        result.triangle_count = 0
+        
+        let density_field = build_density_field()
+        
+        if len(density_field) == 0:
+            result.success = false
+            return
+        
+        let mesh = marching_cubes(density_field)
+        
+        if config.enable_smoothing:
+            mesh = smooth_mesh(mesh, config.smoothing_iterations)
+        
+        result.mesh = mesh
+        result.vertex_count = mesh.vertex_count
+        result.triangle_count = mesh.triangle_count
+        result.success = mesh.is_valid
+        
+        let end_time = get_time_milliseconds()
+        result.time_taken_ms = end_time - start_time
+    
+    fn build_density_field() -> Array<Float>:
+        let res = config.grid_resolution
+        let total_cells = res.x * res.y * res.z
+        
+        let density_field: Array<Float> = []
+        
+        for i in 0..total_cells:
+            push(density_field, 0.0)
+        
+        for z in 0..res.z:
+            for y in 0..res.y:
+                for x in 0..res.x:
+                    let grid_pos = vec3(x, y, z)
+                    let world_pos = config.bounds_min + grid_pos * config.cell_size
+                    
+                    let density = compute_density_at_point(world_pos)
+                    
+                    let idx = x + y * res.x + z * res.x * res.y
+                    density_field[idx] = density
+        
+        return density_field
+    
+    fn compute_density_at_point(point: Vec3) -> Float:
+        let density = 0.0
+        let smoothing_radius = config.cell_size * 2.0
+        let h_sq = smoothing_radius * smoothing_radius
+        
+        for particle in particles:
+            if particle.state != ParticleState.Active:
+                continue
+            
+            let diff = point - particle.position
+            let dist_sq = dot(diff, diff)
+            
+            if dist_sq < h_sq:
+                let contribution = 1.0 - sqrt(dist_sq) / smoothing_radius
+                density = density + contribution * contribution
+        
+        return density
+    
+    fn marching_cubes(density_field: Array<Float>) -> SurfaceMesh:
+        let mesh: SurfaceMesh
+        mesh.vertices = []
+        mesh.normals = []
+        mesh.uvs = []
+        mesh.indices = []
+        mesh.vertex_count = 0
+        mesh.triangle_count = 0
+        mesh.is_valid = false
+        
+        let res = config.grid_resolution
+        
+        for z in 0..res.z - 1:
+            for y in 0..res.y - 1:
+                for x in 0..res.x - 1:
+                    process_cube(x, y, z, density_field, mesh)
+        
+        mesh.vertex_count = len(mesh.vertices)
+        mesh.triangle_count = len(mesh.indices) / 3
+        mesh.is_valid = mesh.vertex_count > 0
+        
+        return mesh
+    
+    fn process_cube(x: Int, y: Int, z: Int, density_field: Array<Float>, mesh: SurfaceMesh):
+        let res = config.grid_resolution
+        
+        let cube_index = 0
+        
+        let d000 = get_density(x, y, z, density_field)
+        let d100 = get_density(x + 1, y, z, density_field)
+        let d110 = get_density(x + 1, y + 1, z, density_field)
+        let d010 = get_density(x, y + 1, z, density_field)
+        let d001 = get_density(x, y, z + 1, density_field)
+        let d101 = get_density(x + 1, y, z + 1, density_field)
+        let d111 = get_density(x + 1, y + 1, z + 1, density_field)
+        let d011 = get_density(x, y + 1, z + 1, density_field)
+        
+        if d000 > config.iso_value: cube_index = cube_index + 1
+        if d100 > config.iso_value: cube_index = cube_index + 2
+        if d110 > config.iso_value: cube_index = cube_index + 4
+        if d010 > config.iso_value: cube_index = cube_index + 8
+        if d001 > config.iso_value: cube_index = cube_index + 16
+        if d101 > config.iso_value: cube_index = cube_index + 32
+        if d111 > config.iso_value: cube_index = cube_index + 64
+        if d011 > config.iso_value: cube_index = cube_index + 128
+        
+        if cube_index == 0 or cube_index == 255:
+            return
+        
+        let p0 = config.bounds_min + vec3(x, y, z) * config.cell_size
+        let p1 = p0 + vec3(config.cell_size, 0.0, 0.0)
+        let p2 = p0 + vec3(config.cell_size, config.cell_size, 0.0)
+        let p3 = p0 + vec3(0.0, config.cell_size, 0.0)
+        let p4 = p0 + vec3(0.0, 0.0, config.cell_size)
+        let p5 = p0 + vec3(config.cell_size, 0.0, config.cell_size)
+        let p6 = p0 + vec3(config.cell_size, config.cell_size, config.cell_size)
+        let p7 = p0 + vec3(0.0, config.cell_size, config.cell_size)
+        
+        let v0 = interpolate_vertex(p0, p1, d000, d100)
+        let v1 = interpolate_vertex(p1, p2, d100, d110)
+        let v2 = interpolate_vertex(p2, p3, d110, d010)
+        let v3 = interpolate_vertex(p3, p0, d010, d000)
+        
+        push(mesh.vertices, v0)
+        push(mesh.vertices, v1)
+        push(mesh.vertices, v2)
+        
+        let base_idx = len(mesh.vertices) - 3
+        push(mesh.indices, base_idx)
+        push(mesh.indices, base_idx + 1)
+        push(mesh.indices, base_idx + 2)
+        
+        let normal = compute_triangle_normal(v0, v1, v2)
+        push(mesh.normals, normal)
+        push(mesh.normals, normal)
+        push(mesh.normals, normal)
+        
+        push(mesh.uvs, vec2(0.0, 0.0))
+        push(mesh.uvs, vec2(1.0, 0.0))
+        push(mesh.uvs, vec2(0.5, 1.0))
+    
+    fn get_density(x: Int, y: Int, z: Int, density_field: Array<Float>) -> Float:
+        let res = config.grid_resolution
+        
+        if x < 0 or x >= res.x or y < 0 or y >= res.y or z < 0 or z >= res.z:
+            return 0.0
+        
+        let idx = x + y * res.x + z * res.x * res.y
+        return density_field[idx]
+    
+    fn interpolate_vertex(p1: Vec3, p2: Vec3, d1: Float, d2: Float) -> Vec3:
+        if abs(config.iso_value - d1) < 0.00001:
+            return p1
+        
+        if abs(config.iso_value - d2) < 0.00001:
+            return p2
+        
+        if abs(d1 - d2) < 0.00001:
+            return p1
+        
+        let t = (config.iso_value - d1) / (d2 - d1)
+        return p1 + (p2 - p1) * t
+    
+    fn compute_triangle_normal(v0: Vec3, v1: Vec3, v2: Vec3) -> Vec3:
+        let edge1 = v1 - v0
+        let edge2 = v2 - v0
+        let normal = cross(edge1, edge2)
+        return normalize(normal)
+    
+    fn smooth_mesh(input_mesh: SurfaceMesh, iterations: Int) -> SurfaceMesh:
+        let smoothed = input_mesh
+        
+        for iteration in 0..iterations:
+            let new_vertices: Array<Vec3> = []
+            
+            for i in 0..len(smoothed.vertices):
+                let vertex = smoothed.vertices[i]
+                let neighbors = find_vertex_neighbors(i, smoothed)
+                
+                let avg_pos = vertex
+                let neighbor_count = len(neighbors)
+                
+                if neighbor_count > 0:
+                    avg_pos = vec3(0.0, 0.0, 0.0)
+                    
+                    for neighbor_idx in neighbors:
+                        avg_pos = avg_pos + smoothed.vertices[neighbor_idx]
+                    
+                    avg_pos = avg_pos / neighbor_count
+                    avg_pos = vertex * 0.5 + avg_pos * 0.5
+                
+                push(new_vertices, avg_pos)
+            
+            smoothed.vertices = new_vertices
+        
+        return smoothed
+    
+    fn find_vertex_neighbors(vertex_idx: Int, mesh: SurfaceMesh) -> Array<Int>:
+        let neighbors: Array<Int> = []
+        
+        for i in 0..len(mesh.indices) / 3:
+            let i0 = mesh.indices[i * 3]
+            let i1 = mesh.indices[i * 3 + 1]
+            let i2 = mesh.indices[i * 3 + 2]
+            
+            if i0 == vertex_idx:
+                push(neighbors, i1)
+                push(neighbors, i2)
+            else if i1 == vertex_idx:
+                push(neighbors, i0)
+                push(neighbors, i2)
+            else if i2 == vertex_idx:
+                push(neighbors, i0)
+                push(neighbors, i1)
+        
+        return neighbors
+    
+    fn get_time_milliseconds() -> Float:
+        return 0.0
+
+@async_task
+struct ParticleSimulationTask:
+    @input
+    particles: Array<FluidParticle>
+    
+    @input
+    params: FluidParams
+    
+    @input
+    delta_time: Float
+    
+    @output
+    updated_particles: Array<FluidParticle>
+    
+    @callback(thread: "game")
+    fn on_complete(result_particles: Array<FluidParticle>):
+        println("Particle simulation complete")
+    
+    fn do_work():
+        updated_particles = particles
+        
+        for i in 0..len(updated_particles):
+            let particle = updated_particles[i]
+            
+            if particle.state != ParticleState.Active:
+                continue
+            
+            particle.velocity = particle.velocity + params.gravity * delta_time
+            particle.position = particle.position + particle.velocity * delta_time
+            
+            updated_particles[i] = particle
+
+@async_task
+struct DensityFieldComputeTask:
+    @input
+    particles: Array<FluidParticle>
+    
+    @input
+    grid_resolution: Vec3
+    
+    @input
+    bounds_min: Vec3
+    
+    @input
+    bounds_max: Vec3
+    
+    @output
+    density_field: Array<Float>
+    
+    @callback(thread: "game")
+    fn on_complete(result_field: Array<Float>):
+        println("Density field computation complete")
+    
+    fn do_work():
+        let total_cells = grid_resolution.x * grid_resolution.y * grid_resolution.z
+        density_field = []
+        
+        for i in 0..total_cells:
+            push(density_field, 0.0)
+        
+        let cell_size = (bounds_max.x - bounds_min.x) / grid_resolution.x
+        
+        for z in 0..grid_resolution.z:
+            for y in 0..grid_resolution.y:
+                for x in 0..grid_resolution.x:
+                    let world_pos = bounds_min + vec3(x, y, z) * cell_size
+                    let density = compute_density(world_pos, cell_size * 2.0)
+                    
+                    let idx = x + y * grid_resolution.x + z * grid_resolution.x * grid_resolution.y
+                    density_field[idx] = density
+    
+    fn compute_density(point: Vec3, smoothing_radius: Float) -> Float:
+        let density = 0.0
+        let h_sq = smoothing_radius * smoothing_radius
+        
+        for particle in particles:
+            if particle.state != ParticleState.Active:
+                continue
+            
+            let diff = point - particle.position
+            let dist_sq = dot(diff, diff)
+            
+            if dist_sq < h_sq:
+                let contribution = 1.0 - sqrt(dist_sq) / smoothing_radius
+                density = density + contribution * contribution
+        
+        return density
+
+@blueprint
+fn async_reconstruct_surface(particles: Array<FluidParticle>, config: MarchingCubesConfig) -> SurfaceReconstructionResult:
+    let result: SurfaceReconstructionResult
+    result.success = false
+    return result
+
+@blueprint
+fn async_simulate_particles(particles: Array<FluidParticle>, params: FluidParams, delta_time: Float) -> Array<FluidParticle>:
+    return particles
+
+@blueprint
+fn async_compute_density_field(particles: Array<FluidParticle>, resolution: Vec3, bounds_min: Vec3, bounds_max: Vec3) -> Array<Float>:
+    let field: Array<Float> = []
+    return field

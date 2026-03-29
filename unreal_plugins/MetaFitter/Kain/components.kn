@@ -1,0 +1,300 @@
+# ============================================================================
+# METAFITTER - Components
+# ============================================================================
+# UActorComponent definitions for the MetaFitter clothing system
+# - ClothConformerComponent: Core conforming state and operations
+# - ClothingLayerManager: Multi-layer clothing management
+# - ClothPhysicsComponent: Physics simulation state
+# - ClothPreviewComponent: Editor preview state
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: CLOTH CONFORMER COMPONENT
+# ============================================================================
+# Core component that holds the state of a single clothing conform operation.
+# Attached to the ClothConformerActor to track progress and results.
+
+@component
+@tick
+struct ClothConformerComponent:
+    # Current conform operation state
+    current_stage: ConformStage
+
+    progress: Float
+
+    # Input configuration
+    settings: ConformSettings
+
+    # Analysis results (populated during conform)
+    @transient
+    topology_info: MeshTopologyInfo
+
+    @transient
+    openings: ClothingOpenings
+
+    @transient
+    coverage: CoverageMap
+
+    @transient
+    shrinkwrap_result: ShrinkwrapResult
+
+    # Output result
+    @transient
+    conform_result: ConformResult
+
+    # Timing
+    @transient
+    stage_start_time: Float
+
+    @transient
+    total_elapsed: Float
+
+    # Error state
+    @transient
+    has_error: Bool
+
+    @transient
+    error_message: String
+
+# ============================================================================
+# SECTION 2: CLOTHING LAYER MANAGER COMPONENT
+# ============================================================================
+# Manages multiple clothing layers on a single MetaHuman.
+# Handles layer ordering, offset calculation, and visibility.
+
+@component
+struct ClothingLayerManager:
+    # Active layer count
+    active_layer_count: Int
+
+    # Per-slot tracking (max one item per slot)
+    underwear_occupied: Bool
+
+    base_occupied: Bool
+
+    mid_occupied: Bool
+
+    outer_occupied: Bool
+
+    accessory_occupied: Bool
+
+    headwear_occupied: Bool
+
+    footwear_occupied: Bool
+
+    # Layer offset accumulator
+    @transient
+    total_offset: Float
+
+    # Rebuild flag
+    @transient
+    needs_layer_rebuild: Bool
+
+    @blueprint_callable
+    fn get_layer_count() -> Int:
+        return active_layer_count
+
+    @blueprint_callable
+    fn is_slot_occupied(slot: LayerSlot) -> Bool:
+        match slot:
+            LayerSlot::Underwear =>
+                return underwear_occupied
+            LayerSlot::Base =>
+                return base_occupied
+            LayerSlot::Mid =>
+                return mid_occupied
+            LayerSlot::Outer =>
+                return outer_occupied
+            LayerSlot::Accessory =>
+                return accessory_occupied
+            LayerSlot::Headwear =>
+                return headwear_occupied
+            LayerSlot::Footwear =>
+                return footwear_occupied
+            _ =>
+                return false
+
+    @blueprint_callable
+    fn mark_slot_occupied(slot: LayerSlot, occupied: Bool):
+        match slot:
+            LayerSlot::Underwear =>
+                underwear_occupied = occupied
+            LayerSlot::Base =>
+                base_occupied = occupied
+            LayerSlot::Mid =>
+                mid_occupied = occupied
+            LayerSlot::Outer =>
+                outer_occupied = occupied
+            LayerSlot::Accessory =>
+                accessory_occupied = occupied
+            LayerSlot::Headwear =>
+                headwear_occupied = occupied
+            LayerSlot::Footwear =>
+                footwear_occupied = occupied
+            _ =>
+                println("Unknown layer slot")
+
+        if occupied:
+            active_layer_count = active_layer_count + 1
+        else:
+            active_layer_count = active_layer_count - 1
+            if active_layer_count < 0:
+                active_layer_count = 0
+
+        needs_layer_rebuild = true
+
+    @blueprint_callable
+    fn calculate_cumulative_offset(slot: LayerSlot) -> Float:
+        let offset = 0.0
+        match slot:
+            LayerSlot::Underwear =>
+                offset = 0.0
+            LayerSlot::Base =>
+                offset = 0.5
+            LayerSlot::Mid =>
+                offset = 1.5
+            LayerSlot::Outer =>
+                offset = 3.0
+            LayerSlot::Accessory =>
+                offset = 0.5
+            LayerSlot::Headwear =>
+                offset = 0.3
+            LayerSlot::Footwear =>
+                offset = 0.2
+            _ =>
+                offset = 0.5
+        return offset
+
+    @blueprint_callable
+    fn clear_all_layers():
+        underwear_occupied = false
+        base_occupied = false
+        mid_occupied = false
+        outer_occupied = false
+        accessory_occupied = false
+        headwear_occupied = false
+        footwear_occupied = false
+        active_layer_count = 0
+        total_offset = 0.0
+        needs_layer_rebuild = true
+
+# ============================================================================
+# SECTION 3: CLOTH PHYSICS COMPONENT
+# ============================================================================
+# Manages physics simulation parameters for a conformed clothing item.
+
+@component
+struct ClothPhysicsComponent:
+    # Physics parameters
+    physics_params: ClothPhysicsParams
+
+    physics_enabled: Bool
+
+    simulation_active: Bool
+
+    # Collision primitives count
+    @transient
+    collision_primitive_count: Int
+
+    # Wind override
+    @transient
+    wind_override_active: Bool
+
+    @transient
+    wind_direction: Vec3
+
+    @transient
+    wind_strength: Float
+
+    @blueprint_callable
+    fn set_wind_override(direction: Vec3, strength: Float):
+        wind_override_active = true
+        wind_direction = direction
+        wind_strength = strength
+
+    @blueprint_callable
+    fn clear_wind_override():
+        wind_override_active = false
+        wind_direction = vec3(0, 0, 0)
+        wind_strength = 0.0
+
+    @blueprint_callable
+    fn toggle_simulation(enabled: Bool):
+        simulation_active = enabled
+
+# ============================================================================
+# SECTION 4: CLOTH PREVIEW COMPONENT
+# ============================================================================
+# Editor-only component for managing the 3D preview state.
+
+@component
+struct ClothPreviewComponent:
+    # Preview state
+    @transient
+    preview_active: Bool
+
+    @transient
+    show_wireframe: Bool
+
+    @transient
+    show_bone_weights: Bool
+
+    @transient
+    show_collision: Bool
+
+    @transient
+    show_physics: Bool
+
+    @transient
+    show_hidden_face_map: Bool
+
+    # Animation playback
+    @transient
+    animation_playing: Bool
+
+    @transient
+    animation_speed: Float
+
+    @transient
+    animation_time: Float
+
+    # Camera state
+    @transient
+    camera_distance: Float
+
+    @transient
+    camera_rotation: Vec3
+
+    @transient
+    camera_target: Vec3
+
+    @blueprint_callable
+    fn reset_camera():
+        camera_distance = 200.0
+        camera_rotation = vec3(0, -15, 0)
+        camera_target = vec3(0, 0, 90)
+
+    @blueprint_callable
+    fn toggle_wireframe():
+        show_wireframe = !show_wireframe
+
+    @blueprint_callable
+    fn toggle_bone_weights():
+        show_bone_weights = !show_bone_weights
+
+    @blueprint_callable
+    fn toggle_collision_view():
+        show_collision = !show_collision
+
+    @blueprint_callable
+    fn toggle_physics_preview():
+        show_physics = !show_physics
+
+    @blueprint_callable
+    fn play_animation():
+        animation_playing = true
+
+    @blueprint_callable
+    fn stop_animation():
+        animation_playing = false
+        animation_time = 0.0

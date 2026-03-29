@@ -1,0 +1,96 @@
+# Phase 6: Ability Tasks Test Examples
+# Tests async operations for gameplay abilities
+
+@ability_task
+struct WaitTargetData:
+    @delegate
+    on_data_ready: TargetDataDelegate
+    
+    @delegate
+    on_cancelled: TaskCancelledDelegate
+    
+    state confirmation_type: String = "Instant"
+    state max_range: Float = 1000.0
+    
+    fn activate():
+        register_target_callbacks()
+        start_targeting()
+    
+    fn on_destroy():
+        unregister_callbacks()
+        cleanup_targeting()
+
+@ability_task
+struct WaitGameplayEvent:
+    @delegate
+    on_event_received: GameplayEventDelegate
+    
+    state event_tag: String = "Event.Default"
+    state only_trigger_once: Bool = false
+    
+    fn activate():
+        register_event_listener(event_tag)
+    
+    fn on_destroy():
+        unregister_event_listener(event_tag)
+
+@ability_task
+struct WaitAttributeChange:
+    @delegate
+    on_attribute_changed: AttributeChangeDelegate
+    
+    @delegate
+    on_cancelled: TaskCancelledDelegate
+    
+    state attribute_name: String = "Health"
+    state threshold: Float = 50.0
+    
+    fn activate():
+        register_attribute_callback()
+    
+    fn on_destroy():
+        unregister_attribute_callback()
+    
+    fn check_threshold(new_value: Float):
+        if new_value <= threshold:
+            on_attribute_changed.broadcast(new_value)
+            end_task()
+
+@ability_task
+struct PlayMontageAndWait:
+    @delegate
+    on_completed: TaskCancelledDelegate
+    
+    @delegate
+    on_interrupted: TaskCancelledDelegate
+    
+    state montage_name: String = "Attack_Default"
+    state play_rate: Float = 1.0
+    
+    fn activate():
+        play_montage(montage_name, play_rate)
+        register_montage_callbacks()
+    
+    fn on_destroy():
+        stop_montage()
+        unregister_callbacks()
+
+@ability_task
+struct WaitDelay:
+    @delegate
+    on_finished: TaskCancelledDelegate
+    
+    state delay_time: Float = 1.0
+    state elapsed_time: Float = 0.0
+    
+    fn activate():
+        start_timer()
+    
+    fn on_destroy():
+        stop_timer()
+    
+    fn tick(delta_time: Float):
+        elapsed_time = elapsed_time + delta_time
+        if elapsed_time >= delay_time:
+            on_finished.broadcast()
+            end_task()

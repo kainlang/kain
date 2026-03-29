@@ -1,0 +1,639 @@
+// DungeonArchitect — Data Structures
+// Room types, connection rules, generation parameters, constraint system
+
+enum RoomType:
+    Entrance
+    Corridor
+    Treasure
+    Boss
+    Puzzle
+    Secret
+    DeadEnd
+    Hub
+
+enum ConnectionDirection:
+    North
+    South
+    East
+    West
+    NorthEast
+    NorthWest
+    SouthEast
+    SouthWest
+
+enum GenerationAlgorithm:
+    BSPTree
+    CellularAutomata
+    GraphBased
+    Hybrid
+
+enum RoomPriority:
+    Critical
+    High
+    Medium
+    Low
+
+enum DoorType:
+    Open
+    Locked
+    Hidden
+    Breakable
+    OneWay
+
+struct Vec2i:
+    x: Int
+    y: Int
+
+struct RoomBounds:
+    min_x: Int
+    min_y: Int
+    max_x: Int
+    max_y: Int
+    width: Int
+    height: Int
+
+struct ConnectionPoint:
+    position: Vec2i
+    direction: ConnectionDirection
+    door_type: DoorType
+    is_locked: Bool
+    required_key_id: Int
+
+struct RoomConstraints:
+    min_width: Int
+    max_width: Int
+    min_height: Int
+    max_height: Int
+    required_connections: Int
+    max_connections: Int
+    allowed_neighbors: Array<RoomType>
+    forbidden_neighbors: Array<RoomType>
+    must_be_leaf: Bool
+    must_be_hub: Bool
+    min_distance_from_entrance: Int
+    max_distance_from_entrance: Int
+
+struct RoomTemplate:
+    room_type: RoomType
+    priority: RoomPriority
+    constraints: RoomConstraints
+    connection_points: Array<ConnectionPoint>
+    prop_spawn_density: Float
+    enemy_spawn_density: Float
+    loot_spawn_density: Float
+    required_props: Array<String>
+    optional_props: Array<String>
+    ambient_sound: String
+    lighting_preset: String
+
+struct GeneratedRoom:
+    id: Int
+    room_type: RoomType
+    bounds: RoomBounds
+    world_position: Vec3
+    connections: Array<Int>
+    connection_points: Array<ConnectionPoint>
+    is_generated: Bool
+    is_populated: Bool
+    actor_reference: Actor
+    distance_from_entrance: Int
+    visited: Bool
+
+struct CorridorSegment:
+    start_pos: Vec2i
+    end_pos: Vec2i
+    width: Int
+    connects_rooms: Array<Int>
+
+struct DungeonGenerationParams:
+    seed: Int
+    algorithm: GenerationAlgorithm
+    target_room_count: Int
+    min_room_size: Int
+    max_room_size: Int
+    corridor_width: Int
+    max_corridor_length: Int
+    treasure_room_count: Int
+    secret_room_count: Int
+    boss_room_count: Int
+    puzzle_room_count: Int
+    enable_dead_ends: Bool
+    dead_end_probability: Float
+    enable_loops: Bool
+    loop_probability: Float
+    cellular_automata_iterations: Int
+    cellular_automata_birth_limit: Int
+    cellular_automata_death_limit: Int
+    bsp_min_room_size: Int
+    bsp_max_depth: Int
+
+struct BSPNode:
+    bounds: RoomBounds
+    left_child: Int
+    right_child: Int
+    room_id: Int
+    is_leaf: Bool
+    split_horizontal: Bool
+    split_position: Int
+
+struct CellularGrid:
+    width: Int
+    height: Int
+    cells: Array<Bool>
+    room_ids: Array<Int>
+
+struct GraphNode:
+    id: Int
+    position: Vec2i
+    room_type: RoomType
+    connections: Array<Int>
+    weight: Float
+    visited: Bool
+
+struct PathfindingNode:
+    position: Vec2i
+    g_cost: Float
+    h_cost: Float
+    f_cost: Float
+    parent: Int
+    is_open: Bool
+    is_closed: Bool
+
+struct DungeonLayout:
+    rooms: Array<GeneratedRoom>
+    corridors: Array<CorridorSegment>
+    entrance_room_id: Int
+    boss_room_ids: Array<Int>
+    treasure_room_ids: Array<Int>
+    secret_room_ids: Array<Int>
+    total_area: Int
+    generation_time: Float
+
+struct PropPlacementRule:
+    prop_class_name: String
+    min_count: Int
+    max_count: Int
+    placement_radius: Float
+    avoid_walls: Bool
+    avoid_doors: Bool
+    avoid_other_props: Bool
+    min_distance_from_walls: Float
+    min_distance_from_doors: Float
+    min_distance_from_props: Float
+    snap_to_floor: Bool
+    random_rotation: Bool
+    random_scale_min: Float
+    random_scale_max: Float
+
+struct EnemySpawnRule:
+    enemy_class_name: String
+    min_count: Int
+    max_count: Int
+    spawn_radius: Float
+    patrol_radius: Float
+    aggro_radius: Float
+    difficulty_multiplier: Float
+
+struct LootSpawnRule:
+    loot_class_name: String
+    spawn_probability: Float
+    min_value: Int
+    max_value: Int
+    rarity_weight: Float
+
+struct RoomPopulationData:
+    room_id: Int
+    prop_rules: Array<PropPlacementRule>
+    enemy_rules: Array<EnemySpawnRule>
+    loot_rules: Array<LootSpawnRule>
+    spawned_actors: Array<Actor>
+
+struct NavigationMeshBakeRequest:
+    room_ids: Array<Int>
+    priority: RoomPriority
+    is_complete: Bool
+    bake_time: Float
+
+struct DungeonGenerationStats:
+    total_rooms: Int
+    total_corridors: Int
+    total_area: Int
+    generation_time: Float
+    algorithm_used: GenerationAlgorithm
+    seed_used: Int
+    failed_room_placements: Int
+    constraint_violations: Int
+    pathfinding_iterations: Int
+
+@datatable
+struct RoomTypeData:
+    room_type: RoomType
+    display_name: String
+    description: String
+    default_constraints: RoomConstraints
+    default_prop_density: Float
+    default_enemy_density: Float
+    default_loot_density: Float
+    icon_path: String
+    color: Vec3
+
+@datatable
+struct DoorTypeData:
+    door_type: DoorType
+    display_name: String
+    mesh_path: String
+    material_path: String
+    open_sound: String
+    close_sound: String
+    locked_sound: String
+    unlock_sound: String
+    break_sound: String
+    health: Float
+    requires_key: Bool
+
+@datatable
+struct GenerationPresetData:
+    preset_name: String
+    description: String
+    algorithm: GenerationAlgorithm
+    params: DungeonGenerationParams
+    recommended_for: String
+
+fn create_default_room_constraints() -> RoomConstraints:
+    let constraints = RoomConstraints {
+        min_width: 5,
+        max_width: 15,
+        min_height: 5,
+        max_height: 15,
+        required_connections: 1,
+        max_connections: 4,
+        allowed_neighbors: [],
+        forbidden_neighbors: [],
+        must_be_leaf: false,
+        must_be_hub: false,
+        min_distance_from_entrance: 0,
+        max_distance_from_entrance: 100
+    }
+    return constraints
+
+fn create_entrance_room_template() -> RoomTemplate:
+    let constraints = RoomConstraints {
+        min_width: 8,
+        max_width: 12,
+        min_height: 8,
+        max_height: 12,
+        required_connections: 1,
+        max_connections: 3,
+        allowed_neighbors: [],
+        forbidden_neighbors: [],
+        must_be_leaf: false,
+        must_be_hub: true,
+        min_distance_from_entrance: 0,
+        max_distance_from_entrance: 0
+    }
+    
+    let template = RoomTemplate {
+        room_type: RoomType::Entrance,
+        priority: RoomPriority::Critical,
+        constraints: constraints,
+        connection_points: [],
+        prop_spawn_density: 0.1,
+        enemy_spawn_density: 0.0,
+        loot_spawn_density: 0.0,
+        required_props: ["PlayerStart", "EntranceDoor"],
+        optional_props: ["Torch", "Banner"],
+        ambient_sound: "Amb_Entrance",
+        lighting_preset: "Bright"
+    }
+    return template
+
+fn create_corridor_room_template() -> RoomTemplate:
+    let constraints = RoomConstraints {
+        min_width: 3,
+        max_width: 5,
+        min_height: 3,
+        max_height: 20,
+        required_connections: 2,
+        max_connections: 4,
+        allowed_neighbors: [],
+        forbidden_neighbors: [],
+        must_be_leaf: false,
+        must_be_hub: false,
+        min_distance_from_entrance: 1,
+        max_distance_from_entrance: 100
+    }
+    
+    let template = RoomTemplate {
+        room_type: RoomType::Corridor,
+        priority: RoomPriority::Medium,
+        constraints: constraints,
+        connection_points: [],
+        prop_spawn_density: 0.05,
+        enemy_spawn_density: 0.1,
+        loot_spawn_density: 0.0,
+        required_props: [],
+        optional_props: ["Torch", "Debris"],
+        ambient_sound: "Amb_Corridor",
+        lighting_preset: "Dim"
+    }
+    return template
+
+fn create_treasure_room_template() -> RoomTemplate:
+    let constraints = RoomConstraints {
+        min_width: 6,
+        max_width: 10,
+        min_height: 6,
+        max_height: 10,
+        required_connections: 1,
+        max_connections: 2,
+        allowed_neighbors: [],
+        forbidden_neighbors: [RoomType::Entrance],
+        must_be_leaf: true,
+        must_be_hub: false,
+        min_distance_from_entrance: 3,
+        max_distance_from_entrance: 100
+    }
+    
+    let template = RoomTemplate {
+        room_type: RoomType::Treasure,
+        priority: RoomPriority::High,
+        constraints: constraints,
+        connection_points: [],
+        prop_spawn_density: 0.3,
+        enemy_spawn_density: 0.2,
+        loot_spawn_density: 1.0,
+        required_props: ["TreasureChest", "Pedestal"],
+        optional_props: ["Torch", "Pillar", "Statue"],
+        ambient_sound: "Amb_Treasure",
+        lighting_preset: "Bright"
+    }
+    return template
+
+fn create_boss_room_template() -> RoomTemplate:
+    let constraints = RoomConstraints {
+        min_width: 15,
+        max_width: 25,
+        min_height: 15,
+        max_height: 25,
+        required_connections: 1,
+        max_connections: 2,
+        allowed_neighbors: [],
+        forbidden_neighbors: [RoomType::Entrance, RoomType::Treasure],
+        must_be_leaf: true,
+        must_be_hub: false,
+        min_distance_from_entrance: 5,
+        max_distance_from_entrance: 100
+    }
+    
+    let template = RoomTemplate {
+        room_type: RoomType::Boss,
+        priority: RoomPriority::Critical,
+        constraints: constraints,
+        connection_points: [],
+        prop_spawn_density: 0.2,
+        enemy_spawn_density: 0.0,
+        loot_spawn_density: 0.5,
+        required_props: ["BossSpawnPoint", "ArenaBarrier"],
+        optional_props: ["Pillar", "Statue", "Throne"],
+        ambient_sound: "Amb_Boss",
+        lighting_preset: "Dramatic"
+    }
+    return template
+
+fn create_puzzle_room_template() -> RoomTemplate:
+    let constraints = RoomConstraints {
+        min_width: 8,
+        max_width: 15,
+        min_height: 8,
+        max_height: 15,
+        required_connections: 2,
+        max_connections: 3,
+        allowed_neighbors: [],
+        forbidden_neighbors: [RoomType::Boss],
+        must_be_leaf: false,
+        must_be_hub: false,
+        min_distance_from_entrance: 2,
+        max_distance_from_entrance: 100
+    }
+    
+    let template = RoomTemplate {
+        room_type: RoomType::Puzzle,
+        priority: RoomPriority::Medium,
+        constraints: constraints,
+        connection_points: [],
+        prop_spawn_density: 0.4,
+        enemy_spawn_density: 0.1,
+        loot_spawn_density: 0.3,
+        required_props: ["PuzzleMechanism", "PuzzleDoor"],
+        optional_props: ["Lever", "PressurePlate", "Torch"],
+        ambient_sound: "Amb_Puzzle",
+        lighting_preset: "Medium"
+    }
+    return template
+
+fn create_secret_room_template() -> RoomTemplate:
+    let constraints = RoomConstraints {
+        min_width: 4,
+        max_width: 8,
+        min_height: 4,
+        max_height: 8,
+        required_connections: 1,
+        max_connections: 1,
+        allowed_neighbors: [],
+        forbidden_neighbors: [RoomType::Entrance, RoomType::Boss],
+        must_be_leaf: true,
+        must_be_hub: false,
+        min_distance_from_entrance: 2,
+        max_distance_from_entrance: 100
+    }
+    
+    let template = RoomTemplate {
+        room_type: RoomType::Secret,
+        priority: RoomPriority::Low,
+        constraints: constraints,
+        connection_points: [],
+        prop_spawn_density: 0.5,
+        enemy_spawn_density: 0.0,
+        loot_spawn_density: 0.8,
+        required_props: ["HiddenDoor"],
+        optional_props: ["TreasureChest", "Rune", "Artifact"],
+        ambient_sound: "Amb_Secret",
+        lighting_preset: "Mysterious"
+    }
+    return template
+
+fn create_dead_end_room_template() -> RoomTemplate:
+    let constraints = RoomConstraints {
+        min_width: 4,
+        max_width: 8,
+        min_height: 4,
+        max_height: 8,
+        required_connections: 1,
+        max_connections: 1,
+        allowed_neighbors: [],
+        forbidden_neighbors: [],
+        must_be_leaf: true,
+        must_be_hub: false,
+        min_distance_from_entrance: 1,
+        max_distance_from_entrance: 100
+    }
+    
+    let template = RoomTemplate {
+        room_type: RoomType::DeadEnd,
+        priority: RoomPriority::Low,
+        constraints: constraints,
+        connection_points: [],
+        prop_spawn_density: 0.2,
+        enemy_spawn_density: 0.3,
+        loot_spawn_density: 0.1,
+        required_props: [],
+        optional_props: ["Debris", "Skeleton", "Torch"],
+        ambient_sound: "Amb_DeadEnd",
+        lighting_preset: "Dark"
+    }
+    return template
+
+fn create_hub_room_template() -> RoomTemplate:
+    let constraints = RoomConstraints {
+        min_width: 10,
+        max_width: 18,
+        min_height: 10,
+        max_height: 18,
+        required_connections: 3,
+        max_connections: 6,
+        allowed_neighbors: [],
+        forbidden_neighbors: [],
+        must_be_leaf: false,
+        must_be_hub: true,
+        min_distance_from_entrance: 1,
+        max_distance_from_entrance: 100
+    }
+    
+    let template = RoomTemplate {
+        room_type: RoomType::Hub,
+        priority: RoomPriority::High,
+        constraints: constraints,
+        connection_points: [],
+        prop_spawn_density: 0.15,
+        enemy_spawn_density: 0.2,
+        loot_spawn_density: 0.1,
+        required_props: ["CentralPillar"],
+        optional_props: ["Torch", "Banner", "Fountain"],
+        ambient_sound: "Amb_Hub",
+        lighting_preset: "Medium"
+    }
+    return template
+
+fn create_default_generation_params() -> DungeonGenerationParams:
+    let params = DungeonGenerationParams {
+        seed: 12345,
+        algorithm: GenerationAlgorithm::BSPTree,
+        target_room_count: 20,
+        min_room_size: 5,
+        max_room_size: 15,
+        corridor_width: 3,
+        max_corridor_length: 20,
+        treasure_room_count: 3,
+        secret_room_count: 2,
+        boss_room_count: 1,
+        puzzle_room_count: 2,
+        enable_dead_ends: true,
+        dead_end_probability: 0.2,
+        enable_loops: true,
+        loop_probability: 0.15,
+        cellular_automata_iterations: 5,
+        cellular_automata_birth_limit: 4,
+        cellular_automata_death_limit: 3,
+        bsp_min_room_size: 5,
+        bsp_max_depth: 6
+    }
+    return params
+
+fn vec2i_add(a: Vec2i, b: Vec2i) -> Vec2i:
+    return Vec2i { x: a.x + b.x, y: a.y + b.y }
+
+fn vec2i_sub(a: Vec2i, b: Vec2i) -> Vec2i:
+    return Vec2i { x: a.x - b.x, y: a.y - b.y }
+
+fn vec2i_distance(a: Vec2i, b: Vec2i) -> Float:
+    let dx = (a.x - b.x) as Float
+    let dy = (a.y - b.y) as Float
+    return sqrt(dx * dx + dy * dy)
+
+fn vec2i_manhattan_distance(a: Vec2i, b: Vec2i) -> Int:
+    return abs(a.x - b.x) + abs(a.y - b.y)
+
+fn vec2i_equals(a: Vec2i, b: Vec2i) -> Bool:
+    return a.x == b.x && a.y == b.y
+
+fn bounds_contains_point(bounds: RoomBounds, point: Vec2i) -> Bool:
+    return point.x >= bounds.min_x && point.x <= bounds.max_x &&
+           point.y >= bounds.min_y && point.y <= bounds.max_y
+
+fn bounds_intersects(a: RoomBounds, b: RoomBounds) -> Bool:
+    return a.min_x <= b.max_x && a.max_x >= b.min_x &&
+           a.min_y <= b.max_y && a.max_y >= b.min_y
+
+fn bounds_get_center(bounds: RoomBounds) -> Vec2i:
+    return Vec2i {
+        x: (bounds.min_x + bounds.max_x) / 2,
+        y: (bounds.min_y + bounds.max_y) / 2
+    }
+
+fn bounds_get_area(bounds: RoomBounds) -> Int:
+    return bounds.width * bounds.height
+
+fn direction_to_vec2i(dir: ConnectionDirection) -> Vec2i:
+    match dir:
+        ConnectionDirection::North => Vec2i { x: 0, y: 1 }
+        ConnectionDirection::South => Vec2i { x: 0, y: -1 }
+        ConnectionDirection::East => Vec2i { x: 1, y: 0 }
+        ConnectionDirection::West => Vec2i { x: -1, y: 0 }
+        ConnectionDirection::NorthEast => Vec2i { x: 1, y: 1 }
+        ConnectionDirection::NorthWest => Vec2i { x: -1, y: 1 }
+        ConnectionDirection::SouthEast => Vec2i { x: 1, y: -1 }
+        ConnectionDirection::SouthWest => Vec2i { x: -1, y: -1 }
+
+fn opposite_direction(dir: ConnectionDirection) -> ConnectionDirection:
+    match dir:
+        ConnectionDirection::North => ConnectionDirection::South
+        ConnectionDirection::South => ConnectionDirection::North
+        ConnectionDirection::East => ConnectionDirection::West
+        ConnectionDirection::West => ConnectionDirection::East
+        ConnectionDirection::NorthEast => ConnectionDirection::SouthWest
+        ConnectionDirection::NorthWest => ConnectionDirection::SouthEast
+        ConnectionDirection::SouthEast => ConnectionDirection::NorthWest
+        ConnectionDirection::SouthWest => ConnectionDirection::NorthEast
+
+fn validate_room_constraints(room: GeneratedRoom, constraints: RoomConstraints) -> Bool:
+    if room.bounds.width < constraints.min_width || room.bounds.width > constraints.max_width:
+        return false
+    if room.bounds.height < constraints.min_height || room.bounds.height > constraints.max_height:
+        return false
+    if len(room.connections) < constraints.required_connections:
+        return false
+    if len(room.connections) > constraints.max_connections:
+        return false
+    if room.distance_from_entrance < constraints.min_distance_from_entrance:
+        return false
+    if room.distance_from_entrance > constraints.max_distance_from_entrance:
+        return false
+    return true
+
+fn can_connect_room_types(type_a: RoomType, type_b: RoomType, constraints: RoomConstraints) -> Bool:
+    let mut i = 0
+    while i < len(constraints.forbidden_neighbors):
+        if constraints.forbidden_neighbors[i] == type_b:
+            return false
+        i = i + 1
+    
+    if len(constraints.allowed_neighbors) > 0:
+        let mut found = false
+        let mut j = 0
+        while j < len(constraints.allowed_neighbors):
+            if constraints.allowed_neighbors[j] == type_b:
+                found = true
+            j = j + 1
+        return found
+    
+    return true

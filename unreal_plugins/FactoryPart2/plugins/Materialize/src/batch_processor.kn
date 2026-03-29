@@ -1,0 +1,221 @@
+# Materialize Batch Processor
+# Batch process multiple textures with progress tracking
+# Supports queue management, parallel processing, and export
+
+# ============================================================================
+# BATCH PROCESSOR - Queue-based batch texture processing
+# ============================================================================
+
+@blueprint
+struct MaterializeBatchProcessor:
+    # Batch queue
+    @property
+    queue: Array<BatchItem>
+    
+    @property
+    current_index: Int = 0
+    
+    @property
+    is_processing: Bool = false
+    
+    @property
+    total_items: Int = 0
+    
+    @property
+    completed_items: Int = 0
+    
+    @property
+    failed_items: Int = 0
+    
+    # Processing settings
+    @property
+    @editanywhere
+    @category("Batch Settings")
+    output_directory: String = "/Game/Materialize/BatchOutput"
+    
+    @property
+    @editanywhere
+    @category("Batch Settings")
+    @slider(512.0, 4096.0)
+    output_resolution: Int = 2048
+    
+    @property
+    @editanywhere
+    @category("Batch Settings")
+    auto_save: Bool = true
+    
+    @property
+    @editanywhere
+    @category("Batch Settings")
+    generate_orm: Bool = true
+    
+    @property
+    @editanywhere
+    @category("Batch Settings")
+    preset_id: String = "default"
+    
+    # Progress tracking
+    @property
+    progress_percent: Float = 0.0
+    
+    @property
+    current_item_name: String = ""
+    
+    @property
+    estimated_time_remaining: Float = 0.0
+
+# Batch item structure
+struct BatchItem:
+    source_texture: Texture2D
+    output_name: String
+    preset_id: String
+    custom_params: MaterializeParams?
+    status: BatchItemStatus
+    error_message: String
+
+enum BatchItemStatus:
+    Pending
+    Processing
+    Completed
+    Failed
+
+# ============================================================================
+# BATCH PROCESSING FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn add_to_batch_queue(
+    processor: MaterializeBatchProcessor,
+    source: Texture2D,
+    output_name: String,
+    preset_id: String
+) -> Bool:
+    let item = BatchItem()
+    item.source_texture = source
+    item.output_name = output_name
+    item.preset_id = preset_id
+    item.custom_params = null
+    item.status = BatchItemStatus.Pending
+    item.error_message = ""
+    
+    push(processor.queue, item)
+    processor.total_items = len(processor.queue)
+    
+    println("Added to batch queue: " + output_name)
+    return true
+
+@blueprint
+fn start_batch_processing(processor: MaterializeBatchProcessor) -> Bool:
+    if processor.is_processing:
+        println("Batch processing already in progress")
+        return false
+    
+    if len(processor.queue) == 0:
+        println("Batch queue is empty")
+        return false
+    
+    processor.is_processing = true
+    processor.current_index = 0
+    processor.completed_items = 0
+    processor.failed_items = 0
+    processor.progress_percent = 0.0
+    
+    println("Starting batch processing: " + processor.total_items + " items")
+    
+    process_next_item(processor)
+    
+    return true
+
+@blueprint
+fn process_next_item(processor: MaterializeBatchProcessor):
+    if processor.current_index >= len(processor.queue):
+        finish_batch_processing(processor)
+        return
+    
+    let item = processor.queue[processor.current_index]
+    item.status = BatchItemStatus.Processing
+    processor.current_item_name = item.output_name
+    
+    println("Processing item " + (processor.current_index + 1) + "/" + processor.total_items + ": " + item.output_name)
+    
+    let params = get_batch_item_params(processor, item)
+    
+    let result = generate_and_save_pbr_maps(
+        item.source_texture,
+        params,
+        processor.output_directory,
+        item.output_name
+    )
+    
+    if result != null:
+        item.status = BatchItemStatus.Completed
+        processor.completed_items = processor.completed_items + 1
+        println("Completed: " + item.output_name)
+    else:
+        item.status = BatchItemStatus.Failed
+        item.error_message = "Generation failed"
+        processor.failed_items = processor.failed_items + 1
+        println("Failed: " + item.output_name)
+    
+    processor.current_index = processor.current_index + 1
+    processor.progress_percent = (processor.current_index as Float / processor.total_items as Float) * 100.0
+    
+    process_next_item(processor)
+
+@blueprint
+fn finish_batch_processing(processor: MaterializeBatchProcessor):
+    processor.is_processing = false
+    processor.progress_percent = 100.0
+    processor.current_item_name = ""
+    
+    println("Batch processing complete!")
+    println("Completed: " + processor.completed_items)
+    println("Failed: " + processor.failed_items)
+    println("Total: " + processor.total_items)
+
+@blueprint
+fn cancel_batch_processing(processor: MaterializeBatchProcessor):
+    if not processor.is_processing:
+        return
+    
+    processor.is_processing = false
+    println("Batch processing cancelled")
+
+@blueprint
+fn clear_batch_queue(processor: MaterializeBatchProcessor):
+    if processor.is_processing:
+        println("Cannot clear queue while processing")
+        return
+    
+    processor.queue = []
+    processor.total_items = 0
+    processor.completed_items = 0
+    processor.failed_items = 0
+    processor.current_index = 0
+    processor.progress_percent = 0.0
+    
+    println("Batch queue cleared")
+
+@blueprint
+fn get_batch_progress(processor: MaterializeBatchProcessor) -> Float:
+    return processor.progress_percent
+
+@blueprint
+fn get_batch_status(processor: MaterializeBatchProcessor) -> String:
+    if processor.is_processing:
+        return "Processing: " + processor.current_item_name + " (" + processor.current_index + "/" + processor.total_items + ")"
+    
+    if processor.total_items == 0:
+        return "Queue empty"
+    
+    return "Ready: " + processor.total_items + " items in queue"
+
+fn get_batch_item_params(processor: MaterializeBatchProcessor, item: BatchItem) -> MaterializeParams:
+    if item.custom_params != null:
+        return item.custom_params
+    
+    let preset = get_materialize_preset_by_id(item.preset_id)
+    if preset != null:
+        return preset.params
+    
+    return get_default_materialize_params()

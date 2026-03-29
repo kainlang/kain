@@ -1,0 +1,27 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0.0",
+  "FriendlyName": "UESculpt",
+  "Description": "ZBrush-style digital sculpting for Unreal Engine 5",
+  "Category": "KAIN-PRO",
+  "CreatedBy": "KAIN-PRO Compiler",
+  "CreatedByURL": "",
+  "DocsURL": "",
+  "MarketplaceURL": "",
+  "SupportURL": "",
+  "CanContainContent": true,
+  "IsBetaVersion": false,
+  "IsExperimentalVersion": false,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "UESculpt",
+      "Type": "Runtime",
+      "LoadingPhase": "PostConfigInit"
+    }
+  ],
+  "Plugins": [
+
+  ]
+}

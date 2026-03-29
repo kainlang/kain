@@ -1,0 +1,133 @@
+# MeshForge - Graph Runtime System
+# Node-based procedural mesh generation runtime
+
+@graph_runtime
+graph ProceduralMeshGraph:
+    @node_data
+    node PrimitiveNode:
+        primitive_type: Int = 0
+        size: Float = 100.0
+        segments: Int = 16
+        
+        @output_pin
+        mesh_output: Object
+    
+    @node_data
+    node ExtrudeNode:
+        distance: Float = 50.0
+        scale: Float = 1.0
+        twist: Float = 0.0
+        segments: Int = 1
+        
+        @input_pin
+        mesh_input: Object
+        
+        @output_pin
+        mesh_output: Object
+    
+    @node_data
+    node BevelNode:
+        width: Float = 10.0
+        segments: Int = 2
+        profile: Float = 0.5
+        
+        @input_pin
+        mesh_input: Object
+        
+        @output_pin
+        mesh_output: Object
+    
+    @node_data
+    node SubdivideNode:
+        iterations: Int = 1
+        algorithm: Int = 0
+        smoothness: Float = 1.0
+        
+        @input_pin
+        mesh_input: Object
+        
+        @output_pin
+        mesh_output: Object
+    
+    @node_data
+    node BooleanNode:
+        mode: Int = 0
+        
+        @input_pin
+        mesh_a: Object
+        
+        @input_pin
+        mesh_b: Object
+        
+        @output_pin
+        mesh_output: Object
+    
+    @node_data
+    node SmoothNode:
+        iterations: Int = 1
+        strength: Float = 0.5
+        preserve_volume: Bool = true
+        
+        @input_pin
+        mesh_input: Object
+        
+        @output_pin
+        mesh_output: Object
+    
+    @node_data
+    node DeformNode:
+        deform_type: Int = 0
+        strength: Float = 1.0
+        falloff: Float = 1.0
+        center: Vec3 = vec3(0.0, 0.0, 0.0)
+        radius: Float = 100.0
+        
+        @input_pin
+        mesh_input: Object
+        
+        @output_pin
+        mesh_output: Object
+    
+    @node_data
+    node TransformNode:
+        translation: Vec3 = vec3(0.0, 0.0, 0.0)
+        rotation: Vec3 = vec3(0.0, 0.0, 0.0)
+        scale: Vec3 = vec3(1.0, 1.0, 1.0)
+        
+        @input_pin
+        mesh_input: Object
+        
+        @output_pin
+        mesh_output: Object
+    
+    @node_data
+    node DuplicateNode:
+        count: Int = 5
+        offset: Vec3 = vec3(100.0, 0.0, 0.0)
+        rotation_step: Vec3 = vec3(0.0, 0.0, 0.0)
+        scale_step: Vec3 = vec3(1.0, 1.0, 1.0)
+        
+        @input_pin
+        mesh_input: Object
+        
+        @output_pin
+        mesh_output: Object
+    
+    @node_data
+    node MergeNode:
+        @input_pin
+        mesh_a: Object
+        
+        @input_pin
+        mesh_b: Object
+        
+        @output_pin
+        mesh_output: Object
+    
+    @node_data
+    node OutputNode:
+        export_collision: Bool = true
+        export_navmesh: Bool = false
+        
+        @input_pin
+        mesh_input: Object

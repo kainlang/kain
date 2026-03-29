@@ -1,0 +1,384 @@
+# ============================================================================
+# METAFITTER - Editor UI (Slate Widgets)
+# ============================================================================
+# Main editor panel, settings panel, batch panel, and preset browser.
+# All Slate widget definitions for the MetaFitter editor experience.
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: MAIN CONFORMER PANEL
+# ============================================================================
+
+@slate
+struct MetaFitterConformerPanel:
+    # Input references
+    @property
+    source_mesh: Object
+
+    @property
+    target_metahuman: Object
+
+    @property
+    output_name: String
+
+    # Settings
+    @property
+    clothing_type: ClothingType
+
+    @property
+    fit_mode: FitMode
+
+    @property
+    fit_tightness: Float
+
+    @property
+    physics_preset: PhysicsPreset
+
+    @property
+    layer_slot: LayerSlot
+
+    @property
+    auto_detect_type: Bool
+
+    @property
+    enable_physics: Bool
+
+    @property
+    enable_hidden_face_map: Bool
+
+    @property
+    preserve_wrinkles: Bool
+
+    # State
+    @property
+    is_conforming: Bool
+
+    @property
+    conform_progress: Float
+
+    @property
+    conform_stage_text: String
+
+    @property
+    last_result_text: String
+
+    fn construct() -> Widget:
+        return VBox(
+            # Header
+            Text(text, "MetaFitter - Auto-Conforming Clothing System", font, "TitleFont"),
+            Separator(),
+
+            # Input Section
+            Text(text, "Input", font, "BoldFont"),
+            HBox(
+                padding, 5.0,
+                Text(text, "Source Mesh:", width, 160.0),
+                ObjectPicker(object, source_mesh)
+            ),
+            HBox(
+                padding, 5.0,
+                Text(text, "Target MetaHuman:", width, 160.0),
+                ObjectPicker(object, target_metahuman)
+            ),
+            HBox(
+                padding, 5.0,
+                Text(text, "Output Name:", width, 160.0),
+                TextBox(text, output_name)
+            ),
+            Separator(),
+
+            # Detection Section
+            Text(text, "Clothing Detection", font, "BoldFont"),
+            HBox(
+                padding, 5.0,
+                Text(text, "Auto-Detect Type:", width, 160.0),
+                Checkbox(checked, auto_detect_type)
+            ),
+            HBox(
+                padding, 5.0,
+                Text(text, "Clothing Type:", width, 160.0),
+                Dropdown(value, clothing_type)
+            ),
+            Separator(),
+
+            # Fit Settings
+            Text(text, "Fit Settings", font, "BoldFont"),
+            HBox(
+                padding, 5.0,
+                Text(text, "Fit Mode:", width, 160.0),
+                Dropdown(value, fit_mode)
+            ),
+            HBox(
+                padding, 5.0,
+                Text(text, "Fit Tightness:", width, 160.0),
+                Slider(value, fit_tightness, min, 0.0, max, 1.0)
+            ),
+            HBox(
+                padding, 5.0,
+                Text(text, "Preserve Wrinkles:", width, 160.0),
+                Checkbox(checked, preserve_wrinkles)
+            ),
+            Separator(),
+
+            # Physics Settings
+            Text(text, "Physics", font, "BoldFont"),
+            HBox(
+                padding, 5.0,
+                Text(text, "Enable Physics:", width, 160.0),
+                Checkbox(checked, enable_physics)
+            ),
+            HBox(
+                padding, 5.0,
+                Text(text, "Physics Preset:", width, 160.0),
+                Dropdown(value, physics_preset)
+            ),
+            Separator(),
+
+            # Layer Settings
+            Text(text, "Layering", font, "BoldFont"),
+            HBox(
+                padding, 5.0,
+                Text(text, "Layer Slot:", width, 160.0),
+                Dropdown(value, layer_slot)
+            ),
+            HBox(
+                padding, 5.0,
+                Text(text, "Hidden Face Map:", width, 160.0),
+                Checkbox(checked, enable_hidden_face_map)
+            ),
+            Separator(),
+
+            # Action Button
+            Button(label, "Conform & Save", on_click, on_conform_clicked),
+
+            # Progress Section
+            HBox(
+                padding, 5.0,
+                Text(text, "Progress:", width, 160.0),
+                ProgressBar(progress, conform_progress)
+            ),
+            Text(text, conform_stage_text),
+
+            Separator(),
+
+            # Result
+            Text(text, last_result_text)
+        )
+
+    fn on_conform_clicked():
+        println("MetaFitter UI: Conform button clicked")
+
+# ============================================================================
+# SECTION 2: BATCH PROCESSING PANEL
+# ============================================================================
+
+@slate
+struct MetaFitterBatchPanel:
+    # Batch configuration
+    @property
+    input_folder: String
+
+    @property
+    output_folder: String
+
+    @property
+    target_metahuman: Object
+
+    @property
+    name_prefix: String
+
+    @property
+    name_suffix: String
+
+    @property
+    skip_on_error: Bool
+
+    @property
+    overwrite_existing: Bool
+
+    # Batch state
+    @property
+    batch_running: Bool
+
+    @property
+    batch_progress: Float
+
+    @property
+    batch_status_text: String
+
+    @property
+    jobs_completed: Int
+
+    @property
+    jobs_failed: Int
+
+    @property
+    jobs_total: Int
+
+    @property
+    time_remaining: String
+
+    fn construct() -> Widget:
+        return VBox(
+            # Header
+            Text(text, "MetaFitter - Batch Processing", font, "TitleFont"),
+            Separator(),
+
+            # Folder Configuration
+            Text(text, "Folders", font, "BoldFont"),
+            HBox(
+                padding, 5.0,
+                Text(text, "Input Folder:", width, 160.0),
+                TextBox(text, input_folder),
+                Button(label, "Browse...", on_click, on_browse_input)
+            ),
+            HBox(
+                padding, 5.0,
+                Text(text, "Output Folder:", width, 160.0),
+                TextBox(text, output_folder),
+                Button(label, "Browse...", on_click, on_browse_output)
+            ),
+            HBox(
+                padding, 5.0,
+                Text(text, "Target MetaHuman:", width, 160.0),
+                ObjectPicker(object, target_metahuman)
+            ),
+            Separator(),
+
+            # Naming
+            Text(text, "Output Naming", font, "BoldFont"),
+            HBox(
+                padding, 5.0,
+                Text(text, "Prefix:", width, 160.0),
+                TextBox(text, name_prefix)
+            ),
+            HBox(
+                padding, 5.0,
+                Text(text, "Suffix:", width, 160.0),
+                TextBox(text, name_suffix)
+            ),
+            Separator(),
+
+            # Options
+            Text(text, "Options", font, "BoldFont"),
+            HBox(
+                padding, 5.0,
+                Text(text, "Skip on Error:", width, 160.0),
+                Checkbox(checked, skip_on_error)
+            ),
+            HBox(
+                padding, 5.0,
+                Text(text, "Overwrite Existing:", width, 160.0),
+                Checkbox(checked, overwrite_existing)
+            ),
+            Separator(),
+
+            # Actions
+            HBox(
+                padding, 5.0,
+                Button(label, "Start Batch", on_click, on_start_batch),
+                Button(label, "Cancel", on_click, on_cancel_batch)
+            ),
+
+            # Progress
+            Separator(),
+            HBox(
+                padding, 5.0,
+                Text(text, "Progress:", width, 160.0),
+                ProgressBar(progress, batch_progress)
+            ),
+            Text(text, batch_status_text),
+            Text(text, time_remaining)
+        )
+
+    fn on_browse_input():
+        println("MetaFitter Batch: Browse input folder")
+
+    fn on_browse_output():
+        println("MetaFitter Batch: Browse output folder")
+
+    fn on_start_batch():
+        println("MetaFitter Batch: Start batch processing")
+
+    fn on_cancel_batch():
+        println("MetaFitter Batch: Cancel batch processing")
+
+# ============================================================================
+# SECTION 3: PRESET BROWSER PANEL
+# ============================================================================
+
+@slate
+struct MetaFitterPresetBrowser:
+    # Selected preset
+    @property
+    selected_preset_name: String
+
+    @property
+    selected_preset_description: String
+
+    @property
+    selected_clothing_type: ClothingType
+
+    @property
+    selected_fit_mode: FitMode
+
+    @property
+    selected_physics_preset: PhysicsPreset
+
+    # Filter
+    @property
+    filter_text: String
+
+    @property
+    filter_clothing_type: ClothingType
+
+    fn construct() -> Widget:
+        return VBox(
+            # Header
+            Text(text, "MetaFitter - Preset Library", font, "TitleFont"),
+            Separator(),
+
+            # Search/Filter
+            HBox(
+                padding, 5.0,
+                Text(text, "Search:", width, 80.0),
+                TextBox(text, filter_text)
+            ),
+            HBox(
+                padding, 5.0,
+                Text(text, "Type Filter:", width, 80.0),
+                Dropdown(value, filter_clothing_type)
+            ),
+            Separator(),
+
+            # Preset Details
+            Text(text, "Selected Preset", font, "BoldFont"),
+            HBox(
+                padding, 5.0,
+                Text(text, "Name:", width, 120.0),
+                Text(text, selected_preset_name)
+            ),
+            HBox(
+                padding, 5.0,
+                Text(text, "Description:", width, 120.0),
+                Text(text, selected_preset_description)
+            ),
+            Separator(),
+
+            # Actions
+            HBox(
+                padding, 5.0,
+                Button(label, "Apply Preset", on_click, on_apply_preset),
+                Button(label, "Save as Preset", on_click, on_save_preset),
+                Button(label, "Delete Preset", on_click, on_delete_preset)
+            )
+        )
+
+    fn on_apply_preset():
+        println("MetaFitter Presets: Applying preset: " + selected_preset_name)
+
+    fn on_save_preset():
+        println("MetaFitter Presets: Saving new preset")
+
+    fn on_delete_preset():
+        println("MetaFitter Presets: Deleting preset: " + selected_preset_name)

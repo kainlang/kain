@@ -1,0 +1,547 @@
+# ============================================================================
+# TEMPORAL BLUEPRINT — Actors
+# ============================================================================
+# TemporalManagerActor:  The world-level orchestrator. One per level.
+# TemporalActorProxy:    Any world object that has per-era states.
+# TemporalZoneActor:     A volume that forces a specific era in its bounds.
+# TemporalAnchorActor:   A point of temporal significance / transition trigger.
+# TemporalPortalActor:   A visual portal showing another era through it.
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: TEMPORAL MANAGER ACTOR
+# The single orchestrator placed in every level using TemporalBlueprint
+# ============================================================================
+
+actor TemporalManagerActor:
+    # ======= GLOBAL ERA STATE =======
+
+    @replicated
+    state current_era: TemporalEra = TemporalEra::Present
+
+    @replicated
+    state previous_era: TemporalEra = TemporalEra::Present
+
+    @replicated
+    state transition_state: TemporalTransitionState = TemporalTransitionState::Idle
+
+    @replicated
+    state transition_alpha: Float = 0.0
+
+    @replicated
+    state is_locked: Bool = false
+
+    # ======= CONFIGURATION =======
+
+    state causality_rule: CausalityRule = CausalityRule::Linear
+    state default_transition_type: TemporalTransitionType = TemporalTransitionType::Dissolve
+    state default_transition_duration: Float = 1.5
+    state allow_player_initiated_transitions: Bool = true
+    state max_era_depth: Int = 7
+
+    # ======= ERA CONFIGS =======
+
+    state era_config_count: Int = 0
+    state active_zone_count: Int = 0
+    state tracked_actor_count: Int = 0
+    state anchor_count: Int = 0
+
+    # ======= TIMELINE TRACKING =======
+
+    state timeline_node_count: Int = 0
+    state current_timeline_node_id: Int = 0
+    state causality_link_count: Int = 0
+
+    # ======= SNAPSHOT SYSTEM =======
+
+    state snapshot_count: Int = 0
+    state autosave_snapshots: Bool = true
+    state max_snapshots: Int = 32
+
+    # ======= DEBUG =======
+
+    state debug_mode: TemporalDebugMode = TemporalDebugMode::Off
+    state show_era_overlay: Bool = false
+    state log_transitions: Bool = true
+
+    # ======= TRANSIENT =======
+
+    @transient
+    state transition_timer: Float = 0.0
+
+    @transient
+    state transition_params: TemporalTransitionParams = default_transition_params()
+
+    @transient
+    state pending_era: TemporalEra = TemporalEra::Present
+
+    @transient
+    state event_queue_size: Int = 0
+
+    # ======= SERVER RPCS =======
+
+    on Server_RequestEraTransition(target_era: TemporalEra, transition_type: Int):
+        if is_locked:
+            println("TemporalManager: transition blocked — era is locked")
+            return
+        if transition_state != TemporalTransitionState::Idle:
+            println("TemporalManager: transition already in progress")
+            return
+        pending_era = target_era
+        transition_state = TemporalTransitionState::Transitioning
+        transition_timer = 0.0
+        transition_alpha = 0.0
+        Multicast_BeginTransition(current_era, target_era, transition_type)
+
+    on Server_LockEra(locked: Bool):
+        is_locked = locked
+        println("TemporalManager: era lock = " + bool_to_string(locked))
+
+    on Server_PlaceAnchor(position: Vec3, target_era: Int):
+        anchor_count = anchor_count + 1
+        println("TemporalManager: anchor placed at era " + int_to_string(target_era))
+
+    on Server_TakeSnapshot():
+        snapshot_count = snapshot_count + 1
+        println("TemporalManager: snapshot taken #" + int_to_string(snapshot_count))
+
+    on Server_ForkTimeline(branch_condition: String):
+        timeline_node_count = timeline_node_count + 1
+        println("TemporalManager: timeline forked — " + branch_condition)
+        Client_OnTimelineForked(timeline_node_count)
+
+    # ======= MULTICAST RPCS =======
+
+    on Multicast_BeginTransition(from_era: TemporalEra, to_era: TemporalEra, transition_type: Int):
+        println("TemporalManager: transition begin " + int_to_string(from_era as Int) + " -> " + int_to_string(to_era as Int))
+
+    on Multicast_CompleteTransition(new_era: TemporalEra):
+        current_era = new_era
+        transition_state = TemporalTransitionState::Idle
+        transition_alpha = 1.0
+        println("TemporalManager: transition complete -> era " + int_to_string(new_era as Int))
+
+    on Multicast_CausalityViolation(actor_guid: String, description: String):
+        println("TemporalManager: CAUSALITY VIOLATION — " + actor_guid + " — " + description)
+
+    # ======= CLIENT RPCS =======
+
+    on Client_OnTimelineForked(new_node_id: Int):
+        current_timeline_node_id = new_node_id
+        println("TemporalManager: timeline fork received, node " + int_to_string(new_node_id))
+
+    on Client_OnEraLocked(locked: Bool):
+        is_locked = locked
+
+    # ======= BLUEPRINT API =======
+
+    @blueprint_callable
+    fn request_era_transition(target_era: TemporalEra):
+        if allow_player_initiated_transitions:
+            Server_RequestEraTransition(target_era, default_transition_type as Int)
+
+    @blueprint_callable
+    fn request_era_transition_with_type(target_era: TemporalEra, transition_type: TemporalTransitionType):
+        Server_RequestEraTransition(target_era, transition_type as Int)
+
+    @blueprint_callable
+    fn get_current_era() -> TemporalEra:
+        return current_era
+
+    @blueprint_callable
+    fn get_transition_alpha() -> Float:
+        return transition_alpha
+
+    @blueprint_callable
+    fn is_transitioning() -> Bool:
+        return transition_state == TemporalTransitionState::Transitioning
+
+    @blueprint_callable
+    fn lock_era():
+        Server_LockEra(true)
+
+    @blueprint_callable
+    fn unlock_era():
+        Server_LockEra(false)
+
+    @blueprint_callable
+    fn take_snapshot():
+        Server_TakeSnapshot()
+
+    @blueprint_callable
+    fn fork_timeline(branch_condition: String):
+        Server_ForkTimeline(branch_condition)
+
+    @blueprint_callable
+    fn get_tracked_actor_count() -> Int:
+        return tracked_actor_count
+
+    @blueprint_callable
+    fn get_snapshot_count() -> Int:
+        return snapshot_count
+
+    @blueprint_callable
+    fn set_debug_mode(mode: TemporalDebugMode):
+        debug_mode = mode
+
+    @blueprint_callable
+    fn reset_to_present():
+        Server_RequestEraTransition(TemporalEra::Present, default_transition_type as Int)
+
+# ============================================================================
+# SECTION 2: TEMPORAL ACTOR PROXY
+# Place in world to represent any object that changes across eras
+# ============================================================================
+
+actor TemporalActorProxy:
+    # ======= IDENTITY =======
+
+    state actor_guid: String = ""
+    state display_name: String = "TemporalProxy"
+
+    # ======= COMPONENTS =======
+
+    @component
+    state temporal_comp: TemporalActorComponent = TemporalActorComponent()
+
+    # ======= ERA MESH VARIANTS =======
+
+    state mesh_variant_count: Int = 0
+    state active_mesh_variant_index: Int = 0
+
+    # ======= BEHAVIOR =======
+
+    state behavior: TemporalActorBehavior = TemporalActorBehavior::Unique
+    state native_era: TemporalEra = TemporalEra::Present
+
+    # ======= REPLICATED STATE =======
+
+    @replicated
+    state current_era: TemporalEra = TemporalEra::Present
+
+    @replicated
+    state is_visible: Bool = true
+
+    @replicated
+    state blend_alpha: Float = 1.0
+
+    # ======= TRANSIENT =======
+
+    @transient
+    state needs_mesh_update: Bool = false
+
+    @transient
+    state ghost_material_active: Bool = false
+
+    # ======= SERVER RPCS =======
+
+    on Server_SetEraState(era: TemporalEra, visible: Bool):
+        current_era = era
+        is_visible = visible
+        Multicast_ApplyEraState(era, visible)
+
+    on Server_SetBlendAlpha(alpha: Float):
+        blend_alpha = alpha
+        Multicast_SetBlendAlpha(alpha)
+
+    # ======= MULTICAST RPCS =======
+
+    on Multicast_ApplyEraState(era: TemporalEra, visible: Bool):
+        current_era = era
+        is_visible = visible
+        needs_mesh_update = true
+        println("TemporalProxy: era state applied " + int_to_string(era as Int) + " visible=" + bool_to_string(visible))
+
+    on Multicast_SetBlendAlpha(alpha: Float):
+        blend_alpha = alpha
+
+    # ======= BLUEPRINT API =======
+
+    @blueprint_callable
+    fn apply_era(era: TemporalEra):
+        let visible = temporal_comp.is_visible_in_era(era)
+        Server_SetEraState(era, visible)
+
+    @blueprint_callable
+    fn set_blend_alpha(alpha: Float):
+        Server_SetBlendAlpha(alpha)
+
+    @blueprint_callable
+    fn get_current_era() -> TemporalEra:
+        return current_era
+
+    @blueprint_callable
+    fn is_native_era(era: TemporalEra) -> Bool:
+        return era == native_era
+
+    @blueprint_callable
+    fn set_behavior(new_behavior: TemporalActorBehavior):
+        behavior = new_behavior
+
+    @blueprint_callable
+    fn get_blend_alpha() -> Float:
+        return blend_alpha
+
+# ============================================================================
+# SECTION 3: TEMPORAL ZONE ACTOR
+# A volume that forces a specific era inside its bounds
+# ============================================================================
+
+actor TemporalZoneActor:
+    # ======= COMPONENTS =======
+
+    @component
+    state zone_comp: TemporalZoneComponent = TemporalZoneComponent()
+
+    # ======= CONFIGURATION =======
+
+    state zone_id: Int = 0
+    state zone_name: String = "TemporalZone"
+
+    @replicated
+    state forced_era: TemporalEra = TemporalEra::Present
+
+    @replicated
+    state is_active: Bool = true
+
+    state blend_radius: Float = 200.0
+    state priority: Int = 0
+    state zone_extent: Vec3 = vec3(500.0, 500.0, 300.0)
+
+    # ======= OVERLAP TRACKING =======
+
+    @transient
+    state overlap_count: Int = 0
+
+    @transient
+    state player_inside: Bool = false
+
+    # ======= SERVER RPCS =======
+
+    on Server_SetForcedEra(era: TemporalEra):
+        forced_era = era
+        zone_comp.set_forced_era(era)
+        Multicast_OnEraChanged(era)
+
+    on Server_SetActive(active: Bool):
+        is_active = active
+
+    # ======= MULTICAST RPCS =======
+
+    on Multicast_OnEraChanged(new_era: TemporalEra):
+        forced_era = new_era
+        println("TemporalZone: forced era changed to " + int_to_string(new_era as Int))
+
+    # ======= BLUEPRINT API =======
+
+    @blueprint_callable
+    fn set_forced_era(era: TemporalEra):
+        Server_SetForcedEra(era)
+
+    @blueprint_callable
+    fn get_forced_era() -> TemporalEra:
+        return forced_era
+
+    @blueprint_callable
+    fn activate():
+        Server_SetActive(true)
+
+    @blueprint_callable
+    fn deactivate():
+        Server_SetActive(false)
+
+    @blueprint_callable
+    fn is_player_inside() -> Bool:
+        return player_inside
+
+    @blueprint_callable
+    fn get_overlap_count() -> Int:
+        return overlap_count
+
+# ============================================================================
+# SECTION 4: TEMPORAL ANCHOR ACTOR
+# A point of temporal significance — transition trigger, story beat, puzzle
+# ============================================================================
+
+actor TemporalAnchorActor:
+    # ======= COMPONENTS =======
+
+    @component
+    state anchor_comp: TemporalAnchorComponent = TemporalAnchorComponent()
+
+    # ======= IDENTITY =======
+
+    state anchor_id: Int = 0
+    state anchor_name: String = "TemporalAnchor"
+    state anchor_type: TemporalAnchorType = TemporalAnchorType::Fixed
+
+    # ======= REPLICATED STATE =======
+
+    @replicated
+    state native_era: TemporalEra = TemporalEra::Present
+
+    @replicated
+    state is_activated: Bool = false
+
+    @replicated
+    state activation_count: Int = 0
+
+    # ======= TRIGGER CONFIG =======
+
+    state triggers_transition: Bool = false
+    state transition_target_era: TemporalEra = TemporalEra::Past
+    state trigger_radius: Float = 150.0
+    state require_interaction: Bool = true
+
+    # ======= CAUSALITY =======
+
+    state is_causal: Bool = false
+    state causal_group_tag: String = ""
+
+    # ======= SERVER RPCS =======
+
+    on Server_Activate(activating_era: TemporalEra):
+        if is_activated:
+            return
+        is_activated = true
+        activation_count = activation_count + 1
+        anchor_comp.activate(activating_era)
+        Multicast_OnActivated(activating_era)
+
+    on Server_Deactivate():
+        is_activated = false
+        anchor_comp.deactivate()
+
+    on Server_Reset():
+        is_activated = false
+        activation_count = 0
+        anchor_comp.reset()
+
+    # ======= MULTICAST RPCS =======
+
+    on Multicast_OnActivated(activating_era: TemporalEra):
+        println("TemporalAnchor: activated in era " + int_to_string(activating_era as Int) + " count=" + int_to_string(activation_count))
+
+    # ======= BLUEPRINT API =======
+
+    @blueprint_callable
+    fn activate(era: TemporalEra):
+        Server_Activate(era)
+
+    @blueprint_callable
+    fn deactivate():
+        Server_Deactivate()
+
+    @blueprint_callable
+    fn reset_anchor():
+        Server_Reset()
+
+    @blueprint_callable
+    fn get_activation_count() -> Int:
+        return activation_count
+
+    @blueprint_callable
+    fn is_active() -> Bool:
+        return is_activated
+
+# ============================================================================
+# SECTION 5: TEMPORAL PORTAL ACTOR
+# A window into another era — shows the other era through a viewport
+# ============================================================================
+
+actor TemporalPortalActor:
+    # ======= CONFIGURATION =======
+
+    state portal_id: Int = 0
+    state portal_name: String = "TemporalPortal"
+
+    @replicated
+    state source_era: TemporalEra = TemporalEra::Present
+
+    @replicated
+    state target_era: TemporalEra = TemporalEra::Past
+
+    @replicated
+    state is_open: Bool = true
+
+    @replicated
+    state portal_opacity: Float = 1.0
+
+    # ======= PORTAL SHAPE =======
+
+    state portal_width: Float = 200.0
+    state portal_height: Float = 300.0
+    state portal_depth: Float = 10.0
+
+    # ======= VISUAL EFFECTS =======
+
+    state edge_glow_color: Vec3 = vec3(0.2, 0.6, 1.0)
+    state edge_glow_intensity: Float = 2.0
+    state distortion_strength: Float = 0.05
+    state chromatic_aberration: Float = 0.02
+    state flicker_speed: Float = 0.0
+
+    # ======= INTERACTION =======
+
+    state allow_traversal: Bool = false     # Can player walk through?
+    state traversal_triggers_transition: Bool = true
+
+    # ======= TRANSIENT =======
+
+    @transient
+    state render_target_active: Bool = false
+
+    @transient
+    state player_proximity: Float = 9999.0
+
+    # ======= SERVER RPCS =======
+
+    on Server_SetOpen(open: Bool):
+        is_open = open
+        Multicast_OnOpenStateChanged(open)
+
+    on Server_SetOpacity(opacity: Float):
+        portal_opacity = opacity
+
+    on Server_SetTargetEra(era: TemporalEra):
+        target_era = era
+        Multicast_OnTargetEraChanged(era)
+
+    # ======= MULTICAST RPCS =======
+
+    on Multicast_OnOpenStateChanged(open: Bool):
+        is_open = open
+        println("TemporalPortal: " + portal_name + " is now " + bool_to_string(open))
+
+    on Multicast_OnTargetEraChanged(era: TemporalEra):
+        target_era = era
+
+    # ======= BLUEPRINT API =======
+
+    @blueprint_callable
+    fn open_portal():
+        Server_SetOpen(true)
+
+    @blueprint_callable
+    fn close_portal():
+        Server_SetOpen(false)
+
+    @blueprint_callable
+    fn set_target_era(era: TemporalEra):
+        Server_SetTargetEra(era)
+
+    @blueprint_callable
+    fn set_opacity(opacity: Float):
+        Server_SetOpacity(opacity)
+
+    @blueprint_callable
+    fn get_target_era() -> TemporalEra:
+        return target_era
+
+    @blueprint_callable
+    fn get_source_era() -> TemporalEra:
+        return source_era
+
+    @blueprint_callable
+    fn is_portal_open() -> Bool:
+        return is_open

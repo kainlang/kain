@@ -1,0 +1,722 @@
+# AnimRigPro - Rig Editor Widgets
+# Slate UI for rig authoring and constraint setup
+
+# Main Rig Editor Widget
+@slate
+struct RigEditorWidget:
+    rig_actor: Actor = null
+    selected_bone: String = ""
+    selected_ik_chain: String = ""
+    selected_constraint: String = ""
+    
+    fn construct() -> Widget:
+        return vertical_box([
+            # Header
+            horizontal_box([
+                text_block("AnimRigPro - Rig Editor"),
+                spacer(),
+                button("Refresh", on_refresh_clicked)
+            ]),
+            
+            # Main content - horizontal split
+            horizontal_box([
+                # Left panel - Bone Hierarchy
+                vertical_box([
+                    text_block("Bone Hierarchy"),
+                    separator(),
+                    bone_hierarchy_tree()
+                ]),
+                
+                # Middle panel - IK Chains
+                vertical_box([
+                    text_block("IK Chains"),
+                    separator(),
+                    ik_chain_list(),
+                    button("Add IK Chain", on_add_ik_chain_clicked)
+                ]),
+                
+                # Right panel - Constraints
+                vertical_box([
+                    text_block("Constraints"),
+                    separator(),
+                    constraint_list(),
+                    button("Add Constraint", on_add_constraint_clicked)
+                ])
+            ]),
+            
+            # Bottom panel - Details
+            vertical_box([
+                separator(),
+                text_block("Details"),
+                details_panel()
+            ])
+        ])
+    
+    fn bone_hierarchy_tree() -> Widget:
+        if rig_actor == null:
+            return text_block("No rig actor selected")
+        
+        return scrollable_box(
+            tree_view(get_bone_hierarchy(), on_bone_selected)
+        )
+    
+    fn ik_chain_list() -> Widget:
+        if rig_actor == null:
+            return text_block("No rig actor selected")
+        
+        let chains = get_ik_chains(rig_actor)
+        let chain_widgets = []
+        
+        let i = 0
+        while i < len(chains):
+            let chain = chains[i]
+            push(chain_widgets, horizontal_box([
+                text_block(chain.chain_name),
+                spacer(),
+                checkbox(chain.enabled, on_ik_chain_enabled_changed),
+                button("Edit", on_edit_ik_chain_clicked)
+            ]))
+            i = i + 1
+        
+        return scrollable_box(vertical_box(chain_widgets))
+    
+    fn constraint_list() -> Widget:
+        if rig_actor == null:
+            return text_block("No rig actor selected")
+        
+        let constraints = get_constraints(rig_actor)
+        let constraint_widgets = []
+        
+        let i = 0
+        while i < len(constraints):
+            let constraint = constraints[i]
+            push(constraint_widgets, horizontal_box([
+                text_block(constraint.constraint_name),
+                spacer(),
+                checkbox(constraint.enabled, on_constraint_enabled_changed),
+                button("Edit", on_edit_constraint_clicked)
+            ]))
+            i = i + 1
+        
+        return scrollable_box(vertical_box(constraint_widgets))
+    
+    fn details_panel() -> Widget:
+        if selected_ik_chain != "":
+            return ik_chain_details()
+        else:
+            if selected_constraint != "":
+                return constraint_details()
+            else:
+                if selected_bone != "":
+                    return bone_details()
+                else:
+                    return text_block("Select an item to view details")
+    
+    fn ik_chain_details() -> Widget:
+        return vertical_box([
+            text_block("IK Chain: " + selected_ik_chain),
+            separator(),
+            
+            horizontal_box([
+                text_block("Solver Type:"),
+                combo_box(["FABRIK", "TwoBone", "LookAt"], on_solver_type_changed)
+            ]),
+            
+            horizontal_box([
+                text_block("Iterations:"),
+                spin_box(1.0, 50.0, 1.0, on_iterations_changed)
+            ]),
+            
+            horizontal_box([
+                text_block("Tolerance:"),
+                spin_box(0.001, 1.0, 0.001, on_tolerance_changed)
+            ]),
+            
+            horizontal_box([
+                text_block("Target Position:"),
+                vector_input(on_target_position_changed)
+            ]),
+            
+            horizontal_box([
+                text_block("Pole Vector:"),
+                vector_input(on_pole_vector_changed)
+            ]),
+            
+            button("Remove IK Chain", on_remove_ik_chain_clicked)
+        ])
+    
+    fn constraint_details() -> Widget:
+        return vertical_box([
+            text_block("Constraint: " + selected_constraint),
+            separator(),
+            
+            horizontal_box([
+                text_block("Type:"),
+                text_block(get_constraint_type(selected_constraint))
+            ]),
+            
+            horizontal_box([
+                text_block("Weight:"),
+                slider(0.0, 1.0, on_constraint_weight_changed)
+            ]),
+            
+            horizontal_box([
+                text_block("Space:"),
+                combo_box(["World", "Local", "Parent", "Bone"], on_space_changed)
+            ]),
+            
+            text_block("Axis Filter:"),
+            horizontal_box([
+                checkbox(true, on_axis_x_changed),
+                text_block("X"),
+                checkbox(true, on_axis_y_changed),
+                text_block("Y"),
+                checkbox(true, on_axis_z_changed),
+                text_block("Z")
+            ]),
+            
+            button("Remove Constraint", on_remove_constraint_clicked)
+        ])
+    
+    fn bone_details() -> Widget:
+        return vertical_box([
+            text_block("Bone: " + selected_bone),
+            separator(),
+            
+            horizontal_box([
+                text_block("World Position:"),
+                text_block(get_bone_world_position_string(selected_bone))
+            ]),
+            
+            horizontal_box([
+                text_block("World Rotation:"),
+                text_block(get_bone_world_rotation_string(selected_bone))
+            ]),
+            
+            button("Add IK Chain from Bone", on_add_ik_from_bone_clicked),
+            button("Add Constraint to Bone", on_add_constraint_to_bone_clicked)
+        ])
+    
+    # Event handlers
+    fn on_refresh_clicked():
+        println("RigEditorWidget: Refresh clicked")
+    
+    fn on_add_ik_chain_clicked():
+        println("RigEditorWidget: Add IK chain clicked")
+    
+    fn on_add_constraint_clicked():
+        println("RigEditorWidget: Add constraint clicked")
+    
+    fn on_bone_selected(bone_name: String):
+        selected_bone = bone_name
+        selected_ik_chain = ""
+        selected_constraint = ""
+    
+    fn on_ik_chain_enabled_changed(enabled: Bool):
+        println("RigEditorWidget: IK chain enabled changed")
+    
+    fn on_edit_ik_chain_clicked():
+        println("RigEditorWidget: Edit IK chain clicked")
+    
+    fn on_constraint_enabled_changed(enabled: Bool):
+        println("RigEditorWidget: Constraint enabled changed")
+    
+    fn on_edit_constraint_clicked():
+        println("RigEditorWidget: Edit constraint clicked")
+    
+    fn on_solver_type_changed(value: String):
+        println("RigEditorWidget: Solver type changed to " + value)
+    
+    fn on_iterations_changed(value: Float):
+        println("RigEditorWidget: Iterations changed")
+    
+    fn on_tolerance_changed(value: Float):
+        println("RigEditorWidget: Tolerance changed")
+    
+    fn on_target_position_changed(value: Vec3):
+        println("RigEditorWidget: Target position changed")
+    
+    fn on_pole_vector_changed(value: Vec3):
+        println("RigEditorWidget: Pole vector changed")
+    
+    fn on_remove_ik_chain_clicked():
+        println("RigEditorWidget: Remove IK chain clicked")
+    
+    fn on_constraint_weight_changed(value: Float):
+        println("RigEditorWidget: Constraint weight changed")
+    
+    fn on_space_changed(value: String):
+        println("RigEditorWidget: Space changed to " + value)
+    
+    fn on_axis_x_changed(enabled: Bool):
+        println("RigEditorWidget: Axis X changed")
+    
+    fn on_axis_y_changed(enabled: Bool):
+        println("RigEditorWidget: Axis Y changed")
+    
+    fn on_axis_z_changed(enabled: Bool):
+        println("RigEditorWidget: Axis Z changed")
+    
+    fn on_remove_constraint_clicked():
+        println("RigEditorWidget: Remove constraint clicked")
+    
+    fn on_add_ik_from_bone_clicked():
+        println("RigEditorWidget: Add IK from bone clicked")
+    
+    fn on_add_constraint_to_bone_clicked():
+        println("RigEditorWidget: Add constraint to bone clicked")
+
+# IK Settings Panel
+@slate
+struct IKSettingsPanel:
+    rig_actor: Actor = null
+    
+    fn construct() -> Widget:
+        return vertical_box([
+            text_block("IK Settings"),
+            separator(),
+            
+            # Global IK/FK blend
+            horizontal_box([
+                text_block("IK/FK Blend:"),
+                slider(0.0, 1.0, on_ik_blend_changed)
+            ]),
+            
+            # Blend speed
+            horizontal_box([
+                text_block("Blend Speed:"),
+                spin_box(0.1, 10.0, 0.1, on_blend_speed_changed)
+            ]),
+            
+            # Mode buttons
+            horizontal_box([
+                button("Snap to FK", on_snap_to_fk_clicked),
+                button("Snap to IK", on_snap_to_ik_clicked)
+            ]),
+            
+            separator(),
+            
+            # Per-chain settings
+            text_block("Chain Settings:"),
+            chain_settings_list()
+        ])
+    
+    fn chain_settings_list() -> Widget:
+        if rig_actor == null:
+            return text_block("No rig actor selected")
+        
+        let chains = get_ik_chains(rig_actor)
+        let widgets = []
+        
+        let i = 0
+        while i < len(chains):
+            let chain = chains[i]
+            push(widgets, vertical_box([
+                text_block(chain.chain_name),
+                horizontal_box([
+                    text_block("Iterations:"),
+                    spin_box(1.0, 50.0, 1.0, on_chain_iterations_changed)
+                ]),
+                horizontal_box([
+                    text_block("Tolerance:"),
+                    spin_box(0.001, 1.0, 0.001, on_chain_tolerance_changed)
+                ]),
+                separator()
+            ]))
+            i = i + 1
+        
+        return scrollable_box(vertical_box(widgets))
+    
+    fn on_ik_blend_changed(value: Float):
+        println("IKSettingsPanel: IK blend changed to " + float_to_string(value))
+    
+    fn on_blend_speed_changed(value: Float):
+        println("IKSettingsPanel: Blend speed changed")
+    
+    fn on_snap_to_fk_clicked():
+        println("IKSettingsPanel: Snap to FK")
+    
+    fn on_snap_to_ik_clicked():
+        println("IKSettingsPanel: Snap to IK")
+    
+    fn on_chain_iterations_changed(value: Float):
+        println("IKSettingsPanel: Chain iterations changed")
+    
+    fn on_chain_tolerance_changed(value: Float):
+        println("IKSettingsPanel: Chain tolerance changed")
+
+# Constraint Inspector
+@slate
+struct ConstraintInspector:
+    rig_actor: Actor = null
+    
+    fn construct() -> Widget:
+        return vertical_box([
+            text_block("Constraint Inspector"),
+            separator(),
+            
+            # Constraint list with weight sliders
+            constraint_weight_list(),
+            
+            separator(),
+            
+            # Batch operations
+            horizontal_box([
+                button("Enable All", on_enable_all_clicked),
+                button("Disable All", on_disable_all_clicked)
+            ]),
+            
+            horizontal_box([
+                button("Reset Weights", on_reset_weights_clicked),
+                button("Bake Constraints", on_bake_constraints_clicked)
+            ])
+        ])
+    
+    fn constraint_weight_list() -> Widget:
+        if rig_actor == null:
+            return text_block("No rig actor selected")
+        
+        let constraints = get_constraints(rig_actor)
+        let widgets = []
+        
+        let i = 0
+        while i < len(constraints):
+            let constraint = constraints[i]
+            push(widgets, vertical_box([
+                horizontal_box([
+                    checkbox(constraint.enabled, on_constraint_enabled_changed),
+                    text_block(constraint.constraint_name)
+                ]),
+                horizontal_box([
+                    text_block("Weight:"),
+                    slider(0.0, 1.0, on_constraint_weight_changed),
+                    text_block(float_to_string(constraint.weight))
+                ]),
+                separator()
+            ]))
+            i = i + 1
+        
+        return scrollable_box(vertical_box(widgets))
+    
+    fn on_constraint_enabled_changed(enabled: Bool):
+        println("ConstraintInspector: Constraint enabled changed")
+    
+    fn on_constraint_weight_changed(value: Float):
+        println("ConstraintInspector: Constraint weight changed")
+    
+    fn on_enable_all_clicked():
+        println("ConstraintInspector: Enable all clicked")
+    
+    fn on_disable_all_clicked():
+        println("ConstraintInspector: Disable all clicked")
+    
+    fn on_reset_weights_clicked():
+        println("ConstraintInspector: Reset weights clicked")
+    
+    fn on_bake_constraints_clicked():
+        println("ConstraintInspector: Bake constraints clicked")
+
+# Bone Hierarchy Viewer
+@slate
+struct BoneHierarchyViewer:
+    rig_actor: Actor = null
+    selected_bones: Array<String> = []
+    
+    fn construct() -> Widget:
+        return vertical_box([
+            text_block("Bone Hierarchy"),
+            separator(),
+            
+            # Search box
+            horizontal_box([
+                text_block("Search:"),
+                text_input(on_search_changed)
+            ]),
+            
+            # Hierarchy tree
+            bone_tree(),
+            
+            separator(),
+            
+            # Selection info
+            horizontal_box([
+                text_block("Selected:"),
+                text_block(get_selected_count_string())
+            ]),
+            
+            # Actions
+            horizontal_box([
+                button("Select Children", on_select_children_clicked),
+                button("Select Parent", on_select_parent_clicked)
+            ])
+        ])
+    
+    fn bone_tree() -> Widget:
+        if rig_actor == null:
+            return text_block("No rig actor selected")
+        
+        return scrollable_box(
+            tree_view(get_bone_hierarchy(), on_bone_selection_changed)
+        )
+    
+    fn get_selected_count_string() -> String:
+        return int_to_string(len(selected_bones)) + " bones"
+    
+    fn on_search_changed(text: String):
+        println("BoneHierarchyViewer: Search changed to " + text)
+    
+    fn on_bone_selection_changed(bone_name: String):
+        println("BoneHierarchyViewer: Bone selected - " + bone_name)
+        push(selected_bones, bone_name)
+    
+    fn on_select_children_clicked():
+        println("BoneHierarchyViewer: Select children clicked")
+    
+    fn on_select_parent_clicked():
+        println("BoneHierarchyViewer: Select parent clicked")
+
+# Add IK Chain Dialog
+@slate
+struct AddIKChainDialog:
+    chain_name: String = "NewChain"
+    solver_type: IKSolverType = IKSolverType.FABRIK
+    selected_bones: Array<String> = []
+    
+    fn construct() -> Widget:
+        return vertical_box([
+            text_block("Add IK Chain"),
+            separator(),
+            
+            # Chain name
+            horizontal_box([
+                text_block("Chain Name:"),
+                text_input(on_chain_name_changed)
+            ]),
+            
+            # Solver type
+            horizontal_box([
+                text_block("Solver Type:"),
+                combo_box(["FABRIK", "TwoBone", "LookAt"], on_solver_type_changed)
+            ]),
+            
+            # Bone selection
+            text_block("Select Bones (in order):"),
+            bone_selection_list(),
+            
+            separator(),
+            
+            # Buttons
+            horizontal_box([
+                button("Create", on_create_clicked),
+                button("Cancel", on_cancel_clicked)
+            ])
+        ])
+    
+    fn bone_selection_list() -> Widget:
+        let widgets = []
+        
+        let i = 0
+        while i < len(selected_bones):
+            push(widgets, horizontal_box([
+                text_block(int_to_string(i + 1) + ". " + selected_bones[i]),
+                button("Remove", on_remove_bone_clicked)
+            ]))
+            i = i + 1
+        
+        push(widgets, button("Add Bone", on_add_bone_clicked))
+        
+        return vertical_box(widgets)
+    
+    fn on_chain_name_changed(text: String):
+        chain_name = text
+    
+    fn on_solver_type_changed(value: String):
+        if value == "FABRIK":
+            solver_type = IKSolverType.FABRIK
+        else:
+            if value == "TwoBone":
+                solver_type = IKSolverType.TwoBone
+            else:
+                solver_type = IKSolverType.LookAt
+    
+    fn on_add_bone_clicked():
+        println("AddIKChainDialog: Add bone clicked")
+    
+    fn on_remove_bone_clicked():
+        println("AddIKChainDialog: Remove bone clicked")
+    
+    fn on_create_clicked():
+        println("AddIKChainDialog: Create clicked - " + chain_name)
+    
+    fn on_cancel_clicked():
+        println("AddIKChainDialog: Cancel clicked")
+
+# Add Constraint Dialog
+@slate
+struct AddConstraintDialog:
+    constraint_name: String = "NewConstraint"
+    constraint_type: ConstraintType = ConstraintType.Position
+    source_bone: String = ""
+    target_bones: Array<String> = []
+    
+    fn construct() -> Widget:
+        return vertical_box([
+            text_block("Add Constraint"),
+            separator(),
+            
+            # Constraint name
+            horizontal_box([
+                text_block("Constraint Name:"),
+                text_input(on_constraint_name_changed)
+            ]),
+            
+            # Constraint type
+            horizontal_box([
+                text_block("Type:"),
+                combo_box([
+                    "Aim",
+                    "Parent",
+                    "Position",
+                    "Rotation",
+                    "Scale",
+                    "PoleVector"
+                ], on_constraint_type_changed)
+            ]),
+            
+            # Source bone
+            horizontal_box([
+                text_block("Source Bone:"),
+                combo_box(get_bone_names(), on_source_bone_changed)
+            ]),
+            
+            # Target bones
+            text_block("Target Bones:"),
+            target_bone_list(),
+            
+            separator(),
+            
+            # Buttons
+            horizontal_box([
+                button("Create", on_create_clicked),
+                button("Cancel", on_cancel_clicked)
+            ])
+        ])
+    
+    fn target_bone_list() -> Widget:
+        let widgets = []
+        
+        let i = 0
+        while i < len(target_bones):
+            push(widgets, horizontal_box([
+                text_block(target_bones[i]),
+                button("Remove", on_remove_target_clicked)
+            ]))
+            i = i + 1
+        
+        push(widgets, button("Add Target", on_add_target_clicked))
+        
+        return vertical_box(widgets)
+    
+    fn on_constraint_name_changed(text: String):
+        constraint_name = text
+    
+    fn on_constraint_type_changed(value: String):
+        if value == "Aim":
+            constraint_type = ConstraintType.Aim
+        else:
+            if value == "Parent":
+                constraint_type = ConstraintType.Parent
+            else:
+                if value == "Position":
+                    constraint_type = ConstraintType.Position
+                else:
+                    if value == "Rotation":
+                        constraint_type = ConstraintType.Rotation
+                    else:
+                        if value == "Scale":
+                            constraint_type = ConstraintType.Scale
+                        else:
+                            constraint_type = ConstraintType.PoleVector
+    
+    fn on_source_bone_changed(value: String):
+        source_bone = value
+    
+    fn on_add_target_clicked():
+        println("AddConstraintDialog: Add target clicked")
+    
+    fn on_remove_target_clicked():
+        println("AddConstraintDialog: Remove target clicked")
+    
+    fn on_create_clicked():
+        println("AddConstraintDialog: Create clicked - " + constraint_name)
+    
+    fn on_cancel_clicked():
+        println("AddConstraintDialog: Cancel clicked")
+
+# Helper functions for widgets
+@extern
+fn get_bone_hierarchy() -> Array<String>
+
+@extern
+fn get_ik_chains(actor: Actor) -> Array<IKChain>
+
+@extern
+fn get_constraints(actor: Actor) -> Array<ConstraintData>
+
+@extern
+fn get_constraint_type(name: String) -> String
+
+@extern
+fn get_bone_world_position_string(bone_name: String) -> String
+
+@extern
+fn get_bone_world_rotation_string(bone_name: String) -> String
+
+@extern
+fn get_bone_names() -> Array<String>
+
+# Slate widget primitives
+@extern
+fn vertical_box(children: Array<Widget>) -> Widget
+
+@extern
+fn horizontal_box(children: Array<Widget>) -> Widget
+
+@extern
+fn text_block(text: String) -> Widget
+
+@extern
+fn button(text: String, callback: fn()) -> Widget
+
+@extern
+fn checkbox(checked: Bool, callback: fn(Bool)) -> Widget
+
+@extern
+fn slider(min: Float, max: Float, callback: fn(Float)) -> Widget
+
+@extern
+fn spin_box(min: Float, max: Float, step: Float, callback: fn(Float)) -> Widget
+
+@extern
+fn combo_box(options: Array<String>, callback: fn(String)) -> Widget
+
+@extern
+fn text_input(callback: fn(String)) -> Widget
+
+@extern
+fn vector_input(callback: fn(Vec3)) -> Widget
+
+@extern
+fn tree_view(items: Array<String>, callback: fn(String)) -> Widget
+
+@extern
+fn scrollable_box(child: Widget) -> Widget
+
+@extern
+fn spacer() -> Widget
+
+@extern
+fn separator() -> Widget
+
+struct Widget:
+    widget_id: Int

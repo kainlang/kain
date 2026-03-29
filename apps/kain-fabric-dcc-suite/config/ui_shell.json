@@ -75,6 +75,12 @@
         "caption": "runtime ownership matrix"
       },
       {
+        "id": "runtime_lane_summary",
+        "label": "Lane Map",
+        "metric_source": "runtime_lane_summary",
+        "caption": "kain | fabric | python | gpu | c_abi | rust | node"
+      },
+      {
         "id": "command_count",
         "label": "Commands",
         "metric_source": "command_count",
@@ -111,6 +117,7 @@
         "ui.toggle_status_strip",
         "ui.focus_workspace_navigator",
         "render.preview",
+        "render.pathtrace_preview",
         "publish.package"
       ]
     },
@@ -257,7 +264,8 @@
         "workspace.switch_mode",
         "ui.show_command_palette",
         "asset.ingest_package",
-        "render.preview"
+        "render.preview",
+        "render.pathtrace_preview"
       ],
       "center_surface_ids": [
         "scene_graph",
@@ -280,6 +288,7 @@
         "project.bootstrap",
         "asset.ingest_package",
         "render.preview",
+        "render.pathtrace_preview",
         "publish.package"
       ]
     },
@@ -300,7 +309,8 @@
         "selection.set",
         "ui.open_property_grid",
         "sculpt.apply_stroke",
-        "topology.rebuild"
+        "topology.rebuild",
+        "render.pathtrace_preview"
       ],
       "center_surface_ids": [
         "scene_graph",
@@ -323,7 +333,8 @@
         "sculpt.apply_stroke",
         "topology.rebuild",
         "material.bake_preview",
-        "publish.package"
+        "publish.package",
+        "render.pathtrace_preview"
       ]
     },
     {
@@ -346,7 +357,8 @@
         "ui.open_property_grid",
         "material.paint_layer",
         "material.edit_svg_mask",
-        "material.export_textures"
+        "material.export_textures",
+        "render.pathtrace_preview"
       ],
       "center_surface_ids": [
         "material_graph",
@@ -370,6 +382,7 @@
         "material.bake_preview",
         "material.export_textures",
         "render.preview",
+        "render.pathtrace_preview",
         "compositor.rebuild"
       ]
     },
@@ -388,7 +401,8 @@
         "rig.sync_controls",
         "selection.set",
         "ui.open_property_grid",
-        "render.preview"
+        "render.preview",
+        "render.pathtrace_preview"
       ],
       "center_surface_ids": [
         "rig_graph",
@@ -410,6 +424,7 @@
       "intent_ids": [
         "rig.sync_controls",
         "render.preview",
+        "render.pathtrace_preview",
         "publish.package"
       ]
     },
@@ -427,6 +442,7 @@
         "sim.tick",
         "ui.show_command_palette",
         "render.preview",
+        "render.pathtrace_preview",
         "compositor.rebuild"
       ],
       "center_surface_ids": [
@@ -448,6 +464,7 @@
       "intent_ids": [
         "sim.tick",
         "render.preview",
+        "render.pathtrace_preview",
         "compositor.rebuild",
         "publish.package"
       ]
@@ -465,6 +482,7 @@
       ],
       "quick_command_ids": [
         "render.preview",
+        "render.pathtrace_preview",
         "compositor.rebuild",
         "ui.open_property_grid",
         "publish.package"
@@ -488,6 +506,7 @@
       ],
       "intent_ids": [
         "render.preview",
+        "render.pathtrace_preview",
         "compositor.rebuild",
         "publish.package"
       ]
@@ -508,7 +527,8 @@
         "publish.package",
         "tensor.train_step",
         "tensor.infer_step",
-        "project.bootstrap"
+        "project.bootstrap",
+        "render.pathtrace_preview"
       ],
       "center_surface_ids": [
         "publish_console",
@@ -530,7 +550,8 @@
       "intent_ids": [
         "publish.package",
         "tensor.train_step",
-        "tensor.infer_step"
+        "tensor.infer_step",
+        "render.pathtrace_preview"
       ]
     }
   ]

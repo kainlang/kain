@@ -1,0 +1,15 @@
+[package]
+name = "VRAMSniper"
+version = "1.0.0"
+authors = ["KAIN Research Labs"]
+description = "Premium VRAM auditing and texture optimization tool for UE5 - $99-149"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "VRAMSniper"
+plugin_dir = "."
+sources = ["vram_sniper.kn"]
+shaders = []
+modular_output = true

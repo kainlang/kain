@@ -1,0 +1,2094 @@
+// ============================================================================
+// VoxelForge Pro - Premium Voxel Engine for Unreal Engine 5
+// ============================================================================
+// Price: $300 | Category: Procedural Generation | Complexity: MAXIMUM
+// Features: GPU-accelerated terrain, custom editor mode, 19+ compute shaders
+// ============================================================================
+
+// ============================================================================
+// ENUMS - Type-Safe Voxel System
+// ============================================================================
+
+enum VoxelType:
+    Air
+    Solid
+    Transparent
+    Emissive
+    Fluid
+    Foliage
+
+enum BiomeType:
+    Plains
+    Forest
+    Desert
+    Mountains
+    Ocean
+    Tundra
+    Jungle
+    Swamp
+    Beach
+    Savanna
+    Cave
+    Underground
+
+enum ChunkState:
+    Unloaded
+    Queued
+    Generating
+    Meshing
+    Ready
+    Dirty
+    Unloading
+
+enum LODLevel:
+    LOD0
+    LOD1
+    LOD2
+    LOD3
+    LOD4
+
+enum BrushShape:
+    Sphere
+    Cube
+    Cylinder
+    Cone
+    Custom
+
+enum EditMode:
+    Sculpt
+    Smooth
+    Flatten
+    Paint
+    Erosion
+    Noise
+    Stamp
+    Cave
+    Carve
+    Grow
+
+enum VoxelMaterialType:
+    Stone
+    Dirt
+    Grass
+    Sand
+    Gravel
+    Water
+    Lava
+    Wood
+    Leaves
+    Snow
+    Ice
+    Clay
+    IronOre
+    GoldOre
+    DiamondOre
+    Glass
+    Brick
+    Concrete
+    Metal
+    Obsidian
+
+enum VoxelNoiseType:
+    Perlin
+    Simplex
+    Worley
+    Fractal
+    Ridged
+    Billow
+
+enum MeshingAlgorithm:
+    GreedyMesh
+    MarchingCubes
+    DualContouring
+    NaiveCubes
+
+enum VoxelPhysicsType:
+    Static
+    Falling
+    Fluid
+    Explosive
+    Growing
+
+enum StructureType:
+    Tree
+    Rock
+    Grass
+    Flower
+    Ore
+    Dungeon
+    Ruin
+    Village
+    Cave
+    Custom
+
+enum LightingMode:
+    None
+    Simple
+    Propagation
+    Raytraced
+    Global
+
+enum CullingMode:
+    None
+    Frustum
+    Occlusion
+    Distance
+    Combined
+
+enum CompressionMode:
+    None
+    RLE
+    Palette
+    Octree
+
+// ============================================================================
+// CORE STRUCTS - Voxel Data Structures
+// ============================================================================
+
+struct Voxel:
+    voxel_type: VoxelType
+    material_id: Int
+    light_level: Int
+    metadata: Int
+
+struct VoxelCoord:
+    x: Int
+    y: Int
+    z: Int
+
+struct ChunkCoord:
+    x: Int
+    y: Int
+    z: Int
+
+struct VoxelRaycastHit:
+    hit: Bool
+    position: Vec3
+    normal: Vec3
+    voxel_type: VoxelType
+    material_id: Int
+    distance: Float
+    chunk_coord: ChunkCoord
+    voxel_coord: VoxelCoord
+
+struct ChunkMeshData:
+    vertex_count: Int
+    triangle_count: Int
+    has_collision: Bool
+    has_transparency: Bool
+    memory_bytes: Int
+
+struct BrushSettings:
+    size: Float
+    strength: Float
+    falloff: Float
+    shape: BrushShape
+    symmetry_x: Bool
+    symmetry_y: Bool
+    symmetry_z: Bool
+    invert: Bool
+
+struct NoiseParams:
+    frequency: Float
+    amplitude: Float
+    octaves: Int
+    lacunarity: Float
+    persistence: Float
+    seed: Int
+    noise_type: VoxelNoiseType
+
+struct VoxelMaterialProperties:
+    albedo: Vec3
+    roughness: Float
+    metallic: Float
+    emissive_color: Vec3
+    emissive_intensity: Float
+    opacity: Float
+    density: Float
+    friction: Float
+    restitution: Float
+
+struct BiomeGenerationParams:
+    temperature: Float
+    humidity: Float
+    height_scale: Float
+    height_offset: Float
+    noise_params: NoiseParams
+    cave_frequency: Float
+    ore_density: Float
+
+struct StructureSpawnRules:
+    min_height: Float
+    max_height: Float
+    spawn_chance: Float
+    min_spacing: Float
+    biome_mask: Int
+    requires_surface: Bool
+
+struct ChunkGenerationData:
+    seed: Int
+    biome_type: BiomeType
+    height_map: Array<Float>
+    density_map: Array<Float>
+    cave_map: Array<Bool>
+    ore_map: Array<Int>
+
+struct LODSettings:
+    lod0_distance: Float
+    lod1_distance: Float
+    lod2_distance: Float
+    lod3_distance: Float
+    lod4_distance: Float
+    transition_blend: Float
+
+struct VoxelPhysicsSettings:
+    enable_falling_blocks: Bool
+    enable_fluid_sim: Bool
+    enable_explosions: Bool
+    gravity: Float
+    fluid_viscosity: Float
+    explosion_radius: Float
+
+struct PerformanceSettings:
+    max_chunks_per_frame: Int
+    max_mesh_updates_per_frame: Int
+    async_generation: Bool
+    gpu_acceleration: Bool
+    memory_budget_mb: Int
+    chunk_pool_size: Int
+
+// ============================================================================
+// DATATABLES - Data-Driven Configuration
+// ============================================================================
+
+@datatable
+struct VoxelMaterialData:
+    id: Int
+    name: String
+    material_type: VoxelMaterialType
+    texture_index: Int
+    properties: VoxelMaterialProperties
+    physics_type: VoxelPhysicsType
+    is_transparent: Bool
+    is_emissive: Bool
+    sound_type: String
+
+@datatable
+struct BiomeDefinition:
+    id: Int
+    name: String
+    biome_type: BiomeType
+    generation_params: BiomeGenerationParams
+    surface_material: Int
+    subsurface_material: Int
+    underground_material: Int
+    tree_density: Float
+    grass_density: Float
+    rock_density: Float
+
+@datatable
+struct StructureTemplate:
+    id: Int
+    name: String
+    structure_type: StructureType
+    size_x: Int
+    size_y: Int
+    size_z: Int
+    spawn_rules: StructureSpawnRules
+    voxel_data: String
+
+@datatable
+struct OreDistribution:
+    id: Int
+    ore_material: Int
+    min_height: Int
+    max_height: Int
+    vein_size: Int
+    spawn_chance: Float
+    cluster_count: Int
+
+@datatable
+struct TreeVariant:
+    id: Int
+    tree_type: String
+    min_height: Int
+    max_height: Int
+    trunk_material: Int
+    leaf_material: Int
+    leaf_density: Float
+    branch_chance: Float
+
+// ============================================================================
+// COMPUTE SHADERS - GPU-Accelerated Voxel Processing
+// ============================================================================
+
+// Terrain Generation Shaders
+
+shader compute PerlinNoise3D(thread_id: Vec3) -> Float:
+    uniform CFG_HIGH_QUALITY: Float @0
+    uniform frequency: Float @1
+    uniform amplitude: Float @2
+    uniform octaves: Int @3
+    uniform position: Vec3 @4
+    
+    var noise_value: Float = 0.0
+    var freq: Float = frequency
+    var amp: Float = amplitude
+    
+    for i in range(octaves):
+        let sample_pos = (position + thread_id) * freq
+        let noise = perlin3d(sample_pos)
+        noise_value = noise_value + noise * amp
+        freq = freq * 2.0
+        amp = amp * 0.5
+    
+    return noise_value
+
+shader compute SimplexNoise3D(thread_id: Vec3) -> Float:
+    uniform frequency: Float @0
+    uniform amplitude: Float @1
+    uniform seed: Int @2
+    uniform position: Vec3 @3
+    
+    let sample_pos = (position + thread_id) * frequency
+    let noise = simplex3d(sample_pos, seed)
+    return noise * amplitude
+
+shader compute WorleyNoise3D(thread_id: Vec3) -> Float:
+    uniform frequency: Float @0
+    uniform cell_jitter: Float @1
+    uniform distance_type: Int @2
+    uniform position: Vec3 @3
+    
+    let sample_pos = (position + thread_id) * frequency
+    let cell = floor(sample_pos)
+    var min_dist: Float = 999999.0
+    
+    for x in range(-1, 2):
+        for y in range(-1, 2):
+            for z in range(-1, 2):
+                let neighbor = cell + vec3(x, y, z)
+                let point = neighbor + hash3d(neighbor) * cell_jitter
+                let dist = length(sample_pos - point)
+                min_dist = min(min_dist, dist)
+    
+    return min_dist
+
+shader compute FractalNoise(thread_id: Vec3) -> Float:
+    uniform base_frequency: Float @0
+    uniform amplitude: Float @1
+    uniform octaves: Int @2
+    uniform lacunarity: Float @3
+    uniform persistence: Float @4
+    uniform position: Vec3 @5
+    
+    var total: Float = 0.0
+    var freq: Float = base_frequency
+    var amp: Float = amplitude
+    var max_value: Float = 0.0
+    
+    for i in range(octaves):
+        total = total + perlin3d((position + thread_id) * freq) * amp
+        max_value = max_value + amp
+        freq = freq * lacunarity
+        amp = amp * persistence
+    
+    return total / max_value
+
+shader compute BiomeBlending(thread_id: Vec3) -> Vec4:
+    uniform biome_map: Texture3D @0
+    uniform blend_distance: Float @1
+    uniform position: Vec3 @2
+    
+    let sample_pos = position + thread_id
+    let biome_data = sample(biome_map, sample_pos)
+    
+    var blended: Vec4 = vec4(0, 0, 0, 0)
+    var total_weight: Float = 0.0
+    
+    for x in range(-1, 2):
+        for y in range(-1, 2):
+            for z in range(-1, 2):
+                let offset = vec3(x, y, z) * blend_distance
+                let neighbor = sample(biome_map, sample_pos + offset)
+                let dist = length(offset)
+                let weight = 1.0 / (1.0 + dist)
+                blended = blended + neighbor * weight
+                total_weight = total_weight + weight
+    
+    return blended / total_weight
+
+// Meshing Shaders
+
+shader compute GreedyMeshing(thread_id: Vec3) -> Int:
+    uniform CFG_OPTIMIZE_MESH: Float @0
+    uniform voxel_data: Texture3D @1
+    uniform chunk_size: Int @2
+    uniform position: Vec3 @3
+    
+    let voxel = sample(voxel_data, position + thread_id)
+    
+    if voxel.x == 0:
+        return 0
+    
+    var face_mask: Int = 0
+    
+    if sample(voxel_data, position + thread_id + vec3(1, 0, 0)).x == 0:
+        face_mask = face_mask + 1
+    if sample(voxel_data, position + thread_id + vec3(-1, 0, 0)).x == 0:
+        face_mask = face_mask + 2
+    if sample(voxel_data, position + thread_id + vec3(0, 1, 0)).x == 0:
+        face_mask = face_mask + 4
+    if sample(voxel_data, position + thread_id + vec3(0, -1, 0)).x == 0:
+        face_mask = face_mask + 8
+    if sample(voxel_data, position + thread_id + vec3(0, 0, 1)).x == 0:
+        face_mask = face_mask + 16
+    if sample(voxel_data, position + thread_id + vec3(0, 0, -1)).x == 0:
+        face_mask = face_mask + 32
+    
+    return face_mask
+
+shader compute MarchingCubes(thread_id: Vec3) -> Vec4:
+    uniform CFG_SMOOTH_TERRAIN: Float @0
+    uniform density_field: Texture3D @1
+    uniform iso_level: Float @2
+    uniform position: Vec3 @3
+    
+    let sample_pos = position + thread_id
+    
+    // Sample 8 corners of the cube (fixed-size array for shader compatibility)
+    let v0 = sample(density_field, sample_pos + vec3(0, 0, 0)).x
+    let v1 = sample(density_field, sample_pos + vec3(1, 0, 0)).x
+    let v2 = sample(density_field, sample_pos + vec3(1, 1, 0)).x
+    let v3 = sample(density_field, sample_pos + vec3(0, 1, 0)).x
+    let v4 = sample(density_field, sample_pos + vec3(0, 0, 1)).x
+    let v5 = sample(density_field, sample_pos + vec3(1, 0, 1)).x
+    let v6 = sample(density_field, sample_pos + vec3(1, 1, 1)).x
+    let v7 = sample(density_field, sample_pos + vec3(0, 1, 1)).x
+    
+    // Build cube index from corner values
+    var cube_index: Int = 0
+    if v0 < iso_level:
+        cube_index = cube_index + 1
+    if v1 < iso_level:
+        cube_index = cube_index + 2
+    if v2 < iso_level:
+        cube_index = cube_index + 4
+    if v3 < iso_level:
+        cube_index = cube_index + 8
+    if v4 < iso_level:
+        cube_index = cube_index + 16
+    if v5 < iso_level:
+        cube_index = cube_index + 32
+    if v6 < iso_level:
+        cube_index = cube_index + 64
+    if v7 < iso_level:
+        cube_index = cube_index + 128
+    
+    return vec4(cube_index, 0, 0, 0)
+
+shader compute NormalCalculation(thread_id: Vec3) -> Vec3:
+    uniform density_field: Texture3D @0
+    uniform position: Vec3 @1
+    uniform step_size: Float @2
+    
+    let sample_pos = position + thread_id
+    
+    let dx = sample(density_field, sample_pos + vec3(step_size, 0, 0)).x - sample(density_field, sample_pos - vec3(step_size, 0, 0)).x
+    let dy = sample(density_field, sample_pos + vec3(0, step_size, 0)).x - sample(density_field, sample_pos - vec3(0, step_size, 0)).x
+    let dz = sample(density_field, sample_pos + vec3(0, 0, step_size)).x - sample(density_field, sample_pos - vec3(0, 0, step_size)).x
+    
+    return normalize(vec3(dx, dy, dz))
+
+shader compute AmbientOcclusion(thread_id: Vec3) -> Float:
+    uniform CFG_HIGH_QUALITY: Float @0
+    uniform voxel_data: Texture3D @1
+    uniform position: Vec3 @2
+    uniform sample_radius: Float @3
+    uniform sample_count: Int @4
+    
+    let sample_pos = position + thread_id
+    var occlusion: Float = 0.0
+    
+    for i in range(sample_count):
+        let angle = i * 6.28318 / sample_count
+        let offset = vec3(cos(angle), sin(angle), 0) * sample_radius
+        
+        if sample(voxel_data, sample_pos + offset).x > 0:
+            occlusion = occlusion + 1.0
+    
+    return 1.0 - (occlusion / sample_count)
+
+// Physics & Simulation Shaders
+
+shader compute VoxelPhysics(thread_id: Vec3) -> Int:
+    uniform voxel_data: Texture3D @0
+    uniform physics_types: Texture3D @1
+    uniform position: Vec3 @2
+    uniform delta_time: Float @3
+    
+    let sample_pos = position + thread_id
+    let voxel = sample(voxel_data, sample_pos)
+    let physics_type = sample(physics_types, sample_pos).x
+    
+    if physics_type == 1:
+        let below = sample(voxel_data, sample_pos + vec3(0, 0, -1))
+        if below.x == 0:
+            return 1
+    
+    return 0
+
+shader compute FluidSimulation(thread_id: Vec3) -> Vec4:
+    uniform fluid_data: Texture3D @0
+    uniform voxel_data: Texture3D @1
+    uniform position: Vec3 @2
+    uniform viscosity: Float @3
+    
+    let sample_pos = position + thread_id
+    let current_fluid = sample(fluid_data, sample_pos)
+    
+    if current_fluid.x == 0:
+        return vec4(0, 0, 0, 0)
+    
+    var flow: Vec3 = vec3(0, 0, 0)
+    var neighbors: Int = 0
+    
+    for x in range(-1, 2):
+        for y in range(-1, 2):
+            for z in range(-1, 2):
+                if x == 0 and y == 0 and z == 0:
+                    continue
+                
+                let offset = vec3(x, y, z)
+                let neighbor_voxel = sample(voxel_data, sample_pos + offset)
+                
+                if neighbor_voxel.x == 0:
+                    flow = flow + offset
+                    neighbors = neighbors + 1
+    
+    if neighbors > 0:
+        flow = flow / neighbors * viscosity
+    
+    return vec4(flow, current_fluid.x)
+
+shader compute LightPropagation(thread_id: Vec3) -> Int:
+    uniform light_data: Texture3D @0
+    uniform voxel_data: Texture3D @1
+    uniform position: Vec3 @2
+    uniform max_light: Int @3
+    
+    let sample_pos = position + thread_id
+    let current_light = sample(light_data, sample_pos).x
+    let voxel = sample(voxel_data, sample_pos)
+    
+    if voxel.x > 0:
+        return current_light
+    
+    var max_neighbor_light: Int = 0
+    
+    for x in range(-1, 2):
+        for y in range(-1, 2):
+            for z in range(-1, 2):
+                let neighbor_light = sample(light_data, sample_pos + vec3(x, y, z)).x
+                max_neighbor_light = max(max_neighbor_light, neighbor_light)
+    
+    return max(0, max_neighbor_light - 1)
+
+shader compute ShadowCasting(thread_id: Vec3) -> Float:
+    uniform CFG_RAYTRACED_SHADOWS: Float @0
+    uniform voxel_data: Texture3D @1
+    uniform light_direction: Vec3 @2
+    uniform position: Vec3 @3
+    uniform max_distance: Float @4
+    
+    let sample_pos = position + thread_id
+    let voxel = sample(voxel_data, sample_pos)
+    
+    if voxel.x == 0:
+        return 1.0
+    
+    var ray_pos: Vec3 = sample_pos
+    var shadow: Float = 1.0
+    
+    for i in range(32):
+        ray_pos = ray_pos + light_direction
+        let dist = length(ray_pos - sample_pos)
+        
+        if dist > max_distance:
+            break
+        
+        let ray_voxel = sample(voxel_data, ray_pos)
+        if ray_voxel.x > 0:
+            shadow = shadow * 0.5
+            if shadow < 0.1:
+                return 0.0
+    
+    return shadow
+
+// Optimization Shaders
+
+shader compute ChunkCulling(thread_id: Vec3) -> Int:
+    uniform chunk_positions: Texture3D @0
+    uniform camera_position: Vec3 @1
+    uniform camera_forward: Vec3 @2
+    uniform view_distance: Float @3
+    uniform position: Vec3 @4
+    
+    let chunk_pos = sample(chunk_positions, position + thread_id).xyz
+    let to_chunk = chunk_pos - camera_position
+    let distance = length(to_chunk)
+    
+    if distance > view_distance:
+        return 0
+    
+    let dot_product = dot(normalize(to_chunk), camera_forward)
+    if dot_product < -0.2:
+        return 0
+    
+    return 1
+
+shader compute LODGeneration(thread_id: Vec3) -> Vec4:
+    uniform voxel_data: Texture3D @0
+    uniform lod_level: Int @1
+    uniform position: Vec3 @2
+    
+    let sample_pos = position + thread_id
+    let step: Int = pow(2, lod_level)
+    
+    var voxel_sum: Vec4 = vec4(0, 0, 0, 0)
+    var count: Int = 0
+    
+    for x in range(step):
+        for y in range(step):
+            for z in range(step):
+                let offset = vec3(x, y, z)
+                let voxel = sample(voxel_data, sample_pos * step + offset)
+                voxel_sum = voxel_sum + voxel
+                count = count + 1
+    
+    return voxel_sum / count
+
+shader compute CompressionRLE(thread_id: Vec3) -> Vec4:
+    uniform voxel_data: Texture3D @0
+    uniform position: Vec3 @1
+    uniform chunk_size: Int @2
+    
+    let sample_pos = position + thread_id
+    let current_voxel = sample(voxel_data, sample_pos)
+    
+    var run_length: Int = 1
+    var next_pos: Vec3 = sample_pos + vec3(1, 0, 0)
+    
+    for i in range(chunk_size):
+        let next_voxel = sample(voxel_data, next_pos)
+        if next_voxel.x == current_voxel.x and next_voxel.y == current_voxel.y:
+            run_length = run_length + 1
+            next_pos = next_pos + vec3(1, 0, 0)
+        else:
+            break
+    
+    return vec4(current_voxel.x, current_voxel.y, run_length, 0)
+
+// Effects Shaders
+
+shader compute VoxelExplosion(thread_id: Vec3) -> Float:
+    uniform explosion_center: Vec3 @0
+    uniform explosion_radius: Float @1
+    uniform explosion_strength: Float @2
+    uniform position: Vec3 @3
+    
+    let sample_pos = position + thread_id
+    let to_center = sample_pos - explosion_center
+    let distance = length(to_center)
+    
+    if distance > explosion_radius:
+        return 0.0
+    
+    let falloff = 1.0 - (distance / explosion_radius)
+    return falloff * explosion_strength
+
+shader compute VoxelGrowth(thread_id: Vec3) -> Int:
+    uniform voxel_data: Texture3D @0
+    uniform growth_map: Texture3D @1
+    uniform position: Vec3 @2
+    uniform growth_rate: Float @3
+    
+    let sample_pos = position + thread_id
+    let voxel = sample(voxel_data, sample_pos)
+    let growth = sample(growth_map, sample_pos).x
+    
+    if voxel.x > 0:
+        return 0
+    
+    var neighbor_count: Int = 0
+    for x in range(-1, 2):
+        for y in range(-1, 2):
+            for z in range(-1, 2):
+                let neighbor = sample(voxel_data, sample_pos + vec3(x, y, z))
+                if neighbor.x > 0:
+                    neighbor_count = neighbor_count + 1
+    
+    if neighbor_count > 2 and growth > growth_rate:
+        return 1
+    
+    return 0
+
+shader compute VoxelErosion(thread_id: Vec3) -> Float:
+    uniform height_map: Texture3D @0
+    uniform erosion_strength: Float @1
+    uniform position: Vec3 @2
+    uniform iterations: Int @3
+    
+    let sample_pos = position + thread_id
+    var height = sample(height_map, sample_pos).x
+    
+    for i in range(iterations):
+        var lowest_neighbor: Float = height
+        var flow_dir: Vec3 = vec3(0, 0, 0)
+        
+        for x in range(-1, 2):
+            for y in range(-1, 2):
+                let neighbor_height = sample(height_map, sample_pos + vec3(x, y, 0)).x
+                if neighbor_height < lowest_neighbor:
+                    lowest_neighbor = neighbor_height
+                    flow_dir = vec3(x, y, 0)
+        
+        if lowest_neighbor < height:
+            let erosion = (height - lowest_neighbor) * erosion_strength
+            height = height - erosion
+    
+    return height
+
+// ============================================================================
+// COMPONENTS - Modular Voxel Systems
+// ============================================================================
+
+@component
+struct VoxelWorldComponent:
+    world_seed: Int
+    
+    chunk_size: Int
+    
+    @editdefaults
+    view_distance: Float
+    
+    @editdefaults
+    lod_settings: LODSettings
+    
+    @editdefaults
+    performance_settings: PerformanceSettings
+    
+    @transient
+    active_chunks: Int
+    
+    @transient
+    pending_chunks: Int
+
+@component
+struct VoxelChunkComponent:
+    chunk_coord: ChunkCoord
+    
+    chunk_state: ChunkState
+    
+    lod_level: LODLevel
+    
+    @transient
+    mesh_data: ChunkMeshData
+    
+    @transient
+    has_collision: Bool
+    
+    @transient
+    last_update_time: Float
+
+@component
+struct VoxelPlayerComponent:
+    @editdefaults
+    reach_distance: Float
+    
+    @editdefaults
+    mining_speed: Float
+    
+    @editdefaults
+    placement_speed: Float
+    
+    @transient
+    selected_material: Int
+    
+    @transient
+    current_tool: EditMode
+    
+    @transient
+    brush_settings: BrushSettings
+
+@component
+struct VoxelPhysicsComponent:
+    @editdefaults
+    physics_settings: VoxelPhysicsSettings
+    
+    @transient
+    falling_blocks: Array<VoxelCoord>
+    
+    @transient
+    fluid_sources: Array<VoxelCoord>
+    
+    @transient
+    pending_explosions: Array<Vec3>
+
+@component
+struct VoxelLightingComponent:
+    @editdefaults
+    lighting_mode: LightingMode
+    
+    @editdefaults
+    max_light_level: Int
+    
+    @editdefaults
+    light_propagation_speed: Float
+    
+    @transient
+    light_sources: Array<VoxelCoord>
+    
+    @transient
+    dirty_light_chunks: Array<ChunkCoord>
+
+@component
+struct BiomeGeneratorComponent:
+    @editdefaults
+    biome_scale: Float
+    
+    @editdefaults
+    biome_blend_distance: Float
+    
+    @transient
+    biome_cache: Array<BiomeType>
+
+@component
+struct StructureSpawnerComponent:
+    @editdefaults
+    structure_density: Float
+    
+    @editdefaults
+    min_structure_spacing: Float
+    
+    @transient
+    spawned_structures: Array<VoxelCoord>
+
+@component
+struct ChunkStreamerComponent:
+    @editdefaults
+    load_distance: Float
+    
+    @editdefaults
+    unload_distance: Float
+    
+    @editdefaults
+    priority_bias: Float
+    
+    @transient
+    load_queue: Array<ChunkCoord>
+    
+    @transient
+    unload_queue: Array<ChunkCoord>
+
+@component
+struct VoxelCollisionComponent:
+    @editdefaults
+    enable_collision: Bool
+    
+    @editdefaults
+    collision_complexity: Int
+    
+    @transient
+    collision_mesh_valid: Bool
+
+@component
+struct VoxelNetworkComponent:
+    network_priority: Int
+    
+    @transient
+    pending_updates: Array<VoxelCoord>
+    
+    @transient
+    replication_queue: Array<ChunkCoord>
+
+// ============================================================================
+// ACTORS - Voxel World Entities
+// ============================================================================
+
+actor VoxelWorld:
+    state world_component: VoxelWorldComponent = VoxelWorldComponent()
+    state chunk_streamer: ChunkStreamerComponent = ChunkStreamerComponent()
+    state biome_generator: BiomeGeneratorComponent = BiomeGeneratorComponent()
+    state structure_spawner: StructureSpawnerComponent = StructureSpawnerComponent()
+    state lighting: VoxelLightingComponent = VoxelLightingComponent()
+    state physics: VoxelPhysicsComponent = VoxelPhysicsComponent()
+    state network: VoxelNetworkComponent = VoxelNetworkComponent()
+    
+    @blueprint_callable
+    on BeginPlay():
+        println("VoxelWorld initialized")
+        Server_InitializeWorld()
+    
+    on Server_InitializeWorld():
+        println("Initializing voxel world on server")
+        Multicast_WorldReady()
+    
+    on Multicast_WorldReady():
+        println("Voxel world ready for all clients")
+
+    @blueprint_callable
+    on Tick(delta_time: Float):
+        chunk_streamer.load_distance = world_component.view_distance
+        world_component.active_chunks = len(chunk_streamer.load_queue)
+    
+    on Server_SetVoxel(x: Int, y: Int, z: Int, material_id: Int):
+        println("Setting voxel at position")
+        Multicast_VoxelChanged(x, y, z, material_id)
+    
+    on Multicast_VoxelChanged(x: Int, y: Int, z: Int, material_id: Int):
+        println("Voxel changed notification")
+    
+    on Server_GenerateChunk(chunk_x: Int, chunk_y: Int, chunk_z: Int):
+        println("Generating chunk")
+        Client_ChunkGenerated(chunk_x, chunk_y, chunk_z)
+    
+    on Client_ChunkGenerated(chunk_x: Int, chunk_y: Int, chunk_z: Int):
+        println("Chunk generation complete")
+
+actor VoxelChunk:
+    state chunk_component: VoxelChunkComponent = VoxelChunkComponent()
+    state collision: VoxelCollisionComponent = VoxelCollisionComponent()
+    
+    @blueprint_callable
+    on BeginPlay():
+        println("VoxelChunk spawned")
+    
+    @blueprint_callable
+    on GenerateMesh():
+        println("Generating chunk mesh")
+        chunk_component.chunk_state = ChunkState::Meshing
+    
+    @blueprint_callable
+    on UpdateLOD(new_lod: LODLevel):
+        chunk_component.lod_level = new_lod
+        GenerateMesh()
+
+actor VoxelPlayer:
+    state player_component: VoxelPlayerComponent = VoxelPlayerComponent()
+    state selected_voxel: VoxelCoord = VoxelCoord()
+    state is_mining: Bool = false
+    
+    @blueprint_callable
+    on BeginPlay():
+        player_component.reach_distance = 500.0
+        player_component.mining_speed = 1.0
+        player_component.selected_material = 1
+    
+    @blueprint_callable
+    on StartMining():
+        is_mining = true
+        Server_Mine(selected_voxel.x, selected_voxel.y, selected_voxel.z)
+    
+    @blueprint_callable
+    on StopMining():
+        is_mining = false
+    
+    on Server_Mine(x: Int, y: Int, z: Int):
+        println("Mining voxel")
+        Multicast_VoxelMined(x, y, z)
+    
+    on Multicast_VoxelMined(x: Int, y: Int, z: Int):
+        println("Voxel mined effect")
+    
+    @blueprint_callable
+    on PlaceVoxel(coord: VoxelCoord):
+        Server_Place(coord.x, coord.y, coord.z, player_component.selected_material)
+    
+    on Server_Place(x: Int, y: Int, z: Int, material_id: Int):
+        println("Placing voxel")
+        Multicast_VoxelPlaced(x, y, z, material_id)
+    
+    on Multicast_VoxelPlaced(x: Int, y: Int, z: Int, material_id: Int):
+        println("Voxel placed effect")
+
+actor VoxelStructure:
+    state structure_type: StructureType = StructureType::Tree
+    state structure_size: Vec3 = vec3(5, 5, 10)
+    state is_generated: Bool = false
+    
+    @blueprint_callable
+    on BeginPlay():
+        Server_GenerateStructure()
+    
+    on Server_GenerateStructure():
+        println("Generating structure")
+        is_generated = true
+        Multicast_StructureGenerated()
+    
+    on Multicast_StructureGenerated():
+        println("Structure generation complete")
+
+actor VoxelProjectile:
+    state explosion_radius: Float = 5.0
+    state explosion_strength: Float = 1.0
+    state has_exploded: Bool = false
+    
+    @blueprint_callable
+    on BeginPlay():
+        println("VoxelProjectile spawned")
+    
+    @blueprint_callable
+    on Hit(hit_location: Vec3):
+        if has_exploded == false:
+            Server_Explode(hit_location)
+    
+    on Server_Explode(location: Vec3):
+        has_exploded = true
+        println("Explosion at location")
+        Multicast_ExplosionEffect(location)
+    
+    on Multicast_ExplosionEffect(location: Vec3):
+        println("Playing explosion effect")
+
+// ============================================================================
+// BLUEPRINT FUNCTIONS - Voxel Operations Library
+// ============================================================================
+
+@blueprint
+fn create_voxel_world(seed: Int, chunk_size: Int, view_distance: Float) -> Bool:
+    println("Creating voxel world with seed: {seed}")
+    return true
+
+@blueprint
+fn get_voxel_at(world: VoxelWorld, coord: VoxelCoord) -> Int:
+    return 0
+
+@blueprint
+fn set_voxel_at(world: VoxelWorld, coord: VoxelCoord, material_id: Int) -> Bool:
+    return true
+
+@blueprint
+fn raycast_voxel(world: VoxelWorld, start: Vec3, direction: Vec3, max_distance: Float) -> VoxelRaycastHit:
+    var hit: VoxelRaycastHit = VoxelRaycastHit()
+    hit.hit = false
+    return hit
+
+@blueprint
+fn generate_chunk(world: VoxelWorld, chunk_coord: ChunkCoord) -> Bool:
+    println("Generating chunk at: {chunk_coord.x}, {chunk_coord.y}, {chunk_coord.z}")
+    return true
+
+@blueprint
+fn unload_chunk(world: VoxelWorld, chunk_coord: ChunkCoord) -> Bool:
+    println("Unloading chunk")
+    return true
+
+@blueprint
+fn get_chunk_state(world: VoxelWorld, chunk_coord: ChunkCoord) -> ChunkState:
+    return ChunkState::Unloaded
+
+@blueprint
+fn set_chunk_lod(chunk: VoxelChunk, lod_level: LODLevel) -> Bool:
+    return true
+
+@blueprint
+fn generate_terrain(world: VoxelWorld, biome: BiomeType, noise_params: NoiseParams) -> Bool:
+    println("Generating terrain for biome")
+    return true
+
+@blueprint
+fn apply_brush(world: VoxelWorld, center: Vec3, brush: BrushSettings, mode: EditMode) -> Int:
+    return 0
+
+@blueprint
+fn sculpt_terrain(world: VoxelWorld, center: Vec3, radius: Float, strength: Float) -> Bool:
+    return true
+
+@blueprint
+fn smooth_terrain(world: VoxelWorld, center: Vec3, radius: Float, iterations: Int) -> Bool:
+    return true
+
+@blueprint
+fn flatten_terrain(world: VoxelWorld, center: Vec3, radius: Float, target_height: Float) -> Bool:
+    return true
+
+@blueprint
+fn paint_material(world: VoxelWorld, center: Vec3, radius: Float, material_id: Int) -> Bool:
+    return true
+
+@blueprint
+fn carve_cave(world: VoxelWorld, start: Vec3, end: Vec3, radius: Float) -> Bool:
+    return true
+
+@blueprint
+fn place_structure(world: VoxelWorld, position: Vec3, structure: StructureTemplate) -> Bool:
+    return true
+
+@blueprint
+fn spawn_tree(world: VoxelWorld, position: Vec3, tree_variant: TreeVariant) -> Bool:
+    return true
+
+@blueprint
+fn calculate_biome(world: VoxelWorld, position: Vec3) -> BiomeType:
+    return BiomeType::Plains
+
+@blueprint
+fn get_height_at(world: VoxelWorld, x: Float, y: Float) -> Float:
+    return 0.0
+
+@blueprint
+fn get_density_at(world: VoxelWorld, position: Vec3) -> Float:
+    return 0.0
+
+@blueprint
+fn sample_noise_3d(position: Vec3, params: NoiseParams) -> Float:
+    return 0.0
+
+@blueprint
+fn generate_perlin_noise(position: Vec3, frequency: Float, amplitude: Float) -> Float:
+    return 0.0
+
+@blueprint
+fn generate_simplex_noise(position: Vec3, frequency: Float, seed: Int) -> Float:
+    return 0.0
+
+@blueprint
+fn generate_worley_noise(position: Vec3, frequency: Float, jitter: Float) -> Float:
+    return 0.0
+
+@blueprint
+fn generate_fractal_noise(position: Vec3, params: NoiseParams) -> Float:
+    return 0.0
+
+@blueprint
+fn blend_biomes(world: VoxelWorld, position: Vec3, blend_distance: Float) -> BiomeType:
+    return BiomeType::Plains
+
+@blueprint
+fn create_mesh_data(chunk: VoxelChunk, algorithm: MeshingAlgorithm) -> ChunkMeshData:
+    var mesh: ChunkMeshData = ChunkMeshData()
+    return mesh
+
+@blueprint
+fn optimize_mesh(mesh_data: ChunkMeshData) -> ChunkMeshData:
+    return mesh_data
+
+@blueprint
+fn calculate_normals(mesh_data: ChunkMeshData) -> Bool:
+    return true
+
+@blueprint
+fn calculate_ambient_occlusion(chunk: VoxelChunk, sample_radius: Float) -> Bool:
+    return true
+
+@blueprint
+fn update_collision(chunk: VoxelChunk) -> Bool:
+    return true
+
+@blueprint
+fn enable_physics(world: VoxelWorld, coord: VoxelCoord, physics_type: VoxelPhysicsType) -> Bool:
+    return true
+
+@blueprint
+fn simulate_falling_blocks(world: VoxelWorld, delta_time: Float) -> Int:
+    return 0
+
+@blueprint
+fn simulate_fluid(world: VoxelWorld, delta_time: Float, viscosity: Float) -> Int:
+    return 0
+
+@blueprint
+fn trigger_explosion(world: VoxelWorld, center: Vec3, radius: Float, strength: Float) -> Int:
+    return 0
+
+@blueprint
+fn propagate_light(world: VoxelWorld, source: VoxelCoord, light_level: Int) -> Bool:
+    return true
+
+@blueprint
+fn calculate_shadows(world: VoxelWorld, light_direction: Vec3) -> Bool:
+    return true
+
+@blueprint
+fn set_lighting_mode(world: VoxelWorld, mode: LightingMode) -> Bool:
+    return true
+
+@blueprint
+fn compress_chunk(chunk: VoxelChunk, mode: CompressionMode) -> Int:
+    return 0
+
+@blueprint
+fn decompress_chunk(chunk: VoxelChunk, compressed_data: Array<Int>) -> Bool:
+    return true
+
+@blueprint
+fn save_world(world: VoxelWorld, filename: String) -> Bool:
+    println("Saving world to: {filename}")
+    return true
+
+@blueprint
+fn load_world(world: VoxelWorld, filename: String) -> Bool:
+    println("Loading world from: {filename}")
+    return true
+
+@blueprint
+fn export_chunk(chunk: VoxelChunk, filename: String) -> Bool:
+    return true
+
+@blueprint
+fn import_chunk(world: VoxelWorld, filename: String, position: ChunkCoord) -> Bool:
+    return true
+
+@blueprint
+fn get_chunk_memory_usage(chunk: VoxelChunk) -> Int:
+    return 0
+
+@blueprint
+fn get_world_statistics(world: VoxelWorld) -> String:
+    return "World Statistics"
+
+@blueprint
+fn optimize_world(world: VoxelWorld) -> Bool:
+    return true
+
+@blueprint
+fn clear_world(world: VoxelWorld) -> Bool:
+    return true
+
+@blueprint
+fn world_to_voxel_coord(world_position: Vec3, chunk_size: Int) -> VoxelCoord:
+    var coord: VoxelCoord = VoxelCoord()
+    return coord
+
+@blueprint
+fn voxel_to_world_coord(voxel_coord: VoxelCoord, chunk_size: Int) -> Vec3:
+    return vec3(0, 0, 0)
+
+@blueprint
+fn chunk_to_world_coord(chunk_coord: ChunkCoord, chunk_size: Int) -> Vec3:
+    return vec3(0, 0, 0)
+
+@blueprint
+fn world_to_chunk_coord(world_position: Vec3, chunk_size: Int) -> ChunkCoord:
+    var coord: ChunkCoord = ChunkCoord()
+    return coord
+
+@blueprint
+fn is_chunk_loaded(world: VoxelWorld, chunk_coord: ChunkCoord) -> Bool:
+    return false
+
+@blueprint
+fn get_loaded_chunks(world: VoxelWorld) -> Array<ChunkCoord>:
+    // Return empty array (blueprint will populate)
+    return []
+
+@blueprint
+fn get_chunk_count(world: VoxelWorld) -> Int:
+    return 0
+
+@blueprint
+fn get_voxel_count(chunk: VoxelChunk) -> Int:
+    return 0
+
+@blueprint
+fn get_material_info(material_id: Int) -> VoxelMaterialData:
+    var data: VoxelMaterialData = VoxelMaterialData()
+    return data
+
+@blueprint
+fn create_custom_material(properties: VoxelMaterialProperties) -> Int:
+    return 0
+
+@blueprint
+fn register_material(material_data: VoxelMaterialData) -> Bool:
+    return true
+
+@blueprint
+fn get_biome_info(biome_type: BiomeType) -> BiomeDefinition:
+    var biome: BiomeDefinition = BiomeDefinition()
+    return biome
+
+@blueprint
+fn create_custom_biome(params: BiomeGenerationParams) -> Int:
+    return 0
+
+@blueprint
+fn register_biome(biome_def: BiomeDefinition) -> Bool:
+    return true
+
+// ============================================================================
+// SLATE WIDGETS - Custom Editor UI
+// ============================================================================
+
+@slate
+struct VoxelToolPalette:
+    @property
+    selected_tool: EditMode
+    
+    @property
+    tool_icons: Array<String>
+    
+    @vertical_box
+    fn build():
+        Label(text, "Voxel Tools")
+        Spacer(height, 8.0)
+        ToolRow1()
+        Spacer(height, 4.0)
+        ToolRow2()
+        Spacer(height, 4.0)
+        ToolRow3()
+    
+    @horizontal_box
+    fn ToolRow1():
+        Button(text, "Sculpt", tooltip, "Sculpt tool", width, 80.0)
+        Spacer(width, 4.0)
+        Button(text, "Smooth", tooltip, "Smooth tool", width, 80.0)
+        Spacer(width, 4.0)
+        Button(text, "Flatten", tooltip, "Flatten tool", width, 80.0)
+    
+    @horizontal_box
+    fn ToolRow2():
+        Button(text, "Paint", tooltip, "Paint tool", width, 80.0)
+        Spacer(width, 4.0)
+        Button(text, "Erosion", tooltip, "Erosion tool", width, 80.0)
+        Spacer(width, 4.0)
+        Button(text, "Noise", tooltip, "Noise tool", width, 80.0)
+    
+    @horizontal_box
+    fn ToolRow3():
+        Button(text, "Stamp", tooltip, "Stamp tool", width, 80.0)
+        Spacer(width, 4.0)
+        Button(text, "Cave", tooltip, "Cave tool", width, 80.0)
+        Spacer(width, 4.0)
+        Button(text, "Carve", tooltip, "Carve tool", width, 80.0)
+
+@slate
+struct BrushSettingsPanel:
+    @property
+    brush_size: Float
+    
+    @property
+    brush_strength: Float
+    
+    @property
+    brush_falloff: Float
+    
+    @property
+    brush_shape: BrushShape
+    
+    @vertical_box
+    fn build():
+        Label(text, "Brush Settings")
+        Spacer(height, 8.0)
+        SizeRow()
+        Spacer(height, 4.0)
+        StrengthRow()
+        Spacer(height, 4.0)
+        FalloffRow()
+        Spacer(height, 4.0)
+        ShapeRow()
+        Spacer(height, 8.0)
+        CheckBox(label, "Symmetry X", tooltip, "Enable X-axis symmetry")
+        CheckBox(label, "Symmetry Y", tooltip, "Enable Y-axis symmetry")
+        CheckBox(label, "Symmetry Z", tooltip, "Enable Z-axis symmetry")
+    
+    @horizontal_box
+    fn SizeRow():
+        Label(text, "Size:")
+        Spacer(width, 8.0)
+        Slider(label, "Size", min, 1.0, max, 100.0, tooltip, "Brush size")
+    
+    @horizontal_box
+    fn StrengthRow():
+        Label(text, "Strength:")
+        Spacer(width, 8.0)
+        Slider(label, "Strength", min, 0.0, max, 1.0, tooltip, "Brush strength")
+    
+    @horizontal_box
+    fn FalloffRow():
+        Label(text, "Falloff:")
+        Spacer(width, 8.0)
+        Slider(label, "Falloff", min, 0.0, max, 1.0, tooltip, "Brush falloff")
+    
+    @horizontal_box
+    fn ShapeRow():
+        Label(text, "Shape:")
+        Spacer(width, 8.0)
+        ComboBox(width, 160.0, tooltip, "Brush shape")
+
+@slate
+struct MaterialPicker:
+    @property
+    selected_material: Int
+    
+    @property
+    material_count: Int
+    
+    @vertical_box
+    fn build():
+        Label(text, "Material Picker")
+        Spacer(height, 8.0)
+        MaterialGrid()
+        Spacer(height, 8.0)
+        Label(text, "Selected Material")
+    
+    @scroll_box
+    fn MaterialGrid():
+        MaterialRow1()
+        Spacer(height, 4.0)
+        MaterialRow2()
+    
+    @horizontal_box
+    fn MaterialRow1():
+        Button(text, "Stone", tooltip, "Stone material", width, 70.0)
+        Spacer(width, 4.0)
+        Button(text, "Dirt", tooltip, "Dirt material", width, 70.0)
+        Spacer(width, 4.0)
+        Button(text, "Grass", tooltip, "Grass material", width, 70.0)
+        Spacer(width, 4.0)
+        Button(text, "Sand", tooltip, "Sand material", width, 70.0)
+        Spacer(width, 4.0)
+        Button(text, "Water", tooltip, "Water material", width, 70.0)
+    
+    @horizontal_box
+    fn MaterialRow2():
+        Button(text, "Lava", tooltip, "Lava material", width, 70.0)
+        Spacer(width, 4.0)
+        Button(text, "Wood", tooltip, "Wood material", width, 70.0)
+        Spacer(width, 4.0)
+        Button(text, "Leaves", tooltip, "Leaves material", width, 70.0)
+        Spacer(width, 4.0)
+        Button(text, "Snow", tooltip, "Snow material", width, 70.0)
+        Spacer(width, 4.0)
+        Button(text, "Ice", tooltip, "Ice material", width, 70.0)
+
+@slate
+struct BiomePainter:
+    @property
+    selected_biome: BiomeType
+    
+    @property
+    paint_radius: Float
+    
+    @vertical_box
+    fn build():
+        Label(text, "Biome Painter")
+        Spacer(height, 8.0)
+        ComboBox(width, 160.0, tooltip, "Select biome type")
+        Spacer(height, 8.0)
+        RadiusRow()
+        Spacer(height, 8.0)
+        Button(text, "Apply Biome", tooltip, "Apply selected biome", width, 120.0)
+        Spacer(height, 8.0)
+        Label(text, "Selected Biome")
+    
+    @horizontal_box
+    fn RadiusRow():
+        Label(text, "Radius:")
+        Spacer(width, 8.0)
+        Slider(label, "Radius", min, 10.0, max, 500.0, tooltip, "Paint radius")
+
+@slate
+struct NoisePreview:
+    @property
+    noise_params: NoiseParams
+    
+    @property
+    preview_size: Int
+    
+    @vertical_box
+    fn build():
+        Label(text, "Noise Preview")
+        Spacer(height, 8.0)
+        FrequencyRow()
+        Spacer(height, 4.0)
+        AmplitudeRow()
+        Spacer(height, 4.0)
+        OctavesRow()
+        Spacer(height, 8.0)
+        Button(text, "Regenerate", tooltip, "Regenerate noise preview", width, 120.0)
+    
+    @horizontal_box
+    fn FrequencyRow():
+        Label(text, "Frequency:")
+        Spacer(width, 8.0)
+        Slider(label, "Frequency", min, 0.001, max, 1.0, tooltip, "Noise frequency")
+    
+    @horizontal_box
+    fn AmplitudeRow():
+        Label(text, "Amplitude:")
+        Spacer(width, 8.0)
+        Slider(label, "Amplitude", min, 0.1, max, 10.0, tooltip, "Noise amplitude")
+    
+    @horizontal_box
+    fn OctavesRow():
+        Label(text, "Octaves:")
+        Spacer(width, 8.0)
+        Slider(label, "Octaves", min, 1.0, max, 8.0, tooltip, "Noise octaves")
+
+@slate
+struct ChunkDebugger:
+    @property
+    chunk_count: Int
+    
+    @property
+    active_chunks: Int
+    
+    @property
+    memory_usage: Int
+    
+    @vertical_box
+    fn build():
+        Label(text, "Chunk Debugger")
+        Spacer(height, 8.0)
+        ChunkCountRow()
+        Spacer(height, 4.0)
+        ActiveChunksRow()
+        Spacer(height, 4.0)
+        MemoryRow()
+        Spacer(height, 8.0)
+        Button(text, "Refresh", tooltip, "Refresh chunk debugger", width, 100.0)
+        Spacer(height, 8.0)
+        ChunkList()
+    
+    @horizontal_box
+    fn ChunkCountRow():
+        Label(text, "Total Chunks:")
+        Spacer(width, 8.0)
+        Label(text, "0")
+    
+    @horizontal_box
+    fn ActiveChunksRow():
+        Label(text, "Active Chunks:")
+        Spacer(width, 8.0)
+        Label(text, "0")
+    
+    @horizontal_box
+    fn MemoryRow():
+        Label(text, "Memory Usage:")
+        Spacer(width, 8.0)
+        Label(text, "0 MB")
+    
+    @scroll_box
+    fn ChunkList():
+        Label(text, "Chunk List...")
+
+@slate
+struct PerformanceMonitor:
+    @property
+    fps: Float
+    
+    @property
+    frame_time: Float
+    
+    @property
+    draw_calls: Int
+    
+    @vertical_box
+    fn build():
+        Label(text, "Performance Monitor")
+        Spacer(height, 8.0)
+        FpsRow()
+        Spacer(height, 4.0)
+        FrameTimeRow()
+        Spacer(height, 4.0)
+        DrawCallsRow()
+        Spacer(height, 8.0)
+        ProgressBar(value, 0.5, width, 200.0, height, 20.0, tooltip, "FPS indicator")
+    
+    @horizontal_box
+    fn FpsRow():
+        Label(text, "FPS:")
+        Spacer(width, 8.0)
+        Label(text, "60")
+    
+    @horizontal_box
+    fn FrameTimeRow():
+        Label(text, "Frame Time:")
+        Spacer(width, 8.0)
+        Label(text, "16.6 ms")
+    
+    @horizontal_box
+    fn DrawCallsRow():
+        Label(text, "Draw Calls:")
+        Spacer(width, 8.0)
+        Label(text, "0")
+
+@slate
+struct GenerationSettings:
+    @property
+    world_seed: Int
+    
+    @property
+    chunk_size: Int
+    
+    @property
+    view_distance: Float
+    
+    @vertical_box
+    fn build():
+        Label(text, "Generation Settings")
+        Spacer(height, 8.0)
+        SeedRow()
+        Spacer(height, 4.0)
+        ChunkSizeRow()
+        Spacer(height, 4.0)
+        ViewDistanceRow()
+        Spacer(height, 8.0)
+        ActionButtons()
+    
+    @horizontal_box
+    fn SeedRow():
+        Label(text, "Seed:")
+        Spacer(width, 8.0)
+        TextInput(label, "Seed", tooltip, "World seed")
+    
+    @horizontal_box
+    fn ChunkSizeRow():
+        Label(text, "Chunk Size:")
+        Spacer(width, 8.0)
+        Slider(label, "Chunk Size", min, 16.0, max, 64.0, tooltip, "Chunk size")
+    
+    @horizontal_box
+    fn ViewDistanceRow():
+        Label(text, "View Distance:")
+        Spacer(width, 8.0)
+        Slider(label, "View Distance", min, 100.0, max, 5000.0, tooltip, "View distance")
+    
+    @horizontal_box
+    fn ActionButtons():
+        Button(text, "Generate World", tooltip, "Generate new world", width, 130.0)
+        Spacer(width, 8.0)
+        Button(text, "Clear World", tooltip, "Clear world", width, 110.0)
+
+@slate
+struct StructureLibrary:
+    @property
+    selected_structure: Int
+    
+    @property
+    structure_names: Array<String>
+    
+    @vertical_box
+    fn build():
+        Label(text, "Structure Library")
+        Spacer(height, 8.0)
+        StructureList()
+        Spacer(height, 8.0)
+        Button(text, "Place Structure", tooltip, "Place selected structure", width, 130.0)
+    
+    @scroll_box
+    fn StructureList():
+        Button(text, "Oak Tree", tooltip, "Oak tree structure", width, 150.0)
+        Spacer(height, 4.0)
+        Button(text, "Pine Tree", tooltip, "Pine tree structure", width, 150.0)
+        Spacer(height, 4.0)
+        Button(text, "Rock Formation", tooltip, "Rock formation structure", width, 150.0)
+        Spacer(height, 4.0)
+        Button(text, "Cave Entrance", tooltip, "Cave entrance structure", width, 150.0)
+        Spacer(height, 4.0)
+        Button(text, "Ruin", tooltip, "Ruin structure", width, 150.0)
+        Spacer(height, 4.0)
+        Button(text, "Village House", tooltip, "Village house structure", width, 150.0)
+
+@slate
+struct VoxelInspector:
+    @property
+    selected_voxel: VoxelCoord
+    
+    @property
+    voxel_type: VoxelType
+    
+    @property
+    material_id: Int
+    
+    @vertical_box
+    fn build():
+        Label(text, "Voxel Inspector")
+        Spacer(height, 8.0)
+        PositionRow()
+        Spacer(height, 4.0)
+        TypeRow()
+        Spacer(height, 4.0)
+        MaterialRow()
+        Spacer(height, 8.0)
+        ActionButtons()
+    
+    @horizontal_box
+    fn PositionRow():
+        Label(text, "Position:")
+        Spacer(width, 8.0)
+        Label(text, "0, 0, 0")
+    
+    @horizontal_box
+    fn TypeRow():
+        Label(text, "Type:")
+        Spacer(width, 8.0)
+        Label(text, "Air")
+    
+    @horizontal_box
+    fn MaterialRow():
+        Label(text, "Material:")
+        Spacer(width, 8.0)
+        Label(text, "0")
+    
+    @horizontal_box
+    fn ActionButtons():
+        Button(text, "Delete Voxel", tooltip, "Delete selected voxel", width, 110.0)
+        Spacer(width, 8.0)
+        Button(text, "Copy Properties", tooltip, "Copy voxel properties", width, 130.0)
+
+@slate
+struct WorldSettings:
+    @property
+    enable_physics: Bool
+    
+    @property
+    enable_lighting: Bool
+    
+    @property
+    enable_shadows: Bool
+    
+    @vertical_box
+    fn build():
+        Label(text, "World Settings")
+        Spacer(height, 8.0)
+        CheckBox(label, "Enable Physics", tooltip, "Enable voxel physics")
+        Spacer(height, 4.0)
+        CheckBox(label, "Enable Lighting", tooltip, "Enable voxel lighting")
+        Spacer(height, 4.0)
+        CheckBox(label, "Enable Shadows", tooltip, "Enable voxel shadows")
+        Spacer(height, 8.0)
+        Divider()
+        Spacer(height, 8.0)
+        ActionButtons()
+    
+    @horizontal_box
+    fn ActionButtons():
+        Button(text, "Save Settings", tooltip, "Save world settings", width, 120.0)
+        Spacer(width, 8.0)
+        Button(text, "Reset to Defaults", tooltip, "Reset to default settings", width, 140.0)
+
+@slate
+struct ExportImporter:
+    @property
+    filename: String
+    
+    @vertical_box
+    fn build():
+        Label(text, "Export/Import")
+        Spacer(height, 8.0)
+        FilenameRow()
+        Spacer(height, 8.0)
+        WorldButtons()
+        Spacer(height, 4.0)
+        ChunkButtons()
+        Spacer(height, 8.0)
+        Label(text, "Status: Ready")
+    
+    @horizontal_box
+    fn FilenameRow():
+        Label(text, "Filename:")
+        Spacer(width, 8.0)
+        TextInput(label, "Filename", tooltip, "File name for export/import")
+    
+    @horizontal_box
+    fn WorldButtons():
+        Button(text, "Export World", tooltip, "Export world to file", width, 120.0)
+        Spacer(width, 8.0)
+        Button(text, "Import World", tooltip, "Import world from file", width, 120.0)
+    
+    @horizontal_box
+    fn ChunkButtons():
+        Button(text, "Export Chunk", tooltip, "Export chunk to file", width, 120.0)
+        Spacer(width, 8.0)
+        Button(text, "Import Chunk", tooltip, "Import chunk from file", width, 120.0)
+
+@slate
+struct TerrainPresets:
+    @property
+    selected_preset: Int
+    
+    @vertical_box
+    fn build():
+        Label(text, "Terrain Presets")
+        Spacer(height, 8.0)
+        PresetList()
+        Spacer(height, 8.0)
+        Button(text, "Apply Preset", tooltip, "Apply selected preset", width, 120.0)
+    
+    @vertical_box
+    fn PresetList():
+        Button(text, "Flat Plains", tooltip, "Flat plains terrain", width, 150.0)
+        Spacer(height, 4.0)
+        Button(text, "Rolling Hills", tooltip, "Rolling hills terrain", width, 150.0)
+        Spacer(height, 4.0)
+        Button(text, "Mountains", tooltip, "Mountain terrain", width, 150.0)
+        Spacer(height, 4.0)
+        Button(text, "Islands", tooltip, "Island terrain", width, 150.0)
+        Spacer(height, 4.0)
+        Button(text, "Canyon", tooltip, "Canyon terrain", width, 150.0)
+        Spacer(height, 4.0)
+        Button(text, "Cave System", tooltip, "Cave system terrain", width, 150.0)
+
+// ============================================================================
+// DETAILS PANELS - Property Customization
+// ============================================================================
+
+@details
+struct VoxelWorldDetails:
+    @slider(min: 0.0, max: 10000.0)
+    view_distance: Float
+    
+    @slider(min: 16.0, max: 64.0)
+    chunk_size: Float
+    
+    @color_picker
+    fog_color: Vec3
+    
+    @button(label: "Regenerate World")
+    fn on_regenerate():
+        println("Regenerating world")
+    
+    @button(label: "Optimize Memory")
+    fn on_optimize():
+        println("Optimizing memory")
+
+@details
+struct VoxelChunkDetails:
+    @slider(min: 0.0, max: 4.0)
+    lod_level: Float
+    
+    @button(label: "Rebuild Mesh")
+    fn on_rebuild():
+        println("Rebuilding chunk mesh")
+    
+    @button(label: "Clear Chunk")
+    fn on_clear():
+        println("Clearing chunk")
+
+@details
+struct VoxelMaterialDetails:
+    @color_picker
+    albedo_color: Vec3
+    
+    @slider(min: 0.0, max: 1.0)
+    roughness: Float
+    
+    @slider(min: 0.0, max: 1.0)
+    metallic: Float
+    
+    @color_picker
+    emissive_color: Vec3
+    
+    @slider(min: 0.0, max: 10.0)
+    emissive_intensity: Float
+    
+    @button(label: "Apply Material")
+    fn on_apply():
+        println("Applying material")
+
+@details
+struct BiomeDetails:
+    @slider(min: -1.0, max: 1.0)
+    temperature: Float
+    
+    @slider(min: 0.0, max: 1.0)
+    humidity: Float
+    
+    @slider(min: 0.0, max: 100.0)
+    height_scale: Float
+    
+    @slider(min: 0.001, max: 1.0)
+    noise_frequency: Float
+    
+    @button(label: "Preview Biome")
+    fn on_preview():
+        println("Previewing biome")
+
+@details
+struct BrushDetails:
+    @slider(min: 1.0, max: 100.0)
+    size: Float
+    
+    @slider(min: 0.0, max: 1.0)
+    strength: Float
+    
+    @slider(min: 0.0, max: 1.0)
+    falloff: Float
+    
+    @button(label: "Reset Brush")
+    fn on_reset():
+        println("Resetting brush")
+
+// ============================================================================
+// VIEWPORTS - 3D Preview Windows
+// ============================================================================
+
+@viewport
+struct VoxelEditorViewport:
+    @scene_actor
+    world_preview: VoxelWorld
+    
+    @camera
+    editor_camera: CameraComponent
+    
+    fn on_viewport_tick(delta: Float):
+        println("Viewport tick")
+    
+    fn on_mouse_move(x: Float, y: Float):
+        println("Mouse moved")
+    
+    fn on_mouse_click(button: Int):
+        println("Mouse clicked")
+
+@viewport
+struct NoisePreviewViewport:
+    @scene_actor
+    noise_plane: Actor
+    
+    @camera
+    preview_camera: CameraComponent
+    
+    fn on_viewport_tick(delta: Float):
+        println("Noise preview tick")
+
+@viewport
+struct StructurePreviewViewport:
+    @scene_actor
+    structure_preview: VoxelStructure
+    
+    @camera
+    preview_camera: CameraComponent
+    
+    fn on_viewport_tick(delta: Float):
+        println("Structure preview tick")
+
+// ============================================================================
+// TOOLBARS - Editor Tool Actions
+// ============================================================================
+
+@toolbar
+struct VoxelEditingToolbar:
+    @button(icon: "Icons.Sculpt", tooltip: "Sculpt Tool")
+    fn on_sculpt():
+        println("Sculpt tool activated")
+    
+    @button(icon: "Icons.Smooth", tooltip: "Smooth Tool")
+    fn on_smooth():
+        println("Smooth tool activated")
+    
+    @button(icon: "Icons.Flatten", tooltip: "Flatten Tool")
+    fn on_flatten():
+        println("Flatten tool activated")
+    
+    @separator
+    
+    @button(icon: "Icons.Paint", tooltip: "Paint Tool")
+    fn on_paint():
+        println("Paint tool activated")
+    
+    @button(icon: "Icons.Erosion", tooltip: "Erosion Tool")
+    fn on_erosion():
+        println("Erosion tool activated")
+    
+    @separator
+    
+    @toggle(label: "Show Grid")
+    fn on_toggle_grid(enabled: Bool):
+        println("Grid: {enabled}")
+    
+    @toggle(label: "Show Wireframe")
+    fn on_toggle_wireframe(enabled: Bool):
+        println("Wireframe: {enabled}")
+
+@toolbar
+struct VoxelGenerationToolbar:
+    @button(icon: "Icons.Generate", tooltip: "Generate Terrain")
+    fn on_generate():
+        println("Generating terrain")
+    
+    @button(icon: "Icons.Clear", tooltip: "Clear World")
+    fn on_clear():
+        println("Clearing world")
+    
+    @separator
+    
+    @button(icon: "Icons.Export", tooltip: "Export World")
+    fn on_export():
+        println("Exporting world")
+    
+    @button(icon: "Icons.Import", tooltip: "Import World")
+    fn on_import():
+        println("Importing world")
+    
+    @separator
+    
+    @dropdown(label: "Quality")
+    fn on_quality_changed(value: String):
+        println("Quality: {value}")
+
+// ============================================================================
+// ASSET EDITOR - Complete Voxel Editing Suite
+// ============================================================================
+
+@asset_editor
+struct VoxelForgeAssetEditor:
+    @viewport
+    main_viewport: VoxelEditorViewport
+    
+    @details
+    world_properties: VoxelWorldDetails
+    
+    @details
+    material_properties: VoxelMaterialDetails
+    
+    @toolbar
+    editing_tools: VoxelEditingToolbar
+    
+    @toolbar
+    generation_tools: VoxelGenerationToolbar
+    
+    fn on_asset_opened(asset: VoxelWorld):
+        println("VoxelForge asset editor opened")
+    
+    fn on_asset_saved():
+        println("VoxelForge asset saved")
+    
+    fn on_asset_closed():
+        println("VoxelForge asset editor closed")
+
+// ============================================================================
+// EDITOR MODULE - VoxelForge Editor Integration
+// ============================================================================
+
+@editor_module
+struct VoxelForgeEditorModule:
+    @menu_entry(path: "Window/VoxelForge", label: "Open VoxelForge Editor")
+    fn on_open_editor():
+        println("Opening VoxelForge editor window")
+    
+    @menu_entry(path: "Tools/VoxelForge/Generate Terrain", label: "Generate Terrain")
+    fn on_generate_terrain():
+        println("Generating terrain from menu")
+    
+    @menu_entry(path: "Tools/VoxelForge/Import World", label: "Import World")
+    fn on_import_world():
+        println("Importing world from menu")
+    
+    @menu_entry(path: "Tools/VoxelForge/Export World", label: "Export World")
+    fn on_export_world():
+        println("Exporting world from menu")
+    
+    @toolbar_button(section: "Content", icon: "Icons.VoxelForge")
+    fn on_quick_create():
+        println("Quick creating voxel world")
+    
+    @toolbar_button(section: "Tools", icon: "Icons.Terrain")
+    fn on_terrain_tools():
+        println("Opening terrain tools")
+
+// ============================================================================
+// END OF VOXELFORGE PRO
+// ============================================================================

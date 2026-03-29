@@ -1,0 +1,278 @@
+// FluidDynamicsPro - Core Data Structures
+// Enums, structs, and data types for fluid simulation
+
+enum FluidType:
+    Water
+    Oil
+    Lava
+    Gas
+    Blood
+    Honey
+    Custom
+
+enum BoundaryCondition:
+    Solid
+    Open
+    Periodic
+    Sticky
+    Slip
+    NoSlip
+
+enum SolverType:
+    SPH
+    FLIP
+    PIC
+    APIC
+    Hybrid
+
+enum ParticleState:
+    Active
+    Inactive
+    Sleeping
+    Boundary
+
+enum FluidQuality:
+    Low
+    Medium
+    High
+    Ultra
+    Cinematic
+
+enum SurfaceReconstructionMethod:
+    MarchingCubes
+    ScreenSpace
+    Metaballs
+    AnisotropicKernel
+
+enum RenderMode:
+    Particles
+    Surface
+    Hybrid
+    Wireframe
+    Debug
+
+// Core particle data structure
+struct FluidParticle:
+    position: Vec3
+    velocity: Vec3
+    acceleration: Vec3
+    density: Float
+    pressure: Float
+    mass: Float
+    viscosity: Float
+    temperature: Float
+    color: Vec4
+    lifetime: Float
+    state: ParticleState
+    grid_index: Int
+
+// Grid cell for spatial hashing
+struct FluidGridCell:
+    particle_indices: Array<Int>
+    density: Float
+    velocity: Vec3
+    pressure: Float
+    temperature: Float
+    cell_index: Vec3
+
+// Spatial grid for neighbor search
+struct FluidGrid:
+    cell_size: Float
+    grid_dimensions: Vec3
+    cell_count: Int
+    cells: Array<FluidGridCell>
+    min_bounds: Vec3
+    max_bounds: Vec3
+
+// Fluid simulation parameters
+struct FluidParams:
+    fluid_type: FluidType
+    solver_type: SolverType
+    particle_count: Int
+    particle_radius: Float
+    rest_density: Float
+    gas_constant: Float
+    viscosity: Float
+    surface_tension: Float
+    gravity: Vec3
+    time_step: Float
+    substeps: Int
+    smoothing_radius: Float
+    boundary_condition: BoundaryCondition
+    quality: FluidQuality
+    enable_vorticity: Bool
+    vorticity_strength: Float
+    enable_surface_tension: Bool
+    enable_buoyancy: Bool
+    buoyancy_strength: Float
+    temperature_diffusion: Float
+    color_diffusion: Float
+
+// SPH kernel weights
+struct SPHKernel:
+    poly6_constant: Float
+    spiky_constant: Float
+    viscosity_constant: Float
+    smoothing_radius: Float
+    smoothing_radius_sq: Float
+
+// FLIP/PIC solver state
+struct FLIPState:
+    pic_ratio: Float
+    flip_ratio: Float
+    grid_velocity: Array<Vec3>
+    grid_velocity_old: Array<Vec3>
+    grid_weights: Array<Float>
+
+// Surface mesh for rendering
+struct SurfaceMesh:
+    vertices: Array<Vec3>
+    normals: Array<Vec3>
+    uvs: Array<Vec2>
+    indices: Array<Int>
+    vertex_count: Int
+    triangle_count: Int
+    is_valid: Bool
+
+// Marching cubes configuration
+struct MarchingCubesConfig:
+    grid_resolution: Vec3
+    iso_value: Float
+    cell_size: Float
+    bounds_min: Vec3
+    bounds_max: Vec3
+    enable_smoothing: Bool
+    smoothing_iterations: Int
+
+// Fluid emitter configuration
+struct EmitterConfig:
+    emit_rate: Float
+    emit_velocity: Vec3
+    emit_spread: Float
+    emit_lifetime: Float
+    emit_shape: EmitterShape
+    emit_radius: Float
+    emit_box_extents: Vec3
+    emit_color: Vec4
+    emit_temperature: Float
+
+enum EmitterShape:
+    Point
+    Sphere
+    Box
+    Cone
+    Cylinder
+    Mesh
+
+// Fluid collider data
+struct FluidCollider:
+    collider_type: ColliderType
+    position: Vec3
+    rotation: Vec3
+    scale: Vec3
+    velocity: Vec3
+    friction: Float
+    restitution: Float
+    is_static: Bool
+
+enum ColliderType:
+    Sphere
+    Box
+    Capsule
+    Mesh
+    Plane
+
+// Pressure solver configuration
+struct PressureSolverConfig:
+    max_iterations: Int
+    tolerance: Float
+    relaxation_factor: Float
+    use_jacobi: Bool
+    use_gauss_seidel: Bool
+
+// Vorticity confinement parameters
+struct VorticityParams:
+    epsilon: Float
+    strength: Float
+    enable_stretching: Bool
+    enable_tilting: Bool
+
+// Fluid rendering parameters
+struct FluidRenderParams:
+    render_mode: RenderMode
+    particle_size: Float
+    surface_smoothness: Float
+    refraction_index: Float
+    absorption_color: Vec3
+    scatter_color: Vec3
+    foam_threshold: Float
+    foam_amount: Float
+    enable_caustics: Bool
+    caustics_intensity: Float
+    enable_subsurface: Bool
+    subsurface_radius: Float
+
+// Performance statistics
+struct FluidStats:
+    particle_count: Int
+    active_particles: Int
+    grid_cells: Int
+    simulation_time_ms: Float
+    render_time_ms: Float
+    memory_usage_mb: Float
+    fps: Float
+    substeps_completed: Int
+
+// Fluid force field
+struct FluidForceField:
+    position: Vec3
+    radius: Float
+    strength: Float
+    force_type: ForceFieldType
+    falloff: Float
+    is_active: Bool
+
+enum ForceFieldType:
+    Attract
+    Repel
+    Vortex
+    Directional
+    Turbulence
+    Drag
+
+// Neighbor search result
+struct NeighborData:
+    neighbor_index: Int
+    distance: Float
+    direction: Vec3
+    kernel_weight: Float
+
+// Fluid boundary data
+struct BoundaryData:
+    boundary_particles: Array<FluidParticle>
+    boundary_normals: Array<Vec3>
+    boundary_count: Int
+    friction_coefficient: Float
+    restitution_coefficient: Float
+
+// Async task result for surface reconstruction
+struct SurfaceReconstructionResult:
+    mesh: SurfaceMesh
+    success: Bool
+    time_taken_ms: Float
+    vertex_count: Int
+    triangle_count: Int
+
+// Fluid simulation state for replication
+@replicated
+struct FluidSimulationState:
+    @replicated
+    is_simulating: Bool
+    @replicated
+    current_time: Float
+    @replicated
+    particle_count: Int
+    @replicated
+    bounds_min: Vec3
+    @replicated
+    bounds_max: Vec3

@@ -20,7 +20,7 @@ The scaffold is split into seven durable ownership layers:
 `KAIN.fabric.toml` is the broad bootstrap and reporting graph that converges `python`, `kain`, `c_abi`, `rust_crate`, `gpu_compute`, and node-bridged publishing through Kain.
 
 4. Intent graphs
-`fabric/intents/*.fabric.toml` splits interactive or lane-specific work into reusable graphs for bootstrap, ingest, sculpt, topology, rig, sim, material, render, compositor, publish, and tensor work. The material graph now runs as authored contract projection -> SVG mask projection -> GPU preview -> packed export projection.
+`fabric/intents/*.fabric.toml` splits interactive or lane-specific work into reusable graphs for bootstrap, ingest, sculpt, topology, rig, sim, material, render, compositor, publish, and tensor work. The material graph now runs as authored contract projection -> SVG mask projection -> GPU preview -> packed export projection, and the render pathtrace graph now emits both a pathtrace report and a temporal accumulation report so the lane can grow toward a real progressive-preview spine.
 
 5. Runtime seam modules
 `src/*.kn`, `native/*`, `local_crate/*`, `shaders/*`, and `scripts/*` provide the narrow per-runtime seams behind the Fabric manifests.
@@ -133,7 +133,8 @@ The scaffold is split into seven durable ownership layers:
 - The sculpt and topology seam modules should be read as resource-contract adapters, not as mesh owners. They are expected to operate on active edit targets identified by resource id and hand the mutated or rebuilt mesh back through the app-owned resource contract.
 - The shader catalog is intentionally broader than the currently scheduled Fabric steps. Some shader files are staged for near-term lane growth rather than being scheduled in every graph immediately.
 - The runtime pack registry is broad on purpose, but it is still manifest-owned metadata until downstream pack loaders and launchers consume it directly.
-- The next clean extension seam is an explicit runtime-lane matrix registry so the app can declare which semantic lanes are owned by Kain, Fabric, GPU, C ABI, Rust, Python, or external Node bridges without leaving that mapping implicit in prose.
+- The explicit runtime-lane matrix now lives in `config/runtime_lanes.json`, so the app can declare which semantic lanes are owned by Kain, Fabric, GPU, C ABI, Rust, Python, or external Node bridges without leaving that mapping implicit in prose.
+- The next clean extension seam is to keep that registry flowing into live chrome, shell materialization, and bridge consumers as more runtime surfaces grow.
 
 ## Common Commands
 

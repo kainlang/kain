@@ -1,0 +1,161 @@
+# ============================================================================
+# METAFITTER - Subsystems
+# ============================================================================
+# Global subsystem for MetaFitter state management
+# - MetaFitterSubsystem: World subsystem for preset registry, batch queue,
+#   global settings, and cross-actor coordination
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: METAFITTER WORLD SUBSYSTEM
+# ============================================================================
+
+@subsystem
+@tick
+struct MetaFitterSubsystem:
+    # ======= GLOBAL STATE =======
+
+    # Whether the subsystem has been initialized with default presets
+    initialized: Bool
+
+    # Global settings
+    default_fit_mode: FitMode
+    default_physics_preset: PhysicsPreset
+    default_auto_detect: Bool
+    default_preserve_wrinkles: Bool
+    default_enable_physics: Bool
+    default_enable_hidden_face_map: Bool
+
+    # ======= BATCH PROCESSING STATE =======
+
+    # Batch queue management
+    batch_active: Bool
+    batch_total_jobs: Int
+    batch_completed_jobs: Int
+    batch_failed_jobs: Int
+    batch_current_index: Int
+    batch_progress: Float
+
+    # Batch timing
+    batch_start_time: Float
+    batch_estimated_remaining: Float
+
+    # ======= STATISTICS =======
+
+    # Lifetime stats
+    total_conforms_attempted: Int
+    total_conforms_succeeded: Int
+    total_conforms_failed: Int
+    total_vertices_processed: Int
+    average_conform_time_ms: Float
+
+    # ======= METHODS =======
+
+    @blueprint_callable
+    fn initialize_defaults():
+        if initialized:
+            return
+        default_fit_mode = FitMode::Regular
+        default_physics_preset = PhysicsPreset::Medium
+        default_auto_detect = true
+        default_preserve_wrinkles = true
+        default_enable_physics = true
+        default_enable_hidden_face_map = true
+        batch_active = false
+        batch_total_jobs = 0
+        batch_completed_jobs = 0
+        batch_failed_jobs = 0
+        batch_current_index = 0
+        batch_progress = 0.0
+        total_conforms_attempted = 0
+        total_conforms_succeeded = 0
+        total_conforms_failed = 0
+        total_vertices_processed = 0
+        average_conform_time_ms = 0.0
+        initialized = true
+        println("MetaFitter Subsystem: Initialized with defaults")
+
+    @blueprint_callable
+    fn create_settings_from_defaults() -> ConformSettings:
+        let settings = create_default_conform_settings()
+        settings.fit_mode = default_fit_mode
+        settings.physics_preset = default_physics_preset
+        settings.auto_detect_type = default_auto_detect
+        settings.preserve_wrinkles = default_preserve_wrinkles
+        settings.enable_physics = default_enable_physics
+        settings.enable_hidden_face_map = default_enable_hidden_face_map
+        return settings
+
+    @blueprint_callable
+    fn record_conform_result(success: Bool, vertex_count: Int, elapsed_ms: Float):
+        total_conforms_attempted = total_conforms_attempted + 1
+        if success:
+            total_conforms_succeeded = total_conforms_succeeded + 1
+            total_vertices_processed = total_vertices_processed + vertex_count
+        else:
+            total_conforms_failed = total_conforms_failed + 1
+
+        # Running average of conform time
+        if total_conforms_succeeded > 0:
+            let prev_total = average_conform_time_ms * to_float(total_conforms_succeeded - 1)
+            average_conform_time_ms = (prev_total + elapsed_ms) / to_float(total_conforms_succeeded)
+
+    @blueprint_callable
+    fn get_success_rate() -> Float:
+        if total_conforms_attempted == 0:
+            return 0.0
+        return to_float(total_conforms_succeeded) / to_float(total_conforms_attempted)
+
+    # ======= BATCH QUEUE MANAGEMENT =======
+
+    @blueprint_callable
+    fn start_batch(total_jobs: Int):
+        batch_active = true
+        batch_total_jobs = total_jobs
+        batch_completed_jobs = 0
+        batch_failed_jobs = 0
+        batch_current_index = 0
+        batch_progress = 0.0
+        println("MetaFitter Batch: Starting " + int_to_string(total_jobs) + " jobs")
+
+    @blueprint_callable
+    fn advance_batch(success: Bool):
+        if !batch_active:
+            return
+
+        if success:
+            batch_completed_jobs = batch_completed_jobs + 1
+        else:
+            batch_failed_jobs = batch_failed_jobs + 1
+
+        batch_current_index = batch_current_index + 1
+
+        if batch_total_jobs > 0:
+            batch_progress = to_float(batch_current_index) / to_float(batch_total_jobs)
+
+        if batch_current_index >= batch_total_jobs:
+            batch_active = false
+            println("MetaFitter Batch: Complete - " + int_to_string(batch_completed_jobs) + " succeeded, " + int_to_string(batch_failed_jobs) + " failed")
+
+    @blueprint_callable
+    fn cancel_batch():
+        batch_active = false
+        println("MetaFitter Batch: Cancelled at job " + int_to_string(batch_current_index) + "/" + int_to_string(batch_total_jobs))
+
+    @blueprint_callable
+    fn is_batch_active() -> Bool:
+        return batch_active
+
+    @blueprint_callable
+    fn get_batch_progress() -> Float:
+        return batch_progress
+
+    @blueprint_callable
+    fn get_batch_eta_seconds() -> Float:
+        if !batch_active:
+            return 0.0
+        if batch_current_index == 0:
+            return 0.0
+        let avg_time = average_conform_time_ms / 1000.0
+        let remaining = batch_total_jobs - batch_current_index
+        return avg_time * to_float(remaining)

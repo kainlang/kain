@@ -1,0 +1,84 @@
+# ============================================================================
+# OmniCam - KAIN Configuration
+# ============================================================================
+# ============================================================================
+
+# Root-level plugin_name for FULLBUILD.bat compatibility
+plugin_name = "OmniCam"
+
+[plugin]
+name = "OmniCam"
+version = "1.0.0"
+description = "Global camera management system with live PiP preview and bulk editing"
+author = "KAIN Factory"
+category = "Editor"
+engine_version = "5.4"
+
+[plugin.metadata]
+marketplace_url = ""
+documentation_url = ""
+support_url = ""
+tags = ["Camera", "Cinematic", "Editor", "Viewport", "Management", "PiP"]
+
+[build]
+# Source files to compile
+sources = [
+    "omnicam.kn"
+]
+
+# Output directories
+output_dir = "Source/OmniCam"
+shader_dir = "Shaders"
+
+# UE5 module configuration
+[build.ue5]
+module_type = "Runtime"
+loading_phase = "Default"
+whitelist_platforms = ["Win64", "Linux", "Mac"]
+
+# Dependencies
+dependencies = [
+    "Core",
+    "CoreUObject",
+    "Engine",
+    "Slate",
+    "SlateCore",
+    "UnrealEd",
+    "PropertyEditor",
+    "EditorStyle",
+    "LevelEditor",
+    "InputCore",
+    "CinematicCamera",
+    "Projects"
+]
+
+# Editor module configuration
+[build.editor]
+enabled = true
+module_name = "OmniCamEditor"
+loading_phase = "PostEngineInit"
+
+# Feature flags
+[features]
+# Camera management features
+auto_indexing = true
+live_preview = true
+bulk_editing = true
+camera_search = true
+frustum_visualization = true
+
+# Viewport features
+pip_rendering = true
+quality_presets = true
+real_time_updates = true
+
+# Debug settings
+[debug]
+# Enable debug logging
+verbose_logging = false
+
+# Enable debug visualization
+debug_draw = true
+
+# Enable performance profiling
+profiling = false

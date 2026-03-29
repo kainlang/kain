@@ -1,0 +1,245 @@
+#include "/Engine/Public/Platform.ush"
+
+// =============================================================================
+// KLAYER FILTER COMPUTE SHADER
+// Convolution and image processing filters
+// =============================================================================
+
+Texture2D<float4> InSource;
+SamplerState InSampler;
+RWTexture2D<float4> OutResult;
+
+// Parameters
+
+    uint FilterType;
+    float Intensity;
+    int KernelSize;
+    float Threshold;
+    uint2 TextureDimensions;
+
+
+// =============================================================================
+// FILTER IMPLEMENTATIONS
+// =============================================================================
+
+float4 SampleSafe(int2 pos)
+{
+    pos.x = clamp(pos.x, 0, (int)TextureDimensions.x - 1);
+    pos.y = clamp(pos.y, 0, (int)TextureDimensions.y - 1);
+    return InSource.Load(int3(pos, 0));
+}
+
+// Box Blur
+float4 BoxBlur(int2 pos, int radius)
+{
+    float4 sum = 0;
+    int count = 0;
+    
+    for (int y = -radius; y <= radius; y++)
+    {
+        for (int x = -radius; x <= radius; x++)
+        {
+            sum += SampleSafe(pos + int2(x, y));
+            count++;
+        }
+    }
+    
+    return sum / (float)count;
+}
+
+// Gaussian Blur (approximation)
+float4 GaussianBlur(int2 pos, int radius)
+{
+    float4 sum = 0;
+    float weightSum = 0;
+    float sigma = radius / 2.0;
+    
+    for (int y = -radius; y <= radius; y++)
+    {
+        for (int x = -radius; x <= radius; x++)
+        {
+            float weight = exp(-(x*x + y*y) / (2.0 * sigma * sigma));
+            sum += SampleSafe(pos + int2(x, y)) * weight;
+            weightSum += weight;
+        }
+    }
+    
+    return sum / weightSum;
+}
+
+// Sharpen
+float4 Sharpen(int2 pos, float intensity)
+{
+    float4 center = SampleSafe(pos);
+    float4 blur = BoxBlur(pos, 1);
+    return center + (center - blur) * intensity;
+}
+
+// Edge Detection (Sobel)
+float4 EdgeDetect(int2 pos)
+{
+    float4 tl = SampleSafe(pos + int2(-1, -1));
+    float4 t  = SampleSafe(pos + int2( 0, -1));
+    float4 tr = SampleSafe(pos + int2( 1, -1));
+    float4 l  = SampleSafe(pos + int2(-1,  0));
+    float4 r  = SampleSafe(pos + int2( 1,  0));
+    float4 bl = SampleSafe(pos + int2(-1,  1));
+    float4 b  = SampleSafe(pos + int2( 0,  1));
+    float4 br = SampleSafe(pos + int2( 1,  1));
+    
+    float4 gx = (tr + 2.0 * r + br) - (tl + 2.0 * l + bl);
+    float4 gy = (bl + 2.0 * b + br) - (tl + 2.0 * t + tr);
+    
+    return sqrt(gx * gx + gy * gy);
+}
+
+// Emboss
+float4 Emboss(int2 pos)
+{
+    float4 tl = SampleSafe(pos + int2(-1, -1));
+    float4 br = SampleSafe(pos + int2( 1,  1));
+    return (br - tl) * 0.5 + 0.5;
+}
+
+// High Pass
+float4 HighPass(int2 pos, int radius)
+{
+    float4 center = SampleSafe(pos);
+    float4 blur = GaussianBlur(pos, radius);
+    return (center - blur) * 0.5 + 0.5;
+}
+
+// Low Pass (same as blur)
+float4 LowPass(int2 pos, int radius)
+{
+    return GaussianBlur(pos, radius);
+}
+
+// Median Filter (simplified 3x3)
+float4 Median(int2 pos)
+{
+    float4 samples[9];
+    int idx = 0;
+    for (int y = -1; y <= 1; y++)
+    {
+        for (int x = -1; x <= 1; x++)
+        {
+            samples[idx++] = SampleSafe(pos + int2(x, y));
+        }
+    }
+    
+    // Simple bubble sort on luminance
+    for (int i = 0; i < 9; i++)
+    {
+        for (int j = i + 1; j < 9; j++)
+        {
+            float lumI = dot(samples[i].rgb, float3(0.299, 0.587, 0.114));
+            float lumJ = dot(samples[j].rgb, float3(0.299, 0.587, 0.114));
+            if (lumI > lumJ)
+            {
+                float4 temp = samples[i];
+                samples[i] = samples[j];
+                samples[j] = temp;
+            }
+        }
+    }
+    
+    return samples[4]; // Middle element
+}
+
+// Dilate (max filter)
+float4 Dilate(int2 pos, int radius)
+{
+    float4 maxVal = 0;
+    
+    for (int y = -radius; y <= radius; y++)
+    {
+        for (int x = -radius; x <= radius; x++)
+        {
+            maxVal = max(maxVal, SampleSafe(pos + int2(x, y)));
+        }
+    }
+    
+    return maxVal;
+}
+
+// Erode (min filter)
+float4 Erode(int2 pos, int radius)
+{
+    float4 minVal = 1;
+    
+    for (int y = -radius; y <= radius; y++)
+    {
+        for (int x = -radius; x <= radius; x++)
+        {
+            minVal = min(minVal, SampleSafe(pos + int2(x, y)));
+        }
+    }
+    
+    return minVal;
+}
+
+// Invert
+float4 Invert(float4 color)
+{
+    return float4(1.0 - color.rgb, color.a);
+}
+
+// Normalize (stretch to 0-1 range per channel)
+// Note: This is a local approximation, true normalize needs global analysis
+float4 Normalize(float4 color)
+{
+    // Simple per-pixel normalization based on local contrast
+    return saturate(color);
+}
+
+// Auto Levels (local approximation)
+float4 AutoLevels(float4 color)
+{
+    float lum = dot(color.rgb, float3(0.299, 0.587, 0.114));
+    // Stretch contrast
+    float adjusted = saturate((lum - 0.1) / 0.8);
+    return float4(color.rgb * (adjusted / max(lum, 0.001)), color.a);
+}
+
+// =============================================================================
+// MAIN SHADER
+// =============================================================================
+
+[numthreads(8, 8, 1)]
+void FilterCS(uint3 ThreadId : SV_DispatchThreadID)
+{
+    if (ThreadId.x >= TextureDimensions.x || ThreadId.y >= TextureDimensions.y) return;
+
+    int2 pos = ThreadId.xy;
+    float4 source = SampleSafe(pos);
+    float4 result;
+    
+    int radius = max(1, KernelSize / 2);
+    
+    switch (FilterType)
+    {
+        case 0:  result = BoxBlur(pos, radius); break;
+        case 1:  result = GaussianBlur(pos, radius); break;
+        case 2:  result = Sharpen(pos, Intensity); break;
+        case 3:  result = EdgeDetect(pos); break;
+        case 4:  result = Emboss(pos); break;
+        case 5:  result = HighPass(pos, radius); break;
+        case 6:  result = LowPass(pos, radius); break;
+        case 7:  result = Median(pos); break;
+        case 8:  result = Dilate(pos, radius); break;
+        case 9:  result = Erode(pos, radius); break;
+        case 10: result = Invert(source); break;
+        case 11: result = Normalize(source); break;
+        case 12: result = AutoLevels(source); break;
+        default: result = source; break;
+    }
+    
+    // Blend with source based on intensity for most filters
+    if (FilterType != 10) // Invert is always 100%
+    {
+        result = lerp(source, result, saturate(Intensity));
+    }
+    
+    OutResult[ThreadId.xy] = result;
+}

@@ -1,0 +1,14 @@
+[package]
+name = "TacticalRaidGAS"
+version = "1.0.0"
+authors = ["KAIN Factory Labs"]
+description = "Production GAS plugin for tactical raid shooters with data-driven actor tags, role-based abilities, and replication-aware tag policy"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "TacticalRaidGAS"
+plugin_dir = "."
+sources = ["tactical_raid_gas.kn"]
+modular_output = true

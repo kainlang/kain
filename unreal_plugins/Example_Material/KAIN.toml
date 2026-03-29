@@ -1,0 +1,15 @@
+[package]
+name = "MaterialExample"
+version = "1.0.0"
+authors = ["KAIN Research Labs"]
+description = "Material Graph Example - Demonstrates material graph generation with 30+ node types, PBR workflows, texture sampling, UV manipulation, and binary .uasset serialization"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "MaterialExample"
+plugin_dir = "."
+sources = ["material.kn"]
+shaders = []
+modular_output = true

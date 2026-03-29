@@ -1,0 +1,551 @@
+// ProceduralCity - City Actors
+// Building actors, vehicle actors, pedestrian actors, road segments, and intersections
+
+// ============================================================================
+// CITY MANAGER ACTOR
+// ============================================================================
+
+actor CityManagerActor:
+    @replicated
+    state city_id: Int = 0
+    
+    @replicated
+    state generation_seed: Int = 12345
+    
+    @replicated
+    state is_generated: Bool = false
+    
+    @replicated
+    state generation_progress: Float = 0.0
+    
+    state generation_params: CityGenerationParams = create_default_generation_params()
+    state road_network: RoadNetwork = RoadNetwork {
+        segments: [],
+        intersections: [],
+        highway_nodes: [],
+        main_street_nodes: [],
+        residential_nodes: []
+    }
+    state districts: Array<District> = []
+    state buildings: Array<BuildingData> = []
+    state lots: Array<BuildingLot> = []
+    
+    state building_actors: Array<Int> = []
+    state vehicle_actors: Array<Int> = []
+    state pedestrian_actors: Array<Int> = []
+    
+    on Server_GenerateCity(size_km: Float, seed: Int, params: CityGenerationParams):
+        generation_seed = seed
+        generation_params = params
+        generation_progress = 0.0
+        is_generated = false
+        
+        Multicast_OnGenerationStarted(seed)
+        
+        // Start async generation
+        Server_StartAsyncGeneration()
+    
+    on Server_StartAsyncGeneration():
+        // Generate road network
+        let bounds = Bounds2D {
+            min: Vec2 { x: -generation_params.city_size_km * 500.0, y: -generation_params.city_size_km * 500.0 },
+            max: Vec2 { x: generation_params.city_size_km * 500.0, y: generation_params.city_size_km * 500.0 }
+        }
+        
+        road_network = create_grid_road_network(
+            bounds,
+            generation_params.intersection_spacing,
+            generation_seed
+        )
+        
+        generation_progress = 0.2
+        
+        // Generate highways
+        let highways = generate_highway_network(bounds, 3, generation_seed + 1)
+        for highway in highways:
+            push(road_network.segments, highway)
+        
+        generation_progress = 0.3
+        
+        // Detect intersections
+        road_network = detect_intersections(road_network)
+        
+        generation_progress = 0.4
+        
+        // Optimize network
+        road_network = optimize_road_network(road_network)
+        
+        generation_progress = 0.5
+        
+        // Generate lots
+        lots = subdivide_lots(bounds, generation_params, generation_seed + 2)
+        lots = assign_lot_road_access(lots, road_network)
+        
+        generation_progress = 0.6
+        
+        // Generate buildings
+        buildings = generate_buildings_for_lots(lots, generation_params, generation_seed + 3)
+        buildings = apply_building_variation(buildings, generation_seed + 4)
+        
+        generation_progress = 0.8
+        
+        // Generate districts
+        districts = generate_districts(bounds, generation_params.district_count, generation_seed + 5)
+        
+        generation_progress = 1.0
+        is_generated = true
+        
+        Multicast_OnGenerationComplete(city_id)
+        
+        // Spawn building actors
+        Server_SpawnBuildingActors()
+    
+    on Server_SpawnBuildingActors():
+        for building in buildings:
+            // Spawn building actor (would use UE5 spawn function)
+            let actor_id = building.id
+            push(building_actors, actor_id)
+    
+    on Server_SpawnVehicles(count: Int):
+        if not is_generated:
+            return
+        
+        let spawn_points = generate_vehicle_spawn_points(road_network, count, generation_seed + 100)
+        
+        for i in 0..count:
+            let spawn_pos = spawn_points[i]
+            let vehicle_type = select_vehicle_type(generation_seed + i)
+            
+            // Spawn vehicle actor (would use UE5 spawn function)
+            let vehicle_id = i
+            push(vehicle_actors, vehicle_id)
+    
+    on Server_UpdateTraffic(delta_time: Float):
+        road_network = update_traffic_lights(road_network, delta_time)
+    
+    on Multicast_OnGenerationStarted(seed: Int):
+        println("City generation started with seed: " + (seed as String))
+    
+    on Multicast_OnGenerationComplete(id: Int):
+        println("City generation complete: " + (id as String))
+
+fn generate_districts(bounds: Bounds2D, count: Int, seed: Int) -> Array<District>:
+    let districts = []
+    
+    let width = bounds.max.x - bounds.min.x
+    let height = bounds.max.y - bounds.min.y
+    
+    let cols = 3
+    let rows = (count / cols) + 1
+    
+    let cell_width = width / (cols as Float)
+    let cell_height = height / (rows as Float)
+    
+    for i in 0..count:
+        let row = i / cols
+        let col = i % cols
+        
+        let min_x = bounds.min.x + (col as Float) * cell_width
+        let min_y = bounds.min.y + (row as Float) * cell_height
+        let max_x = min_x + cell_width
+        let max_y = min_y + cell_height
+        
+        let hash = ((i + seed) * 374761393) % 10
+        let district_type = match hash:
+            0 => DistrictType::Residential
+            1 => DistrictType::Residential
+            2 => DistrictType::Residential
+            3 => DistrictType::Commercial
+            4 => DistrictType::Commercial
+            5 => DistrictType::Industrial
+            6 => DistrictType::MixedUse
+            7 => DistrictType::Park
+            8 => DistrictType::Government
+            _ => DistrictType::Educational
+        
+        let district = District {
+            id: i,
+            district_type: district_type,
+            bounds: Bounds2D {
+                min: Vec2 { x: min_x, y: min_y },
+                max: Vec2 { x: max_x, y: max_y }
+            },
+            center: Vec2 {
+                x: (min_x + max_x) * 0.5,
+                y: (min_y + max_y) * 0.5
+            },
+            population: 0,
+            building_count: 0,
+            road_count: 0,
+            park_area: 0.0,
+            zoning_density: ZoningDensity::MediumDensity,
+            average_building_height: 0.0,
+            traffic_density: 0.0
+        }
+        
+        push(districts, district)
+    
+    return districts
+
+// ============================================================================
+// BUILDING ACTOR
+// ============================================================================
+
+actor BuildingActor:
+    @replicated
+    state building_id: Int = 0
+    
+    @replicated
+    state building_data: BuildingData = BuildingData {
+        id: 0,
+        lot_id: 0,
+        position: Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+        rotation: 0.0,
+        width: 10.0,
+        depth: 10.0,
+        height: 20.0,
+        floors: 5,
+        style: BuildingStyle::Modern,
+        district_type: DistrictType::Residential,
+        has_basement: false,
+        has_rooftop: false,
+        window_count: 20,
+        door_count: 1,
+        color_primary: Vec3 { x: 0.8, y: 0.8, z: 0.8 },
+        color_secondary: Vec3 { x: 0.7, y: 0.7, z: 0.7 },
+        color_accent: Vec3 { x: 0.6, y: 0.6, z: 0.6 }
+    }
+    
+    state current_lod: Int = 0
+    state is_visible: Bool = true
+    state occupancy: Float = 0.8
+    
+    on Server_Initialize(id: Int, data: BuildingData):
+        building_id = id
+        building_data = data
+        
+        Multicast_OnBuildingSpawned(id, data.position)
+    
+    on Server_UpdateLOD(camera_distance: Float):
+        let lod_distances = calculate_lod_distances(building_data)
+        
+        let new_lod = 0
+        for i in 0..len(lod_distances):
+            if camera_distance > lod_distances[i]:
+                new_lod = i + 1
+        
+        if new_lod != current_lod:
+            current_lod = new_lod
+            Client_UpdateVisuals(current_lod)
+    
+    on Client_UpdateVisuals(lod: Int):
+        println("Building " + (building_id as String) + " LOD: " + (lod as String))
+    
+    on Multicast_OnBuildingSpawned(id: Int, pos: Vec3):
+        println("Building spawned: " + (id as String))
+
+// ============================================================================
+// ROAD SEGMENT ACTOR
+// ============================================================================
+
+actor RoadSegmentActor:
+    @replicated
+    state segment_id: Int = 0
+    
+    @replicated
+    state segment_data: RoadSegment = RoadSegment {
+        id: 0,
+        start_pos: Vec2 { x: 0.0, y: 0.0 },
+        end_pos: Vec2 { x: 100.0, y: 0.0 },
+        road_type: RoadType::ResidentialStreet,
+        width: 8.0,
+        lanes: 2,
+        speed_limit: 40.0,
+        is_one_way: false,
+        connected_intersections: [],
+        traffic_density: 0.0
+    }
+    
+    state vehicles_on_road: Array<Int> = []
+    
+    on Server_Initialize(id: Int, data: RoadSegment):
+        segment_id = id
+        segment_data = data
+    
+    on Server_VehicleEntered(vehicle_id: Int):
+        push(vehicles_on_road, vehicle_id)
+    
+    on Server_VehicleExited(vehicle_id: Int):
+        vehicles_on_road = remove_from_array(vehicles_on_road, vehicle_id)
+    
+    on Server_UpdateTrafficDensity():
+        let length = vec2_distance(segment_data.start_pos, segment_data.end_pos)
+        let density = (len(vehicles_on_road) as Float) / max(1.0, length / 10.0)
+        
+        segment_data = RoadSegment {
+            id: segment_data.id,
+            start_pos: segment_data.start_pos,
+            end_pos: segment_data.end_pos,
+            road_type: segment_data.road_type,
+            width: segment_data.width,
+            lanes: segment_data.lanes,
+            speed_limit: segment_data.speed_limit,
+            is_one_way: segment_data.is_one_way,
+            connected_intersections: segment_data.connected_intersections,
+            traffic_density: density
+        }
+
+// ============================================================================
+// INTERSECTION ACTOR
+// ============================================================================
+
+actor IntersectionActor:
+    @replicated
+    state intersection_id: Int = 0
+    
+    @replicated
+    state intersection_data: Intersection = Intersection {
+        id: 0,
+        position: Vec2 { x: 0.0, y: 0.0 },
+        intersection_type: IntersectionType::FourWay,
+        connected_roads: [],
+        has_traffic_light: true,
+        traffic_light_state: TrafficLightState::Red,
+        traffic_light_timer: 0.0,
+        priority_roads: []
+    }
+    
+    state vehicles_waiting: Array<Int> = []
+    
+    on Server_Initialize(id: Int, data: Intersection):
+        intersection_id = id
+        intersection_data = data
+    
+    on Server_UpdateTrafficLight(delta_time: Float):
+        if not intersection_data.has_traffic_light:
+            return
+        
+        let new_timer = intersection_data.traffic_light_timer + delta_time
+        let cycle_time = 60.0
+        
+        let green_time = cycle_time * 0.6
+        let yellow_time = cycle_time * 0.1
+        
+        let new_state = intersection_data.traffic_light_state
+        
+        if new_timer < green_time:
+            new_state = TrafficLightState::Green
+        else if new_timer < green_time + yellow_time:
+            new_state = TrafficLightState::Yellow
+        else if new_timer < cycle_time:
+            new_state = TrafficLightState::Red
+        else:
+            new_timer = 0.0
+            new_state = TrafficLightState::Green
+        
+        if new_state != intersection_data.traffic_light_state:
+            intersection_data = Intersection {
+                id: intersection_data.id,
+                position: intersection_data.position,
+                intersection_type: intersection_data.intersection_type,
+                connected_roads: intersection_data.connected_roads,
+                has_traffic_light: intersection_data.has_traffic_light,
+                traffic_light_state: new_state,
+                traffic_light_timer: new_timer,
+                priority_roads: intersection_data.priority_roads
+            }
+            
+            Multicast_OnTrafficLightChanged(intersection_id, new_state)
+    
+    on Server_VehicleArrived(vehicle_id: Int):
+        push(vehicles_waiting, vehicle_id)
+    
+    on Server_VehicleDeparted(vehicle_id: Int):
+        vehicles_waiting = remove_from_array(vehicles_waiting, vehicle_id)
+    
+    on Multicast_OnTrafficLightChanged(id: Int, state: TrafficLightState):
+        println("Traffic light " + (id as String) + " changed to: " + (state as String))
+
+// ============================================================================
+// PEDESTRIAN ACTOR
+// ============================================================================
+
+actor PedestrianActor:
+    @replicated
+    state pedestrian_id: Int = 0
+    
+    @replicated(mode: "interpolated", back_time: 0.1)
+    state position: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    
+    @replicated
+    state activity: PedestrianActivity = PedestrianActivity::Walking
+    
+    state target_position: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    state path: Array<Vec3> = []
+    state path_index: Int = 0
+    state speed: Float = 1.5
+    state waiting_at_crossing: Bool = false
+    state crossing_road: Bool = false
+    
+    on Server_Initialize(id: Int, start_pos: Vec3):
+        pedestrian_id = id
+        position = start_pos
+        activity = PedestrianActivity::Walking
+    
+    on Server_SetDestination(dest: Vec3):
+        target_position = dest
+        path = [dest]
+        path_index = 0
+    
+    on Server_UpdateMovement(delta_time: Float):
+        if len(path) == 0:
+            return
+        
+        if path_index >= len(path):
+            activity = PedestrianActivity::Standing
+            return
+        
+        let target = path[path_index]
+        let direction = vec3_normalize(Vec3 {
+            x: target.x - position.x,
+            y: target.y - position.y,
+            z: 0.0
+        })
+        
+        let distance = vec3_distance(position, target)
+        
+        if distance < 1.0:
+            path_index = path_index + 1
+            return
+        
+        position = Vec3 {
+            x: position.x + direction.x * speed * delta_time,
+            y: position.y + direction.y * speed * delta_time,
+            z: position.z
+        }
+        
+        activity = PedestrianActivity::Walking
+    
+    on Server_WaitAtCrossing():
+        waiting_at_crossing = true
+        activity = PedestrianActivity::Standing
+    
+    on Server_CrossRoad():
+        waiting_at_crossing = false
+        crossing_road = true
+        activity = PedestrianActivity::Walking
+    
+    on Multicast_OnActivityChanged(id: Int, new_activity: PedestrianActivity):
+        println("Pedestrian " + (id as String) + " activity: " + (new_activity as String))
+
+// ============================================================================
+// DISTRICT MARKER ACTOR
+// ============================================================================
+
+actor DistrictMarkerActor:
+    @replicated
+    state district_id: Int = 0
+    
+    @replicated
+    state district_data: District = District {
+        id: 0,
+        district_type: DistrictType::Residential,
+        bounds: Bounds2D {
+            min: Vec2 { x: 0.0, y: 0.0 },
+            max: Vec2 { x: 100.0, y: 100.0 }
+        },
+        center: Vec2 { x: 50.0, y: 50.0 },
+        population: 0,
+        building_count: 0,
+        road_count: 0,
+        park_area: 0.0,
+        zoning_density: ZoningDensity::MediumDensity,
+        average_building_height: 0.0,
+        traffic_density: 0.0
+    }
+    
+    state is_visible: Bool = true
+    
+    on Server_Initialize(id: Int, data: District):
+        district_id = id
+        district_data = data
+    
+    on Server_UpdateStatistics(buildings: Array<BuildingData>, roads: Array<RoadSegment>):
+        let building_count = 0
+        let total_height = 0.0
+        
+        for building in buildings:
+            let building_center = building.position
+            
+            if bounds2d_contains(district_data.bounds, Vec2 { x: building_center.x, y: building_center.y }):
+                building_count = building_count + 1
+                total_height = total_height + building.height
+        
+        let avg_height = if building_count > 0 then total_height / (building_count as Float) else 0.0
+        
+        let road_count = 0
+        for road in roads:
+            let road_center = Vec2 {
+                x: (road.start_pos.x + road.end_pos.x) * 0.5,
+                y: (road.start_pos.y + road.end_pos.y) * 0.5
+            }
+            
+            if bounds2d_contains(district_data.bounds, road_center):
+                road_count = road_count + 1
+        
+        district_data = District {
+            id: district_data.id,
+            district_type: district_data.district_type,
+            bounds: district_data.bounds,
+            center: district_data.center,
+            population: district_data.population,
+            building_count: building_count,
+            road_count: road_count,
+            park_area: district_data.park_area,
+            zoning_density: district_data.zoning_density,
+            average_building_height: avg_height,
+            traffic_density: district_data.traffic_density
+        }
+    
+    on Client_ToggleVisibility():
+        is_visible = not is_visible
+
+// ============================================================================
+// CITY CAMERA ACTOR
+// ============================================================================
+
+actor CityCameraActor:
+    state camera_position: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 1000.0 }
+    state camera_rotation: Vec3 = Vec3 { x: -45.0, y: 0.0, z: 0.0 }
+    state camera_zoom: Float = 1.0
+    state move_speed: Float = 500.0
+    state zoom_speed: Float = 100.0
+    
+    on Server_MoveCamera(direction: Vec3, delta_time: Float):
+        camera_position = Vec3 {
+            x: camera_position.x + direction.x * move_speed * delta_time,
+            y: camera_position.y + direction.y * move_speed * delta_time,
+            z: camera_position.z + direction.z * move_speed * delta_time
+        }
+    
+    on Server_ZoomCamera(zoom_delta: Float, delta_time: Float):
+        camera_zoom = max(0.1, min(10.0, camera_zoom + zoom_delta * zoom_speed * delta_time))
+        camera_position = Vec3 {
+            x: camera_position.x,
+            y: camera_position.y,
+            z: 1000.0 * camera_zoom
+        }
+    
+    on Server_RotateCamera(rotation_delta: Vec3):
+        camera_rotation = Vec3 {
+            x: camera_rotation.x + rotation_delta.x,
+            y: camera_rotation.y + rotation_delta.y,
+            z: camera_rotation.z + rotation_delta.z
+        }
+    
+    on Server_FocusOnPosition(target: Vec3):
+        camera_position = Vec3 {
+            x: target.x,
+            y: target.y,
+            z: camera_position.z
+        }

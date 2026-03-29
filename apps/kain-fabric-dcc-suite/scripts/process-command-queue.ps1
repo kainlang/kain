@@ -138,6 +138,19 @@ function Update-DerivedState {
     $selectedCount = @($SessionDocument.selection.entity_ids).Count
     $gizmoSummary = "{0} | {1} | snap {2}" -f $SessionDocument.gizmo.mode, $SessionDocument.gizmo.space, ($(if ($SessionDocument.gizmo.snap_enabled) { "on" } else { "off" }))
 
+    if (-not ($RuntimeSnapshot.dcc_suite_state.PSObject.Properties.Name -contains "session")) {
+        $RuntimeSnapshot.dcc_suite_state | Add-Member -NotePropertyName session -NotePropertyValue $SessionDocument
+    }
+    if (-not ($RuntimeSnapshot.dcc_suite_state.PSObject.Properties.Name -contains "intent_queue")) {
+        $RuntimeSnapshot.dcc_suite_state | Add-Member -NotePropertyName intent_queue -NotePropertyValue @()
+    }
+    if (-not ($RuntimeSnapshot.dcc_suite_state.PSObject.Properties.Name -contains "latest_command")) {
+        $RuntimeSnapshot.dcc_suite_state | Add-Member -NotePropertyName latest_command -NotePropertyValue $null
+    }
+    if (-not ($RuntimeSnapshot.dcc_suite_state.PSObject.Properties.Name -contains "derived")) {
+        $RuntimeSnapshot.dcc_suite_state | Add-Member -NotePropertyName derived -NotePropertyValue ([ordered]@{})
+    }
+
     $RuntimeSnapshot.dcc_suite_state.session = $SessionDocument
     $RuntimeSnapshot.dcc_suite_state.intent_queue = $IntentQueue
     $RuntimeSnapshot.dcc_suite_state.latest_command = $LatestCommand
@@ -258,7 +271,7 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.workspace.active_mode = [string](Get-PayloadValue -Payload $Payload -Key "mode_id" -Default $SessionDocument.workspace.active_mode)
             $SessionDocument.dirty.render_dirty = $true
             $SessionDocument.dirty.session_needs_save = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "render.preview" "workspace mode changed" 60 16 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "render.preview" "workspace mode changed" 60 16 $CommandId)
         }
         "asset.ingest_package" {
             $SessionDocument.ingest.last_package_uri = [string](Get-PayloadValue -Payload $Payload -Key "source_uri" -Default $SessionDocument.ingest.last_package_uri)
@@ -270,8 +283,8 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.dirty.publish_dirty = $true
             $SessionDocument.dirty.tensor_dirty = $true
             $SessionDocument.dirty.session_needs_save = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "asset.ingest_package" "asset package staged" 90 0 $CommandId)
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "render.preview" "ingested assets need preview refresh" 60 16 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "asset.ingest_package" "asset package staged" 90 0 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "render.preview" "ingested assets need preview refresh" 60 16 $CommandId)
         }
         "tool.activate" {
             $SessionDocument.tooling.active_tool = [string](Get-PayloadValue -Payload $Payload -Key "tool_id" -Default $SessionDocument.tooling.active_tool)
@@ -300,14 +313,14 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.dirty.render_dirty = $true
             $SessionDocument.dirty.publish_dirty = $true
             $SessionDocument.dirty.session_needs_save = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "sculpt.apply_stroke" "operator sculpt stroke" 95 0 $CommandId)
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "topology.rebuild" "sculpt changed topology-sensitive data" 80 32 $CommandId)
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "render.preview" "sculpt stroke needs viewport refresh" 60 16 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "sculpt.apply_stroke" "operator sculpt stroke" 95 0 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "topology.rebuild" "sculpt changed topology-sensitive data" 80 32 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "render.preview" "sculpt stroke needs viewport refresh" 60 16 $CommandId)
         }
         "topology.rebuild" {
             $SessionDocument.dirty.topology_dirty = $true
             $SessionDocument.dirty.rig_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "topology.rebuild" "topology rebuild requested" 80 32 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "topology.rebuild" "topology rebuild requested" 80 32 $CommandId)
         }
         "rig.sync_controls" {
             $SessionDocument.workspace.active_mode = "rig_anim"
@@ -315,7 +328,7 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.dirty.rig_dirty = $true
             $SessionDocument.dirty.animation_dirty = $true
             $SessionDocument.dirty.render_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "rig.sync_controls" "rig sync requested" 72 24 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "rig.sync_controls" "rig sync requested" 72 24 $CommandId)
         }
         "sim.tick" {
             $SessionDocument.workspace.active_mode = "sim_fx"
@@ -323,14 +336,14 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.dirty.simulation_dirty = $true
             $SessionDocument.dirty.render_dirty = $true
             $SessionDocument.dirty.compositor_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "sim.tick" "simulation tick requested" 64 16 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "sim.tick" "simulation tick requested" 64 16 $CommandId)
         }
         "material.bake_preview" {
             $SessionDocument.workspace.active_mode = "material_lookdev"
             $SessionDocument.dirty.material_dirty = $true
             $SessionDocument.dirty.render_dirty = $true
             $SessionDocument.dirty.compositor_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "material.bake_preview" "material preview requested" 70 16 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "material.bake_preview" "material preview requested" 70 16 $CommandId)
         }
         "material.author_texture_set" {
             $SessionDocument.workspace.active_mode = "material_lookdev"
@@ -340,8 +353,8 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.dirty.render_dirty = $true
             $SessionDocument.dirty.compositor_dirty = $true
             $SessionDocument.dirty.session_needs_save = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "material.bake_preview" "texture set changed" 70 16 $CommandId)
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "render.preview" "lookdev preview needs refresh" 60 16 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "material.bake_preview" "texture set changed" 70 16 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "render.preview" "lookdev preview needs refresh" 60 16 $CommandId)
         }
         "material.paint_layer" {
             $SessionDocument.workspace.active_mode = "material_lookdev"
@@ -351,7 +364,7 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.dirty.render_dirty = $true
             $SessionDocument.dirty.compositor_dirty = $true
             $SessionDocument.dirty.session_needs_save = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "material.bake_preview" "material layer stack changed" 70 16 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "material.bake_preview" "material layer stack changed" 70 16 $CommandId)
         }
         "material.edit_svg_mask" {
             $SessionDocument.workspace.active_mode = "material_lookdev"
@@ -361,44 +374,52 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.dirty.render_dirty = $true
             $SessionDocument.dirty.compositor_dirty = $true
             $SessionDocument.dirty.session_needs_save = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "material.bake_preview" "svg mask graph changed" 70 16 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "material.bake_preview" "svg mask graph changed" 70 16 $CommandId)
         }
         "material.export_textures" {
             $SessionDocument.workspace.active_mode = "material_lookdev"
             $SessionDocument.materials.active_export_preset_id = [string](Get-PayloadValue -Payload $Payload -Key "preset_id" -Default $SessionDocument.materials.active_export_preset_id)
             $SessionDocument.dirty.publish_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "material.export_textures" "material export requested" 74 0 $CommandId)
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "publish.package" "publish bundle depends on exported textures" 40 0 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "material.export_textures" "material export requested" 74 0 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "publish.package" "publish bundle depends on exported textures" 40 0 $CommandId)
         }
         "render.preview" {
             $SessionDocument.workspace.active_mode = "render_comp"
             $SessionDocument.render.camera_id = [string](Get-PayloadValue -Payload $Payload -Key "camera_id" -Default $SessionDocument.render.camera_id)
             $SessionDocument.dirty.render_dirty = $true
             $SessionDocument.dirty.compositor_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "render.preview" "render preview requested" 60 16 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "render.preview" "render preview requested" 60 16 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "render.pathtrace_preview" "path-traced preview requested" 88 24 $CommandId)
+        }
+        "render.pathtrace_preview" {
+            $SessionDocument.workspace.active_mode = "render_comp"
+            $SessionDocument.render.camera_id = [string](Get-PayloadValue -Payload $Payload -Key "camera_id" -Default $SessionDocument.render.camera_id)
+            $SessionDocument.dirty.render_dirty = $true
+            $SessionDocument.dirty.compositor_dirty = $true
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "render.pathtrace_preview" "path-traced preview requested" 88 24 $CommandId)
         }
         "compositor.rebuild" {
             $SessionDocument.workspace.active_mode = "render_comp"
             $SessionDocument.compositor.active_stack_id = [string](Get-PayloadValue -Payload $Payload -Key "stack_id" -Default $SessionDocument.compositor.active_stack_id)
             $SessionDocument.dirty.compositor_dirty = $true
             $SessionDocument.dirty.publish_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "compositor.rebuild" "compositor rebuild requested" 48 48 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "compositor.rebuild" "compositor rebuild requested" 48 48 $CommandId)
         }
         "publish.package" {
             $SessionDocument.workspace.active_mode = "publish_automation"
             $SessionDocument.publish.profile_id = [string](Get-PayloadValue -Payload $Payload -Key "profile" -Default $SessionDocument.publish.profile_id)
             $SessionDocument.dirty.publish_dirty = $true
             $SessionDocument.dirty.session_needs_save = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "publish.package" "publish package requested" 40 0 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "publish.package" "publish package requested" 40 0 $CommandId)
         }
         "tensor.train_step" {
             $SessionDocument.dirty.tensor_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "tensor.train_step" "tensor training requested" 55 0 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "tensor.train_step" "tensor training requested" 55 0 $CommandId)
         }
         "tensor.infer_step" {
             $SessionDocument.dirty.tensor_dirty = $true
             $SessionDocument.dirty.publish_dirty = $true
-            Add-IntentIfMissing -IntentQueue $IntentQueue -Intent (New-Intent "tensor.infer_step" "tensor inference requested" 55 0 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "tensor.infer_step" "tensor inference requested" 55 0 $CommandId)
         }
         default { }
     }
@@ -419,7 +440,7 @@ $CompletedIntents = New-Object System.Collections.ArrayList
 $PendingIntents = New-Object System.Collections.ArrayList
 
 if ($ExecuteFabricHotPath -and @($IntentQueue).Count -gt 0) {
-    $hotPathIntentIds = @("material.bake_preview", "render.preview")
+    $hotPathIntentIds = @("material.bake_preview", "render.preview", "render.pathtrace_preview")
     $sortedIntents = @($IntentQueue | Sort-Object priority -Descending)
     foreach ($intent in $sortedIntents) {
         if ($hotPathIntentIds -contains [string]$intent.id) {

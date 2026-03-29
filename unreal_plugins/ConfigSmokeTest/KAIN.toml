@@ -1,0 +1,15 @@
+[package]
+name = "ConfigSmokeTest"
+version = "1.0.0"
+authors = ["KAIN Research Labs"]
+description = "Smoke test for ue5-config pipeline - @config struct generation"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "ConfigSmokeTest"
+plugin_dir = "."
+sources = ["settings.kn"]
+shaders = []
+modular_output = true

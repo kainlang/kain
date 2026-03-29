@@ -1,0 +1,678 @@
+# AnimRigPro - IK Solvers
+# FABRIK, Two-Bone IK, and Look-At IK implementations
+
+# FABRIK Solver (Forward And Backward Reaching Inverse Kinematics)
+fn solve_fabrik(
+    chain: IKChain,
+    bone_positions: Array<Vec3>,
+    target: Vec3
+) -> Array<Vec3>:
+    if len(bone_positions) < 2:
+        return bone_positions
+    
+    let positions = bone_positions
+    let bone_count = len(positions)
+    let origin = positions[0]
+    
+    # Check if target is reachable
+    let distance_to_target = distance(origin, target)
+    if distance_to_target > chain.total_length:
+        # Target unreachable - stretch toward target
+        let direction = normalize(vec3(
+            target.x - origin.x,
+            target.y - origin.y,
+            target.z - origin.z
+        ))
+        
+        positions[0] = origin
+        let i = 1
+        while i < bone_count:
+            let bone_length = chain.bone_lengths[i - 1]
+            positions[i] = vec3(
+                positions[i - 1].x + direction.x * bone_length,
+                positions[i - 1].y + direction.y * bone_length,
+                positions[i - 1].z + direction.z * bone_length
+            )
+            i = i + 1
+        return positions
+    
+    # Iterative FABRIK
+    let iteration = 0
+    while iteration < chain.iterations:
+        # Check if close enough
+        let end_pos = positions[bone_count - 1]
+        let dist_to_target = distance(end_pos, target)
+        if dist_to_target < chain.tolerance:
+            return positions
+        
+        # Backward reaching - from end effector to root
+        positions[bone_count - 1] = target
+        let i = bone_count - 2
+        while i >= 0:
+            let current = positions[i]
+            let next = positions[i + 1]
+            let bone_length = chain.bone_lengths[i]
+            
+            let direction = normalize(vec3(
+                current.x - next.x,
+                current.y - next.y,
+                current.z - next.z
+            ))
+            
+            positions[i] = vec3(
+                next.x + direction.x * bone_length,
+                next.y + direction.y * bone_length,
+                next.z + direction.z * bone_length
+            )
+            i = i - 1
+        
+        # Forward reaching - from root to end effector
+        positions[0] = origin
+        i = 1
+        while i < bone_count:
+            let prev = positions[i - 1]
+            let current = positions[i]
+            let bone_length = chain.bone_lengths[i - 1]
+            
+            let direction = normalize(vec3(
+                current.x - prev.x,
+                current.y - prev.y,
+                current.z - prev.z
+            ))
+            
+            positions[i] = vec3(
+                prev.x + direction.x * bone_length,
+                prev.y + direction.y * bone_length,
+                prev.z + direction.z * bone_length
+            )
+            i = i + 1
+        
+        iteration = iteration + 1
+    
+    return positions
+
+# Two-Bone IK Solver (optimized for arms/legs)
+fn solve_two_bone_ik(
+    root_pos: Vec3,
+    mid_pos: Vec3,
+    end_pos: Vec3,
+    target: Vec3,
+    pole_vector: Vec3,
+    upper_length: Float,
+    lower_length: Float
+) -> Array<Vec3>:
+    let total_length = upper_length + lower_length
+    let target_distance = distance(root_pos, target)
+    
+    # Clamp target to reachable distance
+    let clamped_distance = min(target_distance, total_length - 0.001)
+    let target_clamped = if target_distance > total_length - 0.001:
+        let dir = normalize(vec3(
+            target.x - root_pos.x,
+            target.y - root_pos.y,
+            target.z - root_pos.z
+        ))
+        vec3(
+            root_pos.x + dir.x * clamped_distance,
+            root_pos.y + dir.y * clamped_distance,
+            root_pos.z + dir.z * clamped_distance
+        )
+    else:
+        target
+    
+    # Calculate middle joint position using law of cosines
+    let a = upper_length
+    let b = lower_length
+    let c = clamped_distance
+    
+    # Angle at root joint
+    let cos_angle_root = (a * a + c * c - b * b) / (2.0 * a * c)
+    let angle_root = acos(clamp(cos_angle_root, -1.0, 1.0))
+    
+    # Angle at middle joint
+    let cos_angle_mid = (a * a + b * b - c * c) / (2.0 * a * b)
+    let angle_mid = acos(clamp(cos_angle_mid, -1.0, 1.0))
+    
+    # Direction from root to target
+    let root_to_target = normalize(vec3(
+        target_clamped.x - root_pos.x,
+        target_clamped.y - root_pos.y,
+        target_clamped.z - root_pos.z
+    ))
+    
+    # Calculate plane normal using pole vector
+    let root_to_pole = normalize(vec3(
+        pole_vector.x - root_pos.x,
+        pole_vector.y - root_pos.y,
+        pole_vector.z - root_pos.z
+    ))
+    
+    let plane_normal = normalize(cross(root_to_target, root_to_pole))
+    let bend_direction = normalize(cross(plane_normal, root_to_target))
+    
+    # Calculate middle joint position
+    let mid_offset_forward = cos(angle_root) * a
+    let mid_offset_side = sin(angle_root) * a
+    
+    let new_mid_pos = vec3(
+        root_pos.x + root_to_target.x * mid_offset_forward + bend_direction.x * mid_offset_side,
+        root_pos.y + root_to_target.y * mid_offset_forward + bend_direction.y * mid_offset_side,
+        root_pos.z + root_to_target.z * mid_offset_forward + bend_direction.z * mid_offset_side
+    )
+    
+    return [root_pos, new_mid_pos, target_clamped]
+
+# Look-At IK Solver
+fn solve_look_at_ik(
+    bone_pos: Vec3,
+    bone_rotation: Vec4,
+    target: Vec3,
+    aim_vector: Vec3,
+    up_vector: Vec3,
+    world_up: Vec3
+) -> Vec4:
+    # Calculate direction to target
+    let to_target = vec3(
+        target.x - bone_pos.x,
+        target.y - bone_pos.y,
+        target.z - bone_pos.z
+    )
+    
+    let distance_to_target = length(to_target)
+    if distance_to_target < 0.0001:
+        return bone_rotation
+    
+    let forward = vec3(
+        to_target.x / distance_to_target,
+        to_target.y / distance_to_target,
+        to_target.z / distance_to_target
+    )
+    
+    # Calculate right and up vectors
+    let right = normalize(cross(world_up, forward))
+    let up = cross(forward, right)
+    
+    # Build rotation matrix
+    let rotation = quat_look_rotation(forward, up)
+    
+    # Apply aim vector offset
+    let aim_offset = quat_from_rotation_between(
+        vec3(1.0, 0.0, 0.0),
+        normalize(aim_vector)
+    )
+    
+    return multiply_quat(rotation, aim_offset)
+
+fn quat_from_rotation_between(from: Vec3, to: Vec3) -> Vec4:
+    let from_norm = normalize(from)
+    let to_norm = normalize(to)
+    
+    let dot_product = dot(from_norm, to_norm)
+    
+    if dot_product > 0.9999:
+        return vec4(0.0, 0.0, 0.0, 1.0)
+    
+    if dot_product < -0.9999:
+        let axis = cross(vec3(1.0, 0.0, 0.0), from_norm)
+        if length(axis) < 0.0001:
+            axis = cross(vec3(0.0, 1.0, 0.0), from_norm)
+        axis = normalize(axis)
+        return quat_from_axis_angle(axis, 3.14159265)
+    
+    let axis = cross(from_norm, to_norm)
+    let angle = acos(dot_product)
+    
+    return quat_from_axis_angle(axis, angle)
+
+# IK Chain Initialization
+fn initialize_ik_chain(
+    chain: IKChain,
+    skeleton_cache: SkeletonCache
+) -> IKChain:
+    let bone_indices = []
+    let bone_lengths = []
+    
+    # Find bone indices
+    let i = 0
+    while i < len(chain.bone_names):
+        let bone_name = chain.bone_names[i]
+        let bone_index = find_bone_index(skeleton_cache, bone_name)
+        push(bone_indices, bone_index)
+        i = i + 1
+    
+    # Calculate bone lengths
+    i = 0
+    while i < len(bone_indices) - 1:
+        let current_index = bone_indices[i]
+        let next_index = bone_indices[i + 1]
+        
+        if current_index >= 0 and next_index >= 0:
+            let current_pos = skeleton_cache.world_transforms[current_index].position
+            let next_pos = skeleton_cache.world_transforms[next_index].position
+            let bone_length = distance(current_pos, next_pos)
+            push(bone_lengths, bone_length)
+        else:
+            push(bone_lengths, 0.0)
+        i = i + 1
+    
+    let total_length = calculate_chain_length(IKChain(
+        chain_name: chain.chain_name,
+        bone_names: chain.bone_names,
+        bone_indices: bone_indices,
+        bone_lengths: bone_lengths,
+        total_length: 0.0,
+        solver_type: chain.solver_type,
+        target_position: chain.target_position,
+        pole_vector: chain.pole_vector,
+        iterations: chain.iterations,
+        tolerance: chain.tolerance,
+        enabled: chain.enabled
+    ))
+    
+    return IKChain(
+        chain_name: chain.chain_name,
+        bone_names: chain.bone_names,
+        bone_indices: bone_indices,
+        bone_lengths: bone_lengths,
+        total_length: total_length,
+        solver_type: chain.solver_type,
+        target_position: chain.target_position,
+        pole_vector: chain.pole_vector,
+        iterations: chain.iterations,
+        tolerance: chain.tolerance,
+        enabled: chain.enabled
+    )
+
+fn find_bone_index(skeleton_cache: SkeletonCache, bone_name: String) -> Int:
+    let i = 0
+    while i < len(skeleton_cache.bone_names):
+        if skeleton_cache.bone_names[i] == bone_name:
+            return i
+        i = i + 1
+    return -1
+
+# Extract bone positions from skeleton cache
+fn extract_bone_positions(
+    chain: IKChain,
+    skeleton_cache: SkeletonCache
+) -> Array<Vec3>:
+    let positions = []
+    let i = 0
+    while i < len(chain.bone_indices):
+        let bone_index = chain.bone_indices[i]
+        if bone_index >= 0 and bone_index < len(skeleton_cache.world_transforms):
+            push(positions, skeleton_cache.world_transforms[bone_index].position)
+        else:
+            push(positions, vec3(0.0, 0.0, 0.0))
+        i = i + 1
+    return positions
+
+# Apply solved positions back to skeleton
+fn apply_ik_solution(
+    chain: IKChain,
+    solved_positions: Array<Vec3>,
+    skeleton_cache: SkeletonCache
+):
+    let i = 0
+    while i < len(chain.bone_indices):
+        let bone_index = chain.bone_indices[i]
+        if bone_index >= 0 and bone_index < len(skeleton_cache.bone_transforms):
+            let new_position = solved_positions[i]
+            
+            # Calculate rotation to point to next bone
+            if i < len(chain.bone_indices) - 1:
+                let next_position = solved_positions[i + 1]
+                let direction = normalize(vec3(
+                    next_position.x - new_position.x,
+                    next_position.y - new_position.y,
+                    next_position.z - new_position.z
+                ))
+                
+                let current_transform = skeleton_cache.bone_transforms[bone_index]
+                let new_rotation = quat_look_rotation(direction, vec3(0.0, 0.0, 1.0))
+                
+                skeleton_cache.bone_transforms[bone_index] = BoneTransform(
+                    position: new_position,
+                    rotation: new_rotation,
+                    scale: current_transform.scale
+                )
+            else:
+                let current_transform = skeleton_cache.bone_transforms[bone_index]
+                skeleton_cache.bone_transforms[bone_index] = BoneTransform(
+                    position: new_position,
+                    rotation: current_transform.rotation,
+                    scale: current_transform.scale
+                )
+            
+            mark_dirty(skeleton_cache, bone_index)
+        i = i + 1
+
+# Solve IK chain based on solver type
+fn solve_ik_chain(
+    chain: IKChain,
+    skeleton_cache: SkeletonCache
+):
+    if not chain.enabled:
+        return
+    
+    if chain.solver_type == IKSolverType.FABRIK:
+        solve_ik_chain_fabrik(chain, skeleton_cache)
+    else:
+        if chain.solver_type == IKSolverType.TwoBone:
+            solve_ik_chain_two_bone(chain, skeleton_cache)
+        else:
+            if chain.solver_type == IKSolverType.LookAt:
+                solve_ik_chain_look_at(chain, skeleton_cache)
+
+fn solve_ik_chain_fabrik(
+    chain: IKChain,
+    skeleton_cache: SkeletonCache
+):
+    let bone_positions = extract_bone_positions(chain, skeleton_cache)
+    let solved_positions = solve_fabrik(chain, bone_positions, chain.target_position)
+    apply_ik_solution(chain, solved_positions, skeleton_cache)
+
+fn solve_ik_chain_two_bone(
+    chain: IKChain,
+    skeleton_cache: SkeletonCache
+):
+    if len(chain.bone_indices) != 3:
+        return
+    
+    let root_index = chain.bone_indices[0]
+    let mid_index = chain.bone_indices[1]
+    let end_index = chain.bone_indices[2]
+    
+    if root_index < 0 or mid_index < 0 or end_index < 0:
+        return
+    
+    let root_pos = skeleton_cache.world_transforms[root_index].position
+    let mid_pos = skeleton_cache.world_transforms[mid_index].position
+    let end_pos = skeleton_cache.world_transforms[end_index].position
+    
+    let upper_length = chain.bone_lengths[0]
+    let lower_length = chain.bone_lengths[1]
+    
+    let solved_positions = solve_two_bone_ik(
+        root_pos,
+        mid_pos,
+        end_pos,
+        chain.target_position,
+        chain.pole_vector,
+        upper_length,
+        lower_length
+    )
+    
+    apply_ik_solution(chain, solved_positions, skeleton_cache)
+
+fn solve_ik_chain_look_at(
+    chain: IKChain,
+    skeleton_cache: SkeletonCache
+):
+    if len(chain.bone_indices) < 1:
+        return
+    
+    let bone_index = chain.bone_indices[0]
+    if bone_index < 0:
+        return
+    
+    let bone_transform = skeleton_cache.world_transforms[bone_index]
+    let new_rotation = solve_look_at_ik(
+        bone_transform.position,
+        bone_transform.rotation,
+        chain.target_position,
+        vec3(1.0, 0.0, 0.0),
+        vec3(0.0, 0.0, 1.0),
+        vec3(0.0, 0.0, 1.0)
+    )
+    
+    skeleton_cache.bone_transforms[bone_index] = BoneTransform(
+        position: bone_transform.position,
+        rotation: new_rotation,
+        scale: bone_transform.scale
+    )
+    
+    mark_dirty(skeleton_cache, bone_index)
+
+# IK Chain Validation
+fn validate_ik_chain(chain: IKChain) -> Bool:
+    if len(chain.bone_names) < 2:
+        return false
+    
+    if chain.solver_type == IKSolverType.TwoBone:
+        if len(chain.bone_names) != 3:
+            return false
+    
+    if chain.iterations < 1:
+        return false
+    
+    if chain.tolerance < 0.0:
+        return false
+    
+    return true
+
+# IK Chain Debugging
+fn debug_ik_chain(chain: IKChain) -> String:
+    let info = "IK Chain: " + chain.chain_name + "\n"
+    info = info + "Solver: " + solver_type_to_string(chain.solver_type) + "\n"
+    info = info + "Bones: " + int_to_string(len(chain.bone_names)) + "\n"
+    info = info + "Total Length: " + float_to_string(chain.total_length) + "\n"
+    info = info + "Iterations: " + int_to_string(chain.iterations) + "\n"
+    info = info + "Tolerance: " + float_to_string(chain.tolerance) + "\n"
+    info = info + "Enabled: " + bool_to_string(chain.enabled) + "\n"
+    return info
+
+fn solver_type_to_string(solver_type: IKSolverType) -> String:
+    if solver_type == IKSolverType.FABRIK:
+        return "FABRIK"
+    else:
+        if solver_type == IKSolverType.TwoBone:
+            return "TwoBone"
+        else:
+            return "LookAt"
+
+fn int_to_string(value: Int) -> String:
+    return "{value}"
+
+fn float_to_string(value: Float) -> String:
+    return "{value}"
+
+fn bool_to_string(value: Bool) -> String:
+    return if value then "true" else "false"
+
+# Advanced IK Features
+
+# Soft IK - gradual falloff near max reach
+fn solve_fabrik_soft(
+    chain: IKChain,
+    bone_positions: Array<Vec3>,
+    target: Vec3,
+    soft_distance: Float
+) -> Array<Vec3>:
+    let origin = bone_positions[0]
+    let distance_to_target = distance(origin, target)
+    
+    # Apply soft limit
+    let adjusted_target = if distance_to_target > chain.total_length - soft_distance:
+        let excess = distance_to_target - (chain.total_length - soft_distance)
+        let soft_factor = 1.0 - exp(-excess / soft_distance)
+        let max_distance = chain.total_length - soft_distance * (1.0 - soft_factor)
+        
+        let direction = normalize(vec3(
+            target.x - origin.x,
+            target.y - origin.y,
+            target.z - origin.z
+        ))
+        
+        vec3(
+            origin.x + direction.x * max_distance,
+            origin.y + direction.y * max_distance,
+            origin.z + direction.z * max_distance
+        )
+    else:
+        target
+    
+    return solve_fabrik(chain, bone_positions, adjusted_target)
+
+# IK with joint limits
+struct JointLimit:
+    bone_index: Int
+    min_angle: Vec3
+    max_angle: Vec3
+    enabled: Bool
+
+fn apply_joint_limits(
+    solved_positions: Array<Vec3>,
+    joint_limits: Array<JointLimit>,
+    skeleton_cache: SkeletonCache
+) -> Array<Vec3>:
+    let limited_positions = solved_positions
+    
+    let i = 0
+    while i < len(joint_limits):
+        let limit = joint_limits[i]
+        if limit.enabled and limit.bone_index >= 0 and limit.bone_index < len(limited_positions):
+            # Apply angle constraints
+            # This is a simplified version - full implementation would calculate
+            # actual joint angles and clamp them
+            let current_pos = limited_positions[limit.bone_index]
+            limited_positions[limit.bone_index] = current_pos
+        i = i + 1
+    
+    return limited_positions
+
+# Multi-target IK (for hands grabbing multiple objects)
+fn solve_multi_target_ik(
+    chain: IKChain,
+    bone_positions: Array<Vec3>,
+    targets: Array<Vec3>,
+    weights: Array<Float>
+) -> Array<Vec3>:
+    # Calculate weighted average target
+    let total_weight = 0.0
+    let i = 0
+    while i < len(weights):
+        total_weight = total_weight + weights[i]
+        i = i + 1
+    
+    if total_weight < 0.0001:
+        return bone_positions
+    
+    let avg_target = vec3(0.0, 0.0, 0.0)
+    i = 0
+    while i < len(targets):
+        let weight = weights[i] / total_weight
+        avg_target = vec3(
+            avg_target.x + targets[i].x * weight,
+            avg_target.y + targets[i].y * weight,
+            avg_target.z + targets[i].z * weight
+        )
+        i = i + 1
+    
+    return solve_fabrik(chain, bone_positions, avg_target)
+
+# IK Hint System (for elbow/knee hints)
+fn apply_ik_hint(
+    chain: IKChain,
+    solved_positions: Array<Vec3>,
+    hint_position: Vec3,
+    hint_weight: Float
+) -> Array<Vec3>:
+    if len(solved_positions) < 3:
+        return solved_positions
+    
+    let hinted_positions = solved_positions
+    
+    # Apply hint to middle joint
+    let mid_index = len(solved_positions) / 2
+    let current_mid = solved_positions[mid_index]
+    
+    let hinted_mid = vec3(
+        lerp(current_mid.x, hint_position.x, hint_weight),
+        lerp(current_mid.y, hint_position.y, hint_weight),
+        lerp(current_mid.z, hint_position.z, hint_weight)
+    )
+    
+    hinted_positions[mid_index] = hinted_mid
+    
+    return hinted_positions
+
+# Spline IK (for tails, tentacles, ropes)
+fn solve_spline_ik(
+    chain: IKChain,
+    bone_positions: Array<Vec3>,
+    control_points: Array<Vec3>,
+    tension: Float
+) -> Array<Vec3>:
+    let spline_positions = []
+    let bone_count = len(bone_positions)
+    
+    let i = 0
+    while i < bone_count:
+        let t = float(i) / float(bone_count - 1)
+        let spline_pos = evaluate_catmull_rom_spline(control_points, t, tension)
+        push(spline_positions, spline_pos)
+        i = i + 1
+    
+    return spline_positions
+
+fn evaluate_catmull_rom_spline(
+    control_points: Array<Vec3>,
+    t: Float,
+    tension: Float
+) -> Vec3:
+    let point_count = len(control_points)
+    if point_count < 2:
+        return vec3(0.0, 0.0, 0.0)
+    
+    let segment_count = point_count - 1
+    let segment_t = t * float(segment_count)
+    let segment_index = floor(segment_t)
+    let local_t = segment_t - segment_index
+    
+    let i0 = max(int(segment_index) - 1, 0)
+    let i1 = int(segment_index)
+    let i2 = min(int(segment_index) + 1, point_count - 1)
+    let i3 = min(int(segment_index) + 2, point_count - 1)
+    
+    let p0 = control_points[i0]
+    let p1 = control_points[i1]
+    let p2 = control_points[i2]
+    let p3 = control_points[i3]
+    
+    let t2 = local_t * local_t
+    let t3 = t2 * local_t
+    
+    let v0 = vec3(
+        (p2.x - p0.x) * tension,
+        (p2.y - p0.y) * tension,
+        (p2.z - p0.z) * tension
+    )
+    let v1 = vec3(
+        (p3.x - p1.x) * tension,
+        (p3.y - p1.y) * tension,
+        (p3.z - p1.z) * tension
+    )
+    
+    return vec3(
+        (2.0 * t3 - 3.0 * t2 + 1.0) * p1.x +
+        (t3 - 2.0 * t2 + local_t) * v0.x +
+        (-2.0 * t3 + 3.0 * t2) * p2.x +
+        (t3 - t2) * v1.x,
+        
+        (2.0 * t3 - 3.0 * t2 + 1.0) * p1.y +
+        (t3 - 2.0 * t2 + local_t) * v0.y +
+        (-2.0 * t3 + 3.0 * t2) * p2.y +
+        (t3 - t2) * v1.y,
+        
+        (2.0 * t3 - 3.0 * t2 + 1.0) * p1.z +
+        (t3 - 2.0 * t2 + local_t) * v0.z +
+        (-2.0 * t3 + 3.0 * t2) * p2.z +
+        (t3 - t2) * v1.z
+    )
+
+fn float(value: Int) -> Float:
+    return value * 1.0
+
+fn int(value: Float) -> Int:
+    return floor(value)

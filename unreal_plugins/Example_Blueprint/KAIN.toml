@@ -1,0 +1,15 @@
+[package]
+name = "BlueprintExample"
+version = "1.0.0"
+authors = ["KAIN Research Labs"]
+description = "Blueprint Integration Example - Demonstrates Blueprint function libraries, custom K2 nodes, async actions, and Kismet bytecode generation"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "BlueprintExample"
+plugin_dir = "."
+sources = ["blueprint.kn"]
+shaders = []
+modular_output = true

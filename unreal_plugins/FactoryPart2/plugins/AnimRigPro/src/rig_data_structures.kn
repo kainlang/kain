@@ -1,0 +1,652 @@
+# AnimRigPro - Rig Data Structures
+# Core data types for rigging system
+
+# Constraint Types
+enum ConstraintType:
+    Aim
+    Parent
+    Position
+    Rotation
+    Scale
+    PoleVector
+
+# IK Solver Types
+enum IKSolverType:
+    FABRIK
+    TwoBone
+    LookAt
+
+# Constraint Space
+enum ConstraintSpace:
+    World
+    Local
+    Parent
+    Bone
+
+# IK/FK Mode
+enum RigMode:
+    IK
+    FK
+    Blended
+
+# Axis Filter for constraints
+struct AxisFilter:
+    x_enabled: Bool
+    y_enabled: Bool
+    z_enabled: Bool
+    
+    fn all_enabled() -> AxisFilter:
+        return AxisFilter(
+            x_enabled: true,
+            y_enabled: true,
+            z_enabled: true
+        )
+    
+    fn x_only() -> AxisFilter:
+        return AxisFilter(
+            x_enabled: true,
+            y_enabled: false,
+            z_enabled: false
+        )
+    
+    fn y_only() -> AxisFilter:
+        return AxisFilter(
+            x_enabled: false,
+            y_enabled: true,
+            z_enabled: false
+        )
+    
+    fn z_only() -> AxisFilter:
+        return AxisFilter(
+            x_enabled: false,
+            y_enabled: false,
+            z_enabled: true
+        )
+    
+    fn apply_to_vector(filter: AxisFilter, original: Vec3, modified: Vec3) -> Vec3:
+        let result_x = if filter.x_enabled then modified.x else original.x
+        let result_y = if filter.y_enabled then modified.y else original.y
+        let result_z = if filter.z_enabled then modified.z else original.z
+        return vec3(result_x, result_y, result_z)
+    
+    fn apply_to_rotation(filter: AxisFilter, original: Vec3, modified: Vec3) -> Vec3:
+        return apply_to_vector(filter, original, modified)
+
+# Bone Reference
+struct BoneRef:
+    bone_name: String
+    bone_index: Int
+    parent_index: Int
+    
+    fn is_valid(bone_ref: BoneRef) -> Bool:
+        return bone_ref.bone_index >= 0
+
+# Transform Data
+struct BoneTransform:
+    position: Vec3
+    rotation: Vec4  # Quaternion (x, y, z, w)
+    scale: Vec3
+    
+    fn identity() -> BoneTransform:
+        return BoneTransform(
+            position: vec3(0.0, 0.0, 0.0),
+            rotation: vec4(0.0, 0.0, 0.0, 1.0),
+            scale: vec3(1.0, 1.0, 1.0)
+        )
+    
+    fn lerp_transform(a: BoneTransform, b: BoneTransform, alpha: Float) -> BoneTransform:
+        return BoneTransform(
+            position: lerp_vec3(a.position, b.position, alpha),
+            rotation: slerp_quat(a.rotation, b.rotation, alpha),
+            scale: lerp_vec3(a.scale, b.scale, alpha)
+        )
+    
+    fn multiply_transform(a: BoneTransform, b: BoneTransform) -> BoneTransform:
+        # Combine two transforms (a * b)
+        let new_rotation = multiply_quat(a.rotation, b.rotation)
+        let rotated_pos = rotate_vector_by_quat(b.position, a.rotation)
+        let scaled_pos = vec3(
+            rotated_pos.x * a.scale.x,
+            rotated_pos.y * a.scale.y,
+            rotated_pos.z * a.scale.z
+        )
+        let new_position = vec3(
+            a.position.x + scaled_pos.x,
+            a.position.y + scaled_pos.y,
+            a.position.z + scaled_pos.z
+        )
+        let new_scale = vec3(
+            a.scale.x * b.scale.x,
+            a.scale.y * b.scale.y,
+            a.scale.z * b.scale.z
+        )
+        return BoneTransform(
+            position: new_position,
+            rotation: new_rotation,
+            scale: new_scale
+        )
+    
+    fn inverse_transform(t: BoneTransform) -> BoneTransform:
+        let inv_rotation = conjugate_quat(t.rotation)
+        let inv_scale = vec3(1.0 / t.scale.x, 1.0 / t.scale.y, 1.0 / t.scale.z)
+        let inv_position = rotate_vector_by_quat(
+            vec3(-t.position.x, -t.position.y, -t.position.z),
+            inv_rotation
+        )
+        return BoneTransform(
+            position: vec3(
+                inv_position.x * inv_scale.x,
+                inv_position.y * inv_scale.y,
+                inv_position.z * inv_scale.z
+            ),
+            rotation: inv_rotation,
+            scale: inv_scale
+        )
+
+# Helper quaternion functions
+fn multiply_quat(a: Vec4, b: Vec4) -> Vec4:
+    let w = a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z
+    let x = a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y
+    let y = a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x
+    let z = a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w
+    return vec4(x, y, z, w)
+
+fn conjugate_quat(q: Vec4) -> Vec4:
+    return vec4(-q.x, -q.y, -q.z, q.w)
+
+fn rotate_vector_by_quat(v: Vec3, q: Vec4) -> Vec3:
+    let qv = vec3(q.x, q.y, q.z)
+    let uv = cross(qv, v)
+    let uuv = cross(qv, uv)
+    let uv_scaled = vec3(uv.x * 2.0 * q.w, uv.y * 2.0 * q.w, uv.z * 2.0 * q.w)
+    let uuv_scaled = vec3(uuv.x * 2.0, uuv.y * 2.0, uuv.z * 2.0)
+    return vec3(
+        v.x + uv_scaled.x + uuv_scaled.x,
+        v.y + uv_scaled.y + uuv_scaled.y,
+        v.z + uv_scaled.z + uuv_scaled.z
+    )
+
+fn slerp_quat(a: Vec4, b: Vec4, t: Float) -> Vec4:
+    let dot_product = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w
+    let b_adjusted = if dot_product < 0.0 then vec4(-b.x, -b.y, -b.z, -b.w) else b
+    let dot_adjusted = if dot_product < 0.0 then -dot_product else dot_product
+    
+    let theta = acos(clamp(dot_adjusted, -1.0, 1.0))
+    let sin_theta = sin(theta)
+    
+    if sin_theta < 0.001:
+        return lerp_quat(a, b_adjusted, t)
+    
+    let ratio_a = sin((1.0 - t) * theta) / sin_theta
+    let ratio_b = sin(t * theta) / sin_theta
+    
+    return vec4(
+        a.x * ratio_a + b_adjusted.x * ratio_b,
+        a.y * ratio_a + b_adjusted.y * ratio_b,
+        a.z * ratio_a + b_adjusted.z * ratio_b,
+        a.w * ratio_a + b_adjusted.w * ratio_b
+    )
+
+fn lerp_quat(a: Vec4, b: Vec4, t: Float) -> Vec4:
+    let result = vec4(
+        lerp(a.x, b.x, t),
+        lerp(a.y, b.y, t),
+        lerp(a.z, b.z, t),
+        lerp(a.w, b.w, t)
+    )
+    return normalize_quat(result)
+
+fn normalize_quat(q: Vec4) -> Vec4:
+    let mag = sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w)
+    if mag < 0.0001:
+        return vec4(0.0, 0.0, 0.0, 1.0)
+    return vec4(q.x / mag, q.y / mag, q.z / mag, q.w / mag)
+
+fn lerp_vec3(a: Vec3, b: Vec3, t: Float) -> Vec3:
+    return vec3(
+        lerp(a.x, b.x, t),
+        lerp(a.y, b.y, t),
+        lerp(a.z, b.z, t)
+    )
+
+fn quat_from_axis_angle(axis: Vec3, angle: Float) -> Vec4:
+    let half_angle = angle * 0.5
+    let s = sin(half_angle)
+    let normalized_axis = normalize(axis)
+    return vec4(
+        normalized_axis.x * s,
+        normalized_axis.y * s,
+        normalized_axis.z * s,
+        cos(half_angle)
+    )
+
+fn quat_look_rotation(forward: Vec3, up: Vec3) -> Vec4:
+    let f = normalize(forward)
+    let r = normalize(cross(up, f))
+    let u = cross(f, r)
+    
+    let trace = r.x + u.y + f.z
+    
+    if trace > 0.0:
+        let s = sqrt(trace + 1.0) * 2.0
+        return vec4(
+            (u.z - f.y) / s,
+            (f.x - r.z) / s,
+            (r.y - u.x) / s,
+            0.25 * s
+        )
+    else:
+        if r.x > u.y and r.x > f.z:
+            let s = sqrt(1.0 + r.x - u.y - f.z) * 2.0
+            return vec4(
+                0.25 * s,
+                (r.y + u.x) / s,
+                (f.x + r.z) / s,
+                (u.z - f.y) / s
+            )
+        else:
+            if u.y > f.z:
+                let s = sqrt(1.0 + u.y - r.x - f.z) * 2.0
+                return vec4(
+                    (r.y + u.x) / s,
+                    0.25 * s,
+                    (u.z + f.y) / s,
+                    (f.x - r.z) / s
+                )
+            else:
+                let s = sqrt(1.0 + f.z - r.x - u.y) * 2.0
+                return vec4(
+                    (f.x + r.z) / s,
+                    (u.z + f.y) / s,
+                    0.25 * s,
+                    (r.y - u.x) / s
+                )
+
+# IK Chain Data
+struct IKChain:
+    chain_name: String
+    bone_names: Array<String>
+    bone_indices: Array<Int>
+    bone_lengths: Array<Float>
+    total_length: Float
+    solver_type: IKSolverType
+    target_position: Vec3
+    pole_vector: Vec3
+    iterations: Int
+    tolerance: Float
+    enabled: Bool
+    
+    fn create_chain(
+        name: String,
+        bones: Array<String>,
+        solver: IKSolverType
+    ) -> IKChain:
+        return IKChain(
+            chain_name: name,
+            bone_names: bones,
+            bone_indices: [],
+            bone_lengths: [],
+            total_length: 0.0,
+            solver_type: solver,
+            target_position: vec3(0.0, 0.0, 0.0),
+            pole_vector: vec3(0.0, 0.0, 1.0),
+            iterations: 10,
+            tolerance: 0.01,
+            enabled: true
+        )
+    
+    fn calculate_chain_length(chain: IKChain) -> Float:
+        let total = 0.0
+        let i = 0
+        while i < len(chain.bone_lengths):
+            total = total + chain.bone_lengths[i]
+            i = i + 1
+        return total
+    
+    fn is_valid(chain: IKChain) -> Bool:
+        return len(chain.bone_names) >= 2 and chain.total_length > 0.0
+
+# Constraint Base Data
+struct ConstraintData:
+    constraint_name: String
+    constraint_type: ConstraintType
+    source_bone: String
+    source_bone_index: Int
+    target_bones: Array<String>
+    target_bone_indices: Array<Int>
+    target_weights: Array<Float>
+    weight: Float
+    space: ConstraintSpace
+    axis_filter: AxisFilter
+    enabled: Bool
+    maintain_offset: Bool
+    
+    fn create_constraint(
+        name: String,
+        ctype: ConstraintType,
+        source: String,
+        targets: Array<String>
+    ) -> ConstraintData:
+        let weights = []
+        let i = 0
+        while i < len(targets):
+            push(weights, 1.0)
+            i = i + 1
+        
+        return ConstraintData(
+            constraint_name: name,
+            constraint_type: ctype,
+            source_bone: source,
+            source_bone_index: -1,
+            target_bones: targets,
+            target_bone_indices: [],
+            target_weights: weights,
+            weight: 1.0,
+            space: ConstraintSpace.World,
+            axis_filter: all_enabled(),
+            enabled: true,
+            maintain_offset: false
+        )
+    
+    fn normalize_weights(constraint: ConstraintData) -> ConstraintData:
+        let total = 0.0
+        let i = 0
+        while i < len(constraint.target_weights):
+            total = total + constraint.target_weights[i]
+            i = i + 1
+        
+        if total < 0.0001:
+            return constraint
+        
+        let normalized = []
+        i = 0
+        while i < len(constraint.target_weights):
+            push(normalized, constraint.target_weights[i] / total)
+            i = i + 1
+        
+        return ConstraintData(
+            constraint_name: constraint.constraint_name,
+            constraint_type: constraint.constraint_type,
+            source_bone: constraint.source_bone,
+            source_bone_index: constraint.source_bone_index,
+            target_bones: constraint.target_bones,
+            target_bone_indices: constraint.target_bone_indices,
+            target_weights: normalized,
+            weight: constraint.weight,
+            space: constraint.space,
+            axis_filter: constraint.axis_filter,
+            enabled: constraint.enabled,
+            maintain_offset: constraint.maintain_offset
+        )
+
+# Aim Constraint Specific Data
+struct AimConstraintData:
+    base: ConstraintData
+    aim_vector: Vec3
+    up_vector: Vec3
+    world_up_type: Int  # 0=Scene, 1=Object, 2=Vector
+    world_up_object: String
+    world_up_vector: Vec3
+    
+    fn create_aim_constraint(
+        name: String,
+        source: String,
+        target: String
+    ) -> AimConstraintData:
+        return AimConstraintData(
+            base: create_constraint(name, ConstraintType.Aim, source, [target]),
+            aim_vector: vec3(1.0, 0.0, 0.0),
+            up_vector: vec3(0.0, 0.0, 1.0),
+            world_up_type: 2,
+            world_up_object: "",
+            world_up_vector: vec3(0.0, 0.0, 1.0)
+        )
+
+# Parent Constraint Specific Data
+struct ParentConstraintData:
+    base: ConstraintData
+    offset_transforms: Array<BoneTransform>
+    
+    fn create_parent_constraint(
+        name: String,
+        source: String,
+        targets: Array<String>
+    ) -> ParentConstraintData:
+        return ParentConstraintData(
+            base: create_constraint(name, ConstraintType.Parent, source, targets),
+            offset_transforms: []
+        )
+
+# Position Constraint Specific Data
+struct PositionConstraintData:
+    base: ConstraintData
+    offsets: Array<Vec3>
+    
+    fn create_position_constraint(
+        name: String,
+        source: String,
+        targets: Array<String>
+    ) -> PositionConstraintData:
+        return PositionConstraintData(
+            base: create_constraint(name, ConstraintType.Position, source, targets),
+            offsets: []
+        )
+
+# Rotation Constraint Specific Data
+struct RotationConstraintData:
+    base: ConstraintData
+    offset_rotations: Array<Vec4>
+    interpolation_type: Int  # 0=Shortest, 1=Longest, 2=Clockwise, 3=CounterClockwise
+    
+    fn create_rotation_constraint(
+        name: String,
+        source: String,
+        targets: Array<String>
+    ) -> RotationConstraintData:
+        return RotationConstraintData(
+            base: create_constraint(name, ConstraintType.Rotation, source, targets),
+            offset_rotations: [],
+            interpolation_type: 0
+        )
+
+# Scale Constraint Specific Data
+struct ScaleConstraintData:
+    base: ConstraintData
+    offset_scales: Array<Vec3>
+    use_offset: Bool
+    
+    fn create_scale_constraint(
+        name: String,
+        source: String,
+        targets: Array<String>
+    ) -> ScaleConstraintData:
+        return ScaleConstraintData(
+            base: create_constraint(name, ConstraintType.Scale, source, targets),
+            offset_scales: [],
+            use_offset: false
+        )
+
+# Pole Vector Constraint Data
+struct PoleVectorConstraintData:
+    base: ConstraintData
+    ik_chain_name: String
+    pole_angle: Float
+    
+    fn create_pole_vector_constraint(
+        name: String,
+        chain_name: String,
+        target: String
+    ) -> PoleVectorConstraintData:
+        return PoleVectorConstraintData(
+            base: create_constraint(name, ConstraintType.PoleVector, "", [target]),
+            ik_chain_name: chain_name,
+            pole_angle: 0.0
+        )
+
+# Rig State
+struct RigState:
+    rig_name: String
+    mode: RigMode
+    ik_blend: Float  # 0.0 = FK, 1.0 = IK
+    ik_chains: Array<IKChain>
+    constraints: Array<ConstraintData>
+    aim_constraints: Array<AimConstraintData>
+    parent_constraints: Array<ParentConstraintData>
+    position_constraints: Array<PositionConstraintData>
+    rotation_constraints: Array<RotationConstraintData>
+    scale_constraints: Array<ScaleConstraintData>
+    pole_vector_constraints: Array<PoleVectorConstraintData>
+    bone_transforms: Array<BoneTransform>
+    fk_transforms: Array<BoneTransform>
+    ik_transforms: Array<BoneTransform>
+    
+    fn create_rig_state(name: String) -> RigState:
+        return RigState(
+            rig_name: name,
+            mode: RigMode.FK,
+            ik_blend: 0.0,
+            ik_chains: [],
+            constraints: [],
+            aim_constraints: [],
+            parent_constraints: [],
+            position_constraints: [],
+            rotation_constraints: [],
+            scale_constraints: [],
+            pole_vector_constraints: [],
+            bone_transforms: [],
+            fk_transforms: [],
+            ik_transforms: []
+        )
+    
+    fn add_ik_chain(state: RigState, chain: IKChain) -> RigState:
+        let new_chains = state.ik_chains
+        push(new_chains, chain)
+        return RigState(
+            rig_name: state.rig_name,
+            mode: state.mode,
+            ik_blend: state.ik_blend,
+            ik_chains: new_chains,
+            constraints: state.constraints,
+            aim_constraints: state.aim_constraints,
+            parent_constraints: state.parent_constraints,
+            position_constraints: state.position_constraints,
+            rotation_constraints: state.rotation_constraints,
+            scale_constraints: state.scale_constraints,
+            pole_vector_constraints: state.pole_vector_constraints,
+            bone_transforms: state.bone_transforms,
+            fk_transforms: state.fk_transforms,
+            ik_transforms: state.ik_transforms
+        )
+    
+    fn find_ik_chain(state: RigState, chain_name: String) -> Int:
+        let i = 0
+        while i < len(state.ik_chains):
+            if state.ik_chains[i].chain_name == chain_name:
+                return i
+            i = i + 1
+        return -1
+    
+    fn get_active_transforms(state: RigState) -> Array<BoneTransform>:
+        if state.mode == RigMode.FK:
+            return state.fk_transforms
+        else:
+            if state.mode == RigMode.IK:
+                return state.ik_transforms
+            else:
+                return state.bone_transforms
+
+# Skeleton Cache for performance
+struct SkeletonCache:
+    bone_names: Array<String>
+    bone_parents: Array<Int>
+    bone_transforms: Array<BoneTransform>
+    world_transforms: Array<BoneTransform>
+    dirty_flags: Array<Bool>
+    
+    fn create_skeleton_cache(bone_count: Int) -> SkeletonCache:
+        let names = []
+        let parents = []
+        let transforms = []
+        let world_transforms = []
+        let dirty = []
+        
+        let i = 0
+        while i < bone_count:
+            push(names, "")
+            push(parents, -1)
+            push(transforms, identity())
+            push(world_transforms, identity())
+            push(dirty, true)
+            i = i + 1
+        
+        return SkeletonCache(
+            bone_names: names,
+            bone_parents: parents,
+            bone_transforms: transforms,
+            world_transforms: world_transforms,
+            dirty_flags: dirty
+        )
+    
+    fn mark_dirty(cache: SkeletonCache, bone_index: Int):
+        if bone_index >= 0 and bone_index < len(cache.dirty_flags):
+            cache.dirty_flags[bone_index] = true
+            
+            let i = 0
+            while i < len(cache.bone_parents):
+                if cache.bone_parents[i] == bone_index:
+                    mark_dirty(cache, i)
+                i = i + 1
+    
+    fn update_world_transform(cache: SkeletonCache, bone_index: Int):
+        if bone_index < 0 or bone_index >= len(cache.bone_transforms):
+            return
+        
+        if not cache.dirty_flags[bone_index]:
+            return
+        
+        let parent_index = cache.bone_parents[bone_index]
+        if parent_index >= 0:
+            update_world_transform(cache, parent_index)
+            let parent_world = cache.world_transforms[parent_index]
+            let local = cache.bone_transforms[bone_index]
+            cache.world_transforms[bone_index] = multiply_transform(parent_world, local)
+        else:
+            cache.world_transforms[bone_index] = cache.bone_transforms[bone_index]
+        
+        cache.dirty_flags[bone_index] = false
+
+# Blend Settings
+struct BlendSettings:
+    blend_duration: Float
+    blend_curve: Int  # 0=Linear, 1=EaseIn, 2=EaseOut, 3=EaseInOut
+    current_time: Float
+    
+    fn create_blend_settings(duration: Float) -> BlendSettings:
+        return BlendSettings(
+            blend_duration: duration,
+            blend_curve: 3,
+            current_time: 0.0
+        )
+    
+    fn get_blend_alpha(settings: BlendSettings) -> Float:
+        if settings.blend_duration <= 0.0:
+            return 1.0
+        
+        let t = clamp(settings.current_time / settings.blend_duration, 0.0, 1.0)
+        
+        if settings.blend_curve == 0:
+            return t
+        else:
+            if settings.blend_curve == 1:
+                return t * t
+            else:
+                if settings.blend_curve == 2:
+                    return 1.0 - (1.0 - t) * (1.0 - t)
+                else:
+                    if t < 0.5:
+                        return 2.0 * t * t
+                    else:
+                        return 1.0 - 2.0 * (1.0 - t) * (1.0 - t)
+    
+    fn is_complete(settings: BlendSettings) -> Bool:
+        return settings.current_time >= settings.blend_duration

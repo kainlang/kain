@@ -1,0 +1,102 @@
+# Phase 5 (Gameplay Cues) Test File
+# This file tests the complete GameplayCue implementation
+
+@gameplay_tags
+namespace Test:
+    Cue:
+        Burn
+        Heal
+        Shield
+        Stun
+        Damage
+
+@gameplay_cue
+struct BurnCue:
+    @tag
+    tag: "GameplayCue.Effect.Burn"
+    
+    @type
+    cue_type: "Static"
+    
+    @on_execute
+    fn on_execute():
+        # Instant visual/audio feedback for burn damage
+        spawn_particle("P_Burn_Impact", location)
+        play_sound("S_Burn_Impact", location)
+
+@gameplay_cue
+struct HealCue:
+    @tag
+    tag: "GameplayCue.Effect.Heal"
+    
+    @type
+    cue_type: "Actor"
+    
+    @auto_destroy
+    auto_destroy: true
+    
+    @state
+    particle_system: ParticleSystemComponent
+    
+    @state
+    audio_component: AudioComponent
+    
+    @on_add
+    fn on_add():
+        # Start healing effect loop
+        spawn_particle_attached("P_Heal_Loop", target)
+        play_sound_attached("S_Heal_Loop", target)
+    
+    @on_remove
+    fn on_remove():
+        # End healing effect
+        spawn_particle("P_Heal_End", location)
+        play_sound("S_Heal_End", location)
+
+@gameplay_cue
+struct ShieldCue:
+    @tag
+    tag: "GameplayCue.Effect.Shield"
+    
+    @type
+    cue_type: "Actor"
+    
+    @auto_destroy
+    auto_destroy: false
+    
+    @state
+    shield_mesh: StaticMeshComponent
+    
+    @state
+    shield_material: MaterialInstanceDynamic
+    
+    @on_add
+    fn on_add():
+        # Create shield visual
+        create_shield_mesh()
+        set_shield_opacity(1.0)
+    
+    @while_active
+    fn while_active():
+        # Pulse shield effect
+        pulse_shield_material()
+    
+    @on_remove
+    fn on_remove():
+        # Fade out shield
+        fade_out_shield()
+
+@gameplay_cue
+struct DamageCue:
+    @tag
+    tag: "GameplayCue.Effect.Damage"
+    
+    @type
+    cue_type: "Static"
+    
+    @on_execute
+    fn on_execute():
+        # Generic damage feedback
+        spawn_particle("P_Damage_Impact", location)
+        play_sound("S_Damage_Impact", location)
+        screen_shake(0.5)

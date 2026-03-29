@@ -1,0 +1,153 @@
+enum TerrainType:
+    Plains
+    Hills
+    Mountains
+    Valleys
+    Plateaus
+    Canyons
+    Cliffs
+    Ridges
+
+enum ErosionType:
+    Hydraulic
+    Thermal
+    Wind
+    Glacial
+    Chemical
+    Combined
+
+enum BiomeType:
+    Desert
+    Grassland
+    Forest
+    Tundra
+    Taiga
+    Savanna
+    Rainforest
+    Swamp
+    Alpine
+    Beach
+    Ocean
+    River
+
+enum LayerBlendMode:
+    Height
+    Slope
+    Curvature
+    Noise
+    Manual
+
+enum LODLevel:
+    LOD0
+    LOD1
+    LOD2
+    LOD3
+    LOD4
+    LOD5
+
+struct HeightmapData:
+    width: Int
+    height: Int
+    min_elevation: Float
+    max_elevation: Float
+    scale: Float
+    data: Array<Float>
+
+struct ErosionParams:
+    erosion_type: ErosionType
+    iterations: Int
+    erosion_strength: Float
+    sediment_capacity: Float
+    evaporation_rate: Float
+    deposition_rate: Float
+    min_slope: Float
+    thermal_angle: Float
+    wind_direction: Vec2
+    wind_strength: Float
+
+struct BiomeData:
+    biome_type: BiomeType
+    temperature: Float
+    humidity: Float
+    altitude_min: Float
+    altitude_max: Float
+    vegetation_density: Float
+    rock_coverage: Float
+    color_tint: Vec3
+
+struct TerrainLayer:
+    layer_name: String
+    blend_mode: LayerBlendMode
+    height_min: Float
+    height_max: Float
+    slope_min: Float
+    slope_max: Float
+    noise_scale: Float
+    noise_strength: Float
+    texture_scale: Float
+
+struct ChunkCoordinate:
+    x: Int
+    y: Int
+    z: Int
+
+struct TerrainChunkData:
+    coordinate: ChunkCoordinate
+    heightmap: HeightmapData
+    biome_map: Array<Int>
+    splatmap: Array<Vec4>
+    normal_map: Array<Vec3>
+    lod_level: LODLevel
+    is_generated: Bool
+    is_meshed: Bool
+
+struct NoiseSettings:
+    seed: Int
+    octaves: Int
+    frequency: Float
+    amplitude: Float
+    lacunarity: Float
+    persistence: Float
+    noise_type: Int
+
+struct WaterSimulationData:
+    water_amount: Float
+    sediment: Float
+    velocity: Vec2
+
+struct SplatmapChannel:
+    layer_index: Int
+    weight: Float
+
+struct TerrainGenerationSettings:
+    world_seed: Int
+    chunk_size: Int
+    terrain_scale: Float
+    base_height: Float
+    height_multiplier: Float
+    noise_settings: NoiseSettings
+    erosion_params: ErosionParams
+    biome_count: Int
+    layer_count: Int
+
+struct LODSettings:
+    lod_distances: Array<Float>
+    vertex_reduction: Array<Float>
+    enable_tessellation: Bool
+    tessellation_factor: Float
+
+struct StreamingSettings:
+    view_distance: Float
+    generation_radius: Int
+    unload_distance: Float
+    max_chunks_per_frame: Int
+    async_generation: Bool
+
+@datatable
+struct TerrainPreset:
+    preset_name: String
+    terrain_type: TerrainType
+    generation_settings: TerrainGenerationSettings
+    lod_settings: LODSettings
+    streaming_settings: StreamingSettings
+    description: String

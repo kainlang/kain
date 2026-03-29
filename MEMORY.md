@@ -10,6 +10,74 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-29 - Universal Web Template Added Database/Queue/Secrets/Config/Jobs Stacks
+
+The universal web template now includes database, queue, secrets, config, and background job stack registries with runtime endpoints, actor plan coverage, and archetype sections so full-stack web systems are modeled without Rust tooling.
+
+Update:
+
+- Added database/queue/secrets/config/background job stacks to `templates/Web/universal/manifests/content/web_systems_core.json` and wired new nav anchors + sections across all web archetypes.
+- Extended `templates/Web/universal/helpers/web_runtime.mjs` with site data fields, system-contract endpoints, search indexing, API routes, and actor-server plan coverage for the new stacks.
+- Updated template README + limitations and synced the changes into `M:/Templates/Web` and `M:/Code/Kain/templates/Web`.
+
+What future work should preserve:
+
+- keep backend stack metadata manifest-driven and surfaced via the runtime/system contract until a native Kain web runtime lands
+- keep archetype sections and nav anchors aligned with the new stack ids
+
+Current run recorded at 2026-03-29T03:07:57.116850-04:00.
+
+## 2026-03-28 - Universal Web Template Added PWA + Offline Outputs
+
+The universal web template now emits installable PWA assets alongside the existing manifest-driven site outputs, so offline-ready shells and service-worker previews are first-class without Rust tooling.
+
+Update:
+
+- Added PWA config to `templates/Web/universal/manifests/app.json` so install, theme, and offline settings are data-driven.
+- Extended `templates/Web/universal/helpers/web_runtime.mjs` to emit `manifest.webmanifest`, `service-worker.js`, `offline/index.html`, and `icon.svg`, register the service worker in HTML, and expose PWA routes in the API/system contract.
+- Updated template READMEs plus `limitations.md` and synced changes into `M:\Templates\Web` and `M:\Code\Kain\templates\Web`.
+
+What future work should preserve:
+
+- keep PWA/offline emission data-driven via `app.json` until a Kain-native web runtime lands
+- keep manifest + service worker routes represented in the system contract and runtime API list
+
+Current run recorded at 2026-03-28T19:52:31.0000000-04:00.
+
+## 2026-03-28 - UI Contract Validation Cleanup Hardened Reload Transfer Assumptions
+
+Targeted build and test validation for the current UI Slate X100 wave exposed a few incomplete compiler/runtime edits that have now been cleaned up without widening architecture.
+
+Update:
+
+- `crates/kain-ui/src/lib.rs` now remaps hot-reload selection state using `BTreeSet<UiNodeId>` instead of a stale vector helper, so reload transfer matches the actual `UiSelectionModel.selected` contract and reports transferred node counts correctly.
+- `crates/kain-core/src/realtime_app_bundle.rs` exposes `ui_session_state_string` to sibling compiler code, and `crates/kain-core/src/ui.rs` now uses that shared helper instead of carrying a broken private assumption.
+- `crates/kain-core/src/ui.rs` also now tolerates unsupported authored unary/binary expression forms by falling back to debug rendering instead of failing compilation when the AST grows ahead of the UI contract formatter.
+- The hot-reload preservation test in `crates/kain-ui/src/lib.rs` now models the intended explicit contract by assigning focus and selection scopes to the preserved node identities instead of implicitly expecting scope transfer from bare identity matching.
+
+What future work should preserve:
+
+- keep reload selection transfer aligned to `BTreeSet`-based selection state; do not reintroduce vec-shaped helpers for scoped selection maps
+- keep focus and selection reload transfer explicit-scope-driven; if a test expects preserved focus/selection state, the authored/runtime tree should advertise those scopes
+- when new authored expression variants are added, prefer graceful contract rendering fallback over compile breaks in UI-facing debug/contract surfaces
+
+## 2026-03-28 - Universal Web Template Added Tenancy + SSO + Event Bus Registries
+
+The universal web template now includes tenant management, SSO/SCIM, API key management, integration marketplace, event bus, data pipeline, compliance framework, and ops runbook registries, all surfaced through the helper runtime and hybrid/app archetypes.
+
+Update:
+
+- Added new registries in `web_systems_core` for tenancy, SSO/SCIM, API keys, integration marketplace, event bus, data pipelines, compliance frameworks, and ops runbooks.
+- Wired the new registries into the hybrid + app archetype sections and navigation anchors.
+- Extended the Node helper runtime to include site data, system contract payloads, search indexing, API routes, and UI schema counts for the new systems.
+- Updated template docs and limitations, and synced the changes into `M:\\Code\\Kain\\templates\\Web` and `K:\\templates\\Web`.
+
+What future work should preserve:
+
+- keep enterprise/ops registry lanes manifest-driven and surfaced via the helper runtime until Kain-native adapters land
+
+Current run recorded at 2026-03-28T19:15:32.7836119-04:00.
+
 ## 2026-03-28 - Universal Web Template Added UI Stack Studio + Default Build/Serve Helpers
 
 The universal web template now exposes a UI stack studio island so React/TypeScript-style runtime, state, routing, data, forms, motion, testing, and tooling systems are inspectable in one interactive surface, and default build/serve orchestration now avoids manual CLI boilerplate.

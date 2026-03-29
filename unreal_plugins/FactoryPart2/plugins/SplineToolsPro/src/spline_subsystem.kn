@@ -1,0 +1,246 @@
+# SplineToolsPro - Spline Subsystem
+# World subsystem for spline management and caching
+
+@subsystem
+struct SplineSubsystem:
+    active_splines: Array<Int>
+    arc_length_cache: Array<ArcLengthTable>
+    cache_spline_ids: Array<Int>
+    dirty_splines: Array<Int>
+    
+    # Cache management
+    max_cache_size: Int
+    cache_access_times: Array<Float>
+    cache_access_counts: Array<Int>
+    
+    # Performance tracking
+    total_cache_hits: Int
+    total_cache_misses: Int
+    last_cleanup_time: Float
+
+@tick
+fn spline_subsystem_tick(subsystem: SplineSubsystem, delta_time: Float):
+    # Update dynamic splines
+    update_dynamic_splines_internal(subsystem, delta_time)
+    
+    # Periodic cache cleanup
+    subsystem.last_cleanup_time = subsystem.last_cleanup_time + delta_time
+    if subsystem.last_cleanup_time > 5.0:
+        cleanup_unused_cache(subsystem)
+        subsystem.last_cleanup_time = 0.0
+
+# Register a spline with the subsystem
+@blueprint_callable
+fn register_spline(subsystem: SplineSubsystem, spline_id: Int):
+    # Check if already registered
+    let i = 0
+    while i < len(subsystem.active_splines):
+        if subsystem.active_splines[i] == spline_id:
+            return
+        i = i + 1
+    
+    push(subsystem.active_splines, spline_id)
+
+# Unregister a spline from the subsystem
+@blueprint_callable
+fn unregister_spline(subsystem: SplineSubsystem, spline_id: Int):
+    let new_splines: Array<Int> = []
+    let i = 0
+    while i < len(subsystem.active_splines):
+        if subsystem.active_splines[i] != spline_id:
+            push(new_splines, subsystem.active_splines[i])
+        i = i + 1
+    subsystem.active_splines = new_splines
+    
+    # Remove from cache
+    invalidate_cache(subsystem, spline_id)
+
+# Invalidate cached data for a spline
+@blueprint_callable
+fn invalidate_cache(subsystem: SplineSubsystem, spline_id: Int):
+    # Find and remove from cache
+    let new_cache: Array<ArcLengthTable> = []
+    let new_ids: Array<Int> = []
+    let new_times: Array<Float> = []
+    let new_counts: Array<Int> = []
+    
+    let i = 0
+    while i < len(subsystem.cache_spline_ids):
+        if subsystem.cache_spline_ids[i] != spline_id:
+            push(new_cache, subsystem.arc_length_cache[i])
+            push(new_ids, subsystem.cache_spline_ids[i])
+            push(new_times, subsystem.cache_access_times[i])
+            push(new_counts, subsystem.cache_access_counts[i])
+        i = i + 1
+    
+    subsystem.arc_length_cache = new_cache
+    subsystem.cache_spline_ids = new_ids
+    subsystem.cache_access_times = new_times
+    subsystem.cache_access_counts = new_counts
+    
+    # Add to dirty list
+    let already_dirty = false
+    let j = 0
+    while j < len(subsystem.dirty_splines):
+        if subsystem.dirty_splines[j] == spline_id:
+            already_dirty = true
+            break
+        j = j + 1
+    
+    if not already_dirty:
+        push(subsystem.dirty_splines, spline_id)
+
+# Get cached arc-length table with lazy rebuild
+@blueprint_callable
+fn get_cached_arc_length(subsystem: SplineSubsystem, spline_id: Int, points: Array<SplinePoint>, interpolation_type: SplineInterpolationType) -> ArcLengthTable:
+    # Check cache
+    let i = 0
+    while i < len(subsystem.cache_spline_ids):
+        if subsystem.cache_spline_ids[i] == spline_id:
+            # Cache hit
+            subsystem.total_cache_hits = subsystem.total_cache_hits + 1
+            subsystem.cache_access_counts[i] = subsystem.cache_access_counts[i] + 1
+            return subsystem.arc_length_cache[i]
+        i = i + 1
+    
+    # Cache miss - rebuild
+    subsystem.total_cache_misses = subsystem.total_cache_misses + 1
+    let new_table = build_arc_length_table(points, interpolation_type, 100)
+    
+    # Add to cache
+    push(subsystem.arc_length_cache, new_table)
+    push(subsystem.cache_spline_ids, spline_id)
+    push(subsystem.cache_access_times, 0.0)
+    push(subsystem.cache_access_counts, 1)
+    
+    # Check cache size limit
+    if len(subsystem.arc_length_cache) > subsystem.max_cache_size:
+        evict_lru_cache_entry(subsystem)
+    
+    return new_table
+
+# Update dynamic splines (animated control points)
+@blueprint_callable
+fn update_dynamic_splines(subsystem: SplineSubsystem):
+    update_dynamic_splines_internal(subsystem, 0.016)
+
+# Get all splines within bounds
+@blueprint_callable
+fn get_all_splines_in_bounds(subsystem: SplineSubsystem, min_bound: Vec3, max_bound: Vec3) -> Array<Int>:
+    let result: Array<Int> = []
+    
+    # For now, return all active splines
+    # In production, would use spatial partitioning
+    let i = 0
+    while i < len(subsystem.active_splines):
+        push(result, subsystem.active_splines[i])
+        i = i + 1
+    
+    return result
+
+# Cleanup unused cache entries
+@blueprint_callable
+fn cleanup_unused_cache(subsystem: SplineSubsystem):
+    # Remove entries with zero access count in last period
+    let new_cache: Array<ArcLengthTable> = []
+    let new_ids: Array<Int> = []
+    let new_times: Array<Float> = []
+    let new_counts: Array<Int> = []
+    
+    let i = 0
+    while i < len(subsystem.cache_spline_ids):
+        # Keep entries that were accessed recently
+        if subsystem.cache_access_counts[i] > 0:
+            push(new_cache, subsystem.arc_length_cache[i])
+            push(new_ids, subsystem.cache_spline_ids[i])
+            push(new_times, subsystem.cache_access_times[i])
+            push(new_counts, 0)  # Reset access count
+        i = i + 1
+    
+    subsystem.arc_length_cache = new_cache
+    subsystem.cache_spline_ids = new_ids
+    subsystem.cache_access_times = new_times
+    subsystem.cache_access_counts = new_counts
+
+# Get cache statistics
+@blueprint_callable
+fn get_cache_stats(subsystem: SplineSubsystem) -> String:
+    let total_requests = subsystem.total_cache_hits + subsystem.total_cache_misses
+    let hit_rate = 0.0
+    
+    if total_requests > 0:
+        hit_rate = subsystem.total_cache_hits as Float / total_requests as Float * 100.0
+    
+    return "Cache: {len(subsystem.arc_length_cache)} entries, Hit Rate: {hit_rate}%"
+
+# Internal helper functions
+
+fn update_dynamic_splines_internal(subsystem: SplineSubsystem, delta_time: Float):
+    # Process dirty splines
+    let i = 0
+    while i < len(subsystem.dirty_splines):
+        let spline_id = subsystem.dirty_splines[i]
+        invalidate_cache(subsystem, spline_id)
+        i = i + 1
+    
+    # Clear dirty list
+    subsystem.dirty_splines = []
+
+fn evict_lru_cache_entry(subsystem: SplineSubsystem):
+    if len(subsystem.arc_length_cache) == 0:
+        return
+    
+    # Find entry with lowest access count
+    let min_access_count = subsystem.cache_access_counts[0]
+    let min_index = 0
+    
+    let i = 1
+    while i < len(subsystem.cache_access_counts):
+        if subsystem.cache_access_counts[i] < min_access_count:
+            min_access_count = subsystem.cache_access_counts[i]
+            min_index = i
+        i = i + 1
+    
+    # Remove entry at min_index
+    let new_cache: Array<ArcLengthTable> = []
+    let new_ids: Array<Int> = []
+    let new_times: Array<Float> = []
+    let new_counts: Array<Int> = []
+    
+    let j = 0
+    while j < len(subsystem.arc_length_cache):
+        if j != min_index:
+            push(new_cache, subsystem.arc_length_cache[j])
+            push(new_ids, subsystem.cache_spline_ids[j])
+            push(new_times, subsystem.cache_access_times[j])
+            push(new_counts, subsystem.cache_access_counts[j])
+        j = j + 1
+    
+    subsystem.arc_length_cache = new_cache
+    subsystem.cache_spline_ids = new_ids
+    subsystem.cache_access_times = new_times
+    subsystem.cache_access_counts = new_counts
+
+# Initialize subsystem
+@blueprint_callable
+fn initialize_spline_subsystem(subsystem: SplineSubsystem):
+    subsystem.active_splines = []
+    subsystem.arc_length_cache = []
+    subsystem.cache_spline_ids = []
+    subsystem.dirty_splines = []
+    subsystem.max_cache_size = 100
+    subsystem.cache_access_times = []
+    subsystem.cache_access_counts = []
+    subsystem.total_cache_hits = 0
+    subsystem.total_cache_misses = 0
+    subsystem.last_cleanup_time = 0.0
+
+# Deinitialize subsystem
+@blueprint_callable
+fn deinitialize_spline_subsystem(subsystem: SplineSubsystem):
+    subsystem.active_splines = []
+    subsystem.arc_length_cache = []
+    subsystem.cache_spline_ids = []
+    subsystem.dirty_splines = []
+    subsystem.cache_access_times = []
+    subsystem.cache_access_counts = []

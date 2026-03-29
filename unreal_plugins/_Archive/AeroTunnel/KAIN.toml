@@ -1,0 +1,154 @@
+# ============================================================================
+# AeroTunnel - KAIN Configuration
+# ============================================================================
+# ============================================================================
+
+# Root-level plugin_name for FULLBUILD.bat compatibility
+plugin_name = "AeroTunnel"
+
+[plugin]
+name = "AeroTunnel"
+version = "1.0.0"
+description = "Professional blade-element flight physics and wind tunnel editor for UE5"
+author = "KAIN Factory"
+category = "Physics"
+engine_version = "5.4"
+
+[plugin.metadata]
+marketplace_url = ""
+documentation_url = ""
+support_url = ""
+tags = ["Physics", "Aerodynamics", "Flight", "Simulation", "Wind Tunnel", "Aerospace"]
+
+[build]
+# Source files to compile
+sources = [
+    "aerotunnel.kn"
+]
+
+# Output directories
+output_dir = "Source/AeroTunnel"
+shader_dir = "Shaders"
+
+# UE5 module configuration
+[build.ue5]
+module_type = "Runtime"
+loading_phase = "Default"
+whitelist_platforms = ["Win64", "Linux", "Mac"]
+
+# Dependencies
+dependencies = [
+    "Core",
+    "CoreUObject",
+    "Engine",
+    "RenderCore",
+    "RHI",
+    "Slate",
+    "SlateCore",
+    "UnrealEd",
+    "PropertyEditor",
+    "EditorStyle",
+    "LevelEditor",
+    "InputCore",
+    "Projects"
+]
+
+# Editor module configuration
+[build.editor]
+enabled = true
+module_name = "AeroTunnelEditor"
+loading_phase = "PostEngineInit"
+
+# Shader compilation settings
+[shaders]
+# Shader permutations for quality levels
+permutations = [
+    "CFG_HIGH_PRECISION",
+    "CFG_COMPRESSIBILITY",
+    "CFG_HIGH_FIDELITY",
+    "ENABLE_VISCOUS_EFFECTS"
+]
+
+# Shader optimization
+optimize = true
+debug_info = false
+
+# Asset configuration
+[assets]
+# DataTable CSV files
+datatables = [
+    "Data/AirfoilProfiles.csv",
+    "Data/FlightTestData.csv",
+    "Data/ControlSurfaces.csv"
+]
+
+# Icon paths
+icons = [
+    "Resources/Icons/AeroTunnel_Icon.png",
+    "Resources/Icons/WindTunnel_Icon.png",
+    "Resources/Icons/Analyze_Icon.png"
+]
+
+# Performance settings
+[performance]
+# Physics sub-stepping
+physics_substep_hz = 120.0
+
+# Telemetry sampling
+telemetry_sample_rate_hz = 60.0
+
+# Max blade elements per mesh
+max_blade_elements = 10000
+
+# GPU compute settings
+[compute]
+# Thread group sizes for compute shaders
+thread_group_size_x = 64
+thread_group_size_y = 1
+thread_group_size_z = 1
+
+# Max dispatch size
+max_dispatch_size = 65535
+
+# Feature flags
+[features]
+# Enable all aerodynamic features
+blade_element_theory = true
+vortex_wake_simulation = true
+atmospheric_turbulence = true
+stall_detection = true
+compressibility_corrections = true
+viscous_effects = true
+
+# Visualization features
+force_vector_visualization = true
+pressure_map_visualization = true
+velocity_field_visualization = true
+stall_region_highlighting = true
+
+# Telemetry features
+real_time_telemetry = true
+telemetry_graphs = true
+flight_data_export = true
+
+# Wind tunnel features
+static_wind_tunnel = true
+dynamic_wind_tunnel = true
+gust_simulation = true
+vortex_wake_tunnel = true
+
+# Debug settings
+[debug]
+# Enable debug logging
+verbose_logging = false
+
+# Enable debug visualization
+debug_draw = true
+
+# Enable performance profiling
+profiling = false
+
+# Validation
+validate_blade_elements = true
+validate_forces = true
+validate_moments = true

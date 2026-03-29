@@ -27,7 +27,8 @@
   - HTML and client-island renderer
   - client bundler (Preact + Three.js) for React/TypeScript-esque islands
   - KainScript (`.ks`) support in the client bundle loader
-  - local search, frontend stack + UI runtime + UI state/routing/data/forms/motion/testing/tooling stacks, chat runtime, actor runtime, agent knowledge/memory/tool registries, chat (playbooks/tools/memory), prompt-deck, UI kit, catalog, app/auth/commerce/data/realtime, 3D scene assets/materials/lighting/cameras/animation/physics/audio/XR/shaders, growth/experiments/service catalog, support + feedback + survey + messaging + payments + scheduling + privacy lanes, actor jobs/schedules/hosts, runtime hosts + deployment targets, session, uploads, analytics, form, and route APIs
+  - PWA manifest, offline fallback, and service worker output
+  - local search, frontend stack + Kain UI stack + UI runtime + UI state/routing/data/forms/motion/testing/tooling stacks, chat runtime, actor runtime, agent knowledge/memory/tool registries, chat (playbooks/tools/memory), prompt-deck, UI kit, catalog, app/auth/commerce/data/realtime, 3D scene assets/materials/lighting/cameras/animation/physics/audio/XR/shaders, growth/experiments/service catalog, creative systems (copy decks, content models, editorial flow, email templates, campaigns, icon/motion/illustration libraries), support + feedback + survey + messaging + payments + scheduling + privacy lanes, actor jobs/schedules/hosts, runtime hosts + deployment targets, session, uploads, analytics, form, and route APIs
   - static artifact writer
   - actor-aware local HTTP + SSE + WebSocket server with agent-scoped chat routing
 - `package.json`
@@ -73,6 +74,10 @@
 - `sitemap.xml`
 - `robots.txt`
 - `feed.xml`
+- `manifest.webmanifest`
+- `service-worker.js`
+- `offline/index.html`
+- `icon.svg`
 - `social-card.svg`
 
 ## Shared Artifacts (Written Once Per Build)
@@ -187,6 +192,9 @@ New reusable section kinds in this pass:
 New system registries in this pass:
 
 - identity providers, roles, and access policies
+- tenant management and workspace isolation registries
+- SSO and SCIM provisioning stack registry
+- API key management registry (service accounts, scopes, rotation)
 - identity verification lanes
 - fraud and risk controls
 - consent and preference center metadata
@@ -205,6 +213,7 @@ New system registries in this pass:
 - chat agent roster, tools, and workflows
 - UI components, layouts, and design token registries
 - frontend stack registry (TypeScript/React-like runtime, routing, state, data, build)
+- Kain UI stack registry (semantic contracts, reload, workspace semantics, shader canvas, preview loop)
 - UI state, routing, data, form, motion, testing, and tooling stack registries for React/TypeScript-style shells
 - UI runtime registry (schema, modules, islands, tokens, layouts)
 - chat runtime registry (streaming, personas, playbooks, tools, memory, safety)
@@ -216,10 +225,11 @@ New system registries in this pass:
 - frontend framework targets (React/Next/Remix/Astro/SvelteKit/Vue/Solid compatibility planning)
 - expanded UI component + layout recipes (portfolio, docs, commerce, realtime)
 - expanded infrastructure + observability stack metadata (edge, serverless, data, logs, cost)
+- database, queue, secrets, config, and background job stack registries
 - expanded security controls and performance/accessibility targets
 - actor policies and actor metrics
 - scene pipeline, render stack, interaction modes, and device profiles
-- model stack, voice stack, and moderation policies
+- model stack, voice stack, moderation policies, AI evaluation suites, AI guardrails, and prompt library registries
 - actor supervision and actor queue registries
 - data governance and backup plan registries
 - support tickets, feedback loops, and survey programs
@@ -231,6 +241,9 @@ New system registries in this pass:
 - paid acquisition and personalization stack registries
 - customer portal registry
 - data platform registry
+- integration marketplace registry (partner tiers + install hooks)
+- event bus registry (pub/sub + worker queues)
+- data pipeline registry (ELT, feature store, lakehouse)
 - analytics stack registry
 - attribution stack registry
 - data warehouse registry
@@ -238,6 +251,7 @@ New system registries in this pass:
 - release notes and changelog entries
 - feature flag registry
 - incident response playbooks
+- operational runbooks registry
 - CRM pipeline stages
 - scene asset, material, lighting, camera, animation, physics, spatial audio, XR, and shader registries
 - streaming stack registry for chat + ops previews
@@ -245,12 +259,18 @@ New system registries in this pass:
 - actor job, schedule, and host registries
 - runtime host and deployment target registries
 - brand system registry (voice, identity, motion)
+- creative systems registry (direction, campaign briefs, copy deck)
+- content model registry (launch, case study, 3D scene)
+- editorial workflow registry
+- email template registry (welcome, launch, activation)
+- icon system, motion library, and illustration library registries
 - social presence and channel registry
 - content calendar registry
 - release pipeline registry
 - QA program registry
 - domain + edge stack registry
 - trust center registry
+- compliance framework registry (SOC2, ISO, HIPAA, PCI, GDPR)
 - edge runtime registry (edge execution + cache routing)
 - worker runtime registry (cron + queue workers)
 - API gateway registry (routing + validation)

@@ -1,0 +1,2263 @@
+# ============================================================================
+# KAIN GAS SHOWCASE — Complete Gameplay Ability System Demonstration
+# ============================================================================
+# This file demonstrates EVERY feature of KAIN's GAS codegen:
+# - GameplayTags (80+ tags, hierarchical)
+# - Attribute Sets (5 sets with replication)
+# - Gameplay Abilities (20+ abilities)
+# - Gameplay Effects (30+ effects)
+# - Tag Queries & Events
+# - Ability Tasks
+# - Gameplay Cues
+# - Full Multiplayer Replication
+# - Ability System Component
+# - Cost & Cooldown Systems
+# - Damage Calculations
+# - Buff/Debuff Systems
+# - DOT/HOT Effects
+# - Immunity & Resistance
+# - Combo Systems
+# - Passive Abilities
+# - Channeled Abilities
+# - Instant Abilities
+# - State Tracking
+# ============================================================================
+# ============================================================================
+# SECTION 1: GAMEPLAY TAGS (80+ tags, hierarchical)
+# ============================================================================
+# Tags are the FOUNDATION of GAS. Without proper tag support, nothing works.
+# Tags control ability activation, effect application, state tracking, and more.
+# ============================================================================
+@gameplay_tags
+namespace Ability:
+    # Attack Abilities
+    Attack:
+        Melee:
+            Sword:
+                Light
+                Heavy
+                Combo
+            Axe:
+                Chop
+                Cleave
+                Whirlwind
+            Spear:
+                Thrust
+                Sweep
+                Charge
+        Ranged:
+            Bow:
+                QuickShot
+                ChargedShot
+                MultiShot
+                PiercingShot
+            Gun:
+                SingleShot
+                Burst
+                FullAuto
+                Reload
+            Magic:
+                Fireball
+                IceShard
+                Lightning
+                Meteor
+    # Defensive Abilities
+    Defend:
+        Block:
+            Shield
+            Parry
+            Counter
+        Dodge:
+            Roll
+            Dash
+            Teleport
+            Blink
+        Absorb:
+            MagicShield
+            PhysicalShield
+            ElementalShield
+    # Utility Abilities
+    Utility:
+        Movement:
+            Jump
+            Sprint
+            Climb
+            Glide
+            WallRun
+        Interaction:
+            Use
+            Pickup
+            Drop
+            Examine
+        Magic:
+            Heal
+            Buff
+            Summon
+            Dispel
+            Cleanse
+    # Passive Abilities
+    Passive:
+        Regeneration:
+            HealthRegen
+            ManaRegen
+            StaminaRegen
+        Resistance:
+            FireResist
+            IceResist
+            LightningResist
+            PoisonResist
+        Mastery:
+            SwordMastery
+            BowMastery
+            MagicMastery
+    # Channeled Abilities
+    Channeled:
+        Beam:
+            FireBeam
+            IceBeam
+            HealBeam
+        Channel:
+            Meditation
+            Ritual
+            Summon
+    # Activation Failures
+    ActivateFail:
+        IsDead
+        Cooldown
+        Cost
+        TagsBlocked
+        TagsMissing
+        Networking
+        NoTarget
+        OutOfRange
+    # Behavior Tags
+    Behavior:
+        SurvivesDeath
+        CannotBeCanceled
+        IgnoreGlobalCooldown
+        RequiresTarget
+@gameplay_tags
+namespace Status:
+    # Life States
+    Alive
+    Dead:
+        Dying
+        Dead
+    # Combat States
+    InCombat
+    OutOfCombat
+    Attacking
+    Defending
+    Casting
+    Channeling
+    Busy
+    # Control States (CC)
+    CC:
+        Stunned
+        Rooted
+        Silenced
+        Feared
+        Slowed
+        Frozen
+        Knocked
+        Disarmed
+        Blinded
+        Confused
+    # Buff States
+    Buff:
+        Strength
+        Speed
+        Armor
+        Regeneration
+        Invulnerability
+        Empowered
+        Haste
+        Fortified
+        Blessed
+        Enraged
+    # Debuff States
+    Debuff:
+        Weakness
+        Slow
+        Vulnerable
+        Burning
+        Poisoned
+        Bleeding
+        Cursed
+        Diseased
+        Exhausted
+        Corrupted
+    # Movement States
+    Movement:
+        Grounded
+        Jumping
+        Falling
+        Swimming
+        Flying
+        Climbing
+        Dashing
+        Sprinting
+        Crouching
+        Sliding
+    # Immunity States
+    Immune:
+        Physical
+        Fire
+        Ice
+        Lightning
+        Poison
+        CC:
+            Stun
+            Root
+            Silence
+            Fear
+        Damage
+        AllDamage
+    # Condition States
+    Condition:
+        FullHealth
+        LowHealth
+        OutOfMana
+        LowMana
+        OutOfStamina
+        LowStamina
+        Injured
+        CanCast
+        Conscious
+@gameplay_tags
+namespace Damage:
+    Physical:
+        Slash
+        Pierce
+        Blunt
+        Crush
+    Magical:
+        Fire
+        Ice
+        Lightning
+        Poison
+        Dark
+        Holy
+        Arcane
+        Nature
+    TrueDamage:
+        PureDamage
+        Absolute
+@gameplay_tags
+namespace Weakness:
+    Physical
+    Fire
+    Ice
+    Lightning
+    Poison
+    Dark
+    Holy
+@gameplay_tags
+namespace Resistance:
+    Physical
+    Fire
+    Ice
+    Lightning
+    Poison
+    Dark
+    Holy
+@gameplay_tags
+namespace Effect:
+    Damage:
+        Instant
+        DOT
+        AOE
+    Heal:
+        Instant
+        HOT
+        AOE
+    Buff:
+        Stat
+        Movement
+        Combat
+        Defensive
+    Debuff:
+        Stat
+        Movement
+        Combat
+    CC:
+        Hard
+        Soft
+    Type:
+        Periodic
+        Duration
+        Infinite
+        Instant
+@gameplay_tags
+namespace Event:
+    Death
+    LevelUp
+    Respawn
+    CombatStart
+    CombatEnd
+    AbilityActivated
+    AbilityEnded
+    EffectApplied
+    EffectRemoved
+    AttributeChanged
+    TagAdded
+    TagRemoved
+@gameplay_tags
+namespace Input:
+    Jump
+    Sprint
+    Attack
+    Defend
+    Skill1
+    Skill2
+    Skill3
+    Skill4
+    Ultimate
+    Interact
+    Reload
+    Aim
+@gameplay_tags
+namespace Cooldown:
+    Ability:
+        Jump
+        Sprint
+        Attack:
+            Melee
+            Ranged
+        Skill1
+        Skill2
+        Skill3
+        Skill4
+        Ultimate
+    Global:
+        GCD
+        CombatGCD
+@gameplay_tags
+namespace GameplayCue:
+    Impact:
+        Physical:
+            Slash
+            Pierce
+            Blunt
+        Fire
+        Ice
+        Lightning
+        Poison
+    Effect:
+        Burn:
+            Start
+            Loop
+            End
+        Freeze:
+            Start
+            Loop
+            End
+        Poison:
+            Start
+            Loop
+            End
+        Heal:
+            Start
+            Burst
+            End
+        Buff:
+            Applied
+            Removed
+        Debuff:
+            Applied
+            Removed
+    Ability:
+        Cast:
+            Start
+            Channel
+            End
+        Impact:
+            Hit
+            Critical
+            Miss
+@gameplay_tags
+namespace SetByCaller:
+    Damage:
+        Amount
+        Type
+        Critical
+    Heal:
+        Amount
+        Overheal
+    Duration:
+        Base
+        Modified
+    Magnitude:
+        Base
+        Scaled
+# ============================================================================
+# SECTION 2: ATTRIBUTE SETS (5 comprehensive sets)
+# ============================================================================
+# Attribute sets hold replicated attributes (health, mana, etc.) with automatic
+# clamping, replication, and lifecycle hooks for gameplay effect execution.
+# ============================================================================
+@attribute_set
+struct HealthSet:
+    @attribute(replicated: true, rep_notify: true, hide_from_modifiers: true)
+    health: Float = 100.0
+    @attribute(replicated: true, rep_notify: true)
+    max_health: Float = 100.0
+    @attribute(meta: true)
+    healing: Float = 0.0
+    @attribute(meta: true, hide_from_modifiers: true)
+    damage: Float = 0.0
+    @delegate
+    on_health_changed: AttributeEvent
+    @delegate
+    on_max_health_changed: AttributeEvent
+    @delegate
+    on_out_of_health: AttributeEvent
+    fn pre_attribute_change(attribute: GameplayAttribute, new_value: Float):
+        if attribute == get_health_attribute():
+            new_value = clamp(new_value, 0.0, get_max_health())
+        elif attribute == get_max_health_attribute():
+            new_value = max(new_value, 1.0)
+    fn post_gameplay_effect_execute(data: GameplayEffectModCallbackData):
+        let health_before = get_health()
+        if data.evaluated_data.attribute == get_damage_attribute():
+            let damage_done = get_damage()
+            set_health(clamp(get_health() - damage_done, 0.0, get_max_health()))
+            set_damage(0.0)
+            if damage_done > 0.0:
+                on_health_changed.broadcast(data.effect_spec.get_context().get_instigator(), data.effect_spec.get_context().get_effect_causer(), data.effect_spec, damage_done, health_before, get_health())
+        elif data.evaluated_data.attribute == get_healing_attribute():
+            let healing_done = get_healing()
+            set_health(clamp(get_health() + healing_done, 0.0, get_max_health()))
+            set_healing(0.0)
+            if healing_done > 0.0:
+                on_health_changed.broadcast(data.effect_spec.get_context().get_instigator(), data.effect_spec.get_context().get_effect_causer(), data.effect_spec, healing_done, health_before, get_health())
+        if get_health() <= 0.0 and health_before > 0.0:
+            on_out_of_health.broadcast(data.effect_spec.get_context().get_instigator(), data.effect_spec.get_context().get_effect_causer(), data.effect_spec, 0.0, health_before, 0.0)
+@attribute_set
+struct CombatSet:
+    @attribute(replicated: true, rep_notify: true)
+    attack_power: Float = 10.0
+    @attribute(replicated: true, rep_notify: true)
+    defense: Float = 5.0
+    @attribute(replicated: true, rep_notify: true)
+    critical_chance: Float = 0.1
+    @attribute(replicated: true, rep_notify: true)
+    critical_damage: Float = 2.0
+    @attribute(replicated: true, rep_notify: true)
+    armor: Float = 0.0
+    @attribute(replicated: true, rep_notify: true)
+    armor_penetration: Float = 0.0
+    @attribute(replicated: true, rep_notify: true)
+    attack_speed: Float = 1.0
+    @attribute(replicated: true, rep_notify: true)
+    lifesteal: Float = 0.0
+    fn pre_attribute_change(attribute: GameplayAttribute, new_value: Float):
+        if attribute == get_critical_chance_attribute():
+            new_value = clamp(new_value, 0.0, 1.0)
+        elif attribute == get_critical_damage_attribute():
+            new_value = max(new_value, 1.0)
+        elif attribute == get_armor_attribute():
+            new_value = max(new_value, 0.0)
+        elif attribute == get_attack_speed_attribute():
+            new_value = clamp(new_value, 0.1, 5.0)
+        elif attribute == get_lifesteal_attribute():
+            new_value = clamp(new_value, 0.0, 1.0)
+@attribute_set
+struct MovementSet:
+    @attribute(replicated: true, rep_notify: true)
+    movement_speed: Float = 600.0
+    @attribute(replicated: true, rep_notify: true)
+    max_movement_speed: Float = 1000.0
+    @attribute(replicated: true, rep_notify: true)
+    jump_height: Float = 500.0
+    @attribute(replicated: true, rep_notify: true)
+    acceleration: Float = 2048.0
+    @attribute(replicated: true, rep_notify: true)
+    friction: Float = 8.0
+    @attribute(replicated: true, rep_notify: true)
+    gravity_scale: Float = 1.0
+    fn pre_attribute_change(attribute: GameplayAttribute, new_value: Float):
+        if attribute == get_movement_speed_attribute():
+            new_value = clamp(new_value, 0.0, get_max_movement_speed())
+        elif attribute == get_max_movement_speed_attribute():
+            new_value = max(new_value, 100.0)
+        elif attribute == get_jump_height_attribute():
+            new_value = max(new_value, 0.0)
+        elif attribute == get_gravity_scale_attribute():
+            new_value = clamp(new_value, 0.0, 10.0)
+@attribute_set
+struct MagicSet:
+    @attribute(replicated: true, rep_notify: true, hide_from_modifiers: true)
+    mana: Float = 100.0
+    @attribute(replicated: true, rep_notify: true)
+    max_mana: Float = 100.0
+    @attribute(replicated: true, rep_notify: true)
+    mana_regen: Float = 5.0
+    @attribute(replicated: true, rep_notify: true)
+    spell_power: Float = 10.0
+    @attribute(replicated: true, rep_notify: true)
+    cooldown_reduction: Float = 0.0
+    @attribute(replicated: true, rep_notify: true)
+    cast_speed: Float = 1.0
+    @attribute(meta: true)
+    mana_cost: Float = 0.0
+    @delegate
+    on_mana_changed: AttributeEvent
+    @delegate
+    on_out_of_mana: AttributeEvent
+    fn pre_attribute_change(attribute: GameplayAttribute, new_value: Float):
+        if attribute == get_mana_attribute():
+            new_value = clamp(new_value, 0.0, get_max_mana())
+        elif attribute == get_max_mana_attribute():
+            new_value = max(new_value, 1.0)
+        elif attribute == get_cooldown_reduction_attribute():
+            new_value = clamp(new_value, 0.0, 0.8)
+        elif attribute == get_cast_speed_attribute():
+            new_value = clamp(new_value, 0.1, 5.0)
+    fn post_gameplay_effect_execute(data: GameplayEffectModCallbackData):
+        let mana_before = get_mana()
+        if data.evaluated_data.attribute == get_mana_cost_attribute():
+            let cost = get_mana_cost()
+            set_mana(clamp(get_mana() - cost, 0.0, get_max_mana()))
+            set_mana_cost(0.0)
+            if cost > 0.0:
+                on_mana_changed.broadcast(data.effect_spec.get_context().get_instigator(), data.effect_spec.get_context().get_effect_causer(), data.effect_spec, cost, mana_before, get_mana())
+        if get_mana() <= 0.0 and mana_before > 0.0:
+            on_out_of_mana.broadcast(data.effect_spec.get_context().get_instigator(), data.effect_spec.get_context().get_effect_causer(), data.effect_spec, 0.0, mana_before, 0.0)
+@attribute_set
+struct StaminaSet:
+    @attribute(replicated: true, rep_notify: true, hide_from_modifiers: true)
+    stamina: Float = 100.0
+    @attribute(replicated: true, rep_notify: true)
+    max_stamina: Float = 100.0
+    @attribute(replicated: true, rep_notify: true)
+    stamina_regen: Float = 10.0
+    @attribute(meta: true)
+    stamina_cost: Float = 0.0
+    @delegate
+    on_stamina_changed: AttributeEvent
+    @delegate
+    on_out_of_stamina: AttributeEvent
+    fn pre_attribute_change(attribute: GameplayAttribute, new_value: Float):
+        if attribute == get_stamina_attribute():
+            new_value = clamp(new_value, 0.0, get_max_stamina())
+        elif attribute == get_max_stamina_attribute():
+            new_value = max(new_value, 1.0)
+    fn post_gameplay_effect_execute(data: GameplayEffectModCallbackData):
+        let stamina_before = get_stamina()
+        if data.evaluated_data.attribute == get_stamina_cost_attribute():
+            let cost = get_stamina_cost()
+            set_stamina(clamp(get_stamina() - cost, 0.0, get_max_stamina()))
+            set_stamina_cost(0.0)
+            if cost > 0.0: on_stamina_changed.broadcast(data.effect_spec.get_context().get_instigator(), data.effect_spec.get_context().get_effect_causer(), data.effect_spec, cost, stamina_before, get_stamina())
+        if get_stamina() <= 0.0 and stamina_before > 0.0: on_out_of_stamina.broadcast(data.effect_spec.get_context().get_instigator(), data.effect_spec.get_context().get_effect_causer(), data.effect_spec, 0.0, stamina_before, 0.0)
+# ============================================================================
+# SECTION 3: GAMEPLAY ABILITIES (20+ abilities)
+# ============================================================================
+# Abilities define player actions with activation requirements, costs, cooldowns,
+# and tag-based logic. Supports instant, channeled, and passive abilities.
+# ============================================================================
+# ───────────────────────────────────────────────────────────────────────────
+# INSTANT ABILITIES - Execute immediately and end
+# ───────────────────────────────────────────────────────────────────────────
+@ability
+struct JumpAbility:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+    @net_security(policy: "ClientOrServer")
+    @ability_tags
+    tags: ["Ability.Utility.Movement.Jump"]
+    @activation_required_tags
+    required: ["Status.Alive", "Status.Movement.Grounded"]
+    @activation_blocked_tags
+    blocked: ["Status.CC.Stunned", "Status.CC.Rooted", "Status.Dead"]
+    @activation_owned_tags
+    owned: ["Status.Movement.Jumping"]
+    @block_abilities_with_tag
+    block: ["Ability.Utility.Movement.Sprint"]
+    @cost
+    effect: StaminaCostEffect
+    @cooldown
+    effect: JumpCooldownEffect
+    fn can_activate_ability(handle, actor_info, source_tags, target_tags) -> Bool:
+        if !has_stamina(actor_info, 10.0):
+            return false
+        return true
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if !commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        let character = get_avatar_actor_from_actor_info()
+        character.jump()
+        end_ability(handle, actor_info, activation_info, true, false)
+@ability
+struct MeleeAttackAbility:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+    @ability_tags
+    tags: ["Ability.Attack.Melee.Sword.Light"]
+    @activation_required_tags
+    required: ["Status.Alive"]
+    @activation_blocked_tags
+    blocked: ["Status.CC.Stunned", "Status.CC.Disarmed", "Status.Dead"]
+    @activation_owned_tags
+    owned: ["Status.Attacking", "Status.Busy"]
+    @block_abilities_with_tag
+    block: ["Ability.Attack", "Ability.Defend"]
+    @cancel_abilities_with_tag
+    cancel: ["Ability.Channeled"]
+    @cost
+    effect: StaminaCostEffect
+    @cooldown
+    effect: MeleeAttackCooldownEffect
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if !commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        play_montage("Attack_Melee_Light")
+        apply_damage_to_target(25.0, "Damage.Physical.Slash")
+        end_ability(handle, actor_info, activation_info, true, false)
+@ability
+struct FireballAbility:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+    @ability_tags
+    tags: ["Ability.Attack.Ranged.Magic.Fireball"]
+    @activation_required_tags
+    required: ["Status.Alive", "Status.Condition.CanCast"]
+    @activation_blocked_tags
+    blocked: ["Status.CC.Stunned", "Status.CC.Silenced", "Status.Dead", "Status.Condition.OutOfMana"]
+    @activation_owned_tags
+    owned: ["Status.Casting", "Status.Busy"]
+    @cost
+    effect: ManaCostEffect
+    @cooldown
+    effect: FireballCooldownEffect
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if !commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        play_montage("Cast_Fireball")
+        spawn_projectile("BP_Fireball", get_forward_vector())
+        apply_gameplay_cue("GameplayCue.Ability.Cast.Start")
+        end_ability(handle, actor_info, activation_info, true, false)
+@ability
+struct HealAbility:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+    @ability_tags
+    tags: ["Ability.Utility.Magic.Heal"]
+    @activation_required_tags
+    required: ["Status.Alive", "Status.Condition.CanCast"]
+    @activation_blocked_tags
+    blocked: ["Status.CC.Silenced", "Status.Dead"]
+    @activation_owned_tags
+    owned: ["Status.Casting"]
+    @cost
+    effect: ManaCostEffect
+    @cooldown
+    effect: HealCooldownEffect
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if !commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        let target = get_target_actor()
+        apply_heal_effect(target, 50.0)
+        apply_gameplay_cue("GameplayCue.Effect.Heal.Burst")
+        end_ability(handle, actor_info, activation_info, true, false)
+@ability
+struct DashAbility:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+    @ability_tags
+    tags: ["Ability.Defend.Dodge.Dash"]
+    @activation_required_tags
+    required: ["Status.Alive", "Status.Movement.Grounded"]
+    @activation_blocked_tags
+    blocked: ["Status.CC.Stunned", "Status.CC.Rooted", "Status.Dead"]
+    @activation_owned_tags
+    owned: ["Status.Movement.Dashing", "Status.Immune.CC"]
+    @cost
+    effect: StaminaCostEffect
+    @cooldown
+    effect: DashCooldownEffect
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if !commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        let character = get_avatar_actor_from_actor_info()
+        let dash_direction = get_input_direction()
+        character.launch_character(dash_direction * 1000.0)
+        apply_gameplay_effect_to_self("DashInvulnerabilityEffect")
+        wait_delay(0.3)
+        end_ability(handle, actor_info, activation_info, true, false)
+# ───────────────────────────────────────────────────────────────────────────
+# CHANNELED ABILITIES - Continuous execution until canceled
+# ───────────────────────────────────────────────────────────────────────────
+@ability
+struct FireBeamAbility:
+    @instancing(policy: "InstancedPerActor")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+    @ability_tags
+    tags: ["Ability.Channeled.Beam.FireBeam"]
+    @activation_required_tags
+    required: ["Status.Alive", "Status.Condition.CanCast"]
+    @activation_blocked_tags
+    blocked: ["Status.CC.Stunned", "Status.CC.Silenced", "Status.Dead"]
+    @activation_owned_tags
+    owned: ["Status.Channeling", "Status.Casting", "Status.Busy"]
+    @block_abilities_with_tag
+    block: ["Ability.Attack", "Ability.Defend", "Ability.Utility"]
+    @cost
+    effect: ManaChannelCostEffect
+    @cooldown
+    effect: FireBeamCooldownEffect
+    state beam_damage_per_second: Float = 50.0
+    state beam_range: Float = 1000.0
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if !commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        play_montage("Channel_FireBeam")
+        apply_gameplay_cue("GameplayCue.Ability.Cast.Channel")
+        start_channeling()
+    fn on_channel_tick(delta_time: Float):
+        let target = get_target_actor()
+        if target:
+            apply_damage_to_target(target, beam_damage_per_second * delta_time, "Damage.Magical.Fire")
+    fn end_ability(handle, actor_info, activation_info, replicate_end, was_cancelled):
+        stop_channeling()
+        apply_gameplay_cue("GameplayCue.Ability.Cast.End")
+@ability
+struct MeditationAbility:
+    @instancing(policy: "InstancedPerActor")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+    @ability_tags
+    tags: ["Ability.Channeled.Channel.Meditation"]
+    @activation_required_tags
+    required: ["Status.Alive", "Status.OutOfCombat"]
+    @activation_blocked_tags
+    blocked: ["Status.CC", "Status.Dead", "Status.InCombat"]
+    @activation_owned_tags
+    owned: ["Status.Channeling"]
+    @cooldown
+    effect: MeditationCooldownEffect
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if !commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        play_animation("Meditation_Loop")
+        apply_gameplay_effect_to_self("MeditationRegenEffect")
+    fn end_ability(handle, actor_info, activation_info, replicate_end, was_cancelled):
+        stop_animation()
+        remove_gameplay_effect_by_tag("Effect.Buff.Meditation")
+# ───────────────────────────────────────────────────────────────────────────
+# PASSIVE ABILITIES - Auto-activate on avatar set, always active
+# ───────────────────────────────────────────────────────────────────────────
+@ability
+struct PassiveHealthRegenAbility:
+    @instancing(policy: "InstancedPerActor")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "ServerOnly")
+    @ability_tags
+    tags: ["Ability.Passive", "Ability.Passive.Regeneration.HealthRegen"]
+    @activation_required_tags
+    required: ["Status.Alive"]
+    @activation_blocked_tags
+    blocked: ["Status.InCombat", "Status.Dead"]
+    @activation_owned_tags
+    owned: ["Status.Buff.Regeneration"]
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        apply_gameplay_effect_to_self("PassiveHealthRegenEffect")
+@ability
+struct PassiveManaRegenAbility:
+    @instancing(policy: "InstancedPerActor")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "ServerOnly")
+    @ability_tags
+    tags: ["Ability.Passive", "Ability.Passive.Regeneration.ManaRegen"]
+    @activation_required_tags
+    required: ["Status.Alive"]
+    @activation_blocked_tags
+    blocked: ["Status.Dead"]
+    @activation_owned_tags
+    owned: ["Status.Buff.Regeneration"]
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        apply_gameplay_effect_to_self("PassiveManaRegenEffect")
+@ability
+struct SwordMasteryAbility:
+    @instancing(policy: "InstancedPerActor")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "ServerOnly")
+    @ability_tags
+    tags: ["Ability.Passive", "Ability.Passive.Mastery.SwordMastery"]
+    @activation_required_tags
+    required: ["Status.Alive"]
+    @activation_owned_tags
+    owned: ["Status.Buff.Empowered"]
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        apply_gameplay_effect_to_self("SwordMasteryEffect")
+# ───────────────────────────────────────────────────────────────────────────
+# COMBO ABILITIES - State-based combo chains
+# ───────────────────────────────────────────────────────────────────────────
+@ability
+struct ComboAttackAbility:
+    @instancing(policy: "InstancedPerActor")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+    @ability_tags
+    tags: ["Ability.Attack.Melee.Sword.Combo"]
+    @activation_required_tags
+    required: ["Status.Alive"]
+    @activation_blocked_tags
+    blocked: ["Status.CC.Stunned", "Status.CC.Disarmed", "Status.Dead"]
+    @activation_owned_tags
+    owned: ["Status.Attacking"]
+    @cost
+    effect: StaminaCostEffect
+    state combo_count: Int = 0
+    state combo_window: Float = 1.5
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if !commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        let asc = get_ability_system_component()
+        if asc.has_matching_gameplay_tag("Combo.State.First"):
+            execute_combo_two()
+            asc.remove_loose_gameplay_tag("Combo.State.First")
+            asc.add_loose_gameplay_tag("Combo.State.Second")
+        elif asc.has_matching_gameplay_tag("Combo.State.Second"):
+            execute_combo_three()
+            asc.remove_loose_gameplay_tag("Combo.State.Second")
+            asc.add_loose_gameplay_tag("Combo.State.Third")
+        elif asc.has_matching_gameplay_tag("Combo.State.Third"):
+            execute_combo_finisher()
+            asc.remove_loose_gameplay_tag("Combo.State.Third")
+        else:
+            execute_combo_one()
+            asc.add_loose_gameplay_tag("Combo.State.First")
+        start_combo_reset_timer(combo_window)
+        end_ability(handle, actor_info, activation_info, true, false)
+# ───────────────────────────────────────────────────────────────────────────
+# TARGETED ABILITIES - Require target selection
+# ───────────────────────────────────────────────────────────────────────────
+@ability
+struct TargetedHealAbility:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+    @ability_tags
+    tags: ["Ability.Utility.Magic.Heal"]
+    @activation_required_tags
+    required: ["Status.Alive", "Status.Condition.CanCast"]
+    @activation_blocked_tags
+    blocked: ["Status.CC.Silenced", "Status.Dead"]
+    @activation_owned_tags
+    owned: ["Status.Casting"]
+    @cost
+    effect: ManaCostEffect
+    @cooldown
+    effect: HealCooldownEffect
+    state heal_amount: Float = 50.0
+    state heal_range: Float = 1000.0
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if !commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        let target = get_target_actor()
+        if !target:
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        if distance_to_target(target) > heal_range:
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        apply_heal_effect(target, heal_amount)
+        apply_gameplay_cue_to_target(target, "GameplayCue.Effect.Heal.Burst")
+        end_ability(handle, actor_info, activation_info, true, false)
+@ability
+struct AOEDamageAbility:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "ServerInitiated")
+    @ability_tags
+    tags: ["Ability.Attack.Ranged.Magic.Meteor"]
+    @activation_required_tags
+    required: ["Status.Alive", "Status.Condition.CanCast"]
+    @activation_blocked_tags
+    blocked: ["Status.CC.Stunned", "Status.CC.Silenced", "Status.Dead"]
+    @activation_owned_tags
+    owned: ["Status.Casting"]
+    @cost
+    effect: ManaCostEffect
+    @cooldown
+    effect: MeteorCooldownEffect
+    state aoe_radius: Float = 500.0
+    state damage_amount: Float = 100.0
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if !commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        let target_location = get_target_location()
+        let actors_in_radius = get_actors_in_radius(target_location, aoe_radius)
+        for actor in actors_in_radius:
+            apply_damage_effect(actor, damage_amount, "Damage.Magical.Fire")
+        apply_gameplay_cue_at_location(target_location, "GameplayCue.Impact.Fire")
+        end_ability(handle, actor_info, activation_info, true, false)
+# ───────────────────────────────────────────────────────────────────────────
+# DEFENSIVE ABILITIES - Blocking, parrying, shields
+# ───────────────────────────────────────────────────────────────────────────
+@ability
+struct BlockAbility:
+    @instancing(policy: "InstancedPerActor")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+    @ability_tags
+    tags: ["Ability.Defend.Block.Shield"]
+    @activation_required_tags
+    required: ["Status.Alive"]
+    @activation_blocked_tags
+    blocked: ["Status.CC.Stunned", "Status.CC.Disarmed", "Status.Dead"]
+    @activation_owned_tags
+    owned: ["Status.Defending", "Status.Busy"]
+    @block_abilities_with_tag
+    block: ["Ability.Attack"]
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        play_animation("Block_Start")
+        apply_gameplay_effect_to_self("BlockDefenseBuffEffect")
+    fn input_released(handle, actor_info, activation_info):
+        end_ability(handle, actor_info, activation_info, true, false)
+    fn end_ability(handle, actor_info, activation_info, replicate_end, was_cancelled):
+        play_animation("Block_End")
+        remove_gameplay_effect_by_tag("Effect.Buff.Block")
+@ability
+struct ParryAbility:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+    @ability_tags
+    tags: ["Ability.Defend.Block.Parry"]
+    @activation_required_tags
+    required: ["Status.Alive"]
+    @activation_blocked_tags
+    blocked: ["Status.CC.Stunned", "Status.Dead"]
+    @activation_owned_tags
+    owned: ["Status.Defending"]
+    @cost
+    effect: StaminaCostEffect
+    @cooldown
+    effect: ParryCooldownEffect
+    state parry_window: Float = 0.3
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if !commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        play_montage("Parry")
+        apply_gameplay_effect_to_self("ParryWindowEffect")
+        wait_delay(parry_window)
+        end_ability(handle, actor_info, activation_info, true, false)
+# ───────────────────────────────────────────────────────────────────────────
+# BUFF ABILITIES - Apply beneficial effects
+# ───────────────────────────────────────────────────────────────────────────
+@ability
+struct StrengthBuffAbility:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "ServerInitiated")
+    @ability_tags
+    tags: ["Ability.Utility.Magic.Buff"]
+    @activation_required_tags
+    required: ["Status.Alive", "Status.Condition.CanCast"]
+    @activation_blocked_tags
+    blocked: ["Status.CC.Silenced", "Status.Dead"]
+    @cost
+    effect: ManaCostEffect
+    @cooldown
+    effect: BuffCooldownEffect
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if !commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        let target = get_target_actor()
+        apply_gameplay_effect_to_target(target, "StrengthBuffEffect")
+        apply_gameplay_cue_to_target(target, "GameplayCue.Effect.Buff.Applied")
+        end_ability(handle, actor_info, activation_info, true, false)
+@ability
+struct InvulnerabilityAbility:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "ServerInitiated")
+    @ability_tags
+    tags: ["Ability.Utility.Magic.Buff"]
+    @activation_required_tags
+    required: ["Status.Alive"]
+    @activation_blocked_tags
+    blocked: ["Status.Dead"]
+    @cost
+    effect: ManaCostEffect
+    @cooldown
+    effect: InvulnerabilityCooldownEffect
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if !commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        apply_gameplay_effect_to_self("InvulnerabilityEffect")
+        apply_gameplay_cue("GameplayCue.Effect.Buff.Applied")
+        end_ability(handle, actor_info, activation_info, true, false)
+# ============================================================================
+# SECTION 4: GAMEPLAY EFFECTS (30+ effects)
+# ============================================================================
+# Effects modify attributes with instant, duration, or infinite policies.
+# Supports stacking, tag requirements, immunity, and conditional effects.
+# ============================================================================
+# ───────────────────────────────────────────────────────────────────────────
+# INSTANT EFFECTS - Apply once and done
+# ───────────────────────────────────────────────────────────────────────────
+@gameplay_effect
+struct InstantDamageEffect:
+    @duration(type: "Instant")
+    @modifier(attribute: "Health", operation: "Add", magnitude_type: "SetByCaller")
+    damage:
+        set_by_caller: "SetByCaller.Damage.Amount"
+    @owned_tags
+    tags: ["Effect.Damage.Instant"]
+    @application_tag_requirements
+    require: ["Status.Alive"]
+    ignore: ["Status.Immune.Damage", "Status.Immune.AllDamage"]
+    @gameplay_cues
+    cues: ["GameplayCue.Impact.Physical"]
+@gameplay_effect
+struct InstantHealEffect:
+    @duration(type: "Instant")
+    @modifier(attribute: "Health", operation: "Add", magnitude_type: "SetByCaller")
+    healing:
+        set_by_caller: "SetByCaller.Heal.Amount"
+    @owned_tags
+    tags: ["Effect.Heal.Instant"]
+    @application_tag_requirements
+    require: ["Status.Alive"]
+    ignore: ["Status.Condition.FullHealth"]
+    @gameplay_cues
+    cues: ["GameplayCue.Effect.Heal.Burst"]
+@gameplay_effect
+struct CriticalDamageEffect:
+    @duration(type: "Instant")
+    @modifier(attribute: "Health", operation: "Add", magnitude_type: "AttributeBased")
+    damage:
+        coefficient: -2.0
+        backing_attribute: "AttackPower"
+        calculation_type: "AttributeMagnitude"
+    @owned_tags
+    tags: ["Effect.Damage.Instant", "Effect.Damage.Critical"]
+    @application_tag_requirements
+    require: ["Status.Alive"]
+    ignore: ["Status.Immune.Physical"]
+    @gameplay_cues
+    cues: ["GameplayCue.Ability.Impact.Critical"]
+# ───────────────────────────────────────────────────────────────────────────
+# DURATION EFFECTS - Last for specified time
+# ───────────────────────────────────────────────────────────────────────────
+@gameplay_effect
+struct StrengthBuffEffect:
+    @duration(type: "HasDuration")
+    duration: 10.0
+    @modifier(attribute: "AttackPower", operation: "Multiply")
+    attack_multiplier: 1.5
+    @owned_tags
+    tags: ["Effect.Buff.Stat"]
+    @granted_tags
+    tags: ["Status.Buff.Strength", "Status.Buff.Empowered"]
+    @application_tag_requirements
+    require: ["Status.Alive"]
+    @gameplay_cues
+    cues: ["GameplayCue.Effect.Buff.Applied"]
+@gameplay_effect
+struct SpeedBuffEffect:
+    @duration(type: "HasDuration")
+    duration: 8.0
+    @modifier(attribute: "MovementSpeed", operation: "Multiply")
+    speed_multiplier: 1.3
+    @modifier(attribute: "AttackSpeed", operation: "Multiply")
+    attack_speed_multiplier: 1.2
+    @owned_tags
+    tags: ["Effect.Buff.Movement", "Effect.Buff.Combat"]
+    @granted_tags
+    tags: ["Status.Buff.Speed", "Status.Buff.Haste"]
+    @application_tag_requirements
+    require: ["Status.Alive"]
+    @gameplay_cues
+    cues: ["GameplayCue.Effect.Buff.Applied"]
+@gameplay_effect
+struct ArmorBuffEffect:
+    @duration(type: "HasDuration")
+    duration: 15.0
+    @modifier(attribute: "Defense", operation: "Add")
+    defense_bonus: 20.0
+    @modifier(attribute: "Armor", operation: "Multiply")
+    armor_multiplier: 1.5
+    @owned_tags
+    tags: ["Effect.Buff.Defensive"]
+    @granted_tags
+    tags: ["Status.Buff.Armor", "Status.Buff.Fortified"]
+    @application_tag_requirements
+    require: ["Status.Alive"]
+    @gameplay_cues
+    cues: ["GameplayCue.Effect.Buff.Applied"]
+@gameplay_effect
+struct StunEffect:
+    @duration(type: "HasDuration")
+    duration: 3.0
+    @modifier(attribute: "MovementSpeed", operation: "Override")
+    movement_speed: 0.0
+    @owned_tags
+    tags: ["Effect.CC.Hard"]
+    @granted_tags
+    tags: ["Status.CC.Stunned"]
+    @block_abilities_with_tag
+    block: ["Ability.Attack", "Ability.Defend", "Ability.Utility"]
+    @cancel_abilities_with_tag
+    cancel: ["Ability.Channeled"]
+    @application_tag_requirements
+    require: ["Status.Alive"]
+    ignore: ["Status.Immune.CC", "Status.Immune.CC.Stun"]
+    @removal_tag_requirements
+    require: ["Cleanse.CC"]
+    @gameplay_cues
+    cues: ["GameplayCue.Effect.Stun.Start", "GameplayCue.Effect.Stun.End"]
+@gameplay_effect
+struct SlowEffect:
+    @duration(type: "HasDuration")
+    duration: 5.0
+    @modifier(attribute: "MovementSpeed", operation: "Multiply")
+    speed_multiplier: 0.5
+    @modifier(attribute: "AttackSpeed", operation: "Multiply")
+    attack_speed_multiplier: 0.7
+    @owned_tags
+    tags: ["Effect.CC.Soft"]
+    @granted_tags
+    tags: ["Status.CC.Slowed", "Status.Debuff.Slow"]
+    @application_tag_requirements
+    require: ["Status.Alive"]
+    ignore: ["Status.Immune.CC"]
+    @stacking
+    type: "AggregateByTarget"
+    limit: 3
+    duration_policy: "RefreshOnSuccessfulApplication"
+    @gameplay_cues
+    cues: ["GameplayCue.Effect.Debuff.Applied"]
+# ───────────────────────────────────────────────────────────────────────────
+# PERIODIC EFFECTS - DOT (Damage Over Time) and HOT (Heal Over Time)
+# ───────────────────────────────────────────────────────────────────────────
+@gameplay_effect
+struct BurnEffect:
+    @duration(type: "HasDuration")
+    duration: 5.0
+    @period
+    period: 1.0
+    execute_on_application: true
+    @modifier(attribute: "Health", operation: "Add")
+    damage_per_tick: -10.0
+    @stacking
+    type: "AggregateBySource"
+    limit: 5
+    duration_policy: "RefreshOnSuccessfulApplication"
+    period_policy: "ResetOnSuccessfulApplication"
+    expiration_policy: "RemoveSingleStackAndRefreshDuration"
+    @owned_tags
+    tags: ["Effect.Damage.DOT", "Effect.Type.Periodic"]
+    @granted_tags
+    tags: ["Status.Debuff.Burning", "Status.Debuff"]
+    @application_tag_requirements
+    require: ["Status.Alive"]
+    ignore: ["Status.Immune.Fire"]
+    @ongoing_tag_requirements
+    ignore: ["Status.Immune.Fire"]
+    @removal_tag_requirements
+    require: ["Cleanse.Fire"]
+    @gameplay_cues
+    cues: ["GameplayCue.Effect.Burn.Start", "GameplayCue.Effect.Burn.Loop", "GameplayCue.Effect.Burn.End"]
+@gameplay_effect
+struct PoisonEffect:
+    @duration(type: "HasDuration")
+    duration: 10.0
+    @period
+    period: 2.0
+    execute_on_application: false
+    @modifier(attribute: "Health", operation: "Add")
+    damage_per_tick: -5.0
+    @modifier(attribute: "MovementSpeed", operation: "Multiply")
+    speed_reduction: 0.9
+    @stacking
+    type: "AggregateBySource"
+    limit: 10
+    duration_policy: "NeverRefresh"
+    @owned_tags
+    tags: ["Effect.Damage.DOT", "Effect.Type.Periodic"]
+    @granted_tags
+    tags: ["Status.Debuff.Poisoned", "Status.Debuff"]
+    @application_tag_requirements
+    require: ["Status.Alive"]
+    ignore: ["Status.Immune.Poison"]
+    @gameplay_cues
+    cues: ["GameplayCue.Effect.Poison.Start", "GameplayCue.Effect.Poison.Loop", "GameplayCue.Effect.Poison.End"]
+@gameplay_effect
+struct BleedEffect:
+    @duration(type: "HasDuration")
+    duration: 8.0
+    @period
+    period: 1.0
+    execute_on_application: true
+    @modifier(attribute: "Health", operation: "Add", magnitude_type: "AttributeBased")
+    damage_per_tick:
+        coefficient: -0.05
+        backing_attribute: "MaxHealth"
+        calculation_type: "AttributeMagnitude"
+    @stacking
+    type: "AggregateBySource"
+    limit: 3
+    @owned_tags
+    tags: ["Effect.Damage.DOT"]
+    @granted_tags
+    tags: ["Status.Debuff.Bleeding"]
+    @application_tag_requirements
+    require: ["Status.Alive"]
+    ignore: ["Status.Immune.Physical"]
+    @gameplay_cues
+    cues: ["GameplayCue.Effect.Bleed.Start", "GameplayCue.Effect.Bleed.Loop", "GameplayCue.Effect.Bleed.End"]
+@gameplay_effect
+struct RegenerationEffect:
+    @duration(type: "HasDuration")
+    duration: 10.0
+    @period
+    period: 1.0
+    execute_on_application: false
+    @modifier(attribute: "Health", operation: "Add")
+    healing_per_tick: 5.0
+    @owned_tags
+    tags: ["Effect.Heal.HOT", "Effect.Type.Periodic"]
+    @granted_tags
+    tags: ["Status.Buff.Regeneration"]
+    @application_tag_requirements
+    require: ["Status.Alive"]
+    ignore: ["Status.Condition.FullHealth"]
+    @gameplay_cues
+    cues: ["GameplayCue.Effect.Heal.Start", "GameplayCue.Effect.Heal.End"]
+@gameplay_effect
+struct ManaRegenerationEffect:
+    @duration(type: "HasDuration")
+    duration: 15.0
+    @period
+    period: 1.0
+    execute_on_application: false
+    @modifier(attribute: "Mana", operation: "Add")
+    mana_per_tick: 10.0
+    @owned_tags
+    tags: ["Effect.Heal.HOT"]
+    @granted_tags
+    tags: ["Status.Buff.Regeneration"]
+    @application_tag_requirements
+    require: ["Status.Alive"]
+# ───────────────────────────────────────────────────────────────────────────
+# INFINITE EFFECTS - Last forever until removed
+# ───────────────────────────────────────────────────────────────────────────
+@gameplay_effect
+struct PassiveHealthRegenEffect:
+    @duration(type: "Infinite")
+    @period
+    period: 1.0
+    execute_on_application: false
+    @modifier(attribute: "Health", operation: "Add")
+    regen_per_second: 2.0
+    @owned_tags
+    tags: ["Effect.Heal.HOT", "Effect.Type.Periodic"]
+    @granted_tags
+    tags: ["Status.Buff.Regeneration"]
+    @ongoing_tag_requirements
+    ignore: ["Status.InCombat"]
+@gameplay_effect
+struct PassiveManaRegenEffect:
+    @duration(type: "Infinite")
+    @period
+    period: 1.0
+    execute_on_application: false
+    @modifier(attribute: "Mana", operation: "Add", magnitude_type: "AttributeBased")
+    mana_regen:
+        coefficient: 1.0
+        backing_attribute: "ManaRegen"
+        calculation_type: "AttributeMagnitude"
+    @owned_tags
+    tags: ["Effect.Heal.HOT"]
+    @granted_tags
+    tags: ["Status.Buff.Regeneration"]
+@gameplay_effect
+struct SwordMasteryEffect:
+    @duration(type: "Infinite")
+    @modifier(attribute: "AttackPower", operation: "Multiply")
+    attack_bonus: 1.2
+    @modifier(attribute: "CriticalChance", operation: "Add")
+    crit_bonus: 0.05
+    @owned_tags
+    tags: ["Effect.Buff.Combat"]
+    @granted_tags
+    tags: ["Status.Buff.Empowered"]
+@gameplay_effect
+struct FireImmunityEffect:
+    @duration(type: "Infinite")
+    @owned_tags
+    tags: ["Effect.Buff.Immunity"]
+    @granted_tags
+    tags: ["Status.Immune.Fire"]
+    @immunity
+    immune_to: ["Effect.Damage.Fire", "Effect.CC.Burn"]
+    @remove_effects_with_tags
+    remove: ["Effect.Damage.Fire", "Status.Debuff.Burning"]
+@gameplay_effect
+struct PhysicalImmunityEffect:
+    @duration(type: "Infinite")
+    @owned_tags
+    tags: ["Effect.Buff.Immunity"]
+    @granted_tags
+    tags: ["Status.Immune.Physical"]
+    @immunity
+    immune_to: ["Effect.Damage.Physical", "Damage.Physical"]
+@gameplay_effect
+struct CCImmunityEffect:
+    @duration(type: "Infinite")
+    @owned_tags
+    tags: ["Effect.Buff.Immunity"]
+    @granted_tags
+    tags: ["Status.Immune.CC"]
+    @immunity
+    immune_to: ["Effect.CC"]
+    @remove_effects_with_tags
+    remove: ["Effect.CC"]
+# ───────────────────────────────────────────────────────────────────────────
+# COST EFFECTS - Resource consumption for abilities
+# ───────────────────────────────────────────────────────────────────────────
+@gameplay_effect
+struct ManaCostEffect:
+    @duration(type: "Instant")
+    @modifier(attribute: "Mana", operation: "Add")
+    mana_cost: -20.0
+    @owned_tags
+    tags: ["Effect.Cost.Mana"]
+@gameplay_effect
+struct StaminaCostEffect:
+    @duration(type: "Instant")
+    @modifier(attribute: "Stamina", operation: "Add")
+    stamina_cost: -10.0
+    @owned_tags
+    tags: ["Effect.Cost.Stamina"]
+@gameplay_effect
+struct HealthCostEffect:
+    @duration(type: "Instant")
+    @modifier(attribute: "Health", operation: "Add")
+    health_cost: -15.0
+    @owned_tags
+    tags: ["Effect.Cost.Health"]
+    @application_tag_requirements
+    require: ["Status.Alive"]
+@gameplay_effect
+struct ManaChannelCostEffect:
+    @duration(type: "HasDuration")
+    duration: 999.0
+    @period
+    period: 0.5
+    execute_on_application: true
+    @modifier(attribute: "Mana", operation: "Add")
+    mana_per_tick: -5.0
+    @owned_tags
+    tags: ["Effect.Cost.Mana", "Effect.Type.Periodic"]
+    @ongoing_tag_requirements
+    require: ["Status.Channeling"]
+# ───────────────────────────────────────────────────────────────────────────
+# COOLDOWN EFFECTS - Ability cooldowns
+# ───────────────────────────────────────────────────────────────────────────
+@gameplay_effect
+struct JumpCooldownEffect:
+    @duration(type: "HasDuration")
+    duration: 1.0
+    @owned_tags
+    tags: ["Cooldown.Ability.Jump"]
+    @granted_tags
+    tags: ["Cooldown.Ability.Jump"]
+@gameplay_effect
+struct MeleeAttackCooldownEffect:
+    @duration(type: "HasDuration")
+    duration: 0.5
+    @owned_tags
+    tags: ["Cooldown.Ability.Attack.Melee"]
+    @granted_tags
+    tags: ["Cooldown.Ability.Attack.Melee"]
+@gameplay_effect
+struct FireballCooldownEffect:
+    @duration(type: "HasDuration")
+    duration: 3.0
+    @owned_tags
+    tags: ["Cooldown.Ability.Skill1"]
+    @granted_tags
+    tags: ["Cooldown.Ability.Skill1"]
+@gameplay_effect
+struct HealCooldownEffect:
+    @duration(type: "HasDuration")
+    duration: 5.0
+    @owned_tags
+    tags: ["Cooldown.Ability.Skill2"]
+    @granted_tags
+    tags: ["Cooldown.Ability.Skill2"]
+@gameplay_effect
+struct DashCooldownEffect:
+    @duration(type: "HasDuration")
+    duration: 2.0
+    @owned_tags
+    tags: ["Cooldown.Ability.Skill3"]
+    @granted_tags
+    tags: ["Cooldown.Ability.Skill3"]
+@gameplay_effect
+struct FireBeamCooldownEffect:
+    @duration(type: "HasDuration")
+    duration: 8.0
+    @owned_tags
+    tags: ["Cooldown.Ability.Skill4"]
+    @granted_tags
+    tags: ["Cooldown.Ability.Skill4"]
+@gameplay_effect
+struct MeteorCooldownEffect:
+    @duration(type: "HasDuration")
+    duration: 15.0
+    @owned_tags
+    tags: ["Cooldown.Ability.Ultimate"]
+    @granted_tags
+    tags: ["Cooldown.Ability.Ultimate"]
+@gameplay_effect
+struct BuffCooldownEffect:
+    @duration(type: "HasDuration")
+    duration: 10.0
+    @owned_tags
+    tags: ["Cooldown.Ability.Buff"]
+    @granted_tags
+    tags: ["Cooldown.Ability.Buff"]
+@gameplay_effect
+struct InvulnerabilityCooldownEffect:
+    @duration(type: "HasDuration")
+    duration: 30.0
+    @owned_tags
+    tags: ["Cooldown.Ability.Ultimate"]
+    @granted_tags
+    tags: ["Cooldown.Ability.Ultimate"]
+@gameplay_effect
+struct MeditationCooldownEffect:
+    @duration(type: "HasDuration")
+    duration: 20.0
+    @owned_tags
+    tags: ["Cooldown.Ability.Meditation"]
+    @granted_tags
+    tags: ["Cooldown.Ability.Meditation"]
+@gameplay_effect
+struct ParryCooldownEffect:
+    @duration(type: "HasDuration")
+    duration: 4.0
+    @owned_tags
+    tags: ["Cooldown.Ability.Parry"]
+    @granted_tags
+    tags: ["Cooldown.Ability.Parry"]
+@gameplay_effect
+struct GlobalCooldownEffect:
+    @duration(type: "HasDuration")
+    duration: 1.5
+    @owned_tags
+    tags: ["Cooldown.Global.GCD"]
+    @granted_tags
+    tags: ["Cooldown.Global.GCD"]
+# ───────────────────────────────────────────────────────────────────────────
+# COMPLEX EFFECTS - Conditional, overflow, immunity
+# ───────────────────────────────────────────────────────────────────────────
+@gameplay_effect
+struct LifestealEffect:
+    @duration(type: "Instant")
+    @modifier(attribute: "Health", operation: "Add", magnitude_type: "AttributeBased")
+    healing:
+        coefficient: 0.2
+        backing_attribute: "Damage"
+        calculation_type: "AttributeMagnitude"
+    @owned_tags
+    tags: ["Effect.Heal.Instant", "Effect.Lifesteal"]
+    @application_tag_requirements
+    require: ["Status.Alive"]
+@gameplay_effect
+struct VampirismEffect:
+    @duration(type: "Infinite")
+    @modifier(attribute: "Lifesteal", operation: "Add")
+    lifesteal_bonus: 0.15
+    @owned_tags
+    tags: ["Effect.Buff.Combat"]
+    @granted_tags
+    tags: ["Status.Buff.Empowered"]
+    @conditional_effects
+    on_damage_dealt: ["LifestealEffect"]
+@gameplay_effect
+struct ThornsDamageEffect:
+    @duration(type: "Infinite")
+    @owned_tags
+    tags: ["Effect.Buff.Defensive"]
+    @granted_tags
+    tags: ["Status.Buff.Thorns"]
+    @conditional_effects
+    on_damage_received: ["ReflectDamageEffect"]
+@gameplay_effect
+struct ReflectDamageEffect:
+    @duration(type: "Instant")
+    @modifier(attribute: "Health", operation: "Add", magnitude_type: "AttributeBased")
+    reflected_damage:
+        coefficient: -0.3
+        backing_attribute: "Damage"
+        calculation_type: "AttributeMagnitude"
+    @owned_tags
+    tags: ["Effect.Damage.Instant", "Effect.Reflected"]
+@gameplay_effect
+struct OverhealShieldEffect:
+    @duration(type: "HasDuration")
+    duration: 10.0
+    @modifier(attribute: "MaxHealth", operation: "Add")
+    shield_amount: 50.0
+    @owned_tags
+    tags: ["Effect.Buff.Shield"]
+    @granted_tags
+    tags: ["Status.Buff.Shield"]
+    @overflow_effects
+    overflow: ["OverhealShieldEffect"]
+@gameplay_effect
+struct InvulnerabilityEffect:
+    @duration(type: "HasDuration")
+    duration: 5.0
+    @owned_tags
+    tags: ["Effect.Buff.Immunity"]
+    @granted_tags
+    tags: ["Status.Immune.AllDamage", "Status.Immune.CC", "Status.Buff.Invulnerability"]
+    @immunity
+    immune_to: ["Effect.Damage", "Effect.CC"]
+    @remove_effects_with_tags
+    remove: ["Effect.Damage", "Effect.CC", "Status.Debuff"]
+    @gameplay_cues
+    cues: ["GameplayCue.Effect.Invulnerability.Start", "GameplayCue.Effect.Invulnerability.End"]
+@gameplay_effect
+struct BlockDefenseBuffEffect:
+    @duration(type: "Infinite")
+    @modifier(attribute: "Defense", operation: "Multiply")
+    defense_multiplier: 2.0
+    @modifier(attribute: "Armor", operation: "Multiply")
+    armor_multiplier: 1.5
+    @owned_tags
+    tags: ["Effect.Buff.Defensive", "Effect.Buff.Block"]
+    @granted_tags
+    tags: ["Status.Buff.Armor"]
+@gameplay_effect
+struct ParryWindowEffect:
+    @duration(type: "HasDuration")
+    duration: 0.3
+    @owned_tags
+    tags: ["Effect.Buff.Parry"]
+    @granted_tags
+    tags: ["Status.Defending"]
+    @conditional_effects
+    on_damage_received: ["ParryCounterEffect"]
+@gameplay_effect
+struct ParryCounterEffect:
+    @duration(type: "Instant")
+    @modifier(attribute: "Health", operation: "Add", magnitude_type: "AttributeBased")
+    counter_damage:
+        coefficient: -1.5
+        backing_attribute: "Damage"
+        calculation_type: "AttributeMagnitude"
+    @owned_tags
+    tags: ["Effect.Damage.Instant", "Effect.Counter"]
+@gameplay_effect
+struct DashInvulnerabilityEffect:
+    @duration(type: "HasDuration")
+    duration: 0.3
+    @owned_tags
+    tags: ["Effect.Buff.Immunity"]
+    @granted_tags
+    tags: ["Status.Immune.CC"]
+    @immunity
+    immune_to: ["Effect.CC"]
+# ============================================================================
+# SECTION 5: TAG QUERIES & EVENTS
+# ============================================================================
+# Tag queries enable complex conditional logic with any/all/not combinations.
+# Tag events provide reactive programming for state changes.
+# ============================================================================
+@ability
+struct ConditionalAbility:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+    @ability_tags
+    tags: ["Ability.Attack.Conditional"]
+    # Complex tag query: (Buffed OR Empowered) AND Alive AND NOT (Stunned OR Silenced)
+    @tag_query
+    can_activate: any(["Status.Buff.Strength", "Status.Buff.Empowered"]) 
+                  and all(["Status.Alive", "Status.Condition.Conscious"])
+                  and not(any(["Status.CC.Stunned", "Status.CC.Silenced"]))
+    fn can_activate_ability(handle, actor_info, source_tags, target_tags) -> Bool:
+        let asc = get_ability_system_component()
+        let owner_tags = asc.get_owned_gameplay_tags()
+        return evaluate_query(can_activate, owner_tags)
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if !commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        apply_damage_to_target(100.0, "Damage.Physical")
+        end_ability(handle, actor_info, activation_info, true, false)
+@ability
+struct VulnerabilityExploitAbility:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "ServerInitiated")
+    @ability_tags
+    tags: ["Ability.Attack.Exploit"]
+    # Target must have vulnerability AND NOT have immunity
+    @target_tag_query
+    target_valid: any(["Weakness.Fire", "Weakness.Ice", "Weakness.Lightning"])
+                  and not(any(["Status.Immune.Fire", "Status.Immune.Ice", "Status.Immune.Lightning"]))
+    fn can_activate_ability(handle, actor_info, source_tags, target_tags) -> Bool:
+        let target = get_target_actor()
+        if !target:
+            return false
+        let target_asc = get_ability_system_component_from_actor(target)
+        let target_tags = target_asc.get_owned_gameplay_tags()
+        return evaluate_query(target_valid, target_tags)
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        if !commit_ability(handle, actor_info, activation_info):
+            end_ability(handle, actor_info, activation_info, true, true)
+            return
+        let target = get_target_actor()
+        let target_asc = get_ability_system_component_from_actor(target)
+        var damage_multiplier: Float = 1.0
+        if target_asc.has_matching_gameplay_tag("Weakness.Fire"):
+            damage_multiplier = 2.0
+        elif target_asc.has_matching_gameplay_tag("Weakness.Ice"):
+            damage_multiplier = 1.8
+        elif target_asc.has_matching_gameplay_tag("Weakness.Lightning"):
+            damage_multiplier = 1.5
+        apply_damage_effect(target, 50.0 * damage_multiplier, "Damage.TrueDamage.PureDamage")
+        end_ability(handle, actor_info, activation_info, true, false)
+# ───────────────────────────────────────────────────────────────────────────
+# TAG EVENT HANDLERS - Reactive state management
+# ───────────────────────────────────────────────────────────────────────────
+actor GASCharacter:
+    @replicated
+    state health: Float = 100.0
+    @replicated
+    state is_stunned: Bool = false
+    @replicated
+    state buff_count: Int = 0
+    @replicated
+    state is_in_combat: Bool = false
+    # Tag added event
+    @on_tag_added("Status.CC.Stunned")
+    fn on_stunned():
+        is_stunned = true
+        cancel_all_abilities()
+        play_animation("Stunned")
+        disable_input()
+        apply_gameplay_cue("GameplayCue.Effect.Stun.Start")
+    # Tag removed event
+    @on_tag_removed("Status.CC.Stunned")
+    fn on_unstunned():
+        is_stunned = false
+        play_animation("Idle")
+        enable_input()
+        apply_gameplay_cue("GameplayCue.Effect.Stun.End")
+    # Tag count changed event
+    @on_tag_count_changed("Status.Buff")
+    fn on_buff_count_changed(tag: Tag, count: Int):
+        buff_count = count
+        update_buff_ui(count)
+        if count > 0:
+            show_buff_particles()
+        else:
+            hide_buff_particles()
+    # Multiple tag events
+    @on_tag_added("Status.Debuff.Burning")
+    fn on_burning_started():
+        play_particle_effect("FX_Burning")
+        apply_gameplay_cue("GameplayCue.Effect.Burn.Start")
+    @on_tag_removed("Status.Debuff.Burning")
+    fn on_burning_ended():
+        stop_particle_effect("FX_Burning")
+        apply_gameplay_cue("GameplayCue.Effect.Burn.End")
+    @on_tag_added("Status.Debuff.Poisoned")
+    fn on_poisoned():
+        play_particle_effect("FX_Poison")
+        tint_character_green()
+    @on_tag_removed("Status.Debuff.Poisoned")
+    fn on_poison_cured():
+        stop_particle_effect("FX_Poison")
+        restore_character_color()
+    @on_tag_added("Status.InCombat")
+    fn on_combat_started():
+        is_in_combat = true
+        play_combat_music()
+        show_combat_ui()
+    @on_tag_removed("Status.InCombat")
+    fn on_combat_ended():
+        is_in_combat = false
+        play_ambient_music()
+        hide_combat_ui()
+    @on_tag_added("Status.Dead.Dying")
+    fn on_dying():
+        play_death_animation()
+        disable_input()
+        cancel_all_abilities()
+    @on_tag_added("Status.Dead.Dead")
+    fn on_dead():
+        set_actor_enable_collision(false)
+        set_life_span(5.0)
+    # Tag query in method
+    @blueprint_callable
+    fn can_use_abilities() -> Bool:
+        let asc = get_ability_system_component()
+        let owner_tags = asc.get_owned_gameplay_tags()
+        # Must be alive AND NOT have any CC
+        let query = all(["Status.Alive"]) and not(any(["Status.CC"]))
+        return evaluate_query(query, owner_tags)
+    @blueprint_callable
+    fn is_vulnerable_to_fire() -> Bool:
+        let asc = get_ability_system_component()
+        # Has fire weakness AND NOT fire immunity
+        return asc.has_matching_gameplay_tag("Weakness.Fire") and 
+               not asc.has_matching_gameplay_tag("Status.Immune.Fire")
+    @blueprint_callable
+    fn get_active_debuff_count() -> Int:
+        let asc = get_ability_system_component()
+        let debuff_tag = request_gameplay_tag("Status.Debuff")
+        return asc.get_tag_count(debuff_tag)
+    on BeginPlay():
+        println("GASCharacter initialized with GAS support")
+        initialize_ability_system()
+        grant_default_abilities()
+        apply_default_effects()
+    on Tick(delta_time: Float):
+        update_combat_state(delta_time)
+# ============================================================================
+# SECTION 6: ABILITY SYSTEM COMPONENT INTEGRATION
+# ============================================================================
+# Demonstrates how actors integrate with the Ability System Component,
+# including ability granting, effect application, and tag management.
+# ============================================================================
+actor GASPlayer:
+    @replicated
+    state health: Float = 100.0
+    @replicated
+    state max_health: Float = 100.0
+    @replicated
+    state mana: Float = 100.0
+    @replicated
+    state stamina: Float = 100.0
+    state ability_system_component: AbilitySystemComponent
+    state health_set: HealthSet
+    state combat_set: CombatSet
+    state movement_set: MovementSet
+    state magic_set: MagicSet
+    state stamina_set: StaminaSet
+    on BeginPlay():
+        initialize_ability_system()
+        grant_attribute_sets()
+        grant_default_abilities()
+        apply_passive_effects()
+        bind_input_to_abilities()
+    fn initialize_ability_system():
+        ability_system_component = create_ability_system_component()
+        ability_system_component.init_ability_actor_info(self, self)
+    fn grant_attribute_sets():
+        health_set = ability_system_component.add_set(HealthSet)
+        combat_set = ability_system_component.add_set(CombatSet)
+        movement_set = ability_system_component.add_set(MovementSet)
+        magic_set = ability_system_component.add_set(MagicSet)
+        stamina_set = ability_system_component.add_set(StaminaSet)
+    fn grant_default_abilities():
+        # Grant instant abilities
+        ability_system_component.give_ability(JumpAbility, 1)
+        ability_system_component.give_ability(MeleeAttackAbility, 1)
+        ability_system_component.give_ability(FireballAbility, 1)
+        ability_system_component.give_ability(HealAbility, 1)
+        ability_system_component.give_ability(DashAbility, 1)
+        # Grant channeled abilities
+        ability_system_component.give_ability(FireBeamAbility, 1)
+        ability_system_component.give_ability(MeditationAbility, 1)
+        # Grant defensive abilities
+        ability_system_component.give_ability(BlockAbility, 1)
+        ability_system_component.give_ability(ParryAbility, 1)
+        # Grant buff abilities
+        ability_system_component.give_ability(StrengthBuffAbility, 1)
+        ability_system_component.give_ability(InvulnerabilityAbility, 1)
+        # Grant passive abilities (auto-activate)
+        ability_system_component.give_ability_and_activate_once(PassiveHealthRegenAbility, 1)
+        ability_system_component.give_ability_and_activate_once(PassiveManaRegenAbility, 1)
+        ability_system_component.give_ability_and_activate_once(SwordMasteryAbility, 1)
+    fn apply_passive_effects():
+        # Apply infinite passive effects
+        ability_system_component.apply_gameplay_effect_to_self(PassiveHealthRegenEffect, 1)
+        ability_system_component.apply_gameplay_effect_to_self(PassiveManaRegenEffect, 1)
+    fn bind_input_to_abilities():
+        bind_ability_to_input("Jump", "Input.Jump")
+        bind_ability_to_input("Attack", "Input.Attack")
+        bind_ability_to_input("Skill1", "Input.Skill1")
+        bind_ability_to_input("Skill2", "Input.Skill2")
+        bind_ability_to_input("Skill3", "Input.Skill3")
+        bind_ability_to_input("Skill4", "Input.Skill4")
+    @blueprint_callable
+    fn try_activate_ability_by_tag(tag: String) -> Bool:
+        let tag_container = make_tag_container(tag)
+        return ability_system_component.try_activate_abilities_by_tag(tag_container)
+    @blueprint_callable
+    fn cancel_abilities_by_tag(tag: String):
+        let tag_container = make_tag_container(tag)
+        ability_system_component.cancel_abilities(tag_container)
+    @blueprint_callable
+    fn apply_damage_to_self(damage: Float, damage_type: String):
+        let effect_context = ability_system_component.make_effect_context()
+        let effect_spec = ability_system_component.make_outgoing_spec(InstantDamageEffect, 1, effect_context)
+        effect_spec.set_set_by_caller_magnitude("SetByCaller.Damage.Amount", damage)
+        ability_system_component.apply_gameplay_effect_spec_to_self(effect_spec)
+    @blueprint_callable
+    fn heal_self(amount: Float):
+        let effect_context = ability_system_component.make_effect_context()
+        let effect_spec = ability_system_component.make_outgoing_spec(InstantHealEffect, 1, effect_context)
+        effect_spec.set_set_by_caller_magnitude("SetByCaller.Heal.Amount", amount)
+        ability_system_component.apply_gameplay_effect_spec_to_self(effect_spec)
+    @blueprint_callable
+    fn apply_buff(buff_effect_class: String, duration: Float):
+        ability_system_component.apply_gameplay_effect_to_self(buff_effect_class, 1)
+    @blueprint_callable
+    fn remove_effects_by_tag(tag: String):
+        let tag_container = make_tag_container(tag)
+        ability_system_component.remove_active_effects_with_granted_tags(tag_container)
+    @blueprint_callable
+    fn has_tag(tag: String) -> Bool:
+        let gameplay_tag = request_gameplay_tag(tag)
+        return ability_system_component.has_matching_gameplay_tag(gameplay_tag)
+    @blueprint_callable
+    fn has_any_tags(tags: Array<String>) -> Bool:
+        let tag_container = make_tag_container_from_array(tags)
+        return ability_system_component.has_any_matching_gameplay_tags(tag_container)
+    @blueprint_callable
+    fn has_all_tags(tags: Array<String>) -> Bool:
+        let tag_container = make_tag_container_from_array(tags)
+        return ability_system_component.has_all_matching_gameplay_tags(tag_container)
+    @blueprint_callable
+    fn add_loose_tag(tag: String):
+        let gameplay_tag = request_gameplay_tag(tag)
+        ability_system_component.add_loose_gameplay_tag(gameplay_tag)
+    @blueprint_callable
+    fn remove_loose_tag(tag: String):
+        let gameplay_tag = request_gameplay_tag(tag)
+        ability_system_component.remove_loose_gameplay_tag(gameplay_tag)
+    @blueprint_callable
+    fn get_attribute_value(attribute_name: String) -> Float:
+        let attribute = get_gameplay_attribute(attribute_name)
+        return ability_system_component.get_numeric_attribute(attribute)
+    @blueprint_callable
+    fn set_attribute_base_value(attribute_name: String, value: Float):
+        let attribute = get_gameplay_attribute(attribute_name)
+        ability_system_component.set_numeric_attribute_base(attribute, value)
+    @blueprint_callable
+    fn get_cooldown_remaining(ability_tag: String) -> Float:
+        let tag = request_gameplay_tag(ability_tag)
+        return ability_system_component.get_cooldown_time_remaining(tag)
+    @blueprint_callable
+    fn is_ability_on_cooldown(ability_tag: String) -> Bool:
+        let tag = request_gameplay_tag(ability_tag)
+        return ability_system_component.has_matching_gameplay_tag(tag)
+# ============================================================================
+# SECTION 7: ADVANCED PATTERNS
+# ============================================================================
+# Demonstrates advanced GAS patterns including death systems, initialization
+# state machines, movement mode tracking, and effect queries.
+# ============================================================================
+actor AdvancedGASCharacter:
+    @replicated
+    state is_alive: Bool = true
+    @replicated
+    state is_dying: Bool = false
+    @replicated
+    state initialization_state: Int = 0
+    state ability_system_component: AbilitySystemComponent
+    # ───────────────────────────────────────────────────────────────────────
+    # Death System (Lyra Pattern)
+    # ───────────────────────────────────────────────────────────────────────
+    @on_tag_added("Status.Dead.Dying")
+    fn on_dying_started():
+        is_dying = true
+        play_death_animation()
+        disable_input()
+        # Cancel all abilities except those that survive death
+        let asc = get_ability_system_component()
+        let survives_death_tag = make_tag_container("Ability.Behavior.SurvivesDeath")
+        asc.cancel_abilities(null, survives_death_tag)
+        # Transition to dead after animation
+        start_timer(3.0, "transition_to_dead")
+    @on_tag_added("Status.Dead.Dead")
+    fn on_dead():
+        is_alive = false
+        is_dying = false
+        set_actor_enable_collision(false)
+        set_life_span(5.0)
+        # Remove dying tag
+        let asc = get_ability_system_component()
+        asc.remove_loose_gameplay_tag("Status.Dead.Dying")
+    fn transition_to_dead():
+        let asc = get_ability_system_component()
+        asc.add_loose_gameplay_tag("Status.Dead.Dead")
+    # ───────────────────────────────────────────────────────────────────────
+    # Initialization State Machine (Lyra Pattern)
+    # ───────────────────────────────────────────────────────────────────────
+    on BeginPlay():
+        initialize_gas_system()
+    fn initialize_gas_system():
+        let asc = get_ability_system_component()
+        # State 1: Spawned
+        asc.add_loose_gameplay_tag("InitState.Spawned")
+        initialization_state = 1
+        # State 2: Data Available
+        load_character_data()
+        asc.add_loose_gameplay_tag("InitState.DataAvailable")
+        initialization_state = 2
+        # State 3: Data Initialized
+        initialize_attributes()
+        grant_abilities()
+        asc.add_loose_gameplay_tag("InitState.DataInitialized")
+        initialization_state = 3
+        # State 4: Gameplay Ready
+        asc.add_loose_gameplay_tag("InitState.GameplayReady")
+        initialization_state = 4
+    # ───────────────────────────────────────────────────────────────────────
+    # Movement Mode Tracking (Lyra Pattern)
+    # ───────────────────────────────────────────────────────────────────────
+    fn on_movement_mode_changed(prev_mode: MovementMode, new_mode: MovementMode):
+        let asc = get_ability_system_component()
+        # Remove previous movement mode tag
+        match prev_mode:
+            MovementMode::Walking => asc.remove_loose_gameplay_tag("Status.Movement.Grounded")
+            MovementMode::Jumping => asc.remove_loose_gameplay_tag("Status.Movement.Jumping")
+            MovementMode::Falling => asc.remove_loose_gameplay_tag("Status.Movement.Falling")
+            MovementMode::Swimming => asc.remove_loose_gameplay_tag("Status.Movement.Swimming")
+            MovementMode::Flying => asc.remove_loose_gameplay_tag("Status.Movement.Flying")
+            MovementMode::Climbing => asc.remove_loose_gameplay_tag("Status.Movement.Climbing")
+            _ => {}
+        # Add new movement mode tag
+        match new_mode:
+            MovementMode::Walking => asc.add_loose_gameplay_tag("Status.Movement.Grounded")
+            MovementMode::Jumping => asc.add_loose_gameplay_tag("Status.Movement.Jumping")
+            MovementMode::Falling => asc.add_loose_gameplay_tag("Status.Movement.Falling")
+            MovementMode::Swimming => asc.add_loose_gameplay_tag("Status.Movement.Swimming")
+            MovementMode::Flying => asc.add_loose_gameplay_tag("Status.Movement.Flying")
+            MovementMode::Climbing => asc.add_loose_gameplay_tag("Status.Movement.Climbing")
+            _ => {}
+    # ───────────────────────────────────────────────────────────────────────
+    # Effect Queries and Removal
+    # ───────────────────────────────────────────────────────────────────────
+    @blueprint_callable
+    fn remove_all_debuffs():
+        let asc = get_ability_system_component()
+        let debuff_tags = make_tag_container("Status.Debuff")
+        let removed_count = asc.remove_active_effects_with_granted_tags(debuff_tags)
+        println("Removed {removed_count} debuff effects")
+    @blueprint_callable
+    fn remove_fire_effects():
+        let asc = get_ability_system_component()
+        let fire_tags = make_tag_container_from_array(["Effect.Damage.Fire", "Effect.CC.Burn"])
+        let removed_count = asc.remove_active_effects_with_tags(fire_tags)
+        println("Removed {removed_count} fire effects")
+    @blueprint_callable
+    fn get_active_effect_count_by_tag(tag: String) -> Int:
+        let asc = get_ability_system_component()
+        let tag_container = make_tag_container(tag)
+        let effects = asc.get_active_effects_with_all_tags(tag_container)
+        return effects.length()
+    @blueprint_callable
+    fn get_effect_duration_remaining(effect_tag: String) -> Float:
+        let asc = get_ability_system_component()
+        let tag_container = make_tag_container(effect_tag)
+        let effects = asc.get_active_effects_with_all_tags(tag_container)
+        if effects.length() > 0:
+            return asc.get_gameplay_effect_duration(effects[0])
+        return 0.0
+    @blueprint_callable
+    fn has_active_effect_with_tag(tag: String) -> Bool:
+        return get_active_effect_count_by_tag(tag) > 0
+    # ───────────────────────────────────────────────────────────────────────
+    # Attribute Delegates
+    # ───────────────────────────────────────────────────────────────────────
+    fn bind_attribute_delegates():
+        # Bind to health changes
+        health_set.on_health_changed.add_dynamic(self, "on_health_changed_delegate")
+        health_set.on_out_of_health.add_dynamic(self, "on_out_of_health_delegate")
+        # Bind to mana changes
+        magic_set.on_mana_changed.add_dynamic(self, "on_mana_changed_delegate")
+        magic_set.on_out_of_mana.add_dynamic(self, "on_out_of_mana_delegate")
+        # Bind to stamina changes
+        stamina_set.on_stamina_changed.add_dynamic(self, "on_stamina_changed_delegate")
+        stamina_set.on_out_of_stamina.add_dynamic(self, "on_out_of_stamina_delegate")
+    fn on_health_changed_delegate(instigator: Actor, causer: Actor, spec: GameplayEffectSpec, 
+                                   magnitude: Float, old_value: Float, new_value: Float):
+        println("Health changed: {old_value} -> {new_value}")
+        update_health_ui(new_value, max_health)
+    fn on_out_of_health_delegate(instigator: Actor, causer: Actor, spec: GameplayEffectSpec,
+                                  magnitude: Float, old_value: Float, new_value: Float):
+        println("Out of health! Starting death sequence")
+        start_death_sequence()
+    fn on_mana_changed_delegate(instigator: Actor, causer: Actor, spec: GameplayEffectSpec,
+                                magnitude: Float, old_value: Float, new_value: Float):
+        update_mana_ui(new_value, magic_set.get_max_mana())
+    fn on_out_of_mana_delegate(instigator: Actor, causer: Actor, spec: GameplayEffectSpec,
+                               magnitude: Float, old_value: Float, new_value: Float):
+        println("Out of mana!")
+        show_out_of_mana_warning()
+    fn on_stamina_changed_delegate(instigator: Actor, causer: Actor, spec: GameplayEffectSpec,
+                                   magnitude: Float, old_value: Float, new_value: Float):
+        update_stamina_ui(new_value, stamina_set.get_max_stamina())
+    fn on_out_of_stamina_delegate(instigator: Actor, causer: Actor, spec: GameplayEffectSpec,
+                                  magnitude: Float, old_value: Float, new_value: Float):
+        println("Out of stamina!")
+        show_exhausted_effect()
+    # ───────────────────────────────────────────────────────────────────────
+    # Input Handling
+    # ───────────────────────────────────────────────────────────────────────
+    fn on_input_pressed(input_tag: String):
+        let asc = get_ability_system_component()
+        asc.ability_input_tag_pressed(input_tag)
+    fn on_input_released(input_tag: String):
+        let asc = get_ability_system_component()
+        asc.ability_input_tag_released(input_tag)
+    on Tick(delta_time: Float):
+        let asc = get_ability_system_component()
+        asc.process_ability_input(delta_time, false)
+# ============================================================================
+# SECTION 8: MULTIPLAYER REPLICATION PATTERNS
+# ============================================================================
+# Demonstrates network prediction, server authority, and replication modes.
+# ============================================================================
+actor MultiplayerGASCharacter:
+    @replicated
+    state health: Float = 100.0
+    @replicated
+    state team_id: Int = 0
+    state ability_system_component: AbilitySystemComponent
+    on BeginPlay():
+        setup_replication()
+        initialize_ability_system()
+    fn setup_replication():
+        # Set replication mode based on role
+        if is_locally_controlled():
+            ability_system_component.set_replication_mode("Mixed")
+        elif is_simulated_proxy():
+            ability_system_component.set_replication_mode("Minimal")
+        else:
+            ability_system_component.set_replication_mode("Full")
+    # ───────────────────────────────────────────────────────────────────────
+    # Server-Authoritative Abilities
+    # ───────────────────────────────────────────────────────────────────────
+    on Server_ActivateAbility(ability_tag: String):
+        let asc = get_ability_system_component()
+        let tag_container = make_tag_container(ability_tag)
+        if asc.try_activate_abilities_by_tag(tag_container):
+            Multicast_NotifyAbilityActivated(ability_tag)
+    on Multicast_NotifyAbilityActivated(ability_tag: String):
+        println("Ability activated: {ability_tag}")
+        play_ability_visual_effect(ability_tag)
+    # ───────────────────────────────────────────────────────────────────────
+    # Server-Authoritative Damage
+    # ───────────────────────────────────────────────────────────────────────
+    on Server_ApplyDamage(target: Actor, damage: Float, damage_type: String):
+        if !target:
+            return
+        let target_asc = get_ability_system_component_from_actor(target)
+        if !target_asc:
+            return
+        # Check if target is alive
+        if !target_asc.has_matching_gameplay_tag("Status.Alive"):
+            return
+        # Check immunity
+        let immunity_tag = "Status.Immune." + damage_type
+        if target_asc.has_matching_gameplay_tag(immunity_tag):
+            Multicast_ShowImmunityEffect(target)
+            return
+        # Apply damage effect
+        let effect_context = ability_system_component.make_effect_context()
+        effect_context.add_source_object(self)
+        let effect_spec = ability_system_component.make_outgoing_spec(InstantDamageEffect, 1, effect_context)
+        effect_spec.set_set_by_caller_magnitude("SetByCaller.Damage.Amount", -damage)
+        target_asc.apply_gameplay_effect_spec_to_self(effect_spec)
+        Multicast_ShowDamageEffect(target, damage, damage_type)
+    on Multicast_ShowDamageEffect(target: Actor, damage: Float, damage_type: String):
+        play_damage_visual(target, damage_type)
+        spawn_damage_number(target, damage)
+    on Multicast_ShowImmunityEffect(target: Actor):
+        play_immunity_visual(target)
+        show_immune_text(target)
+    # ───────────────────────────────────────────────────────────────────────
+    # Predicted Abilities (Client Prediction)
+    # ───────────────────────────────────────────────────────────────────────
+    @blueprint_callable
+    fn activate_predicted_ability(ability_tag: String):
+        let asc = get_ability_system_component()
+        let tag_container = make_tag_container(ability_tag)
+        # Client predicts, server confirms
+        if asc.try_activate_abilities_by_tag(tag_container):
+            if has_authority():
+                Multicast_NotifyAbilityActivated(ability_tag)
+            else:
+                Server_ActivateAbility(ability_tag)
+    # ───────────────────────────────────────────────────────────────────────
+    # Tag Replication
+    # ───────────────────────────────────────────────────────────────────────
+    @blueprint_callable
+    fn add_replicated_tag(tag: String):
+        let asc = get_ability_system_component()
+        let gameplay_tag = request_gameplay_tag(tag)
+        # Full replication to all clients
+        asc.add_loose_gameplay_tag(gameplay_tag, 1, "Full")
+    @blueprint_callable
+    fn add_owner_only_tag(tag: String):
+        let asc = get_ability_system_component()
+        let gameplay_tag = request_gameplay_tag(tag)
+        # Only replicate to owning client
+        asc.add_loose_gameplay_tag(gameplay_tag, 1, "OwnerOnly")
+    @blueprint_callable
+    fn add_minimal_tag(tag: String):
+        let asc = get_ability_system_component()
+        let gameplay_tag = request_gameplay_tag(tag)
+        # Minimal replication (tag only, no metadata)
+        asc.add_loose_gameplay_tag(gameplay_tag, 1, "Minimal")
+# ============================================================================
+# SECTION 9: GAMEPLAY CUES
+# ============================================================================
+# Gameplay cues trigger visual and audio effects in response to gameplay events.
+# ============================================================================
+actor GameplayCueActor:
+    state ability_system_component: AbilitySystemComponent
+    @blueprint_callable
+    fn trigger_impact_cue(impact_type: String, location: Vec3):
+        let cue_tag = "GameplayCue.Impact." + impact_type
+        execute_gameplay_cue_at_location(cue_tag, location)
+    @blueprint_callable
+    fn trigger_effect_cue(effect_type: String, target: Actor):
+        let cue_tag = "GameplayCue.Effect." + effect_type
+        execute_gameplay_cue_on_actor(cue_tag, target)
+    @blueprint_callable
+    fn trigger_ability_cue(ability_name: String):
+        let cue_tag = "GameplayCue.Ability." + ability_name
+        execute_gameplay_cue(cue_tag)
+    @on_tag_added("Status.Debuff.Burning")
+    fn on_burn_applied():
+        execute_gameplay_cue("GameplayCue.Effect.Burn.Start")
+        start_looping_cue("GameplayCue.Effect.Burn.Loop")
+    @on_tag_removed("Status.Debuff.Burning")
+    fn on_burn_removed():
+        stop_looping_cue("GameplayCue.Effect.Burn.Loop")
+        execute_gameplay_cue("GameplayCue.Effect.Burn.End")
+# ============================================================================
+# SECTION 10: SUPPORTING TYPES
+# ============================================================================
+enum MovementMode:
+    Walking
+    Running
+    Sprinting
+    Crouching
+    Jumping
+    Falling
+    Swimming
+    Flying
+    Climbing
+struct GameplayAttribute:
+    attribute_name: String
+    owner_set: String
+struct GameplayEffectSpec:
+    effect_class: String
+    level: Float
+    duration: Float
+struct GameplayEffectModCallbackData:
+    evaluated_data: EvaluatedData
+    effect_spec: GameplayEffectSpec
+    target: Actor
+struct EvaluatedData:
+    attribute: GameplayAttribute
+    magnitude: Float
+    modifiers: Array<Float>
+struct AttributeEvent:
+    instigator: Actor
+    causer: Actor
+    effect_spec: GameplayEffectSpec
+    magnitude: Float
+    old_value: Float
+    new_value: Float
+# ============================================================================
+# FEATURE COVERAGE SUMMARY
+# ============================================================================
+# ✅ GameplayTags (80+ tags, hierarchical namespaces)
+# ✅ Attribute Sets (5 sets: Health, Combat, Movement, Magic, Stamina)
+# ✅ Attribute Replication (replicated, rep_notify, hide_from_modifiers)
+# ✅ Meta Attributes (temporary calculation attributes)
+# ✅ Attribute Clamping (PreAttributeChange)
+# ✅ Attribute Delegates (on_health_changed, on_out_of_health)
+# ✅ Gameplay Effects Execute (PostGameplayEffectExecute)
+# ✅ Gameplay Abilities (20+ abilities: instant, channeled, passive)
+# ✅ Ability Instancing (InstancedPerExecution, InstancedPerActor, NonInstanced)
+# ✅ Ability Replication (ReplicateYes, ReplicateNo)
+# ✅ Net Execution (LocalPredicted, ServerInitiated, ServerOnly)
+# ✅ Ability Tags (ability_tags, activation_required, activation_blocked, activation_owned)
+# ✅ Ability Blocking (block_abilities_with_tag, cancel_abilities_with_tag)
+# ✅ Cost Effects (mana, stamina, health costs)
+# ✅ Cooldown Effects (per-ability cooldowns)
+# ✅ Gameplay Effects (30+ effects: instant, duration, infinite)
+# ✅ Effect Modifiers (Add, Multiply, Divide, Override operations)
+# ✅ Magnitude Types (ScalableFloat, AttributeBased, SetByCaller, CustomCalculation)
+# ✅ Effect Stacking (AggregateBySource, AggregateByTarget, policies)
+# ✅ Effect Tags (owned_tags, granted_tags)
+# ✅ Tag Requirements (application, ongoing, removal)
+# ✅ Effect Immunity (immunity component, immune_to tags)
+# ✅ Effect Removal (remove_effects_with_tags)
+# ✅ Conditional Effects (on_damage_dealt, on_damage_received)
+# ✅ Overflow Effects (overheal shields)
+# ✅ Gameplay Cues (visual/audio triggers)
+# ✅ Tag Queries (any/all/not combinations)
+# ✅ Tag Events (@on_tag_added, @on_tag_removed, @on_tag_count_changed)
+# ✅ Ability System Component (ASC integration)
+# ✅ Attribute Set Management (add_set, get_set)
+# ✅ Ability Granting (give_ability, give_ability_and_activate_once)
+# ✅ Effect Application (apply_gameplay_effect_to_self, apply_gameplay_effect_to_target)
+# ✅ Tag Management (add_loose_tag, remove_loose_tag, has_tag, has_any, has_all)
+# ✅ Effect Queries (get_active_effects_with_tags, remove_active_effects_with_tags)
+# ✅ Cooldown Queries (get_cooldown_time_remaining, is_ability_on_cooldown)
+# ✅ Attribute Queries (get_numeric_attribute, set_numeric_attribute_base)
+# ✅ Death System (Lyra pattern with Dying/Dead states)
+# ✅ Initialization State Machine (Lyra pattern with 4 states)
+# ✅ Movement Mode Tracking (Lyra pattern with tag mapping)
+# ✅ Replication Modes (Full, Mixed, Minimal)
+# ✅ Network Prediction (client prediction with server reconciliation)
+# ✅ Server Authority (server-authoritative damage and effects)
+# ✅ Tag Replication (Full, OwnerOnly, Minimal modes)
+# ✅ Delegate Binding (attribute change delegates)
+# ✅ Input Binding (ability_input_tag_pressed/released)
+# ✅ Combo Systems (state-based combo chains)
+# ✅ Targeted Abilities (target_required_tags, target_blocked_tags)
+# ✅ AOE Abilities (area-of-effect damage)
+# ✅ Channeled Abilities (continuous execution)
+# ✅ Passive Abilities (auto-activate on avatar set)
+# ✅ DOT Effects (damage over time with stacking)
+# ✅ HOT Effects (heal over time)
+# ✅ Buff Effects (stat modifications)
+# ✅ Debuff Effects (negative stat modifications)
+# ✅ CC Effects (crowd control: stun, slow, root, silence)
+# ✅ Immunity Effects (damage immunity, CC immunity)
+# ✅ Reflection Effects (thorns, parry counter)
+# ✅ Lifesteal Effects (damage-based healing)
+# ============================================================================

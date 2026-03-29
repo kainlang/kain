@@ -1,0 +1,115 @@
+# MeshForge - Core Data Types
+# Defines fundamental mesh data structures and enums
+
+# Mesh operation types
+enum MeshOperationType:
+    Extrude
+    Bevel
+    Subdivide
+    Boolean
+    Smooth
+    Deform
+    Transform
+    Duplicate
+
+# Boolean operation modes
+enum BooleanMode:
+    Union
+    Subtract
+    Intersect
+
+# Subdivision algorithm types
+enum SubdivisionAlgorithm:
+    CatmullClark
+    Loop
+    Simple
+
+# Mesh vertex data
+struct MeshVertex:
+    position: Vec3
+    normal: Vec3
+    uv: Vec2
+    tangent: Vec3
+    color: Vec4
+
+# Mesh triangle data
+struct MeshTriangle:
+    v0: Int
+    v1: Int
+    v2: Int
+    material_id: Int
+
+# Complete mesh data structure
+struct MeshData:
+    vertices: Array<MeshVertex>
+    triangles: Array<MeshTriangle>
+    bounds_min: Vec3
+    bounds_max: Vec3
+    vertex_count: Int
+    triangle_count: Int
+
+# Extrude operation parameters
+struct ExtrudeParams:
+    distance: Float
+    scale: Float
+    twist: Float
+    segments: Int
+
+# Bevel operation parameters
+struct BevelParams:
+    width: Float
+    segments: Int
+    profile: Float
+
+# Subdivide operation parameters
+struct SubdivideParams:
+    iterations: Int
+    algorithm: SubdivisionAlgorithm
+    smoothness: Float
+
+# Boolean operation parameters
+struct BooleanParams:
+    mode: BooleanMode
+    target_mesh: Int
+
+# Smooth operation parameters
+struct SmoothParams:
+    iterations: Int
+    strength: Float
+    preserve_volume: Bool
+
+# Deform operation parameters
+struct DeformParams:
+    deform_type: Int
+    strength: Float
+    falloff: Float
+    center: Vec3
+    radius: Float
+
+# Transform operation parameters
+struct TransformParams:
+    translation: Vec3
+    rotation: Vec3
+    scale: Vec3
+
+# Duplicate operation parameters
+struct DuplicateParams:
+    count: Int
+    offset: Vec3
+    rotation_step: Vec3
+    scale_step: Vec3
+
+# Mesh generation result
+struct MeshGenerationResult:
+    success: Bool
+    mesh_data: MeshData
+    error_message: String
+    generation_time: Float
+
+# Node execution context
+struct NodeExecutionContext:
+    input_meshes: Array<MeshData>
+    parameters: Array<Float>
+    execution_time: Float
+    error_occurred: Bool
+    error_message: String

@@ -1,0 +1,15 @@
+[package]
+name = "UESculpt"
+version = "1.0.0"
+authors = ["KAIN Research Labs"]
+description = "ZBrush-style digital sculpting for Unreal Engine 5"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "UESculpt"
+plugin_dir = "."
+sources = ["uesculpt.kn"]
+shaders = []
+modular_output = true

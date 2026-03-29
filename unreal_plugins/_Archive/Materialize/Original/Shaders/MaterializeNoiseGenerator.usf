@@ -1,0 +1,173 @@
+// Materialize Noise Generator Compute Shader
+// GPU-accelerated procedural noise generation
+// Ported from K-Engine to UE5
+
+#include "/Plugin/Materialize/MaterializeProceduralCommon.ush"
+#include "/Engine/Private/Common.ush"
+
+// ============================================================================
+// PARAMETERS
+// ============================================================================
+
+// Output texture
+RWTexture2D<float4> OutputTexture;
+
+// Generator parameters
+float4 NoiseParams;  // x=Scale, y=Octaves, z=Persistence, w=Lacunarity
+float4 NoiseParams2; // x=Seed, y=Contrast, z=Brightness, w=Invert
+float4 TransformParams; // x=Rotation, y=ScaleX, z=ScaleY, w=OffsetX
+float4 TransformParams2; // x=OffsetY, y=TilingMode, z=unused, w=unused
+uint2 TextureSize;
+uint NoiseType; // 0=Perlin, 1=Voronoi, 2=Worley, 3=Ridged, 4=Turbulence
+
+// ============================================================================
+// NOISE TYPE DEFINITIONS
+// ============================================================================
+#define NOISE_PERLIN      0
+#define NOISE_VORONOI     1
+#define NOISE_WORLEY      2
+#define NOISE_RIDGED      3
+#define NOISE_TURBULENCE  4
+
+// ============================================================================
+// COMPUTE KERNEL
+// ============================================================================
+
+[numthreads(8, 8, 1)]
+void GenerateNoiseCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    if (DispatchThreadId.x >= TextureSize.x || DispatchThreadId.y >= TextureSize.y)
+        return;
+    
+    // Calculate UV coordinates
+    float2 uv = (float2(DispatchThreadId.xy) + 0.5) / float2(TextureSize);
+    
+    // Apply UV transformation
+    float rotation = TransformParams.x;
+    float2 scale = TransformParams.yz;
+    float2 offset = float2(TransformParams.w, TransformParams2.x);
+    int tilingMode = (int)TransformParams2.y;
+    
+    float2 transformedUV = transform_uv(uv, rotation, (scale.x + scale.y) * 0.5, offset);
+    transformedUV = apply_tiling(transformedUV, tilingMode);
+    
+    // Extract noise parameters
+    float noiseScale = NoiseParams.x;
+    int octaves = (int)NoiseParams.y;
+    float persistence = NoiseParams.z;
+    float lacunarity = NoiseParams.w;
+    float seed = NoiseParams2.x;
+    float contrast = NoiseParams2.y;
+    float brightness = NoiseParams2.z;
+    float invert = NoiseParams2.w;
+    
+    // Generate noise based on type
+    float value = 0.0;
+    
+    switch (NoiseType)
+    {
+        case NOISE_PERLIN:
+            value = perlin_noise(transformedUV, noiseScale, octaves, seed);
+            break;
+            
+        case NOISE_VORONOI:
+            value = voronoi_edges(transformedUV, noiseScale, 0.1, seed);
+            break;
+            
+        case NOISE_WORLEY:
+            value = 1.0 - worley_noise(transformedUV, noiseScale, 1.0, seed);
+            break;
+            
+        case NOISE_RIDGED:
+            value = ridged_noise(transformedUV, noiseScale, octaves, seed);
+            break;
+            
+        case NOISE_TURBULENCE:
+            value = turbulence(transformedUV, noiseScale, octaves, seed);
+            break;
+    }
+    
+    // Apply contrast and brightness
+    value = (value - 0.5) * contrast + 0.5 + brightness;
+    
+    // Apply invert
+    value = lerp(value, 1.0 - value, invert);
+    
+    // Clamp to valid range
+    value = saturate(value);
+    
+    // Write to output (grayscale to all channels)
+    OutputTexture[DispatchThreadId.xy] = float4(value, value, value, 1.0);
+}
+
+// ============================================================================
+// ADDITIONAL KERNELS FOR SPECIFIC PATTERNS
+// ============================================================================
+
+// Radial falloff kernel
+[numthreads(8, 8, 1)]
+void GenerateRadialCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    if (DispatchThreadId.x >= TextureSize.x || DispatchThreadId.y >= TextureSize.y)
+        return;
+    
+    float2 uv = (float2(DispatchThreadId.xy) + 0.5) / float2(TextureSize);
+    float2 transformedUV = transform_uv(uv, TransformParams.x, TransformParams.y, float2(TransformParams.w, TransformParams2.x));
+    
+    float falloff_power = NoiseParams.x; // Reuse scale as falloff power
+    float value = radial_falloff(transformedUV, falloff_power);
+    
+    OutputTexture[DispatchThreadId.xy] = float4(value, value, value, 1.0);
+}
+
+// Circle kernel
+[numthreads(8, 8, 1)]
+void GenerateCircleCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    if (DispatchThreadId.x >= TextureSize.x || DispatchThreadId.y >= TextureSize.y)
+        return;
+    
+    float2 uv = (float2(DispatchThreadId.xy) + 0.5) / float2(TextureSize);
+    float2 transformedUV = transform_uv(uv, TransformParams.x, TransformParams.y, float2(TransformParams.w, TransformParams2.x));
+    
+    float radius = NoiseParams.x;
+    float softness = NoiseParams.y;
+    float value = circle(transformedUV, radius, softness);
+    
+    OutputTexture[DispatchThreadId.xy] = float4(value, value, value, 1.0);
+}
+
+// Brick pattern kernel
+[numthreads(8, 8, 1)]
+void GenerateBricksCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    if (DispatchThreadId.x >= TextureSize.x || DispatchThreadId.y >= TextureSize.y)
+        return;
+    
+    float2 uv = (float2(DispatchThreadId.xy) + 0.5) / float2(TextureSize);
+    float2 transformedUV = transform_uv(uv, TransformParams.x, TransformParams.y, float2(TransformParams.w, TransformParams2.x));
+    
+    float brickWidth = NoiseParams.x;
+    float brickHeight = NoiseParams.y;
+    float mortarWidth = NoiseParams.z;
+    float value = bricks(transformedUV, brickWidth, brickHeight, mortarWidth);
+    
+    OutputTexture[DispatchThreadId.xy] = float4(value, value, value, 1.0);
+}
+
+// Dots pattern kernel
+[numthreads(8, 8, 1)]
+void GenerateDotsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    if (DispatchThreadId.x >= TextureSize.x || DispatchThreadId.y >= TextureSize.y)
+        return;
+    
+    float2 uv = (float2(DispatchThreadId.xy) + 0.5) / float2(TextureSize);
+    float2 transformedUV = transform_uv(uv, TransformParams.x, TransformParams.y, float2(TransformParams.w, TransformParams2.x));
+    
+    float dotRadius = NoiseParams.x;
+    float spacing = NoiseParams.y;
+    float value = dots(transformedUV, dotRadius, spacing);
+    
+    OutputTexture[DispatchThreadId.xy] = float4(value, value, value, 1.0);
+}

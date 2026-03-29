@@ -1,0 +1,535 @@
+# Materialize Editor Viewport
+# 3D preview viewport for real-time PBR material visualization
+# Supports camera controls, lighting setup, and dynamic material updates
+
+# ============================================================================
+# VIEWPORT DATA STRUCTURES
+# ============================================================================
+
+struct ViewportCamera:
+    position: Vec3
+    target: Vec3
+    distance: Float
+    yaw: Float
+    pitch: Float
+    fov: Float
+    near_plane: Float
+    far_plane: Float
+
+struct ViewportLighting:
+    directional_intensity: Float
+    directional_rotation: Vec2
+    sky_intensity: Float
+    ambient_color: Vec3
+    enabled: Bool
+
+struct ViewportBackground:
+    mode: Int
+    solid_color: Vec3
+    gradient_top: Vec3
+    gradient_bottom: Vec3
+
+struct MouseState:
+    position: Vec2
+    delta: Vec2
+    left_button_down: Bool
+    right_button_down: Bool
+    middle_button_down: Bool
+    wheel_delta: Float
+
+# ============================================================================
+# MATERIALIZE VIEWPORT WIDGET
+# ============================================================================
+
+@viewport
+struct MaterializeViewport:
+    @scene_actor
+    preview_mesh_actor: Actor
+    
+    @camera
+    camera_position: Vec3 = vec3(0.0, -300.0, 150.0)
+    camera_rotation: Vec3 = vec3(-20.0, 0.0, 0.0)
+    
+    state camera: ViewportCamera = ViewportCamera()
+    state lighting: ViewportLighting = ViewportLighting()
+    state background: ViewportBackground = ViewportBackground()
+    state mouse_state: MouseState = MouseState()
+    
+    state is_initialized: Bool = false
+    state preview_mesh_type: Int = 0
+    state show_wireframe: Bool = false
+    state show_uvs: Bool = false
+    
+    state orbit_sensitivity: Float = 0.5
+    state pan_sensitivity: Float = 1.0
+    state zoom_sensitivity: Float = 15.0
+    
+    state current_material_instance: MaterialInstance? = null
+    state layer_stack: LayerStack? = null
+    state auto_update_enabled: Bool = true
+    state needs_material_update: Bool = false
+    
+    on Initialize():
+        camera.position = vec3(0.0, -300.0, 150.0)
+        camera.target = vec3(0.0, 0.0, 0.0)
+        camera.distance = 300.0
+        camera.yaw = 0.0
+        camera.pitch = -20.0
+        camera.fov = 90.0
+        camera.near_plane = 1.0
+        camera.far_plane = 10000.0
+        
+        lighting.directional_intensity = 1.0
+        lighting.directional_rotation = vec2(45.0, 315.0)
+        lighting.sky_intensity = 0.3
+        lighting.ambient_color = vec3(0.2, 0.2, 0.25)
+        lighting.enabled = true
+        
+        background.mode = 0
+        background.solid_color = vec3(0.15, 0.15, 0.18)
+        background.gradient_top = vec3(0.3, 0.3, 0.35)
+        background.gradient_bottom = vec3(0.1, 0.1, 0.12)
+        
+        mouse_state.position = vec2(0.0, 0.0)
+        mouse_state.delta = vec2(0.0, 0.0)
+        mouse_state.left_button_down = false
+        mouse_state.right_button_down = false
+        mouse_state.middle_button_down = false
+        mouse_state.wheel_delta = 0.0
+        
+        preview_mesh_type = 0
+        SetupPreviewMesh()
+        SetupLighting()
+        
+        is_initialized = true
+        println("MaterializeViewport initialized")
+    
+    on Tick(delta: Float):
+        if not is_initialized:
+            Initialize()
+        
+        UpdateCamera(delta)
+        
+        if needs_material_update and auto_update_enabled:
+            UpdateMaterialPreview()
+            needs_material_update = false
+    
+    on Draw():
+        DrawBackground()
+        
+        if show_wireframe:
+            DrawWireframeOverlay()
+        
+        if show_uvs:
+            DrawUVOverlay()
+    
+    fn SetupPreviewMesh():
+        if preview_mesh_actor == null:
+            preview_mesh_actor = SpawnActor("StaticMeshActor")
+        
+        SetActorLocation(preview_mesh_actor, vec3(0.0, 0.0, 0.0))
+        SetActorRotation(preview_mesh_actor, vec3(0.0, 0.0, 0.0))
+        SetActorScale(preview_mesh_actor, vec3(1.0, 1.0, 1.0))
+        
+        let mesh_path = GetPreviewMeshPath(preview_mesh_type)
+        SetStaticMesh(preview_mesh_actor, mesh_path)
+        
+        println("Preview mesh setup: " + mesh_path)
+    
+    fn GetPreviewMeshPath(mesh_type: Int) -> String:
+        if mesh_type == 0:
+            return "/Engine/BasicShapes/Sphere"
+        if mesh_type == 1:
+            return "/Engine/BasicShapes/Cube"
+        if mesh_type == 2:
+            return "/Engine/BasicShapes/Plane"
+        if mesh_type == 3:
+            return "/Engine/BasicShapes/Cylinder"
+        if mesh_type == 4:
+            return "/Engine/BasicShapes/Cone"
+        
+        return "/Engine/BasicShapes/Sphere"
+    
+    fn SetupLighting():
+        let directional_light = SpawnActor("DirectionalLight")
+        
+        let pitch = lighting.directional_rotation.x
+        let yaw = lighting.directional_rotation.y
+        SetActorRotation(directional_light, vec3(pitch, yaw, 0.0))
+        SetLightIntensity(directional_light, lighting.directional_intensity)
+        SetLightColor(directional_light, vec3(1.0, 1.0, 1.0))
+        
+        let sky_light = SpawnActor("SkyLight")
+        SetLightIntensity(sky_light, lighting.sky_intensity)
+        SetLightColor(sky_light, lighting.ambient_color)
+        
+        println("Lighting setup complete")
+    
+    fn UpdateCamera(delta: Float):
+        if mouse_state.right_button_down:
+            let yaw_delta = mouse_state.delta.x * orbit_sensitivity
+            let pitch_delta = mouse_state.delta.y * orbit_sensitivity
+            
+            camera.yaw = camera.yaw + yaw_delta
+            camera.pitch = clamp(camera.pitch + pitch_delta, -89.0, 89.0)
+            
+            let yaw_rad = camera.yaw * 3.14159 / 180.0
+            let pitch_rad = camera.pitch * 3.14159 / 180.0
+            
+            let cos_pitch = cos(pitch_rad)
+            let sin_pitch = sin(pitch_rad)
+            let cos_yaw = cos(yaw_rad)
+            let sin_yaw = sin(yaw_rad)
+            
+            let offset_x = camera.distance * cos_pitch * sin_yaw
+            let offset_y = camera.distance * cos_pitch * cos_yaw
+            let offset_z = camera.distance * sin_pitch
+            
+            camera.position = camera.target + vec3(offset_x, offset_y, offset_z)
+        
+        if mouse_state.middle_button_down:
+            let right_vector = GetCameraRightVector()
+            let up_vector = GetCameraUpVector()
+            
+            let pan_x = mouse_state.delta.x * pan_sensitivity
+            let pan_y = mouse_state.delta.y * pan_sensitivity
+            
+            let pan_offset = right_vector * pan_x + up_vector * pan_y
+            
+            camera.position = camera.position + pan_offset
+            camera.target = camera.target + pan_offset
+        
+        if mouse_state.wheel_delta != 0.0:
+            let zoom_amount = mouse_state.wheel_delta * zoom_sensitivity
+            camera.distance = clamp(camera.distance - zoom_amount, 50.0, 2000.0)
+            
+            let direction = normalize(camera.target - camera.position)
+            camera.position = camera.target - direction * camera.distance
+            
+            mouse_state.wheel_delta = 0.0
+    
+    fn GetCameraRightVector() -> Vec3:
+        let yaw_rad = camera.yaw * 3.14159 / 180.0
+        let right_x = cos(yaw_rad)
+        let right_y = -sin(yaw_rad)
+        return vec3(right_x, right_y, 0.0)
+    
+    fn GetCameraUpVector() -> Vec3:
+        let yaw_rad = camera.yaw * 3.14159 / 180.0
+        let pitch_rad = camera.pitch * 3.14159 / 180.0
+        
+        let forward_x = sin(yaw_rad) * cos(pitch_rad)
+        let forward_y = cos(yaw_rad) * cos(pitch_rad)
+        let forward_z = sin(pitch_rad)
+        
+        let right = GetCameraRightVector()
+        let forward = vec3(forward_x, forward_y, forward_z)
+        
+        return cross(forward, right)
+    
+    fn DrawBackground():
+        if background.mode == 0:
+            SetViewportBackgroundColor(background.solid_color)
+        else:
+            if background.mode == 1:
+                DrawGradientBackground(background.gradient_top, background.gradient_bottom)
+            else:
+                if background.mode == 2:
+                    DrawCheckerboardBackground()
+    
+    fn DrawGradientBackground(top_color: Vec3, bottom_color: Vec3):
+        println("Drawing gradient background")
+    
+    fn DrawCheckerboardBackground():
+        println("Drawing checkerboard background")
+    
+    fn DrawWireframeOverlay():
+        if preview_mesh_actor != null:
+            SetActorWireframeMode(preview_mesh_actor, true)
+    
+    fn DrawUVOverlay():
+        println("Drawing UV overlay")
+    
+    fn UpdateMaterialPreview():
+        if layer_stack == null:
+            println("No layer stack to preview")
+            return
+        
+        if preview_mesh_actor == null:
+            println("No preview mesh actor")
+            return
+        
+        let eval_result = evaluate_stack(layer_stack)
+        if eval_result == null:
+            println("Failed to evaluate layer stack")
+            return
+        
+        if current_material_instance == null:
+            current_material_instance = CreateMaterialInstance("/Materialize/Materials/M_PBRPreview")
+        
+        if eval_result.base_color != null:
+            SetMaterialTextureParameter(current_material_instance, "BaseColor", eval_result.base_color)
+        
+        if eval_result.normal != null:
+            SetMaterialTextureParameter(current_material_instance, "Normal", eval_result.normal)
+        
+        if eval_result.roughness != null:
+            SetMaterialTextureParameter(current_material_instance, "Roughness", eval_result.roughness)
+        
+        if eval_result.metallic != null:
+            SetMaterialTextureParameter(current_material_instance, "Metallic", eval_result.metallic)
+        
+        if eval_result.height != null:
+            SetMaterialTextureParameter(current_material_instance, "Height", eval_result.height)
+        
+        if eval_result.ao != null:
+            SetMaterialTextureParameter(current_material_instance, "AO", eval_result.ao)
+        
+        if eval_result.emissive != null:
+            SetMaterialTextureParameter(current_material_instance, "Emissive", eval_result.emissive)
+        
+        SetActorMaterial(preview_mesh_actor, current_material_instance)
+        
+        println("Material preview updated")
+    
+    fn SetLayerStack(stack: LayerStack):
+        layer_stack = stack
+        needs_material_update = true
+    
+    fn SetPreviewMeshType(mesh_type: Int):
+        if mesh_type >= 0 and mesh_type <= 4:
+            preview_mesh_type = mesh_type
+            SetupPreviewMesh()
+            needs_material_update = true
+    
+    fn SetBackgroundMode(mode: Int):
+        if mode >= 0 and mode <= 2:
+            background.mode = mode
+    
+    fn SetBackgroundColor(color: Vec3):
+        background.solid_color = color
+    
+    fn SetGradientColors(top: Vec3, bottom: Vec3):
+        background.gradient_top = top
+        background.gradient_bottom = bottom
+    
+    fn ToggleLighting():
+        lighting.enabled = not lighting.enabled
+        
+        if lighting.enabled:
+            SetupLighting()
+        else:
+            DisableLighting()
+    
+    fn DisableLighting():
+        println("Disabling lighting")
+    
+    fn ToggleWireframe():
+        show_wireframe = not show_wireframe
+    
+    fn ToggleUVs():
+        show_uvs = not show_uvs
+    
+    fn SetDirectionalLightIntensity(intensity: Float):
+        lighting.directional_intensity = clamp(intensity, 0.0, 10.0)
+        SetupLighting()
+    
+    fn SetDirectionalLightRotation(pitch: Float, yaw: Float):
+        lighting.directional_rotation = vec2(pitch, yaw)
+        SetupLighting()
+    
+    fn SetSkyLightIntensity(intensity: Float):
+        lighting.sky_intensity = clamp(intensity, 0.0, 5.0)
+        SetupLighting()
+    
+    fn SetAmbientColor(color: Vec3):
+        lighting.ambient_color = color
+        SetupLighting()
+    
+    fn ResetCamera():
+        camera.position = vec3(0.0, -300.0, 150.0)
+        camera.target = vec3(0.0, 0.0, 0.0)
+        camera.distance = 300.0
+        camera.yaw = 0.0
+        camera.pitch = -20.0
+    
+    fn FocusOnMesh():
+        camera.target = vec3(0.0, 0.0, 0.0)
+        camera.distance = 300.0
+        
+        let yaw_rad = camera.yaw * 3.14159 / 180.0
+        let pitch_rad = camera.pitch * 3.14159 / 180.0
+        
+        let offset_x = camera.distance * cos(pitch_rad) * sin(yaw_rad)
+        let offset_y = camera.distance * cos(pitch_rad) * cos(yaw_rad)
+        let offset_z = camera.distance * sin(pitch_rad)
+        
+        camera.position = camera.target + vec3(offset_x, offset_y, offset_z)
+    
+    fn SetAutoUpdateEnabled(enabled: Bool):
+        auto_update_enabled = enabled
+    
+    fn ForceUpdateMaterial():
+        needs_material_update = true
+        UpdateMaterialPreview()
+    
+    fn OnMouseMove(mouse_x: Float, mouse_y: Float):
+        let new_position = vec2(mouse_x, mouse_y)
+        mouse_state.delta = new_position - mouse_state.position
+        mouse_state.position = new_position
+    
+    fn OnMouseButtonDown(button: Int):
+        if button == 0:
+            mouse_state.left_button_down = true
+        else:
+            if button == 1:
+                mouse_state.right_button_down = true
+            else:
+                if button == 2:
+                    mouse_state.middle_button_down = true
+    
+    fn OnMouseButtonUp(button: Int):
+        if button == 0:
+            mouse_state.left_button_down = false
+        else:
+            if button == 1:
+                mouse_state.right_button_down = false
+            else:
+                if button == 2:
+                    mouse_state.middle_button_down = false
+    
+    fn OnMouseWheel(delta: Float):
+        mouse_state.wheel_delta = delta
+    
+    fn OnKeyDown(key_code: Int):
+        if key_code == 87:
+            ToggleWireframe()
+        
+        if key_code == 85:
+            ToggleUVs()
+        
+        if key_code == 76:
+            ToggleLighting()
+        
+        if key_code == 82:
+            ResetCamera()
+        
+        if key_code == 70:
+            FocusOnMesh()
+
+# ============================================================================
+# VIEWPORT TOOLBAR WIDGET
+# ============================================================================
+
+@toolbar
+struct MaterializeViewportToolbar:
+    state viewport: MaterializeViewport? = null
+    
+    @button(label: "Sphere")
+    fn OnSphereClicked():
+        if viewport != null:
+            viewport.SetPreviewMeshType(0)
+    
+    @button(label: "Cube")
+    fn OnCubeClicked():
+        if viewport != null:
+            viewport.SetPreviewMeshType(1)
+    
+    @button(label: "Plane")
+    fn OnPlaneClicked():
+        if viewport != null:
+            viewport.SetPreviewMeshType(2)
+    
+    @button(label: "Cylinder")
+    fn OnCylinderClicked():
+        if viewport != null:
+            viewport.SetPreviewMeshType(3)
+    
+    @button(label: "Cone")
+    fn OnConeClicked():
+        if viewport != null:
+            viewport.SetPreviewMeshType(4)
+    
+    @separator
+    fn Separator1():
+        println("Separator")
+    
+    @toggle(label: "Wireframe")
+    fn OnWireframeToggled(enabled: Bool):
+        if viewport != null:
+            viewport.show_wireframe = enabled
+    
+    @toggle(label: "Lighting")
+    fn OnLightingToggled(enabled: Bool):
+        if viewport != null:
+            if enabled:
+                viewport.SetupLighting()
+            else:
+                viewport.DisableLighting()
+    
+    @toggle(label: "UVs")
+    fn OnUVsToggled(enabled: Bool):
+        if viewport != null:
+            viewport.show_uvs = enabled
+    
+    @separator
+    fn Separator2():
+        println("Separator")
+    
+    @dropdown(label: "Background")
+    fn OnBackgroundSelected(mode: Int):
+        if viewport != null:
+            viewport.SetBackgroundMode(mode)
+    
+    @button(label: "Reset Camera")
+    fn OnResetCameraClicked():
+        if viewport != null:
+            viewport.ResetCamera()
+    
+    @button(label: "Focus")
+    fn OnFocusClicked():
+        if viewport != null:
+            viewport.FocusOnMesh()
+    
+    fn SetViewport(vp: MaterializeViewport):
+        viewport = vp
+
+# ============================================================================
+# HELPER FUNCTIONS - Engine bindings
+# ============================================================================
+
+@extern
+fn SpawnActor(actor_class: String) -> Actor
+
+@extern
+fn SetActorLocation(actor: Actor, location: Vec3)
+
+@extern
+fn SetActorRotation(actor: Actor, rotation: Vec3)
+
+@extern
+fn SetActorScale(actor: Actor, scale: Vec3)
+
+@extern
+fn SetStaticMesh(actor: Actor, mesh_path: String)
+
+@extern
+fn SetActorMaterial(actor: Actor, material: MaterialInstance)
+
+@extern
+fn SetActorWireframeMode(actor: Actor, enabled: Bool)
+
+@extern
+fn SetLightIntensity(light: Actor, intensity: Float)
+
+@extern
+fn SetLightColor(light: Actor, color: Vec3)
+
+@extern
+fn SetViewportBackgroundColor(color: Vec3)
+
+@extern
+fn CreateMaterialInstance(material_path: String) -> MaterialInstance
+
+@extern
+fn SetMaterialTextureParameter(material: MaterialInstance, param_name: String, texture: Texture2D)

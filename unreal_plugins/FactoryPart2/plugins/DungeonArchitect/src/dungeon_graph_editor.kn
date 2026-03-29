@@ -1,0 +1,679 @@
+// DungeonArchitect — Graph Editor
+// UEdGraph nodes for dungeon authoring with visual editor
+
+@graph_editor
+graph DungeonGraph:
+    @node_type
+    node EntranceRoomNode:
+        properties:
+            RoomWidth: Int = 10
+            RoomHeight: Int = 10
+            SpawnPointCount: Int = 1
+            AllowMultipleExits: Bool = true
+            LightingPreset: String = "Bright"
+            AmbientSound: String = "Amb_Entrance"
+        inputs:
+            InExec: Exec
+        outputs:
+            OnGenerated: Exec
+            NorthExit: Exec
+            SouthExit: Exec
+            EastExit: Exec
+            WestExit: Exec
+        
+        display_name: "Entrance Room"
+        category: "Dungeon/Rooms"
+        color: Vec3 { x: 0.2, y: 0.8, z: 0.2 }
+        tooltip: "Starting room for the dungeon with player spawn point"
+    
+    @node_type
+    node CorridorNode:
+        properties:
+            CorridorWidth: Int = 3
+            MinLength: Int = 5
+            MaxLength: Int = 15
+            AllowBends: Bool = true
+            MaxBends: Int = 2
+            PlaceTorches: Bool = true
+            TorchSpacing: Float = 5.0
+        inputs:
+            InExec: Exec
+            StartPoint: Exec
+        outputs:
+            OnGenerated: Exec
+            EndPoint: Exec
+        
+        display_name: "Corridor"
+        category: "Dungeon/Connectors"
+        color: Vec3 { x: 0.6, y: 0.6, z: 0.6 }
+        tooltip: "Connects two rooms with a corridor"
+    
+    @node_type
+    node TreasureRoomNode:
+        properties:
+            RoomWidth: Int = 8
+            RoomHeight: Int = 8
+            ChestCount: Int = 1
+            LootQuality: Float = 0.8
+            GuardianCount: Int = 2
+            RequiresKey: Bool = false
+            KeyID: Int = 0
+        inputs:
+            InExec: Exec
+        outputs:
+            OnGenerated: Exec
+            OnLooted: Exec
+            Exit: Exec
+        
+        display_name: "Treasure Room"
+        category: "Dungeon/Rooms"
+        color: Vec3 { x: 1.0, y: 0.8, z: 0.0 }
+        tooltip: "Room containing treasure chests and loot"
+    
+    @node_type
+    node BossRoomNode:
+        properties:
+            RoomWidth: Int = 20
+            RoomHeight: Int = 20
+            BossType: String = "DefaultBoss"
+            ArenaStyle: String = "Circular"
+            PillarCount: Int = 4
+            HasBarrier: Bool = true
+            LootMultiplier: Float = 2.0
+        inputs:
+            InExec: Exec
+        outputs:
+            OnGenerated: Exec
+            OnBossDefeated: Exec
+            Exit: Exec
+        
+        display_name: "Boss Room"
+        category: "Dungeon/Rooms"
+        color: Vec3 { x: 1.0, y: 0.0, z: 0.0 }
+        tooltip: "Large arena room for boss encounters"
+    
+    @node_type
+    node PuzzleRoomNode:
+        properties:
+            RoomWidth: Int = 12
+            RoomHeight: Int = 12
+            PuzzleType: String = "Lever"
+            Difficulty: Float = 0.5
+            RewardQuality: Float = 0.6
+            TimeLimit: Float = 0.0
+            HintCount: Int = 2
+        inputs:
+            InExec: Exec
+        outputs:
+            OnGenerated: Exec
+            OnSolved: Exec
+            OnFailed: Exec
+            Exit: Exec
+        
+        display_name: "Puzzle Room"
+        category: "Dungeon/Rooms"
+        color: Vec3 { x: 0.5, y: 0.5, z: 1.0 }
+        tooltip: "Room with puzzle mechanics that must be solved"
+    
+    @node_type
+    node SecretRoomNode:
+        properties:
+            RoomWidth: Int = 6
+            RoomHeight: Int = 6
+            HiddenDoorType: String = "Breakable"
+            DiscoveryDifficulty: Float = 0.7
+            LootQuality: Float = 0.9
+            IsOptional: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+            OnGenerated: Exec
+            OnDiscovered: Exec
+            Exit: Exec
+        
+        display_name: "Secret Room"
+        category: "Dungeon/Rooms"
+        color: Vec3 { x: 0.8, y: 0.0, z: 0.8 }
+        tooltip: "Hidden room with high-quality loot"
+    
+    @node_type
+    node HubRoomNode:
+        properties:
+            RoomWidth: Int = 15
+            RoomHeight: Int = 15
+            ExitCount: Int = 4
+            CentralFeature: String = "Fountain"
+            AllowFastTravel: Bool = true
+            IsCheckpoint: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+            OnGenerated: Exec
+            NorthExit: Exec
+            SouthExit: Exec
+            EastExit: Exec
+            WestExit: Exec
+            NorthEastExit: Exec
+            NorthWestExit: Exec
+        
+        display_name: "Hub Room"
+        category: "Dungeon/Rooms"
+        color: Vec3 { x: 0.0, y: 0.8, z: 0.8 }
+        tooltip: "Central room connecting multiple paths"
+    
+    @node_type
+    node DeadEndRoomNode:
+        properties:
+            RoomWidth: Int = 6
+            RoomHeight: Int = 6
+            EnemyCount: Int = 3
+            HasLoot: Bool = true
+            LootQuality: Float = 0.3
+            Atmosphere: String = "Creepy"
+        inputs:
+            InExec: Exec
+        outputs:
+            OnGenerated: Exec
+        
+        display_name: "Dead End"
+        category: "Dungeon/Rooms"
+        color: Vec3 { x: 0.3, y: 0.3, z: 0.3 }
+        tooltip: "Room with no exits, creates dead ends"
+    
+    @node_type
+    node ConnectionRuleNode:
+        properties:
+            MinDistance: Int = 1
+            MaxDistance: Int = 10
+            RequireLineOfSight: Bool = false
+            AllowDiagonal: Bool = true
+            PreferShortest: Bool = true
+            AvoidCrossing: Bool = true
+        inputs:
+            InExec: Exec
+            RoomA: Exec
+            RoomB: Exec
+        outputs:
+            OnConnected: Exec
+            OnFailed: Exec
+        
+        display_name: "Connection Rule"
+        category: "Dungeon/Rules"
+        color: Vec3 { x: 0.8, y: 0.8, z: 0.0 }
+        tooltip: "Defines rules for connecting two rooms"
+    
+    @node_type
+    node ConstraintNode:
+        properties:
+            ConstraintType: String = "MinDistance"
+            TargetRoomType: String = "Treasure"
+            MinValue: Float = 3.0
+            MaxValue: Float = 100.0
+            IsHardConstraint: Bool = true
+            Priority: Int = 5
+        inputs:
+            InExec: Exec
+        outputs:
+            OnValidated: Exec
+            OnViolated: Exec
+        
+        display_name: "Constraint"
+        category: "Dungeon/Rules"
+        color: Vec3 { x: 1.0, y: 0.5, z: 0.0 }
+        tooltip: "Defines constraints for room placement"
+    
+    @node_type
+    node GenerationSettingsNode:
+        properties:
+            Algorithm: String = "BSPTree"
+            Seed: Int = 12345
+            TargetRoomCount: Int = 20
+            MinRoomSize: Int = 5
+            MaxRoomSize: Int = 15
+            EnableLoops: Bool = true
+            LoopProbability: Float = 0.15
+        inputs:
+            InExec: Exec
+        outputs:
+            OnConfigured: Exec
+        
+        display_name: "Generation Settings"
+        category: "Dungeon/Config"
+        color: Vec3 { x: 0.2, y: 0.2, z: 0.8 }
+        tooltip: "Global settings for dungeon generation"
+    
+    @node_type
+    node PropSpawnerNode:
+        properties:
+            PropClassName: String = "BP_Torch"
+            SpawnDensity: Float = 0.3
+            MinDistanceFromWalls: Float = 1.0
+            MinDistanceFromDoors: Float = 2.0
+            RandomRotation: Bool = true
+            RandomScale: Bool = false
+            ScaleMin: Float = 0.9
+            ScaleMax: Float = 1.1
+        inputs:
+            InExec: Exec
+            TargetRoom: Exec
+        outputs:
+            OnSpawned: Exec
+        
+        display_name: "Prop Spawner"
+        category: "Dungeon/Population"
+        color: Vec3 { x: 0.6, y: 0.8, y: 0.4 }
+        tooltip: "Spawns props in rooms based on rules"
+    
+    @node_type
+    node EnemySpawnerNode:
+        properties:
+            EnemyClassName: String = "BP_Goblin"
+            MinCount: Int = 2
+            MaxCount: Int = 5
+            SpawnRadius: Float = 5.0
+            PatrolRadius: Float = 10.0
+            AggroRadius: Float = 15.0
+            DifficultyMultiplier: Float = 1.0
+        inputs:
+            InExec: Exec
+            TargetRoom: Exec
+        outputs:
+            OnSpawned: Exec
+        
+        display_name: "Enemy Spawner"
+        category: "Dungeon/Population"
+        color: Vec3 { x: 0.8, y: 0.2, z: 0.2 }
+        tooltip: "Spawns enemies in rooms"
+    
+    @node_type
+    node LootSpawnerNode:
+        properties:
+            LootTableName: String = "DefaultLoot"
+            SpawnProbability: Float = 0.8
+            MinValue: Int = 100
+            MaxValue: Int = 500
+            RarityWeight: Float = 1.0
+            RequiresContainer: Bool = true
+        inputs:
+            InExec: Exec
+            TargetRoom: Exec
+        outputs:
+            OnSpawned: Exec
+        
+        display_name: "Loot Spawner"
+        category: "Dungeon/Population"
+        color: Vec3 { x: 1.0, y: 0.8, z: 0.2 }
+        tooltip: "Spawns loot in rooms"
+    
+    @node_type
+    node ValidationNode:
+        properties:
+            CheckConnectivity: Bool = true
+            CheckConstraints: Bool = true
+            CheckOverlaps: Bool = true
+            CheckNavigability: Bool = true
+            FailOnError: Bool = false
+        inputs:
+            InExec: Exec
+        outputs:
+            OnValid: Exec
+            OnInvalid: Exec
+            ErrorCount: Int
+        
+        display_name: "Validate Dungeon"
+        category: "Dungeon/Validation"
+        color: Vec3 { x: 0.0, y: 1.0, z: 0.0 }
+        tooltip: "Validates dungeon layout before generation"
+    
+    @node_type
+    node DebugVisualizerNode:
+        properties:
+            ShowRoomBounds: Bool = true
+            ShowConnections: Bool = true
+            ShowConstraints: Bool = true
+            ShowGrid: Bool = true
+            GridSize: Float = 1.0
+            DrawDuration: Float = 10.0
+        inputs:
+            InExec: Exec
+        outputs:
+            OnDrawn: Exec
+        
+        display_name: "Debug Visualizer"
+        category: "Dungeon/Debug"
+        color: Vec3 { x: 1.0, y: 0.0, z: 1.0 }
+        tooltip: "Visualizes dungeon layout for debugging"
+
+struct DungeonGraphEditorContext:
+    graph_asset: Actor
+    selected_nodes: Array<Int>
+    zoom_level: Float
+    pan_offset: Vec2
+    is_dirty: Bool
+    last_validation_time: Float
+    validation_errors: Array<String>
+
+fn create_dungeon_graph_context() -> DungeonGraphEditorContext:
+    let context = DungeonGraphEditorContext {
+        graph_asset: null,
+        selected_nodes: [],
+        zoom_level: 1.0,
+        pan_offset: Vec2 { x: 0.0, y: 0.0 },
+        is_dirty: false,
+        last_validation_time: 0.0,
+        validation_errors: []
+    }
+    return context
+
+fn validate_graph_connectivity(nodes: Array<GraphNode>) -> Bool:
+    if len(nodes) == 0:
+        return false
+    
+    let mut visited = []
+    let mut i = 0
+    while i < len(nodes):
+        push(visited, false)
+        i = i + 1
+    
+    let mut stack = []
+    push(stack, 0)
+    visited[0] = true
+    let mut visited_count = 1
+    
+    while len(stack) > 0:
+        let current = pop(stack)
+        let node = nodes[current]
+        
+        let mut j = 0
+        while j < len(node.connections):
+            let neighbor = node.connections[j]
+            if neighbor >= 0 && neighbor < len(nodes) && !visited[neighbor]:
+                visited[neighbor] = true
+                visited_count = visited_count + 1
+                push(stack, neighbor)
+            j = j + 1
+    
+    return visited_count == len(nodes)
+
+fn validate_room_placement(rooms: Array<GeneratedRoom>) -> Array<String>:
+    let mut errors = []
+    
+    let mut i = 0
+    while i < len(rooms):
+        let room_a = rooms[i]
+        
+        let mut j = i + 1
+        while j < len(rooms):
+            let room_b = rooms[j]
+            
+            if bounds_intersects(room_a.bounds, room_b.bounds):
+                let error = "Room {room_a.id} overlaps with room {room_b.id}"
+                push(errors, error)
+            
+            j = j + 1
+        i = i + 1
+    
+    return errors
+
+fn validate_connection_rules(rooms: Array<GeneratedRoom>, templates: Array<RoomTemplate>) -> Array<String>:
+    let mut errors = []
+    
+    let mut i = 0
+    while i < len(rooms):
+        let room = rooms[i]
+        let template = templates[i]
+        
+        if len(room.connections) < template.constraints.required_connections:
+            let error = "Room {room.id} has {len(room.connections)} connections, requires {template.constraints.required_connections}"
+            push(errors, error)
+        
+        if len(room.connections) > template.constraints.max_connections:
+            let error = "Room {room.id} has {len(room.connections)} connections, max allowed is {template.constraints.max_connections}"
+            push(errors, error)
+        
+        i = i + 1
+    
+    return errors
+
+fn validate_distance_constraints(rooms: Array<GeneratedRoom>, templates: Array<RoomTemplate>) -> Array<String>:
+    let mut errors = []
+    
+    let mut i = 0
+    while i < len(rooms):
+        let room = rooms[i]
+        let template = templates[i]
+        
+        if room.distance_from_entrance < template.constraints.min_distance_from_entrance:
+            let error = "Room {room.id} is too close to entrance: {room.distance_from_entrance} < {template.constraints.min_distance_from_entrance}"
+            push(errors, error)
+        
+        if room.distance_from_entrance > template.constraints.max_distance_from_entrance:
+            let error = "Room {room.id} is too far from entrance: {room.distance_from_entrance} > {template.constraints.max_distance_from_entrance}"
+            push(errors, error)
+        
+        i = i + 1
+    
+    return errors
+
+fn calculate_graph_complexity(nodes: Array<GraphNode>) -> Float:
+    let node_count = len(nodes) as Float
+    let mut total_connections = 0
+    
+    let mut i = 0
+    while i < len(nodes):
+        total_connections = total_connections + len(nodes[i].connections)
+        i = i + 1
+    
+    let avg_connections = (total_connections as Float) / node_count
+    let complexity = node_count * avg_connections
+    
+    return complexity
+
+fn find_critical_path(rooms: Array<GeneratedRoom>, entrance_id: Int, boss_id: Int) -> Array<Int>:
+    let mut path = []
+    let mut visited = []
+    let mut parent = []
+    
+    let mut i = 0
+    while i < len(rooms):
+        push(visited, false)
+        push(parent, -1)
+        i = i + 1
+    
+    let mut queue = []
+    push(queue, entrance_id)
+    visited[entrance_id] = true
+    
+    let mut found = false
+    while len(queue) > 0 && !found:
+        let current = pop(queue)
+        let room = rooms[current]
+        
+        if current == boss_id:
+            found = true
+        
+        let mut j = 0
+        while j < len(room.connections):
+            let neighbor = room.connections[j]
+            if !visited[neighbor]:
+                visited[neighbor] = true
+                parent[neighbor] = current
+                push(queue, neighbor)
+            j = j + 1
+    
+    if found:
+        let mut current = boss_id
+        while current != -1:
+            push(path, current)
+            current = parent[current]
+    
+    return path
+
+fn calculate_room_importance(room: GeneratedRoom, rooms: Array<GeneratedRoom>) -> Float:
+    let connection_count = len(room.connections) as Float
+    let distance_factor = 1.0 / (1.0 + (room.distance_from_entrance as Float))
+    
+    let mut neighbor_importance = 0.0
+    let mut i = 0
+    while i < len(room.connections):
+        let neighbor_id = room.connections[i]
+        let neighbor = rooms[neighbor_id]
+        neighbor_importance = neighbor_importance + (len(neighbor.connections) as Float)
+        i = i + 1
+    
+    let importance = connection_count * distance_factor * (1.0 + neighbor_importance * 0.1)
+    return importance
+
+fn suggest_room_placement(existing_rooms: Array<GeneratedRoom>, new_room_type: RoomType, constraints: RoomConstraints) -> Vec2i:
+    let mut best_position = Vec2i { x: 0, y: 0 }
+    let mut best_score = -1.0
+    
+    let search_radius = 50
+    let mut x = -search_radius
+    while x <= search_radius:
+        let mut y = -search_radius
+        while y <= search_radius:
+            let test_pos = Vec2i { x: x, y: y }
+            let score = evaluate_room_position(test_pos, existing_rooms, new_room_type, constraints)
+            
+            if score > best_score:
+                best_score = score
+                best_position = test_pos
+            
+            y = y + 5
+        x = x + 5
+    
+    return best_position
+
+fn evaluate_room_position(pos: Vec2i, existing_rooms: Array<GeneratedRoom>, room_type: RoomType, constraints: RoomConstraints) -> Float:
+    let mut score = 100.0
+    
+    let test_bounds = RoomBounds {
+        min_x: pos.x,
+        min_y: pos.y,
+        max_x: pos.x + constraints.min_width,
+        max_y: pos.y + constraints.min_height,
+        width: constraints.min_width,
+        height: constraints.min_height
+    }
+    
+    let mut i = 0
+    while i < len(existing_rooms):
+        let room = existing_rooms[i]
+        if bounds_intersects(test_bounds, room.bounds):
+            return -1000.0
+        
+        let center_a = bounds_get_center(test_bounds)
+        let center_b = bounds_get_center(room.bounds)
+        let distance = vec2i_distance(center_a, center_b)
+        
+        if distance < 5.0:
+            score = score - 50.0
+        
+        i = i + 1
+    
+    let distance_from_origin = vec2i_distance(pos, Vec2i { x: 0, y: 0 })
+    score = score - distance_from_origin * 0.1
+    
+    return score
+
+fn auto_connect_rooms(rooms: Array<GeneratedRoom>, max_connections_per_room: Int) -> Array<GeneratedRoom>:
+    let mut updated_rooms = rooms
+    
+    let mut i = 0
+    while i < len(updated_rooms):
+        let mut room = updated_rooms[i]
+        
+        if len(room.connections) < max_connections_per_room:
+            let mut best_neighbor = -1
+            let mut best_distance = 1000000.0
+            
+            let mut j = 0
+            while j < len(updated_rooms):
+                if i != j:
+                    let other = updated_rooms[j]
+                    let center_a = bounds_get_center(room.bounds)
+                    let center_b = bounds_get_center(other.bounds)
+                    let distance = vec2i_distance(center_a, center_b)
+                    
+                    if distance < best_distance && len(other.connections) < max_connections_per_room:
+                        let mut already_connected = false
+                        let mut k = 0
+                        while k < len(room.connections):
+                            if room.connections[k] == j:
+                                already_connected = true
+                            k = k + 1
+                        
+                        if !already_connected:
+                            best_neighbor = j
+                            best_distance = distance
+                
+                j = j + 1
+            
+            if best_neighbor != -1:
+                push(room.connections, best_neighbor)
+                updated_rooms[i] = room
+                
+                let mut neighbor = updated_rooms[best_neighbor]
+                push(neighbor.connections, i)
+                updated_rooms[best_neighbor] = neighbor
+        
+        i = i + 1
+    
+    return updated_rooms
+
+fn optimize_graph_layout(nodes: Array<GraphNode>, iterations: Int) -> Array<GraphNode>:
+    let mut optimized = nodes
+    let k = 10.0
+    let c = 0.1
+    
+    let mut iter = 0
+    while iter < iterations:
+        let mut i = 0
+        while i < len(optimized):
+            let mut node = optimized[i]
+            let mut force_x = 0.0
+            let mut force_y = 0.0
+            
+            let mut j = 0
+            while j < len(optimized):
+                if i != j:
+                    let other = optimized[j]
+                    let dx = (node.position.x - other.position.x) as Float
+                    let dy = (node.position.y - other.position.y) as Float
+                    let distance = sqrt(dx * dx + dy * dy)
+                    
+                    if distance > 0.1:
+                        let repulsion = k * k / distance
+                        force_x = force_x + (dx / distance) * repulsion
+                        force_y = force_y + (dy / distance) * repulsion
+                
+                j = j + 1
+            
+            let mut k_conn = 0
+            while k_conn < len(node.connections):
+                let conn_id = node.connections[k_conn]
+                let connected = optimized[conn_id]
+                let dx = (connected.position.x - node.position.x) as Float
+                let dy = (connected.position.y - node.position.y) as Float
+                let distance = sqrt(dx * dx + dy * dy)
+                
+                if distance > 0.1:
+                    let attraction = distance * distance / k
+                    force_x = force_x + (dx / distance) * attraction
+                    force_y = force_y + (dy / distance) * attraction
+                
+                k_conn = k_conn + 1
+            
+            let displacement = sqrt(force_x * force_x + force_y * force_y)
+            if displacement > 0.1:
+                let limited = min(displacement, c)
+                node.position.x = node.position.x + ((force_x / displacement * limited) as Int)
+                node.position.y = node.position.y + ((force_y / displacement * limited) as Int)
+            
+            optimized[i] = node
+            i = i + 1
+        
+        iter = iter + 1
+    
+    return optimized

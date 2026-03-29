@@ -1,0 +1,386 @@
+actor TerrainManagerActor:
+    state world_seed: Int = 12345
+    state terrain_scale: Float = 100.0
+    state chunk_size: Int = 256
+    state view_distance: Float = 5000.0
+    state generation_radius: Int = 3
+    state enable_erosion: Bool = true
+    state erosion_iterations: Int = 50
+    state enable_async_generation: Bool = true
+    state active_chunks: Array<Actor> = []
+    state generation_settings: TerrainGenerationSettings
+    state streaming_settings: StreamingSettings
+    state lod_settings: LODSettings
+    
+    @blueprint_callable
+    fn initialize_terrain_system():
+        generation_settings = TerrainGenerationSettings {
+            world_seed: world_seed,
+            chunk_size: chunk_size,
+            terrain_scale: terrain_scale,
+            base_height: 0.0,
+            height_multiplier: 1000.0,
+            noise_settings: NoiseSettings {
+                seed: world_seed,
+                octaves: 6,
+                frequency: 0.01,
+                amplitude: 1.0,
+                lacunarity: 2.0,
+                persistence: 0.5,
+                noise_type: 0
+            },
+            erosion_params: ErosionParams {
+                erosion_type: ErosionType::Hydraulic,
+                iterations: erosion_iterations,
+                erosion_strength: 0.5,
+                sediment_capacity: 0.8,
+                evaporation_rate: 0.1,
+                deposition_rate: 0.3,
+                min_slope: 0.01,
+                thermal_angle: 0.7,
+                wind_direction: vec2(1.0, 0.0),
+                wind_strength: 0.5
+            },
+            biome_count: 12,
+            layer_count: 4
+        }
+        
+        streaming_settings = StreamingSettings {
+            view_distance: view_distance,
+            generation_radius: generation_radius,
+            unload_distance: view_distance * 1.5,
+            max_chunks_per_frame: 2,
+            async_generation: enable_async_generation
+        }
+        
+        lod_settings = LODSettings {
+            lod_distances: [500.0, 1000.0, 2000.0, 3000.0, 4000.0],
+            vertex_reduction: [1.0, 0.5, 0.25, 0.125, 0.0625],
+            enable_tessellation: false,
+            tessellation_factor: 1.0
+        }
+        
+        println("TerrainManager initialized with seed: {world_seed}")
+
+    @blueprint_callable
+    fn generate_terrain_at_location(location: Vec3):
+        let chunk_x = (location.x / (chunk_size as Float * terrain_scale)) as Int
+        let chunk_z = (location.z / (chunk_size as Float * terrain_scale)) as Int
+        
+        spawn_terrain_chunk(chunk_x, chunk_z)
+    
+    @blueprint_callable
+    fn spawn_terrain_chunk(chunk_x: Int, chunk_z: Int):
+        println("Spawning terrain chunk at ({chunk_x}, {chunk_z})")
+    
+    @blueprint_callable
+    fn clear_all_terrain():
+        active_chunks = []
+        println("Cleared all terrain chunks")
+    
+    @blueprint_callable
+    fn set_world_seed(new_seed: Int):
+        world_seed = new_seed
+        generation_settings.world_seed = new_seed
+        generation_settings.noise_settings.seed = new_seed
+        println("World seed updated to: {new_seed}")
+    
+    @blueprint_callable
+    fn set_erosion_enabled(enabled: Bool):
+        enable_erosion = enabled
+        println("Erosion enabled: {enabled}")
+    
+    @blueprint_callable
+    fn apply_erosion_to_all_chunks():
+        if not enable_erosion:
+            println("Erosion is disabled")
+            return
+        
+        println("Applying erosion to all active chunks")
+    
+    @blueprint_callable
+    fn get_active_chunk_count() -> Int:
+        return len(active_chunks)
+    
+    @blueprint_callable
+    fn export_heightmap_to_file(filename: String):
+        println("Exporting heightmap to: {filename}")
+    
+    @blueprint_callable
+    fn import_heightmap_from_file(filename: String):
+        println("Importing heightmap from: {filename}")
+
+actor TerrainChunkActor:
+    state chunk_x: Int = 0
+    state chunk_z: Int = 0
+    state chunk_size: Int = 256
+    state current_lod: LODLevel = LODLevel::LOD0
+    state heightmap_data: HeightmapData
+    state biome_map: Array<Int> = []
+    state splatmap: Array<Vec4> = []
+    state normal_map: Array<Vec3> = []
+    state is_generated: Bool = false
+    state is_meshed: Bool = false
+    state generation_time: Float = 0.0
+    
+    @blueprint_callable
+    fn initialize_chunk(x: Int, z: Int, size: Int):
+        chunk_x = x
+        chunk_z = z
+        chunk_size = size
+        is_generated = false
+        is_meshed = false
+        
+        heightmap_data = HeightmapData {
+            width: size,
+            height: size,
+            min_elevation: 0.0,
+            max_elevation: 1000.0,
+            scale: 1.0,
+            data: []
+        }
+        
+        println("Chunk initialized at ({x}, {z})")
+    
+    @blueprint_callable
+    fn generate_heightmap(settings: NoiseSettings):
+        let start_time = GetWorldDeltaSeconds()
+        
+        for y in 0..chunk_size:
+            for x in 0..chunk_size:
+                let world_x = ((chunk_x * chunk_size + x) as Float) * heightmap_data.scale
+                let world_z = ((chunk_z * chunk_size + y) as Float) * heightmap_data.scale
+                
+                let height = generate_perlin_noise(
+                    world_x,
+                    world_z,
+                    settings.seed,
+                    settings.octaves,
+                    settings.frequency,
+                    settings.amplitude,
+                    settings.lacunarity,
+                    settings.persistence
+                )
+                
+                push(heightmap_data.data, height)
+        
+        is_generated = true
+        generation_time = GetWorldDeltaSeconds() - start_time
+        
+        println("Heightmap generated in {generation_time}s")
+    
+    @blueprint_callable
+    fn apply_erosion(params: ErosionParams):
+        if not is_generated:
+            println("Cannot apply erosion: heightmap not generated")
+            return
+        
+        if params.erosion_type == ErosionType::Hydraulic:
+            heightmap_data.data = apply_hydraulic_erosion_cpu(
+                heightmap_data.data,
+                chunk_size,
+                chunk_size,
+                params.iterations,
+                params.erosion_strength
+            )
+        else:
+            if params.erosion_type == ErosionType::Thermal:
+                heightmap_data.data = apply_thermal_erosion_cpu(
+                    heightmap_data.data,
+                    chunk_size,
+                    chunk_size,
+                    params.iterations,
+                    params.thermal_angle
+                )
+        
+        println("Erosion applied: {params.erosion_type}")
+    
+    @blueprint_callable
+    fn generate_biomes(seed: Int):
+        if not is_generated:
+            println("Cannot generate biomes: heightmap not generated")
+            return
+        
+        biome_map = generate_biome_map(heightmap_data.data, chunk_size, chunk_size, seed)
+        println("Biomes generated")
+    
+    @blueprint_callable
+    fn generate_normals():
+        if not is_generated:
+            println("Cannot generate normals: heightmap not generated")
+            return
+        
+        normal_map = calculate_terrain_normals(heightmap_data.data, chunk_size, chunk_size, 1.0)
+        println("Normals generated")
+    
+    @blueprint_callable
+    fn generate_splatmap():
+        if not is_generated or len(normal_map) == 0 or len(biome_map) == 0:
+            println("Cannot generate splatmap: missing data")
+            return
+        
+        splatmap = generate_splatmap(heightmap_data.data, normal_map, biome_map, chunk_size, chunk_size)
+        println("Splatmap generated")
+    
+    @blueprint_callable
+    fn build_mesh():
+        if not is_generated:
+            println("Cannot build mesh: heightmap not generated")
+            return
+        
+        is_meshed = true
+        println("Mesh built for LOD: {current_lod}")
+    
+    @blueprint_callable
+    fn set_lod_level(lod: LODLevel):
+        if current_lod != lod:
+            current_lod = lod
+            if is_meshed:
+                build_mesh()
+    
+    @blueprint_callable
+    fn get_height_at_position(x: Float, z: Float) -> Float:
+        if not is_generated:
+            return 0.0
+        
+        let local_x = ((x / heightmap_data.scale) as Int) % chunk_size
+        let local_z = ((z / heightmap_data.scale) as Int) % chunk_size
+        
+        if local_x < 0 or local_x >= chunk_size or local_z < 0 or local_z >= chunk_size:
+            return 0.0
+        
+        let index = local_x + local_z * chunk_size
+        return heightmap_data.data[index]
+    
+    @blueprint_callable
+    fn is_chunk_ready() -> Bool:
+        return is_generated and is_meshed
+
+
+actor TerrainPainterActor:
+    state brush_size: Float = 500.0
+    state brush_strength: Float = 0.5
+    state brush_falloff: Float = 0.8
+    state selected_layer: Int = 0
+    state paint_mode: Int = 0
+    state target_chunks: Array<Actor> = []
+    
+    @blueprint_callable
+    fn paint_height(location: Vec3, raise: Bool):
+        let strength = brush_strength
+        if not raise:
+            strength = -strength
+        
+        println("Painting height at location with strength: {strength}")
+    
+    @blueprint_callable
+    fn paint_smooth(location: Vec3):
+        println("Smoothing terrain at location")
+    
+    @blueprint_callable
+    fn paint_flatten(location: Vec3, target_height: Float):
+        println("Flattening terrain to height: {target_height}")
+    
+    @blueprint_callable
+    fn paint_layer(location: Vec3, layer_index: Int):
+        selected_layer = layer_index
+        println("Painting layer {layer_index} at location")
+    
+    @blueprint_callable
+    fn set_brush_size(size: Float):
+        brush_size = size
+        println("Brush size set to: {size}")
+    
+    @blueprint_callable
+    fn set_brush_strength(strength: Float):
+        brush_strength = clamp(strength, 0.0, 1.0)
+        println("Brush strength set to: {brush_strength}")
+    
+    @blueprint_callable
+    fn set_brush_falloff(falloff: Float):
+        brush_falloff = clamp(falloff, 0.0, 1.0)
+        println("Brush falloff set to: {brush_falloff}")
+
+actor TerrainWaterActor:
+    state water_level: Float = 0.0
+    state flow_speed: Float = 1.0
+    state wave_height: Float = 10.0
+    state wave_frequency: Float = 0.5
+    state water_color: Vec3 = vec3(0.1, 0.3, 0.5)
+    state transparency: Float = 0.7
+    state reflection_strength: Float = 0.8
+    
+    @blueprint_callable
+    fn set_water_level(level: Float):
+        water_level = level
+        println("Water level set to: {level}")
+    
+    @blueprint_callable
+    fn set_flow_speed(speed: Float):
+        flow_speed = speed
+        println("Flow speed set to: {speed}")
+    
+    @blueprint_callable
+    fn set_wave_parameters(height: Float, frequency: Float):
+        wave_height = height
+        wave_frequency = frequency
+        println("Wave parameters updated")
+    
+    @blueprint_callable
+    fn set_water_color(color: Vec3):
+        water_color = color
+        println("Water color updated")
+    
+    @blueprint_callable
+    fn simulate_water_flow():
+        println("Simulating water flow")
+
+actor TerrainFoliageActor:
+    state vegetation_density: Float = 1.0
+    state grass_density: Float = 100.0
+    state tree_density: Float = 10.0
+    state rock_density: Float = 5.0
+    state biome_filter: Array<Int> = []
+    state height_range_min: Float = 0.0
+    state height_range_max: Float = 1000.0
+    state slope_range_min: Float = 0.0
+    state slope_range_max: Float = 0.5
+    
+    @blueprint_callable
+    fn generate_foliage_for_chunk(chunk: Actor):
+        println("Generating foliage for chunk")
+    
+    @blueprint_callable
+    fn set_vegetation_density(density: Float):
+        vegetation_density = clamp(density, 0.0, 2.0)
+        println("Vegetation density set to: {vegetation_density}")
+    
+    @blueprint_callable
+    fn set_grass_density(density: Float):
+        grass_density = density
+        println("Grass density set to: {density}")
+    
+    @blueprint_callable
+    fn set_tree_density(density: Float):
+        tree_density = density
+        println("Tree density set to: {density}")
+    
+    @blueprint_callable
+    fn set_height_range(min_height: Float, max_height: Float):
+        height_range_min = min_height
+        height_range_max = max_height
+        println("Height range set to: {min_height} - {max_height}")
+    
+    @blueprint_callable
+    fn set_slope_range(min_slope: Float, max_slope: Float):
+        slope_range_min = min_slope
+        slope_range_max = max_slope
+        println("Slope range set to: {min_slope} - {max_slope}")
+    
+    @blueprint_callable
+    fn clear_all_foliage():
+        println("Clearing all foliage")
+    
+    @blueprint_callable
+    fn regenerate_foliage():
+        println("Regenerating foliage")

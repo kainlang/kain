@@ -1,0 +1,27 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0.0",
+  "FriendlyName": "SM64SubsetSmoke",
+  "Description": "UE5 smoke project built from an imported SM64 logic subset to measure modular file explosion and consolidation pressure",
+  "Category": "KAIN-PRO",
+  "CreatedBy": "KAIN-PRO Compiler",
+  "CreatedByURL": "",
+  "DocsURL": "",
+  "MarketplaceURL": "",
+  "SupportURL": "",
+  "CanContainContent": false,
+  "IsBetaVersion": false,
+  "IsExperimentalVersion": false,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "SM64SubsetSmoke",
+      "Type": "Runtime",
+      "LoadingPhase": "PostConfigInit"
+    }
+  ],
+  "Plugins": [
+
+  ]
+}

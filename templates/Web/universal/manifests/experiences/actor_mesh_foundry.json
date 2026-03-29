@@ -71,6 +71,27 @@
       "body": "Agent orchestration cockpit for tooling, workflows, knowledge, and memory."
     },
     {
+      "id": "ai-evaluations",
+      "kind": "card_grid",
+      "eyebrow": "AI Ops",
+      "title": "Evaluation suites",
+      "source": "content.ai_evaluations"
+    },
+    {
+      "id": "ai-guardrails",
+      "kind": "card_grid",
+      "eyebrow": "AI Ops",
+      "title": "Guardrails",
+      "source": "content.ai_guardrails"
+    },
+    {
+      "id": "prompt-library",
+      "kind": "card_grid",
+      "eyebrow": "AI Ops",
+      "title": "Prompt library",
+      "source": "content.prompt_library"
+    },
+    {
       "id": "actors",
       "kind": "actor_mesh",
       "eyebrow": "Actors",
@@ -139,6 +160,27 @@
       "eyebrow": "Actor Runtime",
       "title": "Actor runtime systems",
       "source": "content.actor_runtime"
+    },
+    {
+      "id": "server-runtime",
+      "kind": "card_grid",
+      "eyebrow": "Server Runtime",
+      "title": "Server runtime systems",
+      "source": "content.server_runtime_stack"
+    },
+    {
+      "id": "ffi",
+      "kind": "card_grid",
+      "eyebrow": "FFI",
+      "title": "FFI bridge lanes",
+      "source": "content.ffi_bridges"
+    },
+    {
+      "id": "kain-script",
+      "kind": "card_grid",
+      "eyebrow": "KainScript",
+      "title": "KainScript module stack",
+      "source": "content.kain_script_stack"
     },
     {
       "id": "playbooks",
@@ -258,6 +300,41 @@
       "eyebrow": "Cache",
       "title": "Cache stack",
       "source": "content.cache_stack"
+    },
+    {
+      "id": "database-stack",
+      "kind": "card_grid",
+      "eyebrow": "Database",
+      "title": "Database stack",
+      "source": "content.database_stack"
+    },
+    {
+      "id": "queue-stack",
+      "kind": "card_grid",
+      "eyebrow": "Queues",
+      "title": "Queue and job stack",
+      "source": "content.queue_stack"
+    },
+    {
+      "id": "secrets-stack",
+      "kind": "card_grid",
+      "eyebrow": "Secrets",
+      "title": "Secrets and vault",
+      "source": "content.secrets_stack"
+    },
+    {
+      "id": "config-stack",
+      "kind": "card_grid",
+      "eyebrow": "Config",
+      "title": "Configuration and env",
+      "source": "content.config_stack"
+    },
+    {
+      "id": "background-jobs",
+      "kind": "card_grid",
+      "eyebrow": "Jobs",
+      "title": "Background jobs and schedulers",
+      "source": "content.background_jobs"
     },
     {
       "id": "search-stack",

@@ -1,0 +1,527 @@
+# ============================================================================
+# MATERIALIZE - Graph Runtime System
+# ============================================================================
+# Runtime graph execution engine for material compositing
+# - Node-based texture processing pipeline
+# - Intermediate texture caching
+# - Blend, filter, adjustment, math, and noise operations
+# - Output channel routing (BaseColor, Normal, Roughness, etc.)
+# ============================================================================
+
+# ============================================================================
+# GRAPH RUNTIME - Material Compositing Graph
+# ============================================================================
+
+@graph_runtime
+struct MaterializeGraph:
+    # ========================================================================
+    # BLEND NODE - Combines two textures with blend modes
+    # ========================================================================
+    @node_data
+    struct BlendNode:
+        @property
+        blend_mode: Int
+        
+        @property
+        opacity: Float
+        
+        @input_pin
+        base: Texture
+        
+        @input_pin
+        blend: Texture
+        
+        @input_pin
+        mask: Texture
+        
+        @output_pin
+        result: Texture
+    
+    # ========================================================================
+    # FILTER NODES - Image processing filters
+    # ========================================================================
+    @node_data
+    struct BlurNode:
+        @property
+        radius: Float
+        
+        @property
+        strength: Float
+        
+        @input_pin
+        input: Texture
+        
+        @output_pin
+        output: Texture
+    
+    @node_data
+    struct SharpenNode:
+        @property
+        strength: Float
+        
+        @input_pin
+        input: Texture
+        
+        @output_pin
+        output: Texture
+    
+    @node_data
+    struct EdgeDetectNode:
+        @property
+        threshold: Float
+        
+        @input_pin
+        input: Texture
+        
+        @output_pin
+        output: Texture
+    
+    @node_data
+    struct EmbossNode:
+        @property
+        strength: Float
+        
+        @property
+        angle: Float
+        
+        @input_pin
+        input: Texture
+        
+        @output_pin
+        output: Texture
+    
+    @node_data
+    struct InvertNode:
+        @input_pin
+        input: Texture
+        
+        @output_pin
+        output: Texture
+    
+    @node_data
+    struct GrayscaleNode:
+        @input_pin
+        input: Texture
+        
+        @output_pin
+        output: Texture
+    
+    # ========================================================================
+    # ADJUSTMENT NODES - Color and tone adjustments
+    # ========================================================================
+    @node_data
+    struct LevelsNode:
+        @property
+        in_black: Float
+        
+        @property
+        in_white: Float
+        
+        @property
+        gamma: Float
+        
+        @property
+        out_black: Float
+        
+        @property
+        out_white: Float
+        
+        @input_pin
+        input: Texture
+        
+        @output_pin
+        output: Texture
+    
+    @node_data
+    struct CurvesNode:
+        @property
+        curve_points: Array<Float>
+        
+        @input_pin
+        input: Texture
+        
+        @output_pin
+        output: Texture
+    
+    @node_data
+    struct HSVNode:
+        @property
+        hue_shift: Float
+        
+        @property
+        saturation: Float
+        
+        @property
+        value: Float
+        
+        @input_pin
+        input: Texture
+        
+        @output_pin
+        output: Texture
+    
+    @node_data
+    struct BrightnessContrastNode:
+        @property
+        brightness: Float
+        
+        @property
+        contrast: Float
+        
+        @input_pin
+        input: Texture
+        
+        @output_pin
+        output: Texture
+    
+    @node_data
+    struct ColorBalanceNode:
+        @property
+        shadows_r: Float
+        
+        @property
+        shadows_g: Float
+        
+        @property
+        shadows_b: Float
+        
+        @property
+        midtones_r: Float
+        
+        @property
+        midtones_g: Float
+        
+        @property
+        midtones_b: Float
+        
+        @property
+        highlights_r: Float
+        
+        @property
+        highlights_g: Float
+        
+        @property
+        highlights_b: Float
+        
+        @input_pin
+        input: Texture
+        
+        @output_pin
+        output: Texture
+    
+    # ========================================================================
+    # MATH NODES - Mathematical operations on textures
+    # ========================================================================
+    @node_data
+    struct AddNode:
+        @input_pin
+        a: Texture
+        
+        @input_pin
+        b: Texture
+        
+        @output_pin
+        result: Texture
+    
+    @node_data
+    struct SubtractNode:
+        @input_pin
+        a: Texture
+        
+        @input_pin
+        b: Texture
+        
+        @output_pin
+        result: Texture
+    
+    @node_data
+    struct MultiplyNode:
+        @input_pin
+        a: Texture
+        
+        @input_pin
+        b: Texture
+        
+        @output_pin
+        result: Texture
+    
+    @node_data
+    struct DivideNode:
+        @input_pin
+        a: Texture
+        
+        @input_pin
+        b: Texture
+        
+        @output_pin
+        result: Texture
+    
+    @node_data
+    struct LerpNode:
+        @property
+        alpha: Float
+        
+        @input_pin
+        a: Texture
+        
+        @input_pin
+        b: Texture
+        
+        @output_pin
+        result: Texture
+    
+    @node_data
+    struct MinNode:
+        @input_pin
+        a: Texture
+        
+        @input_pin
+        b: Texture
+        
+        @output_pin
+        result: Texture
+    
+    @node_data
+    struct MaxNode:
+        @input_pin
+        a: Texture
+        
+        @input_pin
+        b: Texture
+        
+        @output_pin
+        result: Texture
+    
+    @node_data
+    struct ClampNode:
+        @property
+        min_value: Float
+        
+        @property
+        max_value: Float
+        
+        @input_pin
+        input: Texture
+        
+        @output_pin
+        output: Texture
+    
+    @node_data
+    struct AbsNode:
+        @input_pin
+        input: Texture
+        
+        @output_pin
+        output: Texture
+    
+    @node_data
+    struct PowNode:
+        @property
+        exponent: Float
+        
+        @input_pin
+        input: Texture
+        
+        @output_pin
+        output: Texture
+    
+    # ========================================================================
+    # NOISE NODES - Procedural texture generation
+    # ========================================================================
+    @node_data
+    struct PerlinNoiseNode:
+        @property
+        scale: Float
+        
+        @property
+        octaves: Int
+        
+        @property
+        persistence: Float
+        
+        @property
+        lacunarity: Float
+        
+        @property
+        seed: Float
+        
+        @output_pin
+        output: Texture
+    
+    @node_data
+    struct SimplexNoiseNode:
+        @property
+        scale: Float
+        
+        @property
+        octaves: Int
+        
+        @property
+        persistence: Float
+        
+        @property
+        lacunarity: Float
+        
+        @property
+        seed: Float
+        
+        @output_pin
+        output: Texture
+    
+    @node_data
+    struct VoronoiNoiseNode:
+        @property
+        scale: Float
+        
+        @property
+        randomness: Float
+        
+        @property
+        seed: Float
+        
+        @output_pin
+        output: Texture
+    
+    @node_data
+    struct FBMNoiseNode:
+        @property
+        scale: Float
+        
+        @property
+        octaves: Int
+        
+        @property
+        persistence: Float
+        
+        @property
+        lacunarity: Float
+        
+        @property
+        seed: Float
+        
+        @output_pin
+        output: Texture
+    
+    @node_data
+    struct CellularNoiseNode:
+        @property
+        scale: Float
+        
+        @property
+        jitter: Float
+        
+        @property
+        seed: Float
+        
+        @output_pin
+        output: Texture
+    
+    # ========================================================================
+    # OUTPUT NODES - PBR channel outputs
+    # ========================================================================
+    @node_data
+    struct BaseColorOutputNode:
+        @input_pin
+        input: Texture
+    
+    @node_data
+    struct NormalOutputNode:
+        @input_pin
+        input: Texture
+    
+    @node_data
+    struct RoughnessOutputNode:
+        @input_pin
+        input: Texture
+    
+    @node_data
+    struct MetallicOutputNode:
+        @input_pin
+        input: Texture
+    
+    @node_data
+    struct AOOutputNode:
+        @input_pin
+        input: Texture
+    
+    @node_data
+    struct HeightOutputNode:
+        @input_pin
+        input: Texture
+    
+    @node_data
+    struct EmissiveOutputNode:
+        @input_pin
+        input: Texture
+    
+    @node_data
+    struct ChannelOutputNode:
+        @property
+        channel_name: String
+        
+        @input_pin
+        input: Texture
+    
+    # ========================================================================
+    # UTILITY NODES
+    # ========================================================================
+    @node_data
+    struct KnotNode:
+        @input_pin
+        input: Texture
+        
+        @output_pin
+        output: Texture
+    
+    # ========================================================================
+    # GRAPH INSTANCE - Runtime execution state
+    # ========================================================================
+    @instance
+    struct MaterializeGraphInstance:
+        current_node_id: Int
+        intermediate_textures: Array<Texture>
+        output_textures: Array<Texture>
+        execution_errors: Array<String>
+        texture_resolution_width: Int
+        texture_resolution_height: Int
+        execution_time_ms: Float
+        
+        fn execute_graph() -> Bool:
+            current_node_id = 0
+            execution_errors = []
+            execution_time_ms = 0.0
+            return true
+        
+        fn execute_node(node_id: Int) -> Bool:
+            current_node_id = node_id
+            return true
+        
+        fn cache_texture(node_id: Int, Texture):
+            intermediate_textures.push(texture)
+        
+        fn get_cached_texture(node_id: Int) -> Texture:
+            if node_id >= 0 and node_id < intermediate_textures.length():
+                return intermediate_textures[node_id]
+            return intermediate_textures[0]
+        
+        fn clear_cache():
+            intermediate_textures = []
+        
+        fn add_error(error_message: String):
+            execution_errors.push(error_message)
+        
+        fn has_errors() -> Bool:
+            return execution_errors.length() > 0
+        
+        fn get_output_texture(channel_name: String) -> Texture:
+            return output_textures[0]
+        
+        fn set_output_texture(channel_name: String, Texture):
+            output_textures.push(texture)
+        
+        fn validate_graph() -> Bool:
+            return execution_errors.length() == 0
+        
+        fn get_node_count() -> Int:
+            return intermediate_textures.length()
+

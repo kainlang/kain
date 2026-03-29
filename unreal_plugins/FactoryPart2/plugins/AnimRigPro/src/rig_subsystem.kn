@@ -1,0 +1,650 @@
+# AnimRigPro - Rig Subsystem
+# World-level rig management and global constraint updates
+
+@subsystem
+struct RigManager:
+    # Active rigs in the world
+    active_rigs: Array<Actor> = []
+    rig_names: Array<String> = []
+    rig_states: Array<RigState> = []
+    
+    # Performance tracking
+    total_update_time: Float = 0.0
+    update_count: Int = 0
+    average_update_time: Float = 0.0
+    
+    # Global settings
+    global_ik_enabled: Bool = true
+    global_constraint_enabled: Bool = true
+    update_frequency: Float = 60.0
+    time_since_last_update: Float = 0.0
+    
+    # Constraint solver settings
+    max_constraint_iterations: Int = 5
+    constraint_tolerance: Float = 0.01
+    
+    # Debug settings
+    debug_draw_enabled: Bool = false
+    debug_draw_scale: Float = 1.0
+    
+    @tick
+    fn on_tick(delta_time: Float):
+        time_since_last_update = time_since_last_update + delta_time
+        
+        let update_interval = 1.0 / update_frequency
+        if time_since_last_update < update_interval:
+            return
+        
+        time_since_last_update = 0.0
+        
+        let start_time = get_time_seconds()
+        
+        # Update all active rigs
+        update_all_rigs(delta_time)
+        
+        # Performance tracking
+        let end_time = get_time_seconds()
+        let update_time = end_time - start_time
+        total_update_time = total_update_time + update_time
+        update_count = update_count + 1
+        average_update_time = total_update_time / float(update_count)
+    
+    # Rig Registration
+    @blueprint_callable
+    fn register_rig(rig_actor: Actor, rig_name: String) -> Bool:
+        # Check if already registered
+        let i = 0
+        while i < len(active_rigs):
+            if active_rigs[i] == rig_actor:
+                println("RigManager: Rig already registered - " + rig_name)
+                return false
+            i = i + 1
+        
+        # Register new rig
+        push(active_rigs, rig_actor)
+        push(rig_names, rig_name)
+        push(rig_states, create_rig_state(rig_name))
+        
+        println("RigManager: Registered rig - " + rig_name + " (Total: " + int_to_string(len(active_rigs)) + ")")
+        return true
+    
+    @blueprint_callable
+    fn unregister_rig(rig_actor: Actor) -> Bool:
+        let i = 0
+        while i < len(active_rigs):
+            if active_rigs[i] == rig_actor:
+                let rig_name = rig_names[i]
+                
+                # Remove from arrays (simplified - would need proper array removal)
+                active_rigs[i] = null
+                rig_names[i] = ""
+                
+                println("RigManager: Unregistered rig - " + rig_name)
+                return true
+            i = i + 1
+        
+        return false
+    
+    @blueprint_callable
+    fn find_rig_by_name(rig_name: String) -> Actor:
+        let i = 0
+        while i < len(rig_names):
+            if rig_names[i] == rig_name:
+                return active_rigs[i]
+            i = i + 1
+        return null
+    
+    @blueprint_callable
+    fn get_active_rig_count() -> Int:
+        let count = 0
+        let i = 0
+        while i < len(active_rigs):
+            if active_rigs[i] != null:
+                count = count + 1
+            i = i + 1
+        return count
+    
+    # Global Rig Updates
+    fn update_all_rigs(delta_time: Float):
+        if not global_ik_enabled and not global_constraint_enabled:
+            return
+        
+        let i = 0
+        while i < len(active_rigs):
+            let rig_actor = active_rigs[i]
+            if rig_actor != null:
+                update_rig(rig_actor, rig_states[i], delta_time)
+            i = i + 1
+    
+    fn update_rig(rig_actor: Actor, rig_state: RigState, delta_time: Float):
+        # Get skeleton cache from rig actor
+        let skeleton_cache = get_skeleton_cache(rig_actor)
+        if skeleton_cache.bone_names == []:
+            return
+        
+        # Solve IK chains if enabled
+        if global_ik_enabled:
+            let i = 0
+            while i < len(rig_state.ik_chains):
+                let chain = rig_state.ik_chains[i]
+                if chain.enabled:
+                    solve_ik_chain(chain, skeleton_cache)
+                i = i + 1
+        
+        # Evaluate constraints if enabled
+        if global_constraint_enabled:
+            evaluate_constraints(rig_state, skeleton_cache)
+    
+    # Global IK Control
+    @blueprint_callable
+    fn set_global_ik_enabled(enabled: Bool):
+        global_ik_enabled = enabled
+        println("RigManager: Global IK " + (if enabled then "enabled" else "disabled"))
+    
+    @blueprint_callable
+    fn set_global_constraint_enabled(enabled: Bool):
+        global_constraint_enabled = enabled
+        println("RigManager: Global constraints " + (if enabled then "enabled" else "disabled"))
+    
+    @blueprint_callable
+    fn set_all_rigs_ik_mode(enabled: Bool):
+        let i = 0
+        while i < len(active_rigs):
+            let rig_actor = active_rigs[i]
+            if rig_actor != null:
+                set_rig_ik_mode(rig_actor, enabled)
+            i = i + 1
+        
+        println("RigManager: Set all rigs to " + (if enabled then "IK" else "FK") + " mode")
+    
+    @blueprint_callable
+    fn blend_all_rigs_to_ik(blend_duration: Float):
+        let i = 0
+        while i < len(active_rigs):
+            let rig_actor = active_rigs[i]
+            if rig_actor != null:
+                blend_rig_to_ik(rig_actor, blend_duration)
+            i = i + 1
+        
+        println("RigManager: Blending all rigs to IK over " + float_to_string(blend_duration) + "s")
+    
+    @blueprint_callable
+    fn blend_all_rigs_to_fk(blend_duration: Float):
+        let i = 0
+        while i < len(active_rigs):
+            let rig_actor = active_rigs[i]
+            if rig_actor != null:
+                blend_rig_to_fk(rig_actor, blend_duration)
+            i = i + 1
+        
+        println("RigManager: Blending all rigs to FK over " + float_to_string(blend_duration) + "s")
+    
+    # Constraint Solver Settings
+    @blueprint_callable
+    fn set_max_constraint_iterations(iterations: Int):
+        max_constraint_iterations = max(1, iterations)
+        println("RigManager: Max constraint iterations set to " + int_to_string(max_constraint_iterations))
+    
+    @blueprint_callable
+    fn set_constraint_tolerance(tolerance: Float):
+        constraint_tolerance = max(0.001, tolerance)
+        println("RigManager: Constraint tolerance set to " + float_to_string(constraint_tolerance))
+    
+    # IK Chain Management
+    @blueprint_callable
+    fn add_ik_chain_to_rig(
+        rig_name: String,
+        chain_name: String,
+        bone_names: Array<String>,
+        solver_type: IKSolverType
+    ) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            println("RigManager: Rig not found - " + rig_name)
+            return false
+        
+        let chain = create_chain(chain_name, bone_names, solver_type)
+        add_ik_chain_to_actor(rig_actor, chain)
+        
+        println("RigManager: Added IK chain '" + chain_name + "' to rig '" + rig_name + "'")
+        return true
+    
+    @blueprint_callable
+    fn remove_ik_chain_from_rig(rig_name: String, chain_name: String) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            return false
+        
+        remove_ik_chain_from_actor(rig_actor, chain_name)
+        
+        println("RigManager: Removed IK chain '" + chain_name + "' from rig '" + rig_name + "'")
+        return true
+    
+    @blueprint_callable
+    fn set_ik_chain_target(
+        rig_name: String,
+        chain_name: String,
+        target_position: Vec3
+    ) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            return false
+        
+        set_ik_target_on_actor(rig_actor, chain_name, target_position)
+        return true
+    
+    @blueprint_callable
+    fn enable_ik_chain(rig_name: String, chain_name: String, enabled: Bool) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            return false
+        
+        enable_ik_chain_on_actor(rig_actor, chain_name, enabled)
+        return true
+    
+    # Constraint Management
+    @blueprint_callable
+    fn add_aim_constraint_to_rig(
+        rig_name: String,
+        constraint_name: String,
+        source_bone: String,
+        target_bone: String,
+        weight: Float
+    ) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            println("RigManager: Rig not found - " + rig_name)
+            return false
+        
+        add_aim_constraint_to_actor(rig_actor, constraint_name, source_bone, target_bone, weight)
+        
+        println("RigManager: Added aim constraint '" + constraint_name + "' to rig '" + rig_name + "'")
+        return true
+    
+    @blueprint_callable
+    fn add_parent_constraint_to_rig(
+        rig_name: String,
+        constraint_name: String,
+        source_bone: String,
+        target_bones: Array<String>,
+        weights: Array<Float>
+    ) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            return false
+        
+        add_parent_constraint_to_actor(rig_actor, constraint_name, source_bone, target_bones, weights)
+        
+        println("RigManager: Added parent constraint '" + constraint_name + "' to rig '" + rig_name + "'")
+        return true
+    
+    @blueprint_callable
+    fn add_position_constraint_to_rig(
+        rig_name: String,
+        constraint_name: String,
+        source_bone: String,
+        target_bone: String,
+        weight: Float
+    ) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            return false
+        
+        add_position_constraint_to_actor(rig_actor, constraint_name, source_bone, target_bone, weight)
+        
+        println("RigManager: Added position constraint '" + constraint_name + "' to rig '" + rig_name + "'")
+        return true
+    
+    @blueprint_callable
+    fn set_constraint_weight_on_rig(
+        rig_name: String,
+        constraint_name: String,
+        weight: Float
+    ) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            return false
+        
+        set_constraint_weight_on_actor(rig_actor, constraint_name, weight)
+        return true
+    
+    @blueprint_callable
+    fn enable_constraint_on_rig(
+        rig_name: String,
+        constraint_name: String,
+        enabled: Bool
+    ) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            return false
+        
+        enable_constraint_on_actor(rig_actor, constraint_name, enabled)
+        return true
+    
+    # Batch Operations
+    @blueprint_callable
+    fn enable_all_ik_chains_on_rig(rig_name: String, enabled: Bool) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            return false
+        
+        enable_all_ik_chains_on_actor(rig_actor, enabled)
+        
+        println("RigManager: " + (if enabled then "Enabled" else "Disabled") + " all IK chains on rig '" + rig_name + "'")
+        return true
+    
+    @blueprint_callable
+    fn enable_all_constraints_on_rig(rig_name: String, enabled: Bool) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            return false
+        
+        enable_all_constraints_on_actor(rig_actor, enabled)
+        
+        println("RigManager: " + (if enabled then "Enabled" else "Disabled") + " all constraints on rig '" + rig_name + "'")
+        return true
+    
+    @blueprint_callable
+    fn reset_all_constraint_weights_on_rig(rig_name: String) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            return false
+        
+        reset_all_constraint_weights_on_actor(rig_actor)
+        
+        println("RigManager: Reset all constraint weights on rig '" + rig_name + "'")
+        return true
+    
+    # Rig Asset Management
+    @blueprint_callable
+    fn save_rig_preset(rig_name: String, preset_name: String) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            return false
+        
+        # Get rig state
+        let i = 0
+        while i < len(rig_names):
+            if rig_names[i] == rig_name:
+                let rig_state = rig_states[i]
+                save_rig_state_to_file(rig_state, preset_name)
+                println("RigManager: Saved rig preset '" + preset_name + "' for rig '" + rig_name + "'")
+                return true
+            i = i + 1
+        
+        return false
+    
+    @blueprint_callable
+    fn load_rig_preset(rig_name: String, preset_name: String) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            return false
+        
+        let loaded_state = load_rig_state_from_file(preset_name)
+        if loaded_state.rig_name == "":
+            println("RigManager: Failed to load rig preset '" + preset_name + "'")
+            return false
+        
+        # Apply loaded state to rig
+        let i = 0
+        while i < len(rig_names):
+            if rig_names[i] == rig_name:
+                rig_states[i] = loaded_state
+                apply_rig_state_to_actor(rig_actor, loaded_state)
+                println("RigManager: Loaded rig preset '" + preset_name + "' for rig '" + rig_name + "'")
+                return true
+            i = i + 1
+        
+        return false
+    
+    # Debug and Visualization
+    @blueprint_callable
+    fn set_debug_draw_enabled(enabled: Bool):
+        debug_draw_enabled = enabled
+        
+        # Apply to all rigs
+        let i = 0
+        while i < len(active_rigs):
+            let rig_actor = active_rigs[i]
+            if rig_actor != null:
+                set_debug_draw_on_actor(rig_actor, enabled)
+            i = i + 1
+        
+        println("RigManager: Debug draw " + (if enabled then "enabled" else "disabled"))
+    
+    @blueprint_callable
+    fn set_debug_draw_scale(scale: Float):
+        debug_draw_scale = max(0.1, scale)
+        
+        # Apply to all rigs
+        let i = 0
+        while i < len(active_rigs):
+            let rig_actor = active_rigs[i]
+            if rig_actor != null:
+                set_debug_draw_scale_on_actor(rig_actor, debug_draw_scale)
+            i = i + 1
+        
+        println("RigManager: Debug draw scale set to " + float_to_string(debug_draw_scale))
+    
+    # Performance Monitoring
+    @blueprint_callable
+    @blueprint_pure
+    fn get_average_update_time() -> Float:
+        return average_update_time
+    
+    @blueprint_callable
+    @blueprint_pure
+    fn get_total_update_count() -> Int:
+        return update_count
+    
+    @blueprint_callable
+    @blueprint_pure
+    fn get_performance_stats() -> String:
+        let stats = "RigManager Performance Stats:\n"
+        stats = stats + "Active Rigs: " + int_to_string(get_active_rig_count()) + "\n"
+        stats = stats + "Total Updates: " + int_to_string(update_count) + "\n"
+        stats = stats + "Average Update Time: " + float_to_string(average_update_time * 1000.0) + "ms\n"
+        stats = stats + "Update Frequency: " + float_to_string(update_frequency) + " Hz\n"
+        return stats
+    
+    @blueprint_callable
+    fn reset_performance_stats():
+        total_update_time = 0.0
+        update_count = 0
+        average_update_time = 0.0
+        println("RigManager: Performance stats reset")
+    
+    # Rig Query Functions
+    @blueprint_callable
+    @blueprint_pure
+    fn get_rig_ik_chain_count(rig_name: String) -> Int:
+        let i = 0
+        while i < len(rig_names):
+            if rig_names[i] == rig_name:
+                return len(rig_states[i].ik_chains)
+            i = i + 1
+        return 0
+    
+    @blueprint_callable
+    @blueprint_pure
+    fn get_rig_constraint_count(rig_name: String) -> Int:
+        let i = 0
+        while i < len(rig_names):
+            if rig_names[i] == rig_name:
+                let rig_state = rig_states[i]
+                return len(rig_state.aim_constraints) +
+                       len(rig_state.parent_constraints) +
+                       len(rig_state.position_constraints) +
+                       len(rig_state.rotation_constraints) +
+                       len(rig_state.scale_constraints) +
+                       len(rig_state.pole_vector_constraints)
+            i = i + 1
+        return 0
+    
+    @blueprint_callable
+    @blueprint_pure
+    fn is_rig_registered(rig_name: String) -> Bool:
+        let i = 0
+        while i < len(rig_names):
+            if rig_names[i] == rig_name:
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint_callable
+    @blueprint_pure
+    fn get_all_rig_names() -> Array<String>:
+        let names = []
+        let i = 0
+        while i < len(rig_names):
+            if rig_names[i] != "" and active_rigs[i] != null:
+                push(names, rig_names[i])
+            i = i + 1
+        return names
+    
+    # Preset Rig Configurations
+    @blueprint_callable
+    fn setup_humanoid_rig_on_actor(rig_name: String) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            return false
+        
+        setup_humanoid_rig_on_actor_internal(rig_actor)
+        
+        println("RigManager: Setup humanoid rig on '" + rig_name + "'")
+        return true
+    
+    @blueprint_callable
+    fn setup_quadruped_rig_on_actor(rig_name: String) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            return false
+        
+        setup_quadruped_rig_on_actor_internal(rig_actor)
+        
+        println("RigManager: Setup quadruped rig on '" + rig_name + "'")
+        return true
+    
+    @blueprint_callable
+    fn setup_tentacle_rig_on_actor(
+        rig_name: String,
+        bone_prefix: String,
+        bone_count: Int
+    ) -> Bool:
+        let rig_actor = find_rig_by_name(rig_name)
+        if rig_actor == null:
+            return false
+        
+        setup_tentacle_rig_on_actor_internal(rig_actor, bone_prefix, bone_count)
+        
+        println("RigManager: Setup tentacle rig on '" + rig_name + "'")
+        return true
+    
+    # Update Frequency Control
+    @blueprint_callable
+    fn set_update_frequency(frequency: Float):
+        update_frequency = clamp(frequency, 1.0, 120.0)
+        println("RigManager: Update frequency set to " + float_to_string(update_frequency) + " Hz")
+    
+    @blueprint_callable
+    @blueprint_pure
+    fn get_update_frequency() -> Float:
+        return update_frequency
+
+# External actor manipulation functions (would be implemented in UE5 backend)
+@extern
+fn get_skeleton_cache(actor: Actor) -> SkeletonCache
+
+@extern
+fn set_rig_ik_mode(actor: Actor, enabled: Bool)
+
+@extern
+fn blend_rig_to_ik(actor: Actor, duration: Float)
+
+@extern
+fn blend_rig_to_fk(actor: Actor, duration: Float)
+
+@extern
+fn add_ik_chain_to_actor(actor: Actor, chain: IKChain)
+
+@extern
+fn remove_ik_chain_from_actor(actor: Actor, chain_name: String)
+
+@extern
+fn set_ik_target_on_actor(actor: Actor, chain_name: String, target: Vec3)
+
+@extern
+fn enable_ik_chain_on_actor(actor: Actor, chain_name: String, enabled: Bool)
+
+@extern
+fn add_aim_constraint_to_actor(
+    actor: Actor,
+    constraint_name: String,
+    source_bone: String,
+    target_bone: String,
+    weight: Float
+)
+
+@extern
+fn add_parent_constraint_to_actor(
+    actor: Actor,
+    constraint_name: String,
+    source_bone: String,
+    target_bones: Array<String>,
+    weights: Array<Float>
+)
+
+@extern
+fn add_position_constraint_to_actor(
+    actor: Actor,
+    constraint_name: String,
+    source_bone: String,
+    target_bone: String,
+    weight: Float
+)
+
+@extern
+fn set_constraint_weight_on_actor(actor: Actor, constraint_name: String, weight: Float)
+
+@extern
+fn enable_constraint_on_actor(actor: Actor, constraint_name: String, enabled: Bool)
+
+@extern
+fn enable_all_ik_chains_on_actor(actor: Actor, enabled: Bool)
+
+@extern
+fn enable_all_constraints_on_actor(actor: Actor, enabled: Bool)
+
+@extern
+fn reset_all_constraint_weights_on_actor(actor: Actor)
+
+@extern
+fn set_debug_draw_on_actor(actor: Actor, enabled: Bool)
+
+@extern
+fn set_debug_draw_scale_on_actor(actor: Actor, scale: Float)
+
+@extern
+fn apply_rig_state_to_actor(actor: Actor, rig_state: RigState)
+
+@extern
+fn setup_humanoid_rig_on_actor_internal(actor: Actor)
+
+@extern
+fn setup_quadruped_rig_on_actor_internal(actor: Actor)
+
+@extern
+fn setup_tentacle_rig_on_actor_internal(actor: Actor, bone_prefix: String, bone_count: Int)
+
+# Rig state serialization (simplified - would use proper file I/O)
+fn save_rig_state_to_file(rig_state: RigState, filename: String):
+    println("Saving rig state to " + filename)
+    # Would serialize rig_state to JSON/binary format
+
+fn load_rig_state_from_file(filename: String) -> RigState:
+    println("Loading rig state from " + filename)
+    # Would deserialize from JSON/binary format
+    return create_rig_state("Loaded")
+
+fn float(value: Int) -> Float:
+    return value * 1.0

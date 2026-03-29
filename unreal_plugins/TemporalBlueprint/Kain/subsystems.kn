@@ -1,0 +1,379 @@
+# ============================================================================
+# TEMPORAL BLUEPRINT — Subsystems
+# ============================================================================
+# TemporalSubsystem:       World subsystem — the runtime engine
+# TemporalEditorSubsystem: Editor subsystem — authoring tools
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: TEMPORAL WORLD SUBSYSTEM
+# The runtime engine — manages all era transitions, actor states, causality
+# ============================================================================
+
+@subsystem
+@tick
+struct TemporalSubsystem:
+    # ======= GLOBAL STATE =======
+
+    current_era: TemporalEra
+    previous_era: TemporalEra
+    transition_state: TemporalTransitionState
+    transition_alpha: Float
+    transition_timer: Float
+    transition_duration: Float
+    is_locked: Bool
+
+    # ======= REGISTRY COUNTS =======
+
+    registered_actor_count: Int
+    registered_zone_count: Int
+    registered_anchor_count: Int
+    registered_portal_count: Int
+
+    # ======= CAUSALITY =======
+
+    causality_rule: CausalityRule
+    causality_link_count: Int
+    causality_violation_count: Int
+
+    # ======= TIMELINE =======
+
+    timeline_node_count: Int
+    current_timeline_node_id: Int
+    max_timeline_depth: Int
+
+    # ======= SNAPSHOTS =======
+
+    snapshot_count: Int
+    max_snapshots: Int
+    autosave_enabled: Bool
+
+    # ======= PERFORMANCE =======
+
+    actor_update_budget_ms: Float
+    skip_offscreen_actors: Bool
+    transition_batch_size: Int
+
+    # ======= DEBUG =======
+
+    debug_mode: TemporalDebugMode
+    log_all_transitions: Bool
+    log_causality_checks: Bool
+
+    # ======= LIFECYCLE =======
+
+    @blueprint_callable
+    fn initialize_subsystem():
+        current_era = TemporalEra::Present
+        previous_era = TemporalEra::Present
+        transition_state = TemporalTransitionState::Idle
+        transition_alpha = 1.0
+        transition_timer = 0.0
+        transition_duration = 1.5
+        is_locked = false
+        registered_actor_count = 0
+        registered_zone_count = 0
+        registered_anchor_count = 0
+        registered_portal_count = 0
+        causality_rule = CausalityRule::Linear
+        causality_link_count = 0
+        causality_violation_count = 0
+        timeline_node_count = 1
+        current_timeline_node_id = 0
+        max_timeline_depth = 32
+        snapshot_count = 0
+        max_snapshots = 64
+        autosave_enabled = true
+        actor_update_budget_ms = 2.0
+        skip_offscreen_actors = true
+        transition_batch_size = 32
+        debug_mode = TemporalDebugMode::Off
+        log_all_transitions = false
+        log_causality_checks = false
+        println("TemporalSubsystem: initialized")
+
+    # ======= ERA MANAGEMENT =======
+
+    @blueprint_callable
+    fn request_transition(target_era: TemporalEra, duration: Float):
+        if is_locked:
+            println("TemporalSubsystem: transition blocked — locked")
+            return
+        if transition_state != TemporalTransitionState::Idle:
+            println("TemporalSubsystem: transition already in progress")
+            return
+        previous_era = current_era
+        transition_state = TemporalTransitionState::Transitioning
+        transition_timer = 0.0
+        transition_duration = duration
+        transition_alpha = 0.0
+        println("TemporalSubsystem: transition started -> era " + int_to_string(target_era as Int))
+
+    @blueprint_callable
+    fn complete_transition(new_era: TemporalEra):
+        current_era = new_era
+        transition_state = TemporalTransitionState::Idle
+        transition_alpha = 1.0
+        transition_timer = 0.0
+        if autosave_enabled:
+            snapshot_count = snapshot_count + 1
+        println("TemporalSubsystem: transition complete -> era " + int_to_string(new_era as Int))
+
+    @blueprint_callable
+    fn abort_transition():
+        transition_state = TemporalTransitionState::Idle
+        transition_alpha = 1.0
+        transition_timer = 0.0
+        println("TemporalSubsystem: transition aborted")
+
+    @blueprint_callable
+    fn lock_era():
+        is_locked = true
+        println("TemporalSubsystem: era locked")
+
+    @blueprint_callable
+    fn unlock_era():
+        is_locked = false
+        println("TemporalSubsystem: era unlocked")
+
+    # ======= ACTOR REGISTRY =======
+
+    @blueprint_callable
+    fn register_temporal_actor(actor_guid: String) -> Bool:
+        registered_actor_count = registered_actor_count + 1
+        println("TemporalSubsystem: registered actor " + actor_guid + " total=" + int_to_string(registered_actor_count))
+        return true
+
+    @blueprint_callable
+    fn unregister_temporal_actor(actor_guid: String):
+        if registered_actor_count > 0:
+            registered_actor_count = registered_actor_count - 1
+
+    @blueprint_callable
+    fn register_zone(zone_id: Int) -> Bool:
+        registered_zone_count = registered_zone_count + 1
+        return true
+
+    @blueprint_callable
+    fn register_anchor(anchor_id: Int) -> Bool:
+        registered_anchor_count = registered_anchor_count + 1
+        return true
+
+    @blueprint_callable
+    fn register_portal(portal_id: Int) -> Bool:
+        registered_portal_count = registered_portal_count + 1
+        return true
+
+    # ======= CAUSALITY =======
+
+    @blueprint_callable
+    fn add_causality_link(source_guid: String, target_guid: String, rule: CausalityRule) -> Bool:
+        causality_link_count = causality_link_count + 1
+        println("TemporalSubsystem: causality link added " + source_guid + " -> " + target_guid)
+        return true
+
+    @blueprint_callable
+    fn remove_causality_link(source_guid: String, target_guid: String):
+        if causality_link_count > 0:
+            causality_link_count = causality_link_count - 1
+
+    @blueprint_callable
+    fn check_causality_violation(actor_guid: String, target_era: TemporalEra) -> Bool:
+        if causality_rule == CausalityRule::None:
+            return false
+        if log_causality_checks:
+            println("TemporalSubsystem: causality check for " + actor_guid)
+        return false
+
+    @blueprint_callable
+    fn report_causality_violation(actor_guid: String, description: String):
+        causality_violation_count = causality_violation_count + 1
+        println("TemporalSubsystem: CAUSALITY VIOLATION #" + int_to_string(causality_violation_count) + " — " + actor_guid + " — " + description)
+
+    # ======= TIMELINE =======
+
+    @blueprint_callable
+    fn fork_timeline(branch_condition: String) -> Int:
+        timeline_node_count = timeline_node_count + 1
+        let new_node_id = timeline_node_count - 1
+        current_timeline_node_id = new_node_id
+        println("TemporalSubsystem: timeline forked — node " + int_to_string(new_node_id) + " condition=" + branch_condition)
+        return new_node_id
+
+    @blueprint_callable
+    fn collapse_timeline(target_node_id: Int):
+        current_timeline_node_id = target_node_id
+        println("TemporalSubsystem: timeline collapsed to node " + int_to_string(target_node_id))
+
+    # ======= SNAPSHOTS =======
+
+    @blueprint_callable
+    fn take_snapshot(description: String) -> Int:
+        snapshot_count = snapshot_count + 1
+        let snap_id = snapshot_count - 1
+        println("TemporalSubsystem: snapshot taken #" + int_to_string(snap_id) + " — " + description)
+        return snap_id
+
+    @blueprint_callable
+    fn restore_snapshot(snapshot_id: Int) -> Bool:
+        if snapshot_id >= snapshot_count:
+            println("TemporalSubsystem: snapshot " + int_to_string(snapshot_id) + " not found")
+            return false
+        println("TemporalSubsystem: restoring snapshot " + int_to_string(snapshot_id))
+        return true
+
+    @blueprint_callable
+    fn clear_snapshots():
+        snapshot_count = 0
+        println("TemporalSubsystem: all snapshots cleared")
+
+    # ======= QUERIES =======
+
+    @blueprint_callable
+    fn get_current_era() -> TemporalEra:
+        return current_era
+
+    @blueprint_callable
+    fn get_transition_alpha() -> Float:
+        return transition_alpha
+
+    @blueprint_callable
+    fn is_transitioning() -> Bool:
+        return transition_state == TemporalTransitionState::Transitioning
+
+    @blueprint_callable
+    fn is_era_locked() -> Bool:
+        return is_locked
+
+    @blueprint_callable
+    fn get_registered_actor_count() -> Int:
+        return registered_actor_count
+
+    @blueprint_callable
+    fn get_causality_violation_count() -> Int:
+        return causality_violation_count
+
+    @blueprint_callable
+    fn get_timeline_node_count() -> Int:
+        return timeline_node_count
+
+    @blueprint_callable
+    fn get_snapshot_count() -> Int:
+        return snapshot_count
+
+    @blueprint_callable
+    fn set_debug_mode(mode: TemporalDebugMode):
+        debug_mode = mode
+
+    @blueprint_callable
+    fn get_debug_info() -> TemporalDebugInfo:
+        let info = TemporalDebugInfo()
+        info.current_era = current_era
+        info.transition_state = TemporalTransitionState::Idle
+        info.active_zone_count = active_zone_count
+        info.anchor_count = anchor_count
+        info.tracked_actor_count = tracked_actor_count
+        info.causality_link_count = causality_link_count
+        info.snapshot_count = snapshot_count
+        info.last_transition_duration = 0.0
+        info.fps_impact = 0.0
+        return info
+
+# ============================================================================
+# SECTION 2: TEMPORAL EDITOR SUBSYSTEM
+# Editor-only subsystem for authoring tools
+# ============================================================================
+
+@subsystem
+struct TemporalEditorSubsystem:
+    # ======= EDITOR STATE =======
+
+    active_era: TemporalEra
+    preview_era: TemporalEra
+    is_previewing: Bool
+    show_all_eras: Bool
+    selected_actor_guid: String
+
+    # ======= VISUALIZATION =======
+
+    show_era_colors: Bool
+    show_zone_bounds: Bool
+    show_anchor_icons: Bool
+    show_causality_links: Bool
+    show_portal_frames: Bool
+    era_overlay_opacity: Float
+
+    # ======= AUTHORING STATE =======
+
+    unsaved_changes: Bool
+    last_saved_era: TemporalEra
+    undo_stack_depth: Int
+    max_undo_depth: Int
+
+    # ======= STATISTICS =======
+
+    total_temporal_actors: Int
+    total_zones: Int
+    total_anchors: Int
+    total_portals: Int
+    total_causality_links: Int
+
+    # ======= EDITOR OPERATIONS =======
+
+    @blueprint_callable
+    fn set_active_era(era: TemporalEra):
+        active_era = era
+        println("TemporalEditorSubsystem: active era set to " + int_to_string(era as Int))
+
+    @blueprint_callable
+    fn preview_era(era: TemporalEra):
+        preview_era = era
+        is_previewing = true
+        println("TemporalEditorSubsystem: previewing era " + int_to_string(era as Int))
+
+    @blueprint_callable
+    fn stop_preview():
+        is_previewing = false
+        println("TemporalEditorSubsystem: preview stopped")
+
+    @blueprint_callable
+    fn toggle_show_all_eras():
+        show_all_eras = show_all_eras == false
+
+    @blueprint_callable
+    fn select_temporal_actor(actor_guid: String):
+        selected_actor_guid = actor_guid
+
+    @blueprint_callable
+    fn mark_unsaved():
+        unsaved_changes = true
+
+    @blueprint_callable
+    fn mark_saved():
+        unsaved_changes = false
+        last_saved_era = active_era
+
+    @blueprint_callable
+    fn get_active_era() -> TemporalEra:
+        return active_era
+
+    @blueprint_callable
+    fn is_preview_active() -> Bool:
+        return is_previewing
+
+    @blueprint_callable
+    fn has_unsaved_changes() -> Bool:
+        return unsaved_changes
+
+    @blueprint_callable
+    fn get_total_temporal_actors() -> Int:
+        return total_temporal_actors
+
+    @blueprint_callable
+    fn refresh_statistics():
+        println("TemporalEditorSubsystem: statistics refreshed")
+        println("  Actors: " + int_to_string(total_temporal_actors))
+        println("  Zones: " + int_to_string(total_zones))
+        println("  Anchors: " + int_to_string(total_anchors))
+        println("  Portals: " + int_to_string(total_portals))
+        println("  Causality links: " + int_to_string(total_causality_links))

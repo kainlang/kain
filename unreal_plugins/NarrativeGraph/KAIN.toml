@@ -1,0 +1,11 @@
+# Root-level plugin_name for FULLBUILD.bat compatibility
+plugin_name = "NarrativeGraph"
+[plugin]
+name = "NarrativeGraph"
+version = "1.0.0"
+description = "Narrative graph system with dialogue and quest runtime"
+author = "KAIN Factory"
+ue_version = "5.4"
+
+[build]
+output_dir = "Builds"

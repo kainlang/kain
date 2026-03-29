@@ -1,0 +1,635 @@
+# FLUID FLOW GRAPH EDITOR
+# ============================================================================
+# Visual graph editor for designing fluid simulation pipelines
+# This adds a complete UEdGraph-based visual editor to the FluidFlow plugin
+# ============================================================================
+
+# ============================================================================
+# GRAPH EDITOR - Visual Fluid Pipeline Designer
+# ============================================================================
+
+@graph_editor
+graph FluidPipelineEditor:
+    @node_type
+    @category("Fluid/Start")
+    node SimulationStartNode:
+        properties:
+            PipelineName: String = "Fluid Pipeline"
+            GridResolution: Vec3 = vec3(128, 128, 128)
+            TimeStep: Float = 0.016
+        outputs:
+            Initialize: Exec
+    
+    @node_type
+    @category("Fluid/Solvers")
+    node LatticeBoltzmannNode:
+        properties:
+            Viscosity: Float = 0.001
+            Density: Float = 1000.0
+            Iterations: Int = 10
+        inputs:
+            InExec: Exec
+        outputs:
+            Completed: Exec
+    
+    @node_type
+    @category("Fluid/Solvers")
+    node SPHNode:
+        properties:
+            ParticleCount: Int = 10000
+            SmoothingRadius: Float = 0.1
+            StiffnessConstant: Float = 1000.0
+        inputs:
+            InExec: Exec
+        outputs:
+            Completed: Exec
+    
+    @node_type
+    @category("Fluid/Solvers")
+    node NavierStokesNode:
+        properties:
+            PressureIterations: Int = 40
+            AdvectionScheme: String = "SemiLagrangian"
+            EnableBuoyancy: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+            Completed: Exec
+    
+    @node_type
+    @category("Fluid/Forces")
+    node GravityNode:
+        properties:
+            GravityScale: Float = 1.0
+            Direction: Vec3 = vec3(0, -9.81, 0)
+        inputs:
+            InExec: Exec
+        outputs:
+            Applied: Exec
+    
+    @node_type
+    @category("Fluid/Forces")
+    node TurbulenceNode:
+        properties:
+            Intensity: Float = 0.1
+            VortexConfinement: Float = 0.4
+            NoiseScale: Float = 1.0
+        inputs:
+            InExec: Exec
+        outputs:
+            Applied: Exec
+    
+    @node_type
+    @category("Fluid/Forces")
+    node BuoyancyNode:
+        properties:
+            TemperatureDifference: Float = 10.0
+            BuoyancyAlpha: Float = 0.1
+            BuoyancyBeta: Float = 0.1
+        inputs:
+            InExec: Exec
+        outputs:
+            Applied: Exec
+    
+    @node_type
+    @category("Fluid/Multiphase")
+    node PhaseFieldNode:
+        properties:
+            PhaseCount: Int = 2
+            SurfaceTension: Float = 0.072
+            InterfaceThickness: Float = 0.01
+        inputs:
+            InExec: Exec
+        outputs:
+            Updated: Exec
+    
+    @node_type
+    @category("Fluid/Multiphase")
+    node VOFNode:
+        properties:
+            EnablePLIC: Bool = true
+            ContactAngle: Float = 90.0
+        inputs:
+            InExec: Exec
+        outputs:
+            Updated: Exec
+    
+    @node_type
+    @category("Fluid/Thermal")
+    node HeatTransferNode:
+        properties:
+            ThermalDiffusivity: Float = 0.000143
+            AmbientTemperature: Float = 293.0
+            HeatSources: Int = 0
+        inputs:
+            InExec: Exec
+        outputs:
+            Updated: Exec
+    
+    @node_type
+    @category("Fluid/Thermal")
+    node ConvectionNode:
+        properties:
+            ConvectionCoefficient: Float = 10.0
+            EnableRadiation: Bool = false
+        inputs:
+            InExec: Exec
+        outputs:
+            Updated: Exec
+    
+    @node_type
+    @category("Fluid/Electromagnetic")
+    node MHDNode:
+        properties:
+            MagneticFieldStrength: Vec3 = vec3(0, 1, 0)
+            ElectricConductivity: Float = 1.0
+            LorentzForceGain: Float = 1.0
+        inputs:
+            InExec: Exec
+        outputs:
+            Updated: Exec
+    
+    @node_type
+    @category("Fluid/Quantum")
+    node QuantumFluidNode:
+        properties:
+            SuperfluidFraction: Float = 1.0
+            HealingLength: Float = 0.001
+            VortexCoreSize: Float = 0.0001
+        inputs:
+            InExec: Exec
+        outputs:
+            Updated: Exec
+    
+    @node_type
+    @category("Fluid/Particles")
+    node ParticleSystemNode:
+        properties:
+            ParticleType: String = "Droplet"
+            ParticleCount: Int = 1000
+            DragCoefficient: Float = 0.47
+        inputs:
+            InExec: Exec
+        outputs:
+            Updated: Exec
+    
+    @node_type
+    @category("Fluid/Collision")
+    node SDFCollisionNode:
+        properties:
+            Restitution: Float = 0.5
+            Friction: Float = 0.3
+            SDFThreshold: Float = 0.01
+        inputs:
+            InExec: Exec
+        outputs:
+            Resolved: Exec
+    
+    @node_type
+    @category("Fluid/Visualization")
+    node RaymarchVisualizationNode:
+        properties:
+            Exposure: Float = 1.0
+            StepSize: Float = 0.01
+            SampleCount: Int = 128
+            ColorA: Vec3 = vec3(0.2, 0.6, 1.0)
+            ColorB: Vec3 = vec3(1.0, 0.8, 0.2)
+        inputs:
+            InExec: Exec
+        outputs:
+            Rendered: Exec
+    
+    @node_type
+    @category("Fluid/Visualization")
+    node SchlierenVisualizationNode:
+        properties:
+            Contrast: Float = 1.0
+            Sensitivity: Float = 10.0
+        inputs:
+            InExec: Exec
+        outputs:
+            Rendered: Exec
+    
+    @node_type
+    @category("Fluid/Logic")
+    node BranchNode:
+        properties:
+            ConditionTag: String = "condition"
+        inputs:
+            InExec: Exec
+        outputs:
+            True: Exec
+            False: Exec
+    
+    @node_type
+    @category("Fluid/Logic")
+    node SequenceNode:
+        properties:
+            StepCount: Int = 3
+        inputs:
+            InExec: Exec
+        outputs:
+            Step1: Exec
+            Step2: Exec
+            Step3: Exec
+    
+    @node_type
+    @category("Fluid/End")
+    node OutputNode:
+        properties:
+            OutputName: String = "Result"
+        inputs:
+            InExec: Exec
+    
+    @schema
+    schema:
+        no_cycles: false
+        max_depth: 100
+
+# ============================================================================
+# GRAPH RUNTIME - Fluid Pipeline Execution
+# ============================================================================
+
+@graph_runtime
+struct FluidPipelineGraph:
+    @node_data
+    struct SimulationStartNode:
+        @property
+        pipeline_name: String
+        
+        @property
+        grid_resolution: Vec3
+        
+        @property
+        time_step: Float
+        
+        @output_pin
+        initialize: Exec
+    
+    @node_data
+    struct LatticeBoltzmannNode:
+        @property
+        viscosity: Float
+        
+        @property
+        density: Float
+        
+        @property
+        iterations: Int
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        completed: Exec
+    
+    @node_data
+    struct SPHNode:
+        @property
+        particle_count: Int
+        
+        @property
+        smoothing_radius: Float
+        
+        @property
+        stiffness_constant: Float
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        completed: Exec
+    
+    @node_data
+    struct NavierStokesNode:
+        @property
+        pressure_iterations: Int
+        
+        @property
+        advection_scheme: String
+        
+        @property
+        enable_buoyancy: Bool
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        completed: Exec
+    
+    @node_data
+    struct GravityNode:
+        @property
+        gravity_scale: Float
+        
+        @property
+        direction: Vec3
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        applied: Exec
+    
+    @node_data
+    struct TurbulenceNode:
+        @property
+        intensity: Float
+        
+        @property
+        vortex_confinement: Float
+        
+        @property
+        noise_scale: Float
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        applied: Exec
+    
+    @node_data
+    struct BuoyancyNode:
+        @property
+        temperature_difference: Float
+        
+        @property
+        buoyancy_alpha: Float
+        
+        @property
+        buoyancy_beta: Float
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        applied: Exec
+    
+    @node_data
+    struct PhaseFieldNode:
+        @property
+        phase_count: Int
+        
+        @property
+        surface_tension: Float
+        
+        @property
+        interface_thickness: Float
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        updated: Exec
+    
+    @node_data
+    struct VOFNode:
+        @property
+        enable_plic: Bool
+        
+        @property
+        contact_angle: Float
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        updated: Exec
+    
+    @node_data
+    struct HeatTransferNode:
+        @property
+        thermal_diffusivity: Float
+        
+        @property
+        ambient_temperature: Float
+        
+        @property
+        heat_sources: Int
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        updated: Exec
+    
+    @node_data
+    struct ConvectionNode:
+        @property
+        convection_coefficient: Float
+        
+        @property
+        enable_radiation: Bool
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        updated: Exec
+    
+    @node_data
+    struct MHDNode:
+        @property
+        magnetic_field_strength: Vec3
+        
+        @property
+        electric_conductivity: Float
+        
+        @property
+        lorentz_force_gain: Float
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        updated: Exec
+    
+    @node_data
+    struct QuantumFluidNode:
+        @property
+        superfluid_fraction: Float
+        
+        @property
+        healing_length: Float
+        
+        @property
+        vortex_core_size: Float
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        updated: Exec
+    
+    @node_data
+    struct ParticleSystemNode:
+        @property
+        particle_type: String
+        
+        @property
+        particle_count: Int
+        
+        @property
+        drag_coefficient: Float
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        updated: Exec
+    
+    @node_data
+    struct SDFCollisionNode:
+        @property
+        restitution: Float
+        
+        @property
+        friction: Float
+        
+        @property
+        sdf_threshold: Float
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        resolved: Exec
+    
+    @node_data
+    struct RaymarchVisualizationNode:
+        @property
+        exposure: Float
+        
+        @property
+        step_size: Float
+        
+        @property
+        sample_count: Int
+        
+        @property
+        color_a: Vec3
+        
+        @property
+        color_b: Vec3
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        rendered: Exec
+    
+    @node_data
+    struct SchlierenVisualizationNode:
+        @property
+        contrast: Float
+        
+        @property
+        sensitivity: Float
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        rendered: Exec
+    
+    @node_data
+    struct BranchNode:
+        @property
+        condition_tag: String
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        true_branch: Exec
+        
+        @output_pin
+        false_branch: Exec
+    
+    @node_data
+    struct SequenceNode:
+        @property
+        step_count: Int
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        step_1: Exec
+        
+        @output_pin
+        step_2: Exec
+        
+        @output_pin
+        step_3: Exec
+    
+    @node_data
+    struct OutputNode:
+        @property
+        output_name: String
+        
+        @input_pin
+        in_exec: Exec
+    
+    @instance
+    struct FluidPipelineInstance:
+        current_node_id: Int
+        execution_history: Array<Int>
+        is_running: Bool
+        simulation_time: Float
+        
+        fn start_pipeline() -> Bool:
+            current_node_id = 0
+            execution_history = []
+            is_running = true
+            simulation_time = 0.0
+            return true
+        
+        fn advance_to_node(node_id: Int):
+            current_node_id = node_id
+            execution_history.push(node_id)
+        
+        fn stop_pipeline():
+            is_running = false
+        
+        fn update_simulation_time(delta: Float):
+            simulation_time = simulation_time + delta
+
+# ============================================================================
+# FLUID PIPELINE ASSET
+# ============================================================================
+
+@component
+struct FluidPipelineComponent:
+    pipeline_name: String
+    
+    @savegame
+    saved_pipelines: Array<Int>
+    
+    active_pipeline_id: Int
+    is_pipeline_running: Bool
+
+# ============================================================================
+# BLUEPRINT INTEGRATION
+# ============================================================================
+
+@blueprint
+fn execute_fluid_pipeline(pipeline: FluidPipelineGraph, world: HyperFluidWorld) -> Bool:
+    return true
+
+@blueprint
+fn get_pipeline_execution_time(pipeline: FluidPipelineGraph) -> Float:
+    return 0.0
+
+@blueprint
+fn is_pipeline_running(component: FluidPipelineComponent) -> Bool:
+    return component.is_pipeline_running
+
+@blueprint
+fn start_pipeline_execution(component: FluidPipelineComponent, pipeline_id: Int):
+    component.active_pipeline_id = pipeline_id
+    component.is_pipeline_running = true
+
+@blueprint
+fn stop_pipeline_execution(component: FluidPipelineComponent):
+    component.is_pipeline_running = false

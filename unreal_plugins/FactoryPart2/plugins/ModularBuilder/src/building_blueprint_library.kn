@@ -1,0 +1,508 @@
+// ModularBuilder - Blueprint Library
+// Phase 7: Blueprint-callable utility functions
+// Target: ~900 LOC
+
+// ============================================================================
+// PIECE SPAWNING FUNCTIONS
+// ============================================================================
+
+@blueprint
+fn spawn_building_piece(manager: BuildManagerActor, piece_id: String, location: Vec3, rotation: Vec3) -> Int:
+    let transform = Transform {
+        position: location,
+        rotation: rotation,
+        scale: vec3(1.0, 1.0, 1.0)
+    }
+    return manager.Server_SpawnPiece(piece_id, transform, 0)
+
+@blueprint
+fn spawn_piece_with_variant(manager: BuildManagerActor, piece_id: String, location: Vec3, rotation: Vec3, variant: Int) -> Int:
+    let transform = Transform {
+        position: location,
+        rotation: rotation,
+        scale: vec3(1.0, 1.0, 1.0)
+    }
+    return manager.Server_SpawnPiece(piece_id, transform, variant)
+
+@blueprint
+fn spawn_piece_at_snap_point(manager: BuildManagerActor, piece_id: String, target_piece: BuildingPieceActor, snap_index: Int) -> Int:
+    let snap_transform = target_piece.get_snap_point_world_transform(snap_index)
+    return manager.Server_SpawnPiece(piece_id, snap_transform, 0)
+
+@blueprint
+fn spawn_multiple_pieces(manager: BuildManagerActor, piece_ids: Array<String>, locations: Array<Vec3>) -> Array<Int>:
+    let result = []
+    let i = 0
+    while i < len(piece_ids):
+        if i < len(locations):
+            let transform = Transform {
+                position: locations[i],
+                rotation: vec3(0.0, 0.0, 0.0),
+                scale: vec3(1.0, 1.0, 1.0)
+            }
+            let instance_id = manager.Server_SpawnPiece(piece_ids[i], transform, 0)
+            push(result, instance_id)
+        i = i + 1
+    return result
+
+@blueprint
+fn spawn_piece_with_snap_alignment(
+    manager: BuildManagerActor,
+    piece_id: String,
+    source_snap_index: Int,
+    target_piece: BuildingPieceActor,
+    target_snap_index: Int
+) -> Int:
+    let target_transform = target_piece.get_snap_point_world_transform(target_snap_index)
+    return manager.Server_SpawnPiece(piece_id, target_transform, 0)
+
+@blueprint
+fn spawn_piece_grid(manager: BuildManagerActor, piece_id: String, start_location: Vec3, grid_size: Vec3, spacing: Float) -> Array<Int>:
+    let result = []
+    let x = 0
+    while x < int(grid_size.x):
+        let y = 0
+        while y < int(grid_size.y):
+            let z = 0
+            while z < int(grid_size.z):
+                let location = vec3(
+                    start_location.x + float(x) * spacing,
+                    start_location.y + float(y) * spacing,
+                    start_location.z + float(z) * spacing
+                )
+                let transform = Transform {
+                    position: location,
+                    rotation: vec3(0.0, 0.0, 0.0),
+                    scale: vec3(1.0, 1.0, 1.0)
+                }
+                let instance_id = manager.Server_SpawnPiece(piece_id, transform, 0)
+                push(result, instance_id)
+                z = z + 1
+            y = y + 1
+        x = x + 1
+    return result
+
+@blueprint
+fn spawn_piece_circle(manager: BuildManagerActor, piece_id: String, center: Vec3, radius: Float, count: Int) -> Array<Int>:
+    let result = []
+    let i = 0
+    while i < count:
+        let angle = (float(i) / float(count)) * 360.0
+        let rad = angle * 0.0174533
+        let x = center.x + radius * cos(rad)
+        let y = center.y + radius * sin(rad)
+        
+        let location = vec3(x, y, center.z)
+        let transform = Transform {
+            position: location,
+            rotation: vec3(0.0, 0.0, angle),
+            scale: vec3(1.0, 1.0, 1.0)
+        }
+        let instance_id = manager.Server_SpawnPiece(piece_id, transform, 0)
+        push(result, instance_id)
+        i = i + 1
+    return result
+
+@blueprint
+fn spawn_piece_line(manager: BuildManagerActor, piece_id: String, start: Vec3, end: Vec3, count: Int) -> Array<Int>:
+    let result = []
+    let i = 0
+    while i < count:
+        let t = float(i) / float(count - 1)
+        let location = vec3(
+            start.x + (end.x - start.x) * t,
+            start.y + (end.y - start.y) * t,
+            start.z + (end.z - start.z) * t
+        )
+        let transform = Transform {
+            position: location,
+            rotation: vec3(0.0, 0.0, 0.0),
+            scale: vec3(1.0, 1.0, 1.0)
+        }
+        let instance_id = manager.Server_SpawnPiece(piece_id, transform, 0)
+        push(result, instance_id)
+        i = i + 1
+    return result
+
+@blueprint
+fn spawn_random_pieces(manager: BuildManagerActor, piece_ids: Array<String>, bounds_min: Vec3, bounds_max: Vec3, count: Int) -> Array<Int>:
+    let result = []
+    let i = 0
+    while i < count:
+        let random_idx = i % len(piece_ids)
+        let random_x = bounds_min.x + (bounds_max.x - bounds_min.x) * (float(i) / float(count))
+        let random_y = bounds_min.y + (bounds_max.y - bounds_min.y) * (float(i * 7) % 100 / 100.0)
+        let random_z = bounds_min.z + (bounds_max.z - bounds_min.z) * (float(i * 13) % 100 / 100.0)
+        
+        let location = vec3(random_x, random_y, random_z)
+        let transform = Transform {
+            position: location,
+            rotation: vec3(0.0, 0.0, float(i * 37) % 360.0),
+            scale: vec3(1.0, 1.0, 1.0)
+        }
+        let instance_id = manager.Server_SpawnPiece(piece_ids[random_idx], transform, 0)
+        push(result, instance_id)
+        i = i + 1
+    return result
+
+@blueprint
+fn clone_piece(manager: BuildManagerActor, source_piece: BuildingPieceActor, offset: Vec3) -> Int:
+    let source_location = source_piece.GetActorLocation()
+    let new_location = vec3(
+        source_location.x + offset.x,
+        source_location.y + offset.y,
+        source_location.z + offset.z
+    )
+    let source_rotation = source_piece.GetActorRotation()
+    let transform = Transform {
+        position: new_location,
+        rotation: source_rotation,
+        scale: vec3(1.0, 1.0, 1.0)
+    }
+    return manager.Server_SpawnPiece(source_piece.get_piece_id(), transform, source_piece.variant_index)
+
+// ============================================================================
+// PIECE QUERY FUNCTIONS
+// ============================================================================
+
+@blueprint
+fn get_piece_by_instance_id(manager: BuildManagerActor, instance_id: Int) -> PieceInstance:
+    return manager.get_piece_by_id(instance_id)
+
+@blueprint
+fn get_all_pieces_in_building(manager: BuildManagerActor) -> Array<PieceInstance>:
+    return manager.get_all_pieces()
+
+@blueprint
+fn find_pieces_by_category(manager: BuildManagerActor, category: PieceCategory) -> Array<PieceInstance>:
+    return manager.get_pieces_by_category(category)
+
+@blueprint
+fn find_pieces_by_tag(manager: BuildManagerActor, tag: String) -> Array<PieceInstance>:
+    return manager.get_pieces_by_tag(tag)
+
+@blueprint
+fn find_pieces_in_sphere(manager: BuildManagerActor, center: Vec3, radius: Float) -> Array<PieceInstance>:
+    return manager.find_pieces_in_radius(center, radius)
+
+@blueprint
+fn find_pieces_in_box(manager: BuildManagerActor, box_min: Vec3, box_max: Vec3) -> Array<PieceInstance>:
+    let all_pieces = manager.get_all_pieces()
+    let result = []
+    let i = 0
+    while i < len(all_pieces):
+        let pos = all_pieces[i].world_transform.position
+        if pos.x >= box_min.x and pos.x <= box_max.x:
+            if pos.y >= box_min.y and pos.y <= box_max.y:
+                if pos.z >= box_min.z and pos.z <= box_max.z:
+                    push(result, all_pieces[i])
+        i = i + 1
+    return result
+
+@blueprint
+fn find_connected_pieces(piece: BuildingPieceActor) -> Array<Int>:
+    return piece.get_connected_pieces()
+
+@blueprint
+fn find_pieces_by_structural_type(manager: BuildManagerActor, structural_type: StructuralType) -> Array<PieceInstance>:
+    let all_pieces = manager.get_all_pieces()
+    let definitions = manager.piece_definitions
+    return filter_pieces_by_structural_type(all_pieces, definitions, structural_type)
+
+@blueprint
+fn find_foundation_pieces(manager: BuildManagerActor) -> Array<PieceInstance>:
+    return find_pieces_by_structural_type(manager, StructuralType::Foundation)
+
+@blueprint
+fn find_unsupported_pieces(manager: BuildManagerActor) -> Array<PieceInstance>:
+    let all_pieces = manager.get_all_pieces()
+    let result = []
+    let i = 0
+    while i < len(all_pieces):
+        if not all_pieces[i].is_valid:
+            push(result, all_pieces[i])
+        i = i + 1
+    return result
+
+@blueprint
+fn count_pieces_by_category(manager: BuildManagerActor, category: PieceCategory) -> Int:
+    let pieces = find_pieces_by_category(manager, category)
+    return len(pieces)
+
+// ============================================================================
+// SNAP UTILITY FUNCTIONS
+// ============================================================================
+
+@blueprint
+fn find_nearest_snap_for_piece(
+    piece: BuildingPieceActor,
+    all_pieces: Array<PieceInstance>,
+    definitions: Map<String, BuildingPieceDefinition>,
+    search_radius: Float
+) -> SnapQueryResult:
+    let piece_location = piece.GetActorLocation()
+    let piece_def = piece.piece_definition
+    return find_nearest_snap_point(piece_location, piece_def.snap_points, all_pieces, definitions, search_radius)
+
+@blueprint
+fn get_available_snap_points_for_piece(piece: BuildingPieceActor) -> Array<Int>:
+    return piece.get_available_snap_points()
+
+@blueprint
+fn is_snap_point_occupied_on_piece(piece: BuildingPieceActor, snap_index: Int) -> Bool:
+    return piece.is_snap_point_occupied(snap_index)
+
+@blueprint
+fn calculate_snap_transform(
+    source_piece: BuildingPieceActor,
+    source_snap_index: Int,
+    target_piece: BuildingPieceActor,
+    target_snap_index: Int
+) -> Transform:
+    let source_snap = source_piece.piece_definition.snap_points[source_snap_index]
+    let target_snap = target_piece.piece_definition.snap_points[target_snap_index]
+    let source_transform = Transform {
+        position: source_piece.GetActorLocation(),
+        rotation: source_piece.GetActorRotation(),
+        scale: vec3(1.0, 1.0, 1.0)
+    }
+    let target_transform = Transform {
+        position: target_piece.GetActorLocation(),
+        rotation: target_piece.GetActorRotation(),
+        scale: vec3(1.0, 1.0, 1.0)
+    }
+    return calculate_snap_alignment(source_snap, source_transform, target_snap, target_transform)
+
+@blueprint
+fn validate_snap_between_pieces(source_piece: BuildingPieceActor, target_piece: BuildingPieceActor, snap_index: Int) -> Bool:
+    if snap_index < 0 or snap_index >= len(target_piece.piece_definition.snap_points):
+        return false
+    return not target_piece.is_snap_point_occupied(snap_index)
+
+@blueprint
+fn get_snap_indicator_color_for_validation(validation: ValidationResult) -> SnapIndicatorColor:
+    return calculate_snap_indicator_color(validation, false)
+
+@blueprint
+fn connect_pieces_at_snap_points(
+    source_piece: BuildingPieceActor,
+    source_snap_index: Int,
+    target_piece: BuildingPieceActor,
+    target_snap_index: Int
+):
+    source_piece.Server_UpdateSnapConnection(source_snap_index, target_piece.get_instance_id())
+    target_piece.Server_UpdateSnapConnection(target_snap_index, source_piece.get_instance_id())
+
+@blueprint
+fn disconnect_pieces(source_piece: BuildingPieceActor, target_piece_id: Int):
+    let connections = source_piece.snap_connections
+    let i = 0
+    while i < len(connections):
+        if connections[i] == target_piece_id:
+            connections.remove(i)
+            return
+        i = i + 1
+
+@blueprint
+fn get_all_snap_connections_for_piece(piece: BuildingPieceActor) -> Array<Int>:
+    return piece.snap_connections
+
+@blueprint
+fn calculate_snap_distance(source_piece: BuildingPieceActor, target_piece: BuildingPieceActor) -> Float:
+    let source_location = source_piece.GetActorLocation()
+    let target_location = target_piece.GetActorLocation()
+    return calculate_distance_3d(source_location, target_location)
+
+// ============================================================================
+// STRUCTURAL UTILITY FUNCTIONS
+// ============================================================================
+
+@blueprint
+fn validate_structural_support(piece: BuildingPieceActor) -> Bool:
+    return piece.is_supported or piece.is_foundation
+
+@blueprint
+fn calculate_support_chain_for_piece(piece: BuildingPieceActor, all_pieces: Array<BuildingPieceActor>) -> StructuralChain:
+    return piece.get_structural_support_chain()
+
+@blueprint
+fn mark_piece_as_foundation(piece: BuildingPieceActor):
+    piece.is_foundation = true
+    piece.is_supported = true
+
+@blueprint
+fn check_if_piece_is_foundation(piece: BuildingPieceActor) -> Bool:
+    return piece.is_foundation
+
+@blueprint
+fn get_all_supported_pieces(foundation_piece: BuildingPieceActor, all_pieces: Array<BuildingPieceActor>) -> Array<Int>:
+    let chain = foundation_piece.structural_chain
+    return chain.supported_piece_ids
+
+@blueprint
+fn calculate_structural_integrity(manager: BuildManagerActor) -> Float:
+    let all_pieces = manager.get_all_pieces()
+    if len(all_pieces) == 0:
+        return 1.0
+    
+    let supported_count = 0
+    let i = 0
+    while i < len(all_pieces):
+        if all_pieces[i].is_valid:
+            supported_count = supported_count + 1
+        i = i + 1
+    
+    return float(supported_count) / float(len(all_pieces))
+
+@blueprint
+fn find_weak_structural_points(manager: BuildManagerActor) -> Array<Int>:
+    let all_pieces = manager.get_all_pieces()
+    let weak_points = []
+    let i = 0
+    while i < len(all_pieces):
+        if not all_pieces[i].is_valid:
+            push(weak_points, all_pieces[i].instance_id)
+        i = i + 1
+    return weak_points
+
+@blueprint
+fn collapse_unsupported_structure(manager: BuildManagerActor, foundation_piece_id: Int):
+    let piece = manager.get_piece_by_id(foundation_piece_id)
+    let i = 0
+    while i < len(piece.snap_connections):
+        manager.Server_RemovePiece(piece.snap_connections[i], true)
+        i = i + 1
+
+@blueprint
+fn rebuild_structural_chains(manager: BuildManagerActor):
+    manager.rebuild_spatial_grid()
+
+@blueprint
+fn get_max_structural_depth(manager: BuildManagerActor) -> Int:
+    let all_pieces = manager.get_all_pieces()
+    let max_depth = 0
+    let i = 0
+    while i < len(all_pieces):
+        let chain = all_pieces[i].structural_chain
+        if chain.chain_depth > max_depth:
+            max_depth = chain.chain_depth
+        i = i + 1
+    return max_depth
+
+@blueprint
+fn calculate_piece_stability(piece: BuildingPieceActor) -> Float:
+    if piece.is_foundation:
+        return 1.0
+    if not piece.is_supported:
+        return 0.0
+    
+    let chain = piece.structural_chain
+    return chain.support_strength
+
+// ============================================================================
+// BUILDING MANAGEMENT FUNCTIONS
+// ============================================================================
+
+@blueprint
+fn calculate_building_cost(manager: BuildManagerActor) -> Int:
+    let all_pieces = manager.get_all_pieces()
+    return calculate_total_cost(all_pieces, manager.piece_definitions)
+
+@blueprint
+fn calculate_building_bounds(manager: BuildManagerActor) -> BuildingBounds:
+    return manager.calculate_building_bounds()
+
+@blueprint
+fn get_building_statistics(manager: BuildManagerActor) -> BuildingStatistics:
+    return manager.get_building_statistics()
+
+@blueprint
+fn clear_building(manager: BuildManagerActor):
+    manager.clear_all_pieces()
+
+@blueprint
+fn save_building(manager: BuildManagerActor, save_name: String) -> Bool:
+    return manager.Server_SaveBuilding(save_name)
+
+@blueprint
+fn load_building(manager: BuildManagerActor, save_name: String) -> Bool:
+    return manager.Server_LoadBuilding(save_name)
+
+@blueprint
+fn export_building_to_json(manager: BuildManagerActor) -> String:
+    return manager.export_building_to_json()
+
+@blueprint
+fn import_building_from_json(manager: BuildManagerActor, json_data: String) -> Bool:
+    return manager.import_building_from_json(json_data)
+
+@blueprint
+fn undo_last_action(manager: BuildManagerActor):
+    manager.Server_UndoLastAction()
+
+@blueprint
+fn redo_last_action(manager: BuildManagerActor):
+    manager.Server_RedoLastAction()
+
+@blueprint
+fn can_undo_action(manager: BuildManagerActor) -> Bool:
+    return manager.can_undo()
+
+@blueprint
+fn can_redo_action(manager: BuildManagerActor) -> Bool:
+    return manager.can_redo()
+
+@blueprint
+fn set_build_mode(manager: BuildManagerActor, mode: BuildMode):
+    manager.Server_SetBuildMode(mode)
+
+@blueprint
+fn get_current_build_mode(manager: BuildManagerActor) -> BuildMode:
+    return manager.current_build_mode
+
+@blueprint
+fn select_pieces(manager: BuildManagerActor, piece_ids: Array<Int>):
+    manager.Server_SelectPieces(piece_ids)
+
+@blueprint
+fn get_selected_pieces(manager: BuildManagerActor) -> Array<Int>:
+    return manager.selected_pieces
+
+@blueprint
+fn deselect_all_pieces(manager: BuildManagerActor):
+    manager.Server_SelectPieces([])
+
+@blueprint
+fn delete_selected_pieces(manager: BuildManagerActor):
+    let selected = manager.selected_pieces
+    let i = 0
+    while i < len(selected):
+        manager.Server_RemovePiece(selected[i], false)
+        i = i + 1
+
+@blueprint
+fn rotate_selected_pieces(manager: BuildManagerActor, rotation_delta: Vec3):
+    let selected = manager.selected_pieces
+    let i = 0
+    while i < len(selected):
+        manager.Server_RotatePiece(selected[i], rotation_delta)
+        i = i + 1
+
+@blueprint
+fn move_selected_pieces(manager: BuildManagerActor, offset: Vec3):
+    let selected = manager.selected_pieces
+    let i = 0
+    while i < len(selected):
+        let piece = manager.get_piece_by_id(selected[i])
+        let new_position = vec3(
+            piece.world_transform.position.x + offset.x,
+            piece.world_transform.position.y + offset.y,
+            piece.world_transform.position.z + offset.z
+        )
+        let new_transform = Transform {
+            position: new_position,
+            rotation: piece.world_transform.rotation,
+            scale: piece.world_transform.scale
+        }
+        manager.Server_MovePiece(selected[i], new_transform)
+        i = i + 1

@@ -1,0 +1,7 @@
+_builds/
+*.cpp
+*.h
+*.h
+*.cpp
+/intermediate
+intermediate/

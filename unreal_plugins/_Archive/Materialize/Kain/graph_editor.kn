@@ -1,0 +1,389 @@
+# ============================================================================
+# MATERIALIZE - Graph Editor System
+# ============================================================================
+# Visual UEdGraph editor for material compositing
+# - Node-based visual editor with categories
+# - Pin connections for texture flow
+# - Property editing in Details panel
+# - Real-time preview
+# ============================================================================
+
+# ============================================================================
+# GRAPH EDITOR - Material Compositing Visual Editor
+# ============================================================================
+
+@graph_editor
+graph MaterializeGraphEditor:
+    # ========================================================================
+    # BLEND CATEGORY - Texture blending nodes
+    # ========================================================================
+    @node_type
+    @category("Blend")
+    node BlendNode:
+        properties:
+            BlendMode: Int = 0
+            Opacity: Float = 1.0
+        inputs:
+            Base: Texture
+            Blend: Texture
+            Mask: Texture
+        outputs:
+            Result: Texture
+    
+    # ========================================================================
+    # FILTER CATEGORY - Image processing filters
+    # ========================================================================
+    @node_type
+    @category("Filter")
+    node BlurNode:
+        properties:
+            Radius: Float = 1.0
+            Strength: Float = 1.0
+        inputs:
+            Input: Texture
+        outputs:
+            Output: Texture
+    
+    @node_type
+    @category("Filter")
+    node SharpenNode:
+        properties:
+            Strength: Float = 1.0
+        inputs:
+            Input: Texture
+        outputs:
+            Output: Texture
+    
+    @node_type
+    @category("Filter")
+    node EdgeDetectNode:
+        properties:
+            Threshold: Float = 0.5
+        inputs:
+            Input: Texture
+        outputs:
+            Output: Texture
+    
+    @node_type
+    @category("Filter")
+    node EmbossNode:
+        properties:
+            Strength: Float = 1.0
+            Angle: Float = 45.0
+        inputs:
+            Input: Texture
+        outputs:
+            Output: Texture
+    
+    @node_type
+    @category("Filter")
+    node InvertNode:
+        inputs:
+            Input: Texture
+        outputs:
+            Output: Texture
+    
+    @node_type
+    @category("Filter")
+    node GrayscaleNode:
+        inputs:
+            Input: Texture
+        outputs:
+            Output: Texture
+    
+    # ========================================================================
+    # ADJUSTMENT CATEGORY - Color and tone adjustments
+    # ========================================================================
+    @node_type
+    @category("Adjustment")
+    node LevelsNode:
+        properties:
+            InBlack: Float = 0.0
+            InWhite: Float = 1.0
+            Gamma: Float = 1.0
+            OutBlack: Float = 0.0
+            OutWhite: Float = 1.0
+        inputs:
+            Input: Texture
+        outputs:
+            Output: Texture
+    
+    @node_type
+    @category("Adjustment")
+    node CurvesNode:
+        properties:
+            CurvePoints: Array<Float> = []
+        inputs:
+            Input: Texture
+        outputs:
+            Output: Texture
+    
+    @node_type
+    @category("Adjustment")
+    node HSVNode:
+        properties:
+            HueShift: Float = 0.0
+            Saturation: Float = 0.0
+            Value: Float = 0.0
+        inputs:
+            Input: Texture
+        outputs:
+            Output: Texture
+    
+    @node_type
+    @category("Adjustment")
+    node BrightnessContrastNode:
+        properties:
+            Brightness: Float = 0.0
+            Contrast: Float = 0.0
+        inputs:
+            Input: Texture
+        outputs:
+            Output: Texture
+    
+    @node_type
+    @category("Adjustment")
+    node ColorBalanceNode:
+        properties:
+            ShadowsR: Float = 0.0
+            ShadowsG: Float = 0.0
+            ShadowsB: Float = 0.0
+            MidtonesR: Float = 0.0
+            MidtonesG: Float = 0.0
+            MidtonesB: Float = 0.0
+            HighlightsR: Float = 0.0
+            HighlightsG: Float = 0.0
+            HighlightsB: Float = 0.0
+        inputs:
+            Input: Texture
+        outputs:
+            Output: Texture
+    
+    # ========================================================================
+    # MATH CATEGORY - Mathematical operations
+    # ========================================================================
+    @node_type
+    @category("Math")
+    node AddNode:
+        inputs:
+            A: Texture
+            B: Texture
+        outputs:
+            Result: Texture
+    
+    @node_type
+    @category("Math")
+    node SubtractNode:
+        inputs:
+            A: Texture
+            B: Texture
+        outputs:
+            Result: Texture
+    
+    @node_type
+    @category("Math")
+    node MultiplyNode:
+        inputs:
+            A: Texture
+            B: Texture
+        outputs:
+            Result: Texture
+    
+    @node_type
+    @category("Math")
+    node DivideNode:
+        inputs:
+            A: Texture
+            B: Texture
+        outputs:
+            Result: Texture
+    
+    @node_type
+    @category("Math")
+    node LerpNode:
+        properties:
+            Alpha: Float = 0.5
+        inputs:
+            A: Texture
+            B: Texture
+        outputs:
+            Result: Texture
+    
+    @node_type
+    @category("Math")
+    node MinNode:
+        inputs:
+            A: Texture
+            B: Texture
+        outputs:
+            Result: Texture
+    
+    @node_type
+    @category("Math")
+    node MaxNode:
+        inputs:
+            A: Texture
+            B: Texture
+        outputs:
+            Result: Texture
+    
+    @node_type
+    @category("Math")
+    node ClampNode:
+        properties:
+            MinValue: Float = 0.0
+            MaxValue: Float = 1.0
+        inputs:
+            Input: Texture
+        outputs:
+            Output: Texture
+    
+    @node_type
+    @category("Math")
+    node AbsNode:
+        inputs:
+            Input: Texture
+        outputs:
+            Output: Texture
+    
+    @node_type
+    @category("Math")
+    node PowNode:
+        properties:
+            Exponent: Float = 2.0
+        inputs:
+            Input: Texture
+        outputs:
+            Output: Texture
+    
+    # ========================================================================
+    # NOISE CATEGORY - Procedural texture generation
+    # ========================================================================
+    @node_type
+    @category("Noise")
+    node PerlinNoiseNode:
+        properties:
+            Scale: Float = 1.0
+            Octaves: Int = 4
+            Persistence: Float = 0.5
+            Lacunarity: Float = 2.0
+            Seed: Float = 0.0
+        outputs:
+            Output: Texture
+    
+    @node_type
+    @category("Noise")
+    node SimplexNoiseNode:
+        properties:
+            Scale: Float = 1.0
+            Octaves: Int = 4
+            Persistence: Float = 0.5
+            Lacunarity: Float = 2.0
+            Seed: Float = 0.0
+        outputs:
+            Output: Texture
+    
+    @node_type
+    @category("Noise")
+    node VoronoiNoiseNode:
+        properties:
+            Scale: Float = 1.0
+            Randomness: Float = 1.0
+            Seed: Float = 0.0
+        outputs:
+            Output: Texture
+    
+    @node_type
+    @category("Noise")
+    node FBMNoiseNode:
+        properties:
+            Scale: Float = 1.0
+            Octaves: Int = 4
+            Persistence: Float = 0.5
+            Lacunarity: Float = 2.0
+            Seed: Float = 0.0
+        outputs:
+            Output: Texture
+    
+    @node_type
+    @category("Noise")
+    node CellularNoiseNode:
+        properties:
+            Scale: Float = 1.0
+            Jitter: Float = 1.0
+            Seed: Float = 0.0
+        outputs:
+            Output: Texture
+    
+    # ========================================================================
+    # OUTPUT CATEGORY - PBR channel outputs
+    # ========================================================================
+    @node_type
+    @category("Output")
+    node BaseColorOutputNode:
+        inputs:
+            Input: Texture
+    
+    @node_type
+    @category("Output")
+    node NormalOutputNode:
+        inputs:
+            Input: Texture
+    
+    @node_type
+    @category("Output")
+    node RoughnessOutputNode:
+        inputs:
+            Input: Texture
+    
+    @node_type
+    @category("Output")
+    node MetallicOutputNode:
+        inputs:
+            Input: Texture
+    
+    @node_type
+    @category("Output")
+    node AOOutputNode:
+        inputs:
+            Input: Texture
+    
+    @node_type
+    @category("Output")
+    node HeightOutputNode:
+        inputs:
+            Input: Texture
+    
+    @node_type
+    @category("Output")
+    node EmissiveOutputNode:
+        inputs:
+            Input: Texture
+    
+    @node_type
+    @category("Output")
+    node ChannelOutputNode:
+        properties:
+            ChannelName: String = "Custom"
+        inputs:
+            Input: Texture
+    
+    # ========================================================================
+    # UTILITY CATEGORY - Helper nodes
+    # ========================================================================
+    @node_type
+    @category("Utility")
+    node KnotNode:
+        inputs:
+            Input: Texture
+        outputs:
+            Output: Texture
+    
+    # ========================================================================
+    # GRAPH SCHEMA - Validation rules
+    # ========================================================================
+    @schema
+    schema:
+        no_cycles: false
+        max_depth: 100
+

@@ -1,0 +1,664 @@
+// MaterialShowcase - Complete ue5-graphs Feature Showcase
+// This file demonstrates EVERY feature supported by the ue5-graphs crate
+// Theme: Material Graph Editor (texture sampling, blending, PBR, post-processing)
+
+// ============================================================================
+// GRAPH EDITOR DEFINITION
+// ============================================================================
+// Demonstrates: @graph_editor, graph properties, schema rules
+@graph_editor
+@allow_multiple_inputs(false)
+@allow_multiple_outputs(true)
+@allow_cycles(false)
+@grid_snap(16)
+graph MaterialGraph:
+    
+    // ========================================================================
+    // NODE TYPE DEFINITIONS - Input Nodes
+    // ========================================================================
+    
+    // Root node - no inputs, single exec output
+    @node_type
+    @category("Material/Input")
+    @color(0.2, 0.8, 0.2, 1.0)
+    @tooltip("Entry point for material graph execution")
+    node RootNode:
+        outputs:
+            Execute: Exec
+    
+    // Texture sampler node - demonstrates Object pin type
+    @node_type
+    @category("Material/Texture")
+    @color(0.8, 0.4, 0.2, 1.0)
+    @icon("Texture.Icon")
+    @tooltip("Sample a 2D texture at UV coordinates")
+    node TextureSampleNode:
+        inputs:
+            Execute: Exec
+            Texture: Object = "Texture2D"
+            UV: Vec2 = (0.0, 0.0)
+        outputs:
+            Execute: Exec
+            RGB: Vec3
+            Alpha: Float
+    
+    // UV manipulation node - demonstrates Float pins with defaults
+    @node_type
+    @category("Material/UV")
+    @color(0.4, 0.6, 0.8, 1.0)
+    @tooltip("Transform UV coordinates with tiling and offset")
+    node UVTransformNode:
+        inputs:
+            Execute: Exec
+            UV: Vec2 = (0.0, 0.0)
+            Tiling: Vec2 = (1.0, 1.0)
+            Offset: Vec2 = (0.0, 0.0)
+        outputs:
+            Execute: Exec
+            TransformedUV: Vec2
+    
+    // Time node - demonstrates parameter-less node
+    @node_type
+    @category("Material/Input")
+    @color(0.9, 0.9, 0.2, 1.0)
+    @tooltip("Get current game time for animated effects")
+    node TimeNode:
+        inputs:
+            Execute: Exec
+        outputs:
+            Execute: Exec
+            Time: Float
+            DeltaTime: Float
+    
+    // ========================================================================
+    // NODE TYPE DEFINITIONS - Math Nodes
+    // ========================================================================
+    
+    // Vector math node - demonstrates multiple output pins
+    @node_type
+    @category("Material/Math")
+    @color(0.5, 0.5, 0.9, 1.0)
+    @tooltip("Perform vector operations (add, multiply, dot, cross)")
+    node VectorMathNode:
+        inputs:
+            Execute: Exec
+            A: Vec3 = (0.0, 0.0, 0.0)
+            B: Vec3 = (1.0, 1.0, 1.0)
+            Operation: Enum = "VectorOp"
+        outputs:
+            Execute: Exec
+            Result: Vec3
+            Scalar: Float
+    
+    // Lerp node - demonstrates Float interpolation
+    @node_type
+    @category("Material/Math")
+    @color(0.6, 0.4, 0.8, 1.0)
+    @tooltip("Linear interpolation between two values")
+    node LerpNode:
+        inputs:
+            Execute: Exec
+            A: Float = 0.0
+            B: Float = 1.0
+            Alpha: Float = 0.5
+        outputs:
+            Execute: Exec
+            Result: Float
+    
+    // Clamp node - demonstrates range constraints
+    @node_type
+    @category("Material/Math")
+    @color(0.7, 0.5, 0.3, 1.0)
+    @tooltip("Clamp value between min and max")
+    node ClampNode:
+        inputs:
+            Execute: Exec
+            Value: Float = 0.5
+            Min: Float = 0.0
+            Max: Float = 1.0
+        outputs:
+            Execute: Exec
+            Result: Float
+    
+    // ========================================================================
+    // NODE TYPE DEFINITIONS - Blending Nodes
+    // ========================================================================
+    
+    // Color blend node - demonstrates Enum pin type
+    @node_type
+    @category("Material/Blend")
+    @color(0.9, 0.3, 0.5, 1.0)
+    @tooltip("Blend two colors using various blend modes")
+    node ColorBlendNode:
+        inputs:
+            Execute: Exec
+            Base: Vec3 = (0.5, 0.5, 0.5)
+            Blend: Vec3 = (0.5, 0.5, 0.5)
+            Mode: Enum = "BlendMode"
+            Opacity: Float = 1.0
+        outputs:
+            Execute: Exec
+            Result: Vec3
+    
+    // Alpha blend node - demonstrates Bool pin type
+    @node_type
+    @category("Material/Blend")
+    @color(0.8, 0.5, 0.6, 1.0)
+    @tooltip("Blend with alpha transparency")
+    node AlphaBlendNode:
+        inputs:
+            Execute: Exec
+            Base: Vec3 = (0.0, 0.0, 0.0)
+            Overlay: Vec3 = (1.0, 1.0, 1.0)
+            Alpha: Float = 0.5
+            Premultiply: Bool = false
+        outputs:
+            Execute: Exec
+            Result: Vec3
+    
+    // ========================================================================
+    // NODE TYPE DEFINITIONS - PBR Nodes
+    // ========================================================================
+    
+    // PBR material node - demonstrates Struct pin type
+    @node_type
+    @category("Material/PBR")
+    @color(0.3, 0.7, 0.9, 1.0)
+    @tooltip("Physically-based rendering material properties")
+    node PBRMaterialNode:
+        inputs:
+            Execute: Exec
+            BaseColor: Vec3 = (0.5, 0.5, 0.5)
+            Metallic: Float = 0.0
+            Roughness: Float = 0.5
+            Normal: Vec3 = (0.0, 0.0, 1.0)
+            Emissive: Vec3 = (0.0, 0.0, 0.0)
+            AO: Float = 1.0
+        outputs:
+            Execute: Exec
+            Material: Struct = "MaterialData"
+    
+    // Fresnel node - demonstrates advanced math
+    @node_type
+    @category("Material/PBR")
+    @color(0.5, 0.8, 0.7, 1.0)
+    @tooltip("Calculate Fresnel effect for rim lighting")
+    node FresnelNode:
+        inputs:
+            Execute: Exec
+            Normal: Vec3 = (0.0, 0.0, 1.0)
+            ViewDirection: Vec3 = (0.0, 0.0, 1.0)
+            Power: Float = 5.0
+        outputs:
+            Execute: Exec
+            Fresnel: Float
+    
+    // ========================================================================
+    // NODE TYPE DEFINITIONS - Conditional Nodes
+    // ========================================================================
+    
+    // Branch node - demonstrates multiple exec outputs
+    @node_type
+    @category("Material/Flow")
+    @color(0.9, 0.7, 0.2, 1.0)
+    @tooltip("Branch execution based on condition")
+    node BranchNode:
+        inputs:
+            Execute: Exec
+            Condition: Bool = true
+        outputs:
+            True: Exec
+            False: Exec
+    
+    // Compare node - demonstrates comparison operations
+    @node_type
+    @category("Material/Flow")
+    @color(0.8, 0.6, 0.3, 1.0)
+    @tooltip("Compare two values and output boolean result")
+    node CompareNode:
+        inputs:
+            Execute: Exec
+            A: Float = 0.0
+            B: Float = 0.0
+            Operation: Enum = "CompareOp"
+        outputs:
+            Execute: Exec
+            Result: Bool
+    
+    // ========================================================================
+    // NODE TYPE DEFINITIONS - Array Nodes
+    // ========================================================================
+    
+    // Array sample node - demonstrates array pin types
+    @node_type
+    @category("Material/Array")
+    @color(0.6, 0.3, 0.8, 1.0)
+    @tooltip("Sample from an array of textures")
+    node ArraySampleNode:
+        inputs:
+            Execute: Exec
+            Textures: Array<Object> = []
+            Index: Int = 0
+        outputs:
+            Execute: Exec
+            Texture: Object
+    
+    // Array blend node - demonstrates array processing
+    @node_type
+    @category("Material/Array")
+    @color(0.7, 0.4, 0.7, 1.0)
+    @tooltip("Blend multiple colors from array")
+    node ArrayBlendNode:
+        inputs:
+            Execute: Exec
+            Colors: Array<Vec3> = []
+            Weights: Array<Float> = []
+        outputs:
+            Execute: Exec
+            Result: Vec3
+    
+    // ========================================================================
+    // NODE TYPE DEFINITIONS - Wildcard Nodes
+    // ========================================================================
+    
+    // Passthrough node - demonstrates Wildcard pin type
+    @node_type
+    @category("Material/Utility")
+    @color(0.5, 0.5, 0.5, 1.0)
+    @tooltip("Pass any value through unchanged")
+    node PassthroughNode:
+        inputs:
+            Execute: Exec
+            Input: Wildcard
+        outputs:
+            Execute: Exec
+            Output: Wildcard
+    
+    // Debug node - demonstrates String pin type
+    @node_type
+    @category("Material/Utility")
+    @color(0.9, 0.5, 0.2, 1.0)
+    @tooltip("Debug print value with label")
+    node DebugNode:
+        inputs:
+            Execute: Exec
+            Label: String = "Debug"
+            Value: Wildcard
+        outputs:
+            Execute: Exec
+    
+    // ========================================================================
+    // NODE TYPE DEFINITIONS - Output Nodes
+    // ========================================================================
+    
+    // Material output node - demonstrates final output
+    @node_type
+    @category("Material/Output")
+    @color(0.9, 0.2, 0.2, 1.0)
+    @tooltip("Final material output node")
+    node MaterialOutputNode:
+        inputs:
+            Execute: Exec
+            Material: Struct = "MaterialData"
+            Opacity: Float = 1.0
+            OpacityMask: Float = 1.0
+        outputs:
+            // No outputs - terminal node
+    
+    // Post-process output node - demonstrates alternative output
+    @node_type
+    @category("Material/Output")
+    @color(0.8, 0.3, 0.3, 1.0)
+    @tooltip("Post-process effect output")
+    node PostProcessOutputNode:
+        inputs:
+            Execute: Exec
+            Color: Vec3 = (0.0, 0.0, 0.0)
+            Intensity: Float = 1.0
+        outputs:
+            // No outputs - terminal node
+    
+    // ========================================================================
+    // NODE TYPE DEFINITIONS - Advanced Nodes
+    // ========================================================================
+    
+    // Custom HLSL node - demonstrates execution logic
+    @node_type
+    @category("Material/Advanced")
+    @color(0.3, 0.3, 0.9, 1.0)
+    @tooltip("Execute custom HLSL shader code")
+    @execution_logic("Execute custom HLSL code with input parameters")
+    node CustomHLSLNode:
+        inputs:
+            Execute: Exec
+            Code: String = "return Input;"
+            Input: Vec3 = (0.0, 0.0, 0.0)
+        outputs:
+            Execute: Exec
+            Output: Vec3
+    
+    // Noise generator node - demonstrates procedural generation
+    @node_type
+    @category("Material/Procedural")
+    @color(0.4, 0.8, 0.5, 1.0)
+    @tooltip("Generate procedural noise patterns")
+    @execution_logic("Generate Perlin/Simplex/Voronoi noise")
+    node NoiseNode:
+        inputs:
+            Execute: Exec
+            UV: Vec2 = (0.0, 0.0)
+            Scale: Float = 1.0
+            Octaves: Int = 4
+            Type: Enum = "NoiseType"
+        outputs:
+            Execute: Exec
+            Noise: Float
+            Gradient: Vec2
+    
+    // Gradient node - demonstrates color ramps
+    @node_type
+    @category("Material/Procedural")
+    @color(0.6, 0.7, 0.4, 1.0)
+    @tooltip("Sample color from gradient ramp")
+    node GradientNode:
+        inputs:
+            Execute: Exec
+            Position: Float = 0.5
+            Colors: Array<Vec3> = []
+            Positions: Array<Float> = []
+        outputs:
+            Execute: Exec
+            Color: Vec3
+    
+    // ========================================================================
+    // GRAPH SCHEMA DEFINITION
+    // ========================================================================
+    // Demonstrates: connection rules, validation rules, context actions
+    
+    schema MaterialGraphSchema:
+        // Connection rules
+        connection_rules:
+            // Exec pins can only connect to Exec pins
+            rule ExecToExec:
+                from: Exec
+                to: Exec
+                allowed: true
+            
+            // Float can connect to Float
+            rule FloatToFloat:
+                from: Float
+                to: Float
+                allowed: true
+            
+            // Vec3 can connect to Vec3
+            rule Vec3ToVec3:
+                from: Vec3
+                to: Vec3
+                allowed: true
+            
+            // Wildcard can connect to anything
+            rule WildcardToAny:
+                from: Wildcard
+                to: Wildcard
+                allowed: true
+            
+            // Disallow Exec to non-Exec
+            rule ExecToNonExec:
+                from: Exec
+                to: Float
+                allowed: false
+                error: "Cannot connect execution pin to data pin"
+        
+        // Validation rules
+        validation_rules:
+            // Ensure at least one output node
+            rule RequireOutputNode:
+                condition: "graph.nodes.any(n => n.type == 'MaterialOutputNode' || n.type == 'PostProcessOutputNode')"
+                message: "Material graph must have at least one output node"
+            
+            // Ensure no cycles in execution flow
+            rule NoCycles:
+                condition: "!graph.has_cycles()"
+                message: "Material graph cannot contain cycles"
+            
+            // Ensure all texture nodes have valid textures
+            rule ValidTextures:
+                condition: "graph.nodes.filter(n => n.type == 'TextureSampleNode').all(n => n.inputs['Texture'].is_valid())"
+                message: "All texture sample nodes must have valid texture inputs"
+        
+        // Context menu actions
+        context_actions:
+            action CreateTextureNode:
+                category: "Material/Texture"
+                label: "Add Texture Sample"
+                tooltip: "Create a new texture sample node"
+            
+            action CreateMathNode:
+                category: "Material/Math"
+                label: "Add Math Operation"
+                tooltip: "Create a new math operation node"
+            
+            action CreateBlendNode:
+                category: "Material/Blend"
+                label: "Add Blend Node"
+                tooltip: "Create a new color blend node"
+
+// ============================================================================
+// GRAPH RUNTIME DEFINITION
+// ============================================================================
+// Demonstrates: @graph_runtime, node data, graph instance, execution
+
+@graph_runtime
+graph MaterialGraphRuntime:
+    
+    // ========================================================================
+    // NODE DATA DEFINITIONS
+    // ========================================================================
+    // Demonstrates: @node_data, properties, input/output pins, execute logic
+    
+    @node_data
+    node TextureSampleData:
+        category: "Material/Texture"
+        
+        // Properties (UPROPERTY fields)
+        properties:
+            TextureAsset: Object = "Texture2D"
+            SamplerType: Enum = "SamplerType"
+            MipBias: Float = 0.0
+        
+        // Input pins
+        @input_pin
+        UV: Vec2
+        
+        // Output pins
+        @output_pin
+        RGB: Vec3
+        
+        @output_pin
+        Alpha: Float
+        
+        // Execution logic
+        execute:
+            // Sample texture at UV coordinates
+            let sample = texture_sample(TextureAsset, UV)
+            RGB = sample.rgb
+            Alpha = sample.a
+    
+    @node_data
+    node ColorBlendData:
+        category: "Material/Blend"
+        
+        properties:
+            BlendMode: Enum = "BlendMode"
+            @slider(0.0, 1.0)
+            DefaultOpacity: Float = 1.0
+        
+        @input_pin
+        Base: Vec3
+        
+        @input_pin
+        Blend: Vec3
+        
+        @input_pin
+        Opacity: Float
+        
+        @output_pin
+        Result: Vec3
+        
+        execute:
+            // Blend colors based on mode
+            match BlendMode:
+                "Multiply" => Result = Base * Blend
+                "Add" => Result = Base + Blend
+                "Overlay" => Result = overlay_blend(Base, Blend)
+                _ => Result = lerp(Base, Blend, Opacity)
+    
+    @node_data
+    node BranchData:
+        category: "Material/Flow"
+        
+        @input_pin
+        Condition: Bool
+        
+        @output_pin
+        TruePin: Exec
+        
+        @output_pin
+        FalsePin: Exec
+        
+        execute:
+            // Branch based on condition
+            if Condition:
+                return TruePin
+            else:
+                return FalsePin
+    
+    @node_data
+    node NoiseData:
+        category: "Material/Procedural"
+        
+        properties:
+            NoiseType: Enum = "NoiseType"
+            @slider(1, 8)
+            Octaves: Int = 4
+            Persistence: Float = 0.5
+        
+        @input_pin
+        UV: Vec2
+        
+        @input_pin
+        Scale: Float
+        
+        @output_pin
+        Noise: Float
+        
+        @output_pin
+        Gradient: Vec2
+        
+        execute:
+            // Generate noise
+            match NoiseType:
+                "Perlin" => Noise = perlin_noise(UV * Scale, Octaves)
+                "Simplex" => Noise = simplex_noise(UV * Scale, Octaves)
+                "Voronoi" => Noise = voronoi_noise(UV * Scale)
+                _ => Noise = 0.0
+            
+            Gradient = noise_gradient(UV * Scale)
+    
+    // ========================================================================
+    // GRAPH INSTANCE DEFINITION
+    // ========================================================================
+    // Demonstrates: state fields, methods, replication, savegame
+    
+    @instance
+    struct MaterialGraphInstance:
+        // State fields
+        @replicated
+        current_node: NodeData
+        
+        @replicated
+        execution_count: Int = 0
+        
+        @savegame
+        last_output_color: Vec3 = (0.0, 0.0, 0.0)
+        
+        @transient
+        debug_enabled: Bool = false
+        
+        // Instance methods
+        @blueprint_callable
+        fn reset_graph() -> Bool:
+            current_node = null
+            execution_count = 0
+            return true
+        
+        @blueprint_callable
+        fn execute_graph() -> Bool:
+            if current_node == null:
+                return false
+            
+            execution_count = execution_count + 1
+            
+            // Execute nodes until terminal node
+            while current_node != null:
+                current_node = current_node.execute(self)
+            
+            return true
+        
+        @blueprint_pure
+        fn get_execution_count() -> Int:
+            return execution_count
+        
+        @blueprint_callable
+        fn set_debug_mode(enabled: Bool):
+            debug_enabled = enabled
+        
+        @blueprint_event
+        fn on_graph_complete():
+            println("Material graph execution complete!")
+    
+    // ========================================================================
+    // GRAPH PROPERTIES
+    // ========================================================================
+    // Demonstrates: execution mode, depth limits, debug logging
+    
+    properties:
+        execution_mode: Sequential
+        max_execution_depth: 100
+        enable_debug_logging: true
+        allow_parallel_execution: false
+
+// ============================================================================
+// FEATURE SUMMARY
+// ============================================================================
+// This file demonstrates ALL ue5-graphs features:
+//
+// GRAPH EDITOR:
+// - @graph_editor attribute
+// - Graph properties (allow_cycles, grid_snap, etc.)
+// - Multiple node types with categories
+// - Pin types: Exec, Bool, Int, Float, String, Vec2, Vec3, Object, Struct, Enum, Wildcard, Array
+// - Node attributes: @category, @color, @icon, @tooltip, @execution_logic
+// - Pin defaults and tooltips
+// - Schema with connection rules, validation rules, context actions
+//
+// GRAPH RUNTIME:
+// - @graph_runtime attribute
+// - @node_data with properties, input/output pins, execute logic
+// - @input_pin and @output_pin attributes
+// - @instance with state fields and methods
+// - Property specifiers: @replicated, @savegame, @transient
+// - Method specifiers: @blueprint_callable, @blueprint_pure, @blueprint_event
+// - Execution modes: Sequential, Parallel, EventDriven
+// - Graph properties: max_execution_depth, enable_debug_logging
+//
+// GENERATED CODE:
+// - UEdGraphNode subclasses (factory_generator.rs)
+// - UEdGraphSchema with validation (factory_generator.rs)
+// - UEdGraph class (factory_generator.rs)
+// - NodeData classes (node_data_gen.rs)
+// - GraphInstance class (instance_gen.rs)
+// - PinData classes (node_data_gen.rs)
+// - Binary .uasset files (binary_serializer.rs)
+//
+// This is the COMPLETE feature set of ue5-graphs!

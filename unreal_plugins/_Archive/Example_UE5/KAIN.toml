@@ -1,0 +1,15 @@
+[package]
+name = "UE5Example"
+version = "1.0.0"
+authors = ["KAIN Research Labs"]
+description = "Unreal Engine 5 Core Example - Demonstrates actors, components, structs, enums, replication, RPCs, and Blueprint integration"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "UE5Example"
+plugin_dir = "."
+sources = ["ue5_test.kn"]
+shaders = []
+modular_output = true

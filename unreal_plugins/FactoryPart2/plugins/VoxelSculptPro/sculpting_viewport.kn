@@ -1,0 +1,593 @@
+# Sculpting Viewport
+# 3D viewport for real-time mesh sculpting with brush preview and interaction
+
+# ============================================================================
+# Core Viewport Data Structures
+# ============================================================================
+
+struct ViewportCamera:
+    position: Vec3
+    target: Vec3
+    distance: Float
+    yaw: Float
+    pitch: Float
+    fov: Float
+    near_plane: Float
+    far_plane: Float
+
+struct MouseState:
+    position: Vec2
+    delta: Vec2
+    left_button_down: Bool
+    right_button_down: Bool
+    middle_button_down: Bool
+    wheel_delta: Float
+    is_dragging: Bool
+    drag_start: Vec2
+
+struct BrushCursor:
+    world_position: Vec3
+    surface_normal: Vec3
+    radius: Float
+    strength: Float
+    is_visible: Bool
+    hit_valid: Bool
+    hit_distance: Float
+
+struct ViewportSettings:
+    show_wireframe: Bool
+    show_normals: Bool
+    show_brush_cursor: Bool
+    show_symmetry_plane: Bool
+    enable_grid: Bool
+    grid_size: Float
+    background_color: Vec3
+    lighting_intensity: Float
+
+# ============================================================================
+# Viewport Widget Implementation
+# ============================================================================
+
+@viewport
+struct SculptingViewport:
+    @scene_actor
+    sculpting_actor: SculptingActor
+    
+    @camera
+    camera_position: Vec3 = vec3(0.0, -500.0, 200.0)
+    camera_rotation: Vec3 = vec3(-15.0, 0.0, 0.0)
+    
+    state camera: ViewportCamera = ViewportCamera()
+    state mouse_state: MouseState = MouseState()
+    state brush_cursor: BrushCursor = BrushCursor()
+    state viewport_settings: ViewportSettings = ViewportSettings()
+    
+    state is_initialized: Bool = false
+    state last_frame_time: Float = 0.0
+    state delta_time: Float = 0.0
+    
+    state orbit_sensitivity: Float = 0.5
+    state pan_sensitivity: Float = 1.0
+    state zoom_sensitivity: Float = 10.0
+    
+    state grid_line_count: Int = 20
+    state normal_visualization_length: Float = 10.0
+    
+    on Initialize():
+        camera.position = vec3(0.0, -500.0, 200.0)
+        camera.target = vec3(0.0, 0.0, 0.0)
+        camera.distance = 500.0
+        camera.yaw = 0.0
+        camera.pitch = -15.0
+        camera.fov = 90.0
+        camera.near_plane = 1.0
+        camera.far_plane = 10000.0
+        
+        mouse_state.position = vec2(0.0, 0.0)
+        mouse_state.delta = vec2(0.0, 0.0)
+        mouse_state.left_button_down = false
+        mouse_state.right_button_down = false
+        mouse_state.middle_button_down = false
+        mouse_state.wheel_delta = 0.0
+        mouse_state.is_dragging = false
+        mouse_state.drag_start = vec2(0.0, 0.0)
+        
+        brush_cursor.world_position = vec3(0.0, 0.0, 0.0)
+        brush_cursor.surface_normal = vec3(0.0, 0.0, 1.0)
+        brush_cursor.radius = 50.0
+        brush_cursor.strength = 0.5
+        brush_cursor.is_visible = false
+        brush_cursor.hit_valid = false
+        brush_cursor.hit_distance = 0.0
+        
+        viewport_settings.show_wireframe = false
+        viewport_settings.show_normals = false
+        viewport_settings.show_brush_cursor = true
+        viewport_settings.show_symmetry_plane = false
+        viewport_settings.enable_grid = true
+        viewport_settings.grid_size = 100.0
+        viewport_settings.background_color = vec3(0.2, 0.2, 0.25)
+        viewport_settings.lighting_intensity = 1.0
+        
+        is_initialized = true
+        println("SculptingViewport initialized")
+    
+    on Tick(delta: Float):
+        if not is_initialized:
+            Initialize()
+        
+        delta_time = delta
+        last_frame_time = last_frame_time + delta
+        
+        UpdateCamera(delta)
+        UpdateBrushCursor()
+        
+        if mouse_state.left_button_down and brush_cursor.hit_valid:
+            ApplySculptingBrush()
+    
+    on Draw():
+        if viewport_settings.enable_grid:
+            DrawGrid()
+        
+        if viewport_settings.show_symmetry_plane:
+            DrawSymmetryPlane()
+        
+        if viewport_settings.show_wireframe:
+            DrawWireframe()
+        
+        if viewport_settings.show_normals:
+            DrawNormals()
+        
+        if viewport_settings.show_brush_cursor and brush_cursor.is_visible:
+            DrawBrushCursor()
+    
+    fn UpdateCamera(delta: Float):
+        if mouse_state.right_button_down:
+            let yaw_delta = mouse_state.delta.x * orbit_sensitivity
+            let pitch_delta = mouse_state.delta.y * orbit_sensitivity
+            
+            camera.yaw = camera.yaw + yaw_delta
+            camera.pitch = clamp_float(camera.pitch + pitch_delta, -89.0, 89.0)
+            
+            let yaw_rad = camera.yaw * 3.14159 / 180.0
+            let pitch_rad = camera.pitch * 3.14159 / 180.0
+            
+            let cos_pitch = cos(pitch_rad)
+            let sin_pitch = sin(pitch_rad)
+            let cos_yaw = cos(yaw_rad)
+            let sin_yaw = sin(yaw_rad)
+            
+            let offset_x = camera.distance * cos_pitch * sin_yaw
+            let offset_y = camera.distance * cos_pitch * cos_yaw
+            let offset_z = camera.distance * sin_pitch
+            
+            camera.position = camera.target + vec3(offset_x, offset_y, offset_z)
+        
+        if mouse_state.middle_button_down:
+            let right_vector = GetCameraRightVector()
+            let up_vector = GetCameraUpVector()
+            
+            let pan_x = mouse_state.delta.x * pan_sensitivity
+            let pan_y = mouse_state.delta.y * pan_sensitivity
+            
+            let pan_offset = right_vector * pan_x + up_vector * pan_y
+            
+            camera.position = camera.position + pan_offset
+            camera.target = camera.target + pan_offset
+        
+        if mouse_state.wheel_delta != 0.0:
+            let zoom_amount = mouse_state.wheel_delta * zoom_sensitivity
+            camera.distance = clamp_float(camera.distance - zoom_amount, 10.0, 5000.0)
+            
+            let direction = normalize(camera.target - camera.position)
+            camera.position = camera.target - direction * camera.distance
+            
+            mouse_state.wheel_delta = 0.0
+    
+    fn UpdateBrushCursor():
+        let ray_origin = camera.position
+        let ray_direction = GetMouseRayDirection()
+        
+        let hit_result = RaycastToMesh(ray_origin, ray_direction)
+        
+        if hit_result.hit_valid:
+            brush_cursor.world_position = hit_result.hit_position
+            brush_cursor.surface_normal = hit_result.hit_normal
+            brush_cursor.hit_valid = true
+            brush_cursor.hit_distance = hit_result.hit_distance
+            brush_cursor.is_visible = true
+        else:
+            brush_cursor.hit_valid = false
+            brush_cursor.is_visible = false
+    
+    fn ApplySculptingBrush():
+        if sculpting_actor != null:
+            sculpting_actor.Server_ApplyBrush(
+                brush_cursor.world_position,
+                brush_cursor.surface_normal,
+                delta_time
+            )
+    
+    fn DrawGrid():
+        let half_count = grid_line_count / 2
+        let grid_extent = viewport_settings.grid_size * half_count
+        
+        let i = -half_count
+        while i <= half_count:
+            let offset = i * viewport_settings.grid_size
+            
+            let start_x = vec3(offset, -grid_extent, 0.0)
+            let end_x = vec3(offset, grid_extent, 0.0)
+            DrawDebugLine(start_x, end_x, vec3(0.3, 0.3, 0.3), 1.0)
+            
+            let start_y = vec3(-grid_extent, offset, 0.0)
+            let end_y = vec3(grid_extent, offset, 0.0)
+            DrawDebugLine(start_y, end_y, vec3(0.3, 0.3, 0.3), 1.0)
+            
+            i = i + 1
+        
+        DrawDebugLine(vec3(-grid_extent, 0.0, 0.0), vec3(grid_extent, 0.0, 0.0), vec3(1.0, 0.0, 0.0), 2.0)
+        DrawDebugLine(vec3(0.0, -grid_extent, 0.0), vec3(0.0, grid_extent, 0.0), vec3(0.0, 1.0, 0.0), 2.0)
+    
+    fn DrawSymmetryPlane():
+        if sculpting_actor == null:
+            return
+        
+        let symmetry = sculpting_actor.symmetry_settings
+        
+        if symmetry.x_axis:
+            DrawSymmetryPlaneAxis(vec3(1.0, 0.0, 0.0), symmetry.mirror_plane_offset)
+        
+        if symmetry.y_axis:
+            DrawSymmetryPlaneAxis(vec3(0.0, 1.0, 0.0), symmetry.mirror_plane_offset)
+        
+        if symmetry.z_axis:
+            DrawSymmetryPlaneAxis(vec3(0.0, 0.0, 1.0), symmetry.mirror_plane_offset)
+    
+    fn DrawSymmetryPlaneAxis(axis: Vec3, offset: Vec3):
+        let plane_size = 500.0
+        let plane_color = vec3(1.0, 1.0, 0.0)
+        let plane_alpha = 0.3
+        
+        let tangent1 = vec3(0.0, 0.0, 0.0)
+        let tangent2 = vec3(0.0, 0.0, 0.0)
+        
+        if abs(axis.x) > 0.5:
+            tangent1 = vec3(0.0, 1.0, 0.0)
+            tangent2 = vec3(0.0, 0.0, 1.0)
+        else:
+            if abs(axis.y) > 0.5:
+                tangent1 = vec3(1.0, 0.0, 0.0)
+                tangent2 = vec3(0.0, 0.0, 1.0)
+            else:
+                tangent1 = vec3(1.0, 0.0, 0.0)
+                tangent2 = vec3(0.0, 1.0, 0.0)
+        
+        let corner1 = offset + tangent1 * plane_size + tangent2 * plane_size
+        let corner2 = offset - tangent1 * plane_size + tangent2 * plane_size
+        let corner3 = offset - tangent1 * plane_size - tangent2 * plane_size
+        let corner4 = offset + tangent1 * plane_size - tangent2 * plane_size
+        
+        DrawDebugLine(corner1, corner2, plane_color, 2.0)
+        DrawDebugLine(corner2, corner3, plane_color, 2.0)
+        DrawDebugLine(corner3, corner4, plane_color, 2.0)
+        DrawDebugLine(corner4, corner1, plane_color, 2.0)
+        
+        DrawDebugLine(corner1, corner3, plane_color, 1.0)
+        DrawDebugLine(corner2, corner4, plane_color, 1.0)
+    
+    fn DrawWireframe():
+        if sculpting_actor == null:
+            return
+        
+        let mesh = sculpting_actor.current_mesh
+        let wireframe_color = vec3(0.0, 1.0, 1.0)
+        
+        let i = 0
+        while i < len(mesh.triangles):
+            let tri = mesh.triangles[i]
+            
+            let v0 = mesh.vertices[tri.vertex_indices[0]].position
+            let v1 = mesh.vertices[tri.vertex_indices[1]].position
+            let v2 = mesh.vertices[tri.vertex_indices[2]].position
+            
+            DrawDebugLine(v0, v1, wireframe_color, 1.0)
+            DrawDebugLine(v1, v2, wireframe_color, 1.0)
+            DrawDebugLine(v2, v0, wireframe_color, 1.0)
+            
+            i = i + 1
+    
+    fn DrawNormals():
+        if sculpting_actor == null:
+            return
+        
+        let mesh = sculpting_actor.current_mesh
+        let normal_color = vec3(0.0, 0.5, 1.0)
+        
+        let i = 0
+        while i < len(mesh.vertices):
+            let vertex = mesh.vertices[i]
+            let start_pos = vertex.position
+            let end_pos = start_pos + vertex.normal * normal_visualization_length
+            
+            DrawDebugLine(start_pos, end_pos, normal_color, 1.0)
+            
+            i = i + 1
+    
+    fn DrawBrushCursor():
+        let cursor_color = vec3(1.0, 0.5, 0.0)
+        let inner_radius = brush_cursor.radius * 0.9
+        let outer_radius = brush_cursor.radius
+        
+        let segment_count = 32
+        let angle_step = 360.0 / segment_count
+        
+        let i = 0
+        while i < segment_count:
+            let angle1 = i * angle_step * 3.14159 / 180.0
+            let angle2 = (i + 1) * angle_step * 3.14159 / 180.0
+            
+            let tangent1 = GetBrushCursorTangent1()
+            let tangent2 = GetBrushCursorTangent2()
+            
+            let p1 = brush_cursor.world_position + 
+                     tangent1 * (cos(angle1) * outer_radius) + 
+                     tangent2 * (sin(angle1) * outer_radius)
+            
+            let p2 = brush_cursor.world_position + 
+                     tangent1 * (cos(angle2) * outer_radius) + 
+                     tangent2 * (sin(angle2) * outer_radius)
+            
+            DrawDebugLine(p1, p2, cursor_color, 2.0)
+            
+            i = i + 1
+        
+        let normal_end = brush_cursor.world_position + brush_cursor.surface_normal * 20.0
+        DrawDebugLine(brush_cursor.world_position, normal_end, vec3(0.0, 1.0, 0.0), 2.0)
+    
+    fn GetCameraRightVector() -> Vec3:
+        let yaw_rad = camera.yaw * 3.14159 / 180.0
+        let right_x = cos(yaw_rad)
+        let right_y = -sin(yaw_rad)
+        return vec3(right_x, right_y, 0.0)
+    
+    fn GetCameraUpVector() -> Vec3:
+        let yaw_rad = camera.yaw * 3.14159 / 180.0
+        let pitch_rad = camera.pitch * 3.14159 / 180.0
+        
+        let forward_x = sin(yaw_rad) * cos(pitch_rad)
+        let forward_y = cos(yaw_rad) * cos(pitch_rad)
+        let forward_z = sin(pitch_rad)
+        
+        let right = GetCameraRightVector()
+        let forward = vec3(forward_x, forward_y, forward_z)
+        
+        return cross(forward, right)
+    
+    fn GetMouseRayDirection() -> Vec3:
+        let viewport_width = 1920.0
+        let viewport_height = 1080.0
+        
+        let ndc_x = (mouse_state.position.x / viewport_width) * 2.0 - 1.0
+        let ndc_y = 1.0 - (mouse_state.position.y / viewport_height) * 2.0
+        
+        let aspect_ratio = viewport_width / viewport_height
+        let tan_half_fov = tan(camera.fov * 0.5 * 3.14159 / 180.0)
+        
+        let camera_space_x = ndc_x * aspect_ratio * tan_half_fov
+        let camera_space_y = ndc_y * tan_half_fov
+        
+        let forward = normalize(camera.target - camera.position)
+        let right = GetCameraRightVector()
+        let up = GetCameraUpVector()
+        
+        let ray_direction = forward + right * camera_space_x + up * camera_space_y
+        return normalize(ray_direction)
+    
+    fn GetBrushCursorTangent1() -> Vec3:
+        let normal = brush_cursor.surface_normal
+        
+        let arbitrary = vec3(1.0, 0.0, 0.0)
+        if abs(dot(normal, arbitrary)) > 0.9:
+            arbitrary = vec3(0.0, 1.0, 0.0)
+        
+        return normalize(cross(normal, arbitrary))
+    
+    fn GetBrushCursorTangent2() -> Vec3:
+        let normal = brush_cursor.surface_normal
+        let tangent1 = GetBrushCursorTangent1()
+        return normalize(cross(normal, tangent1))
+    
+    fn RaycastToMesh(origin: Vec3, direction: Vec3) -> RaycastResult:
+        let result = RaycastResult()
+        result.hit_valid = false
+        result.hit_position = vec3(0.0, 0.0, 0.0)
+        result.hit_normal = vec3(0.0, 0.0, 1.0)
+        result.hit_distance = 0.0
+        
+        if sculpting_actor == null:
+            return result
+        
+        let mesh = sculpting_actor.current_mesh
+        let closest_distance = 999999.0
+        let found_hit = false
+        
+        let i = 0
+        while i < len(mesh.triangles):
+            let tri = mesh.triangles[i]
+            
+            let v0 = mesh.vertices[tri.vertex_indices[0]].position
+            let v1 = mesh.vertices[tri.vertex_indices[1]].position
+            let v2 = mesh.vertices[tri.vertex_indices[2]].position
+            
+            let hit_info = RayTriangleIntersection(origin, direction, v0, v1, v2)
+            
+            if hit_info.hit and hit_info.distance < closest_distance:
+                closest_distance = hit_info.distance
+                result.hit_position = origin + direction * hit_info.distance
+                result.hit_normal = normalize(cross(v1 - v0, v2 - v0))
+                result.hit_distance = hit_info.distance
+                found_hit = true
+            
+            i = i + 1
+        
+        result.hit_valid = found_hit
+        return result
+    
+    fn RayTriangleIntersection(origin: Vec3, direction: Vec3, v0: Vec3, v1: Vec3, v2: Vec3) -> TriangleHitInfo:
+        let info = TriangleHitInfo()
+        info.hit = false
+        info.distance = 0.0
+        
+        let edge1 = v1 - v0
+        let edge2 = v2 - v0
+        
+        let h = cross(direction, edge2)
+        let a = dot(edge1, h)
+        
+        if abs(a) < 0.00001:
+            return info
+        
+        let f = 1.0 / a
+        let s = origin - v0
+        let u = f * dot(s, h)
+        
+        if u < 0.0 or u > 1.0:
+            return info
+        
+        let q = cross(s, edge1)
+        let v = f * dot(direction, q)
+        
+        if v < 0.0 or u + v > 1.0:
+            return info
+        
+        let t = f * dot(edge2, q)
+        
+        if t > 0.00001:
+            info.hit = true
+            info.distance = t
+        
+        return info
+    
+    fn DrawDebugLine(start: Vec3, end: Vec3, color: Vec3, thickness: Float):
+        println("DrawLine: {start} -> {end}")
+    
+    fn OnMouseMove(mouse_x: Float, mouse_y: Float):
+        let new_position = vec2(mouse_x, mouse_y)
+        mouse_state.delta = new_position - mouse_state.position
+        mouse_state.position = new_position
+    
+    fn OnMouseButtonDown(button: Int, mouse_x: Float, mouse_y: Float):
+        if button == 0:
+            mouse_state.left_button_down = true
+            mouse_state.is_dragging = true
+            mouse_state.drag_start = vec2(mouse_x, mouse_y)
+            
+            if sculpting_actor != null:
+                sculpting_actor.Server_StartSculpting(1)
+        else:
+            if button == 1:
+                mouse_state.right_button_down = true
+            else:
+                if button == 2:
+                    mouse_state.middle_button_down = true
+    
+    fn OnMouseButtonUp(button: Int):
+        if button == 0:
+            mouse_state.left_button_down = false
+            mouse_state.is_dragging = false
+            
+            if sculpting_actor != null:
+                sculpting_actor.Server_StopSculpting()
+        else:
+            if button == 1:
+                mouse_state.right_button_down = false
+            else:
+                if button == 2:
+                    mouse_state.middle_button_down = false
+    
+    fn OnMouseWheel(delta: Float):
+        mouse_state.wheel_delta = delta
+    
+    fn OnKeyDown(key_code: Int):
+        if key_code == 87:
+            viewport_settings.show_wireframe = not viewport_settings.show_wireframe
+        
+        if key_code == 78:
+            viewport_settings.show_normals = not viewport_settings.show_normals
+        
+        if key_code == 71:
+            viewport_settings.enable_grid = not viewport_settings.enable_grid
+        
+        if key_code == 83:
+            viewport_settings.show_symmetry_plane = not viewport_settings.show_symmetry_plane
+    
+    fn SetBrushRadius(radius: Float):
+        brush_cursor.radius = clamp_float(radius, 1.0, 500.0)
+        
+        if sculpting_actor != null:
+            sculpting_actor.Server_SetBrushRadius(brush_cursor.radius)
+    
+    fn SetBrushStrength(strength: Float):
+        brush_cursor.strength = clamp_float(strength, 0.0, 1.0)
+        
+        if sculpting_actor != null:
+            sculpting_actor.Server_SetBrushStrength(brush_cursor.strength)
+    
+    fn SetBrushType(brush_type: BrushType):
+        if sculpting_actor != null:
+            sculpting_actor.Server_SetBrushType(brush_type)
+    
+    fn ToggleWireframe():
+        viewport_settings.show_wireframe = not viewport_settings.show_wireframe
+    
+    fn ToggleNormals():
+        viewport_settings.show_normals = not viewport_settings.show_normals
+    
+    fn ToggleGrid():
+        viewport_settings.enable_grid = not viewport_settings.enable_grid
+    
+    fn ToggleSymmetryPlane():
+        viewport_settings.show_symmetry_plane = not viewport_settings.show_symmetry_plane
+    
+    fn ResetCamera():
+        camera.position = vec3(0.0, -500.0, 200.0)
+        camera.target = vec3(0.0, 0.0, 0.0)
+        camera.distance = 500.0
+        camera.yaw = 0.0
+        camera.pitch = -15.0
+    
+    fn FocusOnMesh():
+        if sculpting_actor == null:
+            return
+        
+        let mesh = sculpting_actor.current_mesh
+        let center = (mesh.bounds_min + mesh.bounds_max) * 0.5
+        let extents = mesh.bounds_max - mesh.bounds_min
+        let max_extent = max(max(extents.x, extents.y), extents.z)
+        
+        camera.target = center
+        camera.distance = max_extent * 2.0
+        
+        let yaw_rad = camera.yaw * 3.14159 / 180.0
+        let pitch_rad = camera.pitch * 3.14159 / 180.0
+        
+        let offset_x = camera.distance * cos(pitch_rad) * sin(yaw_rad)
+        let offset_y = camera.distance * cos(pitch_rad) * cos(yaw_rad)
+        let offset_z = camera.distance * sin(pitch_rad)
+        
+        camera.position = camera.target + vec3(offset_x, offset_y, offset_z)
+
+# ============================================================================
+# Helper Structures
+# ============================================================================
+
+struct RaycastResult:
+    hit_valid: Bool
+    hit_position: Vec3
+    hit_normal: Vec3
+    hit_distance: Float
+
+struct TriangleHitInfo:
+    hit: Bool
+    distance: Float

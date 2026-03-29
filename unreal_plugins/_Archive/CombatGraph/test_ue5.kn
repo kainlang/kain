@@ -1,0 +1,33 @@
+enum ComboInputDirection:
+    DirForward
+    DirBackward
+    DirLeft
+    DirRight
+    DirNeutral
+    _MAX
+
+@blueprint
+fn get_input_direction_from_vector(direction: Vec3) -> Int:
+    return 1
+
+@blueprint
+@category("Combat Graph|Direction")
+fn get_direction_name(direction: ComboInputDirection) -> String:
+    match direction:
+        ComboInputDirection::DirForward => return "Forward"
+        ComboInputDirection::DirBackward => return "Backward"
+        ComboInputDirection::DirLeft => return "Left"
+        ComboInputDirection::DirRight => return "Right"
+        ComboInputDirection::DirNeutral => return "Neutral"
+        _ => return "Unknown"
+
+@blueprint
+@category("Combat Graph|Direction")
+fn get_direction_vector(direction: ComboInputDirection) -> Vec3:
+    match direction:
+        ComboInputDirection::DirForward => return vec3(1.0, 0.0, 0.0)
+        ComboInputDirection::DirBackward => return vec3(-1.0, 0.0, 0.0)
+        ComboInputDirection::DirLeft => return vec3(0.0, -1.0, 0.0)
+        ComboInputDirection::DirRight => return vec3(0.0, 1.0, 0.0)
+        ComboInputDirection::DirNeutral => return vec3(0.0, 0.0, 0.0)
+        _ => return vec3(0.0, 0.0, 0.0)

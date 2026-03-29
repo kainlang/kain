@@ -1,0 +1,130 @@
+# MeshForge - Mesh Operations
+# Blueprint-callable mesh manipulation functions
+
+@blueprint
+fn create_cube_mesh(size: Float) -> MeshData:
+    let half_size = size * 0.5
+    let mesh = MeshData {
+        vertices: [],
+        triangles: [],
+        bounds_min: vec3(-half_size, -half_size, -half_size),
+        bounds_max: vec3(half_size, half_size, half_size),
+        vertex_count: 0,
+        triangle_count: 0
+    }
+    return mesh
+
+@blueprint
+fn create_sphere_mesh(radius: Float, segments: Int) -> MeshData:
+    let mesh = MeshData {
+        vertices: [],
+        triangles: [],
+        bounds_min: vec3(-radius, -radius, -radius),
+        bounds_max: vec3(radius, radius, radius),
+        vertex_count: 0,
+        triangle_count: 0
+    }
+    return mesh
+
+@blueprint
+fn create_cylinder_mesh(radius: Float, height: Float, segments: Int) -> MeshData:
+    let half_height = height * 0.5
+    let mesh = MeshData {
+        vertices: [],
+        triangles: [],
+        bounds_min: vec3(-radius, -radius, -half_height),
+        bounds_max: vec3(radius, radius, half_height),
+        vertex_count: 0,
+        triangle_count: 0
+    }
+    return mesh
+
+@blueprint
+fn create_plane_mesh(width: Float, height: Float, subdivisions: Int) -> MeshData:
+    let half_width = width * 0.5
+    let half_height = height * 0.5
+    let mesh = MeshData {
+        vertices: [],
+        triangles: [],
+        bounds_min: vec3(-half_width, -half_height, 0.0),
+        bounds_max: vec3(half_width, half_height, 0.0),
+        vertex_count: 0,
+        triangle_count: 0
+    }
+    return mesh
+
+@blueprint
+fn extrude_mesh(input_mesh: MeshData, params: ExtrudeParams) -> MeshData:
+    let result = input_mesh
+    return result
+
+@blueprint
+fn bevel_mesh(input_mesh: MeshData, params: BevelParams) -> MeshData:
+    let result = input_mesh
+    return result
+
+@blueprint
+fn subdivide_mesh(input_mesh: MeshData, params: SubdivideParams) -> MeshData:
+    let result = input_mesh
+    return result
+
+@blueprint
+fn boolean_mesh(mesh_a: MeshData, mesh_b: MeshData, params: BooleanParams) -> MeshData:
+    let result = mesh_a
+    return result
+
+@blueprint
+fn smooth_mesh(input_mesh: MeshData, params: SmoothParams) -> MeshData:
+    let result = input_mesh
+    return result
+
+@blueprint
+fn deform_mesh(input_mesh: MeshData, params: DeformParams) -> MeshData:
+    let result = input_mesh
+    return result
+
+@blueprint
+fn transform_mesh(input_mesh: MeshData, params: TransformParams) -> MeshData:
+    let result = input_mesh
+    return result
+
+@blueprint
+fn duplicate_mesh(input_mesh: MeshData, params: DuplicateParams) -> MeshData:
+    let result = input_mesh
+    return result
+
+@blueprint
+fn calculate_mesh_normals(mesh: MeshData) -> MeshData:
+    let result = mesh
+    return result
+
+@blueprint
+fn calculate_mesh_tangents(mesh: MeshData) -> MeshData:
+    let result = mesh
+    return result
+
+@blueprint
+fn calculate_mesh_bounds(mesh: MeshData) -> MeshData:
+    let result = mesh
+    return result
+
+@blueprint
+fn merge_meshes(meshes: Array<MeshData>) -> MeshData:
+    let result = MeshData {
+        vertices: [],
+        triangles: [],
+        bounds_min: vec3(0.0, 0.0, 0.0),
+        bounds_max: vec3(0.0, 0.0, 0.0),
+        vertex_count: 0,
+        triangle_count: 0
+    }
+    return result
+
+@blueprint
+fn optimize_mesh(mesh: MeshData) -> MeshData:
+    let result = mesh
+    return result
+
+@blueprint
+fn validate_mesh(mesh: MeshData) -> Bool:
+    return true

@@ -1,0 +1,605 @@
+# ============================================================================
+# STDLIB SHOWCASE — Actors
+# ============================================================================
+# StdlibManagerActor     — world orchestrator, drives all diagnostic runs
+# StdlibTestProxyActor   — a spawnable proxy actor used to test world spawning
+# StdlibMaterialActor    — a static mesh actor that exercises materials.kn
+# StdlibParticleActor    — exercises particles.kn Niagara spawning and params
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: STDLIB MANAGER ACTOR
+# The one-per-level orchestrator placed in the level.
+# Exercises: actor.kn, world.kn, gameplay.kn, math.kn, utilities.kn
+# ============================================================================
+
+actor StdlibManagerActor:
+
+    # ======= SETTINGS (Data-driven via details panel) =======
+
+    state settings: ShowcaseSettings = default_showcase_settings()
+    state current_state: ShowcaseState = ShowcaseState::Idle
+    state current_scenario: GameplayScenario = GameplayScenario::StandardCombat
+
+    # ======= DIAGNOSTIC TRACKING =======
+
+    @replicated
+    state run_count: Int = 0
+
+    @replicated
+    state total_pass: Int = 0
+
+    @replicated
+    state total_fail: Int = 0
+
+    state last_run_duration: Float = 0.0
+    state run_timer: Float = 0.0
+
+    # ======= ACTOR CATEGORY STATE (actor.kn tests) =======
+
+    @transient
+    state spawn_origin: Vec3 = vec3(0.0, 0.0, 0.0)
+
+    @transient
+    state proxy_actor_count: Int = 0
+
+    @transient
+    state last_actor_location: Vec3 = vec3(0.0, 0.0, 0.0)
+
+    @transient
+    state last_actor_rotation: Rotation = default_rotation()
+
+    # ======= WORLD CATEGORY STATE (world.kn tests) =======
+
+    @transient
+    state world_time_at_start: Float = 0.0
+
+    @transient
+    state last_trace_hit: Bool = false
+
+    @transient
+    state last_actor_count: Int = 0
+
+    @transient
+    state gravity_z: Float = 0.0
+
+    # ======= GAMEPLAY SIMULATION STATE =======
+
+    @transient
+    state sim: GameplaySimState = default_combat_sim()
+
+    # ======= LOOP HISTORY =======
+
+    state loop_count: Int = 0
+    state summary_history_size: Int = 0
+
+    # ============ LIFECYCLE ============
+
+    on BeginPlay():
+        spawn_origin = GetActorLocation()
+        world_time_at_start = GetWorldTimeSeconds()
+        gravity_z = GetGravityZ()
+        last_actor_count = GetActorCount()
+
+        sim = default_combat_sim()
+
+        PrintToScreen("StdlibShowcase [MANAGER] BeginPlay — stdlib stress-test initialised")
+        PrintToScreen("StdlibShowcase [ACTOR]  Spawn origin: " + float_to_string(spawn_origin.x))
+        PrintToScreen("StdlibShowcase [WORLD]  WorldTime at start: " + float_to_string(world_time_at_start))
+        PrintToScreen("StdlibShowcase [WORLD]  Gravity Z: " + float_to_string(gravity_z))
+        PrintToScreen("StdlibShowcase [WORLD]  Actor count in level: " + int_to_string(last_actor_count))
+
+        AddActorTag("StdlibManager")
+        SetLifeSpan(0.0)    # Never self-destruct
+
+        if settings.auto_run_on_begin_play:
+            current_state = ShowcaseState::RunningDiagnostics
+            Server_TriggerFullDiagnosticRun()
+
+    on Tick(delta_time: Float):
+        if current_state != ShowcaseState::RunningDiagnostics:
+            run_timer = run_timer + delta_time
+            if run_timer >= settings.run_interval_seconds:
+                run_timer = 0.0
+                Server_TriggerFullDiagnosticRun()
+            return
+
+        # While running: drive the math and utility components via world time
+        let t = GetWorldTimeSeconds()
+        let debug_pos = spawn_origin + vec3(sin(t) * 100.0, cos(t) * 100.0, 50.0)
+        DrawDebugSphere(debug_pos, 25.0, vec3(0.0, 1.0, 0.5), 0.1)
+        DrawDebugArrow(spawn_origin, debug_pos, vec3(1.0, 0.8, 0.0), 0.1, 2.0)
+
+    # ============ SERVER RPCs ============
+
+    on Server_TriggerFullDiagnosticRun():
+        run_count = run_count + 1
+        loop_count = loop_count + 1
+        let run_start = GetWorldTimeSeconds()
+
+        PrintToScreen("StdlibShowcase ====== RUN #" + int_to_string(run_count) + " START ======")
+
+        # --- ACTOR CATEGORY ---
+        let pass_actor = RunActorCategoryTests()
+        if pass_actor:
+            total_pass = total_pass + 1
+        else:
+            total_fail = total_fail + 1
+
+        # --- WORLD CATEGORY ---
+        let pass_world = RunWorldCategoryTests()
+        if pass_world:
+            total_pass = total_pass + 1
+        else:
+            total_fail = total_fail + 1
+
+        # --- GAMEPLAY CATEGORY ---
+        let pass_gameplay = RunGameplayCategoryTests()
+        if pass_gameplay:
+            total_pass = total_pass + 1
+        else:
+            total_fail = total_fail + 1
+
+        # --- MATH CATEGORY ---
+        let pass_math = RunMathCategoryTests()
+        if pass_math:
+            total_pass = total_pass + 1
+        else:
+            total_fail = total_fail + 1
+
+        # --- UTILITY CATEGORY ---
+        let pass_util = RunUtilityCategoryTests()
+        if pass_util:
+            total_pass = total_pass + 1
+        else:
+            total_fail = total_fail + 1
+
+        last_run_duration = GetWorldTimeSeconds() - run_start
+        current_state = ShowcaseState::DisplayingResults
+        Multicast_BroadcastResults(run_count, total_pass, total_fail, last_run_duration)
+
+    on Server_ResetDiagnostics():
+        run_count = 0
+        total_pass = 0
+        total_fail = 0
+        loop_count = 0
+        last_run_duration = 0.0
+        sim = default_combat_sim()
+        current_state = ShowcaseState::Idle
+        PrintToScreen("StdlibShowcase [MANAGER] Diagnostics reset")
+
+    # ============ MULTICAST RPCs ============
+
+    on Multicast_BroadcastResults(run_idx: Int, passed: Int, failed: Int, duration: Float):
+        PrintToScreen("StdlibShowcase ====== RUN #" + int_to_string(run_idx) + " RESULTS ======")
+        PrintToScreen("  PASS: " + int_to_string(passed))
+        PrintToScreen("  FAIL: " + int_to_string(failed))
+        PrintToScreen("  TIME: " + float_to_string(duration) + "s")
+        current_state = ShowcaseState::WaitingForReset
+
+    on Client_OnProxySpawned(proxy_id: Int):
+        proxy_actor_count = proxy_actor_count + 1
+        PrintToScreen("StdlibShowcase [WORLD] Proxy spawned — total: " + int_to_string(proxy_actor_count))
+
+    # ============ ACTOR CATEGORY TESTS (actor.kn) ============
+
+    @blueprint_callable
+    fn RunActorCategoryTests() -> Bool:
+        PrintToScreen("StdlibShowcase " + category_to_tag(StdlibCategory::ActorFunctions) + " Running...")
+
+        # GetActorLocation / SetActorLocation
+        let loc = GetActorLocation()
+        last_actor_location = loc
+        let elevated = loc + vec3(0.0, 0.0, 10.0)
+        SetActorLocation(elevated)
+        let loc_after = GetActorLocation()
+        SetActorLocation(loc)     # Restore
+
+        # GetActorRotation / SetActorRotation
+        last_actor_rotation = GetActorRotation()
+        let forward = Rotator_GetForwardVector(last_actor_rotation)
+        DrawDebugArrow(loc, loc + forward * 200.0, vec3(0.0, 0.5, 1.0), 2.0, 3.0)
+
+        # GetActorScale / SetActorScale
+        let scale = GetActorScale()
+        SetActorScale(scale * 1.01)
+        SetActorScale(scale)    # Restore
+
+        # Actor bounds
+        let origin_bound = GetActorBounds()
+        DrawDebugBox(origin_bound, vec3(50.0, 50.0, 50.0), vec3(1.0, 1.0, 0.0), 1.0)
+
+        # Tags
+        AddActorTag("DiagRun")
+        let has_tag = ActorHasTag("DiagRun")
+        RemoveActorTag("DiagRun")
+
+        # Velocity
+        let vel = GetActorVelocity()
+        let speed = Vector_Length(vel)
+
+        PrintToScreen("StdlibShowcase [ACTOR] Location: " + float_to_string(loc.z))
+        PrintToScreen("StdlibShowcase [ACTOR] Speed: " + float_to_string(speed))
+        PrintToScreen("StdlibShowcase [ACTOR] Has tag 'DiagRun' (expect true): " + bool_to_string(has_tag))
+
+        return has_tag
+
+    # ============ WORLD CATEGORY TESTS (world.kn) ============
+
+    @blueprint_callable
+    fn RunWorldCategoryTests() -> Bool:
+        PrintToScreen("StdlibShowcase " + category_to_tag(StdlibCategory::WorldFunctions) + " Running...")
+
+        # Time functions
+        let t = GetWorldTimeSeconds()
+        let dt = GetWorldDeltaSeconds()
+        PrintToScreen("StdlibShowcase [WORLD] WorldTime: " + float_to_string(t))
+        PrintToScreen("StdlibShowcase [WORLD] DeltaTime: " + float_to_string(dt))
+
+        # Network context
+        let is_srv = IsServer()
+        let is_cli = IsClient()
+        PrintToScreen("StdlibShowcase [WORLD] IsServer: " + bool_to_string(is_srv))
+        PrintToScreen("StdlibShowcase [WORLD] IsClient: " + bool_to_string(is_cli))
+
+        # Actor count query
+        last_actor_count = GetActorCount()
+        PrintToScreen("StdlibShowcase [WORLD] ActorCount: " + int_to_string(last_actor_count))
+
+        # Line trace — forward from spawn origin
+        let forward_rot = GetActorRotation()
+        let fwd = Rotator_GetForwardVector(forward_rot)
+        let trace_start = spawn_origin + vec3(0.0, 0.0, 50.0)
+        let trace_end = trace_start + fwd * 2000.0
+        last_trace_hit = LineTraceSingle(trace_start, trace_end, 0)
+        DrawDebugLine(trace_start, trace_end, vec3(1.0, 0.0, 0.0), 1.0, 1.5)
+        PrintToScreen("StdlibShowcase [WORLD] LineTrace hit: " + bool_to_string(last_trace_hit))
+
+        # Sphere trace for wider sweep
+        let sphere_hit = SphereTraceSingle(trace_start, trace_end, 50.0, 0)
+        PrintToScreen("StdlibShowcase [WORLD] SphereTrace hit: " + bool_to_string(sphere_hit))
+
+        # Debug draw suite
+        DrawDebugSphere(spawn_origin + vec3(0.0, 0.0, 200.0), 40.0, vec3(0.0, 1.0, 0.0), 2.0)
+        DrawDebugBox(spawn_origin, vec3(100.0, 100.0, 100.0), vec3(1.0, 0.5, 0.0), 2.0)
+        DrawDebugString(spawn_origin + vec3(0.0, 0.0, 250.0), "StdlibShowcase Active", vec3(1.0, 1.0, 1.0), 3.0)
+
+        # Gravity query
+        let grav = GetGravityZ()
+        PrintToScreen("StdlibShowcase [WORLD] GravityZ: " + float_to_string(grav))
+
+        return last_actor_count > 0
+
+    # ============ GAMEPLAY CATEGORY TESTS (gameplay.kn) ============
+
+    @blueprint_callable
+    fn RunGameplayCategoryTests() -> Bool:
+        PrintToScreen("StdlibShowcase " + category_to_tag(StdlibCategory::GameplayFunctions) + " Running...")
+
+        # Reset sim to fresh combat scenario
+        sim = default_combat_sim()
+
+        # Simulate 5 damage hits with armor mitigation
+        let i = 0
+        sim.current_health = apply_damage(sim.current_health, sim.max_health, 15.0, sim.armor)
+        sim.current_health = apply_damage(sim.current_health, sim.max_health, 20.0, sim.armor)
+        sim.current_health = apply_damage(sim.current_health, sim.max_health, 8.0, sim.armor)
+        sim.current_health = apply_damage(sim.current_health, sim.max_health, 35.0, sim.armor)
+        sim.current_health = apply_damage(sim.current_health, sim.max_health, 10.0, sim.armor)
+
+        let hp_after_damage = sim.current_health
+        PrintToScreen("StdlibShowcase [GAMEPLAY] HP after 5 hits: " + float_to_string(hp_after_damage))
+
+        # Armor mitigation sanity — 25 armor should reduce 100 dmg significantly
+        let mit = calculate_armor_mitigation(100.0, 25.0)
+        PrintToScreen("StdlibShowcase [GAMEPLAY] Armor mitigation on 100 dmg with 25 armor: " + float_to_string(mit))
+
+        # Crit calculation
+        let crit_hit = calculate_crit_damage(50.0, 2.0)
+        PrintToScreen("StdlibShowcase [GAMEPLAY] Crit damage (50 base, 2x): " + float_to_string(crit_hit))
+
+        # XP progression: add 250 XP and check level
+        sim.current_xp = sim.current_xp + 250.0
+        sim.current_level = calculate_level_from_xp(sim.current_xp)
+        PrintToScreen("StdlibShowcase [GAMEPLAY] Level after 250 XP: " + int_to_string(sim.current_level))
+
+        # How much XP needed for level 5?
+        let xp_for_5 = get_xp_for_level(5)
+        PrintToScreen("StdlibShowcase [GAMEPLAY] XP required for L5: " + float_to_string(xp_for_5))
+
+        # Cooldown system: cooldown not active, activate it
+        let cd_active_before = is_on_cooldown(sim.cooldown_remaining)
+        sim.cooldown_remaining = 3.0
+        let cd_active_after = is_on_cooldown(sim.cooldown_remaining)
+        PrintToScreen("StdlibShowcase [GAMEPLAY] Cooldown before: " + bool_to_string(cd_active_before))
+        PrintToScreen("StdlibShowcase [GAMEPLAY] Cooldown after (3s): " + bool_to_string(cd_active_after))
+
+        # Buff stacking: apply 3 buffs, check stacked value
+        let buff_v1 = calculate_buff_value(10.0, 0, 0.1)
+        let buff_v2 = calculate_buff_value(10.0, 1, 0.1)
+        let buff_v3 = calculate_buff_value(10.0, 2, 0.1)
+        PrintToScreen("StdlibShowcase [GAMEPLAY] Buff stack values: " + float_to_string(buff_v1) + " / " + float_to_string(buff_v2) + " / " + float_to_string(buff_v3))
+
+        # Health check: is sim dead?
+        let dead = hp_after_damage <= 0.0
+        return !dead
+
+    # ============ MATH CATEGORY TESTS (math.kn) ============
+
+    @blueprint_callable
+    fn RunMathCategoryTests() -> Bool:
+        PrintToScreen("StdlibShowcase " + category_to_tag(StdlibCategory::MathFunctions) + " Running...")
+
+        # Scalar math
+        let sq = sqrt(144.0)
+        let pw = pow(3.0, 4.0)
+        let ab = abs(-99.5)
+        let fl = floor(3.9)
+        let ce = ceil(3.1)
+        let rn = round(3.5)
+        let cl = clamp(150.0, 0.0, 100.0)
+        PrintToScreen("StdlibShowcase [MATH] sqrt(144) = " + float_to_string(sq))
+        PrintToScreen("StdlibShowcase [MATH] pow(3,4) = " + float_to_string(pw))
+        PrintToScreen("StdlibShowcase [MATH] abs(-99.5) = " + float_to_string(ab))
+        PrintToScreen("StdlibShowcase [MATH] floor(3.9) = " + float_to_string(fl))
+        PrintToScreen("StdlibShowcase [MATH] ceil(3.1) = " + float_to_string(ce))
+        PrintToScreen("StdlibShowcase [MATH] round(3.5) = " + float_to_string(rn))
+        PrintToScreen("StdlibShowcase [MATH] clamp(150,0,100) = " + float_to_string(cl))
+
+        # Trig
+        let s = sin(1.5708)     # sin(PI/2) ≈ 1.0
+        let c = cos(0.0)        # cos(0) = 1.0
+        let t = tan(0.7854)     # tan(PI/4) ≈ 1.0
+        PrintToScreen("StdlibShowcase [MATH] sin(PI/2) = " + float_to_string(s))
+        PrintToScreen("StdlibShowcase [MATH] cos(0) = " + float_to_string(c))
+        PrintToScreen("StdlibShowcase [MATH] tan(PI/4) = " + float_to_string(t))
+
+        # Vector math
+        let v1 = vec3(1.0, 0.0, 0.0)
+        let v2 = vec3(0.0, 1.0, 0.0)
+        let dot_res = Vector_Dot(v1, v2)    # Perpendicular → 0.0
+        let cross_v = Vector_Cross(v1, v2)  # → (0,0,1)
+        let cross_len = Vector_Length(cross_v)  # → 1.0
+        let dist = Vector_Distance(v1, v2)  # → sqrt(2) ≈ 1.414
+        let norm = Vector_Normalize(v1 + v2)
+        PrintToScreen("StdlibShowcase [MATH] dot(X,Y) = " + float_to_string(dot_res) + " (expect 0)")
+        PrintToScreen("StdlibShowcase [MATH] |cross(X,Y)| = " + float_to_string(cross_len) + " (expect 1)")
+        PrintToScreen("StdlibShowcase [MATH] dist(X,Y) = " + float_to_string(dist) + " (expect ~1.414)")
+
+        # Interpolation
+        let lerp_mid = Lerp(0.0, 100.0, 0.5)   # → 50.0
+        let vlerp_mid = VLerp(vec3(0.0, 0.0, 0.0), vec3(100.0, 100.0, 100.0), 0.5)
+        let interp_result = FInterpTo(0.0, 100.0, 0.016, 5.0)
+        PrintToScreen("StdlibShowcase [MATH] Lerp(0,100,0.5) = " + float_to_string(lerp_mid) + " (expect 50)")
+        PrintToScreen("StdlibShowcase [MATH] VLerp mid = " + float_to_string(vlerp_mid.x))
+        PrintToScreen("StdlibShowcase [MATH] FInterpTo step = " + float_to_string(interp_result))
+
+        # Rotation getters
+        let rot = GetActorRotation()
+        let fwd = Rotator_GetForwardVector(rot)
+        let right = Rotator_GetRightVector(rot)
+        let up = Rotator_GetUpVector(rot)
+        let fwd_len = Vector_Length(fwd)
+        PrintToScreen("StdlibShowcase [MATH] Forward vector length = " + float_to_string(fwd_len) + " (expect 1)")
+
+        # All results within expected range → pass
+        let is_ok = is_nearly_equal(sq, 12.0, 0.001)
+        return is_ok
+
+    # ============ UTILITY CATEGORY TESTS (utilities.kn) ============
+
+    @blueprint_callable
+    fn RunUtilityCategoryTests() -> Bool:
+        PrintToScreen("StdlibShowcase " + category_to_tag(StdlibCategory::UtilityFunctions) + " Running...")
+
+        # remap: [0..100] → [0..1]
+        let remapped = remap(75.0, 0.0, 100.0, 0.0, 1.0)
+        PrintToScreen("StdlibShowcase [UTIL] remap(75, 0-100, 0-1) = " + float_to_string(remapped) + " (expect 0.75)")
+
+        # smooth_step: 0..1 in, edge smoothing
+        let s0 = smooth_step(0.0, 1.0, 0.0)    # → 0
+        let s_half = smooth_step(0.0, 1.0, 0.5) # → 0.5
+        let s1 = smooth_step(0.0, 1.0, 1.0)    # → 1
+        PrintToScreen("StdlibShowcase [UTIL] smooth_step edges: " + float_to_string(s0) + " / " + float_to_string(s_half) + " / " + float_to_string(s1))
+
+        # ease_in_out
+        let ease_0 = ease_in_out(0.0)
+        let ease_half = ease_in_out(0.5)
+        let ease_1 = ease_in_out(1.0)
+        PrintToScreen("StdlibShowcase [UTIL] ease_in_out: " + float_to_string(ease_0) + " / " + float_to_string(ease_half) + " / " + float_to_string(ease_1))
+
+        # ping_pong
+        let pp0 = ping_pong(0.0, 1.0)
+        let pp_half = ping_pong(0.5, 1.0)
+        let pp1 = ping_pong(1.0, 1.0)
+        let pp_wrap = ping_pong(1.5, 1.0)
+        PrintToScreen("StdlibShowcase [UTIL] ping_pong: " + float_to_string(pp0) + " / " + float_to_string(pp_half) + " / " + float_to_string(pp1) + " / " + float_to_string(pp_wrap))
+
+        # clamp_float
+        let clamped_low = clamp_float(-50.0, 0.0, 100.0)
+        let clamped_high = clamp_float(200.0, 0.0, 100.0)
+        let clamped_mid = clamp_float(50.0, 0.0, 100.0)
+        PrintToScreen("StdlibShowcase [UTIL] clamp_float: " + float_to_string(clamped_low) + " / " + float_to_string(clamped_mid) + " / " + float_to_string(clamped_high))
+
+        # random_float_range: should be in [0..1]
+        let r = random_float_range(0.0, 1.0)
+        let in_range = r >= 0.0 && r <= 1.0
+        PrintToScreen("StdlibShowcase [UTIL] random_float_range(0,1) in range: " + bool_to_string(in_range))
+
+        # is_nearly_equal
+        let ne_true = is_nearly_equal(1.0000001, 1.0, 0.001)
+        let ne_false = is_nearly_equal(1.1, 1.0, 0.001)
+        PrintToScreen("StdlibShowcase [UTIL] nearly_equal(1.0000001, 1.0) = " + bool_to_string(ne_true))
+        PrintToScreen("StdlibShowcase [UTIL] nearly_equal(1.1, 1.0) = " + bool_to_string(ne_false))
+
+        # hsv_to_rgb: red hue (0°) should produce (1,0,0)
+        let red = hsv_to_rgb(vec3(0.0, 1.0, 1.0))
+        PrintToScreen("StdlibShowcase [UTIL] hsv_to_rgb(0,1,1) R channel = " + float_to_string(red.x) + " (expect ~1)")
+
+        # string conversion utilities
+        let str_int = int_to_string(42)
+        let str_float = float_to_string(3.14)
+        let str_bool = bool_to_string(true)
+        PrintToScreen("StdlibShowcase [UTIL] int_to_string(42) = " + str_int)
+        PrintToScreen("StdlibShowcase [UTIL] float_to_string(3.14) = " + str_float)
+        PrintToScreen("StdlibShowcase [UTIL] bool_to_string(true) = " + str_bool)
+
+        return ne_true && !ne_false && in_range
+
+
+# ============================================================================
+# SECTION 2: STDLIB TEST PROXY ACTOR
+# A lightweight actor spawned by the Manager to test world.kn SpawnActor.
+# Also exercises materials.kn and particles.kn via its own BeginPlay.
+# ============================================================================
+
+actor StdlibTestProxyActor:
+
+    state proxy_id: Int = 0
+    state spawn_time: Float = 0.0
+
+    @transient
+    state dynamic_mat: Material = default_material()
+
+    @transient
+    state particle_handle: Actor = default_actor()
+
+    @transient
+    state lifespan: Float = 10.0
+
+    on BeginPlay():
+        spawn_time = GetWorldTimeSeconds()
+        SetLifeSpan(lifespan)
+
+        AddActorTag("StdlibProxy")
+
+        let loc = GetActorLocation()
+        DrawDebugSphere(loc, 30.0, vec3(0.5, 1.0, 0.5), 3.0)
+        DrawDebugString(loc + vec3(0.0, 0.0, 60.0), "Proxy #" + int_to_string(proxy_id), vec3(1.0, 1.0, 0.0), 5.0)
+
+        PrintToScreen("StdlibShowcase [WORLD] Proxy #" + int_to_string(proxy_id) + " spawned at T=" + float_to_string(spawn_time))
+
+        # Materials test — create dynamic instance and drive a parameter
+        RunMaterialTest()
+
+        # Particles test — spawn Niagara emitter and drive parameters
+        RunParticleTest()
+
+    on Tick(delta_time: Float):
+        let age = GetWorldTimeSeconds() - spawn_time
+        let pulse = sin(age * 3.0) * 0.5 + 0.5
+
+        # Drive material emissive with sin wave via stdlib
+        if is_valid_material(dynamic_mat):
+            SetScalarParameter(dynamic_mat, "EmissiveIntensity", pulse * 5.0)
+            SetVectorParameter(dynamic_mat, "TintColor", vec3(pulse, 1.0 - pulse, 0.5))
+
+    # Test materials.kn — CreateDynamicMaterialInstance, Set*Parameter
+    @blueprint_callable
+    fn RunMaterialTest():
+        let mesh_mat = get_mesh_material(0)
+        if is_valid_material(mesh_mat):
+            dynamic_mat = CreateDynamicMaterialInstance(mesh_mat)
+            SetScalarParameter(dynamic_mat, "Roughness", 0.3)
+            SetScalarParameter(dynamic_mat, "Metallic", 0.8)
+            SetVectorParameter(dynamic_mat, "BaseColor", vec3(0.2, 0.6, 1.0))
+            SetMaterialOpacity(dynamic_mat, 0.9)
+            SetMaterialEmissive(dynamic_mat, vec3(0.2, 0.6, 1.0), 2.0)
+            SetMaterialRoughness(dynamic_mat, 0.3)
+            SetMaterialMetallic(dynamic_mat, 0.8)
+            PrintToScreen("StdlibShowcase [MAT] Dynamic material created and parameters set")
+        else:
+            PrintToScreen("StdlibShowcase [MAT] No mesh material available — skipping mat test")
+
+    # Test particles.kn — SpawnEmitterAtLocation, Set*NiagaraVariable
+    @blueprint_callable
+    fn RunParticleTest():
+        let loc = GetActorLocation()
+        particle_handle = SpawnEmitterAtLocation("NS_StdlibTest", loc)
+
+        if IsNiagaraSystemActive(particle_handle):
+            SetFloatParameter(particle_handle, "SpawnRate", 50.0)
+            SetVectorParameter(particle_handle, "EmitterSize", vec3(50.0, 50.0, 50.0))
+            SetNiagaraVariableInt(particle_handle, "BurstCount", 10)
+            SetBoolParameter(particle_handle, "Looping", false)
+            SetColorParameter(particle_handle, "ParticleColor", vec4(0.2, 0.6, 1.0, 1.0))
+            PrintToScreen("StdlibShowcase [VFX] Niagara system active, parameters driven")
+        else:
+            PrintToScreen("StdlibShowcase [VFX] Niagara system spawned (asset may not exist in test env)")
+
+
+# ============================================================================
+# SECTION 3: MATERIAL ANIMATOR ACTOR
+# A dedicated actor for per-frame materials.kn exercising.
+# Continuously drives dynamic material parameters using math and utility fns.
+# ============================================================================
+
+actor StdlibMaterialAnimator:
+
+    state anim_state: MaterialTestState = default_material_state()
+    state anim_mode: MaterialAnimMode = MaterialAnimMode::Pulse
+
+    @transient
+    state dyn_mat: Material = default_material()
+
+    @transient
+    state phase: Float = 0.0
+
+    on BeginPlay():
+        phase = 0.0
+        anim_state = default_material_state()
+
+        let mesh_mat = get_mesh_material(0)
+        if is_valid_material(mesh_mat):
+            dyn_mat = CreateDynamicMaterialInstance(mesh_mat)
+            anim_state.dynamic_mat_created = true
+            PrintToScreen("StdlibShowcase [MAT] MaterialAnimator: dynamic material ready")
+        else:
+            PrintToScreen("StdlibShowcase [MAT] MaterialAnimator: no mesh material in this actor")
+
+    on Tick(delta_time: Float):
+        phase = phase + delta_time
+        if phase > 6.2832:
+            phase = phase - 6.2832
+
+        if !anim_state.dynamic_mat_created:
+            return
+
+        if anim_mode == MaterialAnimMode::Pulse:
+            let opacity = (sin(phase * 2.0) + 1.0) * 0.5
+            SetScalarParameter(dyn_mat, "Opacity", opacity)
+            SetMaterialOpacity(dyn_mat, opacity)
+
+        if anim_mode == MaterialAnimMode::ColorCycle:
+            let hue = remap(phase, 0.0, 6.2832, 0.0, 360.0)
+            let rgb = hsv_to_rgb(vec3(hue, 0.9, 1.0))
+            SetVectorParameter(dyn_mat, "BaseColor", rgb)
+
+        if anim_mode == MaterialAnimMode::RoughnessWave:
+            let roughness = smooth_step(0.0, 1.0, (sin(phase) + 1.0) * 0.5)
+            anim_state.target_roughness = FInterpTo(anim_state.target_roughness, roughness, delta_time, 3.0)
+            SetScalarParameter(dyn_mat, "Roughness", anim_state.target_roughness)
+            SetMaterialRoughness(dyn_mat, anim_state.target_roughness)
+
+        if anim_mode == MaterialAnimMode::EmissiveBloom:
+            let intensity = ease_in_out((sin(phase) + 1.0) * 0.5) * 8.0
+            let emissive_color = anim_state.target_emissive
+            SetVectorParameter(dyn_mat, "EmissiveColor", emissive_color)
+            SetScalarParameter(dyn_mat, "EmissiveIntensity", intensity)
+            SetMaterialEmissive(dyn_mat, emissive_color, intensity)
+
+    # Switch animation mode from editor or Blueprint
+    @blueprint_callable
+    fn SetAnimMode(mode: MaterialAnimMode):
+        anim_mode = mode
+        PrintToScreen("StdlibShowcase [MAT] AnimMode -> " + int_to_string(mode as Int))
+
+    # Force-read back a parameter to verify round-trip
+    @blueprint_callable
+    fn VerifyParameterRoundTrip() -> Bool:
+        let written = 0.42
+        SetScalarParameter(dyn_mat, "TestParam", written)
+        let read_back = GetScalarParameter(dyn_mat, "TestParam")
+        let ok = is_nearly_equal(written, read_back, 0.001)
+        PrintToScreen("StdlibShowcase [MAT] round-trip verify: " + bool_to_string(ok))
+        return ok

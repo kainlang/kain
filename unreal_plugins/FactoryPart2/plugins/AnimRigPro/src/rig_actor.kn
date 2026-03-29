@@ -1,0 +1,557 @@
+# AnimRigPro - Rig Actor
+# Main rig actor with state management and Blueprint integration
+
+actor RigActor:
+    state rig_name: String = "DefaultRig"
+    state target_skeletal_mesh: Actor = null
+    state rig_state: RigState = create_rig_state("DefaultRig")
+    state skeleton_cache: SkeletonCache = create_skeleton_cache(0)
+    state blend_settings: BlendSettings = create_blend_settings(0.5)
+    state is_initialized: Bool = false
+    state auto_update: Bool = true
+    state debug_draw: Bool = false
+    state debug_draw_scale: Float = 1.0
+    
+    # IK/FK blend state
+    state current_mode: RigMode = RigMode.FK
+    state target_mode: RigMode = RigMode.FK
+    state is_blending: Bool = false
+    
+    # Performance tracking
+    state last_update_time: Float = 0.0
+    state update_count: Int = 0
+    state average_update_time: Float = 0.0
+    
+    fn BeginPlay():
+        println("RigActor: BeginPlay - " + rig_name)
+        
+        if target_skeletal_mesh != null:
+            initialize_rig()
+    
+    fn Tick(delta_time: Float):
+        if not is_initialized or not auto_update:
+            return
+        
+        let start_time = get_time_seconds()
+        
+        # Update blend state
+        if is_blending:
+            update_blend_state(delta_time)
+        
+        # Solve IK chains
+        if current_mode == RigMode.IK or (is_blending and rig_state.ik_blend > 0.0):
+            solve_all_ik_chains()
+        
+        # Evaluate constraints
+        evaluate_constraints(rig_state, skeleton_cache)
+        
+        # Apply transforms to skeletal mesh
+        apply_transforms_to_mesh()
+        
+        # Debug drawing
+        if debug_draw:
+            draw_debug_rig()
+        
+        # Performance tracking
+        let end_time = get_time_seconds()
+        let update_time = end_time - start_time
+        last_update_time = update_time
+        update_count = update_count + 1
+        average_update_time = (average_update_time * float(update_count - 1) + update_time) / float(update_count)
+    
+    # Initialization
+    @blueprint_callable
+    fn initialize_rig():
+        if target_skeletal_mesh == null:
+            println("RigActor: Cannot initialize - no target skeletal mesh")
+            return
+        
+        println("RigActor: Initializing rig for " + rig_name)
+        
+        # Get bone count from skeletal mesh
+        let bone_count = get_bone_count(target_skeletal_mesh)
+        skeleton_cache = create_skeleton_cache(bone_count)
+        
+        # Cache bone names and hierarchy
+        let i = 0
+        while i < bone_count:
+            let bone_name = get_bone_name(target_skeletal_mesh, i)
+            let parent_index = get_parent_bone_index(target_skeletal_mesh, i)
+            
+            skeleton_cache.bone_names[i] = bone_name
+            skeleton_cache.bone_parents[i] = parent_index
+            
+            # Get initial transforms
+            let bone_transform = get_bone_transform(target_skeletal_mesh, i)
+            skeleton_cache.bone_transforms[i] = bone_transform
+            skeleton_cache.world_transforms[i] = bone_transform
+            
+            i = i + 1
+        
+        # Initialize IK chains
+        i = 0
+        while i < len(rig_state.ik_chains):
+            rig_state.ik_chains[i] = initialize_ik_chain(rig_state.ik_chains[i], skeleton_cache)
+            i = i + 1
+        
+        # Initialize constraints
+        initialize_all_constraints()
+        
+        is_initialized = true
+        println("RigActor: Initialization complete - " + int_to_string(bone_count) + " bones")
+    
+    fn initialize_all_constraints():
+        # Initialize base constraints
+        let i = 0
+        while i < len(rig_state.constraints):
+            rig_state.constraints[i] = initialize_constraint(rig_state.constraints[i], skeleton_cache)
+            i = i + 1
+        
+        # Initialize aim constraints
+        i = 0
+        while i < len(rig_state.aim_constraints):
+            let aim = rig_state.aim_constraints[i]
+            aim.base = initialize_constraint(aim.base, skeleton_cache)
+            rig_state.aim_constraints[i] = aim
+            i = i + 1
+        
+        # Initialize parent constraints with offsets
+        i = 0
+        while i < len(rig_state.parent_constraints):
+            let parent = rig_state.parent_constraints[i]
+            parent.base = initialize_constraint(parent.base, skeleton_cache)
+            parent = calculate_parent_constraint_offsets(parent, skeleton_cache)
+            rig_state.parent_constraints[i] = parent
+            i = i + 1
+        
+        # Initialize position constraints with offsets
+        i = 0
+        while i < len(rig_state.position_constraints):
+            let pos = rig_state.position_constraints[i]
+            pos.base = initialize_constraint(pos.base, skeleton_cache)
+            pos = calculate_position_constraint_offsets(pos, skeleton_cache)
+            rig_state.position_constraints[i] = pos
+            i = i + 1
+        
+        # Initialize rotation constraints with offsets
+        i = 0
+        while i < len(rig_state.rotation_constraints):
+            let rot = rig_state.rotation_constraints[i]
+            rot.base = initialize_constraint(rot.base, skeleton_cache)
+            rot = calculate_rotation_constraint_offsets(rot, skeleton_cache)
+            rig_state.rotation_constraints[i] = rot
+            i = i + 1
+        
+        # Initialize scale constraints
+        i = 0
+        while i < len(rig_state.scale_constraints):
+            let scale = rig_state.scale_constraints[i]
+            scale.base = initialize_constraint(scale.base, skeleton_cache)
+            rig_state.scale_constraints[i] = scale
+            i = i + 1
+        
+        # Initialize pole vector constraints
+        i = 0
+        while i < len(rig_state.pole_vector_constraints):
+            let pole = rig_state.pole_vector_constraints[i]
+            pole.base = initialize_constraint(pole.base, skeleton_cache)
+            rig_state.pole_vector_constraints[i] = pole
+            i = i + 1
+    
+    # IK Chain Management
+    @blueprint_callable
+    fn add_ik_chain(
+        chain_name: String,
+        bone_names: Array<String>,
+        solver_type: IKSolverType
+    ) -> Bool:
+        let chain = create_chain(chain_name, bone_names, solver_type)
+        
+        if is_initialized:
+            chain = initialize_ik_chain(chain, skeleton_cache)
+        
+        if not validate_ik_chain(chain):
+            println("RigActor: Invalid IK chain - " + chain_name)
+            return false
+        
+        rig_state = add_ik_chain(rig_state, chain)
+        println("RigActor: Added IK chain - " + chain_name)
+        return true
+    
+    @blueprint_callable
+    fn remove_ik_chain(chain_name: String) -> Bool:
+        let chain_index = find_ik_chain(rig_state, chain_name)
+        if chain_index < 0:
+            return false
+        
+        # Remove chain (simplified - would need array removal)
+        rig_state.ik_chains[chain_index].enabled = false
+        return true
+    
+    @blueprint_callable
+    fn set_ik_target(chain_name: String, target_position: Vec3):
+        let chain_index = find_ik_chain(rig_state, chain_name)
+        if chain_index >= 0:
+            rig_state.ik_chains[chain_index].target_position = target_position
+    
+    @blueprint_callable
+    fn set_ik_pole_vector(chain_name: String, pole_position: Vec3):
+        let chain_index = find_ik_chain(rig_state, chain_name)
+        if chain_index >= 0:
+            rig_state.ik_chains[chain_index].pole_vector = pole_position
+    
+    @blueprint_callable
+    fn enable_ik_chain(chain_name: String, enabled: Bool):
+        let chain_index = find_ik_chain(rig_state, chain_name)
+        if chain_index >= 0:
+            rig_state.ik_chains[chain_index].enabled = enabled
+    
+    @blueprint_callable
+    fn set_ik_iterations(chain_name: String, iterations: Int):
+        let chain_index = find_ik_chain(rig_state, chain_name)
+        if chain_index >= 0:
+            rig_state.ik_chains[chain_index].iterations = max(1, iterations)
+    
+    @blueprint_callable
+    fn set_ik_tolerance(chain_name: String, tolerance: Float):
+        let chain_index = find_ik_chain(rig_state, chain_name)
+        if chain_index >= 0:
+            rig_state.ik_chains[chain_index].tolerance = max(0.001, tolerance)
+    
+    # Constraint Management
+    @blueprint_callable
+    fn add_aim_constraint(
+        constraint_name: String,
+        source_bone: String,
+        target_bone: String,
+        weight: Float
+    ) -> Bool:
+        let constraint = create_aim_constraint(constraint_name, source_bone, target_bone)
+        constraint.base.weight = weight
+        
+        if is_initialized:
+            constraint.base = initialize_constraint(constraint.base, skeleton_cache)
+        
+        push(rig_state.aim_constraints, constraint)
+        println("RigActor: Added aim constraint - " + constraint_name)
+        return true
+    
+    @blueprint_callable
+    fn add_parent_constraint(
+        constraint_name: String,
+        source_bone: String,
+        target_bones: Array<String>,
+        weights: Array<Float>
+    ) -> Bool:
+        let constraint = create_parent_constraint(constraint_name, source_bone, target_bones)
+        constraint.base.target_weights = weights
+        constraint.base = normalize_weights(constraint.base)
+        
+        if is_initialized:
+            constraint.base = initialize_constraint(constraint.base, skeleton_cache)
+            constraint = calculate_parent_constraint_offsets(constraint, skeleton_cache)
+        
+        push(rig_state.parent_constraints, constraint)
+        println("RigActor: Added parent constraint - " + constraint_name)
+        return true
+    
+    @blueprint_callable
+    fn add_position_constraint(
+        constraint_name: String,
+        source_bone: String,
+        target_bone: String,
+        weight: Float
+    ) -> Bool:
+        let constraint = create_position_constraint(constraint_name, source_bone, [target_bone])
+        constraint.base.weight = weight
+        
+        if is_initialized:
+            constraint.base = initialize_constraint(constraint.base, skeleton_cache)
+            constraint = calculate_position_constraint_offsets(constraint, skeleton_cache)
+        
+        push(rig_state.position_constraints, constraint)
+        println("RigActor: Added position constraint - " + constraint_name)
+        return true
+    
+    @blueprint_callable
+    fn add_rotation_constraint(
+        constraint_name: String,
+        source_bone: String,
+        target_bone: String,
+        weight: Float
+    ) -> Bool:
+        let constraint = create_rotation_constraint(constraint_name, source_bone, [target_bone])
+        constraint.base.weight = weight
+        
+        if is_initialized:
+            constraint.base = initialize_constraint(constraint.base, skeleton_cache)
+            constraint = calculate_rotation_constraint_offsets(constraint, skeleton_cache)
+        
+        push(rig_state.rotation_constraints, constraint)
+        println("RigActor: Added rotation constraint - " + constraint_name)
+        return true
+    
+    @blueprint_callable
+    fn set_constraint_weight(constraint_name: String, weight: Float):
+        # Search all constraint arrays
+        let i = 0
+        while i < len(rig_state.aim_constraints):
+            if rig_state.aim_constraints[i].base.constraint_name == constraint_name:
+                rig_state.aim_constraints[i].base.weight = clamp(weight, 0.0, 1.0)
+                return
+            i = i + 1
+        
+        i = 0
+        while i < len(rig_state.parent_constraints):
+            if rig_state.parent_constraints[i].base.constraint_name == constraint_name:
+                rig_state.parent_constraints[i].base.weight = clamp(weight, 0.0, 1.0)
+                return
+            i = i + 1
+        
+        i = 0
+        while i < len(rig_state.position_constraints):
+            if rig_state.position_constraints[i].base.constraint_name == constraint_name:
+                rig_state.position_constraints[i].base.weight = clamp(weight, 0.0, 1.0)
+                return
+            i = i + 1
+        
+        i = 0
+        while i < len(rig_state.rotation_constraints):
+            if rig_state.rotation_constraints[i].base.constraint_name == constraint_name:
+                rig_state.rotation_constraints[i].base.weight = clamp(weight, 0.0, 1.0)
+                return
+            i = i + 1
+    
+    @blueprint_callable
+    fn enable_constraint(constraint_name: String, enabled: Bool):
+        # Search all constraint arrays
+        let i = 0
+        while i < len(rig_state.aim_constraints):
+            if rig_state.aim_constraints[i].base.constraint_name == constraint_name:
+                rig_state.aim_constraints[i].base.enabled = enabled
+                return
+            i = i + 1
+        
+        i = 0
+        while i < len(rig_state.parent_constraints):
+            if rig_state.parent_constraints[i].base.constraint_name == constraint_name:
+                rig_state.parent_constraints[i].base.enabled = enabled
+                return
+            i = i + 1
+        
+        i = 0
+        while i < len(rig_state.position_constraints):
+            if rig_state.position_constraints[i].base.constraint_name == constraint_name:
+                rig_state.position_constraints[i].base.enabled = enabled
+                return
+            i = i + 1
+        
+        i = 0
+        while i < len(rig_state.rotation_constraints):
+            if rig_state.rotation_constraints[i].base.constraint_name == constraint_name:
+                rig_state.rotation_constraints[i].base.enabled = enabled
+                return
+            i = i + 1
+    
+    # IK/FK Mode Switching
+    @blueprint_callable
+    fn set_ik_mode(enabled: Bool):
+        target_mode = if enabled then RigMode.IK else RigMode.FK
+        
+        if target_mode != current_mode:
+            start_mode_blend(target_mode)
+    
+    @blueprint_callable
+    fn blend_to_ik(blend_duration: Float):
+        blend_settings = create_blend_settings(blend_duration)
+        target_mode = RigMode.IK
+        is_blending = true
+    
+    @blueprint_callable
+    fn blend_to_fk(blend_duration: Float):
+        blend_settings = create_blend_settings(blend_duration)
+        target_mode = RigMode.FK
+        is_blending = true
+    
+    @blueprint_callable
+    fn snap_to_ik():
+        current_mode = RigMode.IK
+        target_mode = RigMode.IK
+        rig_state.mode = RigMode.IK
+        rig_state.ik_blend = 1.0
+        is_blending = false
+    
+    @blueprint_callable
+    fn snap_to_fk():
+        current_mode = RigMode.FK
+        target_mode = RigMode.FK
+        rig_state.mode = RigMode.FK
+        rig_state.ik_blend = 0.0
+        is_blending = false
+    
+    fn start_mode_blend(new_mode: RigMode):
+        target_mode = new_mode
+        is_blending = true
+        blend_settings.current_time = 0.0
+    
+    fn update_blend_state(delta_time: Float):
+        blend_settings.current_time = blend_settings.current_time + delta_time
+        
+        let blend_alpha = get_blend_alpha(blend_settings)
+        
+        if target_mode == RigMode.IK:
+            rig_state.ik_blend = blend_alpha
+        else:
+            rig_state.ik_blend = 1.0 - blend_alpha
+        
+        if is_complete(blend_settings):
+            current_mode = target_mode
+            rig_state.mode = target_mode
+            is_blending = false
+    
+    # IK Solving
+    fn solve_all_ik_chains():
+        let i = 0
+        while i < len(rig_state.ik_chains):
+            let chain = rig_state.ik_chains[i]
+            if chain.enabled:
+                solve_ik_chain(chain, skeleton_cache)
+            i = i + 1
+    
+    # Transform Application
+    fn apply_transforms_to_mesh():
+        if target_skeletal_mesh == null:
+            return
+        
+        # Update world transforms
+        let i = 0
+        while i < len(skeleton_cache.bone_transforms):
+            update_world_transform(skeleton_cache, i)
+            i = i + 1
+        
+        # Apply to skeletal mesh
+        i = 0
+        while i < len(skeleton_cache.bone_transforms):
+            let bone_transform = skeleton_cache.bone_transforms[i]
+            set_bone_transform(target_skeletal_mesh, i, bone_transform)
+            i = i + 1
+    
+    # Debug Drawing
+    fn draw_debug_rig():
+        let i = 0
+        while i < len(skeleton_cache.bone_transforms):
+            let bone_pos = skeleton_cache.world_transforms[i].position
+            let parent_index = skeleton_cache.bone_parents[i]
+            
+            # Draw bone sphere
+            draw_debug_sphere(bone_pos, 2.0 * debug_draw_scale, vec4(0.0, 1.0, 0.0, 1.0))
+            
+            # Draw bone connection
+            if parent_index >= 0:
+                let parent_pos = skeleton_cache.world_transforms[parent_index].position
+                draw_debug_line(parent_pos, bone_pos, vec4(1.0, 1.0, 0.0, 1.0))
+            
+            i = i + 1
+        
+        # Draw IK targets
+        i = 0
+        while i < len(rig_state.ik_chains):
+            let chain = rig_state.ik_chains[i]
+            if chain.enabled:
+                draw_debug_sphere(chain.target_position, 5.0 * debug_draw_scale, vec4(1.0, 0.0, 0.0, 1.0))
+                draw_debug_sphere(chain.pole_vector, 3.0 * debug_draw_scale, vec4(0.0, 0.0, 1.0, 1.0))
+            i = i + 1
+    
+    # Utility Functions
+    @blueprint_callable
+    @blueprint_pure
+    fn get_bone_world_position(bone_name: String) -> Vec3:
+        let bone_index = find_bone_index(skeleton_cache, bone_name)
+        if bone_index >= 0 and bone_index < len(skeleton_cache.world_transforms):
+            return skeleton_cache.world_transforms[bone_index].position
+        return vec3(0.0, 0.0, 0.0)
+    
+    @blueprint_callable
+    @blueprint_pure
+    fn get_bone_world_rotation(bone_name: String) -> Vec4:
+        let bone_index = find_bone_index(skeleton_cache, bone_name)
+        if bone_index >= 0 and bone_index < len(skeleton_cache.world_transforms):
+            return skeleton_cache.world_transforms[bone_index].rotation
+        return vec4(0.0, 0.0, 0.0, 1.0)
+    
+    @blueprint_callable
+    @blueprint_pure
+    fn get_ik_chain_count() -> Int:
+        return len(rig_state.ik_chains)
+    
+    @blueprint_callable
+    @blueprint_pure
+    fn get_constraint_count() -> Int:
+        return len(rig_state.aim_constraints) +
+               len(rig_state.parent_constraints) +
+               len(rig_state.position_constraints) +
+               len(rig_state.rotation_constraints) +
+               len(rig_state.scale_constraints) +
+               len(rig_state.pole_vector_constraints)
+    
+    @blueprint_callable
+    @blueprint_pure
+    fn get_current_mode() -> RigMode:
+        return current_mode
+    
+    @blueprint_callable
+    @blueprint_pure
+    fn get_ik_blend() -> Float:
+        return rig_state.ik_blend
+    
+    @blueprint_callable
+    @blueprint_pure
+    fn is_rig_initialized() -> Bool:
+        return is_initialized
+    
+    @blueprint_callable
+    @blueprint_pure
+    fn get_average_update_time() -> Float:
+        return average_update_time
+    
+    @blueprint_callable
+    fn set_debug_draw(enabled: Bool):
+        debug_draw = enabled
+    
+    @blueprint_callable
+    fn set_debug_draw_scale(scale: Float):
+        debug_draw_scale = max(0.1, scale)
+    
+    @blueprint_callable
+    fn reset_rig():
+        rig_state = create_rig_state(rig_name)
+        is_initialized = false
+        current_mode = RigMode.FK
+        target_mode = RigMode.FK
+        is_blending = false
+        println("RigActor: Rig reset")
+
+# External skeletal mesh functions (would be implemented in UE5 backend)
+@extern
+fn get_bone_count(mesh: Actor) -> Int
+
+@extern
+fn get_bone_name(mesh: Actor, bone_index: Int) -> String
+
+@extern
+fn get_parent_bone_index(mesh: Actor, bone_index: Int) -> Int
+
+@extern
+fn get_bone_transform(mesh: Actor, bone_index: Int) -> BoneTransform
+
+@extern
+fn set_bone_transform(mesh: Actor, bone_index: Int, transform: BoneTransform)
+
+@extern
+fn get_time_seconds() -> Float
+
+@extern
+fn draw_debug_sphere(position: Vec3, radius: Float, color: Vec4)
+
+@extern
+fn draw_debug_line(start: Vec3, end: Vec3, color: Vec4)

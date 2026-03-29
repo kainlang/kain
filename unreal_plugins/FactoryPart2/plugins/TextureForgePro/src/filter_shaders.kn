@@ -1,0 +1,225 @@
+shader compute GaussianBlur(thread_id: Vec3):
+    uniform resolution: Int @0
+    uniform blur_radius: Float @1
+    uniform blur_strength: Float @2
+    buffer input_texture: Buffer<Vec4> @3
+    buffer output_texture: RWBuffer<Vec4> @4
+    
+    let pixel_x = thread_id.x
+    let pixel_y = thread_id.y
+    
+    if pixel_x >= resolution or pixel_y >= resolution:
+        return
+    
+    let center_idx = pixel_x + pixel_y * resolution
+    let center_color = input_texture[center_idx]
+    
+    let accumulated_color = vec4(0.0, 0.0, 0.0, 0.0)
+    let total_weight = 0.0
+    
+    let radius_int = floor(blur_radius) as Int
+    let y_start = max(0, pixel_y - radius_int)
+    let y_end = min(resolution - 1, pixel_y + radius_int)
+    let x_start = max(0, pixel_x - radius_int)
+    let x_end = min(resolution - 1, pixel_x + radius_int)
+    
+    let sample_y = y_start
+    while sample_y <= y_end:
+        let sample_x = x_start
+        while sample_x <= x_end:
+            let offset_x = sample_x - pixel_x
+            let offset_y = sample_y - pixel_y
+            let distance = sqrt(offset_x * offset_x + offset_y * offset_y)
+            
+            if distance <= blur_radius:
+                let weight = exp(-(distance * distance) / (2.0 * blur_strength * blur_strength))
+                let sample_idx = sample_x + sample_y * resolution
+                let sample_color = input_texture[sample_idx]
+                
+                accumulated_color = accumulated_color + sample_color * weight
+                total_weight = total_weight + weight
+            
+            sample_x = sample_x + 1
+        sample_y = sample_y + 1
+    
+    let final_color = accumulated_color / total_weight
+    output_texture[center_idx] = final_color
+
+shader compute Sharpen(thread_id: Vec3):
+    uniform resolution: Int @0
+    uniform sharpen_amount: Float @1
+    buffer input_texture: Buffer<Vec4> @2
+    buffer output_texture: RWBuffer<Vec4> @3
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    
+    if x >= resolution or y >= resolution:
+        return
+    
+    let idx = x + y * resolution
+    let center = input_texture[idx]
+    
+    let kernel_sum = vec4(0.0, 0.0, 0.0, 0.0)
+    let kernel_weight = 0.0
+    
+    if x > 0 and y > 0:
+        kernel_sum = kernel_sum + input_texture[(x - 1) + (y - 1) * resolution] * -1.0
+        kernel_weight = kernel_weight + -1.0
+    
+    if y > 0:
+        kernel_sum = kernel_sum + input_texture[x + (y - 1) * resolution] * -1.0
+        kernel_weight = kernel_weight + -1.0
+    
+    if x < resolution - 1 and y > 0:
+        kernel_sum = kernel_sum + input_texture[(x + 1) + (y - 1) * resolution] * -1.0
+        kernel_weight = kernel_weight + -1.0
+    
+    if x > 0:
+        kernel_sum = kernel_sum + input_texture[(x - 1) + y * resolution] * -1.0
+        kernel_weight = kernel_weight + -1.0
+    
+    kernel_sum = kernel_sum + center * 9.0
+    kernel_weight = kernel_weight + 9.0
+    
+    if x < resolution - 1:
+        kernel_sum = kernel_sum + input_texture[(x + 1) + y * resolution] * -1.0
+        kernel_weight = kernel_weight + -1.0
+    
+    if x > 0 and y < resolution - 1:
+        kernel_sum = kernel_sum + input_texture[(x - 1) + (y + 1) * resolution] * -1.0
+        kernel_weight = kernel_weight + -1.0
+    
+    if y < resolution - 1:
+        kernel_sum = kernel_sum + input_texture[x + (y + 1) * resolution] * -1.0
+        kernel_weight = kernel_weight + -1.0
+    
+    if x < resolution - 1 and y < resolution - 1:
+        kernel_sum = kernel_sum + input_texture[(x + 1) + (y + 1) * resolution] * -1.0
+        kernel_weight = kernel_weight + -1.0
+    
+    let sharpened = center + (center - kernel_sum / kernel_weight) * sharpen_amount
+    output_texture[idx] = clamp(sharpened, vec4(0.0, 0.0, 0.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0))
+
+shader compute ColorGrade(thread_id: Vec3):
+    uniform resolution: Int @0
+    uniform brightness: Float @1
+    uniform contrast: Float @2
+    uniform saturation: Float @3
+    uniform hue_shift: Float @4
+    buffer input_texture: Buffer<Vec4> @5
+    buffer output_texture: RWBuffer<Vec4> @6
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    
+    if x >= resolution or y >= resolution:
+        return
+    
+    let idx = x + y * resolution
+    let color = input_texture[idx]
+    
+    let adjusted = color
+    adjusted = vec4(adjusted.r + brightness, adjusted.g + brightness, adjusted.b + brightness, adjusted.a)
+    
+    let mid = vec4(0.5, 0.5, 0.5, 0.5)
+    adjusted = mid + (adjusted - mid) * contrast
+    
+    let gray = dot(adjusted.rgb, vec3(0.299, 0.587, 0.114))
+    adjusted = vec4(
+        lerp(gray, adjusted.r, saturation),
+        lerp(gray, adjusted.g, saturation),
+        lerp(gray, adjusted.b, saturation),
+        adjusted.a
+    )
+    
+    adjusted = clamp(adjusted, vec4(0.0, 0.0, 0.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0))
+    output_texture[idx] = adjusted
+
+shader compute EdgeDetect(thread_id: Vec3):
+    uniform resolution: Int @0
+    uniform edge_threshold: Float @1
+    buffer input_texture: Buffer<Vec4> @2
+    buffer output_texture: RWBuffer<Vec4> @3
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    
+    if x >= resolution or y >= resolution:
+        return
+    
+    let idx = x + y * resolution
+    
+    let gx = vec3(0.0, 0.0, 0.0)
+    let gy = vec3(0.0, 0.0, 0.0)
+    
+    if x > 0 and y > 0:
+        let sample = input_texture[(x - 1) + (y - 1) * resolution].rgb
+        gx = gx + sample * -1.0
+        gy = gy + sample * -1.0
+    
+    if y > 0:
+        let sample = input_texture[x + (y - 1) * resolution].rgb
+        gy = gy + sample * -2.0
+    
+    if x < resolution - 1 and y > 0:
+        let sample = input_texture[(x + 1) + (y - 1) * resolution].rgb
+        gx = gx + sample * 1.0
+        gy = gy + sample * -1.0
+    
+    if x > 0:
+        let sample = input_texture[(x - 1) + y * resolution].rgb
+        gx = gx + sample * -2.0
+    
+    if x < resolution - 1:
+        let sample = input_texture[(x + 1) + y * resolution].rgb
+        gx = gx + sample * 2.0
+    
+    if x > 0 and y < resolution - 1:
+        let sample = input_texture[(x - 1) + (y + 1) * resolution].rgb
+        gx = gx + sample * -1.0
+        gy = gy + sample * 1.0
+    
+    if y < resolution - 1:
+        let sample = input_texture[x + (y + 1) * resolution].rgb
+        gy = gy + sample * 2.0
+    
+    if x < resolution - 1 and y < resolution - 1:
+        let sample = input_texture[(x + 1) + (y + 1) * resolution].rgb
+        gx = gx + sample * 1.0
+        gy = gy + sample * 1.0
+    
+    let magnitude = sqrt(dot(gx, gx) + dot(gy, gy))
+    let edge_value = magnitude > edge_threshold
+    let edge_color = edge_value * 1.0
+    
+    output_texture[idx] = vec4(edge_color, edge_color, edge_color, 1.0)
+
+shader compute Emboss(thread_id: Vec3):
+    uniform resolution: Int @0
+    uniform emboss_strength: Float @1
+    buffer input_texture: Buffer<Vec4> @2
+    buffer output_texture: RWBuffer<Vec4> @3
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    
+    if x >= resolution or y >= resolution:
+        return
+    
+    let idx = x + y * resolution
+    let center = input_texture[idx].rgb
+    
+    let top_left = vec3(0.5, 0.5, 0.5)
+    if x > 0 and y > 0:
+        top_left = input_texture[(x - 1) + (y - 1) * resolution].rgb
+    
+    let bottom_right = vec3(0.5, 0.5, 0.5)
+    if x < resolution - 1 and y < resolution - 1:
+        bottom_right = input_texture[(x + 1) + (y + 1) * resolution].rgb
+    
+    let diff = (top_left - bottom_right) * emboss_strength
+    let embossed = vec3(0.5, 0.5, 0.5) + diff
+    
+    let clamped = clamp(embossed, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0))
+    output_texture[idx] = vec4(clamped, 1.0)

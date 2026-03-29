@@ -1,0 +1,388 @@
+// FluidDynamicsPro - GPU Compute Shaders
+// 10+ compute shaders for real-time fluid simulation
+
+// Particle advection shader - updates particle positions
+shader compute ParticleAdvection(thread_id: Vec3):
+    uniform delta_time: Float @0
+    uniform gravity: Vec3 @1
+    uniform damping: Float @2
+    uniform bounds_min: Vec3 @3
+    uniform bounds_max: Vec3 @4
+    buffer particle_positions: RWBuffer<Vec3> @5
+    buffer particle_velocities: RWBuffer<Vec3> @6
+    buffer particle_accelerations: RWBuffer<Vec3> @7
+    
+    let idx = thread_id.x
+    let pos = particle_positions[idx]
+    let vel = particle_velocities[idx]
+    let acc = particle_accelerations[idx]
+    
+    let total_acc = acc + gravity
+    let new_vel = vel + total_acc * delta_time
+    let new_vel_damped = new_vel * damping
+    let new_pos = pos + new_vel_damped * delta_time
+    
+    let clamped_pos = clamp(new_pos, bounds_min, bounds_max)
+    
+    particle_positions[idx] = clamped_pos
+    particle_velocities[idx] = new_vel_damped
+    particle_accelerations[idx] = vec3(0.0, 0.0, 0.0)
+
+// Density calculation shader - SPH density computation
+shader compute DensityCalculation(thread_id: Vec3):
+    uniform particle_count: Int @0
+    uniform smoothing_radius: Float @1
+    uniform rest_density: Float @2
+    uniform particle_mass: Float @3
+    uniform poly6_constant: Float @4
+    buffer particle_positions: Buffer<Vec3> @5
+    buffer particle_densities: RWBuffer<Float> @6
+    buffer spatial_grid: Buffer<Int> @7
+    
+    let idx = thread_id.x
+    let pos = particle_positions[idx]
+    let h_sq = smoothing_radius * smoothing_radius
+    
+    let density = 0.0
+    
+    for i in 0..particle_count:
+        let neighbor_pos = particle_positions[i]
+        let diff = pos - neighbor_pos
+        let dist_sq = dot(diff, diff)
+        
+        if dist_sq < h_sq:
+            let kernel = poly6_constant * pow(h_sq - dist_sq, 3.0)
+            density = density + particle_mass * kernel
+    
+    particle_densities[idx] = max(density, rest_density)
+
+// Pressure solve shader - computes pressure from density
+shader compute PressureSolve(thread_id: Vec3):
+    uniform particle_count: Int @0
+    uniform rest_density: Float @1
+    uniform gas_constant: Float @2
+    buffer particle_densities: Buffer<Float> @3
+    buffer particle_pressures: RWBuffer<Float> @4
+    
+    let idx = thread_id.x
+    let density = particle_densities[idx]
+    let pressure = gas_constant * (density - rest_density)
+    particle_pressures[idx] = max(pressure, 0.0)
+
+// Pressure force shader - applies pressure forces
+shader compute PressureForce(thread_id: Vec3):
+    uniform particle_count: Int @0
+    uniform smoothing_radius: Float @1
+    uniform particle_mass: Float @2
+    uniform spiky_constant: Float @3
+    buffer particle_positions: Buffer<Vec3> @4
+    buffer particle_densities: Buffer<Float> @5
+    buffer particle_pressures: Buffer<Float> @6
+    buffer particle_accelerations: RWBuffer<Vec3> @7
+    
+    let idx = thread_id.x
+    let pos = particle_positions[idx]
+    let density = particle_densities[idx]
+    let pressure = particle_pressures[idx]
+    
+    let force = vec3(0.0, 0.0, 0.0)
+    
+    for i in 0..particle_count:
+        if i == idx:
+            continue
+        
+        let neighbor_pos = particle_positions[i]
+        let neighbor_density = particle_densities[i]
+        let neighbor_pressure = particle_pressures[i]
+        
+        let diff = pos - neighbor_pos
+        let dist = length(diff)
+        
+        if dist < smoothing_radius and dist > 0.0001:
+            let dir = diff / dist
+            let kernel_grad = spiky_constant * pow(smoothing_radius - dist, 2.0)
+            let pressure_term = (pressure + neighbor_pressure) / (2.0 * neighbor_density)
+            force = force - dir * kernel_grad * pressure_term * particle_mass
+    
+    let acc = force / density
+    particle_accelerations[idx] = particle_accelerations[idx] + acc
+
+// Viscosity solve shader - applies viscosity forces
+shader compute ViscositySolve(thread_id: Vec3):
+    uniform particle_count: Int @0
+    uniform smoothing_radius: Float @1
+    uniform viscosity: Float @2
+    uniform particle_mass: Float @3
+    uniform viscosity_constant: Float @4
+    buffer particle_positions: Buffer<Vec3> @5
+    buffer particle_velocities: Buffer<Vec3> @6
+    buffer particle_densities: Buffer<Float> @7
+    buffer particle_accelerations: RWBuffer<Vec3> @8
+    
+    let idx = thread_id.x
+    let pos = particle_positions[idx]
+    let vel = particle_velocities[idx]
+    let density = particle_densities[idx]
+    
+    let viscosity_force = vec3(0.0, 0.0, 0.0)
+    
+    for i in 0..particle_count:
+        if i == idx:
+            continue
+        
+        let neighbor_pos = particle_positions[i]
+        let neighbor_vel = particle_velocities[i]
+        let neighbor_density = particle_densities[i]
+        
+        let diff = pos - neighbor_pos
+        let dist = length(diff)
+        
+        if dist < smoothing_radius and dist > 0.0001:
+            let kernel = viscosity_constant * (smoothing_radius - dist)
+            let vel_diff = neighbor_vel - vel
+            viscosity_force = viscosity_force + vel_diff * kernel * particle_mass / neighbor_density
+    
+    let acc = viscosity_force * viscosity / density
+    particle_accelerations[idx] = particle_accelerations[idx] + acc
+
+// Surface reconstruction shader - marching cubes density field
+shader compute SurfaceReconstruction(thread_id: Vec3):
+    uniform particle_count: Int @0
+    uniform smoothing_radius: Float @1
+    uniform grid_resolution: Vec3 @2
+    uniform cell_size: Float @3
+    uniform bounds_min: Vec3 @4
+    uniform iso_value: Float @5
+    buffer particle_positions: Buffer<Vec3> @6
+    buffer density_field: RWBuffer<Float> @7
+    
+    let grid_idx = thread_id
+    let world_pos = bounds_min + grid_idx * cell_size
+    
+    let density = 0.0
+    let h_sq = smoothing_radius * smoothing_radius
+    
+    for i in 0..particle_count:
+        let particle_pos = particle_positions[i]
+        let diff = world_pos - particle_pos
+        let dist_sq = dot(diff, diff)
+        
+        if dist_sq < h_sq:
+            let contribution = 1.0 - sqrt(dist_sq) / smoothing_radius
+            density = density + contribution * contribution
+    
+    let linear_idx = grid_idx.x + grid_idx.y * grid_resolution.x + grid_idx.z * grid_resolution.x * grid_resolution.y
+    density_field[linear_idx] = density
+
+// Normal calculation shader - computes surface normals
+shader compute NormalCalculation(thread_id: Vec3):
+    uniform grid_resolution: Vec3 @0
+    uniform cell_size: Float @1
+    buffer density_field: Buffer<Float> @2
+    buffer normals: RWBuffer<Vec3> @3
+    
+    let idx = thread_id
+    let res = grid_resolution
+    
+    if idx.x >= res.x - 1 or idx.y >= res.y - 1 or idx.z >= res.z - 1:
+        return
+    
+    if idx.x <= 0 or idx.y <= 0 or idx.z <= 0:
+        return
+    
+    let get_density = fn(x: Int, y: Int, z: Int) -> Float:
+        let linear = x + y * res.x + z * res.x * res.y
+        return density_field[linear]
+    
+    let dx = get_density(idx.x + 1, idx.y, idx.z) - get_density(idx.x - 1, idx.y, idx.z)
+    let dy = get_density(idx.x, idx.y + 1, idx.z) - get_density(idx.x, idx.y - 1, idx.z)
+    let dz = get_density(idx.x, idx.y, idx.z + 1) - get_density(idx.x, idx.y, idx.z - 1)
+    
+    let gradient = vec3(dx, dy, dz)
+    let normal = normalize(gradient)
+    
+    let linear_idx = idx.x + idx.y * res.x + idx.z * res.x * res.y
+    normals[linear_idx] = normal
+
+// Vorticity confinement shader - adds turbulence
+shader compute VorticityConfinement(thread_id: Vec3):
+    uniform particle_count: Int @0
+    uniform smoothing_radius: Float @1
+    uniform vorticity_strength: Float @2
+    uniform epsilon: Float @3
+    uniform delta_time: Float @4
+    buffer particle_positions: Buffer<Vec3> @5
+    buffer particle_velocities: Buffer<Vec3> @6
+    buffer particle_densities: Buffer<Float> @7
+    buffer particle_accelerations: RWBuffer<Vec3> @8
+    
+    let idx = thread_id.x
+    let pos = particle_positions[idx]
+    let vel = particle_velocities[idx]
+    let density = particle_densities[idx]
+    
+    let vorticity = vec3(0.0, 0.0, 0.0)
+    let vorticity_grad = vec3(0.0, 0.0, 0.0)
+    
+    for i in 0..particle_count:
+        if i == idx:
+            continue
+        
+        let neighbor_pos = particle_positions[i]
+        let neighbor_vel = particle_velocities[i]
+        
+        let diff = pos - neighbor_pos
+        let dist = length(diff)
+        
+        if dist < smoothing_radius and dist > 0.0001:
+            let vel_diff = neighbor_vel - vel
+            let curl = cross(vel_diff, diff / dist)
+            vorticity = vorticity + curl
+    
+    let vorticity_mag = length(vorticity)
+    
+    if vorticity_mag > epsilon:
+        let vorticity_dir = vorticity / vorticity_mag
+        let force = cross(vorticity_dir, vorticity) * vorticity_strength
+        let acc = force / density
+        particle_accelerations[idx] = particle_accelerations[idx] + acc
+
+// Boundary handling shader - enforces boundary conditions
+shader compute BoundaryHandling(thread_id: Vec3):
+    uniform bounds_min: Vec3 @0
+    uniform bounds_max: Vec3 @1
+    uniform restitution: Float @2
+    uniform friction: Float @3
+    uniform boundary_type: Int @4
+    buffer particle_positions: RWBuffer<Vec3> @5
+    buffer particle_velocities: RWBuffer<Vec3> @6
+    
+    let idx = thread_id.x
+    let pos = particle_positions[idx]
+    let vel = particle_velocities[idx]
+    
+    let new_pos = pos
+    let new_vel = vel
+    
+    if boundary_type == 0:
+        if pos.x < bounds_min.x:
+            new_pos.x = bounds_min.x
+            new_vel.x = -vel.x * restitution
+            new_vel.y = vel.y * friction
+            new_vel.z = vel.z * friction
+        
+        if pos.x > bounds_max.x:
+            new_pos.x = bounds_max.x
+            new_vel.x = -vel.x * restitution
+            new_vel.y = vel.y * friction
+            new_vel.z = vel.z * friction
+        
+        if pos.y < bounds_min.y:
+            new_pos.y = bounds_min.y
+            new_vel.y = -vel.y * restitution
+            new_vel.x = vel.x * friction
+            new_vel.z = vel.z * friction
+        
+        if pos.y > bounds_max.y:
+            new_pos.y = bounds_max.y
+            new_vel.y = -vel.y * restitution
+            new_vel.x = vel.x * friction
+            new_vel.z = vel.z * friction
+        
+        if pos.z < bounds_min.z:
+            new_pos.z = bounds_min.z
+            new_vel.z = -vel.z * restitution
+            new_vel.x = vel.x * friction
+            new_vel.y = vel.y * friction
+        
+        if pos.z > bounds_max.z:
+            new_pos.z = bounds_max.z
+            new_vel.z = -vel.z * restitution
+            new_vel.x = vel.x * friction
+            new_vel.y = vel.y * friction
+    
+    particle_positions[idx] = new_pos
+    particle_velocities[idx] = new_vel
+
+// Particle collision shader - handles particle-object collisions
+shader compute ParticleCollision(thread_id: Vec3):
+    uniform collider_count: Int @0
+    uniform restitution: Float @1
+    uniform friction: Float @2
+    buffer particle_positions: RWBuffer<Vec3> @3
+    buffer particle_velocities: RWBuffer<Vec3> @4
+    buffer collider_positions: Buffer<Vec3> @5
+    buffer collider_radii: Buffer<Float> @6
+    buffer collider_types: Buffer<Int> @7
+    
+    let idx = thread_id.x
+    let pos = particle_positions[idx]
+    let vel = particle_velocities[idx]
+    
+    for i in 0..collider_count:
+        let collider_pos = collider_positions[i]
+        let collider_radius = collider_radii[i]
+        let collider_type = collider_types[i]
+        
+        if collider_type == 0:
+            let diff = pos - collider_pos
+            let dist = length(diff)
+            
+            if dist < collider_radius:
+                let normal = diff / dist
+                let penetration = collider_radius - dist
+                let new_pos = pos + normal * penetration
+                
+                let vel_normal = dot(vel, normal)
+                let vel_tangent = vel - normal * vel_normal
+                
+                let new_vel = vel_tangent * friction - normal * vel_normal * restitution
+                
+                particle_positions[idx] = new_pos
+                particle_velocities[idx] = new_vel
+
+// Fluid rendering shader - computes rendering data
+shader compute FluidRendering(thread_id: Vec3):
+    uniform particle_count: Int @0
+    uniform smoothing_radius: Float @1
+    uniform foam_threshold: Float @2
+    buffer particle_positions: Buffer<Vec3> @3
+    buffer particle_velocities: Buffer<Vec3> @4
+    buffer particle_densities: Buffer<Float> @5
+    buffer particle_colors: RWBuffer<Vec4> @6
+    buffer particle_sizes: RWBuffer<Float> @7
+    
+    let idx = thread_id.x
+    let pos = particle_positions[idx]
+    let vel = particle_velocities[idx]
+    let density = particle_densities[idx]
+    
+    let speed = length(vel)
+    let foam_factor = clamp(speed / foam_threshold, 0.0, 1.0)
+    
+    let base_color = vec4(0.1, 0.3, 0.8, 0.9)
+    let foam_color = vec4(1.0, 1.0, 1.0, 1.0)
+    let color = lerp(base_color, foam_color, foam_factor)
+    
+    let size = smoothing_radius * (1.0 + foam_factor * 0.5)
+    
+    particle_colors[idx] = color
+    particle_sizes[idx] = size
+
+// Spatial grid construction shader - builds spatial hash grid
+shader compute SpatialGridConstruction(thread_id: Vec3):
+    uniform particle_count: Int @0
+    uniform cell_size: Float @1
+    uniform grid_dimensions: Vec3 @2
+    uniform bounds_min: Vec3 @3
+    buffer particle_positions: Buffer<Vec3> @4
+    buffer particle_grid_indices: RWBuffer<Int> @5
+    buffer grid_cell_counts: RWBuffer<Int> @6
+    
+    let idx = thread_id.x
+    let pos = particle_positions[idx]
+    
+    let grid_pos = floor((pos - bounds_min) / cell_size)
+    let grid_idx = grid_pos.x + grid_pos.y * grid_dimensions.x + grid_pos.z * grid_dimensions.x * grid_dimensions.y
+    
+    particle_grid_indices[idx] = grid_idx

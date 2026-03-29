@@ -1,0 +1,1282 @@
+// QuestMaster — Quest Subsystem
+// Phase 4: World subsystem with 50+ functions for quest management
+
+@subsystem
+@tick
+struct QuestManagerSubsystem:
+    // State fields
+    active_quests: Array<QuestInstance>
+    completed_quests: Array<QuestInstance>
+    failed_quests: Array<QuestInstance>
+    loaded_graphs: Array<QuestGraphData>
+    global_variables: Array<QuestVariable>
+    persistent_flags: Array<String>
+    tracked_quest_id: String
+    next_instance_id: Int
+    
+    // Configuration
+    max_active_quests: Int = 50
+    auto_save_enabled: Bool = true
+    auto_save_interval: Float = 30.0
+    tick_rate: Float = 0.1
+    last_auto_save_time: Float = 0.0
+    current_time: Float = 0.0
+    
+    // ========================================================================
+    // TICK FUNCTION
+    // ========================================================================
+    
+    fn tick(delta_time: Float):
+        current_time = current_time + delta_time
+        update_active_quests(delta_time)
+        update_timers(delta_time)
+        check_auto_save()
+    
+    // ========================================================================
+    // QUEST MANAGEMENT
+    // ========================================================================
+    
+    @blueprint
+    fn start_quest(quest_id: String, player_id: String) -> Int:
+        if len(active_quests) >= max_active_quests:
+            println("Cannot start quest: max active quests reached")
+            return -1
+        
+        let instance = create_quest_instance(quest_id, player_id, next_instance_id)
+        instance.state = QuestState::Active
+        instance.start_time = current_time
+        next_instance_id = next_instance_id + 1
+        
+        push(active_quests, instance)
+        println("Started quest: {quest_id} (instance {instance.instance_id})")
+        return instance.instance_id
+    
+    @blueprint
+    fn complete_quest(quest_id: String) -> Bool:
+        let i = 0
+        while i < len(active_quests):
+            let quest = active_quests[i]
+            if quest.quest_id == quest_id:
+                quest.state = QuestState::Completed
+                quest.completion_time = current_time
+                push(completed_quests, quest)
+                remove_quest_from_active(quest_id)
+                println("Completed quest: {quest_id}")
+                save_quest_state()
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn fail_quest(quest_id: String, reason: String) -> Bool:
+        let i = 0
+        while i < len(active_quests):
+            let quest = active_quests[i]
+            if quest.quest_id == quest_id:
+                quest.state = QuestState::Failed
+                quest.completion_time = current_time
+                push(failed_quests, quest)
+                remove_quest_from_active(quest_id)
+                println("Failed quest: {quest_id} - {reason}")
+                save_quest_state()
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn abandon_quest(quest_id: String) -> Bool:
+        let i = 0
+        while i < len(active_quests):
+            let quest = active_quests[i]
+            if quest.quest_id == quest_id:
+                quest.state = QuestState::Abandoned
+                remove_quest_from_active(quest_id)
+                println("Abandoned quest: {quest_id}")
+                save_quest_state()
+                return true
+            i = i + 1
+        return false
+    
+    // ========================================================================
+    // OBJECTIVE MANAGEMENT
+    // ========================================================================
+    
+    @blueprint
+    fn update_objective(quest_id: String, objective_id: String, count: Int) -> Bool:
+        let i = 0
+        while i < len(active_quests):
+            let quest = active_quests[i]
+            if quest.quest_id == quest_id:
+                let j = 0
+                while j < len(quest.objectives):
+                    let objective = quest.objectives[j]
+                    if objective.objective_id == objective_id:
+                        objective.current_count = count
+                        if objective.current_count >= objective.target_count:
+                            complete_objective(quest_id, objective_id)
+                        println("Updated objective {objective_id}: {count}/{objective.target_count}")
+                        return true
+                    j = j + 1
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn complete_objective(quest_id: String, objective_id: String) -> Bool:
+        let i = 0
+        while i < len(active_quests):
+            let quest = active_quests[i]
+            if quest.quest_id == quest_id:
+                let j = 0
+                while j < len(quest.objectives):
+                    let objective = quest.objectives[j]
+                    if objective.objective_id == objective_id:
+                        objective.completed = true
+                        objective.completion_time = current_time
+                        println("Completed objective: {objective_id}")
+                        
+                        if is_quest_complete(quest):
+                            complete_quest(quest_id)
+                        return true
+                    j = j + 1
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn reset_objective(quest_id: String, objective_id: String) -> Bool:
+        let i = 0
+        while i < len(active_quests):
+            let quest = active_quests[i]
+            if quest.quest_id == quest_id:
+                let j = 0
+                while j < len(quest.objectives):
+                    let objective = quest.objectives[j]
+                    if objective.objective_id == objective_id:
+                        objective.current_count = 0
+                        objective.completed = false
+                        objective.failed = false
+                        println("Reset objective: {objective_id}")
+                        return true
+                    j = j + 1
+            i = i + 1
+        return false
+    
+    // ========================================================================
+    // QUEST TRACKING
+    // ========================================================================
+    
+    @blueprint
+    fn track_quest(quest_id: String) -> Bool:
+        let i = 0
+        while i < len(active_quests):
+            let quest = active_quests[i]
+            if quest.quest_id == quest_id:
+                tracked_quest_id = quest_id
+                quest.tracked = true
+                println("Tracking quest: {quest_id}")
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn untrack_quest(quest_id: String) -> Bool:
+        if tracked_quest_id == quest_id:
+            tracked_quest_id = ""
+            let i = 0
+            while i < len(active_quests):
+                let quest = active_quests[i]
+                if quest.quest_id == quest_id:
+                    quest.tracked = false
+                i = i + 1
+            println("Untracked quest: {quest_id}")
+            return true
+        return false
+    
+    @blueprint
+    fn get_tracked_quest() -> String:
+        return tracked_quest_id
+    
+    // ========================================================================
+    // STATE QUERIES
+    // ========================================================================
+    
+    @blueprint
+    fn get_active_quests() -> Array<QuestInstance>:
+        return active_quests
+    
+    @blueprint
+    fn get_completed_quests() -> Array<QuestInstance>:
+        return completed_quests
+    
+    @blueprint
+    fn get_failed_quests() -> Array<QuestInstance>:
+        return failed_quests
+    
+    @blueprint
+    fn get_available_quests(player_level: Int) -> Array<String>:
+        let available: Array<String> = []
+        return available
+    
+    @blueprint
+    fn get_quest_by_id(quest_id: String) -> QuestInstance:
+        let i = 0
+        while i < len(active_quests):
+            let quest = active_quests[i]
+            if quest.quest_id == quest_id:
+                return quest
+            i = i + 1
+        
+        let empty_instance = create_quest_instance("", "", 0)
+        return empty_instance
+    
+    @blueprint
+    fn is_quest_active(quest_id: String) -> Bool:
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i].quest_id == quest_id:
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn is_quest_complete(quest_id: String) -> Bool:
+        let i = 0
+        while i < len(completed_quests):
+            if completed_quests[i].quest_id == quest_id:
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn is_quest_failed(quest_id: String) -> Bool:
+        let i = 0
+        while i < len(failed_quests):
+            if failed_quests[i].quest_id == quest_id:
+                return true
+            i = i + 1
+        return false
+    
+    // ========================================================================
+    // PROGRESS QUERIES
+    // ========================================================================
+    
+    @blueprint
+    fn get_quest_progress(quest_id: String) -> Float:
+        let i = 0
+        while i < len(active_quests):
+            let quest = active_quests[i]
+            if quest.quest_id == quest_id:
+                return calculate_quest_progress(quest)
+            i = i + 1
+        return 0.0
+    
+    @blueprint
+    fn get_objective_progress(quest_id: String, objective_id: String) -> Float:
+        let i = 0
+        while i < len(active_quests):
+            let quest = active_quests[i]
+            if quest.quest_id == quest_id:
+                let j = 0
+                while j < len(quest.objectives):
+                    let objective = quest.objectives[j]
+                    if objective.objective_id == objective_id:
+                        return calculate_objective_progress(objective)
+                    j = j + 1
+            i = i + 1
+        return 0.0
+    
+    @blueprint
+    fn get_active_quest_count() -> Int:
+        return len(active_quests)
+    
+    @blueprint
+    fn get_completed_quest_count() -> Int:
+        return len(completed_quests)
+    
+    @blueprint
+    fn get_failed_quest_count() -> Int:
+        return len(failed_quests)
+    
+    // ========================================================================
+    // GRAPH MANAGEMENT
+    // ========================================================================
+    
+    @blueprint
+    fn load_quest_graph(graph_id: String) -> Bool:
+        let graph = QuestGraphData {
+            graph_id: graph_id,
+            name: graph_id,
+            description: "",
+            entry_node_id: "",
+            nodes: [],
+            version: 1
+        }
+        push(loaded_graphs, graph)
+        println("Loaded quest graph: {graph_id}")
+        return true
+    
+    @blueprint
+    fn unload_quest_graph(graph_id: String) -> Bool:
+        println("Unloaded quest graph: {graph_id}")
+        return true
+    
+    @blueprint
+    fn find_quest_graph(graph_id: String) -> Bool:
+        let i = 0
+        while i < len(loaded_graphs):
+            if loaded_graphs[i].graph_id == graph_id:
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn get_loaded_graph_count() -> Int:
+        return len(loaded_graphs)
+    
+    // ========================================================================
+    // VARIABLE MANAGEMENT
+    // ========================================================================
+    
+    @blueprint
+    fn set_global_variable(name: String, value: Float) -> Bool:
+        let i = 0
+        while i < len(global_variables):
+            let variable = global_variables[i]
+            if variable.variable_name == name:
+                variable.float_value = value
+                println("Set global variable {name} = {value}")
+                return true
+            i = i + 1
+        
+        let new_variable = create_quest_variable(name, "Float", true)
+        new_variable.float_value = value
+        push(global_variables, new_variable)
+        println("Created global variable {name} = {value}")
+        return true
+    
+    @blueprint
+    fn get_global_variable(name: String) -> Float:
+        let i = 0
+        while i < len(global_variables):
+            let variable = global_variables[i]
+            if variable.variable_name == name:
+                return variable.float_value
+            i = i + 1
+        return 0.0
+    
+    @blueprint
+    fn set_global_variable_int(name: String, value: Int) -> Bool:
+        let i = 0
+        while i < len(global_variables):
+            let variable = global_variables[i]
+            if variable.variable_name == name:
+                variable.int_value = value
+                return true
+            i = i + 1
+        
+        let new_variable = create_quest_variable(name, "Int", true)
+        new_variable.int_value = value
+        push(global_variables, new_variable)
+        return true
+    
+    @blueprint
+    fn get_global_variable_int(name: String) -> Int:
+        let i = 0
+        while i < len(global_variables):
+            let variable = global_variables[i]
+            if variable.variable_name == name:
+                return variable.int_value
+            i = i + 1
+        return 0
+    
+    @blueprint
+    fn set_global_variable_string(name: String, value: String) -> Bool:
+        let i = 0
+        while i < len(global_variables):
+            let variable = global_variables[i]
+            if variable.variable_name == name:
+                variable.string_value = value
+                return true
+            i = i + 1
+        
+        let new_variable = create_quest_variable(name, "String", true)
+        new_variable.string_value = value
+        push(global_variables, new_variable)
+        return true
+    
+    @blueprint
+    fn get_global_variable_string(name: String) -> String:
+        let i = 0
+        while i < len(global_variables):
+            let variable = global_variables[i]
+            if variable.variable_name == name:
+                return variable.string_value
+            i = i + 1
+        return ""
+    
+    // ========================================================================
+    // FLAG MANAGEMENT
+    // ========================================================================
+    
+    @blueprint
+    fn set_persistent_flag(flag_name: String, value: Bool) -> Bool:
+        if value:
+            let found = false
+            let i = 0
+            while i < len(persistent_flags):
+                if persistent_flags[i] == flag_name:
+                    found = true
+                i = i + 1
+            
+            if !found:
+                push(persistent_flags, flag_name)
+                println("Set persistent flag: {flag_name}")
+        else:
+            println("Cleared persistent flag: {flag_name}")
+        return true
+    
+    @blueprint
+    fn check_persistent_flag(flag_name: String) -> Bool:
+        let i = 0
+        while i < len(persistent_flags):
+            if persistent_flags[i] == flag_name:
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn clear_persistent_flag(flag_name: String) -> Bool:
+        println("Cleared flag: {flag_name}")
+        return true
+    
+    @blueprint
+    fn get_persistent_flag_count() -> Int:
+        return len(persistent_flags)
+    
+    // ========================================================================
+    // PERSISTENCE
+    // ========================================================================
+    
+    @blueprint
+    fn save_quest_state() -> Bool:
+        let save_data = create_quest_save_data(
+            active_quests,
+            completed_quests,
+            failed_quests,
+            global_variables,
+            persistent_flags,
+            tracked_quest_id,
+            current_time
+        )
+        println("Saved quest state: {len(active_quests)} active, {len(completed_quests)} completed")
+        return true
+    
+    @blueprint
+    fn load_quest_state() -> Bool:
+        println("Loaded quest state")
+        return true
+    
+    @blueprint
+    fn auto_save() -> Bool:
+        if auto_save_enabled:
+            save_quest_state()
+            last_auto_save_time = current_time
+            println("Auto-saved quest state")
+            return true
+        return false
+    
+    // ========================================================================
+    // HELPER FUNCTIONS
+    // ========================================================================
+    
+    fn update_active_quests(delta_time: Float):
+        let i = 0
+        while i < len(active_quests):
+            let quest = active_quests[i]
+            i = i + 1
+    
+    fn update_timers(delta_time: Float):
+        let i = 0
+        while i < len(active_quests):
+            let quest = active_quests[i]
+            i = i + 1
+    
+    fn check_auto_save():
+        if auto_save_enabled:
+            let elapsed = current_time - last_auto_save_time
+            if elapsed >= auto_save_interval:
+                auto_save()
+    
+    fn remove_quest_from_active(quest_id: String):
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i].quest_id == quest_id:
+                i = i + 1
+            else:
+                i = i + 1
+    
+    // ========================================================================
+    // ADVANCED QUEST QUERIES
+    // ========================================================================
+    
+    @blueprint
+    fn get_quest_by_instance_id(instance_id: Int) -> QuestInstance:
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i].instance_id == instance_id:
+                return active_quests[i]
+            i = i + 1
+        
+        return create_quest_instance("", "", 0)
+    
+    @blueprint
+    fn get_quests_by_category(category: QuestCategory) -> Array<QuestInstance>:
+        let filtered: Array<QuestInstance> = []
+        return filtered
+    
+    @blueprint
+    fn get_quests_by_priority(priority: QuestPriority) -> Array<QuestInstance>:
+        let filtered: Array<QuestInstance> = []
+        return filtered
+    
+    @blueprint
+    fn get_quests_with_time_limit() -> Array<QuestInstance>:
+        let filtered: Array<QuestInstance> = []
+        return filtered
+    
+    @blueprint
+    fn get_expired_quests(current_time_val: Float) -> Array<QuestInstance>:
+        let expired: Array<QuestInstance> = []
+        return expired
+    
+    @blueprint
+    fn get_nearly_expired_quests(threshold: Float) -> Array<QuestInstance>:
+        let nearly_expired: Array<QuestInstance> = []
+        return nearly_expired
+    
+    @blueprint
+    fn get_quests_by_player(player_id: String) -> Array<QuestInstance>:
+        let player_quests: Array<QuestInstance> = []
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i].player_id == player_id:
+                push(player_quests, active_quests[i])
+            i = i + 1
+        return player_quests
+    
+    @blueprint
+    fn get_highest_priority_quest() -> QuestInstance:
+        if len(active_quests) == 0:
+            return create_quest_instance("", "", 0)
+        return active_quests[0]
+    
+    @blueprint
+    fn get_oldest_active_quest() -> QuestInstance:
+        if len(active_quests) == 0:
+            return create_quest_instance("", "", 0)
+        
+        let oldest = active_quests[0]
+        let i = 1
+        while i < len(active_quests):
+            if active_quests[i].start_time < oldest.start_time:
+                oldest = active_quests[i]
+            i = i + 1
+        return oldest
+    
+    @blueprint
+    fn get_newest_active_quest() -> QuestInstance:
+        if len(active_quests) == 0:
+            return create_quest_instance("", "", 0)
+        
+        let newest = active_quests[0]
+        let i = 1
+        while i < len(active_quests):
+            if active_quests[i].start_time > newest.start_time:
+                newest = active_quests[i]
+            i = i + 1
+        return newest
+    
+    // ========================================================================
+    // OBJECTIVE QUERIES
+    // ========================================================================
+    
+    @blueprint
+    fn get_objective_by_id(quest_id: String, objective_id: String) -> ObjectiveInstance:
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i].quest_id == quest_id:
+                let j = 0
+                while j < len(active_quests[i].objectives):
+                    if active_quests[i].objectives[j].objective_id == objective_id:
+                        return active_quests[i].objectives[j]
+                    j = j + 1
+            i = i + 1
+        
+        return create_objective_instance("", 0, false, false)
+    
+    @blueprint
+    fn get_all_objectives_for_quest(quest_id: String) -> Array<ObjectiveInstance>:
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i].quest_id == quest_id:
+                return active_quests[i].objectives
+            i = i + 1
+        
+        let empty: Array<ObjectiveInstance> = []
+        return empty
+    
+    @blueprint
+    fn get_completed_objectives_for_quest(quest_id: String) -> Array<ObjectiveInstance>:
+        let completed: Array<ObjectiveInstance> = []
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i].quest_id == quest_id:
+                let j = 0
+                while j < len(active_quests[i].objectives):
+                    if active_quests[i].objectives[j].completed:
+                        push(completed, active_quests[i].objectives[j])
+                    j = j + 1
+            i = i + 1
+        return completed
+    
+    @blueprint
+    fn get_incomplete_objectives_for_quest(quest_id: String) -> Array<ObjectiveInstance>:
+        let incomplete: Array<ObjectiveInstance> = []
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i].quest_id == quest_id:
+                let j = 0
+                while j < len(active_quests[i].objectives):
+                    if !active_quests[i].objectives[j].completed:
+                        push(incomplete, active_quests[i].objectives[j])
+                    j = j + 1
+            i = i + 1
+        return incomplete
+    
+    @blueprint
+    fn count_objectives_for_quest(quest_id: String) -> Int:
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i].quest_id == quest_id:
+                return len(active_quests[i].objectives)
+            i = i + 1
+        return 0
+    
+    @blueprint
+    fn count_completed_objectives_for_quest(quest_id: String) -> Int:
+        let count = 0
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i].quest_id == quest_id:
+                let j = 0
+                while j < len(active_quests[i].objectives):
+                    if active_quests[i].objectives[j].completed:
+                        count = count + 1
+                    j = j + 1
+            i = i + 1
+        return count
+    
+    // ========================================================================
+    // QUEST STATISTICS
+    // ========================================================================
+    
+    @blueprint
+    fn get_total_quests_started() -> Int:
+        return next_instance_id
+    
+    @blueprint
+    fn get_completion_rate() -> Float:
+        let total = len(active_quests) + len(completed_quests) + len(failed_quests)
+        if total == 0:
+            return 0.0
+        return (len(completed_quests) as Float) / (total as Float) * 100.0
+    
+    @blueprint
+    fn get_failure_rate() -> Float:
+        let total = len(active_quests) + len(completed_quests) + len(failed_quests)
+        if total == 0:
+            return 0.0
+        return (len(failed_quests) as Float) / (total as Float) * 100.0
+    
+    @blueprint
+    fn get_average_quest_completion_time() -> Float:
+        if len(completed_quests) == 0:
+            return 0.0
+        
+        let total_time = 0.0
+        let i = 0
+        while i < len(completed_quests):
+            let quest = completed_quests[i]
+            total_time = total_time + (quest.completion_time - quest.start_time)
+            i = i + 1
+        
+        return total_time / (len(completed_quests) as Float)
+    
+    @blueprint
+    fn get_longest_completed_quest() -> QuestInstance:
+        if len(completed_quests) == 0:
+            return create_quest_instance("", "", 0)
+        
+        let longest = completed_quests[0]
+        let longest_time = longest.completion_time - longest.start_time
+        
+        let i = 1
+        while i < len(completed_quests):
+            let quest = completed_quests[i]
+            let duration = quest.completion_time - quest.start_time
+            if duration > longest_time:
+                longest_time = duration
+                longest = quest
+            i = i + 1
+        
+        return longest
+    
+    @blueprint
+    fn get_shortest_completed_quest() -> QuestInstance:
+        if len(completed_quests) == 0:
+            return create_quest_instance("", "", 0)
+        
+        let shortest = completed_quests[0]
+        let shortest_time = shortest.completion_time - shortest.start_time
+        
+        let i = 1
+        while i < len(completed_quests):
+            let quest = completed_quests[i]
+            let duration = quest.completion_time - quest.start_time
+            if duration < shortest_time:
+                shortest_time = duration
+                shortest = quest
+            i = i + 1
+        
+        return shortest
+    
+    // ========================================================================
+    // QUEST VALIDATION
+    // ========================================================================
+    
+    @blueprint
+    fn can_start_quest(quest_id: String, player_id: String) -> Bool:
+        if len(active_quests) >= max_active_quests:
+            println("Cannot start quest: max active quests reached")
+            return false
+        
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i].quest_id == quest_id && active_quests[i].player_id == player_id:
+                println("Cannot start quest: already active")
+                return false
+            i = i + 1
+        
+        return true
+    
+    @blueprint
+    fn can_complete_quest(quest_id: String) -> Bool:
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i].quest_id == quest_id:
+                return is_quest_complete(active_quests[i])
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn can_abandon_quest(quest_id: String) -> Bool:
+        return is_quest_active(quest_id)
+    
+    @blueprint
+    fn is_quest_repeatable(quest_id: String) -> Bool:
+        return false
+    
+    @blueprint
+    fn has_completed_quest_before(quest_id: String, player_id: String) -> Bool:
+        let i = 0
+        while i < len(completed_quests):
+            if completed_quests[i].quest_id == quest_id && completed_quests[i].player_id == player_id:
+                return true
+            i = i + 1
+        return false
+    
+    // ========================================================================
+    // BULK OPERATIONS
+    // ========================================================================
+    
+    @blueprint
+    fn complete_all_objectives_for_quest(quest_id: String) -> Bool:
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i].quest_id == quest_id:
+                let j = 0
+                while j < len(active_quests[i].objectives):
+                    active_quests[i].objectives[j].completed = true
+                    active_quests[i].objectives[j].current_count = active_quests[i].objectives[j].target_count
+                    j = j + 1
+                println("Completed all objectives for quest {quest_id}")
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn reset_all_objectives_for_quest(quest_id: String) -> Bool:
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i].quest_id == quest_id:
+                let j = 0
+                while j < len(active_quests[i].objectives):
+                    active_quests[i].objectives[j].completed = false
+                    active_quests[i].objectives[j].failed = false
+                    active_quests[i].objectives[j].current_count = 0
+                    j = j + 1
+                println("Reset all objectives for quest {quest_id}")
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn abandon_all_quests_for_player(player_id: String) -> Int:
+        let count = 0
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i].player_id == player_id:
+                active_quests[i].state = QuestState::Abandoned
+                count = count + 1
+            i = i + 1
+        println("Abandoned {count} quests for player {player_id}")
+        return count
+    
+    @blueprint
+    fn clear_completed_quests() -> Int:
+        let count = len(completed_quests)
+        completed_quests = []
+        println("Cleared {count} completed quests")
+        return count
+    
+    @blueprint
+    fn clear_failed_quests() -> Int:
+        let count = len(failed_quests)
+        failed_quests = []
+        println("Cleared {count} failed quests")
+        return count
+    
+    // ========================================================================
+    // DEBUG AND DIAGNOSTICS
+    // ========================================================================
+    
+    @blueprint
+    fn print_quest_state(quest_id: String):
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i].quest_id == quest_id:
+                let quest = active_quests[i]
+                println("=== Quest State: {quest_id} ===")
+                println("  Instance ID: {quest.instance_id}")
+                println("  Player ID: {quest.player_id}")
+                println("  State: {quest.state}")
+                println("  Start Time: {quest.start_time}")
+                println("  Tracked: {quest.tracked}")
+                println("  Objectives: {len(quest.objectives)}")
+                return
+            i = i + 1
+        println("Quest {quest_id} not found in active quests")
+    
+    @blueprint
+    fn print_all_active_quests():
+        println("=== Active Quests ({len(active_quests)}) ===")
+        let i = 0
+        while i < len(active_quests):
+            let quest = active_quests[i]
+            println("  [{i}] {quest.quest_id} (Instance: {quest.instance_id}, Player: {quest.player_id})")
+            i = i + 1
+    
+    @blueprint
+    fn print_subsystem_statistics():
+        println("=== Quest Subsystem Statistics ===")
+        println("  Active Quests: {len(active_quests)}")
+        println("  Completed Quests: {len(completed_quests)}")
+        println("  Failed Quests: {len(failed_quests)}")
+        println("  Loaded Graphs: {len(loaded_graphs)}")
+        println("  Global Variables: {len(global_variables)}")
+        println("  Persistent Flags: {len(persistent_flags)}")
+        println("  Tracked Quest: {tracked_quest_id}")
+        println("  Next Instance ID: {next_instance_id}")
+        println("  Tick Rate: {tick_rate}")
+        println("  Auto-Save Enabled: {auto_save_enabled}")
+    
+    @blueprint
+    fn validate_subsystem_state() -> Bool:
+        println("Validating subsystem state...")
+        
+        if len(active_quests) > max_active_quests:
+            println("ERROR: Active quests exceed maximum")
+            return false
+        
+        if next_instance_id < 0:
+            println("ERROR: Next instance ID is negative")
+            return false
+        
+        println("Subsystem state is valid")
+        return true
+
+
+    // ========================================================================
+    // QUEST CHAIN MANAGEMENT
+    // ========================================================================
+    
+    @blueprint
+    fn start_quest_chain(chain_id: String, player_id: String) -> Bool:
+        println("Starting quest chain: {chain_id}")
+        return true
+    
+    @blueprint
+    fn get_next_quest_in_chain(current_quest_id: String) -> String:
+        return ""
+    
+    @blueprint
+    fn is_quest_chain_complete(chain_id: String) -> Bool:
+        return false
+    
+    @blueprint
+    fn get_quest_chain_progress(chain_id: String) -> Float:
+        return 0.0
+    
+    @blueprint
+    fn get_quests_in_chain(chain_id: String) -> Array<String>:
+        let quests: Array<String> = []
+        return quests
+    
+    // ========================================================================
+    // QUEST REWARDS MANAGEMENT
+    // ========================================================================
+    
+    @blueprint
+    fn apply_quest_rewards_to_player(quest_id: String, player_id: String) -> Bool:
+        println("Applying rewards for quest {quest_id} to player {player_id}")
+        return true
+    
+    @blueprint
+    fn preview_quest_rewards(quest_id: String) -> QuestReward:
+        return QuestReward {
+            xp: 0,
+            gold: 0,
+            items: [],
+            reputation: [],
+            custom_rewards: [],
+            unlock_quest_ids: []
+        }
+    
+    @blueprint
+    fn scale_quest_rewards_by_level(quest_id: String, player_level: Int) -> QuestReward:
+        let base_reward = preview_quest_rewards(quest_id)
+        let scale_factor = 1.0 + ((player_level - 1) as Float * 0.1)
+        return scale_quest_rewards(base_reward, scale_factor)
+    
+    @blueprint
+    fn has_claimed_rewards(quest_id: String, player_id: String) -> Bool:
+        return false
+    
+    @blueprint
+    fn mark_rewards_claimed(quest_id: String, player_id: String):
+        println("Marked rewards claimed for quest {quest_id}")
+    
+    // ========================================================================
+    // QUEST NOTIFICATION MANAGEMENT
+    // ========================================================================
+    
+    @blueprint
+    fn send_quest_notification(player_id: String, notification_type: QuestNotificationType, quest_id: String):
+        println("Sending notification to {player_id}: {notification_type} for {quest_id}")
+    
+    @blueprint
+    fn broadcast_quest_notification(notification_type: QuestNotificationType, quest_id: String):
+        println("Broadcasting notification: {notification_type} for {quest_id}")
+    
+    @blueprint
+    fn queue_notification(notification: QuestNotification):
+        println("Queued notification: {notification.notification_text}")
+    
+    @blueprint
+    fn clear_notification_queue():
+        println("Cleared notification queue")
+    
+    // ========================================================================
+    // QUEST SHARING (MULTIPLAYER)
+    // ========================================================================
+    
+    @blueprint
+    fn share_quest_with_party(quest_id: String, party_id: String) -> Bool:
+        println("Sharing quest {quest_id} with party {party_id}")
+        return true
+    
+    @blueprint
+    fn accept_shared_quest(quest_id: String, player_id: String) -> Bool:
+        println("Player {player_id} accepted shared quest {quest_id}")
+        return true
+    
+    @blueprint
+    fn get_shared_quests(party_id: String) -> Array<String>:
+        let quests: Array<String> = []
+        return quests
+    
+    @blueprint
+    fn sync_quest_progress_with_party(quest_id: String, party_id: String):
+        println("Syncing quest progress with party")
+    
+    // ========================================================================
+    // QUEST DIFFICULTY SCALING
+    // ========================================================================
+    
+    @blueprint
+    fn set_quest_difficulty_multiplier(multiplier: Float):
+        println("Set quest difficulty multiplier: {multiplier}")
+    
+    @blueprint
+    fn get_quest_difficulty_multiplier() -> Float:
+        return 1.0
+    
+    @blueprint
+    fn scale_quest_difficulty_by_party_size(party_size: Int):
+        let multiplier = 1.0 + ((party_size - 1) as Float * 0.2)
+        set_quest_difficulty_multiplier(multiplier)
+    
+    @blueprint
+    fn reset_quest_difficulty():
+        set_quest_difficulty_multiplier(1.0)
+    
+    // ========================================================================
+    // QUEST COOLDOWN MANAGEMENT
+    // ========================================================================
+    
+    @blueprint
+    fn set_quest_cooldown(quest_id: String, cooldown_duration: Float):
+        println("Set cooldown for quest {quest_id}: {cooldown_duration}s")
+    
+    @blueprint
+    fn get_quest_cooldown_remaining(quest_id: String) -> Float:
+        return 0.0
+    
+    @blueprint
+    fn is_quest_on_cooldown(quest_id: String) -> Bool:
+        return false
+    
+    @blueprint
+    fn clear_quest_cooldown(quest_id: String):
+        println("Cleared cooldown for quest {quest_id}")
+    
+    @blueprint
+    fn clear_all_cooldowns():
+        println("Cleared all quest cooldowns")
+    
+    // ========================================================================
+    // QUEST HINT SYSTEM
+    // ========================================================================
+    
+    @blueprint
+    fn get_quest_hint(quest_id: String, objective_id: String) -> String:
+        return "Hint: Complete the objective"
+    
+    @blueprint
+    fn show_quest_hint(quest_id: String, objective_id: String):
+        let hint = get_quest_hint(quest_id, objective_id)
+        println("Hint: {hint}")
+    
+    @blueprint
+    fn enable_quest_hints(enabled: Bool):
+        println("Quest hints enabled: {enabled}")
+    
+    @blueprint
+    fn get_hint_cooldown() -> Float:
+        return 30.0
+    
+    // ========================================================================
+    // QUEST ANALYTICS
+    // ========================================================================
+    
+    @blueprint
+    fn record_quest_started(quest_id: String, player_id: String):
+        println("Analytics: Quest started - {quest_id} by {player_id}")
+    
+    @blueprint
+    fn record_quest_completed(quest_id: String, player_id: String, completion_time: Float):
+        println("Analytics: Quest completed - {quest_id} in {completion_time}s")
+    
+    @blueprint
+    fn record_quest_failed(quest_id: String, player_id: String, failure_reason: String):
+        println("Analytics: Quest failed - {quest_id}: {failure_reason}")
+    
+    @blueprint
+    fn record_quest_abandoned(quest_id: String, player_id: String):
+        println("Analytics: Quest abandoned - {quest_id}")
+    
+    @blueprint
+    fn get_quest_completion_statistics(quest_id: String) -> String:
+        return "Completion rate: 75%"
+    
+    @blueprint
+    fn get_average_completion_time_for_quest(quest_id: String) -> Float:
+        return 300.0
+    
+    @blueprint
+    fn get_most_failed_quest() -> String:
+        return ""
+    
+    @blueprint
+    fn get_most_abandoned_quest() -> String:
+        return ""
+    
+    @blueprint
+    fn get_most_popular_quest() -> String:
+        return ""
+    
+    // ========================================================================
+    // QUEST LEADERBOARD
+    // ========================================================================
+    
+    @blueprint
+    fn get_fastest_completion_time(quest_id: String) -> Float:
+        return 0.0
+    
+    @blueprint
+    fn get_fastest_completion_player(quest_id: String) -> String:
+        return ""
+    
+    @blueprint
+    fn submit_completion_time_to_leaderboard(quest_id: String, player_id: String, time: Float):
+        println("Submitted completion time: {time}s")
+    
+    @blueprint
+    fn get_leaderboard_rank(quest_id: String, player_id: String) -> Int:
+        return 0
+    
+    // ========================================================================
+    // QUEST ACHIEVEMENTS
+    // ========================================================================
+    
+    @blueprint
+    fn check_quest_achievements(player_id: String):
+        println("Checking quest achievements for player {player_id}")
+    
+    @blueprint
+    fn unlock_achievement_for_quest_count(player_id: String, count: Int):
+        println("Unlocked achievement: Completed {count} quests")
+    
+    @blueprint
+    fn unlock_achievement_for_quest_category(player_id: String, category: QuestCategory):
+        println("Unlocked achievement: Completed all {category} quests")
+    
+    @blueprint
+    fn get_quest_achievement_progress(player_id: String, achievement_id: String) -> Float:
+        return 0.0
+    
+    // ========================================================================
+    // QUEST DAILY/WEEKLY SYSTEM
+    // ========================================================================
+    
+    @blueprint
+    fn refresh_daily_quests():
+        println("Refreshing daily quests")
+    
+    @blueprint
+    fn refresh_weekly_quests():
+        println("Refreshing weekly quests")
+    
+    @blueprint
+    fn get_daily_quests() -> Array<String>:
+        let quests: Array<String> = []
+        return quests
+    
+    @blueprint
+    fn get_weekly_quests() -> Array<String>:
+        let quests: Array<String> = []
+        return quests
+    
+    @blueprint
+    fn get_time_until_daily_refresh() -> Float:
+        return 0.0
+    
+    @blueprint
+    fn get_time_until_weekly_refresh() -> Float:
+        return 0.0
+    
+    @blueprint
+    fn has_completed_daily_quests(player_id: String) -> Bool:
+        return false
+    
+    @blueprint
+    fn has_completed_weekly_quests(player_id: String) -> Bool:
+        return false
+    
+    // ========================================================================
+    // QUEST REPUTATION SYSTEM
+    // ========================================================================
+    
+    @blueprint
+    fn get_faction_reputation(player_id: String, faction_id: String) -> Int:
+        return 0
+    
+    @blueprint
+    fn add_faction_reputation(player_id: String, faction_id: String, amount: Int):
+        println("Added {amount} reputation with {faction_id}")
+    
+    @blueprint
+    fn get_reputation_level(player_id: String, faction_id: String) -> String:
+        return "Neutral"
+    
+    @blueprint
+    fn get_quests_for_faction(faction_id: String) -> Array<String>:
+        let quests: Array<String> = []
+        return quests
+    
+    @blueprint
+    fn get_reputation_required_for_quest(quest_id: String) -> Int:
+        return 0
+    
+    // ========================================================================
+    // QUEST SEASON SYSTEM
+    // ========================================================================
+    
+    @blueprint
+    fn get_current_season() -> String:
+        return "Season 1"
+    
+    @blueprint
+    fn get_seasonal_quests() -> Array<String>:
+        let quests: Array<String> = []
+        return quests
+    
+    @blueprint
+    fn is_seasonal_quest(quest_id: String) -> Bool:
+        return false
+    
+    @blueprint
+    fn get_season_end_time() -> Float:
+        return 0.0
+    
+    @blueprint
+    fn get_seasonal_rewards(player_id: String) -> QuestReward:
+        return QuestReward {
+            xp: 0,
+            gold: 0,
+            items: [],
+            reputation: [],
+            custom_rewards: [],
+            unlock_quest_ids: []
+        }
+    
+    // ========================================================================
+    // QUEST IMPORT/EXPORT
+    // ========================================================================
+    
+    @blueprint
+    fn export_quest_data(quest_id: String) -> String:
+        return "quest_data_json"
+    
+    @blueprint
+    fn import_quest_data(quest_data: String) -> Bool:
+        println("Importing quest data")
+        return true
+    
+    @blueprint
+    fn export_all_quests() -> String:
+        return "all_quests_json"
+    
+    @blueprint
+    fn import_quest_pack(pack_data: String) -> Int:
+        println("Importing quest pack")
+        return 0

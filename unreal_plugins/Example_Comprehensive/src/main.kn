@@ -1,0 +1,419 @@
+// ============================================================================
+// COMPREHENSIVE KAIN TEST PLUGIN
+// ============================================================================
+// Tests ALL non-GAS features in a single plugin to verify pipeline integrity.
+// This serves as a regression test and feature showcase.
+// ============================================================================
+
+import "Unreal.Core"
+import "Unreal.Slate"
+
+// ============================================================================
+// SECTION 1: ENUMS
+// ============================================================================
+
+enum ItemRarity:
+    Common
+    Uncommon
+    Rare
+    Epic
+    Legendary
+
+enum DamageType:
+    Physical
+    Fire
+    Ice
+    Lightning
+    Poison
+
+enum AIState:
+    Idle
+    Patrol
+    Chase
+    Attack
+    Flee
+
+// Anti-double-prefix test
+enum EHealthStatus:
+    Healthy
+    Wounded
+    Critical
+    Dead
+
+// ============================================================================
+// SECTION 2: STRUCTS
+// ============================================================================
+
+struct Point3D:
+    x: Float
+    y: Float
+    z: Float
+
+struct CharacterStats:
+    health: Float
+    max_health: Float
+    mana: Float
+    level: Int
+    experience: Int
+
+struct ItemStack:
+    item_id: Int
+    quantity: Int
+    rarity: ItemRarity
+
+// ============================================================================
+// SECTION 3: DATATABLES
+// ============================================================================
+
+@datatable
+struct ItemData:
+    id: Int
+    name: String
+    rarity: ItemRarity
+    value: Int
+    max_stack: Int
+
+@datatable
+struct EnemyData:
+    id: Int
+    name: String
+    health: Float
+    damage: Float
+    ai_state: AIState
+
+// ============================================================================
+// SECTION 4: DELEGATES
+// ============================================================================
+
+type OnHealthChanged = delegate(new_health: Float)
+type OnDamageReceived = delegate(damage: Float, damage_type: DamageType)
+type OnItemPickup = delegate(item_id: Int, quantity: Int)
+
+// ============================================================================
+// SECTION 5: COMPONENTS
+// ============================================================================
+
+@component
+struct HealthComponent:
+    @replicated
+    current: Float
+    
+    @replicated
+    max: Float
+    
+    @transient
+    regen_rate: Float
+    
+    @savegame
+    is_invulnerable: Bool
+
+@component
+@tick
+struct MovementComponent:
+    velocity: Vec3
+    max_speed: Float
+    friction: Float
+    
+    fn on_tick(delta: Float):
+        velocity = velocity * (1.0 - friction * delta)
+
+@component
+struct CombatComponent:
+    damage_multiplier: Float
+    armor: Float
+    is_blocking: Bool
+    
+    @blueprint_callable
+    fn ApplyDamage(base_damage: Float) -> Float:
+        if is_blocking:
+            return base_damage * 0.5 * damage_multiplier
+        return base_damage * damage_multiplier
+    
+    @blueprint_pure
+    fn GetEffectiveArmor() -> Float:
+        if is_blocking:
+            return armor * 2.0
+        return armor
+
+// ============================================================================
+// SECTION 6: SUBSYSTEMS
+// ============================================================================
+
+@subsystem
+struct GameStateSubsystem:
+    current_level: Int
+    player_count: Int
+    match_time: Float
+    is_paused: Bool
+    
+    fn StartMatch():
+        match_time = 0.0
+        is_paused = false
+    
+    fn PauseMatch():
+        is_paused = true
+
+@subsystem
+@tick
+struct QuestSubsystem:
+    active_quests: Array<Int>
+    completed_quests: Array<Int>
+    update_interval: Float
+    last_update_time: Float
+    
+    fn on_tick(delta: Float):
+        last_update_time = last_update_time + delta
+        if last_update_time >= update_interval:
+            last_update_time = 0.0
+
+// ============================================================================
+// SECTION 7: ACTORS
+// ============================================================================
+
+actor TestCharacter:
+    @replicated
+    state health: Float = 100.0
+    
+    @replicated
+    state max_health: Float = 100.0
+    
+    @replicated
+    state is_alive: Bool = true
+    
+    state damage_type: DamageType = DamageType::Physical
+    
+    on BeginPlay():
+        println("TestCharacter spawned")
+        health = max_health
+    
+    on Tick(delta_time: Float):
+        if health <= 0.0 and is_alive:
+            is_alive = false
+    
+    @blueprint_callable
+    fn TakeDamage(amount: Float):
+        health = health - amount
+        if health < 0.0:
+            health = 0.0
+    
+    @blueprint_callable
+    fn Heal(amount: Float):
+        health = health + amount
+        if health > max_health:
+            health = max_health
+    
+    on Server_ApplyDamage(damage: Float, attacker: Actor):
+        TakeDamage(damage)
+        Client_NotifyDamage(damage)
+    
+    on Client_NotifyDamage(damage: Float):
+        println("Took {damage} damage!")
+    
+    on Multicast_PlayEffect(effect_name: String):
+        println("Playing effect: {effect_name}")
+
+actor ItemPickup:
+    state item_id: Int = 0
+    state quantity: Int = 1
+    state rarity: ItemRarity = ItemRarity::Common
+    
+    on BeginPlay():
+        println("Item spawned: {item_id}")
+
+actor AIEnemy:
+    @replicated
+    state health: Float = 50.0
+    
+    state ai_state: AIState = AIState::Idle
+    state target: Actor
+    state patrol_points: Array<Vec3>
+    state current_patrol_index: Int = 0
+    
+    on BeginPlay():
+        ai_state = AIState::Patrol
+    
+    on Tick(delta_time: Float):
+        match ai_state:
+            AIState::Idle => UpdateIdle(delta_time)
+            AIState::Patrol => UpdatePatrol(delta_time)
+            AIState::Chase => UpdateChase(delta_time)
+            AIState::Attack => UpdateAttack(delta_time)
+            _ => {}
+    
+    fn UpdateIdle(delta: Float):
+        println("Idling...")
+    
+    fn UpdatePatrol(delta: Float):
+        println("Patrolling...")
+    
+    fn UpdateChase(delta: Float):
+        println("Chasing target...")
+    
+    fn UpdateAttack(delta: Float):
+        println("Attacking!")
+
+// ============================================================================
+// SECTION 8: BLUEPRINT FUNCTIONS
+// ============================================================================
+
+@blueprint
+fn CalculateDamage(base: Float, multiplier: Float, armor: Float) -> Float:
+    let raw = base * multiplier
+    return max(raw * (1.0 - armor / 100.0), 0.0)
+
+@blueprint
+fn GetRarityColor(rarity: ItemRarity) -> Vec3:
+    match rarity:
+        ItemRarity::Common => vec3(0.5, 0.5, 0.5)
+        ItemRarity::Uncommon => vec3(0.0, 1.0, 0.0)
+        ItemRarity::Rare => vec3(0.0, 0.5, 1.0)
+        ItemRarity::Epic => vec3(0.8, 0.0, 1.0)
+        ItemRarity::Legendary => vec3(1.0, 0.8, 0.0)
+        _ => vec3(1.0, 1.0, 1.0)
+
+@blueprint
+fn IsValidTarget(target: Actor, max_range: Float) -> Bool:
+    if !target:
+        return false
+    return true
+
+// ============================================================================
+// SECTION 9: SHADERS
+// ============================================================================
+
+shader compute NoiseGenerator(thread_id: Vec3):
+    uniform grid_size: Int @0
+    uniform noise_scale: Float @1
+    buffer output: RWBuffer<Float> @2
+    
+    let idx = thread_id.x + thread_id.y * grid_size
+    let noise = sin(thread_id.x * noise_scale) * cos(thread_id.y * noise_scale)
+    output[idx] = noise
+
+shader fragment ColorTint(uv: Vec2) -> Vec4:
+    uniform base_color: Vec3 @0
+    uniform tint_strength: Float @1
+    
+    let tinted = base_color * tint_strength
+    return vec4(tinted, 1.0)
+
+// ============================================================================
+// SECTION 10: SLATE WIDGETS
+// ============================================================================
+
+@slate
+struct TestDashboard:
+    title: String = "Test Dashboard"
+    progress: Float = 0.5
+    is_enabled: Bool = true
+    
+    @color_picker
+    accent_color: Color = color("blue")
+    
+    on_refresh: void
+    on_toggle: void
+    
+    fn Compose() -> Widget:
+        return VerticalBox()
+            .Add(
+                TextBlock()
+                    .Text(title)
+                    .Font(font("Bold", 18))
+            )
+            .Add(
+                ProgressBar()
+                    .Percent(progress)
+            )
+            .Add(
+                HorizontalBox()
+                    .Add(
+                        Button()
+                            .OnClicked(on_refresh)
+                            .Content(
+                                TextBlock()
+                                    .Text("Refresh")
+                            )
+                    )
+                    .Add(
+                        CheckBox()
+                            .IsChecked(is_enabled)
+                            .OnCheckStateChanged(on_toggle)
+                    )
+            )
+
+// ============================================================================
+// SECTION 11: DETAILS PANELS
+// ============================================================================
+
+@details
+struct CharacterDetails:
+    @category("Stats")
+    @slider(0.0, 100.0)
+    health: Float = 100.0
+    
+    @category("Stats")
+    @slider(0.0, 100.0)
+    mana: Float = 50.0
+    
+    @category("Combat")
+    damage: Float = 10.0
+    
+    @category("Combat")
+    armor: Float = 5.0
+    
+    @color_picker
+    team_color: Color = color("red")
+
+// ============================================================================
+// SECTION 12: ASYNC TASKS
+// ============================================================================
+
+@async_task
+struct DataProcessingTask:
+    @input
+    input_data: Array<Float>
+    
+    @output
+    output_data: Array<Float>
+    
+    @callback(thread: "game")
+    fn on_complete(result: Array<Float>):
+        println("Processing complete!")
+
+// ============================================================================
+// SECTION 13: STATE MACHINES
+// ============================================================================
+
+@state_machine
+struct CombatAnimations:
+    @state(entry: true)
+    idle:
+        animation: "Idle_Anim"
+        @transition(to: "attacking")
+        fn can_attack() -> Bool:
+            return true
+    
+    @state
+    attacking:
+        animation: "Attack_Anim"
+        @transition(to: "idle")
+        fn attack_finished() -> Bool:
+            return true
+
+// ============================================================================
+// FEATURE SUMMARY
+// ============================================================================
+// ✅ Enums (5) - including anti-double-prefix
+// ✅ Structs (3)
+// ✅ DataTables (2)
+// ✅ Delegates (3)
+// ✅ Components (3) - with @tick, @replicated, @blueprint_callable
+// ✅ Subsystems (2) - with @tick
+// ✅ Actors (3) - with RPCs, state, lifecycle
+// ✅ Blueprint Functions (3)
+// ✅ Shaders (2) - compute and fragment
+// ✅ Slate Widgets (1)
+// ✅ Details Panels (1)
+// ✅ Async Tasks (1)
+// ✅ State Machines (1)
+// ============================================================================

@@ -1,0 +1,45 @@
+// ConfigSmokeTest — ue5-config pipeline smoke test
+
+@config(category: "Game", display_name: "Game Settings")
+struct GameSettings:
+    @setting(display_name: "Player Speed", cvar: "game.PlayerSpeed", blueprint: true, min: 0.0, max: 2000.0)
+    player_speed: Float = 300.0
+
+    @setting(display_name: "Max Players", cvar: "game.MaxPlayers", blueprint: true, min: 1, max: 64)
+    max_players: Int = 16
+
+    @setting(display_name: "Enable PvP", cvar: "game.EnablePvP", blueprint: true, writable: true)
+    enable_pvp: Bool = false
+
+    @setting(display_name: "Server URL")
+    server_url: String = "localhost:7777"
+
+
+@config(category: "Engine", display_name: "Debug Settings")
+struct DebugSettings:
+    @setting(cvar: "debug.ShowFPS")
+    show_fps: Bool = false
+
+    @setting(cvar: "debug.LogLevel", min: 0, max: 4)
+    log_level: Int = 2
+
+    @setting(cvar: "debug.WireframeOpacity", min: 0.0, max: 1.0)
+    wireframe_opacity: Float = 0.5
+
+
+@config(category: "Game")
+struct VoxelSettings:
+    @setting(cvar: "voxel.ChunkSize", blueprint: true, min: 10.0, max: 1000.0)
+    chunk_size: Float = 100.0
+
+    @setting(cvar: "voxel.RenderDistance", min: 1, max: 32)
+    render_distance: Int = 8
+
+
+actor TestActor:
+    state health: Float = 100.0
+
+    on Server_TakeDamage(amount: Float):
+        health = health - amount
+        if health <= 0.0:
+            println("TestActor died")

@@ -1,0 +1,15 @@
+[package]
+name = "TickOptimizer"
+version = "1.0.0"
+authors = ["KAIN Factory"]
+description = "Smart tick optimization system with distance-based throttling and real-time performance monitoring"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "TickOptimizer"
+plugin_dir = "."
+sources = ["tick_optimizer.kn"]
+shaders = []
+modular_output = true

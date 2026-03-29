@@ -7,6 +7,7 @@ struct DccSuiteSeedOutputs:
     svg_mask_document: String
     preview_src: Any
     preview_dst: Any
+    pathtrace_dst: Any
     preview_image: Any
     tensor_features: Any
     sculpt_heightfield_src: Any
@@ -136,7 +137,7 @@ fn build_sculpt_brush_params(settings: Any) -> Array<Int>:
     return bytes
 
 fn build_mesh_resource_contract() -> String:
-    let mesh_contract = fabric_inputs.python_suite_bootstrap.mesh_contract_resource_uris
+    let mesh_contract = fabric_inputs.python_suite_bootstrap.project_settings.mesh_contract_resource_uris
     return "ownership=app-owned:startup-cube=mesh://primitives/authored/startup-cube:imported-payloads=" + mesh_contract.imported_mesh_payload_document + ":authored-primitives=" + mesh_contract.authored_primitive_definition_document + ":active-editable=" + mesh_contract.active_editable_mesh_document + ":topology-output=" + mesh_contract.topology_output_mesh_document
 
 fn build_scene_graph_document(settings: Any) -> String:
@@ -158,6 +159,7 @@ fn main() -> DccSuiteSeedOutputs:
     let settings = fabric_inputs.python_suite_bootstrap.project_settings
     let preview_src_bytes = build_preview_stream(settings.preview_count, settings.brush_accent)
     let preview_dst_bytes = build_zero_stream(settings.preview_count)
+    let pathtrace_dst_bytes = build_zero_stream(settings.preview_count)
     let preview_pixels = build_preview_pixels(8, 8, settings.brush_accent)
     let tensor_bytes = build_tensor_features(settings.tensor_feature_count, settings.brush_accent)
     let sculpt_heightfield_bytes = build_sculpt_heightfield_stream(settings)
@@ -172,6 +174,13 @@ fn main() -> DccSuiteSeedOutputs:
     )
     let preview_dst = interop_shared_buffer_from_bytes(
         preview_dst_bytes,
+        "f32",
+        [settings.preview_count],
+        "f32",
+        "application/octet-stream"
+    )
+    let pathtrace_dst = interop_shared_buffer_from_bytes(
+        pathtrace_dst_bytes,
         "f32",
         [settings.preview_count],
         "f32",
@@ -221,6 +230,7 @@ fn main() -> DccSuiteSeedOutputs:
         svg_mask_document: build_svg_mask_document(settings),
         preview_src: preview_src,
         preview_dst: preview_dst,
+        pathtrace_dst: pathtrace_dst,
         preview_image: preview_image,
         tensor_features: tensor_features,
         sculpt_heightfield_src: sculpt_heightfield_src,

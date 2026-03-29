@@ -106,6 +106,26 @@
       "href": "#cache-stack"
     },
     {
+      "label": "Database",
+      "href": "#database-stack"
+    },
+    {
+      "label": "Queues",
+      "href": "#queue-stack"
+    },
+    {
+      "label": "Secrets",
+      "href": "#secrets-stack"
+    },
+    {
+      "label": "Config",
+      "href": "#config-stack"
+    },
+    {
+      "label": "Jobs",
+      "href": "#background-jobs"
+    },
+    {
       "label": "Search",
       "href": "#search-stack"
     },
@@ -116,6 +136,42 @@
     {
       "label": "Sessions",
       "href": "#session-store"
+    },
+    {
+      "label": "Tenancy",
+      "href": "#tenancy"
+    },
+    {
+      "label": "SSO",
+      "href": "#sso"
+    },
+    {
+      "label": "API Keys",
+      "href": "#api-keys"
+    },
+    {
+      "label": "Marketplace",
+      "href": "#integration-marketplace"
+    },
+    {
+      "label": "Event Bus",
+      "href": "#event-bus"
+    },
+    {
+      "label": "Pipelines",
+      "href": "#data-pipelines"
+    },
+    {
+      "label": "Compliance",
+      "href": "#compliance"
+    },
+    {
+      "label": "Frameworks",
+      "href": "#compliance-frameworks"
+    },
+    {
+      "label": "Runbooks",
+      "href": "#ops-runbooks"
     }
   ],
   "hero": {

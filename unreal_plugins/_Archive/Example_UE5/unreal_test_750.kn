@@ -1,0 +1,750 @@
+# ============================================================================
+# KAIN UE5 RUNTIME CODEGEN - ULTIMATE SHOWCASE
+# ============================================================================
+# This file demonstrates EVERY feature supported by the ue5 crate (runtime codegen).
+# It is the definitive reference for KAIN's UE5 C++ generation capabilities.
+#
+# COVERAGE:
+# ✅ Actors (AActor) - lifecycle, RPCs, replication, shader dispatch
+# ✅ Components (UActorComponent) - @component, @tick, @beginplay, replication
+# ✅ Structs (USTRUCT) - basic, @datatable, nested
+# ✅ Enums (UENUM) - variants, display names
+# ✅ Delegates (DECLARE_DYNAMIC_MULTICAST_DELEGATE) - multicast, parameters
+# ✅ Subsystems (UWorldSubsystem) - @subsystem, @tick
+# ✅ Async Tasks (FRunnable) - @async_task, callbacks, threading
+# ✅ State Machines - @state_machine, states, transitions
+# ✅ Blueprint Integration - @blueprint, @blueprint_callable, @blueprint_event
+# ✅ Network Sync - @replicated with interpolation/extrapolation/compression
+# ✅ RPCs - Server_/Client_/Multicast_ with validation
+# ✅ Traits → Interfaces - trait → UInterface mapping
+# ✅ Type System - primitives, vectors, containers, smart pointers
+# ✅ Naming Conventions - A/F/E/U prefixes, anti-double-prefix
+# ✅ EngineKnowledge - named colors, constructors, type resolution
+# ✅ Oracle Validation - semantic validation, UHT rules
+# ✅ Metadata System - engine types, widgets, shaders, modules
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: ENUMS - Type-safe constants with UENUM generation
+# ============================================================================
+
+enum ItemRarity:
+    Common
+    Uncommon
+    Rare
+    Epic
+    Legendary
+    Mythic
+
+enum DamageType:
+    Physical
+    Magical
+    Fire
+    Ice
+    Lightning
+    Poison
+    Holy
+    Dark
+
+enum QuestStatus:
+    NotStarted
+    InProgress
+    Completed
+    Failed
+    Abandoned
+
+enum MovementMode:
+    Walking
+    Running
+    Sprinting
+    Crouching
+    Jumping
+    Flying
+    Swimming
+    Climbing
+
+enum WeaponType:
+    Sword
+    Axe
+    Bow
+    Staff
+    Dagger
+    Hammer
+    Spear
+    Crossbow
+
+enum AIState:
+    Idle
+    Patrol
+    Chase
+    Attack
+    Flee
+    Dead
+
+# Anti-double-prefix test - already has E prefix
+enum EHealthStatus:
+    Healthy
+    Wounded
+    Critical
+    Dead
+
+# ============================================================================
+# SECTION 2: STRUCTS - Value types with USTRUCT generation
+# ============================================================================
+
+# Basic struct
+struct Point:
+    x: Float
+    y: Float
+    z: Float
+
+# Nested struct
+struct Transform:
+    position: Vec3
+    rotation: Rotator
+    scale: Vec3
+
+# Complex struct with multiple types
+struct CharacterStats:
+    health: Float
+    max_health: Float
+    mana: Float
+    max_mana: Float
+    stamina: Float
+    max_stamina: Float
+    level: Int
+    experience: Int
+
+    strength: Int
+    dexterity: Int
+    intelligence: Int
+    vitality: Int
+
+# Struct with arrays and maps
+struct Inventory:
+    items: Array<Int>
+    quantities: Array<Int>
+    capacity: Int
+    gold: Int
+    weight: Float
+
+# Struct with enum field
+struct ItemStack:
+    item_id: Int
+    quantity: Int
+    rarity: ItemRarity
+    durability: Float
+
+# ============================================================================
+# SECTION 3: DATATABLES - CSV-importable data with FTableRowBase
+# ============================================================================
+
+@datatable
+struct ItemData:
+    id: Int
+    name: String
+    description: String
+    rarity: ItemRarity
+    value: Int
+    weight: Float
+    max_stack: Int
+    icon_path: String
+    mesh_path: String
+    is_consumable: Bool
+
+@datatable
+struct WeaponData:
+    id: Int
+    name: String
+    weapon_type: WeaponType
+    damage: Float
+    attack_speed: Float
+    range: Float
+    durability: Int
+    required_level: Int
+    rarity: ItemRarity
+
+@datatable
+struct QuestData:
+    id: Int
+    name: String
+    description: String
+    quest_giver: String
+    reward_exp: Int
+    reward_gold: Int
+    required_level: Int
+    status: QuestStatus
+
+@datatable
+struct EnemyData:
+    id: Int
+    name: String
+    health: Float
+    damage: Float
+    armor: Float
+    ai_state: AIState
+    loot_table_id: Int
+    experience_reward: Int
+
+# ============================================================================
+# SECTION 4: DELEGATES - Type-safe function pointers
+# ============================================================================
+
+# Zero parameters
+type OnGameStarted = delegate()
+
+# One parameter
+type OnHealthChanged = delegate(new_health: Float)
+
+# Two parameters
+type OnDamageReceived = delegate(damage: Float, attacker: Actor)
+
+# Three parameters
+type OnItemPickup = delegate(item_id: Int, quantity: Int, rarity: ItemRarity)
+
+# Four parameters
+type OnQuestUpdate = delegate(quest_id: Int, progress: Int, total: Int, status: QuestStatus)
+
+# Five parameters
+type OnCombatEvent = delegate(attacker: Actor, defender: Actor, damage: Float, damage_type: DamageType, is_critical: Bool)
+
+# Six parameters
+type OnPlayerAction = delegate(player: Actor, action: String, target: Actor, location: Vec3, rotation: Rotator, success: Bool)
+
+# ============================================================================
+# SECTION 5: COMPONENTS - Reusable actor components
+# ============================================================================
+
+# Basic component with state
+@component
+struct HealthComponent:
+    @replicated
+    current: Float
+    
+    @replicated
+    max: Float
+    
+    @transient
+    regen_rate: Float
+    
+    @savegame
+    is_invulnerable: Bool
+
+# Component with @tick
+@component
+@tick
+struct MovementComponent:
+    velocity: Vec3
+    acceleration: Vec3
+    max_speed: Float
+    friction: Float
+    
+    fn on_tick(delta: Float):
+        # Update velocity with friction
+        velocity = velocity * (1.0 - friction * delta)
+
+# Component with @beginplay
+@component
+@beginplay
+struct AudioComponent:
+    sound_path: String
+    volume: Float
+    is_playing: Bool
+    
+    fn on_begin_play():
+        # Initialize audio system
+        is_playing = false
+        volume = 1.0
+
+# Component with advanced replication
+@component
+struct NetworkedTransformComponent:
+    @replicated(mode: "interpolated", back_time: 0.1, buffer_size: 32)
+    position: Vec3
+    
+    @replicated(mode: "interpolated", back_time: 0.1, buffer_size: 32)
+    rotation: Rotator
+
+    
+    @replicated(mode: "extrapolated", limit: 100.0)
+    velocity: Vec3
+
+# Component with compressed replication
+@component
+struct CompressedDataComponent:
+    @replicated(mode: "compressed", threshold: 0.01, use_half_float: true)
+    data_value: Float
+    
+    @replicated(mode: "compressed", threshold: 0.1, use_half_float: false)
+    precision_value: Float
+
+# Component with methods
+@component
+struct CombatComponent:
+    damage_multiplier: Float
+    armor: Float
+    is_blocking: Bool
+    
+    @blueprint_callable
+    fn ApplyDamage(base_damage: Float) -> Float:
+        if is_blocking:
+            return base_damage * 0.5 * damage_multiplier
+        return base_damage * damage_multiplier
+    
+    @blueprint_pure
+    fn GetEffectiveArmor() -> Float:
+        if is_blocking:
+            return armor * 2.0
+        return armor
+    
+    @blueprint_callable
+    fn StartBlocking():
+        is_blocking = true
+    
+    @blueprint_callable
+    fn StopBlocking():
+        is_blocking = false
+
+# ============================================================================
+# SECTION 6: SUBSYSTEMS - World-level singleton systems
+# ============================================================================
+
+# Basic subsystem
+@subsystem
+struct GameStateSubsystem:
+    current_level: Int
+    player_count: Int
+    match_time: Float
+    is_paused: Bool
+    
+    fn StartMatch():
+        match_time = 0.0
+        is_paused = false
+    
+    fn PauseMatch():
+        is_paused = true
+    
+    fn ResumeMatch():
+        is_paused = false
+
+# Subsystem with @tick
+@subsystem
+@tick
+struct QuestSubsystem:
+    active_quests: Array<Int>
+    completed_quests: Array<Int>
+    quest_progress: Array<Int>
+    update_interval: Float
+    last_update_time: Float
+    
+    fn on_tick(delta: Float):
+        last_update_time = last_update_time + delta
+        if last_update_time >= update_interval:
+            UpdateQuestProgress()
+            last_update_time = 0.0
+    
+    fn StartQuest(quest_id: Int) -> Bool:
+        active_quests.push(quest_id)
+        return true
+    
+    fn CompleteQuest(quest_id: Int):
+        completed_quests.push(quest_id)
+
+    
+    fn IsQuestActive(quest_id: Int) -> Bool:
+        var i: Int = 0
+        while i < active_quests.length():
+            if active_quests[i] == quest_id:
+                return true
+            i = i + 1
+        return false
+
+# Subsystem with complex state management
+@subsystem
+@tick
+struct LootSubsystem:
+    loot_tables: Array<Int>
+    drop_rates: Array<Float>
+    rare_item_multiplier: Float
+    legendary_drop_chance: Float
+    
+    fn on_tick(delta: Float):
+        # Update loot spawn timers
+        UpdateLootSpawns()
+    
+    fn RollLoot(table_id: Int) -> Int:
+        # Loot rolling logic
+        return 0
+    
+    fn GetDropRate(item_id: Int) -> Float:
+        return 0.1
+    
+    fn ModifyDropRate(multiplier: Float):
+        rare_item_multiplier = multiplier
+
+# ============================================================================
+# SECTION 7: ASYNC TASKS - Background thread processing
+# ============================================================================
+
+@async_task
+struct DataProcessingTask:
+    @input
+    input_data: Array<Float>
+    
+    @input
+    processing_factor: Float
+    
+    @output
+    output_data: Array<Float>
+
+    
+    @callback(thread: "game")
+    fn on_complete(result: Array<Float>):
+        println("Processing complete!")
+
+@async_task
+struct MeshGenerationTask:
+    @input
+    resolution: Int
+    
+    @input
+    noise_scale: Float
+    
+    @output
+    vertices: Array<Vec3>
+    
+    @output
+    indices: Array<Int>
+    
+    @callback(thread: "game")
+    fn on_complete(verts: Array<Vec3>, inds: Array<Int>):
+        println("Mesh generated with {verts.length()} vertices")
+
+@async_task
+struct PathfindingTask:
+    @input
+    start_pos: Vec3
+    
+    @input
+    end_pos: Vec3
+    
+    @input
+    grid_size: Int
+    
+    @output
+    path: Array<Vec3>
+    
+    @output
+    path_length: Float
+    
+    @callback(thread: "game")
+    fn on_complete(result_path: Array<Vec3>, length: Float):
+        println("Path found with length: {length}")
+
+# ============================================================================
+# SECTION 8: STATE MACHINES - Animation state management
+# ============================================================================
+
+@state_machine
+struct CombatAnimations:
+    @state(entry: true)
+    idle:
+        animation: "Idle_Anim"
+        
+        @transition(to: "attacking", priority: 10)
+        fn can_attack() -> Bool:
+            return input_pressed("Attack")
+        
+        @transition(to: "blocking", priority: 5)
+        fn can_block() -> Bool:
+            return input_pressed("Block")
+    
+    @state
+    attacking:
+        animation: "Attack_Anim"
+        
+        @transition(to: "idle", priority: 1)
+        fn attack_finished() -> Bool:
+            return animation_complete()
+    
+    @state
+    blocking:
+        animation: "Block_Anim"
+        
+        @transition(to: "idle", priority: 1)
+        fn block_released() -> Bool:
+            return !input_pressed("Block")
+
+@state_machine
+struct MovementAnimations:
+    @state(entry: true)
+    idle:
+        animation: "Idle_Anim"
+        
+        @transition(to: "walking", priority: 1)
+        fn start_walking() -> Bool:
+            return get_speed() > 0.0
+
+    
+    @state
+    walking:
+        animation: "Walk_Anim"
+        
+        @transition(to: "running", priority: 10)
+        fn start_running() -> Bool:
+            return get_speed() > 300.0
+        
+        @transition(to: "idle", priority: 1)
+        fn stop_moving() -> Bool:
+            return get_speed() == 0.0
+    
+    @state
+    running:
+        animation: "Run_Anim"
+        
+        @transition(to: "walking", priority: 1)
+        fn slow_down() -> Bool:
+            return get_speed() <= 300.0
+
+# ============================================================================
+# SECTION 9: TRAITS → INTERFACES - Interface generation
+# ============================================================================
+
+trait Damageable:
+    fn TakeDamage(amount: Float) -> Bool
+    fn GetHealth() -> Float
+    fn IsAlive() -> Bool
+
+trait Interactable:
+    fn Interact(player: Actor) -> Bool
+    fn GetInteractionText() -> String
+    fn CanInteract() -> Bool
+
+trait Collectible:
+    fn Collect(player: Actor) -> Bool
+    fn GetValue() -> Int
+    fn GetRarity() -> ItemRarity
+
+# ============================================================================
+# SECTION 10: ACTORS - Complete actor demonstrations
+# ============================================================================
+
+# Actor implementing trait (interface)
+actor Player impl Damageable:
+    @replicated
+    state health: Float = 100.0
+    
+    @replicated
+    state max_health: Float = 100.0
+    
+    @replicated
+    state is_alive: Bool = true
+    
+    state combat_component: CombatComponent
+    state movement_component: MovementComponent
+    
+    # Trait implementation
+    fn TakeDamage(amount: Float) -> Bool:
+        if health > 0.0:
+            health = max(health - amount, 0.0)
+            if health == 0.0:
+                is_alive = false
+            return true
+        return false
+    
+    fn GetHealth() -> Float:
+        return health
+    
+    fn IsAlive() -> Bool:
+        return is_alive
+    
+    # Lifecycle methods
+    on BeginPlay():
+        println("Player spawned with {health} health")
+        combat_component = CombatComponent()
+        movement_component = MovementComponent()
+    
+    on Tick(delta_time: Float):
+        # Update components
+        if is_alive:
+            UpdateMovement(delta_time)
+            RegenerateHealth(delta_time)
+
+    
+    on EndPlay():
+        println("Player destroyed")
+    
+    on Destroyed():
+        println("Player actor destroyed")
+    
+    # RPCs - Server
+    on Server_Heal(amount: Float):
+        if is_alive:
+            health = min(health + amount, max_health)
+            Client_UpdateHealth(health)
+    
+    on Server_TakeDamageRPC(amount: Float, damage_type: DamageType):
+        let actual_damage = combat_component.ApplyDamage(amount)
+        TakeDamage(actual_damage)
+        Multicast_PlayDamageEffect(damage_type)
+    
+    # RPCs - Client
+    on Client_UpdateHealth(new_health: Float):
+        health = new_health
+    
+    on Client_ShowMessage(message: String):
+        println("Message: {message}")
+    
+    # RPCs - Multicast
+    on Multicast_PlayDamageEffect(damage_type: DamageType):
+        println("Playing damage effect for type: {damage_type}")
+    
+    on Multicast_Respawn(location: Vec3):
+        health = max_health
+        is_alive = true
+        println("Player respawned at {location}")
+    
+    # Blueprint integration
+    @blueprint_callable
+    fn GetHealthPercentage() -> Float:
+        return health / max_health
+
+    
+    @blueprint_pure
+    fn IsLowHealth() -> Bool:
+        return health < max_health * 0.3
+    
+    @blueprint_event
+    fn OnHealthChanged(new_health: Float, old_health: Float):
+        println("Health changed from {old_health} to {new_health}")
+    
+    @blueprint_event
+    fn OnDeath():
+        println("Player died - Blueprint can override")
+    
+    @blueprint_implementable_event
+    fn OnRespawn():
+        println("Player respawned - Blueprint can override")
+
+# Actor with delegates
+actor GameManager:
+    @replicated
+    state player_count: Int = 0
+    
+    @replicated
+    state match_score: Int = 0
+    
+    state on_game_started: OnGameStarted
+    state on_player_joined: OnHealthChanged
+    state on_damage_received: OnDamageReceived
+    
+    on BeginPlay():
+        println("GameManager initialized")
+        on_game_started.Broadcast()
+    
+    on Tick(delta_time: Float):
+        # Update game state
+        UpdateMatchTime(delta_time)
+    
+    on Server_RegisterPlayer(player_name: String):
+        player_count = player_count + 1
+        Multicast_AnnouncePlayer(player_name)
+    
+    on Multicast_AnnouncePlayer(name: String):
+        println("Player joined: {name}")
+
+    
+    @blueprint_callable
+    fn BroadcastDamageEvent(damage: Float, attacker: Actor):
+        on_damage_received.Broadcast(damage, attacker)
+
+# Actor implementing multiple traits
+actor Chest impl Interactable, Collectible:
+    @replicated
+    state is_open: Bool = false
+    
+    @replicated
+    state item_id: Int = 0
+    
+    @replicated
+    state rarity: ItemRarity = ItemRarity::Common
+    
+    state gold_value: Int = 100
+    
+    # Interactable implementation
+    fn Interact(player: Actor) -> Bool:
+        if !is_open:
+            is_open = true
+            return true
+        return false
+    
+    fn GetInteractionText() -> String:
+        if is_open:
+            return "Empty Chest"
+        return "Open Chest"
+    
+    fn CanInteract() -> Bool:
+        return !is_open
+    
+    # Collectible implementation
+    fn Collect(player: Actor) -> Bool:
+        if is_open:
+            return true
+        return false
+    
+    fn GetValue() -> Int:
+        return gold_value
+    
+    fn GetRarity() -> ItemRarity:
+        return rarity
+    
+    on BeginPlay():
+        println("Chest spawned with item {item_id}")
+
+    
+    on Server_Open(player: Actor):
+        if Interact(player):
+            Multicast_PlayOpenAnimation()
+    
+    on Multicast_PlayOpenAnimation():
+        println("Chest opening animation")
+
+# Actor with custom base class
+@base("ACharacter")
+actor CustomCharacter:
+    @replicated
+    state movement_speed: Float = 600.0
+    
+    @replicated
+    state jump_height: Float = 500.0
+    
+    on BeginPlay():
+        println("CustomCharacter initialized")
+    
+    @blueprint_callable
+    fn SetMovementSpeed(speed: Float):
+        movement_speed = speed
+
+# Actor with UCLASS specifiers
+@uclass("Blueprintable", "Abstract")
+actor BaseEnemy:
+    @replicated
+    state health: Float = 100.0
+    
+    @replicated
+    state damage: Float = 10.0
+    
+    @replicated
+    state ai_state: AIState = AIState::Idle
+    
+    on BeginPlay():
+        println("BaseEnemy spawned")
+    
+    on Tick(delta_time: Float):
+        UpdateAI(delta_time)
+    
+    on Server_SetAIState(new_state: AIState):
+        ai_state = new_state
+        Multicast_OnAIStateChanged(new_state)
+    
+    on Multicast_OnAIStateChanged(new_state: AIState):

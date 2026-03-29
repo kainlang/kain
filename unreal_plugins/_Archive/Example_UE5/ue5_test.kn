@@ -1,0 +1,14 @@
+trait Damageable:
+    fn TakeDamage(amount: Float) -> Bool
+    fn GetHealth() -> Float
+    fn IsAlive() -> Bool
+
+trait Interactable:
+    fn Interact(player: Actor) -> Bool
+    fn GetInteractionText() -> String
+    fn CanInteract() -> Bool
+
+trait Collectible:
+    fn Collect(player: Actor) -> Bool
+    fn GetValue() -> Int
+    fn GetRarity() -> ItemRarity

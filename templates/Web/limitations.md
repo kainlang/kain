@@ -86,6 +86,7 @@ Requested upstream capability:
 Current template approach:
 
 - forms persist locally to JSONL during prototyping
+- database, queue, secrets, and config stacks are manifest-only metadata until native runtime adapters land
 - operator routes, docs requests, and handoff flows stop at local helper-owned persistence
 
 Requested upstream capability:
@@ -201,3 +202,36 @@ Current template approach:
 Requested upstream capability:
 
 - first-class Kain-side contracts and adapter lanes for consent/cookies, identity verification, fraud/risk, audit logs, data exports, marketplace payouts, and content syndication so these systems can move beyond static metadata
+
+### 18. Tenancy, SSO/SCIM, API keys, integration marketplace, event bus, and data pipelines are metadata-only
+
+Current template approach:
+
+- tenant management, SSO/SCIM, API key management, integration marketplace, event bus, data pipelines, compliance frameworks, and ops runbooks live in manifest data
+- the helper runtime exposes JSON endpoints for these systems but does not enforce enterprise identity, provisioning, or event routing logic
+
+Requested upstream capability:
+
+- Kain-native enterprise identity/tenancy contracts plus event-bus and data-pipeline adapters so these systems can graduate from metadata to executable runtime lanes
+
+### 19. PWA manifest + service worker emission remain helper-owned
+
+Current template approach:
+
+- the Node helper runtime emits `manifest.webmanifest`, `service-worker.js`, `offline/index.html`, and an installable SVG icon
+- offline routing and precache lists are configured in `manifests/app.json`
+
+Requested upstream capability:
+
+- Kain-native web runtime surface for PWA manifests, offline caches, and install flows so installability is not helper-owned
+
+### 20. Creative systems (copy decks, email templates, campaigns, icon/motion/illustration libraries) are helper-owned
+
+Current template approach:
+
+- creative systems live as manifest data and are rendered by the Node helper
+- no first-class Kain authoring or adapter lane exists for email templates, asset libraries, or campaign workflows
+
+Requested upstream capability:
+
+- Kain-native creative system authoring + adapter lanes for email templates, asset libraries, and campaign automation so these systems can be compiled and validated without helper-owned rendering

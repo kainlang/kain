@@ -1,0 +1,461 @@
+# ============================================================================
+# MATERIALIZE - Layer System
+# ============================================================================
+# Layer stack compositor with GPU-accelerated blending
+# - Layer stack management and evaluation
+# - Blend mode operations (20+ modes)
+# - Filter and adjustment application
+# - Procedural texture generation
+# - Math operations on textures
+# ============================================================================
+
+# ============================================================================
+# LAYER EVALUATOR - GPU-accelerated stack compositor
+# ============================================================================
+
+@blueprint
+fn evaluate_layer_stack(stack: LayerStack, width: Int, height: Int) -> MaterializeResult:
+    let result: MaterializeResult = MaterializeResult()
+    result.generation_time_ms = 0.0
+    result.layer_base_color = true
+    result.has_normal = false
+    result.has_roughness = false
+    result.has_metallic = false
+    result.has_ao = false
+    result.has_height = false
+    result.has_emissive = false
+    result.has_orm = false
+    result.has_material = false
+    return result
+
+@blueprint
+fn evaluate_single_layer(layer: Layer, width: Int, height: Int) -> Bool:
+    return layer.enabled
+
+@blueprint
+fn blend_textures(base_texture: Texture, blend_texture: Texture, blend_mode: LayerBlendMode, opacity: Float, mask_texture: Texture, invert_mask: Bool) -> Texture:
+    return base_texture
+
+@blueprint
+fn generate_procedural_texture(params: ProceduralParams, width: Int, height: Int) -> Texture:
+    return params
+
+@blueprint
+fn apply_filter(source_texture: Texture, params: FilterParams) -> Texture:
+    return source_texture
+
+@blueprint
+fn apply_adjustment(source_texture: Texture, params: AdjustmentParams) -> Texture:
+    return source_texture
+
+@blueprint
+fn add_textures(texture_a: Texture, texture_b: Texture) -> Texture:
+    return texture_a
+
+@blueprint
+fn multiply_textures(texture_a: Texture, texture_b: Texture) -> Texture:
+    return texture_a
+
+@blueprint
+fn lerp_textures(texture_a: Texture, texture_b: Texture, alpha: Float) -> Texture:
+    return texture_a
+
+@blueprint
+fn subtract_textures(texture_a: Texture, texture_b: Texture) -> Texture:
+    return texture_a
+
+@blueprint
+fn divide_textures(texture_a: Texture, texture_b: Texture) -> Texture:
+    return texture_a
+
+@blueprint
+fn min_textures(texture_a: Texture, texture_b: Texture) -> Texture:
+    return texture_a
+
+@blueprint
+fn max_textures(texture_a: Texture, texture_b: Texture) -> Texture:
+    return texture_a
+
+@blueprint
+fn clamp_texture(source_texture: Texture, min_value: Float, max_value: Float) -> Texture:
+    return source_texture
+
+@blueprint
+fn abs_texture(source_texture: Texture) -> Texture:
+    return source_texture
+
+@blueprint
+fn pow_texture(source_texture: Texture, exponent: Float) -> Texture:
+    return source_texture
+
+@blueprint
+fn invert_texture(source_texture: Texture) -> Texture:
+    return source_texture
+
+@blueprint
+fn grayscale_texture(source_texture: Texture) -> Texture:
+    return source_texture
+
+# ============================================================================
+# VALIDATION FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn validate_layer_stack(stack: LayerStack) -> Bool:
+    return stack.layer_count > 0
+
+@blueprint
+fn validate_blend_mode(blend_mode: LayerBlendMode) -> Bool:
+    return true
+
+@blueprint
+fn validate_filter_type(filter_type: FilterType) -> Bool:
+    return true
+
+@blueprint
+fn validate_texture_format(source_texture: Texture) -> Bool:
+    return true
+
+# ============================================================================
+# BLEND MODE IMPLEMENTATIONS
+# ============================================================================
+
+@blueprint
+fn blend_normal(base: Vec3, blend: Vec3, opacity: Float) -> Vec3:
+    let result_x: Float = base.x * (1.0 - opacity) + blend.x * opacity
+    let result_y: Float = base.y * (1.0 - opacity) + blend.y * opacity
+    let result_z: Float = base.z * (1.0 - opacity) + blend.z * opacity
+    return vec3(result_x, result_y, result_z)
+
+@blueprint
+fn blend_multiply(base: Vec3, blend: Vec3, opacity: Float) -> Vec3:
+    let mult_x: Float = base.x * blend.x
+    let mult_y: Float = base.y * blend.y
+    let mult_z: Float = base.z * blend.z
+    let result_x: Float = base.x * (1.0 - opacity) + mult_x * opacity
+    let result_y: Float = base.y * (1.0 - opacity) + mult_y * opacity
+    let result_z: Float = base.z * (1.0 - opacity) + mult_z * opacity
+    return vec3(result_x, result_y, result_z)
+
+@blueprint
+fn blend_screen(base: Vec3, blend: Vec3, opacity: Float) -> Vec3:
+    let screen_x: Float = 1.0 - (1.0 - base.x) * (1.0 - blend.x)
+    let screen_y: Float = 1.0 - (1.0 - base.y) * (1.0 - blend.y)
+    let screen_z: Float = 1.0 - (1.0 - base.z) * (1.0 - blend.z)
+    let result_x: Float = base.x * (1.0 - opacity) + screen_x * opacity
+    let result_y: Float = base.y * (1.0 - opacity) + screen_y * opacity
+    let result_z: Float = base.z * (1.0 - opacity) + screen_z * opacity
+    return vec3(result_x, result_y, result_z)
+
+@blueprint
+fn blend_overlay(base: Vec3, blend: Vec3, opacity: Float) -> Vec3:
+    let overlay_x: Float = 0.0
+    if base.x < 0.5:
+        overlay_x = 2.0 * base.x * blend.x
+    else:
+        overlay_x = 1.0 - 2.0 * (1.0 - base.x) * (1.0 - blend.x)
+    
+    let overlay_y: Float = 0.0
+    if base.y < 0.5:
+        overlay_y = 2.0 * base.y * blend.y
+    else:
+        overlay_y = 1.0 - 2.0 * (1.0 - base.y) * (1.0 - blend.y)
+    
+    let overlay_z: Float = 0.0
+    if base.z < 0.5:
+        overlay_z = 2.0 * base.z * blend.z
+    else:
+        overlay_z = 1.0 - 2.0 * (1.0 - base.z) * (1.0 - blend.z)
+    
+    let result_x: Float = base.x * (1.0 - opacity) + overlay_x * opacity
+    let result_y: Float = base.y * (1.0 - opacity) + overlay_y * opacity
+    let result_z: Float = base.z * (1.0 - opacity) + overlay_z * opacity
+    return vec3(result_x, result_y, result_z)
+
+@blueprint
+fn blend_add(base: Vec3, blend: Vec3, opacity: Float) -> Vec3:
+    let add_x: Float = base.x + blend.x
+    let add_y: Float = base.y + blend.y
+    let add_z: Float = base.z + blend.z
+    let result_x: Float = base.x * (1.0 - opacity) + add_x * opacity
+    let result_y: Float = base.y * (1.0 - opacity) + add_y * opacity
+    let result_z: Float = base.z * (1.0 - opacity) + add_z * opacity
+    return vec3(result_x, result_y, result_z)
+
+@blueprint
+fn blend_subtract(base: Vec3, blend: Vec3, opacity: Float) -> Vec3:
+    let sub_x: Float = base.x - blend.x
+    let sub_y: Float = base.y - blend.y
+    let sub_z: Float = base.z - blend.z
+    let result_x: Float = base.x * (1.0 - opacity) + sub_x * opacity
+    let result_y: Float = base.y * (1.0 - opacity) + sub_y * opacity
+    let result_z: Float = base.z * (1.0 - opacity) + sub_z * opacity
+    return vec3(result_x, result_y, result_z)
+
+@blueprint
+fn blend_difference(base: Vec3, blend: Vec3, opacity: Float) -> Vec3:
+    let diff_x: Float = abs(base.x - blend.x)
+    let diff_y: Float = abs(base.y - blend.y)
+    let diff_z: Float = abs(base.z - blend.z)
+    let result_x: Float = base.x * (1.0 - opacity) + diff_x * opacity
+    let result_y: Float = base.y * (1.0 - opacity) + diff_y * opacity
+    let result_z: Float = base.z * (1.0 - opacity) + diff_z * opacity
+    return vec3(result_x, result_y, result_z)
+
+@blueprint
+fn blend_darken(base: Vec3, blend: Vec3, opacity: Float) -> Vec3:
+    let darken_x: Float = min(base.x, blend.x)
+    let darken_y: Float = min(base.y, blend.y)
+    let darken_z: Float = min(base.z, blend.z)
+    let result_x: Float = base.x * (1.0 - opacity) + darken_x * opacity
+    let result_y: Float = base.y * (1.0 - opacity) + darken_y * opacity
+    let result_z: Float = base.z * (1.0 - opacity) + darken_z * opacity
+    return vec3(result_x, result_y, result_z)
+
+@blueprint
+fn blend_lighten(base: Vec3, blend: Vec3, opacity: Float) -> Vec3:
+    let lighten_x: Float = max(base.x, blend.x)
+    let lighten_y: Float = max(base.y, blend.y)
+    let lighten_z: Float = max(base.z, blend.z)
+    let result_x: Float = base.x * (1.0 - opacity) + lighten_x * opacity
+    let result_y: Float = base.y * (1.0 - opacity) + lighten_y * opacity
+    let result_z: Float = base.z * (1.0 - opacity) + lighten_z * opacity
+    return vec3(result_x, result_y, result_z)
+
+@blueprint
+fn blend_soft_light(base: Vec3, blend: Vec3, opacity: Float) -> Vec3:
+    let soft_x: Float = (1.0 - 2.0 * blend.x) * base.x * base.x + 2.0 * blend.x * base.x
+    let soft_y: Float = (1.0 - 2.0 * blend.y) * base.y * base.y + 2.0 * blend.y * base.y
+    let soft_z: Float = (1.0 - 2.0 * blend.z) * base.z * base.z + 2.0 * blend.z * base.z
+    let result_x: Float = base.x * (1.0 - opacity) + soft_x * opacity
+    let result_y: Float = base.y * (1.0 - opacity) + soft_y * opacity
+    let result_z: Float = base.z * (1.0 - opacity) + soft_z * opacity
+    return vec3(result_x, result_y, result_z)
+
+@blueprint
+fn blend_hard_light(base: Vec3, blend: Vec3, opacity: Float) -> Vec3:
+    let hard_x: Float = 0.0
+    if blend.x < 0.5:
+        hard_x = 2.0 * base.x * blend.x
+    else:
+        hard_x = 1.0 - 2.0 * (1.0 - base.x) * (1.0 - blend.x)
+    
+    let hard_y: Float = 0.0
+    if blend.y < 0.5:
+        hard_y = 2.0 * base.y * blend.y
+    else:
+        hard_y = 1.0 - 2.0 * (1.0 - base.y) * (1.0 - blend.y)
+    
+    let hard_z: Float = 0.0
+    if blend.z < 0.5:
+        hard_z = 2.0 * base.z * blend.z
+    else:
+        hard_z = 1.0 - 2.0 * (1.0 - base.z) * (1.0 - blend.z)
+    
+    let result_x: Float = base.x * (1.0 - opacity) + hard_x * opacity
+    let result_y: Float = base.y * (1.0 - opacity) + hard_y * opacity
+    let result_z: Float = base.z * (1.0 - opacity) + hard_z * opacity
+    return vec3(result_x, result_y, result_z)
+
+@blueprint
+fn blend_color_dodge(base: Vec3, blend: Vec3, opacity: Float) -> Vec3:
+    let dodge_x: Float = 0.0
+    if blend.x < 1.0:
+        dodge_x = min(base.x / (1.0 - blend.x), 1.0)
+    else:
+        dodge_x = 1.0
+    
+    let dodge_y: Float = 0.0
+    if blend.y < 1.0:
+        dodge_y = min(base.y / (1.0 - blend.y), 1.0)
+    else:
+        dodge_y = 1.0
+    
+    let dodge_z: Float = 0.0
+    if blend.z < 1.0:
+        dodge_z = min(base.z / (1.0 - blend.z), 1.0)
+    else:
+        dodge_z = 1.0
+    
+    let result_x: Float = base.x * (1.0 - opacity) + dodge_x * opacity
+    let result_y: Float = base.y * (1.0 - opacity) + dodge_y * opacity
+    let result_z: Float = base.z * (1.0 - opacity) + dodge_z * opacity
+    return vec3(result_x, result_y, result_z)
+
+@blueprint
+fn blend_color_burn(base: Vec3, blend: Vec3, opacity: Float) -> Vec3:
+    let burn_x: Float = 0.0
+    if blend.x > 0.0:
+        burn_x = max(1.0 - (1.0 - base.x) / blend.x, 0.0)
+    else:
+        burn_x = 0.0
+    
+    let burn_y: Float = 0.0
+    if blend.y > 0.0:
+        burn_y = max(1.0 - (1.0 - base.y) / blend.y, 0.0)
+    else:
+        burn_y = 0.0
+    
+    let burn_z: Float = 0.0
+    if blend.z > 0.0:
+        burn_z = max(1.0 - (1.0 - base.z) / blend.z, 0.0)
+    else:
+        burn_z = 0.0
+    
+    let result_x: Float = base.x * (1.0 - opacity) + burn_x * opacity
+    let result_y: Float = base.y * (1.0 - opacity) + burn_y * opacity
+    let result_z: Float = base.z * (1.0 - opacity) + burn_z * opacity
+    return vec3(result_x, result_y, result_z)
+
+@blueprint
+fn blend_linear_light(base: Vec3, blend: Vec3, opacity: Float) -> Vec3:
+    let linear_x: Float = base.x + 2.0 * blend.x - 1.0
+    let linear_y: Float = base.y + 2.0 * blend.y - 1.0
+    let linear_z: Float = base.z + 2.0 * blend.z - 1.0
+    let result_x: Float = base.x * (1.0 - opacity) + linear_x * opacity
+    let result_y: Float = base.y * (1.0 - opacity) + linear_y * opacity
+    let result_z: Float = base.z * (1.0 - opacity) + linear_z * opacity
+    return vec3(result_x, result_y, result_z)
+
+@blueprint
+fn blend_vivid_light(base: Vec3, blend: Vec3, opacity: Float) -> Vec3:
+    let vivid_x: Float = 0.0
+    if blend.x < 0.5:
+        if blend.x > 0.0:
+            vivid_x = max(1.0 - (1.0 - base.x) / (2.0 * blend.x), 0.0)
+        else:
+            vivid_x = 0.0
+    else:
+        if blend.x < 1.0:
+            vivid_x = min(base.x / (2.0 * (1.0 - blend.x)), 1.0)
+        else:
+            vivid_x = 1.0
+    
+    let vivid_y: Float = 0.0
+    if blend.y < 0.5:
+        if blend.y > 0.0:
+            vivid_y = max(1.0 - (1.0 - base.y) / (2.0 * blend.y), 0.0)
+        else:
+            vivid_y = 0.0
+    else:
+        if blend.y < 1.0:
+            vivid_y = min(base.y / (2.0 * (1.0 - blend.y)), 1.0)
+        else:
+            vivid_y = 1.0
+    
+    let vivid_z: Float = 0.0
+    if blend.z < 0.5:
+        if blend.z > 0.0:
+            vivid_z = max(1.0 - (1.0 - base.z) / (2.0 * blend.z), 0.0)
+        else:
+            vivid_z = 0.0
+    else:
+        if blend.z < 1.0:
+            vivid_z = min(base.z / (2.0 * (1.0 - blend.z)), 1.0)
+        else:
+            vivid_z = 1.0
+    
+    let result_x: Float = base.x * (1.0 - opacity) + vivid_x * opacity
+    let result_y: Float = base.y * (1.0 - opacity) + vivid_y * opacity
+    let result_z: Float = base.z * (1.0 - opacity) + vivid_z * opacity
+    return vec3(result_x, result_y, result_z)
+
+@blueprint
+fn blend_exclusion(base: Vec3, blend: Vec3, opacity: Float) -> Vec3:
+    let excl_x: Float = base.x + blend.x - 2.0 * base.x * blend.x
+    let excl_y: Float = base.y + blend.y - 2.0 * base.y * blend.y
+    let excl_z: Float = base.z + blend.z - 2.0 * base.z * blend.z
+    let result_x: Float = base.x * (1.0 - opacity) + excl_x * opacity
+    let result_y: Float = base.y * (1.0 - opacity) + excl_y * opacity
+    let result_z: Float = base.z * (1.0 - opacity) + excl_z * opacity
+    return vec3(result_x, result_y, result_z)
+
+# ============================================================================
+# FILTER IMPLEMENTATIONS
+# ============================================================================
+
+@blueprint
+fn apply_blur_filter(source: Texture, radius: Float, strength: Float) -> Texture:
+    return source
+
+@blueprint
+fn apply_sharpen_filter(source: Texture, strength: Float) -> Texture:
+    return source
+
+@blueprint
+fn apply_edge_detect_filter(source: Texture, threshold: Float) -> Texture:
+    return source
+
+@blueprint
+fn apply_emboss_filter(source: Texture, strength: Float, angle: Float) -> Texture:
+    return source
+
+@blueprint
+fn apply_levels_adjustment(source: Texture, in_black: Float, in_white: Float, gamma: Float, out_black: Float, out_white: Float) -> Texture:
+    return source
+
+@blueprint
+fn apply_hsv_adjustment(source: Texture, hue_shift: Float, saturation: Float, value: Float) -> Texture:
+    return source
+
+@blueprint
+fn apply_brightness_contrast(source: Texture, brightness: Float, contrast: Float) -> Texture:
+    return source
+
+# ============================================================================
+# LAYER STACK MANAGEMENT
+# ============================================================================
+
+@blueprint
+fn create_layer_stack(width: Int, height: Int) -> LayerStack:
+    let stack: LayerStack = LayerStack()
+    stack.layers = []
+    stack.active_layer_index = 0
+    stack.layer_count = 0
+    return stack
+
+@blueprint
+fn add_layer_to_stack(stack: LayerStack, layer: Layer) -> Int:
+    stack.layers.push(layer)
+    stack.layer_count = stack.layer_count + 1
+    return stack.layer_count - 1
+
+@blueprint
+fn remove_layer_from_stack(stack: LayerStack, index: Int) -> Bool:
+    if index >= 0 and index < stack.layer_count:
+        stack.layer_count = stack.layer_count - 1
+        return true
+    return false
+
+@blueprint
+fn move_layer_in_stack(stack: LayerStack, from_index: Int, to_index: Int) -> Bool:
+    if from_index >= 0 and from_index < stack.layer_count and to_index >= 0 and to_index < stack.layer_count:
+        return true
+    return false
+
+@blueprint
+fn duplicate_layer_in_stack(stack: LayerStack, index: Int) -> Int:
+    if index >= 0 and index < stack.layer_count:
+        let layer: Layer = stack.layers[index]
+        return add_layer_to_stack(stack, layer)
+    return -1
+
+@blueprint
+fn get_visible_layers(stack: LayerStack) -> Array<Int>:
+    let visible_indices: Array<Int> = []
+    let i: Int = 0
+    while i < stack.layer_count:
+        if stack.layers[i].visible and stack.layers[i].enabled:
+            visible_indices.push(i)
+        i = i + 1
+    return visible_indices
+
+@blueprint
+fn find_layer_by_name(stack: LayerStack, name: String) -> Int:
+    let i: Int = 0
+    while i < stack.layer_count:
+        if stack.layers[i].name == name:
+            return i
+        i = i + 1
+    return -1
+

@@ -1,0 +1,13 @@
+[package]
+name = "UltimateVFX"
+version = "1.0.0"
+description = "Ultimate Visual Effects Suite for UE5"
+
+[build]
+entry = "UltimateVisualEffectsSuite.kn"
+output = "dist"
+
+[ue5]
+plugin_name = "UltimateVFX"
+plugin_dir = "."
+# shaders = []  # Auto-discovered from .kn source

@@ -1,0 +1,384 @@
+# SplineToolsPro - Data Structures
+# Core data types for spline representation and manipulation
+
+# Spline interpolation method
+enum SplineInterpolationType:
+    Linear
+    Bezier
+    CatmullRom
+    BSpline
+
+# Coordinate space for spline operations
+enum SplineCoordinateSpace:
+    Local
+    World
+
+# Tangent calculation mode for control points
+enum SplineTangentMode:
+    Auto      # Automatically calculated from neighbors
+    Manual    # User-specified tangent vectors
+    Smooth    # Smooth C1 continuous tangent
+    Sharp     # Sharp corner (discontinuous tangent)
+
+# Control point with position, tangents, rotation, and scale
+struct SplinePoint:
+    position: Vec3
+    in_tangent: Vec3
+    out_tangent: Vec3
+    rotation: Rotator
+    scale: Vec3
+    tangent_mode: SplineTangentMode
+    
+    # Metadata for advanced features
+    width: Float
+    color: Vec4
+    custom_float_0: Float
+    custom_float_1: Float
+    custom_float_2: Float
+
+# Segment between two control points with cached data
+struct SplineSegment:
+    start_index: Int
+    end_index: Int
+    cached_length: Float
+    interpolation_type: SplineInterpolationType
+    
+    # Cached data for performance
+    is_dirty: Bool
+    last_update_time: Float
+
+# Per-point metadata for advanced spline features
+struct SplineMetadata:
+    point_index: Int
+    width: Float
+    color: Vec4
+    custom_float_values: Array<Float>
+    custom_string_data: String
+
+# Arc-length lookup table for fast distance queries
+struct ArcLengthTable:
+    distances: Array<Float>      # Cumulative arc-length at each sample
+    parameters: Array<Float>      # Corresponding parameter values (0.0 to 1.0)
+    total_length: Float           # Total arc length of spline
+    sample_count: Int             # Number of samples in table
+    is_valid: Bool                # Whether table is up-to-date
+
+# Parameters for mesh deformation along splines
+struct SplineMeshParams:
+    scale_start: Vec3
+    scale_end: Vec3
+    twist_start: Float
+    twist_end: Float
+    offset: Vec3
+    forward_axis: Vec3
+    up_axis: Vec3
+    
+    # Advanced deformation parameters
+    use_smooth_interpolation: Bool
+    preserve_volume: Bool
+    segments_per_point: Int
+
+# Spline bounds for spatial queries
+struct SplineBounds:
+    min: Vec3
+    max: Vec3
+    center: Vec3
+    extent: Vec3
+    is_valid: Bool
+
+# Spline intersection result
+struct SplineIntersection:
+    parameter_a: Float
+    parameter_b: Float
+    position: Vec3
+    distance: Float
+    is_valid: Bool
+
+# Octree node for spatial partitioning
+struct SplineOctreeNode:
+    bounds: SplineBounds
+    segment_indices: Array<Int>
+    children: Array<Int>  # Indices to child nodes
+    is_leaf: Bool
+    depth: Int
+
+# Octree for fast spatial queries on large splines
+struct SplineOctree:
+    nodes: Array<SplineOctreeNode>
+    root_index: Int
+    max_depth: Int
+    max_segments_per_leaf: Int
+
+# Cache entry for arc-length tables
+struct SplineCacheEntry:
+    spline_id: Int
+    arc_length_table: ArcLengthTable
+    tangent_cache: Array<Vec3>
+    last_access_time: Float
+    access_count: Int
+
+# Spline evaluation result
+struct SplineEvalResult:
+    position: Vec3
+    tangent: Vec3
+    rotation: Rotator
+    scale: Vec3
+    curvature: Float
+    parameter: Float
+
+# Curvature information at a point
+struct SplineCurvature:
+    kappa: Float                  # Curvature value
+    osculating_radius: Float      # Radius of osculating circle
+    center: Vec3                  # Center of osculating circle
+    is_valid: Bool
+
+# Spline topology validation result
+struct SplineTopologyResult:
+    is_valid: Bool
+    has_coincident_points: Bool
+    has_zero_length_tangents: Bool
+    has_degenerate_segments: Bool
+    error_message: String
+    error_indices: Array<Int>
+
+# B-spline knot vector
+struct BSplineKnotVector:
+    knots: Array<Float>
+    degree: Int
+    is_clamped: Bool
+    is_uniform: Bool
+
+# Spline simplification result
+struct SplineSimplificationResult:
+    simplified_points: Array<SplinePoint>
+    removed_indices: Array<Int>
+    error_metric: Float
+    original_point_count: Int
+    final_point_count: Int
+
+# Mesh deformation vertex data
+struct DeformationVertex:
+    original_position: Vec3
+    deformed_position: Vec3
+    spline_parameter: Float
+    cross_section_offset: Vec2
+    vertex_index: Int
+
+# Async mesh deformation task data
+struct MeshDeformationData:
+    vertices: Array<Vec3>
+    normals: Array<Vec3>
+    tangents: Array<Vec3>
+    uvs: Array<Vec2>
+    vertex_count: Int
+    
+    # Deformation parameters
+    spline_points: Array<SplinePoint>
+    deform_params: SplineMeshParams
+    interpolation_type: SplineInterpolationType
+
+# Spline path data for AI/vehicle pathfinding
+struct SplinePathData:
+    path_width: Float
+    speed_limit: Float
+    one_way: Bool
+    priority: Int
+    path_type: String  # "road", "sidewalk", "rail", etc.
+
+# Spline animation keyframe
+struct SplineAnimationKeyframe:
+    time: Float
+    point_positions: Array<Vec3>
+    point_tangents: Array<Vec3>
+    interpolation_type: SplineInterpolationType
+
+# Spline ribbon mesh generation parameters
+struct SplineRibbonParams:
+    width_curve: Array<Float>
+    texture_tiling: Vec2
+    generate_collision: Bool
+    double_sided: Bool
+    segments_per_unit: Float
+
+# Spline extrusion profile
+struct SplineExtrusionProfile:
+    profile_points: Array<Vec2>  # 2D cross-section points
+    is_closed: Bool
+    scale_along_spline: Bool
+    twist_along_spline: Bool
+
+# Helper functions for data structure initialization
+
+@blueprint
+fn create_default_spline_point(position: Vec3) -> SplinePoint:
+    let point: SplinePoint
+    point.position = position
+    point.in_tangent = vec3(0.0, 0.0, 0.0)
+    point.out_tangent = vec3(0.0, 0.0, 0.0)
+    point.rotation = rotator(0.0, 0.0, 0.0)
+    point.scale = vec3(1.0, 1.0, 1.0)
+    point.tangent_mode = SplineTangentMode::Auto
+    point.width = 100.0
+    point.color = vec4(1.0, 1.0, 1.0, 1.0)
+    point.custom_float_0 = 0.0
+    point.custom_float_1 = 0.0
+    point.custom_float_2 = 0.0
+    return point
+
+@blueprint
+fn create_default_arc_length_table() -> ArcLengthTable:
+    let table: ArcLengthTable
+    table.distances = []
+    table.parameters = []
+    table.total_length = 0.0
+    table.sample_count = 0
+    table.is_valid = false
+    return table
+
+@blueprint
+fn create_default_mesh_params() -> SplineMeshParams:
+    let params: SplineMeshParams
+    params.scale_start = vec3(1.0, 1.0, 1.0)
+    params.scale_end = vec3(1.0, 1.0, 1.0)
+    params.twist_start = 0.0
+    params.twist_end = 0.0
+    params.offset = vec3(0.0, 0.0, 0.0)
+    params.forward_axis = vec3(1.0, 0.0, 0.0)
+    params.up_axis = vec3(0.0, 0.0, 1.0)
+    params.use_smooth_interpolation = true
+    params.preserve_volume = false
+    params.segments_per_point = 10
+    return params
+
+@blueprint
+fn create_spline_bounds(min_point: Vec3, max_point: Vec3) -> SplineBounds:
+    let bounds: SplineBounds
+    bounds.min = min_point
+    bounds.max = max_point
+    bounds.center = (min_point + max_point) * 0.5
+    bounds.extent = (max_point - min_point) * 0.5
+    bounds.is_valid = true
+    return bounds
+
+@blueprint
+fn create_invalid_intersection() -> SplineIntersection:
+    let intersection: SplineIntersection
+    intersection.parameter_a = 0.0
+    intersection.parameter_b = 0.0
+    intersection.position = vec3(0.0, 0.0, 0.0)
+    intersection.distance = 0.0
+    intersection.is_valid = false
+    return intersection
+
+@blueprint
+fn create_spline_eval_result() -> SplineEvalResult:
+    let result: SplineEvalResult
+    result.position = vec3(0.0, 0.0, 0.0)
+    result.tangent = vec3(1.0, 0.0, 0.0)
+    result.rotation = rotator(0.0, 0.0, 0.0)
+    result.scale = vec3(1.0, 1.0, 1.0)
+    result.curvature = 0.0
+    result.parameter = 0.0
+    return result
+
+@blueprint
+fn create_bspline_knot_vector(degree: Int, num_control_points: Int) -> BSplineKnotVector:
+    let knot_vector: BSplineKnotVector
+    knot_vector.degree = degree
+    knot_vector.is_clamped = true
+    knot_vector.is_uniform = false
+    knot_vector.knots = []
+    
+    # Create clamped knot vector
+    let num_knots = num_control_points + degree + 1
+    let i = 0
+    while i < num_knots:
+        if i <= degree:
+            push(knot_vector.knots, 0.0)
+        else:
+            if i >= num_control_points:
+                push(knot_vector.knots, 1.0)
+            else:
+                let t = (i - degree) as Float / (num_control_points - degree) as Float
+                push(knot_vector.knots, t)
+        i = i + 1
+    
+    return knot_vector
+
+@blueprint
+fn validate_spline_point(point: SplinePoint) -> Bool:
+    # Check for NaN or infinite values
+    if is_nan(point.position.x) or is_nan(point.position.y) or is_nan(point.position.z):
+        return false
+    
+    if is_infinite(point.position.x) or is_infinite(point.position.y) or is_infinite(point.position.z):
+        return false
+    
+    # Check tangent validity
+    if is_nan(point.in_tangent.x) or is_nan(point.out_tangent.x):
+        return false
+    
+    # Check scale validity (must be positive)
+    if point.scale.x <= 0.0 or point.scale.y <= 0.0 or point.scale.z <= 0.0:
+        return false
+    
+    return true
+
+@blueprint
+fn copy_spline_point(source: SplinePoint) -> SplinePoint:
+    let copy: SplinePoint
+    copy.position = source.position
+    copy.in_tangent = source.in_tangent
+    copy.out_tangent = source.out_tangent
+    copy.rotation = source.rotation
+    copy.scale = source.scale
+    copy.tangent_mode = source.tangent_mode
+    copy.width = source.width
+    copy.color = source.color
+    copy.custom_float_0 = source.custom_float_0
+    copy.custom_float_1 = source.custom_float_1
+    copy.custom_float_2 = source.custom_float_2
+    return copy
+
+@blueprint
+fn interpolate_spline_points(a: SplinePoint, b: SplinePoint, t: Float) -> SplinePoint:
+    let result: SplinePoint
+    result.position = lerp(a.position, b.position, t)
+    result.in_tangent = lerp(a.in_tangent, b.in_tangent, t)
+    result.out_tangent = lerp(a.out_tangent, b.out_tangent, t)
+    result.scale = lerp(a.scale, b.scale, t)
+    result.width = lerp(a.width, b.width, t)
+    result.color = lerp(a.color, b.color, t)
+    result.custom_float_0 = lerp(a.custom_float_0, b.custom_float_0, t)
+    result.custom_float_1 = lerp(a.custom_float_1, b.custom_float_1, t)
+    result.custom_float_2 = lerp(a.custom_float_2, b.custom_float_2, t)
+    
+    # Interpolate rotation using slerp
+    result.rotation = slerp_rotator(a.rotation, b.rotation, t)
+    
+    # Tangent mode is taken from point a
+    result.tangent_mode = a.tangent_mode
+    
+    return result
+
+# Helper function for rotator slerp
+fn slerp_rotator(a: Rotator, b: Rotator, t: Float) -> Rotator:
+    # Convert to quaternions, slerp, convert back
+    # For simplicity, use linear interpolation (lerp) here
+    # In production, would use proper quaternion slerp
+    let result: Rotator
+    result.pitch = lerp(a.pitch, b.pitch, t)
+    result.yaw = lerp(a.yaw, b.yaw, t)
+    result.roll = lerp(a.roll, b.roll, t)
+    return result
+
+# Math helper functions
+fn is_nan(value: Float) -> Bool:
+    return value != value
+
+fn is_infinite(value: Float) -> Bool:
+    return abs(value) > 1.0e30
+
+fn lerp(a: Float, b: Float, t: Float) -> Float:
+    return a + (b - a) * t

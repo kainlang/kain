@@ -1,0 +1,852 @@
+// QuestMaster — Blueprint Library
+// Phase 8: Blueprint-callable functions (60+ functions)
+
+// ============================================================================
+// SUBSYSTEM ACCESS
+// ============================================================================
+
+@blueprint
+fn get_quest_subsystem() -> String:
+    println("Getting quest subsystem")
+    return "QuestManagerSubsystem"
+
+// ============================================================================
+// QUEST MANAGEMENT
+// ============================================================================
+
+@blueprint
+fn start_quest_from_subsystem(quest_id: String, player_id: String) -> Int:
+    println("Blueprint: Starting quest {quest_id} for player {player_id}")
+    return 1
+
+@blueprint
+fn complete_quest_from_subsystem(quest_id: String) -> Bool:
+    println("Blueprint: Completing quest {quest_id}")
+    return true
+
+@blueprint
+fn fail_quest_from_subsystem(quest_id: String, reason: String) -> Bool:
+    println("Blueprint: Failing quest {quest_id} - {reason}")
+    return true
+
+@blueprint
+fn abandon_quest_from_subsystem(quest_id: String) -> Bool:
+    println("Blueprint: Abandoning quest {quest_id}")
+    return true
+
+@blueprint
+fn update_objective_from_subsystem(quest_id: String, objective_id: String, count: Int) -> Bool:
+    println("Blueprint: Updating objective {objective_id} to {count}")
+    return true
+
+@blueprint
+fn complete_objective_from_subsystem(quest_id: String, objective_id: String) -> Bool:
+    println("Blueprint: Completing objective {objective_id}")
+    return true
+
+@blueprint
+fn reset_objective_from_subsystem(quest_id: String, objective_id: String) -> Bool:
+    println("Blueprint: Resetting objective {objective_id}")
+    return true
+
+// ============================================================================
+// QUEST TRACKING
+// ============================================================================
+
+@blueprint
+fn track_quest_from_subsystem(quest_id: String) -> Bool:
+    println("Blueprint: Tracking quest {quest_id}")
+    return true
+
+@blueprint
+fn untrack_quest_from_subsystem(quest_id: String) -> Bool:
+    println("Blueprint: Untracking quest {quest_id}")
+    return true
+
+@blueprint
+fn get_tracked_quest_from_subsystem() -> String:
+    return ""
+
+// ============================================================================
+// STATE QUERIES
+// ============================================================================
+
+@blueprint
+fn get_active_quests_from_subsystem() -> Array<String>:
+    let quests: Array<String> = []
+    return quests
+
+@blueprint
+fn get_completed_quests_from_subsystem() -> Array<String>:
+    let quests: Array<String> = []
+    return quests
+
+@blueprint
+fn get_failed_quests_from_subsystem() -> Array<String>:
+    let quests: Array<String> = []
+    return quests
+
+@blueprint
+fn get_available_quests_from_subsystem(player_level: Int) -> Array<String>:
+    let quests: Array<String> = []
+    return quests
+
+@blueprint
+fn is_quest_active_from_subsystem(quest_id: String) -> Bool:
+    return false
+
+@blueprint
+fn is_quest_complete_from_subsystem(quest_id: String) -> Bool:
+    return false
+
+@blueprint
+fn is_quest_failed_from_subsystem(quest_id: String) -> Bool:
+    return false
+
+// ============================================================================
+// PROGRESS QUERIES
+// ============================================================================
+
+@blueprint
+fn get_quest_progress_from_subsystem(quest_id: String) -> Float:
+    return 0.0
+
+@blueprint
+fn get_objective_progress_from_subsystem(quest_id: String, objective_id: String) -> Float:
+    return 0.0
+
+@blueprint
+fn get_active_quest_count_from_subsystem() -> Int:
+    return 0
+
+@blueprint
+fn get_completed_quest_count_from_subsystem() -> Int:
+    return 0
+
+@blueprint
+fn get_failed_quest_count_from_subsystem() -> Int:
+    return 0
+
+// ============================================================================
+// VARIABLE MANAGEMENT
+// ============================================================================
+
+@blueprint
+fn set_global_variable_from_subsystem(name: String, value: Float) -> Bool:
+    println("Blueprint: Set global variable {name} = {value}")
+    return true
+
+@blueprint
+fn get_global_variable_from_subsystem(name: String) -> Float:
+    return 0.0
+
+@blueprint
+fn set_global_variable_int_from_subsystem(name: String, value: Int) -> Bool:
+    println("Blueprint: Set global variable int {name} = {value}")
+    return true
+
+@blueprint
+fn get_global_variable_int_from_subsystem(name: String) -> Int:
+    return 0
+
+@blueprint
+fn set_global_variable_string_from_subsystem(name: String, value: String) -> Bool:
+    println("Blueprint: Set global variable string {name} = {value}")
+    return true
+
+@blueprint
+fn get_global_variable_string_from_subsystem(name: String) -> String:
+    return ""
+
+// ============================================================================
+// FLAG MANAGEMENT
+// ============================================================================
+
+@blueprint
+fn set_persistent_flag_from_subsystem(flag_name: String, value: Bool) -> Bool:
+    println("Blueprint: Set persistent flag {flag_name} = {value}")
+    return true
+
+@blueprint
+fn check_persistent_flag_from_subsystem(flag_name: String) -> Bool:
+    return false
+
+@blueprint
+fn clear_persistent_flag_from_subsystem(flag_name: String) -> Bool:
+    println("Blueprint: Clear persistent flag {flag_name}")
+    return true
+
+// ============================================================================
+// PERSISTENCE
+// ============================================================================
+
+@blueprint
+fn save_quest_state_from_subsystem() -> Bool:
+    println("Blueprint: Saving quest state")
+    return true
+
+@blueprint
+fn load_quest_state_from_subsystem() -> Bool:
+    println("Blueprint: Loading quest state")
+    return true
+
+@blueprint
+fn auto_save_from_subsystem() -> Bool:
+    println("Blueprint: Auto-saving quest state")
+    return true
+
+// ============================================================================
+// QUEST DATA HELPERS
+// ============================================================================
+
+@blueprint
+fn create_quest_instance_bp(quest_id: String, player_id: String, instance_id: Int) -> QuestInstance:
+    return create_quest_instance(quest_id, player_id, instance_id)
+
+@blueprint
+fn create_objective_instance_bp(objective_id: String, target_count: Int, optional: Bool, hidden: Bool) -> ObjectiveInstance:
+    return create_objective_instance(objective_id, target_count, optional, hidden)
+
+@blueprint
+fn calculate_quest_progress_bp(quest_instance: QuestInstance) -> Float:
+    return calculate_quest_progress(quest_instance)
+
+@blueprint
+fn calculate_objective_progress_bp(objective: ObjectiveInstance) -> Float:
+    return calculate_objective_progress(objective)
+
+@blueprint
+fn is_quest_complete_bp(quest_instance: QuestInstance) -> Bool:
+    return is_quest_complete(quest_instance)
+
+@blueprint
+fn is_objective_complete_bp(objective: ObjectiveInstance) -> Bool:
+    return is_objective_complete(objective)
+
+// ============================================================================
+// CONDITION EVALUATION
+// ============================================================================
+
+@blueprint
+fn evaluate_condition_bp(condition: QuestCondition, context_value: Float) -> Bool:
+    return evaluate_condition(condition, context_value)
+
+@blueprint
+fn evaluate_all_conditions_bp(conditions: Array<QuestCondition>, logic_operator: String, context_values: Array<Float>) -> Bool:
+    return evaluate_all_conditions(conditions, logic_operator, context_values)
+
+// ============================================================================
+// REWARD HELPERS
+// ============================================================================
+
+@blueprint
+fn apply_quest_rewards_bp(rewards: QuestReward, player_id: String) -> Bool:
+    return apply_quest_rewards(rewards, player_id)
+
+@blueprint
+fn give_xp_bp(player_id: String, amount: Int) -> Bool:
+    return give_xp(player_id, amount)
+
+@blueprint
+fn give_gold_bp(player_id: String, amount: Int) -> Bool:
+    return give_gold(player_id, amount)
+
+@blueprint
+fn give_items_bp(player_id: String, items: Array<ItemReward>) -> Bool:
+    return give_items(player_id, items)
+
+@blueprint
+fn give_reputation_bp(player_id: String, reputation: Array<ReputationReward>) -> Bool:
+    return give_reputation(player_id, reputation)
+
+// ============================================================================
+// TEXT FORMATTING
+// ============================================================================
+
+@blueprint
+fn format_quest_text_bp(template: String, quest_instance: QuestInstance) -> String:
+    return format_quest_text(template, quest_instance)
+
+@blueprint
+fn format_objective_text_bp(template: String, objective: ObjectiveInstance) -> String:
+    return format_objective_text(template, objective)
+
+@blueprint
+fn format_time_remaining_bp(seconds: Float) -> String:
+    return format_time_remaining(seconds)
+
+@blueprint
+fn get_quest_state_display_name_bp(state: QuestState) -> String:
+    return get_quest_state_display_name(state)
+
+@blueprint
+fn get_objective_type_display_name_bp(obj_type: ObjectiveType) -> String:
+    return get_objective_type_display_name(obj_type)
+
+@blueprint
+fn get_quest_priority_display_name_bp(priority: QuestPriority) -> String:
+    return get_quest_priority_display_name(priority)
+
+@blueprint
+fn get_quest_category_display_name_bp(category: QuestCategory) -> String:
+    return get_quest_category_display_name(category)
+
+// ============================================================================
+// QUEST FILTERING AND SORTING
+// ============================================================================
+
+@blueprint
+fn filter_quests_by_state_bp(quests: Array<QuestInstance>, state: QuestState) -> Array<QuestInstance>:
+    return filter_quests_by_state(quests, state)
+
+@blueprint
+fn filter_quests_by_category_bp(quests: Array<QuestLogEntry>, category: QuestCategory) -> Array<QuestLogEntry>:
+    return filter_quests_by_category(quests, category)
+
+@blueprint
+fn sort_quests_by_priority_bp(quests: Array<QuestLogEntry>) -> Array<QuestLogEntry>:
+    return sort_quests_by_priority(quests)
+
+@blueprint
+fn sort_quests_by_progress_bp(quests: Array<QuestLogEntry>) -> Array<QuestLogEntry>:
+    return sort_quests_by_progress(quests)
+
+@blueprint
+fn sort_quests_by_name_bp(quests: Array<QuestLogEntry>) -> Array<QuestLogEntry>:
+    return sort_quests_by_name(quests)
+
+// ============================================================================
+// OBJECTIVE MANAGEMENT
+// ============================================================================
+
+@blueprint
+fn add_objective_to_quest_bp(quest_instance: QuestInstance, objective: ObjectiveInstance) -> QuestInstance:
+    return add_objective_to_quest(quest_instance, objective)
+
+@blueprint
+fn remove_objective_from_quest_bp(quest_instance: QuestInstance, objective_id: String) -> QuestInstance:
+    return remove_objective_from_quest(quest_instance, objective_id)
+
+@blueprint
+fn update_objective_count_bp(objective: ObjectiveInstance, count: Int) -> ObjectiveInstance:
+    return update_objective_count(objective, count)
+
+@blueprint
+fn increment_objective_count_bp(objective: ObjectiveInstance, amount: Int) -> ObjectiveInstance:
+    return increment_objective_count(objective, amount)
+
+@blueprint
+fn reset_objective_bp(objective: ObjectiveInstance) -> ObjectiveInstance:
+    return reset_objective(objective)
+
+// ============================================================================
+// TIMER MANAGEMENT
+// ============================================================================
+
+@blueprint
+fn create_quest_timer_bp(duration: Float, mode: TimerMode, show_ui: Bool) -> QuestTimer:
+    return create_quest_timer(duration, mode, show_ui)
+
+@blueprint
+fn update_quest_timer_bp(timer: QuestTimer, delta_time: Float) -> QuestTimer:
+    return update_quest_timer(timer, delta_time)
+
+@blueprint
+fn is_timer_expired_bp(timer: QuestTimer) -> Bool:
+    return is_timer_expired(timer)
+
+@blueprint
+fn get_timer_remaining_bp(timer: QuestTimer) -> Float:
+    return get_timer_remaining(timer)
+
+// ============================================================================
+// MARKER MANAGEMENT
+// ============================================================================
+
+@blueprint
+fn create_quest_marker_bp(location: Vec3, marker_type: QuestMarkerType, icon: String, color: Vec3) -> QuestMarker:
+    return create_quest_marker(location, marker_type, icon, color)
+
+@blueprint
+fn update_quest_marker_location_bp(marker: QuestMarker, location: Vec3) -> QuestMarker:
+    return update_quest_marker_location(marker, location)
+
+// ============================================================================
+// PROGRESS DISPLAY
+// ============================================================================
+
+@blueprint
+fn create_quest_progress_bp(quest_instance: QuestInstance, quest_data: QuestData, current_time: Float) -> QuestProgress:
+    return create_quest_progress(quest_instance, quest_data, current_time)
+
+@blueprint
+fn create_objective_progress_bp(objective: ObjectiveInstance, objective_data: ObjectiveData) -> ObjectiveProgress:
+    return create_objective_progress(objective, objective_data)
+
+// ============================================================================
+// NOTIFICATION HELPERS
+// ============================================================================
+
+@blueprint
+fn create_quest_notification_bp(notification_type: QuestNotificationType, quest_id: String, quest_name: String, objective_description: String) -> QuestNotification:
+    return create_quest_notification(notification_type, quest_id, quest_name, objective_description)
+
+// ============================================================================
+// SAVE DATA MANAGEMENT
+// ============================================================================
+
+@blueprint
+fn create_quest_save_data_bp(active_quests: Array<QuestInstance>, completed_quests: Array<QuestInstance>, failed_quests: Array<QuestInstance>, global_variables: Array<QuestVariable>, persistent_flags: Array<String>, tracked_quest_id: String, current_time: Float) -> QuestSaveData:
+    return create_quest_save_data(active_quests, completed_quests, failed_quests, global_variables, persistent_flags, tracked_quest_id, current_time)
+
+// ============================================================================
+// DEBUG HELPERS
+// ============================================================================
+
+@blueprint
+fn create_quest_debug_info_bp(active_count: Int, completed_count: Int, failed_count: Int, tracked_id: String, tick_rate: Float, graph_count: Int, variable_count: Int, flag_count: Int) -> QuestDebugInfo:
+    return create_quest_debug_info(active_count, completed_count, failed_count, tracked_id, tick_rate, graph_count, variable_count, flag_count)
+
+@blueprint
+fn print_quest_debug_info(quest_id: String):
+    println("=== Quest Debug Info: {quest_id} ===")
+
+@blueprint
+fn print_all_active_quests():
+    println("=== All Active Quests ===")
+
+@blueprint
+fn print_subsystem_state():
+    println("=== Quest Subsystem State ===")
+
+
+// ============================================================================
+// ADVANCED QUEST QUERIES
+// ============================================================================
+
+@blueprint
+fn get_quest_by_instance_id_bp(instance_id: Int) -> QuestInstance:
+    return create_quest_instance("", "", instance_id)
+
+@blueprint
+fn get_quests_by_category_bp(category: QuestCategory) -> Array<QuestInstance>:
+    let quests: Array<QuestInstance> = []
+    return quests
+
+@blueprint
+fn get_quests_by_priority_bp(priority: QuestPriority) -> Array<QuestInstance>:
+    let quests: Array<QuestInstance> = []
+    return quests
+
+@blueprint
+fn get_quests_with_time_limit_bp() -> Array<QuestInstance>:
+    let quests: Array<QuestInstance> = []
+    return quests
+
+@blueprint
+fn get_expired_quests_bp(current_time: Float) -> Array<QuestInstance>:
+    let quests: Array<QuestInstance> = []
+    return quests
+
+@blueprint
+fn get_nearly_expired_quests_bp(threshold: Float) -> Array<QuestInstance>:
+    let quests: Array<QuestInstance> = []
+    return quests
+
+@blueprint
+fn get_quests_by_player_bp(player_id: String) -> Array<QuestInstance>:
+    let quests: Array<QuestInstance> = []
+    return quests
+
+@blueprint
+fn get_highest_priority_quest_bp() -> QuestInstance:
+    return create_quest_instance("", "", 0)
+
+@blueprint
+fn get_oldest_active_quest_bp() -> QuestInstance:
+    return create_quest_instance("", "", 0)
+
+@blueprint
+fn get_newest_active_quest_bp() -> QuestInstance:
+    return create_quest_instance("", "", 0)
+
+// ============================================================================
+// OBJECTIVE QUERIES
+// ============================================================================
+
+@blueprint
+fn get_objective_by_id_bp(quest_id: String, objective_id: String) -> ObjectiveInstance:
+    return create_objective_instance(objective_id, 0, false, false)
+
+@blueprint
+fn get_all_objectives_for_quest_bp(quest_id: String) -> Array<ObjectiveInstance>:
+    let objectives: Array<ObjectiveInstance> = []
+    return objectives
+
+@blueprint
+fn get_completed_objectives_for_quest_bp(quest_id: String) -> Array<ObjectiveInstance>:
+    let objectives: Array<ObjectiveInstance> = []
+    return objectives
+
+@blueprint
+fn get_incomplete_objectives_for_quest_bp(quest_id: String) -> Array<ObjectiveInstance>:
+    let objectives: Array<ObjectiveInstance> = []
+    return objectives
+
+@blueprint
+fn count_objectives_for_quest_bp(quest_id: String) -> Int:
+    return 0
+
+@blueprint
+fn count_completed_objectives_for_quest_bp(quest_id: String) -> Int:
+    return 0
+
+// ============================================================================
+// QUEST STATISTICS
+// ============================================================================
+
+@blueprint
+fn get_total_quests_started_bp() -> Int:
+    return 0
+
+@blueprint
+fn get_completion_rate_bp() -> Float:
+    return 0.0
+
+@blueprint
+fn get_failure_rate_bp() -> Float:
+    return 0.0
+
+@blueprint
+fn get_average_quest_completion_time_bp() -> Float:
+    return 0.0
+
+@blueprint
+fn get_longest_completed_quest_bp() -> QuestInstance:
+    return create_quest_instance("", "", 0)
+
+@blueprint
+fn get_shortest_completed_quest_bp() -> QuestInstance:
+    return create_quest_instance("", "", 0)
+
+// ============================================================================
+// QUEST VALIDATION
+// ============================================================================
+
+@blueprint
+fn can_start_quest_bp(quest_id: String, player_id: String) -> Bool:
+    return true
+
+@blueprint
+fn can_complete_quest_bp(quest_id: String) -> Bool:
+    return true
+
+@blueprint
+fn can_abandon_quest_bp(quest_id: String) -> Bool:
+    return true
+
+@blueprint
+fn is_quest_repeatable_bp(quest_id: String) -> Bool:
+    return false
+
+@blueprint
+fn has_completed_quest_before_bp(quest_id: String, player_id: String) -> Bool:
+    return false
+
+@blueprint
+fn validate_quest_data_bp(quest_data: QuestData) -> Bool:
+    return validate_quest_data(quest_data)
+
+@blueprint
+fn validate_objective_data_bp(objective_data: ObjectiveData) -> Bool:
+    return validate_objective_data(objective_data)
+
+@blueprint
+fn validate_quest_instance_bp(quest_instance: QuestInstance) -> Bool:
+    return validate_quest_instance(quest_instance)
+
+@blueprint
+fn validate_quest_reward_bp(reward: QuestReward) -> Bool:
+    return validate_quest_reward(reward)
+
+// ============================================================================
+// BULK OPERATIONS
+// ============================================================================
+
+@blueprint
+fn complete_all_objectives_for_quest_bp(quest_id: String) -> Bool:
+    return true
+
+@blueprint
+fn reset_all_objectives_for_quest_bp(quest_id: String) -> Bool:
+    return true
+
+@blueprint
+fn abandon_all_quests_for_player_bp(player_id: String) -> Int:
+    return 0
+
+@blueprint
+fn clear_completed_quests_bp() -> Int:
+    return 0
+
+@blueprint
+fn clear_failed_quests_bp() -> Int:
+    return 0
+
+// ============================================================================
+// QUEST PREREQUISITE CHECKING
+// ============================================================================
+
+@blueprint
+fn check_prerequisites_bp(quest_data: QuestData, completed_quests: Array<String>) -> Bool:
+    return check_prerequisites(quest_data, completed_quests)
+
+@blueprint
+fn get_missing_prerequisites_bp(quest_data: QuestData, completed_quests: Array<String>) -> Array<String>:
+    return get_missing_prerequisites(quest_data, completed_quests)
+
+@blueprint
+fn has_prerequisites_bp(quest_data: QuestData) -> Bool:
+    return has_prerequisites(quest_data)
+
+@blueprint
+fn count_prerequisites_bp(quest_data: QuestData) -> Int:
+    return count_prerequisites(quest_data)
+
+// ============================================================================
+// QUEST DIFFICULTY CALCULATION
+// ============================================================================
+
+@blueprint
+fn calculate_quest_difficulty_bp(quest_data: QuestData, objective_count: Int) -> Float:
+    return calculate_quest_difficulty(quest_data, objective_count)
+
+@blueprint
+fn get_quest_difficulty_tier_bp(difficulty: Float) -> String:
+    return get_quest_difficulty_tier(difficulty)
+
+// ============================================================================
+// QUEST REWARD SCALING
+// ============================================================================
+
+@blueprint
+fn scale_quest_rewards_bp(base_reward: QuestReward, scale_factor: Float) -> QuestReward:
+    return scale_quest_rewards(base_reward, scale_factor)
+
+@blueprint
+fn calculate_reward_value_bp(reward: QuestReward) -> Float:
+    return calculate_reward_value(reward)
+
+@blueprint
+fn compare_rewards_bp(reward1: QuestReward, reward2: QuestReward) -> Int:
+    return compare_rewards(reward1, reward2)
+
+// ============================================================================
+// QUEST TIME MANAGEMENT
+// ============================================================================
+
+@blueprint
+fn calculate_time_elapsed_bp(quest_instance: QuestInstance, current_time: Float) -> Float:
+    return calculate_time_elapsed(quest_instance, current_time)
+
+@blueprint
+fn calculate_time_percentage_bp(quest_instance: QuestInstance, quest_data: QuestData, current_time: Float) -> Float:
+    return calculate_time_percentage(quest_instance, quest_data, current_time)
+
+@blueprint
+fn is_quest_expired_bp(quest_instance: QuestInstance, quest_data: QuestData, current_time: Float) -> Bool:
+    return is_quest_expired(quest_instance, quest_data, current_time)
+
+@blueprint
+fn get_time_remaining_formatted_bp(quest_instance: QuestInstance, quest_data: QuestData, current_time: Float) -> String:
+    return get_time_remaining_formatted(quest_instance, quest_data, current_time)
+
+// ============================================================================
+// OBJECTIVE VALIDATION AND HELPERS
+// ============================================================================
+
+@blueprint
+fn validate_objective_instance_bp(objective: ObjectiveInstance) -> Bool:
+    return validate_objective_instance(objective)
+
+@blueprint
+fn get_objective_status_text_bp(objective: ObjectiveInstance) -> String:
+    return get_objective_status_text(objective)
+
+@blueprint
+fn count_completed_objectives_bp(objectives: Array<ObjectiveInstance>) -> Int:
+    return count_completed_objectives(objectives)
+
+@blueprint
+fn count_failed_objectives_bp(objectives: Array<ObjectiveInstance>) -> Int:
+    return count_failed_objectives(objectives)
+
+@blueprint
+fn count_optional_objectives_bp(objectives: Array<ObjectiveInstance>) -> Int:
+    return count_optional_objectives(objectives)
+
+@blueprint
+fn count_required_objectives_bp(objectives: Array<ObjectiveInstance>) -> Int:
+    return count_required_objectives(objectives)
+
+@blueprint
+fn get_next_incomplete_objective_bp(objectives: Array<ObjectiveInstance>) -> ObjectiveInstance:
+    return get_next_incomplete_objective(objectives)
+
+// ============================================================================
+// QUEST SEARCH AND FILTERING
+// ============================================================================
+
+@blueprint
+fn find_quest_by_id_bp(quests: Array<QuestInstance>, quest_id: String) -> QuestInstance:
+    return find_quest_by_id(quests, quest_id)
+
+@blueprint
+fn find_objective_by_id_bp(objectives: Array<ObjectiveInstance>, objective_id: String) -> ObjectiveInstance:
+    return find_objective_by_id(objectives, objective_id)
+
+@blueprint
+fn filter_quests_by_priority_bp(quests: Array<QuestLogEntry>, priority: QuestPriority) -> Array<QuestLogEntry>:
+    return filter_quests_by_priority(quests, priority)
+
+@blueprint
+fn filter_quests_by_level_bp(quests: Array<QuestLogEntry>, min_level: Int, max_level: Int) -> Array<QuestLogEntry>:
+    return filter_quests_by_level(quests, min_level, max_level)
+
+@blueprint
+fn filter_tracked_quests_bp(quests: Array<QuestLogEntry>) -> Array<QuestLogEntry>:
+    return filter_tracked_quests(quests)
+
+@blueprint
+fn filter_new_quests_bp(quests: Array<QuestLogEntry>) -> Array<QuestLogEntry>:
+    return filter_new_quests(quests)
+
+// ============================================================================
+// QUEST STATISTICS HELPERS
+// ============================================================================
+
+@blueprint
+fn calculate_quest_completion_rate_bp(completed_count: Int, total_count: Int) -> Float:
+    return calculate_quest_completion_rate(completed_count, total_count)
+
+@blueprint
+fn calculate_quest_failure_rate_bp(failed_count: Int, total_count: Int) -> Float:
+    return calculate_quest_failure_rate(failed_count, total_count)
+
+@blueprint
+fn calculate_average_quest_time_bp(quests: Array<QuestInstance>) -> Float:
+    return calculate_average_quest_time(quests)
+
+@blueprint
+fn get_longest_quest_bp(quests: Array<QuestInstance>) -> QuestInstance:
+    return get_longest_quest(quests)
+
+@blueprint
+fn get_shortest_quest_bp(quests: Array<QuestInstance>) -> QuestInstance:
+    return get_shortest_quest(quests)
+
+// ============================================================================
+// QUEST VARIABLE HELPERS
+// ============================================================================
+
+@blueprint
+fn find_variable_by_name_bp(variables: Array<QuestVariable>, name: String) -> QuestVariable:
+    return find_variable_by_name(variables, name)
+
+@blueprint
+fn filter_persistent_variables_bp(variables: Array<QuestVariable>) -> Array<QuestVariable>:
+    return filter_persistent_variables(variables)
+
+@blueprint
+fn count_variables_by_type_bp(variables: Array<QuestVariable>, var_type: String) -> Int:
+    return count_variables_by_type(variables, var_type)
+
+// ============================================================================
+// QUEST NOTIFICATION HELPERS
+// ============================================================================
+
+@blueprint
+fn create_quest_started_notification_bp(quest_name: String) -> QuestNotification:
+    return create_quest_started_notification(quest_name)
+
+@blueprint
+fn create_quest_completed_notification_bp(quest_name: String) -> QuestNotification:
+    return create_quest_completed_notification(quest_name)
+
+@blueprint
+fn create_quest_failed_notification_bp(quest_name: String) -> QuestNotification:
+    return create_quest_failed_notification(quest_name)
+
+@blueprint
+fn create_objective_completed_notification_bp(objective_description: String) -> QuestNotification:
+    return create_objective_completed_notification(objective_description)
+
+// ============================================================================
+// QUEST LOG ENTRY HELPERS
+// ============================================================================
+
+@blueprint
+fn create_quest_log_entry_bp(quest_instance: QuestInstance, quest_data: QuestData, current_time: Float) -> QuestLogEntry:
+    return create_quest_log_entry(quest_instance, quest_data, current_time)
+
+@blueprint
+fn sort_quest_log_by_priority_bp(entries: Array<QuestLogEntry>) -> Array<QuestLogEntry>:
+    return sort_quest_log_by_priority(entries)
+
+@blueprint
+fn sort_quest_log_by_name_bp(entries: Array<QuestLogEntry>) -> Array<QuestLogEntry>:
+    return sort_quest_log_by_name(entries)
+
+@blueprint
+fn sort_quest_log_by_progress_bp(entries: Array<QuestLogEntry>) -> Array<QuestLogEntry>:
+    return sort_quest_log_by_progress(entries)
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+@blueprint
+fn get_current_game_time() -> Float:
+    return 0.0
+
+@blueprint
+fn format_duration(seconds: Float) -> String:
+    let minutes = (seconds / 60.0) as Int
+    let secs = (seconds as Int) % 60
+    return "{minutes}m {secs}s"
+
+@blueprint
+fn format_percentage(value: Float) -> String:
+    return "{value}%"
+
+@blueprint
+fn clamp_progress(progress: Float) -> Float:
+    if progress < 0.0:
+        return 0.0
+    if progress > 100.0:
+        return 100.0
+    return progress
+
+@blueprint
+fn is_valid_quest_id(quest_id: String) -> Bool:
+    return quest_id != ""
+
+@blueprint
+fn is_valid_objective_id(objective_id: String) -> Bool:
+    return objective_id != ""
+
+@blueprint
+fn is_valid_player_id(player_id: String) -> Bool:
+    return player_id != ""
+
+@blueprint
+fn generate_quest_instance_id() -> Int:
+    return 0
+
+@blueprint
+fn log_quest_event(event_type: String, quest_id: String, details: String):
+    println("[QuestEvent] {event_type}: {quest_id} - {details}")
+
+@blueprint
+fn log_objective_event(event_type: String, objective_id: String, details: String):
+    println("[ObjectiveEvent] {event_type}: {objective_id} - {details}")

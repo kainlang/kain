@@ -6,7 +6,11 @@
       "lane": "core",
       "graph": "fabric/intents/bootstrap.fabric.toml",
       "debounce_ms": 0,
-      "produces": ["scene_graph_document", "asset_catalog_document", "session_report"]
+      "produces": [
+        "scene_graph_document",
+        "asset_catalog_document",
+        "session_report"
+      ]
     },
     {
       "id": "asset.ingest_package",
@@ -14,7 +18,9 @@
       "lane": "ingest",
       "graph": "fabric/intents/asset_ingest.fabric.toml",
       "debounce_ms": 0,
-      "produces": ["asset_ingest_report"]
+      "produces": [
+        "asset_ingest_report"
+      ]
     },
     {
       "id": "mesh.open_document",
@@ -22,7 +28,9 @@
       "lane": "mesh",
       "graph": "fabric/intents/mesh_session.fabric.toml",
       "debounce_ms": 0,
-      "produces": ["mesh_contract_report"]
+      "produces": [
+        "mesh_contract_report"
+      ]
     },
     {
       "id": "mesh.set_edit_target",
@@ -30,7 +38,9 @@
       "lane": "mesh",
       "graph": "fabric/intents/mesh_session.fabric.toml",
       "debounce_ms": 0,
-      "produces": ["mesh_contract_report"]
+      "produces": [
+        "mesh_contract_report"
+      ]
     },
     {
       "id": "mesh.set_authoring_policy",
@@ -38,7 +48,9 @@
       "lane": "mesh",
       "graph": "fabric/intents/mesh_session.fabric.toml",
       "debounce_ms": 0,
-      "produces": ["mesh_contract_report"]
+      "produces": [
+        "mesh_contract_report"
+      ]
     },
     {
       "id": "mesh.create_primitive",
@@ -46,7 +58,9 @@
       "lane": "mesh",
       "graph": "fabric/intents/mesh_session.fabric.toml",
       "debounce_ms": 0,
-      "produces": ["mesh_contract_report"]
+      "produces": [
+        "mesh_contract_report"
+      ]
     },
     {
       "id": "mesh.import_asset",
@@ -54,7 +68,9 @@
       "lane": "mesh",
       "graph": "fabric/intents/mesh_session.fabric.toml",
       "debounce_ms": 0,
-      "produces": ["mesh_contract_report"]
+      "produces": [
+        "mesh_contract_report"
+      ]
     },
     {
       "id": "mesh.edit_topology",
@@ -62,7 +78,9 @@
       "lane": "mesh",
       "graph": "fabric/intents/mesh_session.fabric.toml",
       "debounce_ms": 0,
-      "produces": ["mesh_contract_report"]
+      "produces": [
+        "mesh_contract_report"
+      ]
     },
     {
       "id": "mesh.rebuild_topology",
@@ -70,7 +88,9 @@
       "lane": "mesh",
       "graph": "fabric/intents/mesh_session.fabric.toml",
       "debounce_ms": 0,
-      "produces": ["topology_report"]
+      "produces": [
+        "topology_report"
+      ]
     },
     {
       "id": "sculpt.apply_stroke",
@@ -78,7 +98,11 @@
       "lane": "sculpt",
       "graph": "fabric/intents/sculpt_stroke.fabric.toml",
       "debounce_ms": 0,
-      "produces": ["sculpt_delta", "sculpt_signature", "sculpt_report"]
+      "produces": [
+        "sculpt_delta",
+        "sculpt_signature",
+        "sculpt_report"
+      ]
     },
     {
       "id": "topology.rebuild",
@@ -86,7 +110,9 @@
       "lane": "topology",
       "graph": "fabric/intents/topology_rebuild.fabric.toml",
       "debounce_ms": 120,
-      "produces": ["topology_report"]
+      "produces": [
+        "topology_report"
+      ]
     },
     {
       "id": "rig.sync_controls",
@@ -94,7 +120,9 @@
       "lane": "rig",
       "graph": "fabric/intents/rig_sync.fabric.toml",
       "debounce_ms": 40,
-      "produces": ["rig_sync_report"]
+      "produces": [
+        "rig_sync_report"
+      ]
     },
     {
       "id": "sim.tick",
@@ -102,7 +130,9 @@
       "lane": "simulation",
       "graph": "fabric/intents/sim_tick.fabric.toml",
       "debounce_ms": 33,
-      "produces": ["sim_tick_plan"]
+      "produces": [
+        "sim_tick_plan"
+      ]
     },
     {
       "id": "material.bake_preview",
@@ -123,7 +153,9 @@
       "lane": "material",
       "graph": "fabric/intents/material_bake.fabric.toml",
       "debounce_ms": 0,
-      "produces": ["material_texture_export_report"]
+      "produces": [
+        "material_texture_export_report"
+      ]
     },
     {
       "id": "render.preview",
@@ -131,7 +163,21 @@
       "lane": "render",
       "graph": "fabric/intents/render_preview.fabric.toml",
       "debounce_ms": 16,
-      "produces": ["render_preview_report"]
+      "produces": [
+        "render_preview_report"
+      ]
+    },
+    {
+      "id": "render.pathtrace_preview",
+      "label": "Path Trace Preview",
+      "lane": "render",
+      "graph": "fabric/intents/render_pathtrace.fabric.toml",
+      "debounce_ms": 24,
+      "produces": [
+        "pathtrace_preview_report",
+        "render_accumulation_report",
+        "render_denoise_report"
+      ]
     },
     {
       "id": "compositor.rebuild",
@@ -139,7 +185,9 @@
       "lane": "compositor",
       "graph": "fabric/intents/compositor_rebuild.fabric.toml",
       "debounce_ms": 80,
-      "produces": ["compositor_rebuild_report"]
+      "produces": [
+        "compositor_rebuild_report"
+      ]
     },
     {
       "id": "publish.package",
@@ -147,7 +195,9 @@
       "lane": "publish",
       "graph": "fabric/intents/publish_package.fabric.toml",
       "debounce_ms": 0,
-      "produces": ["publish_summary"]
+      "produces": [
+        "publish_summary"
+      ]
     },
     {
       "id": "tensor.train_step",
@@ -155,7 +205,10 @@
       "lane": "tensor",
       "graph": "fabric/intents/tensor_train_step.fabric.toml",
       "debounce_ms": 0,
-      "produces": ["tensor_training_report", "tensor_training_bridge"]
+      "produces": [
+        "tensor_training_report",
+        "tensor_training_bridge"
+      ]
     },
     {
       "id": "tensor.infer_step",
@@ -163,7 +216,10 @@
       "lane": "tensor",
       "graph": "fabric/intents/tensor_infer_step.fabric.toml",
       "debounce_ms": 0,
-      "produces": ["tensor_inference_report", "tensor_inference_bridge"]
+      "produces": [
+        "tensor_inference_report",
+        "tensor_inference_bridge"
+      ]
     }
   ]
 }

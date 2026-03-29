@@ -1,0 +1,115 @@
+@graph_runtime
+graph TextureGraph:
+    @node_data
+    node GeneratorNode:
+        generator_type: GeneratorType = GeneratorType::PerlinNoise
+        scale: Float = 1.0
+        octaves: Int = 4
+        persistence: Float = 0.5
+        lacunarity: Float = 2.0
+        seed: Int = 0
+        color_a: Vec3 = vec3(0.0, 0.0, 0.0)
+        color_b: Vec3 = vec3(1.0, 1.0, 1.0)
+        
+        @output_pin
+        texture_output: Object
+    
+    @node_data
+    node FilterNode:
+        filter_type: FilterType = FilterType::Blur
+        intensity: Float = 1.0
+        radius: Float = 5.0
+        threshold: Float = 0.5
+        
+        @input_pin
+        texture_input: Object
+        
+        @output_pin
+        texture_output: Object
+    
+    @node_data
+    node BlendNode:
+        blend_mode: BlendMode = BlendMode::Normal
+        opacity: Float = 1.0
+        
+        @input_pin
+        base_input: Object
+        
+        @input_pin
+        layer_input: Object
+        
+        @input_pin
+        mask_input: Object
+        
+        @output_pin
+        texture_output: Object
+    
+    @node_data
+    node ColorAdjustNode:
+        brightness: Float = 0.0
+        contrast: Float = 1.0
+        saturation: Float = 1.0
+        hue_shift: Float = 0.0
+        
+        @input_pin
+        texture_input: Object
+        
+        @output_pin
+        texture_output: Object
+    
+    @node_data
+    node TextureInputNode:
+        texture_path: String = ""
+        
+        @output_pin
+        texture_output: Object
+    
+    @node_data
+    node TextureOutputNode:
+        output_name: String = "Result"
+        
+        @input_pin
+        texture_input: Object
+    
+    @node_data
+    node NormalMapNode:
+        strength: Float = 1.0
+        
+        @input_pin
+        height_input: Object
+        
+        @output_pin
+        normal_output: Object
+    
+    @node_data
+    node AOGeneratorNode:
+        sample_radius: Float = 0.05
+        sample_count: Int = 16
+        strength: Float = 1.0
+        
+        @input_pin
+        height_input: Object
+        
+        @output_pin
+        ao_output: Object
+    
+    @node_data
+    node UVTransformNode:
+        offset: Vec2 = vec2(0.0, 0.0)
+        scale: Vec2 = vec2(1.0, 1.0)
+        rotation: Float = 0.0
+        
+        @input_pin
+        texture_input: Object
+        
+        @output_pin
+        texture_output: Object
+    
+    @node_data
+    node MaskGeneratorNode:
+        mask_type: Int = 0
+        invert: Bool = false
+        feather: Float = 0.0
+        
+        @output_pin
+        mask_output: Object

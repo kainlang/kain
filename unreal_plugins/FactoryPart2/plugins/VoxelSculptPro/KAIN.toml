@@ -1,0 +1,22 @@
+name = "VoxelSculptPro"
+version = "1.0.0"
+authors = ["KAIN Factory Part 2"]
+description = "Professional ZBrush-style GPU sculpting system for UE5 with dynamic tessellation and multi-resolution mesh editing"
+
+[build]
+entry = "src/types.kn"
+target = "ue5"
+
+[ue5]
+plugin_name = "VoxelSculptPro"
+plugin_dir = "."
+engine_version = "5.4"
+modular_output = true
+
+# All source files — ordered by dependency (data structures first, then shaders, actor, viewport)
+sources = [
+    "data_structures.kn",
+    "sculpting_shaders.kn",
+    "sculpting_actor.kn",
+    "sculpting_viewport.kn",
+]

@@ -1,0 +1,175 @@
+#include "/Engine/Public/Platform.ush"
+
+// =============================================================================
+// KSAMPLE SEAMLESS TILING & CHANNEL PACKING
+// =============================================================================
+
+// --- Inputs ---
+Texture2D<float4> InSource;
+Texture2D<float> InAO;
+Texture2D<float> InRoughness;
+Texture2D<float> InMetallic;
+SamplerState InSampler;
+
+// --- Outputs ---
+RWTexture2D<float4> OutSeamless;
+RWTexture2D<float4> OutORM;        // R=AO, G=Roughness, B=Metallic
+
+// --- Parameters ---
+// Parameters
+
+    uint2 TextureDimensions;
+    float BlendWidth;    // Edge blend width (0.0-0.5, default 0.25)
+    uint TileMode;       // 0 = Cross-Blend, 1 = Mirror-Blend, 2 = Histogram-Match
+
+
+// =============================================================================
+// SEAMLESS TILING - CROSS BLEND METHOD
+// Offsets texture by 50% and blends the center seam
+// =============================================================================
+
+float4 SampleWrap(Texture2D<float4> tex, int2 pos)
+{
+    pos.x = pos.x % (int)TextureDimensions.x;
+    pos.y = pos.y % (int)TextureDimensions.y;
+    if (pos.x < 0) pos.x += (int)TextureDimensions.x;
+    if (pos.y < 0) pos.y += (int)TextureDimensions.y;
+    return tex.Load(int3(pos, 0));
+}
+
+float GetBlendWeight(float2 uv, float blendWidth)
+{
+    // Create a diamond-shaped blend mask
+    // Full weight at center, zero at edges
+    float2 centered = abs(uv - 0.5) * 2.0; // 0 at center, 1 at edges
+    
+    // Smooth step blend
+    float edgeX = smoothstep(1.0 - blendWidth * 2.0, 1.0, centered.x);
+    float edgeY = smoothstep(1.0 - blendWidth * 2.0, 1.0, centered.y);
+    
+    return max(edgeX, edgeY);
+}
+
+float4 CrossBlendSeamless(uint2 pos)
+{
+    float2 uv = (float2(pos) + 0.5) / float2(TextureDimensions);
+    
+    // Original sample
+    float4 original = InSource.Load(int3(pos, 0));
+    
+    // Offset sample (half texture size)
+    int2 offsetPos = pos + int2(TextureDimensions) / 2;
+    float4 offset = SampleWrap(InSource, offsetPos);
+    
+    // Blend weight: 0 in center, 1 at edges
+    float blendWeight = GetBlendWeight(uv, BlendWidth);
+    
+    // Lerp between original and offset
+    // At edges (where seams would be), use the offset version
+    // At center, use original
+    return lerp(original, offset, blendWeight);
+}
+
+// =============================================================================
+// SEAMLESS TILING - MIRROR BLEND METHOD
+// Mirrors edges and blends for smoother result
+// =============================================================================
+
+float4 MirrorBlendSeamless(uint2 pos)
+{
+    float2 uv = (float2(pos) + 0.5) / float2(TextureDimensions);
+    
+    // Original
+    float4 original = InSource[pos];
+    
+    // Mirrored samples
+    int2 mirrorX = int2((int)TextureDimensions.x - 1 - pos.x, pos.y);
+    int2 mirrorY = int2(pos.x, (int)TextureDimensions.y - 1 - pos.y);
+    int2 mirrorXY = int2((int)TextureDimensions.x - 1 - pos.x, (int)TextureDimensions.y - 1 - pos.y);
+    
+    float4 mX = InSource.Load(int3(mirrorX, 0));
+    float4 mY = InSource.Load(int3(mirrorY, 0));
+    float4 mXY = InSource.Load(int3(mirrorXY, 0));
+    
+    // Edge blend weights
+    float edgeX = smoothstep(0.5 - BlendWidth, 0.5, abs(uv.x - 0.5));
+    float edgeY = smoothstep(0.5 - BlendWidth, 0.5, abs(uv.y - 0.5));
+    
+    // Bilinear blend of all four quadrants
+    float4 top = lerp(original, mX, edgeX);
+    float4 bottom = lerp(mY, mXY, edgeX);
+    return lerp(top, bottom, edgeY);
+}
+
+// =============================================================================
+// HISTOGRAM MATCHING (Simplified)
+// Adjusts colors to reduce visible seams by matching local statistics
+// =============================================================================
+
+float4 HistogramMatchSeamless(uint2 pos)
+{
+    // This is a simplified version - true histogram matching needs a preprocessing pass
+    // For now, we combine cross-blend with local contrast adjustment
+    
+    float2 uv = (float2(pos) + 0.5) / float2(TextureDimensions);
+    float4 result = CrossBlendSeamless(pos);
+    
+    // Sample neighborhood for local mean
+    float4 localMean = 0;
+    int samples = 0;
+    for (int y = -4; y <= 4; y += 2)
+    {
+        for (int x = -4; x <= 4; x += 2)
+        {
+            localMean += SampleWrap(InSource, int2(pos) + int2(x, y));
+            samples++;
+        }
+    }
+    localMean /= (float)samples;
+    
+    // Reduce contrast near edges to hide seams
+    float edgeFactor = GetBlendWeight(uv, BlendWidth);
+    result = lerp(result, lerp(result, localMean, 0.3), edgeFactor);
+    
+    return result;
+}
+
+// =============================================================================
+// MAIN SEAMLESS SHADER
+// =============================================================================
+
+[numthreads(8, 8, 1)]
+void SeamlessCS(uint3 ThreadId : SV_DispatchThreadID)
+{
+    if (ThreadId.x >= TextureDimensions.x || ThreadId.y >= TextureDimensions.y) return;
+    
+    float4 result;
+    
+    switch (TileMode)
+    {
+        case 0:  result = CrossBlendSeamless(ThreadId.xy); break;
+        case 1:  result = MirrorBlendSeamless(ThreadId.xy); break;
+        case 2:  result = HistogramMatchSeamless(ThreadId.xy); break;
+        default: result = CrossBlendSeamless(ThreadId.xy); break;
+    }
+    
+    OutSeamless[ThreadId.xy] = result;
+}
+
+// =============================================================================
+// ORM CHANNEL PACKING
+// UE5 Standard: R=AO, G=Roughness, B=Metallic
+// =============================================================================
+
+[numthreads(8, 8, 1)]
+void PackORMCS(uint3 ThreadId : SV_DispatchThreadID)
+{
+    if (ThreadId.x >= TextureDimensions.x || ThreadId.y >= TextureDimensions.y) return;
+    
+    float ao = InAO.Load(int3(ThreadId.xy, 0));
+    float roughness = InRoughness.Load(int3(ThreadId.xy, 0));
+    float metallic = InMetallic.Load(int3(ThreadId.xy, 0));
+    
+    // UE5 ORM packing: R=AO, G=Roughness, B=Metallic, A=1
+    OutORM[ThreadId.xy] = float4(ao, roughness, metallic, 1.0);
+}

@@ -1,0 +1,25 @@
+name = "TerrainForge"
+version = "1.0.0"
+authors = ["KAIN Factory Part 2"]
+description = "Advanced terrain generation with GPU erosion simulation, multi-biome blending, infinite streaming, and procedural material generation"
+
+[build]
+entry = "src/terrain_data_structures.kn"
+target = "ue5"
+
+[ue5]
+plugin_name = "TerrainForge"
+plugin_dir = "."
+engine_version = "5.4"
+modular_output = true
+
+# All source files in src/ — ordered by dependency
+sources = [
+    "terrain_data_structures.kn",
+    "terrain_shaders.kn",
+    "terrain_generation.kn",
+    "terrain_materials.kn",
+    "terrain_async_tasks.kn",
+    "terrain_subsystem.kn",
+    "terrain_actors.kn",
+]

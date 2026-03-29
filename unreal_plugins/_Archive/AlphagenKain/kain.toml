@@ -1,0 +1,16 @@
+[package]
+name = "AlphaGen"
+version = "2.0.0"
+authors = ["K-Studio"]
+description = "AlphaGen - Complete procedural alpha texture generation system with 21 generators, 15 filters, Blueprint support, and Slate editor UI"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "AlphaGen"
+plugin_dir = "."
+sources = ["AlphaGen_FULL.kn"]
+shaders = [
+]
+modular_output = true

@@ -1,0 +1,507 @@
+# AnimRigPro - Rig Component
+# Attachable component for character rigging
+
+@component
+struct RigComponent:
+    @property
+    rig_name: String = "CharacterRig"
+    
+    @property
+    auto_initialize: Bool = true
+    
+    @property
+    auto_detect_skeleton: Bool = true
+    
+    @property
+    target_skeletal_mesh_component: Actor = null
+    
+    # Internal state
+    rig_state: RigState = create_rig_state("CharacterRig")
+    skeleton_cache: SkeletonCache = create_skeleton_cache(0)
+    is_initialized: Bool = false
+    
+    # IK/FK blend
+    current_mode: RigMode = RigMode.FK
+    ik_blend_alpha: Float = 0.0
+    blend_speed: Float = 5.0
+    
+    # Performance
+    update_frequency: Float = 60.0
+    time_since_last_update: Float = 0.0
+    
+    @beginplay
+    fn on_begin_play():
+        println("RigComponent: BeginPlay - " + rig_name)
+        
+        if auto_initialize:
+            if auto_detect_skeleton:
+                detect_and_initialize()
+            else:
+                if target_skeletal_mesh_component != null:
+                    initialize_from_mesh(target_skeletal_mesh_component)
+    
+    @tick
+    fn on_tick(delta_time: Float):
+        if not is_initialized:
+            return
+        
+        time_since_last_update = time_since_last_update + delta_time
+        
+        let update_interval = 1.0 / update_frequency
+        if time_since_last_update < update_interval:
+            return
+        
+        time_since_last_update = 0.0
+        
+        # Update IK/FK blend
+        update_ik_fk_blend(delta_time)
+        
+        # Solve IK if needed
+        if current_mode == RigMode.IK or ik_blend_alpha > 0.0:
+            solve_all_ik_chains()
+        
+        # Evaluate constraints
+        evaluate_constraints(rig_state, skeleton_cache)
+        
+        # Apply transforms
+        apply_transforms()
+    
+    # Initialization
+    fn detect_and_initialize():
+        let owner = get_owner()
+        if owner == null:
+            println("RigComponent: No owner actor")
+            return
+        
+        # Try to find skeletal mesh component on owner
+        let mesh_component = find_skeletal_mesh_component(owner)
+        if mesh_component != null:
+            initialize_from_mesh(mesh_component)
+        else:
+            println("RigComponent: No skeletal mesh component found on owner")
+    
+    fn initialize_from_mesh(mesh_component: Actor):
+        target_skeletal_mesh_component = mesh_component
+        
+        let bone_count = get_bone_count(mesh_component)
+        if bone_count == 0:
+            println("RigComponent: Skeletal mesh has no bones")
+            return
+        
+        skeleton_cache = create_skeleton_cache(bone_count)
+        
+        # Cache bone data
+        let i = 0
+        while i < bone_count:
+            skeleton_cache.bone_names[i] = get_bone_name(mesh_component, i)
+            skeleton_cache.bone_parents[i] = get_parent_bone_index(mesh_component, i)
+            skeleton_cache.bone_transforms[i] = get_bone_transform(mesh_component, i)
+            skeleton_cache.world_transforms[i] = skeleton_cache.bone_transforms[i]
+            i = i + 1
+        
+        # Initialize IK chains
+        i = 0
+        while i < len(rig_state.ik_chains):
+            rig_state.ik_chains[i] = initialize_ik_chain(rig_state.ik_chains[i], skeleton_cache)
+            i = i + 1
+        
+        # Initialize constraints
+        initialize_all_constraints()
+        
+        is_initialized = true
+        println("RigComponent: Initialized with " + int_to_string(bone_count) + " bones")
+    
+    fn initialize_all_constraints():
+        let i = 0
+        while i < len(rig_state.aim_constraints):
+            let aim = rig_state.aim_constraints[i]
+            aim.base = initialize_constraint(aim.base, skeleton_cache)
+            rig_state.aim_constraints[i] = aim
+            i = i + 1
+        
+        i = 0
+        while i < len(rig_state.parent_constraints):
+            let parent = rig_state.parent_constraints[i]
+            parent.base = initialize_constraint(parent.base, skeleton_cache)
+            parent = calculate_parent_constraint_offsets(parent, skeleton_cache)
+            rig_state.parent_constraints[i] = parent
+            i = i + 1
+        
+        i = 0
+        while i < len(rig_state.position_constraints):
+            let pos = rig_state.position_constraints[i]
+            pos.base = initialize_constraint(pos.base, skeleton_cache)
+            pos = calculate_position_constraint_offsets(pos, skeleton_cache)
+            rig_state.position_constraints[i] = pos
+            i = i + 1
+        
+        i = 0
+        while i < len(rig_state.rotation_constraints):
+            let rot = rig_state.rotation_constraints[i]
+            rot.base = initialize_constraint(rot.base, skeleton_cache)
+            rot = calculate_rotation_constraint_offsets(rot, skeleton_cache)
+            rig_state.rotation_constraints[i] = rot
+            i = i + 1
+        
+        i = 0
+        while i < len(rig_state.scale_constraints):
+            let scale = rig_state.scale_constraints[i]
+            scale.base = initialize_constraint(scale.base, skeleton_cache)
+            rig_state.scale_constraints[i] = scale
+            i = i + 1
+    
+    # IK Chain Management
+    fn add_ik_chain_internal(chain: IKChain):
+        if is_initialized:
+            chain = initialize_ik_chain(chain, skeleton_cache)
+        
+        rig_state = add_ik_chain(rig_state, chain)
+    
+    fn create_fabrik_chain(chain_name: String, bone_names: Array<String>) -> IKChain:
+        return create_chain(chain_name, bone_names, IKSolverType.FABRIK)
+    
+    fn create_two_bone_chain(chain_name: String, bone_names: Array<String>) -> IKChain:
+        if len(bone_names) != 3:
+            println("RigComponent: Two-bone IK requires exactly 3 bones")
+            return create_chain(chain_name, bone_names, IKSolverType.TwoBone)
+        return create_chain(chain_name, bone_names, IKSolverType.TwoBone)
+    
+    fn create_look_at_chain(chain_name: String, bone_name: String) -> IKChain:
+        return create_chain(chain_name, [bone_name], IKSolverType.LookAt)
+    
+    # Constraint Helpers
+    fn add_aim_constraint_internal(
+        name: String,
+        source: String,
+        target: String,
+        weight: Float
+    ):
+        let constraint = create_aim_constraint(name, source, target)
+        constraint.base.weight = weight
+        
+        if is_initialized:
+            constraint.base = initialize_constraint(constraint.base, skeleton_cache)
+        
+        push(rig_state.aim_constraints, constraint)
+    
+    fn add_parent_constraint_internal(
+        name: String,
+        source: String,
+        targets: Array<String>,
+        weights: Array<Float>
+    ):
+        let constraint = create_parent_constraint(name, source, targets)
+        constraint.base.target_weights = weights
+        constraint.base = normalize_weights(constraint.base)
+        
+        if is_initialized:
+            constraint.base = initialize_constraint(constraint.base, skeleton_cache)
+            constraint = calculate_parent_constraint_offsets(constraint, skeleton_cache)
+        
+        push(rig_state.parent_constraints, constraint)
+    
+    fn add_position_constraint_internal(
+        name: String,
+        source: String,
+        target: String,
+        weight: Float
+    ):
+        let constraint = create_position_constraint(name, source, [target])
+        constraint.base.weight = weight
+        
+        if is_initialized:
+            constraint.base = initialize_constraint(constraint.base, skeleton_cache)
+            constraint = calculate_position_constraint_offsets(constraint, skeleton_cache)
+        
+        push(rig_state.position_constraints, constraint)
+    
+    fn add_rotation_constraint_internal(
+        name: String,
+        source: String,
+        target: String,
+        weight: Float
+    ):
+        let constraint = create_rotation_constraint(name, source, [target])
+        constraint.base.weight = weight
+        
+        if is_initialized:
+            constraint.base = initialize_constraint(constraint.base, skeleton_cache)
+            constraint = calculate_rotation_constraint_offsets(constraint, skeleton_cache)
+        
+        push(rig_state.rotation_constraints, constraint)
+    
+    # IK/FK Blending
+    fn update_ik_fk_blend(delta_time: Float):
+        let target_alpha = if current_mode == RigMode.IK then 1.0 else 0.0
+        
+        if ik_blend_alpha != target_alpha:
+            let blend_delta = blend_speed * delta_time
+            
+            if ik_blend_alpha < target_alpha:
+                ik_blend_alpha = min(ik_blend_alpha + blend_delta, target_alpha)
+            else:
+                ik_blend_alpha = max(ik_blend_alpha - blend_delta, target_alpha)
+            
+            rig_state.ik_blend = ik_blend_alpha
+    
+    fn set_mode(mode: RigMode):
+        current_mode = mode
+        rig_state.mode = mode
+    
+    fn set_ik_enabled(enabled: Bool):
+        current_mode = if enabled then RigMode.IK else RigMode.FK
+    
+    # IK Solving
+    fn solve_all_ik_chains():
+        let i = 0
+        while i < len(rig_state.ik_chains):
+            let chain = rig_state.ik_chains[i]
+            if chain.enabled:
+                solve_ik_chain(chain, skeleton_cache)
+            i = i + 1
+    
+    # Transform Application
+    fn apply_transforms():
+        if target_skeletal_mesh_component == null:
+            return
+        
+        # Update world transforms
+        let i = 0
+        while i < len(skeleton_cache.bone_transforms):
+            update_world_transform(skeleton_cache, i)
+            i = i + 1
+        
+        # Apply to mesh
+        i = 0
+        while i < len(skeleton_cache.bone_transforms):
+            set_bone_transform(
+                target_skeletal_mesh_component,
+                i,
+                skeleton_cache.bone_transforms[i]
+            )
+            i = i + 1
+    
+    # Preset Rig Configurations
+    fn setup_humanoid_rig():
+        println("RigComponent: Setting up humanoid rig")
+        
+        # Left arm IK
+        add_ik_chain_internal(create_two_bone_chain(
+            "LeftArm",
+            ["clavicle_l", "upperarm_l", "lowerarm_l", "hand_l"]
+        ))
+        
+        # Right arm IK
+        add_ik_chain_internal(create_two_bone_chain(
+            "RightArm",
+            ["clavicle_r", "upperarm_r", "lowerarm_r", "hand_r"]
+        ))
+        
+        # Left leg IK
+        add_ik_chain_internal(create_two_bone_chain(
+            "LeftLeg",
+            ["thigh_l", "calf_l", "foot_l"]
+        ))
+        
+        # Right leg IK
+        add_ik_chain_internal(create_two_bone_chain(
+            "RightLeg",
+            ["thigh_r", "calf_r", "foot_r"]
+        ))
+        
+        # Head look-at
+        add_ik_chain_internal(create_look_at_chain("Head", "head"))
+        
+        # Spine FABRIK
+        add_ik_chain_internal(create_fabrik_chain(
+            "Spine",
+            ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01"]
+        ))
+    
+    fn setup_quadruped_rig():
+        println("RigComponent: Setting up quadruped rig")
+        
+        # Front left leg
+        add_ik_chain_internal(create_two_bone_chain(
+            "FrontLeftLeg",
+            ["shoulder_l", "elbow_l", "wrist_l"]
+        ))
+        
+        # Front right leg
+        add_ik_chain_internal(create_two_bone_chain(
+            "FrontRightLeg",
+            ["shoulder_r", "elbow_r", "wrist_r"]
+        ))
+        
+        # Back left leg
+        add_ik_chain_internal(create_two_bone_chain(
+            "BackLeftLeg",
+            ["hip_l", "knee_l", "ankle_l"]
+        ))
+        
+        # Back right leg
+        add_ik_chain_internal(create_two_bone_chain(
+            "BackRightLeg",
+            ["hip_r", "knee_r", "ankle_r"]
+        ))
+        
+        # Tail
+        add_ik_chain_internal(create_fabrik_chain(
+            "Tail",
+            ["tail_01", "tail_02", "tail_03", "tail_04", "tail_05"]
+        ))
+        
+        # Head
+        add_ik_chain_internal(create_look_at_chain("Head", "head"))
+    
+    fn setup_tentacle_rig(bone_prefix: String, bone_count: Int):
+        println("RigComponent: Setting up tentacle rig")
+        
+        let bone_names = []
+        let i = 0
+        while i < bone_count:
+            let bone_name = bone_prefix + "_" + int_to_string(i + 1)
+            push(bone_names, bone_name)
+            i = i + 1
+        
+        add_ik_chain_internal(create_fabrik_chain("Tentacle", bone_names))
+    
+    # Utility Functions
+    fn get_bone_index(bone_name: String) -> Int:
+        return find_bone_index(skeleton_cache, bone_name)
+    
+    fn get_bone_world_position(bone_name: String) -> Vec3:
+        let bone_index = get_bone_index(bone_name)
+        if bone_index >= 0 and bone_index < len(skeleton_cache.world_transforms):
+            return skeleton_cache.world_transforms[bone_index].position
+        return vec3(0.0, 0.0, 0.0)
+    
+    fn get_bone_world_rotation(bone_name: String) -> Vec4:
+        let bone_index = get_bone_index(bone_name)
+        if bone_index >= 0 and bone_index < len(skeleton_cache.world_transforms):
+            return skeleton_cache.world_transforms[bone_index].rotation
+        return vec4(0.0, 0.0, 0.0, 1.0)
+    
+    fn set_bone_local_position(bone_name: String, position: Vec3):
+        let bone_index = get_bone_index(bone_name)
+        if bone_index >= 0 and bone_index < len(skeleton_cache.bone_transforms):
+            let transform = skeleton_cache.bone_transforms[bone_index]
+            skeleton_cache.bone_transforms[bone_index] = BoneTransform(
+                position: position,
+                rotation: transform.rotation,
+                scale: transform.scale
+            )
+            mark_dirty(skeleton_cache, bone_index)
+    
+    fn set_bone_local_rotation(bone_name: String, rotation: Vec4):
+        let bone_index = get_bone_index(bone_name)
+        if bone_index >= 0 and bone_index < len(skeleton_cache.bone_transforms):
+            let transform = skeleton_cache.bone_transforms[bone_index]
+            skeleton_cache.bone_transforms[bone_index] = BoneTransform(
+                position: transform.position,
+                rotation: rotation,
+                scale: transform.scale
+            )
+            mark_dirty(skeleton_cache, bone_index)
+    
+    fn get_ik_chain_by_name(chain_name: String) -> Int:
+        return find_ik_chain(rig_state, chain_name)
+    
+    fn set_ik_target(chain_name: String, target: Vec3):
+        let chain_index = get_ik_chain_by_name(chain_name)
+        if chain_index >= 0:
+            rig_state.ik_chains[chain_index].target_position = target
+    
+    fn set_ik_pole_vector(chain_name: String, pole: Vec3):
+        let chain_index = get_ik_chain_by_name(chain_name)
+        if chain_index >= 0:
+            rig_state.ik_chains[chain_index].pole_vector = pole
+    
+    fn enable_ik_chain(chain_name: String, enabled: Bool):
+        let chain_index = get_ik_chain_by_name(chain_name)
+        if chain_index >= 0:
+            rig_state.ik_chains[chain_index].enabled = enabled
+    
+    fn set_constraint_weight(constraint_name: String, weight: Float):
+        let clamped_weight = clamp(weight, 0.0, 1.0)
+        
+        # Search all constraint types
+        let i = 0
+        while i < len(rig_state.aim_constraints):
+            if rig_state.aim_constraints[i].base.constraint_name == constraint_name:
+                rig_state.aim_constraints[i].base.weight = clamped_weight
+                return
+            i = i + 1
+        
+        i = 0
+        while i < len(rig_state.parent_constraints):
+            if rig_state.parent_constraints[i].base.constraint_name == constraint_name:
+                rig_state.parent_constraints[i].base.weight = clamped_weight
+                return
+            i = i + 1
+        
+        i = 0
+        while i < len(rig_state.position_constraints):
+            if rig_state.position_constraints[i].base.constraint_name == constraint_name:
+                rig_state.position_constraints[i].base.weight = clamped_weight
+                return
+            i = i + 1
+        
+        i = 0
+        while i < len(rig_state.rotation_constraints):
+            if rig_state.rotation_constraints[i].base.constraint_name == constraint_name:
+                rig_state.rotation_constraints[i].base.weight = clamped_weight
+                return
+            i = i + 1
+    
+    fn enable_constraint(constraint_name: String, enabled: Bool):
+        let i = 0
+        while i < len(rig_state.aim_constraints):
+            if rig_state.aim_constraints[i].base.constraint_name == constraint_name:
+                rig_state.aim_constraints[i].base.enabled = enabled
+                return
+            i = i + 1
+        
+        i = 0
+        while i < len(rig_state.parent_constraints):
+            if rig_state.parent_constraints[i].base.constraint_name == constraint_name:
+                rig_state.parent_constraints[i].base.enabled = enabled
+                return
+            i = i + 1
+        
+        i = 0
+        while i < len(rig_state.position_constraints):
+            if rig_state.position_constraints[i].base.constraint_name == constraint_name:
+                rig_state.position_constraints[i].base.enabled = enabled
+                return
+            i = i + 1
+        
+        i = 0
+        while i < len(rig_state.rotation_constraints):
+            if rig_state.rotation_constraints[i].base.constraint_name == constraint_name:
+                rig_state.rotation_constraints[i].base.enabled = enabled
+                return
+            i = i + 1
+    
+    fn get_ik_chain_count() -> Int:
+        return len(rig_state.ik_chains)
+    
+    fn get_constraint_count() -> Int:
+        return len(rig_state.aim_constraints) +
+               len(rig_state.parent_constraints) +
+               len(rig_state.position_constraints) +
+               len(rig_state.rotation_constraints) +
+               len(rig_state.scale_constraints)
+    
+    fn get_bone_count() -> Int:
+        return len(skeleton_cache.bone_names)
+    
+    fn is_rig_initialized() -> Bool:
+        return is_initialized
+
+# External functions
+@extern
+fn get_owner() -> Actor
+
+@extern
+fn find_skeletal_mesh_component(actor: Actor) -> Actor

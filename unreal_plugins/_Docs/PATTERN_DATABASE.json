@@ -1,0 +1,626 @@
+{
+  "metadata": {
+    "version": "2.0",
+    "created": "2026-02-23",
+    "description": "Cross-plugin compilation pattern database for KAIN-to-UE5 pipeline",
+    "total_patterns": 19,
+    "plugins_analyzed": [
+      "Materialize",
+      "VoxelForgePro",
+      "Cinema4DMograph",
+      "TemporalBlueprint",
+      "MetaFitter"
+    ],
+    "project": "Plugin Compilation Pipeline",
+    "phases_completed": 6
+  },
+  "source_level_patterns": {
+    "syntax_fixes": [
+      {
+        "id": "SRC-001",
+        "name": "Variable Declaration Syntax",
+        "category": "syntax",
+        "description": "Replace 'var' keyword with 'let' for variable declarations",
+        "frequency": {
+          "Materialize": 100,
+          "VoxelForgePro": 50,
+          "Cinema4DMograph": 150,
+          "TemporalBlueprint": 200,
+          "MetaFitter": 100,
+          "total": 600
+        },
+        "error_message": "Parse error: unexpected token 'var'",
+        "root_cause": "KAIN syntax uses 'let' for immutable bindings, not 'var'",
+        "fix_strategy": "automated",
+        "fix_description": "Replace all occurrences of 'var' with 'let'",
+        "code_example": {
+          "before": "var chunk_size: Int = 32",
+          "after": "let chunk_size: Int = 32"
+        },
+        "backend_changes": {
+          "required": false,
+          "files_modified": [],
+          "description": "No backend changes needed"
+        },
+        "impact": "All 5 plugins",
+        "priority": "high",
+        "automated": true,
+        "notes": "Most common syntax fix across all plugins"
+      },
+      {
+        "id": "SRC-002",
+        "name": "Boolean Negation Operator",
+        "category": "syntax",
+        "description": "Replace 'not' operator with '== false' for boolean negation",
+        "frequency": {
+          "Materialize": 40,
+          "VoxelForgePro": 20,
+          "Cinema4DMograph": 60,
+          "TemporalBlueprint": 80,
+          "MetaFitter": 50,
+          "total": 250
+        },
+        "error_message": "Parse error: unexpected token 'not'",
+        "root_cause": "KAIN uses '== false' for boolean negation, not 'not' keyword",
+        "fix_strategy": "automated",
+        "fix_description": "Replace 'not expr' with 'expr == false'",
+        "code_example": {
+          "before": "if not is_loaded:",
+          "after": "if is_loaded == false:"
+        },
+        "backend_changes": {
+          "required": false,
+          "files_modified": [],
+          "description": "No backend changes needed"
+        },
+        "impact": "All 5 plugins",
+        "priority": "high",
+        "automated": true,
+        "notes": "Common in conditional expressions"
+      },
+      {
+        "id": "SRC-003",
+        "name": "Logical Operators",
+        "category": "syntax",
+        "description": "Replace '&&' with 'and' and '||' with 'or' for logical operations",
+        "frequency": {
+          "Materialize": 60,
+          "VoxelForgePro": 30,
+          "Cinema4DMograph": 80,
+          "TemporalBlueprint": 100,
+          "MetaFitter": 70,
+          "total": 340
+        },
+        "error_message": "Parse error: unexpected token '&&'",
+        "root_cause": "KAIN uses 'and'/'or' keywords, not '&&'/'||' operators",
+        "fix_strategy": "automated",
+        "fix_description": "Replace '&&' with 'and' and '||' with 'or'",
+        "code_example": {
+          "before": "if x > 0 && y > 0:",
+          "after": "if x > 0 and y > 0:"
+        },
+        "backend_changes": {
+          "required": false,
+          "files_modified": [],
+          "description": "No backend changes needed"
+        },
+        "impact": "All 5 plugins",
+        "priority": "high",
+        "automated": true,
+        "notes": "Very common in conditional expressions"
+      },
+      {
+        "id": "SRC-004",
+        "name": "For Loop Conversion",
+        "category": "syntax",
+        "description": "Convert 'for i in start..end' to while loop with explicit counter",
+        "frequency": {
+          "Materialize": 20,
+          "VoxelForgePro": 15,
+          "Cinema4DMograph": 40,
+          "TemporalBlueprint": 50,
+          "MetaFitter": 30,
+          "total": 155
+        },
+        "error_message": "Parse error: for loops not yet supported",
+        "root_cause": "KAIN parser doesn't support for..in range syntax yet",
+        "fix_strategy": "automated",
+        "fix_description": "Convert to while loop with explicit initialization, condition, and increment",
+        "code_example": {
+          "before": "for i in 0..chunk_size:\n    process(i)",
+          "after": "let i = 0\nwhile i < chunk_size:\n    process(i)\n    i = i + 1"
+        },
+        "backend_changes": {
+          "required": true,
+          "files_modified": ["Kain/crates/kain-core/src/parser.rs", "Kain/crates/ue5/src/codegen_ue5.rs"],
+          "description": "Add for loop support to parser and codegen"
+        },
+        "impact": "All 5 plugins",
+        "priority": "critical",
+        "automated": true,
+        "notes": "Increases verbosity by 5x, high priority for language improvement"
+      },
+      {
+        "id": "SRC-005",
+        "name": "Struct Field Access",
+        "category": "syntax",
+        "description": "Replace '::' with '.' for struct field access",
+        "frequency": {
+          "Materialize": 150,
+          "VoxelForgePro": 100,
+          "Cinema4DMograph": 300,
+          "TemporalBlueprint": 400,
+          "MetaFitter": 250,
+          "total": 1200
+        },
+        "error_message": "Type error: '::' is for enum variants, use '.' for struct fields",
+        "root_cause": "Confusion between enum variant access (::) and struct field access (.)",
+        "fix_strategy": "automated",
+        "fix_description": "Replace 'struct::field' with 'struct.field' for struct types",
+        "code_example": {
+          "before": "let x = coord::x",
+          "after": "let x = coord.x"
+        },
+        "backend_changes": {
+          "required": false,
+          "files_modified": [],
+          "description": "No backend changes needed"
+        },
+        "impact": "All 5 plugins",
+        "priority": "high",
+        "automated": true,
+        "notes": "Most frequent fix pattern across all plugins"
+      },
+      {
+        "id": "SRC-006",
+        "name": "Struct Literal Elimination",
+        "category": "syntax",
+        "description": "Replace struct literal syntax with field-by-field assignment",
+        "frequency": {
+          "Materialize": 60,
+          "VoxelForgePro": 40,
+          "Cinema4DMograph": 120,
+          "TemporalBlueprint": 150,
+          "MetaFitter": 80,
+          "total": 450
+        },
+        "error_message": "Parse error: struct literals not yet supported",
+        "root_cause": "KAIN parser doesn't support struct literal syntax yet",
+        "fix_strategy": "automated",
+        "fix_description": "Convert 'TypeName { field: val }' to field-by-field assignment",
+        "code_example": {
+          "before": "let coord = VoxelCoord { x: 10, y: 20, z: 30 }",
+          "after": "let coord = VoxelCoord()\ncoord.x = 10\ncoord.y = 20\ncoord.z = 30"
+        },
+        "backend_changes": {
+          "required": true,
+          "files_modified": ["Kain/crates/kain-core/src/parser.rs", "Kain/crates/ue5/src/codegen_ue5.rs"],
+          "description": "Add struct literal support to parser and codegen"
+        },
+        "impact": "All 5 plugins",
+        "priority": "critical",
+        "automated": true,
+        "notes": "Increases verbosity by 4x, high priority for language improvement"
+      },
+      {
+        "id": "SRC-007",
+        "name": "Vector Constructor Syntax",
+        "category": "syntax",
+        "description": "Replace 'Vec3i { x, y, z }' with 'vec3i(x, y, z)' constructor call",
+        "frequency": {
+          "Materialize": 40,
+          "VoxelForgePro": 25,
+          "Cinema4DMograph": 80,
+          "TemporalBlueprint": 100,
+          "MetaFitter": 60,
+          "total": 305
+        },
+        "error_message": "Parse error: struct literals not yet supported",
+        "root_cause": "Vector types use constructor function syntax, not struct literal syntax",
+        "fix_strategy": "automated",
+        "fix_description": "Replace 'Vec3i { x, y, z }' with 'vec3i(x, y, z)'",
+        "code_example": {
+          "before": "let pos = Vec3i { x: 0, y: 0, z: 0 }",
+          "after": "let pos = vec3i(0, 0, 0)"
+        },
+        "backend_changes": {
+          "required": false,
+          "files_modified": [],
+          "description": "No backend changes needed"
+        },
+        "impact": "All 5 plugins",
+        "priority": "medium",
+        "automated": true,
+        "notes": "Related to struct literal issue but has workaround"
+      },
+      {
+        "id": "SRC-008",
+        "name": "Match Arm Syntax",
+        "category": "syntax",
+        "description": "Replace '=> { body }' with '=>\\n    body' for match arms",
+        "frequency": {
+          "Materialize": 15,
+          "VoxelForgePro": 10,
+          "Cinema4DMograph": 30,
+          "TemporalBlueprint": 40,
+          "MetaFitter": 25,
+          "total": 120
+        },
+        "error_message": "Parse error: unexpected token '{'",
+        "root_cause": "KAIN match arms use indented blocks, not braces",
+        "fix_strategy": "automated",
+        "fix_description": "Convert '=> { body }' to '=>\\n    body'",
+        "code_example": {
+          "before": "match x:\n    0 => { return true }",
+          "after": "match x:\n    0 =>\n        return true"
+        },
+        "backend_changes": {
+          "required": false,
+          "files_modified": [],
+          "description": "No backend changes needed"
+        },
+        "impact": "All 5 plugins",
+        "priority": "medium",
+        "automated": true,
+        "notes": "Common in pattern matching code"
+      },
+      {
+        "id": "SRC-009",
+        "name": "Reserved Keyword Renaming",
+        "category": "semantic",
+        "description": "Rename parameters/variables named 'state' to avoid reserved keyword",
+        "frequency": {
+          "Materialize": 8,
+          "VoxelForgePro": 5,
+          "Cinema4DMograph": 15,
+          "TemporalBlueprint": 20,
+          "MetaFitter": 12,
+          "total": 60
+        },
+        "error_message": "Parse error: 'state' is a reserved keyword",
+        "root_cause": "'state' is reserved for actor state fields in KAIN",
+        "fix_strategy": "manual",
+        "fix_description": "Rename to context-appropriate name (chunk_state, voxel_state, material_state)",
+        "code_example": {
+          "before": "fn update_chunk(state: ChunkState):",
+          "after": "fn update_chunk(chunk_state: ChunkState):"
+        },
+        "backend_changes": {
+          "required": false,
+          "files_modified": [],
+          "description": "No backend changes needed"
+        },
+        "impact": "All 5 plugins",
+        "priority": "medium",
+        "automated": false,
+        "notes": "Requires context-aware renaming, cannot be fully automated"
+      },
+      {
+        "id": "SRC-010",
+        "name": "Enum Sentinel Variants",
+        "category": "structural",
+        "description": "Add 'EnumName_MAX' sentinel variant to all enums",
+        "frequency": {
+          "Materialize": 8,
+          "VoxelForgePro": 8,
+          "Cinema4DMograph": 13,
+          "TemporalBlueprint": 12,
+          "MetaFitter": 10,
+          "total": 51
+        },
+        "error_message": "No error, but UE5 convention requires sentinel variant",
+        "root_cause": "UE5 enums often need MAX sentinel for iteration/validation",
+        "fix_strategy": "automated",
+        "fix_description": "Add 'EnumName_MAX' as last variant to each enum",
+        "code_example": {
+          "before": "enum VoxelType:\n    Solid\n    Transparent",
+          "after": "enum VoxelType:\n    Solid\n    Transparent\n    VoxelType_MAX"
+        },
+        "backend_changes": {
+          "required": false,
+          "files_modified": [],
+          "description": "No backend changes needed"
+        },
+        "impact": "All 5 plugins",
+        "priority": "low",
+        "automated": true,
+        "notes": "UE5 convention, not strictly required but recommended"
+      },
+      {
+        "id": "SRC-011",
+        "name": "Actor Field Declaration",
+        "category": "structural",
+        "description": "Remove 'let' keyword from actor fields, use 'state' for state fields",
+        "frequency": {
+          "Materialize": 2,
+          "VoxelForgePro": 3,
+          "Cinema4DMograph": 2,
+          "TemporalBlueprint": 5,
+          "MetaFitter": 3,
+          "total": 15
+        },
+        "error_message": "Parse error: unexpected 'let' in actor body",
+        "root_cause": "Actor fields use different syntax than local variables",
+        "fix_strategy": "automated",
+        "fix_description": "Remove 'let' from actor fields, add 'state' for state fields",
+        "code_example": {
+          "before": "actor VoxelWorld:\n    let chunk_size: Int = 32",
+          "after": "actor VoxelWorld:\n    state chunk_size: Int = 32"
+        },
+        "backend_changes": {
+          "required": false,
+          "files_modified": [],
+          "description": "No backend changes needed"
+        },
+        "impact": "All 5 plugins with actors",
+        "priority": "medium",
+        "automated": true,
+        "notes": "Actor-specific syntax"
+      }
+    ]
+  },
+  "backend_fixes": {
+    "oracle_fixes": [
+      {
+        "id": "BACK-001",
+        "name": "RPC Parameter Serialization Validation",
+        "category": "oracle",
+        "description": "Oracle only checked enum names for RPC parameter serializability, rejecting user-defined structs",
+        "frequency": {
+          "Materialize": 4,
+          "VoxelForgePro": 0,
+          "Cinema4DMograph": 0,
+          "TemporalBlueprint": 0,
+          "MetaFitter": 0,
+          "total": 4
+        },
+        "error_message": "Oracle error: RPC parameter type 'MaterialLayer' is not serializable",
+        "root_cause": "Oracle only collected enum names in serializable types list, not struct names",
+        "fix_strategy": "backend",
+        "fix_description": "Modified validate_rpcs() to collect both enum and struct names as serializable types",
+        "code_example": {
+          "before": "let serializable_types: HashSet<String> = ast.items.iter().filter_map(|item| match item { Item::Enum(e) => Some(e.name.clone()), _ => None }).collect();",
+          "after": "let serializable_types: HashSet<String> = ast.items.iter().filter_map(|item| match item { Item::Enum(e) => Some(e.name.clone()), Item::Struct(s) => Some(s.name.clone()), _ => None }).collect();"
+        },
+        "backend_changes": {
+          "required": true,
+          "files_modified": ["Kain/crates/ue5/src/ue5/oracle.rs"],
+          "description": "Added struct name collection to serializable types"
+        },
+        "impact": "Materialize and any plugin using structs as RPC parameters",
+        "priority": "critical",
+        "automated": false,
+        "notes": "Fixed in Phase 1, benefits all future plugins"
+      },
+      {
+        "id": "BACK-004",
+        "name": "Name Collision Detection",
+        "category": "oracle",
+        "description": "Oracle detects name collisions with engine types but doesn't provide automatic prefixing",
+        "frequency": {
+          "Materialize": 4,
+          "VoxelForgePro": 0,
+          "Cinema4DMograph": 1,
+          "TemporalBlueprint": 1,
+          "MetaFitter": 0,
+          "total": 6
+        },
+        "error_message": "Error: Enum 'EBlendMode' shares engine name 'EBlendMode' with enum 'EBlendMode' in Engine/EngineTypes.h",
+        "root_cause": "UE5's UHT requires globally unique type names, plugin types can collide with engine types",
+        "fix_strategy": "backend",
+        "fix_description": "Add plugin-specific prefix suggestion, @engine_safe_name attribute, automatic prefixing in codegen",
+        "code_example": {
+          "before": "enum EBlendMode:\n    Opaque\n    Masked",
+          "after": "enum EMaterializeBlendMode:\n    Opaque\n    Masked"
+        },
+        "backend_changes": {
+          "required": true,
+          "files_modified": ["Kain/crates/ue5/src/ue5/oracle.rs", "Kain/crates/ue5/src/codegen_ue5.rs"],
+          "description": "Add automatic plugin-specific prefixing for colliding names"
+        },
+        "impact": "Materialize, TemporalBlueprint, Cinema4DMograph, and future plugins",
+        "priority": "critical",
+        "automated": false,
+        "notes": "PENDING - High priority fix needed"
+      }
+    ],
+    "codegen_fixes": [
+      {
+        "id": "BACK-002",
+        "name": "USF Type Allowlist Synchronization",
+        "category": "codegen",
+        "description": "Validator had hardcoded type list missing KAIN type aliases (UVec2, UInt, Mat4, etc.)",
+        "frequency": {
+          "Materialize": 20,
+          "VoxelForgePro": 0,
+          "Cinema4DMograph": 0,
+          "TemporalBlueprint": 0,
+          "MetaFitter": 0,
+          "total": 20
+        },
+        "error_message": "Shader validation error: Type 'UVec2' is not a valid HLSL type",
+        "root_cause": "Validator and codegen had separate type lists that were out of sync",
+        "fix_strategy": "backend",
+        "fix_description": "Added all KAIN type aliases to validator's allowlist",
+        "code_example": {
+          "before": "let valid_types = vec![\"float\", \"float2\", \"float3\", \"float4\", \"int\", \"int2\", \"int3\", \"int4\"];",
+          "after": "let valid_types = vec![\"float\", \"float2\", \"float3\", \"float4\", \"int\", \"int2\", \"int3\", \"int4\", \"uint\", \"uint2\", \"uint3\", \"uint4\", \"Float\", \"Vec2\", \"Vec3\", \"Vec4\", \"Int\", \"IVec2\", \"IVec3\", \"IVec4\", \"UInt\", \"UVec2\", \"UVec3\", \"UVec4\", \"Mat2\", \"Mat3\", \"Mat4\", \"Sampler2D\", \"Sampler3D\", \"SamplerCube\", \"RWBuffer\", \"RWTexture2D\", \"RWTexture3D\"];"
+        },
+        "backend_changes": {
+          "required": true,
+          "files_modified": ["Kain/crates/ue5-shaders/src/validation.rs"],
+          "description": "Added KAIN type aliases to validator allowlist"
+        },
+        "impact": "Materialize and any plugin using KAIN type aliases in shaders",
+        "priority": "critical",
+        "automated": false,
+        "notes": "Fixed in Phase 1, should use TYPE_MAPPER for single source of truth"
+      },
+      {
+        "id": "BACK-003",
+        "name": "Constant Buffer Slot Overflow Check",
+        "category": "codegen",
+        "description": "Validator incorrectly enforced 'binding > 13' limit on scalar parameters",
+        "frequency": {
+          "Materialize": 16,
+          "VoxelForgePro": 0,
+          "Cinema4DMograph": 0,
+          "TemporalBlueprint": 0,
+          "MetaFitter": 0,
+          "total": 16
+        },
+        "error_message": "Shader validation error: Constant buffer slot 14 exceeds maximum (13)",
+        "root_cause": "Validator misunderstood @N semantics - @N is ordering index, not register binding",
+        "fix_strategy": "backend",
+        "fix_description": "Removed incorrect slot range check for scalar parameters",
+        "code_example": {
+          "before": "if binding > 13 { return Err(format!(\"Constant buffer slot {} exceeds maximum (13)\", binding)); }",
+          "after": "// Removed check - scalar params use SHADER_PARAMETER_STRUCT, not individual registers"
+        },
+        "backend_changes": {
+          "required": true,
+          "files_modified": ["Kain/crates/ue5-shaders/src/validation.rs"],
+          "description": "Removed incorrect binding limit check for scalar parameters"
+        },
+        "impact": "Materialize and any shader with 14+ scalar parameters",
+        "priority": "critical",
+        "automated": false,
+        "notes": "Fixed in Phase 1, clarified @N semantics"
+      },
+      {
+        "id": "BACK-005",
+        "name": "Struct Field Codegen",
+        "category": "codegen",
+        "description": "Struct fields not being generated correctly, missing X, Y, Z members",
+        "frequency": {
+          "Materialize": 0,
+          "VoxelForgePro": 3,
+          "Cinema4DMograph": 0,
+          "TemporalBlueprint": 0,
+          "MetaFitter": 0,
+          "total": 3
+        },
+        "error_message": "error C2039: 'X': is not a member of 'FVoxelCoord'",
+        "root_cause": "Struct field generation may be skipping fields or not emitting them correctly",
+        "fix_strategy": "backend",
+        "fix_description": "Verify all fields from KAIN struct are emitted in C++ struct with correct capitalization",
+        "code_example": {
+          "before": "// Missing field generation",
+          "after": "UPROPERTY(EditAnywhere, BlueprintReadWrite)\nint32 X;\n\nUPROPERTY(EditAnywhere, BlueprintReadWrite)\nint32 Y;\n\nUPROPERTY(EditAnywhere, BlueprintReadWrite)\nint32 Z;"
+        },
+        "backend_changes": {
+          "required": true,
+          "files_modified": ["Kain/crates/ue5/src/codegen_ue5.rs"],
+          "description": "Fix struct field generation to emit all fields correctly"
+        },
+        "impact": "VoxelForgePro and any plugin with struct field access",
+        "priority": "critical",
+        "automated": false,
+        "notes": "PENDING - Blocks VoxelForgePro UE5 compilation"
+      },
+      {
+        "id": "BACK-006",
+        "name": "RPC Parameter Handling",
+        "category": "codegen",
+        "description": "RPC function signatures don't match between declaration and implementation",
+        "frequency": {
+          "Materialize": 0,
+          "VoxelForgePro": 2,
+          "Cinema4DMograph": 0,
+          "TemporalBlueprint": 0,
+          "MetaFitter": 0,
+          "total": 2
+        },
+        "error_message": "error C2660: 'AVoxelPlayer::Server_Mine': function does not take 1 arguments",
+        "root_cause": "RPC parameter codegen may be inconsistent between header and implementation",
+        "fix_strategy": "backend",
+        "fix_description": "Ensure struct parameters use 'const FStructName&' (const reference)",
+        "code_example": {
+          "before": "void Server_Mine(FVoxelCoord coord);",
+          "after": "void Server_Mine(const FVoxelCoord& coord);"
+        },
+        "backend_changes": {
+          "required": true,
+          "files_modified": ["Kain/crates/ue5/src/codegen_ue5.rs"],
+          "description": "Fix RPC parameter codegen for struct parameters"
+        },
+        "impact": "VoxelForgePro and any plugin with RPC struct parameters",
+        "priority": "critical",
+        "automated": false,
+        "notes": "PENDING - Blocks VoxelForgePro UE5 compilation"
+      },
+      {
+        "id": "BACK-007",
+        "name": "Pointer Type Codegen for UE5 Assets",
+        "category": "codegen",
+        "description": "UAnimSequence* pointer type not being generated correctly",
+        "frequency": {
+          "Materialize": 0,
+          "VoxelForgePro": 0,
+          "Cinema4DMograph": 1,
+          "TemporalBlueprint": 0,
+          "MetaFitter": 0,
+          "total": 1
+        },
+        "error_message": "Error: Found 'end of type' when expecting '*'",
+        "root_cause": "UAnimSequence may not be in engine type registry, or pointer suffix not being emitted",
+        "fix_strategy": "backend",
+        "fix_description": "Add UAnimSequence to engine type registry, ensure pointer types emitted with * suffix",
+        "code_example": {
+          "before": "UAnimSequence animation;",
+          "after": "UAnimSequence* animation;"
+        },
+        "backend_changes": {
+          "required": true,
+          "files_modified": ["Kain/crates/ue5/src/type_mapper.rs", "Kain/unreal/metadata/engine_knowledge.json"],
+          "description": "Add UAnimSequence to engine type registry, fix pointer type emission"
+        },
+        "impact": "Cinema4DMograph and any plugin using UE5 asset types",
+        "priority": "critical",
+        "automated": false,
+        "notes": "PENDING - Blocks Cinema4DMograph UE5 compilation"
+      },
+      {
+        "id": "BACK-008",
+        "name": "Component Naming Convention",
+        "category": "codegen",
+        "description": "Component names not following UE5 convention (U prefix + Component suffix)",
+        "frequency": {
+          "Materialize": 0,
+          "VoxelForgePro": 0,
+          "Cinema4DMograph": 0,
+          "TemporalBlueprint": 0,
+          "MetaFitter": 1,
+          "total": 1
+        },
+        "error_message": "Error: Unable to find 'class', 'delegate', 'enum', or 'struct' with name 'UClothingLayerManagerComponent'",
+        "root_cause": "Component naming may have bugs (missing prefix/suffix, double-prefixing)",
+        "fix_strategy": "backend",
+        "fix_description": "Verify component naming applies U prefix and Component suffix correctly",
+        "code_example": {
+          "before": "class ClothingLayerManager",
+          "after": "class UClothingLayerManagerComponent"
+        },
+        "backend_changes": {
+          "required": true,
+          "files_modified": ["Kain/crates/ue5/src/codegen_ue5.rs"],
+          "description": "Fix component naming to follow UE5 convention"
+        },
+        "impact": "MetaFitter and any plugin with components",
+        "priority": "critical",
+        "automated": false,
+        "notes": "PENDING - Blocks MetaFitter UE5 compilation"
+      }
+    ]
+  },
+  "summary": {
+    "total_source_patterns": 11,
+    "total_backend_fixes": 8,
+    "automated_patterns": 10,
+    "manual_patterns": 1,
+    "completed_backend_fixes": 3,
+    "pending_backend_fixes": 5,
+    "most_common_pattern": "SRC-005 (Struct Field Access - 1200 occurrences)",
+    "highest_priority_fix": "BACK-004 (Name Collision Detection - affects 3 plugins)"
+  }
+}

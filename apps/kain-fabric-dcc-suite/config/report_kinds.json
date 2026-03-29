@@ -71,6 +71,20 @@
       "summary": "Render preview planning report."
     },
     {
+      "id": "render_accumulation_report",
+      "report_uri": "report://render/accumulation",
+      "producer_step": "render_accumulation_projection",
+      "output_name": "render_accumulation_report",
+      "summary": "Temporal accumulation and pathtrace buffer stability report."
+    },
+    {
+      "id": "render_denoise_report",
+      "report_uri": "report://render/denoise",
+      "producer_step": "render_denoise_projection",
+      "output_name": "render_denoise_report",
+      "summary": "Temporal denoise readiness report for the progressive preview lane."
+    },
+    {
       "id": "topology_history_report",
       "report_uri": "report://topology/history",
       "producer_step": "topology_history_projection",

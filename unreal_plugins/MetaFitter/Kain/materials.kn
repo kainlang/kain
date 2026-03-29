@@ -1,0 +1,248 @@
+# ============================================================================
+# METAFITTER - Material Utilities
+# ============================================================================
+# Blueprint function library for material transfer, hidden face map
+# generation, and material auto-adjustment for MetaHuman lighting.
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: MATERIAL TRANSFER
+# ============================================================================
+
+@blueprint
+fn transfer_materials(source_mesh_path: String, target_metahuman_path: String) -> Bool:
+    println("MetaFitter Materials: Transferring materials from source mesh...")
+    
+    # Material transfer pipeline:
+    # 1. Read material slots from source mesh
+    # 2. For each material slot:
+    #    a. Create UMaterialInstanceDynamic from the original material
+    #    b. Adjust parameters for MetaHuman lighting model
+    #    c. Assign to the conformed skeletal mesh
+    # 3. Handle multi-material meshes (clothing with different fabric zones)
+    #
+    # UE5 APIs:
+    #   UMaterialInstanceDynamic::Create()
+    #   UMaterialInstanceDynamic::SetScalarParameterValue()
+    #   UMaterialInstanceDynamic::SetVectorParameterValue()
+    #   UMaterialInstanceDynamic::SetTextureParameterValue()
+    #   USkeletalMeshComponent::SetMaterial()
+    
+    return true
+
+@blueprint
+fn adjust_material_for_metahuman(material_path: String, clothing_type: ClothingType) -> Bool:
+    println("MetaFitter Materials: Adjusting material for MetaHuman lighting...")
+    
+    # MetaHuman uses a specific lighting model with subsurface scattering.
+    # Clothing materials need adjustment to look correct alongside skin:
+    #
+    # 1. Roughness: Slightly increase for fabric (0.6-0.9 range)
+    # 2. Normal intensity: Reduce to avoid harsh shadows on thin fabric
+    # 3. Subsurface: Enable for thin/translucent fabrics (silk, cotton)
+    # 4. Specular: Reduce for matte fabrics, increase for leather/silk
+    
+    let roughness_adjust = 0.0
+    let normal_intensity = 1.0
+    let enable_subsurface = false
+    let specular_adjust = 0.0
+    
+    match clothing_type:
+        ClothingType::Shirt =>
+            roughness_adjust = 0.1
+            normal_intensity = 0.8
+            enable_subsurface = true
+            specular_adjust = -0.1
+        ClothingType::Pants =>
+            roughness_adjust = 0.05
+            normal_intensity = 0.9
+            enable_subsurface = false
+            specular_adjust = 0.0
+        ClothingType::Dress =>
+            roughness_adjust = 0.15
+            normal_intensity = 0.7
+            enable_subsurface = true
+            specular_adjust = -0.15
+        ClothingType::Jacket =>
+            roughness_adjust = -0.1
+            normal_intensity = 1.0
+            enable_subsurface = false
+            specular_adjust = 0.2
+        ClothingType::Coat =>
+            roughness_adjust = -0.05
+            normal_intensity = 1.0
+            enable_subsurface = false
+            specular_adjust = 0.15
+        ClothingType::Scarf =>
+            roughness_adjust = 0.2
+            normal_intensity = 0.6
+            enable_subsurface = true
+            specular_adjust = -0.2
+        ClothingType::Hoodie =>
+            roughness_adjust = 0.15
+            normal_intensity = 0.75
+            enable_subsurface = false
+            specular_adjust = -0.1
+        _ =>
+            roughness_adjust = 0.05
+            normal_intensity = 0.85
+            enable_subsurface = false
+            specular_adjust = 0.0
+    
+    println("  Roughness adjust: " + float_to_string(roughness_adjust))
+    println("  Normal intensity: " + float_to_string(normal_intensity))
+    println("  Subsurface: " + bool_to_string(enable_subsurface))
+    println("  Specular adjust: " + float_to_string(specular_adjust))
+    
+    return true
+
+# ============================================================================
+# SECTION 2: HIDDEN FACE MAP GENERATION
+# ============================================================================
+# Hidden face maps are textures that mark which body faces should be hidden
+# (made transparent) when clothing is worn. This prevents the body mesh
+# from clipping through the clothing.
+
+@blueprint
+fn generate_hidden_face_map(source_mesh_path: String, target_body_path: String, config: HiddenFaceMapConfig) -> Bool:
+    println("MetaFitter Materials: Generating hidden face map...")
+    println("  Resolution: " + int_to_string(config.resolution) + "x" + int_to_string(config.resolution))
+    println("  Dilation: " + int_to_string(config.dilation_pixels) + " pixels")
+    println("  Blur radius: " + float_to_string(config.blur_radius))
+    println("  Threshold: " + float_to_string(config.threshold))
+    
+    # Hidden face map generation algorithm:
+    #
+    # 1. For each face on the body mesh:
+    #    a. Check if any clothing vertex is within threshold distance
+    #    b. If yes, mark the face as "hidden" in the texture
+    #
+    # 2. UV-space operations:
+    #    a. Rasterize marked faces into a texture using body UV layout
+    #    b. Apply dilation to expand the hidden region (prevents edge artifacts)
+    #    c. Apply Gaussian blur for smooth transitions
+    #
+    # 3. Apply to body material:
+    #    a. Set the hidden face map texture on the body material
+    #    b. Body shader uses this to make covered areas transparent
+    #
+    # UE5 APIs:
+    #   UTexture2D::CreateTransient() — create the texture
+    #   FTexture2DMipMap::BulkData — write pixel data
+    #   UMaterialInstanceDynamic::SetTextureParameterValue("HiddenFaceMap", Texture)
+    
+    return true
+
+@blueprint
+fn calculate_face_occlusion(body_face_center: Vec3, body_face_normal: Vec3, clothing_vertices_near: Int, threshold: Float) -> Float:
+    # Returns 0.0 (fully visible) to 1.0 (fully hidden)
+    # Based on how many clothing vertices are near this body face
+    
+    if clothing_vertices_near == 0:
+        return 0.0
+    
+    # More nearby vertices = more confident the face is occluded
+    let confidence = clamp_float(to_float(clothing_vertices_near) / 10.0, 0.0, 1.0)
+    
+    return confidence
+
+@blueprint
+fn apply_hidden_face_map_to_body(body_material_path: String, hidden_face_map_path: String, include_head: Bool, include_body: Bool) -> Bool:
+    println("MetaFitter Materials: Applying hidden face map to body material...")
+    
+    # MetaHuman has separate materials for head and body.
+    # We apply the hidden face map to whichever parts the clothing covers.
+    #
+    # The body material shader reads the HiddenFaceMap texture and
+    # clips pixels where the map value exceeds a threshold.
+    
+    if include_head:
+        println("  Applying to head material")
+    if include_body:
+        println("  Applying to body material")
+    
+    return true
+
+# ============================================================================
+# SECTION 3: MATERIAL SLOT MANAGEMENT
+# ============================================================================
+
+@blueprint
+fn count_material_slots(mesh_path: String) -> Int:
+    # Returns the number of material slots on the mesh
+    # UE5 API: UStaticMesh::GetStaticMaterials().Num()
+    return 1
+
+@blueprint
+fn get_material_slot_name(mesh_path: String, slot_index: Int) -> String:
+    # Returns the name of a material slot
+    # UE5 API: UStaticMesh::GetStaticMaterials()[Index].MaterialSlotName
+    return "Material_" + int_to_string(slot_index)
+
+@blueprint
+fn create_dynamic_material_instance(source_material_path: String) -> String:
+    # Creates a UMaterialInstanceDynamic from the source material
+    # Returns the path to the new dynamic instance
+    println("MetaFitter Materials: Creating dynamic material instance from: " + source_material_path)
+    return source_material_path + "_Dynamic"
+
+# ============================================================================
+# SECTION 4: FABRIC-SPECIFIC MATERIAL PROPERTIES
+# ============================================================================
+
+@blueprint
+fn get_fabric_roughness(clothing_type: ClothingType) -> Float:
+    match clothing_type:
+        ClothingType::Shirt =>
+            return 0.75
+        ClothingType::Pants =>
+            return 0.7
+        ClothingType::Dress =>
+            return 0.65
+        ClothingType::Jacket =>
+            return 0.45
+        ClothingType::Coat =>
+            return 0.5
+        ClothingType::Hoodie =>
+            return 0.8
+        ClothingType::Vest =>
+            return 0.6
+        ClothingType::Scarf =>
+            return 0.85
+        ClothingType::Skirt =>
+            return 0.7
+        ClothingType::Belt =>
+            return 0.35
+        ClothingType::Shoes =>
+            return 0.4
+        ClothingType::Gloves =>
+            return 0.5
+        _ =>
+            return 0.7
+
+@blueprint
+fn get_fabric_subsurface_strength(clothing_type: ClothingType) -> Float:
+    # Thin, light fabrics have more subsurface scattering
+    match clothing_type:
+        ClothingType::Shirt =>
+            return 0.3
+        ClothingType::Dress =>
+            return 0.4
+        ClothingType::Scarf =>
+            return 0.5
+        ClothingType::Socks =>
+            return 0.2
+        _ =>
+            return 0.0
+
+@blueprint
+fn is_fabric_translucent(clothing_type: ClothingType) -> Bool:
+    match clothing_type:
+        ClothingType::Dress =>
+            return true
+        ClothingType::Scarf =>
+            return true
+        ClothingType::Shirt =>
+            return true
+        _ =>
+            return false

@@ -1,0 +1,524 @@
+# ============================================================================
+# METAFITTER - MetaHuman API Integration
+# ============================================================================
+# Direct integration with UE5 MetaHuman APIs
+# - UMetaHumanWardrobeItem creation and management
+# - UMetaHumanOutfitPipeline assembly and application
+# - UChaosClothComponent physics setup
+# - UChaosOutfitAsset creation
+# - Hidden face map texture generation
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: WARDROBE ITEM CREATION
+# ============================================================================
+
+@blueprint
+fn create_wardrobe_item(clothing_mesh_path: String, clothing_type: ClothingType, layer_slot: LayerSlot) -> String:
+    println("MetaFitter Integration: Creating UMetaHumanWardrobeItem...")
+    println("  Mesh: " + clothing_mesh_path)
+    println("  Type: " + clothing_type_to_string(clothing_type))
+    
+    # C++ Implementation will:
+    # 1. Create UMetaHumanWardrobeItem* NewItem = NewObject<UMetaHumanWardrobeItem>()
+    # 2. Set NewItem->PrincipalAsset = LoadObject<USkeletalMesh>(clothing_mesh_path)
+    # 3. Create and assign UMetaHumanOutfitPipeline
+    # 4. Set thumbnail and metadata
+    # 5. Save asset to content browser
+    # 6. Return asset path
+    
+    return "/Game/MetaFitter/WardrobeItems/Generated_" + clothing_type_to_string(clothing_type)
+
+@blueprint
+fn finalize_clothing_asset(source_mesh_path: String, target_metahuman_path: String, output_name: String, clothing_type: ClothingType, layer_slot: LayerSlot) -> Bool:
+    println("MetaFitter Integration: Finalizing clothing asset...")
+    println("  Output name: " + output_name)
+    
+    # C++ Implementation will:
+    # 1. Create final USkeletalMesh asset with all modifications applied
+    # 2. Create UChaosOutfitAsset with physics configuration
+    # 3. Create UMetaHumanWardrobeItem and link everything
+    # 4. Generate thumbnail
+    # 5. Save all assets to /Game/MetaFitter/Output/
+    
+    let wardrobe_path = create_wardrobe_item(source_mesh_path, clothing_type, layer_slot)
+    println("  Created wardrobe item: " + wardrobe_path)
+    
+    return true
+
+# ============================================================================
+# SECTION 2: OUTFIT PIPELINE ASSEMBLY
+# ============================================================================
+
+@blueprint
+fn create_outfit_pipeline(clothing_mesh_path: String, physics_params: ClothPhysicsParams) -> String:
+    println("MetaFitter Integration: Creating UMetaHumanOutfitPipeline...")
+    
+    # C++ Implementation will:
+    # 1. Create UMetaHumanOutfitPipeline* Pipeline = NewObject<UMetaHumanOutfitPipeline>()
+    # 2. Configure OverrideMaterials map
+    # 3. Set RuntimeMaterialParameters array
+    # 4. Configure physics properties
+    # 5. Return pipeline asset path
+    
+    return "/Game/MetaFitter/Pipelines/Generated_Pipeline"
+
+@blueprint
+fn apply_outfit_to_metahuman(wardrobe_item_path: String, metahuman_character_path: String) -> Bool:
+    println("MetaFitter Integration: Applying outfit to MetaHuman character...")
+    
+    # C++ Implementation will:
+    # 1. Load UMetaHumanCharacter* Character = LoadObject<UMetaHumanCharacter>(metahuman_character_path)
+    # 2. Load UMetaHumanWardrobeItem* Item = LoadObject<UMetaHumanWardrobeItem>(wardrobe_item_path)
+    # 3. Call Character->AddWardrobeItem(Item)
+    # 4. Trigger outfit assembly: Pipeline->AssembleItem()
+    # 5. Apply to cloth component: UMetaHumanOutfitPipeline::ApplyOutfitAssemblyOutputToClothComponent()
+    # 6. Apply to mesh component: UMetaHumanOutfitPipeline::ApplyOutfitAssemblyOutputToMeshComponent()
+    
+    return true
+
+@blueprint
+fn assemble_outfit_pipeline(pipeline_path: String, character_path: String) -> Bool:
+    println("MetaFitter Integration: Assembling outfit pipeline...")
+    
+    # C++ Implementation will:
+    # 1. Load UMetaHumanOutfitPipeline* Pipeline
+    # 2. Load UMetaHumanCharacter* Character
+    # 3. Call Pipeline->AssembleItem() to generate FMetaHumanOutfitPipelineAssemblyOutput
+    # 4. Output contains:
+    #    - UChaosOutfitAsset* Outfit
+    #    - USkeletalMesh* OutfitMesh
+    #    - TMap<FName, UMaterialInterface*> OverrideMaterials
+    #    - FHiddenFaceMapTexture HeadHiddenFaceMap
+    #    - FHiddenFaceMapTexture BodyHiddenFaceMap
+    
+    return true
+
+# ============================================================================
+# SECTION 3: CHAOS CLOTH PHYSICS INTEGRATION
+# ============================================================================
+
+@blueprint
+fn create_chaos_outfit_asset(mesh_path: String, physics_params: ClothPhysicsParams) -> String:
+    println("MetaFitter Integration: Creating UChaosOutfitAsset...")
+    println("  Stiffness: " + float_to_string(physics_params.stiffness))
+    println("  Damping: " + float_to_string(physics_params.damping))
+    
+    # C++ Implementation will:
+    # 1. Create UChaosOutfitAsset* OutfitAsset = NewObject<UChaosOutfitAsset>()
+    # 2. Configure FChaosClothSimulationConfig:
+    #    - Config.Stiffness = physics_params.stiffness
+    #    - Config.Damping = physics_params.damping
+    #    - Config.Drag = physics_params.drag
+    #    - Config.Friction = physics_params.friction
+    #    - Config.GravityScale = physics_params.gravity_scale
+    #    - Config.WindScale = physics_params.wind_scale
+    # 3. Add cloth collection: OutfitAsset->AddClothCollection()
+    # 4. Configure constraints (max_distance, backstop)
+    # 5. Save asset
+    # 6. Return asset path
+    
+    return "/Game/MetaFitter/Physics/Generated_OutfitAsset"
+
+@blueprint
+fn apply_chaos_cloth_to_component(outfit_asset_path: String, component_path: String) -> Bool:
+    println("MetaFitter Integration: Applying Chaos Cloth to component...")
+    
+    # C++ Implementation will:
+    # 1. Load UChaosOutfitAsset* OutfitAsset
+    # 2. Get UChaosClothComponent* ClothComponent
+    # 3. Call ClothComponent->SetClothAsset(OutfitAsset)
+    # 4. Call ClothComponent->SetSimulationProperties() with physics params
+    # 5. Enable simulation
+    
+    return true
+
+@blueprint
+fn configure_cloth_collision(outfit_asset_path: String, collision_primitives: Int) -> Bool:
+    println("MetaFitter Integration: Configuring cloth collision...")
+    println("  Collision primitives: " + int_to_string(collision_primitives))
+    
+    # C++ Implementation will:
+    # 1. Load UChaosOutfitAsset* OutfitAsset
+    # 2. For each collision primitive:
+    #    a. Create collision shape (capsule, sphere, box)
+    #    b. Attach to skeleton bone
+    #    c. Set collision parameters
+    # 3. Configure self-collision if enabled
+    # 4. Set collision thickness
+    
+    return true
+
+# ============================================================================
+# SECTION 4: MESH MANIPULATION (GEOMETRY FRAMEWORK)
+# ============================================================================
+
+@blueprint
+fn load_mesh_as_dynamic_mesh(mesh_path: String) -> String:
+    println("MetaFitter Integration: Loading mesh as UDynamicMesh...")
+    
+    # C++ Implementation will:
+    # 1. Load UStaticMesh or USkeletalMesh from path
+    # 2. Create UDynamicMesh* DynMesh = NewObject<UDynamicMesh>()
+    # 3. Convert to FMeshDescription
+    # 4. Copy to DynamicMesh
+    # 5. Return handle/path for further operations
+    
+    return "/Temp/DynamicMesh_" + mesh_path
+
+@blueprint
+fn project_vertices_to_surface(source_mesh_handle: String, target_mesh_handle: String, max_distance: Float) -> Bool:
+    println("MetaFitter Integration: Projecting vertices to surface...")
+    
+    # C++ Implementation will:
+    # 1. Get source UDynamicMesh
+    # 2. Get target UDynamicMesh (body surface)
+    # 3. For each vertex in source:
+    #    a. Cast ray along -normal
+    #    b. Use UWorld::LineTraceSingleByChannel() or
+    #       FMath::ClosestPointOnTriangle() for each target triangle
+    #    c. Find closest hit point
+    #    d. Update vertex position
+    # 4. Rebuild normals and tangents
+    # 5. Return success
+    
+    return true
+
+@blueprint
+fn smooth_mesh_vertices(mesh_handle: String, iterations: Int, strength: Float) -> Bool:
+    println("MetaFitter Integration: Smoothing mesh vertices...")
+    println("  Iterations: " + int_to_string(iterations))
+    println("  Strength: " + float_to_string(strength))
+    
+    # C++ Implementation will:
+    # 1. Get UDynamicMesh
+    # 2. Apply Laplacian smoothing:
+    #    - For each vertex, average neighbor positions
+    #    - Lerp between original and averaged position by strength
+    # 3. Repeat for iterations
+    # 4. Use UGeometryScriptLibrary_MeshDeformFunctions if available
+    
+    return true
+
+@blueprint
+fn calculate_mesh_bounds(mesh_handle: String) -> MeshTopologyInfo:
+    println("MetaFitter Integration: Calculating mesh bounds...")
+    
+    let info = MeshTopologyInfo()
+    
+    # C++ Implementation will:
+    # 1. Get UDynamicMesh or UStaticMesh
+    # 2. Call GetBounds() to get FBoxSphereBounds
+    # 3. Extract:
+    #    - BoundingBox.Min
+    #    - BoundingBox.Max
+    #    - BoundingBox.GetCenter()
+    #    - BoundingBox.GetExtent()
+    # 4. Calculate surface area by summing triangle areas
+    # 5. Count vertices, triangles, edges
+    # 6. Check for UVs, normals, tangents
+    
+    info.vertex_count = 1000
+    info.triangle_count = 2000
+    info.bounding_box_center = vec3(0, 0, 100)
+    info.bounding_box_extent = vec3(50, 50, 80)
+    
+    return info
+
+# ============================================================================
+# SECTION 5: SKELETAL MESH SKINNING
+# ============================================================================
+
+@blueprint
+fn bind_mesh_to_skeleton(mesh_path: String, skeleton_path: String, max_influences: Int) -> Bool:
+    println("MetaFitter Integration: Binding mesh to skeleton...")
+    println("  Max influences: " + int_to_string(max_influences))
+    
+    # C++ Implementation will:
+    # 1. Load USkeletalMesh* Mesh
+    # 2. Load USkeleton* Skeleton
+    # 3. Get FReferenceSkeleton from Skeleton
+    # 4. For each vertex:
+    #    a. Find N closest bones (N = max_influences)
+    #    b. Calculate distance to each bone transform
+    #    c. Convert distances to weights (inverse distance)
+    #    d. Normalize weights to sum to 1.0
+    # 5. Write to FSkinWeightVertexBuffer
+    # 6. Rebuild mesh
+    
+    return true
+
+@blueprint
+fn smooth_bone_weights(mesh_path: String, iterations: Int) -> Bool:
+    println("MetaFitter Integration: Smoothing bone weights...")
+    println("  Iterations: " + int_to_string(iterations))
+    
+    # C++ Implementation will:
+    # 1. Load USkeletalMesh* Mesh
+    # 2. Get FSkinWeightVertexBuffer
+    # 3. For each iteration:
+    #    a. For each vertex:
+    #       - Get neighbor vertices
+    #       - Average their bone weights
+    #       - Blend with current weights
+    #    b. Normalize all weights
+    # 4. Write back to buffer
+    # 5. Rebuild mesh
+    
+    return true
+
+@blueprint
+fn get_skeleton_bone_transforms(skeleton_path: String) -> Int:
+    println("MetaFitter Integration: Getting skeleton bone transforms...")
+    
+    # C++ Implementation will:
+    # 1. Load USkeleton* Skeleton
+    # 2. Get FReferenceSkeleton& RefSkeleton = Skeleton->GetReferenceSkeleton()
+    # 3. Get bone count: RefSkeleton.GetNum()
+    # 4. For each bone:
+    #    - FName BoneName = RefSkeleton.GetBoneName(Index)
+    #    - FTransform BoneTransform = RefSkeleton.GetBoneTransform(Index)
+    # 5. Store in temporary array for vertex weight calculation
+    # 6. Return bone count
+    
+    return 71  # MetaHuman skeleton has 71 bones
+
+# ============================================================================
+# SECTION 6: MATERIAL AND TEXTURE OPERATIONS
+# ============================================================================
+
+@blueprint
+fn create_dynamic_material_from_source(source_material_path: String) -> String:
+    println("MetaFitter Integration: Creating dynamic material instance...")
+    
+    # C++ Implementation will:
+    # 1. Load UMaterialInterface* SourceMaterial
+    # 2. Create UMaterialInstanceDynamic* DynMat = UMaterialInstanceDynamic::Create(SourceMaterial, nullptr)
+    # 3. Return path or store in temporary registry
+    
+    return source_material_path + "_Dynamic"
+
+@blueprint
+fn set_material_scalar_parameter(material_path: String, param_name: String, value: Float) -> Bool:
+    println("MetaFitter Integration: Setting material scalar parameter...")
+    println("  Parameter: " + param_name + " = " + float_to_string(value))
+    
+    # C++ Implementation will:
+    # 1. Get UMaterialInstanceDynamic* DynMat
+    # 2. Call DynMat->SetScalarParameterValue(FName(param_name), value)
+    
+    return true
+
+@blueprint
+fn set_material_vector_parameter(material_path: String, param_name: String, value: Vec3) -> Bool:
+    println("MetaFitter Integration: Setting material vector parameter...")
+    println("  Parameter: " + param_name)
+    
+    # C++ Implementation will:
+    # 1. Get UMaterialInstanceDynamic* DynMat
+    # 2. Call DynMat->SetVectorParameterValue(FName(param_name), FLinearColor(value.x, value.y, value.z, 1.0))
+    
+    return true
+
+@blueprint
+fn set_material_texture_parameter(material_path: String, param_name: String, texture_path: String) -> Bool:
+    println("MetaFitter Integration: Setting material texture parameter...")
+    println("  Parameter: " + param_name)
+    println("  Texture: " + texture_path)
+    
+    # C++ Implementation will:
+    # 1. Get UMaterialInstanceDynamic* DynMat
+    # 2. Load UTexture2D* Texture
+    # 3. Call DynMat->SetTextureParameterValue(FName(param_name), Texture)
+    
+    return true
+
+@blueprint
+fn create_hidden_face_map_texture(resolution: Int) -> String:
+    println("MetaFitter Integration: Creating hidden face map texture...")
+    println("  Resolution: " + int_to_string(resolution) + "x" + int_to_string(resolution))
+    
+    # C++ Implementation will:
+    # 1. Create UTexture2D* Texture = UTexture2D::CreateTransient(resolution, resolution, PF_G8)
+    # 2. Get FTexture2DMipMap& Mip = Texture->GetPlatformData()->Mips[0]
+    # 3. Lock BulkData for writing
+    # 4. Initialize to 0 (fully visible)
+    # 5. Unlock and update resource
+    # 6. Return texture path
+    
+    return "/Game/MetaFitter/HiddenFaceMaps/Generated_HFM"
+
+@blueprint
+fn write_hidden_face_map_pixel(texture_path: String, x: Int, y: Int, value: Float) -> Bool:
+    # C++ Implementation will:
+    # 1. Get UTexture2D* Texture
+    # 2. Get mip data
+    # 3. Calculate pixel index: index = y * width + x
+    # 4. Write value (0.0 = visible, 1.0 = hidden) as uint8
+    # 5. Mark texture as dirty
+    
+    return true
+
+@blueprint
+fn apply_gaussian_blur_to_texture(texture_path: String, radius: Float) -> Bool:
+    println("MetaFitter Integration: Applying Gaussian blur to texture...")
+    println("  Radius: " + float_to_string(radius))
+    
+    # C++ Implementation will:
+    # 1. Get UTexture2D* Texture
+    # 2. Create temporary buffer for blurred result
+    # 3. Apply separable Gaussian blur (horizontal then vertical)
+    # 4. Write back to texture
+    # 5. Update resource
+    
+    return true
+
+@blueprint
+fn dilate_texture(texture_path: String, pixels: Int) -> Bool:
+    println("MetaFitter Integration: Dilating texture...")
+    println("  Pixels: " + int_to_string(pixels))
+    
+    # C++ Implementation will:
+    # 1. Get UTexture2D* Texture
+    # 2. For each iteration (pixels):
+    #    a. For each pixel:
+    #       - Check 8 neighbors
+    #       - If any neighbor is "hidden", mark this pixel as hidden
+    # 3. Write back to texture
+    
+    return true
+
+# ============================================================================
+# SECTION 7: METAHUMAN CHARACTER INTEGRATION
+# ============================================================================
+
+@blueprint
+fn get_metahuman_body_mesh(character_path: String) -> String:
+    println("MetaFitter Integration: Getting MetaHuman body mesh...")
+    
+    # C++ Implementation will:
+    # 1. Load UMetaHumanCharacter* Character
+    # 2. Get body skeletal mesh component
+    # 3. Get USkeletalMesh* BodyMesh = Component->GetSkeletalMeshAsset()
+    # 4. Return mesh path
+    
+    return character_path + "/Body_Mesh"
+
+@blueprint
+fn get_metahuman_skeleton(character_path: String) -> String:
+    println("MetaFitter Integration: Getting MetaHuman skeleton...")
+    
+    # C++ Implementation will:
+    # 1. Load UMetaHumanCharacter* Character
+    # 2. Get USkeleton* Skeleton = Character->GetSkeleton()
+    # 3. Return skeleton path (usually /Game/MetaHumans/Common/Common/MetaHuman_Skeleton)
+    
+    return "/Game/MetaHumans/Common/Common/MetaHuman_Skeleton"
+
+@blueprint
+fn get_metahuman_body_material(character_path: String) -> String:
+    println("MetaFitter Integration: Getting MetaHuman body material...")
+    
+    # C++ Implementation will:
+    # 1. Load UMetaHumanCharacter* Character
+    # 2. Get body mesh component
+    # 3. Get UMaterialInterface* BodyMaterial = Component->GetMaterial(0)
+    # 4. Return material path
+    
+    return character_path + "/Body_Material"
+
+@blueprint
+fn add_wardrobe_item_to_character(character_path: String, wardrobe_item_path: String) -> Bool:
+    println("MetaFitter Integration: Adding wardrobe item to character...")
+    
+    # C++ Implementation will:
+    # 1. Load UMetaHumanCharacter* Character
+    # 2. Load UMetaHumanWardrobeItem* Item
+    # 3. Call Character->AddWardrobeItem(Item)
+    # 4. Trigger rebuild/refresh
+    
+    return true
+
+# ============================================================================
+# SECTION 8: ASSET MANAGEMENT
+# ============================================================================
+
+@blueprint
+fn save_asset_to_content_browser(asset_path: String, asset_name: String) -> Bool:
+    println("MetaFitter Integration: Saving asset to content browser...")
+    println("  Path: " + asset_path)
+    println("  Name: " + asset_name)
+    
+    # C++ Implementation will:
+    # 1. Get UObject* Asset (could be USkeletalMesh, UMaterialInstance, etc.)
+    # 2. Create FAssetRegistryModule
+    # 3. Call FAssetToolsModule::Get().CreateAsset()
+    # 4. Save package
+    # 5. Notify content browser
+    
+    return true
+
+@blueprint
+fn generate_asset_thumbnail(asset_path: String) -> Bool:
+    println("MetaFitter Integration: Generating asset thumbnail...")
+    
+    # C++ Implementation will:
+    # 1. Load asset
+    # 2. Create thumbnail renderer
+    # 3. Render to texture
+    # 4. Save thumbnail
+    
+    return true
+
+@blueprint
+fn load_asset_from_path(asset_path: String) -> Bool:
+    println("MetaFitter Integration: Loading asset from path...")
+    println("  Path: " + asset_path)
+    
+    # C++ Implementation will:
+    # 1. Use LoadObject<UObject>(nullptr, *asset_path)
+    # 2. Check if valid
+    # 3. Return success
+    
+    return true
+
+# ============================================================================
+# SECTION 9: EDITOR SUBSYSTEM INTEGRATION
+# ============================================================================
+
+@blueprint
+fn get_metahuman_editor_subsystem() -> Bool:
+    println("MetaFitter Integration: Getting MetaHuman editor subsystem...")
+    
+    # C++ Implementation will:
+    # 1. Get UMetaHumanCharacterEditorSubsystem* Subsystem = GEditor->GetEditorSubsystem<UMetaHumanCharacterEditorSubsystem>()
+    # 2. Store reference for later use
+    # 3. Return success
+    
+    return true
+
+@blueprint
+fn can_build_metahuman(character_path: String) -> Bool:
+    println("MetaFitter Integration: Checking if MetaHuman can be built...")
+    
+    # C++ Implementation will:
+    # 1. Get UMetaHumanCharacterEditorSubsystem* Subsystem
+    # 2. Load UMetaHumanCharacter* Character
+    # 3. Call Subsystem->CanBuildMetaHuman(Character, true)
+    # 4. Return result
+    
+    return true
+
+@blueprint
+fn build_metahuman_character(character_path: String) -> Bool:
+    println("MetaFitter Integration: Building MetaHuman character...")
+    
+    # C++ Implementation will:
+    # 1. Get UMetaHumanCharacterEditorSubsystem* Subsystem
+    # 2. Load UMetaHumanCharacter* Character
+    # 3. Create FMetaHumanCharacterEditorBuildParameters Params
+    # 4. Call Subsystem->BuildMetaHuman(Character, Params)
+    # 5. Wait for completion
+    # 6. Return success
+    
+    return true

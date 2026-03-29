@@ -1,0 +1,29 @@
+# ============================================================================
+# METAFITTER - Editor Module
+# ============================================================================
+# Editor module registration, menu entries, and tab spawning.
+# This is the entry point for all MetaFitter editor functionality.
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: EDITOR MODULE
+# ============================================================================
+
+@editor_module
+struct MetaFitterEditorModule:
+    # Menu entry registrations
+    @menu_entry(path: "Tools.MetaFitter", label: "Open MetaFitter")
+    fn open_metafitter_window():
+        println("MetaFitter: Opening conformer window...")
+
+    @menu_entry(path: "Tools.MetaFitter", label: "Batch Process")
+    fn open_batch_window():
+        println("MetaFitter: Opening batch processing window...")
+
+    @menu_entry(path: "Tools.MetaFitter", label: "Preset Library")
+    fn open_preset_library():
+        println("MetaFitter: Opening preset library...")
+
+    @menu_entry(path: "Tools.MetaFitter", label: "Settings")
+    fn open_settings():
+        println("MetaFitter: Opening settings...")

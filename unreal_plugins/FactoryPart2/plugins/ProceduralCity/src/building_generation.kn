@@ -1,0 +1,612 @@
+// ProceduralCity - Building Generation
+// Lot subdivision, building placement, style variation, and procedural geometry
+
+// ============================================================================
+// LOT SUBDIVISION
+// ============================================================================
+
+fn subdivide_lots(initial_bounds: Bounds2D, params: CityGenerationParams, seed: Int) -> Array<BuildingLot>:
+    let lots = []
+    let lot_id = 0
+    
+    let initial_lot = BuildingLot {
+        id: lot_id,
+        bounds: initial_bounds,
+        district_type: DistrictType::Residential,
+        zoning_density: ZoningDensity::MediumDensity,
+        is_buildable: true,
+        terrain_slope: 0.0,
+        road_access: [],
+        corner_lot: false
+    }
+    
+    let pending_lots = [initial_lot]
+    lot_id = lot_id + 1
+    
+    let max_iterations = 100
+    let iteration = 0
+    
+    while len(pending_lots) > 0 and iteration < max_iterations:
+        let current_lot = pop(pending_lots)
+        let area = bounds2d_area(current_lot.bounds)
+        
+        // If lot is small enough, add to final list
+        if area <= params.lot_max_size:
+            push(lots, current_lot)
+            iteration = iteration + 1
+            continue
+        
+        // If lot is too small to subdivide, add to final list
+        if area < params.lot_min_size * 2.0:
+            push(lots, current_lot)
+            iteration = iteration + 1
+            continue
+        
+        // Subdivide the lot
+        let width = current_lot.bounds.max.x - current_lot.bounds.min.x
+        let height = current_lot.bounds.max.y - current_lot.bounds.min.y
+        
+        // Determine subdivision axis
+        let subdivide_horizontally = height > width
+        
+        // Calculate split position with randomness
+        let hash = ((lot_id + seed) * 2654435761) % 1000
+        let random_factor = (hash as Float) / 1000.0
+        let split_ratio = 0.4 + random_factor * 0.2
+        
+        if subdivide_horizontally:
+            let split_y = current_lot.bounds.min.y + height * split_ratio
+            
+            let lot1 = BuildingLot {
+                id: lot_id,
+                bounds: Bounds2D {
+                    min: current_lot.bounds.min,
+                    max: Vec2 { x: current_lot.bounds.max.x, y: split_y }
+                },
+                district_type: current_lot.district_type,
+                zoning_density: current_lot.zoning_density,
+                is_buildable: current_lot.is_buildable,
+                terrain_slope: current_lot.terrain_slope,
+                road_access: current_lot.road_access,
+                corner_lot: false
+            }
+            lot_id = lot_id + 1
+            
+            let lot2 = BuildingLot {
+                id: lot_id,
+                bounds: Bounds2D {
+                    min: Vec2 { x: current_lot.bounds.min.x, y: split_y },
+                    max: current_lot.bounds.max
+                },
+                district_type: current_lot.district_type,
+                zoning_density: current_lot.zoning_density,
+                is_buildable: current_lot.is_buildable,
+                terrain_slope: current_lot.terrain_slope,
+                road_access: current_lot.road_access,
+                corner_lot: false
+            }
+            lot_id = lot_id + 1
+            
+            push(pending_lots, lot1)
+            push(pending_lots, lot2)
+        else:
+            let split_x = current_lot.bounds.min.x + width * split_ratio
+            
+            let lot1 = BuildingLot {
+                id: lot_id,
+                bounds: Bounds2D {
+                    min: current_lot.bounds.min,
+                    max: Vec2 { x: split_x, y: current_lot.bounds.max.y }
+                },
+                district_type: current_lot.district_type,
+                zoning_density: current_lot.zoning_density,
+                is_buildable: current_lot.is_buildable,
+                terrain_slope: current_lot.terrain_slope,
+                road_access: current_lot.road_access,
+                corner_lot: false
+            }
+            lot_id = lot_id + 1
+            
+            let lot2 = BuildingLot {
+                id: lot_id,
+                bounds: Bounds2D {
+                    min: Vec2 { x: split_x, y: current_lot.bounds.min.y },
+                    max: current_lot.bounds.max
+                },
+                district_type: current_lot.district_type,
+                zoning_density: current_lot.zoning_density,
+                is_buildable: current_lot.is_buildable,
+                terrain_slope: current_lot.terrain_slope,
+                road_access: current_lot.road_access,
+                corner_lot: false
+            }
+            lot_id = lot_id + 1
+            
+            push(pending_lots, lot1)
+            push(pending_lots, lot2)
+        
+        iteration = iteration + 1
+    
+    // Add any remaining pending lots
+    for pending_lot in pending_lots:
+        push(lots, pending_lot)
+    
+    return lots
+
+fn assign_lot_road_access(lots: Array<BuildingLot>, road_network: RoadNetwork) -> Array<BuildingLot>:
+    let updated_lots = []
+    
+    for lot in lots:
+        let road_access = []
+        let min_distance = 50.0
+        
+        for i in 0..len(road_network.segments):
+            let segment = road_network.segments[i]
+            let lot_center = bounds2d_center(lot.bounds)
+            
+            // Calculate distance from lot center to road segment
+            let dist = distance_point_to_segment(
+                lot_center,
+                segment.start_pos,
+                segment.end_pos
+            )
+            
+            if dist < min_distance:
+                push(road_access, i)
+        
+        let updated_lot = BuildingLot {
+            id: lot.id,
+            bounds: lot.bounds,
+            district_type: lot.district_type,
+            zoning_density: lot.zoning_density,
+            is_buildable: lot.is_buildable,
+            terrain_slope: lot.terrain_slope,
+            road_access: road_access,
+            corner_lot: len(road_access) >= 2
+        }
+        
+        push(updated_lots, updated_lot)
+    
+    return updated_lots
+
+fn distance_point_to_segment(point: Vec2, seg_start: Vec2, seg_end: Vec2) -> Float:
+    let dx = seg_end.x - seg_start.x
+    let dy = seg_end.y - seg_start.y
+    let len_sq = dx * dx + dy * dy
+    
+    if len_sq < 0.0001:
+        return vec2_distance(point, seg_start)
+    
+    let t = max(0.0, min(1.0, ((point.x - seg_start.x) * dx + (point.y - seg_start.y) * dy) / len_sq))
+    let proj_x = seg_start.x + t * dx
+    let proj_y = seg_start.y + t * dy
+    
+    return vec2_distance(point, Vec2 { x: proj_x, y: proj_y })
+
+// ============================================================================
+// BUILDING PLACEMENT
+// ============================================================================
+
+fn generate_buildings_for_lots(lots: Array<BuildingLot>, params: CityGenerationParams, seed: Int) -> Array<BuildingData>:
+    let buildings = []
+    let building_id = 0
+    
+    for lot in lots:
+        if not lot.is_buildable:
+            continue
+        
+        if len(lot.road_access) == 0:
+            continue
+        
+        // Random chance to leave lot empty (for parking, gardens, etc.)
+        let hash = ((lot.id + seed) * 374761393) % 1000
+        let build_probability = (hash as Float) / 1000.0
+        
+        if build_probability > params.building_density:
+            continue
+        
+        let building = generate_building_for_lot(lot, params, seed + lot.id, building_id)
+        push(buildings, building)
+        building_id = building_id + 1
+    
+    return buildings
+
+fn generate_building_for_lot(lot: BuildingLot, params: CityGenerationParams, seed: Int, building_id: Int) -> BuildingData:
+    let lot_width = lot.bounds.max.x - lot.bounds.min.x
+    let lot_depth = lot.bounds.max.y - lot.bounds.min.y
+    
+    // Calculate setback (distance from lot edge)
+    let setback = calculate_setback(lot.district_type, lot.zoning_density)
+    
+    // Calculate building dimensions
+    let building_width = lot_width - setback * 2.0
+    let building_depth = lot_depth - setback * 2.0
+    
+    // Ensure minimum building size
+    let min_size = 8.0
+    if building_width < min_size or building_depth < min_size:
+        building_width = max(building_width, min_size)
+        building_depth = max(building_depth, min_size)
+    
+    // Calculate building height
+    let height_range = get_building_height_range(lot.district_type, lot.zoning_density)
+    let hash_height = ((seed + 1) * 668265263) % 1000
+    let height_factor = (hash_height as Float) / 1000.0
+    let building_height = height_range.x + (height_range.y - height_range.x) * height_factor
+    
+    // Clamp to params
+    let final_height = max(params.min_building_height, min(params.max_building_height, building_height))
+    
+    // Calculate floors
+    let floor_height = 3.5
+    let floors = max(1, (final_height / floor_height) as Int)
+    
+    // Determine building style
+    let style = determine_building_style(lot.district_type, lot.zoning_density, seed)
+    
+    // Calculate position (center of lot with setback)
+    let position = Vec3 {
+        x: lot.bounds.min.x + setback + building_width * 0.5,
+        y: lot.bounds.min.y + setback + building_depth * 0.5,
+        z: 0.0
+    }
+    
+    // Calculate rotation (align with road if corner lot)
+    let hash_rotation = ((seed + 2) * 1597334677) % 360
+    let rotation = if lot.corner_lot then 0.0 else (hash_rotation as Float)
+    
+    // Determine features
+    let hash_basement = ((seed + 3) * 2654435761) % 100
+    let has_basement = hash_basement < 30
+    
+    let hash_rooftop = ((seed + 4) * 374761393) % 100
+    let has_rooftop = hash_rooftop < 40 and floors > 3
+    
+    // Calculate window and door counts
+    let perimeter = 2.0 * (building_width + building_depth)
+    let window_spacing = 2.5
+    let window_count = (perimeter / window_spacing * (floors as Float)) as Int
+    let door_count = if lot.corner_lot then 2 else 1
+    
+    // Generate colors
+    let colors = generate_building_colors(style, seed)
+    
+    return BuildingData {
+        id: building_id,
+        lot_id: lot.id,
+        position: position,
+        rotation: rotation,
+        width: building_width,
+        depth: building_depth,
+        height: final_height,
+        floors: floors,
+        style: style,
+        district_type: lot.district_type,
+        has_basement: has_basement,
+        has_rooftop: has_rooftop,
+        window_count: window_count,
+        door_count: door_count,
+        color_primary: colors.x,
+        color_secondary: colors.y,
+        color_accent: colors.z
+    }
+
+fn calculate_setback(district_type: DistrictType, density: ZoningDensity) -> Float:
+    let base_setback = match district_type:
+        DistrictType::Residential => 5.0
+        DistrictType::Commercial => 2.0
+        DistrictType::Industrial => 8.0
+        DistrictType::MixedUse => 3.0
+        _ => 4.0
+    
+    let density_multiplier = match density:
+        ZoningDensity::LowDensity => 1.5
+        ZoningDensity::MediumDensity => 1.0
+        ZoningDensity::HighDensity => 0.7
+        ZoningDensity::VeryHighDensity => 0.5
+    
+    return base_setback * density_multiplier
+
+fn determine_building_style(district_type: DistrictType, density: ZoningDensity, seed: Int) -> BuildingStyle:
+    let hash = (seed * 374761393) % 100
+    
+    match district_type:
+        DistrictType::Residential => {
+            if density == ZoningDensity::LowDensity:
+                if hash < 40 then BuildingStyle::Victorian
+                else if hash < 70 then BuildingStyle::Contemporary
+                else BuildingStyle::Modern
+            else if density == ZoningDensity::HighDensity:
+                if hash < 50 then BuildingStyle::Modern
+                else BuildingStyle::Contemporary
+            else:
+                if hash < 30 then BuildingStyle::Victorian
+                else if hash < 60 then BuildingStyle::Contemporary
+                else BuildingStyle::Modern
+        }
+        DistrictType::Commercial => {
+            if hash < 40 then BuildingStyle::Modern
+            else if hash < 70 then BuildingStyle::Contemporary
+            else BuildingStyle::ArtDeco
+        }
+        DistrictType::Industrial => {
+            if hash < 60 then BuildingStyle::Industrial
+            else BuildingStyle::Brutalist
+        }
+        DistrictType::Government => {
+            if hash < 50 then BuildingStyle::Classical
+            else BuildingStyle::Brutalist
+        }
+        _ => {
+            if hash < 50 then BuildingStyle::Modern
+            else BuildingStyle::Contemporary
+        }
+
+fn generate_building_colors(style: BuildingStyle, seed: Int) -> Vec4:
+    let hash_r = ((seed + 1) * 374761393) % 100
+    let hash_g = ((seed + 2) * 668265263) % 100
+    let hash_b = ((seed + 3) * 1597334677) % 100
+    
+    let primary = match style:
+        BuildingStyle::Modern => Vec3 { x: 0.9, y: 0.9, z: 0.9 }
+        BuildingStyle::Classical => Vec3 { x: 0.95, y: 0.92, z: 0.85 }
+        BuildingStyle::Industrial => Vec3 { x: 0.5, y: 0.5, z: 0.5 }
+        BuildingStyle::Victorian => Vec3 { x: 0.8, y: 0.7, z: 0.6 }
+        BuildingStyle::Contemporary => Vec3 { x: 0.85, y: 0.85, z: 0.9 }
+        BuildingStyle::Brutalist => Vec3 { x: 0.6, y: 0.6, z: 0.6 }
+        BuildingStyle::ArtDeco => Vec3 { x: 0.9, y: 0.85, z: 0.7 }
+        BuildingStyle::Minimalist => Vec3 { x: 0.95, y: 0.95, z: 0.95 }
+    
+    let variation = 0.1
+    let r_var = ((hash_r as Float) / 100.0 - 0.5) * variation
+    let g_var = ((hash_g as Float) / 100.0 - 0.5) * variation
+    let b_var = ((hash_b as Float) / 100.0 - 0.5) * variation
+    
+    let secondary = Vec3 {
+        x: max(0.0, min(1.0, primary.x + r_var)),
+        y: max(0.0, min(1.0, primary.y + g_var)),
+        z: max(0.0, min(1.0, primary.z + b_var))
+    }
+    
+    let accent = Vec3 {
+        x: max(0.0, min(1.0, primary.x - r_var * 2.0)),
+        y: max(0.0, min(1.0, primary.y - g_var * 2.0)),
+        z: max(0.0, min(1.0, primary.z - b_var * 2.0))
+    }
+    
+    return Vec4 { x: primary, y: secondary, z: accent, w: Vec3 { x: 1.0, y: 1.0, z: 1.0 } }
+
+// ============================================================================
+// PROCEDURAL BUILDING GEOMETRY
+// ============================================================================
+
+fn generate_building_modules(building: BuildingData) -> Array<BuildingModule>:
+    let modules = []
+    
+    // Base module
+    let base_module = BuildingModule {
+        module_type: "Base",
+        width: building.width,
+        height: 4.0,
+        depth: building.depth,
+        mesh_path: "/Game/ProceduralCity/Meshes/BuildingBase",
+        material_slots: ["Primary", "Accent"]
+    }
+    push(modules, base_module)
+    
+    // Floor modules
+    let floor_height = 3.5
+    for floor in 1..(building.floors - 1):
+        let floor_module = BuildingModule {
+            module_type: "Floor",
+            width: building.width,
+            height: floor_height,
+            depth: building.depth,
+            mesh_path: get_floor_mesh_path(building.style),
+            material_slots: ["Primary", "Secondary", "Windows"]
+        }
+        push(modules, floor_module)
+    
+    // Top module
+    let top_module = BuildingModule {
+        module_type: "Top",
+        width: building.width,
+        height: floor_height,
+        depth: building.depth,
+        mesh_path: get_top_mesh_path(building.style, building.has_rooftop),
+        material_slots: ["Primary", "Accent"]
+    }
+    push(modules, top_module)
+    
+    // Rooftop module (if applicable)
+    if building.has_rooftop:
+        let rooftop_module = BuildingModule {
+            module_type: "Rooftop",
+            width: building.width * 0.6,
+            height: 2.5,
+            depth: building.depth * 0.6,
+            mesh_path: "/Game/ProceduralCity/Meshes/Rooftop",
+            material_slots: ["Accent"]
+        }
+        push(modules, rooftop_module)
+    
+    return modules
+
+fn get_floor_mesh_path(style: BuildingStyle) -> String:
+    match style:
+        BuildingStyle::Modern => "/Game/ProceduralCity/Meshes/Floor_Modern"
+        BuildingStyle::Classical => "/Game/ProceduralCity/Meshes/Floor_Classical"
+        BuildingStyle::Industrial => "/Game/ProceduralCity/Meshes/Floor_Industrial"
+        BuildingStyle::Victorian => "/Game/ProceduralCity/Meshes/Floor_Victorian"
+        BuildingStyle::Contemporary => "/Game/ProceduralCity/Meshes/Floor_Contemporary"
+        BuildingStyle::Brutalist => "/Game/ProceduralCity/Meshes/Floor_Brutalist"
+        BuildingStyle::ArtDeco => "/Game/ProceduralCity/Meshes/Floor_ArtDeco"
+        BuildingStyle::Minimalist => "/Game/ProceduralCity/Meshes/Floor_Minimalist"
+
+fn get_top_mesh_path(style: BuildingStyle, has_rooftop: Bool) -> String:
+    if has_rooftop:
+        return "/Game/ProceduralCity/Meshes/Top_Flat"
+    
+    match style:
+        BuildingStyle::Modern => "/Game/ProceduralCity/Meshes/Top_Modern"
+        BuildingStyle::Classical => "/Game/ProceduralCity/Meshes/Top_Classical"
+        BuildingStyle::Industrial => "/Game/ProceduralCity/Meshes/Top_Industrial"
+        BuildingStyle::Victorian => "/Game/ProceduralCity/Meshes/Top_Victorian"
+        BuildingStyle::Contemporary => "/Game/ProceduralCity/Meshes/Top_Contemporary"
+        BuildingStyle::Brutalist => "/Game/ProceduralCity/Meshes/Top_Brutalist"
+        BuildingStyle::ArtDeco => "/Game/ProceduralCity/Meshes/Top_ArtDeco"
+        BuildingStyle::Minimalist => "/Game/ProceduralCity/Meshes/Top_Minimalist"
+
+fn generate_building_floors(building: BuildingData) -> Array<BuildingFloor>:
+    let floors = []
+    let floor_height = building.height / (building.floors as Float)
+    
+    for floor_num in 0..building.floors:
+        let is_ground_floor = floor_num == 0
+        let is_top_floor = floor_num == building.floors - 1
+        
+        let window_style = if is_ground_floor then "Large" else "Standard"
+        let has_balcony = not is_ground_floor and not is_top_floor and building.style == BuildingStyle::Contemporary
+        let is_commercial = is_ground_floor and building.district_type == DistrictType::MixedUse
+        
+        let floor = BuildingFloor {
+            floor_number: floor_num,
+            height: floor_height,
+            window_style: window_style,
+            balcony: has_balcony,
+            commercial: is_commercial
+        }
+        
+        push(floors, floor)
+    
+    return floors
+
+// ============================================================================
+// BUILDING VARIATION
+// ============================================================================
+
+fn apply_building_variation(buildings: Array<BuildingData>, seed: Int) -> Array<BuildingData>:
+    let varied_buildings = []
+    
+    for building in buildings:
+        let hash = ((building.id + seed) * 2654435761) % 100
+        
+        // Height variation
+        let height_variation = ((hash as Float) / 100.0 - 0.5) * 0.2
+        let new_height = building.height * (1.0 + height_variation)
+        
+        // Width/depth variation
+        let hash_width = ((building.id + seed + 1) * 374761393) % 100
+        let width_variation = ((hash_width as Float) / 100.0 - 0.5) * 0.15
+        let new_width = building.width * (1.0 + width_variation)
+        
+        let hash_depth = ((building.id + seed + 2) * 668265263) % 100
+        let depth_variation = ((hash_depth as Float) / 100.0 - 0.5) * 0.15
+        let new_depth = building.depth * (1.0 + depth_variation)
+        
+        let varied_building = BuildingData {
+            id: building.id,
+            lot_id: building.lot_id,
+            position: building.position,
+            rotation: building.rotation,
+            width: new_width,
+            depth: new_depth,
+            height: new_height,
+            floors: building.floors,
+            style: building.style,
+            district_type: building.district_type,
+            has_basement: building.has_basement,
+            has_rooftop: building.has_rooftop,
+            window_count: building.window_count,
+            door_count: building.door_count,
+            color_primary: building.color_primary,
+            color_secondary: building.color_secondary,
+            color_accent: building.color_accent
+        }
+        
+        push(varied_buildings, varied_building)
+    
+    return varied_buildings
+
+// ============================================================================
+// LOD GENERATION
+// ============================================================================
+
+fn generate_building_lods(building: BuildingData) -> Array<String>:
+    let lods = []
+    
+    // LOD 0 - Full detail
+    push(lods, "LOD0_FullDetail")
+    
+    // LOD 1 - Reduced windows
+    push(lods, "LOD1_ReducedWindows")
+    
+    // LOD 2 - Simple box with texture
+    push(lods, "LOD2_SimpleBox")
+    
+    // LOD 3 - Billboard
+    push(lods, "LOD3_Billboard")
+    
+    return lods
+
+fn calculate_lod_distances(building: BuildingData) -> Array<Float>:
+    let base_distance = 1000.0
+    let height_factor = building.height / 50.0
+    
+    return [
+        base_distance * height_factor,
+        base_distance * 2.0 * height_factor,
+        base_distance * 4.0 * height_factor,
+        base_distance * 8.0 * height_factor
+    ]
+
+// ============================================================================
+// BUILDING CLUSTERING
+// ============================================================================
+
+fn cluster_buildings_by_district(buildings: Array<BuildingData>) -> Array<Array<BuildingData>>:
+    let clusters = []
+    
+    // Create a cluster for each district type
+    for district_type in [
+        DistrictType::Residential,
+        DistrictType::Commercial,
+        DistrictType::Industrial,
+        DistrictType::MixedUse,
+        DistrictType::Park,
+        DistrictType::Government,
+        DistrictType::Educational,
+        DistrictType::Medical,
+        DistrictType::Entertainment,
+        DistrictType::Transportation
+    ]:
+        let cluster = []
+        
+        for building in buildings:
+            if building.district_type == district_type:
+                push(cluster, building)
+        
+        if len(cluster) > 0:
+            push(clusters, cluster)
+    
+    return clusters
+
+fn calculate_building_statistics(buildings: Array<BuildingData>) -> String:
+    let total_buildings = len(buildings)
+    let total_volume = 0.0
+    let total_floors = 0
+    let avg_height = 0.0
+    
+    for building in buildings:
+        let volume = building.width * building.depth * building.height
+        total_volume = total_volume + volume
+        total_floors = total_floors + building.floors
+        avg_height = avg_height + building.height
+    
+    if total_buildings > 0:
+        avg_height = avg_height / (total_buildings as Float)
+    
+    return "Building Stats: Count=" + (total_buildings as String) +
+           ", TotalVolume=" + (total_volume as String) +
+           "m³, AvgHeight=" + (avg_height as String) +
+           "m, TotalFloors=" + (total_floors as String)

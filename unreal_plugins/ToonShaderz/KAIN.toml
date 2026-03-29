@@ -1,0 +1,17 @@
+[package]
+name = "ToonShaderz"
+version = "1.0.0"
+authors = ["KAIN Research Labs"]
+description = "God-Tier Stylized Shader Pack — Cel, Anime, Comic Ink, Painterly, Watercolor, Sketch, Neon Noir, Stylized PBR, Post FX"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "ToonShaderz"
+plugin_dir = "."
+sources = ["ToonShaderz.kn"]
+shaders = [
+
+]
+modular_output = true

@@ -1,0 +1,92 @@
+# ============================================================================
+# PBR Shader Tests - Testing stdlib PBR functions
+# ============================================================================
+# Tests: fresnel_schlick, distribution_ggx, geometry_schlick_ggx,
+#        fresnel_schlick_roughness, geometry_smith, lambert_diffuse,
+#        cook_torrance_specular, pbr_direct_lighting
+
+shader compute TestPBRFunctions(thread_id: Vec3) -> Unit:
+    uniform roughness: Float @0
+    uniform metallic: Float @1
+    uniform light_intensity: Float @2
+    uniform output_buffer: RWBuffer<Vec4> @3
+    
+    let idx = thread_id.x
+    
+    # Test vectors
+    let normal = normalize(vec3(0.0, 1.0, 0.0))
+    let view_dir = normalize(vec3(0.0, 0.5, 1.0))
+    let light_dir = normalize(vec3(1.0, 1.0, 1.0))
+    let half_vec = normalize(view_dir + light_dir)
+    
+    # Test fresnel_schlick
+    let cos_theta = max(dot(half_vec, view_dir), 0.0)
+    let f0 = vec3(0.04, 0.04, 0.04)
+    let fresnel = fresnel_schlick(cos_theta, f0)
+    
+    # Test distribution_ggx
+    let ndf = distribution_ggx(normal, half_vec, roughness)
+    
+    # Test geometry_schlick_ggx
+    let n_dot_v = max(dot(normal, view_dir), 0.0)
+    let geom = geometry_schlick_ggx(n_dot_v, roughness)
+    
+    # Test fresnel_schlick_roughness
+    let fresnel_rough = fresnel_schlick_roughness(cos_theta, f0, roughness)
+    
+    # Test geometry_smith
+    let geom_smith = geometry_smith(normal, view_dir, light_dir, roughness)
+    
+    # Test lambert_diffuse
+    let albedo = vec3(0.8, 0.2, 0.2)
+    let n_dot_l = max(dot(normal, light_dir), 0.0)
+    let diffuse = lambert_diffuse(albedo, n_dot_l)
+    
+    # Test cook_torrance_specular
+    let specular = cook_torrance_specular(ndf, geom_smith, fresnel, n_dot_v, n_dot_l)
+    
+    # Test pbr_direct_lighting (full PBR calculation)
+    let light_color = vec3(1.0, 1.0, 1.0)
+    let pbr_result = pbr_direct_lighting(albedo, metallic, roughness, normal, view_dir, light_dir, light_color, light_intensity)
+    
+    # Output combined result
+    output_buffer[idx] = vec4(pbr_result.x, pbr_result.y, pbr_result.z, 1.0)
+
+shader fragment TestPBRFragment(uv: Vec2) -> Vec4:
+    uniform roughness: Float @0
+    uniform metallic: Float @1
+    
+    # Setup vectors for PBR calculation
+    let normal = vec3(0.0, 0.0, 1.0)
+    let view_dir = normalize(vec3(uv.x - 0.5, uv.y - 0.5, 1.0))
+    let light_dir = normalize(vec3(1.0, 1.0, 1.0))
+    
+    # Calculate PBR lighting
+    let albedo = vec3(0.5, 0.5, 0.8)
+    let light_color = vec3(1.0, 1.0, 1.0)
+    let light_intensity = 1.0
+    
+    let color = pbr_direct_lighting(albedo, metallic, roughness, normal, view_dir, light_dir, light_color, light_intensity)
+    
+    return vec4(color.x, color.y, color.z, 1.0)
+
+shader compute TestVolumetricFunctions(thread_id: Vec3) -> Unit:
+    uniform density: Float @0
+    uniform g_factor: Float @1
+    uniform output_buffer: RWBuffer<Float> @2
+    
+    let idx = thread_id.x
+    
+    # Test henyey_greenstein phase function
+    let cos_theta = cos(idx * 0.1)
+    let phase = henyey_greenstein(cos_theta, g_factor)
+    
+    # Test beer_lambert absorption
+    let distance = idx * 0.01
+    let absorption = beer_lambert(density, distance)
+    
+    # Test powder_effect
+    let powder = powder_effect(density, cos_theta)
+    
+    # Combine results
+    output_buffer[idx] = phase * absorption * powder

@@ -1,0 +1,123 @@
+# ============================================================================
+# Color Grading Shader Tests - Testing stdlib color functions
+# ============================================================================
+# Tests: apply_contrast, apply_saturation, apply_brightness,
+#        tonemap_aces, tonemap_reinhard, tonemap_filmic, tonemap_uncharted2,
+#        color_correction, white_balance, hue_shift, vibrance,
+#        three_way_color_correction, luminance, rgb_to_hsv, hsv_to_rgb
+
+shader fragment TestColorGrading(uv: Vec2) -> Vec4:
+    uniform contrast: Float @0
+    uniform saturation: Float @1
+    uniform brightness: Float @2
+    uniform temperature: Float @3
+    uniform tint: Float @4
+    
+    # Start with a base color
+    let base_color = vec3(uv.x, uv.y, 0.5)
+    
+    # Apply contrast
+    let contrasted = apply_contrast(base_color, contrast)
+    
+    # Apply saturation
+    let saturated = apply_saturation(contrasted, saturation)
+    
+    # Apply brightness
+    let brightened = apply_brightness(saturated, brightness)
+    
+    # Apply white balance
+    let balanced = white_balance(brightened, temperature, tint)
+    
+    return vec4(balanced.x, balanced.y, balanced.z, 1.0)
+
+shader compute TestTonemapping(thread_id: Vec3) -> Unit:
+    uniform hdr_intensity: Float @0
+    uniform output_buffer: RWBuffer<Vec4> @1
+    
+    let idx = thread_id.x
+    
+    # Create HDR color
+    let hdr_color = vec3(idx * 0.1 * hdr_intensity, idx * 0.05 * hdr_intensity, idx * 0.02 * hdr_intensity)
+    
+    # Test different tonemapping operators
+    let aces = tonemap_aces(hdr_color)
+    let reinhard = tonemap_reinhard(hdr_color)
+    let filmic = tonemap_filmic(hdr_color)
+    let uncharted = tonemap_uncharted2(hdr_color)
+    
+    # Use ACES as primary output
+    output_buffer[idx] = vec4(aces.x, aces.y, aces.z, 1.0)
+
+shader fragment TestAdvancedColorGrading(uv: Vec2) -> Vec4:
+    uniform hue_shift_amount: Float @0
+    uniform vibrance_amount: Float @1
+    
+    # Base color from UV
+    let base = vec3(uv.x, uv.y, 0.5)
+    
+    # Test RGB to HSV conversion
+    let hsv = rgb_to_hsv(base)
+    
+    # Test hue shift
+    let hue_shifted = hue_shift(base, hue_shift_amount)
+    
+    # Test vibrance
+    let vibrant = vibrance(hue_shifted, vibrance_amount)
+    
+    # Test HSV to RGB conversion
+    let modified_hsv = vec3(hsv.x + 0.1, hsv.y * 1.2, hsv.z)
+    let rgb_back = hsv_to_rgb(modified_hsv)
+    
+    # Test luminance calculation
+    let lum = luminance(vibrant)
+    
+    return vec4(vibrant.x, vibrant.y, vibrant.z, lum)
+
+shader compute TestColorCorrection(thread_id: Vec3) -> Unit:
+    uniform output_buffer: RWBuffer<Vec4> @0
+    
+    let idx = thread_id.x
+    let t = idx * 0.01
+    
+    # Create test color
+    let color = vec3(t, t * 0.8, t * 0.6)
+    
+    # Test ASC-CDL color correction
+    let lift = vec3(0.0, 0.0, 0.0)
+    let gamma = vec3(1.0, 1.0, 1.0)
+    let gain = vec3(1.2, 1.0, 0.9)
+    let corrected = color_correction(color, lift, gamma, gain)
+    
+    # Test three-way color correction
+    let shadows = vec3(0.8, 0.9, 1.0)
+    let midtones = vec3(1.0, 1.0, 1.0)
+    let highlights = vec3(1.0, 0.9, 0.8)
+    let three_way = three_way_color_correction(corrected, shadows, midtones, highlights)
+    
+    output_buffer[idx] = vec4(three_way.x, three_way.y, three_way.z, 1.0)
+
+shader fragment TestCompleteColorPipeline(uv: Vec2) -> Vec4:
+    uniform exposure: Float @0
+    uniform contrast: Float @1
+    uniform saturation: Float @2
+    uniform hue_shift_val: Float @3
+    
+    # Start with procedural color
+    let base = vec3(uv.x, uv.y, 0.5)
+    
+    # Step 1: Brightness/Exposure
+    let exposed = apply_brightness(base, exposure)
+    
+    # Step 2: Contrast
+    let contrasted = apply_contrast(exposed, contrast)
+    
+    # Step 3: Saturation
+    let saturated = apply_saturation(contrasted, saturation)
+    
+    # Step 4: Hue shift
+    let hue_shifted = hue_shift(saturated, hue_shift_val)
+    
+    # Step 5: Tonemap to LDR
+    let tonemapped = tonemap_filmic(hue_shifted)
+    
+    return vec4(tonemapped.x, tonemapped.y, tonemapped.z, 1.0)

@@ -1,0 +1,631 @@
+// ProceduralCity - GPU Compute Shaders
+// 8+ GPU compute shaders for terrain analysis, density maps, pathfinding, and lot subdivision
+
+// ============================================================================
+// SHADER 1: TERRAIN ANALYSIS
+// Analyzes height map to determine buildable areas, slopes, and water bodies
+// ============================================================================
+
+shader compute TerrainAnalysis(thread_id: Vec3):
+    uniform grid_width: Int @0
+    uniform grid_height: Int @1
+    uniform cell_size: Float @2
+    uniform slope_threshold: Float @3
+    uniform water_level: Float @4
+    uniform height_scale: Float @5
+    
+    buffer height_map: RWBuffer<Float> @6
+    buffer slope_map: RWBuffer<Float> @7
+    buffer buildable_map: RWBuffer<Int> @8
+    buffer water_map: RWBuffer<Int> @9
+    
+    let x = thread_id.x as Int
+    let y = thread_id.y as Int
+    
+    if x >= grid_width or y >= grid_height:
+        return
+    
+    let idx = y * grid_width + x
+    let height = height_map[idx] * height_scale
+    
+    // Calculate slope using Sobel operator
+    let slope = 0.0
+    if x > 0 and x < grid_width - 1 and y > 0 and y < grid_height - 1:
+        let h_left = height_map[y * grid_width + (x - 1)] * height_scale
+        let h_right = height_map[y * grid_width + (x + 1)] * height_scale
+        let h_up = height_map[(y - 1) * grid_width + x] * height_scale
+        let h_down = height_map[(y + 1) * grid_width + x] * height_scale
+        
+        let dx = (h_right - h_left) / (2.0 * cell_size)
+        let dy = (h_down - h_up) / (2.0 * cell_size)
+        
+        slope = sqrt(dx * dx + dy * dy)
+    
+    slope_map[idx] = slope
+    
+    // Determine if water
+    let is_water = if height < water_level then 1 else 0
+    water_map[idx] = is_water
+    
+    // Determine if buildable (not water, slope below threshold)
+    let is_buildable = if is_water == 0 and slope < slope_threshold then 1 else 0
+    buildable_map[idx] = is_buildable
+
+// ============================================================================
+// SHADER 2: POPULATION DENSITY MAP
+// Calculates population density based on building positions and types
+// ============================================================================
+
+shader compute PopulationDensityMap(thread_id: Vec3):
+    uniform grid_width: Int @0
+    uniform grid_height: Int @1
+    uniform cell_size: Float @2
+    uniform influence_radius: Float @3
+    uniform building_count: Int @4
+    
+    buffer building_positions_x: RWBuffer<Float> @5
+    buffer building_positions_y: RWBuffer<Float> @6
+    buffer building_populations: RWBuffer<Float> @7
+    buffer density_map: RWBuffer<Float> @8
+    
+    let x = thread_id.x as Int
+    let y = thread_id.y as Int
+    
+    if x >= grid_width or y >= grid_height:
+        return
+    
+    let idx = y * grid_width + x
+    let cell_x = (x as Float) * cell_size
+    let cell_y = (y as Float) * cell_size
+    
+    let total_density = 0.0
+    let radius_sq = influence_radius * influence_radius
+    
+    // Accumulate density from all buildings within influence radius
+    for i in 0..building_count:
+        let bx = building_positions_x[i]
+        let by = building_positions_y[i]
+        let pop = building_populations[i]
+        
+        let dx = bx - cell_x
+        let dy = by - cell_y
+        let dist_sq = dx * dx + dy * dy
+        
+        if dist_sq < radius_sq:
+            let dist = sqrt(dist_sq)
+            let falloff = 1.0 - (dist / influence_radius)
+            total_density = total_density + pop * falloff * falloff
+    
+    density_map[idx] = total_density
+
+// ============================================================================
+// SHADER 3: TRAFFIC DENSITY MAP
+// Calculates traffic density based on road segments and vehicle counts
+// ============================================================================
+
+shader compute TrafficDensityMap(thread_id: Vec3):
+    uniform grid_width: Int @0
+    uniform grid_height: Int @1
+    uniform cell_size: Float @2
+    uniform influence_radius: Float @3
+    uniform road_count: Int @4
+    
+    buffer road_start_x: RWBuffer<Float> @5
+    buffer road_start_y: RWBuffer<Float> @6
+    buffer road_end_x: RWBuffer<Float> @7
+    buffer road_end_y: RWBuffer<Float> @8
+    buffer road_traffic: RWBuffer<Float> @9
+    buffer density_map: RWBuffer<Float> @10
+    
+    let x = thread_id.x as Int
+    let y = thread_id.y as Int
+    
+    if x >= grid_width or y >= grid_height:
+        return
+    
+    let idx = y * grid_width + x
+    let cell_x = (x as Float) * cell_size
+    let cell_y = (y as Float) * cell_size
+    
+    let total_density = 0.0
+    let radius_sq = influence_radius * influence_radius
+    
+    // Accumulate density from all road segments
+    for i in 0..road_count:
+        let sx = road_start_x[i]
+        let sy = road_start_y[i]
+        let ex = road_end_x[i]
+        let ey = road_end_y[i]
+        let traffic = road_traffic[i]
+        
+        // Calculate distance from cell to line segment
+        let dx = ex - sx
+        let dy = ey - sy
+        let len_sq = dx * dx + dy * dy
+        
+        if len_sq < 0.0001:
+            continue
+        
+        let t = max(0.0, min(1.0, ((cell_x - sx) * dx + (cell_y - sy) * dy) / len_sq))
+        let proj_x = sx + t * dx
+        let proj_y = sy + t * dy
+        
+        let dist_x = cell_x - proj_x
+        let dist_y = cell_y - proj_y
+        let dist_sq = dist_x * dist_x + dist_y * dist_y
+        
+        if dist_sq < radius_sq:
+            let dist = sqrt(dist_sq)
+            let falloff = 1.0 - (dist / influence_radius)
+            total_density = total_density + traffic * falloff * falloff
+    
+    density_map[idx] = total_density
+
+// ============================================================================
+// SHADER 4: BUILDING DENSITY MAP
+// Calculates building density for zoning and district analysis
+// ============================================================================
+
+shader compute BuildingDensityMap(thread_id: Vec3):
+    uniform grid_width: Int @0
+    uniform grid_height: Int @1
+    uniform cell_size: Float @2
+    uniform influence_radius: Float @3
+    uniform building_count: Int @4
+    
+    buffer building_positions_x: RWBuffer<Float> @5
+    buffer building_positions_y: RWBuffer<Float> @6
+    buffer building_areas: RWBuffer<Float> @7
+    buffer density_map: RWBuffer<Float> @8
+    
+    let x = thread_id.x as Int
+    let y = thread_id.y as Int
+    
+    if x >= grid_width or y >= grid_height:
+        return
+    
+    let idx = y * grid_width + x
+    let cell_x = (x as Float) * cell_size
+    let cell_y = (y as Float) * cell_size
+    
+    let total_density = 0.0
+    let radius_sq = influence_radius * influence_radius
+    
+    for i in 0..building_count:
+        let bx = building_positions_x[i]
+        let by = building_positions_y[i]
+        let area = building_areas[i]
+        
+        let dx = bx - cell_x
+        let dy = by - cell_y
+        let dist_sq = dx * dx + dy * dy
+        
+        if dist_sq < radius_sq:
+            let dist = sqrt(dist_sq)
+            let falloff = 1.0 - (dist / influence_radius)
+            total_density = total_density + area * falloff
+    
+    density_map[idx] = total_density
+
+// ============================================================================
+// SHADER 5: GPU PATHFINDING (A* Algorithm)
+// Parallel A* pathfinding for vehicle navigation
+// ============================================================================
+
+shader compute GPUPathfinding(thread_id: Vec3):
+    uniform grid_width: Int @0
+    uniform grid_height: Int @1
+    uniform start_x: Int @2
+    uniform start_y: Int @3
+    uniform end_x: Int @4
+    uniform end_y: Int @5
+    uniform iteration: Int @6
+    uniform max_iterations: Int @7
+    
+    buffer g_costs: RWBuffer<Float> @8
+    buffer h_costs: RWBuffer<Float> @9
+    buffer f_costs: RWBuffer<Float> @10
+    buffer parent_indices: RWBuffer<Int> @11
+    buffer open_set: RWBuffer<Int> @12
+    buffer closed_set: RWBuffer<Int> @13
+    buffer obstacle_map: RWBuffer<Int> @14
+    
+    let x = thread_id.x as Int
+    let y = thread_id.y as Int
+    
+    if x >= grid_width or y >= grid_height:
+        return
+    
+    let idx = y * grid_width + x
+    
+    // Initialize on first iteration
+    if iteration == 0:
+        g_costs[idx] = 999999.0
+        h_costs[idx] = 0.0
+        f_costs[idx] = 999999.0
+        parent_indices[idx] = -1
+        open_set[idx] = 0
+        closed_set[idx] = 0
+        
+        if x == start_x and y == start_y:
+            g_costs[idx] = 0.0
+            let dx = (end_x - x) as Float
+            let dy = (end_y - y) as Float
+            h_costs[idx] = sqrt(dx * dx + dy * dy)
+            f_costs[idx] = h_costs[idx]
+            open_set[idx] = 1
+        
+        return
+    
+    // Skip if not in open set or is obstacle
+    if open_set[idx] == 0 or obstacle_map[idx] == 1:
+        return
+    
+    // Check if this is the current best node
+    let current_f = f_costs[idx]
+    let is_best = 1
+    
+    for i in 0..(grid_width * grid_height):
+        if open_set[i] == 1 and f_costs[i] < current_f:
+            is_best = 0
+            break
+    
+    if is_best == 0:
+        return
+    
+    // Move from open to closed
+    open_set[idx] = 0
+    closed_set[idx] = 1
+    
+    // Check if reached goal
+    if x == end_x and y == end_y:
+        return
+    
+    // Explore neighbors (8-directional)
+    let directions_x = [-1, 0, 1, -1, 1, -1, 0, 1]
+    let directions_y = [-1, -1, -1, 0, 0, 1, 1, 1]
+    let costs = [1.414, 1.0, 1.414, 1.0, 1.0, 1.414, 1.0, 1.414]
+    
+    for i in 0..8:
+        let nx = x + directions_x[i]
+        let ny = y + directions_y[i]
+        
+        if nx < 0 or nx >= grid_width or ny < 0 or ny >= grid_height:
+            continue
+        
+        let nidx = ny * grid_width + nx
+        
+        if closed_set[nidx] == 1 or obstacle_map[nidx] == 1:
+            continue
+        
+        let tentative_g = g_costs[idx] + costs[i]
+        
+        if open_set[nidx] == 0 or tentative_g < g_costs[nidx]:
+            g_costs[nidx] = tentative_g
+            let dx = (end_x - nx) as Float
+            let dy = (end_y - ny) as Float
+            h_costs[nidx] = sqrt(dx * dx + dy * dy)
+            f_costs[nidx] = tentative_g + h_costs[nidx]
+            parent_indices[nidx] = idx
+            open_set[nidx] = 1
+
+// ============================================================================
+// SHADER 6: LOT SUBDIVISION
+// Parallel lot subdivision for building placement
+// ============================================================================
+
+shader compute LotSubdivision(thread_id: Vec3):
+    uniform lot_count: Int @0
+    uniform min_lot_size: Float @1
+    uniform max_lot_size: Float @2
+    uniform subdivision_axis: Int @3
+    uniform random_seed: Int @4
+    
+    buffer lot_min_x: RWBuffer<Float> @5
+    buffer lot_min_y: RWBuffer<Float> @6
+    buffer lot_max_x: RWBuffer<Float> @7
+    buffer lot_max_y: RWBuffer<Float> @8
+    buffer lot_active: RWBuffer<Int> @9
+    buffer lot_subdivided: RWBuffer<Int> @10
+    
+    let lot_id = thread_id.x as Int
+    
+    if lot_id >= lot_count:
+        return
+    
+    if lot_active[lot_id] == 0 or lot_subdivided[lot_id] == 1:
+        return
+    
+    let min_x = lot_min_x[lot_id]
+    let min_y = lot_min_y[lot_id]
+    let max_x = lot_max_x[lot_id]
+    let max_y = lot_max_y[lot_id]
+    
+    let width = max_x - min_x
+    let height = max_y - min_y
+    let area = width * height
+    
+    // Check if lot is too small to subdivide
+    if area < min_lot_size * 2.0:
+        lot_subdivided[lot_id] = 1
+        return
+    
+    // Check if lot is already small enough
+    if area < max_lot_size:
+        lot_subdivided[lot_id] = 1
+        return
+    
+    // Determine subdivision axis (0 = horizontal, 1 = vertical)
+    let axis = subdivision_axis
+    if axis == -1:
+        axis = if width > height then 1 else 0
+    
+    // Calculate split position with some randomness
+    let hash = ((lot_id + random_seed) * 2654435761) % 1000
+    let random_factor = (hash as Float) / 1000.0
+    let split_ratio = 0.4 + random_factor * 0.2
+    
+    if axis == 0:
+        // Horizontal split
+        let split_y = min_y + height * split_ratio
+        
+        // Check if both resulting lots are large enough
+        let area1 = width * (split_y - min_y)
+        let area2 = width * (max_y - split_y)
+        
+        if area1 >= min_lot_size and area2 >= min_lot_size:
+            // Mark as subdivided
+            lot_subdivided[lot_id] = 1
+            
+            // Update current lot to be first half
+            lot_max_y[lot_id] = split_y
+            
+            // Second half will be created by CPU (can't allocate in shader)
+    else:
+        // Vertical split
+        let split_x = min_x + width * split_ratio
+        
+        let area1 = (split_x - min_x) * height
+        let area2 = (max_x - split_x) * height
+        
+        if area1 >= min_lot_size and area2 >= min_lot_size:
+            lot_subdivided[lot_id] = 1
+            lot_max_x[lot_id] = split_x
+
+// ============================================================================
+// SHADER 7: ROAD DISTANCE FIELD
+// Calculates distance field from roads for building placement
+// ============================================================================
+
+shader compute RoadDistanceField(thread_id: Vec3):
+    uniform grid_width: Int @0
+    uniform grid_height: Int @1
+    uniform cell_size: Float @2
+    uniform road_count: Int @3
+    uniform max_distance: Float @4
+    
+    buffer road_start_x: RWBuffer<Float> @5
+    buffer road_start_y: RWBuffer<Float> @6
+    buffer road_end_x: RWBuffer<Float> @7
+    buffer road_end_y: RWBuffer<Float> @8
+    buffer distance_field: RWBuffer<Float> @9
+    
+    let x = thread_id.x as Int
+    let y = thread_id.y as Int
+    
+    if x >= grid_width or y >= grid_height:
+        return
+    
+    let idx = y * grid_width + x
+    let cell_x = (x as Float) * cell_size
+    let cell_y = (y as Float) * cell_size
+    
+    let min_distance = max_distance
+    
+    // Find minimum distance to any road segment
+    for i in 0..road_count:
+        let sx = road_start_x[i]
+        let sy = road_start_y[i]
+        let ex = road_end_x[i]
+        let ey = road_end_y[i]
+        
+        // Calculate distance from point to line segment
+        let dx = ex - sx
+        let dy = ey - sy
+        let len_sq = dx * dx + dy * dy
+        
+        if len_sq < 0.0001:
+            let dist_x = cell_x - sx
+            let dist_y = cell_y - sy
+            let dist = sqrt(dist_x * dist_x + dist_y * dist_y)
+            min_distance = min(min_distance, dist)
+            continue
+        
+        let t = max(0.0, min(1.0, ((cell_x - sx) * dx + (cell_y - sy) * dy) / len_sq))
+        let proj_x = sx + t * dx
+        let proj_y = sy + t * dy
+        
+        let dist_x = cell_x - proj_x
+        let dist_y = cell_y - proj_y
+        let dist = sqrt(dist_x * dist_x + dist_y * dist_y)
+        
+        min_distance = min(min_distance, dist)
+    
+    distance_field[idx] = min_distance
+
+// ============================================================================
+// SHADER 8: NOISE GENERATION FOR PROCEDURAL VARIATION
+// Generates Perlin noise for terrain and building variation
+// ============================================================================
+
+shader compute NoiseGeneration(thread_id: Vec3):
+    uniform grid_width: Int @0
+    uniform grid_height: Int @1
+    uniform scale: Float @2
+    uniform octaves: Int @3
+    uniform persistence: Float @4
+    uniform lacunarity: Float @5
+    uniform seed: Int @6
+    
+    buffer noise_output: RWBuffer<Float> @7
+    
+    let x = thread_id.x as Int
+    let y = thread_id.y as Int
+    
+    if x >= grid_width or y >= grid_height:
+        return
+    
+    let idx = y * grid_width + x
+    
+    let fx = (x as Float) * scale
+    let fy = (y as Float) * scale
+    
+    let total = 0.0
+    let amplitude = 1.0
+    let frequency = 1.0
+    let max_value = 0.0
+    
+    for octave in 0..octaves:
+        let sample_x = fx * frequency
+        let sample_y = fy * frequency
+        
+        // Simple hash-based noise
+        let ix = floor(sample_x) as Int
+        let iy = floor(sample_y) as Int
+        
+        let hash00 = ((ix + seed) * 374761393 + (iy + seed) * 668265263) % 1000000
+        let hash01 = ((ix + seed) * 374761393 + (iy + 1 + seed) * 668265263) % 1000000
+        let hash10 = ((ix + 1 + seed) * 374761393 + (iy + seed) * 668265263) % 1000000
+        let hash11 = ((ix + 1 + seed) * 374761393 + (iy + 1 + seed) * 668265263) % 1000000
+        
+        let v00 = ((hash00 as Float) / 1000000.0) * 2.0 - 1.0
+        let v01 = ((hash01 as Float) / 1000000.0) * 2.0 - 1.0
+        let v10 = ((hash10 as Float) / 1000000.0) * 2.0 - 1.0
+        let v11 = ((hash11 as Float) / 1000000.0) * 2.0 - 1.0
+        
+        let tx = sample_x - floor(sample_x)
+        let ty = sample_y - floor(sample_y)
+        
+        // Smoothstep interpolation
+        let sx = tx * tx * (3.0 - 2.0 * tx)
+        let sy = ty * ty * (3.0 - 2.0 * ty)
+        
+        let v0 = v00 * (1.0 - sx) + v10 * sx
+        let v1 = v01 * (1.0 - sx) + v11 * sx
+        let noise_value = v0 * (1.0 - sy) + v1 * sy
+        
+        total = total + noise_value * amplitude
+        max_value = max_value + amplitude
+        
+        amplitude = amplitude * persistence
+        frequency = frequency * lacunarity
+    
+    noise_output[idx] = total / max_value
+
+// ============================================================================
+// SHADER 9: INTERSECTION DETECTION
+// Detects intersections between road segments for intersection placement
+// ============================================================================
+
+shader compute IntersectionDetection(thread_id: Vec3):
+    uniform road_count: Int @0
+    uniform intersection_threshold: Float @1
+    
+    buffer road_start_x: RWBuffer<Float> @2
+    buffer road_start_y: RWBuffer<Float> @3
+    buffer road_end_x: RWBuffer<Float> @4
+    buffer road_end_y: RWBuffer<Float> @5
+    buffer intersection_flags: RWBuffer<Int> @6
+    buffer intersection_x: RWBuffer<Float> @7
+    buffer intersection_y: RWBuffer<Float> @8
+    
+    let road_a = thread_id.x as Int
+    let road_b = thread_id.y as Int
+    
+    if road_a >= road_count or road_b >= road_count or road_a >= road_b:
+        return
+    
+    let ax1 = road_start_x[road_a]
+    let ay1 = road_start_y[road_a]
+    let ax2 = road_end_x[road_a]
+    let ay2 = road_end_y[road_a]
+    
+    let bx1 = road_start_x[road_b]
+    let by1 = road_start_y[road_b]
+    let bx2 = road_end_x[road_b]
+    let by2 = road_end_y[road_b]
+    
+    // Calculate line intersection using parametric form
+    let dax = ax2 - ax1
+    let day = ay2 - ay1
+    let dbx = bx2 - bx1
+    let dby = by2 - by1
+    
+    let denominator = dax * dby - day * dbx
+    
+    if abs(denominator) < 0.0001:
+        return
+    
+    let t = ((bx1 - ax1) * dby - (by1 - ay1) * dbx) / denominator
+    let u = ((bx1 - ax1) * day - (by1 - ay1) * dax) / denominator
+    
+    if t >= 0.0 and t <= 1.0 and u >= 0.0 and u <= 1.0:
+        let ix = ax1 + t * dax
+        let iy = ay1 + t * day
+        
+        let idx = road_a * road_count + road_b
+        intersection_flags[idx] = 1
+        intersection_x[idx] = ix
+        intersection_y[idx] = iy
+
+// ============================================================================
+// SHADER 10: ZONING ANALYSIS
+// Analyzes terrain and density to determine optimal zoning
+// ============================================================================
+
+shader compute ZoningAnalysis(thread_id: Vec3):
+    uniform grid_width: Int @0
+    uniform grid_height: Int @1
+    uniform cell_size: Float @2
+    
+    buffer population_density: RWBuffer<Float> @3
+    buffer traffic_density: RWBuffer<Float> @4
+    buffer building_density: RWBuffer<Float> @5
+    buffer road_distance: RWBuffer<Float> @6
+    buffer slope_map: RWBuffer<Float> @7
+    buffer zoning_output: RWBuffer<Int> @8
+    
+    let x = thread_id.x as Int
+    let y = thread_id.y as Int
+    
+    if x >= grid_width or y >= grid_height:
+        return
+    
+    let idx = y * grid_width + x
+    
+    let pop_density = population_density[idx]
+    let traffic = traffic_density[idx]
+    let buildings = building_density[idx]
+    let road_dist = road_distance[idx]
+    let slope = slope_map[idx]
+    
+    // Zoning types: 0=Residential, 1=Commercial, 2=Industrial, 3=Park, 4=Mixed
+    let zoning = 0
+    
+    // High traffic + close to roads = Commercial
+    if traffic > 0.7 and road_dist < 50.0:
+        zoning = 1
+    // Low population + far from roads = Industrial
+    else if pop_density < 0.3 and road_dist > 100.0:
+        zoning = 2
+    // Low building density + high slope = Park
+    else if buildings < 0.2 and slope > 0.15:
+        zoning = 3
+    // Medium traffic + medium density = Mixed Use
+    else if traffic > 0.4 and pop_density > 0.5:
+        zoning = 4
+    // Default = Residential
+    else:
+        zoning = 0
+    
+    zoning_output[idx] = zoning

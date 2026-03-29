@@ -1,0 +1,123 @@
+# ============================================================================
+# STDLIB SHOWCASE — Editor Module
+# ============================================================================
+# Editor UI: toolbar button, details panel, and Slate widget for live
+# diagnostic results. Exercises editor stdlib patterns from ue5-editor crate.
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: EDITOR MODULE REGISTRATION
+# ============================================================================
+
+@editor_module
+struct StdlibShowcaseEditorModule:
+    @menu_entry(path: "Tools/StdlibShowcase", label: "Run Stdlib Diagnostics")
+    fn OnMenuRunDiagnostics():
+        println("StdlibShowcase Editor: Triggering diagnostic run via menu")
+
+    @toolbar_button(section: "StdlibShowcase", label: "RunDiag", icon: "StdlibShowcase.Icon", tooltip: "Run Stdlib Diagnostics")
+    fn OnToolbarRunDiagnostics():
+        println("StdlibShowcase Editor: Toolbar button clicked — diagnostics triggered")
+
+# ============================================================================
+# SECTION 2: DETAILS PANEL
+# Displays ShowcaseSettings struct fields with sliders + toggles
+# ============================================================================
+
+@details
+struct ShowcaseSettingsDetails:
+    target: ShowcaseSettings
+
+    @slider(0.5, 30.0)
+    run_interval_seconds: Float
+
+    @slider(64, 2048)
+    max_records_kept: Int
+
+    @toggle
+    auto_run_on_begin_play: Bool
+
+    @toggle
+    log_to_screen: Bool
+
+    @toggle
+    log_to_output_log: Bool
+
+# ============================================================================
+# SECTION 3: DIAGNOSTIC RESULTS SLATE WIDGET
+# Shows live pass/fail/skip counts and a per-category breakdown
+# ============================================================================
+
+@slate
+struct StdlibDiagnosticPanel:
+    summary: DiagnosticSummary
+    last_update_time: Float
+
+    fn Construct():
+        last_update_time = 0.0
+        summary = DiagnosticSummary()
+        summary.total_tests = 0
+        summary.passed = 0
+        summary.failed = 0
+        summary.skipped = 0
+        summary.duration_seconds = 0.0
+        summary.stdlib_loaded = false
+        println("StdlibShowcase: DiagnosticPanel constructed")
+
+    @button("Refresh Results")
+    fn OnRefresh():
+        println("StdlibShowcase: Panel refresh requested")
+
+    @button("Run All Diagnostics")
+    fn OnRunAll():
+        println("StdlibShowcase: Full diagnostic run requested from panel")
+
+    @button("Reset Stats")
+    fn OnReset():
+        summary.total_tests = 0
+        summary.passed = 0
+        summary.failed = 0
+        summary.skipped = 0
+        summary.duration_seconds = 0.0
+        println("StdlibShowcase: Stats reset from panel")
+
+# ============================================================================
+# SECTION 4: VIEWPORT for live world-space debug preview
+# Shows the manager actor position and overlays diagnostic state
+# ============================================================================
+
+@viewport
+struct StdlibShowcaseViewport:
+    @scene_actor
+    preview_actor: Actor
+
+    @camera
+    preview_camera: Actor
+
+    fn OnViewportCreated():
+        println("StdlibShowcase: Viewport initialised")
+
+# ============================================================================
+# SECTION 5: TOOLBAR
+# Buttons for triggering the diagnostic run and switching anim modes
+# ============================================================================
+
+@toolbar
+struct StdlibShowcaseToolbar:
+    @button("Run Diagnostics")
+    fn RunDiagnostics():
+        println("StdlibShowcase: Toolbar RunDiagnostics clicked")
+
+    @toggle("Auto-Run")
+    fn ToggleAutoRun():
+        println("StdlibShowcase: Toolbar AutoRun toggled")
+
+    @separator
+
+    @dropdown("Anim Mode")
+    fn SetAnimMode():
+        println("StdlibShowcase: Anim mode dropdown changed")
+
+    @button("Reset")
+    fn ResetDiagnostics():
+        println("StdlibShowcase: Toolbar Reset clicked")

@@ -1,0 +1,19 @@
+# Root-level plugin_name for FULLBUILD.bat compatibility
+plugin_name = "VoxelForgePro"
+[plugin]
+name = "VoxelForgePro"
+version = "1.0.0"
+engine_version = "5.4"
+description = "Premium voxel engine with GPU-accelerated terrain generation, custom editor mode, and complete landscaping tools"
+category = "Procedural Generation"
+author = "KAIN Factory"
+price = "$300"
+
+[build]
+output_dir = "VoxelForgePro"
+module_type = "Runtime"
+
+[features]
+editor_mode = true
+compute_shaders = true
+networking = true

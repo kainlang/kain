@@ -1,0 +1,709 @@
+// ProceduralCity - City Data Structures
+// Core data types for city generation, road networks, and building placement
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum DistrictType:
+    Residential
+    Commercial
+    Industrial
+    MixedUse
+    Park
+    Government
+    Educational
+    Medical
+    Entertainment
+    Transportation
+
+enum RoadType:
+    Highway
+    MainStreet
+    ResidentialStreet
+    Alley
+    Pedestrian
+    BikeLane
+
+enum BuildingStyle:
+    Modern
+    Classical
+    Industrial
+    Victorian
+    Contemporary
+    Brutalist
+    ArtDeco
+    Minimalist
+
+enum ZoningDensity:
+    LowDensity
+    MediumDensity
+    HighDensity
+    VeryHighDensity
+
+enum IntersectionType:
+    FourWay
+    ThreeWay
+    Roundabout
+    Highway
+    Pedestrian
+
+enum TrafficLightState:
+    Red
+    Yellow
+    Green
+    FlashingRed
+    FlashingYellow
+
+enum VehicleType:
+    Car
+    Bus
+    Truck
+    Taxi
+    Emergency
+    Delivery
+
+enum PedestrianActivity:
+    Walking
+    Running
+    Standing
+    Sitting
+    Shopping
+    Commuting
+
+enum TimeOfDay:
+    Morning
+    Afternoon
+    Evening
+    Night
+    Dawn
+    Dusk
+
+// ============================================================================
+// CORE STRUCTS
+// ============================================================================
+
+@datatable
+struct CityGenerationParams:
+    city_size_km: Float
+    seed: Int
+    district_count: Int
+    road_density: Float
+    building_density: Float
+    park_percentage: Float
+    enable_traffic: Bool
+    enable_pedestrians: Bool
+    max_building_height: Float
+    min_building_height: Float
+    road_width_main: Float
+    road_width_residential: Float
+    intersection_spacing: Float
+    lot_min_size: Float
+    lot_max_size: Float
+    population_density: Float
+
+struct Vec2:
+    x: Float
+    y: Float
+
+struct Vec3:
+    x: Float
+    y: Float
+    z: Float
+
+struct Vec4:
+    x: Float
+    y: Float
+    z: Float
+    w: Float
+
+struct IntVec2:
+    x: Int
+    y: Int
+
+struct IntVec3:
+    x: Int
+    y: Int
+    z: Int
+
+struct Bounds2D:
+    min: Vec2
+    max: Vec2
+
+struct Bounds3D:
+    min: Vec3
+    max: Vec3
+
+struct Transform:
+    location: Vec3
+    rotation: Vec3
+    scale: Vec3
+
+// ============================================================================
+// ROAD NETWORK STRUCTS
+// ============================================================================
+
+struct RoadSegment:
+    id: Int
+    start_pos: Vec2
+    end_pos: Vec2
+    road_type: RoadType
+    width: Float
+    lanes: Int
+    speed_limit: Float
+    is_one_way: Bool
+    connected_intersections: Array<Int>
+    traffic_density: Float
+
+struct Intersection:
+    id: Int
+    position: Vec2
+    intersection_type: IntersectionType
+    connected_roads: Array<Int>
+    has_traffic_light: Bool
+    traffic_light_state: TrafficLightState
+    traffic_light_timer: Float
+    priority_roads: Array<Int>
+
+struct RoadNetwork:
+    segments: Array<RoadSegment>
+    intersections: Array<Intersection>
+    highway_nodes: Array<Vec2>
+    main_street_nodes: Array<Vec2>
+    residential_nodes: Array<Vec2>
+
+struct LSystemRule:
+    symbol: String
+    replacement: String
+    probability: Float
+    angle: Float
+    length_multiplier: Float
+
+struct LSystemState:
+    axiom: String
+    rules: Array<LSystemRule>
+    iterations: Int
+    angle: Float
+    initial_length: Float
+    current_string: String
+
+// ============================================================================
+// BUILDING STRUCTS
+// ============================================================================
+
+struct BuildingLot:
+    id: Int
+    bounds: Bounds2D
+    district_type: DistrictType
+    zoning_density: ZoningDensity
+    is_buildable: Bool
+    terrain_slope: Float
+    road_access: Array<Int>
+    corner_lot: Bool
+
+struct BuildingData:
+    id: Int
+    lot_id: Int
+    position: Vec3
+    rotation: Float
+    width: Float
+    depth: Float
+    height: Float
+    floors: Int
+    style: BuildingStyle
+    district_type: DistrictType
+    has_basement: Bool
+    has_rooftop: Bool
+    window_count: Int
+    door_count: Int
+    color_primary: Vec3
+    color_secondary: Vec3
+    color_accent: Vec3
+
+struct BuildingModule:
+    module_type: String
+    width: Float
+    height: Float
+    depth: Float
+    mesh_path: String
+    material_slots: Array<String>
+
+struct BuildingFloor:
+    floor_number: Int
+    height: Float
+    window_style: String
+    balcony: Bool
+    commercial: Bool
+
+// ============================================================================
+// TRAFFIC STRUCTS
+// ============================================================================
+
+struct VehicleState:
+    vehicle_id: Int
+    vehicle_type: VehicleType
+    position: Vec3
+    velocity: Vec3
+    rotation: Float
+    current_road: Int
+    current_lane: Int
+    target_intersection: Int
+    path: Array<Int>
+    speed: Float
+    max_speed: Float
+    acceleration: Float
+    braking_distance: Float
+    following_distance: Float
+    target_vehicle: Int
+
+struct TrafficPath:
+    waypoints: Array<Vec3>
+    road_segments: Array<Int>
+    total_distance: Float
+    estimated_time: Float
+    traffic_density: Float
+
+struct TrafficLight:
+    intersection_id: Int
+    state: TrafficLightState
+    timer: Float
+    cycle_time: Float
+    green_time: Float
+    yellow_time: Float
+    red_time: Float
+    priority_direction: Int
+
+struct PedestrianState:
+    pedestrian_id: Int
+    position: Vec3
+    velocity: Vec3
+    target_position: Vec3
+    activity: PedestrianActivity
+    speed: Float
+    path: Array<Vec3>
+    waiting_at_crossing: Bool
+    crossing_road: Bool
+
+// ============================================================================
+// DISTRICT STRUCTS
+// ============================================================================
+
+struct District:
+    id: Int
+    district_type: DistrictType
+    bounds: Bounds2D
+    center: Vec2
+    population: Int
+    building_count: Int
+    road_count: Int
+    park_area: Float
+    zoning_density: ZoningDensity
+    average_building_height: Float
+    traffic_density: Float
+
+struct CityZone:
+    zone_id: Int
+    district_type: DistrictType
+    density: ZoningDensity
+    bounds: Bounds2D
+    height_limit: Float
+    setback_distance: Float
+    lot_coverage_max: Float
+    parking_required: Bool
+
+// ============================================================================
+// TERRAIN STRUCTS
+// ============================================================================
+
+struct TerrainCell:
+    grid_x: Int
+    grid_y: Int
+    height: Float
+    slope: Float
+    is_buildable: Bool
+    is_water: Bool
+    vegetation_density: Float
+    soil_type: Int
+
+struct TerrainGrid:
+    width: Int
+    height: Int
+    cell_size: Float
+    cells: Array<TerrainCell>
+    min_height: Float
+    max_height: Float
+
+struct DensityMap:
+    width: Int
+    height: Int
+    cell_size: Float
+    population_density: Array<Float>
+    traffic_density: Array<Float>
+    building_density: Array<Float>
+    road_density: Array<Float>
+
+// ============================================================================
+// GENERATION STRUCTS
+// ============================================================================
+
+struct GenerationTask:
+    task_id: Int
+    task_type: String
+    priority: Int
+    bounds: Bounds2D
+    params: CityGenerationParams
+    progress: Float
+    is_complete: Bool
+    dependencies: Array<Int>
+
+struct CityState:
+    city_id: Int
+    seed: Int
+    generation_params: CityGenerationParams
+    road_network: RoadNetwork
+    districts: Array<District>
+    buildings: Array<BuildingData>
+    lots: Array<BuildingLot>
+    terrain_grid: TerrainGrid
+    density_map: DensityMap
+    generation_progress: Float
+    is_generated: Bool
+
+struct NavMeshData:
+    vertices: Array<Vec3>
+    triangles: Array<Int>
+    adjacency: Array<Array<Int>>
+    walkable_areas: Array<Bounds2D>
+    obstacle_areas: Array<Bounds2D>
+
+// ============================================================================
+// REPLICATION STRUCTS
+// ============================================================================
+
+struct CityReplicationState:
+    city_id: Int
+    generation_seed: Int
+    district_count: Int
+    building_count: Int
+    road_segment_count: Int
+    vehicle_count: Int
+    pedestrian_count: Int
+    time_of_day: TimeOfDay
+    traffic_enabled: Bool
+    weather_state: Int
+
+struct BuildingReplicationData:
+    building_id: Int
+    position: Vec3
+    rotation: Float
+    width: Float
+    depth: Float
+    height: Float
+    style: BuildingStyle
+    district_type: DistrictType
+
+struct VehicleReplicationData:
+    vehicle_id: Int
+    vehicle_type: VehicleType
+    position: Vec3
+    velocity: Vec3
+    rotation: Float
+    current_road: Int
+
+// ============================================================================
+// PATHFINDING STRUCTS
+// ============================================================================
+
+struct PathNode:
+    node_id: Int
+    position: Vec2
+    g_cost: Float
+    h_cost: Float
+    f_cost: Float
+    parent_id: Int
+    is_open: Bool
+    is_closed: Bool
+
+struct PathfindingGrid:
+    width: Int
+    height: Int
+    cell_size: Float
+    nodes: Array<PathNode>
+    obstacles: Array<Bounds2D>
+
+struct PathRequest:
+    request_id: Int
+    start_pos: Vec2
+    end_pos: Vec2
+    vehicle_type: VehicleType
+    priority: Int
+    max_search_nodes: Int
+
+struct PathResult:
+    request_id: Int
+    success: Bool
+    path: Array<Vec2>
+    total_distance: Float
+    node_count: Int
+
+// ============================================================================
+// SHADER DATA STRUCTS
+// ============================================================================
+
+struct TerrainAnalysisInput:
+    grid_width: Int
+    grid_height: Int
+    cell_size: Float
+    height_scale: Float
+    slope_threshold: Float
+    water_level: Float
+
+struct DensityMapInput:
+    grid_width: Int
+    grid_height: Int
+    cell_size: Float
+    building_positions: Array<Vec2>
+    road_positions: Array<Vec2>
+    influence_radius: Float
+
+struct PathfindingInput:
+    grid_width: Int
+    grid_height: Int
+    start_x: Int
+    start_y: Int
+    end_x: Int
+    end_y: Int
+    max_iterations: Int
+
+struct LotSubdivisionInput:
+    lot_bounds: Bounds2D
+    min_lot_size: Float
+    max_lot_size: Float
+    road_access_required: Bool
+    subdivision_iterations: Int
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+fn create_vec2(x: Float, y: Float) -> Vec2:
+    return Vec2 { x: x, y: y }
+
+fn create_vec3(x: Float, y: Float, z: Float) -> Vec3:
+    return Vec3 { x: x, y: y, z: z }
+
+fn vec2_length(v: Vec2) -> Float:
+    return sqrt(v.x * v.x + v.y * v.y)
+
+fn vec2_distance(a: Vec2, b: Vec2) -> Float:
+    let dx = b.x - a.x
+    let dy = b.y - a.y
+    return sqrt(dx * dx + dy * dy)
+
+fn vec2_normalize(v: Vec2) -> Vec2:
+    let len = vec2_length(v)
+    if len > 0.0001:
+        return Vec2 { x: v.x / len, y: v.y / len }
+    return Vec2 { x: 0.0, y: 0.0 }
+
+fn vec2_dot(a: Vec2, b: Vec2) -> Float:
+    return a.x * b.x + a.y * b.y
+
+fn vec2_lerp(a: Vec2, b: Vec2, t: Float) -> Vec2:
+    return Vec2 {
+        x: a.x + (b.x - a.x) * t,
+        y: a.y + (b.y - a.y) * t
+    }
+
+fn vec3_length(v: Vec3) -> Float:
+    return sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
+
+fn vec3_distance(a: Vec3, b: Vec3) -> Float:
+    let dx = b.x - a.x
+    let dy = b.y - a.y
+    let dz = b.z - a.z
+    return sqrt(dx * dx + dy * dy + dz * dz)
+
+fn vec3_normalize(v: Vec3) -> Vec3:
+    let len = vec3_length(v)
+    if len > 0.0001:
+        return Vec3 { x: v.x / len, y: v.y / len, z: v.z / len }
+    return Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+
+fn vec3_dot(a: Vec3, b: Vec3) -> Float:
+    return a.x * b.x + a.y * b.y + a.z * b.z
+
+fn vec3_cross(a: Vec3, b: Vec3) -> Vec3:
+    return Vec3 {
+        x: a.y * b.z - a.z * b.y,
+        y: a.z * b.x - a.x * b.z,
+        z: a.x * b.y - a.y * b.x
+    }
+
+fn vec3_lerp(a: Vec3, b: Vec3, t: Float) -> Vec3:
+    return Vec3 {
+        x: a.x + (b.x - a.x) * t,
+        y: a.y + (b.y - a.y) * t,
+        z: a.z + (b.z - a.z) * t
+    }
+
+fn bounds2d_contains(bounds: Bounds2D, point: Vec2) -> Bool:
+    return point.x >= bounds.min.x and point.x <= bounds.max.x and
+           point.y >= bounds.min.y and point.y <= bounds.max.y
+
+fn bounds2d_intersects(a: Bounds2D, b: Bounds2D) -> Bool:
+    return not (a.max.x < b.min.x or a.min.x > b.max.x or
+                a.max.y < b.min.y or a.min.y > b.max.y)
+
+fn bounds2d_area(bounds: Bounds2D) -> Float:
+    let width = bounds.max.x - bounds.min.x
+    let height = bounds.max.y - bounds.min.y
+    return width * height
+
+fn bounds2d_center(bounds: Bounds2D) -> Vec2:
+    return Vec2 {
+        x: (bounds.min.x + bounds.max.x) * 0.5,
+        y: (bounds.min.y + bounds.max.y) * 0.5
+    }
+
+fn bounds3d_contains(bounds: Bounds3D, point: Vec3) -> Bool:
+    return point.x >= bounds.min.x and point.x <= bounds.max.x and
+           point.y >= bounds.min.y and point.y <= bounds.max.y and
+           point.z >= bounds.min.z and point.z <= bounds.max.z
+
+fn bounds3d_volume(bounds: Bounds3D) -> Float:
+    let width = bounds.max.x - bounds.min.x
+    let height = bounds.max.y - bounds.min.y
+    let depth = bounds.max.z - bounds.min.z
+    return width * height * depth
+
+fn create_default_generation_params() -> CityGenerationParams:
+    return CityGenerationParams {
+        city_size_km: 10.0,
+        seed: 12345,
+        district_count: 8,
+        road_density: 0.7,
+        building_density: 0.6,
+        park_percentage: 0.15,
+        enable_traffic: true,
+        enable_pedestrians: true,
+        max_building_height: 200.0,
+        min_building_height: 10.0,
+        road_width_main: 12.0,
+        road_width_residential: 8.0,
+        intersection_spacing: 150.0,
+        lot_min_size: 400.0,
+        lot_max_size: 2500.0,
+        population_density: 5000.0
+    }
+
+fn get_district_color(district_type: DistrictType) -> Vec3:
+    match district_type:
+        DistrictType::Residential => Vec3 { x: 0.2, y: 0.8, z: 0.3 }
+        DistrictType::Commercial => Vec3 { x: 0.8, y: 0.2, z: 0.2 }
+        DistrictType::Industrial => Vec3 { x: 0.5, y: 0.5, z: 0.5 }
+        DistrictType::MixedUse => Vec3 { x: 0.8, y: 0.6, z: 0.2 }
+        DistrictType::Park => Vec3 { x: 0.1, y: 0.6, z: 0.1 }
+        DistrictType::Government => Vec3 { x: 0.3, y: 0.3, z: 0.8 }
+        DistrictType::Educational => Vec3 { x: 0.8, y: 0.8, z: 0.2 }
+        DistrictType::Medical => Vec3 { x: 0.8, y: 0.2, z: 0.8 }
+        DistrictType::Entertainment => Vec3 { x: 0.9, y: 0.5, z: 0.1 }
+        DistrictType::Transportation => Vec3 { x: 0.4, y: 0.4, z: 0.4 }
+
+fn get_road_width(road_type: RoadType) -> Float:
+    match road_type:
+        RoadType::Highway => 20.0
+        RoadType::MainStreet => 12.0
+        RoadType::ResidentialStreet => 8.0
+        RoadType::Alley => 4.0
+        RoadType::Pedestrian => 3.0
+        RoadType::BikeLane => 2.0
+
+fn get_road_lanes(road_type: RoadType) -> Int:
+    match road_type:
+        RoadType::Highway => 4
+        RoadType::MainStreet => 2
+        RoadType::ResidentialStreet => 2
+        RoadType::Alley => 1
+        RoadType::Pedestrian => 0
+        RoadType::BikeLane => 1
+
+fn get_road_speed_limit(road_type: RoadType) -> Float:
+    match road_type:
+        RoadType::Highway => 100.0
+        RoadType::MainStreet => 60.0
+        RoadType::ResidentialStreet => 40.0
+        RoadType::Alley => 20.0
+        RoadType::Pedestrian => 5.0
+        RoadType::BikeLane => 25.0
+
+fn get_vehicle_max_speed(vehicle_type: VehicleType) -> Float:
+    match vehicle_type:
+        VehicleType::Car => 120.0
+        VehicleType::Bus => 80.0
+        VehicleType::Truck => 90.0
+        VehicleType::Taxi => 110.0
+        VehicleType::Emergency => 150.0
+        VehicleType::Delivery => 80.0
+
+fn get_vehicle_acceleration(vehicle_type: VehicleType) -> Float:
+    match vehicle_type:
+        VehicleType::Car => 5.0
+        VehicleType::Bus => 2.5
+        VehicleType::Truck => 3.0
+        VehicleType::Taxi => 6.0
+        VehicleType::Emergency => 8.0
+        VehicleType::Delivery => 4.0
+
+fn get_building_height_range(district_type: DistrictType, density: ZoningDensity) -> Vec2:
+    let base_min = match district_type:
+        DistrictType::Residential => 8.0
+        DistrictType::Commercial => 12.0
+        DistrictType::Industrial => 10.0
+        DistrictType::MixedUse => 10.0
+        DistrictType::Park => 5.0
+        DistrictType::Government => 15.0
+        DistrictType::Educational => 12.0
+        DistrictType::Medical => 15.0
+        DistrictType::Entertainment => 12.0
+        DistrictType::Transportation => 8.0
+    
+    let density_multiplier = match density:
+        ZoningDensity::LowDensity => 1.0
+        ZoningDensity::MediumDensity => 2.0
+        ZoningDensity::HighDensity => 4.0
+        ZoningDensity::VeryHighDensity => 8.0
+    
+    return Vec2 {
+        x: base_min,
+        y: base_min * density_multiplier * 3.0
+    }
+
+fn calculate_traffic_light_cycle_time(intersection: Intersection, road_network: RoadNetwork) -> Float:
+    let base_time = 30.0
+    let road_count = len(intersection.connected_roads)
+    let traffic_factor = 1.0
+    
+    for road_id in intersection.connected_roads:
+        for segment in road_network.segments:
+            if segment.id == road_id:
+                traffic_factor = traffic_factor + segment.traffic_density * 0.5
+    
+    return base_time + (road_count as Float) * 10.0 * traffic_factor
+
+fn is_corner_lot(lot: BuildingLot, road_network: RoadNetwork) -> Bool:
+    return len(lot.road_access) >= 2
+
+fn calculate_lot_coverage(lot: BuildingLot, building: BuildingData) -> Float:
+    let lot_area = bounds2d_area(lot.bounds)
+    let building_area = building.width * building.depth
+    return building_area / lot_area
+
+fn get_time_of_day_multiplier(time: TimeOfDay) -> Float:
+    match time:
+        TimeOfDay::Morning => 0.8
+        TimeOfDay::Afternoon => 1.0
+        TimeOfDay::Evening => 0.9
+        TimeOfDay::Night => 0.3
+        TimeOfDay::Dawn => 0.5
+        TimeOfDay::Dusk => 0.7

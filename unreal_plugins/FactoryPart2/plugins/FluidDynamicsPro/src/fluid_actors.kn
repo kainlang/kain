@@ -1,0 +1,478 @@
+// FluidDynamicsPro - Actor Implementations
+// FluidSimulatorActor, FluidEmitterActor, FluidColliderActor
+
+actor FluidSimulatorActor:
+    @replicated
+    state simulation_state: FluidSimulationState
+    
+    state solver_type: SolverType = SolverType.SPH
+    state fluid_type: FluidType = FluidType.Water
+    state particle_count: Int = 10000
+    state bounds_min: Vec3 = vec3(-10.0, -10.0, -10.0)
+    state bounds_max: Vec3 = vec3(10.0, 10.0, 10.0)
+    state use_gpu: Bool = true
+    state quality: FluidQuality = FluidQuality.High
+    
+    state sph_solver: SPHSolver
+    state flip_solver: FLIPSolver
+    state hybrid_solver: HybridSolver
+    
+    state render_params: FluidRenderParams
+    state stats: FluidStats
+    
+    state enable_surface_reconstruction: Bool = true
+    state surface_mesh: SurfaceMesh
+    state marching_cubes_config: MarchingCubesConfig
+    
+    state emitters: Array<Actor> = []
+    state colliders: Array<FluidCollider> = []
+    state force_fields: Array<FluidForceField> = []
+    
+    on BeginPlay():
+        initialize_simulation()
+        simulation_state.is_simulating = true
+        simulation_state.current_time = 0.0
+        simulation_state.particle_count = particle_count
+        simulation_state.bounds_min = bounds_min
+        simulation_state.bounds_max = bounds_max
+        
+        render_params.render_mode = RenderMode.Hybrid
+        render_params.particle_size = 0.05
+        render_params.surface_smoothness = 0.8
+        render_params.refraction_index = 1.33
+        render_params.enable_caustics = true
+        render_params.caustics_intensity = 1.0
+        
+        marching_cubes_config.grid_resolution = vec3(64.0, 64.0, 64.0)
+        marching_cubes_config.iso_value = 0.5
+        marching_cubes_config.cell_size = (bounds_max.x - bounds_min.x) / 64.0
+        marching_cubes_config.bounds_min = bounds_min
+        marching_cubes_config.bounds_max = bounds_max
+        marching_cubes_config.enable_smoothing = true
+        marching_cubes_config.smoothing_iterations = 2
+    
+    on Tick(delta_time: Float):
+        if simulation_state.is_simulating:
+            update_simulation(delta_time)
+            update_statistics()
+            
+            if enable_surface_reconstruction:
+                reconstruct_surface()
+    
+    fn initialize_simulation():
+        match solver_type:
+            SolverType.SPH => initialize_sph()
+            SolverType.FLIP => initialize_flip()
+            SolverType.Hybrid => initialize_hybrid()
+            _ => initialize_sph()
+    
+    fn initialize_sph():
+        sph_solver.initialize(particle_count, bounds_min, bounds_max)
+        sph_solver.params.fluid_type = fluid_type
+        sph_solver.params.gravity = vec3(0.0, 0.0, -980.0)
+        sph_solver.params.time_step = 0.016
+        sph_solver.params.substeps = 4
+        sph_solver.params.enable_vorticity = true
+        sph_solver.params.vorticity_strength = 0.1
+        sph_solver.params.enable_surface_tension = true
+        sph_solver.params.surface_tension = 0.0728
+        
+        initialize_particles_grid()
+    
+    fn initialize_flip():
+        flip_solver.initialize(particle_count, bounds_min, bounds_max, vec3(64.0, 64.0, 64.0))
+        flip_solver.params.fluid_type = fluid_type
+        flip_solver.params.gravity = vec3(0.0, 0.0, -980.0)
+        flip_solver.params.substeps = 2
+        
+        initialize_particles_grid()
+    
+    fn initialize_hybrid():
+        hybrid_solver.initialize(particle_count, bounds_min, bounds_max)
+        hybrid_solver.blend_factor = 0.5
+    
+    fn initialize_particles_grid():
+        let particles_per_axis = pow(particle_count, 1.0 / 3.0)
+        let spacing = (bounds_max.x - bounds_min.x) / particles_per_axis
+        
+        let idx = 0
+        for x in 0..particles_per_axis:
+            for y in 0..particles_per_axis:
+                for z in 0..particles_per_axis:
+                    if idx >= particle_count:
+                        break
+                    
+                    let particle: FluidParticle
+                    particle.position = bounds_min + vec3(x * spacing, y * spacing, z * spacing)
+                    particle.velocity = vec3(0.0, 0.0, 0.0)
+                    particle.acceleration = vec3(0.0, 0.0, 0.0)
+                    particle.density = 1000.0
+                    particle.pressure = 0.0
+                    particle.mass = 1.0
+                    particle.viscosity = 0.01
+                    particle.temperature = 20.0
+                    particle.color = vec4(0.1, 0.3, 0.8, 0.9)
+                    particle.lifetime = -1.0
+                    particle.state = ParticleState.Active
+                    
+                    match solver_type:
+                        SolverType.SPH => push(sph_solver.particles, particle)
+                        SolverType.FLIP => push(flip_solver.particles, particle)
+                        _ => push(sph_solver.particles, particle)
+                    
+                    idx = idx + 1
+    
+    fn update_simulation(delta_time: Float):
+        simulation_state.current_time = simulation_state.current_time + delta_time
+        
+        apply_force_fields()
+        handle_collisions()
+        
+        match solver_type:
+            SolverType.SPH => sph_solver.step(delta_time)
+            SolverType.FLIP => flip_solver.step(delta_time)
+            SolverType.Hybrid => hybrid_solver.step(delta_time)
+            _ => sph_solver.step(delta_time)
+    
+    fn apply_force_fields():
+        for force_field in force_fields:
+            if not force_field.is_active:
+                continue
+            
+            let particles = get_active_particles()
+            
+            for i in 0..len(particles):
+                let particle = particles[i]
+                let diff = particle.position - force_field.position
+                let dist = length(diff)
+                
+                if dist < force_field.radius:
+                    let falloff = 1.0 - (dist / force_field.radius)
+                    let strength = force_field.strength * falloff * force_field.falloff
+                    
+                    match force_field.force_type:
+                        ForceFieldType.Attract =>
+                            let force = -normalize(diff) * strength
+                            particle.acceleration = particle.acceleration + force
+                        
+                        ForceFieldType.Repel =>
+                            let force = normalize(diff) * strength
+                            particle.acceleration = particle.acceleration + force
+                        
+                        ForceFieldType.Vortex =>
+                            let tangent = cross(normalize(diff), vec3(0.0, 0.0, 1.0))
+                            let force = tangent * strength
+                            particle.acceleration = particle.acceleration + force
+                        
+                        _ => continue
+    
+    fn handle_collisions():
+        let particles = get_active_particles()
+        
+        for collider in colliders:
+            for i in 0..len(particles):
+                let particle = particles[i]
+                
+                match collider.collider_type:
+                    ColliderType.Sphere => handle_sphere_collision(i, collider)
+                    ColliderType.Box => handle_box_collision(i, collider)
+                    ColliderType.Plane => handle_plane_collision(i, collider)
+                    _ => continue
+    
+    fn handle_sphere_collision(particle_idx: Int, collider: FluidCollider):
+        let particles = get_active_particles()
+        let particle = particles[particle_idx]
+        
+        let diff = particle.position - collider.position
+        let dist = length(diff)
+        let radius = collider.scale.x
+        
+        if dist < radius:
+            let normal = normalize(diff)
+            let penetration = radius - dist
+            
+            particle.position = particle.position + normal * penetration
+            
+            let vel_normal = dot(particle.velocity, normal)
+            let vel_tangent = particle.velocity - normal * vel_normal
+            
+            particle.velocity = vel_tangent * (1.0 - collider.friction) - normal * vel_normal * collider.restitution
+    
+    fn handle_box_collision(particle_idx: Int, collider: FluidCollider):
+        let particles = get_active_particles()
+        let particle = particles[particle_idx]
+        
+        let local_pos = particle.position - collider.position
+        let half_extents = collider.scale * 0.5
+        
+        if abs(local_pos.x) < half_extents.x and abs(local_pos.y) < half_extents.y and abs(local_pos.z) < half_extents.z:
+            let dx = half_extents.x - abs(local_pos.x)
+            let dy = half_extents.y - abs(local_pos.y)
+            let dz = half_extents.z - abs(local_pos.z)
+            
+            let min_penetration = min(dx, min(dy, dz))
+            
+            if min_penetration == dx:
+                let sign = if local_pos.x > 0.0: 1.0 else: -1.0
+                particle.position.x = collider.position.x + sign * half_extents.x
+                particle.velocity.x = -particle.velocity.x * collider.restitution
+            else if min_penetration == dy:
+                let sign = if local_pos.y > 0.0: 1.0 else: -1.0
+                particle.position.y = collider.position.y + sign * half_extents.y
+                particle.velocity.y = -particle.velocity.y * collider.restitution
+            else:
+                let sign = if local_pos.z > 0.0: 1.0 else: -1.0
+                particle.position.z = collider.position.z + sign * half_extents.z
+                particle.velocity.z = -particle.velocity.z * collider.restitution
+    
+    fn handle_plane_collision(particle_idx: Int, collider: FluidCollider):
+        let particles = get_active_particles()
+        let particle = particles[particle_idx]
+        
+        let plane_normal = vec3(0.0, 0.0, 1.0)
+        let dist = dot(particle.position - collider.position, plane_normal)
+        
+        if dist < 0.0:
+            particle.position = particle.position - plane_normal * dist
+            
+            let vel_normal = dot(particle.velocity, plane_normal)
+            let vel_tangent = particle.velocity - plane_normal * vel_normal
+            
+            particle.velocity = vel_tangent * (1.0 - collider.friction) - plane_normal * vel_normal * collider.restitution
+    
+    fn get_active_particles() -> Array<FluidParticle>:
+        match solver_type:
+            SolverType.SPH => return sph_solver.particles
+            SolverType.FLIP => return flip_solver.particles
+            SolverType.Hybrid => return hybrid_solver.sph_solver.particles
+            _ => return sph_solver.particles
+    
+    fn reconstruct_surface():
+        let result = async_reconstruct_surface(get_active_particles(), marching_cubes_config)
+        
+        if result.success:
+            surface_mesh = result.mesh
+    
+    fn update_statistics():
+        stats.particle_count = particle_count
+        stats.active_particles = count_active_particles()
+        stats.grid_cells = sph_solver.grid.cell_count
+    
+    fn count_active_particles() -> Int:
+        let count = 0
+        let particles = get_active_particles()
+        
+        for particle in particles:
+            if particle.state == ParticleState.Active:
+                count = count + 1
+        
+        return count
+    
+    @blueprint_callable
+    fn start_simulation():
+        simulation_state.is_simulating = true
+    
+    @blueprint_callable
+    fn stop_simulation():
+        simulation_state.is_simulating = false
+    
+    @blueprint_callable
+    fn reset_simulation():
+        initialize_simulation()
+        simulation_state.current_time = 0.0
+    
+    @blueprint_callable
+    fn add_force_field(position: Vec3, radius: Float, strength: Float, force_type: ForceFieldType):
+        let field: FluidForceField
+        field.position = position
+        field.radius = radius
+        field.strength = strength
+        field.force_type = force_type
+        field.falloff = 1.0
+        field.is_active = true
+        push(force_fields, field)
+    
+    @blueprint_callable
+    fn add_collider(position: Vec3, scale: Vec3, collider_type: ColliderType):
+        let collider: FluidCollider
+        collider.position = position
+        collider.scale = scale
+        collider.collider_type = collider_type
+        collider.friction = 0.3
+        collider.restitution = 0.5
+        collider.is_static = true
+        push(colliders, collider)
+    
+    @blueprint_callable
+    fn set_gravity(gravity: Vec3):
+        match solver_type:
+            SolverType.SPH => sph_solver.params.gravity = gravity
+            SolverType.FLIP => flip_solver.params.gravity = gravity
+            _ => sph_solver.params.gravity = gravity
+    
+    @blueprint_callable
+    fn set_viscosity(viscosity: Float):
+        match solver_type:
+            SolverType.SPH => sph_solver.params.viscosity = viscosity
+            _ => return
+    
+    @blueprint_callable
+    fn get_particle_count() -> Int:
+        return stats.active_particles
+    
+    @blueprint_callable
+    fn get_simulation_time() -> Float:
+        return simulation_state.current_time
+
+actor FluidEmitterActor:
+    @replicated
+    state is_emitting: Bool = false
+    
+    state config: EmitterConfig
+    state target_simulator: Actor
+    state emit_timer: Float = 0.0
+    state particles_emitted: Int = 0
+    
+    on BeginPlay():
+        config.emit_rate = 100.0
+        config.emit_velocity = vec3(0.0, 0.0, 10.0)
+        config.emit_spread = 0.5
+        config.emit_lifetime = -1.0
+        config.emit_shape = EmitterShape.Sphere
+        config.emit_radius = 1.0
+        config.emit_box_extents = vec3(1.0, 1.0, 1.0)
+        config.emit_color = vec4(0.1, 0.3, 0.8, 0.9)
+        config.emit_temperature = 20.0
+    
+    on Tick(delta_time: Float):
+        if is_emitting:
+            emit_timer = emit_timer + delta_time
+            
+            let particles_to_emit = floor(config.emit_rate * delta_time)
+            
+            for i in 0..particles_to_emit:
+                emit_particle()
+    
+    fn emit_particle():
+        if target_simulator == null:
+            return
+        
+        let particle: FluidParticle
+        
+        match config.emit_shape:
+            EmitterShape.Point =>
+                particle.position = GetActorLocation()
+            
+            EmitterShape.Sphere =>
+                let random_dir = random_unit_vector()
+                let random_radius = random_float(0.0, config.emit_radius)
+                particle.position = GetActorLocation() + random_dir * random_radius
+            
+            EmitterShape.Box =>
+                let random_offset = vec3(
+                    random_float(-config.emit_box_extents.x, config.emit_box_extents.x),
+                    random_float(-config.emit_box_extents.y, config.emit_box_extents.y),
+                    random_float(-config.emit_box_extents.z, config.emit_box_extents.z)
+                )
+                particle.position = GetActorLocation() + random_offset
+            
+            _ =>
+                particle.position = GetActorLocation()
+        
+        let spread = random_unit_vector() * config.emit_spread
+        particle.velocity = config.emit_velocity + spread
+        particle.acceleration = vec3(0.0, 0.0, 0.0)
+        particle.density = 1000.0
+        particle.pressure = 0.0
+        particle.mass = 1.0
+        particle.color = config.emit_color
+        particle.temperature = config.emit_temperature
+        particle.lifetime = config.emit_lifetime
+        particle.state = ParticleState.Active
+        
+        particles_emitted = particles_emitted + 1
+    
+    @blueprint_callable
+    fn start_emitting():
+        is_emitting = true
+    
+    @blueprint_callable
+    fn stop_emitting():
+        is_emitting = false
+    
+    @blueprint_callable
+    fn set_emit_rate(rate: Float):
+        config.emit_rate = rate
+    
+    @blueprint_callable
+    fn set_emit_velocity(velocity: Vec3):
+        config.emit_velocity = velocity
+    
+    @blueprint_callable
+    fn set_target_simulator(simulator: Actor):
+        target_simulator = simulator
+    
+    fn random_unit_vector() -> Vec3:
+        let theta = random_float(0.0, 6.28318)
+        let phi = random_float(0.0, 3.14159)
+        
+        let x = sin(phi) * cos(theta)
+        let y = sin(phi) * sin(theta)
+        let z = cos(phi)
+        
+        return vec3(x, y, z)
+    
+    fn random_float(min_val: Float, max_val: Float) -> Float:
+        return min_val + (max_val - min_val) * 0.5
+
+actor FluidColliderActor:
+    @replicated
+    state collider_data: FluidCollider
+    
+    state target_simulator: Actor
+    
+    on BeginPlay():
+        collider_data.position = GetActorLocation()
+        collider_data.scale = vec3(1.0, 1.0, 1.0)
+        collider_data.collider_type = ColliderType.Sphere
+        collider_data.friction = 0.3
+        collider_data.restitution = 0.5
+        collider_data.is_static = true
+        collider_data.velocity = vec3(0.0, 0.0, 0.0)
+        
+        register_with_simulator()
+    
+    on Tick(delta_time: Float):
+        collider_data.position = GetActorLocation()
+        
+        if not collider_data.is_static:
+            update_velocity(delta_time)
+    
+    fn register_with_simulator():
+        if target_simulator != null:
+            println("Registered collider with simulator")
+    
+    fn update_velocity(delta_time: Float):
+        let current_pos = GetActorLocation()
+        collider_data.velocity = (current_pos - collider_data.position) / delta_time
+    
+    @blueprint_callable
+    fn set_collider_type(collider_type: ColliderType):
+        collider_data.collider_type = collider_type
+    
+    @blueprint_callable
+    fn set_friction(friction: Float):
+        collider_data.friction = friction
+    
+    @blueprint_callable
+    fn set_restitution(restitution: Float):
+        collider_data.restitution = restitution
+    
+    @blueprint_callable
+    fn set_is_static(is_static: Bool):
+        collider_data.is_static = is_static
+    
+    @blueprint_callable
+    fn set_target_simulator(simulator: Actor):
+        target_simulator = simulator
+        register_with_simulator()

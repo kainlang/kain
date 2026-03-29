@@ -1,0 +1,234 @@
+#include "/Engine/Public/Platform.ush"
+
+// =============================================================================
+// KLAYER BLEND COMPUTE SHADER
+// All Photoshop/Substance blend modes implemented
+// =============================================================================
+
+Texture2D<float4> InBase;
+Texture2D<float4> InBlend;
+Texture2D<float> InMask;
+SamplerState InSampler;
+RWTexture2D<float4> OutResult;
+
+// Parameters
+
+    uint BlendMode;
+    float Opacity;
+    uint bHasMask;
+    uint bInvertMask;
+    uint2 TextureDimensions;
+
+
+// =============================================================================
+// BLEND MODE HELPERS
+// =============================================================================
+
+float3 BlendNormal(float3 base, float3 blend)
+{
+    return blend;
+}
+
+float3 BlendMultiply(float3 base, float3 blend)
+{
+    return base * blend;
+}
+
+float3 BlendScreen(float3 base, float3 blend)
+{
+    return 1.0 - (1.0 - base) * (1.0 - blend);
+}
+
+float3 BlendOverlay(float3 base, float3 blend)
+{
+    float3 result;
+    result.r = base.r < 0.5 ? (2.0 * base.r * blend.r) : (1.0 - 2.0 * (1.0 - base.r) * (1.0 - blend.r));
+    result.g = base.g < 0.5 ? (2.0 * base.g * blend.g) : (1.0 - 2.0 * (1.0 - base.g) * (1.0 - blend.g));
+    result.b = base.b < 0.5 ? (2.0 * base.b * blend.b) : (1.0 - 2.0 * (1.0 - base.b) * (1.0 - blend.b));
+    return result;
+}
+
+float3 BlendSoftLight(float3 base, float3 blend)
+{
+    float3 result;
+    result.r = blend.r < 0.5 ? (2.0 * base.r * blend.r + base.r * base.r * (1.0 - 2.0 * blend.r)) : (sqrt(base.r) * (2.0 * blend.r - 1.0) + 2.0 * base.r * (1.0 - blend.r));
+    result.g = blend.g < 0.5 ? (2.0 * base.g * blend.g + base.g * base.g * (1.0 - 2.0 * blend.g)) : (sqrt(base.g) * (2.0 * blend.g - 1.0) + 2.0 * base.g * (1.0 - blend.g));
+    result.b = blend.b < 0.5 ? (2.0 * base.b * blend.b + base.b * base.b * (1.0 - 2.0 * blend.b)) : (sqrt(base.b) * (2.0 * blend.b - 1.0) + 2.0 * base.b * (1.0 - blend.b));
+    return result;
+}
+
+float3 BlendHardLight(float3 base, float3 blend)
+{
+    return BlendOverlay(blend, base);
+}
+
+float3 BlendAdd(float3 base, float3 blend)
+{
+    return min(base + blend, 1.0);
+}
+
+float3 BlendSubtract(float3 base, float3 blend)
+{
+    return max(base - blend, 0.0);
+}
+
+float3 BlendDifference(float3 base, float3 blend)
+{
+    return abs(base - blend);
+}
+
+float3 BlendExclusion(float3 base, float3 blend)
+{
+    return base + blend - 2.0 * base * blend;
+}
+
+float3 BlendDarken(float3 base, float3 blend)
+{
+    return min(base, blend);
+}
+
+float3 BlendLighten(float3 base, float3 blend)
+{
+    return max(base, blend);
+}
+
+float3 BlendColorDodge(float3 base, float3 blend)
+{
+    // Clamp to prevent division by zero and ensure valid output range
+    return saturate(base / max(1.0 - blend, 0.0001));
+}
+
+float3 BlendColorBurn(float3 base, float3 blend)
+{
+    // Clamp to prevent division by zero and ensure valid output range
+    return saturate(1.0 - (1.0 - base) / max(blend, 0.0001));
+}
+
+float3 BlendLinearDodge(float3 base, float3 blend)
+{
+    return BlendAdd(base, blend);
+}
+
+float3 BlendLinearBurn(float3 base, float3 blend)
+{
+    return max(base + blend - 1.0, 0.0);
+}
+
+float3 BlendVividLight(float3 base, float3 blend)
+{
+    float3 result;
+    result.r = blend.r < 0.5 ? (1.0 - (1.0 - base.r) / (2.0 * blend.r + 0.0001)) : (base.r / (2.0 * (1.0 - blend.r) + 0.0001));
+    result.g = blend.g < 0.5 ? (1.0 - (1.0 - base.g) / (2.0 * blend.g + 0.0001)) : (base.g / (2.0 * (1.0 - blend.g) + 0.0001));
+    result.b = blend.b < 0.5 ? (1.0 - (1.0 - base.b) / (2.0 * blend.b + 0.0001)) : (base.b / (2.0 * (1.0 - blend.b) + 0.0001));
+    return saturate(result);
+}
+
+float3 BlendLinearLight(float3 base, float3 blend)
+{
+    return saturate(base + 2.0 * blend - 1.0);
+}
+
+float3 BlendPinLight(float3 base, float3 blend)
+{
+    float3 result;
+    result.r = blend.r < 0.5 ? min(base.r, 2.0 * blend.r) : max(base.r, 2.0 * blend.r - 1.0);
+    result.g = blend.g < 0.5 ? min(base.g, 2.0 * blend.g) : max(base.g, 2.0 * blend.g - 1.0);
+    result.b = blend.b < 0.5 ? min(base.b, 2.0 * blend.b) : max(base.b, 2.0 * blend.b - 1.0);
+    return result;
+}
+
+float3 BlendHardMix(float3 base, float3 blend)
+{
+    float3 vivid = BlendVividLight(base, blend);
+    return float3(vivid.r < 0.5 ? 0.0 : 1.0, vivid.g < 0.5 ? 0.0 : 1.0, vivid.b < 0.5 ? 0.0 : 1.0);
+}
+
+// =============================================================================
+// MAIN BLEND SHADER
+// 
+// Alpha Blending Mathematics:
+// ---------------------------
+// This shader implements proper alpha compositing using the "over" operator.
+// 
+// Given:
+//   - base: The accumulated result from layers below (RGBA)
+//   - blend: The current layer being composited (RGBA)
+//   - Opacity: Layer opacity parameter (0.0-1.0)
+//   - maskValue: Mask texture value (0.0-1.0, optional)
+//
+// The blending process:
+//   1. Calculate effective opacity: Opacity * maskValue
+//   2. Apply blend mode to RGB channels (Normal, Multiply, Screen, etc.)
+//   3. Combine with blend layer's alpha: finalBlendAmount = effectiveOpacity * blend.a
+//   4. Lerp RGB: result.rgb = lerp(base.rgb, blended.rgb, finalBlendAmount)
+//   5. Composite alpha: result.a = base.a + blend.a * effectiveOpacity * (1 - base.a)
+//
+// This ensures:
+//   - Layers with alpha < 1.0 are semi-transparent
+//   - Layer opacity controls blend strength
+//   - Mask modulates the blend amount
+//   - Alpha channel is correctly accumulated using standard compositing
+// =============================================================================
+
+[numthreads(8, 8, 1)]
+void BlendCS(uint3 ThreadId : SV_DispatchThreadID)
+{
+    if (ThreadId.x >= TextureDimensions.x || ThreadId.y >= TextureDimensions.y) return;
+
+    uint2 Pos = ThreadId.xy;
+    
+    float4 base = InBase.Load(int3(Pos, 0));
+    float4 blend = InBlend.Load(int3(Pos, 0));
+    
+    // Get mask value
+    float maskValue = 1.0;
+    if (bHasMask > 0)
+    {
+        maskValue = InMask.Load(int3(Pos, 0));
+        if (bInvertMask > 0) maskValue = 1.0 - maskValue;
+    }
+    
+    // Calculate effective opacity from layer opacity, mask, and blend layer alpha
+    // The blend layer's alpha determines how much of the blend layer is visible
+    float blendAlpha = blend.a;
+    float effectiveOpacity = Opacity * maskValue;
+    
+    // Apply blend mode to RGB channels
+    float3 blended;
+    switch (BlendMode)
+    {
+        case 0:  blended = BlendNormal(base.rgb, blend.rgb); break;
+        case 1:  blended = BlendMultiply(base.rgb, blend.rgb); break;
+        case 2:  blended = BlendScreen(base.rgb, blend.rgb); break;
+        case 3:  blended = BlendOverlay(base.rgb, blend.rgb); break;
+        case 4:  blended = BlendSoftLight(base.rgb, blend.rgb); break;
+        case 5:  blended = BlendHardLight(base.rgb, blend.rgb); break;
+        case 6:  blended = BlendAdd(base.rgb, blend.rgb); break;
+        case 7:  blended = BlendSubtract(base.rgb, blend.rgb); break;
+        case 8:  blended = BlendDifference(base.rgb, blend.rgb); break;
+        case 9:  blended = BlendExclusion(base.rgb, blend.rgb); break;
+        case 10: blended = BlendDarken(base.rgb, blend.rgb); break;
+        case 11: blended = BlendLighten(base.rgb, blend.rgb); break;
+        case 12: blended = BlendColorDodge(base.rgb, blend.rgb); break;
+        case 13: blended = BlendColorBurn(base.rgb, blend.rgb); break;
+        case 14: blended = BlendLinearDodge(base.rgb, blend.rgb); break;
+        case 15: blended = BlendLinearBurn(base.rgb, blend.rgb); break;
+        case 16: blended = BlendVividLight(base.rgb, blend.rgb); break;
+        case 17: blended = BlendLinearLight(base.rgb, blend.rgb); break;
+        case 18: blended = BlendPinLight(base.rgb, blend.rgb); break;
+        case 19: blended = BlendHardMix(base.rgb, blend.rgb); break;
+        default: blended = BlendNormal(base.rgb, blend.rgb); break;
+    }
+    
+    // Combine effective opacity with blend layer's alpha for final blend amount
+    float finalBlendAmount = effectiveOpacity * blendAlpha;
+    
+    // Lerp RGB channels based on final blend amount
+    float3 result = lerp(base.rgb, blended, finalBlendAmount);
+    
+    // Standard alpha compositing: resultAlpha = baseAlpha + blendAlpha * (1 - baseAlpha)
+    // Apply effective opacity to the blend layer's contribution
+    float resultAlpha = base.a + blendAlpha * effectiveOpacity * (1.0 - base.a);
+    
+    OutResult[Pos] = float4(result, resultAlpha);
+}

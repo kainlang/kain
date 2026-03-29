@@ -1,0 +1,896 @@
+# ============================================================================
+# MATERIALIZE - Editor Module
+# ============================================================================
+# Complete editor integration for the Materialize PBR texture generator
+# - Asset editor with 3D viewport, layer stack panel, and properties
+# - Details panel customizations for MaterializeActor
+# - Level editor menu extensions
+# - Toolbar with Generate, Save, Export, and Preset actions
+# - Docking layout: Viewport (70% left) + Layers/Properties (30% right)
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: EDITOR MODULE - Main editor registration and extensions
+# ============================================================================
+
+@editor_module
+struct MaterializeEditorModule:
+    # Level Editor Menu Extensions
+    @menu_entry(path: "Actor/Materialize", label: "Spawn Materialize Actor")
+    fn on_spawn_materialize():
+        println("Spawning Materialize Actor at cursor location")
+    
+    @menu_entry(path: "Tools/Materialize", label: "Batch Process Textures")
+    fn on_batch_process():
+        println("Opening batch texture processing dialog")
+    
+    @menu_entry(path: "Tools/Materialize", label: "Validate Layer Stack")
+    fn on_validate_stack():
+        println("Validating layer stack integrity")
+
+# ============================================================================
+# SECTION 2: MATERIALIZE ASSET EDITOR - Full asset editor with tabs
+# ============================================================================
+
+@asset_editor
+struct MaterializeAssetEditor:
+    # Editor state
+    current_layer_stack: LayerStack
+    selected_layer_index: Int
+    preview_mesh: StaticMesh?
+    is_generating: Bool
+    
+    # Editor components
+    @viewport
+    preview_viewport: MaterializePreviewViewport
+    
+    @properties
+    properties_panel: MaterializePropertiesPanel
+    
+    @toolbar
+    editor_toolbar: MaterializeToolbar
+    
+    # Custom panels
+    layers_panel: MaterializeLayersPanel
+    
+    # Editor lifecycle
+    fn on_asset_opened():
+        println("Opening Materialize asset in editor")
+        selected_layer_index = -1
+        is_generating = false
+        
+        # Initialize layer stack
+        current_layer_stack = LayerStack()
+        current_layer_stack.width = 2048
+        current_layer_stack.height = 2048
+        
+        # Load default preview mesh
+        preview_mesh = null
+        
+        # Update UI
+        preview_viewport.set_layer_stack(current_layer_stack)
+        layers_panel.set_layer_stack(current_layer_stack)
+        properties_panel.set_layer_stack(current_layer_stack)
+    
+    fn on_asset_closed():
+        println("Closing Materialize asset editor")
+    
+    fn on_properties_changed():
+        println("Properties changed, marking layers dirty")
+        current_layer_stack.mark_all_dirty()
+        preview_viewport.refresh()
+    
+    fn on_layer_selected(index: Int):
+        println("Layer selected: {index}")
+        selected_layer_index = index
+        properties_panel.set_selected_layer(index)
+    
+    fn on_generate_clicked():
+        println("Generating PBR maps from layer stack")
+        is_generating = true
+        
+        # Evaluate layer stack
+        let result = evaluate_stack(current_layer_stack)
+        
+        if result != null:
+            println("Generation successful")
+            preview_viewport.set_result(result)
+        else:
+            println("Generation failed")
+        
+        is_generating = false
+    
+    # Editor metadata
+    fn get_toolkit_name() -> String:
+        return "Materialize Editor"
+    
+    fn get_world_centric_tab_color() -> Vec3:
+        return vec3(0.8, 0.4, 0.2)
+    
+    fn get_world_centric_tab_prefix() -> String:
+        return "Materialize "
+    
+    # Tab layout configuration
+    fn get_tab_layout() -> TabLayout:
+        return TabLayout(
+            # Main horizontal split: Viewport (70%) | Layers+Properties (30%)
+            orientation: "Horizontal",
+            splits: [
+                TabSplit(
+                    id: "Viewport",
+                    weight: 0.7,
+                    tabs: ["Viewport"]
+                ),
+                TabSplit(
+                    id: "RightPanel",
+                    weight: 0.3,
+                    orientation: "Vertical",
+                    splits: [
+                        TabSplit(
+                            id: "Layers",
+                            weight: 0.6,
+                            tabs: ["Layers"]
+                        ),
+                        TabSplit(
+                            id: "Properties",
+                            weight: 0.4,
+                            tabs: ["Properties"]
+                        )
+                    ]
+                )
+            ]
+        )
+
+# ============================================================================
+# SECTION 3: VIEWPORT - 3D preview viewport with PBR material display
+# ============================================================================
+
+@viewport
+struct MaterializePreviewViewport:
+    # Scene components
+    @scene_actor
+    preview_actor: StaticMeshActor
+    
+    @camera
+    preview_camera: CameraComponent
+    
+    @light
+    directional_light: DirectionalLightComponent
+    
+    @light
+    sky_light: SkyLightComponent
+    
+    # Viewport state
+    current_result: LayerEvalResult?
+    current_mesh: StaticMesh?
+    show_wireframe: Bool
+    show_grid: Bool
+    
+    # Scene setup
+    fn on_viewport_created():
+        println("Setting up Materialize preview scene")
+        
+        # Configure lighting
+        directional_light.intensity = 3.0
+        directional_light.color = vec3(1.0, 0.95, 0.9)
+        sky_light.intensity = 1.0
+        
+        # Position camera
+        preview_camera.position = vec3(0.0, -300.0, 150.0)
+        preview_camera.look_at(vec3(0.0, 0.0, 0.0))
+        preview_camera.fov = 60.0
+        
+        # Initialize state
+        show_wireframe = false
+        show_grid = true
+        current_result = null
+        
+        # Load default sphere mesh
+        set_preview_mesh(null)
+    
+    fn set_layer_stack(stack: LayerStack):
+        println("Loading layer stack into viewport")
+        # Store reference for regeneration
+    
+    fn set_result(result: LayerEvalResult):
+        println("Applying PBR result to preview mesh")
+        current_result = result
+        
+        # Create dynamic material instance
+        if result.base_color != null:
+            # Apply textures to preview actor material
+            println("Applying base color texture")
+        
+        if result.normal != null:
+            println("Applying normal map")
+        
+        if result.roughness != null:
+            println("Applying roughness map")
+        
+        if result.metallic != null:
+            println("Applying metallic map")
+        
+        if result.ao != null:
+            println("Applying ambient occlusion")
+        
+        if result.height != null:
+            println("Applying height map")
+        
+        if result.emissive != null:
+            println("Applying emissive map")
+    
+    fn set_preview_mesh(mesh: StaticMesh?):
+        println("Setting preview mesh")
+        current_mesh = mesh
+        
+        if mesh == null:
+            # Load default sphere
+            println("Loading default sphere mesh")
+        else:
+            # Apply custom mesh
+            println("Applying custom mesh")
+    
+    fn refresh():
+        println("Refreshing viewport")
+    
+    fn toggle_wireframe():
+        show_wireframe = not(show_wireframe)
+        println("Wireframe: {show_wireframe}")
+    
+    fn toggle_grid():
+        show_grid = not(show_grid)
+        println("Grid: {show_grid}")
+    
+    fn on_viewport_tick(delta: Float):
+        # Rotate preview mesh slowly
+        if preview_actor != null:
+            # preview_actor.add_rotation(vec3(0.0, 0.0, delta * 10.0))
+            pass
+
+# ============================================================================
+# SECTION 4: LAYERS PANEL - Layer stack management widget
+# ============================================================================
+
+@slate
+struct MaterializeLayersPanel:
+    # Panel state
+    @property
+    layer_stack: LayerStack?
+    
+    @property
+    selected_index: Int
+    
+    @property
+    drag_index: Int
+    
+    # Widget construction
+    fn construct() -> Widget:
+        return VBox(
+            # Header
+            HBox(
+                padding, 5.0,
+                Text(
+                    text, "Layers",
+                    font, "BoldFont",
+                    size, 14.0
+                ),
+                Spacer(fill_width, 1.0),
+                Button(
+                    label, "+",
+                    on_click, on_add_layer,
+                    tooltip, "Add new layer",
+                    width, 30.0,
+                    height, 30.0
+                )
+            ),
+            
+            Separator(),
+            
+            # Layer list (scrollable)
+            ScrollBox(
+                fill_height, 1.0,
+                VBox(
+                    # Dynamically generated layer items
+                    # Each layer shows: visibility, name, blend mode, opacity
+                    render_layer_list()
+                )
+            ),
+            
+            Separator(),
+            
+            # Layer actions toolbar
+            HBox(
+                padding, 5.0,
+                Button(
+                    icon, "Icons.Duplicate",
+                    on_click, on_duplicate_layer,
+                    tooltip, "Duplicate selected layer",
+                    enabled, selected_index >= 0,
+                    width, 30.0,
+                    height, 30.0
+                ),
+                Button(
+                    icon, "Icons.Delete",
+                    on_click, on_delete_layer,
+                    tooltip, "Delete selected layer",
+                    enabled, selected_index >= 0,
+                    width, 30.0,
+                    height, 30.0
+                ),
+                Spacer(width, 10.0),
+                Button(
+                    icon, "Icons.ArrowUp",
+                    on_click, on_move_layer_up,
+                    tooltip, "Move layer up",
+                    enabled, selected_index > 0,
+                    width, 30.0,
+                    height, 30.0
+                ),
+                Button(
+                    icon, "Icons.ArrowDown",
+                    on_click, on_move_layer_down,
+                    tooltip, "Move layer down",
+                    enabled, can_move_down(),
+                    width, 30.0,
+                    height, 30.0
+                )
+            )
+        )
+    
+    fn render_layer_list() -> Widget:
+        if layer_stack == null:
+            return Text(text, "No layer stack loaded")
+        
+        # Generate layer items
+        return VBox(
+            # Layer 0
+            render_layer_item(0),
+            # Layer 1
+            render_layer_item(1),
+            # Layer 2
+            render_layer_item(2)
+            # In real implementation, iterate over layer_stack.layers
+        )
+    
+    fn render_layer_item(index: Int) -> Widget:
+        if layer_stack == null:
+            return Spacer(height, 0.0)
+        
+        let layers = layer_stack.layers
+        if index >= len(layers):
+            return Spacer(height, 0.0)
+        
+        let layer = layers[index]
+        let is_selected = (index == selected_index)
+        
+        return HBox(
+            padding, 5.0,
+            background_color, if is_selected then vec4(0.3, 0.3, 0.3, 1.0) else vec4(0.2, 0.2, 0.2, 1.0),
+            on_click, on_layer_clicked(index),
+            
+            # Visibility toggle
+            CheckBox(
+                checked, layer.enabled,
+                on_changed, on_layer_visibility_changed(index),
+                width, 20.0
+            ),
+            
+            Spacer(width, 5.0),
+            
+            # Layer name
+            Text(
+                text, layer.name,
+                font, "DetailFont",
+                fill_width, 1.0
+            ),
+            
+            Spacer(width, 5.0),
+            
+            # Blend mode indicator
+            Text(
+                text, get_blend_mode_name(layer.blend_mode),
+                font, "SmallFont",
+                color, vec4(0.7, 0.7, 0.7, 1.0),
+                width, 80.0
+            ),
+            
+            Spacer(width, 5.0),
+            
+            # Opacity
+            Text(
+                text, "{layer.opacity * 100.0}%",
+                font, "SmallFont",
+                color, vec4(0.7, 0.7, 0.7, 1.0),
+                width, 40.0,
+                alignment, "Right"
+            )
+        )
+    
+    fn get_blend_mode_name(mode: LayerBlendMode) -> String:
+        if mode == LayerBlendMode.Normal:
+            return "Normal"
+        if mode == LayerBlendMode.Multiply:
+            return "Multiply"
+        if mode == LayerBlendMode.Add:
+            return "Add"
+        if mode == LayerBlendMode.Screen:
+            return "Screen"
+        if mode == LayerBlendMode.Overlay:
+            return "Overlay"
+        return "Unknown"
+    
+    fn set_layer_stack(stack: LayerStack):
+        layer_stack = stack
+        selected_index = -1
+    
+    fn on_layer_clicked(index: Int):
+        selected_index = index
+        println("Layer clicked: {index}")
+    
+    fn on_layer_visibility_changed(index: Int):
+        if layer_stack != null:
+            let layers = layer_stack.layers
+            if index >= 0 and index < len(layers):
+                layers[index].enabled = not(layers[index].enabled)
+                layer_stack.mark_dirty(index)
+    
+    fn on_add_layer():
+        println("Adding new layer")
+        if layer_stack != null:
+            let new_layer = Layer()
+            new_layer.name = "New Layer"
+            new_layer.id = "layer_" + len(layer_stack.layers)
+            new_layer.layer_type = LayerType.Fill
+            new_layer.fill_color = vec4(0.5, 0.5, 0.5, 1.0)
+            layer_stack.add_layer(new_layer)
+    
+    fn on_duplicate_layer():
+        println("Duplicating layer: {selected_index}")
+        if layer_stack != null and selected_index >= 0:
+            layer_stack.duplicate_layer(selected_index)
+    
+    fn on_delete_layer():
+        println("Deleting layer: {selected_index}")
+        if layer_stack != null and selected_index >= 0:
+            layer_stack.remove_layer(selected_index)
+            selected_index = -1
+    
+    fn on_move_layer_up():
+        println("Moving layer up: {selected_index}")
+        if layer_stack != null and selected_index > 0:
+            layer_stack.move_layer(selected_index, selected_index - 1)
+            selected_index = selected_index - 1
+    
+    fn on_move_layer_down():
+        println("Moving layer down: {selected_index}")
+        if layer_stack != null:
+            let layers = layer_stack.layers
+            if selected_index >= 0 and selected_index < len(layers) - 1:
+                layer_stack.move_layer(selected_index, selected_index + 1)
+                selected_index = selected_index + 1
+    
+    fn can_move_down() -> Bool:
+        if layer_stack == null:
+            return false
+        if selected_index < 0:
+            return false
+        return selected_index < len(layer_stack.layers) - 1
+
+# ============================================================================
+# SECTION 5: PROPERTIES PANEL - Layer and stack properties editor
+# ============================================================================
+
+@slate
+struct MaterializePropertiesPanel:
+    # Panel state
+    @property
+    layer_stack: LayerStack?
+    
+    @property
+    selected_layer_index: Int
+    
+    # Widget construction
+    fn construct() -> Widget:
+        return VBox(
+            # Header
+            HBox(
+                padding, 5.0,
+                Text(
+                    text, "Properties",
+                    font, "BoldFont",
+                    size, 14.0
+                )
+            ),
+            
+            Separator(),
+            
+            # Properties content (scrollable)
+            ScrollBox(
+                fill_height, 1.0,
+                VBox(
+                    padding, 10.0,
+                    render_properties()
+                )
+            )
+        )
+    
+    fn render_properties() -> Widget:
+        if layer_stack == null:
+            return Text(text, "No layer stack loaded")
+        
+        if selected_layer_index < 0:
+            return render_stack_properties()
+        else:
+            return render_layer_properties()
+    
+    fn render_stack_properties() -> Widget:
+        return VBox(
+            # Stack resolution
+            Text(
+                text, "Stack Properties",
+                font, "BoldFont",
+                padding, vec2(0.0, 5.0)
+            ),
+            
+            Spacer(height, 10.0),
+            
+            HBox(
+                padding, 5.0,
+                Text(
+                    text, "Resolution:",
+                    width, 100.0
+                ),
+                ComboBox(
+                    options, ["512", "1024", "2048", "4096"],
+                    selected, "2048",
+                    on_selection_changed, on_resolution_changed,
+                    width, 100.0
+                )
+            ),
+            
+            Spacer(height, 10.0),
+            
+            # Layer count info
+            HBox(
+                padding, 5.0,
+                Text(
+                    text, "Layer Count:",
+                    width, 100.0
+                ),
+                Text(
+                    text, if layer_stack != null then "{len(layer_stack.layers)}" else "0",
+                    font, "DetailFont"
+                )
+            )
+        )
+    
+    fn render_layer_properties() -> Widget:
+        if layer_stack == null:
+            return Text(text, "No layer selected")
+        
+        let layers = layer_stack.layers
+        if selected_layer_index >= len(layers):
+            return Text(text, "Invalid layer index")
+        
+        let layer = layers[selected_layer_index]
+        
+        return VBox(
+            # Layer name
+            Text(
+                text, "Layer: {layer.name}",
+                font, "BoldFont",
+                padding, vec2(0.0, 5.0)
+            ),
+            
+            Spacer(height, 10.0),
+            
+            # Blend mode
+            HBox(
+                padding, 5.0,
+                Text(
+                    text, "Blend Mode:",
+                    width, 100.0
+                ),
+                ComboBox(
+                    options, ["Normal", "Multiply", "Add", "Screen", "Overlay"],
+                    selected, "Normal",
+                    on_selection_changed, on_blend_mode_changed,
+                    width, 120.0
+                )
+            ),
+            
+            Spacer(height, 10.0),
+            
+            # Opacity slider
+            HBox(
+                padding, 5.0,
+                Text(
+                    text, "Opacity:",
+                    width, 100.0
+                ),
+                Slider(
+                    value, layer.opacity,
+                    min, 0.0,
+                    max, 1.0,
+                    on_value_changed, on_opacity_changed,
+                    fill_width, 1.0
+                ),
+                Text(
+                    text, "{layer.opacity * 100.0}%",
+                    width, 50.0,
+                    alignment, "Right"
+                )
+            ),
+            
+            Spacer(height, 10.0),
+            
+            # Layer type
+            HBox(
+                padding, 5.0,
+                Text(
+                    text, "Type:",
+                    width, 100.0
+                ),
+                Text(
+                    text, get_layer_type_name(layer.layer_type),
+                    font, "DetailFont"
+                )
+            ),
+            
+            Spacer(height, 10.0),
+            
+            # Output channels
+            Text(
+                text, "Output Channels:",
+                font, "BoldFont",
+                padding, vec2(0.0, 5.0)
+            ),
+            
+            CheckBox(
+                label, "Base Color",
+                checked, (layer.output_channels & 1) != 0,
+                on_changed, on_channel_changed(0)
+            ),
+            CheckBox(
+                label, "Normal",
+                checked, (layer.output_channels & 2) != 0,
+                on_changed, on_channel_changed(1)
+            ),
+            CheckBox(
+                label, "Roughness",
+                checked, (layer.output_channels & 4) != 0,
+                on_changed, on_channel_changed(2)
+            ),
+            CheckBox(
+                label, "Metallic",
+                checked, (layer.output_channels & 8) != 0,
+                on_changed, on_channel_changed(3)
+            ),
+            CheckBox(
+                label, "Height",
+                checked, (layer.output_channels & 16) != 0,
+                on_changed, on_channel_changed(4)
+            ),
+            CheckBox(
+                label, "AO",
+                checked, (layer.output_channels & 32) != 0,
+                on_changed, on_channel_changed(5)
+            ),
+            CheckBox(
+                label, "Emissive",
+                checked, (layer.output_channels & 64) != 0,
+                on_changed, on_channel_changed(6)
+            )
+        )
+    
+    fn get_layer_type_name(layer_type: LayerType) -> String:
+        if layer_type == LayerType.Base:
+            return "Base"
+        if layer_type == LayerType.Image:
+            return "Image"
+        if layer_type == LayerType.Procedural:
+            return "Procedural"
+        if layer_type == LayerType.Fill:
+            return "Fill"
+        if layer_type == LayerType.Adjustment:
+            return "Adjustment"
+        if layer_type == LayerType.Filter:
+            return "Filter"
+        if layer_type == LayerType.Generator:
+            return "Generator"
+        return "Unknown"
+    
+    fn set_layer_stack(stack: LayerStack):
+        layer_stack = stack
+        selected_layer_index = -1
+    
+    fn set_selected_layer(index: Int):
+        selected_layer_index = index
+    
+    fn on_resolution_changed(resolution: String):
+        println("Resolution changed: {resolution}")
+        if layer_stack != null:
+            let res = parse_int(resolution)
+            layer_stack.width = res
+            layer_stack.height = res
+            layer_stack.mark_all_dirty()
+    
+    fn on_blend_mode_changed(mode: String):
+        println("Blend mode changed: {mode}")
+    
+    fn on_opacity_changed(opacity: Float):
+        println("Opacity changed: {opacity}")
+        if layer_stack != null and selected_layer_index >= 0:
+            let layers = layer_stack.layers
+            if selected_layer_index < len(layers):
+                layers[selected_layer_index].opacity = opacity
+                layer_stack.mark_dirty(selected_layer_index)
+    
+    fn on_channel_changed(channel_bit: Int):
+        println("Channel toggled: {channel_bit}")
+        if layer_stack != null and selected_layer_index >= 0:
+            let layers = layer_stack.layers
+            if selected_layer_index < len(layers):
+                let mask = 1 << channel_bit
+                layers[selected_layer_index].output_channels = layers[selected_layer_index].output_channels ^ mask
+                layer_stack.mark_dirty(selected_layer_index)
+
+# ============================================================================
+# SECTION 6: TOOLBAR - Editor toolbar with main actions
+# ============================================================================
+
+@toolbar
+struct MaterializeToolbar:
+    @button(icon: "Icons.Generate", tooltip: "Generate PBR Maps")
+    fn on_generate():
+        println("Generating PBR maps from layer stack")
+    
+    @separator
+    
+    @button(icon: "Icons.Save", tooltip: "Save Asset")
+    fn on_save():
+        println("Saving Materialize asset")
+    
+    @button(icon: "Icons.Export", tooltip: "Export Textures")
+    fn on_export():
+        println("Exporting textures to disk")
+    
+    @separator
+    
+    @dropdown(label: "Preset", options: ["Default", "Metal", "Wood", "Stone", "Fabric"])
+    fn on_preset_changed(preset: String):
+        println("Preset changed: {preset}")
+    
+    @separator
+    
+    @toggle(label: "Wireframe", default: false)
+    fn on_toggle_wireframe(enabled: Bool):
+        println("Wireframe: {enabled}")
+    
+    @toggle(label: "Grid", default: true)
+    fn on_toggle_grid(enabled: Bool):
+        println("Grid: {enabled}")
+    
+    @separator
+    
+    @dropdown(label: "Preview Mesh", options: ["Sphere", "Cube", "Plane", "Cylinder", "Custom"])
+    fn on_preview_mesh_changed(mesh: String):
+        println("Preview mesh: {mesh}")
+
+# ============================================================================
+# SECTION 7: EDITOR STATE - Shared state management
+# ============================================================================
+
+struct MaterializeEditorState:
+    layer_stack: LayerStack
+    selected_layer_index: Int
+    preview_mesh: StaticMesh?
+    is_generating: Bool
+    current_result: LayerEvalResult?
+    
+    fn new() -> MaterializeEditorState:
+        let state = MaterializeEditorState()
+        state.layer_stack = LayerStack()
+        state.layer_stack.width = 2048
+        state.layer_stack.height = 2048
+        state.selected_layer_index = -1
+        state.is_generating = false
+        state.preview_mesh = null
+        state.current_result = null
+        return state
+    
+    fn select_layer(index: Int):
+        selected_layer_index = index
+        println("Layer selected: {index}")
+    
+    fn add_layer(layer_type: LayerType):
+        let new_layer = Layer()
+        new_layer.name = "New Layer"
+        new_layer.id = "layer_" + len(layer_stack.layers)
+        new_layer.layer_type = layer_type
+        new_layer.blend_mode = LayerBlendMode.Normal
+        new_layer.opacity = 1.0
+        new_layer.output_channels = 255
+        new_layer.enabled = true
+        
+        layer_stack.add_layer(new_layer)
+        selected_layer_index = len(layer_stack.layers) - 1
+    
+    fn remove_selected_layer():
+        if selected_layer_index >= 0:
+            layer_stack.remove_layer(selected_layer_index)
+            selected_layer_index = -1
+    
+    fn duplicate_selected_layer():
+        if selected_layer_index >= 0:
+            let new_index = layer_stack.duplicate_layer(selected_layer_index)
+            selected_layer_index = new_index
+    
+    fn move_selected_layer_up():
+        if selected_layer_index > 0:
+            layer_stack.move_layer(selected_layer_index, selected_layer_index - 1)
+            selected_layer_index = selected_layer_index - 1
+    
+    fn move_selected_layer_down():
+        if selected_layer_index >= 0 and selected_layer_index < len(layer_stack.layers) - 1:
+            layer_stack.move_layer(selected_layer_index, selected_layer_index + 1)
+            selected_layer_index = selected_layer_index + 1
+    
+    fn generate_pbr_maps():
+        println("Generating PBR maps")
+        is_generating = true
+        
+        let result = evaluate_stack(layer_stack)
+        
+        if result != null:
+            current_result = result
+            println("Generation successful - {result.evaluation_time_ms}ms")
+        else:
+            println("Generation failed")
+        
+        is_generating = false
+    
+    fn set_resolution(width: Int, height: Int):
+        layer_stack.width = width
+        layer_stack.height = height
+        layer_stack.mark_all_dirty()
+        println("Resolution changed: {width}x{height}")
+
+# ============================================================================
+# SECTION 8: TAB LAYOUT HELPER - Docking layout configuration
+# ============================================================================
+
+struct TabLayout:
+    orientation: String
+    splits: Array<TabSplit>
+
+struct TabSplit:
+    id: String
+    weight: Float
+    tabs: Array<String>
+    orientation: String
+    splits: Array<TabSplit>
+
+# ============================================================================
+# SECTION 9: HELPER FUNCTIONS - Utility functions for editor
+# ============================================================================
+
+fn parse_int(s: String) -> Int:
+    # Parse string to integer
+    if s == "512":
+        return 512
+    if s == "1024":
+        return 1024
+    if s == "2048":
+        return 2048
+    if s == "4096":
+        return 4096
+    return 1024
+
+fn parse_float(s: String) -> Float:
+    # Parse string to float
+    return 1.0
+
+# ============================================================================
+# END OF EDITOR MODULE
+# ============================================================================

@@ -1,0 +1,1108 @@
+# ============================================================================
+# Materialize - Advanced Particle Effects System
+# GPU-accelerated particles, real-time effects, material animations
+# ============================================================================
+
+# ============================================================================
+# PARTICLE DATA STRUCTURES
+# ============================================================================
+
+struct Particle:
+    position: Vec3
+    velocity: Vec3
+    acceleration: Vec3
+    color: Vec4
+    size: Vec2
+    rotation: Float
+    angular_velocity: Float
+    lifetime: Float
+    age: Float
+    mass: Float
+    sprite_index: Int
+    trail_id: Int
+
+struct ParticleEmitterShape:
+    shape_type: EmitterShapeType
+    position: Vec3
+    rotation: Vec3
+    scale: Vec3
+    mesh_surface_area: Float
+    mesh_triangle_count: Int
+
+enum EmitterShapeType:
+    Point
+    Sphere
+    Box
+    Cone
+    Mesh
+    Circle
+    Ring
+    EmitterShapeType_MAX
+
+struct ParticleForce:
+    force_type: ForceType
+    strength: Float
+    position: Vec3
+    radius: Float
+    direction: Vec3
+    noise_scale: Float
+    noise_speed: Float
+
+enum ForceType:
+    Gravity
+    Wind
+    Vortex
+    Turbulence
+    Attraction
+    Repulsion
+    ForceType_MAX
+
+struct ParticleCollision:
+    enabled: Bool
+    heightmap_texture: Sampler2D
+    heightmap_scale: Vec3
+    bounce_factor: Float
+    friction: Float
+    kill_on_collision: Bool
+
+struct ParticleTrail:
+    max_points: Int
+    lifetime: Float
+    width_curve: Array<Float>
+    color_curve: Array<Vec4>
+    texture: Sampler2D
+
+struct SpriteSheetAnimation:
+    texture: Sampler2D
+    rows: Int
+    columns: Int
+    frame_count: Int
+    fps: Float
+    is_looping: Bool
+
+# ============================================================================
+# GPU PARTICLE COMPUTE SHADERS
+# ============================================================================
+
+shader compute ParticleSpawn(thread_id: Vec3) -> Unit:
+    uniform spawn_count: Int @0
+    uniform emitter_shape: Int @1
+    uniform emitter_position: Vec3 @2
+    uniform emitter_rotation: Vec3 @3
+    uniform emitter_scale: Vec3 @4
+    uniform initial_velocity_min: Vec3 @5
+    uniform initial_velocity_max: Vec3 @6
+    uniform lifetime_min: Float @7
+    uniform lifetime_max: Float @8
+    uniform size_min: Vec2 @9
+    uniform size_max: Vec2 @10
+    uniform color_start: Vec4 @11
+    uniform mass_min: Float @12
+    uniform mass_max: Float @13
+    uniform random_seed: Float @14
+    uniform particle_buffer: RWBuffer<Particle> @15
+    uniform dead_list: RWBuffer<Int> @16
+    uniform alive_count: RWBuffer<Int> @17
+    
+    let particle_id = thread_id.x
+    if particle_id >= spawn_count:
+        return
+    
+    let dead_index = dead_list[particle_id]
+    if dead_index < 0:
+        return
+    
+    let rand_state = random_seed + particle_id * 12.9898
+    let rand1 = frac(sin(rand_state) * 43758.5453)
+    let rand2 = frac(sin(rand_state * 2.0) * 43758.5453)
+    let rand3 = frac(sin(rand_state * 3.0) * 43758.5453)
+    let rand4 = frac(sin(rand_state * 4.0) * 43758.5453)
+    let rand5 = frac(sin(rand_state * 5.0) * 43758.5453)
+    
+    let spawn_pos = calculate_spawn_position(emitter_shape, emitter_position, emitter_rotation, emitter_scale, rand1, rand2, rand3)
+    let velocity = lerp_vec3(initial_velocity_min, initial_velocity_max, rand4)
+    let lifetime = lerp(lifetime_min, lifetime_max, rand5)
+    let size = lerp_vec2(size_min, size_max, rand1)
+    let mass = lerp(mass_min, mass_max, rand2)
+    
+    particle_buffer[dead_index].position = spawn_pos
+    particle_buffer[dead_index].velocity = velocity
+    particle_buffer[dead_index].acceleration = vec3(0.0, 0.0, 0.0)
+    particle_buffer[dead_index].color = color_start
+    particle_buffer[dead_index].size = size
+    particle_buffer[dead_index].rotation = rand3 * 6.28318
+    particle_buffer[dead_index].angular_velocity = (rand4 - 0.5) * 2.0
+    particle_buffer[dead_index].lifetime = lifetime
+    particle_buffer[dead_index].age = 0.0
+    particle_buffer[dead_index].mass = mass
+    particle_buffer[dead_index].sprite_index = 0
+    particle_buffer[dead_index].trail_id = dead_index
+
+shader compute ParticleUpdate(thread_id: Vec3) -> Unit:
+    uniform delta_time: Float @0
+    uniform particle_count: Int @1
+    uniform force_count: Int @2
+    uniform collision_enabled: Int @3
+    uniform heightmap_scale: Vec3 @4
+    uniform bounce_factor: Float @5
+    uniform friction: Float @6
+    uniform kill_on_collision: Int @7
+    uniform particle_buffer: RWBuffer<Particle> @8
+    uniform force_buffer: Buffer<ParticleForce> @9
+    uniform dead_list: RWBuffer<Int> @10
+    uniform dead_count: RWBuffer<Int> @11
+    uniform heightmap: Sampler2D @12
+    uniform time: Float @13
+    
+    let particle_id = thread_id.x
+    if particle_id >= particle_count:
+        return
+    
+    let p = particle_buffer[particle_id]
+    
+    if p.age >= p.lifetime:
+        let dead_idx = dead_count[0]
+        dead_list[dead_idx] = particle_id
+        dead_count[0] = dead_idx + 1
+        return
+    
+    p.age = p.age + delta_time
+    
+    let total_force = vec3(0.0, 0.0, 0.0)
+    let force_idx = 0
+    while force_idx < force_count:
+        let force = force_buffer[force_idx]
+        let applied_force = calculate_force(p, force, time)
+        total_force = total_force + applied_force
+        force_idx = force_idx + 1
+    
+    p.acceleration = total_force / p.mass
+    p.velocity = p.velocity + p.acceleration * delta_time
+    p.position = p.position + p.velocity * delta_time
+    p.rotation = p.rotation + p.angular_velocity * delta_time
+    
+    if collision_enabled > 0:
+        let uv = vec2((p.position.x / heightmap_scale.x) + 0.5, (p.position.y / heightmap_scale.y) + 0.5)
+        if uv.x >= 0.0 and uv.x <= 1.0 and uv.y >= 0.0 and uv.y <= 1.0:
+            let height = sample(heightmap, uv).r * heightmap_scale.z
+            if p.position.z <= height:
+                if kill_on_collision > 0:
+                    p.age = p.lifetime
+                else:
+                    p.position.z = height
+                    p.velocity.z = p.velocity.z * -bounce_factor
+                    p.velocity.x = p.velocity.x * (1.0 - friction)
+                    p.velocity.y = p.velocity.y * (1.0 - friction)
+    
+    particle_buffer[particle_id] = p
+
+shader compute ParticleRender(thread_id: Vec3) -> Unit:
+    uniform particle_count: Int @0
+    uniform view_matrix: Mat4 @1
+    uniform projection_matrix: Mat4 @2
+    uniform camera_right: Vec3 @3
+    uniform camera_up: Vec3 @4
+    uniform color_over_lifetime: Int @5
+    uniform size_over_lifetime: Int @6
+    uniform particle_buffer: Buffer<Particle> @7
+    uniform vertex_buffer: RWBuffer<Float> @8
+    uniform color_curve: Buffer<Vec4> @9
+    uniform size_curve: Buffer<Float> @10
+    
+    let particle_id = thread_id.x
+    if particle_id >= particle_count:
+        return
+    
+    let p = particle_buffer[particle_id]
+    
+    if p.age >= p.lifetime:
+        return
+    
+    let life_ratio = p.age / p.lifetime
+    
+    let color = p.color
+    if color_over_lifetime > 0:
+        let curve_idx = min(int(life_ratio * 10.0), 9)
+        color = color_curve[curve_idx]
+    
+    let size = p.size
+    if size_over_lifetime > 0:
+        let curve_idx = min(int(life_ratio * 10.0), 9)
+        let size_mult = size_curve[curve_idx]
+        size = size * size_mult
+    
+    let cos_rot = cos(p.rotation)
+    let sin_rot = sin(p.rotation)
+    
+    let right = camera_right * size.x
+    let up = camera_up * size.y
+    
+    let v0 = p.position - right * cos_rot - up * sin_rot
+    let v1 = p.position + right * sin_rot - up * cos_rot
+    let v2 = p.position + right * cos_rot + up * sin_rot
+    let v3 = p.position - right * sin_rot + up * cos_rot
+    
+    let base_idx = particle_id * 24
+    
+    vertex_buffer[base_idx + 0] = v0.x
+    vertex_buffer[base_idx + 1] = v0.y
+    vertex_buffer[base_idx + 2] = v0.z
+    vertex_buffer[base_idx + 3] = color.r
+    vertex_buffer[base_idx + 4] = color.g
+    vertex_buffer[base_idx + 5] = color.b
+    
+    vertex_buffer[base_idx + 6] = v1.x
+    vertex_buffer[base_idx + 7] = v1.y
+    vertex_buffer[base_idx + 8] = v1.z
+    vertex_buffer[base_idx + 9] = color.r
+    vertex_buffer[base_idx + 10] = color.g
+    vertex_buffer[base_idx + 11] = color.b
+    
+    vertex_buffer[base_idx + 12] = v2.x
+    vertex_buffer[base_idx + 13] = v2.y
+    vertex_buffer[base_idx + 14] = v2.z
+    vertex_buffer[base_idx + 15] = color.r
+    vertex_buffer[base_idx + 16] = color.g
+    vertex_buffer[base_idx + 17] = color.b
+    
+    vertex_buffer[base_idx + 18] = v3.x
+    vertex_buffer[base_idx + 19] = v3.y
+    vertex_buffer[base_idx + 20] = v3.z
+    vertex_buffer[base_idx + 21] = color.r
+    vertex_buffer[base_idx + 22] = color.g
+    vertex_buffer[base_idx + 23] = color.b
+
+# ============================================================================
+# PROCEDURAL EFFECTS SHADERS
+# ============================================================================
+
+shader fragment FireEffect(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform intensity: Float @1
+    uniform color_hot: Vec3 @2
+    uniform color_cold: Vec3 @3
+    uniform noise_scale: Float @4
+    uniform flicker_speed: Float @5
+    
+    let noise_uv = vec2(uv.x * noise_scale, uv.y * noise_scale - time * 0.5)
+    let noise1 = perlin_noise(noise_uv)
+    let noise2 = perlin_noise(noise_uv * 2.0 + vec2(time * flicker_speed, 0.0))
+    let noise3 = perlin_noise(noise_uv * 4.0 - vec2(0.0, time * flicker_speed * 2.0))
+    
+    let combined_noise = noise1 * 0.5 + noise2 * 0.3 + noise3 * 0.2
+    
+    let fire_shape = 1.0 - uv.y
+    fire_shape = fire_shape * (1.0 - abs(uv.x - 0.5) * 2.0)
+    
+    let fire_value = combined_noise * fire_shape * intensity
+    fire_value = clamp(fire_value, 0.0, 1.0)
+    
+    let color = lerp_vec3(color_cold, color_hot, fire_value)
+    let alpha = fire_value * fire_value
+    
+    return vec4(color.r, color.g, color.b, alpha)
+
+shader fragment SmokeEffect(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform density: Float @1
+    uniform color: Vec3 @2
+    uniform noise_scale: Float @3
+    uniform rise_speed: Float @4
+    uniform turbulence: Float @5
+    
+    let noise_uv = vec2(uv.x * noise_scale + sin(time * 0.3) * turbulence, uv.y * noise_scale - time * rise_speed)
+    let noise1 = perlin_noise(noise_uv)
+    let noise2 = perlin_noise(noise_uv * 2.0 + vec2(time * 0.2, 0.0))
+    let noise3 = perlin_noise(noise_uv * 4.0)
+    
+    let combined_noise = noise1 * 0.5 + noise2 * 0.3 + noise3 * 0.2
+    
+    let smoke_shape = 1.0 - uv.y * 0.5
+    smoke_shape = smoke_shape * (1.0 - abs(uv.x - 0.5) * 1.5)
+    
+    let smoke_value = combined_noise * smoke_shape * density
+    smoke_value = clamp(smoke_value, 0.0, 1.0)
+    
+    let alpha = smoke_value * (1.0 - uv.y * 0.7)
+    
+    return vec4(color.r, color.g, color.b, alpha)
+
+shader fragment ElectricityEffect(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform intensity: Float @1
+    uniform color: Vec3 @2
+    uniform branch_count: Int @3
+    uniform thickness: Float @4
+    uniform flicker_speed: Float @5
+    
+    let center_x = 0.5
+    let dist_to_center = abs(uv.x - center_x)
+    
+    let noise_uv = vec2(uv.y * 10.0 + time * flicker_speed, uv.x * 5.0)
+    let noise = perlin_noise(noise_uv)
+    
+    let offset = noise * 0.1
+    let bolt_x = center_x + offset
+    let dist_to_bolt = abs(uv.x - bolt_x)
+    
+    let bolt_value = 1.0 - smoothstep(0.0, thickness, dist_to_bolt)
+    
+    let flicker = sin(time * flicker_speed * 10.0) * 0.5 + 0.5
+    bolt_value = bolt_value * (0.7 + flicker * 0.3)
+    
+    let glow = exp(-dist_to_bolt * 20.0) * 0.3
+    
+    let final_value = (bolt_value + glow) * intensity
+    final_value = clamp(final_value, 0.0, 1.0)
+    
+    return vec4(color.r * final_value, color.g * final_value, color.b * final_value, final_value)
+
+shader fragment MagicEffect(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform intensity: Float @1
+    uniform color_primary: Vec3 @2
+    uniform color_secondary: Vec3 @3
+    uniform swirl_speed: Float @4
+    uniform particle_density: Float @5
+    
+    let center = vec2(0.5, 0.5)
+    let to_center = uv - center
+    let dist = length(to_center)
+    let angle = atan2(to_center.y, to_center.x)
+    
+    let spiral_angle = angle + dist * 10.0 - time * swirl_speed
+    let spiral_uv = vec2(cos(spiral_angle), sin(spiral_angle)) * dist
+    
+    let noise1 = perlin_noise(spiral_uv * 5.0 + vec2(time * 0.5, 0.0))
+    let noise2 = perlin_noise(spiral_uv * 10.0 - vec2(0.0, time * 0.3))
+    
+    let particles = frac(noise1 * particle_density) > 0.95
+    let particle_value = particles * (1.0 - dist)
+    
+    let glow = exp(-dist * 3.0) * noise2
+    
+    let color_mix = sin(angle * 3.0 + time) * 0.5 + 0.5
+    let color = lerp_vec3(color_primary, color_secondary, color_mix)
+    
+    let final_value = (particle_value + glow * 0.5) * intensity
+    final_value = clamp(final_value, 0.0, 1.0)
+    
+    return vec4(color.r * final_value, color.g * final_value, color.b * final_value, final_value)
+
+# ============================================================================
+# ANIMATED MATERIAL EFFECTS
+# ============================================================================
+
+shader fragment FlowingLava(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform flow_speed: Float @1
+    uniform temperature: Float @2
+    uniform noise_scale: Float @3
+    uniform base_texture: Sampler2D @4
+    uniform normal_map: Sampler2D @5
+    
+    let flow_uv = vec2(uv.x, uv.y - time * flow_speed)
+    
+    let noise1 = perlin_noise(flow_uv * noise_scale)
+    let noise2 = perlin_noise(flow_uv * noise_scale * 2.0 + vec2(time * 0.3, 0.0))
+    
+    let distorted_uv = flow_uv + vec2(noise1 * 0.05, noise2 * 0.05)
+    
+    let base_color = sample(base_texture, distorted_uv).rgb
+    
+    let hot_spots = noise1 * noise2
+    hot_spots = smoothstep(0.3, 0.7, hot_spots)
+    
+    let hot_color = vec3(1.0, 0.6, 0.2) * temperature
+    let cool_color = vec3(0.3, 0.1, 0.0)
+    
+    let final_color = lerp_vec3(cool_color, hot_color, hot_spots)
+    final_color = final_color * base_color
+    
+    let emissive = hot_spots * temperature * 2.0
+    
+    return vec4(final_color.r + emissive, final_color.g + emissive * 0.5, final_color.b, 1.0)
+
+shader fragment WaterRipples(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform ripple_speed: Float @1
+    uniform ripple_frequency: Float @2
+    uniform ripple_amplitude: Float @3
+    uniform water_color: Vec3 @4
+    uniform normal_map: Sampler2D @5
+    
+    let center1 = vec2(0.3, 0.3)
+    let center2 = vec2(0.7, 0.6)
+    let center3 = vec2(0.5, 0.8)
+    
+    let dist1 = length(uv - center1)
+    let dist2 = length(uv - center2)
+    let dist3 = length(uv - center3)
+    
+    let ripple1 = sin(dist1 * ripple_frequency - time * ripple_speed) * ripple_amplitude
+    let ripple2 = sin(dist2 * ripple_frequency * 1.3 - time * ripple_speed * 0.8) * ripple_amplitude
+    let ripple3 = sin(dist3 * ripple_frequency * 0.7 - time * ripple_speed * 1.2) * ripple_amplitude
+    
+    let combined_ripples = (ripple1 + ripple2 + ripple3) / 3.0
+    
+    let distorted_uv = uv + vec2(combined_ripples * 0.02, combined_ripples * 0.02)
+    let normal = sample(normal_map, distorted_uv).rgb
+    
+    let height = combined_ripples * 0.5 + 0.5
+    
+    let reflection = pow(height, 2.0)
+    let final_color = water_color * (1.0 - reflection * 0.3) + vec3(1.0, 1.0, 1.0) * reflection * 0.3
+    
+    return vec4(final_color.r, final_color.g, final_color.b, 0.8)
+
+shader fragment PulsingEnergy(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform pulse_speed: Float @1
+    uniform pulse_intensity: Float @2
+    uniform energy_color: Vec3 @3
+    uniform core_size: Float @4
+    uniform noise_scale: Float @5
+    
+    let center = vec2(0.5, 0.5)
+    let dist = length(uv - center)
+    
+    let pulse = sin(time * pulse_speed) * 0.5 + 0.5
+    let pulse_ring = sin(dist * 20.0 - time * pulse_speed * 2.0) * 0.5 + 0.5
+    
+    let noise = perlin_noise(uv * noise_scale + vec2(time * 0.2, time * 0.3))
+    
+    let core = exp(-dist * 10.0 / core_size)
+    let energy = pulse_ring * (1.0 - dist) * pulse * pulse_intensity
+    
+    let final_value = (core + energy) * (0.8 + noise * 0.2)
+    final_value = clamp(final_value, 0.0, 1.0)
+    
+    return vec4(energy_color.r * final_value, energy_color.g * final_value, energy_color.b * final_value, final_value)
+
+# ============================================================================
+# UV ANIMATION SHADERS
+# ============================================================================
+
+shader fragment UVScroll(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform scroll_speed_x: Float @1
+    uniform scroll_speed_y: Float @2
+    uniform base_texture: Sampler2D @3
+    uniform tiling_x: Float @4
+    uniform tiling_y: Float @5
+    
+    let scrolled_uv = vec2(
+        uv.x * tiling_x + time * scroll_speed_x,
+        uv.y * tiling_y + time * scroll_speed_y
+    )
+    
+    let color = sample(base_texture, scrolled_uv)
+    return color
+
+shader fragment UVRotate(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform rotation_speed: Float @1
+    uniform pivot_x: Float @2
+    uniform pivot_y: Float @3
+    uniform base_texture: Sampler2D @4
+    
+    let pivot = vec2(pivot_x, pivot_y)
+    let centered_uv = uv - pivot
+    
+    let angle = time * rotation_speed
+    let cos_angle = cos(angle)
+    let sin_angle = sin(angle)
+    
+    let rotated_uv = vec2(
+        centered_uv.x * cos_angle - centered_uv.y * sin_angle,
+        centered_uv.x * sin_angle + centered_uv.y * cos_angle
+    )
+    
+    let final_uv = rotated_uv + pivot
+    
+    let color = sample(base_texture, final_uv)
+    return color
+
+shader fragment UVDistortion(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform distortion_strength: Float @1
+    uniform distortion_speed: Float @2
+    uniform noise_scale: Float @3
+    uniform base_texture: Sampler2D @4
+    uniform distortion_map: Sampler2D @5
+    
+    let distortion_uv = uv * noise_scale + vec2(time * distortion_speed * 0.1, time * distortion_speed * 0.15)
+    let distortion = sample(distortion_map, distortion_uv).rg
+    
+    let distorted_uv = uv + (distortion - vec2(0.5, 0.5)) * distortion_strength
+    
+    let color = sample(base_texture, distorted_uv)
+    return color
+
+shader fragment UVWave(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform wave_frequency: Float @1
+    uniform wave_amplitude: Float @2
+    uniform wave_speed: Float @3
+    uniform wave_direction: Vec2 @4
+    uniform base_texture: Sampler2D @5
+    
+    let wave_offset = sin(dot(uv, wave_direction) * wave_frequency + time * wave_speed) * wave_amplitude
+    
+    let waved_uv = uv + wave_direction * wave_offset
+    
+    let color = sample(base_texture, waved_uv)
+    return color
+
+# ============================================================================
+# HELPER FUNCTIONS (COMPUTE SHADER UTILITIES)
+# ============================================================================
+
+fn calculate_spawn_position(shape_type: Int, position: Vec3, rotation: Vec3, scale: Vec3, rand1: Float, rand2: Float, rand3: Float) -> Vec3:
+    if shape_type == 0:
+        return position
+    else if shape_type == 1:
+        let theta = rand1 * 6.28318
+        let phi = acos(2.0 * rand2 - 1.0)
+        let r = pow(rand3, 0.333) * scale.x
+        let x = r * sin(phi) * cos(theta)
+        let y = r * sin(phi) * sin(theta)
+        let z = r * cos(phi)
+        return position + vec3(x, y, z)
+    else if shape_type == 2:
+        let x = (rand1 - 0.5) * scale.x
+        let y = (rand2 - 0.5) * scale.y
+        let z = (rand3 - 0.5) * scale.z
+        return position + vec3(x, y, z)
+    else if shape_type == 3:
+        let theta = rand1 * 6.28318
+        let r = rand2 * scale.x
+        let h = rand3 * scale.z
+        let x = r * cos(theta)
+        let y = r * sin(theta)
+        return position + vec3(x, y, h)
+    else if shape_type == 5:
+        let theta = rand1 * 6.28318
+        let r = scale.x
+        let x = r * cos(theta)
+        let y = r * sin(theta)
+        return position + vec3(x, y, 0.0)
+    else if shape_type == 6:
+        let theta = rand1 * 6.28318
+        let r = lerp(scale.x, scale.y, rand2)
+        let x = r * cos(theta)
+        let y = r * sin(theta)
+        return position + vec3(x, y, 0.0)
+    else:
+        return position
+
+fn calculate_force(p: Particle, force: ParticleForce, time: Float) -> Vec3:
+    if force.force_type == 0:
+        return force.direction * force.strength
+    else if force.force_type == 1:
+        return force.direction * force.strength
+    else if force.force_type == 2:
+        let to_center = force.position - p.position
+        let dist = length(to_center)
+        if dist < force.radius and dist > 0.01:
+            let tangent = vec3(-to_center.y, to_center.x, 0.0)
+            let normalized_tangent = normalize(tangent)
+            let radial = normalize(to_center)
+            return (normalized_tangent * force.strength + radial * force.strength * 0.2) * (1.0 - dist / force.radius)
+        else:
+            return vec3(0.0, 0.0, 0.0)
+    else if force.force_type == 3:
+        let noise_pos = p.position * force.noise_scale + vec3(time * force.noise_speed, time * force.noise_speed * 0.7, time * force.noise_speed * 0.5)
+        let noise_x = perlin_noise(vec2(noise_pos.x, noise_pos.y))
+        let noise_y = perlin_noise(vec2(noise_pos.y, noise_pos.z))
+        let noise_z = perlin_noise(vec2(noise_pos.z, noise_pos.x))
+        return vec3(noise_x - 0.5, noise_y - 0.5, noise_z - 0.5) * force.strength * 2.0
+    else if force.force_type == 4:
+        let to_point = force.position - p.position
+        let dist = length(to_point)
+        if dist < force.radius and dist > 0.01:
+            let normalized = normalize(to_point)
+            let falloff = 1.0 - dist / force.radius
+            return normalized * force.strength * falloff
+        else:
+            return vec3(0.0, 0.0, 0.0)
+    else if force.force_type == 5:
+        let from_point = p.position - force.position
+        let dist = length(from_point)
+        if dist < force.radius and dist > 0.01:
+            let normalized = normalize(from_point)
+            let falloff = 1.0 - dist / force.radius
+            return normalized * force.strength * falloff
+        else:
+            return vec3(0.0, 0.0, 0.0)
+    else:
+        return vec3(0.0, 0.0, 0.0)
+
+fn perlin_noise(uv: Vec2) -> Float:
+    let i = floor_vec2(uv)
+    let f = frac_vec2(uv)
+    
+    let a = hash_vec2(i)
+    let b = hash_vec2(i + vec2(1.0, 0.0))
+    let c = hash_vec2(i + vec2(0.0, 1.0))
+    let d = hash_vec2(i + vec2(1.0, 1.0))
+    
+    let u = f * f * (vec2(3.0, 3.0) - vec2(2.0, 2.0) * f)
+    
+    return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y)
+
+fn hash_vec2(p: Vec2) -> Float:
+    let h = dot(p, vec2(127.1, 311.7))
+    return frac(sin(h) * 43758.5453123)
+
+fn floor_vec2(v: Vec2) -> Vec2:
+    return vec2(floor(v.x), floor(v.y))
+
+fn frac_vec2(v: Vec2) -> Vec2:
+    return vec2(frac(v.x), frac(v.y))
+
+fn lerp_vec3(a: Vec3, b: Vec3, t: Float) -> Vec3:
+    return vec3(
+        lerp(a.x, b.x, t),
+        lerp(a.y, b.y, t),
+        lerp(a.z, b.z, t)
+    )
+
+fn lerp_vec2(a: Vec2, b: Vec2, t: Float) -> Vec2:
+    return vec2(
+        lerp(a.x, b.x, t),
+        lerp(a.y, b.y, t)
+    )
+
+# ============================================================================
+# PARTICLE SYSTEM ACTOR
+# ============================================================================
+
+@base("AActor")
+actor ParticleSystemActor:
+    state max_particles: Int = 10000
+    
+    state spawn_rate: Float = 100.0
+    
+    state emitter_shape: EmitterShapeType = EmitterShapeType::Sphere
+    
+    state emitter_scale: Vec3 = vec3(100.0, 100.0, 100.0)
+    
+    state initial_velocity_min: Vec3 = vec3(-50.0, -50.0, 50.0)
+    
+    state initial_velocity_max: Vec3 = vec3(50.0, 50.0, 150.0)
+    
+    state lifetime_min: Float = 2.0
+    
+    state lifetime_max: Float = 5.0
+    
+    state particle_size_min: Vec2 = vec2(10.0, 10.0)
+    
+    state particle_size_max: Vec2 = vec2(20.0, 20.0)
+    
+    state start_color: Vec4 = vec4(1.0, 1.0, 1.0, 1.0)
+    
+    state mass_min: Float = 1.0
+    
+    state mass_max: Float = 2.0
+    
+    state enable_collision: Bool = false
+    
+    state bounce_factor: Float = 0.5
+    
+    state friction: Float = 0.1
+    
+    state kill_on_collision: Bool = false
+    
+    state color_over_lifetime: Bool = true
+    
+    state size_over_lifetime: Bool = true
+    
+    state particle_buffer: Array<Particle> = []
+    state dead_list: Array<Int> = []
+    state alive_count: Int = 0
+    state dead_count: Int = 0
+    state forces: Array<ParticleForce> = []
+    state accumulator: Float = 0.0
+    state render_target_a: Actor = null
+    state render_target_b: Actor = null
+    state current_target: Int = 0
+    
+    @tick
+    fn update(delta_time: Float):
+        accumulator = accumulator + delta_time
+        let spawn_interval = 1.0 / spawn_rate
+        
+        while accumulator >= spawn_interval and alive_count < max_particles:
+            spawn_particles(1)
+            accumulator = accumulator - spawn_interval
+        
+        update_particles(delta_time)
+        render_particles()
+    
+    fn spawn_particles(count: Int):
+        let spawned = 0
+        while spawned < count and dead_count > 0:
+            dead_count = dead_count - 1
+            let particle_id = dead_list[dead_count]
+            
+            let rand_seed = get_time() + particle_id * 12.9898
+            initialize_particle(particle_id, rand_seed)
+            
+            alive_count = alive_count + 1
+            spawned = spawned + 1
+    
+    fn initialize_particle(id: Int, seed: Float):
+        let rand1 = frac(sin(seed) * 43758.5453)
+        let rand2 = frac(sin(seed * 2.0) * 43758.5453)
+        let rand3 = frac(sin(seed * 3.0) * 43758.5453)
+        let rand4 = frac(sin(seed * 4.0) * 43758.5453)
+        let rand5 = frac(sin(seed * 5.0) * 43758.5453)
+        
+        let pos = get_actor_location()
+        let spawn_pos = calculate_spawn_position_cpu(emitter_shape, pos, emitter_scale, rand1, rand2, rand3)
+        
+        let velocity = lerp_vec3(initial_velocity_min, initial_velocity_max, rand4)
+        let lifetime = lerp(lifetime_min, lifetime_max, rand5)
+        let size = lerp_vec2(particle_size_min, particle_size_max, rand1)
+        let mass = lerp(mass_min, mass_max, rand2)
+        
+        particle_buffer[id].position = spawn_pos
+        particle_buffer[id].velocity = velocity
+        particle_buffer[id].acceleration = vec3(0.0, 0.0, 0.0)
+        particle_buffer[id].color = start_color
+        particle_buffer[id].size = size
+        particle_buffer[id].rotation = rand3 * 6.28318
+        particle_buffer[id].angular_velocity = (rand4 - 0.5) * 2.0
+        particle_buffer[id].lifetime = lifetime
+        particle_buffer[id].age = 0.0
+        particle_buffer[id].mass = mass
+        particle_buffer[id].sprite_index = 0
+        particle_buffer[id].trail_id = id
+
+    fn update_particles(delta_time: Float):
+        let i = 0
+        while i < max_particles:
+            let p = particle_buffer[i]
+            
+            if p.age >= p.lifetime:
+                if alive_count > 0:
+                    dead_list[dead_count] = i
+                    dead_count = dead_count + 1
+                    alive_count = alive_count - 1
+                i = i + 1
+                continue
+            
+            p.age = p.age + delta_time
+            
+            let total_force = vec3(0.0, 0.0, 0.0)
+            let force_idx = 0
+            while force_idx < len(forces):
+                let force = forces[force_idx]
+                let applied = calculate_force_cpu(p, force)
+                total_force = total_force + applied
+                force_idx = force_idx + 1
+            
+            p.acceleration = total_force / p.mass
+            p.velocity = p.velocity + p.acceleration * delta_time
+            p.position = p.position + p.velocity * delta_time
+            p.rotation = p.rotation + p.angular_velocity * delta_time
+            
+            if enable_collision:
+                handle_collision(p)
+            
+            particle_buffer[i] = p
+            i = i + 1
+    
+    fn handle_collision(p: Particle):
+        if p.position.z <= 0.0:
+            if kill_on_collision:
+                p.age = p.lifetime
+            else:
+                p.position.z = 0.0
+                p.velocity.z = p.velocity.z * -bounce_factor
+                p.velocity.x = p.velocity.x * (1.0 - friction)
+                p.velocity.y = p.velocity.y * (1.0 - friction)
+    
+    fn render_particles():
+        let i = 0
+        while i < max_particles:
+            let p = particle_buffer[i]
+            if p.age < p.lifetime:
+                draw_particle(p)
+            i = i + 1
+    
+    fn draw_particle(p: Particle):
+        let life_ratio = p.age / p.lifetime
+        let color = p.color
+        let size = p.size
+        
+        if color_over_lifetime:
+            let alpha = 1.0 - life_ratio
+            color.a = alpha
+        
+        if size_over_lifetime:
+            let size_mult = 1.0 - life_ratio * 0.5
+            size = size * size_mult
+    
+    fn add_force(force: ParticleForce):
+        push(forces, force)
+    
+    fn clear_forces():
+        forces = []
+    
+    fn reset_system():
+        particle_buffer = []
+        dead_list = []
+        alive_count = 0
+        dead_count = max_particles
+        
+        let i = 0
+        while i < max_particles:
+            let p = Particle()
+            p.position = vec3(0.0, 0.0, 0.0)
+            p.velocity = vec3(0.0, 0.0, 0.0)
+            p.acceleration = vec3(0.0, 0.0, 0.0)
+            p.color = vec4(1.0, 1.0, 1.0, 1.0)
+            p.size = vec2(10.0, 10.0)
+            p.rotation = 0.0
+            p.angular_velocity = 0.0
+            p.lifetime = 1.0
+            p.age = 10.0
+            p.mass = 1.0
+            p.sprite_index = 0
+            p.trail_id = -1
+            push(particle_buffer, p)
+            push(dead_list, i)
+            i = i + 1
+
+# ============================================================================
+# PRESET FACTORY FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn create_fire_preset() -> ParticleSystemComponent:
+    let sys = ParticleSystemComponent()
+    sys.max_particles = 5000
+    sys.spawn_rate = 200.0
+    sys.emitter_shape = EmitterShapeType::Circle
+    sys.emitter_scale = vec3(50.0, 50.0, 50.0)
+    sys.initial_velocity_min = vec3(-20.0, -20.0, 100.0)
+    sys.initial_velocity_max = vec3(20.0, 20.0, 200.0)
+    sys.lifetime_min = 1.0
+    sys.lifetime_max = 2.5
+    sys.particle_size_min = vec2(20.0, 20.0)
+    sys.particle_size_max = vec2(40.0, 40.0)
+    sys.start_color = vec4(1.0, 0.5, 0.1, 1.0)
+    sys.mass_min = 0.5
+    sys.mass_max = 1.0
+    sys.enable_collision = false
+    sys.color_over_lifetime = true
+    sys.size_over_lifetime = true
+    return sys
+
+@blueprint
+fn create_smoke_preset() -> ParticleSystemComponent:
+    let sys = ParticleSystemComponent()
+    sys.max_particles = 3000
+    sys.spawn_rate = 100.0
+    sys.emitter_shape = EmitterShapeType::Sphere
+    sys.emitter_scale = vec3(30.0, 30.0, 30.0)
+    sys.initial_velocity_min = vec3(-10.0, -10.0, 50.0)
+    sys.initial_velocity_max = vec3(10.0, 10.0, 100.0)
+    sys.lifetime_min = 3.0
+    sys.lifetime_max = 6.0
+    sys.particle_size_min = vec2(30.0, 30.0)
+    sys.particle_size_max = vec2(60.0, 60.0)
+    sys.start_color = vec4(0.3, 0.3, 0.3, 0.8)
+    sys.mass_min = 0.3
+    sys.mass_max = 0.7
+    sys.enable_collision = false
+    sys.color_over_lifetime = true
+    sys.size_over_lifetime = true
+    return sys
+
+@blueprint
+fn create_sparks_preset() -> ParticleSystemComponent:
+    let sys = ParticleSystemComponent()
+    sys.max_particles = 8000
+    sys.spawn_rate = 300.0
+    sys.emitter_shape = EmitterShapeType::Sphere
+    sys.emitter_scale = vec3(100.0, 100.0, 100.0)
+    sys.initial_velocity_min = vec3(-50.0, -50.0, -50.0)
+    sys.initial_velocity_max = vec3(50.0, 50.0, 50.0)
+    sys.lifetime_min = 2.0
+    sys.lifetime_max = 4.0
+    sys.particle_size_min = vec2(5.0, 5.0)
+    sys.particle_size_max = vec2(15.0, 15.0)
+    sys.start_color = vec4(0.5, 0.2, 1.0, 1.0)
+    sys.mass_min = 0.8
+    sys.mass_max = 1.5
+    sys.enable_collision = false
+    sys.color_over_lifetime = true
+    sys.size_over_lifetime = true
+    return sys
+
+@blueprint
+fn create_explosion_preset() -> ParticleSystemComponent:
+    let sys = ParticleSystemComponent()
+    sys.max_particles = 10000
+    sys.spawn_rate = 5000.0
+    sys.emitter_shape = EmitterShapeType::Point
+    sys.emitter_scale = vec3(1.0, 1.0, 1.0)
+    sys.initial_velocity_min = vec3(-300.0, -300.0, -300.0)
+    sys.initial_velocity_max = vec3(300.0, 300.0, 300.0)
+    sys.lifetime_min = 0.5
+    sys.lifetime_max = 2.0
+    sys.particle_size_min = vec2(10.0, 10.0)
+    sys.particle_size_max = vec2(30.0, 30.0)
+    sys.start_color = vec4(1.0, 0.7, 0.2, 1.0)
+    sys.mass_min = 1.0
+    sys.mass_max = 3.0
+    sys.enable_collision = true
+    sys.bounce_factor = 0.3
+    sys.friction = 0.5
+    sys.kill_on_collision = false
+    sys.color_over_lifetime = true
+    sys.size_over_lifetime = true
+    return sys
+
+@blueprint
+fn create_rain_preset() -> ParticleSystemComponent:
+    let sys = ParticleSystemComponent()
+    sys.max_particles = 15000
+    sys.spawn_rate = 1000.0
+    sys.emitter_shape = EmitterShapeType::Box
+    sys.emitter_scale = vec3(1000.0, 1000.0, 10.0)
+    sys.initial_velocity_min = vec3(-10.0, -10.0, -500.0)
+    sys.initial_velocity_max = vec3(10.0, 10.0, -400.0)
+    sys.lifetime_min = 3.0
+    sys.lifetime_max = 5.0
+    sys.particle_size_min = vec2(2.0, 10.0)
+    sys.particle_size_max = vec2(3.0, 15.0)
+    sys.start_color = vec4(0.7, 0.8, 1.0, 0.6)
+    sys.mass_min = 0.5
+    sys.mass_max = 1.0
+    sys.enable_collision = true
+    sys.bounce_factor = 0.1
+    sys.friction = 0.9
+    sys.kill_on_collision = true
+    sys.color_over_lifetime = false
+    sys.size_over_lifetime = false
+    return sys
+
+@blueprint
+fn create_snow_preset() -> ParticleSystemComponent:
+    let sys = ParticleSystemComponent()
+    sys.max_particles = 10000
+    sys.spawn_rate = 500.0
+    sys.emitter_shape = EmitterShapeType::Box
+    sys.emitter_scale = vec3(1000.0, 1000.0, 10.0)
+    sys.initial_velocity_min = vec3(-20.0, -20.0, -50.0)
+    sys.initial_velocity_max = vec3(20.0, 20.0, -30.0)
+    sys.lifetime_min = 5.0
+    sys.lifetime_max = 10.0
+    sys.particle_size_min = vec2(5.0, 5.0)
+    sys.particle_size_max = vec2(10.0, 10.0)
+    sys.start_color = vec4(1.0, 1.0, 1.0, 0.9)
+    sys.mass_min = 0.1
+    sys.mass_max = 0.3
+    sys.enable_collision = true
+    sys.bounce_factor = 0.0
+    sys.friction = 1.0
+    sys.kill_on_collision = true
+    sys.color_over_lifetime = false
+    sys.size_over_lifetime = false
+    return sys
+
+# ============================================================================
+# FORCE FACTORY FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn create_wind_force(direction: Vec3, strength: Float) -> ParticleForce:
+    let f = ParticleForce()
+    f.force_type = ForceType::Wind
+    f.strength = strength
+    f.position = vec3(0.0, 0.0, 0.0)
+    f.radius = 1000.0
+    f.direction = direction
+    f.noise_scale = 0.1
+    f.noise_speed = 1.0
+    return f
+
+@blueprint
+fn create_gravity_force(strength: Float) -> ParticleForce:
+    let f = ParticleForce()
+    f.force_type = ForceType::Gravity
+    f.strength = strength
+    f.position = vec3(0.0, 0.0, 0.0)
+    f.radius = 1000.0
+    f.direction = vec3(0.0, 0.0, -1.0)
+    f.noise_scale = 0.1
+    f.noise_speed = 1.0
+    return f
+
+@blueprint
+fn create_vortex_force(position: Vec3, axis: Vec3, strength: Float, radius: Float) -> ParticleForce:
+    let f = ParticleForce()
+    f.force_type = ForceType::Vortex
+    f.strength = strength
+    f.position = position
+    f.radius = radius
+    f.direction = axis
+    f.noise_scale = 0.1
+    f.noise_speed = 1.0
+    return f
+
+@blueprint
+fn create_turbulence_force(strength: Float, noise_scale: Float) -> ParticleForce:
+    let f = ParticleForce()
+    f.force_type = ForceType::Turbulence
+    f.strength = strength
+    f.position = vec3(0.0, 0.0, 0.0)
+    f.radius = 1000.0
+    f.direction = vec3(0.0, 0.0, 0.0)
+    f.noise_scale = noise_scale
+    f.noise_speed = 1.0
+    return f
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn lerp_vec3(a: Vec3, b: Vec3, t: Float) -> Vec3:
+    return vec3(lerp(a.x, b.x, t), lerp(a.y, b.y, t), lerp(a.z, b.z, t))
+
+@blueprint
+fn lerp_vec2(a: Vec2, b: Vec2, t: Float) -> Vec2:
+    return vec2(lerp(a.x, b.x, t), lerp(a.y, b.y, t))
+
+@blueprint
+fn lerp_vec4(a: Vec4, b: Vec4, t: Float) -> Vec4:
+    return vec4(lerp(a.x, b.x, t), lerp(a.y, b.y, t), lerp(a.z, b.z, t), lerp(a.w, b.w, t))
+
+@blueprint
+fn lerp(a: Float, b: Float, t: Float) -> Float:
+    return a + (b - a) * t
+
+@blueprint
+fn frac(x: Float) -> Float:
+    return x - floor(x)
+
+@blueprint
+fn saturate(x: Float) -> Float:
+    return clamp(x, 0.0, 1.0)
+
+@blueprint
+fn vec2(x: Float, y: Float) -> Vec2:
+    return Vec2(x, y)
+
+@blueprint
+fn vec3(x: Float, y: Float, z: Float) -> Vec3:
+    return Vec3(x, y, z)
+
+@blueprint
+fn vec4(x: Float, y: Float, z: Float, w: Float) -> Vec4:
+    return Vec4(x, y, z, w)

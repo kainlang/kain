@@ -1,0 +1,304 @@
+# ============================================================================
+# OmniCam - The Global Camera Matrix
+# ============================================================================
+# A comprehensive camera management system for UE5 with live PiP preview,
+# bulk editing, and intelligent camera indexing.
+# ============================================================================
+
+# ============================================================================
+# ENUMS
+# ============================================================================
+
+enum CameraType:
+    Cine
+    Standard
+    Custom
+    _MAX
+
+enum ViewportQuality:
+    Low
+    Medium
+    High
+    Ultra
+    _MAX
+
+enum SortMode:
+    Name
+    Type
+    Location
+    FOV
+    _MAX
+
+# ============================================================================
+# STRUCTS
+# ============================================================================
+
+struct CameraInfo:
+    name: String
+    camera_type: CameraType
+    location: Vec3
+    rotation: Vec3
+    fov: Float
+    focal_length: Float
+    aperture: Float
+    sensor_width: Float
+    debug_color: Vec3
+
+struct CameraSelection:
+    selected_cameras: Array<CameraInfo>
+    count: Int
+
+# ============================================================================
+# COMPONENTS
+# ============================================================================
+
+@component
+struct CameraIndexerComponent:
+    @transient
+    camera_list: Array<CameraInfo>
+    
+    @transient
+    last_scan_time: Float
+    
+    @transient
+    auto_update: Bool
+
+@component
+struct CameraPreviewComponent:
+    @transient
+    current_camera: CameraInfo
+    
+    @transient
+    viewport_quality: ViewportQuality
+    
+    @transient
+    is_rendering: Bool
+
+# ============================================================================
+# BLUEPRINT FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn get_all_cameras_in_level() -> Array<CameraInfo>:
+    let cameras: Array<CameraInfo> = []
+    # Implementation will use UGameplayStatics::GetAllActorsOfClass
+    return cameras
+
+@blueprint
+fn select_camera_by_name(name: String) -> CameraInfo:
+    let info: CameraInfo = CameraInfo {
+        name: name,
+        camera_type: CameraType::Standard,
+        location: vec3(0, 0, 0),
+        rotation: vec3(0, 0, 0),
+        fov: 90.0,
+        focal_length: 50.0,
+        aperture: 2.8,
+        sensor_width: 24.0,
+        debug_color: vec3(1, 1, 1)
+    }
+    return info
+
+@blueprint
+fn bulk_set_focal_length(cameras: Array<CameraInfo>, focal_length: Float) -> Bool:
+    # Implementation will modify camera properties
+    return true
+
+@blueprint
+fn bulk_set_aperture(cameras: Array<CameraInfo>, aperture: Float) -> Bool:
+    # Implementation will modify camera properties
+    return true
+
+@blueprint
+fn focus_camera_in_viewport(camera: CameraInfo) -> Bool:
+    # Implementation will focus the camera in the viewport
+    return true
+
+# ============================================================================
+# SLATE WIDGETS
+# ============================================================================
+
+@slate
+struct CameraSearchWidget:
+    @property
+    search_text: String
+    
+    @property
+    sort_mode: SortMode
+    
+    fn construct() -> Widget:
+        return VBox(
+            Text("Search: {search_text}"),
+            Text("Sort Mode: Name")
+        )
+
+@slate
+struct CameraListWidget:
+    @property
+    cameras: Array<CameraInfo>
+    
+    @property
+    selected_count: Int
+    
+    fn construct() -> Widget:
+        return VBox(
+            CameraSearchWidget(),
+            Text("Camera List ({selected_count} cameras)")
+        )
+
+@slate
+struct CameraPiPWidget:
+    @property
+    current_camera_name: String
+    
+    @property
+    viewport_quality: ViewportQuality
+    
+    fn construct() -> Widget:
+        return VBox(
+            Text("Camera Preview: {current_camera_name}"),
+            Text("Quality: Medium")
+        )
+
+@slate
+struct CameraBulkEditWidget:
+    @property
+    selected_count: Int
+    
+    @property
+    focal_length: Float
+    
+    @property
+    aperture: Float
+    
+    fn construct() -> Widget:
+        return VBox(
+            Text("Bulk Edit ({selected_count} cameras selected)"),
+            Text("Focal Length: {focal_length}mm"),
+            Text("Aperture: f/{aperture}"),
+            Button("Apply to Selected"),
+            Button("Reset to Defaults")
+        )
+
+# ============================================================================
+# DETAILS PANEL
+# ============================================================================
+
+@details
+struct CameraPropertiesDetails:
+    @slider(10.0, 200.0)
+    focal_length: Float
+    
+    @slider(1.4, 22.0)
+    aperture: Float
+    
+    @slider(0.0, 10000.0)
+    focus_distance: Float
+    
+    @slider(12.0, 36.0)
+    sensor_width: Float
+    
+    @color_picker
+    debug_color: Vec3
+    
+    @button("Apply to Selected")
+    fn on_apply_to_selected():
+        println("Applying to selected cameras...")
+    
+    @button("Reset to Defaults")
+    fn on_reset_to_defaults():
+        println("Resetting to defaults...")
+
+# ============================================================================
+# VIEWPORT
+# ============================================================================
+
+@viewport
+struct CameraPiPViewport:
+    @scene_actor
+    preview_mesh: StaticMeshComponent
+    
+    @camera
+    preview_camera: CameraComponent
+    
+    fn on_viewport_tick(delta: Float):
+        # Update preview camera to match selected camera
+        println("Viewport tick: {delta}")
+
+# ============================================================================
+# TOOLBAR
+# ============================================================================
+
+@toolbar
+struct OmniCamToolbar:
+    @button("Icons.Refresh", "Refresh Camera Index")
+    fn on_refresh_index():
+        println("Refreshing camera index...")
+    
+    @button("Icons.SelectAll", "Select All Cameras")
+    fn on_select_all():
+        println("Selecting all cameras...")
+    
+    @button("Icons.Deselect", "Deselect All Cameras")
+    fn on_deselect_all():
+        println("Deselecting all cameras...")
+    
+    @button("Icons.Focus", "Focus Selected Camera")
+    fn on_focus_selected():
+        println("Focusing selected camera...")
+    
+    @separator
+    
+    @toggle("Show Frustums")
+    fn on_toggle_frustums(enabled: Bool):
+        println("Show frustums: {enabled}")
+    
+    @toggle("Show Names")
+    fn on_toggle_names(enabled: Bool):
+        println("Show names: {enabled}")
+    
+    @toggle("Auto-Update")
+    fn on_toggle_auto_update(enabled: Bool):
+        println("Auto-update: {enabled}")
+    
+    @separator
+    
+    @dropdown("Sort By")
+    fn on_sort_changed(value: String):
+        println("Sort mode: {value}")
+
+# ============================================================================
+# ASSET EDITOR
+# ============================================================================
+
+@asset_editor
+struct OmniCamAssetEditor:
+    @viewport
+    pip_viewport: CameraPiPViewport
+    
+    @details
+    camera_properties: CameraPropertiesDetails
+    
+    @toolbar
+    toolbar: OmniCamToolbar
+    
+    fn on_asset_opened(asset: CameraInfo):
+        println("Opening camera: {asset.name}")
+
+# ============================================================================
+# EDITOR MODULE
+# ============================================================================
+
+@editor_module
+struct OmniCamEditorModule:
+    @menu_entry(path: "Tools/OmniCam/Open Camera Manager", label: "Open Camera Manager")
+    fn on_open_camera_manager():
+        println("Opening OmniCam Camera Manager...")
+    
+    @menu_entry(path: "Tools/OmniCam/Refresh Camera Index", label: "Refresh Camera Index")
+    fn on_refresh_camera_index():
+        println("Refreshing camera index...")
+    
+    @toolbar_button(section: "Content", icon: "Icons.Camera")
+    fn on_quick_access():
+        println("Quick access to OmniCam...")

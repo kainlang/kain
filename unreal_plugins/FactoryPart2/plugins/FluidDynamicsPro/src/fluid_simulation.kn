@@ -1,0 +1,462 @@
+// FluidDynamicsPro - Fluid Simulation Solvers
+// SPH and FLIP solver implementations
+
+// SPH (Smoothed Particle Hydrodynamics) Solver
+struct SPHSolver:
+    params: FluidParams
+    particles: Array<FluidParticle>
+    kernel: SPHKernel
+    grid: FluidGrid
+    neighbor_cache: Array<Array<NeighborData>>
+    
+    fn initialize(particle_count: Int, bounds_min: Vec3, bounds_max: Vec3):
+        params.particle_count = particle_count
+        params.smoothing_radius = 0.1
+        params.rest_density = 1000.0
+        params.gas_constant = 2000.0
+        params.viscosity = 0.01
+        params.particle_radius = 0.05
+        
+        kernel.smoothing_radius = params.smoothing_radius
+        kernel.smoothing_radius_sq = params.smoothing_radius * params.smoothing_radius
+        kernel.poly6_constant = 315.0 / (64.0 * 3.14159 * pow(params.smoothing_radius, 9.0))
+        kernel.spiky_constant = -45.0 / (3.14159 * pow(params.smoothing_radius, 6.0))
+        kernel.viscosity_constant = 45.0 / (3.14159 * pow(params.smoothing_radius, 6.0))
+        
+        grid.cell_size = params.smoothing_radius
+        grid.min_bounds = bounds_min
+        grid.max_bounds = bounds_max
+        
+        let grid_size = (bounds_max - bounds_min) / grid.cell_size
+        grid.grid_dimensions = vec3(ceil(grid_size.x), ceil(grid_size.y), ceil(grid_size.z))
+        grid.cell_count = grid.grid_dimensions.x * grid.grid_dimensions.y * grid.grid_dimensions.z
+    
+    fn compute_density(particle_idx: Int) -> Float:
+        let particle = particles[particle_idx]
+        let density = 0.0
+        
+        let neighbors = find_neighbors(particle_idx)
+        
+        for neighbor_data in neighbors:
+            let dist_sq = neighbor_data.distance * neighbor_data.distance
+            
+            if dist_sq < kernel.smoothing_radius_sq:
+                let kernel_value = kernel.poly6_constant * pow(kernel.smoothing_radius_sq - dist_sq, 3.0)
+                density = density + params.particle_radius * kernel_value
+        
+        return max(density, params.rest_density)
+    
+    fn compute_pressure(density: Float) -> Float:
+        return params.gas_constant * (density - params.rest_density)
+    
+    fn compute_pressure_force(particle_idx: Int) -> Vec3:
+        let particle = particles[particle_idx]
+        let force = vec3(0.0, 0.0, 0.0)
+        
+        let neighbors = find_neighbors(particle_idx)
+        
+        for neighbor_data in neighbors:
+            let neighbor_idx = neighbor_data.neighbor_index
+            let neighbor = particles[neighbor_idx]
+            
+            if neighbor_data.distance > 0.0001:
+                let kernel_grad = kernel.spiky_constant * pow(kernel.smoothing_radius - neighbor_data.distance, 2.0)
+                let pressure_term = (particle.pressure + neighbor.pressure) / (2.0 * neighbor.density)
+                force = force - neighbor_data.direction * kernel_grad * pressure_term * params.particle_radius
+        
+        return force / particle.density
+    
+    fn compute_viscosity_force(particle_idx: Int) -> Vec3:
+        let particle = particles[particle_idx]
+        let force = vec3(0.0, 0.0, 0.0)
+        
+        let neighbors = find_neighbors(particle_idx)
+        
+        for neighbor_data in neighbors:
+            let neighbor_idx = neighbor_data.neighbor_index
+            let neighbor = particles[neighbor_idx]
+            
+            if neighbor_data.distance > 0.0001:
+                let kernel_value = kernel.viscosity_constant * (kernel.smoothing_radius - neighbor_data.distance)
+                let vel_diff = neighbor.velocity - particle.velocity
+                force = force + vel_diff * kernel_value * params.particle_radius / neighbor.density
+        
+        return force * params.viscosity / particle.density
+    
+    fn compute_surface_tension_force(particle_idx: Int) -> Vec3:
+        let particle = particles[particle_idx]
+        let normal = compute_surface_normal(particle_idx)
+        let curvature = compute_surface_curvature(particle_idx)
+        
+        return normal * params.surface_tension * curvature
+    
+    fn compute_surface_normal(particle_idx: Int) -> Vec3:
+        let particle = particles[particle_idx]
+        let normal = vec3(0.0, 0.0, 0.0)
+        
+        let neighbors = find_neighbors(particle_idx)
+        
+        for neighbor_data in neighbors:
+            let neighbor_idx = neighbor_data.neighbor_index
+            let neighbor = particles[neighbor_idx]
+            
+            let dist_sq = neighbor_data.distance * neighbor_data.distance
+            if dist_sq < kernel.smoothing_radius_sq:
+                let kernel_grad = kernel.poly6_constant * 3.0 * pow(kernel.smoothing_radius_sq - dist_sq, 2.0)
+                normal = normal + neighbor_data.direction * kernel_grad * params.particle_radius / neighbor.density
+        
+        let normal_length = length(normal)
+        if normal_length > 0.0001:
+            return normal / normal_length
+        return vec3(0.0, 1.0, 0.0)
+    
+    fn compute_surface_curvature(particle_idx: Int) -> Float:
+        let particle = particles[particle_idx]
+        let curvature = 0.0
+        
+        let neighbors = find_neighbors(particle_idx)
+        
+        for neighbor_data in neighbors:
+            let neighbor_idx = neighbor_data.neighbor_index
+            let neighbor = particles[neighbor_idx]
+            
+            let dist_sq = neighbor_data.distance * neighbor_data.distance
+            if dist_sq < kernel.smoothing_radius_sq:
+                let kernel_laplacian = kernel.viscosity_constant * (kernel.smoothing_radius - neighbor_data.distance)
+                curvature = curvature + kernel_laplacian * params.particle_radius / neighbor.density
+        
+        return curvature
+    
+    fn find_neighbors(particle_idx: Int) -> Array<NeighborData>:
+        let particle = particles[particle_idx]
+        let neighbors: Array<NeighborData> = []
+        
+        let grid_pos = world_to_grid(particle.position)
+        
+        for dx in -1..1:
+            for dy in -1..1:
+                for dz in -1..1:
+                    let neighbor_grid = grid_pos + vec3(dx, dy, dz)
+                    let cell_idx = grid_to_index(neighbor_grid)
+                    
+                    if cell_idx >= 0 and cell_idx < grid.cell_count:
+                        let cell = grid.cells[cell_idx]
+                        
+                        for neighbor_idx in cell.particle_indices:
+                            if neighbor_idx != particle_idx:
+                                let neighbor = particles[neighbor_idx]
+                                let diff = particle.position - neighbor.position
+                                let dist = length(diff)
+                                
+                                if dist < params.smoothing_radius:
+                                    let neighbor_data: NeighborData
+                                    neighbor_data.neighbor_index = neighbor_idx
+                                    neighbor_data.distance = dist
+                                    neighbor_data.direction = diff / max(dist, 0.0001)
+                                    neighbor_data.kernel_weight = compute_kernel_weight(dist)
+                                    push(neighbors, neighbor_data)
+        
+        return neighbors
+    
+    fn compute_kernel_weight(distance: Float) -> Float:
+        let h = kernel.smoothing_radius
+        let q = distance / h
+        
+        if q < 1.0:
+            return kernel.poly6_constant * pow(h * h - distance * distance, 3.0)
+        
+        return 0.0
+    
+    fn world_to_grid(position: Vec3) -> Vec3:
+        return floor((position - grid.min_bounds) / grid.cell_size)
+    
+    fn grid_to_index(grid_pos: Vec3) -> Int:
+        if grid_pos.x < 0.0 or grid_pos.x >= grid.grid_dimensions.x:
+            return -1
+        if grid_pos.y < 0.0 or grid_pos.y >= grid.grid_dimensions.y:
+            return -1
+        if grid_pos.z < 0.0 or grid_pos.z >= grid.grid_dimensions.z:
+            return -1
+        
+        return grid_pos.x + grid_pos.y * grid.grid_dimensions.x + grid_pos.z * grid.grid_dimensions.x * grid.grid_dimensions.y
+    
+    fn update_spatial_grid():
+        for i in 0..grid.cell_count:
+            grid.cells[i].particle_indices = []
+        
+        for i in 0..len(particles):
+            let particle = particles[i]
+            let grid_pos = world_to_grid(particle.position)
+            let cell_idx = grid_to_index(grid_pos)
+            
+            if cell_idx >= 0 and cell_idx < grid.cell_count:
+                push(grid.cells[cell_idx].particle_indices, i)
+                particles[i].grid_index = cell_idx
+    
+    fn step(delta_time: Float):
+        update_spatial_grid()
+        
+        for substep in 0..params.substeps:
+            let dt = delta_time / params.substeps
+            
+            for i in 0..len(particles):
+                particles[i].density = compute_density(i)
+            
+            for i in 0..len(particles):
+                particles[i].pressure = compute_pressure(particles[i].density)
+            
+            for i in 0..len(particles):
+                let pressure_force = compute_pressure_force(i)
+                let viscosity_force = compute_viscosity_force(i)
+                let gravity_force = params.gravity
+                
+                let total_force = pressure_force + viscosity_force + gravity_force
+                particles[i].acceleration = total_force
+            
+            if params.enable_surface_tension:
+                for i in 0..len(particles):
+                    let surface_force = compute_surface_tension_force(i)
+                    particles[i].acceleration = particles[i].acceleration + surface_force
+            
+            for i in 0..len(particles):
+                particles[i].velocity = particles[i].velocity + particles[i].acceleration * dt
+                particles[i].position = particles[i].position + particles[i].velocity * dt
+            
+            enforce_boundaries()
+    
+    fn enforce_boundaries():
+        for i in 0..len(particles):
+            let particle = particles[i]
+            
+            if particle.position.x < grid.min_bounds.x:
+                particles[i].position.x = grid.min_bounds.x
+                particles[i].velocity.x = -particles[i].velocity.x * 0.5
+            
+            if particle.position.x > grid.max_bounds.x:
+                particles[i].position.x = grid.max_bounds.x
+                particles[i].velocity.x = -particles[i].velocity.x * 0.5
+            
+            if particle.position.y < grid.min_bounds.y:
+                particles[i].position.y = grid.min_bounds.y
+                particles[i].velocity.y = -particles[i].velocity.y * 0.5
+            
+            if particle.position.y > grid.max_bounds.y:
+                particles[i].position.y = grid.max_bounds.y
+                particles[i].velocity.y = -particles[i].velocity.y * 0.5
+            
+            if particle.position.z < grid.min_bounds.z:
+                particles[i].position.z = grid.min_bounds.z
+                particles[i].velocity.z = -particles[i].velocity.z * 0.5
+            
+            if particle.position.z > grid.max_bounds.z:
+                particles[i].position.z = grid.max_bounds.z
+                particles[i].velocity.z = -particles[i].velocity.z * 0.5
+
+// FLIP (Fluid Implicit Particle) Solver
+struct FLIPSolver:
+    params: FluidParams
+    particles: Array<FluidParticle>
+    state: FLIPState
+    grid: FluidGrid
+    grid_resolution: Vec3
+    
+    fn initialize(particle_count: Int, bounds_min: Vec3, bounds_max: Vec3, resolution: Vec3):
+        params.particle_count = particle_count
+        params.smoothing_radius = 0.1
+        params.rest_density = 1000.0
+        
+        grid.min_bounds = bounds_min
+        grid.max_bounds = bounds_max
+        grid_resolution = resolution
+        
+        let grid_size = bounds_max - bounds_min
+        grid.cell_size = grid_size.x / resolution.x
+        
+        state.pic_ratio = 0.05
+        state.flip_ratio = 0.95
+        
+        let total_cells = resolution.x * resolution.y * resolution.z
+        state.grid_velocity = []
+        state.grid_velocity_old = []
+        state.grid_weights = []
+        
+        for i in 0..total_cells:
+            push(state.grid_velocity, vec3(0.0, 0.0, 0.0))
+            push(state.grid_velocity_old, vec3(0.0, 0.0, 0.0))
+            push(state.grid_weights, 0.0)
+    
+    fn particle_to_grid():
+        let total_cells = grid_resolution.x * grid_resolution.y * grid_resolution.z
+        
+        for i in 0..total_cells:
+            state.grid_velocity[i] = vec3(0.0, 0.0, 0.0)
+            state.grid_weights[i] = 0.0
+        
+        for particle in particles:
+            let grid_pos = (particle.position - grid.min_bounds) / grid.cell_size
+            let base_x = floor(grid_pos.x)
+            let base_y = floor(grid_pos.y)
+            let base_z = floor(grid_pos.z)
+            
+            let fx = grid_pos.x - base_x
+            let fy = grid_pos.y - base_y
+            let fz = grid_pos.z - base_z
+            
+            for dx in 0..1:
+                for dy in 0..1:
+                    for dz in 0..1:
+                        let gx = base_x + dx
+                        let gy = base_y + dy
+                        let gz = base_z + dz
+                        
+                        if gx >= 0 and gx < grid_resolution.x and gy >= 0 and gy < grid_resolution.y and gz >= 0 and gz < grid_resolution.z:
+                            let weight_x = if dx == 0: 1.0 - fx else: fx
+                            let weight_y = if dy == 0: 1.0 - fy else: fy
+                            let weight_z = if dz == 0: 1.0 - fz else: fz
+                            let weight = weight_x * weight_y * weight_z
+                            
+                            let cell_idx = gx + gy * grid_resolution.x + gz * grid_resolution.x * grid_resolution.y
+                            
+                            state.grid_velocity[cell_idx] = state.grid_velocity[cell_idx] + particle.velocity * weight
+                            state.grid_weights[cell_idx] = state.grid_weights[cell_idx] + weight
+        
+        for i in 0..total_cells:
+            if state.grid_weights[i] > 0.0001:
+                state.grid_velocity[i] = state.grid_velocity[i] / state.grid_weights[i]
+    
+    fn grid_to_particle():
+        for i in 0..len(particles):
+            let particle = particles[i]
+            let grid_pos = (particle.position - grid.min_bounds) / grid.cell_size
+            let base_x = floor(grid_pos.x)
+            let base_y = floor(grid_pos.y)
+            let base_z = floor(grid_pos.z)
+            
+            let fx = grid_pos.x - base_x
+            let fy = grid_pos.y - base_y
+            let fz = grid_pos.z - base_z
+            
+            let pic_velocity = vec3(0.0, 0.0, 0.0)
+            let flip_velocity = particle.velocity
+            
+            for dx in 0..1:
+                for dy in 0..1:
+                    for dz in 0..1:
+                        let gx = base_x + dx
+                        let gy = base_y + dy
+                        let gz = base_z + dz
+                        
+                        if gx >= 0 and gx < grid_resolution.x and gy >= 0 and gy < grid_resolution.y and gz >= 0 and gz < grid_resolution.z:
+                            let weight_x = if dx == 0: 1.0 - fx else: fx
+                            let weight_y = if dy == 0: 1.0 - fy else: fy
+                            let weight_z = if dz == 0: 1.0 - fz else: fz
+                            let weight = weight_x * weight_y * weight_z
+                            
+                            let cell_idx = gx + gy * grid_resolution.x + gz * grid_resolution.x * grid_resolution.y
+                            
+                            pic_velocity = pic_velocity + state.grid_velocity[cell_idx] * weight
+                            
+                            let velocity_change = state.grid_velocity[cell_idx] - state.grid_velocity_old[cell_idx]
+                            flip_velocity = flip_velocity + velocity_change * weight
+            
+            particles[i].velocity = pic_velocity * state.pic_ratio + flip_velocity * state.flip_ratio
+    
+    fn solve_pressure():
+        let total_cells = grid_resolution.x * grid_resolution.y * grid_resolution.z
+        
+        for i in 0..total_cells:
+            state.grid_velocity_old[i] = state.grid_velocity[i]
+        
+        let max_iterations = 100
+        let tolerance = 0.001
+        
+        for iteration in 0..max_iterations:
+            let max_divergence = 0.0
+            
+            for z in 1..grid_resolution.z - 1:
+                for y in 1..grid_resolution.y - 1:
+                    for x in 1..grid_resolution.x - 1:
+                        let idx = x + y * grid_resolution.x + z * grid_resolution.x * grid_resolution.y
+                        
+                        let vel_center = state.grid_velocity[idx]
+                        let vel_left = state.grid_velocity[idx - 1]
+                        let vel_right = state.grid_velocity[idx + 1]
+                        let vel_down = state.grid_velocity[idx - grid_resolution.x]
+                        let vel_up = state.grid_velocity[idx + grid_resolution.x]
+                        let vel_back = state.grid_velocity[idx - grid_resolution.x * grid_resolution.y]
+                        let vel_front = state.grid_velocity[idx + grid_resolution.x * grid_resolution.y]
+                        
+                        let divergence = (vel_right.x - vel_left.x + vel_up.y - vel_down.y + vel_front.z - vel_back.z) / (2.0 * grid.cell_size)
+                        
+                        max_divergence = max(max_divergence, abs(divergence))
+                        
+                        let correction = divergence / 6.0
+                        
+                        state.grid_velocity[idx].x = vel_center.x - correction
+                        state.grid_velocity[idx].y = vel_center.y - correction
+                        state.grid_velocity[idx].z = vel_center.z - correction
+            
+            if max_divergence < tolerance:
+                break
+    
+    fn advect_particles(delta_time: Float):
+        for i in 0..len(particles):
+            particles[i].velocity = particles[i].velocity + params.gravity * delta_time
+            particles[i].position = particles[i].position + particles[i].velocity * delta_time
+            
+            if particles[i].position.x < grid.min_bounds.x:
+                particles[i].position.x = grid.min_bounds.x
+                particles[i].velocity.x = 0.0
+            
+            if particles[i].position.x > grid.max_bounds.x:
+                particles[i].position.x = grid.max_bounds.x
+                particles[i].velocity.x = 0.0
+            
+            if particles[i].position.y < grid.min_bounds.y:
+                particles[i].position.y = grid.min_bounds.y
+                particles[i].velocity.y = 0.0
+            
+            if particles[i].position.y > grid.max_bounds.y:
+                particles[i].position.y = grid.max_bounds.y
+                particles[i].velocity.y = 0.0
+            
+            if particles[i].position.z < grid.min_bounds.z:
+                particles[i].position.z = grid.min_bounds.z
+                particles[i].velocity.z = 0.0
+            
+            if particles[i].position.z > grid.max_bounds.z:
+                particles[i].position.z = grid.max_bounds.z
+                particles[i].velocity.z = 0.0
+    
+    fn step(delta_time: Float):
+        for substep in 0..params.substeps:
+            let dt = delta_time / params.substeps
+            
+            particle_to_grid()
+            solve_pressure()
+            grid_to_particle()
+            advect_particles(dt)
+
+// Hybrid solver combining SPH and FLIP
+struct HybridSolver:
+    sph_solver: SPHSolver
+    flip_solver: FLIPSolver
+    blend_factor: Float
+    
+    fn initialize(particle_count: Int, bounds_min: Vec3, bounds_max: Vec3):
+        blend_factor = 0.5
+        sph_solver.initialize(particle_count, bounds_min, bounds_max)
+        flip_solver.initialize(particle_count, bounds_min, bounds_max, vec3(64.0, 64.0, 64.0))
+    
+    fn step(delta_time: Float):
+        sph_solver.step(delta_time * blend_factor)
+        flip_solver.step(delta_time * (1.0 - blend_factor))
+        
+        for i in 0..len(sph_solver.particles):
+            let sph_pos = sph_solver.particles[i].position
+            let flip_pos = flip_solver.particles[i].position
+            sph_solver.particles[i].position = sph_pos * blend_factor + flip_pos * (1.0 - blend_factor)
+            
+            let sph_vel = sph_solver.particles[i].velocity
+            let flip_vel = flip_solver.particles[i].velocity
+            sph_solver.particles[i].velocity = sph_vel * blend_factor + flip_vel * (1.0 - blend_factor)

@@ -1,0 +1,571 @@
+# VoxelSculptPro - GPU Compute Shaders
+# Complete shader implementations for real-time mesh sculpting operations
+
+# ============================================================================
+# Sculpting Kernel - Main brush operation shader
+# ============================================================================
+
+shader compute SculptingKernel(thread_id: Vec3):
+    uniform CFG_BRUSH_TYPE: Int @0
+    uniform brush_position: Vec3 @1
+    uniform brush_radius: Float @2
+    uniform brush_strength: Float @3
+    uniform brush_falloff: Float @4
+    uniform symmetry_axis: Vec3 @5
+    uniform symmetry_enabled: Bool @6
+    uniform invert_brush: Bool @7
+    uniform delta_time: Float @8
+    buffer vertices: RWBuffer<Vec3> @9
+    buffer normals: RWBuffer<Vec3> @10
+    buffer original_positions: Buffer<Vec3> @11
+    
+    let vertex_index = thread_id.x
+    let vertex_pos = vertices[vertex_index]
+    let vertex_normal = normals[vertex_index]
+    
+    let distance_to_brush = length(vertex_pos - brush_position)
+    
+    if distance_to_brush > brush_radius:
+        return
+    
+    let normalized_distance = distance_to_brush / brush_radius
+    let falloff_factor = pow(1.0 - normalized_distance, brush_falloff)
+    let final_strength = brush_strength * falloff_factor * delta_time
+    
+    let direction = vertex_normal
+    if invert_brush:
+        direction = direction * -1.0
+    
+    if CFG_BRUSH_TYPE == 0:
+        vertices[vertex_index] = vertex_pos + direction * final_strength
+    
+    if CFG_BRUSH_TYPE == 1:
+        let smooth_pos = vec3(0.0, 0.0, 0.0)
+        let neighbor_count = 0
+        let search_radius = brush_radius * 0.3
+        
+        let i = 0
+        while i < 8:
+            let neighbor_index = vertex_index + i - 4
+            if neighbor_index >= 0:
+                let neighbor_pos = vertices[neighbor_index]
+                let neighbor_dist = length(neighbor_pos - vertex_pos)
+                if neighbor_dist < search_radius:
+                    smooth_pos = smooth_pos + neighbor_pos
+                    neighbor_count = neighbor_count + 1
+            i = i + 1
+        
+        if neighbor_count > 0:
+            smooth_pos = smooth_pos / neighbor_count
+            vertices[vertex_index] = lerp(vertex_pos, smooth_pos, final_strength)
+    
+    if CFG_BRUSH_TYPE == 2:
+        vertices[vertex_index] = vertex_pos + direction * final_strength * 2.0
+    
+    if CFG_BRUSH_TYPE == 3:
+        let to_center = normalize(brush_position - vertex_pos)
+        vertices[vertex_index] = vertex_pos + to_center * final_strength
+    
+    if CFG_BRUSH_TYPE == 4:
+        let original_pos = original_positions[vertex_index]
+        let to_brush = vertex_pos - brush_position
+        let projected = brush_position + to_brush * (1.0 + final_strength * 0.5)
+        vertices[vertex_index] = projected
+    
+    if CFG_BRUSH_TYPE == 5:
+        let plane_normal = normalize(vertex_normal)
+        let to_vertex = vertex_pos - brush_position
+        let distance_to_plane = dot(to_vertex, plane_normal)
+        let projected_pos = vertex_pos - plane_normal * distance_to_plane
+        vertices[vertex_index] = lerp(vertex_pos, projected_pos, final_strength)
+    
+    if CFG_BRUSH_TYPE == 6:
+        let clay_offset = direction * final_strength * 1.5
+        let clay_pos = vertex_pos + clay_offset
+        let to_brush_dir = normalize(brush_position - vertex_pos)
+        let clay_blend = max(0.0, dot(vertex_normal, to_brush_dir))
+        vertices[vertex_index] = lerp(vertex_pos, clay_pos, clay_blend * final_strength)
+    
+    if CFG_BRUSH_TYPE == 7:
+        let crease_strength = final_strength * 3.0
+        let crease_dir = normalize(cross(vertex_normal, vec3(0.0, 0.0, 1.0)))
+        let crease_offset = crease_dir * crease_strength
+        vertices[vertex_index] = vertex_pos + crease_offset
+
+
+# ============================================================================
+# Normal Recalculation Shader
+# ============================================================================
+
+shader compute RecalculateNormals(thread_id: Vec3):
+    uniform vertex_count: Int @0
+    uniform triangle_count: Int @1
+    buffer vertices: Buffer<Vec3> @2
+    buffer indices: Buffer<Int> @3
+    buffer normals: RWBuffer<Vec3> @4
+    buffer face_normals: RWBuffer<Vec3> @5
+    
+    let vertex_index = thread_id.x
+    
+    if vertex_index >= vertex_count:
+        return
+    
+    let accumulated_normal = vec3(0.0, 0.0, 0.0)
+    let face_count = 0
+    
+    let tri_idx = 0
+    while tri_idx < triangle_count:
+        let idx0 = indices[tri_idx * 3 + 0]
+        let idx1 = indices[tri_idx * 3 + 1]
+        let idx2 = indices[tri_idx * 3 + 2]
+        
+        if idx0 == vertex_index or idx1 == vertex_index or idx2 == vertex_index:
+            let v0 = vertices[idx0]
+            let v1 = vertices[idx1]
+            let v2 = vertices[idx2]
+            
+            let edge1 = v1 - v0
+            let edge2 = v2 - v0
+            let face_normal = normalize(cross(edge1, edge2))
+            
+            accumulated_normal = accumulated_normal + face_normal
+            face_count = face_count + 1
+        
+        tri_idx = tri_idx + 1
+    
+    if face_count > 0:
+        accumulated_normal = accumulated_normal / face_count
+        normals[vertex_index] = normalize(accumulated_normal)
+    else:
+        normals[vertex_index] = vec3(0.0, 1.0, 0.0)
+
+
+# ============================================================================
+# Tangent Recalculation Shader
+# ============================================================================
+
+shader compute RecalculateTangents(thread_id: Vec3):
+    uniform vertex_count: Int @0
+    uniform triangle_count: Int @1
+    buffer vertices: Buffer<Vec3> @2
+    buffer normals: Buffer<Vec3> @3
+    buffer uvs: Buffer<Vec2> @4
+    buffer indices: Buffer<Int> @5
+    buffer tangents: RWBuffer<Vec3> @6
+    buffer bitangents: RWBuffer<Vec3> @7
+    
+    let vertex_index = thread_id.x
+    
+    if vertex_index >= vertex_count:
+        return
+    
+    let accumulated_tangent = vec3(0.0, 0.0, 0.0)
+    let accumulated_bitangent = vec3(0.0, 0.0, 0.0)
+    let face_count = 0
+    
+    let tri_idx = 0
+    while tri_idx < triangle_count:
+        let idx0 = indices[tri_idx * 3 + 0]
+        let idx1 = indices[tri_idx * 3 + 1]
+        let idx2 = indices[tri_idx * 3 + 2]
+        
+        if idx0 == vertex_index or idx1 == vertex_index or idx2 == vertex_index:
+            let v0 = vertices[idx0]
+            let v1 = vertices[idx1]
+            let v2 = vertices[idx2]
+            
+            let uv0 = uvs[idx0]
+            let uv1 = uvs[idx1]
+            let uv2 = uvs[idx2]
+            
+            let edge1 = v1 - v0
+            let edge2 = v2 - v0
+            let delta_uv1 = uv1 - uv0
+            let delta_uv2 = uv2 - uv0
+            
+            let f = 1.0 / (delta_uv1.x * delta_uv2.y - delta_uv2.x * delta_uv1.y)
+            
+            let tangent = vec3(
+                f * (delta_uv2.y * edge1.x - delta_uv1.y * edge2.x),
+                f * (delta_uv2.y * edge1.y - delta_uv1.y * edge2.y),
+                f * (delta_uv2.y * edge1.z - delta_uv1.y * edge2.z)
+            )
+            
+            let bitangent = vec3(
+                f * (-delta_uv2.x * edge1.x + delta_uv1.x * edge2.x),
+                f * (-delta_uv2.x * edge1.y + delta_uv1.x * edge2.y),
+                f * (-delta_uv2.x * edge1.z + delta_uv1.x * edge2.z)
+            )
+            
+            accumulated_tangent = accumulated_tangent + tangent
+            accumulated_bitangent = accumulated_bitangent + bitangent
+            face_count = face_count + 1
+        
+        tri_idx = tri_idx + 1
+    
+    if face_count > 0:
+        accumulated_tangent = accumulated_tangent / face_count
+        accumulated_bitangent = accumulated_bitangent / face_count
+        
+        let normal = normals[vertex_index]
+        let orthogonal_tangent = normalize(accumulated_tangent - normal * dot(accumulated_tangent, normal))
+        
+        tangents[vertex_index] = orthogonal_tangent
+        bitangents[vertex_index] = normalize(accumulated_bitangent)
+    else:
+        tangents[vertex_index] = vec3(1.0, 0.0, 0.0)
+        bitangents[vertex_index] = vec3(0.0, 0.0, 1.0)
+
+
+# ============================================================================
+# Mesh Deformation Shader
+# ============================================================================
+
+shader compute MeshDeformation(thread_id: Vec3):
+    uniform deformation_center: Vec3 @0
+    uniform deformation_radius: Float @1
+    uniform deformation_strength: Float @2
+    uniform deformation_type: Int @3
+    uniform deformation_axis: Vec3 @4
+    uniform twist_angle: Float @5
+    uniform bend_angle: Float @6
+    buffer vertices: RWBuffer<Vec3> @7
+    buffer normals: RWBuffer<Vec3> @8
+    buffer original_positions: Buffer<Vec3> @9
+    
+    let vertex_index = thread_id.x
+    let vertex_pos = vertices[vertex_index]
+    let original_pos = original_positions[vertex_index]
+    
+    let to_vertex = vertex_pos - deformation_center
+    let distance = length(to_vertex)
+    
+    if distance > deformation_radius:
+        return
+    
+    let normalized_distance = distance / deformation_radius
+    let falloff = 1.0 - normalized_distance * normalized_distance
+    let strength = deformation_strength * falloff
+    
+    if deformation_type == 0:
+        let scale_factor = 1.0 + strength
+        let scaled_pos = deformation_center + to_vertex * scale_factor
+        vertices[vertex_index] = scaled_pos
+    
+    if deformation_type == 1:
+        let axis_distance = dot(to_vertex, deformation_axis)
+        let twist_amount = twist_angle * strength * (axis_distance / deformation_radius)
+        
+        let perpendicular = to_vertex - deformation_axis * axis_distance
+        let perp_length = length(perpendicular)
+        
+        if perp_length > 0.001:
+            let perp_normalized = perpendicular / perp_length
+            let cos_twist = cos(twist_amount)
+            let sin_twist = sin(twist_amount)
+            
+            let tangent = cross(deformation_axis, perp_normalized)
+            let rotated = perp_normalized * cos_twist + tangent * sin_twist
+            let twisted_pos = deformation_center + deformation_axis * axis_distance + rotated * perp_length
+            
+            vertices[vertex_index] = twisted_pos
+    
+    if deformation_type == 2:
+        let axis_distance = dot(to_vertex, deformation_axis)
+        let bend_amount = bend_angle * strength * (axis_distance / deformation_radius)
+        
+        let perpendicular = to_vertex - deformation_axis * axis_distance
+        
+        let cos_bend = cos(bend_amount)
+        let sin_bend = sin(bend_amount)
+        
+        let bent_axis = deformation_axis * cos_bend + normalize(perpendicular) * sin_bend
+        let bent_pos = deformation_center + bent_axis * axis_distance + perpendicular
+        
+        vertices[vertex_index] = bent_pos
+    
+    if deformation_type == 3:
+        let noise_offset = vec3(
+            sin(vertex_pos.x * 10.0 + vertex_pos.y * 7.0) * strength,
+            sin(vertex_pos.y * 10.0 + vertex_pos.z * 7.0) * strength,
+            sin(vertex_pos.z * 10.0 + vertex_pos.x * 7.0) * strength
+        )
+        vertices[vertex_index] = vertex_pos + noise_offset
+
+
+# ============================================================================
+# Symmetry Mirroring Shader
+# ============================================================================
+
+shader compute SymmetryMirroring(thread_id: Vec3):
+    uniform mirror_axis: Vec3 @0
+    uniform mirror_plane_offset: Float @1
+    uniform tolerance: Float @2
+    uniform vertex_count: Int @3
+    buffer vertices: RWBuffer<Vec3> @4
+    buffer normals: RWBuffer<Vec3> @5
+    buffer mirror_indices: RWBuffer<Int> @6
+    
+    let vertex_index = thread_id.x
+    
+    if vertex_index >= vertex_count:
+        return
+    
+    let vertex_pos = vertices[vertex_index]
+    let vertex_normal = normals[vertex_index]
+    
+    let distance_to_plane = dot(vertex_pos, mirror_axis) - mirror_plane_offset
+    
+    if abs(distance_to_plane) < tolerance:
+        let clamped_pos = vertex_pos - mirror_axis * distance_to_plane
+        vertices[vertex_index] = clamped_pos
+        mirror_indices[vertex_index] = vertex_index
+        return
+    
+    let mirrored_pos = vertex_pos - mirror_axis * (2.0 * distance_to_plane)
+    
+    let search_idx = 0
+    let closest_index = -1
+    let closest_distance = 999999.0
+    
+    while search_idx < vertex_count:
+        if search_idx != vertex_index:
+            let other_pos = vertices[search_idx]
+            let dist = length(other_pos - mirrored_pos)
+            
+            if dist < closest_distance and dist < tolerance:
+                closest_distance = dist
+                closest_index = search_idx
+        
+        search_idx = search_idx + 1
+    
+    mirror_indices[vertex_index] = closest_index
+
+
+# ============================================================================
+# LOD Generation Shader
+# ============================================================================
+
+shader compute LODGeneration(thread_id: Vec3):
+    uniform source_vertex_count: Int @0
+    uniform target_vertex_count: Int @1
+    uniform lod_level: Int @2
+    uniform decimation_factor: Float @3
+    buffer source_vertices: Buffer<Vec3> @4
+    buffer source_normals: Buffer<Vec3> @5
+    buffer target_vertices: RWBuffer<Vec3> @6
+    buffer target_normals: RWBuffer<Vec3> @7
+    buffer vertex_importance: Buffer<Float> @8
+    
+    let target_index = thread_id.x
+    
+    if target_index >= target_vertex_count:
+        return
+    
+    let stride = source_vertex_count / target_vertex_count
+    let source_index = target_index * stride
+    
+    if source_index >= source_vertex_count:
+        return
+    
+    let accumulated_pos = vec3(0.0, 0.0, 0.0)
+    let accumulated_normal = vec3(0.0, 0.0, 0.0)
+    let sample_count = 0
+    let sample_radius = max(1, stride / 2)
+    
+    let offset = -sample_radius
+    while offset <= sample_radius:
+        let sample_index = source_index + offset
+        
+        if sample_index >= 0 and sample_index < source_vertex_count:
+            let importance = vertex_importance[sample_index]
+            let weight = importance * (1.0 - abs(offset) / sample_radius)
+            
+            accumulated_pos = accumulated_pos + source_vertices[sample_index] * weight
+            accumulated_normal = accumulated_normal + source_normals[sample_index] * weight
+            sample_count = sample_count + 1
+        
+        offset = offset + 1
+    
+    if sample_count > 0:
+        target_vertices[target_index] = accumulated_pos / sample_count
+        target_normals[target_index] = normalize(accumulated_normal)
+    else:
+        target_vertices[target_index] = source_vertices[source_index]
+        target_normals[target_index] = source_normals[source_index]
+
+
+# ============================================================================
+# Topology Optimization Shader
+# ============================================================================
+
+shader compute TopologyOptimization(thread_id: Vec3):
+    uniform vertex_count: Int @0
+    uniform triangle_count: Int @1
+    uniform target_edge_length: Float @2
+    uniform iterations: Int @3
+    uniform preserve_boundaries: Bool @4
+    buffer vertices: RWBuffer<Vec3> @5
+    buffer indices: Buffer<Int> @6
+    buffer boundary_flags: Buffer<Int> @7
+    buffer edge_lengths: RWBuffer<Float> @8
+    buffer vertex_valence: RWBuffer<Int> @9
+    
+    let vertex_index = thread_id.x
+    
+    if vertex_index >= vertex_count:
+        return
+    
+    let is_boundary = boundary_flags[vertex_index] == 1
+    
+    if preserve_boundaries and is_boundary:
+        return
+    
+    let vertex_pos = vertices[vertex_index]
+    let neighbor_positions = vec3(0.0, 0.0, 0.0)
+    let neighbor_count = 0
+    
+    let tri_idx = 0
+    while tri_idx < triangle_count:
+        let idx0 = indices[tri_idx * 3 + 0]
+        let idx1 = indices[tri_idx * 3 + 1]
+        let idx2 = indices[tri_idx * 3 + 2]
+        
+        if idx0 == vertex_index:
+            neighbor_positions = neighbor_positions + vertices[idx1]
+            neighbor_positions = neighbor_positions + vertices[idx2]
+            neighbor_count = neighbor_count + 2
+        
+        if idx1 == vertex_index:
+            neighbor_positions = neighbor_positions + vertices[idx0]
+            neighbor_positions = neighbor_positions + vertices[idx2]
+            neighbor_count = neighbor_count + 2
+        
+        if idx2 == vertex_index:
+            neighbor_positions = neighbor_positions + vertices[idx0]
+            neighbor_positions = neighbor_positions + vertices[idx1]
+            neighbor_count = neighbor_count + 2
+        
+        tri_idx = tri_idx + 1
+    
+    if neighbor_count > 0:
+        let centroid = neighbor_positions / neighbor_count
+        let to_centroid = centroid - vertex_pos
+        let distance = length(to_centroid)
+        
+        let relaxation_factor = 0.5
+        let target_distance = target_edge_length
+        
+        if distance > target_distance * 1.5:
+            let move_amount = (distance - target_distance) * relaxation_factor
+            vertices[vertex_index] = vertex_pos + normalize(to_centroid) * move_amount
+        
+        if distance < target_distance * 0.5:
+            let move_amount = (target_distance - distance) * relaxation_factor
+            vertices[vertex_index] = vertex_pos - normalize(to_centroid) * move_amount
+        
+        vertex_valence[vertex_index] = neighbor_count / 2
+        edge_lengths[vertex_index] = distance
+
+
+# ============================================================================
+# Vertex Importance Calculation Shader
+# ============================================================================
+
+shader compute VertexImportance(thread_id: Vec3):
+    uniform vertex_count: Int @0
+    uniform triangle_count: Int @1
+    buffer vertices: Buffer<Vec3> @2
+    buffer normals: Buffer<Vec3> @3
+    buffer indices: Buffer<Int> @4
+    buffer importance: RWBuffer<Float> @5
+    
+    let vertex_index = thread_id.x
+    
+    if vertex_index >= vertex_count:
+        return
+    
+    let vertex_pos = vertices[vertex_index]
+    let vertex_normal = normals[vertex_index]
+    
+    let curvature = 0.0
+    let neighbor_count = 0
+    
+    let tri_idx = 0
+    while tri_idx < triangle_count:
+        let idx0 = indices[tri_idx * 3 + 0]
+        let idx1 = indices[tri_idx * 3 + 1]
+        let idx2 = indices[tri_idx * 3 + 2]
+        
+        if idx0 == vertex_index or idx1 == vertex_index or idx2 == vertex_index:
+            let n0 = normals[idx0]
+            let n1 = normals[idx1]
+            let n2 = normals[idx2]
+            
+            let normal_variation = length(n0 - vertex_normal) + length(n1 - vertex_normal) + length(n2 - vertex_normal)
+            curvature = curvature + normal_variation
+            neighbor_count = neighbor_count + 1
+        
+        tri_idx = tri_idx + 1
+    
+    if neighbor_count > 0:
+        curvature = curvature / neighbor_count
+    
+    importance[vertex_index] = 1.0 + curvature * 10.0
+
+
+# ============================================================================
+# Smooth Brush Shader (Specialized)
+# ============================================================================
+
+shader compute SmoothBrush(thread_id: Vec3):
+    uniform brush_position: Vec3 @0
+    uniform brush_radius: Float @1
+    uniform brush_strength: Float @2
+    uniform smooth_iterations: Int @3
+    uniform vertex_count: Int @4
+    buffer vertices: RWBuffer<Vec3> @5
+    buffer temp_vertices: RWBuffer<Vec3> @6
+    
+    let vertex_index = thread_id.x
+    
+    if vertex_index >= vertex_count:
+        return
+    
+    let vertex_pos = vertices[vertex_index]
+    let distance_to_brush = length(vertex_pos - brush_position)
+    
+    if distance_to_brush > brush_radius:
+        return
+    
+    let normalized_distance = distance_to_brush / brush_radius
+    let falloff = 1.0 - normalized_distance * normalized_distance
+    let strength = brush_strength * falloff
+    
+    let iteration = 0
+    while iteration < smooth_iterations:
+        let smoothed_pos = vec3(0.0, 0.0, 0.0)
+        let neighbor_count = 0
+        let search_radius = brush_radius * 0.2
+        
+        let search_idx = max(0, vertex_index - 10)
+        let search_end = min(vertex_count, vertex_index + 10)
+        
+        while search_idx < search_end:
+            if search_idx != vertex_index:
+                let neighbor_pos = vertices[search_idx]
+                let neighbor_dist = length(neighbor_pos - vertex_pos)
+                
+                if neighbor_dist < search_radius:
+                    smoothed_pos = smoothed_pos + neighbor_pos
+                    neighbor_count = neighbor_count + 1
+            
+            search_idx = search_idx + 1
+        
+        if neighbor_count > 0:
+            smoothed_pos = smoothed_pos / neighbor_count
+            vertex_pos = lerp(vertex_pos, smoothed_pos, strength)
+        
+        iteration = iteration + 1
+    
+    vertices[vertex_index] = vertex_pos

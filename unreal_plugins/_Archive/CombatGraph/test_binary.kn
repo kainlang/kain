@@ -1,0 +1,995 @@
+# ╔═══════════════════════════════════════════════════════════════════════════════╗
+# ║ COMBAT GRAPH — Full KAIN Implementation of BaconCombatGraph                 ║
+# ║                                                                             ║
+# ║ This plugin demonstrates KAIN's full power for LLMs and developers.         ║
+# ║ It implements a complete extendable combo graph system with:                 ║
+# ║                                                                             ║
+# ║   • Visual Combo Graph Editor (UEdGraph-based)                              ║
+# ║   • Runtime Graph Execution Engine                                          ║
+# ║   • Animation-Driven Combat System                                          ║
+# ║   • Combo Manager Component (drive combos from any Actor)                   ║
+# ║   • Action Pass System (data-driven combat actions)                         ║
+# ║   • Condition Pass System (data-driven branching)                           ║
+# ║   • Damage Shape System (sphere/box/capsule/cone damage)                    ║
+# ║   • State Machine for Combo States                                          ║
+# ║   • Async Task for Heavy Computation Offloading                             ║
+# ║   • Editor Module Extensions (menus, toolbar)                               ║
+# ║   • Full Blueprint Integration                                              ║
+# ║                                                                             ║
+# ║ KAIN Features Used:                                                         ║
+# ║   @graph_editor    — Visual UEdGraph editor (schema, nodes, pins, factory)  ║
+# ║   @graph_runtime   — Runtime NodeData, PinData, GraphInstance, ExecuteNode  ║
+# ║   @state_machine   — Animation state machine with transitions               ║
+# ║   @async_task      — Background combat computations                         ║
+# ║   @component       — UActorComponent subclasses                             ║
+# ║   @editor_module   — UE5 editor extensions                                  ║
+# ║   @blueprint       — Blueprint-callable functions                           ║
+# ║   @delegate        — Multicast delegate events                              ║
+# ║   @savegame        — SaveGame-flagged properties                            ║
+# ║   @replicated      — Network replicated state                               ║
+# ║   @tick            — Per-frame tick support                                  ║
+# ║   enum / struct    — UENUM / USTRUCT data types                             ║
+# ║   @extern fn       — Forward declarations for engine functions              ║
+# ╚═══════════════════════════════════════════════════════════════════════════════╝
+
+
+# ============================================================================
+# SECTION 1: ENUMS
+# ============================================================================
+# Every enum here generates a full UENUM(BlueprintType) in C++.
+
+enum ComboNodeType:
+    Root         # Entry node — graph always starts here
+    Execution    # Plays a montage + applies action passes
+    Input        # Waits for player input direction
+    Condition    # Conditional branch (stat checks, tag checks)
+    Portal       # Jump-to target (reusable combo fragments)
+    PortalJump   # Jumps to a Portal node by name
+    Reset        # Resets the combo state machine
+    _MAX
+
+enum ComboGraphState:
+    Idle          # No combo active
+    Running       # Executing a node
+    WaitingInput  # Waiting for player directional input
+    Blocked       # Combo blocked (insufficient stamina, etc.)
+    Finished      # Graph traversal complete
+    _MAX
+
+enum DamageShapeType:
+    Sphere
+    Box
+    Capsule
+    Cone
+    _MAX
+
+enum ComboInputDirection:
+    DirForward
+    DirBackward
+    DirLeft
+    DirRight
+    DirNeutral
+    _MAX
+
+enum ActionPassResult:
+    Success
+    Failed
+    Skipped
+    _MAX
+
+enum ComboResetReason:
+    GraphFinished
+    InputTimeout
+    ManualReset
+    GraphBlocked
+    _MAX
+
+
+# ============================================================================
+# SECTION 2: DATA STRUCTURES
+# ============================================================================
+# Plain USTRUCT data types used by the runtime and editor.
+
+struct ComboActionPassData:
+    @blueprint
+    pass_name: String
+    @blueprint
+    montage_path: String
+    @blueprint
+    play_rate: Float = 1.0
+    @blueprint
+    start_section: String = ""
+    @blueprint
+    auto_advance: Bool = false
+
+struct ComboConditionData:
+    @blueprint
+    condition_tag: String
+    @blueprint
+    min_value: Float = 0.0
+    @blueprint
+    max_value: Float = 999999.0
+    @blueprint
+    invert: Bool = false
+
+struct DamageShapeConfig:
+    @blueprint
+    shape_type: DamageShapeType = DamageShapeType::Sphere
+    @blueprint
+    offset: Vec3 = vec3(0.0, 100.0, 0.0)
+    @blueprint
+    extent: Vec3 = vec3(100.0, 100.0, 100.0)
+    @blueprint
+    base_damage: Float = 10.0
+    @blueprint
+    damage_type_tag: String = "Physical"
+    @blueprint
+    knockback_force: Float = 500.0
+
+struct ComboDebugInfo:
+    @blueprint
+    current_node_name: String
+    @blueprint
+    total_nodes_visited: Int = 0
+    @blueprint
+    combo_chain_length: Int = 0
+    @blueprint
+    damage_dealt: Float = 0.0
+    @blueprint
+    is_active: Bool = false
+
+struct InputWindowConfig:
+    @blueprint
+    window_duration: Float = 0.5
+    @blueprint
+    allow_buffering: Bool = true
+    @blueprint
+    buffer_window: Float = 0.2
+    @blueprint
+    required_direction: ComboInputDirection = ComboInputDirection::DirNeutral
+
+struct ComboGraphAssetRef:
+    @blueprint
+    combo_name: String
+    @blueprint
+    graph_asset_path: String
+    @blueprint
+    reset_when_blocked: Bool = true
+
+
+# ============================================================================
+# SECTION 3: DELEGATES
+# ============================================================================
+# Multicast delegates that fire during combo execution. These generate
+# DECLARE_DYNAMIC_MULTICAST_DELEGATE in C++ and are bindable in Blueprint.
+
+type OnComboStarted = delegate()
+type OnComboEnded = delegate(ComboResetReason)
+type OnComboNodeExecuted = delegate(String, Int)    # (NodeName, NodeIndex)
+type OnComboInputReceived = delegate(ComboInputDirection)
+type OnComboDamageApplied = delegate(Float, String)  # (Damage, DamageType)
+type OnComboStateChanged = delegate(ComboGraphState, ComboGraphState)  # (Old, New)
+
+
+# ============================================================================
+# SECTION 4: COMBO GRAPH EDITOR (Visual UEdGraph)
+# ============================================================================
+# This generates a full custom graph editor with:
+#   - UEdGraphSchema subclass (connection rules, context menu)
+#   - UEdGraphNode subclasses per node type
+#   - Pin factory for typed connections
+#   - Right-click context menu with categorized nodes
+#
+# The editor lets designers visually author combo graphs in UE5.
+
+@graph_editor
+graph ComboGraphEditor:
+
+    # ── Root Node ─────────────────────────────────────────────────
+    # Entry point. Every combo graph starts here.
+    @node_type
+    @category("Combo/Root")
+    node RootNode:
+        properties:
+            GraphName: String = "New Combo"
+            ResetWhenBlocked: Bool = true
+        outputs:
+            Start: Exec
+
+    # ── Execution Node ────────────────────────────────────────────
+    # Plays montage, applies damage shapes, runs action passes.
+    @node_type
+    @category("Combo/Execution")
+    node ExecutionNode:
+        properties:
+            NodeName: String = "Attack"
+            MontagePath: String = ""
+            MontagePlayRate: Float = 1.0
+            MontageStartSection: String = ""
+            BaseDamage: Float = 10.0
+            DamageShape: DamageShapeType = DamageShapeType::Sphere
+            DamageOffset: Vec3 = vec3(0.0, 100.0, 0.0)
+            DamageExtent: Vec3 = vec3(100.0, 100.0, 100.0)
+            KnockbackForce: Float = 500.0
+            AutoAdvance: Bool = false
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+            OnHit: Exec
+            OnMiss: Exec
+
+    # ── Input Node ────────────────────────────────────────────────
+    # Waits for directional input from the player.
+    @node_type
+    @category("Combo/Input")
+    node InputNode:
+        properties:
+            InputWindowDuration: Float = 0.5
+            AllowBuffering: Bool = true
+            BufferWindow: Float = 0.2
+        inputs:
+            InExec: Exec
+        outputs:
+            Forward: Exec
+            Backward: Exec
+            Left: Exec
+            Right: Exec
+            Neutral: Exec
+            Timeout: Exec
+
+    # ── Condition Node ────────────────────────────────────────────
+    # Branches based on gameplay conditions (stamina, tags, etc.)
+    @node_type
+    @category("Combo/Logic")
+    node ConditionNode:
+        properties:
+            ConditionTag: String = "HasStamina"
+            MinValue: Float = 0.0
+            MaxValue: Float = 999999.0
+            Invert: Bool = false
+        inputs:
+            InExec: Exec
+        outputs:
+            True: Exec
+            False: Exec
+
+    # ── Portal Node ───────────────────────────────────────────────
+    # Named target for portal jumps. Enables reusable combo fragments.
+    @node_type
+    @category("Combo/Portal")
+    node PortalNode:
+        properties:
+            PortalName: String = "DefaultPortal"
+        inputs:
+            InExec: Exec
+        outputs:
+            Continue: Exec
+
+    # ── Portal Jump Node ──────────────────────────────────────────
+    # Jumps execution to a named Portal node.
+    @node_type
+    @category("Combo/Portal")
+    node PortalJumpNode:
+        properties:
+            TargetPortalName: String = "DefaultPortal"
+        inputs:
+            InExec: Exec
+
+    # ── Reset Node ────────────────────────────────────────────────
+    # Immediately resets the combo graph.
+    @node_type
+    @category("Combo/Reset")
+    node ResetNode:
+        properties:
+            ResetReason: String = "GraphFinished"
+        inputs:
+            InExec: Exec
+
+    # ── Schema Rules ──────────────────────────────────────────────
+    @schema
+    schema:
+        no_cycles: false
+        max_depth: 50
+
+
+# ============================================================================
+# SECTION 5: COMBO GRAPH RUNTIME
+# ============================================================================
+# This generates the RUNTIME graph classes:
+#   - UCombatGraphPinData       → Pin connection data (UObject)
+#   - UCombatGraphNodeData      → Base node class with ExecuteNode() virtual
+#   - UCombatGraphNodeData_*    → Subclass per node type with UProperties
+#   - UCombatGraphData          → Container holding TArray<NodeData*>
+#   - UCombatGraphInstance      → Runtime execution state
+#
+# The runtime is completely decoupled from the editor.
+
+@graph_runtime
+struct CombatGraph:
+
+    # ── Node Data Classes ─────────────────────────────────────────
+    # Each generates a UObject subclass with UPROPERTY fields and
+    # an ExecuteNode() virtual method that drives graph traversal.
+
+    @node_data
+    struct RootNode:
+        @property
+        graph_name: String
+
+        @property
+        reset_when_blocked: Bool
+
+        @output_pin
+        start: Exec
+
+    @node_data
+    struct ExecutionNode:
+        @property
+        node_name: String
+
+        @property
+        montage_path: String
+
+        @property
+        montage_play_rate: Float
+
+        @property
+        montage_start_section: String
+
+        @property
+        base_damage: Float
+
+        @property
+        damage_shape: DamageShapeType
+
+        @property
+        damage_offset: Vec3
+
+        @property
+        damage_extent: Vec3
+
+        @property
+        knockback_force: Float
+
+        @property
+        auto_advance: Bool
+
+        @input_pin
+        in_exec: Exec
+
+        @output_pin
+        next: Exec
+
+        @output_pin
+        on_hit: Exec
+
+        @output_pin
+        on_miss: Exec
+
+    @node_data
+    struct InputNode:
+        @property
+        input_window_duration: Float
+
+        @property
+        allow_buffering: Bool
+
+        @property
+        buffer_window: Float
+
+        @input_pin
+        in_exec: Exec
+
+        @output_pin
+        forward: Exec
+
+        @output_pin
+        backward: Exec
+
+        @output_pin
+        left: Exec
+
+        @output_pin
+        right: Exec
+
+        @output_pin
+        neutral: Exec
+
+        @output_pin
+        timeout: Exec
+
+    @node_data
+    struct ConditionNode:
+        @property
+        condition_tag: String
+
+        @property
+        min_value: Float
+
+        @property
+        max_value: Float
+
+        @property
+        invert: Bool
+
+        @input_pin
+        in_exec: Exec
+
+        @output_pin
+        true_branch: Exec
+
+        @output_pin
+        false_branch: Exec
+
+    @node_data
+    struct PortalNode:
+        @property
+        portal_name: String
+
+        @input_pin
+        in_exec: Exec
+
+        @output_pin
+        continue_exec: Exec
+
+    @node_data
+    struct PortalJumpNode:
+        @property
+        target_portal_name: String
+
+        @input_pin
+        in_exec: Exec
+
+    @node_data
+    struct ResetNode:
+        @property
+        reset_reason: String
+
+        @input_pin
+        in_exec: Exec
+
+    # ── Graph Instance ────────────────────────────────────────────
+    # Runtime execution context. Holds the current state, tracks
+    # combo chain, manages input buffering, and fires delegates.
+
+    @instance
+    struct CombatGraphInstance:
+        current_node_index: Int = -1
+        graph_state: ComboGraphState = ComboGraphState::Idle
+        combo_chain_length: Int = 0
+        nodes_visited: Int = 0
+        total_damage_dealt: Float = 0.0
+        last_input_direction: ComboInputDirection = ComboInputDirection::DirNeutral
+        input_buffer_active: Bool = false
+        buffered_direction: ComboInputDirection = ComboInputDirection::DirNeutral
+        active_portal_names: Array<String>
+
+        fn start_graph() -> Bool:
+            current_node_index = 0
+            graph_state = ComboGraphState::Running
+            combo_chain_length = 0
+            nodes_visited = 0
+            total_damage_dealt = 0.0
+            input_buffer_active = false
+            active_portal_names = []
+            return true
+
+        fn advance_to_node(node_index: Int):
+            current_node_index = node_index
+            nodes_visited = nodes_visited + 1
+            combo_chain_length = combo_chain_length + 1
+
+        fn receive_input(direction: ComboInputDirection):
+            last_input_direction = direction
+            if input_buffer_active:
+                buffered_direction = direction
+
+        fn apply_damage(damage: Float):
+            total_damage_dealt = total_damage_dealt + damage
+
+        fn register_portal(name: String):
+            active_portal_names.push(name)
+
+        fn reset_graph(reason: ComboResetReason):
+            current_node_index = -1
+            graph_state = ComboGraphState::Idle
+            combo_chain_length = 0
+            input_buffer_active = false
+
+        fn get_debug_info() -> ComboDebugInfo:
+            let info = ComboDebugInfo()
+            info.current_node_name = "Node_{current_node_index}"
+            info.total_nodes_visited = nodes_visited
+            info.combo_chain_length = combo_chain_length
+            info.damage_dealt = total_damage_dealt
+            info.is_active = graph_state == ComboGraphState::Running
+            return info
+
+
+# ============================================================================
+# SECTION 6: COMBO MANAGER COMPONENT
+# ============================================================================
+# The main interface for any Actor that wants to run combo graphs.
+# Attach this component, assign a graph asset, and call StartCombo().
+# Generates a full UActorComponent with Blueprint-callable API.
+
+@component
+@tick
+struct ComboManagerComponent:
+    # ── Configurable Properties ───────────────────────────────────
+    @blueprint
+    @category("Combo Graph|Config")
+    combo_graph_asset: String = ""
+
+    @blueprint
+    @category("Combo Graph|Config")
+    auto_reset_on_finish: Bool = true
+
+    @blueprint
+    @category("Combo Graph|Config")
+    input_timeout: Float = 0.5
+
+    @blueprint
+    @category("Combo Graph|Config")
+    allow_input_buffering: Bool = true
+
+    @blueprint
+    @category("Combo Graph|Config")
+    buffer_window: Float = 0.2
+
+    @blueprint
+    @category("Combo Graph|Config")
+    max_combo_chain: Int = 20
+
+    # ── Runtime State ─────────────────────────────────────────────
+    @blueprint
+    @category("Combo Graph|State")
+    current_state: ComboGraphState = ComboGraphState::Idle
+
+    @blueprint
+    @category("Combo Graph|State")
+    combo_chain_count: Int = 0
+
+    @blueprint
+    @category("Combo Graph|State")
+    total_damage_this_combo: Float = 0.0
+
+    @blueprint
+    @category("Combo Graph|State")
+    is_input_window_open: Bool = false
+
+    @blueprint
+    @category("Combo Graph|State")
+    time_in_current_node: Float = 0.0
+
+    # ── Delegates ─────────────────────────────────────────────────
+    @blueprint
+    on_combo_started: OnComboStarted
+
+    @blueprint
+    on_combo_ended: OnComboEnded
+
+    @blueprint
+    on_node_executed: OnComboNodeExecuted
+
+    @blueprint
+    on_input_received: OnComboInputReceived
+
+    @blueprint
+    on_damage_applied: OnComboDamageApplied
+
+    @blueprint
+    on_state_changed: OnComboStateChanged
+
+    # ── Savegame State ────────────────────────────────────────────
+    @savegame
+    total_combos_executed: Int = 0
+
+    @savegame
+    highest_combo_chain: Int = 0
+
+
+# ============================================================================
+# SECTION 7: ANIMATION-DRIVEN SYSTEM
+# ============================================================================
+# Component that bridges AnimMontages with the combo graph.
+# Listens for AnimNotify events and drives graph advancement.
+
+@component
+struct AnimationDrivenComponent:
+    @blueprint
+    @category("Animation Driven|Config")
+    combo_manager_ref: String = ""
+
+    @blueprint
+    @category("Animation Driven|Config")
+    auto_bind_notifies: Bool = true
+
+    @blueprint
+    @category("Animation Driven|State")
+    current_montage_name: String = ""
+
+    @blueprint
+    @category("Animation Driven|State")
+    current_section: String = ""
+
+    @blueprint
+    @category("Animation Driven|State")
+    is_montage_playing: Bool = false
+
+    @blueprint
+    @category("Animation Driven|State")
+    montage_progress: Float = 0.0
+
+
+# ============================================================================
+# SECTION 8: DAMAGE SHAPE SYSTEM
+# ============================================================================
+# Data-driven damage volumes. Each shape type (sphere, box, capsule, cone)
+# is configured via DamageShapeConfig and executed during combo nodes.
+
+struct DamageShapeResult:
+    @blueprint
+    hits_detected: Int = 0
+    @blueprint
+    total_damage: Float = 0.0
+    @blueprint
+    hit_locations: Array<Vec3>
+    @blueprint
+    knocked_back_count: Int = 0
+
+@blueprint
+fn trace_damage_shape(config: DamageShapeConfig, origin: Vec3, forward: Vec3) -> DamageShapeResult:
+    let result = DamageShapeResult()
+    result.hits_detected = 0
+    result.total_damage = 0.0
+    result.hit_locations = []
+    result.knocked_back_count = 0
+    return result
+
+@blueprint
+fn get_damage_shape_transform(config: DamageShapeConfig, actor_transform: Vec3, actor_forward: Vec3) -> Vec3:
+    let offset = config.offset
+    return actor_transform + offset
+
+
+# ============================================================================
+# SECTION 9: ACTION PASS SYSTEM
+# ============================================================================
+# Data-driven action passes that can be attached to execution nodes.
+# Each pass runs during node execution (play montage, apply damage, etc.)
+
+struct ActionPassEntry:
+    @blueprint
+    pass_type: String = "PlayMontage"
+    @blueprint
+    data: ComboActionPassData
+    @blueprint
+    priority: Int = 0
+    @blueprint
+    enabled: Bool = true
+
+struct ActionPassChain:
+    @blueprint
+    entries: Array<ActionPassEntry>
+    @blueprint
+    stop_on_failure: Bool = false
+
+@blueprint
+fn execute_action_chain(chain: ActionPassChain) -> ActionPassResult:
+    # Each pass is executed in priority order
+    # If stop_on_failure is true, chain stops on first failure
+    return ActionPassResult::Success
+
+@blueprint
+fn create_montage_pass(montage_path: String, play_rate: Float, section: String) -> ActionPassEntry:
+    let data = ComboActionPassData()
+    data.pass_name = "PlayMontage"
+    data.montage_path = montage_path
+    data.play_rate = play_rate
+    data.start_section = section
+    data.auto_advance = false
+    let entry = ActionPassEntry()
+    entry.pass_type = "PlayMontage"
+    entry.data = data
+    entry.priority = 0
+    entry.enabled = true
+    return entry
+
+
+# ============================================================================
+# SECTION 10: CONDITION PASS SYSTEM
+# ============================================================================
+# Data-driven condition checks for ConditionNode branching.
+
+struct ConditionPassEntry:
+    @blueprint
+    condition_type: String = "TagCheck"
+    @blueprint
+    data: ComboConditionData
+    @blueprint
+    combine_mode: String = "AND"
+
+struct ConditionPassChain:
+    @blueprint
+    conditions: Array<ConditionPassEntry>
+    @blueprint
+    default_result: Bool = true
+
+@blueprint
+fn evaluate_condition_chain(chain: ConditionPassChain) -> Bool:
+    return chain.default_result
+
+@blueprint
+fn create_stat_condition(tag: String, min: Float, max: Float) -> ConditionPassEntry:
+    let data = ComboConditionData()
+    data.condition_tag = tag
+    data.min_value = min
+    data.max_value = max
+    data.invert = false
+    let entry = ConditionPassEntry()
+    entry.condition_type = "StatCheck"
+    entry.data = data
+    entry.combine_mode = "AND"
+    return entry
+
+
+# ============================================================================
+# SECTION 11: COMBO STATE MACHINE
+# ============================================================================
+# Manages the high-level combo state transitions.
+# Generates a KAIN state machine with entry/exit blocks and transition guards.
+
+@state_machine
+struct ComboStateMachine:
+    @state(entry: true)
+    struct Idle:
+        @transition(to: "Running")
+        fn can_start() -> Bool:
+            return start_requested
+
+        fn on_enter():
+            println("Entering state")
+
+    @state
+    struct Running:
+        elapsed: Float = 0.0
+
+        @transition(to: "WaitingInput")
+        fn should_wait() -> Bool:
+            return input_required
+
+        @transition(to: "Blocked")
+        fn should_block() -> Bool:
+            return combo_blocked
+
+        @transition(to: "Finished")
+        fn is_done() -> Bool:
+            return graph_complete
+
+        @transition(to: "Idle")
+        fn should_reset() -> Bool:
+            return manual_reset
+
+        fn on_enter():
+            elapsed = 0.0
+
+    @state
+    struct WaitingInput:
+        window_timer: Float = 0.0
+
+        @transition(to: "Running")
+        fn input_received_now() -> Bool:
+            return input_received
+
+        @transition(to: "Finished")
+        fn is_timed_out() -> Bool:
+            return input_timeout
+
+        fn on_enter():
+            window_timer = 0.0
+
+    @state
+    struct Blocked:
+        @transition(to: "Idle")
+        fn on_reset_request() -> Bool:
+            return reset_requested
+
+        @transition(to: "Running")
+        fn on_unblock() -> Bool:
+            return unblocked
+
+    @state
+    struct Finished:
+        @transition(to: "Idle")
+        fn on_auto_reset() -> Bool:
+            return auto_reset
+
+
+# ============================================================================
+# SECTION 12: ASYNC TASK (Heavy Computation Offloading)
+# ============================================================================
+# Used for expensive operations like multi-hit damage calculations.
+
+@async_task
+struct CombatDamageCalculation:
+    @input
+    hit_actors: Int
+    @input
+    base_damage: Float
+    @input
+    damage_multipliers: Array<Float>
+    @input
+    knockback_force: Float
+
+    @output
+    total_damage: Float
+    @output
+    per_actor_damage: Array<Float>
+    @output
+    knockback_applied: Bool
+
+    @callback(thread: "game")
+    fn on_damage_calculated():
+        # Results dispatched back to game thread
+        println("Damage calculated")
+
+
+# ============================================================================
+# SECTION 13: EDITOR MODULE
+# ============================================================================
+# Extends the UE5 editor with Combat Graph tools.
+
+@editor_module
+module CombatGraphEditorModule:
+    @menu_entry
+    menu "Tools/Combat Graph":
+        label: "Open Combat Graph Editor"
+        icon: "Icons.Graph"
+        tooltip: "Open the Combat Graph visual editor"
+
+        fn on_click():
+            println("Combat Graph Editor clicked")
+
+    @toolbar_button
+    toolbar:
+        section: "Content"
+        icon: "Icons.Sword"
+        tooltip: "Create New Combat Graph"
+
+        fn on_click():
+            println("Create Combat Graph clicked")
+
+
+# ============================================================================
+# SECTION 14: BLUEPRINT HELPER LIBRARY
+# ============================================================================
+# Global helper functions exposed to Blueprint. These are compiled into
+# a UBlueprintFunctionLibrary (CombatGraphBlueprintLibrary).
+
+@blueprint
+fn get_input_direction_from_vector(direction: Vec3) -> Int:
+    return 1
+
+@blueprint
+@category("Combat Graph|Direction")
+fn get_direction_name(direction: ComboInputDirection) -> String:
+    match direction:
+        ComboInputDirection::DirForward => return "Forward"
+        ComboInputDirection::DirBackward => return "Backward"
+        ComboInputDirection::DirLeft => return "Left"
+        ComboInputDirection::DirRight => return "Right"
+        ComboInputDirection::DirNeutral => return "Neutral"
+        _ => return "Unknown"
+
+# @blueprint
+# @category("Combat Graph|Direction")
+# fn get_direction_vector(direction: ComboInputDirection) -> Vec3:
+#     if direction == ComboInputDirection::DirForward:
+#         return vec3(1.0, 0.0, 0.0)
+#     if direction == ComboInputDirection::DirBackward:
+#         return vec3(-1.0, 0.0, 0.0)
+#     if direction == ComboInputDirection::DirLeft:
+#         return vec3(0.0, -1.0, 0.0)
+#     if direction == ComboInputDirection::DirRight:
+#         return vec3(0.0, 1.0, 0.0)
+#     if direction == ComboInputDirection::DirNeutral:
+#         return vec3(0.0, 0.0, 0.0)
+#     return vec3(0.0, 0.0, 0.0)
+
+@blueprint
+@category("Combat Graph|Damage")
+fn calculate_knockback_direction(attacker_pos: Vec3, target_pos: Vec3, force: Float) -> Vec3:
+    let diff = target_pos - attacker_pos
+    let length = diff.length()
+    if length < 0.001:
+        return vec3(0.0, 0.0, 0.0)
+    let normalized = diff / length
+    return normalized * force
+
+@blueprint
+@category("Combat Graph|Debug")
+fn format_debug_info(info: ComboDebugInfo) -> String:
+    let result = "Node: {info.current_node_name} | Chain: {info.combo_chain_length} | Damage: {info.damage_dealt} | Active: {info.is_active}"
+    return result
+
+@blueprint
+@category("Combat Graph|Config")
+fn create_default_input_window() -> InputWindowConfig:
+    let config = InputWindowConfig()
+    config.window_duration = 0.5
+    config.allow_buffering = true
+    config.buffer_window = 0.2
+    config.required_direction = ComboInputDirection::DirNeutral
+    return config
+
+@blueprint
+@category("Combat Graph|Config")
+fn create_damage_shape(shape: DamageShapeType, offset: Vec3, extent: Vec3, damage: Float) -> DamageShapeConfig:
+    let config = DamageShapeConfig()
+    config.shape_type = shape
+    config.offset = offset
+    config.extent = extent
+    config.base_damage = damage
+    config.damage_type_tag = "Physical"
+    config.knockback_force = 500.0
+    return config
+
+@blueprint
+@category("Combat Graph|Utility")
+fn is_combo_chain_valid(chain_length: Int, max_chain: Int) -> Bool:
+    return chain_length >= 0 and chain_length < max_chain
+
+@blueprint
+@category("Combat Graph|Utility")
+fn get_damage_multiplier_for_chain(chain_length: Int) -> Float:
+    # Damage increases by 10% per combo hit, capped at 2x
+    let multiplier = 1.0 + chain_length.to_float() * 0.1
+    if multiplier > 2.0:
+        return 2.0
+    return multiplier
+
+@blueprint
+@category("Combat Graph|Utility")
+fn should_reset_combo(state: ComboGraphState, auto_reset: Bool) -> Bool:
+    if state == ComboGraphState::Finished and auto_reset:
+        return true
+    if state == ComboGraphState::Blocked:
+        return true
+    return false
+
+
+# ============================================================================
+# SECTION 15: GAMEPLAY TAGS
+# ============================================================================
+# Common gameplay tag strings used throughout the combo system.
+
+@const
+COMBO_TAG_ROOT: String = "Combat.Combo"
+
+@const
+COMBO_TAG_ATTACK: String = "Combat.Combo.Attack"
+
+@const
+COMBO_TAG_FINISHER: String = "Combat.Combo.Finisher"
+
+@const
+COMBO_TAG_BLOCKED: String = "Combat.Status.Blocked"
+
+@const
+COMBO_TAG_STUNNED: String = "Combat.Status.Stunned"
+
+@const
+COMBO_TAG_INVINCIBLE: String = "Combat.Status.Invincible"
+
+@const
+DAMAGE_TAG_PHYSICAL: String = "Damage.Physical"
+
+@const
+DAMAGE_TAG_MAGIC: String = "Damage.Magic"
+
+@const
+DAMAGE_TAG_FIRE: String = "Damage.Fire"
+
+@const

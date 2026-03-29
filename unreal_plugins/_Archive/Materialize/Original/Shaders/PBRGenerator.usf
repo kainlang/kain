@@ -1,0 +1,423 @@
+#include "/Engine/Public/Platform.ush"
+
+// =============================================================================
+// MATERIALIZE PBR GENERATOR - GPU COMPUTE KERNELS v3
+// Multi-pass: Gradient -> Height Integration -> Final PBR
+//
+// v3 improvements:
+//   - sRGB linearization before ALL math
+//   - Multi-scale normal: macro(Poisson) + meso + micro frequency bands
+//   - Color-aware metallic: saturation+brightness score, not just luminance
+//   - Roughness: local variance blend with luminance base
+//   - 8-direction horizon AO (replaces 4-direction cross)
+//   - Emissive: color saturation boost + brightness threshold
+// =============================================================================
+
+Texture2D<float4> InSourceTexture;
+SamplerState      InSourceSampler;
+Texture2D<float2> InGradient;
+Texture2D<float>  InHeightPrev;
+
+RWTexture2D<float2> OutGradient;
+RWTexture2D<float>  OutHeightNext;
+RWTexture2D<float4> OutNormal;
+RWTexture2D<float>  OutRoughness;
+RWTexture2D<float>  OutMetallic;
+RWTexture2D<float>  OutAO;
+RWTexture2D<float>  OutEmissive;
+RWTexture2D<float>  OutHeight;
+
+// --- Scalar Parameters ---
+float NormalStrength;
+float RoughnessBase;
+float RoughnessContrast;
+uint  bRoughnessInvert;
+float MetallicBase;
+float MetallicContrast;
+float MetallicBias;
+float MetallicSensitivity;
+float AOIntensity;
+float HeightContrast;
+float BioDetail;
+float BioFrequency;
+float CyberDetail;
+float CyberScale;
+float EdgeWear;
+float CavityDirt;
+float Dust;
+float Grunge;
+float Scratches;
+float Noise;
+float EmissiveThreshold;
+float EmissiveColorBoost;
+float VarianceWeight;
+uint2 TextureDimensions;
+uint  bAdvancedNormal;
+uint  bAdvancedAO;
+int   NormalOctaves;
+float NormalSigmaBase;
+float NormalAnisotropy;
+float AORadius;
+float AOBias;
+float AOContrast;
+
+// =============================================================================
+// HELPERS
+// =============================================================================
+
+float3 LinearizeGamma(float3 c)
+{
+    return pow(saturate(c), 2.2);
+}
+
+float GetLuminanceLinear(float3 lin)
+{
+    return dot(lin, float3(0.2126, 0.7152, 0.0722));
+}
+
+float GetLuminance(float3 RGB)
+{
+    return dot(RGB, float3(0.299, 0.587, 0.114));
+}
+
+float GetBioNoise(uint2 Id, float Freq)
+{
+    return (sin((float)Id.x * Freq * 0.1) * cos((float)Id.y * Freq * 0.1)) * 0.5 + 0.5;
+}
+
+float GetCyberNoise(uint2 Id, float Scale)
+{
+    uint2 Cell = (uint2)floor((float2)Id * Scale);
+    return ((Cell.x ^ Cell.y) % 13) == 0 ? 1.0 : 0.0;
+}
+
+float Hash21(float2 p)
+{
+    p = frac(p * float2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return frac(p.x * p.y);
+}
+
+float SmoothNoise(float2 uv)
+{
+    float2 i = floor(uv);
+    float2 f = frac(uv);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = Hash21(i);
+    float b = Hash21(i + float2(1, 0));
+    float c = Hash21(i + float2(0, 1));
+    float d = Hash21(i + float2(1, 1));
+    return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
+}
+
+float FBM(float2 uv, int octaves)
+{
+    float val = 0.0;
+    float amp = 0.5;
+    for (int i = 0; i < octaves; i++)
+    {
+        val += amp * SmoothNoise(uv);
+        uv  *= 2.0;
+        amp *= 0.5;
+    }
+    return val;
+}
+
+float SampleHeightSafe(uint2 pos)
+{
+    pos.x = clamp(pos.x, 0u, TextureDimensions.x - 1u);
+    pos.y = clamp(pos.y, 0u, TextureDimensions.y - 1u);
+    return InHeightPrev.Load(int3(pos, 0));
+}
+
+float2 SampleGradientSafe(uint2 pos)
+{
+    pos.x = clamp(pos.x, 0u, TextureDimensions.x - 1u);
+    pos.y = clamp(pos.y, 0u, TextureDimensions.y - 1u);
+    return InGradient.Load(int3(pos, 0));
+}
+
+float SampleLumLinear(uint2 pos)
+{
+    pos.x = clamp(pos.x, 0u, TextureDimensions.x - 1u);
+    pos.y = clamp(pos.y, 0u, TextureDimensions.y - 1u);
+    return GetLuminanceLinear(LinearizeGamma(InSourceTexture.Load(int3(pos, 0)).rgb));
+}
+
+// =============================================================================
+// PASS 1: GRADIENT EXTRACTION
+// =============================================================================
+
+[numthreads(8, 8, 1)]
+void GradientCS(uint3 ThreadId : SV_DispatchThreadID)
+{
+    if (ThreadId.x >= TextureDimensions.x || ThreadId.y >= TextureDimensions.y) return;
+    uint2 Pos = ThreadId.xy;
+    float2 Grad = float2(0.0, 0.0);
+
+    if (bAdvancedNormal > 0)
+    {
+        int oct = max(1, NormalOctaves);
+        for (int k = 0; k < oct; ++k)
+        {
+            float sigma = NormalSigmaBase * pow(2.0, (float)k);
+            int o = max(1, (int)round(sigma));
+            uint2 L = uint2(max(0, (int)Pos.x - o), Pos.y);
+            uint2 R = uint2(min(TextureDimensions.x - 1, Pos.x + o), Pos.y);
+            uint2 U = uint2(Pos.x, max(0, (int)Pos.y - o));
+            uint2 D = uint2(Pos.x, min(TextureDimensions.y - 1, Pos.y + o));
+            float2 g = float2(SampleLumLinear(R) - SampleLumLinear(L),
+                              SampleLumLinear(D) - SampleLumLinear(U)) / max(1.0, sigma);
+            Grad += g;
+        }
+    }
+    else
+    {
+        uint2 TL = uint2(max(0,(int)Pos.x-1), max(0,(int)Pos.y-1));
+        uint2 T  = uint2(Pos.x,               max(0,(int)Pos.y-1));
+        uint2 TR = uint2(min(TextureDimensions.x-1,Pos.x+1), max(0,(int)Pos.y-1));
+        uint2 L  = uint2(max(0,(int)Pos.x-1), Pos.y);
+        uint2 R  = uint2(min(TextureDimensions.x-1,Pos.x+1), Pos.y);
+        uint2 BL = uint2(max(0,(int)Pos.x-1), min(TextureDimensions.y-1,Pos.y+1));
+        uint2 B  = uint2(Pos.x,               min(TextureDimensions.y-1,Pos.y+1));
+        uint2 BR = uint2(min(TextureDimensions.x-1,Pos.x+1), min(TextureDimensions.y-1,Pos.y+1));
+        float vTL=SampleLumLinear(TL); float vT=SampleLumLinear(T);   float vTR=SampleLumLinear(TR);
+        float vL =SampleLumLinear(L);  float vR=SampleLumLinear(R);
+        float vBL=SampleLumLinear(BL); float vB=SampleLumLinear(B);   float vBR=SampleLumLinear(BR);
+        Grad.x = (vTR + 2.0*vR + vBR) - (vTL + 2.0*vL + vBL);
+        Grad.y = (vBL + 2.0*vB + vBR) - (vTL + 2.0*vT + vTR);
+    }
+
+    Grad.x *= NormalAnisotropy;
+    OutGradient[Pos] = Grad * NormalStrength * 0.25;
+}
+
+// =============================================================================
+// PASS 2: POISSON HEIGHT INTEGRATION (Jacobi)
+// =============================================================================
+
+[numthreads(8, 8, 1)]
+void HeightIntegrationCS(uint3 ThreadId : SV_DispatchThreadID)
+{
+    if (ThreadId.x >= TextureDimensions.x || ThreadId.y >= TextureDimensions.y) return;
+    uint2 Pos = ThreadId.xy;
+
+    float hL = SampleHeightSafe(uint2(max(0,(int)Pos.x-1), Pos.y));
+    float hR = SampleHeightSafe(uint2(min(TextureDimensions.x-1,Pos.x+1), Pos.y));
+    float hU = SampleHeightSafe(uint2(Pos.x, max(0,(int)Pos.y-1)));
+    float hD = SampleHeightSafe(uint2(Pos.x, min(TextureDimensions.y-1,Pos.y+1)));
+
+    float2 gL = SampleGradientSafe(uint2(max(0,(int)Pos.x-1), Pos.y));
+    float2 gR = SampleGradientSafe(uint2(min(TextureDimensions.x-1,Pos.x+1), Pos.y));
+    float2 gU = SampleGradientSafe(uint2(Pos.x, max(0,(int)Pos.y-1)));
+    float2 gD = SampleGradientSafe(uint2(Pos.x, min(TextureDimensions.y-1,Pos.y+1)));
+
+    float Div = (gR.x - gL.x + gD.y - gU.y) * 0.5;
+    OutHeightNext[Pos] = (hL + hR + hU + hD + Div) * 0.25;
+}
+
+// =============================================================================
+// PASS 3: FINAL PBR GENERATION
+// =============================================================================
+
+[numthreads(8, 8, 1)]
+void FinalPBRCS(uint3 ThreadId : SV_DispatchThreadID)
+{
+    if (ThreadId.x >= TextureDimensions.x || ThreadId.y >= TextureDimensions.y) return;
+    uint2 Pos = ThreadId.xy;
+
+    // --- Color science: linearize before all math ---
+    float3 SourceLin = LinearizeGamma(InSourceTexture.Load(int3(Pos, 0)).rgb);
+    float  Lum       = GetLuminanceLinear(SourceLin);
+    float  ChanMin   = min(SourceLin.r, min(SourceLin.g, SourceLin.b));
+    float  ChanMax   = max(SourceLin.r, max(SourceLin.g, SourceLin.b));
+    float  Sat       = (ChanMax > 0.001) ? (1.0 - ChanMin / ChanMax) : 0.0;
+
+    float Bio    = GetBioNoise(Pos, BioFrequency);
+    float Cyber  = GetCyberNoise(Pos, CyberScale);
+    float2 UVN   = (float2)Pos / (float2)TextureDimensions;
+    float  WNoise = FBM(UVN * 50.0, 4);
+    float  SNoise = FBM(UVN * float2(200.0, 20.0), 2);
+
+    // ---- HEIGHT ----
+    float HeightVal = SampleHeightSafe(Pos);
+    HeightVal = (HeightVal - 0.5) * HeightContrast + 0.5;
+    if (CyberDetail > 0.0 && Cyber > 0.5) HeightVal += 0.15 * CyberDetail;
+    OutHeight[Pos] = saturate(HeightVal);
+
+    // ---- NORMAL: multi-scale (macro 0.5 + meso 0.3 + micro 0.2) ----
+    // Macro: Poisson height at 1px
+    float hL1 = SampleHeightSafe(uint2(max(0,(int)Pos.x-1), Pos.y));
+    float hR1 = SampleHeightSafe(uint2(min(TextureDimensions.x-1,Pos.x+1), Pos.y));
+    float hU1 = SampleHeightSafe(uint2(Pos.x, max(0,(int)Pos.y-1)));
+    float hD1 = SampleHeightSafe(uint2(Pos.x, min(TextureDimensions.y-1,Pos.y+1)));
+    float3 NMacro = normalize(float3(-(hR1-hL1)*NormalStrength*2.0, -(hD1-hU1)*NormalStrength*2.0, 1.0));
+
+    // Meso: Poisson height at 2px
+    float hL2 = SampleHeightSafe(uint2(max(0,(int)Pos.x-2), Pos.y));
+    float hR2 = SampleHeightSafe(uint2(min(TextureDimensions.x-1,Pos.x+2), Pos.y));
+    float hU2 = SampleHeightSafe(uint2(Pos.x, max(0,(int)Pos.y-2)));
+    float hD2 = SampleHeightSafe(uint2(Pos.x, min(TextureDimensions.y-1,Pos.y+2)));
+    float3 NMeso = normalize(float3(-(hR2-hL2)*NormalStrength*1.2, -(hD2-hU2)*NormalStrength*1.2, 1.0));
+
+    // Micro: linearized luminance Sobel at 1px (surface texture detail)
+    float lL = SampleLumLinear(uint2(max(0,(int)Pos.x-1), Pos.y));
+    float lR = SampleLumLinear(uint2(min(TextureDimensions.x-1,Pos.x+1), Pos.y));
+    float lU = SampleLumLinear(uint2(Pos.x, max(0,(int)Pos.y-1)));
+    float lD = SampleLumLinear(uint2(Pos.x, min(TextureDimensions.y-1,Pos.y+1)));
+    float3 NMicro = normalize(float3(-(lR-lL)*NormalStrength*0.6, -(lD-lU)*NormalStrength*0.6, 1.0));
+
+    float3 Normal = normalize(NMacro * 0.5 + NMeso * 0.3 + NMicro * 0.2);
+    if (Scratches > 0.0)
+        Normal = normalize(Normal + float3((SNoise-0.5)*Scratches, (SNoise-0.5)*Scratches*0.2, 0.0));
+    if (CyberDetail > 0.0 && Cyber > 0.5)
+        Normal = normalize(Normal + float3(0.3*CyberDetail, 0.0, 0.0));
+    OutNormal[Pos] = float4(Normal * 0.5 + 0.5, 1.0);
+
+    // ---- EDGE / CAVITY from height ----
+    float Laplacian  = (hL1 + hR1 + hU1 + hD1) * 0.25 - HeightVal;
+    float EdgeMask   = saturate(abs(Laplacian) * 10.0);
+    float CavityMask = saturate(-Laplacian * 10.0);
+
+    // ---- ROUGHNESS: luminance base + local variance blend ----
+    float LumSum = 0.0, LumSum2 = 0.0;
+    [unroll] for (int vy = -1; vy <= 1; vy++)
+    [unroll] for (int vx = -1; vx <= 1; vx++)
+    {
+        float vlum = SampleLumLinear(uint2(
+            clamp((int)Pos.x+vx, 0, (int)TextureDimensions.x-1),
+            clamp((int)Pos.y+vy, 0, (int)TextureDimensions.y-1)));
+        LumSum += vlum; LumSum2 += vlum * vlum;
+    }
+    float LumMean = LumSum / 9.0;
+    float Variance = saturate((LumSum2 / 9.0) - (LumMean * LumMean)) * 8.0;
+
+    float RoughLum = RoughnessBase + (Lum - 0.5) * RoughnessContrast;
+    if (bRoughnessInvert > 0) RoughLum = 1.0 - RoughLum;
+    float Rough = lerp(RoughLum, saturate(RoughLum + Variance), VarianceWeight);
+
+    Rough = lerp(Rough, 1.0,  Bio * BioDetail);
+    Rough = lerp(Rough, 0.1,  EdgeMask * EdgeWear);
+    Rough = lerp(Rough, 0.95, CavityMask * CavityDirt);
+    Rough = lerp(Rough, 0.8,  Dust * WNoise);
+    Rough += (WNoise - 0.5) * Grunge * 0.3;
+    Rough += (Hash21((float2)Pos) - 0.5) * Noise * 0.1;
+    if (CyberDetail > 0.0 && Cyber > 0.5) Rough = 0.05;
+    OutRoughness[Pos] = saturate(Rough);
+
+    // ---- METALLIC: color-aware detection ----
+    // Metals = high brightness + low saturation. MetalScore encodes this.
+    float MetalScore = Lum * (1.0 - Sat) * MetallicSensitivity;
+    float Metal = saturate(MetallicBase + MetalScore * MetallicContrast + MetallicBias / 255.0);
+    Metal = lerp(Metal, 1.0, EdgeMask * EdgeWear * 0.8);
+    Metal = lerp(Metal, 0.0, CavityMask * CavityDirt * 0.7);
+    Metal = lerp(Metal, 0.0, Grunge * WNoise * 0.5);
+    if (CyberDetail > 0.0 && Cyber > 0.5) Metal = 1.0;
+    OutMetallic[Pos] = saturate(Metal);
+
+    // ---- AO: 8-direction horizon sampling ----
+    float AO = 1.0;
+    if (bAdvancedAO > 0)
+    {
+        int r = max(1, (int)round(AORadius));
+        float occ = 0.0, totalW = 0.0;
+        float h0 = HeightVal;
+
+        // 8 directions with weights (cardinal=1.0, diagonal=0.707)
+        float2 Dirs[8]    = { float2(1,0), float2(-1,0), float2(0,1), float2(0,-1),
+                               float2(1,1), float2(-1,1), float2(1,-1), float2(-1,-1) };
+        float  DirW[8]    = { 1.0, 1.0, 1.0, 1.0, 0.707, 0.707, 0.707, 0.707 };
+
+        for (int d = 0; d < 8; d++)
+        {
+            float maxH = 0.0;
+            for (int s = 1; s <= r; s++)
+            {
+                uint2 sp = uint2(
+                    clamp((int)Pos.x + (int)(Dirs[d].x * s), 0, (int)TextureDimensions.x-1),
+                    clamp((int)Pos.y + (int)(Dirs[d].y * s), 0, (int)TextureDimensions.y-1));
+                float horizon = (SampleHeightSafe(sp) - h0) / (float)s;
+                maxH = max(maxH, horizon);
+            }
+            occ    += max(0.0, maxH) * DirW[d];
+            totalW += DirW[d];
+        }
+        occ /= max(0.001, totalW);
+        AO = pow(saturate(1.0 - occ * AOIntensity + AOBias), AOContrast);
+    }
+    else
+    {
+        AO -= CavityMask * AOIntensity * 0.5;
+        AO -= (0.5 - HeightVal) * AOIntensity * 0.3;
+        AO -= Grunge * WNoise * 0.2;
+    }
+    OutAO[Pos] = saturate(AO);
+
+    // ---- EMISSIVE: brightness + color saturation boost ----
+    float Emissive = 0.0;
+    if (EmissiveThreshold > 0.01)
+    {
+        float Threshold = 1.0 - EmissiveThreshold;
+        float BrightE = saturate((Lum - Threshold) * 10.0);
+        // Highly saturated bright pixels = emissive (neon, screens, fire)
+        float SatE = saturate((Sat - 0.6) * 5.0) * saturate(Lum * 2.0);
+        Emissive = saturate(BrightE + SatE * EmissiveColorBoost);
+    }
+    if (CyberDetail > 0.2 && Cyber > 0.5) Emissive = 1.0;
+    OutEmissive[Pos] = Emissive;
+}
+
+// =============================================================================
+// LEGACY: Single-pass MainCS (fast preview / backward compat)
+// =============================================================================
+
+[numthreads(8, 8, 1)]
+void MainCS(uint3 ThreadId : SV_DispatchThreadID)
+{
+    if (ThreadId.x >= TextureDimensions.x || ThreadId.y >= TextureDimensions.y) return;
+    uint2  Pos  = ThreadId.xy;
+    float3 Lin  = LinearizeGamma(InSourceTexture.Load(int3(Pos, 0)).rgb);
+    float  Lum  = GetLuminanceLinear(Lin);
+    float  Bio  = GetBioNoise(Pos, BioFrequency);
+    float  Cyber = GetCyberNoise(Pos, CyberScale);
+
+    uint2 TL=uint2(max(0,(int)Pos.x-1),max(0,(int)Pos.y-1));
+    uint2 T =uint2(Pos.x,max(0,(int)Pos.y-1));
+    uint2 TR=uint2(min(TextureDimensions.x-1,Pos.x+1),max(0,(int)Pos.y-1));
+    uint2 L =uint2(max(0,(int)Pos.x-1),Pos.y);
+    uint2 R =uint2(min(TextureDimensions.x-1,Pos.x+1),Pos.y);
+    uint2 BL=uint2(max(0,(int)Pos.x-1),min(TextureDimensions.y-1,Pos.y+1));
+    uint2 B =uint2(Pos.x,min(TextureDimensions.y-1,Pos.y+1));
+    uint2 BR=uint2(min(TextureDimensions.x-1,Pos.x+1),min(TextureDimensions.y-1,Pos.y+1));
+
+    float vTL=SampleLumLinear(TL); float vT=SampleLumLinear(T);   float vTR=SampleLumLinear(TR);
+    float vL =SampleLumLinear(L);  float vR=SampleLumLinear(R);
+    float vBL=SampleLumLinear(BL); float vB=SampleLumLinear(B);   float vBR=SampleLumLinear(BR);
+
+    float Dx = (vTR + 2.0*vR + vBR) - (vTL + 2.0*vL + vBL);
+    float Dy = (vBL + 2.0*vB + vBR) - (vTL + 2.0*vT + vTR);
+    float3 Normal = normalize(float3(Dx*NormalStrength, Dy*NormalStrength, 1.0));
+    if (CyberDetail > 0.0 && Cyber > 0.5)
+        Normal = normalize(Normal + float3(0.5*CyberDetail, 0.0, 0.0));
+    OutNormal[Pos] = float4(Normal * 0.5 + 0.5, 1.0);
+
+    float Rough = RoughnessBase + (Lum - 0.5) * RoughnessContrast;
+    if (bRoughnessInvert > 0) Rough = 1.0 - Rough;
+    Rough = lerp(Rough, 1.0, Bio * BioDetail);
+    if (CyberDetail > 0.0 && Cyber > 0.5) Rough = 0.05;
+    OutRoughness[Pos] = saturate(Rough);
+
+    float ChanMin = min(Lin.r, min(Lin.g, Lin.b));
+    float ChanMax = max(Lin.r, max(Lin.g, Lin.b));
+    float Sat = (ChanMax > 0.001) ? (1.0 - ChanMin / ChanMax) : 0.0;
+    float Metal = saturate(MetallicBase + Lum*(1.0-Sat)*MetallicSensitivity*MetallicContrast + MetallicBias/255.0);
+    if (CyberDetail > 0.0 && Cyber > 0.5) Metal = 1.0;
+    OutMetallic[Pos] = saturate(Metal);
+
+    float AO = Lum * AOIntensity + (1.0 - AOIntensity);
+    OutAO[Pos] = saturate(AO);
+
+    float HeightVal = (Lum - 0.5) * HeightContrast + 0.5;
+    if (CyberDetail > 0.0 && Cyber > 0.5) HeightVal += 0.2;
+    OutHeight[Pos] = saturate(HeightVal);
+}

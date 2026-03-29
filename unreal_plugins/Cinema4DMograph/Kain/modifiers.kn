@@ -1,0 +1,551 @@
+# ============================================================================
+# CINEMA4D MOGRAPH - Modifier System
+# ============================================================================
+# Complete modifier stack system with 20+ modifier types
+# - Base modifier class with influence and easing
+# - Motion modifiers (Orbit, Float, Pulse, Wave, etc.)
+# - Force modifiers (Noise, Attract, Gravity, etc.)
+# - Utility modifiers (Delay, Random, Step, Color, etc.)
+# - Advanced modifiers (Figure8, Lissajous, Bounce, etc.)
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: BASE MODIFIER CLASS
+# ============================================================================
+
+# Note: KAIN doesn't support abstract base classes with virtual methods yet
+# This would need to be a struct with function pointers or a trait system
+# For now, we'll define each modifier as a standalone struct
+
+# Base modifier properties (common to all modifiers)
+struct ModifierBase:
+    enabled: Bool
+    influence: Float
+    easing: EasingType
+    guid: String  # For Sequencer tracking
+
+# ============================================================================
+# SECTION 2: MOTION MODIFIERS
+# ============================================================================
+
+# Orbit - Spins clones around an axis
+struct OrbitModifier:
+    base: ModifierBase
+    speed: Float
+    axis: Vec3
+    step: Float
+
+# Float - Sine wave motion
+struct FloatModifier:
+    base: ModifierBase
+    speed: Float
+    frequency: Float
+    amplitude: Float
+    direction: Vec3
+
+# Pulse - Breathing scale effect
+struct PulseModifier:
+    base: ModifierBase
+    speed: Float
+    frequency: Float
+    scale_amount: Float
+    is_uniform: Bool
+
+# Wave - Propagating wave through instances
+struct WaveModifier:
+    base: ModifierBase
+    speed: Float
+    frequency: Float
+    amplitude: Float
+    direction: Vec3
+
+# Shake - Perlin noise jitter
+struct ShakeModifier:
+    base: ModifierBase
+    speed: Float
+    position_strength: Vec3
+    rotation_strength: Vec3
+    scale_strength: Vec3
+
+# Tumble - Constant spinning with random variation
+struct TumbleModifier:
+    base: ModifierBase
+    rotation_speed: Vec3
+    random_offset: Float
+
+# Elastic - Bouncy spring motion
+struct ElasticModifier:
+    base: ModifierBase
+    speed: Float
+    amplitude: Float
+    damping: Float
+    axis: Vec3
+
+# Vortex - Swirly black hole effect
+struct VortexModifier:
+    base: ModifierBase
+    rotation_speed: Float
+    pull_strength: Float
+    radius: Float
+    axis: Vec3
+
+# Figure8 - Infinity symbol path
+struct Figure8Modifier:
+    base: ModifierBase
+    speed: Float
+    width: Float
+    height: Float
+    step: Float
+    up_axis: Int  # 0=X, 1=Y, 2=Z
+
+# Lissajous - Fancy math curves
+struct LissajousModifier:
+    base: ModifierBase
+    speed: Float
+    curve_size: Float
+    frequency_a: Int
+    frequency_b: Int
+    phase: Float
+    step: Float
+
+# ============================================================================
+# SECTION 3: FORCE MODIFIERS
+# ============================================================================
+
+# Noise - Curl noise for fluid motion
+struct NoiseModifier:
+    base: ModifierBase
+    strength: Float
+    frequency: Float
+    speed: Float
+    offset: Vec3
+    affect_position: Bool
+    affect_rotation: Bool
+    rotation_strength: Float
+
+# Attract - Pull/repel from point
+struct AttractModifier:
+    base: ModifierBase
+    target: Vec3
+    strength: Float
+    radius: Float
+    falloff: Float
+
+# Gravity - Physics gravity
+struct GravityModifier:
+    base: ModifierBase
+    acceleration: Vec3
+    time_multiplier: Float
+
+# Target - Look-at behavior
+struct TargetModifier:
+    base: ModifierBase
+    target_location: Vec3
+    up_vector: Vec3
+    blend_factor: Float
+
+# Push - Explosion/implosion
+struct PushModifier:
+    base: ModifierBase
+    origin: Vec3
+    strength: Float
+    radius: Float
+    invert: Bool
+
+# ============================================================================
+# SECTION 4: UTILITY MODIFIERS
+# ============================================================================
+
+# Delay - Time offset for cascading
+struct DelayModifier:
+    base: ModifierBase
+    delay_amount: Float
+
+# Random - Noise/variation
+struct RandomModifier:
+    base: ModifierBase
+    seed: Int
+    position: Vec3
+    rotation: Vec3
+    scale: Vec3
+    uniform_scale: Bool
+
+# Step - Accumulative offset
+struct StepModifier:
+    base: ModifierBase
+    position_step: Vec3
+    rotation_step: Vec3
+    scale_step: Vec3
+
+# Color - Per-instance color
+struct ColorModifier:
+    base: ModifierBase
+    color: Vec3
+    randomize: Bool
+
+# ============================================================================
+# SECTION 5: ADVANCED MODIFIERS
+# ============================================================================
+
+# Bounce - Bouncing ball with squash/stretch
+struct BounceModifier:
+    base: ModifierBase
+    speed: Float
+    height: Float
+    squash: Float
+    step: Float
+    direction: Vec3
+
+# Pendulum - Clock pendulum swing
+struct PendulumModifier:
+    base: ModifierBase
+    speed: Float
+    angle: Float
+    step: Float
+    rotation_axis: Int  # 0=X, 1=Y, 2=Z
+
+# Sway - Trees/plants in wind
+struct SwayModifier:
+    base: ModifierBase
+    wind_speed: Float
+    sway_angle: Float
+    detail_intensity: Float
+    randomization: Float
+    sway_axis: Int  # 0=X, 1=Y, 2=Z
+    cross_axis: Bool
+
+# ============================================================================
+# SECTION 6: MODIFIER APPLICATION FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn ApplyOrbitModifier(transform: Vec3, index: Int, count: Int, time: Float, modifier: OrbitModifier) -> Vec3:
+    if not(modifier.base.enabled):
+        return transform
+    
+    let angle = time * modifier.speed + float(index) * modifier.step
+    let rotated = RotateVectorAroundAxis(transform, modifier.axis, angle)
+    
+    # Apply influence
+    let influenced = BlendTransforms(transform, rotated, modifier.base.influence)
+    
+    return influenced
+
+@blueprint
+fn ApplyFloatModifier(transform: Vec3, index: Int, count: Int, time: Float, modifier: FloatModifier) -> Vec3:
+    if not(modifier.base.enabled):
+        return transform
+    
+    let phase = time * modifier.speed + float(index) * modifier.frequency
+    let offset = sin(phase) * modifier.amplitude
+    let displaced = transform + modifier.direction * offset
+    
+    # Apply influence
+    let influenced = BlendTransforms(transform, displaced, modifier.base.influence)
+    
+    return influenced
+
+@blueprint
+fn ApplyPulseModifier(transform: Vec3, scale: Vec3, index: Int, count: Int, time: Float, modifier: PulseModifier) -> Vec3:
+    if not(modifier.base.enabled):
+        return scale
+    
+    let phase = time * modifier.speed + float(index) * modifier.frequency
+    let pulse = sin(phase) * modifier.scale_amount
+    
+    var new_scale = scale
+    if modifier.is_uniform:
+        new_scale = scale * (1.0 + pulse)
+    else:
+        new_scale = scale + vec3(pulse, pulse, pulse)
+    
+    # Apply influence
+    let influenced = BlendTransforms(scale, new_scale, modifier.base.influence)
+    
+    return influenced
+
+@blueprint
+fn ApplyWaveModifier(transform: Vec3, index: Int, count: Int, time: Float, modifier: WaveModifier) -> Vec3:
+    if not(modifier.base.enabled):
+        return transform
+    
+    let wave_phase = float(index) * modifier.frequency
+    let time_phase = time * modifier.speed
+    let offset = sin(wave_phase + time_phase) * modifier.amplitude
+    let displaced = transform + modifier.direction * offset
+    
+    # Apply influence
+    let influenced = BlendTransforms(transform, displaced, modifier.base.influence)
+    
+    return influenced
+
+@blueprint
+fn ApplyShakeModifier(transform: Vec3, rotation: Vec3, scale: Vec3, index: Int, count: Int, time: Float, modifier: ShakeModifier) -> Vec3:
+    if not(modifier.base.enabled):
+        return transform
+    
+    # Use index as seed for variation
+    let seed_x = float(index) * 12.9898
+    let seed_y = float(index) * 78.233
+    let seed_z = float(index) * 37.719
+    
+    # Perlin noise for organic shake
+    let noise_x = PerlinNoise3D(seed_x, time * modifier.speed, 0.0, 1.0)
+    let noise_y = PerlinNoise3D(seed_y, time * modifier.speed, 0.0, 1.0)
+    let noise_z = PerlinNoise3D(seed_z, time * modifier.speed, 0.0, 1.0)
+    
+    let shake_offset = vec3(
+        noise_x * modifier.position_strength.x,
+        noise_y * modifier.position_strength.y,
+        noise_z * modifier.position_strength.z
+    )
+    
+    let shaken = transform + shake_offset
+    
+    # Apply influence
+    let influenced = BlendTransforms(transform, shaken, modifier.base.influence)
+    
+    return influenced
+
+@blueprint
+fn ApplyNoiseModifier(transform: Vec3, index: Int, count: Int, time: Float, modifier: NoiseModifier) -> Vec3:
+    if not(modifier.base.enabled):
+        return transform
+    
+    # Curl noise for fluid motion
+    let sample_pos = transform * modifier.frequency + modifier.offset + vec3(time * modifier.speed, 0.0, 0.0)
+    let curl = CurlNoise3D(sample_pos.x, sample_pos.y, sample_pos.z, 1.0)
+    
+    let displaced = transform + curl * modifier.strength
+    
+    # Apply influence
+    let influenced = BlendTransforms(transform, displaced, modifier.base.influence)
+    
+    return influenced
+
+@blueprint
+fn ApplyAttractModifier(transform: Vec3, index: Int, count: Int, time: Float, modifier: AttractModifier) -> Vec3:
+    if not(modifier.base.enabled):
+        return transform
+    
+    let to_target = modifier.target - transform
+    let distance = length(to_target)
+    
+    if distance > modifier.radius:
+        return transform
+    
+    # Falloff curve
+    let normalized = distance / modifier.radius
+    let falloff_factor = pow(1.0 - normalized, modifier.falloff)
+    
+    let direction = normalize(to_target)
+    let pull = direction * modifier.strength * falloff_factor
+    
+    let attracted = transform + pull
+    
+    # Apply influence
+    let influenced = BlendTransforms(transform, attracted, modifier.base.influence)
+    
+    return influenced
+
+@blueprint
+fn ApplyGravityModifier(transform: Vec3, index: Int, count: Int, time: Float, modifier: GravityModifier) -> Vec3:
+    if not(modifier.base.enabled):
+        return transform
+    
+    # s = 0.5 * a * t^2
+    let scaled_time = time * modifier.time_multiplier
+    let displacement = modifier.acceleration * 0.5 * scaled_time * scaled_time
+    
+    let fallen = transform + displacement
+    
+    # Apply influence
+    let influenced = BlendTransforms(transform, fallen, modifier.base.influence)
+    
+    return influenced
+
+@blueprint
+fn ApplyDelayModifier(time: Float, index: Int, modifier: DelayModifier) -> Float:
+    if not(modifier.base.enabled):
+        return time
+    
+    # Shift time for this instance
+    return time - float(index) * modifier.delay_amount
+
+@blueprint
+fn ApplyRandomModifier(transform: Vec3, rotation: Vec3, scale: Vec3, index: Int, modifier: RandomModifier) -> Vec3:
+    if not(modifier.base.enabled):
+        return transform
+    
+    # Seeded random based on index
+    let seed = float(modifier.seed + index)
+    let rand_x = fract(sin(seed * 12.9898) * 43758.5453)
+    let rand_y = fract(sin(seed * 78.233) * 43758.5453)
+    let rand_z = fract(sin(seed * 37.719) * 43758.5453)
+    
+    # Map to -1 to 1 range
+    let random_offset = vec3(
+        (rand_x * 2.0 - 1.0) * modifier.position.x,
+        (rand_y * 2.0 - 1.0) * modifier.position.y,
+        (rand_z * 2.0 - 1.0) * modifier.position.z
+    )
+    
+    let randomized = transform + random_offset
+    
+    # Apply influence
+    let influenced = BlendTransforms(transform, randomized, modifier.base.influence)
+    
+    return influenced
+
+@blueprint
+fn ApplyStepModifier(transform: Vec3, index: Int, modifier: StepModifier) -> Vec3:
+    if not(modifier.base.enabled):
+        return transform
+    
+    # Accumulative offset per index
+    let step_offset = modifier.position_step * float(index)
+    let stepped = transform + step_offset
+    
+    # Apply influence
+    let influenced = BlendTransforms(transform, stepped, modifier.base.influence)
+    
+    return influenced
+
+@blueprint
+fn ApplyFigure8Modifier(transform: Vec3, index: Int, count: Int, time: Float, modifier: Figure8Modifier) -> Vec3:
+    if not(modifier.base.enabled):
+        return transform
+    
+    let phase = time * modifier.speed + float(index) * modifier.step
+    
+    # Lemniscate of Bernoulli (figure-8 curve)
+    let t = phase * 6.28318  # 2 * PI
+    let scale_factor = 1.0 / (1.0 + sin(t) * sin(t))
+    
+    let x = modifier.width * cos(t) * scale_factor
+    let y = modifier.height * sin(t) * cos(t) * scale_factor
+    
+    # Apply to transform based on up axis
+    var offset = vec3(0.0, 0.0, 0.0)
+    if modifier.up_axis == 0:  # X up
+        offset = vec3(0.0, x, y)
+    else if modifier.up_axis == 1:  # Y up
+        offset = vec3(x, 0.0, y)
+    else:  # Z up
+        offset = vec3(x, y, 0.0)
+    
+    let curved = transform + offset
+    
+    # Apply influence
+    let influenced = BlendTransforms(transform, curved, modifier.base.influence)
+    
+    return influenced
+
+@blueprint
+fn ApplyLissajousModifier(transform: Vec3, index: Int, count: Int, time: Float, modifier: LissajousModifier) -> Vec3:
+    if not(modifier.base.enabled):
+        return transform
+    
+    let phase = time * modifier.speed + float(index) * modifier.step
+    
+    # Lissajous curve
+    let t = phase * 6.28318  # 2 * PI
+    let x = modifier.curve_size * sin(float(modifier.frequency_a) * t + modifier.phase)
+    let y = modifier.curve_size * sin(float(modifier.frequency_b) * t)
+    
+    let offset = vec3(x, y, 0.0)
+    let curved = transform + offset
+    
+    # Apply influence
+    let influenced = BlendTransforms(transform, curved, modifier.base.influence)
+    
+    return influenced
+
+@blueprint
+fn ApplyBounceModifier(transform: Vec3, scale: Vec3, index: Int, count: Int, time: Float, modifier: BounceModifier) -> Vec3:
+    if not(modifier.base.enabled):
+        return transform
+    
+    let phase = time * modifier.speed + float(index) * modifier.step
+    
+    # Bounce curve (abs sine for bounce effect)
+    let bounce_height = abs(sin(phase)) * modifier.height
+    let bounce_offset = modifier.direction * bounce_height
+    
+    let bounced = transform + bounce_offset
+    
+    # Apply influence
+    let influenced = BlendTransforms(transform, bounced, modifier.base.influence)
+    
+    return influenced
+
+@blueprint
+fn ApplyPendulumModifier(rotation: Vec3, index: Int, count: Int, time: Float, modifier: PendulumModifier) -> Vec3:
+    if not(modifier.base.enabled):
+        return rotation
+    
+    let phase = time * modifier.speed + float(index) * modifier.step
+    
+    # Pendulum swing (sine wave)
+    let swing_angle = sin(phase) * modifier.angle
+    
+    var new_rotation = rotation
+    if modifier.rotation_axis == 0:  # X axis
+        new_rotation = vec3(rotation.x + swing_angle, rotation.y, rotation.z)
+    else if modifier.rotation_axis == 1:  # Y axis
+        new_rotation = vec3(rotation.x, rotation.y + swing_angle, rotation.z)
+    else:  # Z axis
+        new_rotation = vec3(rotation.x, rotation.y, rotation.z + swing_angle)
+    
+    # Apply influence
+    let influenced = BlendTransforms(rotation, new_rotation, modifier.base.influence)
+    
+    return influenced
+
+@blueprint
+fn ApplySwayModifier(rotation: Vec3, index: Int, count: Int, time: Float, modifier: SwayModifier) -> Vec3:
+    if not(modifier.base.enabled):
+        return rotation
+    
+    # Multi-octave noise for organic sway
+    let seed = float(index) * modifier.randomization
+    let primary_sway = sin(time * modifier.wind_speed + seed) * modifier.sway_angle
+    let detail_sway = sin(time * modifier.wind_speed * 2.3 + seed * 1.7) * modifier.sway_angle * modifier.detail_intensity
+    
+    let total_sway = primary_sway + detail_sway
+    
+    var new_rotation = rotation
+    if modifier.sway_axis == 0:  # X axis
+        new_rotation = vec3(rotation.x + total_sway, rotation.y, rotation.z)
+        if modifier.cross_axis:
+            let cross_sway = sin(time * modifier.wind_speed * 1.5 + seed * 0.5) * modifier.sway_angle * 0.5
+            new_rotation = vec3(new_rotation.x, rotation.y + cross_sway, rotation.z)
+    else if modifier.sway_axis == 1:  # Y axis
+        new_rotation = vec3(rotation.x, rotation.y + total_sway, rotation.z)
+        if modifier.cross_axis:
+            let cross_sway = sin(time * modifier.wind_speed * 1.5 + seed * 0.5) * modifier.sway_angle * 0.5
+            new_rotation = vec3(rotation.x + cross_sway, new_rotation.y, rotation.z)
+    else:  # Z axis
+        new_rotation = vec3(rotation.x, rotation.y, rotation.z + total_sway)
+        if modifier.cross_axis:
+            let cross_sway = sin(time * modifier.wind_speed * 1.5 + seed * 0.5) * modifier.sway_angle * 0.5
+            new_rotation = vec3(rotation.x, rotation.y + cross_sway, new_rotation.z)
+    
+    # Apply influence
+    let influenced = BlendTransforms(rotation, new_rotation, modifier.base.influence)
+    
+    return influenced
+
+# ============================================================================
+# SECTION 7: MODIFIER STACK MANAGEMENT
+# ============================================================================
+
+# Note: KAIN doesn't support polymorphic arrays yet
+# In a real implementation, you'd need a tagged union or enum dispatch
+# For now, this demonstrates the pattern
+
+@blueprint
+fn ApplyModifierStack(transform: Vec3, rotation: Vec3, scale: Vec3, index: Int, count: Int, time: Float) -> Vec3:
+    # This would iterate through a modifier stack and apply each one
+    # For now, just return the transform
+    return transform

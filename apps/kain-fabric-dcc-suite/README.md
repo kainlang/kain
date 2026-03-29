@@ -55,5 +55,6 @@ powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/buil
 - `state/material_authoring_report.json`, `state/svg_mask_report.json`, and `state/material_texture_export_report.json` are also materialized receipts for the material lane.
 - `native/dcc_suite_ops.dll` is a local build artifact and should not be treated as authored source.
 - The tensor, sim, compositor, and material-export lanes are scaffolded as intentional extension seams where future runtime work still needs to land.
-- The scaffold also still wants an explicit runtime-lane registry so operators can see, at a glance, which ownership sits with Kain, Fabric, GPU, C ABI, Rust, Python, or external Node bridges.
+- The scaffold now carries an explicit `config/runtime_lanes.json` registry so operators can see, at a glance, which ownership sits with Kain, Fabric, GPU, C ABI, Rust, Python, or external Node bridges.
+- The next clean seam is to keep threading that registry into live chrome and bridge consumers so lane ownership stays visible outside the authored files too.
 - The sculpt lane is now a real GPU-owned heightfield proof, but it is still not a production BVH, voxel, or mesh-surface sculpt runtime.

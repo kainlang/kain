@@ -22,6 +22,18 @@
       "href": "#chat-runtime"
     },
     {
+      "label": "Client Runtime",
+      "href": "#client-runtime"
+    },
+    {
+      "label": "FFI",
+      "href": "#ffi"
+    },
+    {
+      "label": "KainScript",
+      "href": "#kain-script"
+    },
+    {
       "label": "Agent Studio",
       "href": "#agent-studio"
     },
@@ -52,6 +64,26 @@
     {
       "label": "Cache",
       "href": "#cache-stack"
+    },
+    {
+      "label": "Database",
+      "href": "#database-stack"
+    },
+    {
+      "label": "Queues",
+      "href": "#queue-stack"
+    },
+    {
+      "label": "Secrets",
+      "href": "#secrets-stack"
+    },
+    {
+      "label": "Config",
+      "href": "#config-stack"
+    },
+    {
+      "label": "Jobs",
+      "href": "#background-jobs"
     },
     {
       "label": "Search",

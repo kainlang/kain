@@ -1,0 +1,15 @@
+[package]
+name = "GraphExample"
+version = "1.0.0"
+authors = ["KAIN Research Labs"]
+description = "Graph Editor Example - Demonstrates UEdGraph integration with custom node types, graph schema, runtime execution, and editor factory generation"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "GraphExample"
+plugin_dir = "."
+sources = ["graph.kn"]
+shaders = []
+modular_output = true

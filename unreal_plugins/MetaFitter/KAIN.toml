@@ -1,0 +1,105 @@
+[package]
+name = "MetaFitter"
+version = "1.0.0"
+author = "Zentako"
+description = "Auto-Conforming Clothing System for MetaHumans"
+
+[build]
+entry = "Kain/types.kn"
+
+[ue5]
+plugin_name = "MetaFitter"
+plugin_dir = ""
+engine_version = "5.4"
+modular_output = true
+plugin_dependencies = [
+    "ChaosClothAsset",
+    "ChaosOutfitAsset",
+    "MetaHumanCharacter",
+    "MetaHumanSDK",
+]
+
+# All source files in Kain/ — ordered by dependency (types first, then components, then actors, etc.)
+sources = [
+    "Kain/types.kn",
+    "Kain/presets.kn",
+    "Kain/components.kn",
+    "Kain/actors.kn",
+    "Kain/subsystems.kn",
+    "Kain/algorithms.kn",
+    "Kain/metahuman_integration.kn",
+    "Kain/physics.kn",
+    "Kain/materials.kn",
+    "Kain/batch.kn",
+    "Kain/editor_module.kn",
+    "Kain/editor_ui.kn",
+    "Kain/editor_viewport.kn",
+    "Kain/editor_toolbar.kn",
+    "Kain/details.kn",
+]
+
+# Data-driven multi-module topology
+[[ue5.modules]]
+name = "MetaFitter"
+type = "Runtime"
+loading_phase = "Default"
+source_globs = [
+    "Kain/types.kn",
+    "Kain/presets.kn",
+    "Kain/components.kn",
+    "Kain/actors.kn",
+    "Kain/subsystems.kn",
+    "Kain/algorithms.kn",
+    "Kain/metahuman_integration.kn",
+    "Kain/physics.kn",
+    "Kain/materials.kn",
+    "Kain/batch.kn",
+]
+public_deps = [
+    "Core",
+    "CoreUObject",
+    "Engine",
+    "InputCore",
+    "RenderCore",
+    "RHI",
+    "MetaHumanCharacter",
+    "MetaHumanCharacterPalette",
+    "MetaHumanDefaultPipeline",
+    "MetaHumanSDKRuntime",
+    "ChaosClothAssetEngine",
+    "ChaosOutfitAssetEngine",
+    "GeometryFramework",
+    "MeshDescription",
+    "StaticMeshDescription",
+    "GeometryCore",
+]
+
+[[ue5.modules]]
+name = "MetaFitterEditor"
+type = "Editor"
+loading_phase = "PostEngineInit"
+depends_on = ["MetaFitter"]
+source_globs = [
+    "Kain/editor_module.kn",
+    "Kain/editor_ui.kn",
+    "Kain/editor_viewport.kn",
+    "Kain/editor_toolbar.kn",
+    "Kain/details.kn",
+]
+public_deps = [
+    "Core",
+    "CoreUObject",
+    "Engine",
+    "UnrealEd",
+    "Slate",
+    "SlateCore",
+    "InputCore",
+    "EditorStyle",
+    "PropertyEditor",
+    "AdvancedPreviewScene",
+    "LevelEditor",
+    "ContentBrowser",
+    "AssetTools",
+    "ToolMenus",
+    "WorkspaceMenuStructure",
+]

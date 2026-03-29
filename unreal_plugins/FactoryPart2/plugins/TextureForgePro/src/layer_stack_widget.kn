@@ -1,0 +1,482 @@
+@slate
+struct LayerStackWidget:
+    @property
+    layers: Array<TextureLayer> = []
+    
+    @property
+    selected_layer_index: Int = -1
+    
+    @property
+    on_layer_selected: String = ""
+    
+    @property
+    on_layer_visibility_changed: String = ""
+    
+    @property
+    on_layer_blend_mode_changed: String = ""
+    
+    @property
+    on_layer_opacity_changed: String = ""
+    
+    fn Construct() -> Widget:
+        return VerticalBox(
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                HorizontalBox(
+                    Slot(
+                        FillWidth(1.0),
+                        TextBlock("Layer Stack")
+                    ),
+                    Slot(
+                        AutoWidth(),
+                        Button(
+                            Text("Add Layer"),
+                            OnClicked("OnAddLayerClicked")
+                        )
+                    ),
+                    Slot(
+                        AutoWidth(),
+                        Button(
+                            Text("Remove Layer"),
+                            OnClicked("OnRemoveLayerClicked")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                FillHeight(1.0),
+                Padding(5.0),
+                ScrollBox(
+                    LayerListView()
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                LayerPropertiesPanel()
+            )
+        )
+    
+    fn LayerListView() -> Widget:
+        return ListView(
+            ItemsSource(layers),
+            OnSelectionChanged("OnLayerSelectionChanged"),
+            ItemTemplate("LayerItemTemplate")
+        )
+    
+    fn LayerPropertiesPanel() -> Widget:
+        return VerticalBox(
+            Slot(
+                AutoHeight(),
+                Padding(2.0),
+                HorizontalBox(
+                    Slot(
+                        AutoWidth(),
+                        TextBlock("Blend Mode:")
+                    ),
+                    Slot(
+                        FillWidth(1.0),
+                        ComboBox(
+                            OnSelectionChanged("OnBlendModeChanged")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(2.0),
+                HorizontalBox(
+                    Slot(
+                        AutoWidth(),
+                        TextBlock("Opacity:")
+                    ),
+                    Slot(
+                        FillWidth(1.0),
+                        Slider(
+                            MinValue(0.0),
+                            MaxValue(1.0),
+                            Value(1.0),
+                            OnValueChanged("OnOpacityChanged")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(2.0),
+                CheckBox(
+                    Text("Visible"),
+                    IsChecked(true),
+                    OnCheckStateChanged("OnVisibilityChanged")
+                )
+            )
+        )
+
+@slate
+struct FilterPanelWidget:
+    @property
+    filter_type: FilterType = FilterType::Blur
+    
+    @property
+    intensity: Float = 1.0
+    
+    @property
+    radius: Float = 5.0
+    
+    @property
+    threshold: Float = 0.5
+    
+    @property
+    on_filter_applied: String = ""
+    
+    fn Construct() -> Widget:
+        return VerticalBox(
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                TextBlock("Filter Settings")
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                HorizontalBox(
+                    Slot(
+                        AutoWidth(),
+                        TextBlock("Filter Type:")
+                    ),
+                    Slot(
+                        FillWidth(1.0),
+                        ComboBox(
+                            OnSelectionChanged("OnFilterTypeChanged")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                HorizontalBox(
+                    Slot(
+                        AutoWidth(),
+                        TextBlock("Intensity:")
+                    ),
+                    Slot(
+                        FillWidth(1.0),
+                        SpinBox(
+                            MinValue(0.0),
+                            MaxValue(10.0),
+                            Value(intensity),
+                            OnValueChanged("OnIntensityChanged")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                HorizontalBox(
+                    Slot(
+                        AutoWidth(),
+                        TextBlock("Radius:")
+                    ),
+                    Slot(
+                        FillWidth(1.0),
+                        SpinBox(
+                            MinValue(1.0),
+                            MaxValue(50.0),
+                            Value(radius),
+                            OnValueChanged("OnRadiusChanged")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                HorizontalBox(
+                    Slot(
+                        AutoWidth(),
+                        TextBlock("Threshold:")
+                    ),
+                    Slot(
+                        FillWidth(1.0),
+                        Slider(
+                            MinValue(0.0),
+                            MaxValue(1.0),
+                            Value(threshold),
+                            OnValueChanged("OnThresholdChanged")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                Button(
+                    Text("Apply Filter"),
+                    OnClicked("OnApplyFilterClicked")
+                )
+            )
+        )
+
+@slate
+struct GeneratorPanelWidget:
+    @property
+    generator_type: GeneratorType = GeneratorType::PerlinNoise
+    
+    @property
+    scale: Float = 1.0
+    
+    @property
+    octaves: Int = 4
+    
+    @property
+    persistence: Float = 0.5
+    
+    @property
+    lacunarity: Float = 2.0
+    
+    @property
+    seed: Int = 0
+    
+    @property
+    on_generator_applied: String = ""
+    
+    fn Construct() -> Widget:
+        return VerticalBox(
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                TextBlock("Procedural Generator")
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                HorizontalBox(
+                    Slot(
+                        AutoWidth(),
+                        TextBlock("Generator Type:")
+                    ),
+                    Slot(
+                        FillWidth(1.0),
+                        ComboBox(
+                            OnSelectionChanged("OnGeneratorTypeChanged")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                HorizontalBox(
+                    Slot(
+                        AutoWidth(),
+                        TextBlock("Scale:")
+                    ),
+                    Slot(
+                        FillWidth(1.0),
+                        SpinBox(
+                            MinValue(0.1),
+                            MaxValue(10.0),
+                            Value(scale),
+                            OnValueChanged("OnScaleChanged")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                HorizontalBox(
+                    Slot(
+                        AutoWidth(),
+                        TextBlock("Octaves:")
+                    ),
+                    Slot(
+                        FillWidth(1.0),
+                        SpinBox(
+                            MinValue(1.0),
+                            MaxValue(8.0),
+                            Value(octaves),
+                            OnValueChanged("OnOctavesChanged")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                HorizontalBox(
+                    Slot(
+                        AutoWidth(),
+                        TextBlock("Persistence:")
+                    ),
+                    Slot(
+                        FillWidth(1.0),
+                        Slider(
+                            MinValue(0.0),
+                            MaxValue(1.0),
+                            Value(persistence),
+                            OnValueChanged("OnPersistenceChanged")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                HorizontalBox(
+                    Slot(
+                        AutoWidth(),
+                        TextBlock("Lacunarity:")
+                    ),
+                    Slot(
+                        FillWidth(1.0),
+                        SpinBox(
+                            MinValue(1.0),
+                            MaxValue(4.0),
+                            Value(lacunarity),
+                            OnValueChanged("OnLacunarityChanged")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                HorizontalBox(
+                    Slot(
+                        AutoWidth(),
+                        TextBlock("Seed:")
+                    ),
+                    Slot(
+                        FillWidth(1.0),
+                        SpinBox(
+                            MinValue(0.0),
+                            MaxValue(9999.0),
+                            Value(seed),
+                            OnValueChanged("OnSeedChanged")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                Button(
+                    Text("Generate"),
+                    OnClicked("OnGenerateClicked")
+                )
+            )
+        )
+
+@slate
+struct ColorGradePanelWidget:
+    @property
+    brightness: Float = 0.0
+    
+    @property
+    contrast: Float = 1.0
+    
+    @property
+    saturation: Float = 1.0
+    
+    @property
+    hue_shift: Float = 0.0
+    
+    @property
+    on_color_grade_applied: String = ""
+    
+    fn Construct() -> Widget:
+        return VerticalBox(
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                TextBlock("Color Grading")
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                HorizontalBox(
+                    Slot(
+                        AutoWidth(),
+                        TextBlock("Brightness:")
+                    ),
+                    Slot(
+                        FillWidth(1.0),
+                        Slider(
+                            MinValue(-1.0),
+                            MaxValue(1.0),
+                            Value(brightness),
+                            OnValueChanged("OnBrightnessChanged")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                HorizontalBox(
+                    Slot(
+                        AutoWidth(),
+                        TextBlock("Contrast:")
+                    ),
+                    Slot(
+                        FillWidth(1.0),
+                        Slider(
+                            MinValue(0.0),
+                            MaxValue(2.0),
+                            Value(contrast),
+                            OnValueChanged("OnContrastChanged")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                HorizontalBox(
+                    Slot(
+                        AutoWidth(),
+                        TextBlock("Saturation:")
+                    ),
+                    Slot(
+                        FillWidth(1.0),
+                        Slider(
+                            MinValue(0.0),
+                            MaxValue(2.0),
+                            Value(saturation),
+                            OnValueChanged("OnSaturationChanged")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                HorizontalBox(
+                    Slot(
+                        AutoWidth(),
+                        TextBlock("Hue Shift:")
+                    ),
+                    Slot(
+                        FillWidth(1.0),
+                        Slider(
+                            MinValue(-180.0),
+                            MaxValue(180.0),
+                            Value(hue_shift),
+                            OnValueChanged("OnHueShiftChanged")
+                        )
+                    )
+                )
+            ),
+            Slot(
+                AutoHeight(),
+                Padding(5.0),
+                Button(
+                    Text("Apply Color Grade"),
+                    OnClicked("OnApplyColorGradeClicked")
+                )
+            )
+        )

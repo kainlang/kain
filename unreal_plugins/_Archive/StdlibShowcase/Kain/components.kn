@@ -1,0 +1,248 @@
+# ============================================================================
+# STDLIB SHOWCASE — Components
+# ============================================================================
+# Components that carry per-actor stdlib test state.
+# StdlibHealthComponent  — tests gameplay.kn: apply_damage, buffs, cooldowns
+# StdlibMaterialComponent — tests materials.kn: dyn mat creation, parameters
+# StdlibParticleComponent — tests particles.kn: Niagara spawning + params
+# StdlibMathComponent    — tests math.kn: vector ops, interpolation, trig
+# ============================================================================
+
+# ============================================================================
+# StdlibHealthComponent
+# Exercises gameplay.kn functions: apply_damage, calculate_armor_mitigation,
+# should_crit, calculate_crit_damage, apply_buff, calculate_buff_value,
+# is_on_cooldown, get_xp_for_level, calculate_level_from_xp
+# ============================================================================
+
+@component
+struct StdlibHealthComponent:
+    current_health: Float
+
+    max_health: Float
+
+    armor: Float
+
+    current_xp: Float
+
+    current_level: Int
+
+    active_buff_count: Int
+
+    cooldown_timer: Float
+
+    last_damage_taken: Float
+
+    total_damage_dealt: Float
+
+    crit_count: Int
+
+    sim_state: GameplaySimState
+
+    @tick
+    fn TickComponent(delta_time: Float):
+        # Drive cooldown timer using world delta (stdlib: GetWorldDeltaSeconds)
+        if cooldown_timer > 0.0:
+            cooldown_timer = cooldown_timer - delta_time
+            if cooldown_timer < 0.0:
+                cooldown_timer = 0.0
+
+        # Regen health slowly using stdlib Lerp and clamp
+        let regen_rate = 2.0
+        let target_hp = max_health
+        current_health = FInterpTo(current_health, target_hp, delta_time, regen_rate * 0.05)
+        current_health = clamp(current_health, 0.0, max_health)
+
+    @beginplay
+    fn BeginPlay():
+        cooldown_timer = 0.0
+        last_damage_taken = 0.0
+        total_damage_dealt = 0.0
+        crit_count = 0
+        sim_state = default_combat_sim()
+
+    # Apply a damage hit — exercises 4 gameplay stdlib functions in one call
+    @blueprint_callable
+    fn ApplyHit(raw_damage: Float, attacker: Actor) -> Float:
+        let mitigated = calculate_armor_mitigation(raw_damage, armor)
+        let crit_chance = 0.2
+        let final_damage = mitigated
+        if should_crit(crit_chance):
+            let crit_dmg = calculate_crit_damage(mitigated, 2.0)
+            crit_count = crit_count + 1
+            last_damage_taken = crit_dmg
+            current_health = apply_damage(current_health, max_health, crit_dmg, 0.0)
+            total_damage_dealt = total_damage_dealt + crit_dmg
+            return crit_dmg
+        last_damage_taken = final_damage
+        current_health = apply_damage(current_health, max_health, final_damage, 0.0)
+        total_damage_dealt = total_damage_dealt + final_damage
+        return final_damage
+
+    # Add XP and check for level-up — exercises calculate_level_from_xp
+    @blueprint_callable
+    fn AddXP(amount: Float):
+        current_xp = current_xp + amount
+        let new_level = calculate_level_from_xp(current_xp)
+        if new_level > current_level:
+            current_level = new_level
+            PrintToScreen("StdlibShowcase [GAMEPLAY] Level up! -> " + int_to_string(current_level))
+
+    # Trigger a cooldown — exercises is_on_cooldown
+    @blueprint_callable
+    fn TriggerCooldown(duration: Float):
+        if is_on_cooldown(cooldown_timer):
+            return
+        cooldown_timer = duration
+
+    # Apply a timed buff — exercises apply_buff, calculate_buff_value
+    @blueprint_callable
+    fn ApplyTimedBuff(buff_type: Int, magnitude: Float, duration: Float):
+        let buff_value = calculate_buff_value(magnitude, active_buff_count, 0.1)
+        active_buff_count = active_buff_count + 1
+        PrintToScreen("StdlibShowcase [GAMEPLAY] Buff applied: " + float_to_string(buff_value))
+
+    # Query health as percentage — exercises stdlib math clamp + division
+    @blueprint_pure
+    fn GetHealthPercent() -> Float:
+        if max_health <= 0.0:
+            return 0.0
+        return clamp(current_health / max_health, 0.0, 1.0)
+
+    # Check if entity is dead
+    @blueprint_pure
+    fn IsDead() -> Bool:
+        return current_health <= 0.0
+
+
+# ============================================================================
+# StdlibMathComponent
+# Exercises math.kn functions: Vector_Length, Vector_Normalize, Vector_Dot,
+# Vector_Cross, Lerp, VLerp, FInterpTo, VInterpTo, sin, cos, sqrt, pow
+# All results logged via PrintToScreen to verify correctness at runtime.
+# ============================================================================
+
+@component
+struct StdlibMathComponent:
+    phase: Float            # 0..2PI trig phase driven by tick
+
+    interp_alpha: Float     # 0..1 lerp target driven by tick
+
+    last_sin_result: Float
+    last_cos_result: Float
+    last_dot_result: Float
+    last_cross_length: Float
+    last_lerp_result: Float
+    last_vec_interp: Vec3
+
+    @tick
+    fn TickComponent(delta_time: Float):
+        # Advance phase — 1 full revolution every 6.28 seconds
+        phase = phase + delta_time
+        if phase > 6.2832:
+            phase = phase - 6.2832
+
+        # Trig functions: sin and cos
+        last_sin_result = sin(phase)
+        last_cos_result = cos(phase)
+
+        # Vector dot and cross — normalize first (stdlib Vector_Normalize)
+        let v_a = vec3(last_sin_result, last_cos_result, 0.5)
+        let v_b = vec3(last_cos_result, last_sin_result, -0.5)
+        let norm_a = Vector_Normalize(v_a)
+        let norm_b = Vector_Normalize(v_b)
+        last_dot_result = Vector_Dot(norm_a, norm_b)
+        let cross_v = Vector_Cross(norm_a, norm_b)
+        last_cross_length = Vector_Length(cross_v)
+
+        # Scalar lerp driven by sin wave — -1..1 remapped to 0..1
+        let alpha = (last_sin_result + 1.0) * 0.5
+        interp_alpha = alpha
+        last_lerp_result = Lerp(0.0, 100.0, alpha)
+
+        # Vector lerp between two reference points
+        let origin = vec3(0.0, 0.0, 0.0)
+        let target_pt = vec3(500.0, 250.0, 100.0)
+        last_vec_interp = VLerp(origin, target_pt, alpha)
+
+    @beginplay
+    fn BeginPlay():
+        phase = 0.0
+        interp_alpha = 0.0
+        last_sin_result = 0.0
+        last_cos_result = 1.0
+        last_dot_result = 0.0
+        last_cross_length = 0.0
+        last_lerp_result = 0.0
+        last_vec_interp = vec3(0.0, 0.0, 0.0)
+
+        # Immediate sanity-check: sqrt(16) should be 4
+        let sq = sqrt(16.0)
+        PrintToScreen("StdlibShowcase [MATH] sqrt(16) = " + float_to_string(sq))
+
+        # pow sanity check: 2^8 = 256
+        let pw = pow(2.0, 8.0)
+        PrintToScreen("StdlibShowcase [MATH] pow(2,8) = " + float_to_string(pw))
+
+        # abs check: abs(-42.7) = 42.7
+        let ab = abs(-42.7)
+        PrintToScreen("StdlibShowcase [MATH] abs(-42.7) = " + float_to_string(ab))
+
+
+# ============================================================================
+# StdlibUtilityComponent
+# Exercises utilities.kn functions: remap, smooth_step, ease_in_out,
+# ping_pong, is_nearly_equal, clamp_float, random_float_range,
+# float_to_string, int_to_string, bool_to_string, hsv_to_rgb
+# ============================================================================
+
+@component
+struct StdlibUtilityComponent:
+    ping_pong_val: Float        # Driven by ping_pong util each tick
+
+    mapped_health_color: Vec3   # HSV → RGB from health percentage
+
+    smoothed_input: Float       # smooth_step applied to a controller axis
+
+    eased_progress: Float       # ease_in_out applied to a progress bar value
+
+    last_random_float: Float
+
+    @tick
+    fn TickComponent(delta_time: Float):
+        let t = GetWorldTimeSeconds()
+
+        # ping_pong — bounces 0..1 from world time
+        ping_pong_val = ping_pong(t * 0.5, 1.0)
+
+        # smooth_step on the ping_pong value — edge smoothing
+        smoothed_input = smooth_step(0.0, 1.0, ping_pong_val)
+
+        # ease_in_out on same value
+        eased_progress = ease_in_out(ping_pong_val)
+
+        # remap: map ping_pong (0..1) to hue (0..120) for health color
+        let hue = remap(ping_pong_val, 0.0, 1.0, 0.0, 120.0)
+        mapped_health_color = hsv_to_rgb(vec3(hue, 1.0, 1.0))
+
+    @beginplay
+    fn BeginPlay():
+        ping_pong_val = 0.0
+        smoothed_input = 0.0
+        eased_progress = 0.0
+        mapped_health_color = vec3(0.0, 1.0, 0.0)
+        last_random_float = 0.0
+
+        # random_float_range sanity check
+        last_random_float = random_float_range(10.0, 20.0)
+        PrintToScreen("StdlibShowcase [UTIL] random_float_range(10,20) = " + float_to_string(last_random_float))
+
+        # is_nearly_equal sanity check
+        let a = 0.1 + 0.2
+        let b = 0.3
+        let nearly = is_nearly_equal(a, b, 0.001)
+        PrintToScreen("StdlibShowcase [UTIL] 0.1+0.2 nearly equal 0.3 = " + bool_to_string(nearly))
+
+        # clamp_float check
+        let clamped = clamp_float(150.0, 0.0, 100.0)
+        PrintToScreen("StdlibShowcase [UTIL] clamp_float(150,0,100) = " + float_to_string(clamped))

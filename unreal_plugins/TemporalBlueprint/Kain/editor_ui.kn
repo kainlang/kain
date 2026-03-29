@@ -1,0 +1,330 @@
+# ============================================================================
+# TEMPORAL BLUEPRINT — Editor UI (Slate Panels)
+# ============================================================================
+# Main editor panel, timeline strip, era picker, snapshot manager,
+# causality inspector, and actor state table.
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: MAIN TEMPORAL EDITOR PANEL
+# The primary dockable panel — era picker + timeline + actor list
+# ============================================================================
+
+@slate
+struct STemporalEditorPanel:
+    @vertical_box
+    fn build():
+        Header(text, "Temporal Blueprint Editor")
+        Spacer(height, 8.0)
+        EraPickerRow()
+        Spacer(height, 4.0)
+        Divider()
+        Spacer(height, 4.0)
+        TimelineStrip()
+        Spacer(height, 8.0)
+        Divider()
+        Spacer(height, 4.0)
+        ActorStateTable()
+        Spacer(height, 8.0)
+        ControlButtons()
+
+    @horizontal_box
+    fn EraPickerRow():
+        Label(text, "Active Era:")
+        Spacer(width, 8.0)
+        Button(text, "Ancient", tooltip, "Switch to Ancient era", width, 80.0)
+        Button(text, "Past", tooltip, "Switch to Past era", width, 60.0)
+        Button(text, "Present", tooltip, "Switch to Present era (default)", width, 70.0)
+        Button(text, "Future", tooltip, "Switch to Future era", width, 60.0)
+        Button(text, "Apocalyptic", tooltip, "Switch to Apocalyptic era", width, 90.0)
+        Button(text, "Alternate", tooltip, "Switch to Alternate timeline", width, 80.0)
+        Button(text, "Void", tooltip, "Switch to Void era", width, 55.0)
+
+    @horizontal_box
+    fn TimelineStrip():
+        Label(text, "Timeline:")
+        Spacer(width, 8.0)
+        ProgressBar(value, 0.5, width, 400.0, height, 20.0, tooltip, "Current transition progress")
+        Spacer(width, 8.0)
+        Label(text, "Alpha: 1.0")
+
+    @scroll_box
+    fn ActorStateTable():
+        Label(text, "Temporal Actors in Level")
+        Spacer(height, 4.0)
+        Label(text, "Select an actor to inspect its per-era states")
+
+    @horizontal_box
+    fn ControlButtons():
+        Button(text, "Preview Era", tooltip, "Preview the selected era without committing", width, 110.0)
+        Spacer(width, 8.0)
+        Button(text, "Stop Preview", tooltip, "Stop era preview", width, 100.0)
+        Spacer(width, 8.0)
+        Button(text, "Take Snapshot", tooltip, "Save current world state as a snapshot", width, 120.0)
+        Spacer(width, 8.0)
+        Button(text, "Show All Eras", tooltip, "Toggle ghost overlay for all eras simultaneously", width, 110.0)
+
+# ============================================================================
+# SECTION 2: ERA CONFIGURATION PANEL
+# Per-era settings: color, atmosphere, audio, post-process
+# ============================================================================
+
+@slate
+struct STemporalEraConfigPanel:
+    @vertical_box
+    fn build():
+        Header(text, "Era Configuration")
+        Spacer(height, 8.0)
+        EraSelector()
+        Spacer(height, 8.0)
+        Divider()
+        Spacer(height, 4.0)
+        AtmosphereSection()
+        Spacer(height, 8.0)
+        Divider()
+        Spacer(height, 4.0)
+        AudioSection()
+        Spacer(height, 8.0)
+        Divider()
+        Spacer(height, 4.0)
+        TransitionSection()
+        Spacer(height, 8.0)
+        SaveButton()
+
+    @horizontal_box
+    fn EraSelector():
+        Label(text, "Era:")
+        Spacer(width, 8.0)
+        ComboBox(width, 160.0, tooltip, "Select era to configure")
+
+    @vertical_box
+    fn AtmosphereSection():
+        Label(text, "Atmosphere")
+        Spacer(height, 4.0)
+        ColorPicker(label, "Era Color", tooltip, "Tint color for editor visualization")
+        Spacer(height, 4.0)
+        ColorPicker(label, "Ambient Color", tooltip, "Sky/ambient light color")
+        Spacer(height, 4.0)
+        Slider(label, "Ambient Intensity", min, 0.0, max, 5.0, tooltip, "Ambient light intensity multiplier")
+        Spacer(height, 4.0)
+        Slider(label, "Fog Density", min, 0.0, max, 1.0, tooltip, "Atmospheric fog density")
+        Spacer(height, 4.0)
+        Slider(label, "Time of Day", min, 0.0, max, 1.0, tooltip, "0=midnight, 0.5=noon, 1=midnight")
+
+    @vertical_box
+    fn AudioSection():
+        Label(text, "Audio & Post-Process")
+        Spacer(height, 4.0)
+        TextInput(label, "Music Tag", tooltip, "Gameplay tag for audio system integration")
+        Spacer(height, 4.0)
+        TextInput(label, "Post-Process Tag", tooltip, "Named post-process preset to activate")
+        Spacer(height, 4.0)
+        TextInput(label, "Weather Tag", tooltip, "Gameplay tag for weather system")
+
+    @vertical_box
+    fn TransitionSection():
+        Label(text, "Transition Defaults")
+        Spacer(height, 4.0)
+        Slider(label, "Transition Duration", min, 0.1, max, 10.0, tooltip, "Default transition time into this era (seconds)")
+        Spacer(height, 4.0)
+        ComboBox(width, 160.0, tooltip, "Default transition type into this era")
+
+    @horizontal_box
+    fn SaveButton():
+        Button(text, "Apply Changes", tooltip, "Apply era configuration", width, 130.0)
+        Spacer(width, 8.0)
+        Button(text, "Reset to Defaults", tooltip, "Reset this era to default settings", width, 140.0)
+
+# ============================================================================
+# SECTION 3: SNAPSHOT MANAGER PANEL
+# Browse, compare, and restore temporal snapshots
+# ============================================================================
+
+@slate
+struct STemporalSnapshotPanel:
+    @vertical_box
+    fn build():
+        Header(text, "Snapshot Manager")
+        Spacer(height, 8.0)
+        SnapshotToolbar()
+        Spacer(height, 8.0)
+        Divider()
+        Spacer(height, 4.0)
+        SnapshotList()
+        Spacer(height, 8.0)
+        Divider()
+        Spacer(height, 4.0)
+        SnapshotActions()
+
+    @horizontal_box
+    fn SnapshotToolbar():
+        Button(text, "Take Snapshot", tooltip, "Capture current world state", width, 130.0)
+        Spacer(width, 8.0)
+        Button(text, "Auto-Save: ON", tooltip, "Toggle automatic snapshots on era transition", width, 130.0)
+        Spacer(width, 8.0)
+        Button(text, "Clear All", tooltip, "Delete all snapshots", width, 90.0)
+
+    @scroll_box
+    fn SnapshotList():
+        Label(text, "Saved Snapshots")
+        Spacer(height, 4.0)
+        Label(text, "No snapshots yet. Take a snapshot to begin.")
+
+    @horizontal_box
+    fn SnapshotActions():
+        Button(text, "Restore Selected", tooltip, "Restore world state from selected snapshot", width, 140.0)
+        Spacer(width, 8.0)
+        Button(text, "Compare with Current", tooltip, "Show diff between snapshot and current state", width, 170.0)
+        Spacer(width, 8.0)
+        Button(text, "Delete Selected", tooltip, "Delete the selected snapshot", width, 130.0)
+
+# ============================================================================
+# SECTION 4: CAUSALITY INSPECTOR PANEL
+# Visualize and edit causality links between temporal actors
+# ============================================================================
+
+@slate
+struct STemporalCausalityPanel:
+    @vertical_box
+    fn build():
+        Header(text, "Causality Inspector")
+        Spacer(height, 8.0)
+        CausalityToolbar()
+        Spacer(height, 8.0)
+        Divider()
+        Spacer(height, 4.0)
+        RuleSelector()
+        Spacer(height, 8.0)
+        Divider()
+        Spacer(height, 4.0)
+        LinkList()
+        Spacer(height, 8.0)
+        ViolationLog()
+
+    @horizontal_box
+    fn CausalityToolbar():
+        Button(text, "Add Link", tooltip, "Add a new causality link between actors", width, 90.0)
+        Spacer(width, 8.0)
+        Button(text, "Remove Link", tooltip, "Remove selected causality link", width, 110.0)
+        Spacer(width, 8.0)
+        Button(text, "Validate All", tooltip, "Check all causality links for violations", width, 110.0)
+        Spacer(width, 8.0)
+        Button(text, "Clear Violations", tooltip, "Clear violation log", width, 120.0)
+
+    @horizontal_box
+    fn RuleSelector():
+        Label(text, "Causality Rule:")
+        Spacer(width, 8.0)
+        ComboBox(width, 160.0, tooltip, "Global causality rule for this level")
+
+    @scroll_box
+    fn LinkList():
+        Label(text, "Causality Links")
+        Spacer(height, 4.0)
+        Label(text, "No causality links defined.")
+
+    @scroll_box
+    fn ViolationLog():
+        Label(text, "Violation Log")
+        Spacer(height, 4.0)
+        Label(text, "No violations detected.")
+
+# ============================================================================
+# SECTION 5: ACTOR STATE INSPECTOR
+# Per-actor era state editor — mesh variants, visibility, custom data
+# ============================================================================
+
+@slate
+struct STemporalActorInspector:
+    @vertical_box
+    fn build():
+        Header(text, "Actor Temporal State")
+        Spacer(height, 8.0)
+        ActorIdentity()
+        Spacer(height, 8.0)
+        Divider()
+        Spacer(height, 4.0)
+        BehaviorSection()
+        Spacer(height, 8.0)
+        Divider()
+        Spacer(height, 4.0)
+        VisibilityMatrix()
+        Spacer(height, 8.0)
+        Divider()
+        Spacer(height, 4.0)
+        GhostSettings()
+        Spacer(height, 8.0)
+        Divider()
+        Spacer(height, 4.0)
+        CustomDataSection()
+
+    @horizontal_box
+    fn ActorIdentity():
+        Label(text, "Actor:")
+        Spacer(width, 8.0)
+        Label(text, "(No actor selected)")
+        Spacer(width, 8.0)
+        Label(text, "GUID:")
+        Spacer(width, 4.0)
+        Label(text, "—")
+
+    @vertical_box
+    fn BehaviorSection():
+        Label(text, "Temporal Behavior")
+        Spacer(height, 4.0)
+        ComboBox(width, 200.0, tooltip, "How this actor behaves across eras")
+        Spacer(height, 4.0)
+        ComboBox(width, 200.0, tooltip, "The era this actor natively belongs to")
+
+    @vertical_box
+    fn VisibilityMatrix():
+        Label(text, "Era Visibility")
+        Spacer(height, 4.0)
+        CheckBox(label, "Ancient", tooltip, "Visible in Ancient era")
+        CheckBox(label, "Past", tooltip, "Visible in Past era")
+        CheckBox(label, "Present", tooltip, "Visible in Present era")
+        CheckBox(label, "Future", tooltip, "Visible in Future era")
+        CheckBox(label, "Apocalyptic", tooltip, "Visible in Apocalyptic era")
+        CheckBox(label, "Alternate", tooltip, "Visible in Alternate timeline")
+        CheckBox(label, "Void", tooltip, "Visible in Void era")
+
+    @vertical_box
+    fn GhostSettings():
+        Label(text, "Ghost Settings")
+        Spacer(height, 4.0)
+        CheckBox(label, "Show as Ghost in Non-Native Eras", tooltip, "Render as translucent ghost when not in native era")
+        Spacer(height, 4.0)
+        Slider(label, "Ghost Opacity", min, 0.0, max, 1.0, tooltip, "Opacity of ghost rendering")
+        Spacer(height, 4.0)
+        ColorPicker(label, "Ghost Color", tooltip, "Tint color for ghost rendering")
+        Spacer(height, 4.0)
+        Slider(label, "Ghost Emissive", min, 0.0, max, 5.0, tooltip, "Emissive intensity for ghost effect")
+
+    @vertical_box
+    fn CustomDataSection():
+        Label(text, "Custom Per-Era Data")
+        Spacer(height, 4.0)
+        Slider(label, "Custom Data 0", min, 0.0, max, 1.0, tooltip, "User-defined per-era float value 0")
+        Spacer(height, 4.0)
+        Slider(label, "Custom Data 1", min, 0.0, max, 1.0, tooltip, "User-defined per-era float value 1")
+        Spacer(height, 4.0)
+        Slider(label, "Custom Data 2", min, 0.0, max, 1.0, tooltip, "User-defined per-era float value 2")
+        Spacer(height, 4.0)
+        Slider(label, "Custom Data 3", min, 0.0, max, 1.0, tooltip, "User-defined per-era float value 3")
+
+# ============================================================================
+# SECTION 6: TEMPORAL VIEWPORT OVERLAY
+# Overlays era information directly in the level viewport
+# ============================================================================
+
+@viewport
+struct STemporalViewportOverlay:
+    plugin_name: String
+    camera_position: Vec3
+    camera_rotation: Vec3
+    show_era_zones: Bool
+    show_causality_links: Bool
+    show_anchor_icons: Bool
+    show_portal_frames: Bool
+    current_era: TemporalEra
+    transition_alpha: Float

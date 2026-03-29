@@ -1,0 +1,226 @@
+# ============================================================================
+# CINEMA4D MOGRAPH - Types, Enums, and DataTables
+# ============================================================================
+# Professional mograph system for UE5 inspired by Cinema4D's MoGraph
+# - Procedural cloning with multiple distribution modes
+# - Modifier stack system for animation
+# - Effector-based spatial influence
+# - Skeletal mesh support with VAT baking
+# - Audio-reactive modifiers
+# - Expression-based custom modifiers
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: ENUMS - Distribution modes and modifier types
+# ============================================================================
+
+enum ClonerMode:
+    Grid
+    Radial
+    Linear
+    Spline
+    Single
+    Honeycomb
+    Scatter
+    Mesh
+    _MAX
+
+enum EffectorShape:
+    Sphere
+    Box
+    Plane
+    Cylinder
+    Torus
+    Unbound
+    _MAX
+
+enum MeshSampleMode:
+    Vertex
+    Surface
+    Volume
+    _MAX
+
+enum SkeletalMode:
+    PhysicsIK      # Full skeletal animation with physics
+    VATBaked       # Baked vertex animation textures
+    Auto           # Distance-based LOD
+    _MAX
+
+enum AudioMode:
+    Scale
+
+# ============================================================================
+# SECTION 1.5: DATA ASSET - Cloner Configuration
+# ============================================================================
+
+# ClonerData - DataAsset for storing cloner configurations
+struct ClonerData:
+    name: String
+    mode: ClonerMode
+    instance_count: Int
+    grid_count: Vec3
+    grid_spacing: Vec3
+    effector_radius: Float
+    effector_falloff: Float
+    time_scale: Float
+
+enum EasingType:
+    Linear
+    EaseIn
+    EaseOut
+    EaseInOut
+    Bounce
+    Elastic
+    Back
+    _MAX
+
+# ============================================================================
+# SECTION 2: DATATABLES - Cloner presets and configuration
+# ============================================================================
+
+@datatable
+struct ClonerPresetData:
+    id: Int
+    preset_name: String
+    description: String
+    mode: Int                  # ClonerMode enum
+    grid_count_x: Int
+    grid_count_y: Int
+    grid_count_z: Int
+    grid_spacing_x: Float
+    grid_spacing_y: Float
+    grid_spacing_z: Float
+    radial_count: Int
+    radial_radius: Float
+    linear_count: Int
+    scatter_count: Int
+    time_scale: Float
+
+@datatable
+struct ModifierPresetData:
+    id: Int
+    modifier_name: String
+    modifier_type: String      # "Orbit", "Float", "Pulse", etc.
+    description: String
+    speed: Float
+    influence: Float
+    easing: Int                # EasingType enum
+    param1: Float
+    param2: Float
+    param3: Float
+
+# ============================================================================
+# SECTION 2.5: EXPRESSION-BASED MODIFIER PRESETS
+# ============================================================================
+
+struct PresetVariable:
+    name: String
+    default_value: Float
+    min_value: Float
+    max_value: Float
+    tooltip: String
+
+@datatable
+struct ExpressionModifierPreset:
+    id: Int
+    display_name: String
+    category: String           # "Motion", "Sci-Fi", "Nature", "Custom"
+    description: String
+    
+    # Math expressions for transform modifications
+    # Available variables: t (time), i (index), n (count), x/y/z (position),
+    # rx/ry/rz (rotation), sx/sy/sz (scale), v0/v1/v2... (user variables)
+    position_expression: String
+    rotation_expression: String
+    scale_expression: String
+    
+    # User-defined variables (accessed as v0, v1, v2... in expressions)
+    variable_count: Int
+    variable_0_name: String
+    variable_0_default: Float
+    variable_0_min: Float
+    variable_0_max: Float
+    variable_1_name: String
+    variable_1_default: Float
+    variable_1_min: Float
+    variable_1_max: Float
+    variable_2_name: String
+    variable_2_default: Float
+    variable_2_min: Float
+    variable_2_max: Float
+    
+    # Timing settings
+    step: Float                # Time offset per instance
+    speed_multiplier: Float    # Global speed multiplier
+
+# ============================================================================
+# SECTION 3: STRUCTS - Core data structures
+# ============================================================================
+
+struct DistributionLayer:
+    enabled: Bool
+    mode: ClonerMode
+    
+    # Grid parameters
+    grid_count: Vec3
+    grid_spacing: Vec3
+    
+    # Radial parameters
+    radial_count: Int
+    radial_radius: Float
+    radial_align: Bool
+    
+    # Linear parameters
+    linear_count: Int
+    linear_offset: Vec3
+    
+    # Spline parameters
+    spline_count: Int
+    spline_align: Bool
+    
+    # Honeycomb parameters
+    honeycomb_count: Vec3
+    honeycomb_size: Float
+    
+    # Scatter parameters
+    scatter_count: Int
+    scatter_bounds: Vec3
+    scatter_seed: Int
+    
+    # Mesh surface parameters
+    mesh_count: Int
+    mesh_sample_mode: MeshSampleMode
+    mesh_seed: Int
+
+struct InstanceCache:
+    r: Float
+    g: Float
+    b: Float
+    time: Float
+    visible: Bool
+
+struct EffectorData:
+    shape: EffectorShape
+    radius: Float
+    extent: Vec3
+    inner_radius: Float
+    falloff: Float
+    strength: Float
+    invert: Bool
+    priority: Int
+    enabled: Bool
+
+struct ModifierState:
+    enabled: Bool
+    influence: Float
+    easing: EasingType
+    speed: Float
+    
+    # Common parameters
+    position_offset: Vec3
+    rotation_offset: Vec3
+    scale_offset: Vec3
+    
+    # Timing
+    delay_amount: Float
+    step_amount: Float

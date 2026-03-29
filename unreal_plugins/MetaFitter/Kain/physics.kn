@@ -1,0 +1,287 @@
+# ============================================================================
+# METAFITTER - Physics Setup
+# ============================================================================
+# Blueprint function library for ChaosCloth physics configuration.
+# Handles physics asset creation, collision primitive generation,
+# constraint setup, and per-clothing-type parameter tuning.
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: CLOTH PHYSICS SETUP
+# ============================================================================
+
+@blueprint
+fn setup_cloth_physics(mesh_path: String, params: ClothPhysicsParams) -> Bool:
+    println("MetaFitter Physics: Setting up cloth simulation...")
+    println("  Stiffness: " + float_to_string(params.stiffness))
+    println("  Damping: " + float_to_string(params.damping))
+    println("  Drag: " + float_to_string(params.drag))
+    println("  Gravity scale: " + float_to_string(params.gravity_scale))
+    println("  Wind scale: " + float_to_string(params.wind_scale))
+    println("  Self collision: " + bool_to_string(params.self_collision_enabled))
+    
+    # UE5 APIs:
+    #   UChaosOutfitAsset::Create()
+    #   UChaosOutfitAsset::AddClothCollection()
+    #   UChaosClothComponent::SetClothAsset()
+    #   FChaosClothSimulationConfig — stiffness, damping, drag, friction
+    
+    return true
+
+@blueprint
+fn apply_physics_preset(params: ClothPhysicsParams, preset: PhysicsPreset) -> ClothPhysicsParams:
+    let result = params
+    
+    match preset:
+        PhysicsPreset::None =>
+            result.stiffness = 0.0
+            result.damping = 0.0
+            result.drag = 0.0
+            result.friction = 0.0
+            result.gravity_scale = 0.0
+            result.wind_scale = 0.0
+        PhysicsPreset::Soft =>
+            result.stiffness = 0.1
+            result.damping = 0.2
+            result.drag = 0.25
+            result.friction = 0.15
+            result.gravity_scale = 1.2
+            result.wind_scale = 1.5
+            result.mass_per_unit_area = 0.03
+            result.collision_thickness = 0.5
+            result.self_collision_enabled = true
+            result.self_collision_radius = 0.3
+            result.max_distance = 100.0
+        PhysicsPreset::Medium =>
+            result.stiffness = 0.4
+            result.damping = 0.4
+            result.drag = 0.12
+            result.friction = 0.3
+            result.gravity_scale = 1.0
+            result.wind_scale = 0.8
+            result.mass_per_unit_area = 0.08
+            result.collision_thickness = 1.0
+            result.self_collision_enabled = true
+            result.self_collision_radius = 0.5
+            result.max_distance = 50.0
+        PhysicsPreset::Stiff =>
+            result.stiffness = 0.7
+            result.damping = 0.6
+            result.drag = 0.06
+            result.friction = 0.5
+            result.gravity_scale = 1.0
+            result.wind_scale = 0.2
+            result.mass_per_unit_area = 0.15
+            result.collision_thickness = 2.0
+            result.self_collision_enabled = false
+            result.self_collision_radius = 0.0
+            result.max_distance = 20.0
+        PhysicsPreset::Rigid =>
+            result.stiffness = 0.95
+            result.damping = 0.8
+            result.drag = 0.02
+            result.friction = 0.7
+            result.gravity_scale = 1.0
+            result.wind_scale = 0.05
+            result.mass_per_unit_area = 0.3
+            result.collision_thickness = 3.0
+            result.self_collision_enabled = false
+            result.self_collision_radius = 0.0
+            result.max_distance = 5.0
+        PhysicsPreset::Fluid =>
+            result.stiffness = 0.05
+            result.damping = 0.15
+            result.drag = 0.35
+            result.friction = 0.1
+            result.gravity_scale = 1.5
+            result.wind_scale = 2.5
+            result.mass_per_unit_area = 0.02
+            result.collision_thickness = 0.3
+            result.self_collision_enabled = true
+            result.self_collision_radius = 0.2
+            result.max_distance = 150.0
+        PhysicsPreset::Heavy =>
+            result.stiffness = 0.6
+            result.damping = 0.7
+            result.drag = 0.04
+            result.friction = 0.6
+            result.gravity_scale = 1.3
+            result.wind_scale = 0.1
+            result.mass_per_unit_area = 0.25
+            result.collision_thickness = 2.5
+            result.self_collision_enabled = false
+            result.self_collision_radius = 0.0
+            result.max_distance = 15.0
+        _ =>
+            println("MetaFitter Physics: Using custom physics parameters")
+    
+    return result
+
+# ============================================================================
+# SECTION 2: COLLISION PRIMITIVE GENERATION
+# ============================================================================
+
+@blueprint
+fn generate_collision_primitives(mesh_path: String, clothing_type: ClothingType) -> Int:
+    println("MetaFitter Physics: Generating collision primitives...")
+    
+    # Generate collision primitives based on clothing type
+    # Each bone that the clothing covers gets a collision primitive
+    # Primitive type is chosen based on the bone's shape:
+    #   - Spine/Torso: Capsule
+    #   - Arms/Legs: Capsule
+    #   - Hands/Feet: Box
+    #   - Head: Sphere
+    
+    let primitive_count = 0
+    
+    match clothing_type:
+        ClothingType::Shirt =>
+            # Spine chain + upper arm capsules
+            primitive_count = 8
+        ClothingType::Pants =>
+            # Pelvis + leg chain capsules
+            primitive_count = 10
+        ClothingType::Dress =>
+            # Full torso + leg chain
+            primitive_count = 14
+        ClothingType::Jacket =>
+            # Spine + arm capsules (thicker)
+            primitive_count = 10
+        ClothingType::Coat =>
+            # Full body minus head/hands/feet
+            primitive_count = 16
+        ClothingType::Skirt =>
+            # Pelvis + upper leg
+            primitive_count = 6
+        ClothingType::Hoodie =>
+            # Spine + arms + head sphere
+            primitive_count = 10
+        ClothingType::Vest =>
+            # Spine chain only
+            primitive_count = 5
+        ClothingType::Scarf =>
+            # Neck + upper spine
+            primitive_count = 3
+        ClothingType::Hat =>
+            # Head sphere
+            primitive_count = 1
+        ClothingType::Shoes =>
+            # Foot boxes
+            primitive_count = 2
+        ClothingType::Gloves =>
+            # Hand + finger capsules
+            primitive_count = 12
+        _ =>
+            primitive_count = 8
+    
+    println("  Generated " + int_to_string(primitive_count) + " collision primitives")
+    return primitive_count
+
+@blueprint
+fn create_capsule_collision(bone_name: String, radius: Float, half_height: Float) -> CollisionPrimitive:
+    let prim = CollisionPrimitive()
+    prim.primitive_type = CollisionPrimitiveType::Capsule
+    prim.bone_name = bone_name
+    prim.location = vec3(0, 0, 0)
+    prim.rotation = vec3(0, 0, 0)
+    prim.radius = radius
+    prim.length = half_height * 2.0
+    prim.extent = vec3(radius, radius, half_height)
+    return prim
+
+@blueprint
+fn create_sphere_collision(bone_name: String, radius: Float) -> CollisionPrimitive:
+    let prim = CollisionPrimitive()
+    prim.primitive_type = CollisionPrimitiveType::Sphere
+    prim.bone_name = bone_name
+    prim.location = vec3(0, 0, 0)
+    prim.rotation = vec3(0, 0, 0)
+    prim.radius = radius
+    prim.length = 0.0
+    prim.extent = vec3(radius, radius, radius)
+    return prim
+
+@blueprint
+fn create_box_collision(bone_name: String, extent: Vec3) -> CollisionPrimitive:
+    let prim = CollisionPrimitive()
+    prim.primitive_type = CollisionPrimitiveType::Box
+    prim.bone_name = bone_name
+    prim.location = vec3(0, 0, 0)
+    prim.rotation = vec3(0, 0, 0)
+    prim.radius = 0.0
+    prim.length = 0.0
+    prim.extent = extent
+    return prim
+
+# ============================================================================
+# SECTION 3: CONSTRAINT SETUP
+# ============================================================================
+
+@blueprint
+fn setup_cloth_constraints(mesh_path: String, params: ClothPhysicsParams) -> Bool:
+    println("MetaFitter Physics: Setting up cloth constraints...")
+    
+    # Constraints define how far each vertex can move from its rest position.
+    # max_distance: Maximum distance a vertex can travel
+    # backstop_distance: Distance behind the body surface where vertex is pushed back
+    # backstop_radius: Radius of the backstop sphere
+    #
+    # These prevent cloth from passing through the body.
+    
+    println("  Max distance: " + float_to_string(params.max_distance))
+    println("  Backstop distance: " + float_to_string(params.backstop_distance))
+    println("  Backstop radius: " + float_to_string(params.backstop_radius))
+    
+    return true
+
+@blueprint
+fn calculate_max_distance_per_vertex(vertex_pos: Vec3, body_surface_pos: Vec3, clothing_type: ClothingType) -> Float:
+    # Vertices closer to the body get smaller max_distance (less movement)
+    # Vertices farther from the body (like a skirt hem) get larger max_distance
+    
+    let dist_to_body = distance_vec3(vertex_pos, body_surface_pos)
+    
+    # Base max distance from clothing type
+    let base_max = 50.0
+    match clothing_type:
+        ClothingType::Shirt =>
+            base_max = 30.0
+        ClothingType::Pants =>
+            base_max = 20.0
+        ClothingType::Dress =>
+            base_max = 80.0
+        ClothingType::Jacket =>
+            base_max = 25.0
+        ClothingType::Scarf =>
+            base_max = 100.0
+        ClothingType::Skirt =>
+            base_max = 70.0
+        _ =>
+            base_max = 40.0
+    
+    # Scale by distance to body (farther = more freedom)
+    let freedom_factor = clamp_float(dist_to_body / 10.0, 0.1, 2.0)
+    
+    return base_max * freedom_factor
+
+# ============================================================================
+# SECTION 4: WIND SIMULATION HELPERS
+# ============================================================================
+
+@blueprint
+fn calculate_wind_force(wind_direction: Vec3, wind_strength: Float, surface_normal: Vec3) -> Vec3:
+    # Wind force is proportional to the dot product of wind direction and surface normal
+    # Surfaces facing the wind receive more force
+    let dot = wind_direction.x * surface_normal.x + wind_direction.y * surface_normal.y + wind_direction.z * surface_normal.z
+    
+    if dot < 0.0:
+        dot = 0.0
+    
+    let force_magnitude = wind_strength * dot
+    let force = vec3(0, 0, 0)
+    force.x = wind_direction.x * force_magnitude
+    force.y = wind_direction.y * force_magnitude
+    force.z = wind_direction.z * force_magnitude
+    
+    return force

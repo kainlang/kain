@@ -1,0 +1,427 @@
+# ============================================================================
+# METAFITTER - Actors
+# ============================================================================
+# Main actor definitions for the MetaFitter clothing conforming system
+# - ClothConformerActor: Primary actor that orchestrates the full conform pipeline
+# - ClothingMannequinActor: Preview mannequin for editor viewport
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: CLOTH CONFORMER ACTOR
+# ============================================================================
+# The main workhorse actor. Receives a source mesh and target MetaHuman,
+# runs the full conform pipeline (analyze → detect → fit → rig → physics → material),
+# and produces a production-ready MetaHuman clothing item.
+
+actor ClothConformerActor:
+    # ======= COMPONENTS =======
+
+    @component
+    state conformer_comp: ClothConformerComponent = ClothConformerComponent()
+
+    @component
+    state layer_manager: ClothingLayerManager = ClothingLayerManager()
+
+    @component
+    state physics_comp: ClothPhysicsComponent = ClothPhysicsComponent()
+
+    @component
+    state preview_comp: ClothPreviewComponent = ClothPreviewComponent()
+
+    # ======= INPUT STATE =======
+
+    @replicated
+    state source_mesh_path: String = ""
+
+    @replicated
+    state target_metahuman_path: String = ""
+
+    @replicated
+    state output_asset_name: String = ""
+
+    # ======= CONFORM SETTINGS =======
+
+    @replicated
+    state clothing_type: ClothingType = ClothingType::Unknown
+
+    @replicated
+    state fit_mode: FitMode = FitMode::Regular
+
+    @replicated
+    state fit_tightness: Float = 0.6
+
+    @replicated
+    state physics_preset: PhysicsPreset = PhysicsPreset::Medium
+
+    @replicated
+    state layer_slot: LayerSlot = LayerSlot::Base
+
+    @replicated
+    state layer_order: Int = 10
+
+    @replicated
+    state enable_physics: Bool = true
+
+    @replicated
+    state enable_hidden_face_map: Bool = true
+
+    @replicated
+    state enable_material_transfer: Bool = true
+
+    @replicated
+    state preserve_wrinkles: Bool = true
+
+    @replicated
+    state wrinkle_strength: Float = 0.5
+
+    @replicated
+    state auto_detect_type: Bool = true
+
+    @replicated
+    state smooth_weights: Bool = true
+
+    @replicated
+    state weight_smoothing_iterations: Int = 3
+
+    @replicated
+    state max_bone_influences: Int = 4
+
+    # ======= OUTPUT STATE =======
+
+    @replicated
+    state conform_complete: Bool = false
+
+    @replicated
+    state conform_success: Bool = false
+
+    @transient
+    state conform_error: String = ""
+
+    @transient
+    state conform_elapsed_ms: Float = 0.0
+
+    # ======= CONFORM PIPELINE =======
+
+    @blueprint_callable
+    fn build_conform_settings() -> ConformSettings:
+        let settings = ConformSettings()
+        settings.clothing_type = clothing_type
+        settings.fit_mode = fit_mode
+        settings.fit_tightness = fit_tightness
+        settings.preserve_wrinkles = preserve_wrinkles
+        settings.wrinkle_preservation_strength = wrinkle_strength
+        settings.physics_preset = physics_preset
+        settings.layer_slot = layer_slot
+        settings.layer_order = layer_order
+        settings.enable_physics = enable_physics
+        settings.enable_hidden_face_map = enable_hidden_face_map
+        settings.enable_material_transfer = enable_material_transfer
+        settings.collision_primitive_type = CollisionPrimitiveType::Auto
+        settings.smooth_weights = smooth_weights
+        settings.weight_smoothing_mode = WeightSmoothingMode::Laplacian
+        settings.weight_smoothing_iterations = weight_smoothing_iterations
+        settings.max_bone_influences = max_bone_influences
+        settings.auto_detect_type = auto_detect_type
+        return settings
+
+    on Server_StartConform():
+        println("MetaFitter: Starting conform pipeline...")
+        println("  Source: " + source_mesh_path)
+        println("  Target: " + target_metahuman_path)
+        println("  Output: " + output_asset_name)
+
+        conform_complete = false
+        conform_success = false
+        conform_error = ""
+
+        let settings = build_conform_settings()
+        conformer_comp.settings = settings
+        conformer_comp.current_stage = ConformStage::Analyzing
+        conformer_comp.progress = 0.0
+        conformer_comp.has_error = false
+
+        # Stage 1: Analyze mesh topology
+        println("  [1/8] Analyzing mesh topology...")
+        conformer_comp.current_stage = ConformStage::Analyzing
+        conformer_comp.progress = 0.05
+        let topology = analyze_mesh_topology_from_path(source_mesh_path)
+        conformer_comp.topology_info = topology
+
+        if topology.vertex_count == 0:
+            conformer_comp.has_error = true
+            conformer_comp.error_message = "Failed to load source mesh or mesh has no vertices"
+            conformer_comp.current_stage = ConformStage::Failed
+            conform_error = conformer_comp.error_message
+            conform_complete = true
+            conform_success = false
+            Client_ConformFailed(conform_error)
+            return
+
+        # Stage 2: Detect clothing type
+        println("  [2/8] Detecting clothing type...")
+        conformer_comp.current_stage = ConformStage::Detecting
+        conformer_comp.progress = 0.15
+
+        let openings = detect_mesh_openings(topology)
+        conformer_comp.openings = openings
+
+        let coverage = calculate_coverage_map(topology)
+        conformer_comp.coverage = coverage
+
+        if auto_detect_type:
+            let detected_type = classify_clothing_type(topology, openings, coverage)
+            clothing_type = detected_type
+            settings.clothing_type = detected_type
+            conformer_comp.settings = settings
+            println("    Detected type: " + clothing_type_to_string(detected_type))
+
+        # Apply type-specific defaults
+        let layer_config = get_default_layer_config(clothing_type)
+        layer_slot = layer_config.slot
+        layer_order = layer_config.order
+
+        # Stage 3: Shrinkwrap fitting
+        println("  [3/8] Fitting clothing to body...")
+        conformer_comp.current_stage = ConformStage::Fitting
+        conformer_comp.progress = 0.25
+
+        let offset_mult = get_fit_offset_multiplier(fit_mode)
+        let shrinkwrap = perform_shrinkwrap(source_mesh_path, target_metahuman_path, fit_tightness, offset_mult, preserve_wrinkles, wrinkle_strength)
+        conformer_comp.shrinkwrap_result = shrinkwrap
+
+        if !shrinkwrap.success:
+            conformer_comp.has_error = true
+            conformer_comp.error_message = "Shrinkwrap fitting failed"
+            conformer_comp.current_stage = ConformStage::Failed
+            conform_error = conformer_comp.error_message
+            conform_complete = true
+            conform_success = false
+            Client_ConformFailed(conform_error)
+            return
+
+        if shrinkwrap.clipping_detected:
+            println("    Warning: " + int_to_string(shrinkwrap.clipping_vertex_count) + " vertices clipping detected")
+
+        # Stage 4: Auto-rigging
+        println("  [4/8] Auto-rigging to skeleton...")
+        conformer_comp.current_stage = ConformStage::Rigging
+        conformer_comp.progress = 0.40
+
+        let rig_success = perform_auto_rig(source_mesh_path, target_metahuman_path, max_bone_influences, smooth_weights, weight_smoothing_iterations)
+
+        if !rig_success:
+            conformer_comp.has_error = true
+            conformer_comp.error_message = "Auto-rigging failed"
+            conformer_comp.current_stage = ConformStage::Failed
+            conform_error = conformer_comp.error_message
+            conform_complete = true
+            conform_success = false
+            Client_ConformFailed(conform_error)
+            return
+
+        # Stage 5: Physics setup
+        println("  [5/8] Setting up cloth physics...")
+        conformer_comp.current_stage = ConformStage::PhysicsSetup
+        conformer_comp.progress = 0.55
+
+        if enable_physics:
+            let phys_params = get_physics_params_for_type(clothing_type)
+            physics_comp.physics_params = phys_params
+            physics_comp.physics_enabled = true
+
+            let physics_success = setup_cloth_physics(source_mesh_path, phys_params)
+            if !physics_success:
+                println("    Warning: Physics setup failed, continuing without physics")
+                physics_comp.physics_enabled = false
+
+        # Stage 6: Material setup
+        println("  [6/8] Transferring materials...")
+        conformer_comp.current_stage = ConformStage::MaterialSetup
+        conformer_comp.progress = 0.70
+
+        if enable_material_transfer:
+            let mat_success = transfer_materials(source_mesh_path, target_metahuman_path)
+            if !mat_success:
+                println("    Warning: Material transfer failed, using defaults")
+
+        # Stage 7: Hidden face map
+        println("  [7/8] Generating hidden face map...")
+        conformer_comp.current_stage = ConformStage::HiddenFaceMap
+        conformer_comp.progress = 0.85
+
+        if enable_hidden_face_map:
+            let hfm_config = HiddenFaceMapConfig()
+            hfm_config.resolution = 1024
+            hfm_config.dilation_pixels = 4
+            hfm_config.blur_radius = 2.0
+            hfm_config.threshold = 0.5
+            hfm_config.include_head = true
+            hfm_config.include_body = true
+
+            let hfm_success = generate_hidden_face_map(source_mesh_path, target_metahuman_path, hfm_config)
+            if !hfm_success:
+                println("    Warning: Hidden face map generation failed")
+
+        # Stage 8: Finalize
+        println("  [8/8] Finalizing clothing asset...")
+        conformer_comp.current_stage = ConformStage::Finalizing
+        conformer_comp.progress = 0.95
+
+        let finalize_success = finalize_clothing_asset(source_mesh_path, target_metahuman_path, output_asset_name, clothing_type, layer_slot)
+
+        if !finalize_success:
+            conformer_comp.has_error = true
+            conformer_comp.error_message = "Failed to finalize clothing asset"
+            conformer_comp.current_stage = ConformStage::Failed
+            conform_error = conformer_comp.error_message
+            conform_complete = true
+            conform_success = false
+            Client_ConformFailed(conform_error)
+            return
+
+        # Update layer manager
+        layer_manager.mark_slot_occupied(layer_slot, true)
+
+        # Build result
+        let result = ConformResult()
+        result.success = true
+        result.stage_reached = ConformStage::Complete
+        result.error_message = ""
+        result.vertex_count = topology.vertex_count
+        result.bone_count = 0
+        result.physics_enabled = enable_physics
+        result.layer_slot = layer_slot
+        result.clothing_type = clothing_type
+        conformer_comp.conform_result = result
+
+        conformer_comp.current_stage = ConformStage::Complete
+        conformer_comp.progress = 1.0
+        conform_complete = true
+        conform_success = true
+
+        println("MetaFitter: Conform complete!")
+        println("  Clothing type: " + clothing_type_to_string(clothing_type))
+        println("  Vertices: " + int_to_string(topology.vertex_count))
+        println("  Physics: " + bool_to_string(enable_physics))
+
+        Client_ConformComplete()
+
+    on Client_ConformComplete():
+        println("MetaFitter: Clothing ready!")
+
+    on Client_ConformFailed(error: String):
+        println("MetaFitter: Conform failed - " + error)
+
+    # ======= UTILITY METHODS =======
+
+    @blueprint_callable
+    fn reset_conform():
+        conform_complete = false
+        conform_success = false
+        conform_error = ""
+        conform_elapsed_ms = 0.0
+        conformer_comp.current_stage = ConformStage::Idle
+        conformer_comp.progress = 0.0
+        conformer_comp.has_error = false
+        conformer_comp.error_message = ""
+
+    @blueprint_callable
+    fn get_progress() -> Float:
+        return conformer_comp.progress
+
+    @blueprint_callable
+    fn get_current_stage() -> ConformStage:
+        return conformer_comp.current_stage
+
+    @blueprint_callable
+    fn is_conforming() -> Bool:
+        let stage = conformer_comp.current_stage
+        if stage == ConformStage::Idle:
+            return false
+        if stage == ConformStage::Complete:
+            return false
+        if stage == ConformStage::Failed:
+            return false
+        return true
+
+    @blueprint_callable
+    fn apply_preset(preset: PresetEntry):
+        clothing_type = preset.clothing_type
+        fit_mode = preset.fit_mode
+        fit_tightness = preset.fit_tightness
+        physics_preset = preset.physics_preset
+        layer_slot = preset.layer_slot
+        preserve_wrinkles = preset.preserve_wrinkles
+        enable_physics = preset.enable_physics
+        enable_hidden_face_map = preset.enable_hidden_face_map
+        auto_detect_type = false
+
+# ============================================================================
+# SECTION 2: CLOTHING MANNEQUIN ACTOR
+# ============================================================================
+# A lightweight actor used in the editor preview viewport to display
+# the MetaHuman body with clothing overlaid.
+
+actor ClothingMannequinActor:
+    # Body mesh reference
+    state body_mesh_path: String = ""
+
+    # Clothing overlay mesh reference
+    state clothing_mesh_path: String = ""
+
+    # Display state
+    @transient
+    state body_visible: Bool = true
+
+    @transient
+    state clothing_visible: Bool = true
+
+    @transient
+    state wireframe_overlay: Bool = false
+
+    @transient
+    state bone_weight_visualization: Bool = false
+
+    # Animation state
+    @transient
+    state animation_asset_path: String = ""
+
+    @transient
+    state animation_playing: Bool = false
+
+    @transient
+    state animation_rate: Float = 1.0
+
+    @blueprint_callable
+    fn set_body_mesh(path: String):
+        body_mesh_path = path
+
+    @blueprint_callable
+    fn set_clothing_mesh(path: String):
+        clothing_mesh_path = path
+
+    @blueprint_callable
+    fn toggle_body_visibility():
+        body_visible = !body_visible
+
+    @blueprint_callable
+    fn toggle_clothing_visibility():
+        clothing_visible = !clothing_visible
+
+    @blueprint_callable
+    fn set_wireframe(enabled: Bool):
+        wireframe_overlay = enabled
+
+    @blueprint_callable
+    fn set_bone_weight_view(enabled: Bool):
+        bone_weight_visualization = enabled
+
+    @blueprint_callable
+    fn play_animation(asset_path: String, rate: Float):
+        animation_asset_path = asset_path
+        animation_rate = rate
+        animation_playing = true
+
+    @blueprint_callable
+    fn stop_animation():
+        animation_playing = false

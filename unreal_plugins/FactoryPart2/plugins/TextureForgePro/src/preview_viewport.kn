@@ -1,0 +1,158 @@
+@viewport
+struct TexturePreviewViewport:
+    @property
+    preview_mesh_path: String = "/Engine/BasicShapes/Sphere"
+    
+    @property
+    preview_material: String = ""
+    
+    @property
+    camera_distance: Float = 200.0
+    
+    @property
+    camera_rotation: Vec2 = vec2(0.0, 0.0)
+    
+    @property
+    lighting_enabled: Bool = true
+    
+    @property
+    wireframe_enabled: Bool = false
+    
+    @scene_actor
+    fn SetupPreviewMesh() -> Actor:
+        let mesh_actor = SpawnActor("StaticMeshActor")
+        SetActorLocation(mesh_actor, vec3(0.0, 0.0, 0.0))
+        SetActorRotation(mesh_actor, vec3(0.0, 0.0, 0.0))
+        SetActorScale(mesh_actor, vec3(1.0, 1.0, 1.0))
+        return mesh_actor
+    
+    @camera
+    fn SetupCamera() -> Camera:
+        let camera = CreateCamera()
+        let camera_pos = vec3(
+            camera_distance * sin(camera_rotation.x) * cos(camera_rotation.y),
+            camera_distance * sin(camera_rotation.x) * sin(camera_rotation.y),
+            camera_distance * cos(camera_rotation.x)
+        )
+        SetCameraLocation(camera, camera_pos)
+        SetCameraLookAt(camera, vec3(0.0, 0.0, 0.0))
+        return camera
+    
+    fn OnMouseMove(delta: Vec2):
+        camera_rotation = camera_rotation + delta * 0.01
+        camera_rotation = vec2(
+            clamp(camera_rotation.x, 0.1, 3.0),
+            camera_rotation.y
+        )
+    
+    fn OnMouseWheel(delta: Float):
+        camera_distance = camera_distance - delta * 10.0
+        camera_distance = clamp(camera_distance, 50.0, 1000.0)
+    
+    fn SetPreviewMesh(mesh_path: String):
+        preview_mesh_path = mesh_path
+    
+    fn SetPreviewMaterial(material_path: String):
+        preview_material = material_path
+    
+    fn ToggleLighting():
+        lighting_enabled = !lighting_enabled
+    
+    fn ToggleWireframe():
+        wireframe_enabled = !wireframe_enabled
+
+@viewport
+struct TextureComparisonViewport:
+    @property
+    texture_a_path: String = ""
+    
+    @property
+    texture_b_path: String = ""
+    
+    @property
+    split_position: Float = 0.5
+    
+    @property
+    zoom_level: Float = 1.0
+    
+    @property
+    pan_offset: Vec2 = vec2(0.0, 0.0)
+    
+    @scene_actor
+    fn SetupTextureQuadA() -> Actor:
+        let quad_actor = SpawnActor("StaticMeshActor")
+        SetActorLocation(quad_actor, vec3(-50.0, 0.0, 0.0))
+        return quad_actor
+    
+    @scene_actor
+    fn SetupTextureQuadB() -> Actor:
+        let quad_actor = SpawnActor("StaticMeshActor")
+        SetActorLocation(quad_actor, vec3(50.0, 0.0, 0.0))
+        return quad_actor
+    
+    @camera
+    fn SetupCamera() -> Camera:
+        let camera = CreateCamera()
+        SetCameraLocation(camera, vec3(0.0, 0.0, 200.0))
+        SetCameraLookAt(camera, vec3(0.0, 0.0, 0.0))
+        return camera
+    
+    fn OnMouseMove(delta: Vec2):
+        pan_offset = pan_offset + delta
+    
+    fn OnMouseWheel(delta: Float):
+        zoom_level = zoom_level + delta * 0.1
+        zoom_level = clamp(zoom_level, 0.1, 10.0)
+    
+    fn SetSplitPosition(position: Float):
+        split_position = clamp(position, 0.0, 1.0)
+    
+    fn SetTextureA(texture_path: String):
+        texture_a_path = texture_path
+    
+    fn SetTextureB(texture_path: String):
+        texture_b_path = texture_path
+    
+    fn ResetView():
+        zoom_level = 1.0
+        pan_offset = vec2(0.0, 0.0)
+        split_position = 0.5
+
+@viewport
+struct ChannelViewport:
+    @property
+    texture_path: String = ""
+    
+    @property
+    channel_mode: Int = 0
+    
+    @property
+    exposure: Float = 0.0
+    
+    @property
+    gamma: Float = 2.2
+    
+    @scene_actor
+    fn SetupTextureQuad() -> Actor:
+        let quad_actor = SpawnActor("StaticMeshActor")
+        SetActorLocation(quad_actor, vec3(0.0, 0.0, 0.0))
+        return quad_actor
+    
+    @camera
+    fn SetupCamera() -> Camera:
+        let camera = CreateCamera()
+        SetCameraLocation(camera, vec3(0.0, 0.0, 200.0))
+        SetCameraLookAt(camera, vec3(0.0, 0.0, 0.0))
+        return camera
+    
+    fn SetChannelMode(mode: Int):
+        channel_mode = mode
+    
+    fn SetExposure(value: Float):
+        exposure = value
+    
+    fn SetGamma(value: Float):
+        gamma = clamp(value, 0.1, 5.0)
+    
+    fn SetTexture(texture_path: String):
+        texture_path = texture_path

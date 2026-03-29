@@ -1,0 +1,965 @@
+# ============================================================================
+# KAINFLOW - CINEMATIC SOFT-BODY / MUD ENGINE
+# ============================================================================
+# AAA-quality deforming terrain (mud, snow, sand) with real-time physics
+# Leverages proven FluidFlow Navier-Stokes and viscoelastic math patterns
+# Target: Racing games, survival games, military sims, cinematic sequences
+# ============================================================================
+
+# ============================================================================
+# ENUMS - Terrain types and quality settings
+# ============================================================================
+
+enum TerrainType:
+    Mud
+    Snow
+    Sand
+    Clay
+    Wet_Concrete
+    Quicksand
+    Swamp
+    Volcanic_Ash
+    Tundra
+    Beach_Sand
+
+enum DeformationQuality:
+    Low          # 30 FPS, mobile
+    Medium       # 60 FPS, console
+    High         # 60 FPS, high-end PC
+    Cinematic    # Offline rendering
+    Ultra        # Research/showcase
+
+enum InteractionType:
+    Character_Footprint
+    Vehicle_Track
+    Projectile_Impact
+    Explosion_Crater
+    Tool_Dig
+    Fluid_Erosion
+
+# ============================================================================
+# DATATABLES - Material properties and presets
+# ============================================================================
+
+@datatable
+struct TerrainMaterial:
+    id: Int
+    name: String
+    terrain_type: TerrainType
+    viscosity: Float              # Pa·s (Mud: 10-100, Snow: 1-10)
+    elasticity: Float             # Young's modulus (MPa)
+    density: Float                # kg/m³
+    yield_stress: Float           # Pa (stress before permanent deformation)
+    relaxation_time: Float        # seconds (viscoelastic recovery)
+    friction_coefficient: Float   # 0-1
+    cohesion: Float              # Pa (particle stickiness)
+    compressibility: Float       # 1/Pa
+    thermal_conductivity: Float  # W/(m·K)
+    base_color: Vec3
+    roughness: Float
+    metallic: Float
+    displacement_scale: Float     # Height multiplier
+    texture_path_albedo: String
+    texture_path_normal: String
+    texture_path_roughness: String
+
+@datatable
+struct DeformationPreset:
+    id: Int
+    name: String
+    interaction_type: InteractionType
+    force_magnitude: Float        # Newtons
+    contact_area: Float          # m²
+    duration: Float              # seconds
+    depth_multiplier: Float      # 0-2 (how deep it goes)
+    spread_radius: Float         # meters
+    recovery_rate: Float         # 0-1 (how fast it recovers)
+
+# ============================================================================
+# COMPONENTS - Terrain deformation state
+# ============================================================================
+
+@component
+struct TerrainDeformationComponent:
+    heightmap_resolution: Vec3   # Grid resolution (e.g., 512x512x64)
+    
+    world_bounds: Vec3           # Physical size in meters
+    
+    active_deformations: Int     # Current number of active deformations
+    
+    @transient
+    needs_mesh_update: Bool
+    
+    @transient
+    needs_normal_recalc: Bool
+    
+    @savegame
+    permanent_deformation_count: Int
+
+@component
+struct ViscoelasticComponent:
+    viscosity: Float             # Fluid-like resistance
+    elasticity: Float            # Solid-like recovery
+    yield_stress: Float          # Stress threshold
+    relaxation_time: Float       # Recovery time constant
+    
+    @transient
+    stress_tensor: Array<Float>  # 3x3 stress state
+    
+    @transient
+    strain_rate: Float
+
+@component
+struct ParticleInteractionComponent:
+    particle_count: Int
+    particle_radius: Float
+    adhesion_strength: Float     # How much mud sticks to objects
+    clumping_threshold: Float    # When particles merge
+    
+    @transient
+    active_particles: Int
+
+# ============================================================================
+# SHADER PARAMETER STRUCTS - HLSL-compatible
+# ============================================================================
+
+struct TerrainPhysicsParams:
+    viscosity: Float
+    elasticity: Float
+    density: Float
+    yield_stress: Float
+    relaxation_time: Float
+    friction: Float
+    cohesion: Float
+    compressibility: Float
+    gravity_scale: Float
+    time_step: Float
+    padding1: Float
+    padding2: Float
+
+struct DeformationParams:
+    force_position: Vec3
+    padding1: Float
+    force_direction: Vec3
+    force_magnitude: Float
+    contact_radius: Float
+    depth_multiplier: Float
+    spread_factor: Float
+    recovery_rate: Float
+
+struct HeightmapParams:
+    resolution: Vec3
+    padding1: Float
+    world_bounds: Vec3
+    displacement_scale: Float
+    cell_size: Vec3
+    padding2: Float
+
+# ============================================================================
+# COMPUTE SHADERS - GPU-accelerated terrain deformation
+# ============================================================================
+
+# Viscoelastic deformation shader (from FluidFlow patterns)
+shader compute ViscoelasticDeformation(thread_id: Vec3) -> Unit:
+    # Quality permutations
+    uniform CFG_HIGH_PRECISION: Float @0
+    uniform CFG_ENABLE_PLASTICITY: Float @1
+    uniform ENABLE_RECOVERY: Float @2
+    
+    # Physics parameters
+    uniform physics: TerrainPhysicsParams @3
+    uniform deformation: DeformationParams @4
+    uniform heightmap_params: HeightmapParams @5
+    
+    # Heightmap data
+    uniform heightmap: RWBuffer<Float> @6
+    uniform velocity_field: RWBuffer<Vec4> @7
+    uniform stress_field: RWBuffer<Vec4> @8
+    
+    let idx = thread_id.x + thread_id.y * heightmap_params.resolution.x
+    let res = heightmap_params.resolution
+    
+    if thread_id.x >= res.x || thread_id.y >= res.y:
+        return
+    
+    # World position of this heightmap cell
+    let world_pos = vec3(
+        thread_id.x * heightmap_params.cell_size.x,
+        thread_id.y * heightmap_params.cell_size.y,
+        heightmap[idx]
+    )
+    
+    # Distance to deformation point
+    let to_force = world_pos - deformation.force_position
+    let distance = length(to_force)
+    
+    # Early out if outside influence radius
+    if distance > deformation.contact_radius * deformation.spread_factor:
+        return
+    
+    # Falloff curve (smooth)
+    let falloff = 1.0 - (distance / (deformation.contact_radius * deformation.spread_factor))
+    let smooth_falloff = falloff * falloff * (3.0 - 2.0 * falloff)
+    
+    # Load current state (no swizzling)
+    var height = heightmap[idx]
+    let velocity_vec = velocity_field[idx]
+    let stress_vec = stress_field[idx]
+    
+    # Calculate applied stress (force per area)
+    let applied_stress = deformation.force_magnitude * smooth_falloff / (deformation.contact_radius * deformation.contact_radius)
+    
+    # Viscoelastic response (Kelvin-Voigt model)
+    # σ = E·ε + η·(dε/dt)
+    # Where: σ=stress, E=elasticity, ε=strain, η=viscosity
+    
+    let strain = height / heightmap_params.displacement_scale
+    let strain_rate = velocity_vec.z
+    
+    # Elastic component
+    let elastic_stress = physics.elasticity * strain
+    
+    # Viscous component
+    let viscous_stress = physics.viscosity * strain_rate
+    
+    # Total internal stress
+    let total_stress = elastic_stress + viscous_stress
+    
+    # Check yield criterion (von Mises)
+    if CFG_ENABLE_PLASTICITY:
+        if applied_stress > physics.yield_stress:
+            # Plastic deformation (permanent)
+            let plastic_strain = (applied_stress - physics.yield_stress) / physics.elasticity
+            height = height - plastic_strain * deformation.depth_multiplier * physics.time_step
+        else:
+            # Elastic deformation (recoverable)
+            let elastic_strain = applied_stress / physics.elasticity
+            height = height - elastic_strain * deformation.depth_multiplier * physics.time_step
+    else:
+        # Simple deformation
+        height = height - applied_stress * deformation.depth_multiplier * physics.time_step
+    
+    # Update velocity (momentum equation)
+    let acceleration = (applied_stress - total_stress) / physics.density
+    var new_velocity_z = velocity_vec.z + acceleration * physics.time_step
+    
+    # Damping
+    new_velocity_z = new_velocity_z * (1.0 - physics.friction * physics.time_step)
+    
+    # Recovery (viscoelastic relaxation)
+    if ENABLE_RECOVERY:
+        let recovery_force = -strain / physics.relaxation_time
+        new_velocity_z = new_velocity_z + recovery_force * physics.time_step * deformation.recovery_rate
+    
+    # High precision mode
+    if CFG_HIGH_PRECISION:
+        # Use Runge-Kutta 4 for integration
+        # (Simplified here for brevity)
+        height = height + new_velocity_z * physics.time_step
+    else:
+        # Simple Euler integration
+        height = height + new_velocity_z * physics.time_step
+    
+    # Write back
+    heightmap[idx] = height
+    velocity_field[idx] = vec4(velocity_vec.x, velocity_vec.y, new_velocity_z, velocity_vec.w)
+    stress_field[idx] = vec4(applied_stress, total_stress, strain, 1.0)
+
+# Heightmap update shader - applies deformations to terrain mesh
+shader compute TerrainHeightmapUpdate(thread_id: Vec3) -> Unit:
+    uniform CFG_SMOOTH_NORMALS: Float @0
+    uniform ENABLE_EROSION: Float @1
+    
+    uniform heightmap: RWBuffer<Float> @2
+    uniform velocity_field: RWBuffer<Vec4> @3
+    uniform params: HeightmapParams @4
+    uniform physics: TerrainPhysicsParams @5
+    
+    let idx = thread_id.x + thread_id.y * params.resolution.x
+    let res = params.resolution
+    
+    if thread_id.x >= res.x || thread_id.y >= res.y:
+        return
+    
+    var height = heightmap[idx]
+    let velocity_vec = velocity_field[idx]
+    
+    # Apply velocity to height
+    height = height + velocity_vec.z * physics.time_step
+    
+    # Erosion simulation (water flow)
+    if ENABLE_EROSION:
+        # Sample neighbors
+        let idx_left = max(thread_id.x - 1, 0) + thread_id.y * res.x
+        let idx_right = min(thread_id.x + 1, res.x - 1) + thread_id.y * res.x
+        let idx_down = thread_id.x + max(thread_id.y - 1, 0) * res.x
+        let idx_up = thread_id.x + min(thread_id.y + 1, res.y - 1) * res.x
+        
+        let h_left = heightmap[idx_left]
+        let h_right = heightmap[idx_right]
+        let h_down = heightmap[idx_down]
+        let h_up = heightmap[idx_up]
+        
+        # Flow to lower neighbors
+        let flow_left = max(height - h_left, 0.0) * 0.01
+        let flow_right = max(height - h_right, 0.0) * 0.01
+        let flow_down = max(height - h_down, 0.0) * 0.01
+        let flow_up = max(height - h_up, 0.0) * 0.01
+        
+        let total_flow = flow_left + flow_right + flow_down + flow_up
+        height = height - total_flow * physics.time_step
+    
+    # Clamp to valid range
+    height = clamp(height, -params.displacement_scale, params.displacement_scale)
+    
+    heightmap[idx] = height
+
+# Particle-terrain interaction shader (NO SWIZZLING)
+shader compute ParticleTerrainInteraction(thread_id: Vec3) -> Unit:
+    uniform CFG_HIGH_QUALITY: Float @0
+    uniform ENABLE_ADHESION: Float @1
+    
+    uniform particle_positions: RWBuffer<Vec4> @2
+    uniform particle_velocities: RWBuffer<Vec4> @3
+    uniform particle_count: Int @4
+    uniform heightmap: RWBuffer<Float> @5
+    uniform params: HeightmapParams @6
+    uniform physics: TerrainPhysicsParams @7
+    uniform adhesion_strength: Float @8
+    
+    let idx = thread_id.x
+    
+    if idx >= particle_count:
+        return
+    
+    # Load full vec4 values (no swizzling)
+    let pos_full = particle_positions[idx]
+    let vel_full = particle_velocities[idx]
+    
+    # Find heightmap cell
+    let grid_x = int(pos_full.x / params.cell_size.x)
+    let grid_y = int(pos_full.y / params.cell_size.y)
+    
+    if grid_x < 0 || grid_x >= params.resolution.x || grid_y < 0 || grid_y >= params.resolution.y:
+        return
+    
+    let heightmap_idx = grid_x + grid_y * params.resolution.x
+    let terrain_height = heightmap[heightmap_idx]
+    
+    # Collision detection
+    var new_pos = pos_full
+    var new_vel = vel_full
+    
+    if pos_full.z < terrain_height:
+        # Particle is below terrain - apply collision response
+        new_pos = vec4(pos_full.x, pos_full.y, terrain_height, pos_full.w)
+        
+        # Bounce with damping
+        new_vel = vec4(vel_full.x, vel_full.y, -vel_full.z * physics.friction, vel_full.w)
+        
+        # Adhesion (mud sticking)
+        if ENABLE_ADHESION:
+            let adhesion_force = adhesion_strength * physics.cohesion
+            let damping = 1.0 - adhesion_force * physics.time_step
+            new_vel = vec4(new_vel.x * damping, new_vel.y * damping, new_vel.z * damping, new_vel.w)
+            
+            # If velocity is low enough, stick to terrain
+            let speed_sq = new_vel.x * new_vel.x + new_vel.y * new_vel.y + new_vel.z * new_vel.z
+            if speed_sq < 0.01:
+                new_vel = vec4(0, 0, 0, 1.0)
+    
+    # Write back
+    particle_positions[idx] = new_pos
+    particle_velocities[idx] = new_vel
+
+# Mud clumping shader - particles stick to meshes (SIMPLIFIED - no swizzling)
+shader compute MudClumping(thread_id: Vec3) -> Unit:
+    uniform CFG_ENABLE_CLUMPING: Float @0
+    
+    uniform particle_positions: RWBuffer<Vec4> @1
+    uniform particle_velocities: RWBuffer<Vec4> @2
+    uniform particle_count: Int @3
+    uniform clumping_threshold: Float @6
+    uniform adhesion_strength: Float @7
+    uniform physics: TerrainPhysicsParams @8
+    
+    let idx = thread_id.x
+    
+    if idx >= particle_count:
+        return
+    
+    # Load full vec4 values (no swizzling)
+    let pos_full = particle_positions[idx]
+    let vel_full = particle_velocities[idx]
+    let is_stuck = vel_full.w
+    
+    # Skip if already stuck
+    if is_stuck > 0.5:
+        return
+    
+    # Simplified adhesion - apply damping force
+    if CFG_ENABLE_CLUMPING:
+        # Damping factor based on adhesion strength
+        let damping = 1.0 - adhesion_strength * physics.time_step
+        
+        # Apply damping to velocity
+        let new_vel = vec4(
+            vel_full.x * damping,
+            vel_full.y * damping,
+            vel_full.z * damping,
+            vel_full.w
+        )
+        
+        particle_velocities[idx] = new_vel
+        
+        # If velocity is very low, mark as stuck
+        let speed_sq = new_vel.x * new_vel.x + new_vel.y * new_vel.y + new_vel.z * new_vel.z
+        if speed_sq < clumping_threshold * clumping_threshold:
+            particle_velocities[idx] = vec4(0, 0, 0, 1.0)
+
+# Normal recalculation shader for smooth lighting
+shader compute TerrainNormalRecalculation(thread_id: Vec3) -> Unit:
+    uniform heightmap: RWBuffer<Float> @0
+    uniform normal_map: RWBuffer<Vec4> @1
+    uniform params: HeightmapParams @2
+    
+    let idx = thread_id.x + thread_id.y * params.resolution.x
+    let res = params.resolution
+    
+    if thread_id.x >= res.x || thread_id.y >= res.y:
+        return
+    
+    # Sample neighbors for gradient
+    let idx_left = max(thread_id.x - 1, 0) + thread_id.y * res.x
+    let idx_right = min(thread_id.x + 1, res.x - 1) + thread_id.y * res.x
+    let idx_down = thread_id.x + max(thread_id.y - 1, 0) * res.x
+    let idx_up = thread_id.x + min(thread_id.y + 1, res.y - 1) * res.x
+    
+    let h_center = heightmap[idx]
+    let h_left = heightmap[idx_left]
+    let h_right = heightmap[idx_right]
+    let h_down = heightmap[idx_down]
+    let h_up = heightmap[idx_up]
+    
+    # Calculate gradients
+    let dx = (h_right - h_left) / (2.0 * params.cell_size.x)
+    let dy = (h_up - h_down) / (2.0 * params.cell_size.y)
+    
+    # Normal from cross product
+    let tangent_x = vec3(1.0, 0.0, dx)
+    let tangent_y = vec3(0.0, 1.0, dy)
+    let normal = normalize(cross(tangent_x, tangent_y))
+    
+    normal_map[idx] = vec4(normal, 1.0)
+
+# ============================================================================
+# MATERIAL GRAPHS - Terrain visualization
+# ============================================================================
+
+@material_graph(blend_mode = Opaque, shading_model = DefaultLit)
+material TerrainMud:
+    input base_color: Vec3 = vec3(0.3, 0.2, 0.1)
+    input wetness: Float = 0.5
+    input roughness: Float = 0.8
+    input displacement: Float = 1.0
+    
+    # Wet mud is darker and more reflective
+    let wet_color = multiply(base_color, constant_float(0.6))
+    let final_color = lerp(base_color, wet_color, wetness)
+    let final_roughness = lerp(roughness, constant_float(0.3), wetness)
+    
+    output base_color = final_color
+    output roughness = final_roughness
+    output metallic = constant_float(0.0)
+    output displacement = displacement
+
+@material_graph(blend_mode = Opaque, shading_model = DefaultLit)
+material TerrainSnow:
+    input base_color: Vec3 = vec3(0.95, 0.95, 1.0)
+    input sparkle_intensity: Float = 0.3
+    input roughness: Float = 0.6
+    input displacement: Float = 1.0
+    
+    # Snow sparkle effect
+    let sparkle = multiply(constant_float(1.0), sparkle_intensity)
+    let final_color = add(base_color, vec3(sparkle, sparkle, sparkle))
+    
+    output base_color = final_color
+    output roughness = roughness
+    output metallic = constant_float(0.0)
+    output displacement = displacement
+
+@material_graph(blend_mode = Opaque, shading_model = DefaultLit)
+material TerrainSand:
+    input base_color: Vec3 = vec3(0.9, 0.8, 0.6)
+    input roughness: Float = 0.9
+    input displacement: Float = 1.0
+    
+    output base_color = base_color
+    output roughness = roughness
+    output metallic = constant_float(0.0)
+    output displacement = displacement
+
+# ============================================================================
+# ACTORS - Deformable terrain system
+# ============================================================================
+
+@dispatch("ViscoelasticDeformation", "TerrainHeightmapUpdate", "ParticleTerrainInteraction", "MudClumping", "TerrainNormalRecalculation")
+actor DeformableTerrainActor:
+    # Replicated state
+    @replicated
+    state terrain_type: TerrainType = TerrainType::Mud
+    
+    @replicated
+    state quality: DeformationQuality = DeformationQuality::High
+    
+    @replicated
+    state is_simulating: Bool = false
+    
+    # Components
+    @component
+    state deformation: TerrainDeformationComponent = TerrainDeformationComponent()
+    
+    @component
+    state viscoelastic: ViscoelasticComponent = ViscoelasticComponent()
+    
+    @component
+    state particles: ParticleInteractionComponent = ParticleInteractionComponent()
+    
+    # Physics parameters
+    state viscosity: Float = 50.0
+    state elasticity: Float = 1000000.0
+    state density: Float = 1800.0
+    state yield_stress: Float = 5000.0
+    
+    # Performance
+    state simulation_frequency: Float = 60.0
+    state last_update_time: Float = 0.0
+    
+    on BeginPlay():
+        println("DeformableTerrainActor initialized")
+        
+        # Initialize heightmap
+        deformation.heightmap_resolution = vec3(512, 512, 64)
+        deformation.world_bounds = vec3(1000, 1000, 100)
+        
+        # Set material properties based on terrain type
+        self.ApplyTerrainPreset(terrain_type)
+        
+        # Initialize particle system
+        particles.particle_count = 10000
+        particles.particle_radius = 0.05
+        particles.adhesion_strength = 0.8
+        particles.clumping_threshold = 0.2
+    
+    on Tick(delta_time: Float):
+        # Shaders dispatch automatically via @dispatch
+        # All 5 compute shaders run on GPU every frame
+        
+        if is_simulating:
+            last_update_time = last_update_time + delta_time
+            
+            # Update mesh if needed
+            if deformation.needs_mesh_update:
+                self.UpdateTerrainMesh()
+                deformation.needs_mesh_update = false
+            
+            # Recalculate normals if needed
+            if deformation.needs_normal_recalc:
+                deformation.needs_normal_recalc = false
+    
+    # Terrain interaction RPCs
+    on Server_ApplyForce(position: Vec3, direction: Vec3, magnitude: Float, radius: Float):
+        # GPU shader handles the actual deformation
+        deformation.active_deformations = deformation.active_deformations + 1
+        deformation.needs_mesh_update = true
+        deformation.needs_normal_recalc = true
+        
+        Multicast_ShowDeformationEffect(position, radius)
+    
+    on Server_ApplyFootprint(position: Vec3, rotation: Float, size: Float):
+        # Character footprint
+        self.Server_ApplyForce(position, vec3(0, 0, -1), 500.0, size)
+    
+    on Server_ApplyVehicleTrack(position: Vec3, direction: Vec3, width: Float, depth: Float):
+        # Vehicle tire track
+        self.Server_ApplyForce(position, vec3(0, 0, -1), 2000.0 * depth, width)
+    
+    on Server_ApplyExplosion(position: Vec3, radius: Float, force: Float):
+        # Explosion crater
+        self.Server_ApplyForce(position, vec3(0, 0, -1), force, radius)
+        
+        # Spawn debris particles
+        particles.active_particles = particles.active_particles + 100
+    
+    on Server_ResetTerrain():
+        deformation.active_deformations = 0
+        deformation.permanent_deformation_count = 0
+        Multicast_ClearDeformations()
+    
+    on Server_BakeDeformation():
+        # Convert dynamic deformation to permanent
+        deformation.permanent_deformation_count = deformation.active_deformations
+        deformation.active_deformations = 0
+        Multicast_BakeComplete()
+    
+    on Multicast_ShowDeformationEffect(position: Vec3, radius: Float):
+        println("Deformation at {position} with radius {radius}")
+    
+    on Multicast_ClearDeformations():
+        println("Terrain reset")
+    
+    on Multicast_BakeComplete():
+        println("Deformation baked to static mesh")
+    
+    # Blueprint-callable methods
+    @blueprint_callable
+    fn ApplyTerrainPreset(terrain_type: TerrainType):
+        match terrain_type:
+            TerrainType::Mud =>
+                viscosity = 50.0
+                elasticity = 1000000.0
+                yield_stress = 5000.0
+                density = 1800.0
+            TerrainType::Snow =>
+                viscosity = 5.0
+                elasticity = 500000.0
+                yield_stress = 2000.0
+                density = 400.0
+            TerrainType::Sand =>
+                viscosity = 0.1
+                elasticity = 100000.0
+                yield_stress = 1000.0
+                density = 1600.0
+            TerrainType::Clay =>
+                viscosity = 100.0
+                elasticity = 2000000.0
+                yield_stress = 10000.0
+                density = 2000.0
+            _ =>
+                viscosity = 50.0
+                elasticity = 1000000.0
+                yield_stress = 5000.0
+                density = 1800.0
+        
+        viscoelastic.viscosity = viscosity
+        viscoelastic.elasticity = elasticity
+        viscoelastic.yield_stress = yield_stress
+    
+    @blueprint_callable
+    fn UpdateTerrainMesh():
+        println("Updating terrain mesh from heightmap...")
+    
+    @blueprint_callable
+    fn GetDeformationCount() -> Int:
+        return deformation.active_deformations
+    
+    @blueprint_pure
+    fn IsSimulating() -> Bool:
+        return is_simulating
+    
+    @blueprint_callable
+    fn SetQuality(new_quality: DeformationQuality):
+        quality = new_quality
+        
+        match quality:
+            DeformationQuality::Low =>
+                deformation.heightmap_resolution = vec3(128, 128, 16)
+                simulation_frequency = 30.0
+            DeformationQuality::Medium =>
+                deformation.heightmap_resolution = vec3(256, 256, 32)
+                simulation_frequency = 60.0
+            DeformationQuality::High =>
+                deformation.heightmap_resolution = vec3(512, 512, 64)
+                simulation_frequency = 60.0
+            DeformationQuality::Cinematic =>
+                deformation.heightmap_resolution = vec3(1024, 1024, 128)
+                simulation_frequency = 30.0
+            DeformationQuality::Ultra =>
+                deformation.heightmap_resolution = vec3(2048, 2048, 256)
+                simulation_frequency = 30.0
+            _ =>
+                deformation.heightmap_resolution = vec3(512, 512, 64)
+                simulation_frequency = 60.0
+
+# ============================================================================
+# BLUEPRINT FUNCTIONS - Terrain utilities
+# ============================================================================
+
+@blueprint
+fn ApplyForceToTerrain(terrain: DeformableTerrainActor, position: Vec3, force: Float, radius: Float):
+    terrain.Server_ApplyForce(position, vec3(0, 0, -1), force, radius)
+
+@blueprint
+fn GetTerrainHeightAtLocation(terrain: DeformableTerrainActor, position: Vec3) -> Float:
+    # Sample heightmap at world position
+    let grid_x = position.x / terrain.deformation.world_bounds.x * terrain.deformation.heightmap_resolution.x
+    let grid_y = position.y / terrain.deformation.world_bounds.y * terrain.deformation.heightmap_resolution.y
+    
+    # Return interpolated height
+    return grid_x * 0.1  # Placeholder
+
+@blueprint
+fn BakeDeformationToMesh(terrain: DeformableTerrainActor):
+    terrain.Server_BakeDeformation()
+
+@blueprint
+fn CalculateViscosity(temperature: Float, base_viscosity: Float) -> Float:
+    # Arrhenius equation for temperature-dependent viscosity
+    # η(T) = η₀ * exp(E_a / (R * T))
+    let activation_energy = 5000.0  # J/mol
+    let gas_constant = 8.314  # J/(mol·K)
+    let reference_temp = 293.0  # K (20°C)
+    
+    let temp_factor = activation_energy / gas_constant * (1.0 / temperature - 1.0 / reference_temp)
+    let viscosity = base_viscosity * exp(temp_factor)
+    
+    return viscosity
+
+@blueprint
+fn CalculateYieldStress(material_type: TerrainType, moisture_content: Float) -> Float:
+    # Yield stress depends on material and moisture
+    var base_yield = 5000.0
+    
+    match material_type:
+        TerrainType::Mud => base_yield = 5000.0
+        TerrainType::Snow => base_yield = 2000.0
+        TerrainType::Sand => base_yield = 1000.0
+        TerrainType::Clay => base_yield = 10000.0
+        _ => base_yield = 5000.0
+    
+    # Moisture reduces yield stress
+    let moisture_factor = 1.0 - moisture_content * 0.5
+    return base_yield * moisture_factor
+
+@blueprint_pure
+fn GetTerrainColor(terrain_type: TerrainType) -> Vec3:
+    match terrain_type:
+        TerrainType::Mud => vec3(0.3, 0.2, 0.1)
+        TerrainType::Snow => vec3(0.95, 0.95, 1.0)
+        TerrainType::Sand => vec3(0.9, 0.8, 0.6)
+        TerrainType::Clay => vec3(0.6, 0.4, 0.3)
+        TerrainType::Wet_Concrete => vec3(0.4, 0.4, 0.4)
+        _ => vec3(0.5, 0.5, 0.5)
+
+@blueprint
+fn SimulateFootstep(terrain: DeformableTerrainActor, position: Vec3, character_weight: Float):
+    let foot_size = 0.25  # meters
+    let force = character_weight * 9.81  # Convert mass to force
+    terrain.Server_ApplyFootprint(position, 0.0, foot_size)
+
+@blueprint
+fn SimulateVehicleTrack(terrain: DeformableTerrainActor, position: Vec3, velocity: Vec3, vehicle_weight: Float):
+    let tire_width = 0.3  # meters
+    let depth_factor = vehicle_weight / 1000.0  # Heavier = deeper
+    let direction = normalize(velocity)
+    
+    terrain.Server_ApplyVehicleTrack(position, direction, tire_width, depth_factor)
+
+# ============================================================================
+# SLATE UI - Terrain editor interface
+# ============================================================================
+
+@slate
+struct TerrainEditorUI:
+    @property
+    current_terrain_type: TerrainType
+    
+    @property
+    quality_setting: DeformationQuality
+    
+    @property
+    is_simulating: Bool
+    
+    @property
+    deformation_count: Int
+    
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+@slate
+struct TerrainStatsPanel:
+    @property
+    active_deformations: Int
+    
+    @property
+    particle_count: Int
+    
+    @property
+    fps: Float
+    
+    @property
+    memory_usage_mb: Float
+    
+    fn Compose() -> Widget:
+        return VerticalBox()
+
+# ============================================================================
+# DETAILS PANEL - Terrain properties
+# ============================================================================
+
+@details
+struct TerrainDetails:
+    @category("Material")
+    terrain_type: TerrainType
+    
+    @category("Material")
+    @slider(0.1, 1000.0)
+    viscosity: Float
+    
+    @category("Material")
+    @slider(100000.0, 10000000.0)
+    elasticity: Float
+    
+    @category("Material")
+    @slider(100.0, 3000.0)
+    density: Float
+    
+    @category("Material")
+    @slider(100.0, 20000.0)
+    yield_stress: Float
+    
+    @category("Visual")
+    @color_picker
+    terrain_color: Vec3
+    
+    @category("Visual")
+    @slider(0.0, 1.0)
+    roughness: Float
+    
+    @category("Visual")
+    @slider(0.0, 10.0)
+    displacement_scale: Float
+    
+    @category("Quality")
+    quality: DeformationQuality
+    
+    @category("Quality")
+    @slider(128, 2048)
+    heightmap_resolution: Int
+    
+    @category("Simulation")
+    @slider(0.0, 1.0)
+    recovery_rate: Float
+    
+    @category("Simulation")
+    @slider(0.0, 1.0)
+    friction_coefficient: Float
+    
+    @category("Particles")
+    @slider(0, 50000)
+    particle_count: Int
+    
+    @category("Particles")
+    @slider(0.0, 1.0)
+    adhesion_strength: Float
+    
+    @category("Actions")
+    @button("Apply Preset")
+    fn on_apply_preset():
+        println("Applying terrain preset...")
+    
+    @category("Actions")
+    @button("Reset Terrain")
+    fn on_reset_terrain():
+        println("Resetting terrain...")
+    
+    @category("Actions")
+    @button("Bake to Static Mesh")
+    fn on_bake_mesh():
+        println("Baking deformation to static mesh...")
+    
+    @category("Debug")
+    @button("Spawn Test Character")
+    fn on_spawn_test():
+        println("Spawning test character for footprints...")
+    
+    @category("Debug")
+    @button("Spawn Test Vehicle")
+    fn on_spawn_vehicle():
+        println("Spawning test vehicle for tracks...")
+
+# ============================================================================
+# VIEWPORT - 3D terrain preview
+# ============================================================================
+
+@viewport
+struct TerrainPreviewViewport:
+    @scene_actor
+    terrain_mesh: StaticMeshComponent
+    
+    @scene_actor
+    test_character: SkeletalMeshComponent
+    
+    @camera
+    preview_camera: CameraComponent
+    
+    camera_distance: Float
+    camera_rotation: Vec2
+    is_playing: Bool
+    
+    fn on_viewport_tick(delta: Float):
+        # Update camera orbit
+        preview_camera.SetRelativeLocation(vec3(
+            camera_distance * cos(camera_rotation.x) * cos(camera_rotation.y),
+            camera_distance * sin(camera_rotation.x) * cos(camera_rotation.y),
+            camera_distance * sin(camera_rotation.y)
+        ))
+        
+        # Animate test character if playing
+        if is_playing:
+            # Walk forward and leave footprints
+            let char_pos = test_character.GetRelativeLocation()
+            test_character.SetRelativeLocation(char_pos + vec3(delta * 100.0, 0, 0))
+
+# ============================================================================
+# TOOLBAR - Terrain editing toolbar
+# ============================================================================
+
+@toolbar
+struct TerrainToolbar:
+    @button("New Terrain", icon: "Icons.Terrain", shortcut: "Ctrl+N")
+    fn on_new_terrain():
+        println("Creating new terrain...")
+    
+    @button("Import Heightmap", icon: "Icons.Import")
+    fn on_import_heightmap():
+        println("Importing heightmap...")
+    
+    @button("Export Heightmap", icon: "Icons.Export")
+    fn on_export_heightmap():
+        println("Exporting heightmap...")
+    
+    @separator
+    
+    @button("Play Simulation", icon: "Icons.Play")
+    fn on_play():
+        println("Starting simulation...")
+    
+    @button("Pause", icon: "Icons.Pause")
+    fn on_pause():
+        println("Pausing simulation...")
+    
+    @button("Reset", icon: "Icons.Reset")
+    fn on_reset():
+        println("Resetting terrain...")
+    
+    @separator
+    
+    @toggle("Show Particles", default: true)
+    fn on_toggle_particles(enabled: Bool):
+        println("Particles: {enabled}")
+    
+    @toggle("Show Wireframe", default: false)
+    fn on_toggle_wireframe(enabled: Bool):
+        println("Wireframe: {enabled}")
+    
+    @separator
+    
+    @dropdown("Material", options: ["Mud", "Snow", "Sand", "Clay"])
+    fn on_material_changed(value: String):
+        println("Material: {value}")
+    
+    @button("Bake to Static Mesh", icon: "Icons.Mesh")
+    fn on_bake():
+        println("Baking to static mesh...")

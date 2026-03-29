@@ -1,0 +1,32 @@
+[package]
+name = "SplineToolsPro"
+version = "1.0.0"
+authors = ["KAIN Factory Part 2"]
+
+[ue5]
+plugin_name = "SplineToolsPro"
+engine_version = "5.4"
+category = "Level Design"
+description = "Advanced spline manipulation and mesh deformation system with professional-grade tools for level designers"
+
+sources = [
+    "src/spline_data_structures.kn",
+    "src/spline_math_utilities.kn",
+    "src/spline_component.kn",
+    "src/spline_optimization.kn",
+    "src/spline_mesh_deformation.kn",
+    "src/spline_subsystem.kn",
+    "src/spline_actors.kn",
+    "src/spline_advanced_features.kn",
+    "src/spline_blueprint_library.kn",
+    "src/spline_editor_ui.kn",
+]
+
+[[ue5.modules]]
+name = "SplineToolsPro"
+type = "Runtime"
+loading_phase = "Default"
+
+[build]
+targets = ["ue5"]
+output_dir = "Generated"

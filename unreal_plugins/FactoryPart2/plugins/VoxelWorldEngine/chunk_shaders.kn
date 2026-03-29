@@ -1,0 +1,308 @@
+shader compute ChunkMesher(thread_id: Vec3):
+    uniform chunk_size: Int @0
+    uniform chunk_coord_x: Int @1
+    uniform chunk_coord_y: Int @2
+    uniform chunk_coord_z: Int @3
+    buffer voxel_data: Buffer<Int> @4
+    buffer vertex_buffer: RWBuffer<Vec3> @5
+    buffer normal_buffer: RWBuffer<Vec3> @6
+    buffer uv_buffer: RWBuffer<Vec2> @7
+    buffer index_buffer: RWBuffer<Int> @8
+    buffer counter: RWBuffer<Int> @9
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    let z = thread_id.z
+    
+    if x >= chunk_size or y >= chunk_size or z >= chunk_size:
+        return
+    
+    let index = x + y * chunk_size + z * chunk_size * chunk_size
+    let voxel_type = voxel_data[index]
+    
+    if voxel_type == 0:
+        return
+    
+    let world_pos = vec3(x as Float, y as Float, z as Float)
+    
+    let check_neighbor = fn(offset_x: Int, offset_y: Int, offset_z: Int) -> Bool:
+        let nx = x + offset_x
+        let ny = y + offset_y
+        let nz = z + offset_z
+        
+        if nx < 0 or nx >= chunk_size or ny < 0 or ny >= chunk_size or nz < 0 or nz >= chunk_size:
+            return true
+        
+        let neighbor_index = nx + ny * chunk_size + nz * chunk_size * chunk_size
+        let neighbor_type = voxel_data[neighbor_index]
+        return neighbor_type == 0
+    
+    let add_face = fn(v0: Vec3, v1: Vec3, v2: Vec3, v3: Vec3, normal: Vec3):
+        let vertex_index = counter[0]
+        counter[0] = vertex_index + 4
+        
+        vertex_buffer[vertex_index + 0] = world_pos + v0
+        vertex_buffer[vertex_index + 1] = world_pos + v1
+        vertex_buffer[vertex_index + 2] = world_pos + v2
+        vertex_buffer[vertex_index + 3] = world_pos + v3
+        
+        normal_buffer[vertex_index + 0] = normal
+        normal_buffer[vertex_index + 1] = normal
+        normal_buffer[vertex_index + 2] = normal
+        normal_buffer[vertex_index + 3] = normal
+        
+        uv_buffer[vertex_index + 0] = vec2(0.0, 0.0)
+        uv_buffer[vertex_index + 1] = vec2(1.0, 0.0)
+        uv_buffer[vertex_index + 2] = vec2(1.0, 1.0)
+        uv_buffer[vertex_index + 3] = vec2(0.0, 1.0)
+        
+        let index_index = (vertex_index / 4) * 6
+        index_buffer[index_index + 0] = vertex_index + 0
+        index_buffer[index_index + 1] = vertex_index + 1
+        index_buffer[index_index + 2] = vertex_index + 2
+        index_buffer[index_index + 3] = vertex_index + 0
+        index_buffer[index_index + 4] = vertex_index + 2
+        index_buffer[index_index + 5] = vertex_index + 3
+    
+    if check_neighbor(0, 1, 0):
+        add_face(
+            vec3(0.0, 1.0, 0.0),
+            vec3(1.0, 1.0, 0.0),
+            vec3(1.0, 1.0, 1.0),
+            vec3(0.0, 1.0, 1.0),
+            vec3(0.0, 1.0, 0.0)
+        )
+    
+    if check_neighbor(0, -1, 0):
+        add_face(
+            vec3(0.0, 0.0, 0.0),
+            vec3(0.0, 0.0, 1.0),
+            vec3(1.0, 0.0, 1.0),
+            vec3(1.0, 0.0, 0.0),
+            vec3(0.0, -1.0, 0.0)
+        )
+    
+    if check_neighbor(1, 0, 0):
+        add_face(
+            vec3(1.0, 0.0, 0.0),
+            vec3(1.0, 0.0, 1.0),
+            vec3(1.0, 1.0, 1.0),
+            vec3(1.0, 1.0, 0.0),
+            vec3(1.0, 0.0, 0.0)
+        )
+    
+    if check_neighbor(-1, 0, 0):
+        add_face(
+            vec3(0.0, 0.0, 0.0),
+            vec3(0.0, 1.0, 0.0),
+            vec3(0.0, 1.0, 1.0),
+            vec3(0.0, 0.0, 1.0),
+            vec3(-1.0, 0.0, 0.0)
+        )
+    
+    if check_neighbor(0, 0, 1):
+        add_face(
+            vec3(0.0, 0.0, 1.0),
+            vec3(0.0, 1.0, 1.0),
+            vec3(1.0, 1.0, 1.0),
+            vec3(1.0, 0.0, 1.0),
+            vec3(0.0, 0.0, 1.0)
+        )
+    
+    if check_neighbor(0, 0, -1):
+        add_face(
+            vec3(0.0, 0.0, 0.0),
+            vec3(1.0, 0.0, 0.0),
+            vec3(1.0, 1.0, 0.0),
+            vec3(0.0, 1.0, 0.0),
+            vec3(0.0, 0.0, -1.0)
+        )
+
+shader compute TerrainNoiseGenerator(thread_id: Vec3):
+    uniform seed: Int @0
+    uniform octaves: Int @1
+    uniform frequency: Float @2
+    uniform amplitude: Float @3
+    uniform lacunarity: Float @4
+    uniform persistence: Float @5
+    uniform world_offset_x: Float @6
+    uniform world_offset_y: Float @7
+    uniform world_offset_z: Float @8
+    buffer height_map: RWBuffer<Float> @9
+    
+    let x = thread_id.x
+    let z = thread_id.z
+    
+    let world_x = (x as Float) + world_offset_x
+    let world_z = (z as Float) + world_offset_z
+    
+    let total = 0.0
+    let current_amplitude = amplitude
+    let current_frequency = frequency
+    
+    for i in 0..octaves:
+        let sample_x = world_x * current_frequency
+        let sample_z = world_z * current_frequency
+        
+        let noise_value = perlin_noise(vec3(sample_x, 0.0, sample_z) + vec3(seed as Float, seed as Float, seed as Float))
+        total = total + noise_value * current_amplitude
+        
+        current_amplitude = current_amplitude * persistence
+        current_frequency = current_frequency * lacunarity
+    
+    let index = x + z * 256
+    height_map[index] = total
+
+shader compute CaveGenerator(thread_id: Vec3):
+    uniform seed: Int @0
+    uniform cave_frequency: Float @1
+    uniform cave_threshold: Float @2
+    uniform world_offset_x: Float @3
+    uniform world_offset_y: Float @4
+    uniform world_offset_z: Float @5
+    buffer voxel_data: RWBuffer<Int> @6
+    buffer cave_mask: RWBuffer<Int> @7
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    let z = thread_id.z
+    
+    let world_x = (x as Float) + world_offset_x
+    let world_y = (y as Float) + world_offset_y
+    let world_z = (z as Float) + world_offset_z
+    
+    let cave_noise = perlin_noise(vec3(world_x, world_y, world_z) * cave_frequency + vec3(seed as Float, seed as Float, seed as Float))
+    
+    let index = x + y * 32 + z * 32 * 32
+    
+    if cave_noise > cave_threshold:
+        cave_mask[index] = 1
+        voxel_data[index] = 0
+    else:
+        cave_mask[index] = 0
+
+shader compute BiomeBlender(thread_id: Vec3):
+    uniform blend_radius: Float @0
+    buffer biome_map: Buffer<Int> @1
+    buffer temperature_map: Buffer<Float> @2
+    buffer humidity_map: Buffer<Float> @3
+    buffer blended_biome: RWBuffer<Int> @4
+    
+    let x = thread_id.x
+    let z = thread_id.z
+    
+    let temp = temperature_map[x + z * 256]
+    let humidity = humidity_map[x + z * 256]
+    
+    let biome = 0
+    
+    if temp < 0.3:
+        if humidity < 0.3:
+            biome = 5
+        else:
+            biome = 5
+    else:
+        if temp < 0.6:
+            if humidity < 0.4:
+                biome = 0
+            else:
+                biome = 1
+        else:
+            if humidity < 0.3:
+                biome = 2
+            else:
+                if humidity < 0.7:
+                    biome = 6
+                else:
+                    biome = 7
+    
+    let index = x + z * 256
+    blended_biome[index] = biome
+
+shader compute AmbientOcclusion(thread_id: Vec3):
+    uniform chunk_size: Int @0
+    buffer voxel_data: Buffer<Int> @1
+    buffer ao_buffer: RWBuffer<Float> @2
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    let z = thread_id.z
+    
+    if x >= chunk_size or y >= chunk_size or z >= chunk_size:
+        return
+    
+    let index = x + y * chunk_size + z * chunk_size * chunk_size
+    let voxel_type = voxel_data[index]
+    
+    if voxel_type == 0:
+        ao_buffer[index] = 1.0
+        return
+    
+    let occlusion = 0.0
+    let sample_count = 0
+    
+    for dx in -1..2:
+        for dy in -1..2:
+            for dz in -1..2:
+                if dx == 0 and dy == 0 and dz == 0:
+                    continue
+                
+                let nx = x + dx
+                let ny = y + dy
+                let nz = z + dz
+                
+                if nx >= 0 and nx < chunk_size and ny >= 0 and ny < chunk_size and nz >= 0 and nz < chunk_size:
+                    let neighbor_index = nx + ny * chunk_size + nz * chunk_size * chunk_size
+                    let neighbor_type = voxel_data[neighbor_index]
+                    
+                    if neighbor_type != 0:
+                        occlusion = occlusion + 1.0
+                    
+                    sample_count = sample_count + 1
+    
+    let ao_value = 1.0 - (occlusion / (sample_count as Float))
+    ao_buffer[index] = ao_value
+
+shader compute LightPropagation(thread_id: Vec3):
+    uniform chunk_size: Int @0
+    uniform max_light_level: Int @1
+    buffer voxel_data: Buffer<Int> @2
+    buffer light_buffer: RWBuffer<Int> @3
+    buffer light_sources: Buffer<Vec3> @4
+    uniform light_source_count: Int @5
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    let z = thread_id.z
+    
+    if x >= chunk_size or y >= chunk_size or z >= chunk_size:
+        return
+    
+    let index = x + y * chunk_size + z * chunk_size * chunk_size
+    let voxel_type = voxel_data[index]
+    
+    if voxel_type == 0:
+        light_buffer[index] = max_light_level
+        return
+    
+    let max_neighbor_light = 0
+    
+    for dx in -1..2:
+        for dy in -1..2:
+            for dz in -1..2:
+                if dx == 0 and dy == 0 and dz == 0:
+                    continue
+                
+                let nx = x + dx
+                let ny = y + dy
+                let nz = z + dz
+                
+                if nx >= 0 and nx < chunk_size and ny >= 0 and ny < chunk_size and nz >= 0 and nz < chunk_size:
+                    let neighbor_index = nx + ny * chunk_size + nz * chunk_size * chunk_size
+                    let neighbor_light = light_buffer[neighbor_index]
+                    
+                    if neighbor_light > max_neighbor_light:
+                        max_neighbor_light = neighbor_light
+    
+    let new_light = max(max_neighbor_light - 1, 0)
+    light_buffer[index] = new_light

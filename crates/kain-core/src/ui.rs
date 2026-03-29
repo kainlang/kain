@@ -5,6 +5,7 @@ use crate::diagnostics::SpanMapper;
 use crate::error::KainResult;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
+use crate::realtime_app_bundle::ui_session_state_string;
 use crate::runtime::{eval_expr, Env, Value};
 use crate::span::Span;
 use kain_ui::{
@@ -1057,6 +1058,7 @@ fn render_authored_expr_contract(expr: &Expr) -> String {
                 .join(", ");
             format!("|{rendered_params}| {}", render_authored_expr_contract(body))
         }
+        Expr::Unary { .. } | Expr::Binary { .. } => format!("{:?}", expr),
         Expr::FString(_, _)
         | Expr::MacroCall { .. }
         | Expr::Assign { .. }
@@ -1185,7 +1187,7 @@ fn lower_authored_derived_expr(
         Expr::String(value, _) => Some(UiDerivedExpr::Literal(UiValue::String(value.clone()))),
         Expr::Bool(value, _) => Some(UiDerivedExpr::Literal(UiValue::Bool(*value))),
         Expr::None(_) => Some(UiDerivedExpr::Literal(UiValue::Null)),
-        Expr::Ident(_) | Expr::Field { .. } | Expr::Index { .. } => {
+        Expr::Ident(..) | Expr::Field { .. } | Expr::Index { .. } => {
             authored_signal_contract_path(expr).and_then(|signal_name| {
                 signal_index
                     .get(&canonical_signal_contract_key(&signal_name))
@@ -3075,6 +3077,7 @@ mod tests {
                 UIAttr::Property {
                     name: "class".to_string(),
                     value: Value::String("panel".to_string()),
+                    expr: None,
                 },
                 UIAttr::Bool {
                     name: "hidden".to_string(),

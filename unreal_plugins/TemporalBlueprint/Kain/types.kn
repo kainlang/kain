@@ -1,0 +1,296 @@
+# ============================================================================
+# TEMPORAL BLUEPRINT — Types, Enums, DataTables
+# ============================================================================
+# Non-linear time-state level design system for UE5.
+# Author levels that exist across multiple simultaneous timelines.
+# Each actor in the world can have a unique state per time era.
+# The TemporalSubsystem manages transitions, causality, and state snapshots.
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: CORE ENUMS
+# ============================================================================
+
+enum TemporalEra:
+    Ancient         # Deep past — ruins, overgrown, decayed
+    Past            # Recent past — intact, lived-in
+    Present         # Current time — the default state
+    Future          # Near future — rebuilt, changed
+    Apocalyptic     # Far future — destroyed, post-collapse
+    Alternate       # Parallel timeline — diverged reality
+    Void            # Outside time — liminal, abstract
+    _MAX
+
+enum TemporalTransitionType:
+    Instant         # Hard cut between eras
+    Dissolve        # Cross-fade blend
+    Ripple          # Radial wave from player position
+    Shatter         # Particle-based break apart
+    Rewind          # Reverse-time visual effect
+    Fold            # Space-fold / origami collapse
+    Bleed           # Ghostly overlap before full switch
+    _MAX
+
+enum CausalityRule:
+    None            # No causality — eras are independent
+    Linear          # Past affects present affects future
+    Branching       # Actions create new branches
+    Convergent      # All branches collapse to one outcome
+    Paradox         # Contradictions allowed, tracked
+    _MAX
+
+enum TemporalActorBehavior:
+    Static          # Same mesh/state across all eras
+    Unique          # Fully unique per era (separate configs)
+    Interpolated    # Lerps between era states
+    Conditional     # Visible/active only in specific eras
+    Ghosted         # Visible as ghost in non-native eras
+    Destroyed       # Removed from existence in some eras
+    _MAX
+
+enum TemporalTransitionState:
+    Idle
+    Transitioning
+    Blending
+    Locked          # Transition blocked by causality
+    _MAX
+
+enum TemporalEventType:
+    EraChanged
+    ActorStateChanged
+    CausalityViolation
+    TimelineForked
+    TimelineCollapsed
+    AnchorPlaced
+    AnchorRemoved
+    _MAX
+
+enum TemporalAnchorType:
+    Fixed           # Anchor stays in all eras
+    EraSpecific     # Only exists in one era
+    Causal          # Triggers causality chain
+    _MAX
+
+enum TemporalLayerBlend:
+    Replace         # New era fully replaces old
+    Additive        # New era adds on top
+    Subtractive     # New era removes elements
+    Weighted        # Blend by influence weight
+    _MAX
+
+enum TemporalSnapshotMode:
+    Full            # Snapshot all actor states
+    Delta           # Only changed actors
+    Selective       # Only tagged actors
+    _MAX
+
+enum TemporalDebugMode:
+    Off
+    ShowEraZones
+    ShowCausalityLinks
+    ShowAnchorPoints
+    ShowTransitionBounds
+    ShowAll
+    _MAX
+
+# ============================================================================
+# SECTION 2: CORE DATA STRUCTURES
+# ============================================================================
+
+struct TemporalEraConfig:
+    era: TemporalEra
+    era_name: String
+    era_color: Vec3             # Tint color for editor visualization
+    ambient_color: Vec3         # Sky/ambient light color for this era
+    ambient_intensity: Float    # Ambient light intensity multiplier
+    fog_density: Float          # Atmospheric fog density
+    fog_color: Vec3
+    time_of_day: Float          # 0.0 = midnight, 0.5 = noon, 1.0 = midnight
+    weather_tag: String         # Gameplay tag for weather system integration
+    music_tag: String           # Gameplay tag for audio system
+    post_process_tag: String    # Named post-process preset
+    transition_duration: Float  # Default transition time into this era (seconds)
+    enabled: Bool
+
+struct TemporalActorState:
+    actor_guid: String          # Unique actor identifier
+    era: TemporalEra
+    is_visible: Bool
+    is_active: Bool
+    world_position: Vec3
+    world_rotation: Vec3
+    world_scale: Vec3
+    mesh_variant_index: Int     # Index into mesh variant array
+    material_variant_index: Int
+    custom_data_0: Float        # User-defined per-era data
+    custom_data_1: Float
+    custom_data_2: Float
+    custom_data_3: Float
+    gameplay_tag: String        # State tag for this era
+    notes: String               # Designer notes
+
+struct TemporalTransitionParams:
+    from_era: TemporalEra
+    to_era: TemporalEra
+    transition_type: TemporalTransitionType
+    duration: Float
+    delay: Float                # Delay before transition starts
+    ease_in: Float
+    ease_out: Float
+    ripple_origin: Vec3         # For ripple transitions
+    ripple_radius: Float
+    sound_tag: String
+    vfx_tag: String
+    block_input: Bool           # Lock player input during transition
+    fade_to_black: Bool
+
+fn default_transition_params() -> TemporalTransitionParams:
+    let params = TemporalTransitionParams()
+    params.from_era = TemporalEra::Present
+    params.to_era = TemporalEra::Present
+    params.transition_type = TemporalTransitionType::Dissolve
+    params.duration = 1.0
+    params.delay = 0.0
+    params.ease_in = 0.0
+    params.ease_out = 0.0
+    params.ripple_origin = vec3(0.0, 0.0, 0.0)
+    params.ripple_radius = 0.0
+    params.sound_tag = ""
+    params.vfx_tag = ""
+    params.block_input = false
+    params.fade_to_black = false
+    return params
+
+struct TemporalCausalityLink:
+    source_actor_guid: String
+    source_era: TemporalEra
+    target_actor_guid: String
+    target_era: TemporalEra
+    rule: CausalityRule
+    condition_tag: String       # Gameplay tag condition
+    description: String         # Designer notes on why this link exists
+
+struct TemporalAnchor:
+    anchor_id: Int
+    anchor_name: String
+    anchor_type: TemporalAnchorType
+    world_position: Vec3
+    radius: Float               # Influence radius
+    native_era: TemporalEra
+    visible_in_eras: Int        # Bitmask of TemporalEra values
+    triggers_transition: Bool
+    transition_target_era: TemporalEra
+    gameplay_tag: String
+
+struct TemporalZone:
+    zone_id: Int
+    zone_name: String
+    min_bounds: Vec3
+    max_bounds: Vec3
+    forced_era: TemporalEra     # If set, overrides global era in this zone
+    blend_radius: Float         # Blend zone at boundary
+    priority: Int               # Higher priority wins overlaps
+    enabled: Bool
+
+struct TemporalSnapshot:
+    snapshot_id: Int
+    era: TemporalEra
+    timestamp: Float
+    actor_count: Int
+    description: String
+    is_autosave: Bool
+
+struct TemporalEvent:
+    event_type: TemporalEventType
+    era: TemporalEra
+    actor_guid: String
+    timestamp: Float
+    description: String
+
+struct TemporalTimelineNode:
+    node_id: Int
+    era: TemporalEra
+    parent_node_id: Int         # -1 = root
+    branch_condition: String    # Gameplay tag that caused this branch
+    is_canonical: Bool          # The "main" timeline branch
+    description: String
+
+struct TemporalBlendWeight:
+    era: TemporalEra
+    weight: Float               # 0.0 - 1.0
+
+struct TemporalMeshVariant:
+    era: TemporalEra
+    static_mesh_path: String
+    skeletal_mesh_path: String
+    material_override_paths: Array<String>
+    collision_profile: String
+    lod_bias: Int
+
+struct TemporalDebugInfo:
+    current_era: TemporalEra
+    transition_state: TemporalTransitionState
+    active_zone_count: Int
+    anchor_count: Int
+    tracked_actor_count: Int
+    causality_link_count: Int
+    snapshot_count: Int
+    last_transition_duration: Float
+    fps_impact: Float
+
+# ============================================================================
+# SECTION 3: DATATABLES — Designer-facing configuration
+# ============================================================================
+
+@datatable
+struct TemporalEraPresetData:
+    id: Int
+    preset_name: String
+    era: Int                    # TemporalEra enum value
+    era_color_r: Float
+    era_color_g: Float
+    era_color_b: Float
+    ambient_intensity: Float
+    fog_density: Float
+    time_of_day: Float
+    transition_duration: Float
+    post_process_tag: String
+    music_tag: String
+    description: String
+
+@datatable
+struct TemporalTransitionPresetData:
+    id: Int
+    preset_name: String
+    transition_type: Int        # TemporalTransitionType enum value
+    duration: Float
+    ease_in: Float
+    ease_out: Float
+    ripple_radius: Float
+    sound_tag: String
+    vfx_tag: String
+    block_input: Bool
+    description: String
+
+@datatable
+struct TemporalActorPresetData:
+    id: Int
+    preset_name: String
+    behavior: Int               # TemporalActorBehavior enum value
+    visible_in_ancient: Bool
+    visible_in_past: Bool
+    visible_in_present: Bool
+    visible_in_future: Bool
+    visible_in_apocalyptic: Bool
+    visible_in_alternate: Bool
+    ghost_opacity: Float
+    description: String
+
+@datatable
+struct TemporalZonePresetData:
+    id: Int
+    preset_name: String
+    forced_era: Int
+    blend_radius: Float
+    priority: Int
+    description: String

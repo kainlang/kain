@@ -1,0 +1,300 @@
+// ModularBuilder - Editor UI
+// Phase 5: Slate widgets for piece browser, toolbar, and details
+// Target: ~1,500 LOC
+
+// ============================================================================
+// PIECE BROWSER WIDGET
+// ============================================================================
+
+@slate
+struct PieceBrowserWidget:
+    piece_definitions: Array<BuildingPieceDefinition>
+    selected_category: String
+    search_filter: String
+    tag_filters: Array<String>
+    selected_piece_id: String
+    category_tree: Array<CategoryNode>
+    thumbnail_size: Float
+    sort_mode: String
+    
+    @slate_method
+    fn set_piece_definitions(pieces: Array<BuildingPieceDefinition>):
+        piece_definitions = pieces
+    
+    @slate_method
+    fn set_selected_category(category: String):
+        selected_category = category
+    
+    @slate_method
+    fn set_search_filter(search_text: String):
+        search_filter = search_text
+    
+    @slate_method
+    fn set_tag_filters(tags: Array<String>):
+        tag_filters = tags
+    
+    @slate_method
+    fn get_selected_piece() -> BuildingPieceDefinition:
+        let i = 0
+        while i < len(piece_definitions):
+            if piece_definitions[i].piece_id == selected_piece_id:
+                return piece_definitions[i]
+            i = i + 1
+        return BuildingPieceDefinition {
+            piece_id: "",
+            display_name: "",
+            description: "",
+            category: PieceCategory::Custom,
+            subcategory: "",
+            mesh_variants: [],
+            snap_points: [],
+            tags: [],
+            structural_type: StructuralType::Decorative,
+            placement_rules: [],
+            bounds_size: vec3(0.0, 0.0, 0.0),
+            bounds_offset: vec3(0.0, 0.0, 0.0),
+            cost: 0,
+            build_time: 0.0,
+            health: 0.0,
+            thumbnail_path: "",
+            icon_path: "",
+            author: "",
+            version: 0
+        }
+    
+    @slate_method
+    fn refresh_piece_list():
+        println("Refreshing piece list")
+    
+    @slate_method
+    fn show_piece_details(piece_id: String):
+        selected_piece_id = piece_id
+    
+    @slate_method
+    fn export_favorites_list() -> Array<String>:
+        return []
+
+// ============================================================================
+// TOOLBAR WIDGET
+// ============================================================================
+
+@slate
+struct ToolbarWidget:
+    active_mode: BuildMode
+    button_states: Map<String, Bool>
+    can_undo: Bool
+    can_redo: Bool
+    snap_enabled: Bool
+    grid_snap_enabled: Bool
+    
+    @slate_method
+    fn set_active_mode(mode: BuildMode):
+        active_mode = mode
+    
+    @slate_method
+    fn enable_button(button_name: String, enabled: Bool):
+        button_states[button_name] = enabled
+    
+    @slate_method
+    fn set_button_tooltip(button_name: String, tooltip: String):
+        println("Setting tooltip for " + button_name + ": " + tooltip)
+    
+    @slate_method
+    fn register_button_callback(button_name: String, callback: String):
+        println("Registering callback for " + button_name)
+    
+    @slate_method
+    fn update_undo_redo_state(undo: Bool, redo: Bool):
+        can_undo = undo
+        can_redo = redo
+    
+    @slate_method
+    fn show_settings_dialog():
+        println("Showing settings dialog")
+
+// ============================================================================
+// DETAILS PANEL WIDGET
+// ============================================================================
+
+@slate
+struct DetailsPanelWidget:
+    selected_pieces: Array<BuildingPieceActor>
+    current_transform: Transform
+    available_variants: Array<String>
+    material_overrides: Array<String>
+    snap_points: Array<SnapPointData>
+    structural_info: StructuralChain
+    custom_properties: Map<String, String>
+    
+    @slate_method
+    fn set_selected_pieces(pieces: Array<BuildingPieceActor>):
+        selected_pieces = pieces
+    
+    @slate_method
+    fn update_transform_display(transform: Transform):
+        current_transform = transform
+    
+    @slate_method
+    fn update_variant_list(variants: Array<String>):
+        available_variants = variants
+    
+    @slate_method
+    fn update_material_overrides(materials: Array<String>):
+        material_overrides = materials
+    
+    @slate_method
+    fn update_snap_point_list(snap_points_data: Array<SnapPointData>):
+        snap_points = snap_points_data
+    
+    @slate_method
+    fn update_structural_info(chain: StructuralChain):
+        structural_info = chain
+    
+    @slate_method
+    fn apply_property_changes():
+        println("Applying property changes")
+
+// ============================================================================
+// PREVIEW WIDGET
+// ============================================================================
+
+@slate
+struct PreviewWidget:
+    preview_piece_id: String
+    preview_variant_index: Int
+    preview_rotation: Vec3
+    preview_zoom: Float
+    lighting_preset: String
+    show_snap_points: Bool
+    
+    @slate_method
+    fn set_preview_piece(piece_id: String):
+        preview_piece_id = piece_id
+    
+    @slate_method
+    fn set_preview_variant(variant_index: Int):
+        preview_variant_index = variant_index
+    
+    @slate_method
+    fn rotate_preview(delta: Vec3):
+        preview_rotation = vec3(
+            preview_rotation.x + delta.x,
+            preview_rotation.y + delta.y,
+            preview_rotation.z + delta.z
+        )
+    
+    @slate_method
+    fn zoom_preview(delta: Float):
+        preview_zoom = preview_zoom + delta
+        if preview_zoom < 0.1:
+            preview_zoom = 0.1
+        if preview_zoom > 10.0:
+            preview_zoom = 10.0
+    
+    @slate_method
+    fn set_lighting_preset(preset: String):
+        lighting_preset = preset
+    
+    @slate_method
+    fn toggle_snap_point_display(enabled: Bool):
+        show_snap_points = enabled
+
+// ============================================================================
+// SNAP INDICATOR WIDGET
+// ============================================================================
+
+@slate
+struct SnapIndicatorWidget:
+    snap_info: SnapQueryResult
+    is_visible: Bool
+    screen_position: Vec2
+    current_snap_index: Int
+    available_snaps: Array<SnapQueryResult>
+    
+    @slate_method
+    fn update_snap_info(snap_result: SnapQueryResult):
+        snap_info = snap_result
+    
+    @slate_method
+    fn set_visibility(visible: Bool):
+        is_visible = visible
+    
+    @slate_method
+    fn set_position(screen_pos: Vec2):
+        screen_position = screen_pos
+    
+    @slate_method
+    fn cycle_snap_targets():
+        current_snap_index = current_snap_index + 1
+        if current_snap_index >= len(available_snaps):
+            current_snap_index = 0
+
+// ============================================================================
+// CATEGORY TREE WIDGET
+// ============================================================================
+
+@slate
+struct CategoryTreeWidget:
+    category_data: Array<CategoryNode>
+    expanded_categories: Array<String>
+    selected_category: String
+    search_highlight: String
+    show_piece_counts: Bool
+    allow_drag_drop: Bool
+    
+    @slate_method
+    fn set_category_data(categories: Array<CategoryNode>):
+        category_data = categories
+    
+    @slate_method
+    fn expand_category(category_name: String):
+        let found = false
+        let i = 0
+        while i < len(expanded_categories):
+            if expanded_categories[i] == category_name:
+                found = true
+            i = i + 1
+        if not found:
+            push(expanded_categories, category_name)
+    
+    @slate_method
+    fn collapse_category(category_name: String):
+        let i = 0
+        while i < len(expanded_categories):
+            if expanded_categories[i] == category_name:
+                expanded_categories.remove(i)
+                return
+            i = i + 1
+    
+    @slate_method
+    fn select_category(category_name: String):
+        selected_category = category_name
+    
+    @slate_method
+    fn add_category(parent: String, name: String):
+        let new_category = CategoryNode {
+            category_name: name,
+            display_name: name,
+            parent_category: parent,
+            child_categories: [],
+            piece_ids: [],
+            icon_path: "",
+            description: "",
+            is_expanded: false,
+            display_order: 0,
+            piece_count: 0
+        }
+        push(category_data, new_category)
+    
+    @slate_method
+    fn remove_category(category_name: String):
+        let i = 0
+        while i < len(category_data):
+            if category_data[i].category_name == category_name:
+                category_data.remove(i)
+                return
+            i = i + 1
+    
+    @slate_method
+    fn get_selected_category() -> String:
+        return selected_category

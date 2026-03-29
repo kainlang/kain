@@ -1,0 +1,825 @@
+# ============================================================================
+# TacticalRaidGAS
+# Real-world use case: multiplayer tactical raid shooter where role tags,
+# team tags, stance tags, and state tags drive ability gating + replication.
+# ============================================================================
+
+# ============================================================================
+# DATA-DRIVEN GAMEPLAY TAG TAXONOMY
+# ============================================================================
+
+@gameplay_tags
+namespace Entity:
+    RoleTag:
+        Assault
+        Medic
+        Recon
+        Engineer
+    TeamTag:
+        Friendly
+        Enemy
+        Neutral
+    Posture:
+        Standing
+        Crouched
+        Prone
+    LifeState:
+        Alive
+        Downed
+        Dead
+        Suppressed
+        Cloaked
+
+@gameplay_tags
+namespace Ability:
+    Weapon:
+        BurstFire
+        GrenadeThrow
+    Movement:
+        CombatRoll
+        TacticalSprint
+    Support:
+        MedicRevive
+        ArmorPack
+    Utility:
+        PingTarget
+        JamComms
+
+@gameplay_tags
+namespace Cooldown:
+    Weapon:
+        BurstFire
+        GrenadeThrow
+    Movement:
+        CombatRoll
+    Support:
+        MedicRevive
+
+@gameplay_tags
+namespace Event:
+    Combat:
+        TookDamage
+        ScoredHit
+        EliminatedTarget
+    Squad:
+        ReviveStarted
+        ReviveCompleted
+
+@gameplay_tags
+namespace GameplayCue:
+    Combat:
+        MuzzleFlash
+        SuppressionPulse
+    Support:
+        ReviveBeam
+
+# ============================================================================
+# GAMEPLAY EFFECTS
+# ============================================================================
+
+@gameplay_effect
+struct GE_StaminaCost_BurstFire:
+    @duration(type: "Instant")
+    duration: 0.0
+
+    @modifier(attribute: "Stamina", operation: "Add")
+    stamina_spend: -12.0
+
+    @owned_tags
+    tags: ["Effect.Cost.Weapon.BurstFire"]
+
+    @application_tag_requirements
+    require: ["Entity.LifeState.Alive"]
+    ignore: ["Entity.LifeState.Dead"]
+
+@gameplay_effect
+struct GE_Cooldown_BurstFire:
+    @duration(type: "HasDuration")
+    duration: 1.25
+
+    @granted_tags
+    tags: ["Cooldown.Weapon.BurstFire"]
+
+    @ongoing_tag_requirements
+    require: ["Entity.LifeState.Alive"]
+    ignore: ["Entity.LifeState.Dead"]
+
+@gameplay_effect
+struct GE_SuppressedDebuff:
+    @duration(type: "HasDuration")
+    duration: 4.0
+
+    @period
+    period: 1.0
+    execute_on_application: true
+
+    @modifier(attribute: "MoveSpeed", operation: "Multiply")
+    suppression_slow: 0.82
+
+    @granted_tags
+    tags: ["Entity.LifeState.Suppressed"]
+
+    @stacking
+    type: "AggregateByTarget"
+    limit: 3
+
+@gameplay_effect
+struct GE_Cooldown_MedicRevive:
+    @duration(type: "HasDuration")
+    duration: 10.0
+
+    @granted_tags
+    tags: ["Cooldown.Support.MedicRevive"]
+
+# ============================================================================
+# GAMEPLAY CUES
+# ============================================================================
+
+@gameplay_cue
+struct GC_MuzzleFlash:
+    tag: "GameplayCue.Combat.MuzzleFlash"
+    type: "Static"
+    auto_destroy: false
+
+    on_execute:
+        println("Muzzle flash cue executed")
+
+@gameplay_cue
+struct GC_ReviveBeam:
+    tag: "GameplayCue.Support.ReviveBeam"
+    type: "Actor"
+    auto_destroy: true
+
+    on_add:
+        println("Revive beam cue added")
+
+    on_remove:
+        println("Revive beam cue removed")
+
+# ============================================================================
+# ABILITY TASK
+# ============================================================================
+
+@ability_task
+struct WaitForSquadConfirmTask:
+    @delegate
+    on_confirmed: GameplayEventDelegate
+
+    @delegate
+    on_cancelled: TaskCancelledDelegate
+
+    fn activate():
+        println("WaitForSquadConfirmTask activated")
+
+    fn on_destroy():
+        println("WaitForSquadConfirmTask destroyed")
+
+# ============================================================================
+# TARGET ACTOR
+# ============================================================================
+
+@target_actor
+struct TacticalLineTraceTarget:
+    trace_type: "Line"
+    max_range: 3500.0
+    trace_channel: "Visibility"
+
+    filter:
+        self_filter: "Exclude"
+        required_actor_class: "ACharacter"
+        require_tags: ["Entity.LifeState.Alive"]
+        ignore_tags: ["Entity.LifeState.Dead", "Entity.TeamTag.Friendly"]
+
+    reticle_class: "BP_TacticalReticle"
+
+# ============================================================================
+# GAMEPLAY ABILITIES
+# ============================================================================
+
+@ability
+struct GA_BurstFire:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+
+    @ability_tags
+    tags: ["Ability.Weapon.BurstFire", "Entity.RoleTag.Assault"]
+
+    @activation_required_tags
+    required: ["Entity.LifeState.Alive", "Entity.Posture.Standing"]
+
+    @activation_blocked_tags
+    blocked: ["Entity.LifeState.Dead", "Entity.LifeState.Downed", "Cooldown.Weapon.BurstFire"]
+
+    @activation_owned_tags
+    owned: ["Event.Combat.ScoredHit"]
+
+    @cancel_abilities_with_tag
+    cancel: ["Ability.Weapon.GrenadeThrow"]
+
+    @block_abilities_with_tag
+    block: ["Ability.Support.MedicRevive"]
+
+    @cost
+    effect: GE_StaminaCost_BurstFire
+
+    @cooldown
+    effect: GE_Cooldown_BurstFire
+
+    fn can_activate_ability(handle, actor_info, source_tags, target_tags, optional_relevant_tags):
+        return true
+
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        send_gameplay_event("Event.Combat.ScoredHit")
+        end_ability(handle, actor_info, activation_info, true, false)
+
+@ability
+struct GA_CombatRoll:
+    @instancing(policy: "InstancedPerActor")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+
+    @ability_tags
+    tags: ["Ability.Movement.CombatRoll"]
+
+    @activation_required_tags
+    required: ["Entity.LifeState.Alive"]
+
+    @activation_blocked_tags
+    blocked: ["Entity.LifeState.Suppressed", "Cooldown.Movement.CombatRoll"]
+
+    @activation_owned_tags
+    owned: ["Entity.Posture.Crouched"]
+
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        send_gameplay_event("Event.Combat.TookDamage")
+        end_ability(handle, actor_info, activation_info, true, false)
+
+@ability
+struct GA_MedicRevive:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "ServerInitiated")
+
+    @ability_tags
+    tags: ["Ability.Support.MedicRevive", "Entity.RoleTag.Medic"]
+
+    @activation_required_tags
+    required: ["Entity.LifeState.Alive", "Entity.RoleTag.Medic"]
+
+    @activation_blocked_tags
+    blocked: ["Entity.LifeState.Dead", "Cooldown.Support.MedicRevive"]
+
+    @activation_owned_tags
+    owned: ["Event.Squad.ReviveStarted"]
+
+    @cancel_abilities_with_tag
+    cancel: ["Ability.Weapon.BurstFire", "Ability.Weapon.GrenadeThrow"]
+
+    @cost
+    effect: GE_StaminaCost_BurstFire
+
+    @cooldown
+    effect: GE_Cooldown_MedicRevive
+
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        send_gameplay_event("Event.Squad.ReviveStarted")
+        send_gameplay_event("Event.Squad.ReviveCompleted")
+        end_ability(handle, actor_info, activation_info, true, false)
+
+# ============================================================================
+# RENDER + ACTOR MELTING POT (single-file integrated systems test)
+# ============================================================================
+
+enum ThreatBand:
+    None
+    Low
+    Medium
+    High
+    Critical
+
+enum RaidPhase:
+    Insertion
+    Contact
+    Containment
+    Extraction
+
+@component
+struct TacticalVisionComponent:
+    heatmap_scale: Float
+    suppression_decay: Float
+    pulse_speed: Float
+    distortion_strength: Float
+
+@component
+struct SquadStateComponent:
+    alive_count: Int
+    downed_count: Int
+    average_suppression: Float
+    current_phase: RaidPhase
+
+@uclass("Blueprintable", "BlueprintType")
+actor TacticalRaidDirector:
+    state vision: TacticalVisionComponent = TacticalVisionComponent()
+    state squad: SquadStateComponent = SquadStateComponent()
+
+    @replicated
+    state active_heat_seed: Int = 1337
+
+    @replicated
+    state global_alert_level: Float = 0.2
+
+    state raid_timer_seconds: Float = 0.0
+    state extraction_enabled: Bool = false
+
+    on BeginPlay():
+        Server_BeginRaid(active_heat_seed)
+
+    on Tick():
+        raid_timer_seconds = raid_timer_seconds + 0.016
+        if raid_timer_seconds > 420.0:
+            extraction_enabled = true
+
+    on Server_BeginRaid(seed: Int):
+        active_heat_seed = seed
+        squad.current_phase = RaidPhase::Insertion
+        Multicast_OnRaidPhaseChanged(0)
+
+    on Server_OnObjectiveCompromised(severity: Float):
+        global_alert_level = global_alert_level + severity
+        if global_alert_level > 0.55:
+            squad.current_phase = RaidPhase::Contact
+            send_gameplay_event("Event.Combat.TookDamage")
+        if global_alert_level > 0.8:
+            squad.current_phase = RaidPhase::Containment
+            send_gameplay_event("Event.Combat.EliminatedTarget")
+        Multicast_OnRaidPhaseChanged(1)
+
+    on Multicast_OnRaidPhaseChanged(phase_index: Int):
+        println("Raid phase changed")
+
+@uclass("Blueprintable")
+actor TacticalReconDrone:
+    state energy: Float = 100.0
+    state altitude_meters: Float = 45.0
+    state scan_radius: Float = 2500.0
+    state threat_bias: Float = 0.65
+    state distortion_strength: Float = 0.12
+    state pulse_speed: Float = 3.5
+
+    @replicated
+    state squad_link_quality: Float = 1.0
+
+    on Tick():
+        energy = max(0.0, energy - 0.02)
+        if energy < 20.0:
+            send_gameplay_event("Event.Combat.TookDamage")
+
+    on Server_SetThreatBias(new_bias: Float):
+        threat_bias = new_bias
+
+    on Multicast_EmitSuppressionPulse():
+        send_gameplay_event("Event.Combat.ScoredHit")
+
+# ---------------------------------------------------------------------------
+# SHADERS (.usf generation + shader binding stress)
+# ---------------------------------------------------------------------------
+
+shader compute ThreatHeatmapCS(id: Vec3) -> Vec4:
+    uniform heat_seed: Float @0
+    uniform alert_level: Float @1
+    uniform threat_bias: Float @2
+    uniform pulse_speed: Float @3
+
+    let uv = vec2(id.x / 1024.0, id.y / 1024.0)
+    let base_noise = fract(sin(dot(uv, vec2(12.9898, 78.233)) + heat_seed) * 43758.5453)
+    let pulse = sin((uv.x + uv.y) * 20.0 + pulse_speed) * 0.5 + 0.5
+    let danger = base_noise * (0.35 + alert_level * 0.65)
+    let weighted = max(danger, pulse * threat_bias)
+    return vec4(weighted, weighted * alert_level, pulse, 1.0)
+
+shader fragment TacticalThreatOverlay(uv: Vec2) -> Vec4:
+    uniform threat_map: Sampler2D @0
+    uniform alert_level: Float @1
+    uniform distortion_strength: Float @2
+    uniform thermal_tint: Vec3 @3
+
+    let jitter = vec2(sin(uv.y * 120.0), cos(uv.x * 90.0)) * distortion_strength * 0.01
+    let warped_uv = uv + jitter
+    let heat = sample(threat_map, warped_uv)
+    let tinted = heat.rgb * thermal_tint
+    let alpha = max(heat.r, alert_level * 0.2)
+    return vec4(tinted, alpha)
+
+shader fragment SuppressionFieldPS(uv: Vec2, world_pos: Vec3) -> Vec4:
+    uniform pulse_origin: Vec3 @0
+    uniform pulse_radius: Float @1
+    uniform pulse_softness: Float @2
+    uniform field_color: Vec3 @3
+
+    let dist = length(world_pos - pulse_origin)
+    let edge = abs(dist - pulse_radius)
+    let mask = 1.0 - smoothstep(0.0, pulse_softness, edge)
+    return vec4(field_color * mask, mask)
+
+# ---------------------------------------------------------------------------
+# MATERIAL FUNCTIONS + GRAPHS (binary material assets + graph serialization)
+# ---------------------------------------------------------------------------
+
+@material_function
+fn MF_ThreatBanding(heat_value: Float, low_cutoff: Float, high_cutoff: Float):
+    let low_band = (heat_value - low_cutoff) * 8.0
+    let high_band = (heat_value - high_cutoff) * 8.0
+    return low_band + high_band * 0.5
+
+@material_function
+fn MF_SuppressionFalloff(distance_norm: Float, softness: Float):
+    let inv = 1.0 - distance_norm
+    let shaped = inv * inv
+    return shaped * softness
+
+@material_graph(blend_mode: Translucent)
+material M_TacticalThreatOverlay:
+    input threat_tex: Texture2D
+    input thermal_tint: Vec3 = vec3(1.0, 0.35, 0.15)
+    input emissive_boost: Float = 2.0
+    input opacity_scale: Float = 0.8
+
+    let threat_sample = threat_tex
+    let emissive_color = thermal_tint * emissive_boost
+    let opacity_value = opacity_scale
+
+    output base_color = threat_sample
+    output emissive = emissive_color
+    output opacity = opacity_value
+
+@material_graph(blend_mode: Additive)
+material M_SuppressionPulse:
+    input pulse_mask: Texture2D
+    input pulse_color: Vec3 = vec3(0.1, 0.8, 1.0)
+    input pulse_intensity: Float = 4.0
+    input edge_softness: Float = 0.35
+
+    let mask_sample = pulse_mask
+    let glow = pulse_color * pulse_intensity
+    let opacity_value = edge_softness
+
+    output base_color = mask_sample
+    output emissive = glow
+    output opacity = opacity_value
+
+# ---------------------------------------------------------------------------
+# EXTENDED TAG TAXONOMY + DATA ASSETS (data-driven knobs)
+# ---------------------------------------------------------------------------
+
+@gameplay_tags
+namespace CooldownExt:
+    Movement:
+        TacticalSprint
+    Utility:
+        PingTarget
+        JamComms
+    Weapon:
+        AirburstGrenade
+
+@gameplay_tags
+namespace EventExt:
+    Intel:
+        TargetPinged
+        ThreatRevealed
+    Utility:
+        CommsJammed
+        CommsRecovered
+    Mobility:
+        SprintStarted
+        SprintEnded
+
+@gameplay_tags
+namespace GameplayCueExt:
+    Combat:
+        ThreatPingPulse
+    Utility:
+        JammerField
+    Movement:
+        SprintBurst
+
+@data_asset
+struct TacticalRaidBalance:
+    sprint_stamina_cost: Float
+    sprint_cooldown_seconds: Float
+    ping_cooldown_seconds: Float
+    jam_duration_seconds: Float
+    jam_cooldown_seconds: Float
+    airburst_cooldown_seconds: Float
+    drone_scan_radius: Float
+    threat_overlay_intensity: Float
+
+# ---------------------------------------------------------------------------
+# EXTENDED GAS EFFECTS
+# ---------------------------------------------------------------------------
+
+@gameplay_effect
+struct GE_StaminaCost_TacticalSprint:
+    @duration(type: "Instant")
+    duration: 0.0
+
+    @modifier(attribute: "Stamina", operation: "Add")
+    stamina_spend: -18.0
+
+@gameplay_effect
+struct GE_Cooldown_TacticalSprint:
+    @duration(type: "HasDuration")
+    duration: 6.0
+
+    @granted_tags
+    tags: ["CooldownExt.Movement.TacticalSprint"]
+
+@gameplay_effect
+struct GE_Cooldown_PingTarget:
+    @duration(type: "HasDuration")
+    duration: 2.5
+
+    @granted_tags
+    tags: ["CooldownExt.Utility.PingTarget"]
+
+@gameplay_effect
+struct GE_Cooldown_JamComms:
+    @duration(type: "HasDuration")
+    duration: 14.0
+
+    @granted_tags
+    tags: ["CooldownExt.Utility.JamComms"]
+
+@gameplay_effect
+struct GE_Cooldown_AirburstGrenade:
+    @duration(type: "HasDuration")
+    duration: 9.0
+
+    @granted_tags
+    tags: ["CooldownExt.Weapon.AirburstGrenade"]
+
+@gameplay_effect
+struct GE_JammedCommsDebuff:
+    @duration(type: "HasDuration")
+    duration: 5.0
+
+    @modifier(attribute: "AbilityHaste", operation: "Multiply")
+    haste_penalty: 0.75
+
+    @granted_tags
+    tags: ["EventExt.Utility.CommsJammed"]
+
+# ---------------------------------------------------------------------------
+# EXTENDED GAMEPLAY CUES
+# ---------------------------------------------------------------------------
+
+@gameplay_cue
+struct GC_ThreatPingPulse:
+    tag: "GameplayCue.Combat.ThreatPingPulse"
+    type: "Static"
+    auto_destroy: true
+
+    on_execute:
+        println("Threat ping pulse cue executed")
+
+@gameplay_cue
+struct GC_JammerField:
+    tag: "GameplayCue.Utility.JammerField"
+    type: "Actor"
+    auto_destroy: true
+
+    on_add:
+        println("Jammer field deployed")
+
+    on_remove:
+        println("Jammer field removed")
+
+@gameplay_cue
+struct GC_SprintBurst:
+    tag: "GameplayCue.Movement.SprintBurst"
+    type: "Static"
+    auto_destroy: true
+
+    on_execute:
+        println("Sprint burst cue executed")
+
+# ---------------------------------------------------------------------------
+# ADDITIONAL SHADERS (stress path)
+# ---------------------------------------------------------------------------
+
+shader compute InfluencePropagationCS(id: Vec3) -> Vec4:
+    uniform seed: Float @0
+    uniform decay: Float @1
+    uniform spread: Float @2
+    uniform pulse_speed: Float @3
+
+    let uv = vec2(id.x / 2048.0, id.y / 2048.0)
+    let base = fract(sin(dot(uv, vec2(91.7, 43.3)) + seed) * 15731.31)
+    let wave = sin((uv.x - uv.y) * spread + pulse_speed) * 0.5 + 0.5
+    let influence = max(base * decay, wave)
+    return vec4(influence, influence * 0.6, wave, 1.0)
+
+shader fragment ReconVisionComposite(uv: Vec2, world_pos: Vec3) -> Vec4:
+    uniform threat_map: Sampler2D @0
+    uniform suppression_map: Sampler2D @1
+    uniform overlay_intensity: Float @2
+    uniform edge_gain: Float @3
+    uniform recon_tint: Vec3 @4
+
+    let threat = sample(threat_map, uv)
+    let suppress = sample(suppression_map, uv)
+    let edge = abs(threat.r - suppress.r) * edge_gain
+    let blend = max(threat.r, suppress.r) * overlay_intensity
+    let color = recon_tint * (blend + edge)
+    return vec4(color, blend)
+
+shader fragment ThermalEdgeDetect(uv: Vec2) -> Vec4:
+    uniform source_tex: Sampler2D @0
+    uniform texel_size: Vec2 @1
+    uniform edge_threshold: Float @2
+    uniform edge_color: Vec3 @3
+
+    let c = sample(source_tex, uv)
+    let right = sample(source_tex, uv + vec2(texel_size.x, 0.0))
+    let up = sample(source_tex, uv + vec2(0.0, texel_size.y))
+    let grad = abs(c.r - right.r) + abs(c.r - up.r)
+    let edge = smoothstep(edge_threshold, edge_threshold + 0.05, grad)
+    return vec4(edge_color * edge, edge)
+
+shader fragment JammerDistortionPS(uv: Vec2, world_pos: Vec3) -> Vec4:
+    uniform source_tex: Sampler2D @0
+    uniform jam_origin: Vec3 @1
+    uniform jam_radius: Float @2
+    uniform jam_strength: Float @3
+    uniform noise_phase: Float @4
+
+    let dist = length(world_pos - jam_origin)
+    let falloff = 1.0 - smoothstep(jam_radius * 0.7, jam_radius, dist)
+    let n = sin((uv.x + uv.y) * 64.0 + noise_phase) * jam_strength * falloff * 0.01
+    let warped_uv = uv + vec2(n, -n)
+    let src = sample(source_tex, warped_uv)
+    return vec4(src.rgb * (1.0 - falloff * 0.2), src.a)
+
+shader fragment ExtractionBeaconPS(uv: Vec2, world_pos: Vec3) -> Vec4:
+    uniform beacon_pos: Vec3 @0
+    uniform beacon_radius: Float @1
+    uniform beacon_softness: Float @2
+    uniform beacon_color: Vec3 @3
+    uniform pulse_time: Float @4
+
+    let d = length(world_pos - beacon_pos)
+    let ring = abs(d - beacon_radius)
+    let pulse = sin(pulse_time + d * 0.15) * 0.5 + 0.5
+    let mask = 1.0 - smoothstep(0.0, beacon_softness, ring)
+    let emissive = beacon_color * mask * (0.5 + pulse)
+    return vec4(emissive, mask)
+
+# ---------------------------------------------------------------------------
+# MORE MATERIALS FOR RENDER STACK
+# ---------------------------------------------------------------------------
+
+@material_function
+fn MF_OverlayWeighter(threat: Float, suppression: Float, weight: Float):
+    let blended = threat * (1.0 - weight) + suppression * weight
+    return blended * 1.2
+
+@material_graph(blend_mode: Translucent)
+material M_ReconVision:
+    input threat_map: Texture2D
+    input suppression_map: Texture2D
+    input recon_tint: Vec3 = vec3(0.1, 0.9, 0.7)
+    input overlay_intensity: Float = 1.25
+
+    let threat_sample = threat_map
+    let suppression_sample = suppression_map
+    let emissive_color = recon_tint * overlay_intensity
+
+    output base_color = threat_sample
+    output emissive = emissive_color
+    output opacity = 0.7
+
+@material_graph(blend_mode: Additive)
+material M_ExtractionBeacon:
+    input beacon_mask: Texture2D
+    input beacon_color: Vec3 = vec3(0.2, 0.8, 1.0)
+    input glow_intensity: Float = 5.0
+
+    let mask_sample = beacon_mask
+    let emissive_color = beacon_color * glow_intensity
+
+    output base_color = mask_sample
+    output emissive = emissive_color
+    output opacity = 0.9
+
+# ---------------------------------------------------------------------------
+# EXTENDED ABILITIES (full stack pressure test)
+# ---------------------------------------------------------------------------
+
+@ability
+struct GA_TacticalSprint:
+    @instancing(policy: "InstancedPerActor")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+
+    @ability_tags
+    tags: ["Ability.Movement.TacticalSprint"]
+
+    @activation_required_tags
+    required: ["Entity.LifeState.Alive"]
+
+    @activation_blocked_tags
+    blocked: ["Entity.LifeState.Suppressed", "CooldownExt.Movement.TacticalSprint"]
+
+    @activation_owned_tags
+    owned: ["EventExt.Mobility.SprintStarted"]
+
+    @cost
+    effect: GE_StaminaCost_TacticalSprint
+
+    @cooldown
+    effect: GE_Cooldown_TacticalSprint
+
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        send_gameplay_event("EventExt.Mobility.SprintStarted")
+        send_gameplay_event("EventExt.Mobility.SprintEnded")
+        end_ability(handle, actor_info, activation_info, true, false)
+
+@ability
+struct GA_PingTarget:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "ServerInitiated")
+
+    @ability_tags
+    tags: ["Ability.Utility.PingTarget", "Entity.RoleTag.Recon"]
+
+    @activation_required_tags
+    required: ["Entity.LifeState.Alive", "Entity.RoleTag.Recon"]
+
+    @activation_blocked_tags
+    blocked: ["CooldownExt.Utility.PingTarget"]
+
+    @activation_owned_tags
+    owned: ["EventExt.Intel.TargetPinged"]
+
+    @cooldown
+    effect: GE_Cooldown_PingTarget
+
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        send_gameplay_event("EventExt.Intel.TargetPinged")
+        send_gameplay_event("EventExt.Intel.ThreatRevealed")
+        end_ability(handle, actor_info, activation_info, true, false)
+
+@ability
+struct GA_JamComms:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "ServerOnly")
+
+    @ability_tags
+    tags: ["Ability.Utility.JamComms", "Entity.RoleTag.Engineer"]
+
+    @activation_required_tags
+    required: ["Entity.LifeState.Alive"]
+
+    @activation_blocked_tags
+    blocked: ["CooldownExt.Utility.JamComms"]
+
+    @activation_owned_tags
+    owned: ["EventExt.Utility.CommsJammed"]
+
+    @cooldown
+    effect: GE_Cooldown_JamComms
+
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        send_gameplay_event("EventExt.Utility.CommsJammed")
+        end_ability(handle, actor_info, activation_info, true, false)
+
+@ability
+struct GA_AirburstGrenade:
+    @instancing(policy: "InstancedPerExecution")
+    @replication(policy: "ReplicateYes")
+    @net_execution(policy: "LocalPredicted")
+
+    @ability_tags
+    tags: ["Ability.Weapon.GrenadeThrow", "Entity.RoleTag.Assault"]
+
+    @activation_required_tags
+    required: ["Entity.LifeState.Alive"]
+
+    @activation_blocked_tags
+    blocked: ["CooldownExt.Weapon.AirburstGrenade", "Entity.LifeState.Downed"]
+
+    @activation_owned_tags
+    owned: ["Event.Combat.ScoredHit"]
+
+    @cost
+    effect: GE_StaminaCost_BurstFire
+
+    @cooldown
+    effect: GE_Cooldown_AirburstGrenade
+
+    fn activate_ability(handle, actor_info, activation_info, trigger_event_data):
+        send_gameplay_event("Event.Combat.ScoredHit")
+        send_gameplay_event("Event.Combat.EliminatedTarget")
+        end_ability(handle, actor_info, activation_info, true, false)

@@ -1,0 +1,120 @@
+# MeshForge - Graph Editor System
+# Visual node-based mesh authoring interface
+
+@graph_editor
+graph ProceduralMeshEditor:
+    @node_type
+    node PrimitiveNode:
+        properties:
+            PrimitiveType: Int = 0
+            Size: Float = 100.0
+            Segments: Int = 16
+        outputs:
+            MeshOutput: Object
+    
+    @node_type
+    node ExtrudeNode:
+        properties:
+            Distance: Float = 50.0
+            Scale: Float = 1.0
+            Twist: Float = 0.0
+            Segments: Int = 1
+        inputs:
+            MeshInput: Object
+        outputs:
+            MeshOutput: Object
+    
+    @node_type
+    node BevelNode:
+        properties:
+            Width: Float = 10.0
+            Segments: Int = 2
+            Profile: Float = 0.5
+        inputs:
+            MeshInput: Object
+        outputs:
+            MeshOutput: Object
+    
+    @node_type
+    node SubdivideNode:
+        properties:
+            Iterations: Int = 1
+            Algorithm: Int = 0
+            Smoothness: Float = 1.0
+        inputs:
+            MeshInput: Object
+        outputs:
+            MeshOutput: Object
+    
+    @node_type
+    node BooleanNode:
+        properties:
+            Mode: Int = 0
+        inputs:
+            MeshA: Object
+            MeshB: Object
+        outputs:
+            MeshOutput: Object
+    
+    @node_type
+    node SmoothNode:
+        properties:
+            Iterations: Int = 1
+            Strength: Float = 0.5
+            PreserveVolume: Bool = true
+        inputs:
+            MeshInput: Object
+        outputs:
+            MeshOutput: Object
+    
+    @node_type
+    node DeformNode:
+        properties:
+            DeformType: Int = 0
+            Strength: Float = 1.0
+            Falloff: Float = 1.0
+            Center: Vec3 = vec3(0.0, 0.0, 0.0)
+            Radius: Float = 100.0
+        inputs:
+            MeshInput: Object
+        outputs:
+            MeshOutput: Object
+    
+    @node_type
+    node TransformNode:
+        properties:
+            Translation: Vec3 = vec3(0.0, 0.0, 0.0)
+            Rotation: Vec3 = vec3(0.0, 0.0, 0.0)
+            Scale: Vec3 = vec3(1.0, 1.0, 1.0)
+        inputs:
+            MeshInput: Object
+        outputs:
+            MeshOutput: Object
+    
+    @node_type
+    node DuplicateNode:
+        properties:
+            Count: Int = 5
+            Offset: Vec3 = vec3(100.0, 0.0, 0.0)
+            RotationStep: Vec3 = vec3(0.0, 0.0, 0.0)
+            ScaleStep: Vec3 = vec3(1.0, 1.0, 1.0)
+        inputs:
+            MeshInput: Object
+        outputs:
+            MeshOutput: Object
+    
+    @node_type
+    node MergeNode:
+        inputs:
+            MeshA: Object
+            MeshB: Object
+        outputs:
+            MeshOutput: Object
+    
+    @node_type
+    node OutputNode:
+        properties:
+            ExportCollision: Bool = true
+            ExportNavmesh: Bool = false
+        inputs:
+            MeshInput: Object

@@ -1,0 +1,425 @@
+# Procedural Noise Generation Shaders
+# 16 noise types for texture synthesis
+# Consolidates MaterializeNoiseGenerator.usf + ProceduralNoise.usf + MaterializeProceduralCommon.ush
+
+# ============================================================================
+# PROCEDURAL NOISE SHADER - 16 noise types with UV transformations
+# ============================================================================
+
+shader compute NoiseGenerator(thread_id: Vec3):
+    uniform noise_type: Int @0
+    uniform scale: Float @1
+    uniform octaves: Int @2
+    uniform persistence: Float @3
+    uniform lacunarity: Float @4
+    uniform offset: Vec2 @5
+    uniform seed: Int @6
+    uniform seamless: Bool @7
+    uniform texture_dimensions: Vec2 @8
+    uniform time: Float @9
+    buffer out_texture: RWBuffer<Vec4> @10
+    
+    let pos = thread_id.xy
+    if pos.x >= texture_dimensions.x or pos.y >= texture_dimensions.y:
+        return
+    
+    # Calculate UV coordinates
+    var uv = (pos + vec2(0.5, 0.5)) / texture_dimensions
+    uv = uv * scale + offset
+    
+    # Generate noise value based on type
+    let value = match noise_type:
+        0 => perlin_noise(uv, seed as Float, octaves, persistence, lacunarity)  # Perlin
+        1 => simplex_noise(uv, seed as Float)  # Simplex
+        2 => worley_noise(uv, seed as Float)  # Worley
+        3 => fbm_noise(uv, seed as Float, octaves, persistence, lacunarity)  # FBM
+        4 => turbulence_noise(uv, seed as Float, octaves, persistence, lacunarity)  # Turbulence
+        5 => cellular_noise(uv, seed as Float)  # Cellular
+        6 => gradient_noise(uv, seed as Float)  # Gradient
+        7 => checker_pattern(uv)  # Checker
+        8 => brick_pattern(uv, seed as Float)  # Brick
+        9 => herringbone_pattern(uv, seed as Float)  # Herringbone
+        10 => hexagon_pattern(uv)  # Hexagon
+        11 => scratches_pattern(uv, seed as Float)  # Scratches
+        12 => grunge_pattern(uv, seed as Float, octaves)  # Grunge
+        13 => rust_pattern(uv, seed as Float, octaves)  # Rust
+        14 => dust_pattern(uv, seed as Float)  # Dust
+        15 => voronoise(uv, seed as Float, time)  # Voronoise (4D for seamless)
+        _ => 0.5
+    
+    # Output grayscale value
+    out_texture[pos.y * texture_dimensions.x as Int + pos.x] = vec4(vec3(value), 1.0)
+
+# ============================================================================
+# HASH FUNCTIONS - Pseudo-random number generation
+# ============================================================================
+
+fn hash11(p: Float) -> Float:
+    var p_mut = frac(p * 0.1031)
+    p_mut = p_mut * (p_mut + 33.33)
+    p_mut = p_mut * (p_mut + p_mut)
+    return frac(p_mut)
+
+fn hash21(p: Vec2) -> Float:
+    let p3 = frac(vec3(p.x, p.y, p.x) * 0.1031)
+    let dot_val = dot(p3, vec3(p3.y + 33.33, p3.z + 33.33, p3.x + 33.33))
+    let p3_shifted = p3 + vec3(dot_val, dot_val, dot_val)
+    return frac((p3_shifted.x + p3_shifted.y) * p3_shifted.z)
+
+fn hash22(p: Vec2) -> Vec2:
+    let p3 = frac(vec3(p.x, p.y, p.x) * vec3(0.1031, 0.1030, 0.0973))
+    let dot_val = dot(p3, vec3(p3.y + 33.33, p3.z + 33.33, p3.x + 33.33))
+    let p3_shifted = p3 + vec3(dot_val, dot_val, dot_val)
+    return frac(vec2((p3_shifted.x + p3_shifted.y) * p3_shifted.z, (p3_shifted.x + p3_shifted.z) * p3_shifted.y))
+
+fn hash33(p: Vec3) -> Vec3:
+    var p_mut = frac(p * vec3(0.1031, 0.1030, 0.0973))
+    let dot_val = dot(p_mut, vec3(p_mut.y + 33.33, p_mut.z + 33.33, p_mut.x + 33.33))
+    p_mut = p_mut + vec3(dot_val, dot_val, dot_val)
+    return frac(vec3((p_mut.x + p_mut.y) * p_mut.z, (p_mut.x + p_mut.z) * p_mut.y, (p_mut.y + p_mut.z) * p_mut.x))
+
+# ============================================================================
+# PERLIN NOISE - Classic gradient noise
+# ============================================================================
+
+fn perlin_noise(uv: Vec2, seed: Float, octaves: Int, persistence: Float, lacunarity: Float) -> Float:
+    let p = uv + vec2(seed, seed)
+    return fbm(p, octaves, persistence, lacunarity)
+
+fn grad2(p: Vec2) -> Float:
+    # Quintic interpolation for smooth Perlin
+    let i = floor(p)
+    let f = frac_vec2(p)
+    
+    # Quintic curve: f * f * f * (f * (f * 6 - 15) + 10)
+    let u = f * f * f * (f * (f * 6.0 - vec2(15.0, 15.0)) + vec2(10.0, 10.0))
+    
+    # Hash corners
+    let a = hash21(i)
+    let b = hash21(i + vec2(1.0, 0.0))
+    let c = hash21(i + vec2(0.0, 1.0))
+    let d = hash21(i + vec2(1.0, 1.0))
+    
+    # Bilinear interpolation
+    return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y)
+
+fn fbm(p: Vec2, octaves: Int, persistence: Float, lacunarity: Float) -> Float:
+    var value = 0.0
+    var amplitude = 0.5
+    var frequency = 1.0
+    var max_value = 0.0
+    
+    for i in 0..octaves:
+        value = value + amplitude * (grad2(p * frequency) * 2.0 - 1.0)
+        max_value = max_value + amplitude
+        amplitude = amplitude * persistence
+        frequency = frequency * lacunarity
+    
+    return (value / max_value) * 0.5 + 0.5
+
+# ============================================================================
+# SIMPLEX NOISE - Improved Perlin with fewer artifacts
+# ============================================================================
+
+fn simplex_noise(uv: Vec2, seed: Float) -> Float:
+    let p = uv + vec2(seed, seed)
+    
+    # Skew input space
+    let F2 = 0.366025403784  # (sqrt(3) - 1) / 2
+    let s = (p.x + p.y) * F2
+    let i = floor(vec2(p.x + s, p.y + s))
+    
+    # Unskew back to (x,y) space
+    let G2 = 0.211324865405  # (3 - sqrt(3)) / 6
+    let t = (i.x + i.y) * G2
+    let X0 = i.x - t
+    let Y0 = i.y - t
+    let x0 = p.x - X0
+    let y0 = p.y - Y0
+    
+    # Determine simplex
+    let i1 = if x0 > y0: vec2(1.0, 0.0) else: vec2(0.0, 1.0)
+    
+    # Offsets for corners
+    let x1 = x0 - i1.x + G2
+    let y1 = y0 - i1.y + G2
+    let x2 = x0 - 1.0 + 2.0 * G2
+    let y2 = y0 - 1.0 + 2.0 * G2
+    
+    # Calculate contributions
+    var n0 = 0.0
+    var n1 = 0.0
+    var n2 = 0.0
+    
+    let t0 = 0.5 - x0 * x0 - y0 * y0
+    if t0 > 0.0:
+        let gi0 = hash21(i) * 2.0 - 1.0
+        n0 = t0 * t0 * t0 * t0 * gi0
+    
+    let t1 = 0.5 - x1 * x1 - y1 * y1
+    if t1 > 0.0:
+        let gi1 = hash21(i + i1) * 2.0 - 1.0
+        n1 = t1 * t1 * t1 * t1 * gi1
+    
+    let t2 = 0.5 - x2 * x2 - y2 * y2
+    if t2 > 0.0:
+        let gi2 = hash21(i + vec2(1.0, 1.0)) * 2.0 - 1.0
+        n2 = t2 * t2 * t2 * t2 * gi2
+    
+    return (n0 + n1 + n2) * 70.0 * 0.5 + 0.5
+
+# ============================================================================
+# WORLEY NOISE - Cellular/Voronoi noise
+# ============================================================================
+
+fn worley_noise(uv: Vec2, seed: Float) -> Float:
+    let p = uv + vec2(seed, seed)
+    let i = floor(p)
+    let f = frac_vec2(p)
+    
+    var min_dist = 1.0
+    
+    # Check 3x3 neighborhood
+    for dy in -1..2:
+        for dx in -1..2:
+            let neighbor = vec2(dx as Float, dy as Float)
+            let point = hash22(i + neighbor)
+            let diff = neighbor + point - f
+            let dist = sqrt(diff.x * diff.x + diff.y * diff.y)
+            min_dist = min(min_dist, dist)
+    
+    return min_dist
+
+# ============================================================================
+# FBM NOISE - Fractal Brownian Motion
+# ============================================================================
+
+fn fbm_noise(uv: Vec2, seed: Float, octaves: Int, persistence: Float, lacunarity: Float) -> Float:
+    return fbm(uv + vec2(seed, seed), octaves, persistence, lacunarity)
+
+# ============================================================================
+# TURBULENCE NOISE - Absolute value FBM
+# ============================================================================
+
+fn turbulence_noise(uv: Vec2, seed: Float, octaves: Int, persistence: Float, lacunarity: Float) -> Float:
+    let p = uv + vec2(seed, seed)
+    var value = 0.0
+    var amplitude = 0.5
+    var frequency = 1.0
+    var max_value = 0.0
+    
+    for i in 0..octaves:
+        value = value + amplitude * abs(grad2(p * frequency) * 2.0 - 1.0)
+        max_value = max_value + amplitude
+        amplitude = amplitude * persistence
+        frequency = frequency * lacunarity
+    
+    return value / max_value
+
+# ============================================================================
+# CELLULAR NOISE - Voronoi cells
+# ============================================================================
+
+fn cellular_noise(uv: Vec2, seed: Float) -> Float:
+    let p = uv + vec2(seed, seed)
+    let i = floor(p)
+    let f = frac_vec2(p)
+    
+    var min_dist1 = 1.0
+    var min_dist2 = 1.0
+    
+    # Check 3x3 neighborhood for F1 and F2
+    for dy in -1..2:
+        for dx in -1..2:
+            let neighbor = vec2(dx as Float, dy as Float)
+            let point = hash22(i + neighbor)
+            let diff = neighbor + point - f
+            let dist = sqrt(diff.x * diff.x + diff.y * diff.y)
+            
+            if dist < min_dist1:
+                min_dist2 = min_dist1
+                min_dist1 = dist
+            else:
+                if dist < min_dist2:
+                    min_dist2 = dist
+    
+    # Return F2 - F1 (cell edges)
+    return min_dist2 - min_dist1
+
+# ============================================================================
+# GRADIENT NOISE - Simple gradient
+# ============================================================================
+
+fn gradient_noise(uv: Vec2, seed: Float) -> Float:
+    let p = uv + vec2(seed, seed)
+    return frac_float(p.x * 0.5 + p.y * 0.5)
+
+# ============================================================================
+# GEOMETRIC PATTERNS
+# ============================================================================
+
+fn checker_pattern(uv: Vec2) -> Float:
+    let check_x = floor(uv.x) as Int % 2
+    let check_y = floor(uv.y) as Int % 2
+    return if (check_x + check_y) % 2 == 0: 1.0 else: 0.0
+
+fn brick_pattern(uv: Vec2, seed: Float) -> Float:
+    let brick_width = 2.0
+    let brick_height = 1.0
+    let mortar_width = 0.1
+    
+    var p = uv
+    
+    # Offset every other row
+    let row = floor(p.y / brick_height)
+    if row as Int % 2 == 1:
+        p.x = p.x + brick_width * 0.5
+    
+    # Calculate brick position
+    let brick_x = frac_float(p.x / brick_width)
+    let brick_y = frac_float(p.y / brick_height)
+    
+    # Mortar
+    if brick_x < mortar_width or brick_x > 1.0 - mortar_width or brick_y < mortar_width or brick_y > 1.0 - mortar_width:
+        return 0.2
+    
+    # Brick color variation
+    let brick_id = floor(p.x / brick_width) + floor(p.y / brick_height) * 100.0
+    return 0.5 + hash11(brick_id + seed) * 0.3
+
+fn herringbone_pattern(uv: Vec2, seed: Float) -> Float:
+    # Simplified herringbone (alternating horizontal/vertical bricks)
+    let scale = 2.0
+    let p = uv * scale
+    
+    let cell_x = floor(p.x)
+    let cell_y = floor(p.y)
+    let cell_id = cell_x + cell_y * 100.0
+    
+    let is_horizontal = hash11(cell_id + seed) > 0.5
+    
+    let frac_x = frac_float(p.x)
+    let frac_y = frac_float(p.y)
+    
+    let mortar = 0.1
+    if is_horizontal:
+        if frac_y < mortar or frac_y > 1.0 - mortar:
+            return 0.2
+    else:
+        if frac_x < mortar or frac_x > 1.0 - mortar:
+            return 0.2
+    
+    return 0.5 + hash11(cell_id + seed + 1.0) * 0.3
+
+fn hexagon_pattern(uv: Vec2) -> Float:
+    # Simplified hexagon grid
+    let scale = 2.0
+    let p = uv * scale
+    
+    # Hexagonal grid approximation
+    let q = vec2(p.x * 1.1547, p.y + p.x * 0.5773)
+    let r = floor(q)
+    let f = frac_vec2(q)
+    
+    # Distance to hexagon center
+    let center_dist = sqrt((f.x - 0.5) * (f.x - 0.5) + (f.y - 0.5) * (f.y - 0.5))
+    
+    return if center_dist < 0.4: 1.0 else: 0.0
+
+# ============================================================================
+# SPECIAL EFFECTS PATTERNS
+# ============================================================================
+
+fn scratches_pattern(uv: Vec2, seed: Float) -> Float:
+    # 8-direction line patterns with random offsets
+    var value = 0.0
+    
+    for i in 0..8:
+        let angle = (i as Float / 8.0) * 3.14159 * 2.0
+        let dir = vec2(cos(angle), sin(angle))
+        let offset = hash11(seed + i as Float) * 10.0
+        let proj = dot(uv, dir) + offset
+        let line = abs(frac_float(proj) - 0.5) * 2.0
+        value = value + smoothstep_float(0.9, 1.0, line) * 0.125
+    
+    return value
+
+fn grunge_pattern(uv: Vec2, seed: Float, octaves: Int) -> Float:
+    # Multi-layer FBM + Worley composite
+    let fbm_val = fbm(uv + vec2(seed, seed), octaves, 0.5, 2.0)
+    let worley_val = worley_noise(uv * 2.0, seed)
+    let turbulence_val = turbulence_noise(uv * 0.5, seed + 1.0, octaves, 0.5, 2.0)
+    
+    return (fbm_val * 0.4 + worley_val * 0.3 + turbulence_val * 0.3)
+
+fn rust_pattern(uv: Vec2, seed: Float, octaves: Int) -> Float:
+    # FBM base + turbulence detail + Worley edges
+    let base = fbm(uv + vec2(seed, seed), octaves, 0.6, 2.0)
+    let detail = turbulence_noise(uv * 3.0, seed + 1.0, octaves, 0.5, 2.0)
+    let edges = worley_noise(uv * 1.5, seed + 2.0)
+    
+    return clamp(base * 0.5 + detail * 0.3 + edges * 0.2, 0.0, 1.0)
+
+fn dust_pattern(uv: Vec2, seed: Float) -> Float:
+    # 50 random circular spots
+    var value = 0.0
+    
+    for i in 0..50:
+        let spot_pos = hash22(vec2(seed + i as Float, seed + i as Float + 100.0))
+        let spot_radius = hash11(seed + i as Float + 200.0) * 0.05 + 0.01
+        let dist = sqrt((uv.x - spot_pos.x) * (uv.x - spot_pos.x) + (uv.y - spot_pos.y) * (uv.y - spot_pos.y))
+        value = value + smoothstep_float(spot_radius, spot_radius * 0.5, dist) * 0.02
+    
+    return clamp(value, 0.0, 1.0)
+
+# ============================================================================
+# VORONOISE - 4D Voronoi noise for seamless tiling
+# ============================================================================
+
+fn voronoise(uv: Vec2, seed: Float, time: Float) -> Float:
+    # 4D Voronoi noise (ported from TextureGraph)
+    # Uses time as 4th dimension for seamless animation
+    let p = vec3(uv.x + seed, uv.y + seed, time)
+    let i = floor(p)
+    let f = frac_vec3(p)
+    
+    var min_dist = 1.0
+    
+    # Check 3x3x3 neighborhood
+    for dz in -1..2:
+        for dy in -1..2:
+            for dx in -1..2:
+                let neighbor = vec3(dx as Float, dy as Float, dz as Float)
+                let point = hash33(i + neighbor)
+                let diff = neighbor + point - f
+                let dist = sqrt(diff.x * diff.x + diff.y * diff.y + diff.z * diff.z)
+                min_dist = min(min_dist, dist)
+    
+    return min_dist
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+fn frac_float(x: Float) -> Float:
+    return x - floor(x)
+
+fn frac_vec2(v: Vec2) -> Vec2:
+    return vec2(v.x - floor(v.x), v.y - floor(v.y))
+
+fn frac_vec3(v: Vec3) -> Vec3:
+    return vec3(v.x - floor(v.x), v.y - floor(v.y), v.z - floor(v.z))
+
+fn smoothstep_float(edge0: Float, edge1: Float, x: Float) -> Float:
+    let t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0)
+    return t * t * (3.0 - 2.0 * t)
+
+fn cos(x: Float) -> Float:
+    # Approximation using Taylor series
+    let x2 = x * x
+    return 1.0 - x2 / 2.0 + x2 * x2 / 24.0 - x2 * x2 * x2 / 720.0
+
+fn sin(x: Float) -> Float:
+    # Approximation using Taylor series
+    let x2 = x * x
+    return x - x * x2 / 6.0 + x * x2 * x2 / 120.0 - x * x2 * x2 * x2 / 5040.0

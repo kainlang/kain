@@ -1,0 +1,1648 @@
+# ============================================================================
+# MATERIALIZE - GPU Compute Shaders
+# ============================================================================
+# Complete shader system for PBR material generation
+# - Multi-pass PBR pipeline (Gradient -> Height Integration -> Final PBR)
+# - 16+ blend modes (Photoshop/Substance compatible)
+# - Image filters (Blur, Sharpen, Edge Detection, Levels, HSL)
+# - Procedural noise generation (Perlin, Voronoi, Worley, Ridged, Turbulence)
+# - Advanced shading models (Glossy, Metal, Toon)
+# - Seamless tiling algorithms
+# - Channel packing (ORM)
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: HELPER FUNCTIONS (Shared across all shaders)
+# ============================================================================
+
+fn LinearizeGamma(c: Vec3) -> Vec3:
+    return pow(saturate(c), vec3(2.2, 2.2, 2.2))
+
+fn GetLuminanceLinear(lin: Vec3) -> Float:
+    return dot(lin, vec3(0.2126, 0.7152, 0.0722))
+
+fn GetLuminance(rgb: Vec3) -> Float:
+    return dot(rgb, vec3(0.299, 0.587, 0.114))
+
+fn Hash21(p: Vec2) -> Float:
+    let p_frac = frac(p * vec2(123.34, 456.21))
+    let p_sum = p_frac + dot(p_frac, p_frac + vec2(45.32, 45.32))
+    return frac(p_sum.x * p_sum.y)
+
+fn Hash11(p: Float) -> Float:
+    let p_frac = frac(p * 0.1031)
+    let p_mul = p_frac * (p_frac + 33.33)
+    return frac((p_mul + p_mul) * p_frac)
+
+fn Hash22(p: Vec2) -> Vec2:
+    let p3 = frac(vec3(p.x, p.y, p.x) * vec3(0.1031, 0.1030, 0.0973))
+    let p3_sum = p3 + dot(p3, vec3(p3.y, p3.z, p3.x) + vec3(33.33, 33.33, 33.33))
+    return frac(vec2(p3_sum.x + p3_sum.y, p3_sum.x + p3_sum.z) * vec2(p3_sum.z, p3_sum.y))
+
+fn SmoothNoise(uv: Vec2) -> Float:
+    let i = floor(uv)
+    let f = frac(uv)
+    let f_smooth = f * f * (vec2(3.0, 3.0) - vec2(2.0, 2.0) * f)
+    let a = Hash21(i)
+    let b = Hash21(i + vec2(1.0, 0.0))
+    let c = Hash21(i + vec2(0.0, 1.0))
+    let d = Hash21(i + vec2(1.0, 1.0))
+    return lerp(lerp(a, b, f_smooth.x), lerp(c, d, f_smooth.x), f_smooth.y)
+
+fn FBM(uv: Vec2, octaves: Int) -> Float:
+    let val = 0.0
+    let amp = 0.5
+    let uv_mut = uv
+    let i = 0
+    while i < octaves:
+        val = val + amp * SmoothNoise(uv_mut)
+        uv_mut = uv_mut * 2.0
+        amp = amp * 0.5
+        i = i + 1
+    return val
+
+fn Grad2(p: Vec2) -> Float:
+    let i = floor(p)
+    let f = frac(p)
+    let u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0)
+    let a = Hash21(i + vec2(0.0, 0.0))
+    let b = Hash21(i + vec2(1.0, 0.0))
+    let c = Hash21(i + vec2(0.0, 1.0))
+    let d = Hash21(i + vec2(1.0, 1.0))
+    return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y)
+
+fn PerlinNoise(uv: Vec2, scale: Float, octaves: Int, seed: Float) -> Float:
+    let p = uv * scale + vec2(seed, seed)
+    let value = 0.0
+    let amplitude = 0.5
+    let frequency = 1.0
+    let max_value = 0.0
+    let i = 0
+    while i < octaves:
+        value = value + amplitude * (Grad2(p * frequency) * 2.0 - 1.0)
+        max_value = max_value + amplitude
+        amplitude = amplitude * 0.5
+        frequency = frequency * 2.0
+        i = i + 1
+    return (value / max_value) * 0.5 + 0.5
+
+fn Voronoi(uv: Vec2, scale: Float, randomness: Float, seed: Float) -> Vec2:
+    let n = floor(uv * scale)
+    let f = frac(uv * scale)
+    let F1 = 8.0
+    let F2 = 8.0
+    let j = -1
+    while j <= 1:
+        let i = -1
+        while i <= 1:
+            let g = vec2(i, j)
+            let o = Hash22(n + g + vec2(seed, seed)) * randomness
+            let r = g + o - f
+            let d = dot(r, r)
+            if d < F1:
+                F2 = F1
+                F1 = d
+            else:
+                if d < F2:
+                    F2 = d
+            i = i + 1
+        j = j + 1
+    return vec2(sqrt(F1), sqrt(F2))
+
+fn WorleyNoise(uv: Vec2, scale: Float, randomness: Float, seed: Float) -> Float:
+    return Voronoi(uv, scale, randomness, seed).x
+
+fn VoronoiEdges(uv: Vec2, scale: Float, edge_width: Float, seed: Float) -> Float:
+    let v = Voronoi(uv, scale, 1.0, seed)
+    let edge = v.y - v.x
+    return saturate(edge / edge_width)
+
+fn RidgedNoise(uv: Vec2, scale: Float, octaves: Int, seed: Float) -> Float:
+    let value = 0.0
+    let amplitude = 0.5
+    let frequency = scale
+    let weight = 1.0
+    let i = 0
+    while i < octaves:
+        let n = Grad2(uv * frequency + vec2(seed, seed))
+        let n_ridged = 1.0 - abs(n * 2.0 - 1.0)
+        let n_squared = n_ridged * n_ridged
+        let n_weighted = n_squared * weight
+        weight = saturate(n_weighted * 2.0)
+        value = value + amplitude * n_weighted
+        amplitude = amplitude * 0.5
+        frequency = frequency * 2.0
+        i = i + 1
+    return value
+
+fn Turbulence(uv: Vec2, scale: Float, octaves: Int, seed: Float) -> Float:
+    let value = 0.0
+    let amplitude = 0.5
+    let frequency = scale
+    let i = 0
+    while i < octaves:
+        let n = Grad2(uv * frequency + vec2(seed, seed))
+        value = value + amplitude * abs(n * 2.0 - 1.0)
+        amplitude = amplitude * 0.5
+        frequency = frequency * 2.0
+        i = i + 1
+    return value
+
+fn RadialFalloff(uv: Vec2, falloff_power: Float) -> Float:
+    let centered = uv - vec2(0.5, 0.5)
+    let dist = length(centered) * 2.0
+    return saturate(1.0 - pow(dist, falloff_power))
+
+fn Circle(uv: Vec2, radius: Float, edge_softness: Float) -> Float:
+    let centered = uv - vec2(0.5, 0.5)
+    let dist = length(centered) * 2.0
+    let edge = (radius - dist) / max(edge_softness, 0.001)
+    return saturate(edge)
+
+fn Bricks(uv: Vec2, brick_width: Float, brick_height: Float, mortar_width: Float) -> Float:
+    let row = floor(uv.y / brick_height)
+    let offset = (row % 2.0) * 0.5 * brick_width
+    let brick_uv = vec2((uv.x + offset) % brick_width, uv.y % brick_height)
+    let in_mortar_x = brick_uv.x < mortar_width or brick_uv.x > brick_width - mortar_width
+    let in_mortar_y = brick_uv.y < mortar_width or brick_uv.y > brick_height - mortar_width
+    if in_mortar_x or in_mortar_y:
+        return 0.0
+    let edge_x = min(brick_uv.x - mortar_width, brick_width - mortar_width - brick_uv.x)
+    let edge_y = min(brick_uv.y - mortar_width, brick_height - mortar_width - brick_uv.y)
+    let edge = min(edge_x, edge_y) / mortar_width
+    return saturate(edge)
+
+fn Dots(uv: Vec2, dot_radius: Float, spacing: Float) -> Float:
+    let cell = floor(uv / spacing) + vec2(0.5, 0.5)
+    let cell_center = cell * spacing
+    let dist = length(uv - cell_center)
+    return saturate(1.0 - dist / dot_radius)
+
+fn TransformUV(uv: Vec2, rotation: Float, scale: Float, offset: Vec2) -> Vec2:
+    let centered = uv - vec2(0.5, 0.5)
+    let cos_r = cos(rotation)
+    let sin_r = sin(rotation)
+    let rotated = vec2(centered.x * cos_r - centered.y * sin_r, centered.x * sin_r + centered.y * cos_r)
+    return rotated / scale + vec2(0.5, 0.5) + offset
+
+fn ApplyTiling(uv: Vec2, mode: Int) -> Vec2:
+    if mode == 1:
+        return frac(uv)
+    if mode == 2:
+        return abs(frac(uv * 0.5) * 2.0 - vec2(1.0, 1.0))
+    return saturate(uv)
+
+# ============================================================================
+# SECTION 2: PBR GENERATION - Multi-Pass Pipeline
+# ============================================================================
+
+shader compute GradientCS(thread_id: Vec3) -> Unit:
+    uniform InSourceTexture: Texture2D @0
+    uniform NormalStrength: Float @1
+    uniform TextureDimensions: UVec2 @2
+    uniform bAdvancedNormal: UInt @3
+    uniform NormalOctaves: Int @4
+    uniform NormalSigmaBase: Float @5
+    uniform NormalAnisotropy: Float @6
+    uniform OutGradient: RWTexture2D<Vec2> @7
+    
+    if thread_id.x >= TextureDimensions.x or thread_id.y >= TextureDimensions.y:
+        return
+    
+    let Pos = uvec2(thread_id.x, thread_id.y)
+    let Grad = vec2(0.0, 0.0)
+    
+    if bAdvancedNormal > 0:
+        let oct = max(1, NormalOctaves)
+        let k = 0
+        while k < oct:
+            let sigma = NormalSigmaBase * pow(2.0, k)
+            let o = max(1, round(sigma))
+            let L = uvec2(max(0, Pos.x - o), Pos.y)
+            let R = uvec2(min(TextureDimensions.x - 1, Pos.x + o), Pos.y)
+            let U = uvec2(Pos.x, max(0, Pos.y - o))
+            let D = uvec2(Pos.x, min(TextureDimensions.y - 1, Pos.y + o))
+            let L_clamp = uvec2(clamp(L.x, 0, TextureDimensions.x - 1), clamp(L.y, 0, TextureDimensions.y - 1))
+            let R_clamp = uvec2(clamp(R.x, 0, TextureDimensions.x - 1), clamp(R.y, 0, TextureDimensions.y - 1))
+            let U_clamp = uvec2(clamp(U.x, 0, TextureDimensions.x - 1), clamp(U.y, 0, TextureDimensions.y - 1))
+            let D_clamp = uvec2(clamp(D.x, 0, TextureDimensions.x - 1), clamp(D.y, 0, TextureDimensions.y - 1))
+            let L_lum = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, L_clamp).rgb))
+            let R_lum = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, R_clamp).rgb))
+            let U_lum = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, U_clamp).rgb))
+            let D_lum = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, D_clamp).rgb))
+            let g = vec2(R_lum - L_lum, D_lum - U_lum) / max(1.0, sigma)
+            Grad = Grad + g
+            k = k + 1
+    else:
+        let TL = uvec2(max(0, Pos.x - 1), max(0, Pos.y - 1))
+        let T = uvec2(Pos.x, max(0, Pos.y - 1))
+        let TR = uvec2(min(TextureDimensions.x - 1, Pos.x + 1), max(0, Pos.y - 1))
+        let L = uvec2(max(0, Pos.x - 1), Pos.y)
+        let R = uvec2(min(TextureDimensions.x - 1, Pos.x + 1), Pos.y)
+        let BL = uvec2(max(0, Pos.x - 1), min(TextureDimensions.y - 1, Pos.y + 1))
+        let B = uvec2(Pos.x, min(TextureDimensions.y - 1, Pos.y + 1))
+        let BR = uvec2(min(TextureDimensions.x - 1, Pos.x + 1), min(TextureDimensions.y - 1, Pos.y + 1))
+        let vTL = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, TL).rgb))
+        let vT = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, T).rgb))
+        let vTR = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, TR).rgb))
+        let vL = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, L).rgb))
+        let vR = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, R).rgb))
+        let vBL = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, BL).rgb))
+        let vB = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, B).rgb))
+        let vBR = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, BR).rgb))
+        Grad.x = (vTR + 2.0 * vR + vBR) - (vTL + 2.0 * vL + vBL)
+        Grad.y = (vBL + 2.0 * vB + vBR) - (vTL + 2.0 * vT + vTR)
+    
+    Grad.x = Grad.x * NormalAnisotropy
+    write(OutGradient, Pos, Grad * NormalStrength * 0.25)
+
+shader compute HeightIntegrationCS(thread_id: Vec3) -> Unit:
+    uniform InGradient: Texture2D @0
+    uniform InHeightPrev: Texture2D @1
+    uniform TextureDimensions: UVec2 @2
+    uniform OutHeightNext: RWTexture2D<Float> @3
+    
+    if thread_id.x >= TextureDimensions.x or thread_id.y >= TextureDimensions.y:
+        return
+    
+    let Pos = uvec2(thread_id.x, thread_id.y)
+    let L_pos = uvec2(max(0, Pos.x - 1), Pos.y)
+    let R_pos = uvec2(min(TextureDimensions.x - 1, Pos.x + 1), Pos.y)
+    let U_pos = uvec2(Pos.x, max(0, Pos.y - 1))
+    let D_pos = uvec2(Pos.x, min(TextureDimensions.y - 1, Pos.y + 1))
+    let L_clamp = uvec2(clamp(L_pos.x, 0, TextureDimensions.x - 1), clamp(L_pos.y, 0, TextureDimensions.y - 1))
+    let R_clamp = uvec2(clamp(R_pos.x, 0, TextureDimensions.x - 1), clamp(R_pos.y, 0, TextureDimensions.y - 1))
+    let U_clamp = uvec2(clamp(U_pos.x, 0, TextureDimensions.x - 1), clamp(U_pos.y, 0, TextureDimensions.y - 1))
+    let D_clamp = uvec2(clamp(D_pos.x, 0, TextureDimensions.x - 1), clamp(D_pos.y, 0, TextureDimensions.y - 1))
+    let hL = sample(InHeightPrev, L_clamp).r
+    let hR = sample(InHeightPrev, R_clamp).r
+    let hU = sample(InHeightPrev, U_clamp).r
+    let hD = sample(InHeightPrev, D_clamp).r
+    let gL = sample(InGradient, L_clamp).rg
+    let gR = sample(InGradient, R_clamp).rg
+    let gU = sample(InGradient, U_clamp).rg
+    let gD = sample(InGradient, D_clamp).rg
+    let Div = (gR.x - gL.x + gD.y - gU.y) * 0.5
+    write(OutHeightNext, Pos, (hL + hR + hU + hD + Div) * 0.25)
+
+shader compute FinalPBRCS(thread_id: Vec3) -> Unit:
+    uniform InSourceTexture: Texture2D @0
+    uniform InHeightPrev: Texture2D @1
+    uniform TextureDimensions: UVec2 @2
+    uniform NormalStrength: Float @3
+    uniform RoughnessBase: Float @4
+    uniform RoughnessContrast: Float @5
+    uniform bRoughnessInvert: UInt @6
+    uniform MetallicBase: Float @7
+    uniform MetallicContrast: Float @8
+    uniform MetallicBias: Float @9
+    uniform MetallicSensitivity: Float @10
+    uniform AOIntensity: Float @11
+    uniform HeightContrast: Float @12
+    uniform BioDetail: Float @13
+    uniform BioFrequency: Float @14
+    uniform CyberDetail: Float @15
+    uniform CyberScale: Float @16
+    uniform EdgeWear: Float @17
+    uniform CavityDirt: Float @18
+    uniform Dust: Float @19
+    uniform Grunge: Float @20
+    uniform Scratches: Float @21
+    uniform Noise: Float @22
+    uniform EmissiveThreshold: Float @23
+    uniform EmissiveColorBoost: Float @24
+    uniform VarianceWeight: Float @25
+    uniform bAdvancedAO: UInt @26
+    uniform AORadius: Float @27
+    uniform AOBias: Float @28
+    uniform AOContrast: Float @29
+    uniform OutNormal: RWTexture2D<Vec4> @30
+    uniform OutRoughness: RWTexture2D<Float> @31
+    uniform OutMetallic: RWTexture2D<Float> @32
+    uniform OutAO: RWTexture2D<Float> @33
+    uniform OutHeight: RWTexture2D<Float> @34
+    uniform OutEmissive: RWTexture2D<Float> @35
+    
+    if thread_id.x >= TextureDimensions.x or thread_id.y >= TextureDimensions.y:
+        return
+    
+    let Pos = uvec2(thread_id.x, thread_id.y)
+    let SourceLin = LinearizeGamma(sample(InSourceTexture, Pos).rgb)
+    let Lum = GetLuminanceLinear(SourceLin)
+    let ChanMin = min(SourceLin.r, min(SourceLin.g, SourceLin.b))
+    let ChanMax = max(SourceLin.r, max(SourceLin.g, SourceLin.b))
+    let Sat = if ChanMax > 0.001: 1.0 - ChanMin / ChanMax else: 0.0
+    let Bio = (sin(Pos.x * BioFrequency * 0.1) * cos(Pos.y * BioFrequency * 0.1)) * 0.5 + 0.5
+    let Cell = uvec2(floor(Pos.x * CyberScale), floor(Pos.y * CyberScale))
+    let Cyber = if (Cell.x + Cell.y * 7) % 13 == 0: 1.0 else: 0.0
+    let UVN = vec2(Pos.x, Pos.y) / vec2(TextureDimensions.x, TextureDimensions.y)
+    let WNoise = FBM(UVN * 50.0, 4)
+    let SNoise = FBM(UVN * vec2(200.0, 20.0), 2)
+    let HeightVal_raw = sample(InHeightPrev, Pos).r
+    let HeightVal_contrast = (HeightVal_raw - 0.5) * HeightContrast + 0.5
+    let HeightVal = if CyberDetail > 0.0 and Cyber > 0.5: HeightVal_contrast + 0.15 * CyberDetail else: HeightVal_contrast
+    write(OutHeight, Pos, saturate(HeightVal))
+
+    let L1_pos = uvec2(max(0, Pos.x - 1), Pos.y)
+    let R1_pos = uvec2(min(TextureDimensions.x - 1, Pos.x + 1), Pos.y)
+    let U1_pos = uvec2(Pos.x, max(0, Pos.y - 1))
+    let D1_pos = uvec2(Pos.x, min(TextureDimensions.y - 1, Pos.y + 1))
+    let hL1 = sample(InHeightPrev, L1_pos).r
+    let hR1 = sample(InHeightPrev, R1_pos).r
+    let hU1 = sample(InHeightPrev, U1_pos).r
+    let hD1 = sample(InHeightPrev, D1_pos).r
+    let NMacro = normalize(vec3(-(hR1 - hL1) * NormalStrength * 2.0, -(hD1 - hU1) * NormalStrength * 2.0, 1.0))
+    let L2_pos = uvec2(max(0, Pos.x - 2), Pos.y)
+    let R2_pos = uvec2(min(TextureDimensions.x - 1, Pos.x + 2), Pos.y)
+    let U2_pos = uvec2(Pos.x, max(0, Pos.y - 2))
+    let D2_pos = uvec2(Pos.x, min(TextureDimensions.y - 1, Pos.y + 2))
+    let hL2 = sample(InHeightPrev, L2_pos).r
+    let hR2 = sample(InHeightPrev, R2_pos).r
+    let hU2 = sample(InHeightPrev, U2_pos).r
+    let hD2 = sample(InHeightPrev, D2_pos).r
+    let NMeso = normalize(vec3(-(hR2 - hL2) * NormalStrength * 1.2, -(hD2 - hU2) * NormalStrength * 1.2, 1.0))
+    let lL = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, L1_pos).rgb))
+    let lR = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, R1_pos).rgb))
+    let lU = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, U1_pos).rgb))
+    let lD = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, D1_pos).rgb))
+    let NMicro = normalize(vec3(-(lR - lL) * NormalStrength * 0.6, -(lD - lU) * NormalStrength * 0.6, 1.0))
+    let Normal_base = normalize(NMacro * 0.5 + NMeso * 0.3 + NMicro * 0.2)
+    let Normal_scratch = if Scratches > 0.0: normalize(Normal_base + vec3((SNoise - 0.5) * Scratches, (SNoise - 0.5) * Scratches * 0.2, 0.0)) else: Normal_base
+    let Normal = if CyberDetail > 0.0 and Cyber > 0.5: normalize(Normal_scratch + vec3(0.3 * CyberDetail, 0.0, 0.0)) else: Normal_scratch
+    write(OutNormal, Pos, vec4(Normal * 0.5 + vec3(0.5, 0.5, 0.5), 1.0))
+    let Laplacian = (hL1 + hR1 + hU1 + hD1) * 0.25 - HeightVal
+    let EdgeMask = saturate(abs(Laplacian) * 10.0)
+    let CavityMask = saturate(-Laplacian * 10.0)
+    let LumSum = 0.0
+    let LumSum2 = 0.0
+    let vy = -1
+    while vy <= 1:
+        let vx = -1
+        while vx <= 1:
+            let v_pos = uvec2(clamp(Pos.x + vx, 0, TextureDimensions.x - 1), clamp(Pos.y + vy, 0, TextureDimensions.y - 1))
+            let vlum = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, v_pos).rgb))
+            LumSum = LumSum + vlum
+            LumSum2 = LumSum2 + vlum * vlum
+            vx = vx + 1
+        vy = vy + 1
+    let LumMean = LumSum / 9.0
+    let Variance = saturate((LumSum2 / 9.0) - (LumMean * LumMean)) * 8.0
+    let RoughLum_base = RoughnessBase + (Lum - 0.5) * RoughnessContrast
+    let RoughLum = if bRoughnessInvert > 0: 1.0 - RoughLum_base else: RoughLum_base
+    let Rough_let = lerp(RoughLum, saturate(RoughLum + Variance), VarianceWeight)
+    let Rough_bio = lerp(Rough_var, 1.0, Bio * BioDetail)
+    let Rough_edge = lerp(Rough_bio, 0.1, EdgeMask * EdgeWear)
+    let Rough_cavity = lerp(Rough_edge, 0.95, CavityMask * CavityDirt)
+    let Rough_dust = lerp(Rough_cavity, 0.8, Dust * WNoise)
+    let Rough_grunge = Rough_dust + (WNoise - 0.5) * Grunge * 0.3
+    let Rough_noise = Rough_grunge + (Hash21(vec2(Pos.x, Pos.y)) - 0.5) * Noise * 0.1
+    let Rough = if CyberDetail > 0.0 and Cyber > 0.5: 0.05 else: Rough_noise
+    write(OutRoughness, Pos, saturate(Rough))
+
+    let MetalScore = Lum * (1.0 - Sat) * MetallicSensitivity
+    let Metal_base = saturate(MetallicBase + MetalScore * MetallicContrast + MetallicBias / 255.0)
+    let Metal_edge = lerp(Metal_base, 1.0, EdgeMask * EdgeWear * 0.8)
+    let Metal_cavity = lerp(Metal_edge, 0.0, CavityMask * CavityDirt * 0.7)
+    let Metal_grunge = lerp(Metal_cavity, 0.0, Grunge * WNoise * 0.5)
+    let Metal = if CyberDetail > 0.0 and Cyber > 0.5: 1.0 else: Metal_grunge
+    write(OutMetallic, Pos, saturate(Metal))
+    let AO = 1.0
+    if bAdvancedAO > 0:
+        let r = max(1, round(AORadius))
+        let occ = 0.0
+        let totalW = 0.0
+        let h0 = HeightVal
+        let d = 0
+        while d < 8:
+            let dir_x = if d == 0: 1.0 else: if d == 1: -1.0 else: if d == 2: 0.0 else: if d == 3: 0.0 else: if d == 4: 1.0 else: if d == 5: -1.0 else: if d == 6: 1.0 else: -1.0
+            let dir_y = if d == 0: 0.0 else: if d == 1: 0.0 else: if d == 2: 1.0 else: if d == 3: -1.0 else: if d == 4: 1.0 else: if d == 5: 1.0 else: if d == 6: -1.0 else: -1.0
+            let dir_w = if d < 4: 1.0 else: 0.707
+            let maxH = 0.0
+            let s = 1
+            while s <= r:
+                let sp = uvec2(clamp(Pos.x + (dir_x * s), 0, TextureDimensions.x - 1), clamp(Pos.y + (dir_y * s), 0, TextureDimensions.y - 1))
+                let horizon = (sample(InHeightPrev, sp).r - h0) / s
+                maxH = max(maxH, horizon)
+                s = s + 1
+            occ = occ + max(0.0, maxH) * dir_w
+            totalW = totalW + dir_w
+            d = d + 1
+        occ = occ / max(0.001, totalW)
+        AO = pow(saturate(1.0 - occ * AOIntensity + AOBias), AOContrast)
+    else:
+        AO = AO - CavityMask * AOIntensity * 0.5
+        AO = AO - (0.5 - HeightVal) * AOIntensity * 0.3
+        AO = AO - Grunge * WNoise * 0.2
+    write(OutAO, Pos, saturate(AO))
+    let Emissive = 0.0
+    if EmissiveThreshold > 0.01:
+        let Threshold = 1.0 - EmissiveThreshold
+        let BrightE = saturate((Lum - Threshold) * 10.0)
+        let SatE = saturate((Sat - 0.6) * 5.0) * saturate(Lum * 2.0)
+        Emissive = saturate(BrightE + SatE * EmissiveColorBoost)
+    let Emissive_final = if CyberDetail > 0.2 and Cyber > 0.5: 1.0 else: Emissive
+    write(OutEmissive, Pos, Emissive_final)
+
+shader compute MainCS(thread_id: Vec3) -> Unit:
+    uniform InSourceTexture: Texture2D @0
+    uniform TextureDimensions: UVec2 @1
+    uniform NormalStrength: Float @2
+    uniform RoughnessBase: Float @3
+    uniform RoughnessContrast: Float @4
+    uniform bRoughnessInvert: UInt @5
+    uniform MetallicBase: Float @6
+    uniform MetallicContrast: Float @7
+    uniform MetallicBias: Float @8
+    uniform MetallicSensitivity: Float @9
+    uniform AOIntensity: Float @10
+    uniform HeightContrast: Float @11
+    uniform BioDetail: Float @12
+    uniform BioFrequency: Float @13
+    uniform CyberDetail: Float @14
+    uniform CyberScale: Float @15
+    uniform OutNormal: RWTexture2D<Vec4> @16
+    uniform OutRoughness: RWTexture2D<Float> @17
+    uniform OutMetallic: RWTexture2D<Float> @18
+    uniform OutAO: RWTexture2D<Float> @19
+    uniform OutHeight: RWTexture2D<Float> @20
+    
+    if thread_id.x >= TextureDimensions.x or thread_id.y >= TextureDimensions.y:
+        return
+    
+    let Pos = uvec2(thread_id.x, thread_id.y)
+    let Lin = LinearizeGamma(sample(InSourceTexture, Pos).rgb)
+    let Lum = GetLuminanceLinear(Lin)
+    let Bio = (sin(Pos.x * BioFrequency * 0.1) * cos(Pos.y * BioFrequency * 0.1)) * 0.5 + 0.5
+    let Cell = uvec2(floor(Pos.x * CyberScale), floor(Pos.y * CyberScale))
+    let Cyber = if (Cell.x + Cell.y * 7) % 13 == 0: 1.0 else: 0.0
+    let TL = uvec2(max(0, Pos.x - 1), max(0, Pos.y - 1))
+    let T = uvec2(Pos.x, max(0, Pos.y - 1))
+    let TR = uvec2(min(TextureDimensions.x - 1, Pos.x + 1), max(0, Pos.y - 1))
+    let L = uvec2(max(0, Pos.x - 1), Pos.y)
+    let R = uvec2(min(TextureDimensions.x - 1, Pos.x + 1), Pos.y)
+    let BL = uvec2(max(0, Pos.x - 1), min(TextureDimensions.y - 1, Pos.y + 1))
+    let B = uvec2(Pos.x, min(TextureDimensions.y - 1, Pos.y + 1))
+    let BR = uvec2(min(TextureDimensions.x - 1, Pos.x + 1), min(TextureDimensions.y - 1, Pos.y + 1))
+    let vTL = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, TL).rgb))
+    let vT = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, T).rgb))
+    let vTR = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, TR).rgb))
+    let vL = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, L).rgb))
+    let vR = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, R).rgb))
+    let vBL = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, BL).rgb))
+    let vB = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, B).rgb))
+    let vBR = GetLuminanceLinear(LinearizeGamma(sample(InSourceTexture, BR).rgb))
+    let Dx = (vTR + 2.0 * vR + vBR) - (vTL + 2.0 * vL + vBL)
+    let Dy = (vBL + 2.0 * vB + vBR) - (vTL + 2.0 * vT + vTR)
+    let Normal_base = normalize(vec3(Dx * NormalStrength, Dy * NormalStrength, 1.0))
+    let Normal = if CyberDetail > 0.0 and Cyber > 0.5: normalize(Normal_base + vec3(0.5 * CyberDetail, 0.0, 0.0)) else: Normal_base
+    write(OutNormal, Pos, vec4(Normal * 0.5 + vec3(0.5, 0.5, 0.5), 1.0))
+    let Rough_base = RoughnessBase + (Lum - 0.5) * RoughnessContrast
+    let Rough_inv = if bRoughnessInvert > 0: 1.0 - Rough_base else: Rough_base
+    let Rough_bio = lerp(Rough_inv, 1.0, Bio * BioDetail)
+    let Rough = if CyberDetail > 0.0 and Cyber > 0.5: 0.05 else: Rough_bio
+    write(OutRoughness, Pos, saturate(Rough))
+    let ChanMin = min(Lin.r, min(Lin.g, Lin.b))
+    let ChanMax = max(Lin.r, max(Lin.g, Lin.b))
+    let Sat = if ChanMax > 0.001: 1.0 - ChanMin / ChanMax else: 0.0
+    let Metal_base = saturate(MetallicBase + Lum * (1.0 - Sat) * MetallicSensitivity * MetallicContrast + MetallicBias / 255.0)
+    let Metal = if CyberDetail > 0.0 and Cyber > 0.5: 1.0 else: Metal_base
+    write(OutMetallic, Pos, saturate(Metal))
+    let AO = Lum * AOIntensity + (1.0 - AOIntensity)
+    write(OutAO, Pos, saturate(AO))
+    let HeightVal_base = (Lum - 0.5) * HeightContrast + 0.5
+    let HeightVal = if CyberDetail > 0.0 and Cyber > 0.5: HeightVal_base + 0.2 else: HeightVal_base
+    write(OutHeight, Pos, saturate(HeightVal))
+
+# ============================================================================
+# SECTION 3: BLEND MODES - Photoshop/Substance Compatible
+# ============================================================================
+
+fn OverlayChannel(base: Float, blend: Float) -> Float:
+    if base < 0.5:
+        return 2.0 * base * blend
+    else:
+        return 1.0 - 2.0 * (1.0 - base) * (1.0 - blend)
+
+fn OverlayBlend(base: Vec3, blend: Vec3) -> Vec3:
+    return vec3(OverlayChannel(base.r, blend.r), OverlayChannel(base.g, blend.g), OverlayChannel(base.b, blend.b))
+
+fn SoftLightChannel(base: Float, blend: Float) -> Float:
+    if blend < 0.5:
+        return base - (1.0 - 2.0 * blend) * base * (1.0 - base)
+    else:
+        return base + (2.0 * blend - 1.0) * (sqrt(base) - base)
+
+fn SoftLightBlend(base: Vec3, blend: Vec3) -> Vec3:
+    return vec3(SoftLightChannel(base.r, blend.r), SoftLightChannel(base.g, blend.g), SoftLightChannel(base.b, blend.b))
+
+fn HardLightBlend(base: Vec3, blend: Vec3) -> Vec3:
+    return OverlayBlend(blend, base)
+
+fn ColorDodgeBlend(base: Vec3, blend: Vec3) -> Vec3:
+    return min(base / max(vec3(1.0, 1.0, 1.0) - blend, vec3(0.001, 0.001, 0.001)), vec3(1.0, 1.0, 1.0))
+
+fn ColorBurnBlend(base: Vec3, blend: Vec3) -> Vec3:
+    return vec3(1.0, 1.0, 1.0) - min((vec3(1.0, 1.0, 1.0) - base) / max(blend, vec3(0.001, 0.001, 0.001)), vec3(1.0, 1.0, 1.0))
+
+fn LinearLightBlend(base: Vec3, blend: Vec3) -> Vec3:
+    return saturate(base + vec3(2.0, 2.0, 2.0) * blend - vec3(1.0, 1.0, 1.0))
+
+fn VividLightBlend(base: Vec3, blend: Vec3) -> Vec3:
+    let r = if blend.r < 0.5: ColorBurnBlend(base, vec3(2.0, 2.0, 2.0) * blend).r else: ColorDodgeBlend(base, vec3(2.0, 2.0, 2.0) * (blend - vec3(0.5, 0.5, 0.5))).r
+    let g = if blend.g < 0.5: ColorBurnBlend(base, vec3(2.0, 2.0, 2.0) * blend).g else: ColorDodgeBlend(base, vec3(2.0, 2.0, 2.0) * (blend - vec3(0.5, 0.5, 0.5))).g
+    let b = if blend.b < 0.5: ColorBurnBlend(base, vec3(2.0, 2.0, 2.0) * blend).b else: ColorDodgeBlend(base, vec3(2.0, 2.0, 2.0) * (blend - vec3(0.5, 0.5, 0.5))).b
+    return vec3(r, g, b)
+
+fn BlendColors(base: Vec3, blend_color: Vec3, mode: UInt) -> Vec3:
+    if mode == 0:
+        return blend_color
+    if mode == 1:
+        return saturate(base + blend_color)
+    if mode == 2:
+        return saturate(base - blend_color)
+    if mode == 3:
+        return base * blend_color
+    if mode == 4:
+        return vec3(1.0, 1.0, 1.0) - (vec3(1.0, 1.0, 1.0) - base) * (vec3(1.0, 1.0, 1.0) - blend_color)
+    if mode == 5:
+        return OverlayBlend(base, blend_color)
+    if mode == 6:
+        return SoftLightBlend(base, blend_color)
+    if mode == 7:
+        return HardLightBlend(base, blend_color)
+    if mode == 8:
+        return min(base, blend_color)
+    if mode == 9:
+        return max(base, blend_color)
+    if mode == 10:
+        return abs(base - blend_color)
+    if mode == 11:
+        return base + blend_color - vec3(2.0, 2.0, 2.0) * base * blend_color
+    if mode == 12:
+        return ColorDodgeBlend(base, blend_color)
+    if mode == 13:
+        return ColorBurnBlend(base, blend_color)
+    if mode == 14:
+        return LinearLightBlend(base, blend_color)
+    if mode == 15:
+        return VividLightBlend(base, blend_color)
+    return blend_color
+
+shader compute BlendTexturesCS(thread_id: Vec3) -> Unit:
+    uniform BaseTexture: Texture2D @0
+    uniform BlendTexture: Texture2D @1
+    uniform TextureSize: UVec2 @2
+    uniform BlendMode: UInt @3
+    uniform Opacity: Float @4
+    uniform OutputTexture: RWTexture2D<Vec4> @5
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let uv = (vec2(thread_id.x, thread_id.y) + vec2(0.5, 0.5)) / vec2(TextureSize.x, TextureSize.y)
+    let base = sample(BaseTexture, uvec2(thread_id.x, thread_id.y))
+    let blend_sample = sample(BlendTexture, uvec2(thread_id.x, thread_id.y))
+    let blended = BlendColors(base.rgb, blend_sample.rgb, BlendMode)
+    let result = lerp(base.rgb, blended, Opacity * blend_sample.a)
+    let alpha = max(base.a, blend_sample.a * Opacity)
+    write(OutputTexture, uvec2(thread_id.x, thread_id.y), vec4(result, alpha))
+
+# ============================================================================
+# SECTION 4: IMAGE FILTERS - Blur, Sharpen, Edge Detection, Levels, HSL
+# ============================================================================
+
+shader compute BlurHorizontalCS(thread_id: Vec3) -> Unit:
+    uniform InputTexture: Texture2D @0
+    uniform TextureSize: UVec2 @1
+    uniform FilterParams: Vec4 @2
+    uniform OutputTexture: RWTexture2D<Vec4> @3
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let texelSize = vec2(1.0, 1.0) / vec2(TextureSize.x, TextureSize.y)
+    let uv = (vec2(thread_id.x, thread_id.y) + vec2(0.5, 0.5)) * texelSize
+    let radius = FilterParams.y
+    let result = vec4(0.0, 0.0, 0.0, 0.0)
+    let i = -4
+    while i <= 4:
+        let gw = if i == -4 or i == 4: 0.0162 else: if i == -3 or i == 3: 0.0540 else: if i == -2 or i == 2: 0.1216 else: if i == -1 or i == 1: 0.1933 else: 0.2258
+        let sampleUV = uv + vec2(i * texelSize.x * radius, 0.0)
+        let samplePos = uvec2(clamp(sampleUV.x * TextureSize.x, 0.0, TextureSize.x - 1.0), clamp(sampleUV.y * TextureSize.y, 0.0, TextureSize.y - 1.0))
+        result = result + sample(InputTexture, samplePos) * gw
+        i = i + 1
+    write(OutputTexture, uvec2(thread_id.x, thread_id.y), result)
+
+shader compute BlurVerticalCS(thread_id: Vec3) -> Unit:
+    uniform InputTexture: Texture2D @0
+    uniform TextureSize: UVec2 @1
+    uniform FilterParams: Vec4 @2
+    uniform OutputTexture: RWTexture2D<Vec4> @3
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let texelSize = vec2(1.0, 1.0) / vec2(TextureSize.x, TextureSize.y)
+    let uv = (vec2(thread_id.x, thread_id.y) + vec2(0.5, 0.5)) * texelSize
+    let radius = FilterParams.y
+    let result = vec4(0.0, 0.0, 0.0, 0.0)
+    let i = -4
+    while i <= 4:
+        let gwv = if i == -4 or i == 4: 0.0162 else: if i == -3 or i == 3: 0.0540 else: if i == -2 or i == 2: 0.1216 else: if i == -1 or i == 1: 0.1933 else: 0.2258
+        let sampleUV = uv + vec2(0.0, i * texelSize.y * radius)
+        let samplePos = uvec2(clamp(sampleUV.x * TextureSize.x, 0.0, TextureSize.x - 1.0), clamp(sampleUV.y * TextureSize.y, 0.0, TextureSize.y - 1.0))
+        result = result + sample(InputTexture, samplePos) * gwv
+        i = i + 1
+    write(OutputTexture, uvec2(thread_id.x, thread_id.y), result)
+
+shader compute SharpenCS(thread_id: Vec3) -> Unit:
+    uniform InputTexture: Texture2D @0
+    uniform TextureSize: UVec2 @1
+    uniform FilterParams: Vec4 @2
+    uniform OutputTexture: RWTexture2D<Vec4> @3
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let texelSize = vec2(1.0, 1.0) / vec2(TextureSize.x, TextureSize.y)
+    let uv = (vec2(thread_id.x, thread_id.y) + vec2(0.5, 0.5)) * texelSize
+    let strength = FilterParams.x
+    let pos = uvec2(thread_id.x, thread_id.y)
+    let center = sample(InputTexture, pos) * 5.0
+    let L = uvec2(max(0, pos.x - 1), pos.y)
+    let R = uvec2(min(TextureSize.x - 1, pos.x + 1), pos.y)
+    let U = uvec2(pos.x, max(0, pos.y - 1))
+    let D = uvec2(pos.x, min(TextureSize.y - 1, pos.y + 1))
+    let neighbors = sample(InputTexture, L) + sample(InputTexture, R) + sample(InputTexture, U) + sample(InputTexture, D)
+    let sharpened = center - neighbors
+    let original = sample(InputTexture, pos)
+    write(OutputTexture, pos, saturate(lerp(original, sharpened, strength)))
+
+shader compute EdgeDetectCS(thread_id: Vec3) -> Unit:
+    uniform InputTexture: Texture2D @0
+    uniform TextureSize: UVec2 @1
+    uniform FilterParams: Vec4 @2
+    uniform OutputTexture: RWTexture2D<Vec4> @3
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let texelSize = vec2(1.0, 1.0) / vec2(TextureSize.x, TextureSize.y)
+    let uv = (vec2(thread_id.x, thread_id.y) + vec2(0.5, 0.5)) * texelSize
+    let threshold = FilterParams.z
+    let LumaWeights = vec3(0.333, 0.333, 0.333)
+    let pos = uvec2(thread_id.x, thread_id.y)
+    let TL = uvec2(max(0, pos.x - 1), max(0, pos.y - 1))
+    let TC = uvec2(pos.x, max(0, pos.y - 1))
+    let TR = uvec2(min(TextureSize.x - 1, pos.x + 1), max(0, pos.y - 1))
+    let ML = uvec2(max(0, pos.x - 1), pos.y)
+    let MR = uvec2(min(TextureSize.x - 1, pos.x + 1), pos.y)
+    let BL = uvec2(max(0, pos.x - 1), min(TextureSize.y - 1, pos.y + 1))
+    let BC = uvec2(pos.x, min(TextureSize.y - 1, pos.y + 1))
+    let BR = uvec2(min(TextureSize.x - 1, pos.x + 1), min(TextureSize.y - 1, pos.y + 1))
+    let tl = dot(sample(InputTexture, TL).rgb, LumaWeights)
+    let tc = dot(sample(InputTexture, TC).rgb, LumaWeights)
+    let tr = dot(sample(InputTexture, TR).rgb, LumaWeights)
+    let ml = dot(sample(InputTexture, ML).rgb, LumaWeights)
+    let mr = dot(sample(InputTexture, MR).rgb, LumaWeights)
+    let bl = dot(sample(InputTexture, BL).rgb, LumaWeights)
+    let bc = dot(sample(InputTexture, BC).rgb, LumaWeights)
+    let br = dot(sample(InputTexture, BR).rgb, LumaWeights)
+    let gx = -tl - 2.0 * ml - bl + tr + 2.0 * mr + br
+    let gy = -tl - 2.0 * tc - tr + bl + 2.0 * bc + br
+    let edge_raw = sqrt(gx * gx + gy * gy)
+    let edge = if edge_raw > threshold: edge_raw else: 0.0
+    write(OutputTexture, pos, vec4(edge, edge, edge, 1.0))
+
+shader compute LevelsCS(thread_id: Vec3) -> Unit:
+    uniform InputTexture: Texture2D @0
+    uniform TextureSize: UVec2 @1
+    uniform FilterParams2: Vec4 @2
+    uniform OutputTexture: RWTexture2D<Vec4> @3
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let uv = (vec2(thread_id.x, thread_id.y) + vec2(0.5, 0.5)) / vec2(TextureSize.x, TextureSize.y)
+    let color = sample(InputTexture, uvec2(thread_id.x, thread_id.y))
+    let inBlack = FilterParams2.x
+    let inWhite = FilterParams2.y
+    let outBlack = FilterParams2.z
+    let outWhite = FilterParams2.w
+    let adjusted = (color.rgb - vec3(inBlack, inBlack, inBlack)) / max(inWhite - inBlack, 0.001)
+    let adjusted_sat = saturate(adjusted)
+    let final_color = adjusted_sat * (outWhite - outBlack) + vec3(outBlack, outBlack, outBlack)
+    write(OutputTexture, uvec2(thread_id.x, thread_id.y), vec4(final_color, color.a))
+
+fn RGBtoHSL(rgb: Vec3) -> Vec3:
+    let maxC = max(rgb.r, max(rgb.g, rgb.b))
+    let minC = min(rgb.r, min(rgb.g, rgb.b))
+    let l = (maxC + minC) * 0.5
+    if maxC == minC:
+        return vec3(0.0, 0.0, l)
+    let d = maxC - minC
+    let s = if l > 0.5: d / (2.0 - maxC - minC) else: d / (maxC + minC)
+    let h = if rgb.r == maxC: (rgb.g - rgb.b) / d + (if rgb.g < rgb.b: 6.0 else: 0.0) else: if rgb.g == maxC: (rgb.b - rgb.r) / d + 2.0 else: (rgb.r - rgb.g) / d + 4.0
+    return vec3(h / 6.0, s, l)
+
+fn HueToRGB(p: Float, q: Float, t_in: Float) -> Float:
+    let t = if t_in < 0.0: t_in + 1.0 else: if t_in > 1.0: t_in - 1.0 else: t_in
+    if t < 1.0 / 6.0:
+        return p + (q - p) * 6.0 * t
+    if t < 1.0 / 2.0:
+        return q
+    if t < 2.0 / 3.0:
+        return p + (q - p) * (2.0 / 3.0 - t) * 6.0
+    return p
+
+fn HSLtoRGB(hsl: Vec3) -> Vec3:
+    if hsl.y == 0.0:
+        return vec3(hsl.z, hsl.z, hsl.z)
+    let q = if hsl.z < 0.5: hsl.z * (1.0 + hsl.y) else: hsl.z + hsl.y - hsl.z * hsl.y
+    let p = 2.0 * hsl.z - q
+    let r = HueToRGB(p, q, hsl.x + 1.0 / 3.0)
+    let g = HueToRGB(p, q, hsl.x)
+    let b = HueToRGB(p, q, hsl.x - 1.0 / 3.0)
+    return vec3(r, g, b)
+
+shader compute HSLAdjustCS(thread_id: Vec3) -> Unit:
+    uniform InputTexture: Texture2D @0
+    uniform TextureSize: UVec2 @1
+    uniform FilterParams: Vec4 @2
+    uniform OutputTexture: RWTexture2D<Vec4> @3
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let uv = (vec2(thread_id.x, thread_id.y) + vec2(0.5, 0.5)) / vec2(TextureSize.x, TextureSize.y)
+    let color = sample(InputTexture, uvec2(thread_id.x, thread_id.y))
+    let hueShift = FilterParams.x
+    let satMult = FilterParams.y
+    let lightMult = FilterParams.z
+    let hsl = RGBtoHSL(color.rgb)
+    let hsl_adjusted = vec3(frac(hsl.x + hueShift), saturate(hsl.y * satMult), saturate(hsl.z * lightMult))
+    let result = HSLtoRGB(hsl_adjusted)
+    write(OutputTexture, uvec2(thread_id.x, thread_id.y), vec4(result, color.a))
+
+shader compute InvertCS(thread_id: Vec3) -> Unit:
+    uniform InputTexture: Texture2D @0
+    uniform TextureSize: UVec2 @1
+    uniform OutputTexture: RWTexture2D<Vec4> @2
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let uv = (vec2(thread_id.x, thread_id.y) + vec2(0.5, 0.5)) / vec2(TextureSize.x, TextureSize.y)
+    let color = sample(InputTexture, uvec2(thread_id.x, thread_id.y))
+    write(OutputTexture, uvec2(thread_id.x, thread_id.y), vec4(vec3(1.0, 1.0, 1.0) - color.rgb, color.a))
+
+shader compute GrayscaleCS(thread_id: Vec3) -> Unit:
+    uniform InputTexture: Texture2D @0
+    uniform TextureSize: UVec2 @1
+    uniform OutputTexture: RWTexture2D<Vec4> @2
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let uv = (vec2(thread_id.x, thread_id.y) + vec2(0.5, 0.5)) / vec2(TextureSize.x, TextureSize.y)
+    let color = sample(InputTexture, uvec2(thread_id.x, thread_id.y))
+    let gray = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722))
+    write(OutputTexture, uvec2(thread_id.x, thread_id.y), vec4(gray, gray, gray, color.a))
+
+# ============================================================================
+# SECTION 5: PROCEDURAL NOISE GENERATORS
+# ============================================================================
+
+shader compute GenerateNoiseCS(thread_id: Vec3) -> Unit:
+    uniform TextureSize: UVec2 @0
+    uniform NoiseParams: Vec4 @1
+    uniform NoiseParams2: Vec4 @2
+    uniform TransformParams: Vec4 @3
+    uniform TransformParams2: Vec4 @4
+    uniform NoiseType: UInt @5
+    uniform OutputTexture: RWTexture2D<Vec4> @6
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let uv = (vec2(thread_id.x, thread_id.y) + vec2(0.5, 0.5)) / vec2(TextureSize.x, TextureSize.y)
+    let rotation = TransformParams.x
+    let scale = TransformParams.yz
+    let offset = vec2(TransformParams.w, TransformParams2.x)
+    let tilingMode = TransformParams2.y
+    let transformedUV = TransformUV(uv, rotation, (scale.x + scale.y) * 0.5, offset)
+    let tiledUV = ApplyTiling(transformedUV, tilingMode)
+    let noiseScale = NoiseParams.x
+    let octaves = NoiseParams.y
+    let persistence = NoiseParams.z
+    let lacunarity = NoiseParams.w
+    let seed = NoiseParams2.x
+    let contrast = NoiseParams2.y
+    let brightness = NoiseParams2.z
+    let invert = NoiseParams2.w
+    let value = if NoiseType == 0: PerlinNoise(tiledUV, noiseScale, octaves, seed) else: if NoiseType == 1: VoronoiEdges(tiledUV, noiseScale, 0.1, seed) else: if NoiseType == 2: 1.0 - WorleyNoise(tiledUV, noiseScale, 1.0, seed) else: if NoiseType == 3: RidgedNoise(tiledUV, noiseScale, octaves, seed) else: Turbulence(tiledUV, noiseScale, octaves, seed)
+    let value_contrast = (value - 0.5) * contrast + 0.5 + brightness
+    let value_invert = lerp(value_contrast, 1.0 - value_contrast, invert)
+    let value_final = saturate(value_invert)
+    write(OutputTexture, uvec2(thread_id.x, thread_id.y), vec4(value_final, value_final, value_final, 1.0))
+
+shader compute GenerateRadialCS(thread_id: Vec3) -> Unit:
+    uniform TextureSize: UVec2 @0
+    uniform NoiseParams: Vec4 @1
+    uniform TransformParams: Vec4 @2
+    uniform TransformParams2: Vec4 @3
+    uniform OutputTexture: RWTexture2D<Vec4> @4
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let uv = (vec2(thread_id.x, thread_id.y) + vec2(0.5, 0.5)) / vec2(TextureSize.x, TextureSize.y)
+    let transformedUV = TransformUV(uv, TransformParams.x, TransformParams.y, vec2(TransformParams.w, TransformParams2.x))
+    let falloff_power = NoiseParams.x
+    let value = RadialFalloff(transformedUV, falloff_power)
+    write(OutputTexture, uvec2(thread_id.x, thread_id.y), vec4(value, value, value, 1.0))
+
+shader compute GenerateCircleCS(thread_id: Vec3) -> Unit:
+    uniform TextureSize: UVec2 @0
+    uniform NoiseParams: Vec4 @1
+    uniform TransformParams: Vec4 @2
+    uniform TransformParams2: Vec4 @3
+    uniform OutputTexture: RWTexture2D<Vec4> @4
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let uv = (vec2(thread_id.x, thread_id.y) + vec2(0.5, 0.5)) / vec2(TextureSize.x, TextureSize.y)
+    let transformedUV = TransformUV(uv, TransformParams.x, TransformParams.y, vec2(TransformParams.w, TransformParams2.x))
+    let radius = NoiseParams.x
+    let softness = NoiseParams.y
+    let value = Circle(transformedUV, radius, softness)
+    write(OutputTexture, uvec2(thread_id.x, thread_id.y), vec4(value, value, value, 1.0))
+
+shader compute GenerateBricksCS(thread_id: Vec3) -> Unit:
+    uniform TextureSize: UVec2 @0
+    uniform NoiseParams: Vec4 @1
+    uniform TransformParams: Vec4 @2
+    uniform TransformParams2: Vec4 @3
+    uniform OutputTexture: RWTexture2D<Vec4> @4
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let uv = (vec2(thread_id.x, thread_id.y) + vec2(0.5, 0.5)) / vec2(TextureSize.x, TextureSize.y)
+    let transformedUV = TransformUV(uv, TransformParams.x, TransformParams.y, vec2(TransformParams.w, TransformParams2.x))
+    let brickWidth = NoiseParams.x
+    let brickHeight = NoiseParams.y
+    let mortarWidth = NoiseParams.z
+    let value = Bricks(transformedUV, brickWidth, brickHeight, mortarWidth)
+    write(OutputTexture, uvec2(thread_id.x, thread_id.y), vec4(value, value, value, 1.0))
+
+shader compute GenerateDotsCS(thread_id: Vec3) -> Unit:
+    uniform TextureSize: UVec2 @0
+    uniform NoiseParams: Vec4 @1
+    uniform TransformParams: Vec4 @2
+    uniform TransformParams2: Vec4 @3
+    uniform OutputTexture: RWTexture2D<Vec4> @4
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let uv = (vec2(thread_id.x, thread_id.y) + vec2(0.5, 0.5)) / vec2(TextureSize.x, TextureSize.y)
+    let transformedUV = TransformUV(uv, TransformParams.x, TransformParams.y, vec2(TransformParams.w, TransformParams2.x))
+    let dotRadius = NoiseParams.x
+    let spacing = NoiseParams.y
+    let value = Dots(transformedUV, dotRadius, spacing)
+    write(OutputTexture, uvec2(thread_id.x, thread_id.y), vec4(value, value, value, 1.0))
+
+# ============================================================================
+# SECTION 6: SEAMLESS TILING & CHANNEL PACKING
+# ============================================================================
+
+fn SampleWrap(tex: Texture2D, pos: IVec2, dims: UVec2) -> Vec4:
+    let x = pos.x % dims.x
+    let y = pos.y % dims.y
+    let x_wrapped = if x < 0: x + dims.x else: x
+    let y_wrapped = if y < 0: y + dims.y else: y
+    return sample(tex, uvec2(x_wrapped, y_wrapped))
+
+fn GetBlendWeight(uv: Vec2, blendWidth: Float) -> Float:
+    let centered = abs(uv - vec2(0.5, 0.5)) * 2.0
+    let edgeX = smoothstep(1.0 - blendWidth * 2.0, 1.0, centered.x)
+    let edgeY = smoothstep(1.0 - blendWidth * 2.0, 1.0, centered.y)
+    return max(edgeX, edgeY)
+
+shader compute SeamlessCS(thread_id: Vec3) -> Unit:
+    uniform InSource: Texture2D @0
+    uniform TextureDimensions: UVec2 @1
+    uniform BlendWidth: Float @2
+    uniform TileMode: UInt @3
+    uniform OutSeamless: RWTexture2D<Vec4> @4
+    
+    if thread_id.x >= TextureDimensions.x or thread_id.y >= TextureDimensions.y:
+        return
+    
+    let pos = uvec2(thread_id.x, thread_id.y)
+    let uv = (vec2(pos.x, pos.y) + vec2(0.5, 0.5)) / vec2(TextureDimensions.x, TextureDimensions.y)
+    let result = if TileMode == 0:
+        let original = sample(InSource, pos)
+        let offsetPos = ivec2(pos.x + TextureDimensions.x / 2, pos.y + TextureDimensions.y / 2)
+        let offset = SampleWrap(InSource, offsetPos, TextureDimensions)
+        let blendWeight = GetBlendWeight(uv, BlendWidth)
+        lerp(original, offset, blendWeight)
+    else: if TileMode == 1:
+        let original = sample(InSource, pos)
+        let mirrorX = ivec2(TextureDimensions.x - 1 - pos.x, pos.y)
+        let mirrorY = ivec2(pos.x, TextureDimensions.y - 1 - pos.y)
+        let mirrorXY = ivec2(TextureDimensions.x - 1 - pos.x, TextureDimensions.y - 1 - pos.y)
+        let mX = sample(InSource, uvec2(mirrorX.x, mirrorX.y))
+        let mY = sample(InSource, uvec2(mirrorY.x, mirrorY.y))
+        let mXY = sample(InSource, uvec2(mirrorXY.x, mirrorXY.y))
+        let edgeX = smoothstep(0.5 - BlendWidth, 0.5, abs(uv.x - 0.5))
+        let edgeY = smoothstep(0.5 - BlendWidth, 0.5, abs(uv.y - 0.5))
+        let top = lerp(original, mX, edgeX)
+        let bottom = lerp(mY, mXY, edgeX)
+        lerp(top, bottom, edgeY)
+    else:
+        let original = sample(InSource, pos)
+        let offsetPos = ivec2(pos.x + TextureDimensions.x / 2, pos.y + TextureDimensions.y / 2)
+        let offset = SampleWrap(InSource, offsetPos, TextureDimensions)
+        let blendWeight = GetBlendWeight(uv, BlendWidth)
+        let cross_blend = lerp(original, offset, blendWeight)
+        let localMean = vec4(0.0, 0.0, 0.0, 0.0)
+        let samples = 0
+        let y = -4
+        while y <= 4:
+            let x = -4
+            while x <= 4:
+                localMean = localMean + SampleWrap(InSource, ivec2(pos.x + x, pos.y + y), TextureDimensions)
+                samples = samples + 1
+                x = x + 2
+            y = y + 2
+        localMean = localMean / samples
+        let edgeFactor = GetBlendWeight(uv, BlendWidth)
+        lerp(cross_blend, lerp(cross_blend, localMean, 0.3), edgeFactor)
+    write(OutSeamless, pos, result)
+
+shader compute PackORMCS(thread_id: Vec3) -> Unit:
+    uniform InAO: Texture2D @0
+    uniform InRoughness: Texture2D @1
+    uniform InMetallic: Texture2D @2
+    uniform TextureDimensions: UVec2 @3
+    uniform OutORM: RWTexture2D<Vec4> @4
+    
+    if thread_id.x >= TextureDimensions.x or thread_id.y >= TextureDimensions.y:
+        return
+    
+    let pos = uvec2(thread_id.x, thread_id.y)
+    let ao = sample(InAO, pos).r
+    let roughness = sample(InRoughness, pos).r
+    let metallic = sample(InMetallic, pos).r
+    write(OutORM, pos, vec4(ao, roughness, metallic, 1.0))
+
+# ============================================================================
+# SECTION 7: GLOSSY SHADING MODELS
+# ============================================================================
+
+shader fragment GlossyClearCoatPS(uv: Vec2) -> Vec4:
+    uniform coat_ior: Float @0
+    uniform coat_tint: Vec3 @1
+    uniform coat_intensity: Float @2
+    uniform normal: Vec3 @3
+    uniform view_dir: Vec3 @4
+    uniform light_dir: Vec3 @5
+    uniform clear_coat: Float @6
+    uniform clear_coat_roughness: Float @7
+    
+    let n = normalize(normal)
+    let v = normalize(view_dir)
+    let l = normalize(light_dir)
+    let h = normalize(l + v)
+    let ndh = max(0.0, dot(n, h))
+    let alpha = max(0.001, clear_coat_roughness * clear_coat_roughness)
+    let alpha2 = alpha * alpha
+    let denom = ndh * ndh * (alpha2 - 1.0) + 1.0
+    let d = alpha2 / (3.14159 * denom * denom)
+    let vdh = max(0.0, dot(v, h))
+    let f0 = pow((1.0 - coat_ior) / (1.0 + coat_ior), 2.0)
+    let fresnel = f0 + (1.0 - f0) * pow(1.0 - vdh, 5.0)
+    let ndl = max(0.0, dot(n, l))
+    let ndv = max(0.0, dot(n, v))
+    let vis = 0.25 / max(0.001, ndl * ndv)
+    let coat_spec = d * fresnel * vis * clear_coat * coat_intensity
+    let color = coat_tint * coat_spec
+    return vec4(color, 1.0)
+
+shader fragment GlossyDualLobePS(uv: Vec2) -> Vec4:
+    uniform primary_roughness: Float @0
+    uniform secondary_roughness: Float @1
+    uniform lobe_mix: Float @2
+    uniform specular_intensity: Float @3
+    uniform normal: Vec3 @4
+    uniform view_dir: Vec3 @5
+    uniform light_dir: Vec3 @6
+    
+    let n = normalize(normal)
+    let v = normalize(view_dir)
+    let l = normalize(light_dir)
+    let h = normalize(l + v)
+    let ndh = max(0.0, dot(n, h))
+    let alpha1 = max(0.001, primary_roughness * primary_roughness)
+    let alpha2 = max(0.001, secondary_roughness * secondary_roughness)
+    let alpha1_sq = alpha1 * alpha1
+    let alpha2_sq = alpha2 * alpha2
+    let denom1 = ndh * ndh * (alpha1_sq - 1.0) + 1.0
+    let denom2 = ndh * ndh * (alpha2_sq - 1.0) + 1.0
+    let d1 = alpha1_sq / (3.14159 * denom1 * denom1)
+    let d2 = alpha2_sq / (3.14159 * denom2 * denom2)
+    let d_mixed = lerp(d1, d2, lobe_mix)
+    let vdh = max(0.0, dot(v, h))
+    let fresnel = 0.04 + 0.96 * pow(1.0 - vdh, 5.0)
+    let ndl = max(0.0, dot(n, l))
+    let ndv = max(0.0, dot(n, v))
+    let vis = 0.25 / max(0.001, ndl * ndv)
+    let specular = d_mixed * fresnel * vis * specular_intensity
+    return vec4(vec3(specular, specular, specular), 1.0)
+
+shader fragment GlossySubsurfacePS(uv: Vec2) -> Vec4:
+    uniform subsurface_color: Vec3 @0
+    uniform subsurface_radius: Float @1
+    uniform subsurface_intensity: Float @2
+    uniform normal: Vec3 @3
+    uniform view_dir: Vec3 @4
+    uniform light_dir: Vec3 @5
+    
+    let n = normalize(normal)
+    let v = normalize(view_dir)
+    let l = normalize(light_dir)
+    let ndl = dot(n, l)
+    let back_scatter = max(0.0, -ndl)
+    let wrap_ndl = max(0.0, (ndl + subsurface_radius) / (1.0 + subsurface_radius))
+    let subsurface = (back_scatter + wrap_ndl) * subsurface_intensity
+    let color = subsurface_color * subsurface
+    return vec4(color, 1.0)
+
+# ============================================================================
+# SECTION 8: METAL SHADING MODELS
+# ============================================================================
+
+shader fragment MetalAnisotropicSpecularPS(uv: Vec2) -> Vec4:
+    uniform anisotropy: Float @0
+    uniform anisotropy_rotation: Float @1
+    uniform tangent: Vec3 @2
+    uniform normal: Vec3 @3
+    uniform view_dir: Vec3 @4
+    uniform light_dir: Vec3 @5
+    uniform roughness: Float @6
+    
+    let n = normalize(normal)
+    let v = normalize(view_dir)
+    let l = normalize(light_dir)
+    let h = normalize(l + v)
+    let t = normalize(tangent)
+    let cos_rot = cos(anisotropy_rotation)
+    let sin_rot = sin(anisotropy_rotation)
+    let t_rotated = normalize(t * cos_rot + cross(n, t) * sin_rot)
+    let b = normalize(cross(n, t_rotated))
+    let hdott = dot(h, t_rotated)
+    let hdotb = dot(h, b)
+    let ndh = max(0.0, dot(n, h))
+    let alpha_x = max(0.001, roughness * roughness * (1.0 + anisotropy))
+    let alpha_y = max(0.001, roughness * roughness * (1.0 - anisotropy))
+    let term = (hdott * hdott) / (alpha_x * alpha_x) + (hdotb * hdotb) / (alpha_y * alpha_y) + ndh * ndh
+    let d = 1.0 / (3.14159 * alpha_x * alpha_y * term * term)
+    let vdh = max(0.0, dot(v, h))
+    let fresnel = 0.04 + 0.96 * pow(1.0 - vdh, 5.0)
+    let ndl = max(0.0, dot(n, l))
+    let ndv = max(0.0, dot(n, v))
+    let vis = 0.25 / max(0.001, ndl * ndv)
+    let specular = d * fresnel * vis
+    return vec4(vec3(specular, specular, specular), 1.0)
+
+shader fragment MetalFresnelRimPS(uv: Vec2) -> Vec4:
+    uniform metal_f0: Vec3 @0
+    uniform rim_intensity: Float @1
+    uniform rim_power: Float @2
+    uniform normal: Vec3 @3
+    uniform view_dir: Vec3 @4
+    
+    let n = normalize(normal)
+    let v = normalize(view_dir)
+    let ndv = max(0.0, dot(n, v))
+    let fresnel = metal_f0 + (vec3(1.0, 1.0, 1.0) - metal_f0) * pow(1.0 - ndv, 5.0)
+    let rim = pow(1.0 - ndv, rim_power) * rim_intensity
+    let color = fresnel * rim
+    return vec4(color, 1.0)
+
+# ============================================================================
+# SECTION 9: TOON SHADING MODELS
+# ============================================================================
+
+shader fragment ToonCelShadingPS(uv: Vec2) -> Vec4:
+    uniform band_count: Int @0
+    uniform band_smoothness: Float @1
+    uniform shadow_color: Vec3 @2
+    uniform normal: Vec3 @3
+    uniform light_dir: Vec3 @4
+    uniform base_color: Vec3 @5
+    
+    let n = normalize(normal)
+    let l = normalize(light_dir)
+    let ndl = max(0.0, dot(n, l))
+    let band_size = 1.0 / band_count
+    let band_index = floor(ndl / band_size)
+    let band_value = band_index * band_size
+    let next_band = (band_index + 1.0) * band_size
+    let smooth_factor = smoothstep(band_value - band_smoothness, band_value + band_smoothness, ndl)
+    let cel_shaded = lerp(band_value, next_band, smooth_factor)
+    let color = lerp(shadow_color, base_color, cel_shaded)
+    return vec4(color, 1.0)
+
+shader fragment ToonConfigurableBandsPS(uv: Vec2) -> Vec4:
+    uniform band_positions: Vec4 @0
+    uniform band_colors_0: Vec3 @1
+    uniform band_colors_1: Vec3 @2
+    uniform band_colors_2: Vec3 @3
+    uniform band_colors_3: Vec3 @4
+    uniform band_smoothness: Float @5
+    uniform normal: Vec3 @6
+    uniform light_dir: Vec3 @7
+    
+    let n = normalize(normal)
+    let l = normalize(light_dir)
+    let ndl = max(0.0, dot(n, l))
+    let color = if ndl < band_positions.x:
+        band_colors_0
+    else: if ndl < band_positions.y:
+        let t = smoothstep(band_positions.x - band_smoothness, band_positions.x + band_smoothness, ndl)
+        lerp(band_colors_0, band_colors_1, t)
+    else: if ndl < band_positions.z:
+        let t = smoothstep(band_positions.y - band_smoothness, band_positions.y + band_smoothness, ndl)
+        lerp(band_colors_1, band_colors_2, t)
+    else: if ndl < band_positions.w:
+        let t = smoothstep(band_positions.z - band_smoothness, band_positions.z + band_smoothness, ndl)
+        lerp(band_colors_2, band_colors_3, t)
+    else:
+        let t = smoothstep(band_positions.w - band_smoothness, band_positions.w + band_smoothness, ndl)
+        lerp(band_colors_3, vec3(1.0, 1.0, 1.0), t)
+    return vec4(color, 1.0)
+
+shader fragment ToonOutlineDetectionPS(uv: Vec2) -> Vec4:
+    uniform outline_thickness: Float @0
+    uniform outline_color: Vec3 @1
+    uniform depth_threshold: Float @2
+    uniform normal_threshold: Float @3
+    uniform depth_texture: Texture2D @4
+    uniform normal_texture: Texture2D @5
+    uniform screen_size: Vec2 @6
+    
+    let texel_size = vec2(1.0, 1.0) / screen_size
+    let depth_center = sample(depth_texture, uvec2((uv.x * screen_size.x), (uv.y * screen_size.y))).r
+    let normal_center = sample(normal_texture, uvec2((uv.x * screen_size.x), (uv.y * screen_size.y))).rgb
+    let depth_diff = 0.0
+    let normal_diff = 0.0
+    let i = 0
+    while i < 4:
+        let off_x = if i == 0: -1.0 else: if i == 1: 1.0 else: 0.0
+        let off_y = if i == 2: -1.0 else: if i == 3: 1.0 else: 0.0
+        let sample_uv = uv + vec2(off_x, off_y) * texel_size * outline_thickness
+        let sample_pos = uvec2((sample_uv.x * screen_size.x), (sample_uv.y * screen_size.y))
+        let depth_sample = sample(depth_texture, sample_pos).r
+        let normal_sample = sample(normal_texture, sample_pos).rgb
+        depth_diff = depth_diff + abs(depth_center - depth_sample)
+        normal_diff = normal_diff + length(normal_center - normal_sample)
+        i = i + 1
+    let is_edge = if depth_diff > depth_threshold or normal_diff > normal_threshold: 1.0 else: 0.0
+    let color = if is_edge > 0.5: outline_color else: vec3(0.0, 0.0, 0.0)
+    return vec4(color, is_edge)
+
+shader fragment ToonRimLightPS(uv: Vec2) -> Vec4:
+    uniform rim_color: Vec3 @0
+    uniform rim_power: Float @1
+    uniform rim_intensity: Float @2
+    uniform normal: Vec3 @3
+    uniform view_dir: Vec3 @4
+    
+    let n = normalize(normal)
+    let v = normalize(view_dir)
+    let ndv = max(0.0, dot(n, v))
+    let rim = pow(1.0 - ndv, rim_power) * rim_intensity
+    let color = rim_color * rim
+    return vec4(color, 1.0)
+
+shader fragment ToonSpecularPS(uv: Vec2) -> Vec4:
+    uniform specular_size: Float @0
+    uniform specular_smoothness: Float @1
+    uniform specular_intensity: Float @2
+    uniform normal: Vec3 @3
+    uniform view_dir: Vec3 @4
+    uniform light_dir: Vec3 @5
+    
+    let n = normalize(normal)
+    let v = normalize(view_dir)
+    let l = normalize(light_dir)
+    let h = normalize(l + v)
+    let ndh = max(0.0, dot(n, h))
+    let spec_threshold = 1.0 - specular_size
+    let spec_raw = if ndh > spec_threshold: 1.0 else: 0.0
+    let spec_smooth = smoothstep(spec_threshold - specular_smoothness, spec_threshold + specular_smoothness, ndh)
+    let specular = spec_smooth * specular_intensity
+    return vec4(vec3(specular, specular, specular), 1.0)
+
+# ============================================================================
+# SECTION 10: KSTUDIOCORE LAYER SYSTEM SHADERS
+# ============================================================================
+
+shader compute LayerAdjustmentCS(thread_id: Vec3) -> Unit:
+    uniform InputTexture: Texture2D @0
+    uniform TextureSize: UVec2 @1
+    uniform Brightness: Float @2
+    uniform Contrast: Float @3
+    uniform Saturation: Float @4
+    uniform Hue: Float @5
+    uniform Gamma: Float @6
+    uniform Exposure: Float @7
+    uniform OutputTexture: RWTexture2D<Vec4> @8
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let pos = uvec2(thread_id.x, thread_id.y)
+    let color = sample(InputTexture, pos)
+    let exposed = color.rgb * pow(2.0, Exposure)
+    let contrasted = (exposed - vec3(0.5, 0.5, 0.5)) * Contrast + vec3(0.5, 0.5, 0.5)
+    let brightened = contrasted + vec3(Brightness, Brightness, Brightness)
+    let hsl = RGBtoHSL(brightened)
+    let hsl_adjusted = vec3(frac(hsl.x + Hue), saturate(hsl.y * Saturation), hsl.z)
+    let rgb_adjusted = HSLtoRGB(hsl_adjusted)
+    let gamma_corrected = pow(saturate(rgb_adjusted), vec3(1.0 / Gamma, 1.0 / Gamma, 1.0 / Gamma))
+    write(OutputTexture, pos, vec4(gamma_corrected, color.a))
+
+shader compute LayerBlendCS(thread_id: Vec3) -> Unit:
+    uniform BaseLayer: Texture2D @0
+    uniform BlendLayer: Texture2D @1
+    uniform TextureSize: UVec2 @2
+    uniform BlendMode: UInt @3
+    uniform Opacity: Float @4
+    uniform MaskTexture: Texture2D @5
+    uniform UseMask: UInt @6
+    uniform OutputTexture: RWTexture2D<Vec4> @7
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let pos = uvec2(thread_id.x, thread_id.y)
+    let base = sample(BaseLayer, pos)
+    let blend = sample(BlendLayer, pos)
+    let mask = if UseMask > 0: sample(MaskTexture, pos).r else: 1.0
+    let blended = BlendColors(base.rgb, blend.rgb, BlendMode)
+    let final_opacity = Opacity * blend.a * mask
+    let result = lerp(base.rgb, blended, final_opacity)
+    let alpha = max(base.a, blend.a * final_opacity)
+    write(OutputTexture, pos, vec4(result, alpha))
+
+shader compute LayerFilterCS(thread_id: Vec3) -> Unit:
+    uniform InputTexture: Texture2D @0
+    uniform TextureSize: UVec2 @1
+    uniform FilterType: UInt @2
+    uniform FilterStrength: Float @3
+    uniform FilterRadius: Float @4
+    uniform FilterThreshold: Float @5
+    uniform OutputTexture: RWTexture2D<Vec4> @6
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let pos = uvec2(thread_id.x, thread_id.y)
+    let original = sample(InputTexture, pos)
+    let result = if FilterType == 0:
+        let blurred = vec4(0.0, 0.0, 0.0, 0.0)
+        let dy = -1
+        while dy <= 1:
+            let dx = -1
+            while dx <= 1:
+                let gw3 = if dx == 0 and dy == 0: 0.25 else: if dx == 0 or dy == 0: 0.125 else: 0.0625
+                let sample_pos = uvec2(clamp(pos.x + dx, 0, TextureSize.x - 1), clamp(pos.y + dy, 0, TextureSize.y - 1))
+                blurred = blurred + sample(InputTexture, sample_pos) * gw3
+                dx = dx + 1
+            dy = dy + 1
+        lerp(original, blurred, FilterStrength)
+    else: if FilterType == 1:
+        let center = sample(InputTexture, pos) * 5.0
+        let L = uvec2(max(0, pos.x - 1), pos.y)
+        let R = uvec2(min(TextureSize.x - 1, pos.x + 1), pos.y)
+        let U = uvec2(pos.x, max(0, pos.y - 1))
+        let D = uvec2(pos.x, min(TextureSize.y - 1, pos.y + 1))
+        let neighbors = sample(InputTexture, L) + sample(InputTexture, R) + sample(InputTexture, U) + sample(InputTexture, D)
+        let sharpened = center - neighbors
+        lerp(original, sharpened, FilterStrength)
+    else: if FilterType == 2:
+        let LumaWeights = vec3(0.333, 0.333, 0.333)
+        let TL = uvec2(max(0, pos.x - 1), max(0, pos.y - 1))
+        let TC = uvec2(pos.x, max(0, pos.y - 1))
+        let TR = uvec2(min(TextureSize.x - 1, pos.x + 1), max(0, pos.y - 1))
+        let ML = uvec2(max(0, pos.x - 1), pos.y)
+        let MR = uvec2(min(TextureSize.x - 1, pos.x + 1), pos.y)
+        let BL = uvec2(max(0, pos.x - 1), min(TextureSize.y - 1, pos.y + 1))
+        let BC = uvec2(pos.x, min(TextureSize.y - 1, pos.y + 1))
+        let BR = uvec2(min(TextureSize.x - 1, pos.x + 1), min(TextureSize.y - 1, pos.y + 1))
+        let tl = dot(sample(InputTexture, TL).rgb, LumaWeights)
+        let tc = dot(sample(InputTexture, TC).rgb, LumaWeights)
+        let tr = dot(sample(InputTexture, TR).rgb, LumaWeights)
+        let ml = dot(sample(InputTexture, ML).rgb, LumaWeights)
+        let mr = dot(sample(InputTexture, MR).rgb, LumaWeights)
+        let bl = dot(sample(InputTexture, BL).rgb, LumaWeights)
+        let bc = dot(sample(InputTexture, BC).rgb, LumaWeights)
+        let br = dot(sample(InputTexture, BR).rgb, LumaWeights)
+        let gx = -tl - 2.0 * ml - bl + tr + 2.0 * mr + br
+        let gy = -tl - 2.0 * tc - tr + bl + 2.0 * bc + br
+        let edge = sqrt(gx * gx + gy * gy)
+        vec4(edge, edge, edge, original.a)
+    else:
+        original
+    write(OutputTexture, pos, result)
+
+shader compute MathOperationsCS(thread_id: Vec3) -> Unit:
+    uniform InputA: Texture2D @0
+    uniform InputB: Texture2D @1
+    uniform TextureSize: UVec2 @2
+    uniform Operation: UInt @3
+    uniform Scalar: Float @4
+    uniform OutputTexture: RWTexture2D<Vec4> @5
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let pos = uvec2(thread_id.x, thread_id.y)
+    let a = sample(InputA, pos)
+    let b = sample(InputB, pos)
+    let result = if Operation == 0:
+        a + b
+    else: if Operation == 1:
+        a - b
+    else: if Operation == 2:
+        a * b
+    else: if Operation == 3:
+        a / max(b, vec4(0.001, 0.001, 0.001, 0.001))
+    else: if Operation == 4:
+        vec4(min(a.rgb, b.rgb), max(a.a, b.a))
+    else: if Operation == 5:
+        vec4(max(a.rgb, b.rgb), max(a.a, b.a))
+    else: if Operation == 6:
+        vec4(pow(a.rgb, vec3(Scalar, Scalar, Scalar)), a.a)
+    else: if Operation == 7:
+        vec4(a.rgb * Scalar, a.a)
+    else: if Operation == 8:
+        vec4(a.rgb + vec3(Scalar, Scalar, Scalar), a.a)
+    else: if Operation == 9:
+        vec4(abs(a.rgb - b.rgb), max(a.a, b.a))
+    else: if Operation == 10:
+        vec4(lerp(a.rgb, b.rgb, Scalar), lerp(a.a, b.a, Scalar))
+    else: if Operation == 11:
+        vec4(clamp(a.rgb, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0)), a.a)
+    else: if Operation == 12:
+        vec4(vec3(1.0, 1.0, 1.0) - a.rgb, a.a)
+    else: if Operation == 13:
+        let luma = dot(a.rgb, vec3(0.2126, 0.7152, 0.0722))
+        vec4(luma, luma, luma, a.a)
+    else: if Operation == 14:
+        vec4(floor(a.rgb * Scalar) / Scalar, a.a)
+    else:
+        a
+    write(OutputTexture, pos, result)
+
+shader compute ProceduralNoiseCS(thread_id: Vec3) -> Unit:
+    uniform TextureSize: UVec2 @0
+    uniform NoiseType: UInt @1
+    uniform Scale: Float @2
+    uniform Octaves: Int @3
+    uniform Seed: Float @4
+    uniform Amplitude: Float @5
+    uniform Frequency: Float @6
+    uniform OutputTexture: RWTexture2D<Vec4> @7
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let pos = uvec2(thread_id.x, thread_id.y)
+    let uv = vec2(pos.x, pos.y) / vec2(TextureSize.x, TextureSize.y)
+    let scaled_uv = uv * Scale * Frequency
+    let value = if NoiseType == 0:
+        PerlinNoise(scaled_uv, 1.0, Octaves, Seed) * Amplitude
+    else: if NoiseType == 1:
+        VoronoiEdges(scaled_uv, 1.0, 0.1, Seed) * Amplitude
+    else: if NoiseType == 2:
+        (1.0 - WorleyNoise(scaled_uv, 1.0, 1.0, Seed)) * Amplitude
+    else: if NoiseType == 3:
+        RidgedNoise(scaled_uv, 1.0, Octaves, Seed) * Amplitude
+    else: if NoiseType == 4:
+        Turbulence(scaled_uv, 1.0, Octaves, Seed) * Amplitude
+    else: if NoiseType == 5:
+        FBM(scaled_uv, Octaves) * Amplitude
+    else: if NoiseType == 6:
+        SmoothNoise(scaled_uv) * Amplitude
+    else:
+        0.5
+    let clamped = saturate(value)
+    write(OutputTexture, pos, vec4(clamped, clamped, clamped, 1.0))
+
+# ============================================================================
+# SECTION 11: ADVANCED SHADING HELPERS - GGX, Fresnel, Smith Visibility
+# ============================================================================
+
+fn FresnelSchlick(f0: Vec3, vdh: Float) -> Vec3:
+    return f0 + (vec3(1.0, 1.0, 1.0) - f0) * pow(1.0 - vdh, 5.0)
+
+fn FresnelSchlickScalar(f0: Float, vdh: Float) -> Float:
+    return f0 + (1.0 - f0) * pow(1.0 - vdh, 5.0)
+
+fn GGXDistribution(ndh: Float, roughness: Float) -> Float:
+    let alpha = roughness * roughness
+    let alpha2 = alpha * alpha
+    let denom = ndh * ndh * (alpha2 - 1.0) + 1.0
+    return alpha2 / (3.14159 * denom * denom)
+
+fn SmithVisibilityGGX(ndl: Float, ndv: Float, roughness: Float) -> Float:
+    let alpha = roughness * roughness
+    let alpha2 = alpha * alpha
+    let lambda_v = ndl * sqrt(ndv * ndv * (1.0 - alpha2) + alpha2)
+    let lambda_l = ndv * sqrt(ndl * ndl * (1.0 - alpha2) + alpha2)
+    return 0.5 / max(lambda_v + lambda_l, 0.001)
+
+shader fragment PBRStandardPS(uv: Vec2) -> Vec4:
+    uniform base_color: Vec3 @0
+    uniform metallic: Float @1
+    uniform roughness: Float @2
+    uniform normal: Vec3 @3
+    uniform view_dir: Vec3 @4
+    uniform light_dir: Vec3 @5
+    uniform light_color: Vec3 @6
+    uniform light_intensity: Float @7
+    
+    let n = normalize(normal)
+    let v = normalize(view_dir)
+    let l = normalize(light_dir)
+    let h = normalize(l + v)
+    let ndl = max(0.0, dot(n, l))
+    let ndv = max(0.0, dot(n, v))
+    let ndh = max(0.0, dot(n, h))
+    let vdh = max(0.0, dot(v, h))
+    let f0 = lerp(vec3(0.04, 0.04, 0.04), base_color, metallic)
+    let D = GGXDistribution(ndh, roughness)
+    let F = FresnelSchlick(f0, vdh)
+    let G = SmithVisibilityGGX(ndl, ndv, roughness)
+    let specular = D * F * G
+    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - metallic)
+    let diffuse = kD * base_color / 3.14159
+    let radiance = light_color * light_intensity * ndl
+    let color = (diffuse + specular) * radiance
+    return vec4(color, 1.0)
+
+shader fragment PBRClearCoatPS(uv: Vec2) -> Vec4:
+    uniform base_color: Vec3 @0
+    uniform metallic: Float @1
+    uniform roughness: Float @2
+    uniform clear_coat: Float @3
+    uniform clear_coat_roughness: Float @4
+    uniform normal: Vec3 @5
+    uniform view_dir: Vec3 @6
+    uniform light_dir: Vec3 @7
+    uniform light_color: Vec3 @8
+    uniform light_intensity: Float @9
+    
+    let n = normalize(normal)
+    let v = normalize(view_dir)
+    let l = normalize(light_dir)
+    let h = normalize(l + v)
+    let ndl = max(0.0, dot(n, l))
+    let ndv = max(0.0, dot(n, v))
+    let ndh = max(0.0, dot(n, h))
+    let vdh = max(0.0, dot(v, h))
+    let f0_base = lerp(vec3(0.04, 0.04, 0.04), base_color, metallic)
+    let D_base = GGXDistribution(ndh, roughness)
+    let F_base = FresnelSchlick(f0_base, vdh)
+    let G_base = SmithVisibilityGGX(ndl, ndv, roughness)
+    let specular_base = D_base * F_base * G_base
+    let kD = (vec3(1.0, 1.0, 1.0) - F_base) * (1.0 - metallic)
+    let diffuse = kD * base_color / 3.14159
+    let D_coat = GGXDistribution(ndh, clear_coat_roughness)
+    let F_coat = FresnelSchlickScalar(0.04, vdh)
+    let G_coat = SmithVisibilityGGX(ndl, ndv, clear_coat_roughness)
+    let specular_coat = D_coat * F_coat * G_coat
+    let radiance = light_color * light_intensity * ndl
+    let base_layer = (diffuse + specular_base) * radiance
+    let coat_layer = vec3(specular_coat, specular_coat, specular_coat) * radiance * clear_coat
+    let color = base_layer * (1.0 - F_coat * clear_coat) + coat_layer
+    return vec4(color, 1.0)
+
+# ============================================================================
+# SECTION 12: UTILITY SHADERS - Texture Sampling, UV Manipulation, Color Space
+# ============================================================================
+
+shader compute TextureCombineCS(thread_id: Vec3) -> Unit:
+    uniform TextureR: Texture2D @0
+    uniform TextureG: Texture2D @1
+    uniform TextureB: Texture2D @2
+    uniform TextureA: Texture2D @3
+    uniform TextureSize: UVec2 @4
+    uniform UseR: UInt @5
+    uniform UseG: UInt @6
+    uniform UseB: UInt @7
+    uniform UseA: UInt @8
+    uniform OutputTexture: RWTexture2D<Vec4> @9
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let pos = uvec2(thread_id.x, thread_id.y)
+    let r = if UseR > 0: sample(TextureR, pos).r else: 0.0
+    let g = if UseG > 0: sample(TextureG, pos).r else: 0.0
+    let b = if UseB > 0: sample(TextureB, pos).r else: 0.0
+    let a = if UseA > 0: sample(TextureA, pos).r else: 1.0
+    write(OutputTexture, pos, vec4(r, g, b, a))
+
+shader compute TextureSplitCS(thread_id: Vec3) -> Unit:
+    uniform InputTexture: Texture2D @0
+    uniform TextureSize: UVec2 @1
+    uniform Channel: UInt @2
+    uniform OutputTexture: RWTexture2D<Float> @3
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let pos = uvec2(thread_id.x, thread_id.y)
+    let color = sample(InputTexture, pos)
+    let value = if Channel == 0: color.r else: if Channel == 1: color.g else: if Channel == 2: color.b else: color.a
+    write(OutputTexture, pos, value)
+
+shader compute UVTransformCS(thread_id: Vec3) -> Unit:
+    uniform InputTexture: Texture2D @0
+    uniform TextureSize: UVec2 @1
+    uniform Offset: Vec2 @2
+    uniform Scale: Vec2 @3
+    uniform Rotation: Float @4
+    uniform TilingMode: UInt @5
+    uniform OutputTexture: RWTexture2D<Vec4> @6
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let pos = uvec2(thread_id.x, thread_id.y)
+    let uv = vec2(pos.x, pos.y) / vec2(TextureSize.x, TextureSize.y)
+    let centered = uv - vec2(0.5, 0.5)
+    let cos_r = cos(Rotation)
+    let sin_r = sin(Rotation)
+    let rotated = vec2(centered.x * cos_r - centered.y * sin_r, centered.x * sin_r + centered.y * cos_r)
+    let scaled = rotated / Scale
+    let transformed = scaled + vec2(0.5, 0.5) + Offset
+    let final_uv = if TilingMode == 0:
+        saturate(transformed)
+    else: if TilingMode == 1:
+        frac(transformed)
+    else:
+        abs(frac(transformed * 0.5) * 2.0 - vec2(1.0, 1.0))
+    let sample_pos = uvec2((final_uv.x * TextureSize.x), (final_uv.y * TextureSize.y))
+    let color = sample(InputTexture, sample_pos)
+    write(OutputTexture, pos, color)
+
+shader compute ColorSpaceConvertCS(thread_id: Vec3) -> Unit:
+    uniform InputTexture: Texture2D @0
+    uniform TextureSize: UVec2 @1
+    uniform ConversionType: UInt @2
+    uniform OutputTexture: RWTexture2D<Vec4> @3
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let pos = uvec2(thread_id.x, thread_id.y)
+    let color = sample(InputTexture, pos)
+    let result = if ConversionType == 0:
+        vec4(LinearizeGamma(color.rgb), color.a)
+    else: if ConversionType == 1:
+        vec4(pow(color.rgb, vec3(1.0 / 2.2, 1.0 / 2.2, 1.0 / 2.2)), color.a)
+    else: if ConversionType == 2:
+        let hsl = RGBtoHSL(color.rgb)
+        vec4(hsl, color.a)
+    else: if ConversionType == 3:
+        let rgb = HSLtoRGB(color.rgb)
+        vec4(rgb, color.a)
+    else:
+        color
+    write(OutputTexture, pos, result)
+
+shader compute NormalMapConvertCS(thread_id: Vec3) -> Unit:
+    uniform InputTexture: Texture2D @0
+    uniform TextureSize: UVec2 @1
+    uniform Strength: Float @2
+    uniform FlipY: UInt @3
+    uniform OutputTexture: RWTexture2D<Vec4> @4
+    
+    if thread_id.x >= TextureSize.x or thread_id.y >= TextureSize.y:
+        return
+    
+    let pos = uvec2(thread_id.x, thread_id.y)
+    let color = sample(InputTexture, pos)
+    let normal = color.rgb * 2.0 - vec3(1.0, 1.0, 1.0)
+    let normal_scaled = vec3(normal.x * Strength, normal.y * Strength * (if FlipY > 0: -1.0 else: 1.0), normal.z)
+    let normal_normalized = normalize(normal_scaled)
+    let normal_encoded = normal_normalized * 0.5 + vec3(0.5, 0.5, 0.5)
+    write(OutputTexture, pos, vec4(normal_encoded, color.a))

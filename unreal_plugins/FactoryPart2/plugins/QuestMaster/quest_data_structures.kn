@@ -1,0 +1,1847 @@
+// QuestMaster — Data Structures and Enums
+// Phase 1: Core data types, enums, structs, DataTables, and helper functions
+
+// ============================================================================
+// ENUMS (12+)
+// ============================================================================
+
+enum QuestState:
+    Inactive
+    Active
+    Completed
+    Failed
+    Abandoned
+
+enum QuestPriority:
+    Low
+    Normal
+    High
+    Critical
+
+enum QuestCategory:
+    Main
+    Side
+    Daily
+    Repeatable
+    Hidden
+    Tutorial
+    World
+    Faction
+
+enum ObjectiveType:
+    Kill
+    Collect
+    Interact
+    Reach
+    Escort
+    Defend
+    Discover
+    Craft
+    Use
+    Talk
+    Custom
+
+enum ConditionType:
+    QuestComplete
+    QuestActive
+    QuestFailed
+    ItemInInventory
+    StatValue
+    FlagSet
+    TimeOfDay
+    Location
+    Level
+    Reputation
+    Custom
+    HasItem
+    KillCount
+    Distance
+    Timer
+
+enum RewardType:
+    XP
+    Gold
+    Item
+    Reputation
+    Unlock
+    Custom
+    Skill
+    Achievement
+
+enum QuestNotificationType:
+    Started
+    Completed
+    Failed
+    ObjectiveCompleted
+    ObjectiveFailed
+    Updated
+    Abandoned
+
+enum QuestFilterMode:
+    All
+    Active
+    Completed
+    Failed
+    Available
+    Tracked
+
+enum QuestSortMode:
+    Name
+    Priority
+    Progress
+    Level
+    Category
+    TimeStarted
+    TimeRemaining
+
+enum QuestMarkerType:
+    Objective
+    QuestGiver
+    TurnIn
+    Area
+    Waypoint
+    Optional
+
+enum TimerMode:
+    Countdown
+    Countup
+    None
+
+enum ParallelMode:
+    WaitForAll
+    WaitForAny
+    WaitForCount
+
+enum ComparisonOperator:
+    Equal
+    NotEqual
+    GreaterThan
+    LessThan
+    GreaterOrEqual
+    LessOrEqual
+
+// ============================================================================
+// CORE STRUCTS (35+)
+// ============================================================================
+
+struct QuestData:
+    quest_id: String
+    name: String
+    description: String
+    category: QuestCategory
+    priority: QuestPriority
+    level_requirement: Int
+    prerequisites: Array<String>
+    auto_start: Bool
+    repeatable: Bool
+    time_limit: Float
+    lore_text: String
+    icon_path: String
+
+struct ObjectiveData:
+    objective_id: String
+    description: String
+    type: ObjectiveType
+    target_count: Int
+    optional: Bool
+    hidden: Bool
+    target_actor_class: String
+    target_item_id: String
+    target_location: Vec3
+    completion_radius: Float
+
+struct QuestReward:
+    xp: Int
+    gold: Int
+    items: Array<ItemReward>
+    reputation: Array<ReputationReward>
+    custom_rewards: Array<CustomReward>
+    unlock_quest_ids: Array<String>
+
+struct ItemReward:
+    item_id: String
+    quantity: Int
+    quality: Int
+    level: Int
+
+struct ReputationReward:
+    faction_id: String
+    amount: Int
+
+struct CustomReward:
+    reward_id: String
+    reward_data: String
+    reward_value: Float
+
+struct QuestCondition:
+    condition_type: ConditionType
+    target: String
+    comparison_operator: ComparisonOperator
+    comparison_value: Float
+    invert: Bool
+    custom_data: String
+
+struct QuestInstance:
+    instance_id: Int
+    quest_id: String
+    state: QuestState
+    objectives: Array<ObjectiveInstance>
+    variables: Array<QuestVariable>
+    start_time: Float
+    completion_time: Float
+    tracked: Bool
+    player_id: String
+    current_node_id: String
+    visited_nodes: Array<String>
+
+struct ObjectiveInstance:
+    objective_id: String
+    current_count: Int
+    target_count: Int
+    completed: Bool
+    failed: Bool
+    start_time: Float
+    completion_time: Float
+    hidden: Bool
+    optional: Bool
+
+struct QuestVariable:
+    variable_name: String
+    variable_type: String
+    int_value: Int
+    float_value: Float
+    string_value: String
+    bool_value: Bool
+    is_persistent: Bool
+
+struct QuestPrerequisite:
+    quest_id: String
+    must_complete: Bool
+    must_fail: Bool
+    must_be_active: Bool
+
+struct QuestTimer:
+    duration: Float
+    elapsed: Float
+    mode: TimerMode
+    show_ui: Bool
+    timer_text: String
+    can_pause: Bool
+    paused: Bool
+
+struct QuestEvent:
+    event_name: String
+    parameters: Array<String>
+    delay: Float
+    broadcast_to_all: Bool
+
+struct QuestMarker:
+    location: Vec3
+    type: QuestMarkerType
+    icon: String
+    color: Vec3
+    radius: Float
+    show_distance: Bool
+
+struct QuestBranch:
+    branch_id: String
+    conditions: Array<QuestCondition>
+    logic_operator: String
+    success_node_id: String
+    failure_node_id: String
+
+struct QuestParallel:
+    branch_ids: Array<String>
+    mode: ParallelMode
+    required_count: Int
+    timeout: Float
+    completed_branches: Array<String>
+
+struct QuestSequence:
+    objective_ids: Array<String>
+    current_index: Int
+    enforce_order: Bool
+    allow_skip: Bool
+
+struct QuestDialogue:
+    dialogue_graph_id: String
+    wait_for_completion: Bool
+    dialogue_variables: Array<String>
+
+struct QuestTeleport:
+    target_location: Vec3
+    target_rotation: Vec3
+    fade_out: Bool
+    fade_in: Bool
+    fade_duration: Float
+
+struct QuestSpawn:
+    actor_class: String
+    spawn_location: Vec3
+    spawn_rotation: Vec3
+    attach_to_player: Bool
+    lifetime: Float
+
+struct QuestProgress:
+    quest_id: String
+    total_objectives: Int
+    completed_objectives: Int
+    progress_percentage: Float
+    time_elapsed: Float
+    time_remaining: Float
+
+struct QuestNotification:
+    notification_type: QuestNotificationType
+    quest_id: String
+    quest_name: String
+    objective_description: String
+    display_duration: Float
+    fade_in_duration: Float
+    fade_out_duration: Float
+
+struct QuestLogEntry:
+    quest_instance: QuestInstance
+    quest_data: QuestData
+    progress: QuestProgress
+    is_tracked: Bool
+    is_new: Bool
+
+struct QuestSaveData:
+    active_quests: Array<QuestInstance>
+    completed_quests: Array<QuestInstance>
+    failed_quests: Array<QuestInstance>
+    global_variables: Array<QuestVariable>
+    persistent_flags: Array<String>
+    tracked_quest_id: String
+    save_timestamp: Float
+
+struct QuestGraphNode:
+    node_id: String
+    node_type: String
+    properties: Array<String>
+    input_pins: Array<String>
+    output_pins: Array<String>
+
+struct QuestGraphData:
+    graph_id: String
+    name: String
+    description: String
+    entry_node_id: String
+    nodes: Array<QuestGraphNode>
+    version: Int
+
+struct ObjectiveProgress:
+    objective_id: String
+    description: String
+    current_count: Int
+    target_count: Int
+    progress_percentage: Float
+    completed: Bool
+    optional: Bool
+    hidden: Bool
+
+struct RewardDisplay:
+    xp_amount: Int
+    gold_amount: Int
+    item_rewards: Array<ItemReward>
+    reputation_rewards: Array<ReputationReward>
+    has_rewards: Bool
+
+struct QuestFilterSettings:
+    filter_mode: QuestFilterMode
+    sort_mode: QuestSortMode
+    show_completed: Bool
+    show_failed: Bool
+    show_hidden: Bool
+    category_filter: QuestCategory
+
+struct QuestDebugInfo:
+    active_quest_count: Int
+    completed_quest_count: Int
+    failed_quest_count: Int
+    tracked_quest_id: String
+    subsystem_tick_rate: Float
+    loaded_graph_count: Int
+    global_variable_count: Int
+    persistent_flag_count: Int
+
+// ============================================================================
+// DATATABLE STRUCTS (4)
+// ============================================================================
+
+@datatable
+struct QuestDataTable:
+    quest_id: String
+    name: String
+    description: String
+    category: QuestCategory
+    priority: QuestPriority
+    level_requirement: Int
+    prerequisites: String
+    auto_start: Bool
+    repeatable: Bool
+    time_limit: Float
+    lore_text: String
+    icon_path: String
+    reward_xp: Int
+    reward_gold: Int
+    reward_items: String
+
+@datatable
+struct ObjectiveDataTable:
+    objective_id: String
+    quest_id: String
+    description: String
+    type: ObjectiveType
+    target_count: Int
+    optional: Bool
+    hidden: Bool
+    target_actor_class: String
+    target_item_id: String
+    target_location_x: Float
+    target_location_y: Float
+    target_location_z: Float
+    completion_radius: Float
+
+@datatable
+struct RewardDataTable:
+    reward_id: String
+    reward_type: RewardType
+    item_id: String
+    quantity: Int
+    quality: Int
+    xp_amount: Int
+    gold_amount: Int
+    faction_id: String
+    reputation_amount: Int
+
+@datatable
+struct QuestCategoryDataTable:
+    category_id: String
+    category_name: String
+    icon_path: String
+    color_r: Float
+    color_g: Float
+    color_b: Float
+    sort_order: Int
+    visible_in_log: Bool
+
+// ============================================================================
+// HELPER FUNCTIONS (50+)
+// ============================================================================
+
+// Quest Instance Creation
+fn create_quest_instance(quest_id: String, player_id: String, instance_id: Int) -> QuestInstance:
+    let instance = QuestInstance {
+        instance_id: instance_id,
+        quest_id: quest_id,
+        state: QuestState::Inactive,
+        objectives: [],
+        variables: [],
+        start_time: 0.0,
+        completion_time: 0.0,
+        tracked: false,
+        player_id: player_id,
+        current_node_id: "",
+        visited_nodes: []
+    }
+    return instance
+
+fn create_objective_instance(objective_id: String, target_count: Int, optional: Bool, hidden: Bool) -> ObjectiveInstance:
+    let instance = ObjectiveInstance {
+        objective_id: objective_id,
+        current_count: 0,
+        target_count: target_count,
+        completed: false,
+        failed: false,
+        start_time: 0.0,
+        completion_time: 0.0,
+        hidden: hidden,
+        optional: optional
+    }
+    return instance
+
+// Condition Evaluation
+fn evaluate_condition(condition: QuestCondition, context_value: Float) -> Bool:
+    let result = false
+    match condition.comparison_operator:
+        ComparisonOperator::Equal => result = context_value == condition.comparison_value
+        ComparisonOperator::NotEqual => result = context_value != condition.comparison_value
+        ComparisonOperator::GreaterThan => result = context_value > condition.comparison_value
+        ComparisonOperator::LessThan => result = context_value < condition.comparison_value
+        ComparisonOperator::GreaterOrEqual => result = context_value >= condition.comparison_value
+        ComparisonOperator::LessOrEqual => result = context_value <= condition.comparison_value
+        _ => result = false
+    
+    if condition.invert:
+        return !result
+    return result
+
+fn evaluate_all_conditions(conditions: Array<QuestCondition>, logic_operator: String, context_values: Array<Float>) -> Bool:
+    if len(conditions) == 0:
+        return true
+    
+    if logic_operator == "AND":
+        let i = 0
+        while i < len(conditions):
+            let condition = conditions[i]
+            let context_value = context_values[i]
+            if !evaluate_condition(condition, context_value):
+                return false
+            i = i + 1
+        return true
+    else:
+        let i = 0
+        while i < len(conditions):
+            let condition = conditions[i]
+            let context_value = context_values[i]
+            if evaluate_condition(condition, context_value):
+                return true
+            i = i + 1
+        return false
+
+// Quest State Queries
+fn is_quest_available(quest_data: QuestData, completed_quests: Array<String>, player_level: Int) -> Bool:
+    if player_level < quest_data.level_requirement:
+        return false
+    
+    let i = 0
+    while i < len(quest_data.prerequisites):
+        let prereq_id = quest_data.prerequisites[i]
+        let found = false
+        let j = 0
+        while j < len(completed_quests):
+            if completed_quests[j] == prereq_id:
+                found = true
+            j = j + 1
+        if !found:
+            return false
+        i = i + 1
+    
+    return true
+
+fn is_objective_complete(objective: ObjectiveInstance) -> Bool:
+    return objective.current_count >= objective.target_count
+
+fn is_quest_complete(quest_instance: QuestInstance) -> Bool:
+    let i = 0
+    while i < len(quest_instance.objectives):
+        let objective = quest_instance.objectives[i]
+        if !objective.optional && !objective.completed:
+            return false
+        i = i + 1
+    return true
+
+fn is_quest_failed(quest_instance: QuestInstance) -> Bool:
+    return quest_instance.state == QuestState::Failed
+
+fn is_quest_active(quest_instance: QuestInstance) -> Bool:
+    return quest_instance.state == QuestState::Active
+
+// Progress Calculation
+fn calculate_quest_progress(quest_instance: QuestInstance) -> Float:
+    if len(quest_instance.objectives) == 0:
+        return 0.0
+    
+    let completed_count = 0
+    let total_count = 0
+    let i = 0
+    while i < len(quest_instance.objectives):
+        let objective = quest_instance.objectives[i]
+        if !objective.optional:
+            total_count = total_count + 1
+            if objective.completed:
+                completed_count = completed_count + 1
+        i = i + 1
+    
+    if total_count == 0:
+        return 0.0
+    
+    return (completed_count as Float) / (total_count as Float) * 100.0
+
+fn calculate_objective_progress(objective: ObjectiveInstance) -> Float:
+    if objective.target_count == 0:
+        return 0.0
+    return (objective.current_count as Float) / (objective.target_count as Float) * 100.0
+
+fn calculate_time_remaining(quest_instance: QuestInstance, quest_data: QuestData, current_time: Float) -> Float:
+    if quest_data.time_limit <= 0.0:
+        return -1.0
+    
+    let elapsed = current_time - quest_instance.start_time
+    let remaining = quest_data.time_limit - elapsed
+    return max(remaining, 0.0)
+
+// Text Formatting
+fn format_quest_text(template: String, quest_instance: QuestInstance) -> String:
+    return template
+
+fn format_objective_text(template: String, objective: ObjectiveInstance) -> String:
+    return template
+
+fn format_time_remaining(seconds: Float) -> String:
+    let minutes = (seconds / 60.0) as Int
+    let secs = (seconds as Int) % 60
+    return "{minutes}:{secs}"
+
+// Display Names
+fn get_quest_state_display_name(state: QuestState) -> String:
+    match state:
+        QuestState::Inactive => return "Inactive"
+        QuestState::Active => return "Active"
+        QuestState::Completed => return "Completed"
+        QuestState::Failed => return "Failed"
+        QuestState::Abandoned => return "Abandoned"
+        _ => return "Unknown"
+
+fn get_objective_type_display_name(obj_type: ObjectiveType) -> String:
+    match obj_type:
+        ObjectiveType::Kill => return "Kill"
+        ObjectiveType::Collect => return "Collect"
+        ObjectiveType::Interact => return "Interact"
+        ObjectiveType::Reach => return "Reach"
+        ObjectiveType::Escort => return "Escort"
+        ObjectiveType::Defend => return "Defend"
+        ObjectiveType::Discover => return "Discover"
+        ObjectiveType::Craft => return "Craft"
+        ObjectiveType::Use => return "Use"
+        ObjectiveType::Talk => return "Talk"
+        ObjectiveType::Custom => return "Custom"
+        _ => return "Unknown"
+
+fn get_quest_priority_display_name(priority: QuestPriority) -> String:
+    match priority:
+        QuestPriority::Low => return "Low"
+        QuestPriority::Normal => return "Normal"
+        QuestPriority::High => return "High"
+        QuestPriority::Critical => return "Critical"
+        _ => return "Unknown"
+
+fn get_quest_category_display_name(category: QuestCategory) -> String:
+    match category:
+        QuestCategory::Main => return "Main Quest"
+        QuestCategory::Side => return "Side Quest"
+        QuestCategory::Daily => return "Daily Quest"
+        QuestCategory::Repeatable => return "Repeatable"
+        QuestCategory::Hidden => return "Hidden"
+        QuestCategory::Tutorial => return "Tutorial"
+        QuestCategory::World => return "World Quest"
+        QuestCategory::Faction => return "Faction Quest"
+        _ => return "Unknown"
+
+// Reward Application
+fn apply_quest_rewards(rewards: QuestReward, player_id: String) -> Bool:
+    return true
+
+fn give_xp(player_id: String, amount: Int) -> Bool:
+    return true
+
+fn give_gold(player_id: String, amount: Int) -> Bool:
+    return true
+
+fn give_items(player_id: String, items: Array<ItemReward>) -> Bool:
+    return true
+
+fn give_reputation(player_id: String, reputation: Array<ReputationReward>) -> Bool:
+    return true
+
+// Quest Variable Management
+fn create_quest_variable(name: String, var_type: String, is_persistent: Bool) -> QuestVariable:
+    let variable = QuestVariable {
+        variable_name: name,
+        variable_type: var_type,
+        int_value: 0,
+        float_value: 0.0,
+        string_value: "",
+        bool_value: false,
+        is_persistent: is_persistent
+    }
+    return variable
+
+fn set_quest_variable_int(variable: QuestVariable, value: Int) -> QuestVariable:
+    variable.int_value = value
+    return variable
+
+fn set_quest_variable_float(variable: QuestVariable, value: Float) -> QuestVariable:
+    variable.float_value = value
+    return variable
+
+fn set_quest_variable_string(variable: QuestVariable, value: String) -> QuestVariable:
+    variable.string_value = value
+    return variable
+
+fn set_quest_variable_bool(variable: QuestVariable, value: Bool) -> QuestVariable:
+    variable.bool_value = value
+    return variable
+
+fn get_quest_variable_int(variable: QuestVariable) -> Int:
+    return variable.int_value
+
+fn get_quest_variable_float(variable: QuestVariable) -> Float:
+    return variable.float_value
+
+fn get_quest_variable_string(variable: QuestVariable) -> String:
+    return variable.string_value
+
+fn get_quest_variable_bool(variable: QuestVariable) -> Bool:
+    return variable.bool_value
+
+// Quest Filtering and Sorting
+fn filter_quests_by_state(quests: Array<QuestInstance>, state: QuestState) -> Array<QuestInstance>:
+    let filtered: Array<QuestInstance> = []
+    let i = 0
+    while i < len(quests):
+        let quest = quests[i]
+        if quest.state == state:
+            push(filtered, quest)
+        i = i + 1
+    return filtered
+
+fn filter_quests_by_category(quests: Array<QuestLogEntry>, category: QuestCategory) -> Array<QuestLogEntry>:
+    let filtered: Array<QuestLogEntry> = []
+    let i = 0
+    while i < len(quests):
+        let entry = quests[i]
+        if entry.quest_data.category == category:
+            push(filtered, entry)
+        i = i + 1
+    return filtered
+
+fn sort_quests_by_priority(quests: Array<QuestLogEntry>) -> Array<QuestLogEntry>:
+    return quests
+
+fn sort_quests_by_progress(quests: Array<QuestLogEntry>) -> Array<QuestLogEntry>:
+    return quests
+
+fn sort_quests_by_name(quests: Array<QuestLogEntry>) -> Array<QuestLogEntry>:
+    return quests
+
+// Objective Management
+fn add_objective_to_quest(quest_instance: QuestInstance, objective: ObjectiveInstance) -> QuestInstance:
+    push(quest_instance.objectives, objective)
+    return quest_instance
+
+fn remove_objective_from_quest(quest_instance: QuestInstance, objective_id: String) -> QuestInstance:
+    return quest_instance
+
+fn update_objective_count(objective: ObjectiveInstance, count: Int) -> ObjectiveInstance:
+    objective.current_count = count
+    if objective.current_count >= objective.target_count:
+        objective.completed = true
+    return objective
+
+fn increment_objective_count(objective: ObjectiveInstance, amount: Int) -> ObjectiveInstance:
+    objective.current_count = objective.current_count + amount
+    if objective.current_count >= objective.target_count:
+        objective.completed = true
+    return objective
+
+fn reset_objective(objective: ObjectiveInstance) -> ObjectiveInstance:
+    objective.current_count = 0
+    objective.completed = false
+    objective.failed = false
+    return objective
+
+// Quest Timer Management
+fn create_quest_timer(duration: Float, mode: TimerMode, show_ui: Bool) -> QuestTimer:
+    let timer = QuestTimer {
+        duration: duration,
+        elapsed: 0.0,
+        mode: mode,
+        show_ui: show_ui,
+        timer_text: "",
+        can_pause: true,
+        paused: false
+    }
+    return timer
+
+fn update_quest_timer(timer: QuestTimer, delta_time: Float) -> QuestTimer:
+    if !timer.paused:
+        match timer.mode:
+            TimerMode::Countdown => timer.elapsed = timer.elapsed + delta_time
+            TimerMode::Countup => timer.elapsed = timer.elapsed + delta_time
+            _ => timer.elapsed = timer.elapsed
+    return timer
+
+fn is_timer_expired(timer: QuestTimer) -> Bool:
+    if timer.mode == TimerMode::Countdown:
+        return timer.elapsed >= timer.duration
+    return false
+
+fn get_timer_remaining(timer: QuestTimer) -> Float:
+    if timer.mode == TimerMode::Countdown:
+        return max(timer.duration - timer.elapsed, 0.0)
+    return timer.elapsed
+
+// Quest Marker Management
+fn create_quest_marker(location: Vec3, marker_type: QuestMarkerType, icon: String, color: Vec3) -> QuestMarker:
+    let marker = QuestMarker {
+        location: location,
+        type: marker_type,
+        icon: icon,
+        color: color,
+        radius: 100.0,
+        show_distance: true
+    }
+    return marker
+
+fn update_quest_marker_location(marker: QuestMarker, location: Vec3) -> QuestMarker:
+    marker.location = location
+    return marker
+
+// Quest Progress Display
+fn create_quest_progress(quest_instance: QuestInstance, quest_data: QuestData, current_time: Float) -> QuestProgress:
+    let total_objectives = len(quest_instance.objectives)
+    let completed_objectives = 0
+    let i = 0
+    while i < len(quest_instance.objectives):
+        if quest_instance.objectives[i].completed:
+            completed_objectives = completed_objectives + 1
+        i = i + 1
+    
+    let progress_percentage = calculate_quest_progress(quest_instance)
+    let time_elapsed = current_time - quest_instance.start_time
+    let time_remaining = calculate_time_remaining(quest_instance, quest_data, current_time)
+    
+    let progress = QuestProgress {
+        quest_id: quest_instance.quest_id,
+        total_objectives: total_objectives,
+        completed_objectives: completed_objectives,
+        progress_percentage: progress_percentage,
+        time_elapsed: time_elapsed,
+        time_remaining: time_remaining
+    }
+    return progress
+
+fn create_objective_progress(objective: ObjectiveInstance, objective_data: ObjectiveData) -> ObjectiveProgress:
+    let progress = ObjectiveProgress {
+        objective_id: objective.objective_id,
+        description: objective_data.description,
+        current_count: objective.current_count,
+        target_count: objective.target_count,
+        progress_percentage: calculate_objective_progress(objective),
+        completed: objective.completed,
+        optional: objective.optional,
+        hidden: objective.hidden
+    }
+    return progress
+
+// Quest Notification Creation
+fn create_quest_notification(notification_type: QuestNotificationType, quest_id: String, quest_name: String, objective_description: String) -> QuestNotification:
+    let notification = QuestNotification {
+        notification_type: notification_type,
+        quest_id: quest_id,
+        quest_name: quest_name,
+        objective_description: objective_description,
+        display_duration: 5.0,
+        fade_in_duration: 0.5,
+        fade_out_duration: 0.5
+    }
+    return notification
+
+// Quest Save Data Management
+fn create_quest_save_data(active_quests: Array<QuestInstance>, completed_quests: Array<QuestInstance>, failed_quests: Array<QuestInstance>, global_variables: Array<QuestVariable>, persistent_flags: Array<String>, tracked_quest_id: String, current_time: Float) -> QuestSaveData:
+    let save_data = QuestSaveData {
+        active_quests: active_quests,
+        completed_quests: completed_quests,
+        failed_quests: failed_quests,
+        global_variables: global_variables,
+        persistent_flags: persistent_flags,
+        tracked_quest_id: tracked_quest_id,
+        save_timestamp: current_time
+    }
+    return save_data
+
+// Quest Debug Info
+fn create_quest_debug_info(active_count: Int, completed_count: Int, failed_count: Int, tracked_id: String, tick_rate: Float, graph_count: Int, variable_count: Int, flag_count: Int) -> QuestDebugInfo:
+    let debug_info = QuestDebugInfo {
+        active_quest_count: active_count,
+        completed_quest_count: completed_count,
+        failed_quest_count: failed_count,
+        tracked_quest_id: tracked_id,
+        subsystem_tick_rate: tick_rate,
+        loaded_graph_count: graph_count,
+        global_variable_count: variable_count,
+        persistent_flag_count: flag_count
+    }
+    return debug_info
+
+// ============================================================================
+// ADVANCED QUEST VALIDATION
+// ============================================================================
+
+fn validate_quest_data(quest_data: QuestData) -> Bool:
+    if quest_data.quest_id == "":
+        println("Error: Quest ID cannot be empty")
+        return false
+    
+    if quest_data.name == "":
+        println("Error: Quest name cannot be empty")
+        return false
+    
+    if quest_data.level_requirement < 0:
+        println("Error: Level requirement cannot be negative")
+        return false
+    
+    if quest_data.time_limit < 0.0:
+        println("Error: Time limit cannot be negative")
+        return false
+    
+    return true
+
+fn validate_objective_data(objective_data: ObjectiveData) -> Bool:
+    if objective_data.objective_id == "":
+        println("Error: Objective ID cannot be empty")
+        return false
+    
+    if objective_data.description == "":
+        println("Error: Objective description cannot be empty")
+        return false
+    
+    if objective_data.target_count <= 0:
+        println("Error: Target count must be positive")
+        return false
+    
+    if objective_data.completion_radius < 0.0:
+        println("Error: Completion radius cannot be negative")
+        return false
+    
+    return true
+
+fn validate_quest_instance(quest_instance: QuestInstance) -> Bool:
+    if quest_instance.instance_id < 0:
+        println("Error: Instance ID cannot be negative")
+        return false
+    
+    if quest_instance.quest_id == "":
+        println("Error: Quest ID cannot be empty")
+        return false
+    
+    if quest_instance.player_id == "":
+        println("Error: Player ID cannot be empty")
+        return false
+    
+    if quest_instance.start_time < 0.0:
+        println("Error: Start time cannot be negative")
+        return false
+    
+    return true
+
+fn validate_quest_reward(reward: QuestReward) -> Bool:
+    if reward.xp < 0:
+        println("Error: XP reward cannot be negative")
+        return false
+    
+    if reward.gold < 0:
+        println("Error: Gold reward cannot be negative")
+        return false
+    
+    let i = 0
+    while i < len(reward.items):
+        let item = reward.items[i]
+        if item.quantity <= 0:
+            println("Error: Item quantity must be positive")
+            return false
+        i = i + 1
+    
+    return true
+
+// ============================================================================
+// QUEST PREREQUISITE CHECKING
+// ============================================================================
+
+fn check_prerequisites(quest_data: QuestData, completed_quests: Array<String>) -> Bool:
+    let i = 0
+    while i < len(quest_data.prerequisites):
+        let prereq_id = quest_data.prerequisites[i]
+        let found = false
+        let j = 0
+        while j < len(completed_quests):
+            if completed_quests[j] == prereq_id:
+                found = true
+            j = j + 1
+        if !found:
+            println("Prerequisite not met: {prereq_id}")
+            return false
+        i = i + 1
+    return true
+
+fn get_missing_prerequisites(quest_data: QuestData, completed_quests: Array<String>) -> Array<String>:
+    let missing: Array<String> = []
+    let i = 0
+    while i < len(quest_data.prerequisites):
+        let prereq_id = quest_data.prerequisites[i]
+        let found = false
+        let j = 0
+        while j < len(completed_quests):
+            if completed_quests[j] == prereq_id:
+                found = true
+            j = j + 1
+        if !found:
+            push(missing, prereq_id)
+        i = i + 1
+    return missing
+
+fn has_prerequisites(quest_data: QuestData) -> Bool:
+    return len(quest_data.prerequisites) > 0
+
+fn count_prerequisites(quest_data: QuestData) -> Int:
+    return len(quest_data.prerequisites)
+
+// ============================================================================
+// QUEST DIFFICULTY CALCULATION
+// ============================================================================
+
+fn calculate_quest_difficulty(quest_data: QuestData, objective_count: Int) -> Float:
+    let difficulty = 0.0
+    
+    match quest_data.priority:
+        QuestPriority::Low => difficulty = difficulty + 1.0
+        QuestPriority::Normal => difficulty = difficulty + 2.0
+        QuestPriority::High => difficulty = difficulty + 3.0
+        QuestPriority::Critical => difficulty = difficulty + 4.0
+        _ => difficulty = difficulty + 2.0
+    
+    difficulty = difficulty + (objective_count as Float) * 0.5
+    
+    if quest_data.time_limit > 0.0:
+        difficulty = difficulty + 1.0
+    
+    difficulty = difficulty + (len(quest_data.prerequisites) as Float) * 0.3
+    
+    return difficulty
+
+fn get_quest_difficulty_tier(difficulty: Float) -> String:
+    if difficulty < 2.0:
+        return "Easy"
+    else:
+        if difficulty < 4.0:
+            return "Medium"
+        else:
+            if difficulty < 6.0:
+                return "Hard"
+            else:
+                return "Very Hard"
+
+// ============================================================================
+// QUEST REWARD SCALING
+// ============================================================================
+
+fn scale_quest_rewards(base_reward: QuestReward, scale_factor: Float) -> QuestReward:
+    let scaled = QuestReward {
+        xp: (base_reward.xp as Float * scale_factor) as Int,
+        gold: (base_reward.gold as Float * scale_factor) as Int,
+        items: base_reward.items,
+        reputation: base_reward.reputation,
+        custom_rewards: base_reward.custom_rewards,
+        unlock_quest_ids: base_reward.unlock_quest_ids
+    }
+    return scaled
+
+fn calculate_reward_value(reward: QuestReward) -> Float:
+    let value = 0.0
+    value = value + (reward.xp as Float) * 0.1
+    value = value + (reward.gold as Float) * 1.0
+    value = value + (len(reward.items) as Float) * 10.0
+    value = value + (len(reward.reputation) as Float) * 5.0
+    return value
+
+fn compare_rewards(reward1: QuestReward, reward2: QuestReward) -> Int:
+    let value1 = calculate_reward_value(reward1)
+    let value2 = calculate_reward_value(reward2)
+    
+    if value1 > value2:
+        return 1
+    else:
+        if value1 < value2:
+            return -1
+        else:
+            return 0
+
+// ============================================================================
+// QUEST TIME MANAGEMENT
+// ============================================================================
+
+fn calculate_time_elapsed(quest_instance: QuestInstance, current_time: Float) -> Float:
+    return current_time - quest_instance.start_time
+
+fn calculate_time_percentage(quest_instance: QuestInstance, quest_data: QuestData, current_time: Float) -> Float:
+    if quest_data.time_limit <= 0.0:
+        return 0.0
+    
+    let elapsed = calculate_time_elapsed(quest_instance, current_time)
+    return (elapsed / quest_data.time_limit) * 100.0
+
+fn is_quest_expired(quest_instance: QuestInstance, quest_data: QuestData, current_time: Float) -> Bool:
+    if quest_data.time_limit <= 0.0:
+        return false
+    
+    let elapsed = calculate_time_elapsed(quest_instance, current_time)
+    return elapsed >= quest_data.time_limit
+
+fn get_time_remaining_formatted(quest_instance: QuestInstance, quest_data: QuestData, current_time: Float) -> String:
+    let remaining = calculate_time_remaining(quest_instance, quest_data, current_time)
+    return format_time_remaining(remaining)
+
+// ============================================================================
+// OBJECTIVE VALIDATION AND HELPERS
+// ============================================================================
+
+fn validate_objective_instance(objective: ObjectiveInstance) -> Bool:
+    if objective.objective_id == "":
+        println("Error: Objective ID cannot be empty")
+        return false
+    
+    if objective.target_count <= 0:
+        println("Error: Target count must be positive")
+        return false
+    
+    if objective.current_count < 0:
+        println("Error: Current count cannot be negative")
+        return false
+    
+    if objective.current_count > objective.target_count:
+        println("Warning: Current count exceeds target count")
+    
+    return true
+
+fn get_objective_status_text(objective: ObjectiveInstance) -> String:
+    if objective.completed:
+        return "Completed"
+    else:
+        if objective.failed:
+            return "Failed"
+        else:
+            return "In Progress"
+
+fn get_objectives_by_type(objectives: Array<ObjectiveInstance>, obj_type: ObjectiveType) -> Array<ObjectiveInstance>:
+    let filtered: Array<ObjectiveInstance> = []
+    return filtered
+
+fn count_completed_objectives(objectives: Array<ObjectiveInstance>) -> Int:
+    let count = 0
+    let i = 0
+    while i < len(objectives):
+        if objectives[i].completed:
+            count = count + 1
+        i = i + 1
+    return count
+
+fn count_failed_objectives(objectives: Array<ObjectiveInstance>) -> Int:
+    let count = 0
+    let i = 0
+    while i < len(objectives):
+        if objectives[i].failed:
+            count = count + 1
+        i = i + 1
+    return count
+
+fn count_optional_objectives(objectives: Array<ObjectiveInstance>) -> Int:
+    let count = 0
+    let i = 0
+    while i < len(objectives):
+        if objectives[i].optional:
+            count = count + 1
+        i = i + 1
+    return count
+
+fn count_required_objectives(objectives: Array<ObjectiveInstance>) -> Int:
+    let count = 0
+    let i = 0
+    while i < len(objectives):
+        if !objectives[i].optional:
+            count = count + 1
+        i = i + 1
+    return count
+
+fn get_next_incomplete_objective(objectives: Array<ObjectiveInstance>) -> ObjectiveInstance:
+    let i = 0
+    while i < len(objectives):
+        let objective = objectives[i]
+        if !objective.completed && !objective.failed:
+            return objective
+        i = i + 1
+    
+    let empty = create_objective_instance("", 0, false, false)
+    return empty
+
+// ============================================================================
+// QUEST SEARCH AND FILTERING
+// ============================================================================
+
+fn find_quest_by_id(quests: Array<QuestInstance>, quest_id: String) -> QuestInstance:
+    let i = 0
+    while i < len(quests):
+        if quests[i].quest_id == quest_id:
+            return quests[i]
+        i = i + 1
+    
+    let empty = create_quest_instance("", "", 0)
+    return empty
+
+fn find_objective_by_id(objectives: Array<ObjectiveInstance>, objective_id: String) -> ObjectiveInstance:
+    let i = 0
+    while i < len(objectives):
+        if objectives[i].objective_id == objective_id:
+            return objectives[i]
+        i = i + 1
+    
+    let empty = create_objective_instance("", 0, false, false)
+    return empty
+
+fn filter_quests_by_priority(quests: Array<QuestLogEntry>, priority: QuestPriority) -> Array<QuestLogEntry>:
+    let filtered: Array<QuestLogEntry> = []
+    let i = 0
+    while i < len(quests):
+        let entry = quests[i]
+        if entry.quest_data.priority == priority:
+            push(filtered, entry)
+        i = i + 1
+    return filtered
+
+fn filter_quests_by_level(quests: Array<QuestLogEntry>, min_level: Int, max_level: Int) -> Array<QuestLogEntry>:
+    let filtered: Array<QuestLogEntry> = []
+    let i = 0
+    while i < len(quests):
+        let entry = quests[i]
+        if entry.quest_data.level_requirement >= min_level && entry.quest_data.level_requirement <= max_level:
+            push(filtered, entry)
+        i = i + 1
+    return filtered
+
+fn filter_tracked_quests(quests: Array<QuestLogEntry>) -> Array<QuestLogEntry>:
+    let filtered: Array<QuestLogEntry> = []
+    let i = 0
+    while i < len(quests):
+        let entry = quests[i]
+        if entry.is_tracked:
+            push(filtered, entry)
+        i = i + 1
+    return filtered
+
+fn filter_new_quests(quests: Array<QuestLogEntry>) -> Array<QuestLogEntry>:
+    let filtered: Array<QuestLogEntry> = []
+    let i = 0
+    while i < len(quests):
+        let entry = quests[i]
+        if entry.is_new:
+            push(filtered, entry)
+        i = i + 1
+    return filtered
+
+// ============================================================================
+// QUEST STATISTICS
+// ============================================================================
+
+fn calculate_quest_completion_rate(completed_count: Int, total_count: Int) -> Float:
+    if total_count == 0:
+        return 0.0
+    return (completed_count as Float) / (total_count as Float) * 100.0
+
+fn calculate_quest_failure_rate(failed_count: Int, total_count: Int) -> Float:
+    if total_count == 0:
+        return 0.0
+    return (failed_count as Float) / (total_count as Float) * 100.0
+
+fn calculate_average_quest_time(quests: Array<QuestInstance>) -> Float:
+    if len(quests) == 0:
+        return 0.0
+    
+    let total_time = 0.0
+    let i = 0
+    while i < len(quests):
+        let quest = quests[i]
+        if quest.completion_time > 0.0:
+            total_time = total_time + (quest.completion_time - quest.start_time)
+        i = i + 1
+    
+    return total_time / (len(quests) as Float)
+
+fn get_longest_quest(quests: Array<QuestInstance>) -> QuestInstance:
+    if len(quests) == 0:
+        return create_quest_instance("", "", 0)
+    
+    let longest = quests[0]
+    let longest_time = 0.0
+    
+    let i = 0
+    while i < len(quests):
+        let quest = quests[i]
+        if quest.completion_time > 0.0:
+            let duration = quest.completion_time - quest.start_time
+            if duration > longest_time:
+                longest_time = duration
+                longest = quest
+        i = i + 1
+    
+    return longest
+
+fn get_shortest_quest(quests: Array<QuestInstance>) -> QuestInstance:
+    if len(quests) == 0:
+        return create_quest_instance("", "", 0)
+    
+    let shortest = quests[0]
+    let shortest_time = 999999.0
+    
+    let i = 0
+    while i < len(quests):
+        let quest = quests[i]
+        if quest.completion_time > 0.0:
+            let duration = quest.completion_time - quest.start_time
+            if duration < shortest_time:
+                shortest_time = duration
+                shortest = quest
+        i = i + 1
+    
+    return shortest
+
+// ============================================================================
+// QUEST VARIABLE HELPERS
+// ============================================================================
+
+fn find_variable_by_name(variables: Array<QuestVariable>, name: String) -> QuestVariable:
+    let i = 0
+    while i < len(variables):
+        if variables[i].variable_name == name:
+            return variables[i]
+        i = i + 1
+    
+    return create_quest_variable("", "Unknown", false)
+
+fn filter_persistent_variables(variables: Array<QuestVariable>) -> Array<QuestVariable>:
+    let filtered: Array<QuestVariable> = []
+    let i = 0
+    while i < len(variables):
+        if variables[i].is_persistent:
+            push(filtered, variables[i])
+        i = i + 1
+    return filtered
+
+fn count_variables_by_type(variables: Array<QuestVariable>, var_type: String) -> Int:
+    let count = 0
+    let i = 0
+    while i < len(variables):
+        if variables[i].variable_type == var_type:
+            count = count + 1
+        i = i + 1
+    return count
+
+// ============================================================================
+// QUEST NOTIFICATION HELPERS
+// ============================================================================
+
+fn create_quest_started_notification(quest_name: String) -> QuestNotification:
+    return create_quest_notification(QuestNotificationType::Started, "", quest_name, "")
+
+fn create_quest_completed_notification(quest_name: String) -> QuestNotification:
+    return create_quest_notification(QuestNotificationType::Completed, "", quest_name, "")
+
+fn create_quest_failed_notification(quest_name: String) -> QuestNotification:
+    return create_quest_notification(QuestNotificationType::Failed, "", quest_name, "")
+
+fn create_objective_completed_notification(objective_description: String) -> QuestNotification:
+    return create_quest_notification(QuestNotificationType::ObjectiveCompleted, "", "", objective_description)
+
+// ============================================================================
+// QUEST LOG ENTRY HELPERS
+// ============================================================================
+
+fn create_quest_log_entry(quest_instance: QuestInstance, quest_data: QuestData, current_time: Float) -> QuestLogEntry:
+    let progress = create_quest_progress(quest_instance, quest_data, current_time)
+    let entry = QuestLogEntry {
+        quest_instance: quest_instance,
+        quest_data: quest_data,
+        progress: progress,
+        is_tracked: quest_instance.tracked,
+        is_new: false
+    }
+    return entry
+
+fn sort_quest_log_by_priority(entries: Array<QuestLogEntry>) -> Array<QuestLogEntry>:
+    return entries
+
+fn sort_quest_log_by_name(entries: Array<QuestLogEntry>) -> Array<QuestLogEntry>:
+    return entries
+
+fn sort_quest_log_by_progress(entries: Array<QuestLogEntry>) -> Array<QuestLogEntry>:
+    return entries
+
+
+// ============================================================================
+// EXTENDED QUEST MANAGEMENT HELPERS
+// ============================================================================
+
+fn clone_quest_instance(original: QuestInstance) -> QuestInstance:
+    let cloned = QuestInstance {
+        instance_id: original.instance_id,
+        quest_id: original.quest_id,
+        state: original.state,
+        objectives: original.objectives,
+        variables: original.variables,
+        start_time: original.start_time,
+        completion_time: original.completion_time,
+        tracked: original.tracked,
+        player_id: original.player_id,
+        current_node_id: original.current_node_id,
+        visited_nodes: original.visited_nodes
+    }
+    return cloned
+
+fn clone_objective_instance(original: ObjectiveInstance) -> ObjectiveInstance:
+    let cloned = ObjectiveInstance {
+        objective_id: original.objective_id,
+        current_count: original.current_count,
+        target_count: original.target_count,
+        completed: original.completed,
+        failed: original.failed,
+        start_time: original.start_time,
+        completion_time: original.completion_time,
+        hidden: original.hidden,
+        optional: original.optional
+    }
+    return cloned
+
+fn merge_quest_instances(instance1: QuestInstance, instance2: QuestInstance) -> QuestInstance:
+    println("Merging quest instances")
+    return instance1
+
+fn compare_quest_instances(instance1: QuestInstance, instance2: QuestInstance) -> Bool:
+    return instance1.instance_id == instance2.instance_id
+
+fn is_quest_instance_valid(instance: QuestInstance) -> Bool:
+    return validate_quest_instance(instance)
+
+// ============================================================================
+// QUEST REWARD HELPERS
+// ============================================================================
+
+fn create_xp_reward(amount: Int) -> QuestReward:
+    return QuestReward {
+        xp: amount,
+        gold: 0,
+        items: [],
+        reputation: [],
+        custom_rewards: [],
+        unlock_quest_ids: []
+    }
+
+fn create_gold_reward(amount: Int) -> QuestReward:
+    return QuestReward {
+        xp: 0,
+        gold: amount,
+        items: [],
+        reputation: [],
+        custom_rewards: [],
+        unlock_quest_ids: []
+    }
+
+fn create_item_reward(item_id: String, quantity: Int) -> QuestReward:
+    let item = ItemReward {
+        item_id: item_id,
+        quantity: quantity,
+        quality: 1,
+        level: 1
+    }
+    let items: Array<ItemReward> = []
+    push(items, item)
+    
+    return QuestReward {
+        xp: 0,
+        gold: 0,
+        items: items,
+        reputation: [],
+        custom_rewards: [],
+        unlock_quest_ids: []
+    }
+
+fn create_reputation_reward(faction_id: String, amount: Int) -> QuestReward:
+    let rep = ReputationReward {
+        faction_id: faction_id,
+        amount: amount
+    }
+    let reps: Array<ReputationReward> = []
+    push(reps, rep)
+    
+    return QuestReward {
+        xp: 0,
+        gold: 0,
+        items: [],
+        reputation: reps,
+        custom_rewards: [],
+        unlock_quest_ids: []
+    }
+
+fn combine_rewards(reward1: QuestReward, reward2: QuestReward) -> QuestReward:
+    let combined = QuestReward {
+        xp: reward1.xp + reward2.xp,
+        gold: reward1.gold + reward2.gold,
+        items: reward1.items,
+        reputation: reward1.reputation,
+        custom_rewards: reward1.custom_rewards,
+        unlock_quest_ids: reward1.unlock_quest_ids
+    }
+    
+    let i = 0
+    while i < len(reward2.items):
+        push(combined.items, reward2.items[i])
+        i = i + 1
+    
+    let j = 0
+    while j < len(reward2.reputation):
+        push(combined.reputation, reward2.reputation[j])
+        j = j + 1
+    
+    return combined
+
+fn multiply_reward(reward: QuestReward, multiplier: Float) -> QuestReward:
+    return scale_quest_rewards(reward, multiplier)
+
+fn has_any_rewards(reward: QuestReward) -> Bool:
+    return reward.xp > 0 || reward.gold > 0 || len(reward.items) > 0 || len(reward.reputation) > 0
+
+// ============================================================================
+// QUEST CONDITION HELPERS
+// ============================================================================
+
+fn create_quest_complete_condition(quest_id: String) -> QuestCondition:
+    return QuestCondition {
+        condition_type: ConditionType::QuestComplete,
+        target: quest_id,
+        comparison_operator: ComparisonOperator::Equal,
+        comparison_value: 1.0,
+        invert: false,
+        custom_data: ""
+    }
+
+fn create_item_condition(item_id: String, quantity: Int) -> QuestCondition:
+    return QuestCondition {
+        condition_type: ConditionType::ItemInInventory,
+        target: item_id,
+        comparison_operator: ComparisonOperator::GreaterOrEqual,
+        comparison_value: quantity as Float,
+        invert: false,
+        custom_data: ""
+    }
+
+fn create_level_condition(required_level: Int) -> QuestCondition:
+    return QuestCondition {
+        condition_type: ConditionType::Level,
+        target: "player_level",
+        comparison_operator: ComparisonOperator::GreaterOrEqual,
+        comparison_value: required_level as Float,
+        invert: false,
+        custom_data: ""
+    }
+
+fn create_flag_condition(flag_name: String) -> QuestCondition:
+    return QuestCondition {
+        condition_type: ConditionType::FlagSet,
+        target: flag_name,
+        comparison_operator: ComparisonOperator::Equal,
+        comparison_value: 1.0,
+        invert: false,
+        custom_data: ""
+    }
+
+fn invert_condition(condition: QuestCondition) -> QuestCondition:
+    condition.invert = !condition.invert
+    return condition
+
+fn combine_conditions_and(conditions: Array<QuestCondition>) -> Bool:
+    let i = 0
+    while i < len(conditions):
+        if !evaluate_condition(conditions[i], 1.0):
+            return false
+        i = i + 1
+    return true
+
+fn combine_conditions_or(conditions: Array<QuestCondition>) -> Bool:
+    let i = 0
+    while i < len(conditions):
+        if evaluate_condition(conditions[i], 1.0):
+            return true
+        i = i + 1
+    return false
+
+// ============================================================================
+// QUEST TIMER HELPERS
+// ============================================================================
+
+fn create_countdown_timer(duration: Float) -> QuestTimer:
+    return create_quest_timer(duration, TimerMode::Countdown, true)
+
+fn create_countup_timer() -> QuestTimer:
+    return create_quest_timer(0.0, TimerMode::Countup, false)
+
+fn pause_timer(timer: QuestTimer) -> QuestTimer:
+    timer.paused = true
+    return timer
+
+fn resume_timer(timer: QuestTimer) -> QuestTimer:
+    timer.paused = false
+    return timer
+
+fn reset_timer_elapsed(timer: QuestTimer) -> QuestTimer:
+    timer.elapsed = 0.0
+    return timer
+
+fn add_time_to_timer(timer: QuestTimer, additional_time: Float) -> QuestTimer:
+    timer.duration = timer.duration + additional_time
+    return timer
+
+fn subtract_time_from_timer(timer: QuestTimer, time_to_subtract: Float) -> QuestTimer:
+    timer.duration = max(timer.duration - time_to_subtract, 0.0)
+    return timer
+
+fn get_timer_progress_percentage(timer: QuestTimer) -> Float:
+    if timer.duration <= 0.0:
+        return 0.0
+    return (timer.elapsed / timer.duration) * 100.0
+
+fn is_timer_halfway(timer: QuestTimer) -> Bool:
+    return get_timer_progress_percentage(timer) >= 50.0
+
+fn is_timer_nearly_expired(timer: QuestTimer, threshold: Float) -> Bool:
+    let remaining = get_timer_remaining(timer)
+    return remaining <= threshold
+
+// ============================================================================
+// QUEST MARKER HELPERS
+// ============================================================================
+
+fn create_objective_marker(location: Vec3) -> QuestMarker:
+    return create_quest_marker(location, QuestMarkerType::Objective, "Objective", vec3(1.0, 1.0, 0.0))
+
+fn create_quest_giver_marker(location: Vec3) -> QuestMarker:
+    return create_quest_marker(location, QuestMarkerType::QuestGiver, "QuestGiver", vec3(1.0, 0.8, 0.0))
+
+fn create_turn_in_marker(location: Vec3) -> QuestMarker:
+    return create_quest_marker(location, QuestMarkerType::TurnIn, "TurnIn", vec3(0.0, 1.0, 0.0))
+
+fn create_area_marker(location: Vec3, radius: Float) -> QuestMarker:
+    let marker = create_quest_marker(location, QuestMarkerType::Area, "Area", vec3(0.5, 0.5, 1.0))
+    marker.radius = radius
+    return marker
+
+fn is_marker_visible(marker: QuestMarker) -> Bool:
+    return true
+
+fn set_marker_visibility(marker: QuestMarker, visible: Bool) -> QuestMarker:
+    return marker
+
+fn calculate_distance_to_marker(marker: QuestMarker, player_location: Vec3) -> Float:
+    let dx = marker.location.x - player_location.x
+    let dy = marker.location.y - player_location.y
+    let dz = marker.location.z - player_location.z
+    return sqrt(dx * dx + dy * dy + dz * dz)
+
+fn is_player_near_marker(marker: QuestMarker, player_location: Vec3) -> Bool:
+    let distance = calculate_distance_to_marker(marker, player_location)
+    return distance <= marker.radius
+
+// ============================================================================
+// QUEST PROGRESS HELPERS
+// ============================================================================
+
+fn is_quest_not_started(progress: QuestProgress) -> Bool:
+    return progress.progress_percentage == 0.0
+
+fn is_quest_in_progress(progress: QuestProgress) -> Bool:
+    return progress.progress_percentage > 0.0 && progress.progress_percentage < 100.0
+
+fn is_quest_fully_complete(progress: QuestProgress) -> Bool:
+    return progress.progress_percentage >= 100.0
+
+fn is_quest_halfway_complete(progress: QuestProgress) -> Bool:
+    return progress.progress_percentage >= 50.0
+
+fn is_quest_nearly_complete(progress: QuestProgress) -> Bool:
+    return progress.progress_percentage >= 75.0
+
+fn get_remaining_objectives(progress: QuestProgress) -> Int:
+    return progress.total_objectives - progress.completed_objectives
+
+fn get_completion_ratio(progress: QuestProgress) -> Float:
+    if progress.total_objectives == 0:
+        return 0.0
+    return (progress.completed_objectives as Float) / (progress.total_objectives as Float)
+
+// ============================================================================
+// QUEST NOTIFICATION HELPERS
+// ============================================================================
+
+fn set_notification_duration(notification: QuestNotification, duration: Float) -> QuestNotification:
+    notification.display_duration = duration
+    return notification
+
+fn set_notification_fade_times(notification: QuestNotification, fade_in: Float, fade_out: Float) -> QuestNotification:
+    notification.fade_in_duration = fade_in
+    notification.fade_out_duration = fade_out
+    return notification
+
+fn create_custom_notification(text: String, duration: Float) -> QuestNotification:
+    let notification = create_quest_notification(QuestNotificationType::Updated, "", "", text)
+    notification.display_duration = duration
+    return notification
+
+// ============================================================================
+// QUEST SAVE DATA HELPERS
+// ============================================================================
+
+fn create_empty_save_data() -> QuestSaveData:
+    return QuestSaveData {
+        active_quests: [],
+        completed_quests: [],
+        failed_quests: [],
+        global_variables: [],
+        persistent_flags: [],
+        tracked_quest_id: "",
+        save_timestamp: 0.0
+    }
+
+fn add_quest_to_save_data(save_data: QuestSaveData, quest: QuestInstance):
+    match quest.state:
+        QuestState::Active => push(save_data.active_quests, quest)
+        QuestState::Completed => push(save_data.completed_quests, quest)
+        QuestState::Failed => push(save_data.failed_quests, quest)
+        _ => println("Quest state not saved: {quest.state}")
+
+fn get_save_data_size(save_data: QuestSaveData) -> Int:
+    return len(save_data.active_quests) + len(save_data.completed_quests) + len(save_data.failed_quests)
+
+fn validate_save_data(save_data: QuestSaveData) -> Bool:
+    if save_data.save_timestamp < 0.0:
+        println("Error: Invalid save timestamp")
+        return false
+    return true
+
+// ============================================================================
+// QUEST DEBUG INFO HELPERS
+// ============================================================================
+
+fn update_debug_info(debug_info: QuestDebugInfo, active: Int, completed: Int, failed: Int) -> QuestDebugInfo:
+    debug_info.active_quest_count = active
+    debug_info.completed_quest_count = completed
+    debug_info.failed_quest_count = failed
+    return debug_info
+
+fn get_debug_info_summary(debug_info: QuestDebugInfo) -> String:
+    let summary = "Active: {debug_info.active_quest_count}, "
+    summary = "{summary}Completed: {debug_info.completed_quest_count}, "
+    summary = "{summary}Failed: {debug_info.failed_quest_count}"
+    return summary
+
+fn print_debug_info(debug_info: QuestDebugInfo):
+    println("=== Quest Debug Info ===")
+    println("  Active Quests: {debug_info.active_quest_count}")
+    println("  Completed Quests: {debug_info.completed_quest_count}")
+    println("  Failed Quests: {debug_info.failed_quest_count}")
+    println("  Tracked Quest: {debug_info.tracked_quest_id}")
+    println("  Tick Rate: {debug_info.subsystem_tick_rate}")
+    println("  Loaded Graphs: {debug_info.loaded_graph_count}")
+    println("  Global Variables: {debug_info.global_variable_count}")
+    println("  Persistent Flags: {debug_info.persistent_flag_count}")
+
+// ============================================================================
+// QUEST LOG ENTRY HELPERS
+// ============================================================================
+
+fn mark_quest_as_new(entry: QuestLogEntry) -> QuestLogEntry:
+    entry.is_new = true
+    return entry
+
+fn mark_quest_as_read(entry: QuestLogEntry) -> QuestLogEntry:
+    entry.is_new = false
+    return entry
+
+fn is_quest_new(entry: QuestLogEntry) -> Bool:
+    return entry.is_new
+
+fn is_quest_tracked_in_entry(entry: QuestLogEntry) -> Bool:
+    return entry.is_tracked
+
+fn get_quest_progress_from_entry(entry: QuestLogEntry) -> Float:
+    return entry.progress.progress_percentage
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+fn clamp_float(value: Float, min_val: Float, max_val: Float) -> Float:
+    if value < min_val:
+        return min_val
+    if value > max_val:
+        return max_val
+    return value
+
+fn clamp_int(value: Int, min_val: Int, max_val: Int) -> Int:
+    if value < min_val:
+        return min_val
+    if value > max_val:
+        return max_val
+    return value
+
+fn lerp_float(a: Float, b: Float, t: Float) -> Float:
+    return a + (b - a) * t
+
+fn inverse_lerp(a: Float, b: Float, value: Float) -> Float:
+    if a == b:
+        return 0.0
+    return (value - a) / (b - a)
+
+fn remap_float(value: Float, in_min: Float, in_max: Float, out_min: Float, out_max: Float) -> Float:
+    let t = inverse_lerp(in_min, in_max, value)
+    return lerp_float(out_min, out_max, t)
+
+fn percentage_to_float(percentage: Float) -> Float:
+    return percentage / 100.0
+
+fn float_to_percentage(value: Float) -> Float:
+    return value * 100.0
+
+fn round_to_decimal_places(value: Float, places: Int) -> Float:
+    return value
+
+fn format_float_as_string(value: Float) -> String:
+    return "{value}"
+
+fn format_int_as_string(value: Int) -> String:
+    return "{value}"
+
+fn parse_string_to_int(str: String) -> Int:
+    return 0
+
+fn parse_string_to_float(str: String) -> Float:
+    return 0.0
+
+fn is_string_empty(str: String) -> Bool:
+    return str == ""
+
+fn string_contains(str: String, substring: String) -> Bool:
+    return false
+
+fn string_starts_with(str: String, prefix: String) -> Bool:
+    return false
+
+fn string_ends_with(str: String, suffix: String) -> Bool:
+    return false
+
+fn to_lowercase(str: String) -> String:
+    return str
+
+fn to_uppercase(str: String) -> String:
+    return str
+
+fn trim_string(str: String) -> String:
+    return str
+
+fn concat_strings(str1: String, str2: String) -> String:
+    return "{str1}{str2}"
+
+fn repeat_string(str: String, count: Int) -> String:
+    let result = ""
+    let i = 0
+    while i < count:
+        result = "{result}{str}"
+        i = i + 1
+    return result

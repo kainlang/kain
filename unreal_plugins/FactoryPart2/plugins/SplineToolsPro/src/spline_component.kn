@@ -1,0 +1,324 @@
+# SplineToolsPro - Spline Component
+# Component for attaching splines to actors
+
+@component
+struct SplineComponent:
+    @replicated
+    points: Array<SplinePoint>
+    
+    interpolation_type: SplineInterpolationType
+    is_closed_loop: Bool
+    default_up_vector: Vec3
+    
+    # Cached data
+    arc_length_table: ArcLengthTable
+    cached_total_length: Float
+    is_cache_dirty: Bool
+    
+    # Configuration
+    arc_length_resolution: Int
+    auto_update_cache: Bool
+    
+    # Visualization
+    debug_draw_enabled: Bool
+    debug_draw_color: Vec4
+
+@beginplay
+fn spline_component_begin_play(component: SplineComponent):
+    component.arc_length_resolution = 100
+    component.auto_update_cache = true
+    component.is_cache_dirty = true
+    component.default_up_vector = vec3(0.0, 0.0, 1.0)
+    component.interpolation_type = SplineInterpolationType::Bezier
+    component.is_closed_loop = false
+    component.debug_draw_enabled = false
+    component.debug_draw_color = vec4(1.0, 1.0, 1.0, 1.0)
+    
+    # Initialize with default points if empty
+    if len(component.points) == 0:
+        let p0 = create_default_spline_point(vec3(0.0, 0.0, 0.0))
+        let p1 = create_default_spline_point(vec3(100.0, 0.0, 0.0))
+        let p2 = create_default_spline_point(vec3(200.0, 0.0, 0.0))
+        push(component.points, p0)
+        push(component.points, p1)
+        push(component.points, p2)
+    
+    # Build initial arc-length table
+    rebuild_arc_length_table_internal(component)
+
+@tick
+fn spline_component_tick(component: SplineComponent, delta_time: Float):
+    # Rebuild cache if dirty and auto-update is enabled
+    if component.is_cache_dirty and component.auto_update_cache:
+        rebuild_arc_length_table_internal(component)
+
+# Add a new point to the spline
+@blueprint_callable
+fn add_point(component: SplineComponent, position: Vec3, index: Int):
+    let new_point = create_default_spline_point(position)
+    
+    # Calculate automatic tangents based on neighbors
+    let n = len(component.points)
+    
+    if index < 0 or index > n:
+        # Append to end
+        if n > 0:
+            let prev_point = component.points[n - 1]
+            let tangent = position - prev_point.position
+            new_point.in_tangent = tangent * 0.33
+            new_point.out_tangent = tangent * 0.33
+        push(component.points, new_point)
+    else:
+        # Insert at index
+        if index > 0 and index < n:
+            let prev_pos = component.points[index - 1].position
+            let next_pos = component.points[index].position
+            new_point.in_tangent = calculate_tangent(prev_pos, position, next_pos, SplineTangentMode::Auto)
+            new_point.out_tangent = new_point.in_tangent
+        
+        # Insert into array
+        let new_points: Array<SplinePoint> = []
+        let i = 0
+        while i < n:
+            if i == index:
+                push(new_points, new_point)
+            push(new_points, component.points[i])
+            i = i + 1
+        if index == n:
+            push(new_points, new_point)
+        component.points = new_points
+    
+    # Recalculate tangents for neighboring points
+    recalculate_tangents_around_point(component, index)
+    
+    component.is_cache_dirty = true
+
+# Remove a point from the spline
+@blueprint_callable
+fn remove_point(component: SplineComponent, index: Int):
+    let n = len(component.points)
+    
+    if index < 0 or index >= n or n <= 2:
+        return
+    
+    # Remove point from array
+    let new_points: Array<SplinePoint> = []
+    let i = 0
+    while i < n:
+        if i != index:
+            push(new_points, component.points[i])
+        i = i + 1
+    component.points = new_points
+    
+    # Recalculate tangents for neighboring points
+    if index > 0:
+        recalculate_tangents_around_point(component, index - 1)
+    if index < len(component.points):
+        recalculate_tangents_around_point(component, index)
+    
+    component.is_cache_dirty = true
+
+# Update an existing point
+@blueprint_callable
+fn update_point(component: SplineComponent, index: Int, new_position: Vec3, new_tangent: Vec3):
+    let n = len(component.points)
+    
+    if index < 0 or index >= n:
+        return
+    
+    component.points[index].position = new_position
+    
+    if component.points[index].tangent_mode == SplineTangentMode::Manual:
+        component.points[index].in_tangent = new_tangent
+        component.points[index].out_tangent = new_tangent
+    else:
+        recalculate_tangents_around_point(component, index)
+    
+    component.is_cache_dirty = true
+
+# Get position at arc-length distance
+@blueprint_callable
+fn get_position_at_distance(component: SplineComponent, distance: Float) -> Vec3:
+    if component.is_cache_dirty:
+        rebuild_arc_length_table_internal(component)
+    
+    let t = find_parameter_at_distance(component.arc_length_table, distance)
+    return evaluate_spline_at_parameter(component, t)
+
+# Get tangent at normalized time parameter
+@blueprint_callable
+fn get_tangent_at_time(component: SplineComponent, t: Float) -> Vec3:
+    let derivative = calculate_spline_derivative(component.points, t, component.interpolation_type)
+    return normalize(derivative)
+
+# Get rotation at normalized time parameter
+@blueprint_callable
+fn get_rotation_at_time(component: SplineComponent, t: Float) -> Rotator:
+    let tangent = get_tangent_at_time(component, t)
+    let up = component.default_up_vector
+    
+    # Calculate rotation from tangent and up vector
+    let forward = normalize(tangent)
+    let right = normalize(cross(up, forward))
+    let corrected_up = cross(forward, right)
+    
+    # Convert to rotator (simplified - would use proper matrix to rotator conversion)
+    let rotation: Rotator
+    rotation.yaw = atan2(forward.y, forward.x) * 57.2957795  # Radians to degrees
+    rotation.pitch = asin(-forward.z) * 57.2957795
+    rotation.roll = 0.0
+    
+    return rotation
+
+# Get scale at normalized time parameter
+@blueprint_callable
+fn get_scale_at_time(component: SplineComponent, t: Float) -> Vec3:
+    let n = len(component.points)
+    if n < 2:
+        return vec3(1.0, 1.0, 1.0)
+    
+    let t_clamped = clamp(t, 0.0, 1.0)
+    let segment_idx = floor(t_clamped * (n - 1) as Float) as Int
+    segment_idx = min_int(segment_idx, n - 2)
+    
+    let local_t = t_clamped * (n - 1) as Float - segment_idx as Float
+    
+    let scale0 = component.points[segment_idx].scale
+    let scale1 = component.points[segment_idx + 1].scale
+    
+    return lerp_vec3(scale0, scale1, local_t)
+
+# Rebuild arc-length table
+@blueprint_callable
+fn rebuild_arc_length_table(component: SplineComponent):
+    rebuild_arc_length_table_internal(component)
+
+# Get total spline length
+@blueprint_callable
+fn get_spline_length(component: SplineComponent) -> Float:
+    if component.is_cache_dirty:
+        rebuild_arc_length_table_internal(component)
+    return component.arc_length_table.total_length
+
+# Get number of control points
+@blueprint_callable
+fn get_number_of_points(component: SplineComponent) -> Int:
+    return len(component.points)
+
+# Internal helper functions
+
+fn rebuild_arc_length_table_internal(component: SplineComponent):
+    component.arc_length_table = build_arc_length_table(
+        component.points,
+        component.interpolation_type,
+        component.arc_length_resolution
+    )
+    component.cached_total_length = component.arc_length_table.total_length
+    component.is_cache_dirty = false
+
+fn recalculate_tangents_around_point(component: SplineComponent, index: Int):
+    let n = len(component.points)
+    
+    if index < 0 or index >= n:
+        return
+    
+    # Recalculate tangent for the point itself
+    if component.points[index].tangent_mode == SplineTangentMode::Auto or component.points[index].tangent_mode == SplineTangentMode::Smooth:
+        if index > 0 and index < n - 1:
+            let p_prev = component.points[index - 1].position
+            let p_curr = component.points[index].position
+            let p_next = component.points[index + 1].position
+            
+            let tangent = calculate_tangent(p_prev, p_curr, p_next, component.points[index].tangent_mode)
+            component.points[index].in_tangent = tangent
+            component.points[index].out_tangent = tangent
+        else:
+            if index == 0 and n > 1:
+                let tangent = (component.points[1].position - component.points[0].position) * 0.33
+                component.points[0].out_tangent = tangent
+            else:
+                if index == n - 1 and n > 1:
+                    let tangent = (component.points[n - 1].position - component.points[n - 2].position) * 0.33
+                    component.points[n - 1].in_tangent = tangent
+    
+    # Recalculate tangents for neighbors
+    if index > 0:
+        if component.points[index - 1].tangent_mode == SplineTangentMode::Auto or component.points[index - 1].tangent_mode == SplineTangentMode::Smooth:
+            if index > 1:
+                let p_prev = component.points[index - 2].position
+                let p_curr = component.points[index - 1].position
+                let p_next = component.points[index].position
+                let tangent = calculate_tangent(p_prev, p_curr, p_next, component.points[index - 1].tangent_mode)
+                component.points[index - 1].in_tangent = tangent
+                component.points[index - 1].out_tangent = tangent
+    
+    if index < n - 1:
+        if component.points[index + 1].tangent_mode == SplineTangentMode::Auto or component.points[index + 1].tangent_mode == SplineTangentMode::Smooth:
+            if index < n - 2:
+                let p_prev = component.points[index].position
+                let p_curr = component.points[index + 1].position
+                let p_next = component.points[index + 2].position
+                let tangent = calculate_tangent(p_prev, p_curr, p_next, component.points[index + 1].tangent_mode)
+                component.points[index + 1].in_tangent = tangent
+                component.points[index + 1].out_tangent = tangent
+
+fn evaluate_spline_at_parameter(component: SplineComponent, t: Float) -> Vec3:
+    let n = len(component.points)
+    if n == 0:
+        return vec3(0.0, 0.0, 0.0)
+    if n == 1:
+        return component.points[0].position
+    
+    let t_clamped = clamp(t, 0.0, 1.0)
+    let segment_idx = floor(t_clamped * (n - 1) as Float) as Int
+    segment_idx = min_int(segment_idx, n - 2)
+    
+    let local_t = t_clamped * (n - 1) as Float - segment_idx as Float
+    
+    let p0 = component.points[segment_idx].position
+    let p1 = component.points[segment_idx + 1].position
+    
+    if component.interpolation_type == SplineInterpolationType::Linear:
+        return linear_interpolate_points(p0, p1, local_t)
+    else:
+        if component.interpolation_type == SplineInterpolationType::Bezier:
+            let t0 = component.points[segment_idx].out_tangent
+            let t1 = component.points[segment_idx + 1].in_tangent
+            let ctrl1 = p0 + t0
+            let ctrl2 = p1 - t1
+            return evaluate_bezier(p0, ctrl1, ctrl2, p1, local_t)
+        else:
+            if component.interpolation_type == SplineInterpolationType::CatmullRom:
+                let p_prev = if segment_idx > 0: component.points[segment_idx - 1].position else: p0
+                let p_next = if segment_idx < n - 2: component.points[segment_idx + 2].position else: p1
+                return evaluate_catmull_rom(p_prev, p0, p1, p_next, local_t)
+            else:
+                return linear_interpolate_points(p0, p1, local_t)
+
+fn lerp_vec3(a: Vec3, b: Vec3, t: Float) -> Vec3:
+    let result: Vec3
+    result.x = a.x + (b.x - a.x) * t
+    result.y = a.y + (b.y - a.y) * t
+    result.z = a.z + (b.z - a.z) * t
+    return result
+
+fn atan2(y: Float, x: Float) -> Float:
+    # Simplified atan2 implementation
+    if abs(x) < 0.0001:
+        if y > 0.0:
+            return 1.5707963  # PI/2
+        else:
+            return -1.5707963  # -PI/2
+    
+    let atan_val = y / x
+    if x < 0.0:
+        if y >= 0.0:
+            return atan_val + 3.14159265  # PI
+        else:
+            return atan_val - 3.14159265  # -PI
+    return atan_val
+
+fn asin(value: Float) -> Float:
+    # Simplified asin implementation
+    let clamped = clamp(value, -1.0, 1.0)
+    return clamped * 1.5707963  # Approximation

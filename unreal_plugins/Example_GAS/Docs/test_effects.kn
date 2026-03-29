@@ -1,0 +1,44 @@
+# Simple test file for Phase 4 (Gameplay Effects) integration
+
+@gameplay_tags
+namespace Test:
+    Effect:
+        Burn
+        Heal
+
+@gameplay_effect
+struct BurnEffect:
+    @duration_policy
+    policy: "HasDuration"
+    
+    @duration_magnitude
+    duration: 5.0
+    
+    @period
+    period: 1.0
+    
+    @execute_on_application
+    execute: true
+    
+    @modifiers
+    modifiers:
+        - attribute: "HealthSet.Health"
+          operation: "Add"
+          magnitude: -10.0
+    
+    @owned_tags
+    tags: ["Test.Effect.Burn"]
+
+@gameplay_effect
+struct HealEffect:
+    @duration_policy
+    policy: "Instant"
+    
+    @modifiers
+    modifiers:
+        - attribute: "HealthSet.Health"
+          operation: "Add"
+          magnitude: 50.0
+    
+    @owned_tags
+    tags: ["Test.Effect.Heal"]

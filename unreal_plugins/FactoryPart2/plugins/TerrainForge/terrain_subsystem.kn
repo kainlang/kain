@@ -1,0 +1,334 @@
+@subsystem
+struct TerrainManagerSubsystem:
+    active_chunks: Array<ChunkCoordinate>
+    chunk_cache: Array<TerrainChunkData>
+    generation_queue: Array<ChunkCoordinate>
+    player_positions: Array<Vec3>
+    world_seed: Int
+    generation_settings: TerrainGenerationSettings
+    streaming_settings: StreamingSettings
+    lod_settings: LODSettings
+    chunks_generated_this_frame: Int
+    total_chunks_generated: Int
+    
+    @tick
+    fn update(delta: Float):
+        update_player_tracking()
+        process_generation_queue()
+        update_chunk_lod()
+        update_chunk_streaming()
+        
+        chunks_generated_this_frame = 0
+    
+    @blueprint_callable
+    fn initialize_terrain(seed: Int, settings: TerrainGenerationSettings):
+        world_seed = seed
+        generation_settings = settings
+        active_chunks = []
+        chunk_cache = []
+        generation_queue = []
+        player_positions = []
+        chunks_generated_this_frame = 0
+        total_chunks_generated = 0
+        
+        println("TerrainManager initialized with seed: {seed}")
+    
+    @blueprint_callable
+    fn register_player(player_pos: Vec3):
+        push(player_positions, player_pos)
+        queue_chunks_around_position(player_pos)
+    
+    @blueprint_callable
+    fn unregister_player(player_pos: Vec3):
+        let new_positions: Array<Vec3> = []
+        
+        for pos in player_positions:
+            if distance(pos, player_pos) > 1.0:
+                push(new_positions, pos)
+        
+        player_positions = new_positions
+
+    fn update_player_tracking():
+        for pos in player_positions:
+            DrawDebugSphere(pos, 100.0, vec3(0.0, 1.0, 0.0), 0.1)
+    
+    fn process_generation_queue():
+        if len(generation_queue) == 0:
+            return
+        
+        let max_per_frame = streaming_settings.max_chunks_per_frame
+        let to_generate = min(len(generation_queue), max_per_frame)
+        
+        for i in 0..to_generate:
+            let coord = generation_queue[i]
+            generate_chunk(coord)
+            chunks_generated_this_frame = chunks_generated_this_frame + 1
+            total_chunks_generated = total_chunks_generated + 1
+        
+        let new_queue: Array<ChunkCoordinate> = []
+        for i in to_generate..len(generation_queue):
+            push(new_queue, generation_queue[i])
+        
+        generation_queue = new_queue
+    
+    fn update_chunk_lod():
+        for chunk_data in chunk_cache:
+            let chunk_center = vec3(
+                (chunk_data.coordinate.x * generation_settings.chunk_size) as Float,
+                0.0,
+                (chunk_data.coordinate.z * generation_settings.chunk_size) as Float
+            )
+            
+            let min_distance = 999999.0
+            for player_pos in player_positions:
+                let dist = distance(player_pos, chunk_center)
+                if dist < min_distance:
+                    min_distance = dist
+            
+            let new_lod = calculate_lod_level(min_distance)
+    
+    fn update_chunk_streaming():
+        for player_pos in player_positions:
+            queue_chunks_around_position(player_pos)
+        
+        unload_distant_chunks()
+    
+    fn queue_chunks_around_position(pos: Vec3):
+        let chunk_x = (pos.x / (generation_settings.chunk_size as Float)) as Int
+        let chunk_z = (pos.z / (generation_settings.chunk_size as Float)) as Int
+        let radius = streaming_settings.generation_radius
+        
+        for dx in -radius..(radius + 1):
+            for dz in -radius..(radius + 1):
+                let coord = ChunkCoordinate {
+                    x: chunk_x + dx,
+                    y: 0,
+                    z: chunk_z + dz
+                }
+                
+                if not is_chunk_loaded(coord) and not is_chunk_queued(coord):
+                    push(generation_queue, coord)
+    
+    fn generate_chunk(coord: ChunkCoordinate):
+        println("Generating chunk at ({coord.x}, {coord.z})")
+    
+    fn unload_distant_chunks():
+        let chunks_to_keep: Array<ChunkCoordinate> = []
+        
+        for coord in active_chunks:
+            let should_keep = false
+            
+            for player_pos in player_positions:
+                let chunk_center = vec3(
+                    (coord.x * generation_settings.chunk_size) as Float,
+                    0.0,
+                    (coord.z * generation_settings.chunk_size) as Float
+                )
+                
+                let dist = distance(player_pos, chunk_center)
+                if dist < streaming_settings.unload_distance:
+                    should_keep = true
+            
+            if should_keep:
+                push(chunks_to_keep, coord)
+        
+        active_chunks = chunks_to_keep
+    
+    fn is_chunk_loaded(coord: ChunkCoordinate) -> Bool:
+        for active_coord in active_chunks:
+            if active_coord.x == coord.x and active_coord.z == coord.z:
+                return true
+        return false
+    
+    fn is_chunk_queued(coord: ChunkCoordinate) -> Bool:
+        for queued_coord in generation_queue:
+            if queued_coord.x == coord.x and queued_coord.z == coord.z:
+                return true
+        return false
+    
+    fn calculate_lod_level(distance: Float) -> LODLevel:
+        let distances = lod_settings.lod_distances
+        
+        if len(distances) == 0:
+            return LODLevel::LOD0
+        
+        if distance < distances[0]:
+            return LODLevel::LOD0
+        
+        if len(distances) > 1 and distance < distances[1]:
+            return LODLevel::LOD1
+        
+        if len(distances) > 2 and distance < distances[2]:
+            return LODLevel::LOD2
+        
+        if len(distances) > 3 and distance < distances[3]:
+            return LODLevel::LOD3
+        
+        if len(distances) > 4 and distance < distances[4]:
+            return LODLevel::LOD4
+        
+        return LODLevel::LOD5
+    
+    @blueprint_callable
+    fn get_active_chunk_count() -> Int:
+        return len(active_chunks)
+    
+    @blueprint_callable
+    fn get_generation_queue_size() -> Int:
+        return len(generation_queue)
+    
+    @blueprint_callable
+    fn get_total_chunks_generated() -> Int:
+        return total_chunks_generated
+    
+    @blueprint_callable
+    fn force_generate_area(center: Vec3, radius: Int):
+        let chunk_x = (center.x / (generation_settings.chunk_size as Float)) as Int
+        let chunk_z = (center.z / (generation_settings.chunk_size as Float)) as Int
+        
+        for dx in -radius..(radius + 1):
+            for dz in -radius..(radius + 1):
+                let coord = ChunkCoordinate {
+                    x: chunk_x + dx,
+                    y: 0,
+                    z: chunk_z + dz
+                }
+                
+                if not is_chunk_loaded(coord):
+                    generate_chunk(coord)
+                    push(active_chunks, coord)
+
+
+@subsystem
+struct TerrainShaderSubsystem:
+    shader_resources_initialized: Bool
+    heightmap_render_targets: Array<Actor>
+    erosion_render_targets: Array<Actor>
+    active_shader_dispatches: Int
+    
+    @tick
+    fn update(delta: Float):
+        if not shader_resources_initialized:
+            return
+        
+        process_shader_queue()
+    
+    @blueprint_callable
+    fn initialize_shader_resources():
+        shader_resources_initialized = true
+        heightmap_render_targets = []
+        erosion_render_targets = []
+        active_shader_dispatches = 0
+        
+        println("TerrainShaderSubsystem initialized")
+    
+    @blueprint_callable
+    fn dispatch_heightmap_generation(chunk_coord: ChunkCoordinate, settings: NoiseSettings):
+        active_shader_dispatches = active_shader_dispatches + 1
+        println("Dispatching heightmap generation shader for chunk ({chunk_coord.x}, {chunk_coord.z})")
+    
+    @blueprint_callable
+    fn dispatch_erosion_simulation(erosion_type: ErosionType, params: ErosionParams):
+        active_shader_dispatches = active_shader_dispatches + 1
+        println("Dispatching erosion simulation shader: {erosion_type}")
+    
+    @blueprint_callable
+    fn dispatch_biome_blending(terrain_size: Int):
+        active_shader_dispatches = active_shader_dispatches + 1
+        println("Dispatching biome blending shader")
+    
+    fn process_shader_queue():
+        if active_shader_dispatches > 0:
+            active_shader_dispatches = active_shader_dispatches - 1
+    
+    @blueprint_callable
+    fn get_active_dispatch_count() -> Int:
+        return active_shader_dispatches
+
+@subsystem
+struct TerrainPerformanceSubsystem:
+    frame_times: Array<Float>
+    generation_times: Array<Float>
+    erosion_times: Array<Float>
+    mesh_times: Array<Float>
+    max_samples: Int
+    
+    @tick
+    fn update(delta: Float):
+        push(frame_times, delta)
+        
+        if len(frame_times) > max_samples:
+            frame_times = trim_samples(frame_times)
+    
+    @blueprint_callable
+    fn initialize_performance_tracking(sample_count: Int):
+        max_samples = sample_count
+        frame_times = []
+        generation_times = []
+        erosion_times = []
+        mesh_times = []
+        
+        println("TerrainPerformanceSubsystem initialized with {sample_count} samples")
+    
+    @blueprint_callable
+    fn record_generation_time(time: Float):
+        push(generation_times, time)
+        
+        if len(generation_times) > max_samples:
+            generation_times = trim_samples(generation_times)
+    
+    @blueprint_callable
+    fn record_erosion_time(time: Float):
+        push(erosion_times, time)
+        
+        if len(erosion_times) > max_samples:
+            erosion_times = trim_samples(erosion_times)
+    
+    @blueprint_callable
+    fn record_mesh_time(time: Float):
+        push(mesh_times, time)
+        
+        if len(mesh_times) > max_samples:
+            mesh_times = trim_samples(mesh_times)
+    
+    fn trim_samples(samples: Array<Float>) -> Array<Float>:
+        let trimmed: Array<Float> = []
+        let start = len(samples) - max_samples
+        
+        for i in start..len(samples):
+            push(trimmed, samples[i])
+        
+        return trimmed
+    
+    @blueprint_callable
+    fn get_average_frame_time() -> Float:
+        return calculate_average(frame_times)
+    
+    @blueprint_callable
+    fn get_average_generation_time() -> Float:
+        return calculate_average(generation_times)
+    
+    @blueprint_callable
+    fn get_average_erosion_time() -> Float:
+        return calculate_average(erosion_times)
+    
+    @blueprint_callable
+    fn get_average_mesh_time() -> Float:
+        return calculate_average(mesh_times)
+    
+    @blueprint_callable
+    fn get_fps() -> Float:
+        let avg = get_average_frame_time()
+        if avg > 0.0:
+            return 1.0 / avg
+        return 0.0
+    
+    fn calculate_average(samples: Array<Float>) -> Float:
+        if len(samples) == 0:
+            return 0.0
+        
+        let total = 0.0
+        for sample in samples:
+            total = total + sample
+        
+        return total / (len(samples) as Float)

@@ -1,0 +1,588 @@
+// DungeonArchitect — Dungeon Manager Subsystem
+// World subsystem for managing dungeon generation, room tracking, and runtime operations
+
+@subsystem
+@tick
+struct DungeonManager:
+    active_dungeons: Array<DungeonLayout>
+    current_dungeon_id: Int
+    generation_params: DungeonGenerationParams
+    room_templates: Array<RoomTemplate>
+    active_room_actors: Array<Actor>
+    generation_in_progress: Bool
+    last_generation_time: Float
+    generation_stats: DungeonGenerationStats
+    random_seed: Int
+    debug_visualization_enabled: Bool
+    
+    fn Initialize():
+        current_dungeon_id = -1
+        generation_in_progress = false
+        last_generation_time = 0.0
+        random_seed = 12345
+        debug_visualization_enabled = false
+        
+        initialize_room_templates()
+        generation_params = create_default_generation_params()
+        
+        println("DungeonManager subsystem initialized")
+    
+    fn Deinitialize():
+        cleanup_all_dungeons()
+        println("DungeonManager subsystem deinitialized")
+    
+    fn Tick(delta_time: Float):
+        if generation_in_progress:
+            last_generation_time = last_generation_time + delta_time
+        
+        update_active_rooms(delta_time)
+        
+        if debug_visualization_enabled:
+            draw_debug_visualization()
+    
+    fn initialize_room_templates():
+        push(room_templates, create_entrance_room_template())
+        push(room_templates, create_corridor_room_template())
+        push(room_templates, create_treasure_room_template())
+        push(room_templates, create_boss_room_template())
+        push(room_templates, create_puzzle_room_template())
+        push(room_templates, create_secret_room_template())
+        push(room_templates, create_dead_end_room_template())
+        push(room_templates, create_hub_room_template())
+    
+    @blueprint_callable
+    fn generate_dungeon(algorithm: GenerationAlgorithm, seed: Int, target_rooms: Int) -> Bool:
+        if generation_in_progress:
+            println("Generation already in progress")
+            return false
+        
+        generation_in_progress = true
+        last_generation_time = 0.0
+        random_seed = seed
+        
+        let mut params = generation_params
+        params.algorithm = algorithm
+        params.seed = seed
+        params.target_room_count = target_rooms
+        
+        let layout = generate_dungeon_with_algorithm(params)
+        
+        if len(layout.rooms) > 0:
+            push(active_dungeons, layout)
+            current_dungeon_id = len(active_dungeons) - 1
+            
+            record_generation_stats(layout, params)
+            
+            generation_in_progress = false
+            
+            println("Dungeon generated: {len(layout.rooms)} rooms, {len(layout.corridors)} corridors")
+            return true
+        
+        generation_in_progress = false
+        return false
+    
+    fn generate_dungeon_with_algorithm(params: DungeonGenerationParams) -> DungeonLayout:
+        match params.algorithm:
+            GenerationAlgorithm::BSPTree => generate_dungeon_bsp(params)
+            GenerationAlgorithm::CellularAutomata => generate_dungeon_cellular_automata(params)
+            GenerationAlgorithm::GraphBased => generate_dungeon_graph_based(params)
+            GenerationAlgorithm::Hybrid => generate_hybrid_dungeon(params)
+            _ => generate_dungeon_bsp(params)
+    
+    fn generate_hybrid_dungeon(params: DungeonGenerationParams) -> DungeonLayout:
+        let bsp_layout = generate_dungeon_bsp(params)
+        
+        let mut hybrid_params = params
+        hybrid_params.target_room_count = params.secret_room_count + params.puzzle_room_count
+        let graph_layout = generate_dungeon_graph_based(hybrid_params)
+        
+        let mut combined = bsp_layout
+        
+        let mut i = 0
+        while i < len(graph_layout.rooms):
+            let room = graph_layout.rooms[i]
+            push(combined.rooms, room)
+            i = i + 1
+        
+        let mut j = 0
+        while j < len(graph_layout.corridors):
+            let corridor = graph_layout.corridors[j]
+            push(combined.corridors, corridor)
+            j = j + 1
+        
+        return combined
+    
+    @blueprint_callable
+    fn generate_dungeon_bsp_blueprint(seed: Int, target_rooms: Int, min_room_size: Int, max_room_size: Int) -> Bool:
+        let mut params = generation_params
+        params.algorithm = GenerationAlgorithm::BSPTree
+        params.seed = seed
+        params.target_room_count = target_rooms
+        params.min_room_size = min_room_size
+        params.max_room_size = max_room_size
+        
+        return generate_dungeon(GenerationAlgorithm::BSPTree, seed, target_rooms)
+    
+    @blueprint_callable
+    fn generate_dungeon_cellular_blueprint(seed: Int, iterations: Int, birth_limit: Int, death_limit: Int) -> Bool:
+        let mut params = generation_params
+        params.algorithm = GenerationAlgorithm::CellularAutomata
+        params.seed = seed
+        params.cellular_automata_iterations = iterations
+        params.cellular_automata_birth_limit = birth_limit
+        params.cellular_automata_death_limit = death_limit
+        
+        return generate_dungeon(GenerationAlgorithm::CellularAutomata, seed, 20)
+    
+    @blueprint_callable
+    fn generate_dungeon_graph_blueprint(seed: Int, target_rooms: Int, enable_loops: Bool, loop_probability: Float) -> Bool:
+        let mut params = generation_params
+        params.algorithm = GenerationAlgorithm::GraphBased
+        params.seed = seed
+        params.target_room_count = target_rooms
+        params.enable_loops = enable_loops
+        params.loop_probability = loop_probability
+        
+        return generate_dungeon(GenerationAlgorithm::GraphBased, seed, target_rooms)
+    
+    @blueprint_callable
+    fn spawn_dungeon_actors() -> Bool:
+        if current_dungeon_id == -1:
+            println("No active dungeon to spawn")
+            return false
+        
+        let layout = active_dungeons[current_dungeon_id]
+        
+        cleanup_active_room_actors()
+        
+        let mut i = 0
+        while i < len(layout.rooms):
+            let room = layout.rooms[i]
+            let actor = spawn_room_actor(room)
+            if actor != null:
+                push(active_room_actors, actor)
+            i = i + 1
+        
+        println("Spawned {len(active_room_actors)} room actors")
+        return true
+    
+    fn spawn_room_actor(room: GeneratedRoom) -> Actor:
+        let actor_class = get_room_actor_class(room.room_type)
+        let actor = spawn_actor(actor_class, room.world_position, vec3(0.0, 0.0, 0.0))
+        return actor
+    
+    fn get_room_actor_class(room_type: RoomType) -> String:
+        match room_type:
+            RoomType::Entrance => "BP_EntranceRoomActor"
+            RoomType::Corridor => "BP_CorridorRoomActor"
+            RoomType::Treasure => "BP_TreasureRoomActor"
+            RoomType::Boss => "BP_BossRoomActor"
+            RoomType::Puzzle => "BP_PuzzleRoomActor"
+            RoomType::Secret => "BP_SecretRoomActor"
+            RoomType::DeadEnd => "BP_DeadEndRoomActor"
+            RoomType::Hub => "BP_HubRoomActor"
+            _ => "BP_CorridorRoomActor"
+    
+    @blueprint_callable
+    fn populate_dungeon_with_props() -> Bool:
+        if current_dungeon_id == -1:
+            return false
+        
+        let layout = active_dungeons[current_dungeon_id]
+        
+        let mut i = 0
+        while i < len(layout.rooms):
+            let room = layout.rooms[i]
+            let template = get_room_template(room.room_type)
+            populate_room_with_props(room, template)
+            i = i + 1
+        
+        println("Populated dungeon with props")
+        return true
+    
+    fn get_room_template(room_type: RoomType) -> RoomTemplate:
+        let mut i = 0
+        while i < len(room_templates):
+            let template = room_templates[i]
+            if template.room_type == room_type:
+                return template
+            i = i + 1
+        
+        return create_default_room_template()
+    
+    fn create_default_room_template() -> RoomTemplate:
+        let constraints = create_default_room_constraints()
+        return RoomTemplate {
+            room_type: RoomType::Corridor,
+            priority: RoomPriority::Medium,
+            constraints: constraints,
+            connection_points: [],
+            prop_spawn_density: 0.1,
+            enemy_spawn_density: 0.1,
+            loot_spawn_density: 0.1,
+            required_props: [],
+            optional_props: [],
+            ambient_sound: "Amb_Default",
+            lighting_preset: "Medium"
+        }
+    
+    fn populate_room_with_props(room: GeneratedRoom, template: RoomTemplate):
+        let room_area = bounds_get_area(room.bounds) as Float
+        let prop_count = (room_area * template.prop_spawn_density) as Int
+        
+        let mut i = 0
+        while i < prop_count:
+            let random_x = ((random_seed + i * 137) % room.bounds.width) + room.bounds.min_x
+            let random_y = ((random_seed + i * 241) % room.bounds.height) + room.bounds.min_y
+            
+            let prop_pos = vec3((random_x * 100) as Float, (random_y * 100) as Float, 0.0)
+            
+            if len(template.optional_props) > 0:
+                let prop_index = i % len(template.optional_props)
+                let prop_class = template.optional_props[prop_index]
+                spawn_actor(prop_class, prop_pos, vec3(0.0, 0.0, 0.0))
+            
+            i = i + 1
+    
+    @blueprint_callable
+    fn populate_dungeon_with_enemies() -> Bool:
+        if current_dungeon_id == -1:
+            return false
+        
+        let layout = active_dungeons[current_dungeon_id]
+        
+        let mut i = 0
+        while i < len(layout.rooms):
+            let room = layout.rooms[i]
+            let template = get_room_template(room.room_type)
+            populate_room_with_enemies(room, template)
+            i = i + 1
+        
+        println("Populated dungeon with enemies")
+        return true
+    
+    fn populate_room_with_enemies(room: GeneratedRoom, template: RoomTemplate):
+        if room.room_type == RoomType::Entrance:
+            return
+        
+        let room_area = bounds_get_area(room.bounds) as Float
+        let enemy_count = (room_area * template.enemy_spawn_density) as Int
+        
+        let mut i = 0
+        while i < enemy_count:
+            let random_x = ((random_seed + i * 173) % room.bounds.width) + room.bounds.min_x
+            let random_y = ((random_seed + i * 281) % room.bounds.height) + room.bounds.min_y
+            
+            let enemy_pos = vec3((random_x * 100) as Float, (random_y * 100) as Float, 0.0)
+            spawn_actor("BP_Enemy", enemy_pos, vec3(0.0, 0.0, 0.0))
+            
+            i = i + 1
+    
+    @blueprint_callable
+    fn get_current_dungeon_room_count() -> Int:
+        if current_dungeon_id == -1:
+            return 0
+        return len(active_dungeons[current_dungeon_id].rooms)
+    
+    @blueprint_callable
+    fn get_current_dungeon_corridor_count() -> Int:
+        if current_dungeon_id == -1:
+            return 0
+        return len(active_dungeons[current_dungeon_id].corridors)
+    
+    @blueprint_callable
+    fn get_entrance_room_location() -> Vec3:
+        if current_dungeon_id == -1:
+            return vec3(0.0, 0.0, 0.0)
+        
+        let layout = active_dungeons[current_dungeon_id]
+        if layout.entrance_room_id >= 0 && layout.entrance_room_id < len(layout.rooms):
+            return layout.rooms[layout.entrance_room_id].world_position
+        
+        return vec3(0.0, 0.0, 0.0)
+    
+    @blueprint_callable
+    fn get_boss_room_locations() -> Array<Vec3>:
+        let mut locations = []
+        
+        if current_dungeon_id == -1:
+            return locations
+        
+        let layout = active_dungeons[current_dungeon_id]
+        
+        let mut i = 0
+        while i < len(layout.boss_room_ids):
+            let boss_room_id = layout.boss_room_ids[i]
+            if boss_room_id >= 0 && boss_room_id < len(layout.rooms):
+                push(locations, layout.rooms[boss_room_id].world_position)
+            i = i + 1
+        
+        return locations
+    
+    @blueprint_callable
+    fn get_treasure_room_locations() -> Array<Vec3>:
+        let mut locations = []
+        
+        if current_dungeon_id == -1:
+            return locations
+        
+        let layout = active_dungeons[current_dungeon_id]
+        
+        let mut i = 0
+        while i < len(layout.treasure_room_ids):
+            let treasure_room_id = layout.treasure_room_ids[i]
+            if treasure_room_id >= 0 && treasure_room_id < len(layout.rooms):
+                push(locations, layout.rooms[treasure_room_id].world_position)
+            i = i + 1
+        
+        return locations
+    
+    @blueprint_callable
+    fn find_path_between_rooms(start_room_id: Int, end_room_id: Int) -> Array<Int>:
+        if current_dungeon_id == -1:
+            return []
+        
+        let layout = active_dungeons[current_dungeon_id]
+        return find_critical_path(layout.rooms, start_room_id, end_room_id)
+    
+    @blueprint_callable
+    fn get_room_connections(room_id: Int) -> Array<Int>:
+        if current_dungeon_id == -1:
+            return []
+        
+        let layout = active_dungeons[current_dungeon_id]
+        if room_id >= 0 && room_id < len(layout.rooms):
+            return layout.rooms[room_id].connections
+        
+        return []
+    
+    @blueprint_callable
+    fn validate_current_dungeon() -> Bool:
+        if current_dungeon_id == -1:
+            return false
+        
+        let layout = active_dungeons[current_dungeon_id]
+        
+        if len(layout.rooms) == 0:
+            println("Validation failed: No rooms")
+            return false
+        
+        if layout.entrance_room_id == -1:
+            println("Validation failed: No entrance room")
+            return false
+        
+        let mut graph_nodes = []
+        let mut i = 0
+        while i < len(layout.rooms):
+            let room = layout.rooms[i]
+            let node = GraphNode {
+                id: room.id,
+                position: bounds_get_center(room.bounds),
+                room_type: room.room_type,
+                connections: room.connections,
+                weight: 1.0,
+                visited: false
+            }
+            push(graph_nodes, node)
+            i = i + 1
+        
+        if !validate_graph_connectivity(graph_nodes):
+            println("Validation failed: Graph not fully connected")
+            return false
+        
+        let placement_errors = validate_room_placement(layout.rooms)
+        if len(placement_errors) > 0:
+            println("Validation failed: Room placement errors")
+            return false
+        
+        println("Dungeon validation passed")
+        return true
+    
+    @blueprint_callable
+    fn cleanup_current_dungeon():
+        if current_dungeon_id != -1:
+            cleanup_active_room_actors()
+            current_dungeon_id = -1
+            println("Current dungeon cleaned up")
+    
+    fn cleanup_all_dungeons():
+        cleanup_active_room_actors()
+        clear(active_dungeons)
+        current_dungeon_id = -1
+    
+    fn cleanup_active_room_actors():
+        let mut i = 0
+        while i < len(active_room_actors):
+            let actor = active_room_actors[i]
+            if actor != null:
+                destroy_actor(actor)
+            i = i + 1
+        clear(active_room_actors)
+    
+    fn update_active_rooms(delta_time: Float):
+        let mut i = 0
+        while i < len(active_room_actors):
+            let actor = active_room_actors[i]
+            i = i + 1
+    
+    @blueprint_callable
+    fn set_generation_params(params: DungeonGenerationParams):
+        generation_params = params
+        println("Generation parameters updated")
+    
+    @blueprint_callable
+    fn get_generation_params() -> DungeonGenerationParams:
+        return generation_params
+    
+    @blueprint_callable
+    fn set_random_seed(seed: Int):
+        random_seed = seed
+        println("Random seed set to {seed}")
+    
+    @blueprint_callable
+    fn enable_debug_visualization(enable: Bool):
+        debug_visualization_enabled = enable
+    
+    fn draw_debug_visualization():
+        if current_dungeon_id == -1:
+            return
+        
+        let layout = active_dungeons[current_dungeon_id]
+        
+        let mut i = 0
+        while i < len(layout.rooms):
+            let room = layout.rooms[i]
+            draw_debug_room_bounds(room)
+            i = i + 1
+        
+        let mut j = 0
+        while j < len(layout.corridors):
+            let corridor = layout.corridors[j]
+            draw_debug_corridor(corridor)
+            j = j + 1
+    
+    fn draw_debug_room_bounds(room: GeneratedRoom):
+        let min_pos = vec3((room.bounds.min_x * 100) as Float, (room.bounds.min_y * 100) as Float, 0.0)
+        let max_pos = vec3((room.bounds.max_x * 100) as Float, (room.bounds.max_y * 100) as Float, 200.0)
+        
+        let color = get_room_type_debug_color(room.room_type)
+    
+    fn draw_debug_corridor(corridor: CorridorSegment):
+        let start_pos = vec3((corridor.start_pos.x * 100) as Float, (corridor.start_pos.y * 100) as Float, 0.0)
+        let end_pos = vec3((corridor.end_pos.x * 100) as Float, (corridor.end_pos.y * 100) as Float, 0.0)
+    
+    fn get_room_type_debug_color(room_type: RoomType) -> Vec3:
+        match room_type:
+            RoomType::Entrance => vec3(0.0, 1.0, 0.0)
+            RoomType::Boss => vec3(1.0, 0.0, 0.0)
+            RoomType::Treasure => vec3(1.0, 1.0, 0.0)
+            RoomType::Puzzle => vec3(0.0, 0.0, 1.0)
+            RoomType::Secret => vec3(1.0, 0.0, 1.0)
+            RoomType::Hub => vec3(0.0, 1.0, 1.0)
+            _ => vec3(0.5, 0.5, 0.5)
+    
+    fn record_generation_stats(layout: DungeonLayout, params: DungeonGenerationParams):
+        generation_stats = DungeonGenerationStats {
+            total_rooms: len(layout.rooms),
+            total_corridors: len(layout.corridors),
+            total_area: calculate_total_area(layout),
+            generation_time: last_generation_time,
+            algorithm_used: params.algorithm,
+            seed_used: params.seed,
+            failed_room_placements: 0,
+            constraint_violations: 0,
+            pathfinding_iterations: 0
+        }
+    
+    fn calculate_total_area(layout: DungeonLayout) -> Int:
+        let mut total = 0
+        let mut i = 0
+        while i < len(layout.rooms):
+            total = total + bounds_get_area(layout.rooms[i].bounds)
+            i = i + 1
+        return total
+    
+    @blueprint_callable
+    fn get_generation_stats() -> DungeonGenerationStats:
+        return generation_stats
+    
+    @blueprint_callable
+    fn export_dungeon_to_json() -> String:
+        if current_dungeon_id == -1:
+            return "{}"
+        
+        return "{\"rooms\": [], \"corridors\": []}"
+    
+    @blueprint_callable
+    fn import_dungeon_from_json(json_data: String) -> Bool:
+        println("Import from JSON not yet implemented")
+        return false
+    
+    @blueprint_callable
+    fn regenerate_current_dungeon_with_new_seed(new_seed: Int) -> Bool:
+        if current_dungeon_id == -1:
+            return false
+        
+        let old_params = generation_params
+        cleanup_current_dungeon()
+        
+        return generate_dungeon(old_params.algorithm, new_seed, old_params.target_room_count)
+    
+    @blueprint_callable
+    fn get_room_at_world_location(world_location: Vec3) -> Int:
+        if current_dungeon_id == -1:
+            return -1
+        
+        let layout = active_dungeons[current_dungeon_id]
+        let grid_x = (world_location.x / 100.0) as Int
+        let grid_y = (world_location.y / 100.0) as Int
+        let grid_pos = Vec2i { x: grid_x, y: grid_y }
+        
+        let mut i = 0
+        while i < len(layout.rooms):
+            let room = layout.rooms[i]
+            if bounds_contains_point(room.bounds, grid_pos):
+                return i
+            i = i + 1
+        
+        return -1
+    
+    @blueprint_callable
+    fn mark_room_as_visited(room_id: Int):
+        if current_dungeon_id == -1:
+            return
+        
+        let mut layout = active_dungeons[current_dungeon_id]
+        if room_id >= 0 && room_id < len(layout.rooms):
+            let mut room = layout.rooms[room_id]
+            room.visited = true
+            layout.rooms[room_id] = room
+            active_dungeons[current_dungeon_id] = layout
+    
+    @blueprint_callable
+    fn get_visited_room_count() -> Int:
+        if current_dungeon_id == -1:
+            return 0
+        
+        let layout = active_dungeons[current_dungeon_id]
+        let mut count = 0
+        
+        let mut i = 0
+        while i < len(layout.rooms):
+            if layout.rooms[i].visited:
+                count = count + 1
+            i = i + 1
+        
+        return count
+    
+    @blueprint_callable
+    fn get_dungeon_completion_percentage() -> Float:
+        if current_dungeon_id == -1:
+            return 0.0
+        
+        let layout = active_dungeons[current_dungeon_id]
+        if len(layout.rooms) == 0:
+            return 0.0
+        
+        let visited = get_visited_room_count()
+        return ((visited as Float) / (len(layout.rooms) as Float)) * 100.0

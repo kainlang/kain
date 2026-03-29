@@ -1,0 +1,388 @@
+# ============================================================================
+# MATERIALIZE - Material Export System
+# ============================================================================
+
+enum ExportFormat:
+    Unity_Standard
+    Unity_URP
+    Unity_HDRP
+    Godot_Spatial
+    Godot_Shader
+    GLTF_PBR
+    FBX_Embedded
+    OBJ_MTL
+    Substance_SBSAR
+    Blender_Principled
+    Max_Physical
+    Maya_StandardSurface
+    Houdini_Principled
+    ExportFormat_MAX
+
+enum TextureChannel:
+    Albedo
+    Normal
+    Roughness
+    Metallic
+    AO
+    Height
+    Emissive
+    Opacity
+    TextureChannel_MAX
+
+struct MaterialPreset:
+    name: String
+    category: String
+    description: String
+    tags: Array<String>
+    albedo_path: String
+    normal_path: String
+    roughness_path: String
+    metallic_path: String
+    ao_path: String
+    height_path: String
+    emissive_path: String
+    opacity_path: String
+    base_color: Vec3
+    roughness_value: Float
+    metallic_value: Float
+    emissive_strength: Float
+    normal_strength: Float
+    height_scale: Float
+    ao_strength: Float
+    opacity_value: Float
+    tiling: Vec2
+    offset: Vec2
+
+struct ExportProfile:
+    name: String
+    format: ExportFormat
+    texture_size: Int
+    compression: String
+    include_thumbnails: Bool
+    embed_textures: Bool
+    generate_mipmaps: Bool
+    flip_normal_y: Bool
+    pack_channels: Bool
+    output_directory: String
+    filename_template: String
+
+struct MaterialLibrary:
+    name: String
+    version: String
+    presets: Array<MaterialPreset>
+    tags: Array<String>
+    thumbnail_directory: String
+    metadata: String
+
+struct ExportValidation:
+    has_errors: Bool
+    has_warnings: Bool
+    error_messages: Array<String>
+    warning_messages: Array<String>
+    missing_textures: Array<String>
+    invalid_paths: Array<String>
+
+struct BatchExportJob:
+    materials: Array<MaterialPreset>
+    profiles: Array<ExportProfile>
+    output_base_path: String
+    generate_report: Bool
+    parallel_export: Bool
+    max_threads: Int
+
+@blueprint
+fn export_unity_standard(preset: MaterialPreset, output_path: String) -> Bool:
+    let content = "Shader \"Custom/" + preset.name + "\" { SubShader { Tags { \"RenderType\"=\"Opaque\" } CGPROGRAM #pragma surface surf Standard ENDCG } }"
+    write_file(output_path + "/" + preset.name + ".shader", content)
+    return true
+
+@blueprint
+fn export_unity_urp(preset: MaterialPreset, output_path: String) -> Bool:
+    let content = "%YAML 1.1\nMaterial:\n  m_Name: " + preset.name + "\n"
+    write_file(output_path + "/" + preset.name + ".mat", content)
+    return true
+
+@blueprint
+fn export_unity_hdrp(preset: MaterialPreset, output_path: String) -> Bool:
+    let content = "%YAML 1.1\nMaterial:\n  m_Name: " + preset.name + "_hdrp\n"
+    write_file(output_path + "/" + preset.name + "_hdrp.mat", content)
+    return true
+
+@blueprint
+fn export_godot_spatial(preset: MaterialPreset, output_path: String) -> Bool:
+    let content = "[gd_resource type=\"SpatialMaterial\"]\n[resource]\nresource_name = \"" + preset.name + "\"\n"
+    write_file(output_path + "/" + preset.name + ".tres", content)
+    return true
+
+@blueprint
+fn export_godot_shader(preset: MaterialPreset, output_path: String) -> Bool:
+    let content = "shader_type spatial;\nuniform sampler2D albedo_tex : hint_albedo;\nvoid fragment() { ALBEDO = texture(albedo_tex, UV).rgb; }\n"
+    write_file(output_path + "/" + preset.name + ".gdshader", content)
+    return true
+
+@blueprint
+fn export_gltf_pbr(preset: MaterialPreset, output_path: String) -> Bool:
+    let content = "{ \"asset\": { \"version\": \"2.0\" }, \"materials\": [{ \"name\": \"" + preset.name + "\" }] }"
+    write_file(output_path + "/" + preset.name + ".gltf", content)
+    return true
+
+@blueprint
+fn export_substance_sbsar(preset: MaterialPreset, output_path: String) -> Bool:
+    let content = "<?xml version=\"1.0\"?><substance version=\"1.0\"><graph identifier=\"" + preset.name + "\"></graph></substance>"
+    write_file(output_path + "/" + preset.name + ".sbsar.xml", content)
+    return true
+
+@blueprint
+fn export_blender_principled(preset: MaterialPreset, output_path: String) -> Bool:
+    let content = "import bpy\nmat = bpy.data.materials.new(name=\"" + preset.name + "\")\nmat.use_nodes = True\n"
+    write_file(output_path + "/" + preset.name + "_blender.py", content)
+    return true
+
+@blueprint
+fn export_max_physical(preset: MaterialPreset, output_path: String) -> Bool:
+    let content = "mat = PhysicalMaterial()\nmat.name = \"" + preset.name + "\"\n"
+    write_file(output_path + "/" + preset.name + ".ms", content)
+    return true
+
+@blueprint
+fn export_maya_standard_surface(preset: MaterialPreset, output_path: String) -> Bool:
+    let content = "string $mat = `shadingNode -asShader standardSurface -name \"" + preset.name + "\"`;\n"
+    write_file(output_path + "/" + preset.name + ".mel", content)
+    return true
+
+@blueprint
+fn export_houdini_principled(preset: MaterialPreset, output_path: String) -> Bool:
+    let content = "surface " + preset.name + "() { Cf = {1,1,1}; }\n"
+    write_file(output_path + "/" + preset.name + ".vex", content)
+    return true
+
+@blueprint
+fn validate_material_export(preset: MaterialPreset) -> ExportValidation:
+    let v = ExportValidation()
+    v.has_errors = false
+    v.has_warnings = false
+    v.error_messages = []
+    v.warning_messages = []
+    v.missing_textures = []
+    v.invalid_paths = []
+    if len(preset.name) == 0:
+        push(v.error_messages, "Material name is empty")
+        v.has_errors = true
+    if preset.roughness_value < 0.0:
+        push(v.error_messages, "Roughness cannot be negative")
+        v.has_errors = true
+    return v
+
+@blueprint
+fn validate_export_profile(profile: ExportProfile) -> ExportValidation:
+    let v = ExportValidation()
+    v.has_errors = false
+    v.has_warnings = false
+    v.error_messages = []
+    v.warning_messages = []
+    v.missing_textures = []
+    v.invalid_paths = []
+    if len(profile.name) == 0:
+        push(v.error_messages, "Profile name is empty")
+        v.has_errors = true
+    return v
+
+@blueprint
+fn create_material_preset(name: String, category: String) -> MaterialPreset:
+    let p = MaterialPreset()
+    p.name = name
+    p.category = category
+    p.description = ""
+    p.tags = []
+    p.albedo_path = ""
+    p.normal_path = ""
+    p.roughness_path = ""
+    p.metallic_path = ""
+    p.ao_path = ""
+    p.height_path = ""
+    p.emissive_path = ""
+    p.opacity_path = ""
+    p.base_color = vec3(1.0, 1.0, 1.0)
+    p.roughness_value = 0.5
+    p.metallic_value = 0.0
+    p.emissive_strength = 0.0
+    p.normal_strength = 1.0
+    p.height_scale = 1.0
+    p.ao_strength = 1.0
+    p.opacity_value = 1.0
+    p.tiling = vec2(1.0, 1.0)
+    p.offset = vec2(0.0, 0.0)
+    return p
+
+@blueprint
+fn clone_material_preset(source: MaterialPreset, new_name: String) -> MaterialPreset:
+    let p = MaterialPreset()
+    p.name = new_name
+    p.category = source.category
+    p.description = source.description
+    p.tags = source.tags
+    p.albedo_path = source.albedo_path
+    p.normal_path = source.normal_path
+    p.roughness_path = source.roughness_path
+    p.metallic_path = source.metallic_path
+    p.ao_path = source.ao_path
+    p.height_path = source.height_path
+    p.emissive_path = source.emissive_path
+    p.opacity_path = source.opacity_path
+    p.base_color = source.base_color
+    p.roughness_value = source.roughness_value
+    p.metallic_value = source.metallic_value
+    p.emissive_strength = source.emissive_strength
+    p.normal_strength = source.normal_strength
+    p.height_scale = source.height_scale
+    p.ao_strength = source.ao_strength
+    p.opacity_value = source.opacity_value
+    p.tiling = source.tiling
+    p.offset = source.offset
+    return p
+
+@blueprint
+fn create_material_library(name: String) -> MaterialLibrary:
+    let lib = MaterialLibrary()
+    lib.name = name
+    lib.version = "1.0"
+    lib.presets = []
+    lib.tags = []
+    lib.thumbnail_directory = ""
+    lib.metadata = ""
+    return lib
+
+@blueprint
+fn merge_material_libraries(lib1: MaterialLibrary, lib2: MaterialLibrary) -> MaterialLibrary:
+    let merged = MaterialLibrary()
+    merged.name = lib1.name + " + " + lib2.name
+    merged.version = "1.0"
+    merged.presets = []
+    merged.tags = []
+    merged.thumbnail_directory = lib1.thumbnail_directory
+    merged.metadata = "Merged"
+    let i = 0
+    while i < len(lib1.presets):
+        push(merged.presets, lib1.presets[i])
+        i = i + 1
+    let j = 0
+    while j < len(lib2.presets):
+        push(merged.presets, lib2.presets[j])
+        j = j + 1
+    return merged
+
+@blueprint
+fn create_export_profile(name: String, format: ExportFormat, texture_size: Int) -> ExportProfile:
+    let p = ExportProfile()
+    p.name = name
+    p.format = format
+    p.texture_size = texture_size
+    p.compression = "PNG"
+    p.include_thumbnails = true
+    p.embed_textures = false
+    p.generate_mipmaps = true
+    p.flip_normal_y = false
+    p.pack_channels = false
+    p.output_directory = "Exports"
+    p.filename_template = "{material_name}_{format}"
+    return p
+
+@blueprint
+fn create_default_export_profiles() -> Array<ExportProfile>:
+    let profiles = []
+    push(profiles, create_export_profile("Unity Standard", ExportFormat::Unity_Standard, 2048))
+    push(profiles, create_export_profile("Unity URP", ExportFormat::Unity_URP, 2048))
+    push(profiles, create_export_profile("Unity HDRP", ExportFormat::Unity_HDRP, 4096))
+    push(profiles, create_export_profile("Godot Spatial", ExportFormat::Godot_Spatial, 2048))
+    push(profiles, create_export_profile("glTF PBR", ExportFormat::GLTF_PBR, 2048))
+    push(profiles, create_export_profile("Substance", ExportFormat::Substance_SBSAR, 2048))
+    push(profiles, create_export_profile("Blender", ExportFormat::Blender_Principled, 2048))
+    return profiles
+
+@blueprint
+fn export_material_with_profile(preset: MaterialPreset, profile: ExportProfile, output_path: String) -> Bool:
+    if profile.format == ExportFormat::Unity_Standard:
+        return export_unity_standard(preset, output_path)
+    if profile.format == ExportFormat::Unity_URP:
+        return export_unity_urp(preset, output_path)
+    if profile.format == ExportFormat::Unity_HDRP:
+        return export_unity_hdrp(preset, output_path)
+    if profile.format == ExportFormat::Godot_Spatial:
+        return export_godot_spatial(preset, output_path)
+    if profile.format == ExportFormat::Godot_Shader:
+        return export_godot_shader(preset, output_path)
+    if profile.format == ExportFormat::GLTF_PBR:
+        return export_gltf_pbr(preset, output_path)
+    if profile.format == ExportFormat::Substance_SBSAR:
+        return export_substance_sbsar(preset, output_path)
+    if profile.format == ExportFormat::Blender_Principled:
+        return export_blender_principled(preset, output_path)
+    if profile.format == ExportFormat::Max_Physical:
+        return export_max_physical(preset, output_path)
+    if profile.format == ExportFormat::Maya_StandardSurface:
+        return export_maya_standard_surface(preset, output_path)
+    if profile.format == ExportFormat::Houdini_Principled:
+        return export_houdini_principled(preset, output_path)
+    return false
+
+@blueprint
+fn batch_export_materials(job: BatchExportJob) -> Bool:
+    let i = 0
+    while i < len(job.materials):
+        let preset = job.materials[i]
+        let j = 0
+        while j < len(job.profiles):
+            export_material_with_profile(preset, job.profiles[j], job.output_base_path + "/" + preset.name)
+            j = j + 1
+        i = i + 1
+    return true
+
+@blueprint
+fn pack_texture_channels(preset: MaterialPreset, output_path: String, pack_mode: String) -> Bool:
+    let info = "Packed: " + pack_mode
+    write_file(output_path, info)
+    return true
+
+@subsystem
+struct MaterialExportManager:
+    active_library: MaterialLibrary
+    export_profiles: Array<ExportProfile>
+    export_history: Array<String>
+
+    fn initialize_manager():
+        active_library = create_material_library("Default Library")
+        export_profiles = create_default_export_profiles()
+        export_history = []
+
+    @blueprint_callable
+    fn export_single_material(material_name: String, format: ExportFormat, output_path: String) -> Bool:
+        let idx = 0
+        let found = false
+        let result = false
+        while idx < len(active_library.presets):
+            if active_library.presets[idx].name == material_name:
+                let profile = create_export_profile("Single", format, 2048)
+                result = export_material_with_profile(active_library.presets[idx], profile, output_path)
+                found = true
+            idx = idx + 1
+        return result
+
+    @blueprint_callable
+    fn batch_export_library(profile_name: String, output_base_path: String) -> Bool:
+        let pidx = 0
+        let found_profile_idx = -1
+        while pidx < len(export_profiles):
+            if export_profiles[pidx].name == profile_name:
+                found_profile_idx = pidx
+            pidx = pidx + 1
+        if found_profile_idx < 0:
+            println("Export profile == false found: " + profile_name)
+            return false
+        let job = BatchExportJob()
+        job.materials = active_library.presets
+        job.profiles = [export_profiles[found_profile_idx]]
+        job.output_base_path = output_base_path
+        job.generate_report = true
+        job.parallel_export = false
+        job.max_threads = 4
+        return batch_export_materials(job)

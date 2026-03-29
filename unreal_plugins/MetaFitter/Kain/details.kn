@@ -1,0 +1,241 @@
+# ============================================================================
+# METAFITTER - Details Panel Customizations
+# ============================================================================
+# IDetailCustomization implementations for MetaFitter types.
+# Provides rich property editing in the UE5 Details panel with
+# sliders, color pickers, dropdowns, and custom buttons.
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: CONFORM SETTINGS DETAILS
+# ============================================================================
+# Custom details panel for ConformSettings when editing a ClothConformerActor.
+
+@details
+struct ConformSettingsDetails:
+    # Clothing Detection
+    @property
+    auto_detect_type: Bool
+
+    @property
+    clothing_type: ClothingType
+
+    # Fit Parameters
+    @slider(min: 0.0, max: 1.0)
+    fit_tightness: Float
+
+    @property
+    fit_mode: FitMode
+
+    @slider(min: 0.0, max: 1.0)
+    wrinkle_preservation_strength: Float
+
+    @property
+    preserve_wrinkles: Bool
+
+    # Physics
+    @property
+    enable_physics: Bool
+
+    @property
+    physics_preset: PhysicsPreset
+
+    # Layering
+    @property
+    layer_slot: LayerSlot
+
+    @slider(min: 0, max: 100)
+    layer_order: Int
+
+    @property
+    enable_hidden_face_map: Bool
+
+    # Material
+    @property
+    enable_material_transfer: Bool
+
+    # Rigging
+    @property
+    smooth_weights: Bool
+
+    @property
+    weight_smoothing_mode: WeightSmoothingMode
+
+    @slider(min: 1, max: 10)
+    weight_smoothing_iterations: Int
+
+    @slider(min: 1, max: 8)
+    max_bone_influences: Int
+
+    # Actions
+    @button(label: "Reset to Defaults")
+    fn reset_to_defaults():
+        println("ConformSettingsDetails: Resetting to defaults")
+
+    @button(label: "Apply Type Defaults")
+    fn apply_type_defaults():
+        println("ConformSettingsDetails: Applying clothing type defaults")
+
+    @button(label: "Conform Now")
+    fn conform_now():
+        println("ConformSettingsDetails: Starting conform")
+
+# ============================================================================
+# SECTION 2: PHYSICS PARAMS DETAILS
+# ============================================================================
+# Custom details panel for ClothPhysicsParams with fine-grained sliders.
+
+@details
+struct PhysicsParamsDetails:
+    # Core physics
+    @slider(min: 0.0, max: 1.0)
+    stiffness: Float
+
+    @slider(min: 0.0, max: 1.0)
+    damping: Float
+
+    @slider(min: 0.0, max: 1.0)
+    drag: Float
+
+    @slider(min: 0.0, max: 1.0)
+    friction: Float
+
+    # Environment
+    @slider(min: 0.0, max: 3.0)
+    gravity_scale: Float
+
+    @slider(min: 0.0, max: 5.0)
+    wind_scale: Float
+
+    # Mass
+    @slider(min: 0.01, max: 1.0)
+    mass_per_unit_area: Float
+
+    # Collision
+    @slider(min: 0.1, max: 5.0)
+    collision_thickness: Float
+
+    @property
+    self_collision_enabled: Bool
+
+    @slider(min: 0.1, max: 2.0)
+    self_collision_radius: Float
+
+    # Constraints
+    @slider(min: 1.0, max: 200.0)
+    max_distance: Float
+
+    @slider(min: 0.5, max: 20.0)
+    backstop_distance: Float
+
+    @slider(min: 0.5, max: 10.0)
+    backstop_radius: Float
+
+    # Preset actions
+    @button(label: "Apply Soft Preset")
+    fn apply_soft():
+        println("PhysicsParamsDetails: Applying Soft preset")
+
+    @button(label: "Apply Medium Preset")
+    fn apply_medium():
+        println("PhysicsParamsDetails: Applying Medium preset")
+
+    @button(label: "Apply Stiff Preset")
+    fn apply_stiff():
+        println("PhysicsParamsDetails: Applying Stiff preset")
+
+    @button(label: "Apply Rigid Preset")
+    fn apply_rigid():
+        println("PhysicsParamsDetails: Applying Rigid preset")
+
+    @button(label: "Apply Fluid Preset")
+    fn apply_fluid():
+        println("PhysicsParamsDetails: Applying Fluid preset")
+
+# ============================================================================
+# SECTION 3: LAYER CONFIG DETAILS
+# ============================================================================
+# Custom details panel for clothing layer configuration.
+
+@details
+struct LayerConfigDetails:
+    @property
+    slot: LayerSlot
+
+    @slider(min: 0, max: 100)
+    order: Int
+
+    @slider(min: 0.0, max: 5.0)
+    offset: Float
+
+    @slider(min: 0.0, max: 3.0)
+    collision_offset: Float
+
+    @property
+    hidden_face_map_enabled: Bool
+
+    @button(label: "Auto-Configure from Type")
+    fn auto_configure():
+        println("LayerConfigDetails: Auto-configuring from clothing type")
+
+# ============================================================================
+# SECTION 4: BATCH JOB DETAILS
+# ============================================================================
+# Details panel for individual batch job entries.
+
+@details
+struct BatchJobDetails:
+    @property
+    source_path: String
+
+    @property
+    output_name: String
+
+    @property
+    status: BatchJobStatus
+
+    @slider(min: 0.0, max: 1.0)
+    progress: Float
+
+    @property
+    error_message: String
+
+    @button(label: "Retry Job")
+    fn retry_job():
+        println("BatchJobDetails: Retrying job")
+
+    @button(label: "Skip Job")
+    fn skip_job():
+        println("BatchJobDetails: Skipping job")
+
+# ============================================================================
+# SECTION 5: HIDDEN FACE MAP CONFIG DETAILS
+# ============================================================================
+
+@details
+struct HiddenFaceMapConfigDetails:
+    @slider(min: 256, max: 4096)
+    resolution: Int
+
+    @slider(min: 1, max: 16)
+    dilation_pixels: Int
+
+    @slider(min: 0.5, max: 8.0)
+    blur_radius: Float
+
+    @slider(min: 0.1, max: 0.9)
+    threshold: Float
+
+    @property
+    include_head: Bool
+
+    @property
+    include_body: Bool
+
+    @button(label: "Preview Hidden Face Map")
+    fn preview():
+        println("HiddenFaceMapConfigDetails: Generating preview")
+
+    @button(label: "Regenerate")
+    fn regenerate():
+        println("HiddenFaceMapConfigDetails: Regenerating hidden face map")

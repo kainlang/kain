@@ -1,0 +1,367 @@
+# SplineToolsPro - Performance Optimization
+# Performance-critical code and optimizations
+
+# Octree node for spatial partitioning
+struct SplineOctreeNode:
+    bounds: SplineBounds
+    segment_indices: Array<Int>
+    child_indices: Array<Int>
+    is_leaf: Bool
+    depth: Int
+
+# Octree for fast spatial queries on large splines
+struct SplineOctree:
+    nodes: Array<SplineOctreeNode>
+    root_index: Int
+    max_depth: Int
+    max_segments_per_leaf: Int
+
+# Build octree from spline segments
+@blueprint
+fn build_octree(spline: SplineComponent, max_depth: Int) -> SplineOctree:
+    let octree: SplineOctree
+    octree.nodes = []
+    octree.root_index = 0
+    octree.max_depth = max_depth
+    octree.max_segments_per_leaf = 10
+    
+    # Calculate spline bounds
+    let bounds = calculate_spline_bounds(spline)
+    
+    # Create root node
+    let root_node: SplineOctreeNode
+    root_node.bounds = bounds
+    root_node.segment_indices = []
+    root_node.child_indices = []
+    root_node.is_leaf = true
+    root_node.depth = 0
+    
+    # Add all segment indices to root
+    let n = len(spline.points)
+    let i = 0
+    while i < n - 1:
+        push(root_node.segment_indices, i)
+        i = i + 1
+    
+    push(octree.nodes, root_node)
+    
+    # Recursively subdivide
+    subdivide_octree_node(octree, 0, spline)
+    
+    return octree
+
+# Query octree for segments near a point
+@blueprint
+fn query_octree(octree: SplineOctree, point: Vec3, radius: Float) -> Array<Int>:
+    let result: Array<Int> = []
+    
+    if len(octree.nodes) == 0:
+        return result
+    
+    query_octree_recursive(octree, octree.root_index, point, radius, result)
+    
+    return result
+
+# Spline cache for frequently accessed data
+struct SplineCache:
+    spline_id: Int
+    arc_length_table: ArcLengthTable
+    tangent_cache: Array<Vec3>
+    position_cache: Array<Vec3>
+    last_access_time: Float
+    access_count: Int
+    is_dirty: Bool
+
+# Cache arc-length table with LRU eviction
+@blueprint
+fn cache_arc_length_table(cache: SplineCache, spline: SplineComponent):
+    cache.arc_length_table = build_arc_length_table(
+        spline.points,
+        spline.interpolation_type,
+        100
+    )
+    cache.is_dirty = false
+
+# Cache tangent vectors for pre-calculated tangents
+@blueprint
+fn cache_tangent_vectors(cache: SplineCache, spline: SplineComponent):
+    cache.tangent_cache = []
+    
+    let samples = 100
+    let i = 0
+    while i <= samples:
+        let t = i as Float / samples as Float
+        let tangent = calculate_spline_derivative(spline.points, t, spline.interpolation_type)
+        push(cache.tangent_cache, normalize(tangent))
+        i = i + 1
+
+# Invalidate cache region for partial updates
+@blueprint
+fn invalidate_cache_region(cache: SplineCache, start_param: Float, end_param: Float):
+    # Mark cache as dirty for the specified region
+    cache.is_dirty = true
+
+# Async spline evaluator for parallel evaluation
+@async_task
+struct AsyncSplineEvaluator:
+    @input
+    spline_points: Array<SplinePoint>
+    
+    @input
+    interpolation_type: SplineInterpolationType
+    
+    @input
+    parameters: Array<Float>
+    
+    @output
+    positions: Array<Vec3>
+    
+    @callback(thread: "game")
+    fn on_evaluation_complete(result: Array<Vec3>):
+        println("Spline evaluation complete: {len(result)} positions")
+
+# Batch evaluate multiple splines
+@blueprint
+fn batch_evaluate_splines(splines: Array<SplineComponent>, parameters: Array<Float>) -> Array<Array<Vec3>>:
+    let results: Array<Array<Vec3>> = []
+    
+    let i = 0
+    while i < len(splines):
+        let positions: Array<Vec3> = []
+        
+        let j = 0
+        while j < len(parameters):
+            let pos = evaluate_spline_at_param(splines[i].points, parameters[j], splines[i].interpolation_type)
+            push(positions, pos)
+            j = j + 1
+        
+        push(results, positions)
+        i = i + 1
+    
+    return results
+
+# Helper functions for octree operations
+
+fn subdivide_octree_node(octree: SplineOctree, node_index: Int, spline: SplineComponent):
+    let node = octree.nodes[node_index]
+    
+    # Check if subdivision is needed
+    if node.depth >= octree.max_depth:
+        return
+    
+    if len(node.segment_indices) <= octree.max_segments_per_leaf:
+        return
+    
+    # Calculate child bounds
+    let center = node.bounds.center
+    let half_extent = node.bounds.extent * 0.5
+    
+    # Create 8 child nodes
+    let child_count = 0
+    let x = 0
+    while x < 2:
+        let y = 0
+        while y < 2:
+            let z = 0
+            while z < 2:
+                let child_min = vec3(
+                    center.x + (if x == 0: -half_extent.x else: 0.0),
+                    center.y + (if y == 0: -half_extent.y else: 0.0),
+                    center.z + (if z == 0: -half_extent.z else: 0.0)
+                )
+                
+                let child_max = vec3(
+                    center.x + (if x == 0: 0.0 else: half_extent.x),
+                    center.y + (if y == 0: 0.0 else: half_extent.y),
+                    center.z + (if z == 0: 0.0 else: half_extent.z)
+                )
+                
+                let child_bounds = create_spline_bounds(child_min, child_max)
+                
+                let child_node: SplineOctreeNode
+                child_node.bounds = child_bounds
+                child_node.segment_indices = []
+                child_node.child_indices = []
+                child_node.is_leaf = true
+                child_node.depth = node.depth + 1
+                
+                # Assign segments to child
+                let i = 0
+                while i < len(node.segment_indices):
+                    let seg_idx = node.segment_indices[i]
+                    
+                    if segment_intersects_bounds(spline, seg_idx, child_bounds):
+                        push(child_node.segment_indices, seg_idx)
+                    
+                    i = i + 1
+                
+                # Only add child if it has segments
+                if len(child_node.segment_indices) > 0:
+                    let child_index = len(octree.nodes)
+                    push(octree.nodes, child_node)
+                    push(octree.nodes[node_index].child_indices, child_index)
+                    
+                    # Recursively subdivide child
+                    subdivide_octree_node(octree, child_index, spline)
+                
+                z = z + 1
+            y = y + 1
+        x = x + 1
+    
+    # Mark parent as non-leaf
+    octree.nodes[node_index].is_leaf = false
+    octree.nodes[node_index].segment_indices = []
+
+fn query_octree_recursive(octree: SplineOctree, node_index: Int, point: Vec3, radius: Float, result: Array<Int>):
+    let node = octree.nodes[node_index]
+    
+    # Check if point is within node bounds + radius
+    if not point_in_bounds_with_radius(point, node.bounds, radius):
+        return
+    
+    if node.is_leaf:
+        # Add all segments in this leaf
+        let i = 0
+        while i < len(node.segment_indices):
+            push(result, node.segment_indices[i])
+            i = i + 1
+    else:
+        # Recurse into children
+        let j = 0
+        while j < len(node.child_indices):
+            query_octree_recursive(octree, node.child_indices[j], point, radius, result)
+            j = j + 1
+
+fn segment_intersects_bounds(spline: SplineComponent, segment_index: Int, bounds: SplineBounds) -> Bool:
+    if segment_index >= len(spline.points) - 1:
+        return false
+    
+    let p0 = spline.points[segment_index].position
+    let p1 = spline.points[segment_index + 1].position
+    
+    # Check if either endpoint is in bounds
+    if point_in_bounds(p0, bounds) or point_in_bounds(p1, bounds):
+        return true
+    
+    # Check if segment crosses bounds
+    # Simplified check - sample segment
+    let samples = 10
+    let i = 0
+    while i <= samples:
+        let t = i as Float / samples as Float
+        let pos = linear_interpolate_points(p0, p1, t)
+        
+        if point_in_bounds(pos, bounds):
+            return true
+        
+        i = i + 1
+    
+    return false
+
+fn point_in_bounds(point: Vec3, bounds: SplineBounds) -> Bool:
+    if point.x < bounds.min.x or point.x > bounds.max.x:
+        return false
+    if point.y < bounds.min.y or point.y > bounds.max.y:
+        return false
+    if point.z < bounds.min.z or point.z > bounds.max.z:
+        return false
+    return true
+
+fn point_in_bounds_with_radius(point: Vec3, bounds: SplineBounds, radius: Float) -> Bool:
+    let expanded_min = vec3(
+        bounds.min.x - radius,
+        bounds.min.y - radius,
+        bounds.min.z - radius
+    )
+    
+    let expanded_max = vec3(
+        bounds.max.x + radius,
+        bounds.max.y + radius,
+        bounds.max.z + radius
+    )
+    
+    if point.x < expanded_min.x or point.x > expanded_max.x:
+        return false
+    if point.y < expanded_min.y or point.y > expanded_max.y:
+        return false
+    if point.z < expanded_min.z or point.z > expanded_max.z:
+        return false
+    return true
+
+fn evaluate_spline_at_param(points: Array<SplinePoint>, t: Float, interpolation_type: SplineInterpolationType) -> Vec3:
+    let n = len(points)
+    if n == 0:
+        return vec3(0.0, 0.0, 0.0)
+    if n == 1:
+        return points[0].position
+    
+    let t_clamped = clamp(t, 0.0, 1.0)
+    let segment_idx = floor(t_clamped * (n - 1) as Float) as Int
+    segment_idx = min_int(segment_idx, n - 2)
+    
+    let local_t = t_clamped * (n - 1) as Float - segment_idx as Float
+    
+    let p0 = points[segment_idx].position
+    let p1 = points[segment_idx + 1].position
+    
+    if interpolation_type == SplineInterpolationType::Linear:
+        return linear_interpolate_points(p0, p1, local_t)
+    else:
+        if interpolation_type == SplineInterpolationType::Bezier:
+            let t0 = points[segment_idx].out_tangent
+            let t1 = points[segment_idx + 1].in_tangent
+            let ctrl1 = p0 + t0
+            let ctrl2 = p1 - t1
+            return evaluate_bezier(p0, ctrl1, ctrl2, p1, local_t)
+        else:
+            if interpolation_type == SplineInterpolationType::CatmullRom:
+                let p_prev = if segment_idx > 0: points[segment_idx - 1].position else: p0
+                let p_next = if segment_idx < n - 2: points[segment_idx + 2].position else: p1
+                return evaluate_catmull_rom(p_prev, p0, p1, p_next, local_t)
+            else:
+                return linear_interpolate_points(p0, p1, local_t)
+
+# Memory pooling for vertex buffers
+struct VertexBufferPool:
+    available_buffers: Array<Array<Vec3>>
+    in_use_buffers: Array<Array<Vec3>>
+    buffer_size: Int
+    max_pool_size: Int
+
+@blueprint
+fn allocate_vertex_buffer(pool: VertexBufferPool) -> Array<Vec3>:
+    if len(pool.available_buffers) > 0:
+        let buffer = pool.available_buffers[0]
+        
+        # Remove from available
+        let new_available: Array<Array<Vec3>> = []
+        let i = 1
+        while i < len(pool.available_buffers):
+            push(new_available, pool.available_buffers[i])
+            i = i + 1
+        pool.available_buffers = new_available
+        
+        # Add to in-use
+        push(pool.in_use_buffers, buffer)
+        
+        return buffer
+    else:
+        # Allocate new buffer
+        let new_buffer: Array<Vec3> = []
+        push(pool.in_use_buffers, new_buffer)
+        return new_buffer
+
+@blueprint
+fn release_vertex_buffer(pool: VertexBufferPool, buffer: Array<Vec3>):
+    # Remove from in-use
+    let new_in_use: Array<Array<Vec3>> = []
+    let i = 0
+    while i < len(pool.in_use_buffers):
+        if len(pool.in_use_buffers[i]) != len(buffer):
+            push(new_in_use, pool.in_use_buffers[i])
+        i = i + 1
+    pool.in_use_buffers = new_in_use
+    
+    # Add to available if pool not full
+    if len(pool.available_buffers) < pool.max_pool_size:
+        push(pool.available_buffers, buffer)

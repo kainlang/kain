@@ -1,0 +1,338 @@
+# SplineToolsPro - Blueprint Function Library
+# Blueprint-callable functions for spline operations
+
+# Get world position at arc-length distance
+@blueprint
+@category("Spline Tools")
+@meta("ToolTip=Get the world position at a specific arc-length distance along the spline")
+fn GetPointAtDistance(spline: SplineComponent, distance: Float) -> Vec3:
+    return get_position_at_distance(spline, distance)
+
+# Get normalized tangent at parameter t
+@blueprint_pure
+@category("Spline Tools")
+@meta("ToolTip=Get the normalized tangent vector at parameter t (0.0 to 1.0)")
+fn GetTangentAtPoint(spline: SplineComponent, t: Float) -> Vec3:
+    return get_tangent_at_time(spline, t)
+
+# Get rotation at parameter t
+@blueprint_pure
+@category("Spline Tools")
+@meta("ToolTip=Get the rotation aligned with the spline at parameter t (0.0 to 1.0)")
+fn GetRotationAtPoint(spline: SplineComponent, t: Float) -> Rotator:
+    return get_rotation_at_time(spline, t)
+
+# Get scale at parameter t
+@blueprint_pure
+@category("Spline Tools")
+@meta("ToolTip=Get the interpolated scale at parameter t (0.0 to 1.0)")
+fn GetScaleAtPoint(spline: SplineComponent, t: Float) -> Vec3:
+    return get_scale_at_time(spline, t)
+
+# Get closest point on spline to world position
+@blueprint
+@category("Spline Tools")
+@meta("ToolTip=Find the closest point on the spline to a world position. Returns (parameter, distance)")
+fn GetClosestPointOnSpline(spline: SplineComponent, world_pos: Vec3) -> Vec2:
+    let n = len(spline.points)
+    if n < 2:
+        return vec2(0.0, 0.0)
+    
+    let min_dist = 1000000.0
+    let best_param = 0.0
+    
+    # Sample spline at regular intervals
+    let samples = 100
+    let i = 0
+    while i <= samples:
+        let t = i as Float / samples as Float
+        let spline_pos = evaluate_spline_at_param(spline.points, t, spline.interpolation_type)
+        let dist = distance(world_pos, spline_pos)
+        
+        if dist < min_dist:
+            min_dist = dist
+            best_param = t
+        
+        i = i + 1
+    
+    return vec2(best_param, min_dist)
+
+# Sample spline at parameter t (returns position, rotation, scale)
+@blueprint
+@category("Spline Tools")
+@meta("ToolTip=Sample the spline at parameter t, returning position, rotation, and scale")
+fn SampleSplineAtTime(spline: SplineComponent, t: Float) -> SplineEvalResult:
+    let result = create_spline_eval_result()
+    result.parameter = t
+    result.position = evaluate_spline_at_param(spline.points, t, spline.interpolation_type)
+    result.tangent = get_tangent_at_time(spline, t)
+    result.rotation = get_rotation_at_time(spline, t)
+    result.scale = get_scale_at_time(spline, t)
+    
+    # Calculate curvature
+    if len(spline.points) >= 3:
+        let segment_idx = floor(t * (len(spline.points) - 1) as Float) as Int
+        segment_idx = min_int(segment_idx, len(spline.points) - 3)
+        
+        let p0 = spline.points[segment_idx].position
+        let p1 = spline.points[segment_idx + 1].position
+        let p2 = spline.points[segment_idx + 2].position
+        
+        let curvature_info = calculate_curvature(p0, p1, p2, t)
+        result.curvature = curvature_info.kappa
+    
+    return result
+
+# Get total spline length
+@blueprint_pure
+@category("Spline Tools")
+@meta("ToolTip=Get the total arc length of the spline in world units")
+fn GetSplineLength(spline: SplineComponent) -> Float:
+    return get_spline_length(spline)
+
+# Get number of control points
+@blueprint_pure
+@category("Spline Tools")
+@meta("ToolTip=Get the number of control points in the spline")
+fn GetNumberOfPoints(spline: SplineComponent) -> Int:
+    return get_number_of_points(spline)
+
+# Find direction vector at arc-length distance
+@blueprint
+@category("Spline Tools")
+@meta("ToolTip=Get the normalized direction vector at a specific arc-length distance")
+fn FindDirectionAtDistance(spline: SplineComponent, distance: Float) -> Vec3:
+    if spline.is_cache_dirty:
+        rebuild_arc_length_table(spline)
+    
+    let t = find_parameter_at_distance(spline.arc_length_table, distance)
+    return get_tangent_at_time(spline, t)
+
+# Get up vector at arc-length distance
+@blueprint
+@category("Spline Tools")
+@meta("ToolTip=Get the up vector at a specific arc-length distance")
+fn GetUpVectorAtDistance(spline: SplineComponent, distance: Float) -> Vec3:
+    if spline.is_cache_dirty:
+        rebuild_arc_length_table(spline)
+    
+    let t = find_parameter_at_distance(spline.arc_length_table, distance)
+    let tangent = get_tangent_at_time(spline, t)
+    let up = spline.default_up_vector
+    
+    let right = normalize(cross(up, tangent))
+    return cross(tangent, right)
+
+# Split spline at arc-length distance
+@blueprint
+@category("Spline Tools")
+@meta("ToolTip=Split the spline at a specific distance, creating two independent splines")
+fn SplitSplineAtDistance(spline: SplineComponent, distance: Float) -> Array<SplineComponent>:
+    let result: Array<SplineComponent> = []
+    
+    if spline.is_cache_dirty:
+        rebuild_arc_length_table(spline)
+    
+    let split_param = find_parameter_at_distance(spline.arc_length_table, distance)
+    
+    # Create first spline (0 to split_param)
+    let spline_a: SplineComponent
+    spline_a.points = []
+    spline_a.interpolation_type = spline.interpolation_type
+    spline_a.is_closed_loop = false
+    spline_a.default_up_vector = spline.default_up_vector
+    spline_a.is_cache_dirty = true
+    
+    # Create second spline (split_param to 1.0)
+    let spline_b: SplineComponent
+    spline_b.points = []
+    spline_b.interpolation_type = spline.interpolation_type
+    spline_b.is_closed_loop = false
+    spline_b.default_up_vector = spline.default_up_vector
+    spline_b.is_cache_dirty = true
+    
+    let n = len(spline.points)
+    let segment_idx = floor(split_param * (n - 1) as Float) as Int
+    segment_idx = min_int(segment_idx, n - 2)
+    
+    # Add points to first spline
+    let i = 0
+    while i <= segment_idx:
+        push(spline_a.points, copy_spline_point(spline.points[i]))
+        i = i + 1
+    
+    # Add split point to both splines
+    let split_pos = evaluate_spline_at_param(spline.points, split_param, spline.interpolation_type)
+    let split_point = create_default_spline_point(split_pos)
+    push(spline_a.points, split_point)
+    push(spline_b.points, split_point)
+    
+    # Add points to second spline
+    let j = segment_idx + 1
+    while j < n:
+        push(spline_b.points, copy_spline_point(spline.points[j]))
+        j = j + 1
+    
+    push(result, spline_a)
+    push(result, spline_b)
+    
+    return result
+
+# Merge two splines end-to-end
+@blueprint
+@category("Spline Tools")
+@meta("ToolTip=Merge two splines end-to-end with automatic tangent blending")
+fn MergeSplines(spline_a: SplineComponent, spline_b: SplineComponent) -> SplineComponent:
+    let merged: SplineComponent
+    merged.points = []
+    merged.interpolation_type = spline_a.interpolation_type
+    merged.is_closed_loop = false
+    merged.default_up_vector = spline_a.default_up_vector
+    merged.is_cache_dirty = true
+    
+    # Add all points from spline_a
+    let i = 0
+    while i < len(spline_a.points):
+        push(merged.points, copy_spline_point(spline_a.points[i]))
+        i = i + 1
+    
+    # Add all points from spline_b
+    let j = 0
+    while j < len(spline_b.points):
+        push(merged.points, copy_spline_point(spline_b.points[j]))
+        j = j + 1
+    
+    # Recalculate tangents at merge point
+    let merge_idx = len(spline_a.points) - 1
+    if merge_idx > 0 and merge_idx < len(merged.points) - 1:
+        let p_prev = merged.points[merge_idx - 1].position
+        let p_curr = merged.points[merge_idx].position
+        let p_next = merged.points[merge_idx + 1].position
+        
+        let tangent = calculate_tangent(p_prev, p_curr, p_next, SplineTangentMode::Smooth)
+        merged.points[merge_idx].in_tangent = tangent
+        merged.points[merge_idx].out_tangent = tangent
+    
+    return merged
+
+# Get spline bounds
+@blueprint
+@category("Spline Tools")
+@meta("ToolTip=Calculate the axis-aligned bounding box of the spline")
+fn GetSplineBounds(spline: SplineComponent) -> SplineBounds:
+    let n = len(spline.points)
+    if n == 0:
+        let empty_bounds: SplineBounds
+        empty_bounds.is_valid = false
+        return empty_bounds
+    
+    let min_point = spline.points[0].position
+    let max_point = spline.points[0].position
+    
+    # Sample spline to find bounds
+    let samples = 100
+    let i = 0
+    while i <= samples:
+        let t = i as Float / samples as Float
+        let pos = evaluate_spline_at_param(spline.points, t, spline.interpolation_type)
+        
+        min_point.x = min(min_point.x, pos.x)
+        min_point.y = min(min_point.y, pos.y)
+        min_point.z = min(min_point.z, pos.z)
+        
+        max_point.x = max(max_point.x, pos.x)
+        max_point.y = max(max_point.y, pos.y)
+        max_point.z = max(max_point.z, pos.z)
+        
+        i = i + 1
+    
+    return create_spline_bounds(min_point, max_point)
+
+# Convert spline to array of world positions
+@blueprint
+@category("Spline Tools")
+@meta("ToolTip=Convert the spline to an array of world positions with specified sample count")
+fn SplineToPositionArray(spline: SplineComponent, sample_count: Int) -> Array<Vec3>:
+    let positions: Array<Vec3> = []
+    
+    if sample_count <= 0:
+        return positions
+    
+    let i = 0
+    while i < sample_count:
+        let t = i as Float / (sample_count - 1) as Float
+        let pos = evaluate_spline_at_param(spline.points, t, spline.interpolation_type)
+        push(positions, pos)
+        i = i + 1
+    
+    return positions
+
+# Get spline curvature at parameter
+@blueprint
+@category("Spline Tools")
+@meta("ToolTip=Get the curvature information at parameter t")
+fn GetCurvatureAtPoint(spline: SplineComponent, t: Float) -> SplineCurvature:
+    let n = len(spline.points)
+    if n < 3:
+        let invalid: SplineCurvature
+        invalid.is_valid = false
+        return invalid
+    
+    let segment_idx = floor(t * (n - 1) as Float) as Int
+    segment_idx = min_int(segment_idx, n - 3)
+    
+    let p0 = spline.points[segment_idx].position
+    let p1 = spline.points[segment_idx + 1].position
+    let p2 = spline.points[segment_idx + 2].position
+    
+    return calculate_curvature(p0, p1, p2, t)
+
+# Set spline interpolation type
+@blueprint
+@category("Spline Tools")
+@meta("ToolTip=Change the interpolation type of the spline")
+fn SetSplineInterpolationType(spline: SplineComponent, interpolation_type: SplineInterpolationType):
+    spline.interpolation_type = interpolation_type
+    spline.is_cache_dirty = true
+
+# Set spline closed loop
+@blueprint
+@category("Spline Tools")
+@meta("ToolTip=Set whether the spline forms a closed loop")
+fn SetSplineClosedLoop(spline: SplineComponent, is_closed: Bool):
+    spline.is_closed_loop = is_closed
+    spline.is_cache_dirty = true
+
+# Helper function to evaluate spline at parameter
+fn evaluate_spline_at_param(points: Array<SplinePoint>, t: Float, interpolation_type: SplineInterpolationType) -> Vec3:
+    let n = len(points)
+    if n == 0:
+        return vec3(0.0, 0.0, 0.0)
+    if n == 1:
+        return points[0].position
+    
+    let t_clamped = clamp(t, 0.0, 1.0)
+    let segment_idx = floor(t_clamped * (n - 1) as Float) as Int
+    segment_idx = min_int(segment_idx, n - 2)
+    
+    let local_t = t_clamped * (n - 1) as Float - segment_idx as Float
+    
+    let p0 = points[segment_idx].position
+    let p1 = points[segment_idx + 1].position
+    
+    if interpolation_type == SplineInterpolationType::Linear:
+        return linear_interpolate_points(p0, p1, local_t)
+    else:
+        if interpolation_type == SplineInterpolationType::Bezier:
+            let t0 = points[segment_idx].out_tangent
+            let t1 = points[segment_idx + 1].in_tangent
+            let ctrl1 = p0 + t0
+            let ctrl2 = p1 - t1
+            return evaluate_bezier(p0, ctrl1, ctrl2, p1, local_t)
+        else:
+            if interpolation_type == SplineInterpolationType::CatmullRom:
+                let p_prev = if segment_idx > 0: points[segment_idx - 1].position else: p0
+                let p_next = if segment_idx < n - 2: points[segment_idx + 2].position else: p1
+                return evaluate_catmull_rom(p_prev, p0, p1, p_next, local_t)
+            else:
+                return linear_interpolate_points(p0, p1, local_t)

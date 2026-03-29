@@ -1,0 +1,82 @@
+# ============================================================================
+# BulkMatte - KAIN Configuration
+# ============================================================================
+# ============================================================================
+
+# Root-level plugin_name for FULLBUILD.bat compatibility
+plugin_name = "BulkMatte"
+
+[plugin]
+name = "BulkMatte"
+version = "1.0.0"
+description = "Spreadsheet-style bulk editor for Material Instance parameters"
+author = "KAIN Factory"
+category = "Editor"
+engine_version = "5.4"
+
+[plugin.metadata]
+marketplace_url = ""
+documentation_url = ""
+support_url = ""
+tags = ["Materials", "Editor", "Bulk Edit", "Technical Art", "Workflow", "Productivity"]
+
+[build]
+# Source files to compile
+sources = [
+    "bulkmatte.kn"
+]
+
+# Output directories
+output_dir = "Source/BulkMatte"
+
+# UE5 module configuration
+[build.ue5]
+module_type = "Runtime"
+loading_phase = "Default"
+whitelist_platforms = ["Win64", "Linux", "Mac"]
+
+# Dependencies
+dependencies = [
+    "Core",
+    "CoreUObject",
+    "Engine",
+    "Slate",
+    "SlateCore",
+    "UnrealEd",
+    "PropertyEditor",
+    "EditorStyle",
+    "LevelEditor",
+    "InputCore",
+    "AssetRegistry",
+    "ContentBrowser",
+    "Projects"
+]
+
+# Editor module configuration
+[build.editor]
+enabled = true
+module_name = "BulkMatteEditor"
+loading_phase = "PostEngineInit"
+
+# Asset configuration
+[assets]
+# DataTable CSV files
+datatables = [
+    "Data/CommonParameters.csv",
+    "Data/MaterialPresets.csv"
+]
+
+# Icon paths
+icons = [
+    "Resources/Icons/BulkMatte_Icon.png",
+    "Resources/Icons/Scan_Icon.png",
+    "Resources/Icons/Apply_Icon.png"
+]
+
+# Performance settings
+[performance]
+# Max materials to scan at once
+max_scan_batch_size = 1000
+
+# Max undo history entries
+max_undo_stack_size = 50

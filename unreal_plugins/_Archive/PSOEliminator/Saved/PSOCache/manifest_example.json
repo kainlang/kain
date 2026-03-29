@@ -1,0 +1,134 @@
+{
+  "version": "1.0.0",
+  "generated_timestamp": "2026-02-19T10:30:00Z",
+  "project_name": "ExampleProject",
+  "ue5_version": "5.4.0",
+  "settings": {
+    "thread_count": 8,
+    "compile_priority": "Normal",
+    "max_permutations_per_material": 500,
+    "enabled_shader_types": [
+      "Material",
+      "GlobalShader",
+      "Niagara",
+      "Compute",
+      "PostProcess"
+    ]
+  },
+  "statistics": {
+    "total_materials": 150,
+    "compiled_materials": 145,
+    "failed_materials": 5,
+    "total_permutations": 4500,
+    "compiled_permutations": 4350,
+    "total_compile_time_seconds": 3600,
+    "cache_size_mb": 1024.5
+  },
+  "materials": [
+    {
+      "path": "/Game/Materials/Master/M_Master_01",
+      "permutation_count": 45,
+      "compile_status": "Complete",
+      "compile_time_ms": 2500.0,
+      "shader_types": ["Material", "GlobalShader"],
+      "quality_levels": ["Low", "Medium", "High", "Ultra"],
+      "feature_flags": ["ENABLE_SHADOWS", "ENABLE_REFLECTIONS"]
+    },
+    {
+      "path": "/Game/Materials/Master/M_Master_02",
+      "permutation_count": 32,
+      "compile_status": "Complete",
+      "compile_time_ms": 1800.0,
+      "shader_types": ["Material"],
+      "quality_levels": ["Low", "Medium", "High"],
+      "feature_flags": ["ENABLE_SHADOWS"]
+    },
+    {
+      "path": "/Game/Materials/Environment/M_Terrain",
+      "permutation_count": 28,
+      "compile_status": "Complete",
+      "compile_time_ms": 1500.0,
+      "shader_types": ["Material", "Compute"],
+      "quality_levels": ["Medium", "High", "Ultra"],
+      "feature_flags": ["ENABLE_TESSELLATION", "ENABLE_DISPLACEMENT"]
+    },
+    {
+      "path": "/Game/Materials/Characters/M_Skin",
+      "permutation_count": 64,
+      "compile_status": "Complete",
+      "compile_time_ms": 3200.0,
+      "shader_types": ["Material", "GlobalShader"],
+      "quality_levels": ["Low", "Medium", "High", "Ultra"],
+      "feature_flags": ["ENABLE_SUBSURFACE", "ENABLE_WRINKLES", "ENABLE_PORES"]
+    },
+    {
+      "path": "/Game/Materials/VFX/M_Particle_Master",
+      "permutation_count": 18,
+      "compile_status": "Complete",
+      "compile_time_ms": 900.0,
+      "shader_types": ["Material", "Niagara"],
+      "quality_levels": ["Low", "Medium", "High"],
+      "feature_flags": ["ENABLE_SOFT_PARTICLES"]
+    },
+    {
+      "path": "/Game/Materials/PostProcess/M_PP_Bloom",
+      "permutation_count": 12,
+      "compile_status": "Complete",
+      "compile_time_ms": 600.0,
+      "shader_types": ["PostProcess"],
+      "quality_levels": ["Medium", "High", "Ultra"],
+      "feature_flags": ["ENABLE_HDR"]
+    },
+    {
+      "path": "/Game/Materials/Compute/M_CS_FluidSim",
+      "permutation_count": 8,
+      "compile_status": "Complete",
+      "compile_time_ms": 1200.0,
+      "shader_types": ["Compute"],
+      "quality_levels": ["High", "Ultra"],
+      "feature_flags": ["ENABLE_3D_GRID", "ENABLE_PRESSURE_SOLVE"]
+    },
+    {
+      "path": "/Game/Materials/Broken/M_Invalid",
+      "permutation_count": 0,
+      "compile_status": "Failed",
+      "compile_time_ms": 0.0,
+      "error_message": "Shader compilation failed: Missing texture sampler",
+      "shader_types": [],
+      "quality_levels": [],
+      "feature_flags": []
+    }
+  ],
+  "global_shaders": [
+    {
+      "name": "PSOTestShader",
+      "permutation_count": 4,
+      "compile_status": "Complete",
+      "compile_time_ms": 800.0
+    },
+    {
+      "name": "PermutationGenerator",
+      "permutation_count": 16,
+      "compile_status": "Complete",
+      "compile_time_ms": 1600.0
+    }
+  ],
+  "failed_materials": [
+    {
+      "path": "/Game/Materials/Broken/M_Invalid",
+      "error": "Shader compilation failed: Missing texture sampler",
+      "timestamp": "2026-02-19T10:15:30Z"
+    },
+    {
+      "path": "/Game/Materials/Broken/M_Corrupted",
+      "error": "Material asset is corrupted",
+      "timestamp": "2026-02-19T10:18:45Z"
+    }
+  ],
+  "recommendations": [
+    "Fix 5 failed materials before shipping",
+    "Consider reducing max_permutations_per_material to 300 for faster builds",
+    "Enable incremental compilation for faster iteration",
+    "Cache size is optimal (1024 MB)"
+  ]
+}

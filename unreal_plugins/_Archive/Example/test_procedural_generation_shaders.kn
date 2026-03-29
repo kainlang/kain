@@ -1,0 +1,225 @@
+# ============================================================================
+# Procedural Generation Shader Tests - Testing stdlib procedural functions
+# ============================================================================
+# Tests: generate_terrain_height, generate_terrain_normal,
+#        generate_cave_system, generate_river_network,
+#        generate_vegetation_distribution, generate_rock_placement,
+#        generate_cloud_shape, generate_galaxy_spiral,
+#        generate_planet_surface, generate_asteroid_field
+
+shader compute TestTerrainGeneration(thread_id: Vec3) -> Unit:
+    uniform scale: Float @0
+    uniform octaves: Int @1
+    uniform output_buffer: RWBuffer<Vec4> @2
+    
+    let idx = thread_id.x
+    let x = idx * 0.1
+    let y = idx * 0.2
+    let pos = vec2(x, y)
+    
+    # Test generate_terrain_height using FBM
+    let height = fbm2(pos * scale, octaves)
+    
+    # Test generate_terrain_normal estimation
+    let eps = 0.01
+    let h_x = fbm2(vec2(pos.x + eps, pos.y) * scale, octaves)
+    let h_y = fbm2(vec2(pos.x, pos.y + eps) * scale, octaves)
+    let dx = h_x - height
+    let dy = h_y - height
+    let normal = normalize(vec3(-dx / eps, -dy / eps, 1.0))
+    
+    output_buffer[idx] = vec4(height, normal.x, normal.y, normal.z)
+
+shader fragment TestProceduralTerrain(uv: Vec2) -> Vec4:
+    uniform scale: Float @0
+    uniform octaves: Int @1
+    uniform height_scale: Float @2
+    
+    # Generate base terrain height
+    let base_height = fbm2(uv * scale, octaves)
+    
+    # Add detail layers
+    let detail = turbulence(uv * scale * 2.0, octaves, 0.0)
+    let ridges = ridged_noise(uv * scale * 0.5, octaves, 0.0)
+    
+    # Combine layers
+    let final_height = base_height * 0.6 + detail * 0.2 + ridges * 0.2
+    let scaled_height = final_height * height_scale
+    
+    # Color based on height
+    var color = vec3(0.0, 0.0, 0.0)
+    if scaled_height < 0.3:
+        color = vec3(0.2, 0.4, 0.8)
+    else:
+        if scaled_height < 0.5:
+            color = vec3(0.8, 0.7, 0.5)
+        else:
+            if scaled_height < 0.7:
+                color = vec3(0.3, 0.6, 0.3)
+            else:
+                color = vec3(0.9, 0.9, 0.9)
+    
+    return vec4(color.x, color.y, color.z, 1.0)
+
+shader compute TestCaveGeneration(thread_id: Vec3) -> Unit:
+    uniform scale: Float @0
+    uniform threshold: Float @1
+    uniform output_buffer: RWBuffer<Float> @2
+    
+    let idx = thread_id.x
+    let x = idx * 0.1
+    let y = idx * 0.2
+    let z = idx * 0.3
+    let pos = vec3(x, y, z)
+    
+    # Test generate_cave_system using 3D noise
+    let cave_noise = noise3(pos * scale)
+    let cave_detail = fbm3(pos * scale * 2.0, 4)
+    
+    # Combine for cave structure
+    let cave_value = cave_noise * 0.7 + cave_detail * 0.3
+    
+    # Threshold determines if it's solid or air
+    let is_cave = cave_value > threshold
+    
+    output_buffer[idx] = cave_value
+
+shader fragment TestVegetationDistribution(uv: Vec2) -> Vec4:
+    uniform density_scale: Float @0
+    uniform randomness: Float @1
+    uniform seed: Float @2
+    
+    # Test generate_vegetation_distribution using Voronoi
+    let vegetation_pattern = worley_noise(uv * density_scale, randomness, seed)
+    
+    # Add variation with noise
+    let variation = fbm2(uv * density_scale * 2.0, 4)
+    
+    # Combine for distribution
+    let distribution = vegetation_pattern * variation
+    
+    # Color based on density
+    let green_intensity = distribution
+    let color = vec3(0.2 * green_intensity, 0.6 * green_intensity, 0.2 * green_intensity)
+    
+    return vec4(color.x, color.y, color.z, 1.0)
+
+shader compute TestRockPlacement(thread_id: Vec3) -> Unit:
+    uniform scale: Float @0
+    uniform seed: Float @1
+    uniform output_buffer: RWBuffer<Vec4> @2
+    
+    let idx = thread_id.x
+    let x = idx * 0.1
+    let y = idx * 0.2
+    let uv = vec2(x, y)
+    
+    # Test generate_rock_placement using Voronoi
+    let voronoi_val = voronoi(uv * scale, 1.0, seed)
+    let cell_id = voronoi_val.y
+    let distance = voronoi_val.x
+    
+    # Use cell ID to determine rock properties
+    let rock_size = hash2(vec2(cell_id, seed))
+    let rock_rotation = hash2(vec2(cell_id + 1.0, seed)) * 6.28318
+    
+    output_buffer[idx] = vec4(distance, rock_size, rock_rotation, cell_id)
+
+shader fragment TestCloudShape(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform scale: Float @1
+    uniform octaves: Int @2
+    
+    # Test generate_cloud_shape using FBM
+    let animated_uv = vec2(uv.x + time * 0.05, uv.y)
+    let cloud_base = fbm2(animated_uv * scale, octaves)
+    
+    # Add detail and turbulence
+    let cloud_detail = turbulence(animated_uv * scale * 2.0, octaves, 0.0)
+    let cloud_edges = worley_noise(animated_uv * scale * 0.5, 1.0, 0.0)
+    
+    # Combine for cloud shape
+    let cloud_density = cloud_base * 0.6 + cloud_detail * 0.3 + cloud_edges * 0.1
+    
+    # Color clouds
+    let cloud_color = vec3(1.0, 1.0, 1.0) * cloud_density
+    
+    return vec4(cloud_color.x, cloud_color.y, cloud_color.z, cloud_density)
+
+shader fragment TestGalaxySpiral(uv: Vec2) -> Vec4:
+    uniform rotation: Float @0
+    uniform arms: Float @1
+    uniform density: Float @2
+    
+    # Test generate_galaxy_spiral using polar coordinates
+    let polar = polar_coordinates(uv)
+    let radius = polar.x
+    let angle = polar.y
+    
+    # Create spiral pattern
+    let spiral_angle = angle + radius * rotation
+    let spiral_pattern = sin(spiral_angle * arms)
+    
+    # Add noise for star distribution
+    let star_noise = fbm2(uv * density, 6)
+    
+    # Combine spiral and stars
+    let galaxy = spiral_pattern * 0.5 + 0.5
+    let stars = star_noise * galaxy
+    
+    # Color based on radius (core is brighter)
+    let core_brightness = 1.0 - radius
+    let color = vec3(stars + core_brightness * 0.5, stars + core_brightness * 0.3, stars)
+    
+    return vec4(color.x, color.y, color.z, 1.0)
+
+shader fragment TestPlanetSurface(uv: Vec2) -> Vec4:
+    uniform scale: Float @0
+    uniform octaves: Int @1
+    uniform time: Float @2
+    
+    # Test generate_planet_surface using spherical mapping
+    let theta = uv.x * 6.28318
+    let phi = uv.y * 3.14159
+    let sphere_pos = vec3(sin(phi) * cos(theta), sin(phi) * sin(theta), cos(phi))
+    
+    # Generate surface features
+    let continents = fbm3(sphere_pos * scale, octaves)
+    let mountains = ridged_noise(uv * scale * 2.0, octaves, 0.0)
+    let oceans = worley_noise(uv * scale * 0.5, 1.0, 0.0)
+    
+    # Combine features
+    let surface_height = continents * 0.5 + mountains * 0.3 + oceans * 0.2
+    
+    # Color based on height
+    var color = vec3(0.0, 0.0, 0.0)
+    if surface_height < 0.4:
+        color = vec3(0.1, 0.3, 0.8)
+    else:
+        if surface_height < 0.6:
+            color = vec3(0.3, 0.6, 0.3)
+        else:
+            color = vec3(0.8, 0.8, 0.8)
+    
+    return vec4(color.x, color.y, color.z, 1.0)
+
+shader compute TestAsteroidField(thread_id: Vec3) -> Unit:
+    uniform density: Float @0
+    uniform seed: Float @1
+    uniform output_buffer: RWBuffer<Vec4> @2
+    
+    let idx = thread_id.x
+    let x = idx * 0.1
+    let y = idx * 0.2
+    let z = idx * 0.3
+    let pos = vec3(x, y, z)
+    
+    # Test generate_asteroid_field using 3D Voronoi
+    let cell_noise = hash3(floor(pos * density))
+    
+    # Determine asteroid properties
+    let asteroid_size = cell_noise * 0.5 + 0.5
+    let asteroid_rotation = hash3(floor(pos * density) + vec3(1.0, 0.0, 0.0)) * 6.28318
+    let asteroid_velocity = hash3(floor(pos * density) + vec3(0.0, 1.0, 0.0))
+    
+    output_buffer[idx] = vec4(asteroid_size, asteroid_rotation, asteroid_velocity, cell_noise)

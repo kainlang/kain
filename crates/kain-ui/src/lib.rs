@@ -2425,14 +2425,17 @@ pub fn ui_transfer_hot_reload_state(
         report.selection_nodes_transferred += remapped_primary.len();
         next.systems.selection_model.primary = remapped_primary;
 
-        let remapped_selected = remap_scoped_node_vec_map(
+        let remapped_selected = remap_scoped_node_set_map(
             &previous.systems.selection_model.selected,
             &next_scopes,
             &previous_reload_identity_map,
             &next_reload_identity_map,
             &aliases,
         );
-        report.selection_nodes_transferred += remapped_selected.len();
+        report.selection_nodes_transferred += remapped_selected
+            .values()
+            .map(BTreeSet::len)
+            .sum::<usize>();
         next.systems.selection_model.selected = remapped_selected;
         report.selection_transferred = report.selection_transferred || report.selection_nodes_transferred > 0;
     }
@@ -2700,25 +2703,23 @@ fn remap_scoped_node_map(
     remapped
 }
 
-fn remap_scoped_node_vec_map(
-    previous: &BTreeMap<String, Vec<UiNodeId>>,
+fn remap_scoped_node_set_map(
+    previous: &BTreeMap<String, BTreeSet<UiNodeId>>,
     next_scopes: &BTreeSet<String>,
     previous_identity_map: &BTreeMap<UiNodeId, String>,
     next_identity_map: &BTreeMap<UiNodeId, String>,
     aliases: &BTreeMap<String, String>,
-) -> BTreeMap<String, Vec<UiNodeId>> {
+) -> BTreeMap<String, BTreeSet<UiNodeId>> {
     let mut remapped = BTreeMap::new();
     for (scope, nodes) in previous {
         if !next_scopes.contains(scope) {
             continue;
         }
-        let mut remapped_nodes = nodes
+        let remapped_nodes = nodes
             .iter()
             .filter_map(|node| previous_identity_map.get(node))
             .filter_map(|identity| resolve_identity_to_node(identity, next_identity_map, aliases))
-            .collect::<Vec<_>>();
-        remapped_nodes.sort();
-        remapped_nodes.dedup();
+            .collect::<BTreeSet<_>>();
         if !remapped_nodes.is_empty() {
             remapped.insert(scope.clone(), remapped_nodes);
         }
@@ -3924,6 +3925,8 @@ mod tests {
 
         let mut graph = UiNode::new(previous_graph, UiWidgetKind::Graph);
         graph.identity_key = Some("graph".to_string());
+        graph.focus_scope = Some("selection".to_string());
+        graph.selection_scope = Some("selection".to_string());
         previous_builder.add_node(graph);
         previous_builder.replace_children(previous_root, vec![previous_graph]);
         previous_builder.set_root(previous_root);
@@ -3957,6 +3960,8 @@ mod tests {
         next_builder.add_node(next_root_node);
         let mut next_graph_node = UiNode::new(next_graph, UiWidgetKind::Graph);
         next_graph_node.identity_key = Some("graph".to_string());
+        next_graph_node.focus_scope = Some("selection".to_string());
+        next_graph_node.selection_scope = Some("selection".to_string());
         next_builder.add_node(next_graph_node);
         next_builder.replace_children(next_root, vec![next_graph]);
         next_builder.set_root(next_root);

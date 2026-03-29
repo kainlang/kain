@@ -1,0 +1,12 @@
+# Root-level plugin_name for FULLBUILD.bat compatibility
+plugin_name = "FlexPartition"
+[package]
+name = "FlexPartition"
+version = "1.0.0"
+output_dir = "FlexPartition"
+
+[build]
+target = "ue5"
+
+[ue5]
+module_type = "Editor"

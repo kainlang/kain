@@ -1,0 +1,29 @@
+[package]
+name = "ProceduralCity"
+version = "1.0.0"
+authors = ["KAIN Compiler"]
+
+[ue5]
+plugin_name = "ProceduralCity"
+engine_version = "5.4"
+category = "Level Design"
+description = "Complete city generation system with road networks, building placement, traffic simulation, and multiplayer support"
+
+sources = [
+    "src/city_data_structures.kn",
+    "src/road_generation.kn",
+    "src/building_generation.kn",
+    "src/city_shaders.kn",
+    "src/city_subsystems.kn",
+    "src/traffic_simulation.kn",
+    "src/city_actors.kn",
+]
+
+[[ue5.modules]]
+name = "ProceduralCity"
+type = "Runtime"
+loading_phase = "Default"
+
+[build]
+targets = ["ue5"]
+output_dir = "Generated"

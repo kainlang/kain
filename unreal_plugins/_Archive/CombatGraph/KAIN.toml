@@ -1,0 +1,17 @@
+[package]
+name = "CombatGraph"
+version = "1.0.0"
+authors = ["KAIN Factory"]
+description = "Combat graph system with state machines and gameplay integration"
+
+[plugin]
+name = "CombatGraph"
+category = "Gameplay Features"
+
+[build]
+entry = "combat_graph.kn"
+
+[ue5]
+plugin_name = "CombatGraph"
+sources = ["combat_graph.kn"]
+output_dir = "Builds"

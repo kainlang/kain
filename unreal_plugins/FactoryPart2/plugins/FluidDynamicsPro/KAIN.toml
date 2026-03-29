@@ -1,0 +1,25 @@
+[package]
+name = "FluidDynamicsPro"
+version = "1.0.0"
+authors = ["KAIN Compiler"]
+
+[ue5]
+plugin_name = "FluidDynamicsPro"
+engine_version = "5.4"
+category = "Simulation"
+description = "Real-time GPU fluid simulation with SPH/FLIP solvers, surface reconstruction, and advanced rendering"
+
+sources = [
+    "src/fluid_data_structures.kn",
+    "src/fluid_simulation.kn",
+    "src/fluid_shaders.kn",
+    "src/fluid_materials.kn",
+    "src/fluid_subsystem.kn",
+    "src/fluid_async_tasks.kn",
+    "src/fluid_actors.kn",
+]
+
+[[ue5.modules]]
+name = "FluidDynamicsPro"
+type = "Runtime"
+loading_phase = "Default"

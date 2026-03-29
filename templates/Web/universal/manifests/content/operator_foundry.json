@@ -107,6 +107,26 @@
       "href": "#cache-stack"
     },
     {
+      "label": "Database",
+      "href": "#database-stack"
+    },
+    {
+      "label": "Queues",
+      "href": "#queue-stack"
+    },
+    {
+      "label": "Secrets",
+      "href": "#secrets-stack"
+    },
+    {
+      "label": "Config",
+      "href": "#config-stack"
+    },
+    {
+      "label": "Jobs",
+      "href": "#background-jobs"
+    },
+    {
       "label": "Search",
       "href": "#search-stack"
     },

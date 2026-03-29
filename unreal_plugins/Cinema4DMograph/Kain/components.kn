@@ -1,0 +1,130 @@
+# ============================================================================
+# CINEMA4D MOGRAPH - Components
+# ============================================================================
+# Component definitions for the mograph cloner system
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: EFFECTOR COMPONENT
+# ============================================================================
+
+@component
+struct ClonerEffectorComponent:
+    # Shape configuration
+    shape: EffectorShape
+    radius: Float
+    extent: Vec3
+    inner_radius: Float
+    
+    # Influence parameters
+    falloff: Float
+    strength: Float
+    invert: Bool
+    priority: Int
+    enabled: Bool
+    
+    # Visualization
+    visualize: Bool
+    visualizer_color: Vec3
+    visualizer_thickness: Float
+    
+    # Cached state
+    @transient
+    last_location: Vec3
+
+# ============================================================================
+# SECTION 2: TARGET COMPONENT
+# ============================================================================
+
+@component
+struct ClonerTargetComponent:
+    # Target configuration
+    strength: Float
+    enabled: Bool
+    priority: Int
+
+# ============================================================================
+# SECTION 3: CLONER COMPONENTS (for the main actor)
+# ============================================================================
+
+@component
+struct ClonerInstanceComponent:
+    # Instance management
+    @transient
+    instance_count: Int
+    
+    @transient
+    needs_rebuild: Bool
+    
+    @transient
+    modifiers_dirty: Bool
+    
+    # Performance tracking
+    @savegame
+    max_instance_count: Int
+    
+    # Cached transforms
+    @transient
+    base_transform_count: Int
+
+@component
+struct ClonerAnimationComponent:
+    # Animation state
+    time_scale: Float
+    
+    @transient
+    world_time: Float
+    
+    @transient
+    last_world_time: Float
+    
+    @transient
+    is_animating: Bool
+    
+    # Anim tweak mode
+    anim_tweak_mode: Bool
+    output_folder: String
+    output_name: String
+
+@component
+struct ClonerVFXComponent:
+    # VFX configuration
+    vfx_scale: Float
+    
+    @transient
+    vfx_active: Bool
+
+@component
+struct ClonerPerformanceComponent:
+    # Performance settings
+    optimize_static_instances: Bool
+    update_skip_frames: Int
+    
+    @transient
+    frame_counter: Int
+    
+    # LOD settings
+    skeletal_mode: SkeletalMode
+    skeletal_mode_distance_threshold: Float
+
+# ============================================================================
+# SECTION 4: NIAGARA DATA INTERFACE COMPONENT
+# ============================================================================
+
+# ClonerNiagaraDataInterface - Exposes cloner instance data to Niagara
+# Supports both CPU (VectorVM) and GPU (compute shader) execution
+# Provides GetCloneCount, GetCloneTransform, GetCloneColor functions
+@component
+struct ClonerNiagaraDataInterface:
+    # Reference to the parent ClonerActor for instance data
+    # This is set by the Niagara system when the data interface is used
+    @transient
+    cloner_actor_ref: Actor
+    
+    # GPU buffer state (managed by render thread)
+    @transient
+    gpu_buffers_initialized: Bool
+    
+    # Performance tracking
+    @transient
+    last_instance_count: Int

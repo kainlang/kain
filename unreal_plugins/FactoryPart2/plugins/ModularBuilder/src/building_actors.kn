@@ -1,0 +1,719 @@
+// ModularBuilder - Actors
+// Phase 4: Building piece actors, managers, and structural components
+// Target: ~1,800 LOC
+
+// ============================================================================
+// BUILDING PIECE ACTOR
+// ============================================================================
+
+actor BuildingPieceActor:
+    @replicated
+    piece_definition: BuildingPieceDefinition
+    @replicated
+    instance_id: Int
+    @replicated
+    variant_index: Int
+    @replicated
+    snap_connections: Array<Int>
+    @replicated
+    structural_chain: StructuralChain
+    @replicated
+    is_foundation: Bool
+    @replicated
+    is_supported: Bool
+    @replicated
+    material_overrides: Array<String>
+    @replicated
+    owner_player_id: Int
+    @replicated
+    placement_time: Float
+    custom_properties: Map<String, String>
+    mesh_component: StaticMeshComponent
+    snap_point_components: Array<SceneComponent>
+    collision_enabled: Bool
+    is_ghost: Bool
+    
+    on Server_SetVariant(new_variant_index: Int):
+        if new_variant_index >= 0 and new_variant_index < len(piece_definition.mesh_variants):
+            variant_index = new_variant_index
+            Multicast_OnVariantChanged(new_variant_index)
+    
+    on Server_SetMaterialOverride(slot: Int, material_path: String):
+        if slot >= 0 and slot < len(material_overrides):
+            material_overrides[slot] = material_path
+            Multicast_OnMaterialChanged(slot, material_path)
+        else:
+            if slot == len(material_overrides):
+                push(material_overrides, material_path)
+                Multicast_OnMaterialChanged(slot, material_path)
+    
+    on Server_UpdateSnapConnection(snap_index: Int, target_piece_id: Int):
+        if snap_index >= 0 and snap_index < len(piece_definition.snap_points):
+            let found = false
+            let i = 0
+            while i < len(snap_connections):
+                if snap_connections[i] == target_piece_id:
+                    found = true
+                i = i + 1
+            if not found:
+                push(snap_connections, target_piece_id)
+                piece_definition.snap_points[snap_index].is_occupied = true
+                piece_definition.snap_points[snap_index].connected_piece_id = target_piece_id
+                Multicast_OnSnapConnectionUpdated(snap_index, target_piece_id)
+
+    on Server_SetCustomProperty(key: String, value: String):
+        custom_properties[key] = value
+        Multicast_OnPropertyChanged(key, value)
+    
+    on Server_ValidatePlacement() -> ValidationResult:
+        if not is_supported and not is_foundation:
+            return ValidationResult::NoSupport
+        
+        let has_overlap = false
+        if has_overlap:
+            return ValidationResult::Overlapping
+        
+        return ValidationResult::Valid
+    
+    on Multicast_OnPiecePlaced():
+        println("Piece placed: " + piece_definition.piece_id)
+    
+    on Multicast_OnPieceRemoved():
+        println("Piece removed: " + piece_definition.piece_id)
+    
+    on Multicast_OnStructuralStateChanged(supported: Bool):
+        is_supported = supported
+        println("Structural state changed: " + str(supported))
+    
+    on Multicast_OnVariantChanged(new_variant: Int):
+        variant_index = new_variant
+    
+    on Multicast_OnMaterialChanged(slot: Int, material: String):
+        if slot >= 0 and slot < len(material_overrides):
+            material_overrides[slot] = material
+    
+    on Multicast_OnSnapConnectionUpdated(snap_idx: Int, target_id: Int):
+        if snap_idx >= 0 and snap_idx < len(piece_definition.snap_points):
+            piece_definition.snap_points[snap_idx].is_occupied = true
+            piece_definition.snap_points[snap_idx].connected_piece_id = target_id
+    
+    on Multicast_OnPropertyChanged(key: String, value: String):
+        custom_properties[key] = value
+    
+    @blueprint_callable
+    fn get_snap_point_world_transform(snap_index: Int) -> Transform:
+        if snap_index < 0 or snap_index >= len(piece_definition.snap_points):
+            return Transform {
+                position: vec3(0.0, 0.0, 0.0),
+                rotation: vec3(0.0, 0.0, 0.0),
+                scale: vec3(1.0, 1.0, 1.0)
+            }
+        
+        let snap_point = piece_definition.snap_points[snap_index]
+        let world_pos = GetActorLocation()
+        let world_rot = GetActorRotation()
+        
+        return Transform {
+            position: vec3(
+                world_pos.x + snap_point.local_position.x,
+                world_pos.y + snap_point.local_position.y,
+                world_pos.z + snap_point.local_position.z
+            ),
+            rotation: vec3(
+                world_rot.x + snap_point.local_rotation.x,
+                world_rot.y + snap_point.local_rotation.y,
+                world_rot.z + snap_point.local_rotation.z
+            ),
+            scale: vec3(1.0, 1.0, 1.0)
+        }
+    
+    @blueprint_callable
+    fn get_available_snap_points() -> Array<Int>:
+        let available = []
+        let i = 0
+        while i < len(piece_definition.snap_points):
+            if not piece_definition.snap_points[i].is_occupied:
+                push(available, i)
+            i = i + 1
+        return available
+    
+    @blueprint_callable
+    fn is_snap_point_occupied(snap_index: Int) -> Bool:
+        if snap_index < 0 or snap_index >= len(piece_definition.snap_points):
+            return false
+        return piece_definition.snap_points[snap_index].is_occupied
+    
+    @blueprint_callable
+    fn get_connected_pieces() -> Array<Int>:
+        return snap_connections
+    
+    @blueprint_callable
+    fn set_ghost_mode(enabled: Bool):
+        is_ghost = enabled
+        collision_enabled = not enabled
+    
+    @blueprint_callable
+    fn validate_placement_at_location(location: Vec3) -> ValidationResult:
+        return ValidationResult::Valid
+    
+    @blueprint_callable
+    fn get_bounds() -> BuildingBounds:
+        let world_pos = GetActorLocation()
+        let half_size = vec3(
+            piece_definition.bounds_size.x / 2.0,
+            piece_definition.bounds_size.y / 2.0,
+            piece_definition.bounds_size.z / 2.0
+        )
+        
+        return BuildingBounds {
+            min_point: vec3(
+                world_pos.x - half_size.x,
+                world_pos.y - half_size.y,
+                world_pos.z - half_size.z
+            ),
+            max_point: vec3(
+                world_pos.x + half_size.x,
+                world_pos.y + half_size.y,
+                world_pos.z + half_size.z
+            ),
+            center: world_pos,
+            size: piece_definition.bounds_size,
+            volume: piece_definition.bounds_size.x * piece_definition.bounds_size.y * piece_definition.bounds_size.z,
+            is_valid: true
+        }
+    
+    @blueprint_callable
+    fn has_tag(tag: String) -> Bool:
+        let i = 0
+        while i < len(piece_definition.tags):
+            if piece_definition.tags[i] == tag:
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint_callable
+    fn get_structural_support_chain() -> StructuralChain:
+        return structural_chain
+    
+    @blueprint_callable
+    fn calculate_cost() -> Int:
+        return piece_definition.cost
+    
+    @blueprint_callable
+    fn export_to_json() -> String:
+        return "{\"piece_id\":\"" + piece_definition.piece_id + "\",\"instance_id\":" + str(instance_id) + "}"
+    
+    @blueprint_callable
+    fn get_piece_id() -> String:
+        return piece_definition.piece_id
+    
+    @blueprint_callable
+    fn get_instance_id() -> Int:
+        return instance_id
+    
+    @blueprint_callable
+    fn get_variant_count() -> Int:
+        return len(piece_definition.mesh_variants)
+    
+    @blueprint_callable
+    fn get_snap_point_count() -> Int:
+        return len(piece_definition.snap_points)
+
+// ============================================================================
+// BUILD MANAGER ACTOR
+// ============================================================================
+
+actor BuildManagerActor:
+    @replicated
+    active_pieces: Array<Int>
+    piece_definitions: Map<String, BuildingPieceDefinition>
+    @replicated
+    building_state: BuildingState
+    @replicated
+    current_build_mode: BuildMode
+    @replicated
+    selected_pieces: Array<Int>
+    undo_history: Array<BuildCommand>
+    redo_history: Array<BuildCommand>
+    max_undo_depth: Int
+    spatial_grid: Map<String, Array<Int>>
+    grid_cell_size: Float
+    enable_structural_validation: Bool
+    @replicated
+    enable_multiplayer: Bool
+    next_instance_id: Int
+    piece_actors: Map<Int, BuildingPieceActor>
+    
+    on Server_SpawnPiece(piece_id: String, transform: Transform, variant: Int) -> Int:
+        if not piece_definitions.contains_key(piece_id):
+            return -1
+        
+        let instance_id = next_instance_id
+        next_instance_id = next_instance_id + 1
+        
+        let instance = create_piece_instance(piece_id, instance_id, transform)
+        instance.variant_index = variant
+        instance.placement_time = GetWorldDeltaSeconds()
+        
+        push(building_state.piece_instances, instance)
+        building_state.total_piece_count = building_state.total_piece_count + 1
+        push(active_pieces, instance_id)
+        
+        let command = create_build_command("spawn", piece_id, instance_id)
+        command.transform_after = transform
+        push(undo_history, command)
+        clear(redo_history)
+        
+        Multicast_OnPieceSpawned(instance_id)
+        return instance_id
+    
+    on Server_RemovePiece(instance_id: Int, remove_connected: Bool):
+        let piece_index = -1
+        let i = 0
+        while i < len(building_state.piece_instances):
+            if building_state.piece_instances[i].instance_id == instance_id:
+                piece_index = i
+            i = i + 1
+        
+        if piece_index >= 0:
+            let piece = building_state.piece_instances[piece_index]
+            
+            let command = create_build_command("remove", piece.piece_id, instance_id)
+            command.transform_before = piece.world_transform
+            push(undo_history, command)
+            clear(redo_history)
+            
+            if remove_connected:
+                let j = 0
+                while j < len(piece.snap_connections):
+                    Server_RemovePiece(piece.snap_connections[j], false)
+                    j = j + 1
+            
+            building_state.piece_instances.remove(piece_index)
+            building_state.total_piece_count = building_state.total_piece_count - 1
+            
+            let k = 0
+            while k < len(active_pieces):
+                if active_pieces[k] == instance_id:
+                    active_pieces.remove(k)
+                k = k + 1
+            
+            Multicast_OnPieceRemoved(instance_id)
+    
+    on Server_MovePiece(instance_id: Int, new_transform: Transform):
+        let i = 0
+        while i < len(building_state.piece_instances):
+            if building_state.piece_instances[i].instance_id == instance_id:
+                let old_transform = building_state.piece_instances[i].world_transform
+                building_state.piece_instances[i].world_transform = new_transform
+                
+                let command = create_build_command("move", building_state.piece_instances[i].piece_id, instance_id)
+                command.transform_before = old_transform
+                command.transform_after = new_transform
+                push(undo_history, command)
+                clear(redo_history)
+                
+                Multicast_OnPieceMoved(instance_id, new_transform)
+            i = i + 1
+    
+    on Server_RotatePiece(instance_id: Int, rotation_delta: Vec3):
+        let i = 0
+        while i < len(building_state.piece_instances):
+            if building_state.piece_instances[i].instance_id == instance_id:
+                let old_rotation = building_state.piece_instances[i].world_transform.rotation
+                let new_rotation = vec3(
+                    old_rotation.x + rotation_delta.x,
+                    old_rotation.y + rotation_delta.y,
+                    old_rotation.z + rotation_delta.z
+                )
+                building_state.piece_instances[i].world_transform.rotation = new_rotation
+                
+                Multicast_OnPieceRotated(instance_id, new_rotation)
+            i = i + 1
+    
+    on Server_SetBuildMode(mode: BuildMode):
+        current_build_mode = mode
+        Multicast_OnBuildModeChanged(mode)
+    
+    on Server_SelectPieces(piece_ids: Array<Int>):
+        selected_pieces = piece_ids
+        Multicast_OnSelectionChanged(piece_ids)
+    
+    on Server_UndoLastAction():
+        if len(undo_history) > 0:
+            let command = undo_history[len(undo_history) - 1]
+            undo_history.remove(len(undo_history) - 1)
+            push(redo_history, command)
+            
+            if command.command_type == "spawn":
+                Server_RemovePiece(command.instance_id, false)
+            else:
+                if command.command_type == "remove":
+                    Server_SpawnPiece(command.piece_id, command.transform_before, 0)
+                else:
+                    if command.command_type == "move":
+                        Server_MovePiece(command.instance_id, command.transform_before)
+            
+            Multicast_OnUndoPerformed()
+    
+    on Server_RedoLastAction():
+        if len(redo_history) > 0:
+            let command = redo_history[len(redo_history) - 1]
+            redo_history.remove(len(redo_history) - 1)
+            push(undo_history, command)
+            
+            if command.command_type == "spawn":
+                Server_SpawnPiece(command.piece_id, command.transform_after, 0)
+            else:
+                if command.command_type == "remove":
+                    Server_RemovePiece(command.instance_id, false)
+                else:
+                    if command.command_type == "move":
+                        Server_MovePiece(command.instance_id, command.transform_after)
+            
+            Multicast_OnRedoPerformed()
+    
+    on Server_SaveBuilding(save_name: String) -> Bool:
+        building_state.building_name = save_name
+        building_state.last_modified_time = GetWorldDeltaSeconds()
+        return true
+    
+    on Server_LoadBuilding(save_name: String) -> Bool:
+        return true
+    
+    on Multicast_OnBuildModeChanged(mode: BuildMode):
+        current_build_mode = mode
+    
+    on Multicast_OnPieceSpawned(instance_id: Int):
+        println("Piece spawned: " + str(instance_id))
+    
+    on Multicast_OnPieceRemoved(instance_id: Int):
+        println("Piece removed: " + str(instance_id))
+    
+    on Multicast_OnPieceMoved(instance_id: Int, new_transform: Transform):
+        println("Piece moved: " + str(instance_id))
+    
+    on Multicast_OnPieceRotated(instance_id: Int, new_rotation: Vec3):
+        println("Piece rotated: " + str(instance_id))
+    
+    on Multicast_OnSelectionChanged(piece_ids: Array<Int>):
+        selected_pieces = piece_ids
+    
+    on Multicast_OnUndoPerformed():
+        println("Undo performed")
+    
+    on Multicast_OnRedoPerformed():
+        println("Redo performed")
+
+    @blueprint_callable
+    fn spawn_piece_at_location(piece_id: String, location: Vec3) -> Int:
+        let transform = Transform {
+            position: location,
+            rotation: vec3(0.0, 0.0, 0.0),
+            scale: vec3(1.0, 1.0, 1.0)
+        }
+        return Server_SpawnPiece(piece_id, transform, 0)
+    
+    @blueprint_callable
+    fn remove_piece_by_id(instance_id: Int):
+        Server_RemovePiece(instance_id, false)
+    
+    @blueprint_callable
+    fn get_piece_by_id(instance_id: Int) -> PieceInstance:
+        let i = 0
+        while i < len(building_state.piece_instances):
+            if building_state.piece_instances[i].instance_id == instance_id:
+                return building_state.piece_instances[i]
+            i = i + 1
+        return create_piece_instance("", -1, Transform { position: vec3(0.0, 0.0, 0.0), rotation: vec3(0.0, 0.0, 0.0), scale: vec3(1.0, 1.0, 1.0) })
+    
+    @blueprint_callable
+    fn get_all_pieces() -> Array<PieceInstance>:
+        return building_state.piece_instances
+    
+    @blueprint_callable
+    fn get_pieces_by_category(category: PieceCategory) -> Array<PieceInstance>:
+        let result = []
+        let i = 0
+        while i < len(building_state.piece_instances):
+            let piece = building_state.piece_instances[i]
+            if piece_definitions.contains_key(piece.piece_id):
+                let def = piece_definitions[piece.piece_id]
+                if def.category == category:
+                    push(result, piece)
+            i = i + 1
+        return result
+    
+    @blueprint_callable
+    fn get_pieces_by_tag(tag: String) -> Array<PieceInstance>:
+        let result = []
+        let i = 0
+        while i < len(building_state.piece_instances):
+            let piece = building_state.piece_instances[i]
+            if piece_definitions.contains_key(piece.piece_id):
+                let def = piece_definitions[piece.piece_id]
+                let j = 0
+                while j < len(def.tags):
+                    if def.tags[j] == tag:
+                        push(result, piece)
+                    j = j + 1
+            i = i + 1
+        return result
+    
+    @blueprint_callable
+    fn find_pieces_in_radius(center: Vec3, radius: Float) -> Array<PieceInstance>:
+        let result = []
+        let i = 0
+        while i < len(building_state.piece_instances):
+            let piece = building_state.piece_instances[i]
+            let distance = calculate_distance_3d(center, piece.world_transform.position)
+            if distance <= radius:
+                push(result, piece)
+            i = i + 1
+        return result
+    
+    @blueprint_callable
+    fn calculate_building_bounds() -> BuildingBounds:
+        return calculate_bounds_from_pieces(building_state.piece_instances)
+    
+    @blueprint_callable
+    fn get_total_piece_count() -> Int:
+        return building_state.total_piece_count
+    
+    @blueprint_callable
+    fn clear_all_pieces():
+        let i = len(building_state.piece_instances) - 1
+        while i >= 0:
+            Server_RemovePiece(building_state.piece_instances[i].instance_id, false)
+            i = i - 1
+    
+    @blueprint_callable
+    fn export_building_to_json() -> String:
+        return "{\"building_id\":\"" + building_state.building_id + "\",\"piece_count\":" + str(building_state.total_piece_count) + "}"
+    
+    @blueprint_callable
+    fn import_building_from_json(json_data: String) -> Bool:
+        return true
+    
+    @blueprint_callable
+    fn validate_all_pieces() -> Array<ValidationResult>:
+        let results = []
+        let i = 0
+        while i < len(building_state.piece_instances):
+            push(results, ValidationResult::Valid)
+            i = i + 1
+        return results
+    
+    @blueprint_callable
+    fn rebuild_spatial_grid():
+        spatial_grid = {}
+        let i = 0
+        while i < len(building_state.piece_instances):
+            let piece = building_state.piece_instances[i]
+            let grid_key = create_spatial_grid_key(piece.world_transform.position, grid_cell_size)
+            let key_str = str(grid_key.x) + "_" + str(grid_key.y) + "_" + str(grid_key.z)
+            if not spatial_grid.contains_key(key_str):
+                spatial_grid[key_str] = []
+            push(spatial_grid[key_str], piece.instance_id)
+            i = i + 1
+    
+    @blueprint_callable
+    fn get_building_statistics() -> BuildingStatistics:
+        return BuildingStatistics {
+            total_pieces: building_state.total_piece_count,
+            pieces_by_category: {},
+            pieces_by_tag: {},
+            total_cost: calculate_total_cost(building_state.piece_instances, piece_definitions),
+            total_build_time: 0.0,
+            average_piece_health: calculate_average_health(building_state.piece_instances),
+            structural_integrity: 1.0,
+            foundation_count: 0,
+            unsupported_count: 0
+        }
+    
+    @blueprint_callable
+    fn can_undo() -> Bool:
+        return len(undo_history) > 0
+    
+    @blueprint_callable
+    fn can_redo() -> Bool:
+        return len(redo_history) > 0
+    
+    @blueprint_callable
+    fn get_selected_piece_count() -> Int:
+        return len(selected_pieces)
+
+// ============================================================================
+// SNAP POINT ACTOR
+// ============================================================================
+
+actor SnapPointActor:
+    @replicated
+    snap_data: SnapPointData
+    @replicated
+    parent_piece_id: Int
+    @replicated
+    indicator_color: SnapIndicatorColor
+    @replicated
+    is_visible: Bool
+    is_highlighted: Bool
+    snap_radius_sphere: SphereComponent
+    indicator_mesh: StaticMeshComponent
+    compatibility_tags: Array<String>
+    
+    @blueprint_callable
+    fn set_indicator_color(color: SnapIndicatorColor):
+        indicator_color = color
+    
+    @blueprint_callable
+    fn set_visibility(visible: Bool):
+        is_visible = visible
+    
+    @blueprint_callable
+    fn highlight(enabled: Bool):
+        is_highlighted = enabled
+    
+    @blueprint_callable
+    fn check_compatibility(other_snap: SnapPointData) -> Bool:
+        return is_snap_point_compatible(snap_data, other_snap)
+    
+    @blueprint_callable
+    fn get_world_transform() -> Transform:
+        let world_pos = GetActorLocation()
+        let world_rot = GetActorRotation()
+        return Transform {
+            position: world_pos,
+            rotation: world_rot,
+            scale: vec3(1.0, 1.0, 1.0)
+        }
+    
+    @blueprint_callable
+    fn draw_debug_info():
+        println("Snap Point: " + str(parent_piece_id) + " - Type: " + str(snap_data.point_type))
+
+// ============================================================================
+// STRUCTURAL SUPPORT ACTOR
+// ============================================================================
+
+actor StructuralSupportActor:
+    @replicated
+    foundation_pieces: Array<Int>
+    @replicated
+    support_chains: Array<StructuralChain>
+    @replicated
+    unsupported_pieces: Array<Int>
+    enable_physics_collapse: Bool
+    max_chain_depth: Int
+    support_strength_threshold: Float
+    debug_visualization_enabled: Bool
+    
+    @blueprint_callable
+    fn calculate_support_chains():
+        support_chains = []
+        
+        let i = 0
+        while i < len(foundation_pieces):
+            let foundation_id = foundation_pieces[i]
+            let chain = create_structural_chain(foundation_id)
+            chain.max_depth = max_chain_depth
+            push(support_chains, chain)
+            i = i + 1
+    
+    @blueprint_callable
+    fn validate_structural_integrity() -> Bool:
+        let all_supported = true
+        let i = 0
+        while i < len(unsupported_pieces):
+            if len(unsupported_pieces) > 0:
+                all_supported = false
+            i = i + 1
+        return all_supported
+    
+    @blueprint_callable
+    fn get_unsupported_pieces() -> Array<Int>:
+        return unsupported_pieces
+    
+    @blueprint_callable
+    fn mark_as_foundation(piece_id: Int):
+        let found = false
+        let i = 0
+        while i < len(foundation_pieces):
+            if foundation_pieces[i] == piece_id:
+                found = true
+            i = i + 1
+        if not found:
+            push(foundation_pieces, piece_id)
+    
+    @blueprint_callable
+    fn remove_foundation(piece_id: Int):
+        let i = 0
+        while i < len(foundation_pieces):
+            if foundation_pieces[i] == piece_id:
+                foundation_pieces.remove(i)
+                return
+            i = i + 1
+    
+    @blueprint_callable
+    fn collapse_unsupported_pieces():
+        if enable_physics_collapse:
+            println("Collapsing unsupported pieces")
+    
+    @blueprint_callable
+    fn visualize_support_chains():
+        if debug_visualization_enabled:
+            println("Visualizing support chains")
+    
+    @blueprint_callable
+    fn get_support_chain_for_piece(piece_id: Int) -> StructuralChain:
+        let i = 0
+        while i < len(support_chains):
+            let chain = support_chains[i]
+            let j = 0
+            while j < len(chain.supported_piece_ids):
+                if chain.supported_piece_ids[j] == piece_id:
+                    return chain
+                j = j + 1
+            i = i + 1
+        return create_structural_chain(-1)
+
+// ============================================================================
+// BUILDING GHOST ACTOR
+// ============================================================================
+
+actor BuildingGhostActor:
+    @replicated
+    ghost_piece_id: String
+    @replicated
+    ghost_transform: Transform
+    @replicated
+    is_valid_placement: Bool
+    @replicated
+    validation_result: ValidationResult
+    ghost_material: Material
+    snap_target: SnapQueryResult
+    
+    @blueprint_callable
+    fn update_ghost_transform(transform: Transform):
+        ghost_transform = transform
+        SetActorLocation(transform.position)
+        SetActorRotation(transform.rotation)
+    
+    @blueprint_callable
+    fn update_validation_state(result: ValidationResult):
+        validation_result = result
+        is_valid_placement = (result == ValidationResult::Valid)
+    
+    @blueprint_callable
+    fn set_snap_target(snap_result: SnapQueryResult):
+        snap_target = snap_result
+    
+    @blueprint_callable
+    fn confirm_placement() -> Int:
+        if is_valid_placement:
+            return 1
+        return -1
+    
+    @blueprint_callable
+    fn cancel_placement():
+        is_valid_placement = false
+        validation_result = ValidationResult::InvalidPlacement

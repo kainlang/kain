@@ -1,0 +1,372 @@
+# ============================================================================
+# TEMPORAL BLUEPRINT — Algorithms & Blueprint Function Library
+# ============================================================================
+# Pure utility functions for era management, blending, causality checks,
+# snapshot diffing, and timeline math. All Blueprint-callable.
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: ERA UTILITY FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn era_to_string(era: TemporalEra) -> String:
+    match era:
+        TemporalEra::Ancient => return "Ancient"
+        TemporalEra::Past => return "Past"
+        TemporalEra::Present => return "Present"
+        TemporalEra::Future => return "Future"
+        TemporalEra::Apocalyptic => return "Apocalyptic"
+        TemporalEra::Alternate => return "Alternate"
+        TemporalEra::Void => return "Void"
+        _ => return "Unknown"
+
+@blueprint
+fn era_from_index(index: Int) -> TemporalEra:
+    match index:
+        0 => return TemporalEra::Ancient
+        1 => return TemporalEra::Past
+        2 => return TemporalEra::Present
+        3 => return TemporalEra::Future
+        4 => return TemporalEra::Apocalyptic
+        5 => return TemporalEra::Alternate
+        6 => return TemporalEra::Void
+        _ => return TemporalEra::Present
+
+@blueprint
+fn era_to_index(era: TemporalEra) -> Int:
+    match era:
+        TemporalEra::Ancient => return 0
+        TemporalEra::Past => return 1
+        TemporalEra::Present => return 2
+        TemporalEra::Future => return 3
+        TemporalEra::Apocalyptic => return 4
+        TemporalEra::Alternate => return 5
+        TemporalEra::Void => return 6
+        _ => return 2
+
+@blueprint
+fn transition_type_to_string(t: TemporalTransitionType) -> String:
+    match t:
+        TemporalTransitionType::Instant => return "Instant"
+        TemporalTransitionType::Dissolve => return "Dissolve"
+        TemporalTransitionType::Ripple => return "Ripple"
+        TemporalTransitionType::Shatter => return "Shatter"
+        TemporalTransitionType::Rewind => return "Rewind"
+        TemporalTransitionType::Fold => return "Fold"
+        TemporalTransitionType::Bleed => return "Bleed"
+        _ => return "Unknown"
+
+@blueprint
+fn causality_rule_to_string(rule: CausalityRule) -> String:
+    match rule:
+        CausalityRule::None => return "None"
+        CausalityRule::Linear => return "Linear"
+        CausalityRule::Branching => return "Branching"
+        CausalityRule::Convergent => return "Convergent"
+        CausalityRule::Paradox => return "Paradox"
+        _ => return "Unknown"
+
+@blueprint
+fn behavior_to_string(b: TemporalActorBehavior) -> String:
+    match b:
+        TemporalActorBehavior::Static => return "Static"
+        TemporalActorBehavior::Unique => return "Unique"
+        TemporalActorBehavior::Interpolated => return "Interpolated"
+        TemporalActorBehavior::Conditional => return "Conditional"
+        TemporalActorBehavior::Ghosted => return "Ghosted"
+        TemporalActorBehavior::Destroyed => return "Destroyed"
+        _ => return "Unknown"
+
+# ============================================================================
+# SECTION 2: ERA DISTANCE AND ORDERING
+# ============================================================================
+
+@blueprint
+fn era_distance(from_era: TemporalEra, to_era: TemporalEra) -> Int:
+    let from_idx = era_to_index(from_era)
+    let to_idx = era_to_index(to_era)
+    let diff = to_idx - from_idx
+    if diff < 0:
+        return -diff
+    return diff
+
+@blueprint
+fn era_is_past_of(era_a: TemporalEra, era_b: TemporalEra) -> Bool:
+    return era_to_index(era_a) < era_to_index(era_b)
+
+@blueprint
+fn era_is_future_of(era_a: TemporalEra, era_b: TemporalEra) -> Bool:
+    return era_to_index(era_a) > era_to_index(era_b)
+
+@blueprint
+fn era_is_adjacent(era_a: TemporalEra, era_b: TemporalEra) -> Bool:
+    return era_distance(era_a, era_b) == 1
+
+@blueprint
+fn get_next_era(era: TemporalEra) -> TemporalEra:
+    let idx = era_to_index(era)
+    if idx >= 6:
+        return era
+    return era_from_index(idx + 1)
+
+@blueprint
+fn get_previous_era(era: TemporalEra) -> TemporalEra:
+    let idx = era_to_index(era)
+    if idx <= 0:
+        return era
+    return era_from_index(idx - 1)
+
+# ============================================================================
+# SECTION 3: TRANSITION MATH
+# ============================================================================
+
+@blueprint
+fn ease_in_out(t: Float) -> Float:
+    return t * t * (3.0 - 2.0 * t)
+
+@blueprint
+fn ease_in(t: Float) -> Float:
+    return t * t
+
+@blueprint
+fn ease_out(t: Float) -> Float:
+    return 1.0 - (1.0 - t) * (1.0 - t)
+
+@blueprint
+fn elastic_ease(t: Float, amplitude: Float, period: Float) -> Float:
+    if t <= 0.0:
+        return 0.0
+    if t >= 1.0:
+        return 1.0
+    let s = period / 4.0
+    let t2 = t - 1.0
+    return -(amplitude * pow(2.0, 10.0 * t2) * sin((t2 - s) * 6.283185 / period))
+
+@blueprint
+fn bounce_ease(t: Float) -> Float:
+    if t < 0.363636:
+        return 7.5625 * t * t
+    else if t < 0.727272:
+        let t2 = t - 0.545454
+        return 7.5625 * t2 * t2 + 0.75
+    else if t < 0.909090:
+        let t2 = t - 0.818181
+        return 7.5625 * t2 * t2 + 0.9375
+    else:
+        let t2 = t - 0.954545
+        return 7.5625 * t2 * t2 + 0.984375
+
+@blueprint
+fn ripple_alpha_at_distance(center: Vec3, point: Vec3, ripple_radius: Float, transition_alpha: Float) -> Float:
+    let dx = point.x - center.x
+    let dy = point.y - center.y
+    let dz = point.z - center.z
+    let dist = sqrt(dx * dx + dy * dy + dz * dz)
+    let normalized_dist = dist / ripple_radius
+    let ripple_front = transition_alpha * 1.2
+    if normalized_dist < ripple_front - 0.1:
+        return 1.0
+    else if normalized_dist < ripple_front + 0.1:
+        let blend = (normalized_dist - (ripple_front - 0.1)) / 0.2
+        return 1.0 - blend
+    return 0.0
+
+@blueprint
+fn calculate_transition_progress(elapsed: Float, duration: Float) -> Float:
+    if duration <= 0.0:
+        return 1.0
+    let t = elapsed / duration
+    if t >= 1.0:
+        return 1.0
+    return ease_in_out(t)
+
+# ============================================================================
+# SECTION 4: ERA VISIBILITY BITMASK UTILITIES
+# ============================================================================
+
+@blueprint
+fn make_era_mask_all() -> Int:
+    return 127
+
+@blueprint
+fn make_era_mask_none() -> Int:
+    return 0
+
+@blueprint
+fn make_era_mask_single(era: TemporalEra) -> Int:
+    return pow(2, era_to_index(era)) as Int
+
+@blueprint
+fn era_mask_add(mask: Int, era: TemporalEra) -> Int:
+    let bit = pow(2, era_to_index(era)) as Int
+    if era_mask_has(mask, era):
+        return mask
+    return mask + bit
+
+@blueprint
+fn era_mask_remove(mask: Int, era: TemporalEra) -> Int:
+    let bit = pow(2, era_to_index(era)) as Int
+    if era_mask_has(mask, era):
+        return mask - bit
+    return mask
+
+@blueprint
+fn era_mask_has(mask: Int, era: TemporalEra) -> Bool:
+    let bit = pow(2, era_to_index(era)) as Int
+    let divided = mask / bit
+    let remainder = divided - (divided / 2) * 2
+    return remainder != 0
+
+@blueprint
+fn era_mask_count(mask: Int) -> Int:
+    let count = 0
+    let i = 0
+    while i < 7:
+        let bit = pow(2, i) as Int
+        let divided = mask / bit
+        let remainder = divided - (divided / 2) * 2
+        if remainder != 0:
+            count = count + 1
+        i = i + 1
+    return count
+
+# ============================================================================
+# SECTION 5: CAUSALITY VALIDATION
+# ============================================================================
+
+@blueprint
+fn can_transition_linear(from_era: TemporalEra, to_era: TemporalEra) -> Bool:
+    let from_idx = era_to_index(from_era)
+    let to_idx = era_to_index(to_era)
+    let diff = to_idx - from_idx
+    if diff < 0:
+        diff = -diff
+    return diff <= 2
+
+@blueprint
+fn can_transition_branching(from_era: TemporalEra, to_era: TemporalEra) -> Bool:
+    return true
+
+@blueprint
+fn can_transition_convergent(from_era: TemporalEra, to_era: TemporalEra) -> Bool:
+    return to_era == TemporalEra::Present or to_era == TemporalEra::Future
+
+@blueprint
+fn validate_causality(rule: CausalityRule, from_era: TemporalEra, to_era: TemporalEra) -> Bool:
+    match rule:
+        CausalityRule::None => return true
+        CausalityRule::Linear => return can_transition_linear(from_era, to_era)
+        CausalityRule::Branching => return can_transition_branching(from_era, to_era)
+        CausalityRule::Convergent => return can_transition_convergent(from_era, to_era)
+        CausalityRule::Paradox => return true
+        _ => return true
+
+# ============================================================================
+# SECTION 6: ERA COLOR UTILITIES
+# ============================================================================
+
+@blueprint
+fn get_era_default_color(era: TemporalEra) -> Vec3:
+    match era:
+        TemporalEra::Ancient => return vec3(0.6, 0.5, 0.3)
+        TemporalEra::Past => return vec3(0.8, 0.75, 0.6)
+        TemporalEra::Present => return vec3(1.0, 1.0, 1.0)
+        TemporalEra::Future => return vec3(0.4, 0.7, 1.0)
+        TemporalEra::Apocalyptic => return vec3(0.8, 0.3, 0.1)
+        TemporalEra::Alternate => return vec3(0.6, 0.3, 0.9)
+        TemporalEra::Void => return vec3(0.1, 0.1, 0.2)
+        _ => return vec3(1.0, 1.0, 1.0)
+
+@blueprint
+fn lerp_era_colors(from_era: TemporalEra, to_era: TemporalEra, alpha: Float) -> Vec3:
+    let from_color = get_era_default_color(from_era)
+    let to_color = get_era_default_color(to_era)
+    let r = from_color.x + (to_color.x - from_color.x) * alpha
+    let g = from_color.y + (to_color.y - from_color.y) * alpha
+    let b = from_color.z + (to_color.z - from_color.z) * alpha
+    return vec3(r, g, b)
+
+@blueprint
+fn get_era_fog_density(era: TemporalEra) -> Float:
+    match era:
+        TemporalEra::Ancient => return 0.08
+        TemporalEra::Past => return 0.03
+        TemporalEra::Present => return 0.01
+        TemporalEra::Future => return 0.005
+        TemporalEra::Apocalyptic => return 0.15
+        TemporalEra::Alternate => return 0.04
+        TemporalEra::Void => return 0.5
+        _ => return 0.01
+
+@blueprint
+fn get_era_ambient_intensity(era: TemporalEra) -> Float:
+    match era:
+        TemporalEra::Ancient => return 0.6
+        TemporalEra::Past => return 0.8
+        TemporalEra::Present => return 1.0
+        TemporalEra::Future => return 1.2
+        TemporalEra::Apocalyptic => return 0.4
+        TemporalEra::Alternate => return 0.9
+        TemporalEra::Void => return 0.1
+        _ => return 1.0
+
+# ============================================================================
+# SECTION 7: SNAPSHOT DIFF UTILITIES
+# ============================================================================
+
+@blueprint
+fn snapshot_diff_description(snap_a_id: Int, snap_b_id: Int) -> String:
+    return "Diff between snapshot " + int_to_string(snap_a_id) + " and " + int_to_string(snap_b_id)
+
+@blueprint
+fn format_transition_log(from_era: TemporalEra, to_era: TemporalEra, duration: Float, transition_type: TemporalTransitionType) -> String:
+    return "[Temporal] " + era_to_string(from_era) + " -> " + era_to_string(to_era) + " via " + transition_type_to_string(transition_type) + " (" + float_to_string(duration) + "s)"
+
+@blueprint
+fn format_causality_violation(actor_guid: String, from_era: TemporalEra, to_era: TemporalEra, rule: CausalityRule) -> String:
+    return "[CausalityViolation] Actor=" + actor_guid + " " + era_to_string(from_era) + "->" + era_to_string(to_era) + " Rule=" + causality_rule_to_string(rule)
+
+# ============================================================================
+# SECTION 8: ZONE PRIORITY RESOLUTION
+# ============================================================================
+
+@blueprint
+fn resolve_zone_era(global_era: TemporalEra, zone_forced_era: TemporalEra, zone_enabled: Bool, zone_priority: Int, player_in_zone: Bool) -> TemporalEra:
+    if zone_enabled and player_in_zone:
+        return zone_forced_era
+    return global_era
+
+@blueprint
+fn calculate_zone_blend_alpha(player_pos: Vec3, zone_center: Vec3, zone_radius: Float, blend_radius: Float) -> Float:
+    let dx = player_pos.x - zone_center.x
+    let dy = player_pos.y - zone_center.y
+    let dz = player_pos.z - zone_center.z
+    let dist = sqrt(dx * dx + dy * dy + dz * dz)
+    let inner_radius = zone_radius - blend_radius
+    if dist <= inner_radius:
+        return 1.0
+    else if dist <= zone_radius:
+        return 1.0 - (dist - inner_radius) / blend_radius
+    return 0.0
+
+# ============================================================================
+# SECTION 9: DEBUG HELPERS
+# ============================================================================
+
+@blueprint
+fn debug_print_era_state(era: TemporalEra, actor_count: Int, zone_count: Int, anchor_count: Int):
+    println("=== TemporalBlueprint Debug ===")
+    println("  Current Era: " + era_to_string(era))
+    println("  Tracked Actors: " + int_to_string(actor_count))
+    println("  Active Zones: " + int_to_string(zone_count))
+    println("  Anchors: " + int_to_string(anchor_count))
+    println("================================")
+
+@blueprint
+fn debug_print_transition(from_era: TemporalEra, to_era: TemporalEra, alpha: Float):
+    println("[Temporal Transition] " + era_to_string(from_era) + " -> " + era_to_string(to_era) + " alpha=" + float_to_string(alpha))
+
+@blueprint
+fn debug_print_causality_link(source_guid: String, target_guid: String, rule: CausalityRule):
+    println("[Causality] " + source_guid + " -> " + target_guid + " rule=" + causality_rule_to_string(rule))

@@ -1,0 +1,902 @@
+// QuestMaster — UI Widgets
+// Phase 7: Slate widgets for quest display (8 widgets)
+
+// ============================================================================
+// QUEST LOG WIDGET
+// ============================================================================
+
+@slate
+struct QuestLogWidget:
+    quest_list: Array<QuestLogEntry>
+    filter_mode: QuestFilterMode = QuestFilterMode::All
+    sort_mode: QuestSortMode = QuestSortMode::Priority
+    selected_quest_id: String = ""
+    show_completed: Bool = true
+    show_failed: Bool = false
+    show_hidden: Bool = false
+    
+    fn construct():
+        println("Constructing QuestLogWidget")
+    
+    @blueprint
+    fn set_quests(quests: Array<QuestLogEntry>):
+        quest_list = quests
+        println("Set quest list: {len(quests)} quests")
+    
+    @blueprint
+    fn filter_quests(mode: QuestFilterMode):
+        filter_mode = mode
+        println("Filtering quests by: {mode}")
+    
+    @blueprint
+    fn sort_quests(mode: QuestSortMode):
+        sort_mode = mode
+        println("Sorting quests by: {mode}")
+    
+    @blueprint
+    fn select_quest(quest_id: String):
+        selected_quest_id = quest_id
+        println("Selected quest: {quest_id}")
+    
+    @blueprint
+    fn get_selected_quest() -> String:
+        return selected_quest_id
+    
+    @blueprint
+    fn get_filtered_quests() -> Array<QuestLogEntry>:
+        return quest_list
+    
+    @blueprint
+    fn get_quest_count() -> Int:
+        return len(quest_list)
+    
+    @blueprint
+    fn clear_selection():
+        selected_quest_id = ""
+    
+    @blueprint
+    fn refresh_quest_list():
+        println("Refreshing quest list")
+    
+    @blueprint
+    fn toggle_show_completed():
+        show_completed = !show_completed
+        println("Show completed: {show_completed}")
+    
+    @blueprint
+    fn toggle_show_failed():
+        show_failed = !show_failed
+        println("Show failed: {show_failed}")
+
+// ============================================================================
+// QUEST TRACKER WIDGET
+// ============================================================================
+
+@slate
+struct QuestTrackerWidget:
+    tracked_quest_id: String = ""
+    quest_name: String = ""
+    objectives: Array<ObjectiveProgress>
+    show_objectives: Bool = true
+    show_progress_bars: Bool = true
+    max_objectives_shown: Int = 5
+    compact_mode: Bool = false
+    
+    fn construct():
+        println("Constructing QuestTrackerWidget")
+    
+    @blueprint
+    fn set_tracked_quest(quest_id: String, name: String):
+        tracked_quest_id = quest_id
+        quest_name = name
+        println("Tracking quest: {name}")
+    
+    @blueprint
+    fn update_objectives(obj_list: Array<ObjectiveProgress>):
+        objectives = obj_list
+        println("Updated objectives: {len(obj_list)} objectives")
+    
+    @blueprint
+    fn update_progress(quest_id: String, progress: Float):
+        println("Updated progress for {quest_id}: {progress}%")
+    
+    @blueprint
+    fn clear_tracked_quest():
+        tracked_quest_id = ""
+        quest_name = ""
+        objectives = []
+        println("Cleared tracked quest")
+    
+    @blueprint
+    fn get_tracked_quest_id() -> String:
+        return tracked_quest_id
+    
+    @blueprint
+    fn get_objective_count() -> Int:
+        return len(objectives)
+    
+    @blueprint
+    fn toggle_objectives_visibility():
+        show_objectives = !show_objectives
+        println("Show objectives: {show_objectives}")
+    
+    @blueprint
+    fn toggle_progress_bars():
+        show_progress_bars = !show_progress_bars
+        println("Show progress bars: {show_progress_bars}")
+    
+    @blueprint
+    fn set_compact_mode(compact: Bool):
+        compact_mode = compact
+        println("Compact mode: {compact}")
+    
+    @blueprint
+    fn set_max_objectives(max_count: Int):
+        max_objectives_shown = max_count
+        println("Max objectives shown: {max_count}")
+
+// ============================================================================
+// QUEST NOTIFICATION WIDGET
+// ============================================================================
+
+@slate
+struct QuestNotificationWidget:
+    notification_text: String = ""
+    notification_type: QuestNotificationType = QuestNotificationType::Started
+    display_duration: Float = 5.0
+    fade_in_duration: Float = 0.5
+    fade_out_duration: Float = 0.5
+    current_alpha: Float = 0.0
+    elapsed_time: Float = 0.0
+    is_visible: Bool = false
+    
+    fn construct():
+        println("Constructing QuestNotificationWidget")
+    
+    @blueprint
+    fn show_quest_started(quest_name: String):
+        notification_text = "Quest Started: {quest_name}"
+        notification_type = QuestNotificationType::Started
+        show_notification()
+    
+    @blueprint
+    fn show_quest_completed(quest_name: String):
+        notification_text = "Quest Completed: {quest_name}"
+        notification_type = QuestNotificationType::Completed
+        show_notification()
+    
+    @blueprint
+    fn show_quest_failed(quest_name: String, reason: String):
+        notification_text = "Quest Failed: {quest_name}"
+        notification_type = QuestNotificationType::Failed
+        show_notification()
+    
+    @blueprint
+    fn show_objective_completed(objective_description: String):
+        notification_text = "Objective Complete: {objective_description}"
+        notification_type = QuestNotificationType::ObjectiveCompleted
+        show_notification()
+    
+    @blueprint
+    fn show_notification():
+        is_visible = true
+        elapsed_time = 0.0
+        current_alpha = 0.0
+        println("Showing notification: {notification_text}")
+    
+    @blueprint
+    fn hide_notification():
+        is_visible = false
+        current_alpha = 0.0
+        println("Hiding notification")
+    
+    @blueprint
+    fn tick_widget(delta_time: Float):
+        if !is_visible:
+            return
+        
+        elapsed_time = elapsed_time + delta_time
+        
+        if elapsed_time < fade_in_duration:
+            current_alpha = elapsed_time / fade_in_duration
+        else:
+            if elapsed_time < (display_duration - fade_out_duration):
+                current_alpha = 1.0
+            else:
+                if elapsed_time < display_duration:
+                    let fade_progress = (elapsed_time - (display_duration - fade_out_duration)) / fade_out_duration
+                    current_alpha = 1.0 - fade_progress
+                else:
+                    hide_notification()
+    
+    @blueprint
+    fn set_display_duration(duration: Float):
+        display_duration = duration
+    
+    @blueprint
+    fn set_fade_durations(fade_in: Float, fade_out: Float):
+        fade_in_duration = fade_in
+        fade_out_duration = fade_out
+    
+    @blueprint
+    fn get_current_alpha() -> Float:
+        return current_alpha
+    
+    @blueprint
+    fn is_notification_visible() -> Bool:
+        return is_visible
+
+// ============================================================================
+// QUEST DETAIL WIDGET
+// ============================================================================
+
+@slate
+struct QuestDetailWidget:
+    quest_id: String = ""
+    quest_name: String = ""
+    quest_description: String = ""
+    quest_category: QuestCategory = QuestCategory::Side
+    quest_priority: QuestPriority = QuestPriority::Normal
+    objectives: Array<ObjectiveProgress>
+    rewards: RewardDisplay
+    show_description: Bool = true
+    show_objectives: Bool = true
+    show_rewards: Bool = true
+    show_lore: Bool = true
+    lore_text: String = ""
+    
+    fn construct():
+        println("Constructing QuestDetailWidget")
+    
+    @blueprint
+    fn set_quest(quest_instance: QuestInstance, quest_data: QuestData):
+        quest_id = quest_instance.quest_id
+        quest_name = quest_data.name
+        quest_description = quest_data.description
+        quest_category = quest_data.category
+        quest_priority = quest_data.priority
+        lore_text = quest_data.lore_text
+        println("Set quest details: {quest_name}")
+    
+    @blueprint
+    fn update_display():
+        println("Updating quest detail display")
+    
+    @blueprint
+    fn set_objectives(obj_list: Array<ObjectiveProgress>):
+        objectives = obj_list
+        println("Set objectives: {len(obj_list)}")
+    
+    @blueprint
+    fn set_rewards(reward_display: RewardDisplay):
+        rewards = reward_display
+        println("Set rewards display")
+    
+    @blueprint
+    fn toggle_description():
+        show_description = !show_description
+    
+    @blueprint
+    fn toggle_objectives():
+        show_objectives = !show_objectives
+    
+    @blueprint
+    fn toggle_rewards():
+        show_rewards = !show_rewards
+    
+    @blueprint
+    fn toggle_lore():
+        show_lore = !show_lore
+    
+    @blueprint
+    fn get_quest_id() -> String:
+        return quest_id
+    
+    @blueprint
+    fn get_quest_name() -> String:
+        return quest_name
+    
+    @blueprint
+    fn clear_quest():
+        quest_id = ""
+        quest_name = ""
+        quest_description = ""
+        objectives = []
+        println("Cleared quest details")
+
+// ============================================================================
+// OBJECTIVE LIST WIDGET
+// ============================================================================
+
+@slate
+struct ObjectiveListWidget:
+    objectives: Array<ObjectiveProgress>
+    show_progress_bars: Bool = true
+    show_completion_state: Bool = true
+    show_optional_objectives: Bool = true
+    show_hidden_objectives: Bool = false
+    highlight_completed: Bool = true
+    
+    fn construct():
+        println("Constructing ObjectiveListWidget")
+    
+    @blueprint
+    fn set_objectives(obj_list: Array<ObjectiveProgress>):
+        objectives = obj_list
+        println("Set objectives: {len(obj_list)}")
+    
+    @blueprint
+    fn update_objective(objective_id: String, current_count: Int, target_count: Int):
+        let i = 0
+        while i < len(objectives):
+            let obj = objectives[i]
+            if obj.objective_id == objective_id:
+                obj.current_count = current_count
+                obj.target_count = target_count
+                obj.progress_percentage = (current_count as Float) / (target_count as Float) * 100.0
+                println("Updated objective {objective_id}: {current_count}/{target_count}")
+            i = i + 1
+    
+    @blueprint
+    fn mark_completed(objective_id: String):
+        let i = 0
+        while i < len(objectives):
+            let obj = objectives[i]
+            if obj.objective_id == objective_id:
+                obj.completed = true
+                println("Marked objective {objective_id} as completed")
+            i = i + 1
+    
+    @blueprint
+    fn get_objective_count() -> Int:
+        return len(objectives)
+    
+    @blueprint
+    fn get_completed_count() -> Int:
+        let count = 0
+        let i = 0
+        while i < len(objectives):
+            if objectives[i].completed:
+                count = count + 1
+            i = i + 1
+        return count
+    
+    @blueprint
+    fn toggle_progress_bars():
+        show_progress_bars = !show_progress_bars
+    
+    @blueprint
+    fn toggle_completion_state():
+        show_completion_state = !show_completion_state
+    
+    @blueprint
+    fn toggle_optional_objectives():
+        show_optional_objectives = !show_optional_objectives
+    
+    @blueprint
+    fn clear_objectives():
+        objectives = []
+        println("Cleared objectives")
+
+// ============================================================================
+// REWARD DISPLAY WIDGET
+// ============================================================================
+
+@slate
+struct RewardDisplayWidget:
+    rewards: RewardDisplay
+    show_icons: Bool = true
+    show_quantities: Bool = true
+    icon_size: Float = 64.0
+    layout_mode: String = "Horizontal"
+    
+    fn construct():
+        println("Constructing RewardDisplayWidget")
+    
+    @blueprint
+    fn set_rewards(reward_display: RewardDisplay):
+        rewards = reward_display
+        println("Set rewards: XP={reward_display.xp_amount}, Gold={reward_display.gold_amount}")
+    
+    @blueprint
+    fn update_display():
+        println("Updating reward display")
+    
+    @blueprint
+    fn get_xp_amount() -> Int:
+        return rewards.xp_amount
+    
+    @blueprint
+    fn get_gold_amount() -> Int:
+        return rewards.gold_amount
+    
+    @blueprint
+    fn get_item_count() -> Int:
+        return len(rewards.item_rewards)
+    
+    @blueprint
+    fn has_rewards() -> Bool:
+        return rewards.has_rewards
+    
+    @blueprint
+    fn toggle_icons():
+        show_icons = !show_icons
+    
+    @blueprint
+    fn toggle_quantities():
+        show_quantities = !show_quantities
+    
+    @blueprint
+    fn set_icon_size(size: Float):
+        icon_size = size
+    
+    @blueprint
+    fn set_layout_mode(mode: String):
+        layout_mode = mode
+        println("Layout mode: {mode}")
+    
+    @blueprint
+    fn clear_rewards():
+        rewards = RewardDisplay {
+            xp_amount: 0,
+            gold_amount: 0,
+            item_rewards: [],
+            reputation_rewards: [],
+            has_rewards: false
+        }
+        println("Cleared rewards")
+
+// ============================================================================
+// QUEST MAP MARKER WIDGET
+// ============================================================================
+
+@slate
+struct QuestMapMarkerWidget:
+    marker_location: Vec3 = vec3(0.0, 0.0, 0.0)
+    marker_type: QuestMarkerType = QuestMarkerType::Objective
+    marker_icon: String = "Objective"
+    marker_color: Vec3 = vec3(1.0, 1.0, 0.0)
+    marker_size: Float = 32.0
+    show_distance: Bool = true
+    distance_to_player: Float = 0.0
+    is_visible: Bool = true
+    
+    fn construct():
+        println("Constructing QuestMapMarkerWidget")
+    
+    @blueprint
+    fn set_location(location: Vec3):
+        marker_location = location
+        println("Set marker location: {location}")
+    
+    @blueprint
+    fn set_type(marker_type_val: QuestMarkerType):
+        marker_type = marker_type_val
+        println("Set marker type: {marker_type_val}")
+    
+    @blueprint
+    fn update_marker():
+        println("Updating marker display")
+    
+    @blueprint
+    fn set_icon(icon: String):
+        marker_icon = icon
+    
+    @blueprint
+    fn set_color(color: Vec3):
+        marker_color = color
+    
+    @blueprint
+    fn set_size(size: Float):
+        marker_size = size
+    
+    @blueprint
+    fn update_distance(distance: Float):
+        distance_to_player = distance
+    
+    @blueprint
+    fn toggle_distance_display():
+        show_distance = !show_distance
+    
+    @blueprint
+    fn show_marker():
+        is_visible = true
+    
+    @blueprint
+    fn hide_marker():
+        is_visible = false
+    
+    @blueprint
+    fn get_location() -> Vec3:
+        return marker_location
+    
+    @blueprint
+    fn get_distance() -> Float:
+        return distance_to_player
+    
+    @blueprint
+    fn is_marker_visible() -> Bool:
+        return is_visible
+
+// ============================================================================
+// QUEST DEBUG WIDGET
+// ============================================================================
+
+@slate
+struct QuestDebugWidget:
+    active_quest_count: Int = 0
+    completed_quest_count: Int = 0
+    failed_quest_count: Int = 0
+    tracked_quest_id: String = ""
+    debug_info: Array<String>
+    show_variables: Bool = true
+    show_flags: Bool = true
+    show_timers: Bool = true
+    is_visible: Bool = false
+    refresh_rate: Float = 1.0
+    elapsed_since_refresh: Float = 0.0
+    
+    fn construct():
+        println("Constructing QuestDebugWidget")
+    
+    @blueprint
+    fn update_debug_info(active_count: Int, completed_count: Int, failed_count: Int, tracked_id: String):
+        active_quest_count = active_count
+        completed_quest_count = completed_count
+        failed_quest_count = failed_count
+        tracked_quest_id = tracked_id
+        println("Updated debug info: Active={active_count}, Completed={completed_count}, Failed={failed_count}")
+    
+    @blueprint
+    fn toggle_visibility():
+        is_visible = !is_visible
+        println("Debug widget visible: {is_visible}")
+    
+    @blueprint
+    fn add_debug_line(line: String):
+        push(debug_info, line)
+    
+    @blueprint
+    fn clear_debug_info():
+        debug_info = []
+    
+    @blueprint
+    fn toggle_variables():
+        show_variables = !show_variables
+    
+    @blueprint
+    fn toggle_flags():
+        show_flags = !show_flags
+    
+    @blueprint
+    fn toggle_timers():
+        show_timers = !show_timers
+    
+    @blueprint
+    fn set_refresh_rate(rate: Float):
+        refresh_rate = rate
+    
+    @blueprint
+    fn tick_debug_widget(delta_time: Float):
+        elapsed_since_refresh = elapsed_since_refresh + delta_time
+        if elapsed_since_refresh >= refresh_rate:
+            refresh_debug_display()
+            elapsed_since_refresh = 0.0
+    
+    @blueprint
+    fn refresh_debug_display():
+        println("Refreshing debug display")
+    
+    @blueprint
+    fn get_active_quest_count() -> Int:
+        return active_quest_count
+    
+    @blueprint
+    fn get_completed_quest_count() -> Int:
+        return completed_quest_count
+    
+    @blueprint
+    fn get_failed_quest_count() -> Int:
+        return failed_quest_count
+    
+    @blueprint
+    fn get_tracked_quest_id() -> String:
+        return tracked_quest_id
+    
+    @blueprint
+    fn is_debug_visible() -> Bool:
+        return is_visible
+    
+    // ========================================================================
+    // ADDITIONAL WIDGET HELPER FUNCTIONS
+    // ========================================================================
+    
+    @blueprint
+    fn export_debug_info_to_string() -> String:
+        let output = "=== Quest Debug Info ===\n"
+        output = "{output}Active: {active_quest_count}\n"
+        output = "{output}Completed: {completed_quest_count}\n"
+        output = "{output}Failed: {failed_quest_count}\n"
+        output = "{output}Tracked: {tracked_quest_id}\n"
+        return output
+    
+    @blueprint
+    fn get_debug_line_count() -> Int:
+        return len(debug_info)
+    
+    @blueprint
+    fn get_debug_line_at_index(index: Int) -> String:
+        if index >= 0 && index < len(debug_info):
+            return debug_info[index]
+        return ""
+    
+    @blueprint
+    fn clear_old_debug_lines(max_lines: Int):
+        while len(debug_info) > max_lines:
+            let i = 0
+            i = i + 1
+        println("Cleared old debug lines")
+
+// ============================================================================
+// QUEST LOG WIDGET EXTENSIONS
+// ============================================================================
+
+@blueprint
+fn get_quest_count_by_filter() -> Int:
+    return len(quest_list)
+
+@blueprint
+fn get_quest_at_index(index: Int) -> QuestLogEntry:
+    if index >= 0 && index < len(quest_list):
+        return quest_list[index]
+    return QuestLogEntry {
+        quest_instance: create_quest_instance("", "", 0),
+        quest_data: QuestData {
+            quest_id: "",
+            name: "",
+            description: "",
+            category: QuestCategory::Side,
+            priority: QuestPriority::Normal,
+            level_requirement: 0,
+            prerequisites: [],
+            auto_start: false,
+            repeatable: false,
+            time_limit: 0.0,
+            lore_text: "",
+            icon_path: ""
+        },
+        progress: QuestProgress {
+            quest_id: "",
+            total_objectives: 0,
+            completed_objectives: 0,
+            progress_percentage: 0.0,
+            time_elapsed: 0.0,
+            time_remaining: 0.0
+        },
+        is_tracked: false,
+        is_new: false
+    }
+
+@blueprint
+fn select_quest_by_index(index: Int):
+    if index >= 0 && index < len(quest_list):
+        selected_quest_id = quest_list[index].quest_instance.quest_id
+        println("Selected quest at index {index}")
+
+@blueprint
+fn select_next_quest():
+    println("Selected next quest")
+
+@blueprint
+fn select_previous_quest():
+    println("Selected previous quest")
+
+@blueprint
+fn has_selection() -> Bool:
+    return selected_quest_id != ""
+
+@blueprint
+fn get_filter_mode() -> QuestFilterMode:
+    return filter_mode
+
+@blueprint
+fn get_sort_mode() -> QuestSortMode:
+    return sort_mode
+
+// ============================================================================
+// QUEST TRACKER WIDGET EXTENSIONS
+// ============================================================================
+
+@blueprint
+fn has_tracked_quest() -> Bool:
+    return tracked_quest_id != ""
+
+@blueprint
+fn get_objective_at_index(index: Int) -> ObjectiveProgress:
+    if index >= 0 && index < len(objectives):
+        return objectives[index]
+    return ObjectiveProgress {
+        objective_id: "",
+        description: "",
+        current_count: 0,
+        target_count: 0,
+        progress_percentage: 0.0,
+        completed: false,
+        optional: false,
+        hidden: false
+    }
+
+@blueprint
+fn count_completed_objectives() -> Int:
+    let count = 0
+    let i = 0
+    while i < len(objectives):
+        if objectives[i].completed:
+            count = count + 1
+        i = i + 1
+    return count
+
+@blueprint
+fn count_incomplete_objectives() -> Int:
+    let count = 0
+    let i = 0
+    while i < len(objectives):
+        if !objectives[i].completed:
+            count = count + 1
+        i = i + 1
+    return count
+
+@blueprint
+fn get_overall_progress() -> Float:
+    if len(objectives) == 0:
+        return 0.0
+    
+    let completed = count_completed_objectives()
+    return (completed as Float) / (len(objectives) as Float) * 100.0
+
+// ============================================================================
+// QUEST NOTIFICATION WIDGET EXTENSIONS
+// ============================================================================
+
+@blueprint
+fn get_notification_text() -> String:
+    return notification_text
+
+@blueprint
+fn get_notification_type() -> QuestNotificationType:
+    return notification_type
+
+@blueprint
+fn get_elapsed_time() -> Float:
+    return elapsed_time
+
+@blueprint
+fn get_remaining_display_time() -> Float:
+    return max(display_duration - elapsed_time, 0.0)
+
+@blueprint
+fn force_hide():
+    hide_notification()
+
+@blueprint
+fn extend_display_time(additional_time: Float):
+    display_duration = display_duration + additional_time
+    println("Extended display time by {additional_time}s")
+
+@blueprint
+fn reset_notification():
+    notification_text = ""
+    elapsed_time = 0.0
+    current_alpha = 0.0
+    is_visible = false
+
+// ============================================================================
+// QUEST DETAIL WIDGET EXTENSIONS
+// ============================================================================
+
+@blueprint
+fn has_quest_loaded() -> Bool:
+    return quest_id != ""
+
+@blueprint
+fn get_quest_category() -> QuestCategory:
+    return quest_category
+
+@blueprint
+fn get_quest_priority() -> QuestPriority:
+    return quest_priority
+
+@blueprint
+fn get_lore_text() -> String:
+    return lore_text
+
+@blueprint
+fn count_objectives() -> Int:
+    return len(objectives)
+
+@blueprint
+fn has_lore() -> Bool:
+    return lore_text != ""
+
+// ============================================================================
+// OBJECTIVE LIST WIDGET EXTENSIONS
+// ============================================================================
+
+@blueprint
+fn get_completion_percentage() -> Float:
+    if len(objectives) == 0:
+        return 0.0
+    
+    let completed = get_completed_count()
+    return (completed as Float) / (len(objectives) as Float) * 100.0
+
+@blueprint
+fn has_objectives() -> Bool:
+    return len(objectives) > 0
+
+@blueprint
+fn all_objectives_complete() -> Bool:
+    return get_completed_count() == len(objectives)
+
+@blueprint
+fn any_objectives_complete() -> Bool:
+    return get_completed_count() > 0
+
+// ============================================================================
+// REWARD DISPLAY WIDGET EXTENSIONS
+// ============================================================================
+
+@blueprint
+fn get_reputation_count() -> Int:
+    return len(rewards.reputation_rewards)
+
+@blueprint
+fn has_xp_reward() -> Bool:
+    return rewards.xp_amount > 0
+
+@blueprint
+fn has_gold_reward() -> Bool:
+    return rewards.gold_amount > 0
+
+@blueprint
+fn has_item_rewards() -> Bool:
+    return len(rewards.item_rewards) > 0
+
+@blueprint
+fn has_reputation_rewards() -> Bool:
+    return len(rewards.reputation_rewards) > 0
+
+@blueprint
+fn get_total_reward_value() -> Float:
+    let value = 0.0
+    value = value + (rewards.xp_amount as Float) * 0.1
+    value = value + (rewards.gold_amount as Float) * 1.0
+    value = value + (len(rewards.item_rewards) as Float) * 10.0
+    return value
+
+// ============================================================================
+// QUEST MAP MARKER WIDGET EXTENSIONS
+// ============================================================================
+
+@blueprint
+fn update_distance_to_player(player_location: Vec3):
+    let dx = marker_location.x - player_location.x
+    let dy = marker_location.y - player_location.y
+    let dz = marker_location.z - player_location.z
+    distance_to_player = sqrt(dx * dx + dy * dy + dz * dz)
+
+@blueprint
+fn is_within_range(range: Float) -> Bool:
+    return distance_to_player <= range
+
+@blueprint
+fn get_marker_type() -> QuestMarkerType:
+    return marker_type
+
+@blueprint
+fn set_marker_color_rgb(r: Float, g: Float, b: Float):
+    marker_color = vec3(r, g, b)
+
+@blueprint
+fn pulse_marker():
+    println("Pulsing marker")

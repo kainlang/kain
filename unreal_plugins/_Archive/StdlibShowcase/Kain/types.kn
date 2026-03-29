@@ -1,0 +1,214 @@
+# ============================================================================
+# STDLIB SHOWCASE — Types, Enums, DataTables
+# ============================================================================
+# This plugin is a living stress-test of the KAIN stdlib.
+# Each section exercises a different stdlib category with real production code.
+# Every enum, struct, and datatable here is designed to receive stdlib output.
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: CORE ENUMS
+# ============================================================================
+
+# Which stdlib category a diagnostic run targets
+enum StdlibCategory:
+    ActorFunctions       # actor.kn — GetActorLocation, SetActorLocation, etc.
+    WorldFunctions       # world.kn — GetWorldTimeSeconds, LineTraceSingle, etc.
+    GameplayFunctions    # gameplay.kn — apply_damage, calculate_xp, etc.
+    MathFunctions        # math.kn — lerp, sqrt, Vector_Dot, etc.
+    UtilityFunctions     # utilities.kn — remap, smooth_step, ease_in_out, etc.
+    MaterialFunctions    # materials.kn — SetScalarParameter, CreateDynMat, etc.
+    ParticleFunctions    # particles.kn — SpawnEmitter, SetFloatParameter, etc.
+    SkeletalMeshFunctions # skeletal_mesh.kn — PlayMontage, GetBoneLocation, etc.
+    All                  # Run all categories in sequence
+    _MAX
+
+# Result of a stdlib function test
+enum TestResult:
+    Pass
+    Fail
+    Skipped         # Actor/component not available in this context
+    NotImplemented  # Stdlib function not yet wired
+    _MAX
+
+# Overall showcase state machine
+enum ShowcaseState:
+    Idle
+    RunningDiagnostics
+    DisplayingResults
+    WaitingForReset
+    _MAX
+
+# Material animation mode driven by stdlib math functions
+enum MaterialAnimMode:
+    Pulse           # sin-based opacity pulse
+    ColorCycle      # hue rotation using utilities
+    RoughnessWave   # roughness animated via FInterpTo
+    EmissiveBloom   # emissive driven by gameplay health ratio
+    _MAX
+
+# Particle burst type controlled by stdlib world functions
+enum ParticleBurstType:
+    OnSpawn         # Burst at BeginPlay location
+    OnDamage        # Burst at damage impact point
+    OnTimer         # Periodic burst from world timer
+    OnTrace         # Burst at line trace hit point
+    _MAX
+
+# Gameplay simulation scenario for stress-testing gameplay.kn
+enum GameplayScenario:
+    StandardCombat      # apply_damage + armor mitigation loop
+    XPProgression       # calculate_xp → level_up chain
+    InventoryMgmt       # loot_drop → inventory_add → stack_query
+    CooldownSystem      # is_on_cooldown → trigger → reset loop
+    BuffStacking        # apply_buff → calculate_buff_value → expire
+    _MAX
+
+# ============================================================================
+# SECTION 2: CORE DATA STRUCTURES
+# ============================================================================
+
+# Single test result entry — written per stdlib function exercised
+@datatable
+struct StdlibTestRecord:
+    category: StdlibCategory
+    function_name: String
+    result: TestResult
+    output_value: Float     # Numeric result to validate against expected
+    elapsed_ms: Float       # How long the call took (debug)
+
+# Configuration per category — data-driven test parameters
+struct CategoryConfig:
+    category: StdlibCategory
+    enabled: Bool
+    iterations: Int         # How many times to call each function in the loop
+    expected_min: Float     # Minimum acceptable numeric output
+    expected_max: Float     # Maximum acceptable numeric output
+
+# Result summary written after each full diagnostic run
+struct DiagnosticSummary:
+    total_tests: Int
+    passed: Int
+    failed: Int
+    skipped: Int
+    duration_seconds: Float
+    stdlib_loaded: Bool
+
+# Actor spawn parameters used to stress-test world.kn spawning
+struct SpawnTestParams:
+    location: Vec3
+    rotation: Vec3
+    class_tag: String
+    burst_type: ParticleBurstType
+
+# Material test state — tracks what the MaterialAnimator is doing
+struct MaterialTestState:
+    anim_mode: MaterialAnimMode
+    phase: Float            # 0..1 animation phase
+    target_roughness: Float
+    target_emissive: Vec3
+    dynamic_mat_created: Bool
+
+# Gameplay simulation state — tracks one scenario run
+struct GameplaySimState:
+    scenario: GameplayScenario
+    current_health: Float
+    max_health: Float
+    current_xp: Float
+    current_level: Int
+    armor: Float
+    active_buff_count: Int
+    cooldown_remaining: Float
+
+# ============================================================================
+# SECTION 3: EDITOR CONFIGURATION
+# ============================================================================
+
+# Plugin-level settings accessible from the editor details panel
+struct ShowcaseSettings:
+    auto_run_on_begin_play: Bool
+    log_to_screen: Bool
+    log_to_output_log: Bool
+    run_interval_seconds: Float     # How often to re-run diagnostics in tick
+    categories_mask: Int            # Bitmask of enabled StdlibCategory values
+    max_records_kept: Int           # Rolling buffer size for test records
+
+# Summary of one full loop emitted to the editor UI
+struct LoopSummary:
+    loop_index: Int
+    timestamp: Float
+    summary: DiagnosticSummary
+    worst_category: StdlibCategory
+
+# ============================================================================
+# SECTION 4: HELPER FUNCTIONS (pure, no stdlib dependency)
+# ============================================================================
+
+# Default-construct a fresh GameplaySimState for StandardCombat scenario
+@blueprint
+fn default_combat_sim() -> GameplaySimState:
+    let s = GameplaySimState()
+    s.scenario = GameplayScenario::StandardCombat
+    s.current_health = 100.0
+    s.max_health = 100.0
+    s.current_xp = 0.0
+    s.current_level = 1
+    s.armor = 25.0
+    s.active_buff_count = 0
+    s.cooldown_remaining = 0.0
+    return s
+
+# Default-construct a fresh MaterialTestState in Pulse mode
+@blueprint
+fn default_material_state() -> MaterialTestState:
+    let m = MaterialTestState()
+    m.anim_mode = MaterialAnimMode::Pulse
+    m.phase = 0.0
+    m.target_roughness = 0.5
+    m.target_emissive = vec3(1.0, 0.5, 0.1)
+    m.dynamic_mat_created = false
+    return m
+
+# Default ShowcaseSettings — safe defaults, all categories enabled
+@blueprint
+fn default_showcase_settings() -> ShowcaseSettings:
+    let cfg = ShowcaseSettings()
+    cfg.auto_run_on_begin_play = true
+    cfg.log_to_screen = true
+    cfg.log_to_output_log = true
+    cfg.run_interval_seconds = 5.0
+    cfg.categories_mask = 255
+    cfg.max_records_kept = 512
+    return cfg
+
+# Convert a TestResult to a display string for PrintToScreen
+@blueprint
+fn result_to_string(result: TestResult) -> String:
+    if result == TestResult::Pass:
+        return "PASS"
+    if result == TestResult::Fail:
+        return "FAIL"
+    if result == TestResult::Skipped:
+        return "SKIP"
+    return "N/A"
+
+# Convert a StdlibCategory to a short tag for logging
+@blueprint
+fn category_to_tag(cat: StdlibCategory) -> String:
+    if cat == StdlibCategory::ActorFunctions:
+        return "[ACTOR]"
+    if cat == StdlibCategory::WorldFunctions:
+        return "[WORLD]"
+    if cat == StdlibCategory::GameplayFunctions:
+        return "[GAMEPLAY]"
+    if cat == StdlibCategory::MathFunctions:
+        return "[MATH]"
+    if cat == StdlibCategory::UtilityFunctions:
+        return "[UTIL]"
+    if cat == StdlibCategory::MaterialFunctions:
+        return "[MAT]"
+    if cat == StdlibCategory::ParticleFunctions:
+        return "[VFX]"
+    if cat == StdlibCategory::SkeletalMeshFunctions:
+        return "[SKEL]"
+    return "[ALL]"

@@ -1,0 +1,47 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0.0",
+  "FriendlyName": "MetaFitter",
+  "Description": "Auto-Conforming Clothing System for MetaHumans",
+  "Category": "KAIN-PRO",
+  "CreatedBy": "KAIN-PRO Compiler",
+  "CreatedByURL": "",
+  "DocsURL": "",
+  "MarketplaceURL": "",
+  "SupportURL": "",
+  "CanContainContent": false,
+  "IsBetaVersion": false,
+  "IsExperimentalVersion": false,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "MetaFitter",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    },
+    {
+      "Name": "MetaFitterEditor",
+      "Type": "Editor",
+      "LoadingPhase": "PostEngineInit"
+    }
+  ],
+  "Plugins": [
+    {
+      "Name": "ChaosClothAsset",
+      "Enabled": true
+    },
+    {
+      "Name": "ChaosOutfitAsset",
+      "Enabled": true
+    },
+    {
+      "Name": "MetaHumanCharacter",
+      "Enabled": true
+    },
+    {
+      "Name": "MetaHumanSDK",
+      "Enabled": true
+    }
+  ]
+}

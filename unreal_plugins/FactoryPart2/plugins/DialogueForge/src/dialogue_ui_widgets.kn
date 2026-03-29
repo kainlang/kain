@@ -1,0 +1,536 @@
+// DialogueForge — UI Widgets
+// Slate widgets for dialogue display
+
+@slate
+struct DialogueWidget:
+    current_speaker_name: String = ""
+    current_dialogue_text: String = ""
+    current_portrait_path: String = ""
+    current_emotion: SpeakerEmotion = SpeakerEmotion::Neutral
+    is_visible: Bool = false
+    auto_advance_timer: Float = 0.0
+    max_auto_advance_time: Float = 5.0
+    show_skip_button: Bool = true
+    show_speaker_portrait: Bool = true
+    show_emotion_indicator: Bool = true
+    text_scroll_speed: Float = 50.0
+    current_text_position: Int = 0
+    full_text_revealed: Bool = false
+    background_opacity: Float = 0.8
+    text_color: Vec3 = Vec3 { x: 1.0, y: 1.0, z: 1.0 }
+    speaker_name_color: Vec3 = Vec3 { x: 1.0, y: 0.8, z: 0.2 }
+    
+    fn construct():
+        println("DialogueWidget constructed")
+    
+    fn set_dialogue_content(speaker_name: String, dialogue_text: String, portrait_path: String, emotion: SpeakerEmotion):
+        current_speaker_name = speaker_name
+        current_dialogue_text = dialogue_text
+        current_portrait_path = portrait_path
+        current_emotion = emotion
+        current_text_position = 0
+        full_text_revealed = false
+        auto_advance_timer = 0.0
+    
+    fn show_dialogue():
+        is_visible = true
+    
+    fn hide_dialogue():
+        is_visible = false
+    
+    fn tick_widget(delta_time: Float):
+        if !is_visible:
+            return
+        
+        if !full_text_revealed:
+            let chars_to_reveal = (text_scroll_speed * delta_time) as Int
+            current_text_position = current_text_position + chars_to_reveal
+            if current_text_position >= len(current_dialogue_text):
+                current_text_position = len(current_dialogue_text)
+                full_text_revealed = true
+        
+        if full_text_revealed:
+            auto_advance_timer = auto_advance_timer + delta_time
+    
+    fn skip_text_scroll():
+        current_text_position = len(current_dialogue_text)
+        full_text_revealed = true
+    
+    fn reset_widget():
+        current_speaker_name = ""
+        current_dialogue_text = ""
+        current_portrait_path = ""
+        current_emotion = SpeakerEmotion::Neutral
+        current_text_position = 0
+        full_text_revealed = false
+        auto_advance_timer = 0.0
+        is_visible = false
+
+@slate
+struct ChoiceListWidget:
+    available_choices: Array<DialogueChoice> = []
+    selected_choice_index: Int = 0
+    is_visible: Bool = false
+    show_choice_icons: Bool = true
+    show_skill_checks: Bool = true
+    show_consequences: Bool = false
+    highlight_color: Vec3 = Vec3 { x: 1.0, y: 0.8, z: 0.2 }
+    normal_color: Vec3 = Vec3 { x: 0.8, y: 0.8, z: 0.8 }
+    locked_color: Vec3 = Vec3 { x: 0.5, y: 0.5, z: 0.5 }
+    choice_spacing: Float = 10.0
+    max_visible_choices: Int = 6
+    scroll_offset: Int = 0
+    
+    fn construct():
+        println("ChoiceListWidget constructed")
+    
+    fn set_choices(choices: Array<DialogueChoice>):
+        available_choices = choices
+        selected_choice_index = 0
+        scroll_offset = 0
+    
+    fn show_choices():
+        is_visible = true
+    
+    fn hide_choices():
+        is_visible = false
+    
+    fn select_next_choice():
+        if len(available_choices) == 0:
+            return
+        
+        selected_choice_index = selected_choice_index + 1
+        if selected_choice_index >= len(available_choices):
+            selected_choice_index = 0
+        
+        update_scroll_offset()
+    
+    fn select_previous_choice():
+        if len(available_choices) == 0:
+            return
+        
+        selected_choice_index = selected_choice_index - 1
+        if selected_choice_index < 0:
+            selected_choice_index = len(available_choices) - 1
+        
+        update_scroll_offset()
+    
+    fn select_choice_by_index(index: Int):
+        if index >= 0 && index < len(available_choices):
+            selected_choice_index = index
+            update_scroll_offset()
+    
+    fn get_selected_choice() -> DialogueChoice:
+        if selected_choice_index >= 0 && selected_choice_index < len(available_choices):
+            return available_choices[selected_choice_index]
+        
+        return DialogueChoice {
+            choice_id: -1,
+            choice_text: "",
+            hover_text: "",
+            icon_path: "",
+            conditions: [],
+            availability: ChoiceAvailability::Available,
+            consequence_text: "",
+            stat_requirements: [],
+            skill_check_stat: "",
+            skill_check_difficulty: 0,
+            success_node_id: -1,
+            failure_node_id: -1,
+            next_node_id: -1,
+            one_time_only: false,
+            has_been_chosen: false
+        }
+    
+    fn get_selected_choice_id() -> Int:
+        if selected_choice_index >= 0 && selected_choice_index < len(available_choices):
+            return available_choices[selected_choice_index].choice_id
+        return -1
+    
+    fn clear_choices():
+        available_choices = []
+        selected_choice_index = 0
+        scroll_offset = 0
+    
+    fn update_scroll_offset():
+        if selected_choice_index < scroll_offset:
+            scroll_offset = selected_choice_index
+        else if selected_choice_index >= scroll_offset + max_visible_choices:
+            scroll_offset = selected_choice_index - max_visible_choices + 1
+
+@slate
+struct SpeakerPortraitWidget:
+    portrait_texture_path: String = ""
+    speaker_name: String = ""
+    current_emotion: SpeakerEmotion = SpeakerEmotion::Neutral
+    is_visible: Bool = false
+    portrait_size: Float = 128.0
+    show_name_label: Bool = true
+    show_emotion_overlay: Bool = true
+    flip_portrait: Bool = false
+    portrait_opacity: Float = 1.0
+    border_color: Vec3 = Vec3 { x: 1.0, y: 1.0, z: 1.0 }
+    border_thickness: Float = 2.0
+    
+    fn construct():
+        println("SpeakerPortraitWidget constructed")
+    
+    fn set_portrait(texture_path: String, name: String, emotion: SpeakerEmotion):
+        portrait_texture_path = texture_path
+        speaker_name = name
+        current_emotion = emotion
+    
+    fn show_portrait():
+        is_visible = true
+    
+    fn hide_portrait():
+        is_visible = false
+    
+    fn set_emotion(emotion: SpeakerEmotion):
+        current_emotion = emotion
+    
+    fn set_portrait_size(size: Float):
+        portrait_size = size
+    
+    fn set_opacity(opacity: Float):
+        portrait_opacity = opacity
+    
+    fn enable_flip(flip: Bool):
+        flip_portrait = flip
+
+@slate
+struct DialogueHistoryWidget:
+    history_entries: Array<DialogueHistoryEntry> = []
+    is_visible: Bool = false
+    max_visible_entries: Int = 10
+    scroll_offset: Int = 0
+    entry_height: Float = 30.0
+    show_timestamps: Bool = true
+    show_speaker_names: Bool = true
+    text_color: Vec3 = Vec3 { x: 0.9, y: 0.9, z: 0.9 }
+    speaker_color: Vec3 = Vec3 { x: 1.0, y: 0.8, z: 0.2 }
+    timestamp_color: Vec3 = Vec3 { x: 0.6, y: 0.6, z: 0.6 }
+    
+    fn construct():
+        println("DialogueHistoryWidget constructed")
+    
+    fn add_history_entry(entry: DialogueHistoryEntry):
+        push(history_entries, entry)
+        
+        if len(history_entries) > 100:
+            return
+    
+    fn clear_history():
+        history_entries = []
+        scroll_offset = 0
+    
+    fn show_history():
+        is_visible = true
+    
+    fn hide_history():
+        is_visible = false
+    
+    fn scroll_up():
+        scroll_offset = scroll_offset - 1
+        if scroll_offset < 0:
+            scroll_offset = 0
+    
+    fn scroll_down():
+        let max_scroll = len(history_entries) - max_visible_entries
+        if max_scroll < 0:
+            max_scroll = 0
+        
+        scroll_offset = scroll_offset + 1
+        if scroll_offset > max_scroll:
+            scroll_offset = max_scroll
+
+@slate
+struct SubtitleWidget:
+    subtitle_text: String = ""
+    is_visible: Bool = false
+    background_opacity: Float = 0.7
+    text_color: Vec3 = Vec3 { x: 1.0, y: 1.0, z: 1.0 }
+    font_size: Int = 18
+    max_width: Float = 800.0
+    padding: Float = 10.0
+    auto_hide_delay: Float = 3.0
+    current_display_time: Float = 0.0
+    
+    fn construct():
+        println("SubtitleWidget constructed")
+    
+    fn set_subtitle(text: String):
+        subtitle_text = text
+        current_display_time = 0.0
+    
+    fn show_subtitle():
+        is_visible = true
+    
+    fn hide_subtitle():
+        is_visible = false
+    
+    fn tick_widget(delta_time: Float):
+        if !is_visible:
+            return
+        
+        current_display_time = current_display_time + delta_time
+        if current_display_time >= auto_hide_delay:
+            hide_subtitle()
+    
+    fn clear_subtitle():
+        subtitle_text = ""
+        current_display_time = 0.0
+
+@slate
+struct SkillCheckWidget:
+    skill_name: String = ""
+    difficulty_class: Int = 0
+    player_stat_value: Int = 0
+    roll_result: Int = 0
+    is_success: Bool = false
+    is_critical: Bool = false
+    is_visible: Bool = false
+    show_animation: Bool = true
+    animation_progress: Float = 0.0
+    animation_duration: Float = 2.0
+    success_color: Vec3 = Vec3 { x: 0.2, y: 1.0, z: 0.2 }
+    failure_color: Vec3 = Vec3 { x: 1.0, y: 0.2, z: 0.2 }
+    critical_color: Vec3 = Vec3 { x: 1.0, y: 0.8, z: 0.0 }
+    
+    fn construct():
+        println("SkillCheckWidget constructed")
+    
+    fn start_skill_check(skill: String, dc: Int, stat_value: Int):
+        skill_name = skill
+        difficulty_class = dc
+        player_stat_value = stat_value
+        roll_result = 0
+        is_success = false
+        is_critical = false
+        animation_progress = 0.0
+    
+    fn show_result(roll: Int, success: Bool, critical: Bool):
+        roll_result = roll
+        is_success = success
+        is_critical = critical
+        is_visible = true
+    
+    fn hide_result():
+        is_visible = false
+    
+    fn tick_widget(delta_time: Float):
+        if !is_visible || !show_animation:
+            return
+        
+        animation_progress = animation_progress + delta_time
+        if animation_progress >= animation_duration:
+            animation_progress = animation_duration
+
+@slate
+struct QuestNotificationWidget:
+    quest_name: String = ""
+    notification_text: String = ""
+    notification_type: String = "Started"
+    is_visible: Bool = false
+    display_duration: Float = 5.0
+    current_display_time: Float = 0.0
+    fade_in_duration: Float = 0.5
+    fade_out_duration: Float = 0.5
+    background_color: Vec3 = Vec3 { x: 0.1, y: 0.1, z: 0.1 }
+    text_color: Vec3 = Vec3 { x: 1.0, y: 1.0, z: 1.0 }
+    started_color: Vec3 = Vec3 { x: 0.2, y: 0.8, z: 1.0 }
+    completed_color: Vec3 = Vec3 { x: 0.2, y: 1.0, z: 0.2 }
+    failed_color: Vec3 = Vec3 { x: 1.0, y: 0.2, z: 0.2 }
+    
+    fn construct():
+        println("QuestNotificationWidget constructed")
+    
+    fn show_quest_started(quest: String, text: String):
+        quest_name = quest
+        notification_text = text
+        notification_type = "Started"
+        current_display_time = 0.0
+        is_visible = true
+    
+    fn show_quest_completed(quest: String, text: String):
+        quest_name = quest
+        notification_text = text
+        notification_type = "Completed"
+        current_display_time = 0.0
+        is_visible = true
+    
+    fn show_quest_failed(quest: String, text: String):
+        quest_name = quest
+        notification_text = text
+        notification_type = "Failed"
+        current_display_time = 0.0
+        is_visible = true
+    
+    fn hide_notification():
+        is_visible = false
+    
+    fn tick_widget(delta_time: Float):
+        if !is_visible:
+            return
+        
+        current_display_time = current_display_time + delta_time
+        if current_display_time >= display_duration:
+            hide_notification()
+
+@slate
+struct DialogueDebugWidget:
+    current_instance_id: Int = -1
+    current_node_id: Int = -1
+    current_graph_id: String = ""
+    active_dialogue_count: Int = 0
+    registered_speaker_count: Int = 0
+    loaded_graph_count: Int = 0
+    is_visible: Bool = false
+    show_variables: Bool = true
+    show_flags: Bool = true
+    show_history: Bool = false
+    variables: Array<DialogueVariable> = []
+    flags: Array<String> = []
+    
+    fn construct():
+        println("DialogueDebugWidget constructed")
+    
+    fn update_debug_info(instance_id: Int, node_id: Int, graph_id: String):
+        current_instance_id = instance_id
+        current_node_id = node_id
+        current_graph_id = graph_id
+    
+    fn update_counts(dialogue_count: Int, speaker_count: Int, graph_count: Int):
+        active_dialogue_count = dialogue_count
+        registered_speaker_count = speaker_count
+        loaded_graph_count = graph_count
+    
+    fn show_debug():
+        is_visible = true
+    
+    fn hide_debug():
+        is_visible = false
+    
+    fn toggle_debug():
+        is_visible = !is_visible
+
+@blueprint
+fn create_dialogue_widget() -> DialogueWidget:
+    return DialogueWidget {
+        current_speaker_name: "",
+        current_dialogue_text: "",
+        current_portrait_path: "",
+        current_emotion: SpeakerEmotion::Neutral,
+        is_visible: false,
+        auto_advance_timer: 0.0,
+        max_auto_advance_time: 5.0,
+        show_skip_button: true,
+        show_speaker_portrait: true,
+        show_emotion_indicator: true,
+        text_scroll_speed: 50.0,
+        current_text_position: 0,
+        full_text_revealed: false,
+        background_opacity: 0.8,
+        text_color: Vec3 { x: 1.0, y: 1.0, z: 1.0 },
+        speaker_name_color: Vec3 { x: 1.0, y: 0.8, z: 0.2 }
+    }
+
+@blueprint
+fn create_choice_list_widget() -> ChoiceListWidget:
+    return ChoiceListWidget {
+        available_choices: [],
+        selected_choice_index: 0,
+        is_visible: false,
+        show_choice_icons: true,
+        show_skill_checks: true,
+        show_consequences: false,
+        highlight_color: Vec3 { x: 1.0, y: 0.8, z: 0.2 },
+        normal_color: Vec3 { x: 0.8, y: 0.8, z: 0.8 },
+        locked_color: Vec3 { x: 0.5, y: 0.5, z: 0.5 },
+        choice_spacing: 10.0,
+        max_visible_choices: 6,
+        scroll_offset: 0
+    }
+
+@blueprint
+fn create_speaker_portrait_widget() -> SpeakerPortraitWidget:
+    return SpeakerPortraitWidget {
+        portrait_texture_path: "",
+        speaker_name: "",
+        current_emotion: SpeakerEmotion::Neutral,
+        is_visible: false,
+        portrait_size: 128.0,
+        show_name_label: true,
+        show_emotion_overlay: true,
+        flip_portrait: false,
+        portrait_opacity: 1.0,
+        border_color: Vec3 { x: 1.0, y: 1.0, z: 1.0 },
+        border_thickness: 2.0
+    }
+
+@blueprint
+fn create_subtitle_widget() -> SubtitleWidget:
+    return SubtitleWidget {
+        subtitle_text: "",
+        is_visible: false,
+        background_opacity: 0.7,
+        text_color: Vec3 { x: 1.0, y: 1.0, z: 1.0 },
+        font_size: 18,
+        max_width: 800.0,
+        padding: 10.0,
+        auto_hide_delay: 3.0,
+        current_display_time: 0.0
+    }
+
+@blueprint
+fn create_skill_check_widget() -> SkillCheckWidget:
+    return SkillCheckWidget {
+        skill_name: "",
+        difficulty_class: 0,
+        player_stat_value: 0,
+        roll_result: 0,
+        is_success: false,
+        is_critical: false,
+        is_visible: false,
+        show_animation: true,
+        animation_progress: 0.0,
+        animation_duration: 2.0,
+        success_color: Vec3 { x: 0.2, y: 1.0, z: 0.2 },
+        failure_color: Vec3 { x: 1.0, y: 0.2, z: 0.2 },
+        critical_color: Vec3 { x: 1.0, y: 0.8, z: 0.0 }
+    }
+
+@blueprint
+fn create_quest_notification_widget() -> QuestNotificationWidget:
+    return QuestNotificationWidget {
+        quest_name: "",
+        notification_text: "",
+        notification_type: "Started",
+        is_visible: false,
+        display_duration: 5.0,
+        current_display_time: 0.0,
+        fade_in_duration: 0.5,
+        fade_out_duration: 0.5,
+        background_color: Vec3 { x: 0.1, y: 0.1, z: 0.1 },
+        text_color: Vec3 { x: 1.0, y: 1.0, z: 1.0 },
+        started_color: Vec3 { x: 0.2, y: 0.8, z: 1.0 },
+        completed_color: Vec3 { x: 0.2, y: 1.0, z: 0.2 },
+        failed_color: Vec3 { x: 1.0, y: 0.2, z: 0.2 }
+    }
+
+@blueprint
+fn create_dialogue_debug_widget() -> DialogueDebugWidget:
+    return DialogueDebugWidget {
+        current_instance_id: -1,
+        current_node_id: -1,
+        current_graph_id: "",
+        active_dialogue_count: 0,
+        registered_speaker_count: 0,
+        loaded_graph_count: 0,
+        is_visible: false,
+        show_variables: true,
+        show_flags: true,
+        show_history: false,
+        variables: [],
+        flags: []
+    }

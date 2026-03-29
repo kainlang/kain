@@ -1,0 +1,592 @@
+# Materialize Editor Widgets
+# Photoshop-style layer panel and UE5 Details-style properties panel
+# Implements drag-and-drop reordering, visibility toggles, and property binding
+
+# ============================================================================
+# LAYER PANEL - Photoshop-style layer stack display
+# ============================================================================
+
+@slate
+struct MaterializeLayerPanel:
+    # Layer stack reference
+    @property
+    layer_stack: LayerStack?
+    
+    # Selection state
+    @property
+    selected_index: Int = -1
+    
+    # UI state
+    @property
+    is_dragging: Bool = false
+    
+    @property
+    drag_source_index: Int = -1
+    
+    # Widget construction
+    fn construct() -> Widget:
+        return VBox(
+            padding, 5.0,
+            
+            # Header with title and add button
+            HBox(
+                padding, 5.0,
+                Text(
+                    text, "Layers",
+                    font, "BoldFont",
+                    fill_width, 1.0
+                ),
+                Button(
+                    label, "+",
+                    on_click, on_add_layer,
+                    tooltip, "Add new layer",
+                    width, 30.0,
+                    height, 30.0
+                )
+            ),
+            
+            Separator(),
+            
+            # Layer list (scrollable)
+            ScrollBox(
+                fill_height, 1.0,
+                
+                # Layer list view
+                VBox(
+                    # Dynamically generated layer items
+                    # Each layer gets a LayerItem widget
+                    padding, 2.0
+                )
+            ),
+            
+            Separator(),
+            
+            # Layer controls toolbar
+            HBox(
+                padding, 5.0,
+                alignment, "Center",
+                
+                Button(
+                    label, "Delete",
+                    on_click, on_delete_layer,
+                    enabled, selected_index >= 0,
+                    tooltip, "Delete selected layer",
+                    icon, "Icons.Delete"
+                ),
+                
+                Button(
+                    label, "Duplicate",
+                    on_click, on_duplicate_layer,
+                    enabled, selected_index >= 0,
+                    tooltip, "Duplicate selected layer",
+                    icon, "Icons.Duplicate"
+                ),
+                
+                Spacer(width, 10.0),
+                
+                Button(
+                    label, "↑",
+                    on_click, on_move_layer_up,
+                    enabled, selected_index > 0,
+                    tooltip, "Move layer up",
+                    width, 30.0
+                ),
+                
+                Button(
+                    label, "↓",
+                    on_click, on_move_layer_down,
+                    enabled, can_move_down(),
+                    tooltip, "Move layer down",
+                    width, 30.0
+                )
+            )
+        )
+    
+    # Layer management callbacks
+    fn on_add_layer():
+        if layer_stack == null:
+            println("No layer stack available")
+            return
+        
+        # Create new layer
+        let new_layer = Layer()
+        new_layer.name = "New Layer"
+        new_layer.id = generate_guid()
+        new_layer.layer_type = LayerType.Image
+        new_layer.blend_mode = LayerBlendMode.Normal
+        new_layer.opacity = 1.0
+        new_layer.enabled = true
+        new_layer.output_channels = 255
+        
+        # Add to stack
+        let index = layer_stack.add_layer(new_layer)
+        selected_index = index
+        
+        println("Added new layer at index " + index)
+    
+    fn on_delete_layer():
+        if layer_stack == null or selected_index < 0:
+            return
+        
+        let success = layer_stack.remove_layer(selected_index)
+        if success:
+            println("Deleted layer at index " + selected_index)
+            selected_index = -1
+    
+    fn on_duplicate_layer():
+        if layer_stack == null or selected_index < 0:
+            return
+        
+        let new_index = layer_stack.duplicate_layer(selected_index)
+        if new_index >= 0:
+            selected_index = new_index
+            println("Duplicated layer to index " + new_index)
+    
+    fn on_move_layer_up():
+        if layer_stack == null or selected_index <= 0:
+            return
+        
+        let success = layer_stack.move_layer(selected_index, selected_index - 1)
+        if success:
+            selected_index = selected_index - 1
+            println("Moved layer up")
+    
+    fn on_move_layer_down():
+        if layer_stack == null or selected_index < 0:
+            return
+        
+        let success = layer_stack.move_layer(selected_index, selected_index + 1)
+        if success:
+            selected_index = selected_index + 1
+            println("Moved layer down")
+    
+    fn can_move_down() -> Bool:
+        if layer_stack == null or selected_index < 0:
+            return false
+        return selected_index < len(layer_stack.layers) - 1
+
+
+# ============================================================================
+# LAYER ITEM - Individual layer row in the layer panel
+# ============================================================================
+
+@slate
+struct LayerItem:
+    @property
+    layer: Layer
+    
+    @property
+    is_selected: Bool = false
+    
+    @property
+    layer_index: Int = 0
+    
+    fn construct() -> Widget:
+        return HBox(
+            padding, 5.0,
+            height, 40.0,
+            background_color, get_background_color(),
+            
+            # Visibility toggle (eye icon)
+            Button(
+                label, get_visibility_icon(),
+                on_click, on_toggle_visibility,
+                tooltip, "Toggle visibility",
+                width, 30.0,
+                style, "IconButton"
+            ),
+            
+            # Layer name
+            Text(
+                text, layer.name,
+                font, "DetailFont",
+                fill_width, 1.0,
+                alignment, "CenterLeft"
+            ),
+            
+            # Blend mode dropdown
+            ComboBox(
+                options, get_blend_mode_options(),
+                selected, get_blend_mode_name(layer.blend_mode),
+                on_selection_changed, on_blend_mode_changed,
+                width, 120.0
+            ),
+            
+            # Opacity slider
+            Slider(
+                value, layer.opacity,
+                min, 0.0,
+                max, 1.0,
+                on_value_changed, on_opacity_changed,
+                width, 100.0
+            ),
+            
+            # Opacity value display
+            Text(
+                text, format_opacity(layer.opacity),
+                font, "DetailFont",
+                width, 40.0,
+                alignment, "CenterRight"
+            )
+        )
+    
+    fn get_background_color() -> Vec4:
+        if is_selected:
+            return vec4(0.3, 0.5, 0.8, 1.0)
+        return vec4(0.15, 0.15, 0.15, 1.0)
+    
+    fn get_visibility_icon() -> String:
+        if layer.enabled:
+            return "👁"
+        return "⊗"
+    
+    fn on_toggle_visibility():
+        layer.enabled = not layer.enabled
+        println("Layer visibility toggled: " + layer.name)
+    
+    fn on_blend_mode_changed(mode_name: String):
+        layer.blend_mode = parse_blend_mode(mode_name)
+        layer.dirty = true
+        println("Blend mode changed: " + mode_name)
+    
+    fn on_opacity_changed(new_opacity: Float):
+        layer.opacity = clamp(new_opacity, 0.0, 1.0)
+        layer.dirty = true
+    
+    fn format_opacity(opacity: Float) -> String:
+        let percent = opacity * 100.0
+        return percent + "%"
+    
+    fn get_blend_mode_options() -> Array<String>:
+        let options: Array<String> = []
+        push(options, "Normal")
+        push(options, "Multiply")
+        push(options, "Screen")
+        push(options, "Overlay")
+        push(options, "Add")
+        push(options, "Subtract")
+        return options
+    
+    fn get_blend_mode_name(mode: LayerBlendMode) -> String:
+        if mode == LayerBlendMode.Normal:
+            return "Normal"
+        if mode == LayerBlendMode.Multiply:
+            return "Multiply"
+        if mode == LayerBlendMode.Screen:
+            return "Screen"
+        if mode == LayerBlendMode.Overlay:
+            return "Overlay"
+        if mode == LayerBlendMode.Add:
+            return "Add"
+        if mode == LayerBlendMode.Subtract:
+            return "Subtract"
+        return "Normal"
+    
+    fn parse_blend_mode(name: String) -> LayerBlendMode:
+        if name == "Multiply":
+            return LayerBlendMode.Multiply
+        if name == "Screen":
+            return LayerBlendMode.Screen
+        if name == "Overlay":
+            return LayerBlendMode.Overlay
+        if name == "Add":
+            return LayerBlendMode.Add
+        if name == "Subtract":
+            return LayerBlendMode.Subtract
+        return LayerBlendMode.Normal
+
+
+# ============================================================================
+# PROPERTIES PANEL - UE5 Details-style property editor
+# ============================================================================
+
+@details
+struct MaterializePropertiesPanel:
+    # Selected layer reference
+    selected_layer: Layer?
+    
+    # Layer properties
+    @category(name: "Layer|Basic")
+    @custom_row(label: "Layer Name")
+    fn render_layer_name() -> Widget:
+        if selected_layer == null:
+            return Text(text, "No layer selected")
+        
+        return TextBox(
+            text, selected_layer.name,
+            on_text_changed, on_name_changed,
+            hint_text, "Enter layer name..."
+        )
+    
+    @category(name: "Layer|Basic")
+    @custom_row(label: "Layer Type")
+    fn render_layer_type() -> Widget:
+        if selected_layer == null:
+            return Text(text, "No layer selected")
+        
+        return ComboBox(
+            options, get_layer_type_options(),
+            selected, get_layer_type_name(selected_layer.layer_type),
+            on_selection_changed, on_layer_type_changed
+        )
+    
+    @category(name: "Layer|Blending")
+    @slider(0.0, 1.0)
+    fn render_opacity() -> Widget:
+        if selected_layer == null:
+            return Text(text, "No layer selected")
+        
+        return Slider(
+            value, selected_layer.opacity,
+            min, 0.0,
+            max, 1.0,
+            on_value_changed, on_opacity_changed
+        )
+    
+    @category(name: "Layer|Blending")
+    @custom_row(label: "Blend Mode")
+    fn render_blend_mode() -> Widget:
+        if selected_layer == null:
+            return Text(text, "No layer selected")
+        
+        return ComboBox(
+            options, get_all_blend_modes(),
+            selected, get_blend_mode_display_name(selected_layer.blend_mode),
+            on_selection_changed, on_blend_mode_changed
+        )
+    
+    @category(name: "Layer|Output Channels")
+    @custom_row(label: "Target Channels")
+    fn render_output_channels() -> Widget:
+        if selected_layer == null:
+            return Text(text, "No layer selected")
+        
+        return VBox(
+            CheckBox(
+                label, "Base Color",
+                checked, has_channel_flag(1),
+                on_checked_changed, on_base_color_toggled
+            ),
+            CheckBox(
+                label, "Normal",
+                checked, has_channel_flag(2),
+                on_checked_changed, on_normal_toggled
+            ),
+            CheckBox(
+                label, "Roughness",
+                checked, has_channel_flag(4),
+                on_checked_changed, on_roughness_toggled
+            ),
+            CheckBox(
+                label, "Metallic",
+                checked, has_channel_flag(8),
+                on_checked_changed, on_metallic_toggled
+            ),
+            CheckBox(
+                label, "Height",
+                checked, has_channel_flag(16),
+                on_checked_changed, on_height_toggled
+            ),
+            CheckBox(
+                label, "AO",
+                checked, has_channel_flag(32),
+                on_checked_changed, on_ao_toggled
+            )
+        )
+    
+    @category(name: "Layer|Mask")
+    @custom_row(label: "Use Mask")
+    fn render_mask_toggle() -> Widget:
+        if selected_layer == null:
+            return Text(text, "No layer selected")
+        
+        return CheckBox(
+            label, "Enable Mask",
+            checked, selected_layer.has_mask,
+            on_checked_changed, on_mask_toggled
+        )
+    
+    @category(name: "Layer|Mask")
+    @custom_row(label: "Mask Texture")
+    fn render_mask_texture() -> Widget:
+        if selected_layer == null or not selected_layer.has_mask:
+            return Text(text, "Mask disabled")
+        
+        return ObjectPropertyEntry(
+            object, selected_layer.mask_texture,
+            allowed_class, "Texture2D",
+            on_object_changed, on_mask_texture_changed
+        )
+    
+    # Callbacks
+    fn on_name_changed(new_name: String):
+        if selected_layer != null:
+            selected_layer.name = new_name
+            println("Layer name changed: " + new_name)
+    
+    fn on_layer_type_changed(type_name: String):
+        if selected_layer != null:
+            selected_layer.layer_type = parse_layer_type(type_name)
+            selected_layer.dirty = true
+            println("Layer type changed: " + type_name)
+    
+    fn on_opacity_changed(new_opacity: Float):
+        if selected_layer != null:
+            selected_layer.opacity = clamp(new_opacity, 0.0, 1.0)
+            selected_layer.dirty = true
+    
+    fn on_blend_mode_changed(mode_name: String):
+        if selected_layer != null:
+            selected_layer.blend_mode = parse_blend_mode_full(mode_name)
+            selected_layer.dirty = true
+    
+    fn on_mask_toggled(enabled: Bool):
+        if selected_layer != null:
+            selected_layer.has_mask = enabled
+            selected_layer.dirty = true
+    
+    fn on_mask_texture_changed(new_texture: Texture2D?):
+        if selected_layer != null:
+            selected_layer.mask_texture = new_texture
+            selected_layer.dirty = true
+    
+    fn on_base_color_toggled(enabled: Bool):
+        toggle_channel_flag(1, enabled)
+    
+    fn on_normal_toggled(enabled: Bool):
+        toggle_channel_flag(2, enabled)
+    
+    fn on_roughness_toggled(enabled: Bool):
+        toggle_channel_flag(4, enabled)
+    
+    fn on_metallic_toggled(enabled: Bool):
+        toggle_channel_flag(8, enabled)
+    
+    fn on_height_toggled(enabled: Bool):
+        toggle_channel_flag(16, enabled)
+    
+    fn on_ao_toggled(enabled: Bool):
+        toggle_channel_flag(32, enabled)
+    
+    # Helper functions
+    fn has_channel_flag(flag: Int) -> Bool:
+        if selected_layer == null:
+            return false
+        return (selected_layer.output_channels & flag) != 0
+    
+    fn toggle_channel_flag(flag: Int, enabled: Bool):
+        if selected_layer == null:
+            return
+        
+        if enabled:
+            selected_layer.output_channels = selected_layer.output_channels | flag
+        else:
+            selected_layer.output_channels = selected_layer.output_channels & (255 - flag)
+        
+        selected_layer.dirty = true
+    
+    fn get_layer_type_options() -> Array<String>:
+        let options: Array<String> = []
+        push(options, "Base")
+        push(options, "Image")
+        push(options, "Procedural")
+        push(options, "Fill")
+        push(options, "Adjustment")
+        push(options, "Filter")
+        push(options, "Generator")
+        return options
+    
+    fn get_layer_type_name(layer_type: LayerType) -> String:
+        if layer_type == LayerType.Base:
+            return "Base"
+        if layer_type == LayerType.Image:
+            return "Image"
+        if layer_type == LayerType.Procedural:
+            return "Procedural"
+        if layer_type == LayerType.Fill:
+            return "Fill"
+        if layer_type == LayerType.Adjustment:
+            return "Adjustment"
+        if layer_type == LayerType.Filter:
+            return "Filter"
+        if layer_type == LayerType.Generator:
+            return "Generator"
+        return "Image"
+    
+    fn parse_layer_type(name: String) -> LayerType:
+        if name == "Base":
+            return LayerType.Base
+        if name == "Procedural":
+            return LayerType.Procedural
+        if name == "Fill":
+            return LayerType.Fill
+        if name == "Adjustment":
+            return LayerType.Adjustment
+        if name == "Filter":
+            return LayerType.Filter
+        if name == "Generator":
+            return LayerType.Generator
+        return LayerType.Image
+    
+    fn get_all_blend_modes() -> Array<String>:
+        let modes: Array<String> = []
+        push(modes, "Normal")
+        push(modes, "Multiply")
+        push(modes, "Screen")
+        push(modes, "Overlay")
+        push(modes, "Soft Light")
+        push(modes, "Hard Light")
+        push(modes, "Add")
+        push(modes, "Subtract")
+        push(modes, "Difference")
+        push(modes, "Darken")
+        push(modes, "Lighten")
+        return modes
+    
+    fn get_blend_mode_display_name(mode: LayerBlendMode) -> String:
+        if mode == LayerBlendMode.Normal:
+            return "Normal"
+        if mode == LayerBlendMode.Multiply:
+            return "Multiply"
+        if mode == LayerBlendMode.Screen:
+            return "Screen"
+        if mode == LayerBlendMode.Overlay:
+            return "Overlay"
+        if mode == LayerBlendMode.SoftLight:
+            return "Soft Light"
+        if mode == LayerBlendMode.HardLight:
+            return "Hard Light"
+        if mode == LayerBlendMode.Add:
+            return "Add"
+        if mode == LayerBlendMode.Subtract:
+            return "Subtract"
+        if mode == LayerBlendMode.Difference:
+            return "Difference"
+        if mode == LayerBlendMode.Darken:
+            return "Darken"
+        if mode == LayerBlendMode.Lighten:
+            return "Lighten"
+        return "Normal"
+    
+    fn parse_blend_mode_full(name: String) -> LayerBlendMode:
+        if name == "Multiply":
+            return LayerBlendMode.Multiply
+        if name == "Screen":
+            return LayerBlendMode.Screen
+        if name == "Overlay":
+            return LayerBlendMode.Overlay
+        if name == "Soft Light":
+            return LayerBlendMode.SoftLight
+        if name == "Hard Light":
+            return LayerBlendMode.HardLight
+        if name == "Add":
+            return LayerBlendMode.Add
+        if name == "Subtract":
+            return LayerBlendMode.Subtract
+        if name == "Difference":
+            return LayerBlendMode.Difference
+        if name == "Darken":
+            return LayerBlendMode.Darken
+        if name == "Lighten":
+            return LayerBlendMode.Lighten
+        return LayerBlendMode.Normal

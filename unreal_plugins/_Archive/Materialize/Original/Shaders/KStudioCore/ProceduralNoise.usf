@@ -1,0 +1,436 @@
+#include "/Engine/Public/Platform.ush"
+
+// =============================================================================
+// KLAYER PROCEDURAL NOISE COMPUTE SHADER
+// Full noise library for texture generation
+// =============================================================================
+
+RWTexture2D<float4> OutResult;
+
+// Parameters
+
+    uint NoiseType;
+    float Scale;
+    int Octaves;
+    float Persistence;
+    float Lacunarity;
+    float2 Offset;
+    int Seed;
+    uint bSeamless;
+    uint2 TextureDimensions;
+    float Time;
+
+
+
+// =============================================================================
+// HASH FUNCTIONS
+// =============================================================================
+
+float Hash11(float p)
+{
+    p = frac(p * 0.1031);
+    p *= p + 33.33;
+    p *= p + p;
+    return frac(p);
+}
+
+float Hash21(float2 p)
+{
+    float3 p3 = frac(float3(p.x, p.y, p.x) * float3(0.1031, 0.1030, 0.0973));
+    p3 += dot(p3, p3.yzx + 33.33);
+    return frac((p3.x + p3.y) * p3.z);
+}
+
+float2 Hash22(float2 p)
+{
+    float3 p3 = frac(float3(p.x, p.y, p.x) * float3(0.1031, 0.1030, 0.0973));
+    p3 += dot(p3, p3.yzx + 33.33);
+    return frac((p3.xx + p3.yz) * p3.zy);
+}
+
+float3 Hash32(float2 p)
+{
+    float3 p3 = frac(float3(p.x, p.y, p.x) * float3(0.1031, 0.1030, 0.0973));
+    p3 += dot(p3, p3.yxz + 33.33);
+    return frac((p3.xxy + p3.yzz) * p3.zyx);
+}
+
+// =============================================================================
+// NOISE FUNCTIONS
+// =============================================================================
+
+// Perlin gradient
+float2 PerlinGradient(float2 p, int seed)
+{
+    float angle = Hash21(p + float2(seed, seed * 0.7)) * 6.28318530718;
+    return float2(cos(angle), sin(angle));
+}
+
+float PerlinNoise(float2 p, int seed)
+{
+    float2 i = floor(p);
+    float2 f = frac(p);
+    
+    // Quintic interpolation
+    float2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+    
+    float2 g00 = PerlinGradient(i + float2(0, 0), seed);
+    float2 g10 = PerlinGradient(i + float2(1, 0), seed);
+    float2 g01 = PerlinGradient(i + float2(0, 1), seed);
+    float2 g11 = PerlinGradient(i + float2(1, 1), seed);
+    
+    float n00 = dot(g00, f - float2(0, 0));
+    float n10 = dot(g10, f - float2(1, 0));
+    float n01 = dot(g01, f - float2(0, 1));
+    float n11 = dot(g11, f - float2(1, 1));
+    
+    float nx0 = lerp(n00, n10, u.x);
+    float nx1 = lerp(n01, n11, u.x);
+    
+    return lerp(nx0, nx1, u.y) * 0.5 + 0.5;
+}
+
+// Simplex-like noise
+float SimplexNoise(float2 p, int seed)
+{
+    const float K1 = 0.366025404; // (sqrt(3)-1)/2
+    const float K2 = 0.211324865; // (3-sqrt(3))/6
+    
+    float2 i = floor(p + (p.x + p.y) * K1);
+    float2 a = p - i + (i.x + i.y) * K2;
+    float2 o = (a.x > a.y) ? float2(1, 0) : float2(0, 1);
+    float2 b = a - o + K2;
+    float2 c = a - 1.0 + 2.0 * K2;
+    
+    float3 h = max(0.5 - float3(dot(a, a), dot(b, b), dot(c, c)), 0.0);
+    float3 n = h * h * h * h * float3(
+        dot(a, Hash22(i + float2(seed, seed)) * 2.0 - 1.0),
+        dot(b, Hash22(i + o + float2(seed, seed)) * 2.0 - 1.0),
+        dot(c, Hash22(i + 1.0 + float2(seed, seed)) * 2.0 - 1.0)
+    );
+    
+    return (n.x + n.y + n.z) * 35.0 * 0.5 + 0.5;
+}
+
+// Worley/Voronoi noise
+float WorleyNoise(float2 p, int seed)
+{
+    float2 i = floor(p);
+    float2 f = frac(p);
+    
+    float minDist = 1.0;
+    
+    for (int y = -1; y <= 1; y++)
+    {
+        for (int x = -1; x <= 1; x++)
+        {
+            float2 neighbor = float2(x, y);
+            float2 cellPoint = Hash22(i + neighbor + float2(seed, seed * 0.7));
+            float2 diff = neighbor + cellPoint - f;
+            float dist = length(diff);
+            minDist = min(minDist, dist);
+        }
+    }
+    
+    return minDist;
+}
+
+// FBM (Fractal Brownian Motion)
+float FBMNoise(float2 p, int octaves, float persistence, float lacunarity, int seed)
+{
+    float value = 0.0;
+    float amplitude = 1.0;
+    float frequency = 1.0;
+    float maxValue = 0.0;
+    
+    for (int i = 0; i < octaves; i++)
+    {
+        value += amplitude * PerlinNoise(p * frequency, seed + i);
+        maxValue += amplitude;
+        amplitude *= persistence;
+        frequency *= lacunarity;
+    }
+    
+    return value / maxValue;
+}
+
+// Turbulence (absolute value FBM)
+float TurbulenceNoise(float2 p, int octaves, float persistence, float lacunarity, int seed)
+{
+    float value = 0.0;
+    float amplitude = 1.0;
+    float frequency = 1.0;
+    float maxValue = 0.0;
+    
+    for (int i = 0; i < octaves; i++)
+    {
+        value += amplitude * abs(PerlinNoise(p * frequency, seed + i) * 2.0 - 1.0);
+        maxValue += amplitude;
+        amplitude *= persistence;
+        frequency *= lacunarity;
+    }
+    
+    return value / maxValue;
+}
+
+// Cellular noise
+float CellularNoise(float2 p, int seed)
+{
+    float2 i = floor(p);
+    float2 f = frac(p);
+    
+    float minDist1 = 1.0;
+    float minDist2 = 1.0;
+    
+    for (int y = -1; y <= 1; y++)
+    {
+        for (int x = -1; x <= 1; x++)
+        {
+            float2 neighbor = float2(x, y);
+            float2 cellPoint = Hash22(i + neighbor + float2(seed, seed * 0.7));
+            float2 diff = neighbor + cellPoint - f;
+            float dist = length(diff);
+            
+            if (dist < minDist1)
+            {
+                minDist2 = minDist1;
+                minDist1 = dist;
+            }
+            else if (dist < minDist2)
+            {
+                minDist2 = dist;
+            }
+        }
+    }
+    
+    return minDist2 - minDist1;
+}
+
+// Gradient (linear ramp)
+float GradientNoise(float2 uv, int direction)
+{
+    // Use bitwise AND for performance (equivalent to % 4 for positive integers)
+    switch (direction & 3)
+    {
+        case 0: return uv.x;
+        case 1: return uv.y;
+        case 2: return 1.0 - uv.x;
+        case 3: return 1.0 - uv.y;
+    }
+    return uv.x;
+}
+
+// Checker pattern
+float CheckerNoise(float2 p)
+{
+    float2 i = floor(p);
+    return fmod(i.x + i.y, 2.0);
+}
+
+// Brick pattern
+float BrickNoise(float2 p)
+{
+    float2 brick = float2(4.0, 2.0);
+    float2 offset = float2(0.5, 0.0);
+    
+    float row = floor(p.y / brick.y);
+    float2 brickPos = p;
+    if (fmod(row, 2.0) > 0.5) brickPos.x += brick.x * offset.x;
+    
+    float2 brickUV = frac(brickPos / brick);
+    float2 edge = smoothstep(0.0, 0.05, brickUV) * smoothstep(0.0, 0.05, 1.0 - brickUV);
+    
+    return edge.x * edge.y;
+}
+
+// Hexagon pattern
+float HexagonNoise(float2 p)
+{
+    float2 s = float2(1.0, 1.73205080757);
+    float2 h = float2(0.5, 0.28867513459);
+    
+    float4 hC = floor(float4(p, p - h) / s.xyxy) + 0.5;
+    float4 h2 = float4(p - hC.xy * s, p - (hC.zw + 0.5) * s);
+    
+    return dot(h2.xy, h2.xy) < dot(h2.zw, h2.zw) ? 
+        0.5 + 0.5 * dot(h2.xy, h2.xy) : 
+        0.5 + 0.5 * dot(h2.zw, h2.zw);
+}
+
+// Scratches
+float ScratchesNoise(float2 p, int seed)
+{
+    float scratch = 0.0;
+    for (int i = 0; i < 8; i++)
+    {
+        float2 dir = normalize(Hash22(float2(i, seed)) * 2.0 - 1.0);
+        float2 offset = Hash22(float2(i + 100, seed)) * 100.0;
+        float lineVal = abs(dot(p + offset, dir));
+        scratch = max(scratch, smoothstep(0.02, 0.0, frac(lineVal * 0.1)));
+    }
+    return scratch;
+}
+
+// Grunge
+float GrungeNoise(float2 p, int seed)
+{
+    float n1 = FBMNoise(p, 6, 0.5, 2.0, seed);
+    float n2 = FBMNoise(p * 0.5 + float2(100, 100), 4, 0.6, 2.5, seed + 1);
+    float n3 = WorleyNoise(p * 2.0, seed);
+    return saturate(n1 * 0.5 + n2 * 0.3 + n3 * 0.2);
+}
+
+// Dust
+float DustNoise(float2 p, int seed)
+{
+    float dust = 0.0;
+    for (int i = 0; i < 50; i++)
+    {
+        float2 pos = Hash22(float2(i, seed)) * float2(TextureDimensions);
+        float size = Hash11(float(i + seed)) * 3.0 + 0.5;
+        float d = length(p * float2(TextureDimensions) - pos);
+        dust = max(dust, smoothstep(size, 0.0, d));
+    }
+    return dust * 0.3;
+}
+
+// Rust
+float RustNoise(float2 p, int seed)
+{
+    float base = FBMNoise(p, 5, 0.55, 2.2, seed);
+    float detail = TurbulenceNoise(p * 3.0, 4, 0.5, 2.0, seed + 1);
+    float edges = WorleyNoise(p * 5.0, seed) * 0.5;
+    return saturate(base * 0.6 + detail * 0.3 + edges * 0.1);
+}
+
+// =============================================================================
+// MAIN SHADER
+// =============================================================================
+
+// =============================================================================
+// VORONOISE (Ported from TextureGraph)
+// =============================================================================
+
+#define K 0.142857142857
+#define Ko 0.428571428571
+
+float4 mod(float4 x, float y) { return x - y * floor(x/y); }
+float3 mod(float3 x, float y) { return x - y * floor(x/y); }
+
+float3 Permutation(float3 x) 
+{
+  return mod((34.0 * x + float3(1.0, 1.0, 1.0)) * x, 289.0);
+}
+
+float2 Voronoise4D(float4 P, float jitter)
+{			
+	float4 Pi = mod(floor(P), 289.0);
+ 	float4 Pf = frac(P); 
+	float3 oi = float3(-1.0, 0.0, 1.0); 
+	float3 of = float3(-0.5, 0.5, 1.5); 
+	float3 px = Permutation(Pi.xxx + oi); 
+	float3 py = Permutation(Pi.yyy + oi); 
+	float3 pz = Permutation(Pi.zzz + oi); 
+
+	float3 p, ox, oy, oz, ow, dx, dy, dz, dw;
+	float3 d_sq; // d in original
+
+	float2 F = 1e6; // Lowest distance
+	int i, j, k, n;
+
+	for(i = 0; i < 3; i++)
+	{
+		for(j = 0; j < 3; j++)
+		{
+			for(k = 0; k < 3; k++)
+			{
+				p = Permutation(px[i] + py[j] + pz[k] + Pi.w + oi); // pijk1, pijk2, pijk3
+	
+				ox = frac(p*K) - Ko;
+				oy = mod(floor(p*K),7.0 )*K - Ko;
+				
+				p = Permutation(p);
+				
+				oz = frac(p*K) - Ko;
+				ow = mod(floor(p*K),7.0)*K - Ko;
+			
+				dx = Pf.x - of[i] + jitter*ox;
+				dy = Pf.y - of[j] + jitter*oy;
+				dz = Pf.z - of[k] + jitter*oz;
+				dw = Pf.w - of + jitter*ow;
+				
+				d_sq = dx * dx + dy * dy + dz * dz + dw * dw; 
+				
+				//Find the lowest and second lowest distances
+				for(n = 0; n < 3; n++)
+				{
+					if(d_sq[n] < F[0])
+					{
+						F[1] = F[0];
+						F[0] = d_sq[n];
+					}
+					else if(d_sq[n] < F[1])
+					{
+						F[1] = d_sq[n];
+					}
+				}
+			}
+		}
+	}
+	
+	return F;
+}
+
+float4 Make4DNoiseCoord(float2 uv)
+{
+    return float4(uv, float(Seed) + Time, 0.0);
+}
+
+float Voronoise(float2 p)
+{
+    float4 coord = Make4DNoiseCoord(p);
+    float2 F = Voronoise4D(coord, 1.0);
+    return F.x;
+}
+
+[numthreads(8, 8, 1)]
+void NoiseCS(uint3 ThreadId : SV_DispatchThreadID)
+{
+    if (ThreadId.x >= TextureDimensions.x || ThreadId.y >= TextureDimensions.y) return;
+
+    float2 uv = (float2(ThreadId.xy) + 0.5) / float2(TextureDimensions);
+    float2 p = (uv + Offset) * Scale;
+    
+    // Handle seamless tiling
+    if (bSeamless > 0)
+    {
+        // Use 4D noise trick for seamless tiling
+        // For now, just wrap coordinates
+        p = frac(p) * Scale;
+    }
+    
+    float value = 0.0;
+    
+    switch (NoiseType)
+    {
+        case 0:  value = PerlinNoise(p, Seed); break;
+        case 1:  value = SimplexNoise(p, Seed); break;
+        case 2:  value = WorleyNoise(p, Seed); break;
+        case 3:  value = FBMNoise(p, Octaves, Persistence, Lacunarity, Seed); break;
+        case 4:  value = TurbulenceNoise(p, Octaves, Persistence, Lacunarity, Seed); break;
+        case 5:  value = CellularNoise(p, Seed); break;
+        case 6:  value = GradientNoise(uv, Seed); break;
+        case 7:  value = CheckerNoise(p); break;
+        case 8:  value = BrickNoise(p); break;
+        case 9:  value = BrickNoise(p); break; // Herringbone - needs custom impl
+        case 10: value = HexagonNoise(p); break;
+        case 11: value = ScratchesNoise(p, Seed); break;
+        case 12: value = GrungeNoise(p, Seed); break;
+        case 13: value = RustNoise(p, Seed); break;
+        case 14: value = DustNoise(uv, Seed); break;
+        case 15: value = Voronoise(p); break;
+        default: value = PerlinNoise(p, Seed); break;
+    }
+    
+    OutResult[ThreadId.xy] = float4(value, value, value, 1.0);
+}

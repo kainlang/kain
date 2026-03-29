@@ -1,0 +1,195 @@
+material TerrainMaster:
+    input layer0_albedo: Texture2D
+    input layer0_normal: Texture2D
+    input layer0_roughness: Texture2D
+    input layer1_albedo: Texture2D
+    input layer1_normal: Texture2D
+    input layer1_roughness: Texture2D
+    input layer2_albedo: Texture2D
+    input layer2_normal: Texture2D
+    input layer2_roughness: Texture2D
+    input layer3_albedo: Texture2D
+    input layer3_normal: Texture2D
+    input layer3_roughness: Texture2D
+    input splatmap: Texture2D
+    input texture_scale: Float = 10.0
+    input normal_strength: Float = 1.0
+    
+    let uv_scaled = uv_scale(texture_coordinate(), texture_scale)
+    
+    let splat = texture_sample(splatmap)
+    let weight0 = splat.r
+    let weight1 = splat.g
+    let weight2 = splat.b
+    let weight3 = splat.a
+    
+    let albedo0 = texture_sample(layer0_albedo, uv_scaled).rgb
+    let albedo1 = texture_sample(layer1_albedo, uv_scaled).rgb
+    let albedo2 = texture_sample(layer2_albedo, uv_scaled).rgb
+    let albedo3 = texture_sample(layer3_albedo, uv_scaled).rgb
+    
+    let blended_albedo = albedo0 * weight0 + albedo1 * weight1 + albedo2 * weight2 + albedo3 * weight3
+    
+    let normal0 = texture_sample(layer0_normal, uv_scaled).rgb
+    let normal1 = texture_sample(layer1_normal, uv_scaled).rgb
+    let normal2 = texture_sample(layer2_normal, uv_scaled).rgb
+    let normal3 = texture_sample(layer3_normal, uv_scaled).rgb
+    
+    let blended_normal = normal0 * weight0 + normal1 * weight1 + normal2 * weight2 + normal3 * weight3
+    let final_normal = normalize(blended_normal * 2.0 - vec3(1.0, 1.0, 1.0))
+    
+    let roughness0 = texture_sample(layer0_roughness, uv_scaled).r
+    let roughness1 = texture_sample(layer1_roughness, uv_scaled).r
+    let roughness2 = texture_sample(layer2_roughness, uv_scaled).r
+    let roughness3 = texture_sample(layer3_roughness, uv_scaled).r
+    
+    let blended_roughness = roughness0 * weight0 + roughness1 * weight1 + roughness2 * weight2 + roughness3 * weight3
+    
+    base_color = blended_albedo
+    normal = final_normal * normal_strength
+    roughness = blended_roughness
+    metallic = 0.0
+    specular = 0.5
+
+material TerrainTriplanar:
+    input side_albedo: Texture2D
+    input side_normal: Texture2D
+    input top_albedo: Texture2D
+    input top_normal: Texture2D
+    input texture_scale: Float = 5.0
+    input blend_sharpness: Float = 4.0
+    
+    let world_pos = world_position()
+    let world_normal = vertex_normal()
+    
+    let blend_weights = pow(abs(world_normal), vec3(blend_sharpness, blend_sharpness, blend_sharpness))
+    blend_weights = blend_weights / (blend_weights.x + blend_weights.y + blend_weights.z)
+    
+    let uv_x = vec2(world_pos.y, world_pos.z) * texture_scale
+    let uv_y = vec2(world_pos.x, world_pos.z) * texture_scale
+    let uv_z = vec2(world_pos.x, world_pos.y) * texture_scale
+    
+    let use_top = world_normal.y > 0.5
+    
+    let albedo_x = texture_sample(side_albedo, uv_x).rgb
+    let albedo_y = texture_sample(top_albedo, uv_y).rgb
+    let albedo_z = texture_sample(side_albedo, uv_z).rgb
+    
+    let blended_albedo = albedo_x * blend_weights.x + albedo_y * blend_weights.y + albedo_z * blend_weights.z
+    
+    base_color = blended_albedo
+    roughness = 0.8
+    metallic = 0.0
+
+material TerrainWater:
+    input water_normal: Texture2D
+    input water_color: Vec3 = vec3(0.1, 0.3, 0.5)
+    input wave_speed: Float = 0.5
+    input wave_scale: Float = 2.0
+    input depth_fade_distance: Float = 100.0
+    input refraction_strength: Float = 0.1
+    
+    let uv = texture_coordinate()
+    let time_offset = time() * wave_speed
+    
+    let uv1 = uv_scroll(uv, vec2(time_offset * 0.1, time_offset * 0.05))
+    let uv2 = uv_scroll(uv, vec2(-time_offset * 0.08, time_offset * 0.06))
+    
+    let normal1 = texture_sample(water_normal, uv_scale(uv1, wave_scale)).rgb
+    let normal2 = texture_sample(water_normal, uv_scale(uv2, wave_scale)).rgb
+    
+    let combined_normal = normalize((normal1 + normal2) * 0.5)
+    
+    let depth = scene_depth()
+    let pixel_depth = pixel_depth()
+    let water_depth = depth - pixel_depth
+    
+    let depth_fade = saturate(water_depth / depth_fade_distance)
+    
+    base_color = lerp(vec3(0.8, 0.9, 1.0), water_color, depth_fade)
+    normal = combined_normal
+    roughness = 0.1
+    metallic = 0.0
+    opacity = lerp(0.3, 0.9, depth_fade)
+    refraction = refraction_strength
+
+material TerrainSnow:
+    input snow_albedo: Texture2D
+    input snow_normal: Texture2D
+    input base_albedo: Texture2D
+    input base_normal: Texture2D
+    input snow_coverage: Float = 0.5
+    input snow_slope_threshold: Float = 0.7
+    input texture_scale: Float = 5.0
+    
+    let uv_scaled = uv_scale(texture_coordinate(), texture_scale)
+    let world_normal = vertex_normal()
+    let slope = 1.0 - world_normal.y
+    
+    let snow_mask = saturate((snow_coverage - slope) / (1.0 - snow_slope_threshold))
+    
+    let base_color_sample = texture_sample(base_albedo, uv_scaled).rgb
+    let snow_color_sample = texture_sample(snow_albedo, uv_scaled).rgb
+    
+    let base_normal_sample = texture_sample(base_normal, uv_scaled).rgb
+    let snow_normal_sample = texture_sample(snow_normal, uv_scaled).rgb
+    
+    base_color = lerp(base_color_sample, snow_color_sample, snow_mask)
+    normal = lerp(base_normal_sample, snow_normal_sample, snow_mask)
+    roughness = lerp(0.8, 0.3, snow_mask)
+    metallic = 0.0
+    specular = lerp(0.5, 0.8, snow_mask)
+
+material TerrainLava:
+    input lava_texture: Texture2D
+    input noise_texture: Texture2D
+    input lava_color_hot: Vec3 = vec3(1.0, 0.3, 0.0)
+    input lava_color_cool: Vec3 = vec3(0.5, 0.1, 0.0)
+    input flow_speed: Float = 0.2
+    input emission_strength: Float = 10.0
+    input texture_scale: Float = 2.0
+    
+    let uv = texture_coordinate()
+    let time_offset = time() * flow_speed
+    
+    let uv_flowing = uv_scroll(uv, vec2(time_offset * 0.1, time_offset * 0.05))
+    let uv_scaled = uv_scale(uv_flowing, texture_scale)
+    
+    let lava_sample = texture_sample(lava_texture, uv_scaled).r
+    let noise_sample = texture_sample(noise_texture, uv_scale(uv_flowing, texture_scale * 2.0)).r
+    
+    let heat_mask = saturate(lava_sample + noise_sample * 0.3)
+    
+    let lava_color = lerp(lava_color_cool, lava_color_hot, heat_mask)
+    
+    base_color = lava_color
+    emissive_color = lava_color * emission_strength * heat_mask
+    roughness = 0.9
+    metallic = 0.0
+
+material TerrainGrass:
+    input grass_albedo: Texture2D
+    input grass_normal: Texture2D
+    input dirt_albedo: Texture2D
+    input wind_strength: Float = 0.5
+    input wind_speed: Float = 1.0
+    input texture_scale: Float = 10.0
+    
+    let uv_scaled = uv_scale(texture_coordinate(), texture_scale)
+    
+    let world_pos = world_position()
+    let wind_offset = sine(time() * wind_speed + world_pos.x * 0.1 + world_pos.z * 0.1) * wind_strength
+    
+    let grass_color = texture_sample(grass_albedo, uv_scaled).rgb
+    let grass_normal_sample = texture_sample(grass_normal, uv_scaled).rgb
+    let dirt_color = texture_sample(dirt_albedo, uv_scaled).rgb
+    
+    let world_normal = vertex_normal()
+    let slope = 1.0 - world_normal.y
+    let dirt_blend = saturate(slope * 2.0)
+    
+    base_color = lerp(grass_color, dirt_color, dirt_blend)
+    normal = grass_normal_sample
+    roughness = 0.9
+    metallic = 0.0
+    world_position_offset = vec3(wind_offset * 0.1, 0.0, 0.0)

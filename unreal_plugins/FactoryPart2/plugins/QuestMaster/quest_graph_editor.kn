@@ -1,0 +1,617 @@
+// QuestMaster — Graph Editor
+// Phase 2: Visual quest authoring with 15+ node types
+
+@graph_editor
+graph QuestGraph:
+    
+    // ========================================================================
+    // START QUEST NODE
+    // ========================================================================
+    
+    @node_type
+    node StartQuestNode:
+        properties:
+            quest_id: String = ""
+            quest_name: String = "New Quest"
+            description: String = ""
+            category: QuestCategory = QuestCategory::Side
+            priority: QuestPriority = QuestPriority::Normal
+            auto_start: Bool = false
+            level_requirement: Int = 1
+            repeatable: Bool = false
+            time_limit: Float = 0.0
+            icon_path: String = ""
+        inputs:
+            InExec: Exec
+        outputs:
+            OnStart: Exec
+    
+    // ========================================================================
+    // OBJECTIVE NODE
+    // ========================================================================
+    
+    @node_type
+    node ObjectiveNode:
+        properties:
+            objective_id: String = ""
+            description: String = "Complete objective"
+            objective_type: ObjectiveType = ObjectiveType::Interact
+            target_count: Int = 1
+            optional: Bool = false
+            hidden: Bool = false
+            target_actor_class: String = ""
+            target_item_id: String = ""
+            target_location_x: Float = 0.0
+            target_location_y: Float = 0.0
+            target_location_z: Float = 0.0
+            completion_radius: Float = 100.0
+            show_marker: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+            OnComplete: Exec
+            OnFail: Exec
+    
+    // ========================================================================
+    // BRANCH NODE
+    // ========================================================================
+    
+    @node_type
+    node BranchNode:
+        properties:
+            branch_name: String = "Branch"
+            logic_operator: String = "AND"
+            condition1_type: ConditionType = ConditionType::FlagSet
+            condition1_target: String = ""
+            condition1_value: Float = 0.0
+            condition1_enabled: Bool = true
+            condition2_type: ConditionType = ConditionType::FlagSet
+            condition2_target: String = ""
+            condition2_value: Float = 0.0
+            condition2_enabled: Bool = false
+            condition3_type: ConditionType = ConditionType::FlagSet
+            condition3_target: String = ""
+            condition3_value: Float = 0.0
+            condition3_enabled: Bool = false
+            condition4_type: ConditionType = ConditionType::FlagSet
+            condition4_target: String = ""
+            condition4_value: Float = 0.0
+            condition4_enabled: Bool = false
+        inputs:
+            InExec: Exec
+        outputs:
+            OnTrue: Exec
+            OnFalse: Exec
+    
+    // ========================================================================
+    // REWARD NODE
+    // ========================================================================
+    
+    @node_type
+    node RewardNode:
+        properties:
+            reward_name: String = "Reward"
+            xp_amount: Int = 0
+            gold_amount: Int = 0
+            item1_id: String = ""
+            item1_quantity: Int = 0
+            item2_id: String = ""
+            item2_quantity: Int = 0
+            item3_id: String = ""
+            item3_quantity: Int = 0
+            reputation1_faction: String = ""
+            reputation1_amount: Int = 0
+            reputation2_faction: String = ""
+            reputation2_amount: Int = 0
+            custom_reward_id: String = ""
+            custom_reward_data: String = ""
+            show_notification: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+            OnComplete: Exec
+    
+    // ========================================================================
+    // COMPLETE QUEST NODE
+    // ========================================================================
+    
+    @node_type
+    node CompleteQuestNode:
+        properties:
+            completion_name: String = "Complete Quest"
+            success_state: Bool = true
+            trigger_event: Bool = false
+            event_name: String = ""
+            show_notification: Bool = true
+            notification_text: String = "Quest Completed!"
+            unlock_quest_ids: String = ""
+            set_flags: String = ""
+        inputs:
+            InExec: Exec
+        outputs:
+            OnComplete: Exec
+    
+    // ========================================================================
+    // FAIL QUEST NODE
+    // ========================================================================
+    
+    @node_type
+    node FailQuestNode:
+        properties:
+            failure_name: String = "Fail Quest"
+            failure_reason: String = "Quest Failed"
+            allow_retry: Bool = false
+            trigger_event: Bool = false
+            event_name: String = ""
+            show_notification: Bool = true
+            notification_text: String = "Quest Failed!"
+            set_flags: String = ""
+        inputs:
+            InExec: Exec
+        outputs:
+            OnFail: Exec
+    
+    // ========================================================================
+    // CONDITION NODE
+    // ========================================================================
+    
+    @node_type
+    node ConditionNode:
+        properties:
+            condition_name: String = "Condition"
+            condition_type: ConditionType = ConditionType::FlagSet
+            target: String = ""
+            comparison_operator: ComparisonOperator = ComparisonOperator::Equal
+            comparison_value: Float = 0.0
+            invert: Bool = false
+            custom_data: String = ""
+        inputs:
+            InExec: Exec
+        outputs:
+            OnSuccess: Exec
+            OnFailure: Exec
+    
+    // ========================================================================
+    // PARALLEL NODE
+    // ========================================================================
+    
+    @node_type
+    node ParallelNode:
+        properties:
+            parallel_name: String = "Parallel"
+            branch1_enabled: Bool = true
+            branch1_name: String = "Branch 1"
+            branch2_enabled: Bool = true
+            branch2_name: String = "Branch 2"
+            branch3_enabled: Bool = false
+            branch3_name: String = "Branch 3"
+            branch4_enabled: Bool = false
+            branch4_name: String = "Branch 4"
+            wait_for_all: Bool = true
+            timeout: Float = 0.0
+            show_progress: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+            Branch1: Exec
+            Branch2: Exec
+            Branch3: Exec
+            Branch4: Exec
+            OnComplete: Exec
+            OnTimeout: Exec
+    
+    // ========================================================================
+    // SEQUENCE NODE
+    // ========================================================================
+    
+    @node_type
+    node SequenceNode:
+        properties:
+            sequence_name: String = "Sequence"
+            objective1_id: String = ""
+            objective1_description: String = ""
+            objective2_id: String = ""
+            objective2_description: String = ""
+            objective3_id: String = ""
+            objective3_description: String = ""
+            objective4_id: String = ""
+            objective4_description: String = ""
+            enforce_order: Bool = true
+            allow_skip: Bool = false
+            show_progress: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+            OnComplete: Exec
+            OnFail: Exec
+    
+    // ========================================================================
+    // TIMER NODE
+    // ========================================================================
+    
+    @node_type
+    node TimerNode:
+        properties:
+            timer_name: String = "Timer"
+            duration: Float = 60.0
+            show_ui: Bool = true
+            timer_text: String = "Time Remaining"
+            can_pause: Bool = false
+            countdown_mode: Bool = true
+            warning_threshold: Float = 10.0
+            play_warning_sound: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+            OnSuccess: Exec
+            OnFailure: Exec
+            OnWarning: Exec
+    
+    // ========================================================================
+    // EVENT NODE
+    // ========================================================================
+    
+    @node_type
+    node EventNode:
+        properties:
+            event_name: String = ""
+            parameter1: String = ""
+            parameter2: String = ""
+            parameter3: String = ""
+            parameter4: String = ""
+            delay: Float = 0.0
+            broadcast_to_all: Bool = false
+            trigger_once: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+            OnComplete: Exec
+    
+    // ========================================================================
+    // DIALOGUE NODE
+    // ========================================================================
+    
+    @node_type
+    node DialogueNode:
+        properties:
+            dialogue_name: String = "Dialogue"
+            dialogue_graph_id: String = ""
+            wait_for_completion: Bool = true
+            pass_quest_variables: Bool = true
+            variable1_name: String = ""
+            variable1_value: String = ""
+            variable2_name: String = ""
+            variable2_value: String = ""
+            skip_if_completed: Bool = false
+        inputs:
+            InExec: Exec
+        outputs:
+            OnComplete: Exec
+            OnSkip: Exec
+    
+    // ========================================================================
+    // TELEPORT NODE
+    // ========================================================================
+    
+    @node_type
+    node TeleportNode:
+        properties:
+            teleport_name: String = "Teleport"
+            target_location_x: Float = 0.0
+            target_location_y: Float = 0.0
+            target_location_z: Float = 0.0
+            target_rotation_pitch: Float = 0.0
+            target_rotation_yaw: Float = 0.0
+            target_rotation_roll: Float = 0.0
+            fade_out: Bool = true
+            fade_in: Bool = true
+            fade_duration: Float = 1.0
+            fade_color_r: Float = 0.0
+            fade_color_g: Float = 0.0
+            fade_color_b: Float = 0.0
+        inputs:
+            InExec: Exec
+        outputs:
+            OnComplete: Exec
+    
+    // ========================================================================
+    // SPAWN NODE
+    // ========================================================================
+    
+    @node_type
+    node SpawnNode:
+        properties:
+            spawn_name: String = "Spawn"
+            actor_class: String = ""
+            spawn_location_x: Float = 0.0
+            spawn_location_y: Float = 0.0
+            spawn_location_z: Float = 0.0
+            spawn_rotation_pitch: Float = 0.0
+            spawn_rotation_yaw: Float = 0.0
+            spawn_rotation_roll: Float = 0.0
+            attach_to_player: Bool = false
+            lifetime: Float = 0.0
+            collision_handling: String = "AdjustIfPossibleButAlwaysSpawn"
+        inputs:
+            InExec: Exec
+        outputs:
+            OnSpawned: Exec
+            OnFailed: Exec
+    
+    // ========================================================================
+    // COMMENT NODE
+    // ========================================================================
+    
+    @node_type
+    node CommentNode:
+        properties:
+            comment_text: String = "Add your notes here"
+            comment_color_r: Float = 1.0
+            comment_color_g: Float = 1.0
+            comment_color_b: Float = 0.5
+            font_size: Int = 14
+            show_bubble: Bool = true
+        inputs:
+        outputs:
+
+
+// ============================================================================
+// ADDITIONAL NODE TYPES FOR ADVANCED QUEST LOGIC
+// ============================================================================
+
+@node_type
+node SubQuestNode:
+    properties:
+        sub_quest_name: String = "Sub Quest"
+        sub_quest_id: String = ""
+        auto_start: Bool = true
+        wait_for_completion: Bool = true
+        inherit_variables: Bool = true
+    inputs:
+        InExec: Exec
+    outputs:
+        OnComplete: Exec
+        OnFail: Exec
+
+@node_type
+node RandomBranchNode:
+    properties:
+        branch_name: String = "Random Branch"
+        branch1_weight: Float = 1.0
+        branch2_weight: Float = 1.0
+        branch3_weight: Float = 1.0
+        branch4_weight: Float = 1.0
+        seed: Int = 0
+    inputs:
+        InExec: Exec
+    outputs:
+        Branch1: Exec
+        Branch2: Exec
+        Branch3: Exec
+        Branch4: Exec
+
+@node_type
+node DelayNode:
+    properties:
+        delay_name: String = "Delay"
+        delay_duration: Float = 1.0
+        can_skip: Bool = false
+        show_timer: Bool = false
+    inputs:
+        InExec: Exec
+    outputs:
+        OnComplete: Exec
+
+@node_type
+node LoopNode:
+    properties:
+        loop_name: String = "Loop"
+        loop_count: Int = 3
+        current_iteration: Int = 0
+        break_on_failure: Bool = true
+    inputs:
+        InExec: Exec
+        LoopBody: Exec
+    outputs:
+        OnComplete: Exec
+        OnIteration: Exec
+
+@node_type
+node SetVariableNode:
+    properties:
+        variable_name: String = ""
+        variable_type: String = "Float"
+        float_value: Float = 0.0
+        int_value: Int = 0
+        string_value: String = ""
+        bool_value: Bool = false
+        is_persistent: Bool = false
+    inputs:
+        InExec: Exec
+    outputs:
+        OnComplete: Exec
+
+@node_type
+node GetVariableNode:
+    properties:
+        variable_name: String = ""
+        variable_type: String = "Float"
+        default_value: String = "0"
+    inputs:
+        InExec: Exec
+    outputs:
+        OnComplete: Exec
+
+@node_type
+node MathOperationNode:
+    properties:
+        operation_name: String = "Math"
+        operation_type: String = "Add"
+        operand1: Float = 0.0
+        operand2: Float = 0.0
+        result_variable: String = "result"
+    inputs:
+        InExec: Exec
+    outputs:
+        OnComplete: Exec
+
+@node_type
+node ComparisonNode:
+    properties:
+        comparison_name: String = "Compare"
+        value1: Float = 0.0
+        value2: Float = 0.0
+        operator: ComparisonOperator = ComparisonOperator::Equal
+    inputs:
+        InExec: Exec
+    outputs:
+        OnTrue: Exec
+        OnFalse: Exec
+
+@node_type
+node PrintNode:
+    properties:
+        print_name: String = "Print"
+        message: String = "Debug message"
+        include_timestamp: Bool = true
+        log_level: String = "Info"
+    inputs:
+        InExec: Exec
+    outputs:
+        OnComplete: Exec
+
+@node_type
+node PlaySoundNode:
+    properties:
+        sound_name: String = "Play Sound"
+        sound_asset: String = ""
+        volume: Float = 1.0
+        pitch: Float = 1.0
+        is_2d: Bool = true
+    inputs:
+        InExec: Exec
+    outputs:
+        OnComplete: Exec
+
+@node_type
+node PlayAnimationNode:
+    properties:
+        animation_name: String = "Play Animation"
+        animation_asset: String = ""
+        loop: Bool = false
+        blend_in_time: Float = 0.2
+        blend_out_time: Float = 0.2
+    inputs:
+        InExec: Exec
+    outputs:
+        OnComplete: Exec
+
+@node_type
+node CameraShakeNode:
+    properties:
+        shake_name: String = "Camera Shake"
+        shake_intensity: Float = 1.0
+        shake_duration: Float = 0.5
+        shake_type: String = "Explosion"
+    inputs:
+        InExec: Exec
+    outputs:
+        OnComplete: Exec
+
+@node_type
+node ShowUINode:
+    properties:
+        ui_name: String = "Show UI"
+        widget_class: String = ""
+        z_order: Int = 0
+        auto_focus: Bool = true
+    inputs:
+        InExec: Exec
+    outputs:
+        OnComplete: Exec
+
+@node_type
+node HideUINode:
+    properties:
+        ui_name: String = "Hide UI"
+        widget_class: String = ""
+        fade_out: Bool = true
+        fade_duration: Float = 0.3
+    inputs:
+        InExec: Exec
+    outputs:
+        OnComplete: Exec
+
+@node_type
+node SaveGameNode:
+    properties:
+        save_name: String = "Save Game"
+        slot_name: String = "Default"
+        user_index: Int = 0
+        include_quest_state: Bool = true
+    inputs:
+        InExec: Exec
+    outputs:
+        OnSuccess: Exec
+        OnFailure: Exec
+
+@node_type
+node LoadGameNode:
+    properties:
+        load_name: String = "Load Game"
+        slot_name: String = "Default"
+        user_index: Int = 0
+        restore_quest_state: Bool = true
+    inputs:
+        InExec: Exec
+    outputs:
+        OnSuccess: Exec
+        OnFailure: Exec
+
+@node_type
+node AchievementNode:
+    properties:
+        achievement_name: String = "Achievement"
+        achievement_id: String = ""
+        show_notification: Bool = true
+    inputs:
+        InExec: Exec
+    outputs:
+        OnComplete: Exec
+
+@node_type
+node StatisticNode:
+    properties:
+        statistic_name: String = "Statistic"
+        statistic_id: String = ""
+        operation: String = "Increment"
+        value: Float = 1.0
+    inputs:
+        InExec: Exec
+    outputs:
+        OnComplete: Exec
+
+@node_type
+node LeaderboardNode:
+    properties:
+        leaderboard_name: String = "Leaderboard"
+        leaderboard_id: String = ""
+        score: Int = 0
+        upload_score: Bool = true
+    inputs:
+        InExec: Exec
+    outputs:
+        OnSuccess: Exec
+        OnFailure: Exec
+
+@node_type
+node MultiplayerNode:
+    properties:
+        multiplayer_name: String = "Multiplayer"
+        action: String = "BroadcastToAll"
+        target_player_id: String = ""
+        message: String = ""
+    inputs:
+        InExec: Exec
+    outputs:
+        OnComplete: Exec

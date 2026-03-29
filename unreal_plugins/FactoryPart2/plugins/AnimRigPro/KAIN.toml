@@ -1,0 +1,36 @@
+[package]
+name = "AnimRigPro"
+version = "1.0.0"
+authors = ["KAIN Compiler"]
+
+[build]
+targets = ["ue5"]
+output_dir = "Generated"
+
+[ue5]
+plugin_name = "AnimRigPro"
+engine_version = "5.4"
+category = "Animation"
+description = "Advanced rigging system with Maya/Blender-level IK/FK control, constraint systems, and procedural animation"
+
+sources = [
+    "src/rig_data_structures.kn",
+    "src/ik_solvers.kn",
+    "src/constraint_system.kn",
+    "src/rig_component.kn",
+    "src/rig_subsystem.kn",
+    "src/animation_state_machine.kn",
+    "src/rig_actor.kn",
+    "src/rig_editor_widgets.kn",
+]
+
+[[ue5.modules]]
+name = "AnimRigPro"
+type = "Runtime"
+loading_phase = "Default"
+
+[[ue5.modules]]
+name = "AnimRigProEditor"
+type = "Editor"
+loading_phase = "Default"
+depends_on = ["AnimRigPro"]

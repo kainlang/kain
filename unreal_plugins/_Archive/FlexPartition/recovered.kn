@@ -1,0 +1,9 @@
+enum ActorSizeCategory:
+enum AnalysisMode:
+enum GridType:
+enum OptimizationPreset:
+struct ActorAnalysis:
+struct GridConfig:
+struct GridPresetData:
+struct OptimizationRuleData:
+struct PartitionStats:

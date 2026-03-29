@@ -1,0 +1,620 @@
+# Materialize Core Types
+# Complete type system for PBR map generation and layer compositing
+
+# ============================================================================
+# ENUMS (9 total)
+# ============================================================================
+
+# Material category for organizing presets
+enum MaterialCategory:
+    Organic
+    Rubber
+    Ground
+    Fabric
+    Metal
+    Plastic
+    Paper
+    Custom
+
+# Seamless tiling algorithm selection
+enum SeamlessMode:
+    None
+    CrossBlend
+    MirrorBlend
+    Histogram
+
+# Photoshop-style blend modes for layer compositing (20 modes)
+enum LayerBlendMode:
+    Normal
+    Multiply
+    Screen
+    Overlay
+    SoftLight
+    HardLight
+    Add
+    Subtract
+    Difference
+    Exclusion
+    Darken
+    Lighten
+    ColorDodge
+    ColorBurn
+    LinearDodge
+    LinearBurn
+    VividLight
+    LinearLight
+    PinLight
+    HardMix
+
+# Layer type classification (8 types)
+enum LayerType:
+    Base
+    Image
+    Procedural
+    Fill
+    Adjustment
+    Filter
+    Generator
+    Folder
+
+# Output channel targeting for layers (bitflags)
+@bitflags
+enum LayerOutputChannel:
+    None = 0
+    BaseColor = 1
+    Normal = 2
+    Roughness = 4
+    Metallic = 8
+    Height = 16
+    AO = 32
+    Emissive = 64
+    Mask = 128
+    All = 255
+
+# Procedural noise/pattern generators (15 types)
+enum ProceduralNoiseType:
+    Perlin
+    Simplex
+    Worley
+    FBM
+    Turbulence
+    Cellular
+    Gradient
+    Checker
+    Brick
+    Herringbone
+    Hexagon
+    Scratches
+    Grunge
+    Rust
+    Dust
+
+# Image filter operations (13 types)
+enum FilterType:
+    Blur
+    GaussianBlur
+    Sharpen
+    EdgeDetect
+    Emboss
+    HighPass
+    LowPass
+    Median
+    Dilate
+    Erode
+    Invert
+    Normalize
+    AutoLevels
+
+# Color/tone adjustment operations (9 types)
+enum AdjustmentType:
+    Levels
+    Curves
+    HSV
+    Brightness
+    ColorBalance
+    Vibrance
+    Threshold
+    Posterize
+    Gradient
+
+# Mesh-derived texture generators (8 types)
+enum GeneratorType:
+    AmbientOcclusion
+    Curvature
+    Position
+    WorldNormal
+    Thickness
+    EdgeWear
+    Dirt
+    LightMap
+
+# ============================================================================
+# STRUCTS (10 total)
+# ============================================================================
+
+# PBR generation parameters (40+ fields across 9 categories)
+struct MaterializeParams:
+    # Normal Map (1 field)
+    @editanywhere
+    @category("Normal")
+    @slider(0.0, 2.0)
+    normal_strength: Float = 1.0
+    
+    # Roughness (5 fields)
+    @editanywhere
+    @category("Roughness")
+    @slider(0.0, 1.0)
+    roughness_base: Float = 0.7
+    
+    @editanywhere
+    @category("Roughness")
+    @slider(0.0, 3.0)
+    roughness_contrast: Float = 1.0
+    
+    @editanywhere
+    @category("Roughness")
+    @slider(-128.0, 128.0)
+    roughness_brightness: Float = 0.0
+    
+    @editanywhere
+    @category("Roughness")
+    roughness_invert: Bool = true
+    
+    @editanywhere
+    @category("Roughness")
+    @slider(0.0, 1.0)
+    variance_weight: Float = 0.5
+    
+    # Metallic (4 fields)
+    @editanywhere
+    @category("Metallic")
+    @slider(0.0, 1.0)
+    metallic_base: Float = 0.0
+    
+    @editanywhere
+    @category("Metallic")
+    @slider(0.0, 3.0)
+    metallic_contrast: Float = 1.0
+    
+    @editanywhere
+    @category("Metallic")
+    @slider(-128.0, 128.0)
+    metallic_bias: Float = 0.0
+    
+    @editanywhere
+    @category("Metallic")
+    @slider(0.0, 5.0)
+    metallic_sensitivity: Float = 2.0
+    
+    # Ambient Occlusion (1 field)
+    @editanywhere
+    @category("AO")
+    @slider(0.0, 2.0)
+    ao_intensity: Float = 1.0
+    
+    # Height (1 field)
+    @editanywhere
+    @category("Height")
+    @slider(0.0, 3.0)
+    height_contrast: Float = 1.0
+    
+    # Weathering (6 fields)
+    @editanywhere
+    @category("Weathering")
+    @slider(0.0, 1.0)
+    edge_wear: Float = 0.0
+    
+    @editanywhere
+    @category("Weathering")
+    @slider(0.0, 1.0)
+    cavity_dirt: Float = 0.0
+    
+    @editanywhere
+    @category("Weathering")
+    @slider(0.0, 1.0)
+    dust: Float = 0.0
+    
+    @editanywhere
+    @category("Weathering")
+    @slider(0.0, 1.0)
+    grunge: Float = 0.0
+    
+    @editanywhere
+    @category("Weathering")
+    @slider(0.0, 1.0)
+    scratches: Float = 0.0
+    
+    @editanywhere
+    @category("Weathering")
+    @slider(0.0, 1.0)
+    noise: Float = 0.0
+    
+    # Special Effects (4 fields)
+    @editanywhere
+    @category("Special Effects")
+    @slider(0.0, 1.0)
+    bio_detail: Float = 0.0
+    
+    @editanywhere
+    @category("Special Effects")
+    @slider(0.1, 5.0)
+    bio_frequency: Float = 1.0
+    
+    @editanywhere
+    @category("Special Effects")
+    @slider(0.0, 1.0)
+    cyber_detail: Float = 0.0
+    
+    @editanywhere
+    @category("Special Effects")
+    @slider(0.01, 1.0)
+    cyber_scale: Float = 1.0
+    
+    # Emissive (2 fields)
+    @editanywhere
+    @category("Emissive")
+    @slider(0.0, 1.0)
+    emissive_threshold: Float = 0.0
+    
+    @editanywhere
+    @category("Emissive")
+    @slider(0.0, 3.0)
+    emissive_color_boost: Float = 1.0
+    
+    # Processing (5 fields)
+    @editanywhere
+    @category("Processing")
+    make_seamless: Bool = false
+    
+    @editanywhere
+    @category("Processing")
+    @meta("EditCondition=make_seamless")
+    seamless_mode: SeamlessMode = SeamlessMode.CrossBlend
+    
+    @editanywhere
+    @category("Processing")
+    @meta("EditCondition=make_seamless")
+    @slider(0.1, 0.5)
+    seamless_blend_width: Float = 0.25
+    
+    @editanywhere
+    @category("Processing")
+    @slider(0.5, 1.5)
+    gamma: Float = 1.0
+    
+    @editanywhere
+    @category("Processing")
+    @slider(0.0, 1.0)
+    vignette: Float = 0.0
+    
+    # Output (2 fields)
+    @editanywhere
+    @category("Output")
+    pack_orm: Bool = true
+    
+    @editanywhere
+    @category("Output")
+    @slider(0, 8192)
+    output_resolution: Int = 0
+    
+    # Advanced (10 fields)
+    @editanywhere
+    @category("Advanced")
+    @slider(4, 64)
+    height_iterations: Int = 24
+    
+    @editanywhere
+    @category("Advanced")
+    use_multi_pass_height: Bool = true
+    
+    @editanywhere
+    @category("Advanced")
+    @slider(1, 6)
+    normal_octaves: Int = 3
+    
+    @editanywhere
+    @category("Advanced")
+    @slider(0.5, 3.0)
+    normal_sigma_base: Float = 1.0
+    
+    @editanywhere
+    @category("Advanced")
+    @slider(0.5, 2.0)
+    normal_anisotropy: Float = 1.0
+    
+    @editanywhere
+    @category("Advanced")
+    @slider(1.0, 32.0)
+    ao_radius: Float = 4.0
+    
+    @editanywhere
+    @category("Advanced")
+    @slider(-1.0, 1.0)
+    ao_bias: Float = 0.0
+    
+    @editanywhere
+    @category("Advanced")
+    @slider(0.1, 3.0)
+    ao_contrast: Float = 1.0
+    
+    @editanywhere
+    @category("Advanced")
+    advanced_normal: Bool = false
+    
+    @editanywhere
+    @category("Advanced")
+    advanced_ao: Bool = false
+
+# A single material preset with ID, name, category, and parameters
+struct MaterializePreset:
+    id: String
+    display_name: String
+    category: MaterialCategory
+    params: MaterializeParams
+
+# Result of PBR generation (10 fields)
+struct MaterializeResult:
+    layer_base_color: Texture2D?
+    normal: Texture2D?
+    roughness: Texture2D?
+    metallic: Texture2D?
+    ao: Texture2D?
+    height: Texture2D?
+    emissive: Texture2D?
+    orm: Texture2D?
+    material: MaterialInstanceDynamic?
+    generation_time_ms: Float
+    
+    fn is_valid() -> Bool:
+        return normal != null and roughness != null
+
+# Master material preset descriptor with feature flags and default parameters
+struct MasterPreset:
+    preset_id: String
+    display_name: String
+    description: String
+    master_material_path: String
+    preview_thumbnail: Texture2D?
+    default_scalar_params: Map<String, Float>
+    default_vector_params: Map<String, Vec4>
+    supports_anisotropy: Bool = false
+    supports_clear_coat: Bool = false
+    supports_subsurface: Bool = false
+    supports_toon_shading: Bool = false
+
+# Procedural noise generation parameters
+struct ProceduralParams:
+    noise_type: ProceduralNoiseType = ProceduralNoiseType.Perlin
+    
+    @slider(0.01, 100.0)
+    scale: Float = 1.0
+    
+    @slider(1, 16)
+    octaves: Int = 4
+    
+    @slider(0.0, 1.0)
+    persistence: Float = 0.5
+    
+    @slider(1.0, 4.0)
+    lacunarity: Float = 2.0
+    
+    offset: Vec2 = vec2(0.0, 0.0)
+    seed: Int = 0
+    seamless: Bool = false
+    time: Float = 0.0
+
+# Image filter parameters
+struct FilterParams:
+    filter_type: FilterType = FilterType.Blur
+    
+    @slider(0.0, 100.0)
+    intensity: Float = 1.0
+    
+    @slider(1, 32)
+    kernel_size: Int = 3
+    
+    @slider(0.0, 10.0)
+    threshold: Float = 0.0
+
+# Color/tone adjustment parameters
+struct AdjustmentParams:
+    adjustment_type: AdjustmentType = AdjustmentType.Levels
+    
+    # Levels
+    @slider(0.0, 1.0)
+    input_black: Float = 0.0
+    
+    @slider(0.0, 1.0)
+    input_white: Float = 1.0
+    
+    @slider(0.1, 9.9)
+    gamma: Float = 1.0
+    
+    @slider(0.0, 1.0)
+    output_black: Float = 0.0
+    
+    @slider(0.0, 1.0)
+    output_white: Float = 1.0
+    
+    # HSV
+    @slider(-180.0, 180.0)
+    hue_shift: Float = 0.0
+    
+    @slider(-1.0, 1.0)
+    saturation_adjust: Float = 0.0
+    
+    @slider(-1.0, 1.0)
+    value_adjust: Float = 0.0
+    
+    # Brightness/Contrast
+    @slider(-1.0, 1.0)
+    brightness: Float = 0.0
+    
+    @slider(-1.0, 1.0)
+    contrast: Float = 0.0
+
+# Core layer structure with type-specific parameters
+struct Layer:
+    # Identity
+    name: String
+    id: String
+    
+    # Type
+    layer_type: LayerType
+    
+    # Blending
+    blend_mode: LayerBlendMode = LayerBlendMode.Normal
+    
+    @slider(0.0, 1.0)
+    opacity: Float = 1.0
+    
+    # Output Channels (bitflags)
+    output_channels: Int = 255
+    
+    # Visibility
+    enabled: Bool = true
+    locked: Bool = false
+    solo: Bool = false
+    
+    # Mask
+    has_mask: Bool = false
+    mask_texture: Texture2D?
+    invert_mask: Bool = false
+    
+    # Type-Specific Data (conditional on layer_type)
+    image_texture: Texture2D?
+    fill_color: Vec4
+    fill_value: Float = 1.0
+    procedural_params: ProceduralParams
+    filter_params: FilterParams
+    adjustment_params: AdjustmentParams
+    source_layer_index: Int = -1
+    source_override: Texture2D?
+    generator_type: GeneratorType
+    folder_expanded: Bool = true
+    parent_index: Int = -1
+    
+    # State
+    dirty: Bool = true
+    @transient
+    cached_output: Texture2D?
+
+# Complete layer stack with versioning and management methods
+struct LayerStack:
+    version: Int = 3
+    layers: Array<Layer>
+    width: Int = 1024
+    height: Int = 1024
+    selected_layer_index: Int = -1
+    
+    # Migration
+    fn migrate_from_old_version() -> Bool:
+        if version >= 3:
+            return false
+        
+        if version < 3:
+            mark_all_dirty()
+        
+        version = 3
+        return true
+    
+    # Layer Management
+    fn add_layer(layer: Layer) -> Int:
+        push(layers, layer)
+        return len(layers) - 1
+    
+    fn insert_layer(index: Int, layer: Layer) -> Int:
+        if index < 0 or index > len(layers):
+            return add_layer(layer)
+        # Insert at index (implementation depends on stdlib)
+        return index
+    
+    fn remove_layer(index: Int) -> Bool:
+        if index < 0 or index >= len(layers):
+            return false
+        # Remove at index (implementation depends on stdlib)
+        return true
+    
+    fn move_layer(from_index: Int, to_index: Int) -> Bool:
+        if from_index < 0 or from_index >= len(layers):
+            return false
+        if to_index < 0 or to_index >= len(layers):
+            return false
+        let layer = layers[from_index]
+        # Remove from old position and insert at new position
+        return true
+    
+    fn duplicate_layer(index: Int) -> Int:
+        if index < 0 or index >= len(layers):
+            return -1
+        let new_layer = layers[index]
+        # Generate new GUID for id
+        return add_layer(new_layer)
+    
+    # Dirty Tracking
+    fn mark_dirty(index: Int):
+        if index >= 0 and index < len(layers):
+            layers[index].dirty = true
+            # Mark all layers above as dirty
+            for i in range(index + 1, len(layers)):
+                layers[i].dirty = true
+    
+    fn mark_all_dirty():
+        for layer in layers:
+            layer.dirty = true
+    
+    fn clear_dirty_flags():
+        for layer in layers:
+            layer.dirty = false
+    
+    # Visibility
+    fn get_visible_layer_indices() -> Array<Int>:
+        let result: Array<Int> = []
+        let has_solo = false
+        
+        # Check for solo layers
+        for i in range(0, len(layers)):
+            let layer = layers[i]
+            if layer.solo and layer.enabled and not layer.locked:
+                has_solo = true
+                break
+        
+        # Collect visible layers
+        for i in range(0, len(layers)):
+            let layer = layers[i]
+            if not layer.enabled:
+                continue
+            if layer.locked and layer.layer_type != LayerType.Base:
+                continue
+            if has_solo and not layer.solo:
+                continue
+            push(result, i)
+        
+        return result
+    
+    # Layer Finding
+    fn find_layer_by_guid(guid: String) -> Int:
+        for i in range(0, len(layers)):
+            if layers[i].id == guid:
+                return i
+        return -1
+    
+    fn find_layer_by_name(name: String) -> Int:
+        for i in range(0, len(layers)):
+            if layers[i].name == name:
+                return i
+        return -1
+
+# Layer stack evaluation result (8 fields)
+struct LayerEvalResult:
+    base_color: Texture2D?
+    normal: Texture2D?
+    roughness: Texture2D?
+    metallic: Texture2D?
+    height: Texture2D?
+    ao: Texture2D?
+    emissive: Texture2D?
+    evaluation_time_ms: Float = 0.0
+    
+    fn is_valid() -> Bool:
+        return base_color != null

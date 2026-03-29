@@ -1,0 +1,14 @@
+[package]
+name = "SM64SubsetSmoke"
+version = "1.0.0"
+authors = ["KAIN Factory Labs"]
+description = "UE5 smoke project built from an imported SM64 logic subset to measure modular file explosion and consolidation pressure"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "SM64SubsetSmoke"
+plugin_dir = "."
+sources = ["sm64_subset.kn"]
+modular_output = true

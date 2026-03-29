@@ -1,0 +1,740 @@
+// ModularBuilder - Snap System
+// Phase 3: Snap point detection, validation, and alignment
+// Target: ~1,400 LOC
+
+// ============================================================================
+// SPATIAL GRID MANAGEMENT
+// ============================================================================
+
+@blueprint_callable
+fn create_spatial_grid_key(position: Vec3, cell_size: Float) -> Vec3:
+    let grid_x = floor(position.x / cell_size)
+    let grid_y = floor(position.y / cell_size)
+    let grid_z = floor(position.z / cell_size)
+    return vec3(grid_x, grid_y, grid_z)
+
+@blueprint_callable
+fn get_neighboring_grid_cells(center_key: Vec3) -> Array<Vec3>:
+    let neighbors = []
+    let dx = -1
+    while dx <= 1:
+        let dy = -1
+        while dy <= 1:
+            let dz = -1
+            while dz <= 1:
+                let neighbor_key = vec3(
+                    center_key.x + float(dx),
+                    center_key.y + float(dy),
+                    center_key.z + float(dz)
+                )
+                push(neighbors, neighbor_key)
+                dz = dz + 1
+            dy = dy + 1
+        dx = dx + 1
+    return neighbors
+
+@blueprint_callable
+fn calculate_distance_3d(a: Vec3, b: Vec3) -> Float:
+    let dx = b.x - a.x
+    let dy = b.y - a.y
+    let dz = b.z - a.z
+    return sqrt(dx * dx + dy * dy + dz * dz)
+
+@blueprint_callable
+fn calculate_distance_2d(a: Vec3, b: Vec3) -> Float:
+    let dx = b.x - a.x
+    let dy = b.y - a.y
+    return sqrt(dx * dx + dy * dy)
+
+// ============================================================================
+// SNAP POINT DETECTION
+// ============================================================================
+
+@blueprint_callable
+fn find_nearest_snap_point(
+    source_position: Vec3,
+    source_snap_points: Array<SnapPointData>,
+    target_pieces: Array<PieceInstance>,
+    target_definitions: Map<String, BuildingPieceDefinition>,
+    search_radius: Float
+) -> SnapQueryResult:
+    let best_result = create_snap_query_result()
+    let best_distance = search_radius + 1.0
+    
+    let source_idx = 0
+    while source_idx < len(source_snap_points):
+        let source_snap = source_snap_points[source_idx]
+        let source_world_pos = vec3(
+            source_position.x + source_snap.local_position.x,
+            source_position.y + source_snap.local_position.y,
+            source_position.z + source_snap.local_position.z
+        )
+        
+        let target_idx = 0
+        while target_idx < len(target_pieces):
+            let target_piece = target_pieces[target_idx]
+            let target_def = target_definitions[target_piece.piece_id]
+            
+            let snap_idx = 0
+            while snap_idx < len(target_def.snap_points):
+                let target_snap = target_def.snap_points[snap_idx]
+                
+                if target_snap.is_occupied:
+                    snap_idx = snap_idx + 1
+                    continue
+                
+                let target_world_pos = vec3(
+                    target_piece.world_transform.position.x + target_snap.local_position.x,
+                    target_piece.world_transform.position.y + target_snap.local_position.y,
+                    target_piece.world_transform.position.z + target_snap.local_position.z
+                )
+                
+                let distance = calculate_distance_3d(source_world_pos, target_world_pos)
+                
+                if distance < search_radius and distance < best_distance:
+                    if is_snap_point_compatible(source_snap, target_snap):
+                        best_distance = distance
+                        best_result.found_snap = true
+                        best_result.snap_point_index = source_idx
+                        best_result.target_piece_id = target_piece.instance_id
+                        best_result.target_snap_index = snap_idx
+                        best_result.distance = distance
+                        best_result.validation_result = ValidationResult::Valid
+                        best_result.compatibility_score = 1.0
+                        best_result.is_occupied = false
+                
+                snap_idx = snap_idx + 1
+            target_idx = target_idx + 1
+        source_idx = source_idx + 1
+    
+    return best_result
+
+@blueprint_callable
+fn find_all_snap_points_in_radius(
+    source_position: Vec3,
+    source_snap_points: Array<SnapPointData>,
+    target_pieces: Array<PieceInstance>,
+    target_definitions: Map<String, BuildingPieceDefinition>,
+    search_radius: Float
+) -> Array<SnapQueryResult>:
+    let results = []
+    
+    let source_idx = 0
+    while source_idx < len(source_snap_points):
+        let source_snap = source_snap_points[source_idx]
+        let source_world_pos = vec3(
+            source_position.x + source_snap.local_position.x,
+            source_position.y + source_snap.local_position.y,
+            source_position.z + source_snap.local_position.z
+        )
+        
+        let target_idx = 0
+        while target_idx < len(target_pieces):
+            let target_piece = target_pieces[target_idx]
+            let target_def = target_definitions[target_piece.piece_id]
+            
+            let snap_idx = 0
+            while snap_idx < len(target_def.snap_points):
+                let target_snap = target_def.snap_points[snap_idx]
+                
+                let target_world_pos = vec3(
+                    target_piece.world_transform.position.x + target_snap.local_position.x,
+                    target_piece.world_transform.position.y + target_snap.local_position.y,
+                    target_piece.world_transform.position.z + target_snap.local_position.z
+                )
+                
+                let distance = calculate_distance_3d(source_world_pos, target_world_pos)
+                
+                if distance < search_radius:
+                    if is_snap_point_compatible(source_snap, target_snap):
+                        let result = create_snap_query_result()
+                        result.found_snap = true
+                        result.snap_point_index = source_idx
+                        result.target_piece_id = target_piece.instance_id
+                        result.target_snap_index = snap_idx
+                        result.distance = distance
+                        result.validation_result = ValidationResult::Valid
+                        result.compatibility_score = 1.0
+                        result.is_occupied = target_snap.is_occupied
+                        push(results, result)
+                
+                snap_idx = snap_idx + 1
+            target_idx = target_idx + 1
+        source_idx = source_idx + 1
+    
+    return results
+
+@blueprint_callable
+fn find_snap_points_by_type(
+    source_position: Vec3,
+    snap_type: SnapPointType,
+    target_pieces: Array<PieceInstance>,
+    target_definitions: Map<String, BuildingPieceDefinition>,
+    search_radius: Float
+) -> Array<SnapQueryResult>:
+    let results = []
+    
+    let target_idx = 0
+    while target_idx < len(target_pieces):
+        let target_piece = target_pieces[target_idx]
+        let target_def = target_definitions[target_piece.piece_id]
+        
+        let snap_idx = 0
+        while snap_idx < len(target_def.snap_points):
+            let target_snap = target_def.snap_points[snap_idx]
+            
+            if target_snap.point_type == snap_type:
+                let target_world_pos = vec3(
+                    target_piece.world_transform.position.x + target_snap.local_position.x,
+                    target_piece.world_transform.position.y + target_snap.local_position.y,
+                    target_piece.world_transform.position.z + target_snap.local_position.z
+                )
+                
+                let distance = calculate_distance_3d(source_position, target_world_pos)
+                
+                if distance < search_radius:
+                    let result = create_snap_query_result()
+                    result.found_snap = true
+                    result.snap_point_index = -1
+                    result.target_piece_id = target_piece.instance_id
+                    result.target_snap_index = snap_idx
+                    result.distance = distance
+                    result.validation_result = ValidationResult::Valid
+                    result.is_occupied = target_snap.is_occupied
+                    push(results, result)
+            
+            snap_idx = snap_idx + 1
+        target_idx = target_idx + 1
+    
+    return results
+
+// ============================================================================
+// SNAP VALIDATION
+// ============================================================================
+
+@blueprint_callable
+fn validate_snap_compatibility(source: SnapPointData, target: SnapPointData) -> Bool:
+    let source_compatible = false
+    let i = 0
+    while i < len(source.compatible_types):
+        if source.compatible_types[i] == target.point_type:
+            source_compatible = true
+        i = i + 1
+    
+    if not source_compatible:
+        return false
+    
+    let target_compatible = false
+    let j = 0
+    while j < len(target.compatible_types):
+        if target.compatible_types[j] == source.point_type:
+            target_compatible = true
+        j = j + 1
+    
+    if not target_compatible:
+        return false
+    
+    if target.is_occupied:
+        return false
+    
+    return true
+
+@blueprint_callable
+fn validate_snap_tags(source_tags: Array<String>, target_snap: SnapPointData) -> Bool:
+    let i = 0
+    while i < len(target_snap.required_tags):
+        let required_tag = target_snap.required_tags[i]
+        let found = false
+        let j = 0
+        while j < len(source_tags):
+            if source_tags[j] == required_tag:
+                found = true
+            j = j + 1
+        if not found:
+            return false
+        i = i + 1
+    
+    let k = 0
+    while k < len(target_snap.excluded_tags):
+        let excluded_tag = target_snap.excluded_tags[k]
+        let l = 0
+        while l < len(source_tags):
+            if source_tags[l] == excluded_tag:
+                return false
+            l = l + 1
+        k = k + 1
+    
+    return true
+
+@blueprint_callable
+fn validate_snap_distance(source_pos: Vec3, target_pos: Vec3, max_distance: Float) -> Bool:
+    let distance = calculate_distance_3d(source_pos, target_pos)
+    return distance <= max_distance
+
+@blueprint_callable
+fn validate_snap_alignment(source_rotation: Vec3, target_rotation: Vec3, alignment_mode: AlignmentMode) -> Bool:
+    if alignment_mode == AlignmentMode::Free:
+        return true
+    
+    if alignment_mode == AlignmentMode::Exact:
+        let angle_diff = abs(source_rotation.z - target_rotation.z)
+        return angle_diff < 5.0
+    
+    if alignment_mode == AlignmentMode::Rotate90:
+        let angle_diff = abs(source_rotation.z - target_rotation.z)
+        let normalized = angle_diff % 90.0
+        return normalized < 5.0 or normalized > 85.0
+    
+    if alignment_mode == AlignmentMode::Rotate45:
+        let angle_diff = abs(source_rotation.z - target_rotation.z)
+        let normalized = angle_diff % 45.0
+        return normalized < 5.0 or normalized > 40.0
+    
+    return false
+
+@blueprint_callable
+fn check_snap_occupation(snap_point: SnapPointData) -> Bool:
+    return snap_point.is_occupied
+
+@blueprint_callable
+fn validate_snap_priority(source_priority: Int, target_priority: Int, min_priority: Int) -> Bool:
+    return source_priority >= min_priority and target_priority >= min_priority
+
+// ============================================================================
+// SNAP ALIGNMENT CALCULATION
+// ============================================================================
+
+@blueprint_callable
+fn calculate_snap_alignment(
+    source_snap: SnapPointData,
+    source_transform: Transform,
+    target_snap: SnapPointData,
+    target_transform: Transform
+) -> Transform:
+    let target_world_pos = vec3(
+        target_transform.position.x + target_snap.local_position.x,
+        target_transform.position.y + target_snap.local_position.y,
+        target_transform.position.z + target_snap.local_position.z
+    )
+    
+    let target_world_rot = vec3(
+        target_transform.rotation.x + target_snap.local_rotation.x,
+        target_transform.rotation.y + target_snap.local_rotation.y,
+        target_transform.rotation.z + target_snap.local_rotation.z
+    )
+    
+    let rotation_offset = calculate_rotation_offset(source_snap.alignment_mode, target_world_rot.z)
+    
+    let final_rotation = vec3(
+        target_world_rot.x,
+        target_world_rot.y,
+        target_world_rot.z + rotation_offset + 180.0
+    )
+    
+    let offset_x = source_snap.local_position.x + source_snap.snap_offset.x
+    let offset_y = source_snap.local_position.y + source_snap.snap_offset.y
+    let offset_z = source_snap.local_position.z + source_snap.snap_offset.z
+    
+    let final_position = vec3(
+        target_world_pos.x - offset_x,
+        target_world_pos.y - offset_y,
+        target_world_pos.z - offset_z
+    )
+    
+    return Transform {
+        position: final_position,
+        rotation: final_rotation,
+        scale: source_transform.scale
+    }
+
+@blueprint_callable
+fn calculate_rotation_offset(alignment_mode: AlignmentMode, base_rotation: Float) -> Float:
+    if alignment_mode == AlignmentMode::Exact:
+        return 0.0
+    
+    if alignment_mode == AlignmentMode::Rotate90:
+        let normalized = base_rotation % 90.0
+        if normalized < 45.0:
+            return -normalized
+        else:
+            return 90.0 - normalized
+    
+    if alignment_mode == AlignmentMode::Rotate45:
+        let normalized = base_rotation % 45.0
+        if normalized < 22.5:
+            return -normalized
+        else:
+            return 45.0 - normalized
+    
+    return 0.0
+
+@blueprint_callable
+fn calculate_snap_transform_exact(
+    source_snap: SnapPointData,
+    target_snap: SnapPointData,
+    target_transform: Transform
+) -> Transform:
+    let target_world_pos = vec3(
+        target_transform.position.x + target_snap.local_position.x,
+        target_transform.position.y + target_snap.local_position.y,
+        target_transform.position.z + target_snap.local_position.z
+    )
+    
+    let final_position = vec3(
+        target_world_pos.x - source_snap.local_position.x,
+        target_world_pos.y - source_snap.local_position.y,
+        target_world_pos.z - source_snap.local_position.z
+    )
+    
+    let final_rotation = vec3(
+        target_transform.rotation.x + target_snap.local_rotation.x - source_snap.local_rotation.x + 180.0,
+        target_transform.rotation.y + target_snap.local_rotation.y - source_snap.local_rotation.y,
+        target_transform.rotation.z + target_snap.local_rotation.z - source_snap.local_rotation.z + 180.0
+    )
+    
+    return Transform {
+        position: final_position,
+        rotation: final_rotation,
+        scale: vec3(1.0, 1.0, 1.0)
+    }
+
+@blueprint_callable
+fn calculate_snap_transform_rotate90(
+    source_snap: SnapPointData,
+    target_snap: SnapPointData,
+    target_transform: Transform,
+    rotation_step: Int
+) -> Transform:
+    let base_transform = calculate_snap_transform_exact(source_snap, target_snap, target_transform)
+    
+    let rotation_angle = float(rotation_step) * 90.0
+    
+    let final_rotation = vec3(
+        base_transform.rotation.x,
+        base_transform.rotation.y,
+        base_transform.rotation.z + rotation_angle
+    )
+    
+    return Transform {
+        position: base_transform.position,
+        rotation: final_rotation,
+        scale: base_transform.scale
+    }
+
+@blueprint_callable
+fn calculate_snap_transform_rotate45(
+    source_snap: SnapPointData,
+    target_snap: SnapPointData,
+    target_transform: Transform,
+    rotation_step: Int
+) -> Transform:
+    let base_transform = calculate_snap_transform_exact(source_snap, target_snap, target_transform)
+    
+    let rotation_angle = float(rotation_step) * 45.0
+    
+    let final_rotation = vec3(
+        base_transform.rotation.x,
+        base_transform.rotation.y,
+        base_transform.rotation.z + rotation_angle
+    )
+    
+    return Transform {
+        position: base_transform.position,
+        rotation: final_rotation,
+        scale: base_transform.scale
+    }
+
+@blueprint_callable
+fn calculate_snap_transform_free(
+    source_snap: SnapPointData,
+    target_snap: SnapPointData,
+    target_transform: Transform,
+    custom_rotation: Vec3
+) -> Transform:
+    let base_transform = calculate_snap_transform_exact(source_snap, target_snap, target_transform)
+    
+    let final_rotation = vec3(
+        base_transform.rotation.x + custom_rotation.x,
+        base_transform.rotation.y + custom_rotation.y,
+        base_transform.rotation.z + custom_rotation.z
+    )
+    
+    return Transform {
+        position: base_transform.position,
+        rotation: final_rotation,
+        scale: base_transform.scale
+    }
+
+@blueprint_callable
+fn apply_snap_offset(transform: Transform, offset: Vec3) -> Transform:
+    return Transform {
+        position: vec3(
+            transform.position.x + offset.x,
+            transform.position.y + offset.y,
+            transform.position.z + offset.z
+        ),
+        rotation: transform.rotation,
+        scale: transform.scale
+    }
+
+@blueprint_callable
+fn normalize_rotation(rotation: Vec3) -> Vec3:
+    let normalized_x = rotation.x % 360.0
+    let normalized_y = rotation.y % 360.0
+    let normalized_z = rotation.z % 360.0
+    
+    if normalized_x < 0.0:
+        normalized_x = normalized_x + 360.0
+    if normalized_y < 0.0:
+        normalized_y = normalized_y + 360.0
+    if normalized_z < 0.0:
+        normalized_z = normalized_z + 360.0
+    
+    return vec3(normalized_x, normalized_y, normalized_z)
+
+// ============================================================================
+// SNAP QUERY UTILITIES
+// ============================================================================
+
+@blueprint_callable
+fn sort_snap_results_by_distance(results: Array<SnapQueryResult>) -> Array<SnapQueryResult>:
+    let sorted = results
+    let n = len(sorted)
+    let i = 0
+    while i < n - 1:
+        let j = 0
+        while j < n - i - 1:
+            if sorted[j].distance > sorted[j + 1].distance:
+                let temp = sorted[j]
+                sorted[j] = sorted[j + 1]
+                sorted[j + 1] = temp
+            j = j + 1
+        i = i + 1
+    return sorted
+
+@blueprint_callable
+fn filter_snap_results_by_compatibility(results: Array<SnapQueryResult>, min_score: Float) -> Array<SnapQueryResult>:
+    let filtered = []
+    let i = 0
+    while i < len(results):
+        if results[i].compatibility_score >= min_score:
+            push(filtered, results[i])
+        i = i + 1
+    return filtered
+
+@blueprint_callable
+fn filter_snap_results_by_occupation(results: Array<SnapQueryResult>, allow_occupied: Bool) -> Array<SnapQueryResult>:
+    let filtered = []
+    let i = 0
+    while i < len(results):
+        if allow_occupied or not results[i].is_occupied:
+            push(filtered, results[i])
+        i = i + 1
+    return filtered
+
+@blueprint_callable
+fn get_closest_snap_result(results: Array<SnapQueryResult>) -> SnapQueryResult:
+    if len(results) == 0:
+        return create_snap_query_result()
+    
+    let closest = results[0]
+    let i = 1
+    while i < len(results):
+        if results[i].distance < closest.distance:
+            closest = results[i]
+        i = i + 1
+    return closest
+
+@blueprint_callable
+fn calculate_snap_score(
+    distance: Float,
+    max_distance: Float,
+    alignment_quality: Float,
+    tag_match_count: Int
+) -> Float:
+    let distance_score = 1.0 - (distance / max_distance)
+    let alignment_score = alignment_quality
+    let tag_score = float(tag_match_count) * 0.1
+    
+    return (distance_score * 0.5) + (alignment_score * 0.3) + (tag_score * 0.2)
+
+@blueprint_callable
+fn is_snap_result_valid(result: SnapQueryResult) -> Bool:
+    return result.found_snap and result.validation_result == ValidationResult::Valid
+
+@blueprint_callable
+fn get_snap_world_position(snap_point: SnapPointData, piece_transform: Transform) -> Vec3:
+    return vec3(
+        piece_transform.position.x + snap_point.local_position.x,
+        piece_transform.position.y + snap_point.local_position.y,
+        piece_transform.position.z + snap_point.local_position.z
+    )
+
+@blueprint_callable
+fn get_snap_world_rotation(snap_point: SnapPointData, piece_transform: Transform) -> Vec3:
+    return vec3(
+        piece_transform.rotation.x + snap_point.local_rotation.x,
+        piece_transform.rotation.y + snap_point.local_rotation.y,
+        piece_transform.rotation.z + snap_point.local_rotation.z
+    )
+
+@blueprint_callable
+fn calculate_snap_compatibility_score(source: SnapPointData, target: SnapPointData) -> Float:
+    let type_compatible = is_snap_point_compatible(source, target)
+    if not type_compatible:
+        return 0.0
+    
+    let base_score = 0.5
+    
+    let tag_matches = 0
+    let i = 0
+    while i < len(source.required_tags):
+        let j = 0
+        while j < len(target.required_tags):
+            if source.required_tags[i] == target.required_tags[j]:
+                tag_matches = tag_matches + 1
+            j = j + 1
+        i = i + 1
+    
+    let tag_score = float(tag_matches) * 0.1
+    
+    let priority_score = 0.0
+    if source.priority == target.priority:
+        priority_score = 0.2
+    
+    return base_score + tag_score + priority_score
+
+@blueprint_callable
+fn find_best_snap_in_cone(
+    source_position: Vec3,
+    source_forward: Vec3,
+    cone_angle: Float,
+    results: Array<SnapQueryResult>,
+    piece_transforms: Map<Int, Transform>
+) -> SnapQueryResult:
+    let best_result = create_snap_query_result()
+    let best_score = -1.0
+    
+    let i = 0
+    while i < len(results):
+        let result = results[i]
+        if piece_transforms.contains_key(result.target_piece_id):
+            let target_transform = piece_transforms[result.target_piece_id]
+            let direction = vec3(
+                target_transform.position.x - source_position.x,
+                target_transform.position.y - source_position.y,
+                target_transform.position.z - source_position.z
+            )
+            
+            let dot_product = (direction.x * source_forward.x + direction.y * source_forward.y + direction.z * source_forward.z)
+            let dir_length = sqrt(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z)
+            let forward_length = sqrt(source_forward.x * source_forward.x + source_forward.y * source_forward.y + source_forward.z * source_forward.z)
+            
+            let cos_angle = dot_product / (dir_length * forward_length)
+            let angle = acos(cos_angle) * 57.2958
+            
+            if angle < cone_angle:
+                let score = result.compatibility_score * (1.0 - (angle / cone_angle))
+                if score > best_score:
+                    best_score = score
+                    best_result = result
+        i = i + 1
+    
+    return best_result
+
+@blueprint_callable
+fn group_snap_results_by_piece(results: Array<SnapQueryResult>) -> Map<Int, Array<SnapQueryResult>>:
+    let grouped = {}
+    let i = 0
+    while i < len(results):
+        let result = results[i]
+        let piece_id = result.target_piece_id
+        if not grouped.contains_key(piece_id):
+            grouped[piece_id] = []
+        push(grouped[piece_id], result)
+        i = i + 1
+    return grouped
+
+@blueprint_callable
+fn calculate_snap_preview_transform(
+    source_definition: BuildingPieceDefinition,
+    snap_result: SnapQueryResult,
+    target_piece: PieceInstance
+) -> Transform:
+    if not snap_result.found_snap:
+        return Transform {
+            position: vec3(0.0, 0.0, 0.0),
+            rotation: vec3(0.0, 0.0, 0.0),
+            scale: vec3(1.0, 1.0, 1.0)
+        }
+    
+    let source_snap = source_definition.snap_points[snap_result.snap_point_index]
+    let target_snap = source_definition.snap_points[snap_result.target_snap_index]
+    
+    return calculate_snap_alignment(
+        source_snap,
+        Transform { position: vec3(0.0, 0.0, 0.0), rotation: vec3(0.0, 0.0, 0.0), scale: vec3(1.0, 1.0, 1.0) },
+        target_snap,
+        target_piece.world_transform
+    )
+
+@blueprint_callable
+fn validate_snap_clearance(
+    source_bounds: Vec3,
+    target_position: Vec3,
+    existing_pieces: Array<PieceInstance>,
+    min_clearance: Float
+) -> Bool:
+    let i = 0
+    while i < len(existing_pieces):
+        let piece = existing_pieces[i]
+        let distance = calculate_distance_3d(target_position, piece.world_transform.position)
+        let combined_size = (source_bounds.x + source_bounds.y + source_bounds.z) / 3.0
+        if distance < combined_size + min_clearance:
+            return false
+        i = i + 1
+    return true
+
+@blueprint_callable
+fn calculate_snap_indicator_color(validation_result: ValidationResult, is_occupied: Bool) -> SnapIndicatorColor:
+    if is_occupied:
+        return SnapIndicatorColor::Red
+    
+    if validation_result == ValidationResult::Valid:
+        return SnapIndicatorColor::Green
+    
+    if validation_result == ValidationResult::InvalidSnap:
+        return SnapIndicatorColor::Red
+    
+    if validation_result == ValidationResult::NoSupport:
+        return SnapIndicatorColor::Yellow
+    
+    if validation_result == ValidationResult::Overlapping:
+        return SnapIndicatorColor::Orange
+    
+    return SnapIndicatorColor::White
+
+@blueprint_callable
+fn merge_snap_results(results_a: Array<SnapQueryResult>, results_b: Array<SnapQueryResult>) -> Array<SnapQueryResult>:
+    let merged = results_a
+    let i = 0
+    while i < len(results_b):
+        push(merged, results_b[i])
+        i = i + 1
+    return merged
+
+@blueprint_callable
+fn deduplicate_snap_results(results: Array<SnapQueryResult>) -> Array<SnapQueryResult>:
+    let unique = []
+    let i = 0
+    while i < len(results):
+        let is_duplicate = false
+        let j = 0
+        while j < len(unique):
+            if results[i].target_piece_id == unique[j].target_piece_id and results[i].target_snap_index == unique[j].target_snap_index:
+                is_duplicate = true
+            j = j + 1
+        if not is_duplicate:
+            push(unique, results[i])
+        i = i + 1
+    return unique

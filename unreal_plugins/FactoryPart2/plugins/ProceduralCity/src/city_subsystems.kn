@@ -1,0 +1,930 @@
+// ProceduralCity - City Subsystems
+// World subsystem for city management, traffic coordination, and multiplayer sync
+
+// ============================================================================
+// CITY MANAGER SUBSYSTEM
+// Central subsystem managing all city generation, traffic, and replication
+// ============================================================================
+
+@subsystem
+@tick
+struct CityManager:
+    // City state
+    state city_id: Int = 0
+    state generation_seed: Int = 12345
+    state is_generated: Bool = false
+    state generation_progress: Float = 0.0
+    state generation_params: CityGenerationParams = create_default_generation_params()
+    
+    // Core city data
+    state road_network: RoadNetwork = RoadNetwork {
+        segments: [],
+        intersections: [],
+        highway_nodes: [],
+        main_street_nodes: [],
+        residential_nodes: []
+    }
+    state districts: Array<District> = []
+    state buildings: Array<BuildingData> = []
+    state lots: Array<BuildingLot> = []
+    state terrain_grid: TerrainGrid = TerrainGrid {
+        width: 0,
+        height: 0,
+        cell_size: 10.0,
+        cells: [],
+        min_height: 0.0,
+        max_height: 0.0
+    }
+    
+    // Traffic simulation state
+    state vehicles: Array<VehicleState> = []
+    state pedestrians: Array<PedestrianState> = []
+    state traffic_lights: Array<TrafficLight> = []
+    state active_vehicle_count: Int = 0
+    state max_vehicle_count: Int = 500
+    
+    // Replication state
+    state replication_state: CityReplicationState = CityReplicationState {
+        city_id: 0,
+        generation_seed: 12345,
+
+        district_count: 0,
+        building_count: 0,
+        road_segment_count: 0,
+        vehicle_count: 0,
+        pedestrian_count: 0,
+        time_of_day: TimeOfDay::Afternoon,
+        traffic_enabled: true,
+        weather_state: 0
+    }
+    
+    // Performance tracking
+    state last_update_time: Float = 0.0
+    state update_interval: Float = 0.1
+    state frame_count: Int = 0
+    
+    // Zone management
+    state active_zones: Array<CityZone> = []
+    state zone_update_index: Int = 0
+    
+    // Pathfinding cache
+    state path_cache: Array<PathResult> = []
+    state path_request_queue: Array<PathRequest> = []
+    state max_path_requests_per_frame: Int = 10
+    
+    // ========================================================================
+    // INITIALIZATION
+    // ========================================================================
+    
+    @blueprint_callable
+    fn initialize_city(size_km: Float, seed: Int, params: CityGenerationParams):
+        generation_seed = seed
+        generation_params = params
+        generation_progress = 0.0
+        is_generated = false
+        city_id = seed
+        
+        println("Initializing city with seed: " + (seed as String))
+        
+        // Start async generation
+        start_city_generation()
+    
+    fn start_city_generation():
+        // Generate bounds
+        let bounds = Bounds2D {
+            min: Vec2 { 
+                x: -generation_params.city_size_km * 500.0, 
+                y: -generation_params.city_size_km * 500.0 
+            },
+            max: Vec2 { 
+                x: generation_params.city_size_km * 500.0, 
+                y: generation_params.city_size_km * 500.0 
+            }
+        }
+
+        
+        // Phase 1: Road network generation
+        generation_progress = 0.1
+        road_network = create_grid_road_network(
+            bounds,
+            generation_params.intersection_spacing,
+            generation_seed
+        )
+        
+        // Phase 2: Highway generation
+        generation_progress = 0.2
+        let highways = generate_highway_network(bounds, 3, generation_seed + 1)
+        for highway in highways:
+            push(road_network.segments, highway)
+        
+        // Phase 3: Intersection detection
+        generation_progress = 0.3
+        road_network = detect_intersections(road_network)
+        
+        // Phase 4: Network optimization
+        generation_progress = 0.4
+        road_network = optimize_road_network(road_network)
+        
+        // Phase 5: Lot subdivision
+        generation_progress = 0.5
+        lots = subdivide_lots(bounds, generation_params, generation_seed + 2)
+        lots = assign_lot_road_access(lots, road_network)
+        
+        // Phase 6: Building generation
+        generation_progress = 0.6
+        buildings = generate_buildings_for_lots(lots, generation_params, generation_seed + 3)
+        buildings = apply_building_variation(buildings, generation_seed + 4)
+        
+        // Phase 7: District generation
+        generation_progress = 0.7
+        districts = generate_districts_from_buildings(bounds, buildings, generation_params.district_count)
+        
+        // Phase 8: Zone assignment
+        generation_progress = 0.8
+        active_zones = generate_zones_from_districts(districts)
+        
+        // Phase 9: Traffic light initialization
+        generation_progress = 0.9
+        initialize_traffic_lights()
+        
+        // Phase 10: Complete
+        generation_progress = 1.0
+        is_generated = true
+        
+        // Update replication state
+        update_replication_state()
+        
+        println("City generation complete!")
+
+    
+    // ========================================================================
+    // TICK UPDATE (Called every frame)
+    // ========================================================================
+    
+    fn tick(delta_time: Float):
+        if not is_generated:
+            return
+        
+        frame_count = frame_count + 1
+        last_update_time = last_update_time + delta_time
+        
+        // Update traffic lights every frame
+        update_traffic_lights_tick(delta_time)
+        
+        // Update vehicles every frame
+        if generation_params.enable_traffic:
+            update_vehicles_tick(delta_time)
+        
+        // Update pedestrians every frame
+        if generation_params.enable_pedestrians:
+            update_pedestrians_tick(delta_time)
+        
+        // Process pathfinding requests (throttled)
+        if len(path_request_queue) > 0:
+            process_pathfinding_requests()
+        
+        // Periodic updates (every update_interval seconds)
+        if last_update_time >= update_interval:
+            perform_periodic_updates()
+            last_update_time = 0.0
+    
+    fn update_traffic_lights_tick(delta_time: Float):
+        for i in 0..len(traffic_lights):
+            let light = traffic_lights[i]
+            let new_timer = light.timer + delta_time
+            
+            let new_state = light.state
+            
+            if new_timer < light.green_time:
+                new_state = TrafficLightState::Green
+            else if new_timer < light.green_time + light.yellow_time:
+                new_state = TrafficLightState::Yellow
+            else if new_timer < light.cycle_time:
+                new_state = TrafficLightState::Red
+            else:
+                new_timer = 0.0
+                new_state = TrafficLightState::Green
+            
+            traffic_lights[i] = TrafficLight {
+                intersection_id: light.intersection_id,
+                state: new_state,
+                timer: new_timer,
+                cycle_time: light.cycle_time,
+                green_time: light.green_time,
+                yellow_time: light.yellow_time,
+                red_time: light.red_time,
+                priority_direction: light.priority_direction
+            }
+
+            
+            // Update intersection in road network
+            if light.intersection_id < len(road_network.intersections):
+                road_network.intersections[light.intersection_id] = Intersection {
+                    id: road_network.intersections[light.intersection_id].id,
+                    position: road_network.intersections[light.intersection_id].position,
+                    intersection_type: road_network.intersections[light.intersection_id].intersection_type,
+                    connected_roads: road_network.intersections[light.intersection_id].connected_roads,
+                    has_traffic_light: road_network.intersections[light.intersection_id].has_traffic_light,
+                    traffic_light_state: new_state,
+                    traffic_light_timer: new_timer,
+                    priority_roads: road_network.intersections[light.intersection_id].priority_roads
+                }
+    
+    fn update_vehicles_tick(delta_time: Float):
+        for i in 0..len(vehicles):
+            let vehicle = vehicles[i]
+            
+            // Update vehicle movement
+            let updated_vehicle = update_vehicle_movement(vehicle, delta_time)
+            vehicles[i] = updated_vehicle
+    
+    fn update_pedestrians_tick(delta_time: Float):
+        for i in 0..len(pedestrians):
+            let pedestrian = pedestrians[i]
+            
+            // Update pedestrian movement
+            let updated_pedestrian = update_pedestrian_movement(pedestrian, delta_time)
+            pedestrians[i] = updated_pedestrian
+    
+    fn perform_periodic_updates():
+        // Update traffic density
+        road_network = calculate_traffic_density(road_network, vehicles)
+        
+        // Optimize traffic light timing
+        road_network = optimize_traffic_light_timing(road_network)
+        
+        // Update replication state
+        update_replication_state()
+        
+        // Spawn new vehicles if below max
+        if active_vehicle_count < max_vehicle_count and generation_params.enable_traffic:
+            spawn_vehicles_batch(10)
+    
+    // ========================================================================
+    // VEHICLE MANAGEMENT
+    // ========================================================================
+    
+    @blueprint_callable
+    fn spawn_vehicles(count: Int):
+        spawn_vehicles_batch(count)
+
+    
+    fn spawn_vehicles_batch(count: Int):
+        let spawn_points = generate_vehicle_spawn_points(road_network, count, generation_seed + frame_count)
+        
+        for i in 0..count:
+            if active_vehicle_count >= max_vehicle_count:
+                break
+            
+            let spawn_pos = spawn_points[i]
+            let vehicle_type = select_vehicle_type(generation_seed + active_vehicle_count)
+            
+            // Find nearest road segment
+            let nearest_road = find_nearest_road_segment(Vec2 { x: spawn_pos.x, y: spawn_pos.y })
+            
+            if nearest_road < 0:
+                continue
+            
+            let vehicle = VehicleState {
+                vehicle_id: active_vehicle_count,
+                vehicle_type: vehicle_type,
+                position: spawn_pos,
+                velocity: Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+                rotation: 0.0,
+                current_road: nearest_road,
+                current_lane: 0,
+                target_intersection: -1,
+                path: [],
+                speed: 0.0,
+                max_speed: get_vehicle_max_speed(vehicle_type),
+                acceleration: get_vehicle_acceleration(vehicle_type),
+                braking_distance: 20.0,
+                following_distance: 10.0,
+                target_vehicle: -1
+            }
+            
+            push(vehicles, vehicle)
+            active_vehicle_count = active_vehicle_count + 1
+            
+            // Assign random destination
+            assign_vehicle_destination(active_vehicle_count - 1)
+    
+    fn assign_vehicle_destination(vehicle_index: Int):
+        if vehicle_index >= len(vehicles):
+            return
+        
+        let vehicle = vehicles[vehicle_index]
+        
+        // Find current intersection
+        let current_intersection = find_nearest_intersection(Vec2 { 
+            x: vehicle.position.x, 
+            y: vehicle.position.y 
+        })
+        
+        if current_intersection < 0:
+            return
+        
+        // Select random destination intersection
+        let hash = ((vehicle.vehicle_id + frame_count) * 374761393) % len(road_network.intersections)
+        let destination_intersection = hash
+        
+        // Request pathfinding
+        request_path(vehicle.vehicle_id, current_intersection, destination_intersection)
+
+    
+    fn update_vehicle_movement(vehicle: VehicleState, delta_time: Float) -> VehicleState:
+        // Check if vehicle has a path
+        if len(vehicle.path) == 0:
+            return vehicle
+        
+        // Get target intersection
+        if vehicle.target_intersection < 0 or vehicle.target_intersection >= len(road_network.intersections):
+            return vehicle
+        
+        let target_pos = Vec3 {
+            x: road_network.intersections[vehicle.target_intersection].position.x,
+            y: road_network.intersections[vehicle.target_intersection].position.y,
+            z: 0.0
+        }
+        
+        // Check traffic light
+        let intersection = road_network.intersections[vehicle.target_intersection]
+        if intersection.has_traffic_light:
+            let distance_to_intersection = vec3_distance(vehicle.position, target_pos)
+            
+            if distance_to_intersection < 30.0 and intersection.traffic_light_state != TrafficLightState::Green:
+                // Stop at red/yellow light
+                let new_speed = max(0.0, vehicle.speed - vehicle.acceleration * delta_time * 2.0)
+                return VehicleState {
+                    vehicle_id: vehicle.vehicle_id,
+                    vehicle_type: vehicle.vehicle_type,
+                    position: vehicle.position,
+                    velocity: Vec3 {
+                        x: vehicle.velocity.x * 0.9,
+                        y: vehicle.velocity.y * 0.9,
+                        z: 0.0
+                    },
+                    rotation: vehicle.rotation,
+                    current_road: vehicle.current_road,
+                    current_lane: vehicle.current_lane,
+                    target_intersection: vehicle.target_intersection,
+                    path: vehicle.path,
+                    speed: new_speed,
+                    max_speed: vehicle.max_speed,
+                    acceleration: vehicle.acceleration,
+                    braking_distance: vehicle.braking_distance,
+                    following_distance: vehicle.following_distance,
+                    target_vehicle: vehicle.target_vehicle
+                }
+        
+        // Calculate direction to target
+        let direction = vec3_normalize(Vec3 {
+            x: target_pos.x - vehicle.position.x,
+            y: target_pos.y - vehicle.position.y,
+            z: 0.0
+        })
+        
+        // Calculate desired speed
+        let distance_to_target = vec3_distance(vehicle.position, target_pos)
+        let desired_speed = min(vehicle.max_speed, distance_to_target * 2.0)
+        
+        // Accelerate or decelerate
+        let new_speed = if vehicle.speed < desired_speed then
+            min(vehicle.speed + vehicle.acceleration * delta_time, desired_speed)
+        else
+            max(vehicle.speed - vehicle.acceleration * delta_time * 0.5, desired_speed)
+
+        
+        // Update velocity
+        let new_velocity = Vec3 {
+            x: direction.x * new_speed,
+            y: direction.y * new_speed,
+            z: 0.0
+        }
+        
+        // Update position
+        let new_position = Vec3 {
+            x: vehicle.position.x + new_velocity.x * delta_time,
+            y: vehicle.position.y + new_velocity.y * delta_time,
+            z: vehicle.position.z
+        }
+        
+        // Update rotation
+        let new_rotation = if vec3_length(new_velocity) > 0.1 then
+            atan2(new_velocity.y, new_velocity.x) * 180.0 / 3.14159
+        else
+            vehicle.rotation
+        
+        // Check if reached target intersection
+        if distance_to_target < 5.0:
+            // Move to next intersection in path
+            let new_path = []
+            for i in 1..len(vehicle.path):
+                push(new_path, vehicle.path[i])
+            
+            let new_target = if len(new_path) > 0 then new_path[0] else -1
+            
+            return VehicleState {
+                vehicle_id: vehicle.vehicle_id,
+                vehicle_type: vehicle.vehicle_type,
+                position: new_position,
+                velocity: new_velocity,
+                rotation: new_rotation,
+                current_road: vehicle.current_road,
+                current_lane: vehicle.current_lane,
+                target_intersection: new_target,
+                path: new_path,
+                speed: new_speed,
+                max_speed: vehicle.max_speed,
+                acceleration: vehicle.acceleration,
+                braking_distance: vehicle.braking_distance,
+                following_distance: vehicle.following_distance,
+                target_vehicle: vehicle.target_vehicle
+            }
+        
+        return VehicleState {
+            vehicle_id: vehicle.vehicle_id,
+            vehicle_type: vehicle.vehicle_type,
+            position: new_position,
+            velocity: new_velocity,
+            rotation: new_rotation,
+            current_road: vehicle.current_road,
+            current_lane: vehicle.current_lane,
+            target_intersection: vehicle.target_intersection,
+            path: vehicle.path,
+            speed: new_speed,
+            max_speed: vehicle.max_speed,
+            acceleration: vehicle.acceleration,
+            braking_distance: vehicle.braking_distance,
+            following_distance: vehicle.following_distance,
+            target_vehicle: vehicle.target_vehicle
+        }
+
+    
+    // ========================================================================
+    // PEDESTRIAN MANAGEMENT
+    // ========================================================================
+    
+    fn update_pedestrian_movement(pedestrian: PedestrianState, delta_time: Float) -> PedestrianState:
+        if len(pedestrian.path) == 0:
+            return pedestrian
+        
+        let target = pedestrian.target_position
+        let direction = vec3_normalize(Vec3 {
+            x: target.x - pedestrian.position.x,
+            y: target.y - pedestrian.position.y,
+            z: 0.0
+        })
+        
+        let distance = vec3_distance(pedestrian.position, target)
+        
+        if distance < 1.0:
+            // Reached target
+            return PedestrianState {
+                pedestrian_id: pedestrian.pedestrian_id,
+                position: pedestrian.position,
+                velocity: Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+                target_position: pedestrian.target_position,
+                activity: PedestrianActivity::Standing,
+                speed: pedestrian.speed,
+                path: [],
+                waiting_at_crossing: false,
+                crossing_road: false
+            }
+        
+        let new_position = Vec3 {
+            x: pedestrian.position.x + direction.x * pedestrian.speed * delta_time,
+            y: pedestrian.position.y + direction.y * pedestrian.speed * delta_time,
+            z: pedestrian.position.z
+        }
+        
+        return PedestrianState {
+            pedestrian_id: pedestrian.pedestrian_id,
+            position: new_position,
+            velocity: Vec3 {
+                x: direction.x * pedestrian.speed,
+                y: direction.y * pedestrian.speed,
+                z: 0.0
+            },
+            target_position: pedestrian.target_position,
+            activity: PedestrianActivity::Walking,
+            speed: pedestrian.speed,
+            path: pedestrian.path,
+            waiting_at_crossing: pedestrian.waiting_at_crossing,
+            crossing_road: pedestrian.crossing_road
+        }
+    
+    // ========================================================================
+    // PATHFINDING
+    // ========================================================================
+    
+    fn request_path(vehicle_id: Int, start_intersection: Int, end_intersection: Int):
+        let request = PathRequest {
+            request_id: vehicle_id,
+            start_pos: road_network.intersections[start_intersection].position,
+            end_pos: road_network.intersections[end_intersection].position,
+            vehicle_type: VehicleType::Car,
+            priority: 0,
+            max_search_nodes: 1000
+        }
+        
+        push(path_request_queue, request)
+
+    
+    fn process_pathfinding_requests():
+        let processed = 0
+        
+        while len(path_request_queue) > 0 and processed < max_path_requests_per_frame:
+            let request = pop(path_request_queue)
+            
+            // Find intersections
+            let start_intersection = find_nearest_intersection(request.start_pos)
+            let end_intersection = find_nearest_intersection(request.end_pos)
+            
+            if start_intersection < 0 or end_intersection < 0:
+                processed = processed + 1
+                continue
+            
+            // Calculate path
+            let path = find_path_between_intersections(start_intersection, end_intersection, road_network)
+            
+            // Assign path to vehicle
+            if request.request_id < len(vehicles):
+                vehicles[request.request_id] = VehicleState {
+                    vehicle_id: vehicles[request.request_id].vehicle_id,
+                    vehicle_type: vehicles[request.request_id].vehicle_type,
+                    position: vehicles[request.request_id].position,
+                    velocity: vehicles[request.request_id].velocity,
+                    rotation: vehicles[request.request_id].rotation,
+                    current_road: vehicles[request.request_id].current_road,
+                    current_lane: vehicles[request.request_id].current_lane,
+                    target_intersection: if len(path) > 0 then path[0] else -1,
+                    path: path,
+                    speed: vehicles[request.request_id].speed,
+                    max_speed: vehicles[request.request_id].max_speed,
+                    acceleration: vehicles[request.request_id].acceleration,
+                    braking_distance: vehicles[request.request_id].braking_distance,
+                    following_distance: vehicles[request.request_id].following_distance,
+                    target_vehicle: vehicles[request.request_id].target_vehicle
+                }
+            
+            processed = processed + 1
+    
+    // ========================================================================
+    // ROAD NETWORK QUERIES
+    // ========================================================================
+    
+    fn find_nearest_road_segment(position: Vec2) -> Int:
+        let nearest_id = -1
+        let min_distance = 999999.0
+        
+        for i in 0..len(road_network.segments):
+            let segment = road_network.segments[i]
+            let distance = distance_point_to_segment(position, segment.start_pos, segment.end_pos)
+            
+            if distance < min_distance:
+                min_distance = distance
+                nearest_id = i
+        
+        return nearest_id
+    
+    fn find_nearest_intersection(position: Vec2) -> Int:
+        let nearest_id = -1
+        let min_distance = 999999.0
+        
+        for i in 0..len(road_network.intersections):
+            let intersection = road_network.intersections[i]
+            let distance = vec2_distance(position, intersection.position)
+            
+            if distance < min_distance:
+                min_distance = distance
+                nearest_id = i
+        
+        return nearest_id
+
+    
+    // ========================================================================
+    // TRAFFIC LIGHT MANAGEMENT
+    // ========================================================================
+    
+    fn initialize_traffic_lights():
+        traffic_lights = []
+        
+        for intersection in road_network.intersections:
+            if not intersection.has_traffic_light:
+                continue
+            
+            let cycle_time = calculate_traffic_light_cycle_time(intersection, road_network)
+            
+            let light = TrafficLight {
+                intersection_id: intersection.id,
+                state: TrafficLightState::Green,
+                timer: 0.0,
+                cycle_time: cycle_time,
+                green_time: cycle_time * 0.6,
+                yellow_time: cycle_time * 0.1,
+                red_time: cycle_time * 0.3,
+                priority_direction: 0
+            }
+            
+            push(traffic_lights, light)
+    
+    // ========================================================================
+    // ZONE MANAGEMENT
+    // ========================================================================
+    
+    fn generate_zones_from_districts(districts_list: Array<District>) -> Array<CityZone>:
+        let zones = []
+        let zone_id = 0
+        
+        for district in districts_list:
+            let zone = CityZone {
+                zone_id: zone_id,
+                district_type: district.district_type,
+                density: district.zoning_density,
+                bounds: district.bounds,
+                height_limit: get_height_limit_for_district(district.district_type, district.zoning_density),
+                setback_distance: calculate_setback(district.district_type, district.zoning_density),
+                lot_coverage_max: get_lot_coverage_max(district.zoning_density),
+                parking_required: district.district_type != DistrictType::Park
+            }
+            
+            push(zones, zone)
+            zone_id = zone_id + 1
+        
+        return zones
+    
+    fn get_height_limit_for_district(district_type: DistrictType, density: ZoningDensity) -> Float:
+        let height_range = get_building_height_range(district_type, density)
+        return height_range.y
+    
+    fn get_lot_coverage_max(density: ZoningDensity) -> Float:
+        match density:
+            ZoningDensity::LowDensity => 0.3
+            ZoningDensity::MediumDensity => 0.5
+            ZoningDensity::HighDensity => 0.7
+            ZoningDensity::VeryHighDensity => 0.9
+    
+    // ========================================================================
+    // DISTRICT GENERATION
+    // ========================================================================
+    
+    fn generate_districts_from_buildings(bounds: Bounds2D, buildings_list: Array<BuildingData>, count: Int) -> Array<District>:
+        let districts_list = []
+        
+        let width = bounds.max.x - bounds.min.x
+        let height = bounds.max.y - bounds.min.y
+        
+        let cols = 3
+        let rows = (count / cols) + 1
+        
+        let cell_width = width / (cols as Float)
+        let cell_height = height / (rows as Float)
+
+        
+        for i in 0..count:
+            let row = i / cols
+            let col = i % cols
+            
+            let min_x = bounds.min.x + (col as Float) * cell_width
+            let min_y = bounds.min.y + (row as Float) * cell_height
+            let max_x = min_x + cell_width
+            let max_y = min_y + cell_height
+            
+            let hash = ((i + generation_seed) * 374761393) % 10
+            let district_type = match hash:
+                0 => DistrictType::Residential
+                1 => DistrictType::Residential
+                2 => DistrictType::Residential
+                3 => DistrictType::Commercial
+                4 => DistrictType::Commercial
+                5 => DistrictType::Industrial
+                6 => DistrictType::MixedUse
+                7 => DistrictType::Park
+                8 => DistrictType::Government
+                _ => DistrictType::Educational
+            
+            // Count buildings in this district
+            let building_count = 0
+            let total_height = 0.0
+            
+            for building in buildings_list:
+                let bx = building.position.x
+                let by = building.position.y
+                
+                if bx >= min_x and bx <= max_x and by >= min_y and by <= max_y:
+                    building_count = building_count + 1
+                    total_height = total_height + building.height
+            
+            let avg_height = if building_count > 0 then total_height / (building_count as Float) else 0.0
+            
+            let district = District {
+                id: i,
+                district_type: district_type,
+                bounds: Bounds2D {
+                    min: Vec2 { x: min_x, y: min_y },
+                    max: Vec2 { x: max_x, y: max_y }
+                },
+                center: Vec2 {
+                    x: (min_x + max_x) * 0.5,
+                    y: (min_y + max_y) * 0.5
+                },
+                population: building_count * 50,
+                building_count: building_count,
+                road_count: 0,
+                park_area: 0.0,
+                zoning_density: ZoningDensity::MediumDensity,
+                average_building_height: avg_height,
+                traffic_density: 0.0
+            }
+            
+            push(districts_list, district)
+        
+        return districts_list
+    
+    // ========================================================================
+    // REPLICATION
+    // ========================================================================
+    
+    fn update_replication_state():
+        replication_state = CityReplicationState {
+            city_id: city_id,
+            generation_seed: generation_seed,
+            district_count: len(districts),
+            building_count: len(buildings),
+            road_segment_count: len(road_network.segments),
+            vehicle_count: len(vehicles),
+            pedestrian_count: len(pedestrians),
+            time_of_day: TimeOfDay::Afternoon,
+            traffic_enabled: generation_params.enable_traffic,
+            weather_state: 0
+        }
+
+    
+    @blueprint_callable
+    fn get_replication_state() -> CityReplicationState:
+        return replication_state
+    
+    @blueprint_callable
+    fn sync_from_replication_state(state: CityReplicationState):
+        replication_state = state
+        
+        // If generation seed changed, regenerate city
+        if state.generation_seed != generation_seed:
+            initialize_city(generation_params.city_size_km, state.generation_seed, generation_params)
+    
+    // ========================================================================
+    // BLUEPRINT CALLABLE QUERIES
+    // ========================================================================
+    
+    @blueprint_callable
+    fn get_city_statistics() -> String:
+        let stats = "City Statistics:\n"
+        stats = stats + "  Districts: " + (len(districts) as String) + "\n"
+        stats = stats + "  Buildings: " + (len(buildings) as String) + "\n"
+        stats = stats + "  Road Segments: " + (len(road_network.segments) as String) + "\n"
+        stats = stats + "  Intersections: " + (len(road_network.intersections) as String) + "\n"
+        stats = stats + "  Vehicles: " + (len(vehicles) as String) + "\n"
+        stats = stats + "  Pedestrians: " + (len(pedestrians) as String) + "\n"
+        stats = stats + "  Generation Progress: " + (generation_progress * 100.0 as String) + "%\n"
+        
+        return stats
+    
+    @blueprint_callable
+    fn get_traffic_statistics() -> String:
+        return calculate_traffic_statistics(vehicles)
+    
+    @blueprint_callable
+    fn get_road_network_statistics() -> String:
+        return calculate_road_network_stats(road_network)
+    
+    @blueprint_callable
+    fn get_building_statistics() -> String:
+        return calculate_building_statistics(buildings)
+    
+    @blueprint_callable
+    fn get_generation_progress() -> Float:
+        return generation_progress
+    
+    @blueprint_callable
+    fn is_city_generated() -> Bool:
+        return is_generated
+    
+    @blueprint_callable
+    fn get_vehicle_count() -> Int:
+        return len(vehicles)
+    
+    @blueprint_callable
+    fn get_building_count() -> Int:
+        return len(buildings)
+    
+    @blueprint_callable
+    fn get_district_count() -> Int:
+        return len(districts)
+    
+    @blueprint_callable
+    fn set_max_vehicles(max_count: Int):
+        max_vehicle_count = max_count
+    
+    @blueprint_callable
+    fn enable_traffic(enabled: Bool):
+        generation_params = CityGenerationParams {
+            city_size_km: generation_params.city_size_km,
+            seed: generation_params.seed,
+            district_count: generation_params.district_count,
+            road_density: generation_params.road_density,
+            building_density: generation_params.building_density,
+            park_percentage: generation_params.park_percentage,
+            enable_traffic: enabled,
+            enable_pedestrians: generation_params.enable_pedestrians,
+            max_building_height: generation_params.max_building_height,
+            min_building_height: generation_params.min_building_height,
+            road_width_main: generation_params.road_width_main,
+            road_width_residential: generation_params.road_width_residential,
+            intersection_spacing: generation_params.intersection_spacing,
+            lot_min_size: generation_params.lot_min_size,
+            lot_max_size: generation_params.lot_max_size,
+            population_density: generation_params.population_density
+        }
+
+    
+    @blueprint_callable
+    fn enable_pedestrians(enabled: Bool):
+        generation_params = CityGenerationParams {
+            city_size_km: generation_params.city_size_km,
+            seed: generation_params.seed,
+            district_count: generation_params.district_count,
+            road_density: generation_params.road_density,
+            building_density: generation_params.building_density,
+            park_percentage: generation_params.park_percentage,
+            enable_traffic: generation_params.enable_traffic,
+            enable_pedestrians: enabled,
+            max_building_height: generation_params.max_building_height,
+            min_building_height: generation_params.min_building_height,
+            road_width_main: generation_params.road_width_main,
+            road_width_residential: generation_params.road_width_residential,
+            intersection_spacing: generation_params.intersection_spacing,
+            lot_min_size: generation_params.lot_min_size,
+            lot_max_size: generation_params.lot_max_size,
+            population_density: generation_params.population_density
+        }
+    
+    @blueprint_callable
+    fn clear_all_vehicles():
+        vehicles = []
+        active_vehicle_count = 0
+    
+    @blueprint_callable
+    fn get_vehicles_in_radius(center: Vec3, radius: Float) -> Array<VehicleReplicationData>:
+        let result = []
+        let radius_sq = radius * radius
+        
+        for vehicle in vehicles:
+            let dx = vehicle.position.x - center.x
+            let dy = vehicle.position.y - center.y
+            let dz = vehicle.position.z - center.z
+            let dist_sq = dx * dx + dy * dy + dz * dz
+            
+            if dist_sq <= radius_sq:
+                let data = VehicleReplicationData {
+                    vehicle_id: vehicle.vehicle_id,
+                    vehicle_type: vehicle.vehicle_type,
+                    position: vehicle.position,
+                    velocity: vehicle.velocity,
+                    rotation: vehicle.rotation,
+                    current_road: vehicle.current_road
+                }
+                push(result, data)
+        
+        return result
+    
+    @blueprint_callable
+    fn get_buildings_in_radius(center: Vec3, radius: Float) -> Array<BuildingReplicationData>:
+        let result = []
+        let radius_sq = radius * radius
+        
+        for building in buildings:
+            let dx = building.position.x - center.x
+            let dy = building.position.y - center.y
+            let dz = building.position.z - center.z
+            let dist_sq = dx * dx + dy * dy + dz * dz
+            
+            if dist_sq <= radius_sq:
+                let data = BuildingReplicationData {
+                    building_id: building.id,
+                    position: building.position,
+                    rotation: building.rotation,
+                    width: building.width,
+                    depth: building.depth,
+                    height: building.height,
+                    style: building.style,
+                    district_type: building.district_type
+                }
+                push(result, data)
+        
+        return result
+    
+    @blueprint_callable
+    fn regenerate_city():
+        initialize_city(generation_params.city_size_km, generation_seed + 1, generation_params)
+

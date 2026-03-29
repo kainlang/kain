@@ -1,0 +1,299 @@
+# SplineToolsPro - Spline Actors
+# Actor implementations for spline-based objects
+
+# Base spline actor with SplineComponent
+actor SplineActor:
+    state spline_component: SplineComponent
+    state visualization_enabled: Bool = true
+    state visualization_color: Vec4
+    
+    @blueprint_event
+    fn on_point_added(index: Int):
+        println("Point added at index: {index}")
+    
+    @blueprint_event
+    fn on_point_removed(index: Int):
+        println("Point removed at index: {index}")
+    
+    @blueprint_event
+    fn on_point_modified(index: Int):
+        println("Point modified at index: {index}")
+    
+    @blueprint_callable
+    fn add_spline_point(position: Vec3, index: Int):
+        add_point(spline_component, position, index)
+        on_point_added(index)
+    
+    @blueprint_callable
+    fn remove_spline_point(index: Int):
+        remove_point(spline_component, index)
+        on_point_removed(index)
+    
+    @blueprint_callable
+    fn update_spline_point(index: Int, new_position: Vec3, new_tangent: Vec3):
+        update_point(spline_component, index, new_position, new_tangent)
+        on_point_modified(index)
+    
+    @blueprint_callable
+    fn get_spline_position_at_distance(distance: Float) -> Vec3:
+        return get_position_at_distance(spline_component, distance)
+    
+    @blueprint_callable
+    fn get_spline_tangent_at_time(t: Float) -> Vec3:
+        return get_tangent_at_time(spline_component, t)
+    
+    @blueprint_callable
+    fn get_total_spline_length() -> Float:
+        return get_spline_length(spline_component)
+
+# Spline mesh actor with mesh deformation
+actor SplineMeshActor:
+    state spline_component: SplineComponent
+    state source_mesh_path: String
+    state deform_params: SplineMeshParams
+    state instances: Array<Vec3>
+    state instance_count: Int = 0
+    state use_async_deformation: Bool = true
+    state async_task_running: Bool = false
+    
+    @blueprint_callable
+    fn deform_mesh_along_spline():
+        if async_task_running:
+            return
+        
+        # Check if we should use async task
+        let vertex_count_estimate = instance_count * 100
+        
+        if use_async_deformation and vertex_count_estimate > 10000:
+            start_async_mesh_deformation()
+        else:
+            perform_sync_mesh_deformation()
+    
+    @blueprint_callable
+    fn update_mesh_instances():
+        instances = []
+        instance_count = 0
+        
+        let spline_length = get_spline_length(spline_component)
+        let segment_length = deform_params.segments_per_point as Float
+        
+        if segment_length <= 0.0:
+            return
+        
+        let num_instances = floor(spline_length / segment_length) as Int
+        
+        let i = 0
+        while i < num_instances:
+            let distance = i as Float * segment_length
+            let position = get_position_at_distance(spline_component, distance)
+            push(instances, position)
+            i = i + 1
+        
+        instance_count = num_instances
+    
+    fn perform_sync_mesh_deformation():
+        # Synchronous mesh deformation
+        let i = 0
+        while i < instance_count:
+            let distance = i as Float * deform_params.segments_per_point as Float
+            let position = get_position_at_distance(spline_component, distance)
+            let tangent = get_tangent_at_time(spline_component, distance / get_spline_length(spline_component))
+            
+            # Apply deformation transformations
+            instances[i] = position + deform_params.offset
+            
+            i = i + 1
+    
+    fn start_async_mesh_deformation():
+        async_task_running = true
+        # Async task would be started here
+        # For now, fall back to sync
+        perform_sync_mesh_deformation()
+        async_task_running = false
+
+# Spline path actor for AI/vehicle pathfinding
+actor SplinePathActor:
+    state spline_component: SplineComponent
+    state path_width: Float = 200.0
+    state speed_limit: Float = 600.0
+    state one_way: Bool = false
+    state path_priority: Int = 0
+    state path_type: String = "road"
+    
+    @blueprint_callable
+    fn get_path_direction(position: Vec3) -> Vec3:
+        # Find closest point on spline
+        let closest_param = find_closest_parameter_on_spline(position)
+        
+        # Get tangent at that point
+        let tangent = get_tangent_at_time(spline_component, closest_param)
+        
+        # If one-way, ensure direction is forward
+        if one_way:
+            return normalize(tangent)
+        else:
+            # For two-way paths, return direction based on which end is closer
+            let start_dist = distance(position, spline_component.points[0].position)
+            let end_dist = distance(position, spline_component.points[len(spline_component.points) - 1].position)
+            
+            if start_dist < end_dist:
+                return normalize(tangent)
+            else:
+                return normalize(tangent * -1.0)
+    
+    @blueprint_callable
+    fn is_point_on_path(position: Vec3, tolerance: Float) -> Bool:
+        let closest_param = find_closest_parameter_on_spline(position)
+        let closest_point = evaluate_spline_at_parameter(spline_component, closest_param)
+        let dist = distance(position, closest_point)
+        
+        return dist <= tolerance
+    
+    @blueprint_callable
+    fn get_path_width_at_position(position: Vec3) -> Float:
+        # Could interpolate width based on spline metadata
+        return path_width
+    
+    @blueprint_callable
+    fn get_speed_limit_at_position(position: Vec3) -> Float:
+        return speed_limit
+    
+    fn find_closest_parameter_on_spline(position: Vec3) -> Float:
+        let n = len(spline_component.points)
+        if n < 2:
+            return 0.0
+        
+        let min_dist = 1000000.0
+        let best_param = 0.0
+        
+        # Sample spline at regular intervals
+        let samples = 100
+        let i = 0
+        while i <= samples:
+            let t = i as Float / samples as Float
+            let spline_pos = evaluate_spline_at_parameter(spline_component, t)
+            let dist = distance(position, spline_pos)
+            
+            if dist < min_dist:
+                min_dist = dist
+                best_param = t
+            
+            i = i + 1
+        
+        # Refine with Newton-Raphson
+        let refined_param = refine_closest_parameter(position, best_param, 5)
+        
+        return refined_param
+    
+    fn refine_closest_parameter(position: Vec3, initial_param: Float, iterations: Int) -> Float:
+        let param = initial_param
+        let dt = 0.001
+        
+        let iter = 0
+        while iter < iterations:
+            let pos = evaluate_spline_at_parameter(spline_component, param)
+            let derivative = calculate_spline_derivative(spline_component.points, param, spline_component.interpolation_type)
+            
+            let diff = pos - position
+            let f = dot(diff, derivative)
+            
+            if abs(f) < 0.001:
+                break
+            
+            # Second derivative approximation
+            let pos_plus = evaluate_spline_at_parameter(spline_component, param + dt)
+            let derivative_plus = calculate_spline_derivative(spline_component.points, param + dt, spline_component.interpolation_type)
+            let f_prime = dot(derivative, derivative) + dot(diff, (derivative_plus - derivative) / dt)
+            
+            if abs(f_prime) > 0.001:
+                param = param - f / f_prime
+                param = clamp(param, 0.0, 1.0)
+            
+            iter = iter + 1
+        
+        return param
+
+# Spline cable actor for hanging cables/wires
+actor SplineCableActor:
+    state spline_component: SplineComponent
+    state cable_thickness: Float = 2.0
+    state cable_segments: Int = 20
+    state gravity_strength: Float = 980.0
+    state tension: Float = 100.0
+    state simulate_physics: Bool = true
+    
+    @blueprint_callable
+    fn simulate_cable_sag():
+        let n = len(spline_component.points)
+        if n < 2:
+            return
+        
+        # Apply catenary curve simulation
+        let start_pos = spline_component.points[0].position
+        let end_pos = spline_component.points[n - 1].position
+        let horizontal_dist = distance(vec2(start_pos.x, start_pos.y), vec2(end_pos.x, end_pos.y))
+        let vertical_dist = end_pos.z - start_pos.z
+        
+        # Calculate catenary parameters
+        let a = tension / gravity_strength
+        
+        # Update intermediate points
+        let i = 1
+        while i < n - 1:
+            let t = i as Float / (n - 1) as Float
+            let x = horizontal_dist * t
+            
+            # Catenary formula: y = a * cosh(x/a)
+            let sag = a * (cosh(x / a) - 1.0)
+            
+            let new_pos = lerp_vec3(start_pos, end_pos, t)
+            new_pos.z = new_pos.z - sag
+            
+            spline_component.points[i].position = new_pos
+            
+            i = i + 1
+        
+        spline_component.is_cache_dirty = true
+
+fn cosh(x: Float) -> Float:
+    # Hyperbolic cosine: cosh(x) = (e^x + e^-x) / 2
+    let exp_x = exp(x)
+    let exp_neg_x = 1.0 / exp_x
+    return (exp_x + exp_neg_x) * 0.5
+
+fn exp(x: Float) -> Float:
+    # Simplified exponential approximation
+    if x < -10.0:
+        return 0.0
+    if x > 10.0:
+        return 22026.0
+    
+    # Taylor series approximation
+    let result = 1.0
+    let term = 1.0
+    let i = 1
+    while i < 10:
+        term = term * x / i as Float
+        result = result + term
+        i = i + 1
+    
+    return result
+
+fn normalize_vec3(v: Vec3) -> Vec3:
+    let len = sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
+    if len < 0.0001:
+        return vec3(0.0, 0.0, 0.0)
+    return vec3(v.x / len, v.y / len, v.z / len)
+
+fn sqrt(value: Float) -> Float:
+    if value <= 0.0:
+        return 0.0
+    
+    # Newton-Raphson method
+    let x = value
+    let i = 0
+    while i < 10:
+        x = (x + value / x) * 0.5
+        i = i + 1
+    
+    return x

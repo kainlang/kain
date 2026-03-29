@@ -5,6 +5,44 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=5000352c3060c775 -->
+## 2026-03-28 20:24:31 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d7f32c63`
+- Changed files: 5
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-core/src/ui.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=c9fdab4e00513b27 -->
+## 2026-03-28 20:24:09 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d7f32c63`
+- Changed files: 4
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-core/src/realtime_app_bundle.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=1f490b791fed7d7a -->
+## 2026-03-28 20:23:14 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d7f32c63`
+- Changed files: 3
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-ui/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=7d384962743fd78d -->
+## 2026-03-28 20:00:45 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `d7f32c63`
+- Changed files: 2
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+
 <!-- polytools-changelog:fingerprint=c4224fc61c1fe99c -->
 ## 2026-03-28 18:17:52 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

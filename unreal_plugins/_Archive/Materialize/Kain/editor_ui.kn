@@ -1,0 +1,410 @@
+# ============================================================================
+# MATERIALIZE - Asset Editor UI
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: VIEWPORT
+# ============================================================================
+
+@viewport
+struct MaterializePreviewViewport:
+    @scene_actor
+    preview_mesh: StaticMesh
+
+    @camera
+    camera_distance: Float = 500.0
+    camera_rotation: Vec2 = vec2(0.0, 0.0)
+    camera_fov: Float = 90.0
+
+    directional_light_intensity: Float = 1.0
+    directional_light_color: Vec3 = vec3(1.0, 1.0, 1.0)
+    directional_light_rotation: Vec2 = vec2(45.0, 45.0)
+
+    sky_light_intensity: Float = 0.3
+    sky_light_color: Vec3 = vec3(0.5, 0.7, 1.0)
+
+    ambient_intensity: Float = 0.1
+
+    background_color: Vec3 = vec3(0.2, 0.2, 0.2)
+
+    show_grid: Bool = true
+    show_wireframe: Bool = false
+
+# ============================================================================
+# SECTION 2: PROPERTIES PANEL
+# ============================================================================
+
+@properties
+struct MaterializeProperties:
+    @category(name: "Normal")
+    normal_strength: Float = 1.0
+    @slider(min: 0.0, max: 2.0)
+
+    @category(name: "Roughness")
+    roughness_base: Float = 0.7
+    @slider(min: 0.0, max: 1.0)
+
+    roughness_contrast: Float = 1.0
+    @slider(min: 0.0, max: 3.0)
+
+    roughness_brightness: Float = 0.0
+    @slider(min: -128.0, max: 128.0)
+
+    roughness_invert: Bool = true
+
+    variance_weight: Float = 0.5
+    @slider(min: 0.0, max: 1.0)
+
+    @category(name: "Metallic")
+    metallic_base: Float = 0.0
+    @slider(min: 0.0, max: 1.0)
+
+    metallic_contrast: Float = 1.0
+    @slider(min: 0.0, max: 3.0)
+
+    metallic_bias: Float = 0.0
+    @slider(min: -128.0, max: 128.0)
+
+    metallic_sensitivity: Float = 2.0
+    @slider(min: 0.0, max: 5.0)
+
+    @category(name: "Ambient Occlusion")
+    ao_intensity: Float = 1.0
+    @slider(min: 0.0, max: 2.0)
+
+    @category(name: "Height")
+    height_contrast: Float = 1.0
+    @slider(min: 0.0, max: 3.0)
+
+    @category(name: "Weathering")
+    edge_wear: Float = 0.0
+    @slider(min: 0.0, max: 1.0)
+
+    cavity_dirt: Float = 0.0
+    @slider(min: 0.0, max: 1.0)
+
+    dust: Float = 0.0
+    @slider(min: 0.0, max: 1.0)
+
+    grunge: Float = 0.0
+    @slider(min: 0.0, max: 1.0)
+
+    scratches: Float = 0.0
+    @slider(min: 0.0, max: 1.0)
+
+    noise: Float = 0.0
+    @slider(min: 0.0, max: 1.0)
+
+    @category(name: "Special Effects")
+    bio_detail: Float = 0.0
+    @slider(min: 0.0, max: 1.0)
+
+    bio_frequency: Float = 1.0
+    @slider(min: 0.1, max: 5.0)
+
+    cyber_detail: Float = 0.0
+    @slider(min: 0.0, max: 1.0)
+
+    cyber_scale: Float = 1.0
+    @slider(min: 0.01, max: 1.0)
+
+    @category(name: "Emissive")
+    emissive_threshold: Float = 0.0
+    @slider(min: 0.0, max: 1.0)
+
+    emissive_color_boost: Float = 1.0
+    @slider(min: 0.0, max: 3.0)
+
+    @category(name: "Processing")
+    make_seamless: Bool = false
+
+    seamless_mode: SeamlessMode = SeamlessMode::CrossBlend
+
+    seamless_blend_width: Float = 0.25
+    @slider(min: 0.1, max: 0.5)
+
+    gamma: Float = 1.0
+    @slider(min: 0.5, max: 1.5)
+
+    vignette: Float = 0.0
+    @slider(min: 0.0, max: 1.0)
+
+    @category(name: "Output")
+    pack_orm: Bool = true
+
+    output_resolution: OutputResolution = OutputResolution::MatchInput
+
+    @category(name: "Advanced")
+    height_iterations: Int = 24
+    @slider(min: 4, max: 64)
+
+    use_multi_pass_height: Bool = true
+
+    normal_octaves: Int = 3
+    @slider(min: 1, max: 6)
+
+    normal_sigma_base: Float = 1.0
+    @slider(min: 0.5, max: 3.0)
+
+    normal_anisotropy: Float = 1.0
+    @slider(min: 0.5, max: 2.0)
+
+    ao_radius: Float = 4.0
+    @slider(min: 1.0, max: 32.0)
+
+    ao_bias: Float = 0.0
+    @slider(min: -1.0, max: 1.0)
+
+    ao_contrast: Float = 1.0
+    @slider(min: 0.1, max: 3.0)
+
+    advanced_normal: Bool = false
+    advanced_ao: Bool = false
+
+# ============================================================================
+# SECTION 3: TOOLBAR
+# ============================================================================
+
+@toolbar
+struct MaterializeToolbar:
+    @button(icon: "Icons.Generate", tooltip: "Generate PBR maps from source texture")
+    fn on_generate_pbr():
+        println("Materialize: generating PBR maps")
+
+    @button(icon: "Icons.Batch", tooltip: "Open batch processing window")
+    fn on_batch_process():
+        println("Materialize: opening batch window")
+
+    @button(icon: "Icons.Preset", tooltip: "Save current settings as preset")
+    fn on_save_preset():
+        println("Materialize: saving preset")
+
+    @separator
+
+    @toggle(label: "Layer View", default: false)
+    fn on_layer_view(enabled: Bool):
+        println("Materialize: layer view toggled")
+
+    @toggle(label: "Graph View", default: false)
+    fn on_graph_view(enabled: Bool):
+        println("Materialize: graph view toggled")
+
+    @separator
+
+    @dropdown(label: "View Mode", options: ["Material", "BaseColor", "Normal", "Roughness", "Metallic", "AO", "Height", "Emissive", "SplitAB"])
+    fn on_view_mode_changed(mode: String):
+        println("Materialize: view mode changed to " + mode)
+
+    @dropdown(label: "Presets", options: [])
+    fn on_preset_selected(preset_id: String):
+        println("Materialize: preset selected " + preset_id)
+
+# ============================================================================
+# SECTION 4: ASSET EDITOR
+# ============================================================================
+
+@asset_editor
+struct MaterializeAssetEditor:
+    current_asset: MaterializeAsset
+    is_generating: Bool
+    show_layer_view: Bool
+    show_graph_view: Bool
+
+    @viewport
+    preview_viewport: MaterializePreviewViewport
+
+    @properties
+    properties_panel: MaterializeProperties
+
+    @toolbar
+    editor_toolbar: MaterializeToolbar
+
+    fn build_params_from_ui() -> MaterializeParams:
+        let params = MaterializeParams()
+
+        params.normal_strength = properties_panel.normal_strength
+
+        params.roughness_base = properties_panel.roughness_base
+        params.roughness_contrast = properties_panel.roughness_contrast
+        params.roughness_brightness = properties_panel.roughness_brightness
+        params.roughness_invert = properties_panel.roughness_invert
+        params.variance_weight = properties_panel.variance_weight
+
+        params.metallic_base = properties_panel.metallic_base
+        params.metallic_contrast = properties_panel.metallic_contrast
+        params.metallic_bias = properties_panel.metallic_bias
+        params.metallic_sensitivity = properties_panel.metallic_sensitivity
+
+        params.ao_intensity = properties_panel.ao_intensity
+        params.height_contrast = properties_panel.height_contrast
+
+        params.edge_wear = properties_panel.edge_wear
+        params.cavity_dirt = properties_panel.cavity_dirt
+        params.dust = properties_panel.dust
+        params.grunge = properties_panel.grunge
+        params.scratches = properties_panel.scratches
+        params.noise = properties_panel.noise
+
+        params.bio_detail = properties_panel.bio_detail
+        params.bio_frequency = properties_panel.bio_frequency
+        params.cyber_detail = properties_panel.cyber_detail
+        params.cyber_scale = properties_panel.cyber_scale
+
+        params.emissive_threshold = properties_panel.emissive_threshold
+        params.emissive_color_boost = properties_panel.emissive_color_boost
+
+        params.make_seamless = properties_panel.make_seamless
+        params.seamless_mode = properties_panel.seamless_mode
+        params.seamless_blend_width = properties_panel.seamless_blend_width
+        params.gamma = properties_panel.gamma
+        params.vignette = properties_panel.vignette
+
+        params.pack_orm = properties_panel.pack_orm
+        params.output_resolution = get_resolution_value(properties_panel.output_resolution)
+
+        params.height_iterations = properties_panel.height_iterations
+        params.use_multi_pass_height = properties_panel.use_multi_pass_height
+        params.normal_octaves = properties_panel.normal_octaves
+        params.normal_sigma_base = properties_panel.normal_sigma_base
+        params.normal_anisotropy = properties_panel.normal_anisotropy
+        params.ao_radius = properties_panel.ao_radius
+        params.ao_bias = properties_panel.ao_bias
+        params.ao_contrast = properties_panel.ao_contrast
+        params.advanced_normal = properties_panel.advanced_normal
+        params.advanced_ao = properties_panel.advanced_ao
+
+        return params
+
+    fn get_resolution_value(res: OutputResolution) -> Int:
+        if res == OutputResolution::MatchInput:
+            return 0
+        if res == OutputResolution::Res512:
+            return 512
+        if res == OutputResolution::Res1024:
+            return 1024
+        if res == OutputResolution::Res2048:
+            return 2048
+        if res == OutputResolution::Res4096:
+            return 4096
+        if res == OutputResolution::Res8192:
+            return 8192
+        return 0
+
+# ============================================================================
+# SECTION 5: BATCH WINDOW
+# ============================================================================
+
+@slate
+struct MaterializeBatchWindow:
+    queue_items: Array<String>
+    current_progress: Float
+    is_processing: Bool
+    is_paused: Bool
+    current_index: Int
+    total_items: Int
+    output_directory: String
+    batch_params: MaterializeParams
+
+    fn initialize():
+        queue_items = []
+        current_progress = 0.0
+        is_processing = false
+        is_paused = false
+        current_index = 0
+        total_items = 0
+        output_directory = ""
+
+    @button(label: "Add Files")
+    fn on_add_files():
+        let files = open_file_picker("Select Textures", "*.png;*.jpg;*.tga;*.bmp;*.tif", true)
+        let i = 0
+        while i < len(files):
+            push(queue_items, files[i])
+            i = i + 1
+        total_items = len(queue_items)
+        println("Materialize batch: " + total_items + " files queued")
+
+    @button(label: "Remove Selected")
+    fn on_remove_selected():
+        let selected_indices = get_selected_queue_indices()
+        let i = len(selected_indices) - 1
+        while i >= 0:
+            remove_at(queue_items, selected_indices[i])
+            i = i - 1
+        total_items = len(queue_items)
+
+    @button(label: "Clear Queue")
+    fn on_clear_queue():
+        queue_items = []
+        total_items = 0
+        current_index = 0
+        current_progress = 0.0
+
+    @button(label: "Start Batch")
+    fn on_start_batch():
+        if is_processing:
+            return
+        if len(queue_items) == 0:
+            show_error_notification("Empty queue", "Please add files to the queue first")
+            return
+        if output_directory == "":
+            output_directory = open_directory_picker("Select Output Directory")
+            if output_directory == "":
+                return
+        is_processing = true
+        is_paused = false
+        current_index = 0
+        current_progress = 0.0
+        println("Materialize batch: starting")
+
+    @button(label: "Pause")
+    fn on_pause():
+        if is_processing == false:
+            return
+        if is_paused:
+            is_paused = false
+        else:
+            is_paused = true
+
+    @button(label: "Cancel")
+    fn on_cancel():
+        is_processing = false
+        is_paused = false
+        current_index = 0
+        current_progress = 0.0
+
+    fn process_next_item():
+        if is_processing == false:
+            return
+        if is_paused:
+            return
+        if current_index >= len(queue_items):
+            is_processing = false
+            show_success_notification("Batch processing complete")
+            return
+        let file_path = queue_items[current_index]
+        let tex = load_texture(file_path)
+        if tex == null:
+            show_error_notification("Failed to load texture", file_path)
+            current_index = current_index + 1
+            process_next_item()
+            return
+        let eng = get_subsystem_MaterializeComputeEngine()
+        let result = eng.generate_pbr_maps_gpu(tex, batch_params)
+        if result.success:
+            let base_name = get_file_name_without_extension(file_path)
+            save_texture(result.base_color, output_directory + "/" + base_name + "_BaseColor.png")
+            save_texture(result.normal, output_directory + "/" + base_name + "_Normal.png")
+            save_texture(result.roughness, output_directory + "/" + base_name + "_Roughness.png")
+            save_texture(result.metallic, output_directory + "/" + base_name + "_Metallic.png")
+            save_texture(result.ao, output_directory + "/" + base_name + "_AO.png")
+            save_texture(result.height, output_directory + "/" + base_name + "_Height.png")
+            save_texture(result.emissive, output_directory + "/" + base_name + "_Emissive.png")
+            if result.orm != null:
+                save_texture(result.orm, output_directory + "/" + base_name + "_ORM.png")
+            eng.cleanup_transient_resources(result)
+        else:
+            show_error_notification("Failed to process", file_path + ": " + result.error_message)
+        current_index = current_index + 1
+        current_progress = current_index / total_items
+        process_next_item()

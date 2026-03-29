@@ -9,8 +9,12 @@
       "primary_manifests": [
         "fabric/intents/material_bake.fabric.toml"
       ],
-      "inputs": ["preview_src"],
-      "outputs": ["preview_dst"],
+      "inputs": [
+        "preview_src"
+      ],
+      "outputs": [
+        "preview_dst"
+      ],
       "summary": "Baseline material preview bake over the shared preview buffers after authored PBR and SVG mask receipts are projected."
     },
     {
@@ -22,8 +26,13 @@
       "primary_manifests": [
         "fabric/intents/sculpt_stroke.fabric.toml"
       ],
-      "inputs": ["sculpt_heightfield_src", "sculpt_brush_params"],
-      "outputs": ["sculpt_delta"],
+      "inputs": [
+        "sculpt_heightfield_src",
+        "sculpt_brush_params"
+      ],
+      "outputs": [
+        "sculpt_delta"
+      ],
       "summary": "Heightfield-style sculpt stroke compute seam for future GPU-assisted brush evaluation."
     },
     {
@@ -36,8 +45,12 @@
         "fabric/intents/material_bake.fabric.toml",
         "fabric/intents/render_preview.fabric.toml"
       ],
-      "inputs": ["preview_src"],
-      "outputs": ["preview_dst"],
+      "inputs": [
+        "preview_src"
+      ],
+      "outputs": [
+        "preview_dst"
+      ],
       "summary": "Previews fill, paint, and procedural layer weighting before the final material bake resolves packed outputs."
     },
     {
@@ -49,8 +62,12 @@
       "primary_manifests": [
         "fabric/intents/material_bake.fabric.toml"
       ],
-      "inputs": ["preview_src"],
-      "outputs": ["preview_dst"],
+      "inputs": [
+        "preview_src"
+      ],
+      "outputs": [
+        "preview_dst"
+      ],
       "summary": "Turns authored SVG mask intent into atlas-like weights suitable for preview, trim, and decal evaluation."
     },
     {
@@ -63,8 +80,12 @@
         "fabric/intents/material_bake.fabric.toml",
         "fabric/intents/publish_package.fabric.toml"
       ],
-      "inputs": ["preview_src"],
-      "outputs": ["preview_dst"],
+      "inputs": [
+        "preview_src"
+      ],
+      "outputs": [
+        "preview_dst"
+      ],
       "summary": "Resolves smart material response curves, wear weighting, and cavity-style accents before export packing."
     },
     {
@@ -76,8 +97,12 @@
       "primary_manifests": [
         "fabric/intents/publish_package.fabric.toml"
       ],
-      "inputs": ["preview_src"],
-      "outputs": ["preview_dst"],
+      "inputs": [
+        "preview_src"
+      ],
+      "outputs": [
+        "preview_dst"
+      ],
       "summary": "Packs preview-derived channels into export-oriented values for metal-rough, ORM, height, and emissive delivery."
     },
     {
@@ -89,8 +114,12 @@
       "primary_manifests": [
         "fabric/intents/render_preview.fabric.toml"
       ],
-      "inputs": ["preview_src"],
-      "outputs": ["preview_dst"],
+      "inputs": [
+        "preview_src"
+      ],
+      "outputs": [
+        "preview_dst"
+      ],
       "summary": "Supports the main authoring viewport with a balanced lookdev treatment closer to a real DCC stage than a raw scalar buffer view."
     },
     {
@@ -102,9 +131,30 @@
       "primary_manifests": [
         "fabric/intents/render_preview.fabric.toml"
       ],
-      "inputs": ["preview_src"],
-      "outputs": ["preview_dst"],
+      "inputs": [
+        "preview_src"
+      ],
+      "outputs": [
+        "preview_dst"
+      ],
       "summary": "Produces a render-facing preview signal tuned for AOV inspection, lookdev review, and downstream report generation."
+    },
+    {
+      "id": "pathtrace_preview_lighting",
+      "lane": "render_comp",
+      "status": "wired",
+      "shader_source": "shaders/pathtrace_preview_lighting.kn",
+      "compute_key": "DccSuitePathTracePreviewLighting",
+      "primary_manifests": [
+        "fabric/intents/render_pathtrace.fabric.toml"
+      ],
+      "inputs": [
+        "preview_src"
+      ],
+      "outputs": [
+        "pathtrace_dst"
+      ],
+      "summary": "Path-traced preview lane with denser bounce shading, more aggressive contrast response, and a heavier render report contract."
     },
     {
       "id": "render_aov_pack",
@@ -116,8 +166,12 @@
         "fabric/intents/render_preview.fabric.toml",
         "fabric/intents/compositor_rebuild.fabric.toml"
       ],
-      "inputs": ["preview_src"],
-      "outputs": ["preview_dst"],
+      "inputs": [
+        "preview_src"
+      ],
+      "outputs": [
+        "preview_dst"
+      ],
       "summary": "Builds preview-friendly AOV-like channels for lighting, utility, and review surfaces before compositor assembly."
     },
     {
@@ -129,8 +183,12 @@
       "primary_manifests": [
         "fabric/intents/compositor_rebuild.fabric.toml"
       ],
-      "inputs": ["preview_src"],
-      "outputs": ["preview_dst"],
+      "inputs": [
+        "preview_src"
+      ],
+      "outputs": [
+        "preview_dst"
+      ],
       "summary": "Applies final-review style tonemapping and contrast shaping for the compositor rebuild lane."
     },
     {
@@ -142,8 +200,12 @@
       "primary_manifests": [
         "fabric/intents/compositor_rebuild.fabric.toml"
       ],
-      "inputs": ["preview_src"],
-      "outputs": ["preview_dst"],
+      "inputs": [
+        "preview_src"
+      ],
+      "outputs": [
+        "preview_dst"
+      ],
       "summary": "Generates stable ID- and utility-style matte weights for comp graph inspection and selective rebuild work."
     }
   ]

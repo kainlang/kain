@@ -1,0 +1,345 @@
+# ============================================================================
+# TEMPORAL BLUEPRINT — Components
+# ============================================================================
+# Components that attach to any actor to give it temporal awareness.
+# TemporalActorComponent: the core per-actor time-state manager
+# TemporalZoneComponent:  defines a spatial zone with a forced era
+# TemporalAnchorComponent: marks a point of temporal significance
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: TEMPORAL ACTOR COMPONENT
+# Attach to any actor to make it time-state aware
+# ============================================================================
+
+@component
+struct TemporalActorComponent:
+    # ======= IDENTITY =======
+
+    actor_guid: String
+    display_name: String
+
+    # ======= BEHAVIOR =======
+
+    behavior: TemporalActorBehavior
+    native_era: TemporalEra         # The era this actor "belongs to"
+
+    # ======= ERA VISIBILITY MASK =======
+    # Bitmask: which eras this actor is visible in
+
+    visible_in_ancient: Bool
+    visible_in_past: Bool
+    visible_in_present: Bool
+    visible_in_future: Bool
+    visible_in_apocalyptic: Bool
+    visible_in_alternate: Bool
+    visible_in_void: Bool
+
+    # ======= GHOST SETTINGS =======
+    # When actor is visible as ghost in non-native eras
+
+    ghost_opacity: Float
+    ghost_color: Vec3
+    ghost_emissive_strength: Float
+    show_ghost_in_non_native: Bool
+
+    # ======= MESH VARIANTS =======
+
+    mesh_variant_count: Int
+    active_mesh_variant: Int
+
+    # ======= MATERIAL VARIANTS =======
+
+    material_variant_count: Int
+    active_material_variant: Int
+
+    # ======= TRANSITION STATE =======
+
+    transition_state: TemporalTransitionState
+    blend_alpha: Float              # 0.0 = from_era, 1.0 = to_era
+    current_era: TemporalEra
+    previous_era: TemporalEra
+
+    # ======= CUSTOM PER-ERA DATA =======
+
+    custom_data_0: Float
+    custom_data_1: Float
+    custom_data_2: Float
+    custom_data_3: Float
+
+    # ======= CAUSALITY =======
+
+    participates_in_causality: Bool
+    causality_group_tag: String
+
+    # ======= EVENTS =======
+
+    @blueprint_callable
+    fn on_era_changed(new_era: TemporalEra, old_era: TemporalEra):
+        current_era = new_era
+        previous_era = old_era
+        println("TemporalActor: era changed " + int_to_string(old_era as Int) + " -> " + int_to_string(new_era as Int))
+
+    @blueprint_callable
+    fn set_era_visibility(era: TemporalEra, visible: Bool):
+        if era == TemporalEra::Ancient:
+            visible_in_ancient = visible
+        else if era == TemporalEra::Past:
+            visible_in_past = visible
+        else if era == TemporalEra::Present:
+            visible_in_present = visible
+        else if era == TemporalEra::Future:
+            visible_in_future = visible
+        else if era == TemporalEra::Apocalyptic:
+            visible_in_apocalyptic = visible
+        else if era == TemporalEra::Alternate:
+            visible_in_alternate = visible
+        else if era == TemporalEra::Void:
+            visible_in_void = visible
+
+    @blueprint_callable
+    fn is_visible_in_era(era: TemporalEra) -> Bool:
+        if era == TemporalEra::Ancient:
+            return visible_in_ancient
+        else if era == TemporalEra::Past:
+            return visible_in_past
+        else if era == TemporalEra::Present:
+            return visible_in_present
+        else if era == TemporalEra::Future:
+            return visible_in_future
+        else if era == TemporalEra::Apocalyptic:
+            return visible_in_apocalyptic
+        else if era == TemporalEra::Alternate:
+            return visible_in_alternate
+        else if era == TemporalEra::Void:
+            return visible_in_void
+        return false
+
+    @blueprint_callable
+    fn get_blend_alpha() -> Float:
+        return blend_alpha
+
+    @blueprint_callable
+    fn get_current_era() -> TemporalEra:
+        return current_era
+
+    @blueprint_callable
+    fn set_custom_data(slot: Int, value: Float):
+        if slot == 0:
+            custom_data_0 = value
+        else if slot == 1:
+            custom_data_1 = value
+        else if slot == 2:
+            custom_data_2 = value
+        else if slot == 3:
+            custom_data_3 = value
+
+# ============================================================================
+# SECTION 2: TEMPORAL ZONE COMPONENT
+# Attach to a volume actor to define a spatial era override zone
+# ============================================================================
+
+@component
+struct TemporalZoneComponent:
+    zone_id: Int
+    zone_name: String
+
+    # ======= ZONE BEHAVIOR =======
+
+    forced_era: TemporalEra
+    has_forced_era: Bool            # If false, zone just blends
+    blend_radius: Float
+    priority: Int
+    enabled: Bool
+
+    # ======= BOUNDS =======
+
+    zone_extent: Vec3               # Half-extents of the zone box
+    zone_shape_is_sphere: Bool      # Sphere vs box
+
+    # ======= TRANSITION OVERRIDE =======
+
+    override_transition_type: Bool
+    transition_type: TemporalTransitionType
+    transition_duration: Float
+
+    # ======= VISUAL =======
+
+    debug_color: Vec3
+    show_debug_bounds: Bool
+
+    # ======= STATE =======
+
+    actor_count_inside: Int
+    player_is_inside: Bool
+
+    @blueprint_callable
+    fn on_actor_entered(actor_guid: String):
+        actor_count_inside = actor_count_inside + 1
+        println("TemporalZone: actor entered " + actor_guid)
+
+    @blueprint_callable
+    fn on_actor_exited(actor_guid: String):
+        actor_count_inside = actor_count_inside - 1
+        if actor_count_inside < 0:
+            actor_count_inside = 0
+
+    @blueprint_callable
+    fn set_forced_era(era: TemporalEra):
+        forced_era = era
+        has_forced_era = true
+
+    @blueprint_callable
+    fn clear_forced_era():
+        has_forced_era = false
+
+    @blueprint_callable
+    fn get_effective_era(global_era: TemporalEra) -> TemporalEra:
+        if has_forced_era and enabled:
+            return forced_era
+        return global_era
+
+# ============================================================================
+# SECTION 3: TEMPORAL ANCHOR COMPONENT
+# Marks a point of temporal significance — transition triggers, story beats
+# ============================================================================
+
+@component
+struct TemporalAnchorComponent:
+    anchor_id: Int
+    anchor_name: String
+    anchor_type: TemporalAnchorType
+
+    # ======= PLACEMENT =======
+
+    native_era: TemporalEra
+    visible_era_mask: Int           # Bitmask
+    influence_radius: Float
+
+    # ======= TRIGGER =======
+
+    triggers_transition: Bool
+    transition_target_era: TemporalEra
+    transition_params_preset_id: Int
+    require_player_interaction: Bool
+    auto_trigger_on_proximity: Bool
+    trigger_radius: Float
+
+    # ======= CAUSALITY =======
+
+    is_causal_anchor: Bool
+    causal_group_tag: String
+    causal_condition_tag: String
+
+    # ======= STATE =======
+
+    is_activated: Bool
+    activation_count: Int
+    last_activation_era: TemporalEra
+
+    # ======= VISUAL =======
+
+    show_in_editor: Bool
+    editor_icon_scale: Float
+    editor_color: Vec3
+
+    @blueprint_callable
+    fn activate(activating_era: TemporalEra):
+        is_activated = true
+        activation_count = activation_count + 1
+        last_activation_era = activating_era
+        println("TemporalAnchor: activated in era " + int_to_string(activating_era as Int))
+
+    @blueprint_callable
+    fn deactivate():
+        is_activated = false
+
+    @blueprint_callable
+    fn reset():
+        is_activated = false
+        activation_count = 0
+
+    @blueprint_callable
+    fn is_visible_in_era(era: TemporalEra) -> Bool:
+        let era_idx = era as Int
+        let bit = pow(2, era_idx) as Int
+        let divided = visible_era_mask / bit
+        let remainder = divided - (divided / 2) * 2
+        return remainder != 0
+
+# ============================================================================
+# SECTION 4: TEMPORAL CAMERA COMPONENT
+# Handles camera effects during era transitions
+# ============================================================================
+
+@component
+struct TemporalCameraComponent:
+    # ======= TRANSITION EFFECTS =======
+
+    enable_chromatic_aberration: Bool
+    chromatic_aberration_intensity: Float
+
+    enable_vignette: Bool
+    vignette_intensity: Float
+
+    enable_lens_distortion: Bool
+    lens_distortion_intensity: Float
+
+    enable_color_grade: Bool
+    color_grade_saturation: Float
+    color_grade_contrast: Float
+    color_grade_gamma: Float
+
+    enable_motion_blur_boost: Bool
+    motion_blur_boost_amount: Float
+
+    # ======= PER-ERA SETTINGS =======
+
+    ancient_tint: Vec3
+    past_tint: Vec3
+    present_tint: Vec3
+    future_tint: Vec3
+    apocalyptic_tint: Vec3
+    alternate_tint: Vec3
+    void_tint: Vec3
+
+    # ======= TRANSITION STATE =======
+
+    is_transitioning: Bool
+    transition_alpha: Float
+    from_era_tint: Vec3
+    to_era_tint: Vec3
+
+    @blueprint_callable
+    fn get_era_tint(era: TemporalEra) -> Vec3:
+        if era == TemporalEra::Ancient:
+            return ancient_tint
+        else if era == TemporalEra::Past:
+            return past_tint
+        else if era == TemporalEra::Present:
+            return present_tint
+        else if era == TemporalEra::Future:
+            return future_tint
+        else if era == TemporalEra::Apocalyptic:
+            return apocalyptic_tint
+        else if era == TemporalEra::Alternate:
+            return alternate_tint
+        else if era == TemporalEra::Void:
+            return void_tint
+        return vec3(1.0, 1.0, 1.0)
+
+    @blueprint_callable
+    fn begin_transition_effect(from_era: TemporalEra, to_era: TemporalEra):
+        is_transitioning = true
+        transition_alpha = 0.0
+        from_era_tint = get_era_tint(from_era)
+        to_era_tint = get_era_tint(to_era)
+
+    @blueprint_callable
+    fn update_transition_effect(alpha: Float):
+        transition_alpha = alpha
+
+    @blueprint_callable
+    fn end_transition_effect():
+        is_transitioning = false
+        transition_alpha = 1.0

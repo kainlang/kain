@@ -1,0 +1,142 @@
+@async_task
+struct HeightmapGenerationTask:
+    @input
+    chunk_x: Int
+    @input
+    chunk_y: Int
+    @input
+    chunk_size: Int
+    @input
+    world_seed: Int
+    @input
+    noise_settings: NoiseSettings
+    @output
+    heightmap: Array<Float>
+    @output
+    generation_time: Float
+    
+    @callback(thread: "game")
+    fn on_complete(result: Array<Float>):
+        println("Heightmap generation complete for chunk ({chunk_x}, {chunk_y})")
+
+@async_task
+struct ErosionSimulationTask:
+    @input
+    heightmap: Array<Float>
+    @input
+    width: Int
+    @input
+    height: Int
+    @input
+    erosion_params: ErosionParams
+    @output
+    eroded_heightmap: Array<Float>
+    @output
+    simulation_time: Float
+    
+    @callback(thread: "game")
+    fn on_complete(result: Array<Float>):
+        println("Erosion simulation complete")
+
+@async_task
+struct BiomeGenerationTask:
+    @input
+    heightmap: Array<Float>
+    @input
+    width: Int
+    @input
+    height: Int
+    @input
+    world_seed: Int
+    @output
+    biome_map: Array<Int>
+    @output
+    temperature_map: Array<Float>
+    @output
+    humidity_map: Array<Float>
+    
+    @callback(thread: "game")
+    fn on_complete(biomes: Array<Int>):
+        println("Biome generation complete")
+
+@async_task
+struct MeshGenerationTask:
+    @input
+    heightmap: Array<Float>
+    @input
+    width: Int
+    @input
+    height: Int
+    @input
+    lod_level: LODLevel
+    @input
+    height_scale: Float
+    @output
+    vertices: Array<Vec3>
+    @output
+    normals: Array<Vec3>
+    @output
+    uvs: Array<Vec2>
+    @output
+    indices: Array<Int>
+    
+    @callback(thread: "game")
+    fn on_complete(verts: Array<Vec3>):
+        println("Mesh generation complete for LOD level")
+
+@async_task
+struct SplatmapGenerationTask:
+    @input
+    heightmap: Array<Float>
+    @input
+    normals: Array<Vec3>
+    @input
+    biome_map: Array<Int>
+    @input
+    width: Int
+    @input
+    height: Int
+    @input
+    layers: Array<TerrainLayer>
+    @output
+    splatmap: Array<Vec4>
+    
+    @callback(thread: "game")
+    fn on_complete(splat: Array<Vec4>):
+        println("Splatmap generation complete")
+
+@async_task
+struct ChunkStreamingTask:
+    @input
+    player_position: Vec3
+    @input
+    view_distance: Float
+    @input
+    loaded_chunks: Array<ChunkCoordinate>
+    @output
+    chunks_to_load: Array<ChunkCoordinate>
+    @output
+    chunks_to_unload: Array<ChunkCoordinate>
+    
+    @callback(thread: "game")
+    fn on_complete(to_load: Array<ChunkCoordinate>):
+        println("Chunk streaming update complete")
+
+@async_task
+struct TerrainCollisionTask:
+    @input
+    heightmap: Array<Float>
+    @input
+    width: Int
+    @input
+    height: Int
+    @input
+    simplification_level: Int
+    @output
+    collision_vertices: Array<Vec3>
+    @output
+    collision_indices: Array<Int>
+    
+    @callback(thread: "game")
+    fn on_complete(verts: Array<Vec3>):
+        println("Collision mesh generation complete")

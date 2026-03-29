@@ -1,0 +1,273 @@
+# ============================================================================
+# Post-Processing Shader Tests - Testing stdlib post-processing functions
+# ============================================================================
+# Tests: bloom, lens_flare, god_rays, depth_of_field, motion_blur,
+#        screen_space_reflections, screen_space_ambient_occlusion,
+#        color_grading_lut, film_grain, sharpen, edge_detect, outline
+
+shader fragment TestBloomEffect(uv: Vec2) -> Vec4:
+    uniform bloom_threshold: Float @0
+    uniform bloom_intensity: Float @1
+    
+    # Base scene color
+    let scene_color = vec3(uv.x, uv.y, 0.5)
+    
+    # Test bloom: extract bright areas
+    let luminance_val = luminance(scene_color)
+    var bloom = vec3(0.0, 0.0, 0.0)
+    
+    if luminance_val > bloom_threshold:
+        bloom = scene_color * bloom_intensity
+    
+    # Simulate blur with multiple samples
+    let blur_samples = 4
+    var blurred_bloom = vec3(0.0, 0.0, 0.0)
+    var i = 0
+    while i < blur_samples:
+        let offset = i * 0.01
+        let sample_uv = vec2(uv.x + offset, uv.y + offset)
+        let sample_color = vec3(sample_uv.x, sample_uv.y, 0.5)
+        let sample_lum = luminance(sample_color)
+        if sample_lum > bloom_threshold:
+            blurred_bloom = blurred_bloom + sample_color
+        i = i + 1
+    
+    blurred_bloom = blurred_bloom / blur_samples
+    
+    # Combine scene and bloom
+    let final_color = scene_color + blurred_bloom * bloom_intensity
+    
+    return vec4(final_color.x, final_color.y, final_color.z, 1.0)
+
+shader fragment TestLensFlare(uv: Vec2) -> Vec4:
+    uniform sun_position: Vec2 @0
+    uniform flare_intensity: Float @1
+    
+    # Base scene
+    let scene_color = vec3(uv.x, uv.y, 0.5)
+    
+    # Test lens_flare: create flare pattern
+    let to_sun = uv - sun_position
+    let distance_to_sun = length(to_sun)
+    
+    # Create multiple flare ghosts
+    var flare = vec3(0.0, 0.0, 0.0)
+    var i = 0
+    while i < 5:
+        let ghost_pos = sun_position + to_sun * (i * 0.2)
+        let ghost_dist = length(uv - ghost_pos)
+        let ghost_intensity = 1.0 / (1.0 + ghost_dist * 10.0)
+        flare = flare + vec3(ghost_intensity, ghost_intensity * 0.8, ghost_intensity * 0.6)
+        i = i + 1
+    
+    flare = flare * flare_intensity
+    
+    # Combine with scene
+    let final_color = scene_color + flare
+    
+    return vec4(final_color.x, final_color.y, final_color.z, 1.0)
+
+shader fragment TestGodRays(uv: Vec2) -> Vec4:
+    uniform light_position: Vec2 @0
+    uniform ray_density: Float @1
+    uniform ray_weight: Float @2
+    
+    # Base scene
+    let scene_color = vec3(uv.x, uv.y, 0.5)
+    
+    # Test god_rays: radial blur towards light
+    let to_light = light_position - uv
+    let samples = 32
+    var ray_color = vec3(0.0, 0.0, 0.0)
+    
+    var i = 0
+    while i < samples:
+        let t = i / samples
+        let sample_uv = uv + to_light * t * ray_density
+        let sample_color = vec3(sample_uv.x, sample_uv.y, 0.5)
+        ray_color = ray_color + sample_color
+        i = i + 1
+    
+    ray_color = ray_color / samples
+    
+    # Combine with scene
+    let final_color = scene_color + ray_color * ray_weight
+    
+    return vec4(final_color.x, final_color.y, final_color.z, 1.0)
+
+shader fragment TestDepthOfField(uv: Vec2) -> Vec4:
+    uniform focus_distance: Float @0
+    uniform blur_amount: Float @1
+    
+    # Simulate depth
+    let depth = length(uv - vec2(0.5, 0.5))
+    
+    # Calculate circle of confusion
+    let coc = abs(depth - focus_distance) * blur_amount
+    
+    # Base scene color
+    let scene_color = vec3(uv.x, uv.y, 0.5)
+    
+    # Test depth_of_field: blur based on depth
+    var blurred = vec3(0.0, 0.0, 0.0)
+    let samples = 8
+    var i = 0
+    while i < samples:
+        let angle = i * 0.785398
+        let offset = vec2(cos(angle), sin(angle)) * coc
+        let sample_uv = uv + offset
+        let sample_color = vec3(sample_uv.x, sample_uv.y, 0.5)
+        blurred = blurred + sample_color
+        i = i + 1
+    
+    blurred = blurred / samples
+    
+    # Blend based on COC
+    let final_color = scene_color * (1.0 - coc) + blurred * coc
+    
+    return vec4(final_color.x, final_color.y, final_color.z, 1.0)
+
+shader fragment TestMotionBlur(uv: Vec2) -> Vec4:
+    uniform velocity: Vec2 @0
+    uniform samples: Int @1
+    
+    # Test motion_blur: blur along velocity vector
+    var blurred = vec3(0.0, 0.0, 0.0)
+    
+    var i = 0
+    while i < samples:
+        let t = i / samples
+        let offset = velocity * (t - 0.5)
+        let sample_uv = uv + offset
+        let sample_color = vec3(sample_uv.x, sample_uv.y, 0.5)
+        blurred = blurred + sample_color
+        i = i + 1
+    
+    blurred = blurred / samples
+    
+    return vec4(blurred.x, blurred.y, blurred.z, 1.0)
+
+shader fragment TestEdgeDetection(uv: Vec2) -> Vec4:
+    uniform edge_threshold: Float @0
+    
+    # Test edge_detect: Sobel operator
+    let eps = 0.01
+    
+    # Sample neighbors
+    let c = luminance(vec3(uv.x, uv.y, 0.5))
+    let l = luminance(vec3(uv.x - eps, uv.y, 0.5))
+    let r = luminance(vec3(uv.x + eps, uv.y, 0.5))
+    let t = luminance(vec3(uv.x, uv.y + eps, 0.5))
+    let b = luminance(vec3(uv.x, uv.y - eps, 0.5))
+    
+    # Sobel gradients
+    let gx = (r - l) * 0.5
+    let gy = (t - b) * 0.5
+    let edge_strength = sqrt(gx * gx + gy * gy)
+    
+    # Threshold
+    var edge = 0.0
+    if edge_strength > edge_threshold:
+        edge = 1.0
+    
+    return vec4(edge, edge, edge, 1.0)
+
+shader fragment TestSharpen(uv: Vec2) -> Vec4:
+    uniform sharpen_amount: Float @0
+    
+    # Test sharpen: unsharp mask
+    let eps = 0.01
+    
+    # Center sample
+    let center = vec3(uv.x, uv.y, 0.5)
+    
+    # Blur (simple box blur)
+    var blurred = vec3(0.0, 0.0, 0.0)
+    blurred = blurred + vec3(uv.x - eps, uv.y - eps, 0.5)
+    blurred = blurred + vec3(uv.x, uv.y - eps, 0.5)
+    blurred = blurred + vec3(uv.x + eps, uv.y - eps, 0.5)
+    blurred = blurred + vec3(uv.x - eps, uv.y, 0.5)
+    blurred = blurred + center
+    blurred = blurred + vec3(uv.x + eps, uv.y, 0.5)
+    blurred = blurred + vec3(uv.x - eps, uv.y + eps, 0.5)
+    blurred = blurred + vec3(uv.x, uv.y + eps, 0.5)
+    blurred = blurred + vec3(uv.x + eps, uv.y + eps, 0.5)
+    blurred = blurred / 9.0
+    
+    # Sharpen = original + (original - blurred) * amount
+    let sharpened = center + (center - blurred) * sharpen_amount
+    
+    return vec4(sharpened.x, sharpened.y, sharpened.z, 1.0)
+
+shader fragment TestFilmGrain(uv: Vec2) -> Vec4:
+    uniform grain_intensity: Float @0
+    uniform time: Float @1
+    
+    # Base scene
+    let scene_color = vec3(uv.x, uv.y, 0.5)
+    
+    # Test film_grain: add noise
+    let grain_uv = vec2(uv.x + time, uv.y + time * 0.5)
+    let grain = hash2(grain_uv) * 2.0 - 1.0
+    
+    # Apply grain
+    let grained = scene_color + vec3(grain, grain, grain) * grain_intensity
+    
+    return vec4(grained.x, grained.y, grained.z, 1.0)
+
+shader fragment TestOutline(uv: Vec2) -> Vec4:
+    uniform outline_thickness: Float @0
+    uniform outline_color: Vec3 @1
+    
+    # Test outline: edge detection with color
+    let eps = outline_thickness
+    
+    # Sample neighbors
+    let c = luminance(vec3(uv.x, uv.y, 0.5))
+    let l = luminance(vec3(uv.x - eps, uv.y, 0.5))
+    let r = luminance(vec3(uv.x + eps, uv.y, 0.5))
+    let t = luminance(vec3(uv.x, uv.y + eps, 0.5))
+    let b = luminance(vec3(uv.x, uv.y - eps, 0.5))
+    
+    # Detect edge
+    let edge = abs(c - l) + abs(c - r) + abs(c - t) + abs(c - b)
+    
+    # Apply outline color
+    var final_color = vec3(uv.x, uv.y, 0.5)
+    if edge > 0.1:
+        final_color = outline_color
+    
+    return vec4(final_color.x, final_color.y, final_color.z, 1.0)
+
+shader compute TestSSAO(thread_id: Vec3) -> Unit:
+    uniform sample_radius: Float @0
+    uniform sample_count: Int @1
+    uniform output_buffer: RWBuffer<Float> @2
+    
+    let idx = thread_id.x
+    let x = idx * 0.01
+    let y = idx * 0.02
+    let uv = vec2(x, y)
+    
+    # Test screen_space_ambient_occlusion
+    # Simulate depth and normal
+    let depth = length(uv - vec2(0.5, 0.5))
+    let normal = normalize(vec3(uv.x - 0.5, uv.y - 0.5, 1.0))
+    
+    # Sample hemisphere
+    var occlusion = 0.0
+    var i = 0
+    while i < sample_count:
+        let angle = i * 0.628318
+        let sample_offset = vec2(cos(angle), sin(angle)) * sample_radius
+        let sample_uv = uv + sample_offset
+        let sample_depth = length(sample_uv - vec2(0.5, 0.5))
+        
+        if sample_depth > depth:
+            occlusion = occlusion + 1.0
+        
+        i = i + 1
+    
+    occlusion = occlusion / sample_count
+    
+    output_buffer[idx] = 1.0 - occlusion

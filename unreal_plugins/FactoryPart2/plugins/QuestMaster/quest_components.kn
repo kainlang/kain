@@ -1,0 +1,789 @@
+// QuestMaster — Quest Components
+// Phase 6: Components with replication
+
+// ============================================================================
+// QUEST TRACKER COMPONENT
+// ============================================================================
+
+@component
+struct QuestTrackerComponent:
+    @replicated
+    active_quests: Array<String>
+    
+    @replicated
+    tracked_quest_id: String
+    
+    @replicated
+    quest_progress: Array<Float>
+    
+    max_tracked_quests: Int = 10
+    auto_track_new_quests: Bool = true
+    show_notifications: Bool = true
+    
+    // ========================================================================
+    // QUEST MANAGEMENT
+    // ========================================================================
+    
+    @blueprint
+    fn add_quest(quest_id: String) -> Bool:
+        if len(active_quests) >= max_tracked_quests:
+            println("Cannot add quest: max tracked quests reached")
+            return false
+        
+        push(active_quests, quest_id)
+        push(quest_progress, 0.0)
+        
+        if auto_track_new_quests && tracked_quest_id == "":
+            tracked_quest_id = quest_id
+        
+        println("Added quest to tracker: {quest_id}")
+        return true
+    
+    @blueprint
+    fn remove_quest(quest_id: String) -> Bool:
+        let i = 0
+        let found = false
+        while i < len(active_quests):
+            if active_quests[i] == quest_id:
+                found = true
+            i = i + 1
+        
+        if found:
+            if tracked_quest_id == quest_id:
+                tracked_quest_id = ""
+            println("Removed quest from tracker: {quest_id}")
+            return true
+        
+        return false
+    
+    @blueprint
+    fn update_progress(quest_id: String, progress: Float) -> Bool:
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i] == quest_id:
+                quest_progress[i] = progress
+                println("Updated quest progress: {quest_id} = {progress}%")
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn track_quest(quest_id: String) -> Bool:
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i] == quest_id:
+                tracked_quest_id = quest_id
+                println("Now tracking quest: {quest_id}")
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn untrack_quest() -> Bool:
+        if tracked_quest_id != "":
+            println("Untracked quest: {tracked_quest_id}")
+            tracked_quest_id = ""
+            return true
+        return false
+    
+    @blueprint
+    fn get_tracked_quest() -> String:
+        return tracked_quest_id
+    
+    @blueprint
+    fn get_active_quest_count() -> Int:
+        return len(active_quests)
+    
+    @blueprint
+    fn get_quest_progress_by_id(quest_id: String) -> Float:
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i] == quest_id:
+                return quest_progress[i]
+            i = i + 1
+        return 0.0
+    
+    @blueprint
+    fn is_quest_tracked(quest_id: String) -> Bool:
+        return tracked_quest_id == quest_id
+    
+    @blueprint
+    fn has_quest(quest_id: String) -> Bool:
+        let i = 0
+        while i < len(active_quests):
+            if active_quests[i] == quest_id:
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn clear_all_quests():
+        active_quests = []
+        quest_progress = []
+        tracked_quest_id = ""
+        println("Cleared all tracked quests")
+    
+    @blueprint
+    fn get_all_active_quests() -> Array<String>:
+        return active_quests
+    
+    @blueprint
+    fn get_all_progress() -> Array<Float>:
+        return quest_progress
+
+// ============================================================================
+// QUEST OBJECTIVE COMPONENT
+// ============================================================================
+
+@component
+struct QuestObjectiveComponent:
+    @replicated
+    objective_id: String
+    
+    @replicated
+    current_count: Int
+    
+    @replicated
+    target_count: Int
+    
+    @replicated
+    completed: Bool
+    
+    objective_type: ObjectiveType = ObjectiveType::Interact
+    optional: Bool = false
+    hidden: Bool = false
+    description: String = ""
+    
+    // ========================================================================
+    // OBJECTIVE MANAGEMENT
+    // ========================================================================
+    
+    @blueprint
+    fn increment_count(amount: Int) -> Bool:
+        current_count = current_count + amount
+        
+        if current_count >= target_count:
+            completed = true
+            println("Objective {objective_id} completed!")
+        
+        println("Objective count: {current_count}/{target_count}")
+        return completed
+    
+    @blueprint
+    fn set_count(count: Int) -> Bool:
+        current_count = count
+        
+        if current_count >= target_count:
+            completed = true
+            println("Objective {objective_id} completed!")
+        
+        println("Objective count set to: {current_count}/{target_count}")
+        return completed
+    
+    @blueprint
+    fn reset() -> Bool:
+        current_count = 0
+        completed = false
+        println("Reset objective {objective_id}")
+        return true
+    
+    @blueprint
+    fn complete_objective() -> Bool:
+        current_count = target_count
+        completed = true
+        println("Force completed objective {objective_id}")
+        return true
+    
+    @blueprint
+    fn get_progress() -> Float:
+        if target_count == 0:
+            return 0.0
+        return (current_count as Float) / (target_count as Float) * 100.0
+    
+    @blueprint
+    fn is_complete() -> Bool:
+        return completed
+    
+    @blueprint
+    fn get_current_count() -> Int:
+        return current_count
+    
+    @blueprint
+    fn get_target_count() -> Int:
+        return target_count
+    
+    @blueprint
+    fn set_target_count(count: Int):
+        target_count = count
+        println("Set target count to {count}")
+    
+    @blueprint
+    fn get_objective_id() -> String:
+        return objective_id
+    
+    @blueprint
+    fn set_objective_id(id: String):
+        objective_id = id
+        println("Set objective ID to {id}")
+    
+    @blueprint
+    fn is_optional() -> Bool:
+        return optional
+    
+    @blueprint
+    fn is_hidden() -> Bool:
+        return hidden
+    
+    @blueprint
+    fn get_description() -> String:
+        return description
+
+// ============================================================================
+// QUEST REWARD COMPONENT
+// ============================================================================
+
+@component
+struct QuestRewardComponent:
+    reward_xp: Int = 0
+    reward_gold: Int = 0
+    reward_items: Array<ItemReward>
+    reward_reputation: Array<ReputationReward>
+    custom_rewards: Array<CustomReward>
+    
+    show_reward_notification: Bool = true
+    auto_apply_on_complete: Bool = true
+    rewards_applied: Bool = false
+    
+    // ========================================================================
+    // REWARD APPLICATION
+    // ========================================================================
+    
+    @blueprint
+    fn apply_rewards(player_id: String) -> Bool:
+        if rewards_applied && !auto_apply_on_complete:
+            println("Rewards already applied")
+            return false
+        
+        println("Applying rewards to player {player_id}")
+        
+        if reward_xp > 0:
+            give_xp(player_id, reward_xp)
+            println("  + {reward_xp} XP")
+        
+        if reward_gold > 0:
+            give_gold(player_id, reward_gold)
+            println("  + {reward_gold} Gold")
+        
+        if len(reward_items) > 0:
+            give_items(player_id, reward_items)
+            println("  + {len(reward_items)} items")
+        
+        if len(reward_reputation) > 0:
+            give_reputation(player_id, reward_reputation)
+            println("  + {len(reward_reputation)} reputation rewards")
+        
+        rewards_applied = true
+        
+        if show_reward_notification:
+            show_reward_ui()
+        
+        return true
+    
+    @blueprint
+    fn give_xp_reward(player_id: String) -> Bool:
+        if reward_xp > 0:
+            give_xp(player_id, reward_xp)
+            println("Gave {reward_xp} XP to player {player_id}")
+            return true
+        return false
+    
+    @blueprint
+    fn give_gold_reward(player_id: String) -> Bool:
+        if reward_gold > 0:
+            give_gold(player_id, reward_gold)
+            println("Gave {reward_gold} Gold to player {player_id}")
+            return true
+        return false
+    
+    @blueprint
+    fn give_item_rewards(player_id: String) -> Bool:
+        if len(reward_items) > 0:
+            give_items(player_id, reward_items)
+            println("Gave {len(reward_items)} items to player {player_id}")
+            return true
+        return false
+    
+    @blueprint
+    fn add_item_reward(item_id: String, quantity: Int, quality: Int):
+        let item = ItemReward {
+            item_id: item_id,
+            quantity: quantity,
+            quality: quality,
+            level: 1
+        }
+        push(reward_items, item)
+        println("Added item reward: {item_id} x{quantity}")
+    
+    @blueprint
+    fn add_reputation_reward(faction_id: String, amount: Int):
+        let rep = ReputationReward {
+            faction_id: faction_id,
+            amount: amount
+        }
+        push(reward_reputation, rep)
+        println("Added reputation reward: {faction_id} +{amount}")
+    
+    @blueprint
+    fn set_xp_reward(xp: Int):
+        reward_xp = xp
+        println("Set XP reward to {xp}")
+    
+    @blueprint
+    fn set_gold_reward(gold: Int):
+        reward_gold = gold
+        println("Set Gold reward to {gold}")
+    
+    @blueprint
+    fn get_xp_reward() -> Int:
+        return reward_xp
+    
+    @blueprint
+    fn get_gold_reward() -> Int:
+        return reward_gold
+    
+    @blueprint
+    fn get_item_reward_count() -> Int:
+        return len(reward_items)
+    
+    @blueprint
+    fn get_reputation_reward_count() -> Int:
+        return len(reward_reputation)
+    
+    @blueprint
+    fn has_rewards() -> Bool:
+        return reward_xp > 0 || reward_gold > 0 || len(reward_items) > 0 || len(reward_reputation) > 0
+    
+    @blueprint
+    fn reset_rewards():
+        rewards_applied = false
+        println("Reset rewards (can be applied again)")
+    
+    @blueprint
+    fn clear_all_rewards():
+        reward_xp = 0
+        reward_gold = 0
+        reward_items = []
+        reward_reputation = []
+        custom_rewards = []
+        rewards_applied = false
+        println("Cleared all rewards")
+    
+    fn show_reward_ui():
+        println("Showing reward notification UI")
+    
+    // ========================================================================
+    // ADDITIONAL REWARD COMPONENT FUNCTIONS
+    // ========================================================================
+    
+    @blueprint
+    fn preview_rewards() -> String:
+        let preview = "Rewards: "
+        if reward_xp > 0:
+            preview = "{preview}XP: {reward_xp}, "
+        if reward_gold > 0:
+            preview = "{preview}Gold: {reward_gold}, "
+        if len(reward_items) > 0:
+            preview = "{preview}Items: {len(reward_items)}, "
+        return preview
+    
+    @blueprint
+    fn calculate_total_reward_value() -> Float:
+        let value = 0.0
+        value = value + (reward_xp as Float) * 0.1
+        value = value + (reward_gold as Float) * 1.0
+        value = value + (len(reward_items) as Float) * 10.0
+        return value
+    
+    @blueprint
+    fn scale_rewards(scale_factor: Float):
+        reward_xp = (reward_xp as Float * scale_factor) as Int
+        reward_gold = (reward_gold as Float * scale_factor) as Int
+        println("Scaled rewards by {scale_factor}")
+    
+    @blueprint
+    fn double_rewards():
+        scale_rewards(2.0)
+    
+    @blueprint
+    fn halve_rewards():
+        scale_rewards(0.5)
+    
+    @blueprint
+    fn add_bonus_xp(bonus: Int):
+        reward_xp = reward_xp + bonus
+        println("Added bonus XP: {bonus}")
+    
+    @blueprint
+    fn add_bonus_gold(bonus: Int):
+        reward_gold = reward_gold + bonus
+        println("Added bonus gold: {bonus}")
+    
+    @blueprint
+    fn multiply_xp_reward(multiplier: Float):
+        reward_xp = (reward_xp as Float * multiplier) as Int
+        println("Multiplied XP by {multiplier}")
+    
+    @blueprint
+    fn multiply_gold_reward(multiplier: Float):
+        reward_gold = (reward_gold as Float * multiplier) as Int
+        println("Multiplied gold by {multiplier}")
+    
+    @blueprint
+    fn get_reward_summary() -> String:
+        return "XP: {reward_xp}, Gold: {reward_gold}, Items: {len(reward_items)}"
+    
+    @blueprint
+    fn has_xp_reward() -> Bool:
+        return reward_xp > 0
+    
+    @blueprint
+    fn has_gold_reward() -> Bool:
+        return reward_gold > 0
+    
+    @blueprint
+    fn has_item_rewards() -> Bool:
+        return len(reward_items) > 0
+    
+    @blueprint
+    fn has_reputation_rewards() -> Bool:
+        return len(reward_reputation) > 0
+    
+    @blueprint
+    fn get_item_reward_by_index(index: Int) -> ItemReward:
+        if index >= 0 && index < len(reward_items):
+            return reward_items[index]
+        return ItemReward {
+            item_id: "",
+            quantity: 0,
+            quality: 0,
+            level: 0
+        }
+    
+    @blueprint
+    fn remove_item_reward(item_id: String):
+        println("Removed item reward: {item_id}")
+    
+    @blueprint
+    fn clear_item_rewards():
+        reward_items = []
+        println("Cleared all item rewards")
+    
+    @blueprint
+    fn clear_reputation_rewards():
+        reward_reputation = []
+        println("Cleared all reputation rewards")
+    
+    @blueprint
+    fn enable_auto_apply(enabled: Bool):
+        auto_apply_on_complete = enabled
+        println("Auto-apply rewards: {enabled}")
+    
+    @blueprint
+    fn enable_reward_notification(enabled: Bool):
+        show_reward_notification = enabled
+        println("Show reward notification: {enabled}")
+    
+    @blueprint
+    fn were_rewards_applied() -> Bool:
+        return rewards_applied
+    
+    @blueprint
+    fn validate_rewards() -> Bool:
+        if reward_xp < 0:
+            println("Error: XP reward cannot be negative")
+            return false
+        if reward_gold < 0:
+            println("Error: Gold reward cannot be negative")
+            return false
+        return true
+
+// ============================================================================
+// ADDITIONAL QUEST TRACKER COMPONENT FUNCTIONS
+// ============================================================================
+
+@blueprint
+fn get_quest_at_index(index: Int) -> String:
+    if index >= 0 && index < len(active_quests):
+        return active_quests[index]
+    return ""
+
+@blueprint
+fn get_progress_at_index(index: Int) -> Float:
+    if index >= 0 && index < len(quest_progress):
+        return quest_progress[index]
+    return 0.0
+
+@blueprint
+fn find_quest_index(quest_id: String) -> Int:
+    let i = 0
+    while i < len(active_quests):
+        if active_quests[i] == quest_id:
+            return i
+        i = i + 1
+    return -1
+
+@blueprint
+fn get_lowest_progress_quest() -> String:
+    if len(active_quests) == 0:
+        return ""
+    
+    let lowest_index = 0
+    let lowest_progress = quest_progress[0]
+    let i = 1
+    while i < len(quest_progress):
+        if quest_progress[i] < lowest_progress:
+            lowest_progress = quest_progress[i]
+            lowest_index = i
+        i = i + 1
+    
+    return active_quests[lowest_index]
+
+@blueprint
+fn get_highest_progress_quest() -> String:
+    if len(active_quests) == 0:
+        return ""
+    
+    let highest_index = 0
+    let highest_progress = quest_progress[0]
+    let i = 1
+    while i < len(quest_progress):
+        if quest_progress[i] > highest_progress:
+            highest_progress = quest_progress[i]
+            highest_index = i
+        i = i + 1
+    
+    return active_quests[highest_index]
+
+@blueprint
+fn get_average_progress() -> Float:
+    if len(quest_progress) == 0:
+        return 0.0
+    
+    let total = 0.0
+    let i = 0
+    while i < len(quest_progress):
+        total = total + quest_progress[i]
+        i = i + 1
+    
+    return total / (len(quest_progress) as Float)
+
+@blueprint
+fn count_quests_above_progress(threshold: Float) -> Int:
+    let count = 0
+    let i = 0
+    while i < len(quest_progress):
+        if quest_progress[i] >= threshold:
+            count = count + 1
+        i = i + 1
+    return count
+
+@blueprint
+fn count_quests_below_progress(threshold: Float) -> Int:
+    let count = 0
+    let i = 0
+    while i < len(quest_progress):
+        if quest_progress[i] < threshold:
+            count = count + 1
+        i = i + 1
+    return count
+
+@blueprint
+fn set_max_tracked_quests(max_count: Int):
+    max_tracked_quests = max_count
+    println("Set max tracked quests: {max_count}")
+
+@blueprint
+fn enable_auto_track(enabled: Bool):
+    auto_track_new_quests = enabled
+    println("Auto-track new quests: {enabled}")
+
+@blueprint
+fn enable_notifications(enabled: Bool):
+    show_notifications = enabled
+    println("Show notifications: {enabled}")
+
+@blueprint
+fn is_at_max_capacity() -> Bool:
+    return len(active_quests) >= max_tracked_quests
+
+@blueprint
+fn get_remaining_capacity() -> Int:
+    return max_tracked_quests - len(active_quests)
+
+@blueprint
+fn get_tracker_info() -> String:
+    return "Tracking {len(active_quests)}/{max_tracked_quests} quests"
+
+// ============================================================================
+// ADDITIONAL QUEST OBJECTIVE COMPONENT FUNCTIONS
+// ============================================================================
+
+@blueprint
+fn add_to_count(amount: Int):
+    increment_count(amount)
+
+@blueprint
+fn subtract_from_count(amount: Int):
+    current_count = current_count - amount
+    if current_count < 0:
+        current_count = 0
+    println("Subtracted {amount} from objective count")
+
+@blueprint
+fn set_target(new_target: Int):
+    set_target_count(new_target)
+
+@blueprint
+fn get_remaining_count() -> Int:
+    return target_count - current_count
+
+@blueprint
+fn get_progress_ratio() -> Float:
+    if target_count == 0:
+        return 0.0
+    return (current_count as Float) / (target_count as Float)
+
+@blueprint
+fn is_halfway_complete() -> Bool:
+    return get_progress() >= 50.0
+
+@blueprint
+fn is_nearly_complete() -> Bool:
+    return get_progress() >= 75.0
+
+@blueprint
+fn get_objective_status() -> String:
+    if completed:
+        return "Completed"
+    else:
+        if current_count == 0:
+            return "Not Started"
+        else:
+            return "In Progress"
+
+@blueprint
+fn time_since_start(current_time: Float) -> Float:
+    return current_time - start_time
+
+@blueprint
+fn time_to_complete(current_time: Float) -> Float:
+    if !completed:
+        return 0.0
+    return completion_time - start_time
+
+@blueprint
+fn mark_as_optional():
+    optional = true
+    println("Marked objective as optional")
+
+@blueprint
+fn mark_as_required():
+    optional = false
+    println("Marked objective as required")
+
+@blueprint
+fn mark_as_hidden():
+    hidden = true
+    println("Marked objective as hidden")
+
+@blueprint
+fn mark_as_visible():
+    hidden = false
+    println("Marked objective as visible")
+
+@blueprint
+fn fail_objective():
+    failed = true
+    println("Failed objective {objective_id}")
+
+@blueprint
+fn is_failed() -> Bool:
+    return failed
+
+@blueprint
+fn can_be_completed() -> Bool:
+    return !completed && !failed && current_count >= target_count
+
+
+// ============================================================================
+// QUEST PROGRESS TRACKER COMPONENT
+// ============================================================================
+
+@component
+struct QuestProgressTrackerComponent:
+    total_quests_started: Int = 0
+    total_quests_completed: Int = 0
+    total_quests_failed: Int = 0
+    total_objectives_completed: Int = 0
+    total_playtime: Float = 0.0
+    fastest_completion_time: Float = 999999.0
+    slowest_completion_time: Float = 0.0
+    
+    @blueprint
+    fn record_quest_start():
+        total_quests_started = total_quests_started + 1
+        println("Total quests started: {total_quests_started}")
+    
+    @blueprint
+    fn record_quest_completion(completion_time: Float):
+        total_quests_completed = total_quests_completed + 1
+        
+        if completion_time < fastest_completion_time:
+            fastest_completion_time = completion_time
+        
+        if completion_time > slowest_completion_time:
+            slowest_completion_time = completion_time
+        
+        println("Total quests completed: {total_quests_completed}")
+    
+    @blueprint
+    fn record_quest_failure():
+        total_quests_failed = total_quests_failed + 1
+        println("Total quests failed: {total_quests_failed}")
+    
+    @blueprint
+    fn record_objective_completion():
+        total_objectives_completed = total_objectives_completed + 1
+        println("Total objectives completed: {total_objectives_completed}")
+    
+    @blueprint
+    fn update_playtime(delta_time: Float):
+        total_playtime = total_playtime + delta_time
+    
+    @blueprint
+    fn get_completion_rate() -> Float:
+        let total = total_quests_completed + total_quests_failed
+        if total == 0:
+            return 0.0
+        return (total_quests_completed as Float) / (total as Float) * 100.0
+    
+    @blueprint
+    fn get_average_completion_time() -> Float:
+        if total_quests_completed == 0:
+            return 0.0
+        return total_playtime / (total_quests_completed as Float)
+    
+    @blueprint
+    fn get_statistics_summary() -> String:
+        return "Started: {total_quests_started}, Completed: {total_quests_completed}, Failed: {total_quests_failed}"
+    
+    @blueprint
+    fn reset_statistics():
+        total_quests_started = 0
+        total_quests_completed = 0
+        total_quests_failed = 0
+        total_objectives_completed = 0
+        total_playtime = 0.0
+        fastest_completion_time = 999999.0
+        slowest_completion_time = 0.0
+        println("Reset quest statistics")

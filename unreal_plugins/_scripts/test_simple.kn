@@ -1,0 +1,3 @@
+fn test():
+    let x = 5
+    println("Test: {x}")

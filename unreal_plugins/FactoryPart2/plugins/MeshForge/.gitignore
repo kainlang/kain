@@ -1,0 +1,25 @@
+# Generated UE5 plugin files
+Source/
+Shaders/
+Binaries/
+Intermediate/
+Saved/
+*.uplugin
+*.Build.cs
+
+# Build artifacts
+*.dll
+*.pdb
+*.lib
+*.exp
+
+# IDE files
+.vs/
+.vscode/
+*.sln
+*.suo
+*.user
+
+# OS files
+.DS_Store
+Thumbs.db

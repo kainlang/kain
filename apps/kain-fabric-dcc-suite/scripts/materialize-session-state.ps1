@@ -98,7 +98,14 @@ $Commands = (Get-Content (Join-Path $AppRoot "config/command_registry.json") -Ra
 $Intents = (Get-Content (Join-Path $AppRoot "config/fabric_intents.json") -Raw | ConvertFrom-Json).intents
 $Pipeline = (Get-Content (Join-Path $AppRoot "config/fabric_pipeline.json") -Raw | ConvertFrom-Json).steps
 $RuntimePacks = (Get-Content (Join-Path $AppRoot "config/runtime_packs.json") -Raw | ConvertFrom-Json).runtime_packs
+$RuntimeLanes = (Get-Content (Join-Path $AppRoot "config/runtime_lanes.json") -Raw | ConvertFrom-Json).runtime_lanes
+$RuntimeLaneSummary = if ($null -ne $RuntimeLanes) {
+    ($RuntimeLanes | ForEach-Object { $_.runtime }) -join " | "
+} else {
+    "n/a"
+}
 $Resources = (Get-Content (Join-Path $AppRoot "config/resource_kinds.json") -Raw | ConvertFrom-Json).resource_kinds
+$MeshContract = Get-Content (Join-Path $AppRoot "config/mesh_resource_contract.json") -Raw | ConvertFrom-Json
 $Reports = (Get-Content (Join-Path $AppRoot "config/report_kinds.json") -Raw | ConvertFrom-Json).report_kinds
 $Jobs = (Get-Content (Join-Path $AppRoot "config/automation_jobs.json") -Raw | ConvertFrom-Json).jobs
 $GizmoRegistry = Get-Content (Join-Path $AppRoot "config/gizmo_registry.json") -Raw | ConvertFrom-Json
@@ -339,6 +346,7 @@ $RuntimeSnapshot = [ordered]@{
             fabric_pipeline = "config/fabric_pipeline.json"
             fabric_intents = "config/fabric_intents.json"
             resource_kinds = "config/resource_kinds.json"
+            mesh_resource_contract = "config/mesh_resource_contract.json"
             report_kinds = "config/report_kinds.json"
             runtime_packs = "config/runtime_packs.json"
             automation_jobs = "config/automation_jobs.json"
@@ -346,15 +354,6 @@ $RuntimeSnapshot = [ordered]@{
             session_schema = "session/session_schema.kn"
             session_reducers = "session/reducers.kn"
             session_intent_planner = "session/intent_planner.kn"
-        }
-        session = $SessionDocument
-        derived = [ordered]@{
-            active_mode_label = $ActiveModeLabel
-            active_tool_label = "Select"
-            selection_summary = "1 entity selected"
-            gizmo_summary = "translate | world | snap off"
-            queued_intent_count = @($InitialIntentQueue).Count
-            latest_fabric_status = $LatestFabricStatus
         }
         command_registry = $Commands
         available_tools = $Tools
@@ -364,6 +363,11 @@ $RuntimeSnapshot = [ordered]@{
         gizmo_profiles = $GizmoRegistry.profiles
         viewport_gizmo_bindings = $GizmoRegistry.viewport_bindings
         resource_store = $Resources
+        mesh_contract = [ordered]@{
+            schema_version = $MeshContract.schema_version
+            mesh_documents = $MeshContract.mesh_documents
+            semantic_rules = $MeshContract.semantic_rules
+        }
         report_store = $Reports
         automation_jobs = $Jobs
         intent_queue = $InitialIntentQueue
@@ -375,6 +379,7 @@ $RuntimeSnapshot = [ordered]@{
             steps = $StepStatus
         }
         bridge = $BridgeStatus
+        runtime_lane_summary = $RuntimeLaneSummary
         extension_seams = @(
             "material lane still projects authoring receipts rather than a true native painter runtime",
             "tensor lane still reports readiness and plan state rather than executing a full typed tensor artifact contract",

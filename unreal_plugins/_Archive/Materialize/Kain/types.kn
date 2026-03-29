@@ -1,0 +1,423 @@
+# ============================================================================
+# MATERIALIZE - Types, Enums, and DataTables
+# ============================================================================
+# Professional PBR material generation system for UE5
+# - GPU-accelerated compute shaders for PBR generation
+# - Layer compositing with blend modes
+# - Procedural noise and pattern generation
+# - Seamless tiling algorithms
+# - Advanced shading models (Glossy, Metal, Toon)
+# - Node graph editor for material authoring
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: ENUMS - Material categories and processing modes
+# ============================================================================
+
+enum MaterializeCategory:
+    Organic
+    Rubber
+    Ground
+    Fabric
+    Metal
+    Plastic
+    Paper
+    Custom
+    MaterializeCategory_MAX
+
+enum SeamlessMode:
+    None
+    CrossBlend
+    MirrorBlend
+    Histogram
+    SeamlessMode_MAX
+
+enum LayerBlendMode:
+    Normal
+    Add
+    Subtract
+    Multiply
+    Screen
+    Overlay
+    SoftLight
+    HardLight
+    Darken
+    Lighten
+    Difference
+    Exclusion
+    ColorDodge
+    ColorBurn
+    LinearLight
+    VividLight
+    LayerBlendMode_MAX
+
+enum FilterType:
+    Blur
+    Sharpen
+    EdgeDetect
+    Levels
+    HSLAdjust
+    Invert
+    Grayscale
+    FilterType_MAX
+
+enum NoiseType:
+    Perlin
+    Voronoi
+    Worley
+    Ridged
+    Turbulence
+    NoiseType_MAX
+
+enum ProceduralType:
+    Radial
+    Circle
+    Bricks
+    Dots
+    Hexagon
+    Square
+    Diamond
+    ProceduralType_MAX
+
+enum TilingMode:
+    Clamp
+    Repeat
+    Mirror
+    TilingMode_MAX
+
+# ============================================================================
+# SECTION 2: CORE STRUCTS - PBR generation parameters
+# ============================================================================
+
+struct MaterializeParams:
+    # Normal Map
+    normal_strength: Float = 1.0
+    
+    # Roughness
+    roughness_base: Float = 0.7
+    roughness_contrast: Float = 1.0
+    roughness_brightness: Float = 0.0
+    roughness_invert: Bool = true
+    variance_weight: Float = 0.5
+    
+    # Metallic
+    metallic_base: Float = 0.0
+    metallic_contrast: Float = 1.0
+    metallic_bias: Float = 0.0
+    metallic_sensitivity: Float = 2.0
+    
+    # Ambient Occlusion
+    ao_intensity: Float = 1.0
+    
+    # Height
+    height_contrast: Float = 1.0
+    
+    # Weathering
+    edge_wear: Float = 0.0
+    cavity_dirt: Float = 0.0
+    dust: Float = 0.0
+    grunge: Float = 0.0
+    scratches: Float = 0.0
+    noise: Float = 0.0
+    
+    # Special Effects
+    bio_detail: Float = 0.0
+    bio_frequency: Float = 1.0
+    cyber_detail: Float = 0.0
+    cyber_scale: Float = 1.0
+    
+    # Emissive
+    emissive_threshold: Float = 0.0
+    emissive_color_boost: Float = 1.0
+    
+    # Processing
+    make_seamless: Bool = false
+    seamless_mode: SeamlessMode = SeamlessMode::CrossBlend
+    seamless_blend_width: Float = 0.25
+    gamma: Float = 1.0
+    vignette: Float = 0.0
+    
+    # Output
+    pack_orm: Bool = true
+    output_resolution: Int = 0
+    
+    # Advanced
+    height_iterations: Int = 24
+    use_multi_pass_height: Bool = true
+    normal_octaves: Int = 3
+    normal_sigma_base: Float = 1.0
+    normal_anisotropy: Float = 1.0
+    ao_radius: Float = 4.0
+    ao_bias: Float = 0.0
+    ao_contrast: Float = 1.0
+    advanced_normal: Bool = false
+    advanced_ao: Bool = false
+
+# ============================================================================
+# SECTION 3: PRESET SYSTEM - Material presets
+# ============================================================================
+
+@datatable
+struct MaterializePreset:
+    id: String
+    display_name: String
+    category: MaterializeCategory
+    
+    # Normal Map
+    normal_strength: Float
+    
+    # Roughness
+    roughness_base: Float
+    roughness_contrast: Float
+    roughness_brightness: Float
+    roughness_invert: Bool
+    variance_weight: Float
+    
+    # Metallic
+    metallic_base: Float
+    metallic_contrast: Float
+    metallic_bias: Float
+    metallic_sensitivity: Float
+    
+    # Ambient Occlusion
+    ao_intensity: Float
+    
+    # Height
+    height_contrast: Float
+    
+    # Weathering
+    edge_wear: Float
+    cavity_dirt: Float
+    dust: Float
+    grunge: Float
+    scratches: Float
+    noise: Float
+    
+    # Special Effects
+    bio_detail: Float
+    bio_frequency: Float
+    cyber_detail: Float
+    cyber_scale: Float
+    
+    # Emissive
+    emissive_threshold: Float
+    emissive_color_boost: Float
+    
+    # Processing
+    make_seamless: Bool
+    seamless_mode: Int
+    seamless_blend_width: Float
+    gamma: Float
+    vignette: Float
+    
+    # Output
+    pack_orm: Bool
+    output_resolution: Int
+    
+    # Advanced
+    height_iterations: Int
+    use_multi_pass_height: Bool
+    normal_octaves: Int
+    normal_sigma_base: Float
+    normal_anisotropy: Float
+    ao_radius: Float
+    ao_bias: Float
+    ao_contrast: Float
+    advanced_normal: Bool
+    advanced_ao: Bool
+
+# ============================================================================
+# SECTION 4: MASTER MATERIAL PRESETS - Advanced shading models
+# ============================================================================
+
+@datatable
+struct MasterMaterialPreset:
+    preset_id: String
+    display_name: String
+    description: String
+    master_material_path: String
+    preview_thumbnail_path: String
+    
+    # Feature flags
+    supports_anisotropy: Bool
+    supports_clear_coat: Bool
+    supports_subsurface: Bool
+    supports_toon_shading: Bool
+    
+    # Default scalar parameters
+    default_scalar_count: Int
+    scalar_param_0_name: String
+    scalar_param_0_value: Float
+    scalar_param_1_name: String
+    scalar_param_1_value: Float
+    scalar_param_2_name: String
+    scalar_param_2_value: Float
+    scalar_param_3_name: String
+    scalar_param_3_value: Float
+    scalar_param_4_name: String
+    scalar_param_4_value: Float
+    
+    # Default vector parameters
+    default_vector_count: Int
+    vector_param_0_name: String
+    vector_param_0_r: Float
+    vector_param_0_g: Float
+    vector_param_0_b: Float
+    vector_param_0_a: Float
+    vector_param_1_name: String
+    vector_param_1_r: Float
+    vector_param_1_g: Float
+    vector_param_1_b: Float
+    vector_param_1_a: Float
+
+# ============================================================================
+# SECTION 5: LAYER SYSTEM - Compositing and effects
+# ============================================================================
+
+struct Layer:
+    enabled: Bool
+    name: String
+    opacity: Float
+    blend_mode: LayerBlendMode
+    visible: Bool
+    locked: Bool
+
+struct LayerStack:
+    layers: Array<Layer>
+    active_layer_index: Int
+    layer_count: Int
+
+struct ProceduralParams:
+    noise_type: NoiseType
+    scale: Float
+    octaves: Int
+    persistence: Float
+    lacunarity: Float
+    seed: Float
+    contrast: Float
+    brightness: Float
+    invert: Bool
+    
+    # Transform
+    rotation: Float
+    scale_x: Float
+    scale_y: Float
+    offset_x: Float
+    offset_y: Float
+    tiling_mode: TilingMode
+
+struct FilterParams:
+    filter_type: FilterType
+    strength: Float
+    radius: Float
+    threshold: Float
+    
+    # Levels
+    in_black: Float
+    in_white: Float
+    out_black: Float
+    out_white: Float
+    
+    # HSL
+    hue_shift: Float
+    saturation_mult: Float
+    lightness_mult: Float
+
+struct AdjustmentParams:
+    brightness: Float
+    contrast: Float
+    saturation: Float
+    hue: Float
+    gamma: Float
+    exposure: Float
+
+# ============================================================================
+# SECTION 6: RESULT STRUCTURES - Output data
+# ============================================================================
+
+struct MaterializeResult:
+    layer_base_color: Bool
+    has_normal: Bool
+    has_roughness: Bool
+    has_metallic: Bool
+    has_ao: Bool
+    has_height: Bool
+    has_emissive: Bool
+    has_orm: Bool
+    has_material: Bool
+    generation_time_ms: Float
+
+# ============================================================================
+# SECTION 7: GLOSSY SHADING PARAMETERS
+# ============================================================================
+
+struct GlossyClearCoatParams:
+    coat_ior: Float = 1.5
+    coat_tint_r: Float = 1.0
+    coat_tint_g: Float = 1.0
+    coat_tint_b: Float = 1.0
+    coat_intensity: Float = 1.0
+    clear_coat: Float = 1.0
+    clear_coat_roughness: Float = 0.1
+
+struct GlossyDualLobeParams:
+    primary_roughness: Float = 0.2
+    secondary_roughness: Float = 0.8
+    lobe_mix: Float = 0.5
+    specular_intensity: Float = 1.0
+
+struct GlossySubsurfaceParams:
+    subsurface_color_r: Float = 1.0
+    subsurface_color_g: Float = 0.8
+    subsurface_color_b: Float = 0.7
+    subsurface_radius: Float = 1.0
+    subsurface_intensity: Float = 0.5
+
+# ============================================================================
+# SECTION 8: METAL SHADING PARAMETERS
+# ============================================================================
+
+struct MetalAnisotropicParams:
+    anisotropy: Float = 0.8
+    anisotropy_rotation: Float = 0.0
+    tangent_x: Float = 1.0
+    tangent_y: Float = 0.0
+    tangent_z: Float = 0.0
+
+struct MetalFresnelParams:
+    metal_f0_r: Float = 0.95
+    metal_f0_g: Float = 0.93
+    metal_f0_b: Float = 0.88
+    rim_intensity: Float = 1.0
+    rim_power: Float = 5.0
+
+# ============================================================================
+# SECTION 9: TOON SHADING PARAMETERS
+# ============================================================================
+
+struct ToonCelParams:
+    band_count: Int = 3
+    band_smoothness: Float = 0.05
+    shadow_color_r: Float = 0.2
+    shadow_color_g: Float = 0.2
+    shadow_color_b: Float = 0.3
+
+struct ToonOutlineParams:
+    outline_thickness: Float = 0.1
+    outline_color_r: Float = 0.0
+    outline_color_g: Float = 0.0
+    outline_color_b: Float = 0.0
+    depth_threshold: Float = 0.5
+    normal_threshold: Float = 0.5
+
+struct ToonRimLightParams:
+    rim_color_r: Float = 1.0
+    rim_color_g: Float = 1.0
+    rim_color_b: Float = 1.0
+    rim_power: Float = 3.0
+    rim_intensity: Float = 1.0
+
+struct ToonSpecularParams:
+    specular_size: Float = 0.1
+    specular_smoothness: Float = 0.05
+    specular_intensity: Float = 1.0

@@ -1,0 +1,105 @@
+@graph_editor
+graph TextureGraphEditor:
+    @node_type
+    node GeneratorNode:
+        properties:
+            GeneratorType: Int = 0
+            Scale: Float = 1.0
+            Octaves: Int = 4
+            Persistence: Float = 0.5
+            Lacunarity: Float = 2.0
+            Seed: Int = 0
+            ColorA: Vec3 = vec3(0.0, 0.0, 0.0)
+            ColorB: Vec3 = vec3(1.0, 1.0, 1.0)
+        outputs:
+            TextureOutput: Object
+    
+    @node_type
+    node FilterNode:
+        properties:
+            FilterType: Int = 0
+            Intensity: Float = 1.0
+            Radius: Float = 5.0
+            Threshold: Float = 0.5
+        inputs:
+            TextureInput: Object
+        outputs:
+            TextureOutput: Object
+    
+    @node_type
+    node BlendNode:
+        properties:
+            BlendMode: Int = 0
+            Opacity: Float = 1.0
+        inputs:
+            BaseInput: Object
+            LayerInput: Object
+            MaskInput: Object
+        outputs:
+            TextureOutput: Object
+    
+    @node_type
+    node ColorAdjustNode:
+        properties:
+            Brightness: Float = 0.0
+            Contrast: Float = 1.0
+            Saturation: Float = 1.0
+            HueShift: Float = 0.0
+        inputs:
+            TextureInput: Object
+        outputs:
+            TextureOutput: Object
+    
+    @node_type
+    node TextureInputNode:
+        properties:
+            TexturePath: String = ""
+        outputs:
+            TextureOutput: Object
+    
+    @node_type
+    node TextureOutputNode:
+        properties:
+            OutputName: String = "Result"
+        inputs:
+            TextureInput: Object
+    
+    @node_type
+    node NormalMapNode:
+        properties:
+            Strength: Float = 1.0
+        inputs:
+            HeightInput: Object
+        outputs:
+            NormalOutput: Object
+    
+    @node_type
+    node AOGeneratorNode:
+        properties:
+            SampleRadius: Float = 0.05
+            SampleCount: Int = 16
+            Strength: Float = 1.0
+        inputs:
+            HeightInput: Object
+        outputs:
+            AOOutput: Object
+    
+    @node_type
+    node UVTransformNode:
+        properties:
+            Offset: Vec2 = vec2(0.0, 0.0)
+            Scale: Vec2 = vec2(1.0, 1.0)
+            Rotation: Float = 0.0
+        inputs:
+            TextureInput: Object
+        outputs:
+            TextureOutput: Object
+    
+    @node_type
+    node MaskGeneratorNode:
+        properties:
+            MaskType: Int = 0
+            Invert: Bool = false
+            Feather: Float = 0.0
+        outputs:
+            MaskOutput: Object

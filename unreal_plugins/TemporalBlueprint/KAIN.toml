@@ -1,0 +1,83 @@
+[package]
+name = "Temporal"
+version = "1.0.0"
+author = "Zentako"
+description = "Non-linear time-state level design system for UE5 — author levels that exist across multiple simultaneous timelines"
+
+[build]
+entry = "Kain/types.kn"
+
+[ue5]
+plugin_name = "Temporal"
+plugin_dir = ""
+engine_version = "5.4"
+modular_output = true
+
+# All source files in Kain/ — ordered by dependency
+sources = [
+    "Kain/types.kn",
+    "Kain/components.kn",
+    "Kain/actors.kn",
+    "Kain/subsystems.kn",
+    "Kain/algorithms.kn",
+    "Kain/editor.kn",
+    "Kain/editor_ui.kn",
+    "Kain/editor_toolbar.kn",
+    "Kain/details.kn",
+]
+
+# Data-driven multi-module topology
+[[ue5.modules]]
+name = "TemporalBlueprint"
+type = "Runtime"
+loading_phase = "Default"
+source_globs = [
+    "Kain/types.kn",
+    "Kain/components.kn",
+    "Kain/actors.kn",
+    "Kain/subsystems.kn",
+    "Kain/algorithms.kn",
+]
+public_deps = [
+    "Core",
+    "CoreUObject",
+    "Engine",
+    "InputCore",
+    "RenderCore",
+    "RHI",
+    "GameplayTags",
+    "GeometryCore",
+    "DeveloperSettings",
+    "NetCore",
+]
+
+[[ue5.modules]]
+name = "TemporalBlueprintEditor"
+type = "Editor"
+loading_phase = "PostEngineInit"
+depends_on = ["TemporalBlueprint"]
+source_globs = [
+    "Kain/editor.kn",
+    "Kain/editor_ui.kn",
+    "Kain/editor_toolbar.kn",
+    "Kain/details.kn",
+]
+public_deps = [
+    "Core",
+    "CoreUObject",
+    "Engine",
+    "UnrealEd",
+    "Slate",
+    "SlateCore",
+    "InputCore",
+    "EditorStyle",
+    "PropertyEditor",
+    "LevelEditor",
+    "ContentBrowser",
+    "AssetTools",
+    "ToolMenus",
+    "WorkspaceMenuStructure",
+    "SceneOutliner",
+    "EditorSubsystem",
+    "AdvancedPreviewScene",
+]

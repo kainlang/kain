@@ -1,0 +1,70 @@
+# UE5 Plugin Build Artifacts
+Binaries/
+Intermediate/
+Build/
+DerivedDataCache/
+Saved/
+
+# Generated C++ from KAIN
+Generated/
+Source/
+
+# UE5 Project Files
+*.sln
+*.suo
+*.xcodeproj
+*.xcworkspace
+
+# Visual Studio
+.vs/
+*.user
+*.aps
+*.pch
+*.vspscc
+*_i.c
+*_p.c
+*.ncb
+*.opensdf
+*.sdf
+*.cachefile
+*.VC.db
+*.VC.opendb
+
+# Rider
+.idea/
+*.sln.iml
+
+# macOS
+.DS_Store
+*.dSYM
+
+# Linux
+*.o
+*.so
+
+# Compiled Shaders
+Shaders/Compiled/
+
+# Content
+Content/Blueprints/
+Content/Materials/
+
+# Plugin Packaging
+*.uplugin.bak
+*.Build.cs.bak
+
+# KAIN Build
+dist/
+*.wasm
+*.js
+*.rs
+*.cpp.bak
+*.h.bak
+
+# Logs
+*.log
+
+# Temporary Files
+*.tmp
+*.temp
+*~

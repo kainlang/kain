@@ -1,0 +1,335 @@
+actor ChunkManager:
+    state active_chunks: Array<ChunkData>
+    state chunk_load_queue: Array<ChunkCoord>
+    state chunk_unload_queue: Array<ChunkCoord>
+    state chunk_size: Int
+    state render_distance: Int
+    state player_chunk_coord: ChunkCoord
+    state terrain_generator: Actor
+    
+    on BeginPlay():
+        chunk_size = 32
+        render_distance = 8
+        active_chunks = []
+        chunk_load_queue = []
+        chunk_unload_queue = []
+        player_chunk_coord = ChunkCoord { x: 0, y: 0, z: 0 }
+        
+        terrain_generator = SpawnActor("TerrainGenerator", vec3(0.0, 0.0, 0.0), Rotator { pitch: 0.0, yaw: 0.0, roll: 0.0 })
+    
+    @tick
+    on Tick(delta: Float):
+        update_player_chunk_position()
+        process_chunk_load_queue()
+        process_chunk_unload_queue()
+        update_chunk_visibility()
+    
+    fn update_player_chunk_position():
+        let player_location = GetActorLocation()
+        
+        let new_chunk_x = (player_location.x / (chunk_size as Float)) as Int
+        let new_chunk_y = (player_location.y / (chunk_size as Float)) as Int
+        let new_chunk_z = (player_location.z / (chunk_size as Float)) as Int
+        
+        let new_coord = ChunkCoord { x: new_chunk_x, y: new_chunk_y, z: new_chunk_z }
+        
+        if new_coord.x != player_chunk_coord.x or new_coord.y != player_chunk_coord.y or new_coord.z != player_chunk_coord.z:
+            player_chunk_coord = new_coord
+            update_chunk_load_unload_queues()
+    
+    fn update_chunk_load_unload_queues():
+        chunk_load_queue = []
+        chunk_unload_queue = []
+        
+        for x in -render_distance..render_distance + 1:
+            for y in -2..3:
+                for z in -render_distance..render_distance + 1:
+                    let coord = ChunkCoord {
+                        x: player_chunk_coord.x + x,
+                        y: player_chunk_coord.y + y,
+                        z: player_chunk_coord.z + z
+                    }
+                    
+                    let distance = sqrt(((x * x + z * z) as Float))
+                    
+                    if distance <= (render_distance as Float):
+                        if not is_chunk_loaded(coord):
+                            push(chunk_load_queue, coord)
+        
+        for chunk in active_chunks:
+            let dx = chunk.coord.x - player_chunk_coord.x
+            let dy = chunk.coord.y - player_chunk_coord.y
+            let dz = chunk.coord.z - player_chunk_coord.z
+            let distance = sqrt(((dx * dx + dz * dz) as Float))
+            
+            if distance > (render_distance as Float) + 2.0:
+                push(chunk_unload_queue, chunk.coord)
+    
+    fn process_chunk_load_queue():
+        let max_loads_per_frame = 2
+        let loads_this_frame = 0
+        
+        while loads_this_frame < max_loads_per_frame and len(chunk_load_queue) > 0:
+            let coord = pop(chunk_load_queue)
+            load_chunk(coord)
+            loads_this_frame = loads_this_frame + 1
+    
+    fn process_chunk_unload_queue():
+        let max_unloads_per_frame = 4
+        let unloads_this_frame = 0
+        
+        while unloads_this_frame < max_unloads_per_frame and len(chunk_unload_queue) > 0:
+            let coord = pop(chunk_unload_queue)
+            unload_chunk(coord)
+            unloads_this_frame = unloads_this_frame + 1
+    
+    fn load_chunk(coord: ChunkCoord):
+        let chunk = generate_chunk_data(coord)
+        mesh_chunk(chunk)
+        push(active_chunks, chunk)
+    
+    fn unload_chunk(coord: ChunkCoord):
+        let new_chunks: Array<ChunkData> = []
+        
+        for chunk in active_chunks:
+            if chunk.coord.x != coord.x or chunk.coord.y != coord.y or chunk.coord.z != coord.z:
+                push(new_chunks, chunk)
+        
+        active_chunks = new_chunks
+    
+    fn is_chunk_loaded(coord: ChunkCoord) -> Bool:
+        for chunk in active_chunks:
+            if chunk.coord.x == coord.x and chunk.coord.y == coord.y and chunk.coord.z == coord.z:
+                return true
+        
+        return false
+    
+    fn generate_chunk_data(coord: ChunkCoord) -> ChunkData:
+        return ChunkData {
+            coord: coord,
+            voxels: [],
+            is_dirty: false,
+            is_generated: true,
+            is_meshed: false,
+            biome: BiomeType::Plains,
+            mesh_data: ChunkMeshData {
+                vertices: [],
+                normals: [],
+                uvs: [],
+                indices: [],
+                vertex_count: 0,
+                triangle_count: 0
+            }
+        }
+    
+    fn mesh_chunk(chunk: ChunkData):
+        chunk.mesh_data.vertices = []
+        chunk.mesh_data.normals = []
+        chunk.mesh_data.uvs = []
+        chunk.mesh_data.indices = []
+        chunk.mesh_data.vertex_count = 0
+        chunk.mesh_data.triangle_count = 0
+        
+        for x in 0..chunk_size:
+            for y in 0..chunk_size:
+                for z in 0..chunk_size:
+                    let index = x + y * chunk_size + z * chunk_size * chunk_size
+                    let voxel = chunk.voxels[index]
+                    
+                    if voxel.voxel_type != VoxelType::Air:
+                        add_voxel_faces(chunk, x, y, z, voxel.voxel_type)
+        
+        chunk.is_meshed = true
+    
+    fn add_voxel_faces(chunk: ChunkData, x: Int, y: Int, z: Int, voxel_type: VoxelType):
+        let world_pos = vec3(x as Float, y as Float, z as Float)
+        
+        if should_render_face(chunk, x, y + 1, z):
+            add_top_face(chunk, world_pos)
+        
+        if should_render_face(chunk, x, y - 1, z):
+            add_bottom_face(chunk, world_pos)
+        
+        if should_render_face(chunk, x + 1, y, z):
+            add_right_face(chunk, world_pos)
+        
+        if should_render_face(chunk, x - 1, y, z):
+            add_left_face(chunk, world_pos)
+        
+        if should_render_face(chunk, x, y, z + 1):
+            add_front_face(chunk, world_pos)
+        
+        if should_render_face(chunk, x, y, z - 1):
+            add_back_face(chunk, world_pos)
+    
+    fn should_render_face(chunk: ChunkData, x: Int, y: Int, z: Int) -> Bool:
+        if x < 0 or x >= chunk_size or y < 0 or y >= chunk_size or z < 0 or z >= chunk_size:
+            return true
+        
+        let index = x + y * chunk_size + z * chunk_size * chunk_size
+        let voxel = chunk.voxels[index]
+        
+        return voxel.voxel_type == VoxelType::Air
+    
+    fn add_top_face(chunk: ChunkData, pos: Vec3):
+        let v0 = pos + vec3(0.0, 1.0, 0.0)
+        let v1 = pos + vec3(1.0, 1.0, 0.0)
+        let v2 = pos + vec3(1.0, 1.0, 1.0)
+        let v3 = pos + vec3(0.0, 1.0, 1.0)
+        
+        add_quad(chunk, v0, v1, v2, v3, vec3(0.0, 1.0, 0.0))
+    
+    fn add_bottom_face(chunk: ChunkData, pos: Vec3):
+        let v0 = pos + vec3(0.0, 0.0, 0.0)
+        let v1 = pos + vec3(0.0, 0.0, 1.0)
+        let v2 = pos + vec3(1.0, 0.0, 1.0)
+        let v3 = pos + vec3(1.0, 0.0, 0.0)
+        
+        add_quad(chunk, v0, v1, v2, v3, vec3(0.0, -1.0, 0.0))
+    
+    fn add_right_face(chunk: ChunkData, pos: Vec3):
+        let v0 = pos + vec3(1.0, 0.0, 0.0)
+        let v1 = pos + vec3(1.0, 0.0, 1.0)
+        let v2 = pos + vec3(1.0, 1.0, 1.0)
+        let v3 = pos + vec3(1.0, 1.0, 0.0)
+        
+        add_quad(chunk, v0, v1, v2, v3, vec3(1.0, 0.0, 0.0))
+    
+    fn add_left_face(chunk: ChunkData, pos: Vec3):
+        let v0 = pos + vec3(0.0, 0.0, 0.0)
+        let v1 = pos + vec3(0.0, 1.0, 0.0)
+        let v2 = pos + vec3(0.0, 1.0, 1.0)
+        let v3 = pos + vec3(0.0, 0.0, 1.0)
+        
+        add_quad(chunk, v0, v1, v2, v3, vec3(-1.0, 0.0, 0.0))
+    
+    fn add_front_face(chunk: ChunkData, pos: Vec3):
+        let v0 = pos + vec3(0.0, 0.0, 1.0)
+        let v1 = pos + vec3(0.0, 1.0, 1.0)
+        let v2 = pos + vec3(1.0, 1.0, 1.0)
+        let v3 = pos + vec3(1.0, 0.0, 1.0)
+        
+        add_quad(chunk, v0, v1, v2, v3, vec3(0.0, 0.0, 1.0))
+    
+    fn add_back_face(chunk: ChunkData, pos: Vec3):
+        let v0 = pos + vec3(0.0, 0.0, 0.0)
+        let v1 = pos + vec3(1.0, 0.0, 0.0)
+        let v2 = pos + vec3(1.0, 1.0, 0.0)
+        let v3 = pos + vec3(0.0, 1.0, 0.0)
+        
+        add_quad(chunk, v0, v1, v2, v3, vec3(0.0, 0.0, -1.0))
+    
+    fn add_quad(chunk: ChunkData, v0: Vec3, v1: Vec3, v2: Vec3, v3: Vec3, normal: Vec3):
+        let base_index = chunk.mesh_data.vertex_count
+        
+        push(chunk.mesh_data.vertices, v0)
+        push(chunk.mesh_data.vertices, v1)
+        push(chunk.mesh_data.vertices, v2)
+        push(chunk.mesh_data.vertices, v3)
+        
+        push(chunk.mesh_data.normals, normal)
+        push(chunk.mesh_data.normals, normal)
+        push(chunk.mesh_data.normals, normal)
+        push(chunk.mesh_data.normals, normal)
+        
+        push(chunk.mesh_data.uvs, vec2(0.0, 0.0))
+        push(chunk.mesh_data.uvs, vec2(1.0, 0.0))
+        push(chunk.mesh_data.uvs, vec2(1.0, 1.0))
+        push(chunk.mesh_data.uvs, vec2(0.0, 1.0))
+        
+        push(chunk.mesh_data.indices, base_index + 0)
+        push(chunk.mesh_data.indices, base_index + 1)
+        push(chunk.mesh_data.indices, base_index + 2)
+        push(chunk.mesh_data.indices, base_index + 0)
+        push(chunk.mesh_data.indices, base_index + 2)
+        push(chunk.mesh_data.indices, base_index + 3)
+        
+        chunk.mesh_data.vertex_count = chunk.mesh_data.vertex_count + 4
+        chunk.mesh_data.triangle_count = chunk.mesh_data.triangle_count + 2
+    
+    fn update_chunk_visibility():
+        return
+    
+    @blueprint_callable
+    fn get_chunk_at(coord: ChunkCoord) -> ChunkData:
+        for chunk in active_chunks:
+            if chunk.coord.x == coord.x and chunk.coord.y == coord.y and chunk.coord.z == coord.z:
+                return chunk
+        
+        return ChunkData {
+            coord: coord,
+            voxels: [],
+            is_dirty: false,
+            is_generated: false,
+            is_meshed: false,
+            biome: BiomeType::Plains,
+            mesh_data: ChunkMeshData {
+                vertices: [],
+                normals: [],
+                uvs: [],
+                indices: [],
+                vertex_count: 0,
+                triangle_count: 0
+            }
+        }
+    
+    @blueprint_callable
+    fn set_voxel(position: BlockPosition, voxel_type: VoxelType):
+        let chunk_x = position.x / chunk_size
+        let chunk_y = position.y / chunk_size
+        let chunk_z = position.z / chunk_size
+        
+        let coord = ChunkCoord { x: chunk_x, y: chunk_y, z: chunk_z }
+        let chunk = get_chunk_at(coord)
+        
+        if chunk.is_generated:
+            let local_x = position.x % chunk_size
+            let local_y = position.y % chunk_size
+            let local_z = position.z % chunk_size
+            
+            let index = local_x + local_y * chunk_size + local_z * chunk_size * chunk_size
+            
+            chunk.voxels[index].voxel_type = voxel_type
+            chunk.is_dirty = true
+            
+            mesh_chunk(chunk)
+    
+    @blueprint_callable
+    fn get_voxel(position: BlockPosition) -> VoxelData:
+        let chunk_x = position.x / chunk_size
+        let chunk_y = position.y / chunk_size
+        let chunk_z = position.z / chunk_size
+        
+        let coord = ChunkCoord { x: chunk_x, y: chunk_y, z: chunk_z }
+        let chunk = get_chunk_at(coord)
+        
+        if chunk.is_generated:
+            let local_x = position.x % chunk_size
+            let local_y = position.y % chunk_size
+            let local_z = position.z % chunk_size
+            
+            let index = local_x + local_y * chunk_size + local_z * chunk_size * chunk_size
+            
+            return chunk.voxels[index]
+        
+        return VoxelData {
+            voxel_type: VoxelType::Air,
+            light_level: 15,
+            metadata: 0
+        }
+
+@async_task
+struct ChunkGenerationTask:
+    @input
+    coord: ChunkCoord
+    @input
+    seed: Int
+    @input
+    noise_params: NoiseParameters
+    
+    @output
+    chunk_data: ChunkData
+    
+    @callback(thread: "game")
+    fn on_complete(result: ChunkData):
+        println("Chunk generation complete for ({result.coord.x}, {result.coord.y}, {result.coord.z})")

@@ -1,0 +1,20 @@
+# Root-level plugin_name for FULLBUILD.bat compatibility
+plugin_name = "TitanGraph"
+
+[plugin]
+name = "TitanGraph"
+version = "1.0.0"
+description = "Quest and dialogue graph editor with runtime system"
+author = "KAIN Factory"
+category = "Gameplay"
+engine_version = "5.4"
+
+[build]
+sources = [
+    "titangraph.kn"
+]
+output_dir = "Source/TitanGraph"
+
+[build.ue5]
+module_type = "Runtime"
+loading_phase = "Default"

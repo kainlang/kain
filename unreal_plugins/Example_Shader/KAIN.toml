@@ -1,0 +1,15 @@
+[package]
+name = "ShaderExample"
+version = "1.0.0"
+authors = ["KAIN Research Labs"]
+description = "Shader Example - Demonstrates compute, fragment, vertex, and surface shader generation with USF output, FGlobalShader integration, and dispatch helpers"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "ShaderExample"
+plugin_dir = "."
+sources = ["shader.kn"]
+shaders = []
+modular_output = true

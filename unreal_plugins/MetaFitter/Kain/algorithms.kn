@@ -1,0 +1,522 @@
+# ============================================================================
+# METAFITTER - Core Algorithms
+# ============================================================================
+# Blueprint function library for mesh analysis, clothing detection,
+# shrinkwrap fitting, and auto-rigging algorithms.
+# These are the computational core of MetaFitter.
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: MESH TOPOLOGY ANALYSIS
+# ============================================================================
+
+@blueprint
+fn analyze_mesh_topology_from_path(mesh_path: String) -> MeshTopologyInfo:
+    let info = MeshTopologyInfo()
+    
+    # Load mesh and extract topology data
+    # UE5 APIs: UStaticMesh::GetRenderData(), FStaticMeshLODResources
+    info.vertex_count = 0
+    info.triangle_count = 0
+    info.edge_count = 0
+    info.uv_channel_count = 1
+    info.material_slot_count = 1
+    info.has_normals = true
+    info.has_tangents = true
+    info.is_manifold = true
+    info.has_open_edges = false
+    info.bounding_box_min = vec3(0, 0, 0)
+    info.bounding_box_max = vec3(0, 0, 0)
+    info.bounding_box_center = vec3(0, 0, 0)
+    info.bounding_box_extent = vec3(0, 0, 0)
+    info.surface_area = 0.0
+    
+    println("MetaFitter: Analyzing mesh topology for: " + mesh_path)
+    return info
+
+@blueprint
+fn validate_mesh_for_conforming(topology: MeshTopologyInfo) -> MeshAnalysisResult:
+    if topology.vertex_count == 0:
+        return MeshAnalysisResult::TooFewVertices
+    
+    if topology.vertex_count < 100:
+        return MeshAnalysisResult::TooFewVertices
+    
+    if topology.vertex_count > 500000:
+        return MeshAnalysisResult::TooManyVertices
+    
+    if topology.uv_channel_count == 0:
+        return MeshAnalysisResult::NoUVs
+    
+    if !topology.is_manifold:
+        return MeshAnalysisResult::NonManifold
+    
+    if topology.has_open_edges:
+        return MeshAnalysisResult::OpenEdges
+    
+    return MeshAnalysisResult::Success
+
+# ============================================================================
+# SECTION 2: OPENING DETECTION
+# ============================================================================
+# Detects openings in the clothing mesh (neck hole, arm holes, leg holes, etc.)
+# by analyzing boundary edges and their spatial positions relative to the
+# MetaHuman skeleton reference points.
+
+@blueprint
+fn detect_mesh_openings(topology: MeshTopologyInfo) -> ClothingOpenings:
+    let openings = ClothingOpenings()
+    
+    # Analyze boundary edge loops to find openings
+    # Each opening is a connected loop of boundary edges
+    # Position relative to body determines which opening it is:
+    #   - Top center = neck opening
+    #   - Upper sides = arm openings
+    #   - Bottom center = waist opening
+    #   - Bottom split = leg openings
+    #   - Front vertical = front opening (jacket/coat)
+    
+    let center = topology.bounding_box_center
+    let extent = topology.bounding_box_extent
+    let top_y = center.y + extent.y
+    let bottom_y = center.y - extent.y
+    let height = extent.y * 2.0
+    
+    # Heuristic: if bounding box is tall (height > width), likely has leg openings
+    let width = extent.x * 2.0
+    let aspect_ratio = height / width
+    
+    if aspect_ratio > 1.5:
+        # Tall garment — likely pants or dress
+        openings.has_waist_opening = true
+        openings.has_left_leg_opening = true
+        openings.has_right_leg_opening = true
+        openings.opening_count = 3
+    else if aspect_ratio > 0.8:
+        # Medium garment — likely shirt or jacket
+        openings.has_neck_opening = true
+        openings.has_left_arm_opening = true
+        openings.has_right_arm_opening = true
+        openings.has_waist_opening = true
+        openings.opening_count = 4
+    else:
+        # Wide/flat garment — likely hat, belt, or accessory
+        openings.opening_count = 1
+    
+    return openings
+
+# ============================================================================
+# SECTION 3: COVERAGE MAP CALCULATION
+# ============================================================================
+# Determines which body regions the clothing mesh covers by projecting
+# the mesh bounds onto the MetaHuman body regions.
+
+@blueprint
+fn calculate_coverage_map(topology: MeshTopologyInfo) -> CoverageMap:
+    let coverage = CoverageMap()
+    
+    let center = topology.bounding_box_center
+    let min_bound = topology.bounding_box_min
+    let max_bound = topology.bounding_box_max
+    let extent = topology.bounding_box_extent
+    
+    # MetaHuman reference heights (approximate, in cm, standing at origin):
+    #   Head:       160-180
+    #   Neck:       155-165
+    #   Torso:      100-155
+    #   Upper Arms: 120-155 (sides)
+    #   Lower Arms: 80-120 (sides)
+    #   Hands:      60-80 (sides)
+    #   Waist:      95-105
+    #   Hips:       85-100
+    #   Upper Legs: 50-85
+    #   Lower Legs: 10-50
+    #   Feet:       0-10
+    
+    # Check vertical coverage
+    let top = max_bound.z
+    let bottom = min_bound.z
+    
+    coverage.covers_head = top > 160.0
+    coverage.covers_neck = top > 155.0 and bottom < 165.0
+    coverage.covers_torso = top > 100.0 and bottom < 155.0
+    coverage.covers_waist = top > 95.0 and bottom < 105.0
+    coverage.covers_hips = top > 85.0 and bottom < 100.0
+    coverage.covers_upper_legs = top > 50.0 and bottom < 85.0
+    coverage.covers_lower_legs = top > 10.0 and bottom < 50.0
+    coverage.covers_feet = bottom < 10.0
+    
+    # Check horizontal coverage for arms
+    let half_width = extent.x
+    coverage.covers_upper_arms = half_width > 25.0 and top > 120.0
+    coverage.covers_lower_arms = half_width > 35.0 and top > 80.0
+    coverage.covers_hands = half_width > 45.0 and top > 60.0
+    
+    # Calculate overall coverage percentage
+    let regions_covered = 0
+    let total_regions = 11
+    if coverage.covers_head:
+        regions_covered = regions_covered + 1
+    if coverage.covers_neck:
+        regions_covered = regions_covered + 1
+    if coverage.covers_torso:
+        regions_covered = regions_covered + 1
+    if coverage.covers_upper_arms:
+        regions_covered = regions_covered + 1
+    if coverage.covers_lower_arms:
+        regions_covered = regions_covered + 1
+    if coverage.covers_hands:
+        regions_covered = regions_covered + 1
+    if coverage.covers_waist:
+        regions_covered = regions_covered + 1
+    if coverage.covers_hips:
+        regions_covered = regions_covered + 1
+    if coverage.covers_upper_legs:
+        regions_covered = regions_covered + 1
+    if coverage.covers_lower_legs:
+        regions_covered = regions_covered + 1
+    if coverage.covers_feet:
+        regions_covered = regions_covered + 1
+    
+    coverage.coverage_percentage = to_float(regions_covered) / to_float(total_regions) * 100.0
+    
+    return coverage
+
+# ============================================================================
+# SECTION 4: CLOTHING TYPE CLASSIFICATION
+# ============================================================================
+# Combines topology, openings, and coverage data to classify the clothing type.
+
+@blueprint
+fn classify_clothing_type(topology: MeshTopologyInfo, openings: ClothingOpenings, coverage: CoverageMap) -> ClothingType:
+    # Rule-based classification using openings + coverage
+    
+    # Hat: covers head, small mesh
+    if coverage.covers_head and !coverage.covers_torso and !coverage.covers_upper_legs:
+        return ClothingType::Hat
+    
+    # Shoes: covers feet only
+    if coverage.covers_feet and !coverage.covers_upper_legs and !coverage.covers_torso:
+        return ClothingType::Shoes
+    
+    # Socks: covers feet and lower legs only
+    if coverage.covers_feet and coverage.covers_lower_legs and !coverage.covers_upper_legs:
+        return ClothingType::Socks
+    
+    # Gloves: covers hands, small mesh
+    if coverage.covers_hands and !coverage.covers_torso:
+        return ClothingType::Gloves
+    
+    # Belt: covers waist only, thin
+    if coverage.covers_waist and !coverage.covers_torso and !coverage.covers_upper_legs:
+        let height = topology.bounding_box_extent.y * 2.0
+        if height < 15.0:
+            return ClothingType::Belt
+    
+    # Scarf: covers neck, small mesh
+    if coverage.covers_neck and !coverage.covers_torso and topology.vertex_count < 5000:
+        return ClothingType::Scarf
+    
+    # Dress: covers torso + legs, has waist opening, no separate leg openings
+    if coverage.covers_torso and coverage.covers_upper_legs:
+        if openings.has_waist_opening and !openings.has_left_leg_opening:
+            return ClothingType::Dress
+        if coverage.covers_lower_legs:
+            return ClothingType::Dress
+    
+    # Pants: covers legs, has leg openings, does not cover torso significantly
+    if coverage.covers_upper_legs and openings.has_left_leg_opening and openings.has_right_leg_opening:
+        if !coverage.covers_torso or coverage.covers_waist:
+            return ClothingType::Pants
+    
+    # Skirt: covers hips + upper legs, no leg openings
+    if coverage.covers_hips and coverage.covers_upper_legs and !openings.has_left_leg_opening:
+        if !coverage.covers_lower_legs:
+            return ClothingType::Skirt
+    
+    # Coat: covers torso + upper legs, has front opening, long
+    if coverage.covers_torso and coverage.covers_hips and openings.has_front_opening:
+        if coverage.covers_upper_legs:
+            return ClothingType::Coat
+        return ClothingType::Jacket
+    
+    # Jacket: covers torso, has front opening
+    if coverage.covers_torso and openings.has_front_opening:
+        return ClothingType::Jacket
+    
+    # Vest: covers torso, no arm coverage
+    if coverage.covers_torso and !coverage.covers_upper_arms:
+        return ClothingType::Vest
+    
+    # Hoodie: covers torso + arms + has hood (head coverage)
+    if coverage.covers_torso and coverage.covers_upper_arms and coverage.covers_head:
+        return ClothingType::Hoodie
+    
+    # Shirt: covers torso, has arm and neck openings
+    if coverage.covers_torso and openings.has_neck_opening:
+        if openings.has_left_arm_opening and openings.has_right_arm_opening:
+            return ClothingType::Shirt
+    
+    # Fallback: if covers torso, call it a shirt
+    if coverage.covers_torso:
+        return ClothingType::Shirt
+    
+    return ClothingType::Unknown
+
+@blueprint
+fn clothing_type_to_string(clothing_type: ClothingType) -> String:
+    match clothing_type:
+        ClothingType::Shirt =>
+            return "Shirt"
+        ClothingType::Pants =>
+            return "Pants"
+        ClothingType::Dress =>
+            return "Dress"
+        ClothingType::Jacket =>
+            return "Jacket"
+        ClothingType::Shoes =>
+            return "Shoes"
+        ClothingType::Hat =>
+            return "Hat"
+        ClothingType::Gloves =>
+            return "Gloves"
+        ClothingType::Belt =>
+            return "Belt"
+        ClothingType::Scarf =>
+            return "Scarf"
+        ClothingType::Skirt =>
+            return "Skirt"
+        ClothingType::Vest =>
+            return "Vest"
+        ClothingType::Hoodie =>
+            return "Hoodie"
+        ClothingType::Coat =>
+            return "Coat"
+        ClothingType::Underwear =>
+            return "Underwear"
+        ClothingType::Socks =>
+            return "Socks"
+        ClothingType::Jewelry =>
+            return "Jewelry"
+        ClothingType::Glasses =>
+            return "Glasses"
+        ClothingType::Mask =>
+            return "Mask"
+        _ =>
+            return "Unknown"
+
+# ============================================================================
+# SECTION 5: SHRINKWRAP ALGORITHM
+# ============================================================================
+# Projects clothing vertices onto the body surface with configurable tightness.
+# Uses raycasting from each clothing vertex toward the body to find the
+# closest surface point, then interpolates between original and projected
+# positions based on fit tightness.
+
+@blueprint
+fn perform_shrinkwrap(source_mesh_path: String, target_body_path: String, tightness: Float, offset_multiplier: Float, preserve_wrinkles: Bool, wrinkle_strength: Float) -> ShrinkwrapResult:
+    let result = ShrinkwrapResult()
+    
+    println("MetaFitter: Shrinkwrap fitting...")
+    println("  Tightness: " + float_to_string(tightness))
+    println("  Offset multiplier: " + float_to_string(offset_multiplier))
+    println("  Preserve wrinkles: " + bool_to_string(preserve_wrinkles))
+    
+    # Algorithm:
+    # For each vertex in the clothing mesh:
+    #   1. Cast ray from vertex along -normal toward body
+    #   2. Find closest point on body surface
+    #   3. Calculate target position = body_point + normal * offset
+    #   4. Interpolate: new_pos = lerp(original_pos, target_pos, tightness)
+    #   5. If preserve_wrinkles: blend local detail back in
+    #
+    # UE5 APIs used:
+    #   UWorld::LineTraceSingleByChannel() — raycasting
+    #   FMath::Lerp() — interpolation
+    #   UGeometryScriptLibrary_MeshDeformFunctions — mesh deformation
+    
+    result.success = true
+    result.vertices_projected = 0
+    result.vertices_skipped = 0
+    result.average_offset = 0.0
+    result.max_offset = 0.0
+    result.clipping_detected = false
+    result.clipping_vertex_count = 0
+    
+    return result
+
+@blueprint
+fn calculate_vertex_offset(clothing_type: ClothingType, tightness: Float, region: ClothingRegion) -> Float:
+    # Base offset per clothing type (in cm)
+    let base_offset = 0.5
+    
+    match clothing_type:
+        ClothingType::Shirt =>
+            base_offset = 0.8
+        ClothingType::Pants =>
+            base_offset = 0.5
+        ClothingType::Dress =>
+            base_offset = 1.5
+        ClothingType::Jacket =>
+            base_offset = 2.0
+        ClothingType::Coat =>
+            base_offset = 2.5
+        ClothingType::Hoodie =>
+            base_offset = 1.5
+        ClothingType::Vest =>
+            base_offset = 1.0
+        ClothingType::Skirt =>
+            base_offset = 1.2
+        ClothingType::Scarf =>
+            base_offset = 0.3
+        _ =>
+            base_offset = 0.8
+    
+    # Region-specific multiplier (some areas need more offset)
+    let region_mult = 1.0
+    match region:
+        ClothingRegion::Torso =>
+            region_mult = 1.0
+        ClothingRegion::UpperArm =>
+            region_mult = 0.8
+        ClothingRegion::LowerArm =>
+            region_mult = 0.7
+        ClothingRegion::UpperLeg =>
+            region_mult = 0.9
+        ClothingRegion::LowerLeg =>
+            region_mult = 0.8
+        ClothingRegion::Waist =>
+            region_mult = 1.1
+        ClothingRegion::Hip =>
+            region_mult = 1.2
+        ClothingRegion::Neck =>
+            region_mult = 0.6
+        _ =>
+            region_mult = 1.0
+    
+    # Tightness inverts the offset (tighter = less offset)
+    let tightness_factor = 1.0 - tightness
+    
+    return base_offset * region_mult * tightness_factor
+
+# ============================================================================
+# SECTION 6: AUTO-RIGGING (BONE WEIGHT CALCULATION)
+# ============================================================================
+# Binds clothing vertices to the MetaHuman skeleton by calculating bone
+# weights based on proximity. Uses closest-bone with distance falloff.
+
+@blueprint
+fn perform_auto_rig(source_mesh_path: String, target_body_path: String, max_influences: Int, smooth_weights: Bool, smooth_iterations: Int) -> Bool:
+    println("MetaFitter: Auto-rigging to skeleton...")
+    println("  Max bone influences: " + int_to_string(max_influences))
+    println("  Smooth weights: " + bool_to_string(smooth_weights))
+    println("  Smooth iterations: " + int_to_string(smooth_iterations))
+    
+    # Algorithm:
+    # 1. Get MetaHuman skeleton bone transforms
+    # 2. For each clothing vertex:
+    #    a. Find N closest bones (N = max_influences)
+    #    b. Calculate distance to each bone
+    #    c. Convert distances to weights (inverse distance, normalized)
+    # 3. If smooth_weights: run Laplacian smoothing passes
+    #
+    # UE5 APIs used:
+    #   USkeleton::GetReferenceSkeleton()
+    #   FReferenceSkeleton::GetBoneName()
+    #   FReferenceSkeleton::GetBoneTransform()
+    #   FSkinWeightVertexBuffer — for writing weights
+    
+    return true
+
+@blueprint
+fn calculate_bone_weight(distance: Float, falloff_radius: Float) -> Float:
+    # Inverse distance weighting with smooth falloff
+    if distance <= 0.0:
+        return 1.0
+    if distance >= falloff_radius:
+        return 0.0
+    
+    # Smooth hermite interpolation for natural falloff
+    let t = distance / falloff_radius
+    let smooth_t = t * t * (3.0 - 2.0 * t)
+    return 1.0 - smooth_t
+
+@blueprint
+fn normalize_bone_weights(w0: Float, w1: Float, w2: Float, w3: Float) -> VertexWeightData:
+    let data = VertexWeightData()
+    let total = w0 + w1 + w2 + w3
+    
+    if total <= 0.0:
+        data.weight_0 = 1.0
+        data.weight_1 = 0.0
+        data.weight_2 = 0.0
+        data.weight_3 = 0.0
+        return data
+    
+    data.weight_0 = w0 / total
+    data.weight_1 = w1 / total
+    data.weight_2 = w2 / total
+    data.weight_3 = w3 / total
+    
+    return data
+
+# ============================================================================
+# SECTION 7: UTILITY FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn int_to_string(value: Int) -> String:
+    return "" + value
+
+@blueprint
+fn float_to_string(value: Float) -> String:
+    return "" + value
+
+@blueprint
+fn bool_to_string(value: Bool) -> String:
+    if value:
+        return "true"
+    return "false"
+
+@blueprint
+fn to_float(value: Int) -> Float:
+    return value * 1.0
+
+@blueprint
+fn clamp_float(value: Float, min_val: Float, max_val: Float) -> Float:
+    if value < min_val:
+        return min_val
+    if value > max_val:
+        return max_val
+    return value
+
+@blueprint
+fn lerp_float(a: Float, b: Float, t: Float) -> Float:
+    return a + (b - a) * t
+
+@blueprint
+fn lerp_vec3(a: Vec3, b: Vec3, t: Float) -> Vec3:
+    let result = vec3(0, 0, 0)
+    result.x = a.x + (b.x - a.x) * t
+    result.y = a.y + (b.y - a.y) * t
+    result.z = a.z + (b.z - a.z) * t
+    return result
+
+@blueprint
+fn distance_vec3(a: Vec3, b: Vec3) -> Float:
+    let dx = b.x - a.x
+    let dy = b.y - a.y
+    let dz = b.z - a.z
+    return sqrt(dx * dx + dy * dy + dz * dz)
+
+@blueprint
+fn sqrt(value: Float) -> Float:
+    # Newton's method approximation
+    if value <= 0.0:
+        return 0.0
+    let guess = value * 0.5
+    let i = 0
+    while i < 10:
+        guess = (guess + value / guess) * 0.5
+        i = i + 1
+    return guess

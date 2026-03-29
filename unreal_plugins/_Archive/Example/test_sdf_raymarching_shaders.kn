@@ -1,0 +1,186 @@
+# ============================================================================
+# SDF & Ray Marching Shader Tests - Testing stdlib SDF functions
+# ============================================================================
+# Tests: sdf_sphere, sdf_box, sdf_torus, sdf_cylinder,
+#        sdf_union, sdf_intersection, sdf_subtraction, sdf_smooth_union,
+#        estimate_normal_sdf, ray_march_sdf
+
+shader compute TestSDFPrimitives(thread_id: Vec3) -> Unit:
+    uniform output_buffer: RWBuffer<Float> @0
+    
+    let idx = thread_id.x
+    let x = idx * 0.1
+    let y = idx * 0.2
+    let z = idx * 0.3
+    let pos = vec3(x, y, z)
+    
+    # Test sdf_sphere
+    let sphere_center = vec3(0.0, 0.0, 0.0)
+    let sphere_radius = 1.0
+    let sphere_dist = sdf_sphere(pos, sphere_center, sphere_radius)
+    
+    # Test sdf_box
+    let box_center = vec3(2.0, 0.0, 0.0)
+    let box_size = vec3(0.5, 0.5, 0.5)
+    let box_dist = sdf_box(pos, box_center, box_size)
+    
+    # Test sdf_torus
+    let torus_center = vec3(0.0, 2.0, 0.0)
+    let torus_major = 1.0
+    let torus_minor = 0.3
+    let torus_dist = sdf_torus(pos, torus_center, torus_major, torus_minor)
+    
+    # Test sdf_cylinder
+    let cylinder_center = vec3(0.0, 0.0, 2.0)
+    let cylinder_radius = 0.5
+    let cylinder_height = 2.0
+    let cylinder_dist = sdf_cylinder(pos, cylinder_center, cylinder_radius, cylinder_height)
+    
+    # Store minimum distance
+    let min_dist = min(min(sphere_dist, box_dist), min(torus_dist, cylinder_dist))
+    output_buffer[idx] = min_dist
+
+shader compute TestSDFOperations(thread_id: Vec3) -> Unit:
+    uniform output_buffer: RWBuffer<Float> @0
+    
+    let idx = thread_id.x
+    let x = idx * 0.1
+    let y = idx * 0.2
+    let z = idx * 0.3
+    let pos = vec3(x, y, z)
+    
+    # Create two spheres
+    let sphere1 = sdf_sphere(pos, vec3(0.0, 0.0, 0.0), 1.0)
+    let sphere2 = sdf_sphere(pos, vec3(1.0, 0.0, 0.0), 0.8)
+    
+    # Test sdf_union
+    let union_dist = sdf_union(sphere1, sphere2)
+    
+    # Test sdf_intersection
+    let intersection_dist = sdf_intersection(sphere1, sphere2)
+    
+    # Test sdf_subtraction
+    let subtraction_dist = sdf_subtraction(sphere1, sphere2)
+    
+    # Test sdf_smooth_union
+    let smooth_k = 0.5
+    let smooth_union_dist = sdf_smooth_union(sphere1, sphere2, smooth_k)
+    
+    output_buffer[idx] = smooth_union_dist
+
+shader fragment TestRayMarching(uv: Vec2) -> Vec4:
+    uniform max_steps: Int @0
+    uniform max_distance: Float @1
+    uniform epsilon: Float @2
+    
+    # Setup ray
+    let ray_origin = vec3(0.0, 0.0, -5.0)
+    let ray_dir = normalize(vec3(uv.x - 0.5, uv.y - 0.5, 1.0))
+    
+    # Ray march through scene
+    var t = 0.0
+    var hit = false
+    var steps = 0
+    
+    while steps < max_steps:
+        let pos = ray_origin + ray_dir * t
+        
+        # Scene SDF: sphere and box with smooth union
+        let sphere = sdf_sphere(pos, vec3(0.0, 0.0, 0.0), 1.0)
+        let box = sdf_box(pos, vec3(1.5, 0.0, 0.0), vec3(0.5, 0.5, 0.5))
+        let scene_dist = sdf_smooth_union(sphere, box, 0.3)
+        
+        if scene_dist < epsilon:
+            hit = true
+            break
+        
+        t = t + scene_dist
+        
+        if t > max_distance:
+            break
+        
+        steps = steps + 1
+    
+    # Calculate color based on hit
+    var color = vec3(0.0, 0.0, 0.0)
+    if hit:
+        let hit_pos = ray_origin + ray_dir * t
+        
+        # Estimate normal using SDF
+        let normal = estimate_normal_sdf(hit_pos)
+        
+        # Simple lighting
+        let light_dir = normalize(vec3(1.0, 1.0, -1.0))
+        let diffuse = max(dot(normal, light_dir), 0.0)
+        
+        color = vec3(diffuse, diffuse, diffuse)
+    
+    return vec4(color.x, color.y, color.z, 1.0)
+
+shader compute TestSDFNormalEstimation(thread_id: Vec3) -> Unit:
+    uniform output_buffer: RWBuffer<Vec4> @0
+    
+    let idx = thread_id.x
+    let x = idx * 0.1
+    let y = idx * 0.2
+    let z = idx * 0.3
+    let pos = vec3(x, y, z)
+    
+    # Test estimate_normal_sdf on a sphere
+    let normal = estimate_normal_sdf(pos)
+    
+    output_buffer[idx] = vec4(normal.x, normal.y, normal.z, 1.0)
+
+shader fragment TestComplexSDFScene(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    
+    # Setup ray
+    let ray_origin = vec3(0.0, 0.0, -5.0)
+    let ray_dir = normalize(vec3(uv.x - 0.5, uv.y - 0.5, 1.0))
+    
+    # Ray march
+    var t = 0.0
+    var hit = false
+    let max_steps = 64
+    let epsilon = 0.001
+    
+    var steps = 0
+    while steps < max_steps:
+        let pos = ray_origin + ray_dir * t
+        
+        # Complex scene with multiple primitives
+        let sphere1 = sdf_sphere(pos, vec3(sin(time) * 2.0, 0.0, 0.0), 0.8)
+        let sphere2 = sdf_sphere(pos, vec3(0.0, cos(time) * 2.0, 0.0), 0.6)
+        let box = sdf_box(pos, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0))
+        let torus = sdf_torus(pos, vec3(0.0, 0.0, 0.0), 1.5, 0.3)
+        
+        # Combine with operations
+        let spheres = sdf_smooth_union(sphere1, sphere2, 0.5)
+        let box_torus = sdf_intersection(box, torus)
+        let scene_dist = sdf_union(spheres, box_torus)
+        
+        if scene_dist < epsilon:
+            hit = true
+            break
+        
+        t = t + scene_dist
+        
+        if t > 20.0:
+            break
+        
+        steps = steps + 1
+    
+    # Shading
+    var color = vec3(0.1, 0.1, 0.2)
+    if hit:
+        let hit_pos = ray_origin + ray_dir * t
+        let normal = estimate_normal_sdf(hit_pos)
+        let light_dir = normalize(vec3(1.0, 1.0, -1.0))
+        let diffuse = max(dot(normal, light_dir), 0.0)
+        
+        # Add ambient occlusion based on steps
+        let ao = 1.0 - (steps / max_steps)
+        
+        color = vec3(diffuse * ao, diffuse * ao * 0.8, diffuse * ao * 0.6)
+    
+    return vec4(color.x, color.y, color.z, 1.0)

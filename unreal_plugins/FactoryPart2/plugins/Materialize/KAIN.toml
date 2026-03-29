@@ -1,0 +1,36 @@
+[package]
+name = "Materialize"
+version = "2.0.0"
+authors = ["K-Studio - KAIN Rebuild"]
+description = "Substance Sampler for UE5. Generate complete PBR materials from a single image with 30+ material presets. Rebuilt in KAIN with full material asset pipeline, streamlined shaders, and graph editor."
+
+[build]
+entry = "src/types.kn"
+target = "ue5"
+
+[ue5]
+plugin_name = "Materialize"
+plugin_dir = "."
+engine_version = "5.4"
+modular_output = true
+
+# Source files ordered by dependency
+sources = [
+    "src/types.kn",
+    "src/presets.kn",
+    "src/engine.kn",
+    "src/layer_system.kn",
+    "src/pbr_shaders.kn",
+    "src/blend_filter_shaders.kn",
+    "src/noise_shaders.kn",
+    "src/orm_packing_shader.kn",
+    "src/editor_main.kn",
+    "src/editor_viewport.kn",
+    "src/editor_widgets.kn",
+    "src/batch_processor.kn",
+]
+
+[[ue5.modules]]
+name = "Materialize"
+type = "Editor"
+loading_phase = "PostConfigInit"

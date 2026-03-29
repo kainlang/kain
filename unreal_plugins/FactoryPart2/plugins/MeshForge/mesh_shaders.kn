@@ -1,0 +1,229 @@
+# MeshForge - GPU Compute Shaders
+# GPU-accelerated mesh operations for real-time performance
+
+# Subdivide mesh using GPU compute
+shader compute SubdivideMesh(thread_id: Vec3):
+    uniform vertex_count: Int @0
+    uniform subdivision_level: Int @1
+    uniform smoothness: Float @2
+    buffer input_vertices: Buffer<Vec3> @3
+    buffer input_normals: Buffer<Vec3> @4
+    buffer output_vertices: RWBuffer<Vec3> @5
+    buffer output_normals: RWBuffer<Vec3> @6
+    
+    let idx = thread_id.x
+    if idx >= vertex_count:
+        return
+    
+    let pos = input_vertices[idx]
+    let normal = input_normals[idx]
+    
+    let neighbor_count = 4
+    let neighbor_sum = vec3(0.0, 0.0, 0.0)
+    
+    for i in 0..neighbor_count:
+        let neighbor_idx = (idx + i + 1) % vertex_count
+        neighbor_sum = neighbor_sum + input_vertices[neighbor_idx]
+    
+    let avg_neighbor = neighbor_sum / float(neighbor_count)
+    let smoothed = lerp(pos, avg_neighbor, smoothness)
+    
+    output_vertices[idx] = smoothed
+    output_normals[idx] = normalize(normal)
+
+# Smooth mesh using Laplacian smoothing
+shader compute SmoothMesh(thread_id: Vec3):
+    uniform vertex_count: Int @0
+    uniform strength: Float @1
+    uniform preserve_volume: Bool @2
+    buffer input_vertices: Buffer<Vec3> @3
+    buffer input_normals: Buffer<Vec3> @4
+    buffer output_vertices: RWBuffer<Vec3> @5
+    
+    let idx = thread_id.x
+    if idx >= vertex_count:
+        return
+    
+    let pos = input_vertices[idx]
+    let normal = input_normals[idx]
+    
+    let neighbor_count = 6
+    let neighbor_sum = vec3(0.0, 0.0, 0.0)
+    
+    for i in 0..neighbor_count:
+        let neighbor_idx = (idx + i + 1) % vertex_count
+        neighbor_sum = neighbor_sum + input_vertices[neighbor_idx]
+    
+    let avg_neighbor = neighbor_sum / float(neighbor_count)
+    let smoothed = lerp(pos, avg_neighbor, strength)
+    
+    if preserve_volume:
+        let offset = dot(smoothed - pos, normal)
+        output_vertices[idx] = smoothed - normal * offset
+    else:
+        output_vertices[idx] = smoothed
+
+# Calculate mesh normals
+shader compute CalculateNormals(thread_id: Vec3):
+    uniform triangle_count: Int @0
+    buffer vertices: Buffer<Vec3> @1
+    buffer triangles: Buffer<Int> @2
+    buffer output_normals: RWBuffer<Vec3> @3
+    
+    let tri_idx = thread_id.x
+    if tri_idx >= triangle_count:
+        return
+    
+    let v0_idx = triangles[tri_idx * 3 + 0]
+    let v1_idx = triangles[tri_idx * 3 + 1]
+    let v2_idx = triangles[tri_idx * 3 + 2]
+    
+    let v0 = vertices[v0_idx]
+    let v1 = vertices[v1_idx]
+    let v2 = vertices[v2_idx]
+    
+    let edge1 = v1 - v0
+    let edge2 = v2 - v0
+    let normal = normalize(cross(edge1, edge2))
+    
+    output_normals[v0_idx] = normal
+    output_normals[v1_idx] = normal
+    output_normals[v2_idx] = normal
+
+# Deform mesh with falloff
+shader compute DeformMesh(thread_id: Vec3):
+    uniform vertex_count: Int @0
+    uniform deform_center: Vec3 @1
+    uniform deform_radius: Float @2
+    uniform deform_strength: Float @3
+    uniform deform_falloff: Float @4
+    buffer input_vertices: Buffer<Vec3> @5
+    buffer input_normals: Buffer<Vec3> @6
+    buffer output_vertices: RWBuffer<Vec3> @7
+    
+    let idx = thread_id.x
+    if idx >= vertex_count:
+        return
+    
+    let pos = input_vertices[idx]
+    let normal = input_normals[idx]
+    
+    let to_center = pos - deform_center
+    let dist = length(to_center)
+    
+    if dist > deform_radius:
+        output_vertices[idx] = pos
+        return
+    
+    let falloff_factor = pow(1.0 - (dist / deform_radius), deform_falloff)
+    let deform_amount = deform_strength * falloff_factor
+    
+    output_vertices[idx] = pos + normal * deform_amount
+
+# Transform mesh vertices
+shader compute TransformMesh(thread_id: Vec3):
+    uniform vertex_count: Int @0
+    uniform translation: Vec3 @1
+    uniform rotation: Vec3 @2
+    uniform scale: Vec3 @3
+    buffer input_vertices: Buffer<Vec3> @4
+    buffer output_vertices: RWBuffer<Vec3> @5
+    
+    let idx = thread_id.x
+    if idx >= vertex_count:
+        return
+    
+    let pos = input_vertices[idx]
+    
+    let scaled = pos * scale
+    
+    let cos_x = cos(rotation.x)
+    let sin_x = sin(rotation.x)
+    let cos_y = cos(rotation.y)
+    let sin_y = sin(rotation.y)
+    let cos_z = cos(rotation.z)
+    let sin_z = sin(rotation.z)
+    
+    let rotated_x = vec3(
+        scaled.x,
+        scaled.y * cos_x - scaled.z * sin_x,
+        scaled.y * sin_x + scaled.z * cos_x
+    )
+    
+    let rotated_y = vec3(
+        rotated_x.x * cos_y + rotated_x.z * sin_y,
+        rotated_x.y,
+        -rotated_x.x * sin_y + rotated_x.z * cos_y
+    )
+    
+    let rotated_z = vec3(
+        rotated_y.x * cos_z - rotated_y.y * sin_z,
+        rotated_y.x * sin_z + rotated_y.y * cos_z,
+        rotated_y.z
+    )
+    
+    output_vertices[idx] = rotated_z + translation
+
+# Calculate mesh bounds
+shader compute CalculateBounds(thread_id: Vec3):
+    uniform vertex_count: Int @0
+    buffer vertices: Buffer<Vec3> @1
+    buffer output_min: RWBuffer<Vec3> @2
+    buffer output_max: RWBuffer<Vec3> @3
+    
+    let idx = thread_id.x
+    if idx >= vertex_count:
+        return
+    
+    let pos = vertices[idx]
+    
+    if idx == 0:
+        output_min[0] = pos
+        output_max[0] = pos
+    else:
+        let current_min = output_min[0]
+        let current_max = output_max[0]
+        
+        output_min[0] = vec3(
+            min(current_min.x, pos.x),
+            min(current_min.y, pos.y),
+            min(current_min.z, pos.z)
+        )
+        
+        output_max[0] = vec3(
+            max(current_max.x, pos.x),
+            max(current_max.y, pos.y),
+            max(current_max.z, pos.z)
+        )
+
+# Optimize mesh by removing duplicate vertices
+shader compute OptimizeMesh(thread_id: Vec3):
+    uniform vertex_count: Int @0
+    uniform epsilon: Float @1
+    buffer input_vertices: Buffer<Vec3> @2
+    buffer output_vertices: RWBuffer<Vec3> @3
+    buffer output_remap: RWBuffer<Int> @4
+    
+    let idx = thread_id.x
+    if idx >= vertex_count:
+        return
+    
+    let pos = input_vertices[idx]
+    let is_duplicate = false
+    let remap_idx = idx
+    
+    for i in 0..idx:
+        let other_pos = input_vertices[i]
+        let diff = pos - other_pos
+        let dist_sq = dot(diff, diff)
+        
+        if dist_sq < epsilon * epsilon:
+            is_duplicate = true
+            remap_idx = i
+            break
+    
+    if is_duplicate:
+        output_remap[idx] = remap_idx
+    else:
+        output_vertices[idx] = pos
+        output_remap[idx] = idx

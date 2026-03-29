@@ -23,6 +23,30 @@
       "href": "#brand-system"
     },
     {
+      "label": "Creative",
+      "href": "#creative-system"
+    },
+    {
+      "label": "Copy",
+      "href": "#copy-deck"
+    },
+    {
+      "label": "Models",
+      "href": "#content-models"
+    },
+    {
+      "label": "Editorial",
+      "href": "#editorial-workflow"
+    },
+    {
+      "label": "Email",
+      "href": "#email-templates"
+    },
+    {
+      "label": "Campaigns",
+      "href": "#campaign-briefs"
+    },
+    {
       "label": "Social",
       "href": "#social-presence"
     },
@@ -69,6 +93,26 @@
     {
       "label": "Cache",
       "href": "#cache-stack"
+    },
+    {
+      "label": "Database",
+      "href": "#database-stack"
+    },
+    {
+      "label": "Queues",
+      "href": "#queue-stack"
+    },
+    {
+      "label": "Secrets",
+      "href": "#secrets-stack"
+    },
+    {
+      "label": "Config",
+      "href": "#config-stack"
+    },
+    {
+      "label": "Jobs",
+      "href": "#background-jobs"
     },
     {
       "label": "Search",

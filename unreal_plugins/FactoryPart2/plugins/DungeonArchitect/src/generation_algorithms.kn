@@ -1,0 +1,760 @@
+// DungeonArchitect — Generation Algorithms
+// BSP tree, cellular automata, graph-based generation
+
+fn generate_dungeon_bsp(params: DungeonGenerationParams) -> DungeonLayout:
+    let mut layout = DungeonLayout {
+        rooms: [],
+        corridors: [],
+        entrance_room_id: 0,
+        boss_room_ids: [],
+        treasure_room_ids: [],
+        secret_room_ids: [],
+        total_area: 0,
+        generation_time: 0.0
+    }
+    
+    let root_bounds = RoomBounds {
+        min_x: -50,
+        min_y: -50,
+        max_x: 50,
+        max_y: 50,
+        width: 100,
+        height: 100
+    }
+    
+    let mut bsp_nodes = []
+    let root_node = BSPNode {
+        bounds: root_bounds,
+        left_child: -1,
+        right_child: -1,
+        room_id: -1,
+        is_leaf: true,
+        split_horizontal: false,
+        split_position: 0
+    }
+    push(bsp_nodes, root_node)
+    
+    bsp_nodes = bsp_split_recursive(bsp_nodes, 0, params.bsp_max_depth, params.bsp_min_room_size, params.seed)
+    
+    let mut room_id = 0
+    let mut i = 0
+    while i < len(bsp_nodes):
+        let node = bsp_nodes[i]
+        if node.is_leaf:
+            let room = bsp_create_room_in_node(node, room_id, params)
+            push(layout.rooms, room)
+            
+            let mut updated_node = node
+            updated_node.room_id = room_id
+            bsp_nodes[i] = updated_node
+            
+            room_id = room_id + 1
+        i = i + 1
+    
+    layout = bsp_connect_rooms(layout, bsp_nodes, params)
+    
+    layout = bsp_assign_special_rooms(layout, params)
+    layout = bsp_calculate_distances(layout)
+    
+    return layout
+
+fn bsp_split_recursive(nodes: Array<BSPNode>, node_index: Int, max_depth: Int, min_size: Int, seed: Int) -> Array<BSPNode>:
+    if max_depth <= 0:
+        return nodes
+    
+    let mut updated_nodes = nodes
+    let node = updated_nodes[node_index]
+    
+    if node.bounds.width < min_size * 2 || node.bounds.height < min_size * 2:
+        return updated_nodes
+    
+    let split_horizontal = node.bounds.width <= node.bounds.height
+    let mut split_pos = 0
+    
+    if split_horizontal:
+        let min_split = node.bounds.min_y + min_size
+        let max_split = node.bounds.max_y - min_size
+        if max_split > min_split:
+            split_pos = min_split + ((seed + node_index) % (max_split - min_split))
+        else:
+            return updated_nodes
+    else:
+        let min_split = node.bounds.min_x + min_size
+        let max_split = node.bounds.max_x - min_size
+        if max_split > min_split:
+            split_pos = min_split + ((seed + node_index) % (max_split - min_split))
+        else:
+            return updated_nodes
+    
+    let left_bounds = if split_horizontal:
+        RoomBounds {
+            min_x: node.bounds.min_x,
+            min_y: node.bounds.min_y,
+            max_x: node.bounds.max_x,
+            max_y: split_pos,
+            width: node.bounds.width,
+            height: split_pos - node.bounds.min_y
+        }
+    else:
+        RoomBounds {
+            min_x: node.bounds.min_x,
+            min_y: node.bounds.min_y,
+            max_x: split_pos,
+            max_y: node.bounds.max_y,
+            width: split_pos - node.bounds.min_x,
+            height: node.bounds.height
+        }
+    
+    let right_bounds = if split_horizontal:
+        RoomBounds {
+            min_x: node.bounds.min_x,
+            min_y: split_pos,
+            max_x: node.bounds.max_x,
+            max_y: node.bounds.max_y,
+            width: node.bounds.width,
+            height: node.bounds.max_y - split_pos
+        }
+    else:
+        RoomBounds {
+            min_x: split_pos,
+            min_y: node.bounds.min_y,
+            max_x: node.bounds.max_x,
+            max_y: node.bounds.max_y,
+            width: node.bounds.max_x - split_pos,
+            height: node.bounds.height
+        }
+    
+    let left_child_index = len(updated_nodes)
+    let left_child = BSPNode {
+        bounds: left_bounds,
+        left_child: -1,
+        right_child: -1,
+        room_id: -1,
+        is_leaf: true,
+        split_horizontal: false,
+        split_position: 0
+    }
+    push(updated_nodes, left_child)
+    
+    let right_child_index = len(updated_nodes)
+    let right_child = BSPNode {
+        bounds: right_bounds,
+        left_child: -1,
+        right_child: -1,
+        room_id: -1,
+        is_leaf: true,
+        split_horizontal: false,
+        split_position: 0
+    }
+    push(updated_nodes, right_child)
+    
+    let mut updated_node = node
+    updated_node.is_leaf = false
+    updated_node.left_child = left_child_index
+    updated_node.right_child = right_child_index
+    updated_node.split_horizontal = split_horizontal
+    updated_node.split_position = split_pos
+    updated_nodes[node_index] = updated_node
+    
+    updated_nodes = bsp_split_recursive(updated_nodes, left_child_index, max_depth - 1, min_size, seed * 2)
+    updated_nodes = bsp_split_recursive(updated_nodes, right_child_index, max_depth - 1, min_size, seed * 3)
+    
+    return updated_nodes
+
+fn bsp_create_room_in_node(node: BSPNode, room_id: Int, params: DungeonGenerationParams) -> GeneratedRoom:
+    let margin = 2
+    let room_width = node.bounds.width - margin * 2
+    let room_height = node.bounds.height - margin * 2
+    
+    let room_bounds = RoomBounds {
+        min_x: node.bounds.min_x + margin,
+        min_y: node.bounds.min_y + margin,
+        max_x: node.bounds.max_x - margin,
+        max_y: node.bounds.max_y - margin,
+        width: room_width,
+        height: room_height
+    }
+    
+    let room = GeneratedRoom {
+        id: room_id,
+        room_type: RoomType::Corridor,
+        bounds: room_bounds,
+        world_position: vec3((room_bounds.min_x * 100) as Float, (room_bounds.min_y * 100) as Float, 0.0),
+        connections: [],
+        connection_points: [],
+        is_generated: true,
+        is_populated: false,
+        actor_reference: null,
+        distance_from_entrance: 0,
+        visited: false
+    }
+    
+    return room
+
+fn bsp_connect_rooms(layout: DungeonLayout, nodes: Array<BSPNode>, params: DungeonGenerationParams) -> DungeonLayout:
+    let mut updated_layout = layout
+    
+    let mut i = 0
+    while i < len(nodes):
+        let node = nodes[i]
+        if !node.is_leaf && node.left_child != -1 && node.right_child != -1:
+            let left_room_id = bsp_find_room_in_subtree(nodes, node.left_child)
+            let right_room_id = bsp_find_room_in_subtree(nodes, node.right_child)
+            
+            if left_room_id != -1 && right_room_id != -1:
+                let mut left_room = updated_layout.rooms[left_room_id]
+                let mut right_room = updated_layout.rooms[right_room_id]
+                
+                push(left_room.connections, right_room_id)
+                push(right_room.connections, left_room_id)
+                
+                updated_layout.rooms[left_room_id] = left_room
+                updated_layout.rooms[right_room_id] = right_room
+                
+                let left_center = bounds_get_center(left_room.bounds)
+                let right_center = bounds_get_center(right_room.bounds)
+                
+                let corridor = CorridorSegment {
+                    start_pos: left_center,
+                    end_pos: right_center,
+                    width: params.corridor_width,
+                    connects_rooms: [left_room_id, right_room_id]
+                }
+                push(updated_layout.corridors, corridor)
+        
+        i = i + 1
+    
+    return updated_layout
+
+fn bsp_find_room_in_subtree(nodes: Array<BSPNode>, node_index: Int) -> Int:
+    if node_index < 0 || node_index >= len(nodes):
+        return -1
+    
+    let node = nodes[node_index]
+    if node.is_leaf:
+        return node.room_id
+    
+    let left_room = bsp_find_room_in_subtree(nodes, node.left_child)
+    if left_room != -1:
+        return left_room
+    
+    return bsp_find_room_in_subtree(nodes, node.right_child)
+
+fn bsp_assign_special_rooms(layout: DungeonLayout, params: DungeonGenerationParams) -> DungeonLayout:
+    let mut updated_layout = layout
+    
+    if len(updated_layout.rooms) > 0:
+        let mut entrance_room = updated_layout.rooms[0]
+        entrance_room.room_type = RoomType::Entrance
+        updated_layout.rooms[0] = entrance_room
+        updated_layout.entrance_room_id = 0
+    
+    let mut assigned_boss = 0
+    let mut assigned_treasure = 0
+    let mut i = len(updated_layout.rooms) - 1
+    while i > 0 && (assigned_boss < params.boss_room_count || assigned_treasure < params.treasure_room_count):
+        let mut room = updated_layout.rooms[i]
+        
+        if assigned_boss < params.boss_room_count && len(room.connections) <= 2:
+            room.room_type = RoomType::Boss
+            push(updated_layout.boss_room_ids, i)
+            assigned_boss = assigned_boss + 1
+        else:
+            if assigned_treasure < params.treasure_room_count && len(room.connections) <= 2:
+                room.room_type = RoomType::Treasure
+                push(updated_layout.treasure_room_ids, i)
+                assigned_treasure = assigned_treasure + 1
+        
+        updated_layout.rooms[i] = room
+        i = i - 1
+    
+    return updated_layout
+
+fn bsp_calculate_distances(layout: DungeonLayout) -> DungeonLayout:
+    let mut updated_layout = layout
+    
+    if updated_layout.entrance_room_id == -1:
+        return updated_layout
+    
+    let mut distances = []
+    let mut visited = []
+    let mut i = 0
+    while i < len(updated_layout.rooms):
+        push(distances, 1000000)
+        push(visited, false)
+        i = i + 1
+    
+    let mut queue = []
+    push(queue, updated_layout.entrance_room_id)
+    distances[updated_layout.entrance_room_id] = 0
+    visited[updated_layout.entrance_room_id] = true
+    
+    while len(queue) > 0:
+        let current = pop(queue)
+        let room = updated_layout.rooms[current]
+        
+        let mut j = 0
+        while j < len(room.connections):
+            let neighbor = room.connections[j]
+            if !visited[neighbor]:
+                visited[neighbor] = true
+                distances[neighbor] = distances[current] + 1
+                push(queue, neighbor)
+            j = j + 1
+    
+    let mut k = 0
+    while k < len(updated_layout.rooms):
+        let mut room = updated_layout.rooms[k]
+        room.distance_from_entrance = distances[k]
+        updated_layout.rooms[k] = room
+        k = k + 1
+    
+    return updated_layout
+
+fn generate_dungeon_cellular_automata(params: DungeonGenerationParams) -> DungeonLayout:
+    let grid_width = 100
+    let grid_height = 100
+    
+    let mut grid = CellularGrid {
+        width: grid_width,
+        height: grid_height,
+        cells: [],
+        room_ids: []
+    }
+    
+    let mut i = 0
+    while i < grid_width * grid_height:
+        let random_val = (params.seed + i) % 100
+        push(grid.cells, random_val < 45)
+        push(grid.room_ids, -1)
+        i = i + 1
+    
+    let mut iteration = 0
+    while iteration < params.cellular_automata_iterations:
+        grid = cellular_automata_step(grid, params.cellular_automata_birth_limit, params.cellular_automata_death_limit)
+        iteration = iteration + 1
+    
+    grid = cellular_automata_flood_fill(grid)
+    
+    let layout = cellular_automata_extract_rooms(grid, params)
+    
+    return layout
+
+fn cellular_automata_step(grid: CellularGrid, birth_limit: Int, death_limit: Int) -> CellularGrid:
+    let mut new_grid = grid
+    let mut new_cells = []
+    
+    let mut y = 0
+    while y < grid.height:
+        let mut x = 0
+        while x < grid.width:
+            let index = y * grid.width + x
+            let alive_neighbors = cellular_count_alive_neighbors(grid, x, y)
+            
+            let is_alive = grid.cells[index]
+            let new_state = if is_alive:
+                alive_neighbors >= death_limit
+            else:
+                alive_neighbors > birth_limit
+            
+            push(new_cells, new_state)
+            x = x + 1
+        y = y + 1
+    
+    new_grid.cells = new_cells
+    return new_grid
+
+fn cellular_count_alive_neighbors(grid: CellularGrid, x: Int, y: Int) -> Int:
+    let mut count = 0
+    
+    let mut dy = -1
+    while dy <= 1:
+        let mut dx = -1
+        while dx <= 1:
+            if dx == 0 && dy == 0:
+                dx = dx + 1
+                continue
+            
+            let nx = x + dx
+            let ny = y + dy
+            
+            if nx < 0 || nx >= grid.width || ny < 0 || ny >= grid.height:
+                count = count + 1
+            else:
+                let index = ny * grid.width + nx
+                if grid.cells[index]:
+                    count = count + 1
+            
+            dx = dx + 1
+        dy = dy + 1
+    
+    return count
+
+fn cellular_automata_flood_fill(grid: CellularGrid) -> CellularGrid:
+    let mut updated_grid = grid
+    let mut current_room_id = 0
+    
+    let mut y = 0
+    while y < grid.height:
+        let mut x = 0
+        while x < grid.width:
+            let index = y * grid.width + x
+            if !updated_grid.cells[index] && updated_grid.room_ids[index] == -1:
+                updated_grid = cellular_flood_fill_recursive(updated_grid, x, y, current_room_id)
+                current_room_id = current_room_id + 1
+            x = x + 1
+        y = y + 1
+    
+    return updated_grid
+
+fn cellular_flood_fill_recursive(grid: CellularGrid, x: Int, y: Int, room_id: Int) -> CellularGrid:
+    if x < 0 || x >= grid.width || y < 0 || y >= grid.height:
+        return grid
+    
+    let index = y * grid.width + x
+    if grid.cells[index] || grid.room_ids[index] != -1:
+        return grid
+    
+    let mut updated_grid = grid
+    updated_grid.room_ids[index] = room_id
+    
+    updated_grid = cellular_flood_fill_recursive(updated_grid, x + 1, y, room_id)
+    updated_grid = cellular_flood_fill_recursive(updated_grid, x - 1, y, room_id)
+    updated_grid = cellular_flood_fill_recursive(updated_grid, x, y + 1, room_id)
+    updated_grid = cellular_flood_fill_recursive(updated_grid, x, y - 1, room_id)
+    
+    return updated_grid
+
+fn cellular_automata_extract_rooms(grid: CellularGrid, params: DungeonGenerationParams) -> DungeonLayout:
+    let mut layout = DungeonLayout {
+        rooms: [],
+        corridors: [],
+        entrance_room_id: 0,
+        boss_room_ids: [],
+        treasure_room_ids: [],
+        secret_room_ids: [],
+        total_area: 0,
+        generation_time: 0.0
+    }
+    
+    let mut room_bounds_map = []
+    let max_room_id = cellular_find_max_room_id(grid)
+    
+    let mut i = 0
+    while i <= max_room_id:
+        let bounds = cellular_calculate_room_bounds(grid, i)
+        push(room_bounds_map, bounds)
+        i = i + 1
+    
+    let mut j = 0
+    while j < len(room_bounds_map):
+        let bounds = room_bounds_map[j]
+        if bounds.width >= params.min_room_size && bounds.height >= params.min_room_size:
+            let room = GeneratedRoom {
+                id: j,
+                room_type: RoomType::Corridor,
+                bounds: bounds,
+                world_position: vec3((bounds.min_x * 100) as Float, (bounds.min_y * 100) as Float, 0.0),
+                connections: [],
+                connection_points: [],
+                is_generated: true,
+                is_populated: false,
+                actor_reference: null,
+                distance_from_entrance: 0,
+                visited: false
+            }
+            push(layout.rooms, room)
+        j = j + 1
+    
+    layout = cellular_connect_nearby_rooms(layout, params)
+    layout = bsp_assign_special_rooms(layout, params)
+    layout = bsp_calculate_distances(layout)
+    
+    return layout
+
+fn cellular_find_max_room_id(grid: CellularGrid) -> Int:
+    let mut max_id = -1
+    let mut i = 0
+    while i < len(grid.room_ids):
+        if grid.room_ids[i] > max_id:
+            max_id = grid.room_ids[i]
+        i = i + 1
+    return max_id
+
+fn cellular_calculate_room_bounds(grid: CellularGrid, room_id: Int) -> RoomBounds:
+    let mut min_x = grid.width
+    let mut min_y = grid.height
+    let mut max_x = 0
+    let mut max_y = 0
+    
+    let mut y = 0
+    while y < grid.height:
+        let mut x = 0
+        while x < grid.width:
+            let index = y * grid.width + x
+            if grid.room_ids[index] == room_id:
+                if x < min_x:
+                    min_x = x
+                if x > max_x:
+                    max_x = x
+                if y < min_y:
+                    min_y = y
+                if y > max_y:
+                    max_y = y
+            x = x + 1
+        y = y + 1
+    
+    return RoomBounds {
+        min_x: min_x,
+        min_y: min_y,
+        max_x: max_x,
+        max_y: max_y,
+        width: max_x - min_x,
+        height: max_y - min_y
+    }
+
+fn cellular_connect_nearby_rooms(layout: DungeonLayout, params: DungeonGenerationParams) -> DungeonLayout:
+    let mut updated_layout = layout
+    
+    let mut i = 0
+    while i < len(updated_layout.rooms):
+        let room_a = updated_layout.rooms[i]
+        let center_a = bounds_get_center(room_a.bounds)
+        
+        let mut closest_room = -1
+        let mut closest_distance = 1000000.0
+        
+        let mut j = 0
+        while j < len(updated_layout.rooms):
+            if i != j:
+                let room_b = updated_layout.rooms[j]
+                let center_b = bounds_get_center(room_b.bounds)
+                let distance = vec2i_distance(center_a, center_b)
+                
+                if distance < closest_distance:
+                    closest_distance = distance
+                    closest_room = j
+            j = j + 1
+        
+        if closest_room != -1:
+            let mut room_a_updated = updated_layout.rooms[i]
+            let mut room_b_updated = updated_layout.rooms[closest_room]
+            
+            let mut already_connected = false
+            let mut k = 0
+            while k < len(room_a_updated.connections):
+                if room_a_updated.connections[k] == closest_room:
+                    already_connected = true
+                k = k + 1
+            
+            if !already_connected:
+                push(room_a_updated.connections, closest_room)
+                push(room_b_updated.connections, i)
+                
+                updated_layout.rooms[i] = room_a_updated
+                updated_layout.rooms[closest_room] = room_b_updated
+                
+                let center_b = bounds_get_center(room_b_updated.bounds)
+                let corridor = CorridorSegment {
+                    start_pos: center_a,
+                    end_pos: center_b,
+                    width: params.corridor_width,
+                    connects_rooms: [i, closest_room]
+                }
+                push(updated_layout.corridors, corridor)
+        
+        i = i + 1
+    
+    return updated_layout
+
+fn generate_dungeon_graph_based(params: DungeonGenerationParams) -> DungeonLayout:
+    let mut graph_nodes = []
+    
+    let entrance_node = GraphNode {
+        id: 0,
+        position: Vec2i { x: 0, y: 0 },
+        room_type: RoomType::Entrance,
+        connections: [],
+        weight: 1.0,
+        visited: false
+    }
+    push(graph_nodes, entrance_node)
+    
+    let mut current_id = 1
+    let mut rooms_to_add = params.target_room_count - 1
+    
+    while rooms_to_add > 0:
+        let parent_id = current_id % len(graph_nodes)
+        let parent = graph_nodes[parent_id]
+        
+        let angle = ((current_id * 137) % 360) as Float * 3.14159 / 180.0
+        let distance = 10.0 + ((current_id % 10) as Float)
+        
+        let new_x = parent.position.x + ((distance * cos(angle)) as Int)
+        let new_y = parent.position.y + ((distance * sin(angle)) as Int)
+        
+        let room_type = graph_determine_room_type(current_id, params)
+        
+        let new_node = GraphNode {
+            id: current_id,
+            position: Vec2i { x: new_x, y: new_y },
+            room_type: room_type,
+            connections: [parent_id],
+            weight: 1.0,
+            visited: false
+        }
+        push(graph_nodes, new_node)
+        
+        let mut updated_parent = parent
+        push(updated_parent.connections, current_id)
+        graph_nodes[parent_id] = updated_parent
+        
+        current_id = current_id + 1
+        rooms_to_add = rooms_to_add - 1
+    
+    if params.enable_loops:
+        graph_nodes = graph_add_loop_connections(graph_nodes, params)
+    
+    let layout = graph_convert_to_layout(graph_nodes, params)
+    
+    return layout
+
+fn graph_determine_room_type(node_id: Int, params: DungeonGenerationParams) -> RoomType:
+    let type_value = node_id % 10
+    
+    match type_value:
+        0 => RoomType::Hub
+        1 => RoomType::Treasure
+        2 => RoomType::Puzzle
+        3 => RoomType::Secret
+        4 => RoomType::Boss
+        _ => RoomType::Corridor
+
+fn graph_add_loop_connections(nodes: Array<GraphNode>, params: DungeonGenerationParams) -> Array<GraphNode>:
+    let mut updated_nodes = nodes
+    
+    let mut i = 0
+    while i < len(updated_nodes):
+        let node_a = updated_nodes[i]
+        
+        let random_val = (params.seed + i) % 100
+        if (random_val as Float) / 100.0 < params.loop_probability:
+            let mut closest_unconnected = -1
+            let mut closest_distance = 1000000.0
+            
+            let mut j = 0
+            while j < len(updated_nodes):
+                if i != j:
+                    let node_b = updated_nodes[j]
+                    let distance = vec2i_distance(node_a.position, node_b.position)
+                    
+                    let mut already_connected = false
+                    let mut k = 0
+                    while k < len(node_a.connections):
+                        if node_a.connections[k] == j:
+                            already_connected = true
+                        k = k + 1
+                    
+                    if !already_connected && distance < closest_distance:
+                        closest_distance = distance
+                        closest_unconnected = j
+                
+                j = j + 1
+            
+            if closest_unconnected != -1:
+                let mut node_a_updated = updated_nodes[i]
+                let mut node_b_updated = updated_nodes[closest_unconnected]
+                
+                push(node_a_updated.connections, closest_unconnected)
+                push(node_b_updated.connections, i)
+                
+                updated_nodes[i] = node_a_updated
+                updated_nodes[closest_unconnected] = node_b_updated
+        
+        i = i + 1
+    
+    return updated_nodes
+
+fn graph_convert_to_layout(nodes: Array<GraphNode>, params: DungeonGenerationParams) -> DungeonLayout:
+    let mut layout = DungeonLayout {
+        rooms: [],
+        corridors: [],
+        entrance_room_id: 0,
+        boss_room_ids: [],
+        treasure_room_ids: [],
+        secret_room_ids: [],
+        total_area: 0,
+        generation_time: 0.0
+    }
+    
+    let mut i = 0
+    while i < len(nodes):
+        let node = nodes[i]
+        
+        let room_size = if node.room_type == RoomType::Boss:
+            20
+        else:
+            if node.room_type == RoomType::Hub:
+                15
+            else:
+                params.min_room_size + ((i % (params.max_room_size - params.min_room_size + 1)))
+        
+        let room_bounds = RoomBounds {
+            min_x: node.position.x - room_size / 2,
+            min_y: node.position.y - room_size / 2,
+            max_x: node.position.x + room_size / 2,
+            max_y: node.position.y + room_size / 2,
+            width: room_size,
+            height: room_size
+        }
+        
+        let room = GeneratedRoom {
+            id: i,
+            room_type: node.room_type,
+            bounds: room_bounds,
+            world_position: vec3((node.position.x * 100) as Float, (node.position.y * 100) as Float, 0.0),
+            connections: node.connections,
+            connection_points: [],
+            is_generated: true,
+            is_populated: false,
+            actor_reference: null,
+            distance_from_entrance: 0,
+            visited: false
+        }
+        push(layout.rooms, room)
+        
+        if node.room_type == RoomType::Boss:
+            push(layout.boss_room_ids, i)
+        
+        if node.room_type == RoomType::Treasure:
+            push(layout.treasure_room_ids, i)
+        
+        if node.room_type == RoomType::Secret:
+            push(layout.secret_room_ids, i)
+        
+        i = i + 1
+    
+    let mut j = 0
+    while j < len(nodes):
+        let node = nodes[j]
+        let center_a = bounds_get_center(layout.rooms[j].bounds)
+        
+        let mut k = 0
+        while k < len(node.connections):
+            let connected_id = node.connections[k]
+            if connected_id > j:
+                let center_b = bounds_get_center(layout.rooms[connected_id].bounds)
+                let corridor = CorridorSegment {
+                    start_pos: center_a,
+                    end_pos: center_b,
+                    width: params.corridor_width,
+                    connects_rooms: [j, connected_id]
+                }
+                push(layout.corridors, corridor)
+            k = k + 1
+        
+        j = j + 1
+    
+    layout = bsp_calculate_distances(layout)
+    
+    return layout

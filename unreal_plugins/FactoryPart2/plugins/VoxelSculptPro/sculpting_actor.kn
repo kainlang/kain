@@ -1,0 +1,114 @@
+# Sculpting Actor
+# Main actor for managing mesh sculpting operations, undo/redo, and state tracking
+
+# ============================================================================
+# Data Structures
+# ============================================================================
+
+/// Represents a single vertex in the dynamic mesh
+struct Vertex:
+    position: Vec3
+    normal: Vec3
+    tangent: Vec3
+    uv: Vec2
+    color: Vec4
+
+/// Represents a triangle face in the mesh
+struct Triangle:
+    vertex_indices: Array<Int>
+    material_index: Int
+    smoothing_group: Int
+
+/// Dynamic mesh data structure for sculpting operations
+struct DynamicMesh:
+    vertices: Array<Vertex>
+    triangles: Array<Triangle>
+    bounds_min: Vec3
+    bounds_max: Vec3
+    vertex_count: Int
+    triangle_count: Int
+    is_dirty: Bool
+
+/// Brush data for sculpting operations
+struct BrushData:
+    brush_type: BrushType
+    radius: Float
+    strength: Float
+    falloff: Float
+    symmetry_enabled: Bool
+    symmetry_axis: Vec3
+    invert: Bool
+    smooth_iterations: Int
+
+/// Brush types for different sculpting operations
+enum BrushType:
+    Draw
+    Smooth
+    Inflate
+    Pinch
+    Grab
+    Flatten
+    Clay
+    Crease
+    Mask
+
+/// Mesh snapshot for undo/redo operations
+struct MeshSnapshot:
+    vertices: Array<Vertex>
+    triangles: Array<Triangle>
+    timestamp: Float
+    operation_name: String
+    affected_vertex_count: Int
+
+/// Sculpting operation result
+struct SculptResult:
+    success: Bool
+    affected_vertices: Int
+    execution_time: Float
+    error_message: String
+
+/// Symmetry settings for mirrored sculpting
+struct SymmetrySettings:
+    x_axis: Bool
+    y_axis: Bool
+    z_axis: Bool
+    mirror_plane_offset: Vec3
+    tolerance: Float
+
+/// LOD (Level of Detail) data for mesh optimization
+struct LODData:
+    lod_level: Int
+    vertex_count: Int
+    triangle_count: Int
+    screen_size: Float
+    mesh_data: DynamicMesh
+
+/// Mesh statistics for debugging and optimization
+struct MeshStatistics:
+    total_vertices: Int
+    total_triangles: Int
+    degenerate_triangles: Int
+    isolated_vertices: Int
+    average_edge_length: Float
+    min_edge_length: Float
+    max_edge_length: Float
+    surface_area: Float
+    volume: Float
+
+/// Octree node for spatial acceleration
+struct OctreeNode:
+    bounds_min: Vec3
+    bounds_max: Vec3
+    vertex_indices: Array<Int>
+    child_indices: Array<Int>
+    depth: Int
+    is_leaf: Bool
+
+/// Performance metrics
+struct PerformanceMetrics:
+    frame_time_ms: Float
+    sculpt_kernel_time_ms: Float
+    normal_recalc_time_ms: Float
+    mesh_update_time_ms: Float
+    vertices_per_second: Float
+    strokes_per_second: Float

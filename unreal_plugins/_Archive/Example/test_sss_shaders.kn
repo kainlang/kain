@@ -1,0 +1,221 @@
+# ============================================================================
+# Subsurface Scattering Shader Tests - Testing stdlib SSS functions
+# ============================================================================
+# Tests: sss_diffusion_profile, sss_transmittance, sss_wrap_lighting,
+#        sss_translucency, skin_scattering, foliage_scattering,
+#        wax_scattering, marble_scattering
+
+shader fragment TestSSSWrapLighting(uv: Vec2) -> Vec4:
+    uniform wrap_amount: Float @0
+    uniform light_intensity: Float @1
+    
+    # Setup vectors
+    let normal = normalize(vec3(uv.x - 0.5, uv.y - 0.5, 1.0))
+    let light_dir = normalize(vec3(1.0, 1.0, 1.0))
+    
+    # Test sss_wrap_lighting
+    let n_dot_l = dot(normal, light_dir)
+    let wrapped = (n_dot_l + wrap_amount) / (1.0 + wrap_amount)
+    let wrap_lighting = max(wrapped, 0.0)
+    
+    # Apply lighting
+    let base_color = vec3(0.8, 0.6, 0.5)
+    let lit_color = base_color * wrap_lighting * light_intensity
+    
+    return vec4(lit_color.x, lit_color.y, lit_color.z, 1.0)
+
+shader fragment TestSSSTransmittance(uv: Vec2) -> Vec4:
+    uniform thickness: Float @0
+    uniform transmittance_color: Vec3 @1
+    
+    # Setup vectors
+    let normal = normalize(vec3(uv.x - 0.5, uv.y - 0.5, 1.0))
+    let light_dir = normalize(vec3(1.0, 1.0, 1.0))
+    let view_dir = normalize(vec3(0.0, 0.0, 1.0))
+    
+    # Test sss_transmittance
+    let n_dot_l = dot(normal, light_dir)
+    let back_lighting = max(-n_dot_l, 0.0)
+    
+    # Simulate thickness-based attenuation
+    let attenuation = exp(-thickness * 2.0)
+    let transmittance = back_lighting * attenuation
+    
+    # Apply transmittance color
+    let transmitted_light = transmittance_color * transmittance
+    
+    return vec4(transmitted_light.x, transmitted_light.y, transmitted_light.z, 1.0)
+
+shader fragment TestSkinScattering(uv: Vec2) -> Vec4:
+    uniform light_intensity: Float @0
+    
+    # Setup vectors
+    let normal = normalize(vec3(uv.x - 0.5, uv.y - 0.5, 1.0))
+    let light_dir = normalize(vec3(1.0, 1.0, 1.0))
+    let view_dir = normalize(vec3(0.0, 0.0, 1.0))
+    
+    # Test skin_scattering with multiple layers
+    let n_dot_l = dot(normal, light_dir)
+    
+    # Diffuse layer
+    let diffuse = max(n_dot_l, 0.0)
+    
+    # Wrap lighting for SSS
+    let wrap = (n_dot_l + 0.5) / 1.5
+    let sss_diffuse = max(wrap, 0.0)
+    
+    # Transmittance (back scattering)
+    let back_scatter = max(-n_dot_l, 0.0) * 0.3
+    
+    # Skin color layers
+    let epidermis = vec3(0.9, 0.7, 0.6)
+    let dermis = vec3(0.8, 0.4, 0.3)
+    let subdermal = vec3(0.6, 0.2, 0.2)
+    
+    # Combine layers
+    let skin_color = epidermis * diffuse + dermis * sss_diffuse + subdermal * back_scatter
+    let final_color = skin_color * light_intensity
+    
+    return vec4(final_color.x, final_color.y, final_color.z, 1.0)
+
+shader fragment TestFoliageScattering(uv: Vec2) -> Vec4:
+    uniform light_intensity: Float @0
+    uniform translucency: Float @1
+    
+    # Setup vectors
+    let normal = normalize(vec3(uv.x - 0.5, uv.y - 0.5, 1.0))
+    let light_dir = normalize(vec3(1.0, 1.0, 1.0))
+    let view_dir = normalize(vec3(0.0, 0.0, 1.0))
+    
+    # Test foliage_scattering
+    let n_dot_l = dot(normal, light_dir)
+    
+    # Front lighting
+    let front_light = max(n_dot_l, 0.0)
+    
+    # Back lighting (translucency)
+    let back_light = max(-n_dot_l, 0.0) * translucency
+    
+    # Foliage color
+    let foliage_color = vec3(0.3, 0.7, 0.2)
+    let transmitted_color = vec3(0.6, 0.9, 0.3)
+    
+    # Combine
+    let final_color = foliage_color * front_light + transmitted_color * back_light
+    let lit_color = final_color * light_intensity
+    
+    return vec4(lit_color.x, lit_color.y, lit_color.z, 1.0)
+
+shader fragment TestWaxScattering(uv: Vec2) -> Vec4:
+    uniform light_intensity: Float @0
+    uniform roughness: Float @1
+    
+    # Setup vectors
+    let normal = normalize(vec3(uv.x - 0.5, uv.y - 0.5, 1.0))
+    let light_dir = normalize(vec3(1.0, 1.0, 1.0))
+    let view_dir = normalize(vec3(0.0, 0.0, 1.0))
+    let half_vec = normalize(light_dir + view_dir)
+    
+    # Test wax_scattering
+    let n_dot_l = dot(normal, light_dir)
+    let n_dot_h = dot(normal, half_vec)
+    
+    # Diffuse with wrap
+    let wrap = (n_dot_l + 0.3) / 1.3
+    let diffuse = max(wrap, 0.0)
+    
+    # Specular
+    let spec_power = 1.0 / (roughness * roughness)
+    let specular = pow(max(n_dot_h, 0.0), spec_power)
+    
+    # Transmittance
+    let transmittance = max(-n_dot_l, 0.0) * 0.5
+    
+    # Wax color
+    let wax_color = vec3(0.9, 0.85, 0.7)
+    let transmitted = vec3(1.0, 0.9, 0.6)
+    
+    # Combine
+    let final_color = wax_color * (diffuse + specular * 0.3) + transmitted * transmittance
+    let lit_color = final_color * light_intensity
+    
+    return vec4(lit_color.x, lit_color.y, lit_color.z, 1.0)
+
+shader fragment TestMarbleScattering(uv: Vec2) -> Vec4:
+    uniform light_intensity: Float @0
+    uniform depth: Float @1
+    
+    # Setup vectors
+    let normal = normalize(vec3(uv.x - 0.5, uv.y - 0.5, 1.0))
+    let light_dir = normalize(vec3(1.0, 1.0, 1.0))
+    let view_dir = normalize(vec3(0.0, 0.0, 1.0))
+    
+    # Test marble_scattering
+    let n_dot_l = dot(normal, light_dir)
+    
+    # Surface lighting
+    let surface_light = max(n_dot_l, 0.0)
+    
+    # Subsurface scattering (depth-dependent)
+    let wrap = (n_dot_l + 0.4) / 1.4
+    let sss = max(wrap, 0.0)
+    
+    # Transmittance through marble
+    let back_light = max(-n_dot_l, 0.0)
+    let attenuation = exp(-depth * 1.5)
+    let transmittance = back_light * attenuation
+    
+    # Marble colors
+    let surface_color = vec3(0.95, 0.95, 0.9)
+    let sss_color = vec3(0.9, 0.85, 0.8)
+    let transmitted_color = vec3(1.0, 0.9, 0.7)
+    
+    # Combine layers
+    let final_color = surface_color * surface_light + sss_color * sss * 0.5 + transmitted_color * transmittance
+    let lit_color = final_color * light_intensity
+    
+    return vec4(lit_color.x, lit_color.y, lit_color.z, 1.0)
+
+shader compute TestSSSDiffusionProfile(thread_id: Vec3) -> Unit:
+    uniform scatter_radius: Float @0
+    uniform output_buffer: RWBuffer<Vec4> @1
+    
+    let idx = thread_id.x
+    let distance = idx * 0.01
+    
+    # Test sss_diffusion_profile
+    # Gaussian falloff for scattering
+    let profile_r = exp(-distance * distance / (2.0 * scatter_radius * scatter_radius * 0.5))
+    let profile_g = exp(-distance * distance / (2.0 * scatter_radius * scatter_radius * 1.0))
+    let profile_b = exp(-distance * distance / (2.0 * scatter_radius * scatter_radius * 2.0))
+    
+    output_buffer[idx] = vec4(profile_r, profile_g, profile_b, 1.0)
+
+shader fragment TestSSSTranslucency(uv: Vec2) -> Vec4:
+    uniform thickness: Float @0
+    uniform translucency_power: Float @1
+    uniform translucency_color: Vec3 @2
+    
+    # Setup vectors
+    let normal = normalize(vec3(uv.x - 0.5, uv.y - 0.5, 1.0))
+    let light_dir = normalize(vec3(1.0, 1.0, 1.0))
+    let view_dir = normalize(vec3(0.0, 0.0, 1.0))
+    
+    # Test sss_translucency
+    let n_dot_l = dot(normal, light_dir)
+    let v_dot_l = dot(view_dir, -light_dir)
+    
+    # Translucency based on view-light alignment
+    let translucency = pow(max(v_dot_l, 0.0), translucency_power)
+    
+    # Thickness attenuation
+    let attenuation = exp(-thickness * 2.0)
+    
+    # Back scattering
+    let back_scatter = max(-n_dot_l, 0.0)
+    
+    # Combine
+    let final_translucency = translucency * attenuation * back_scatter
+    let translucent_light = translucency_color * final_translucency
+    
+    return vec4(translucent_light.x, translucent_light.y, translucent_light.z, 1.0)

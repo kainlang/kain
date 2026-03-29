@@ -1,0 +1,255 @@
+#include "/Engine/Public/Platform.ush"
+
+// =============================================================================
+// KLAYER ADJUSTMENT COMPUTE SHADER
+// Color correction and grading adjustments
+// =============================================================================
+
+Texture2D<float4> InSource;
+SamplerState InSampler;
+RWTexture2D<float4> OutResult;
+
+// Parameters
+
+    uint AdjustmentType;
+    float InputBlack;
+    float InputWhite;
+    float Gamma;
+    float OutputBlack;
+    float OutputWhite;
+    float HueShift;
+    float SaturationAdjust;
+    float ValueAdjust;
+    float Brightness;
+    float Contrast;
+    uint2 TextureDimensions;
+
+
+// =============================================================================
+// COLOR SPACE CONVERSIONS
+// =============================================================================
+
+float3 RGBtoHSV(float3 rgb)
+{
+    float4 K = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+    float4 p = rgb.g < rgb.b ? float4(rgb.bg, K.wz) : float4(rgb.gb, K.xy);
+    float4 q = rgb.r < p.x ? float4(p.xyw, rgb.r) : float4(rgb.r, p.yzx);
+    
+    float d = q.x - min(q.w, q.y);
+    float e = 1.0e-10;
+    return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+}
+
+float3 HSVtoRGB(float3 hsv)
+{
+    float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    float3 p = abs(frac(hsv.xxx + K.xyz) * 6.0 - K.www);
+    return hsv.z * lerp(K.xxx, saturate(p - K.xxx), hsv.y);
+}
+
+float3 RGBtoHSL(float3 rgb)
+{
+    float maxC = max(rgb.r, max(rgb.g, rgb.b));
+    float minC = min(rgb.r, min(rgb.g, rgb.b));
+    float delta = maxC - minC;
+    
+    float L = (maxC + minC) * 0.5;
+    float S = 0.0;
+    float H = 0.0;
+    
+    if (delta > 0.0001)
+    {
+        S = delta / (1.0 - abs(2.0 * L - 1.0) + 0.0001);
+        
+        if (maxC == rgb.r)
+            H = fmod((rgb.g - rgb.b) / delta, 6.0);
+        else if (maxC == rgb.g)
+            H = (rgb.b - rgb.r) / delta + 2.0;
+        else
+            H = (rgb.r - rgb.g) / delta + 4.0;
+        
+        H /= 6.0;
+        if (H < 0.0) H += 1.0;
+    }
+    
+    return float3(H, S, L);
+}
+
+float HueToRGB(float p, float q, float t)
+{
+    if (t < 0.0) t += 1.0;
+    if (t > 1.0) t -= 1.0;
+    if (t < 1.0 / 6.0) return p + (q - p) * 6.0 * t;
+    if (t < 1.0 / 2.0) return q;
+    if (t < 2.0 / 3.0) return p + (q - p) * (2.0 / 3.0 - t) * 6.0;
+    return p;
+}
+
+float3 HSLtoRGB(float3 hsl)
+{
+    if (hsl.y == 0.0)
+    {
+        return float3(hsl.z, hsl.z, hsl.z);
+    }
+    
+    float q = hsl.z < 0.5 ? hsl.z * (1.0 + hsl.y) : hsl.z + hsl.y - hsl.z * hsl.y;
+    float p = 2.0 * hsl.z - q;
+    
+    return float3(
+        HueToRGB(p, q, hsl.x + 1.0 / 3.0),
+        HueToRGB(p, q, hsl.x),
+        HueToRGB(p, q, hsl.x - 1.0 / 3.0)
+    );
+}
+
+// =============================================================================
+// ADJUSTMENT IMPLEMENTATIONS
+// =============================================================================
+
+// Levels adjustment
+float3 ApplyLevels(float3 color)
+{
+    // Input levels
+    float3 adjusted = (color - InputBlack) / (InputWhite - InputBlack + 0.0001);
+    adjusted = saturate(adjusted);
+    
+    // Gamma
+    adjusted = pow(adjusted, 1.0 / Gamma);
+    
+    // Output levels
+    adjusted = OutputBlack + adjusted * (OutputWhite - OutputBlack);
+    
+    return saturate(adjusted);
+}
+
+// Curves (simplified S-curve)
+float3 ApplyCurves(float3 color)
+{
+    // Simple S-curve using contrast formula
+    float3 adjusted = (color - 0.5) * (1.0 + Contrast) + 0.5 + Brightness;
+    return saturate(adjusted);
+}
+
+// HSV adjustment
+float3 ApplyHSV(float3 color)
+{
+    float3 hsv = RGBtoHSV(color);
+    
+    // Hue shift (in degrees, convert to 0-1)
+    hsv.x = frac(hsv.x + HueShift / 360.0);
+    
+    // Saturation
+    hsv.y = saturate(hsv.y + SaturationAdjust);
+    
+    // Value/Brightness
+    hsv.z = saturate(hsv.z + ValueAdjust);
+    
+    return HSVtoRGB(hsv);
+}
+
+// Brightness/Contrast
+float3 ApplyBrightnessContrast(float3 color)
+{
+    // Brightness
+    float3 adjusted = color + Brightness;
+    
+    // Contrast (centered at 0.5)
+    adjusted = (adjusted - 0.5) * (1.0 + Contrast) + 0.5;
+    
+    return saturate(adjusted);
+}
+
+// Color Balance (simplified)
+float3 ApplyColorBalance(float3 color)
+{
+    // Use Brightness as shadow shift, Contrast as highlight shift
+    float lum = dot(color, float3(0.299, 0.587, 0.114));
+    
+    // Shadow adjustment (affects dark areas more)
+    float shadowWeight = 1.0 - smoothstep(0.0, 0.5, lum);
+    color.r += Brightness * 0.1 * shadowWeight;
+    
+    // Highlight adjustment (affects bright areas more)
+    float highlightWeight = smoothstep(0.5, 1.0, lum);
+    color.b += Contrast * 0.1 * highlightWeight;
+    
+    return saturate(color);
+}
+
+// Vibrance (smart saturation)
+float3 ApplyVibrance(float3 color)
+{
+    float maxChannel = max(color.r, max(color.g, color.b));
+    float minChannel = min(color.r, min(color.g, color.b));
+    float sat = maxChannel - minChannel;
+    
+    // Low saturation colors get boosted more
+    float vibranceAmount = SaturationAdjust * (1.0 - sat);
+    
+    float3 hsv = RGBtoHSV(color);
+    hsv.y = saturate(hsv.y + vibranceAmount);
+    
+    return HSVtoRGB(hsv);
+}
+
+// Threshold (convert to B&W)
+float3 ApplyThreshold(float3 color)
+{
+    float lum = dot(color, float3(0.299, 0.587, 0.114));
+    float thresh = InputWhite; // Reuse InputWhite as threshold value
+    return lum > thresh ? float3(1, 1, 1) : float3(0, 0, 0);
+}
+
+// Posterize
+float3 ApplyPosterize(float3 color)
+{
+    int levels = max(2, (int)(InputWhite * 16.0)); // Reuse InputWhite for levels
+    float factor = (float)levels - 1.0;
+    return floor(color * factor + 0.5) / factor;
+}
+
+// Gradient Map (simplified - grayscale to gradient)
+float3 ApplyGradientMap(float3 color)
+{
+    float lum = dot(color, float3(0.299, 0.587, 0.114));
+    
+    // Simple 3-color gradient: shadows -> midtones -> highlights
+    // Using adjustment params to define colors would be ideal, but for now use defaults
+    float3 shadowColor = float3(0.1, 0.0, 0.2);   // Purple shadow
+    float3 midColor = float3(0.5, 0.3, 0.2);      // Brown midtone
+    float3 highlightColor = float3(1.0, 0.9, 0.7); // Warm highlight
+    
+    if (lum < 0.5)
+        return lerp(shadowColor, midColor, lum * 2.0);
+    else
+        return lerp(midColor, highlightColor, (lum - 0.5) * 2.0);
+}
+
+// =============================================================================
+// MAIN SHADER
+// =============================================================================
+
+[numthreads(8, 8, 1)]
+void AdjustmentCS(uint3 ThreadId : SV_DispatchThreadID)
+{
+    if (ThreadId.x >= TextureDimensions.x || ThreadId.y >= TextureDimensions.y) return;
+
+    float4 source = InSource.Load(int3(ThreadId.xy, 0));
+    float3 result = source.rgb;
+    
+    switch (AdjustmentType)
+    {
+        case 0: result = ApplyLevels(source.rgb); break;
+        case 1: result = ApplyCurves(source.rgb); break;
+        case 2: result = ApplyHSV(source.rgb); break;
+        case 3: result = ApplyBrightnessContrast(source.rgb); break;
+        case 4: result = ApplyColorBalance(source.rgb); break;
+        case 5: result = ApplyVibrance(source.rgb); break;
+        case 6: result = ApplyThreshold(source.rgb); break;
+        case 7: result = ApplyPosterize(source.rgb); break;
+        case 8: result = ApplyGradientMap(source.rgb); break;
+        default: result = source.rgb; break;
+    }
+    
+    OutResult[ThreadId.xy] = float4(result, source.a);
+}

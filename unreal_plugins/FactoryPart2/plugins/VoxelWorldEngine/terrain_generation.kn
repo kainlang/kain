@@ -1,0 +1,268 @@
+actor TerrainGenerator:
+    state noise_params: NoiseParameters
+    state biome_params: Array<BiomeData>
+    state generation_seed: Int
+    
+    on BeginPlay():
+        noise_params = NoiseParameters {
+            seed: generation_seed,
+            octaves: 6,
+            frequency: 0.01,
+            amplitude: 64.0,
+            lacunarity: 2.0,
+            persistence: 0.5
+        }
+        
+        biome_params = []
+        push(biome_params, BiomeData {
+            biome_type: BiomeType::Plains,
+            temperature: 0.5,
+            humidity: 0.5,
+            height_offset: 64.0,
+            height_scale: 16.0
+        })
+        push(biome_params, BiomeData {
+            biome_type: BiomeType::Forest,
+            temperature: 0.6,
+            humidity: 0.7,
+            height_offset: 68.0,
+            height_scale: 20.0
+        })
+        push(biome_params, BiomeData {
+            biome_type: BiomeType::Desert,
+            temperature: 0.9,
+            humidity: 0.2,
+            height_offset: 62.0,
+            height_scale: 12.0
+        })
+        push(biome_params, BiomeData {
+            biome_type: BiomeType::Mountains,
+            temperature: 0.3,
+            humidity: 0.4,
+            height_offset: 80.0,
+            height_scale: 64.0
+        })
+        push(biome_params, BiomeData {
+            biome_type: BiomeType::Ocean,
+            temperature: 0.5,
+            humidity: 1.0,
+            height_offset: 32.0,
+            height_scale: 8.0
+        })
+        push(biome_params, BiomeData {
+            biome_type: BiomeType::Tundra,
+            temperature: 0.1,
+            humidity: 0.3,
+            height_offset: 64.0,
+            height_scale: 16.0
+        })
+        push(biome_params, BiomeData {
+            biome_type: BiomeType::Jungle,
+            temperature: 0.95,
+            humidity: 0.9,
+            height_offset: 70.0,
+            height_scale: 24.0
+        })
+        push(biome_params, BiomeData {
+            biome_type: BiomeType::Swamp,
+            temperature: 0.7,
+            humidity: 0.8,
+            height_offset: 60.0,
+            height_scale: 8.0
+        })
+    
+    @blueprint_callable
+    fn generate_chunk(coord: ChunkCoord) -> ChunkData:
+        let chunk = ChunkData {
+            coord: coord,
+            voxels: [],
+            is_dirty: false,
+            is_generated: false,
+            is_meshed: false,
+            biome: BiomeType::Plains,
+            mesh_data: ChunkMeshData {
+                vertices: [],
+                normals: [],
+                uvs: [],
+                indices: [],
+                vertex_count: 0,
+                triangle_count: 0
+            }
+        }
+        
+        let chunk_size = 32
+        let world_x = coord.x * chunk_size
+        let world_y = coord.y * chunk_size
+        let world_z = coord.z * chunk_size
+        
+        for x in 0..chunk_size:
+            for y in 0..chunk_size:
+                for z in 0..chunk_size:
+                    let world_pos_x = world_x + x
+                    let world_pos_y = world_y + y
+                    let world_pos_z = world_z + z
+                    
+                    let height = get_terrain_height(world_pos_x as Float, world_pos_z as Float)
+                    let biome = get_biome_at(world_pos_x as Float, world_pos_z as Float)
+                    
+                    let voxel_type = VoxelType::Air
+                    
+                    if world_pos_y < height - 4:
+                        voxel_type = VoxelType::Stone
+                    else:
+                        if world_pos_y < height - 1:
+                            voxel_type = VoxelType::Dirt
+                        else:
+                            if world_pos_y < height:
+                                match biome:
+                                    BiomeType::Plains => voxel_type = VoxelType::Grass
+                                    BiomeType::Forest => voxel_type = VoxelType::Grass
+                                    BiomeType::Desert => voxel_type = VoxelType::Sand
+                                    BiomeType::Mountains => voxel_type = VoxelType::Stone
+                                    BiomeType::Ocean => voxel_type = VoxelType::Sand
+                                    BiomeType::Tundra => voxel_type = VoxelType::Stone
+                                    BiomeType::Jungle => voxel_type = VoxelType::Grass
+                                    BiomeType::Swamp => voxel_type = VoxelType::Dirt
+                    
+                    if world_pos_y < 32 and voxel_type == VoxelType::Air:
+                        voxel_type = VoxelType::Water
+                    
+                    if world_pos_y == 0:
+                        voxel_type = VoxelType::Bedrock
+                    
+                    let voxel = VoxelData {
+                        voxel_type: voxel_type,
+                        light_level: 15,
+                        metadata: 0
+                    }
+                    
+                    push(chunk.voxels, voxel)
+        
+        generate_caves(chunk, world_x, world_y, world_z)
+        generate_ores(chunk, world_x, world_y, world_z)
+        
+        chunk.is_generated = true
+        chunk.biome = get_biome_at(world_x as Float, world_z as Float)
+        
+        return chunk
+    
+    fn get_terrain_height(world_x: Float, world_z: Float) -> Int:
+        let noise_value = sample_noise(world_x, world_z)
+        let height = 64.0 + noise_value * 32.0
+        return height as Int
+    
+    fn sample_noise(x: Float, z: Float) -> Float:
+        let total = 0.0
+        let amplitude = noise_params.amplitude
+        let frequency = noise_params.frequency
+        
+        for i in 0..noise_params.octaves:
+            let sample_x = x * frequency
+            let sample_z = z * frequency
+            
+            let noise = perlin_noise(vec3(sample_x, 0.0, sample_z) + vec3(noise_params.seed as Float, 0.0, 0.0))
+            total = total + noise * amplitude
+            
+            amplitude = amplitude * noise_params.persistence
+            frequency = frequency * noise_params.lacunarity
+        
+        return total / 64.0
+    
+    fn get_biome_at(world_x: Float, world_z: Float) -> BiomeType:
+        let temp_noise = perlin_noise(vec3(world_x * 0.001, 0.0, world_z * 0.001))
+        let humidity_noise = perlin_noise(vec3(world_x * 0.001 + 1000.0, 0.0, world_z * 0.001 + 1000.0))
+        
+        let temperature = (temp_noise + 1.0) / 2.0
+        let humidity = (humidity_noise + 1.0) / 2.0
+        
+        if temperature < 0.3:
+            return BiomeType::Tundra
+        else:
+            if temperature < 0.6:
+                if humidity < 0.4:
+                    return BiomeType::Plains
+                else:
+                    return BiomeType::Forest
+            else:
+                if humidity < 0.3:
+                    return BiomeType::Desert
+                else:
+                    if humidity < 0.7:
+                        return BiomeType::Jungle
+                    else:
+                        return BiomeType::Swamp
+    
+    fn generate_caves(chunk: ChunkData, world_x: Int, world_y: Int, world_z: Int):
+        let chunk_size = 32
+        
+        for x in 0..chunk_size:
+            for y in 0..chunk_size:
+                for z in 0..chunk_size:
+                    let world_pos_x = (world_x + x) as Float
+                    let world_pos_y = (world_y + y) as Float
+                    let world_pos_z = (world_z + z) as Float
+                    
+                    let cave_noise = perlin_noise(vec3(world_pos_x * 0.05, world_pos_y * 0.05, world_pos_z * 0.05))
+                    
+                    if cave_noise > 0.6 and world_pos_y > 5.0 and world_pos_y < 60.0:
+                        let index = x + y * chunk_size + z * chunk_size * chunk_size
+                        chunk.voxels[index].voxel_type = VoxelType::Air
+    
+    fn generate_ores(chunk: ChunkData, world_x: Int, world_y: Int, world_z: Int):
+        let chunk_size = 32
+        
+        for x in 0..chunk_size:
+            for y in 0..chunk_size:
+                for z in 0..chunk_size:
+                    let world_pos_y = world_y + y
+                    let index = x + y * chunk_size + z * chunk_size * chunk_size
+                    
+                    if chunk.voxels[index].voxel_type == VoxelType::Stone:
+                        let ore_noise = perlin_noise(vec3((world_x + x) as Float * 0.1, world_pos_y as Float * 0.1, (world_z + z) as Float * 0.1))
+                        
+                        if world_pos_y < 32:
+                            if ore_noise > 0.85:
+                                chunk.voxels[index].voxel_type = VoxelType::Ore_Iron
+                        
+                        if world_pos_y < 20:
+                            if ore_noise > 0.9:
+                                chunk.voxels[index].voxel_type = VoxelType::Ore_Gold
+                        
+                        if world_pos_y < 12:
+                            if ore_noise > 0.95:
+                                chunk.voxels[index].voxel_type = VoxelType::Ore_Diamond
+    
+    @blueprint_callable
+    fn generate_tree(position: Vec3, chunk: ChunkData):
+        let tree_height = 5 + (random_float(0.0, 1.0) * 3.0) as Int
+        let chunk_size = 32
+        
+        for y in 0..tree_height:
+            let block_pos = BlockPosition {
+                x: position.x as Int,
+                y: (position.y as Int) + y,
+                z: position.z as Int
+            }
+            
+            if block_pos.y >= 0 and block_pos.y < chunk_size:
+                let index = block_pos.x + block_pos.y * chunk_size + block_pos.z * chunk_size * chunk_size
+                if index >= 0 and index < len(chunk.voxels):
+                    chunk.voxels[index].voxel_type = VoxelType::Wood
+        
+        let leaf_radius = 2
+        for dx in -leaf_radius..leaf_radius + 1:
+            for dy in -1..3:
+                for dz in -leaf_radius..leaf_radius + 1:
+                    let distance = sqrt((dx * dx + dz * dz) as Float)
+                    if distance <= (leaf_radius as Float):
+                        let block_pos = BlockPosition {
+                            x: (position.x as Int) + dx,
+                            y: (position.y as Int) + tree_height + dy,
+                            z: (position.z as Int) + dz
+                        }
+                        
+                        if block_pos.y >= 0 and block_pos.y < chunk_size:
+                            let index = block_pos.x + block_pos.y * chunk_size + block_pos.z * chunk_size * chunk_size
+                            if index >= 0 and index < len(chunk.voxels):
+                                if chunk.voxels[index].voxel_type == VoxelType::Air:
+                                    chunk.voxels[index].voxel_type = VoxelType::Leaves

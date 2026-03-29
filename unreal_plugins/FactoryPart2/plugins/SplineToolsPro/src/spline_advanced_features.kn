@@ -1,0 +1,489 @@
+# SplineToolsPro - Advanced Features
+# Advanced spline operations and utilities
+
+# Create closed loop with C1 continuity
+@blueprint
+fn create_closed_loop(spline: SplineComponent):
+    let n = len(spline.points)
+    if n < 3:
+        return
+    
+    spline.is_closed_loop = true
+    
+    # Calculate tangent at closure point to ensure C1 continuity
+    let first_pos = spline.points[0].position
+    let last_pos = spline.points[n - 1].position
+    let second_pos = spline.points[1].position
+    let second_last_pos = spline.points[n - 2].position
+    
+    # Average tangent for smooth closure
+    let tangent_at_start = (second_pos - last_pos) * 0.5
+    let tangent_at_end = (first_pos - second_last_pos) * 0.5
+    
+    spline.points[0].in_tangent = tangent_at_start
+    spline.points[0].out_tangent = tangent_at_start
+    spline.points[n - 1].in_tangent = tangent_at_end
+    spline.points[n - 1].out_tangent = tangent_at_end
+    
+    spline.is_cache_dirty = true
+
+# Smooth spline using Laplacian smoothing
+@blueprint
+fn smooth_spline(spline: SplineComponent, iterations: Int, strength: Float):
+    let n = len(spline.points)
+    if n < 3:
+        return
+    
+    let iter = 0
+    while iter < iterations:
+        let new_positions: Array<Vec3> = []
+        
+        # Keep first and last points fixed
+        push(new_positions, spline.points[0].position)
+        
+        # Smooth interior points
+        let i = 1
+        while i < n - 1:
+            let prev_pos = spline.points[i - 1].position
+            let curr_pos = spline.points[i].position
+            let next_pos = spline.points[i + 1].position
+            
+            # Laplacian smoothing: move point toward average of neighbors
+            let avg_pos = (prev_pos + next_pos) * 0.5
+            let smoothed_pos = lerp_vec3(curr_pos, avg_pos, strength)
+            
+            push(new_positions, smoothed_pos)
+            i = i + 1
+        
+        push(new_positions, spline.points[n - 1].position)
+        
+        # Update positions
+        let j = 0
+        while j < n:
+            spline.points[j].position = new_positions[j]
+            j = j + 1
+        
+        iter = iter + 1
+    
+    # Recalculate tangents
+    let k = 0
+    while k < n:
+        if k > 0 and k < n - 1:
+            let tangent = calculate_tangent(
+                spline.points[k - 1].position,
+                spline.points[k].position,
+                spline.points[k + 1].position,
+                spline.points[k].tangent_mode
+            )
+            spline.points[k].in_tangent = tangent
+            spline.points[k].out_tangent = tangent
+        k = k + 1
+    
+    spline.is_cache_dirty = true
+
+# Subdivide spline to increase point density
+@blueprint
+fn subdivide_spline(spline: SplineComponent, segments_per_point: Int):
+    if segments_per_point <= 1:
+        return
+    
+    let n = len(spline.points)
+    if n < 2:
+        return
+    
+    let new_points: Array<SplinePoint> = []
+    
+    let i = 0
+    while i < n - 1:
+        # Add original point
+        push(new_points, copy_spline_point(spline.points[i]))
+        
+        # Add subdivided points
+        let seg = 1
+        while seg < segments_per_point:
+            let t = seg as Float / segments_per_point as Float
+            
+            # Interpolate position
+            let p0 = spline.points[i].position
+            let p1 = spline.points[i + 1].position
+            let new_pos = vec3(0.0, 0.0, 0.0)
+            
+            if spline.interpolation_type == SplineInterpolationType::Bezier:
+                let t0 = spline.points[i].out_tangent
+                let t1 = spline.points[i + 1].in_tangent
+                let ctrl1 = p0 + t0
+                let ctrl2 = p1 - t1
+                new_pos = evaluate_bezier(p0, ctrl1, ctrl2, p1, t)
+            else:
+                new_pos = linear_interpolate_points(p0, p1, t)
+            
+            let new_point = create_default_spline_point(new_pos)
+            push(new_points, new_point)
+            
+            seg = seg + 1
+        
+        i = i + 1
+    
+    # Add last point
+    push(new_points, copy_spline_point(spline.points[n - 1]))
+    
+    spline.points = new_points
+    spline.is_cache_dirty = true
+
+# Simplify spline using Ramer-Douglas-Peucker algorithm
+@blueprint
+fn simplify_spline(spline: SplineComponent, tolerance: Float):
+    let n = len(spline.points)
+    if n < 3:
+        return
+    
+    let keep_flags: Array<Bool> = []
+    let i = 0
+    while i < n:
+        push(keep_flags, false)
+        i = i + 1
+    
+    # Always keep first and last
+    keep_flags[0] = true
+    keep_flags[n - 1] = true
+    
+    # Recursive simplification
+    simplify_recursive(spline.points, keep_flags, 0, n - 1, tolerance)
+    
+    # Build simplified point list
+    let simplified_points: Array<SplinePoint> = []
+    let j = 0
+    while j < n:
+        if keep_flags[j]:
+            push(simplified_points, copy_spline_point(spline.points[j]))
+        j = j + 1
+    
+    spline.points = simplified_points
+    spline.is_cache_dirty = true
+
+# Offset spline to create parallel curve
+@blueprint
+fn offset_spline(spline: SplineComponent, offset_distance: Float) -> SplineComponent:
+    let offset_spline: SplineComponent
+    offset_spline.points = []
+    offset_spline.interpolation_type = spline.interpolation_type
+    offset_spline.is_closed_loop = spline.is_closed_loop
+    offset_spline.default_up_vector = spline.default_up_vector
+    offset_spline.is_cache_dirty = true
+    
+    let n = len(spline.points)
+    let i = 0
+    while i < n:
+        let pos = spline.points[i].position
+        let tangent = vec3(0.0, 0.0, 0.0)
+        
+        if i > 0 and i < n - 1:
+            tangent = calculate_tangent(
+                spline.points[i - 1].position,
+                pos,
+                spline.points[i + 1].position,
+                SplineTangentMode::Auto
+            )
+        else:
+            if i == 0 and n > 1:
+                tangent = spline.points[1].position - pos
+            else:
+                if i == n - 1 and n > 1:
+                    tangent = pos - spline.points[n - 2].position
+        
+        tangent = normalize(tangent)
+        
+        # Calculate offset direction (perpendicular to tangent)
+        let up = spline.default_up_vector
+        let offset_dir = normalize(cross(tangent, up))
+        
+        let offset_pos = pos + offset_dir * offset_distance
+        let offset_point = create_default_spline_point(offset_pos)
+        
+        push(offset_spline.points, offset_point)
+        i = i + 1
+    
+    return offset_spline
+
+# Extrude spline to mesh using cross-section profile
+@blueprint
+fn extrude_spline_to_mesh(spline: SplineComponent, cross_section: Array<Vec2>) -> Array<Vec3>:
+    let vertices: Array<Vec3> = []
+    
+    let profile_count = len(cross_section)
+    if profile_count < 3:
+        return vertices
+    
+    # Sample spline at regular intervals
+    let spline_samples = 50
+    let i = 0
+    while i < spline_samples:
+        let t = i as Float / (spline_samples - 1) as Float
+        
+        let pos = evaluate_spline_at_param(spline.points, t, spline.interpolation_type)
+        let tangent = calculate_spline_derivative(spline.points, t, spline.interpolation_type)
+        tangent = normalize(tangent)
+        
+        # Create local coordinate frame
+        let up = spline.default_up_vector
+        let right = normalize(cross(up, tangent))
+        let corrected_up = cross(tangent, right)
+        
+        # Extrude cross-section at this point
+        let j = 0
+        while j < profile_count:
+            let profile_point = cross_section[j]
+            
+            # Transform profile point to world space
+            let world_vertex = pos + right * profile_point.x + corrected_up * profile_point.y
+            push(vertices, world_vertex)
+            
+            j = j + 1
+        
+        i = i + 1
+    
+    return vertices
+
+# Calculate spline bounds
+@blueprint
+fn calculate_spline_bounds(spline: SplineComponent) -> SplineBounds:
+    let n = len(spline.points)
+    if n == 0:
+        let empty: SplineBounds
+        empty.is_valid = false
+        return empty
+    
+    let min_point = spline.points[0].position
+    let max_point = spline.points[0].position
+    
+    # Sample spline
+    let samples = 100
+    let i = 0
+    while i <= samples:
+        let t = i as Float / samples as Float
+        let pos = evaluate_spline_at_param(spline.points, t, spline.interpolation_type)
+        
+        min_point.x = min(min_point.x, pos.x)
+        min_point.y = min(min_point.y, pos.y)
+        min_point.z = min(min_point.z, pos.z)
+        
+        max_point.x = max(max_point.x, pos.x)
+        max_point.y = max(max_point.y, pos.y)
+        max_point.z = max(max_point.z, pos.z)
+        
+        i = i + 1
+    
+    return create_spline_bounds(min_point, max_point)
+
+# Raycast against spline
+@blueprint
+fn raycast_against_spline(ray_origin: Vec3, ray_dir: Vec3, spline: SplineComponent, tolerance: Float) -> SplineIntersection:
+    let result = create_invalid_intersection()
+    
+    let n = len(spline.points)
+    if n < 2:
+        return result
+    
+    let min_dist = 1000000.0
+    let best_param = 0.0
+    let best_pos = vec3(0.0, 0.0, 0.0)
+    
+    # Sample spline and check distance to ray
+    let samples = 100
+    let i = 0
+    while i <= samples:
+        let t = i as Float / samples as Float
+        let spline_pos = evaluate_spline_at_param(spline.points, t, spline.interpolation_type)
+        
+        # Calculate distance from point to ray
+        let to_point = spline_pos - ray_origin
+        let projection = dot(to_point, ray_dir)
+        
+        if projection > 0.0:
+            let closest_on_ray = ray_origin + ray_dir * projection
+            let dist = distance(spline_pos, closest_on_ray)
+            
+            if dist < min_dist and dist < tolerance:
+                min_dist = dist
+                best_param = t
+                best_pos = spline_pos
+            
+        i = i + 1
+    
+    if min_dist < tolerance:
+        result.parameter_a = best_param
+        result.position = best_pos
+        result.distance = min_dist
+        result.is_valid = true
+    
+    return result
+
+# Interpolate metadata between two points
+@blueprint
+fn interpolate_metadata(metadata_a: SplineMetadata, metadata_b: SplineMetadata, t: Float) -> SplineMetadata:
+    let result: SplineMetadata
+    result.point_index = -1
+    result.width = lerp(metadata_a.width, metadata_b.width, t)
+    result.color = lerp_vec4(metadata_a.color, metadata_b.color, t)
+    result.custom_float_values = []
+    result.custom_string_data = metadata_a.custom_string_data
+    
+    # Interpolate custom float values
+    let count_a = len(metadata_a.custom_float_values)
+    let count_b = len(metadata_b.custom_float_values)
+    let min_count = min_int(count_a, count_b)
+    
+    let i = 0
+    while i < min_count:
+        let interpolated = lerp(metadata_a.custom_float_values[i], metadata_b.custom_float_values[i], t)
+        push(result.custom_float_values, interpolated)
+        i = i + 1
+    
+    return result
+
+# Validate spline topology
+@blueprint
+fn validate_spline_topology(spline: SplineComponent) -> SplineTopologyResult:
+    let result: SplineTopologyResult
+    result.is_valid = true
+    result.has_coincident_points = false
+    result.has_zero_length_tangents = false
+    result.has_degenerate_segments = false
+    result.error_message = ""
+    result.error_indices = []
+    
+    let n = len(spline.points)
+    
+    if n < 2:
+        result.is_valid = false
+        result.error_message = "Spline must have at least 2 points"
+        return result
+    
+    # Check for coincident points
+    let i = 0
+    while i < n - 1:
+        let j = i + 1
+        while j < n:
+            let dist = distance(spline.points[i].position, spline.points[j].position)
+            if dist < 0.01:
+                result.has_coincident_points = true
+                result.is_valid = false
+                push(result.error_indices, i)
+                push(result.error_indices, j)
+            j = j + 1
+        i = i + 1
+    
+    # Check for zero-length tangents
+    let k = 0
+    while k < n:
+        let in_len = length(spline.points[k].in_tangent)
+        let out_len = length(spline.points[k].out_tangent)
+        
+        if in_len < 0.01 or out_len < 0.01:
+            if spline.points[k].tangent_mode != SplineTangentMode::Sharp:
+                result.has_zero_length_tangents = true
+                push(result.error_indices, k)
+        k = k + 1
+    
+    # Check for degenerate segments
+    let m = 0
+    while m < n - 1:
+        let seg_length = distance(spline.points[m].position, spline.points[m + 1].position)
+        if seg_length < 0.01:
+            result.has_degenerate_segments = true
+            result.is_valid = false
+            push(result.error_indices, m)
+        m = m + 1
+    
+    if not result.is_valid:
+        result.error_message = "Spline has topology errors"
+    
+    return result
+
+# Helper functions
+
+fn simplify_recursive(points: Array<SplinePoint>, keep_flags: Array<Bool>, start_idx: Int, end_idx: Int, tolerance: Float):
+    if end_idx - start_idx <= 1:
+        return
+    
+    # Find point with maximum distance from line segment
+    let max_dist = 0.0
+    let max_idx = start_idx
+    
+    let start_pos = points[start_idx].position
+    let end_pos = points[end_idx].position
+    let line_vec = end_pos - start_pos
+    let line_length = length(line_vec)
+    
+    if line_length < 0.0001:
+        return
+    
+    let i = start_idx + 1
+    while i < end_idx:
+        let point_pos = points[i].position
+        
+        # Calculate perpendicular distance to line
+        let to_point = point_pos - start_pos
+        let projection = dot(to_point, line_vec) / line_length
+        let closest_on_line = start_pos + line_vec * (projection / line_length)
+        let dist = distance(point_pos, closest_on_line)
+        
+        if dist > max_dist:
+            max_dist = dist
+            max_idx = i
+        
+        i = i + 1
+    
+    # If max distance exceeds tolerance, keep that point and recurse
+    if max_dist > tolerance:
+        keep_flags[max_idx] = true
+        simplify_recursive(points, keep_flags, start_idx, max_idx, tolerance)
+        simplify_recursive(points, keep_flags, max_idx, end_idx, tolerance)
+
+fn lerp_vec3(a: Vec3, b: Vec3, t: Float) -> Vec3:
+    let result: Vec3
+    result.x = a.x + (b.x - a.x) * t
+    result.y = a.y + (b.y - a.y) * t
+    result.z = a.z + (b.z - a.z) * t
+    return result
+
+fn lerp_vec4(a: Vec4, b: Vec4, t: Float) -> Vec4:
+    let result: Vec4
+    result.x = a.x + (b.x - a.x) * t
+    result.y = a.y + (b.y - a.y) * t
+    result.z = a.z + (b.z - a.z) * t
+    result.w = a.w + (b.w - a.w) * t
+    return result
+
+fn evaluate_spline_at_param(points: Array<SplinePoint>, t: Float, interpolation_type: SplineInterpolationType) -> Vec3:
+    let n = len(points)
+    if n == 0:
+        return vec3(0.0, 0.0, 0.0)
+    if n == 1:
+        return points[0].position
+    
+    let t_clamped = clamp(t, 0.0, 1.0)
+    let segment_idx = floor(t_clamped * (n - 1) as Float) as Int
+    segment_idx = min_int(segment_idx, n - 2)
+    
+    let local_t = t_clamped * (n - 1) as Float - segment_idx as Float
+    
+    let p0 = points[segment_idx].position
+    let p1 = points[segment_idx + 1].position
+    
+    if interpolation_type == SplineInterpolationType::Linear:
+        return linear_interpolate_points(p0, p1, local_t)
+    else:
+        if interpolation_type == SplineInterpolationType::Bezier:
+            let t0 = points[segment_idx].out_tangent
+            let t1 = points[segment_idx + 1].in_tangent
+            let ctrl1 = p0 + t0
+            let ctrl2 = p1 - t1
+            return evaluate_bezier(p0, ctrl1, ctrl2, p1, local_t)
+        else:
+            if interpolation_type == SplineInterpolationType::CatmullRom:
+                let p_prev = if segment_idx > 0: points[segment_idx - 1].position else: p0
+                let p_next = if segment_idx < n - 2: points[segment_idx + 2].position else: p1
+                return evaluate_catmull_rom(p_prev, p0, p1, p_next, local_t)
+            else:
+                return linear_interpolate_points(p0, p1, local_t)

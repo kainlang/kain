@@ -1,0 +1,645 @@
+# NARRATIVE GRAPH PLUGIN
+# ============================================================================
+# A complete narrative/dialogue system plugin demonstrating KAIN's graph
+# runtime AND graph editor capabilities. This plugin generates:
+# - Visual UEdGraph editors for dialogue and quest design
+# - Runtime graph execution system
+# - Blueprint integration
+# - Save/load support
+#
+# FEATURES:
+# - Visual dialogue graph editor (UEdGraph)
+# - Visual quest graph editor (UEdGraph)
+# - Asset editor toolkits with viewports, details panels, and toolbars
+# - Runtime graph execution
+# - Blueprint integration
+# - Networking support
+# - Save/load support
+# ============================================================================
+
+# ============================================================================
+# ENUMS
+# ============================================================================
+
+enum DialogueNodeType:
+    Root
+    NPC
+    Player
+    Branch
+    End
+    _MAX
+
+enum QuestNodeType:
+    Start
+    Objective
+    Branch
+    Success
+    Failure
+    _MAX
+
+enum QuestState:
+    NotStarted
+    InProgress
+    Completed
+    Failed
+    _MAX
+
+# ============================================================================
+# DATA STRUCTURES
+# ============================================================================
+
+struct DialogueChoice:
+    choice_text: String
+    next_node_id: Int
+    condition_tag: String
+
+struct QuestObjective:
+    objective_id: Int
+    description: String
+    target_count: Int
+    current_count: Int
+    is_complete: Bool
+
+struct SpeakerInfo:
+    speaker_name: String
+    speaker_color: Vec3
+
+# ============================================================================
+# DIALOGUE GRAPH EDITOR (Visual UEdGraph)
+# ============================================================================
+
+@graph_editor
+graph DialogueGraphEditor:
+    @node_type
+    @category("Dialogue/Start")
+    @display_name("Dialogue Root")
+    @tooltip("The starting point of a dialogue graph")
+    node RootNode:
+        properties:
+            GraphName: String = "New Dialogue"
+        outputs:
+            Start: Exec
+    
+    @node_type
+    @category("Dialogue/NPC")
+    @display_name("NPC Dialogue")
+    @tooltip("An NPC speaking line with multiple choice outputs")
+    node NPCNode:
+        properties:
+            SpeakerName: String = "NPC"
+            DialogueText: String = "Hello!"
+            SpeakerColor: Vec3 = vec3(1.0, 1.0, 1.0)
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+            Choice1: Exec
+            Choice2: Exec
+            Choice3: Exec
+    
+    @node_type
+    @category("Dialogue/Player")
+    @display_name("Player Response")
+    @tooltip("A player dialogue choice with optional condition")
+    node PlayerNode:
+        properties:
+            ChoiceText: String = "Player response"
+            ConditionTag: String = ""
+        inputs:
+            InExec: Exec
+        outputs:
+            Selected: Exec
+    
+    @node_type
+    @category("Dialogue/Logic")
+    @display_name("Condition Branch")
+    @tooltip("Branch dialogue flow based on a condition tag")
+    node BranchNode:
+        properties:
+            ConditionTag: String = "condition"
+        inputs:
+            InExec: Exec
+        outputs:
+            TrueBranch: Exec
+            FalseBranch: Exec
+    
+    @node_type
+    @category("Dialogue/End")
+    @display_name("End Dialogue")
+    @tooltip("Terminates the dialogue sequence")
+    node EndNode:
+        properties:
+            EndType: String = "Normal"
+        inputs:
+            InExec: Exec
+    
+    @schema
+    schema:
+        no_cycles: false
+        max_depth: 100
+
+# ============================================================================
+# QUEST GRAPH EDITOR (Visual UEdGraph)
+# ============================================================================
+
+@graph_editor
+graph QuestGraphEditor:
+    @node_type
+    @category("Quest/Start")
+    @display_name("Quest Start")
+    @tooltip("The starting point of a quest with name and description")
+    node StartNode:
+        properties:
+            QuestName: String = "New Quest"
+            QuestDescription: String = "Quest description"
+        outputs:
+            Started: Exec
+    
+    @node_type
+    @category("Quest/Objective")
+    @display_name("Quest Objective")
+    @tooltip("A quest objective with target count and completion tracking")
+    node ObjectiveNode:
+        properties:
+            ObjectiveDescription: String = "Complete objective"
+            TargetCount: Int = 1
+        inputs:
+            InExec: Exec
+        outputs:
+            Completed: Exec
+            Failed: Exec
+    
+    @node_type
+    @category("Quest/Logic")
+    @display_name("Quest Branch")
+    @tooltip("Branch quest flow based on a condition tag")
+    node BranchNode:
+        properties:
+            ConditionTag: String = "condition"
+        inputs:
+            InExec: Exec
+        outputs:
+            TrueBranch: Exec
+            FalseBranch: Exec
+    
+    @node_type
+    @category("Quest/End")
+    @display_name("Quest Success")
+    @tooltip("Quest completion with rewards")
+    node SuccessNode:
+        properties:
+            RewardExperience: Int = 100
+            RewardGold: Int = 50
+        inputs:
+            InExec: Exec
+    
+    @node_type
+    @category("Quest/End")
+    @display_name("Quest Failure")
+    @tooltip("Quest failure with message")
+    node FailureNode:
+        properties:
+            FailureMessage: String = "Quest failed"
+        inputs:
+            InExec: Exec
+    
+    @schema
+    schema:
+        no_cycles: false
+        max_depth: 50
+
+# ============================================================================
+# DIALOGUE GRAPH ASSET EDITOR
+# ============================================================================
+
+@viewport
+struct DialogueGraphViewport:
+    @scene_actor
+    preview_mesh: String = "/Engine/BasicShapes/Cube"
+
+@details
+struct DialogueNodeDetails:
+    @property
+    speaker_name: String
+    
+    @property
+    dialogue_text: String
+    
+    @color_picker
+    speaker_color: Vec3
+    
+    @property
+    condition_tag: String
+    
+    @property
+    choice_text: String
+    
+    @property
+    end_type: String
+
+@toolbar
+struct DialogueGraphToolbar:
+    @button(label: "Compile Graph")
+    fn compile_graph():
+        println("Compiling dialogue graph...")
+    
+    @button(label: "Validate")
+    fn validate_graph():
+        println("Validating dialogue graph...")
+    
+    @button(label: "Test Dialogue")
+    fn test_dialogue():
+        println("Testing dialogue flow...")
+    
+    @separator
+    
+    @button(label: "Export JSON")
+    fn export_json():
+        println("Exporting dialogue to JSON...")
+
+@asset_editor
+struct DialogueGraphAssetEditor:
+    @viewport
+    viewport: DialogueGraphViewport
+    
+    @details
+    details: DialogueNodeDetails
+    
+    @toolbar
+    toolbar: DialogueGraphToolbar
+
+# ============================================================================
+# QUEST GRAPH ASSET EDITOR
+# ============================================================================
+
+@viewport
+struct QuestGraphViewport:
+    @scene_actor
+    preview_mesh: String = "/Engine/BasicShapes/Sphere"
+
+@details
+struct QuestNodeDetails:
+    @property
+    quest_name: String
+    
+    @property
+    quest_description: String
+    
+    @property
+    objective_description: String
+    
+    @slider(min: 1, max: 100)
+    target_count: Int
+    
+    @slider(min: 0, max: 10000)
+    reward_experience: Int
+    
+    @slider(min: 0, max: 10000)
+    reward_gold: Int
+    
+    @property
+    condition_tag: String
+    
+    @property
+    failure_message: String
+
+@toolbar
+struct QuestGraphToolbar:
+    @button(label: "Compile Quest")
+    fn compile_quest():
+        println("Compiling quest graph...")
+    
+    @button(label: "Validate")
+    fn validate_quest():
+        println("Validating quest graph...")
+    
+    @button(label: "Test Quest")
+    fn test_quest():
+        println("Testing quest flow...")
+    
+    @separator
+    
+    @button(label: "Export JSON")
+    fn export_json():
+        println("Exporting quest to JSON...")
+    
+    @button(label: "Preview Rewards")
+    fn preview_rewards():
+        println("Previewing quest rewards...")
+
+@asset_editor
+struct QuestGraphAssetEditor:
+    @viewport
+    viewport: QuestGraphViewport
+    
+    @details
+    details: QuestNodeDetails
+    
+    @toolbar
+    toolbar: QuestGraphToolbar
+
+# ============================================================================
+# DIALOGUE GRAPH RUNTIME
+# ============================================================================
+
+@graph_runtime
+struct DialogueGraph:
+    @node_data
+    struct RootNode:
+        @property
+        graph_name: String
+        
+        @output_pin
+        start: Exec
+    
+    @node_data
+    struct NPCNode:
+        @property
+        speaker_name: String
+        
+        @property
+        dialogue_text: String
+        
+        @property
+        speaker_color: Vec3
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        next: Exec
+        
+        @output_pin
+        choice_1: Exec
+        
+        @output_pin
+        choice_2: Exec
+        
+        @output_pin
+        choice_3: Exec
+    
+    @node_data
+    struct PlayerNode:
+        @property
+        choice_text: String
+        
+        @property
+        condition_tag: String
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        selected: Exec
+    
+    @node_data
+    struct BranchNode:
+        @property
+        condition_tag: String
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        true_branch: Exec
+        
+        @output_pin
+        false_branch: Exec
+    
+    @node_data
+    struct EndNode:
+        @property
+        end_type: String
+        
+        @input_pin
+        in_exec: Exec
+    
+    @instance
+    struct DialogueInstance:
+        current_node_id: Int
+        dialogue_history: Array<Int>
+        speaker_name: String
+        dialogue_text: String
+        available_choices: Array<String>
+        
+        fn start_dialogue() -> Bool:
+            current_node_id = 0
+            dialogue_history = []
+            return true
+        
+        fn advance_to_node(node_id: Int):
+            current_node_id = node_id
+            dialogue_history.push(node_id)
+        
+        fn has_condition_tag(tag: String) -> Bool:
+            return tag == "always_true"
+
+# ============================================================================
+# QUEST GRAPH RUNTIME
+# ============================================================================
+
+@graph_runtime
+struct QuestGraph:
+    @node_data
+    struct StartNode:
+        @property
+        quest_name: String
+        
+        @property
+        quest_description: String
+        
+        @output_pin
+        started: Exec
+    
+    @node_data
+    struct ObjectiveNode:
+        @property
+        objective_description: String
+        
+        @property
+        target_count: Int
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        completed: Exec
+        
+        @output_pin
+        failed: Exec
+    
+    @node_data
+    struct BranchNode:
+        @property
+        condition_tag: String
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        true_branch: Exec
+        
+        @output_pin
+        false_branch: Exec
+    
+    @node_data
+    struct SuccessNode:
+        @property
+        reward_experience: Int
+        
+        @property
+        reward_gold: Int
+        
+        @input_pin
+        in_exec: Exec
+    
+    @node_data
+    struct FailureNode:
+        @property
+        failure_message: String
+        
+        @input_pin
+        in_exec: Exec
+    
+    @instance
+    struct QuestInstance:
+        current_node_id: Int
+        active_objectives: Array<Int>
+        quest_state: QuestState
+        current_objective_progress: Int
+        
+        fn start_quest() -> Bool:
+            current_node_id = 0
+            active_objectives = []
+            quest_state = QuestState::InProgress
+            return true
+        
+        fn update_objective_progress(count: Int):
+            current_objective_progress = current_objective_progress + count
+        
+        fn complete_objective():
+            quest_state = QuestState::Completed
+        
+        fn fail_quest():
+            quest_state = QuestState::Failed
+
+# ============================================================================
+# NARRATIVE MANAGER COMPONENT
+# ============================================================================
+
+@component
+struct NarrativeManagerComponent:
+    active_dialogue_id: Int
+    active_quest_id: Int
+    
+    @savegame
+    completed_dialogues: Array<Int>
+    
+    @savegame
+    completed_quests: Array<Int>
+    
+    @savegame
+    quest_progress: Array<Int>
+
+# ============================================================================
+# NARRATIVE SUBSYSTEM
+# ============================================================================
+
+@subsystem
+@tick
+struct NarrativeSubsystem:
+    dialogue_graphs: Array<DialogueGraph>
+    quest_graphs: Array<QuestGraph>
+    active_dialogue_instance: DialogueGraph
+    active_quest_instance: QuestGraph
+    
+    fn on_tick(delta: Float):
+        # Update active dialogue/quest instances
+        pass
+    
+    fn start_dialogue(dialogue_id: Int) -> Bool:
+        return true
+    
+    fn start_quest(quest_id: Int) -> Bool:
+        return true
+
+# ============================================================================
+# BLUEPRINT FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn start_dialogue_by_id(subsystem: NarrativeSubsystem, dialogue_id: Int) -> Bool:
+    return subsystem.start_dialogue(dialogue_id)
+
+@blueprint
+fn start_quest_by_id(subsystem: NarrativeSubsystem, quest_id: Int) -> Bool:
+    return subsystem.start_quest(quest_id)
+
+@blueprint
+fn get_active_dialogue_text(manager: NarrativeManagerComponent) -> String:
+    return "Dialogue text here"
+
+@blueprint
+fn get_active_quest_description(manager: NarrativeManagerComponent) -> String:
+    return "Quest description here"
+
+@blueprint
+fn complete_quest_objective(manager: NarrativeManagerComponent, objective_id: Int):
+    manager.quest_progress.push(objective_id)
+
+@blueprint
+fn is_dialogue_completed(manager: NarrativeManagerComponent, dialogue_id: Int) -> Bool:
+    var i: Int = 0
+    while i < manager.completed_dialogues.length():
+        if manager.completed_dialogues[i] == dialogue_id:
+            return true
+        i = i + 1
+    return false
+
+@blueprint
+fn is_quest_completed(manager: NarrativeManagerComponent, quest_id: Int) -> Bool:
+    var i: Int = 0
+    while i < manager.completed_quests.length():
+        if manager.completed_quests[i] == quest_id:
+            return true
+        i = i + 1
+    return false
+
+# ============================================================================
+# NARRATIVE ACTOR
+# ============================================================================
+
+actor NarrativeActor:
+    state manager: NarrativeManagerComponent = NarrativeManagerComponent()
+    
+    @blueprint_event
+    fn on_dialogue_started(dialogue_id: Int):
+        println("Dialogue started: {dialogue_id}")
+    
+    @blueprint_event
+    fn on_dialogue_completed(dialogue_id: Int):
+        println("Dialogue completed: {dialogue_id}")
+        manager.completed_dialogues.push(dialogue_id)
+    
+    @blueprint_event
+    fn on_quest_started(quest_id: Int):
+        println("Quest started: {quest_id}")
+    
+    @blueprint_event
+    fn on_quest_completed(quest_id: Int):
+        println("Quest completed: {quest_id}")
+        manager.completed_quests.push(quest_id)
+    
+    on Server_StartDialogue(dialogue_id: Int):
+        manager.active_dialogue_id = dialogue_id
+        Multicast_NotifyDialogueStarted(dialogue_id)
+    
+    on Multicast_NotifyDialogueStarted(dialogue_id: Int):
+        on_dialogue_started(dialogue_id)
+    
+    on Server_CompleteDialogue(dialogue_id: Int):
+        manager.active_dialogue_id = 0
+        Multicast_NotifyDialogueCompleted(dialogue_id)
+    
+    on Multicast_NotifyDialogueCompleted(dialogue_id: Int):
+        on_dialogue_completed(dialogue_id)

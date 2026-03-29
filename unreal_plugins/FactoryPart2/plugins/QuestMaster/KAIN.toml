@@ -1,0 +1,36 @@
+[package]
+name = "QuestMaster"
+version = "1.0.0"
+authors = ["KAIN Factory Part 2"]
+
+[ue5]
+plugin_name = "QuestMaster"
+engine_version = "5.4"
+category = "Gameplay"
+description = "Comprehensive quest system with graph editor, tracking, and multiplayer support. Features 15+ node types, runtime execution, subsystems, actors, components, UI widgets, and full Blueprint integration."
+
+sources = [
+    "quest_data_structures.kn",
+    "quest_components.kn",
+    "quest_subsystem.kn",
+    "quest_graph_runtime.kn",
+    "quest_graph_editor.kn",
+    "quest_actors.kn",
+    "quest_blueprint_library.kn",
+    "quest_ui_widgets.kn",
+]
+
+[[ue5.modules]]
+name = "QuestMaster"
+type = "Runtime"
+loading_phase = "Default"
+
+[[ue5.modules]]
+name = "QuestMasterEditor"
+type = "Editor"
+loading_phase = "Default"
+depends_on = ["QuestMaster"]
+
+[build]
+targets = ["ue5"]
+output_dir = "Generated"

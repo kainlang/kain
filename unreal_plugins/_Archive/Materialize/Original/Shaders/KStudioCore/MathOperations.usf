@@ -1,0 +1,58 @@
+// Math Operations Compute Shader
+// Simple per-pixel mathematical operations on textures
+
+#include "/Engine/Public/Platform.ush"
+
+// Input textures
+Texture2D<float4> InTextureA;
+Texture2D<float4> InTextureB;
+SamplerState InSampler;
+
+// Output texture
+RWTexture2D<float4> OutResult;
+
+// Parameters
+uint MathOperation; // 0 = Add, 1 = Multiply, 2 = Lerp
+float Alpha; // For Lerp operation
+uint2 TextureDimensions;
+
+[numthreads(8, 8, 1)]
+void MathCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	uint2 PixelPos = DispatchThreadId.xy;
+	
+	// Bounds check
+	if (PixelPos.x >= TextureDimensions.x || PixelPos.y >= TextureDimensions.y)
+	{
+		return;
+	}
+	
+	// Calculate UV coordinates
+	float2 UV = (float2(PixelPos) + 0.5f) / float2(TextureDimensions);
+	
+	// Sample input textures
+	float4 ColorA = InTextureA.SampleLevel(InSampler, UV, 0);
+	float4 ColorB = InTextureB.SampleLevel(InSampler, UV, 0);
+	
+	float4 Result = float4(0, 0, 0, 1);
+	
+	// Perform operation based on MathOperation parameter
+	if (MathOperation == 0) // Add
+	{
+		Result = ColorA + ColorB;
+	}
+	else if (MathOperation == 1) // Multiply
+	{
+		Result = ColorA * ColorB;
+	}
+	else if (MathOperation == 2) // Lerp
+	{
+		Result = lerp(ColorA, ColorB, Alpha);
+	}
+	
+	// Clamp result to valid range
+	Result = saturate(Result);
+	
+	// Write output
+	OutResult[PixelPos] = Result;
+}

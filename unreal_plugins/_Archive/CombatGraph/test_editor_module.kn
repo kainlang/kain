@@ -1,0 +1,43 @@
+@editor_module
+module CombatGraphEditorModule:
+    @menu_entry
+    menu "Tools/Combat Graph":
+        label: "Open Combat Graph Editor"
+        icon: "Icons.Graph"
+        tooltip: "Open the Combat Graph visual editor"
+        
+        fn on_click():
+            pass
+    
+    @toolbar_button
+    toolbar:
+        section: "Content"
+        icon: "Icons.Sword"
+        tooltip: "Create New Combat Graph"
+        
+        fn on_click():
+            pass
+
+
+enum ComboInputDirection:
+    DirForward
+    DirBackward
+    DirLeft
+    DirRight
+    DirNeutral
+    _MAX
+
+@blueprint
+fn get_input_direction_from_vector(direction: Vec3) -> Int:
+    return 1
+
+@blueprint
+@category("Combat Graph|Direction")
+fn get_direction_name(direction: ComboInputDirection) -> String:
+    match direction:
+        ComboInputDirection::DirForward => return "Forward"
+        ComboInputDirection::DirBackward => return "Backward"
+        ComboInputDirection::DirLeft => return "Left"
+        ComboInputDirection::DirRight => return "Right"
+        ComboInputDirection::DirNeutral => return "Neutral"
+        _ => return "Unknown"

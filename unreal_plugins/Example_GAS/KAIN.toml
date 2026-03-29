@@ -1,0 +1,15 @@
+[package]
+name = "GASShowcase"
+version = "1.0.0"
+authors = ["KAIN Research Labs"]
+description = "Gameplay Ability System Showcase - Comprehensive demonstration of GAS integration with abilities, effects, attributes, cues, tasks, and targets"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "GASShowcase"
+plugin_dir = "."
+sources = ["gas.kn", "test_cues.kn", "test_effects.kn", "test_phase4.kn", "test_targets.kn", "test_tasks.kn"]
+shaders = []
+modular_output = true

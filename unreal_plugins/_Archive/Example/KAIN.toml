@@ -1,0 +1,15 @@
+[package]
+name = "KainFactory"
+version = "1.0.0"
+authors = ["KAIN Research Labs"]
+description = "The ultimate KAIN showcase - every feature in one plugin"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "KainFactory"
+plugin_dir = ""
+sources = ["Kain/ultimate_showcase.kn"]
+shaders = []
+modular_output = true

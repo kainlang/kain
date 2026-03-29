@@ -1,0 +1,88 @@
+enum VoxelType:
+    Air
+    Stone
+    Dirt
+    Grass
+    Sand
+    Water
+    Wood
+    Leaves
+    Ore_Iron
+    Ore_Gold
+    Ore_Diamond
+    Bedrock
+
+enum BiomeType:
+    Plains
+    Forest
+    Desert
+    Mountains
+    Ocean
+    Tundra
+    Jungle
+    Swamp
+
+struct VoxelData:
+    voxel_type: VoxelType
+    light_level: Int
+    metadata: Int
+
+struct ChunkCoord:
+    x: Int
+    y: Int
+    z: Int
+
+struct BlockPosition:
+    x: Int
+    y: Int
+    z: Int
+
+struct ChunkMeshData:
+    vertices: Array<Vec3>
+    normals: Array<Vec3>
+    uvs: Array<Vec2>
+    indices: Array<Int>
+    vertex_count: Int
+    triangle_count: Int
+
+struct BiomeData:
+    biome_type: BiomeType
+    temperature: Float
+    humidity: Float
+    height_offset: Float
+    height_scale: Float
+
+struct NoiseParameters:
+    seed: Int
+    octaves: Int
+    frequency: Float
+    amplitude: Float
+    lacunarity: Float
+    persistence: Float
+
+struct ChunkData:
+    coord: ChunkCoord
+    voxels: Array<VoxelData>
+    is_dirty: Bool
+    is_generated: Bool
+    is_meshed: Bool
+    biome: BiomeType
+    mesh_data: ChunkMeshData
+
+struct VoxelRaycastHit:
+    hit: Bool
+    position: Vec3
+    block_position: BlockPosition
+    normal: Vec3
+    voxel_type: VoxelType
+    distance: Float
+
+struct FluidState:
+    level: Int
+    is_flowing: Bool
+    flow_direction: Vec3
+
+struct VoxelPhysicsState:
+    is_falling: Bool
+    velocity: Vec3
+    has_support: Bool

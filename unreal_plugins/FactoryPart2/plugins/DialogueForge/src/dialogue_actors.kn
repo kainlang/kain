@@ -1,0 +1,599 @@
+// DialogueForge — Actors
+// DialogueManagerActor and DialogueSpeakerActor with voice line playback
+
+actor DialogueManagerActor:
+    state active_dialogues: Array<DialogueInstance> = []
+    state registered_speakers: Array<DialogueSpeaker> = []
+    state loaded_graphs: Array<DialogueGraph> = []
+    state current_dialogue_id: Int = 0
+    state max_concurrent_dialogues: Int = 5
+    state dialogue_history: Array<DialogueHistoryEntry> = []
+    state global_variables: Array<DialogueVariable> = []
+    state persistent_flags: Array<String> = []
+    state is_paused: Bool = false
+    state debug_mode: Bool = false
+    
+    on Server_StartDialogue(graph_id: String, initiator: Actor, target: Actor) -> Int:
+        if len(active_dialogues) >= max_concurrent_dialogues:
+            println("Cannot start dialogue: max concurrent dialogues reached")
+            return -1
+        
+        let graph = find_graph_by_id(graph_id, loaded_graphs)
+        if graph.graph_id == "":
+            println("Graph not found: {graph_id}")
+            return -1
+        
+        let instance = create_dialogue_instance(current_dialogue_id, graph_id, initiator, target)
+        push(active_dialogues, instance)
+        
+        current_dialogue_id = current_dialogue_id + 1
+        
+        Multicast_OnDialogueStarted(instance.instance_id, graph_id)
+        
+        return instance.instance_id
+    
+    on Server_EndDialogue(instance_id: Int):
+        let mut i = 0
+        while i < len(active_dialogues):
+            if active_dialogues[i].instance_id == instance_id:
+                active_dialogues[i].state = DialogueState::Completed
+                Multicast_OnDialogueEnded(instance_id)
+                return
+            i = i + 1
+    
+    on Server_AdvanceDialogue(instance_id: Int, next_node_id: Int):
+        let mut i = 0
+        while i < len(active_dialogues):
+            if active_dialogues[i].instance_id == instance_id:
+                active_dialogues[i].current_node_id = next_node_id
+                push(active_dialogues[i].visited_nodes, next_node_id)
+                Multicast_OnDialogueAdvanced(instance_id, next_node_id)
+                return
+            i = i + 1
+    
+    on Server_MakeChoice(instance_id: Int, choice_id: Int, next_node_id: Int):
+        let mut i = 0
+        while i < len(active_dialogues):
+            if active_dialogues[i].instance_id == instance_id:
+                push(active_dialogues[i].chosen_choices, choice_id)
+                active_dialogues[i].current_node_id = next_node_id
+                push(active_dialogues[i].visited_nodes, next_node_id)
+                Multicast_OnChoiceMade(instance_id, choice_id, next_node_id)
+                return
+            i = i + 1
+    
+    on Server_PauseDialogue(instance_id: Int):
+        let mut i = 0
+        while i < len(active_dialogues):
+            if active_dialogues[i].instance_id == instance_id:
+                active_dialogues[i].is_paused = true
+                active_dialogues[i].state = DialogueState::Paused
+                Multicast_OnDialoguePaused(instance_id)
+                return
+            i = i + 1
+    
+    on Server_ResumeDialogue(instance_id: Int):
+        let mut i = 0
+        while i < len(active_dialogues):
+            if active_dialogues[i].instance_id == instance_id:
+                active_dialogues[i].is_paused = false
+                active_dialogues[i].state = DialogueState::Active
+                Multicast_OnDialogueResumed(instance_id)
+                return
+            i = i + 1
+    
+    on Server_RegisterSpeaker(speaker: DialogueSpeaker):
+        push(registered_speakers, speaker)
+        println("Registered speaker: {speaker.speaker_id}")
+    
+    on Server_UnregisterSpeaker(speaker_id: String):
+        let mut i = 0
+        while i < len(registered_speakers):
+            if registered_speakers[i].speaker_id == speaker_id:
+                println("Unregistered speaker: {speaker_id}")
+                return
+            i = i + 1
+    
+    on Server_LoadDialogueGraph(graph: DialogueGraph):
+        push(loaded_graphs, graph)
+        println("Loaded dialogue graph: {graph.graph_id}")
+    
+    on Server_SetGlobalVariable(var_name: String, value: Float):
+        let mut i = 0
+        while i < len(global_variables):
+            if global_variables[i].variable_name == var_name:
+                global_variables[i].current_value = value
+                return
+            i = i + 1
+        
+        let new_var = DialogueVariable {
+            variable_name: var_name,
+            variable_type: "Float",
+            default_value: value,
+            current_value: value,
+            is_persistent: true,
+            description: ""
+        }
+        push(global_variables, new_var)
+    
+    on Server_SetPersistentFlag(flag_name: String, value: Bool):
+        if value:
+            push(persistent_flags, flag_name)
+        else:
+            let mut i = 0
+            while i < len(persistent_flags):
+                if persistent_flags[i] == flag_name:
+                    return
+                i = i + 1
+    
+    on Multicast_OnDialogueStarted(instance_id: Int, graph_id: String):
+        println("Dialogue started: {graph_id} (Instance: {instance_id})")
+    
+    on Multicast_OnDialogueEnded(instance_id: Int):
+        println("Dialogue ended: {instance_id}")
+    
+    on Multicast_OnDialogueAdvanced(instance_id: Int, node_id: Int):
+        println("Dialogue advanced to node: {node_id}")
+    
+    on Multicast_OnChoiceMade(instance_id: Int, choice_id: Int, next_node_id: Int):
+        println("Choice made: {choice_id}, advancing to node: {next_node_id}")
+    
+    on Multicast_OnDialoguePaused(instance_id: Int):
+        println("Dialogue paused: {instance_id}")
+    
+    on Multicast_OnDialogueResumed(instance_id: Int):
+        println("Dialogue resumed: {instance_id}")
+    
+    @blueprint_callable
+    fn get_active_dialogue_count() -> Int:
+        return len(active_dialogues)
+    
+    @blueprint_callable
+    fn is_dialogue_active(instance_id: Int) -> Bool:
+        let mut i = 0
+        while i < len(active_dialogues):
+            if active_dialogues[i].instance_id == instance_id:
+                return active_dialogues[i].state == DialogueState::Active
+            i = i + 1
+        return false
+    
+    @blueprint_callable
+    fn get_current_node_id(instance_id: Int) -> Int:
+        let mut i = 0
+        while i < len(active_dialogues):
+            if active_dialogues[i].instance_id == instance_id:
+                return active_dialogues[i].current_node_id
+            i = i + 1
+        return -1
+    
+    @blueprint_callable
+    fn get_global_variable(var_name: String) -> Float:
+        let mut i = 0
+        while i < len(global_variables):
+            if global_variables[i].variable_name == var_name:
+                return global_variables[i].current_value
+            i = i + 1
+        return 0.0
+    
+    @blueprint_callable
+    fn check_persistent_flag(flag_name: String) -> Bool:
+        let mut i = 0
+        while i < len(persistent_flags):
+            if persistent_flags[i] == flag_name:
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint_callable
+    fn get_dialogue_history_count() -> Int:
+        return len(dialogue_history)
+    
+    @blueprint_callable
+    fn clear_dialogue_history():
+        dialogue_history = []
+    
+    @blueprint_callable
+    fn get_registered_speaker_count() -> Int:
+        return len(registered_speakers)
+    
+    @blueprint_callable
+    fn find_speaker_by_id(speaker_id: String) -> DialogueSpeaker:
+        let mut i = 0
+        while i < len(registered_speakers):
+            if registered_speakers[i].speaker_id == speaker_id:
+                return registered_speakers[i]
+            i = i + 1
+        return create_default_speaker()
+
+actor DialogueSpeakerActor:
+    state speaker_id: String = "npc_default"
+    state display_name: String = "NPC"
+    state portrait_texture_path: String = ""
+    state voice_actor_name: String = ""
+    state current_emotion: SpeakerEmotion = SpeakerEmotion::Neutral
+    state is_speaking: Bool = false
+    state current_voice_line: VoiceLineData = VoiceLineData {
+        voice_line_id: "",
+        speaker_id: "",
+        audio_path: "",
+        subtitle_text: "",
+        duration: 0.0,
+        emotion: SpeakerEmotion::Neutral,
+        is_loaded: false,
+        is_playing: false
+    }
+    state voice_line_queue: Array<VoiceLineData> = []
+    state auto_register: Bool = true
+    state dialogue_manager: Actor = null
+    state interaction_range: Float = 300.0
+    state can_interrupt: Bool = false
+    state lip_sync_enabled: Bool = true
+    state gesture_enabled: Bool = true
+    state look_at_listener: Bool = true
+    
+    on Server_Speak(dialogue_text: String, voice_line_path: String, emotion: SpeakerEmotion, duration: Float):
+        if is_speaking && !can_interrupt:
+            let voice_line = VoiceLineData {
+                voice_line_id: "{speaker_id}_{len(voice_line_queue)}",
+                speaker_id: speaker_id,
+                audio_path: voice_line_path,
+                subtitle_text: dialogue_text,
+                duration: duration,
+                emotion: emotion,
+                is_loaded: false,
+                is_playing: false
+            }
+            push(voice_line_queue, voice_line)
+            return
+        
+        is_speaking = true
+        current_emotion = emotion
+        current_voice_line = VoiceLineData {
+            voice_line_id: "{speaker_id}_current",
+            speaker_id: speaker_id,
+            audio_path: voice_line_path,
+            subtitle_text: dialogue_text,
+            duration: duration,
+            emotion: emotion,
+            is_loaded: true,
+            is_playing: true
+        }
+        
+        Multicast_PlayVoiceLine(dialogue_text, voice_line_path, emotion, duration)
+    
+    on Server_StopSpeaking():
+        is_speaking = false
+        current_voice_line.is_playing = false
+        Multicast_StopVoiceLine()
+    
+    on Server_QueueVoiceLine(dialogue_text: String, voice_line_path: String, emotion: SpeakerEmotion, duration: Float):
+        let voice_line = VoiceLineData {
+            voice_line_id: "{speaker_id}_{len(voice_line_queue)}",
+            speaker_id: speaker_id,
+            audio_path: voice_line_path,
+            subtitle_text: dialogue_text,
+            duration: duration,
+            emotion: emotion,
+            is_loaded: false,
+            is_playing: false
+        }
+        push(voice_line_queue, voice_line)
+    
+    on Server_ClearVoiceLineQueue():
+        voice_line_queue = []
+    
+    on Server_SetEmotion(emotion: SpeakerEmotion):
+        current_emotion = emotion
+        Multicast_UpdateEmotion(emotion)
+    
+    on Server_PlayGesture(gesture_name: String):
+        if gesture_enabled:
+            Multicast_PlayGesture(gesture_name)
+    
+    on Server_LookAtActor(target: Actor):
+        if look_at_listener:
+            Multicast_LookAtActor(target)
+    
+    on Multicast_PlayVoiceLine(dialogue_text: String, voice_line_path: String, emotion: SpeakerEmotion, duration: Float):
+        println("{display_name} says: {dialogue_text}")
+    
+    on Multicast_StopVoiceLine():
+        println("{display_name} stopped speaking")
+    
+    on Multicast_UpdateEmotion(emotion: SpeakerEmotion):
+        println("{display_name} emotion: {emotion}")
+    
+    on Multicast_PlayGesture(gesture_name: String):
+        println("{display_name} gesture: {gesture_name}")
+    
+    on Multicast_LookAtActor(target: Actor):
+        println("{display_name} looking at target")
+    
+    @blueprint_callable
+    fn is_currently_speaking() -> Bool:
+        return is_speaking
+    
+    @blueprint_callable
+    fn get_voice_line_queue_size() -> Int:
+        return len(voice_line_queue)
+    
+    @blueprint_callable
+    fn get_current_emotion() -> SpeakerEmotion:
+        return current_emotion
+    
+    @blueprint_callable
+    fn can_start_dialogue() -> Bool:
+        return !is_speaking || can_interrupt
+    
+    @blueprint_callable
+    fn get_speaker_info() -> DialogueSpeaker:
+        return DialogueSpeaker {
+            speaker_id: speaker_id,
+            display_name: display_name,
+            portrait_texture_path: portrait_texture_path,
+            voice_actor_name: voice_actor_name,
+            default_emotion: current_emotion,
+            actor_reference: self,
+            is_player: false
+        }
+    
+    @blueprint_callable
+    fn set_speaker_id(new_id: String):
+        speaker_id = new_id
+    
+    @blueprint_callable
+    fn set_display_name(new_name: String):
+        display_name = new_name
+    
+    @blueprint_callable
+    fn set_portrait_path(path: String):
+        portrait_texture_path = path
+    
+    @blueprint_callable
+    fn enable_lip_sync(enabled: Bool):
+        lip_sync_enabled = enabled
+    
+    @blueprint_callable
+    fn enable_gestures(enabled: Bool):
+        gesture_enabled = enabled
+    
+    @blueprint_callable
+    fn enable_look_at(enabled: Bool):
+        look_at_listener = enabled
+    
+    @blueprint_callable
+    fn set_interaction_range(range: Float):
+        interaction_range = range
+    
+    @blueprint_callable
+    fn is_in_interaction_range(other_actor: Actor) -> Bool:
+        let distance = get_distance_to_actor(other_actor)
+        return distance <= interaction_range
+
+actor DialogueTriggerActor:
+    state trigger_graph_id: String = ""
+    state trigger_on_overlap: Bool = true
+    state trigger_on_interact: Bool = false
+    state trigger_once: Bool = false
+    state has_triggered: Bool = false
+    state required_actor_tag: String = ""
+    state trigger_conditions: Array<DialogueCondition> = []
+    state trigger_cooldown: Float = 0.0
+    state last_trigger_time: Float = 0.0
+    state auto_end_dialogue: Bool = true
+    state dialogue_manager: Actor = null
+    state active_dialogue_id: Int = -1
+    
+    on Server_OnActorOverlap(other_actor: Actor):
+        if !trigger_on_overlap:
+            return
+        
+        if trigger_once && has_triggered:
+            return
+        
+        if required_actor_tag != "":
+            return
+        
+        if trigger_cooldown > 0.0:
+            let current_time = get_game_time()
+            if current_time - last_trigger_time < trigger_cooldown:
+                return
+        
+        Server_TriggerDialogue(other_actor)
+    
+    on Server_OnInteract(interacting_actor: Actor):
+        if !trigger_on_interact:
+            return
+        
+        if trigger_once && has_triggered:
+            return
+        
+        Server_TriggerDialogue(interacting_actor)
+    
+    on Server_TriggerDialogue(initiator: Actor):
+        if trigger_graph_id == "":
+            println("No dialogue graph assigned to trigger")
+            return
+        
+        if dialogue_manager == null:
+            println("No dialogue manager assigned")
+            return
+        
+        has_triggered = true
+        last_trigger_time = get_game_time()
+        
+        Multicast_OnDialogueTriggered(trigger_graph_id)
+    
+    on Multicast_OnDialogueTriggered(graph_id: String):
+        println("Dialogue triggered: {graph_id}")
+    
+    @blueprint_callable
+    fn set_trigger_graph(graph_id: String):
+        trigger_graph_id = graph_id
+    
+    @blueprint_callable
+    fn reset_trigger():
+        has_triggered = false
+    
+    @blueprint_callable
+    fn enable_trigger():
+        trigger_on_overlap = true
+    
+    @blueprint_callable
+    fn disable_trigger():
+        trigger_on_overlap = false
+    
+    @blueprint_callable
+    fn set_cooldown(cooldown: Float):
+        trigger_cooldown = cooldown
+    
+    @blueprint_callable
+    fn is_on_cooldown() -> Bool:
+        if trigger_cooldown <= 0.0:
+            return false
+        let current_time = get_game_time()
+        return current_time - last_trigger_time < trigger_cooldown
+
+fn create_dialogue_instance(id: Int, graph_id: String, initiator: Actor, target: Actor) -> DialogueInstance:
+    return DialogueInstance {
+        instance_id: id,
+        graph_id: graph_id,
+        current_node_id: 0,
+        state: DialogueState::Active,
+        participants: [initiator, target],
+        active_speaker: target,
+        listener: initiator,
+        variables: [],
+        chosen_choices: [],
+        visited_nodes: [],
+        start_time: get_game_time(),
+        elapsed_time: 0.0,
+        is_paused: false
+    }
+
+fn find_graph_by_id(graph_id: String, graphs: Array<DialogueGraph>) -> DialogueGraph:
+    let mut i = 0
+    while i < len(graphs):
+        if graphs[i].graph_id == graph_id:
+            return graphs[i]
+        i = i + 1
+    
+    return DialogueGraph {
+        graph_id: "",
+        graph_name: "",
+        description: "",
+        entry_node_id: 0,
+        nodes: [],
+        speakers: [],
+        variables: [],
+        tags: [],
+        category: "",
+        priority: 0
+    }
+
+fn get_game_time() -> Float:
+    return 0.0
+
+fn get_distance_to_actor(other: Actor) -> Float:
+    return 0.0
+
+@blueprint
+fn start_dialogue_between_actors(manager: Actor, graph_id: String, speaker: Actor, listener: Actor) -> Int:
+    return 0
+
+@blueprint
+fn end_active_dialogue(manager: Actor, instance_id: Int):
+    println("Ending dialogue: {instance_id}")
+
+@blueprint
+fn pause_active_dialogue(manager: Actor, instance_id: Int):
+    println("Pausing dialogue: {instance_id}")
+
+@blueprint
+fn resume_active_dialogue(manager: Actor, instance_id: Int):
+    println("Resuming dialogue: {instance_id}")
+
+@blueprint
+fn make_dialogue_choice(manager: Actor, instance_id: Int, choice_id: Int):
+    println("Making choice: {choice_id}")
+
+@blueprint
+fn advance_dialogue_to_node(manager: Actor, instance_id: Int, node_id: Int):
+    println("Advancing to node: {node_id}")
+
+@blueprint
+fn register_dialogue_speaker(manager: Actor, speaker: Actor):
+    println("Registering speaker")
+
+@blueprint
+fn unregister_dialogue_speaker(manager: Actor, speaker_id: String):
+    println("Unregistering speaker: {speaker_id}")
+
+@blueprint
+fn load_dialogue_graph_from_path(manager: Actor, graph_path: String) -> Bool:
+    println("Loading graph: {graph_path}")
+    return true
+
+@blueprint
+fn get_dialogue_manager_from_world() -> Actor:
+    return null
+
+@blueprint
+fn create_dialogue_speaker_info(speaker_id: String, display_name: String, portrait_path: String) -> DialogueSpeaker:
+    return DialogueSpeaker {
+        speaker_id: speaker_id,
+        display_name: display_name,
+        portrait_texture_path: portrait_path,
+        voice_actor_name: "",
+        default_emotion: SpeakerEmotion::Neutral,
+        actor_reference: null,
+        is_player: false
+    }
+
+@blueprint
+fn play_voice_line_on_speaker(speaker: Actor, dialogue_text: String, voice_path: String, emotion: SpeakerEmotion, duration: Float):
+    println("Playing voice line on speaker")
+
+@blueprint
+fn stop_speaker_voice_line(speaker: Actor):
+    println("Stopping voice line")
+
+@blueprint
+fn set_speaker_emotion(speaker: Actor, emotion: SpeakerEmotion):
+    println("Setting emotion: {emotion}")
+
+@blueprint
+fn queue_voice_line(speaker: Actor, dialogue_text: String, voice_path: String, emotion: SpeakerEmotion, duration: Float):
+    println("Queueing voice line")
+
+@blueprint
+fn clear_speaker_voice_queue(speaker: Actor):
+    println("Clearing voice queue")
+
+@blueprint
+fn is_speaker_talking(speaker: Actor) -> Bool:
+    return false
+
+@blueprint
+fn get_speaker_emotion(speaker: Actor) -> SpeakerEmotion:
+    return SpeakerEmotion::Neutral
+
+@blueprint
+fn trigger_dialogue_from_trigger(trigger: Actor, initiator: Actor):
+    println("Triggering dialogue from trigger")
+
+@blueprint
+fn set_trigger_dialogue_graph(trigger: Actor, graph_id: String):
+    println("Setting trigger graph: {graph_id}")
+
+@blueprint
+fn reset_dialogue_trigger(trigger: Actor):
+    println("Resetting trigger")
+
+@blueprint
+fn enable_dialogue_trigger(trigger: Actor):
+    println("Enabling trigger")
+
+@blueprint
+fn disable_dialogue_trigger(trigger: Actor):
+    println("Disabling trigger")

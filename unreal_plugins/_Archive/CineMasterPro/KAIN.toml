@@ -1,0 +1,22 @@
+# Root-level plugin_name for FULLBUILD.bat compatibility
+plugin_name = "CineMasterPro"
+[plugin]
+name = "CineMasterPro"
+version = "1.0.0"
+description = "Virtual Production & Multi-Cam Director Studio - Professional 16-camera simultaneous preview with physical lens simulation"
+author = "KAIN Factory"
+category = "Virtual Production"
+
+[build]
+target = "ue5"
+ue5_version = "5.4"
+
+[features]
+enable_networking = true
+enable_shaders = true
+enable_editor = true
+enable_slate = true
+
+[output]
+source_dir = "Source"
+shaders_dir = "Shaders"

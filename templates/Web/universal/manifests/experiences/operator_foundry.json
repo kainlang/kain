@@ -134,6 +134,27 @@
       "body": "Operator cockpit for agent routing, tools, workflows, and memory."
     },
     {
+      "id": "ai-evaluations",
+      "kind": "card_grid",
+      "eyebrow": "AI Ops",
+      "title": "Evaluation suites",
+      "source": "content.ai_evaluations"
+    },
+    {
+      "id": "ai-guardrails",
+      "kind": "card_grid",
+      "eyebrow": "AI Ops",
+      "title": "Guardrails",
+      "source": "content.ai_guardrails"
+    },
+    {
+      "id": "prompt-library",
+      "kind": "card_grid",
+      "eyebrow": "AI Ops",
+      "title": "Prompt library",
+      "source": "content.prompt_library"
+    },
+    {
       "id": "actors",
       "kind": "actor_mesh",
       "eyebrow": "Actors",
@@ -321,6 +342,41 @@
       "eyebrow": "Cache",
       "title": "Cache stack",
       "source": "content.cache_stack"
+    },
+    {
+      "id": "database-stack",
+      "kind": "card_grid",
+      "eyebrow": "Database",
+      "title": "Database stack",
+      "source": "content.database_stack"
+    },
+    {
+      "id": "queue-stack",
+      "kind": "card_grid",
+      "eyebrow": "Queues",
+      "title": "Queue and job stack",
+      "source": "content.queue_stack"
+    },
+    {
+      "id": "secrets-stack",
+      "kind": "card_grid",
+      "eyebrow": "Secrets",
+      "title": "Secrets and vault",
+      "source": "content.secrets_stack"
+    },
+    {
+      "id": "config-stack",
+      "kind": "card_grid",
+      "eyebrow": "Config",
+      "title": "Configuration and env",
+      "source": "content.config_stack"
+    },
+    {
+      "id": "background-jobs",
+      "kind": "card_grid",
+      "eyebrow": "Jobs",
+      "title": "Background jobs and schedulers",
+      "source": "content.background_jobs"
     },
     {
       "id": "search-stack",

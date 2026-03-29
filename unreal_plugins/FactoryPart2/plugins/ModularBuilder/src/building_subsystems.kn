@@ -1,0 +1,381 @@
+// ModularBuilder - Subsystems
+// Phase 6: World subsystems for building management and performance
+// Target: ~1,200 LOC
+
+// ============================================================================
+// BUILD MANAGER SUBSYSTEM
+// ============================================================================
+
+@subsystem
+@tick
+struct BuildManagerSubsystem:
+    registered_managers: Array<BuildManagerActor>
+    global_piece_registry: Map<String, BuildingPieceDefinition>
+    active_building_sessions: Array<BuildingState>
+    performance_metrics: PerformanceMetrics
+    spatial_hash_grid: Map<String, Array<Int>>
+    piece_pool: Array<BuildingPieceActor>
+    max_pooled_pieces: Int
+    enable_instancing: Bool
+    enable_hlod: Bool
+    tick_rate: Float
+    
+    @tick
+    fn update_spatial_grid():
+        let i = 0
+        while i < len(registered_managers):
+            let manager = registered_managers[i]
+            i = i + 1
+    
+    @tick
+    fn update_performance_metrics():
+        performance_metrics.total_pieces = 0
+        let i = 0
+        while i < len(active_building_sessions):
+            performance_metrics.total_pieces = performance_metrics.total_pieces + active_building_sessions[i].total_piece_count
+            i = i + 1
+    
+    @tick
+    fn process_pooled_pieces():
+        let i = 0
+        while i < len(piece_pool):
+            i = i + 1
+    
+    @tick
+    fn update_instanced_meshes():
+        if enable_instancing:
+            println("Updating instanced meshes")
+    
+    @blueprint_callable
+    fn register_build_manager(manager: BuildManagerActor):
+        push(registered_managers, manager)
+    
+    @blueprint_callable
+    fn unregister_build_manager(manager: BuildManagerActor):
+        let i = 0
+        while i < len(registered_managers):
+            if registered_managers[i] == manager:
+                registered_managers.remove(i)
+                return
+            i = i + 1
+    
+    @blueprint_callable
+    fn load_piece_definitions_from_datatable(table_path: String):
+        println("Loading piece definitions from: " + table_path)
+    
+    @blueprint_callable
+    fn get_piece_definition(piece_id: String) -> BuildingPieceDefinition:
+        if global_piece_registry.contains_key(piece_id):
+            return global_piece_registry[piece_id]
+        return BuildingPieceDefinition {
+            piece_id: "",
+            display_name: "",
+            description: "",
+            category: PieceCategory::Custom,
+            subcategory: "",
+            mesh_variants: [],
+            snap_points: [],
+            tags: [],
+            structural_type: StructuralType::Decorative,
+            placement_rules: [],
+            bounds_size: vec3(0.0, 0.0, 0.0),
+            bounds_offset: vec3(0.0, 0.0, 0.0),
+            cost: 0,
+            build_time: 0.0,
+            health: 0.0,
+            thumbnail_path: "",
+            icon_path: "",
+            author: "",
+            version: 0
+        }
+
+    @blueprint_callable
+    fn query_pieces_in_sphere(center: Vec3, radius: Float) -> Array<Int>:
+        let results = []
+        let grid_key = create_spatial_grid_key(center, 500.0)
+        let neighbors = get_neighboring_grid_cells(grid_key)
+        
+        let i = 0
+        while i < len(neighbors):
+            let key_str = str(neighbors[i].x) + "_" + str(neighbors[i].y) + "_" + str(neighbors[i].z)
+            if spatial_hash_grid.contains_key(key_str):
+                let pieces = spatial_hash_grid[key_str]
+                let j = 0
+                while j < len(pieces):
+                    push(results, pieces[j])
+                    j = j + 1
+            i = i + 1
+        
+        return results
+    
+    @blueprint_callable
+    fn allocate_piece_from_pool() -> BuildingPieceActor:
+        if len(piece_pool) > 0:
+            let piece = piece_pool[0]
+            piece_pool.remove(0)
+            return piece
+        return BuildingPieceActor {
+            piece_definition: BuildingPieceDefinition {
+                piece_id: "",
+                display_name: "",
+                description: "",
+                category: PieceCategory::Custom,
+                subcategory: "",
+                mesh_variants: [],
+                snap_points: [],
+                tags: [],
+                structural_type: StructuralType::Decorative,
+                placement_rules: [],
+                bounds_size: vec3(0.0, 0.0, 0.0),
+                bounds_offset: vec3(0.0, 0.0, 0.0),
+                cost: 0,
+                build_time: 0.0,
+                health: 0.0,
+                thumbnail_path: "",
+                icon_path: "",
+                author: "",
+                version: 0
+            },
+            instance_id: -1,
+            variant_index: 0,
+            snap_connections: [],
+            structural_chain: create_structural_chain(-1),
+            is_foundation: false,
+            is_supported: false,
+            material_overrides: [],
+            owner_player_id: -1,
+            placement_time: 0.0,
+            custom_properties: {},
+            mesh_component: StaticMeshComponent {},
+            snap_point_components: [],
+            collision_enabled: true,
+            is_ghost: false
+        }
+    
+    @blueprint_callable
+    fn return_piece_to_pool(piece: BuildingPieceActor):
+        if len(piece_pool) < max_pooled_pieces:
+            push(piece_pool, piece)
+    
+    @blueprint_callable
+    fn get_global_performance_metrics() -> PerformanceMetrics:
+        return performance_metrics
+    
+    @blueprint_callable
+    fn set_performance_mode(mode: PerformanceMode):
+        if mode == PerformanceMode::Performance:
+            enable_instancing = true
+            enable_hlod = true
+        else:
+            if mode == PerformanceMode::Quality:
+                enable_instancing = false
+                enable_hlod = false
+            else:
+                enable_instancing = true
+                enable_hlod = false
+    
+    @blueprint_callable
+    fn rebuild_all_spatial_grids():
+        spatial_hash_grid = {}
+        let i = 0
+        while i < len(registered_managers):
+            i = i + 1
+    
+    @blueprint_callable
+    fn clear_all_buildings():
+        active_building_sessions = []
+    
+    @blueprint_callable
+    fn get_total_active_pieces() -> Int:
+        return performance_metrics.total_pieces
+
+// ============================================================================
+// SNAP MANAGER SUBSYSTEM
+// ============================================================================
+
+@subsystem
+@tick
+struct SnapManagerSubsystem:
+    snap_query_cache: Map<String, Array<SnapQueryResult>>
+    compatibility_rules: Map<String, Array<SnapPointType>>
+    snap_radius_multiplier: Float
+    enable_snap_preview: Bool
+    snap_indicators: Array<SnapPointActor>
+    active_snap_queries: Int
+    query_time_budget_ms: Float
+    cache_expiry_time: Float
+    
+    @tick
+    fn update_snap_indicators():
+        let i = 0
+        while i < len(snap_indicators):
+            i = i + 1
+    
+    @tick
+    fn expire_cached_queries():
+        snap_query_cache = {}
+    
+    @tick
+    fn process_pending_snap_queries():
+        active_snap_queries = 0
+    
+    @blueprint_callable
+    fn find_nearest_snap_point(piece: BuildingPieceActor, search_radius: Float) -> SnapQueryResult:
+        return create_snap_query_result()
+    
+    @blueprint_callable
+    fn find_all_snap_points_in_radius(center: Vec3, radius: Float) -> Array<SnapQueryResult>:
+        return []
+    
+    @blueprint_callable
+    fn validate_snap_compatibility(source: SnapPointData, target: SnapPointData) -> Bool:
+        return is_snap_point_compatible(source, target)
+    
+    @blueprint_callable
+    fn calculate_snap_alignment(source: SnapPointData, target: SnapPointData) -> Transform:
+        return Transform {
+            position: vec3(0.0, 0.0, 0.0),
+            rotation: vec3(0.0, 0.0, 0.0),
+            scale: vec3(1.0, 1.0, 1.0)
+        }
+    
+    @blueprint_callable
+    fn register_snap_compatibility_rule(source: SnapPointType, target: SnapPointType):
+        let key = str(source) + "_" + str(target)
+        if not compatibility_rules.contains_key(key):
+            compatibility_rules[key] = []
+        push(compatibility_rules[key], target)
+    
+    @blueprint_callable
+    fn show_snap_indicators(piece: BuildingPieceActor):
+        enable_snap_preview = true
+    
+    @blueprint_callable
+    fn hide_all_snap_indicators():
+        enable_snap_preview = false
+        let i = 0
+        while i < len(snap_indicators):
+            snap_indicators[i].set_visibility(false)
+            i = i + 1
+    
+    @blueprint_callable
+    fn get_snap_query_statistics() -> PerformanceMetrics:
+        return PerformanceMetrics {
+            total_pieces: 0,
+            visible_pieces: 0,
+            instanced_pieces: 0,
+            snap_query_time_ms: query_time_budget_ms,
+            render_time_ms: 0.0,
+            memory_usage_mb: 0.0,
+            frame_time_ms: 0.0,
+            instanced_mesh_count: 0,
+            draw_calls: 0,
+            triangle_count: 0
+        }
+    
+    @blueprint_callable
+    fn clear_snap_cache():
+        snap_query_cache = {}
+    
+    @blueprint_callable
+    fn set_snap_radius_multiplier(multiplier: Float):
+        snap_radius_multiplier = multiplier
+
+// ============================================================================
+// PERFORMANCE SUBSYSTEM
+// ============================================================================
+
+@subsystem
+@tick
+struct PerformanceSubsystem:
+    frame_times: Array<Float>
+    snap_query_times: Array<Float>
+    render_times: Array<Float>
+    memory_samples: Array<Float>
+    max_samples: Int
+    current_performance_mode: PerformanceMode
+    instanced_mesh_batches: Map<String, Array<Int>>
+    hlod_clusters: Array<Array<Int>>
+    optimization_enabled: Bool
+    
+    @tick
+    fn sample_performance_metrics():
+        let current_frame_time = GetWorldDeltaSeconds() * 1000.0
+        push(frame_times, current_frame_time)
+        if len(frame_times) > max_samples:
+            frame_times.remove(0)
+    
+    @tick
+    fn update_instanced_batches():
+        if optimization_enabled:
+            println("Updating instanced batches")
+    
+    @tick
+    fn update_hlod_clusters():
+        if optimization_enabled:
+            println("Updating HLOD clusters")
+    
+    @tick
+    fn apply_performance_optimizations():
+        if current_performance_mode == PerformanceMode::Performance:
+            optimization_enabled = true
+        else:
+            if current_performance_mode == PerformanceMode::Quality:
+                optimization_enabled = false
+    
+    @blueprint_callable
+    fn get_average_frame_time() -> Float:
+        if len(frame_times) == 0:
+            return 0.0
+        
+        let total = 0.0
+        let i = 0
+        while i < len(frame_times):
+            total = total + frame_times[i]
+            i = i + 1
+        
+        return total / float(len(frame_times))
+    
+    @blueprint_callable
+    fn get_average_snap_query_time() -> Float:
+        if len(snap_query_times) == 0:
+            return 0.0
+        
+        let total = 0.0
+        let i = 0
+        while i < len(snap_query_times):
+            total = total + snap_query_times[i]
+            i = i + 1
+        
+        return total / float(len(snap_query_times))
+    
+    @blueprint_callable
+    fn get_memory_usage_mb() -> Float:
+        if len(memory_samples) == 0:
+            return 0.0
+        
+        return memory_samples[len(memory_samples) - 1]
+    
+    @blueprint_callable
+    fn get_total_draw_calls() -> Int:
+        return len(instanced_mesh_batches)
+    
+    @blueprint_callable
+    fn set_performance_mode(mode: PerformanceMode):
+        current_performance_mode = mode
+    
+    @blueprint_callable
+    fn enable_instancing(enabled: Bool):
+        optimization_enabled = enabled
+    
+    @blueprint_callable
+    fn enable_hlod(enabled: Bool):
+        optimization_enabled = enabled
+    
+    @blueprint_callable
+    fn get_performance_report() -> String:
+        let avg_frame = get_average_frame_time()
+        let avg_query = get_average_snap_query_time()
+        let memory = get_memory_usage_mb()
+        
+        return "Frame: " + str(avg_frame) + "ms, Query: " + str(avg_query) + "ms, Memory: " + str(memory) + "MB"

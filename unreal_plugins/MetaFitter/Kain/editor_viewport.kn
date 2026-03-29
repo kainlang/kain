@@ -1,0 +1,89 @@
+# ============================================================================
+# METAFITTER - Editor Viewport
+# ============================================================================
+# 3D preview viewport for visualizing MetaHuman with clothing.
+# Supports rotate/zoom camera, wireframe overlay, bone weight
+# visualization, physics simulation toggle, and animation playback.
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: CLOTH PREVIEW VIEWPORT
+# ============================================================================
+
+@viewport
+struct ClothPreviewViewport:
+    # Scene actors
+    @scene_actor
+    metahuman_preview: Actor
+
+    @scene_actor
+    clothing_preview: Actor
+
+    # Camera
+    @camera
+    preview_camera: CameraComponent
+
+    # Viewport display options
+    @property
+    show_wireframe: Bool
+
+    @property
+    show_bone_weights: Bool
+
+    @property
+    show_collision_primitives: Bool
+
+    @property
+    show_physics_simulation: Bool
+
+    @property
+    show_hidden_face_map: Bool
+
+    @property
+    show_body_mesh: Bool
+
+    @property
+    show_clothing_mesh: Bool
+
+    # Animation controls
+    @property
+    animation_playing: Bool
+
+    @property
+    animation_speed: Float
+
+    fn on_viewport_tick(delta: Float):
+        if animation_playing:
+            println("ClothPreviewViewport: Updating animation at speed " + float_to_string(animation_speed))
+
+# ============================================================================
+# SECTION 2: CONFORMER ASSET EDITOR
+# ============================================================================
+# Full asset editor window combining viewport, settings panel, and toolbar.
+
+@asset_editor
+struct ClothConformerAssetEditor:
+    @viewport
+    preview_viewport: ClothPreviewViewport
+
+    @properties
+    settings_panel: MetaFitterConformerPanel
+
+    @toolbar
+    conformer_toolbar: ConformerToolbar
+
+# ============================================================================
+# SECTION 3: BATCH ASSET EDITOR
+# ============================================================================
+# Asset editor for batch processing with progress monitoring.
+
+@asset_editor
+struct BatchConformAssetEditor:
+    @viewport
+    batch_preview_viewport: ClothPreviewViewport
+
+    @properties
+    batch_panel: MetaFitterBatchPanel
+
+    @toolbar
+    batch_toolbar: BatchToolbar

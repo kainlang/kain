@@ -1,0 +1,212 @@
+@subsystem
+struct VoxelWorldSubsystem:
+    chunk_managers: Array<Actor>
+    active_players: Array<Actor>
+    world_seed: Int
+    world_name: String
+    save_interval: Float
+    last_save_time: Float
+    
+    @tick
+    fn update(delta: Float):
+        last_save_time = last_save_time + delta
+        
+        if last_save_time >= save_interval:
+            save_world_state()
+            last_save_time = 0.0
+        
+        update_player_tracking()
+        update_chunk_streaming()
+    
+    @blueprint_callable
+    fn initialize_world(seed: Int, name: String):
+        world_seed = seed
+        world_name = name
+        save_interval = 60.0
+        last_save_time = 0.0
+        chunk_managers = []
+        active_players = []
+        
+        println("VoxelWorld initialized: {name} (seed: {seed})")
+    
+    @blueprint_callable
+    fn register_player(player: Actor):
+        push(active_players, player)
+        println("Player registered with VoxelWorldSubsystem")
+    
+    @blueprint_callable
+    fn unregister_player(player: Actor):
+        let new_players: Array<Actor> = []
+        
+        for p in active_players:
+            if p != player:
+                push(new_players, p)
+        
+        active_players = new_players
+        println("Player unregistered from VoxelWorldSubsystem")
+    
+    fn update_player_tracking():
+        for player in active_players:
+            let player_location = GetActorLocation()
+            DrawDebugSphere(player_location, 50.0, vec3(0.0, 1.0, 0.0), 0.1)
+    
+    fn update_chunk_streaming():
+        return
+    
+    fn save_world_state():
+        println("Saving world state: {world_name}")
+    
+    @blueprint_callable
+    fn load_world_state():
+        println("Loading world state: {world_name}")
+    
+    @blueprint_callable
+    fn get_world_seed() -> Int:
+        return world_seed
+    
+    @blueprint_callable
+    fn get_world_name() -> String:
+        return world_name
+    
+    @blueprint_callable
+    fn get_active_player_count() -> Int:
+        return len(active_players)
+
+@subsystem
+struct VoxelNetworkSubsystem:
+    pending_voxel_updates: Array<BlockPosition>
+    network_update_rate: Float
+    last_network_update: Float
+    compression_enabled: Bool
+    
+    @tick
+    fn update(delta: Float):
+        last_network_update = last_network_update + delta
+        
+        if last_network_update >= network_update_rate:
+            process_network_updates()
+            last_network_update = 0.0
+    
+    @blueprint_callable
+    fn initialize_network(update_rate: Float, enable_compression: Bool):
+        network_update_rate = update_rate
+        compression_enabled = enable_compression
+        last_network_update = 0.0
+        pending_voxel_updates = []
+        
+        println("VoxelNetworkSubsystem initialized (rate: {update_rate}s, compression: {enable_compression})")
+    
+    @blueprint_callable
+    fn queue_voxel_update(position: BlockPosition):
+        push(pending_voxel_updates, position)
+    
+    fn process_network_updates():
+        if len(pending_voxel_updates) == 0:
+            return
+        
+        let batch_size = min(len(pending_voxel_updates), 100)
+        
+        for i in 0..batch_size:
+            let position = pending_voxel_updates[i]
+            broadcast_voxel_update(position)
+        
+        let new_pending: Array<BlockPosition> = []
+        for i in batch_size..len(pending_voxel_updates):
+            push(new_pending, pending_voxel_updates[i])
+        
+        pending_voxel_updates = new_pending
+    
+    fn broadcast_voxel_update(position: BlockPosition):
+        return
+    
+    @blueprint_callable
+    fn get_pending_update_count() -> Int:
+        return len(pending_voxel_updates)
+
+@subsystem
+struct VoxelPerformanceSubsystem:
+    frame_times: Array<Float>
+    chunk_generation_times: Array<Float>
+    mesh_generation_times: Array<Float>
+    max_samples: Int
+    
+    @tick
+    fn update(delta: Float):
+        push(frame_times, delta)
+        
+        if len(frame_times) > max_samples:
+            frame_times = trim_array(frame_times, max_samples)
+    
+    @blueprint_callable
+    fn initialize_performance_tracking(sample_count: Int):
+        max_samples = sample_count
+        frame_times = []
+        chunk_generation_times = []
+        mesh_generation_times = []
+        
+        println("VoxelPerformanceSubsystem initialized (samples: {sample_count})")
+    
+    @blueprint_callable
+    fn record_chunk_generation_time(time: Float):
+        push(chunk_generation_times, time)
+        
+        if len(chunk_generation_times) > max_samples:
+            chunk_generation_times = trim_array(chunk_generation_times, max_samples)
+    
+    @blueprint_callable
+    fn record_mesh_generation_time(time: Float):
+        push(mesh_generation_times, time)
+        
+        if len(mesh_generation_times) > max_samples:
+            mesh_generation_times = trim_array(mesh_generation_times, max_samples)
+    
+    @blueprint_callable
+    fn get_average_frame_time() -> Float:
+        if len(frame_times) == 0:
+            return 0.0
+        
+        let total = 0.0
+        for time in frame_times:
+            total = total + time
+        
+        return total / (len(frame_times) as Float)
+    
+    @blueprint_callable
+    fn get_average_chunk_generation_time() -> Float:
+        if len(chunk_generation_times) == 0:
+            return 0.0
+        
+        let total = 0.0
+        for time in chunk_generation_times:
+            total = total + time
+        
+        return total / (len(chunk_generation_times) as Float)
+    
+    @blueprint_callable
+    fn get_average_mesh_generation_time() -> Float:
+        if len(mesh_generation_times) == 0:
+            return 0.0
+        
+        let total = 0.0
+        for time in mesh_generation_times:
+            total = total + time
+        
+        return total / (len(mesh_generation_times) as Float)
+    
+    @blueprint_callable
+    fn get_fps() -> Float:
+        let avg_frame_time = get_average_frame_time()
+        
+        if avg_frame_time > 0.0:
+            return 1.0 / avg_frame_time
+        
+        return 0.0
+    
+    fn trim_array(arr: Array<Float>, max_size: Int) -> Array<Float>:
+        let new_arr: Array<Float> = []
+        let start_index = len(arr) - max_size
+        
+        for i in start_index..len(arr):
+            push(new_arr, arr[i])
+        
+        return new_arr

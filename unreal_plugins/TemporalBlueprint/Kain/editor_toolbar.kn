@@ -1,0 +1,41 @@
+# ============================================================================
+# TEMPORAL BLUEPRINT — Editor Toolbar
+# ============================================================================
+# Toolbar extensions for the Level Editor and Temporal Editor panel.
+# ============================================================================
+
+@toolbar
+struct TemporalBlueprintToolbar:
+    @button(label="TB Editor", icon="TemporalBlueprint.EditorIcon", tooltip="Open Temporal Blueprint Editor Panel")
+    fn open_editor():
+        println("TemporalBlueprint: opening editor")
+
+    @button(label="Era: Present", icon="TemporalBlueprint.EraIcon", tooltip="Current active era — click to cycle")
+    fn cycle_era():
+        println("TemporalBlueprint: cycling era")
+
+    @separator
+
+    @button(label="Snapshot", icon="TemporalBlueprint.SnapshotIcon", tooltip="Take a temporal snapshot of the current world state")
+    fn take_snapshot():
+        println("TemporalBlueprint: taking snapshot")
+
+    @button(label="Causality", icon="TemporalBlueprint.CausalityIcon", tooltip="Open Causality Inspector")
+    fn open_causality():
+        println("TemporalBlueprint: opening causality inspector")
+
+    @separator
+
+    @toggle(label="Ghost Mode", icon="TemporalBlueprint.GhostIcon", tooltip="Show all era states as ghosts simultaneously")
+    fn toggle_ghost_mode():
+        println("TemporalBlueprint: toggling ghost mode")
+
+    @toggle(label="Debug", icon="TemporalBlueprint.DebugIcon", tooltip="Toggle temporal debug overlay in viewport")
+    fn toggle_debug():
+        println("TemporalBlueprint: toggling debug overlay")
+
+    @separator
+
+    @dropdown(label="Transition", icon="TemporalBlueprint.TransitionIcon", tooltip="Select default transition type")
+    fn transition_dropdown():
+        println("TemporalBlueprint: transition dropdown")

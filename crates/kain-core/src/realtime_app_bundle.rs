@@ -443,7 +443,7 @@ fn collect_ui_contracts(ui_output: Option<&UiBuildOutput>) -> Option<RealtimeUiC
     if has_any { Some(bundle) } else { None }
 }
 
-fn ui_session_state_string(output: &UiBuildOutput, key: &str) -> Option<String> {
+pub(crate) fn ui_session_state_string(output: &UiBuildOutput, key: &str) -> Option<String> {
     output
         .systems
         .session_state

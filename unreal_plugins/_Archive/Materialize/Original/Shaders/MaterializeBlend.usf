@@ -1,0 +1,184 @@
+// Materialize Blend Modes Compute Shader
+// GPU-accelerated texture blending operations
+// Ported from K-Engine blend system
+
+#include "/Engine/Private/Common.ush"
+
+// ============================================================================
+// BLEND MODE DEFINITIONS
+// ============================================================================
+
+#define BLEND_NORMAL      0
+#define BLEND_ADD         1
+#define BLEND_SUBTRACT    2
+#define BLEND_MULTIPLY    3
+#define BLEND_SCREEN      4
+#define BLEND_OVERLAY     5
+#define BLEND_SOFT_LIGHT  6
+#define BLEND_HARD_LIGHT  7
+#define BLEND_DARKEN      8
+#define BLEND_LIGHTEN     9
+#define BLEND_DIFFERENCE  10
+#define BLEND_EXCLUSION   11
+#define BLEND_COLOR_DODGE 12
+#define BLEND_COLOR_BURN  13
+#define BLEND_LINEAR_LIGHT 14
+#define BLEND_VIVID_LIGHT  15
+
+// ============================================================================
+// BLEND FUNCTIONS - Industry standard Photoshop/Substance blends
+// ============================================================================
+
+// Overlay blend mode helper
+float overlay_channel(float base, float blend)
+{
+    if (base < 0.5)
+        return 2.0 * base * blend;
+    else
+        return 1.0 - 2.0 * (1.0 - base) * (1.0 - blend);
+}
+
+float3 overlay_blend(float3 base, float3 blend)
+{
+    return float3(
+        overlay_channel(base.r, blend.r),
+        overlay_channel(base.g, blend.g),
+        overlay_channel(base.b, blend.b)
+    );
+}
+
+// Soft Light blend mode
+float soft_light_channel(float base, float blend)
+{
+    if (blend < 0.5)
+        return base - (1.0 - 2.0 * blend) * base * (1.0 - base);
+    else
+        return base + (2.0 * blend - 1.0) * (sqrt(base) - base);
+}
+
+float3 soft_light_blend(float3 base, float3 blend)
+{
+    return float3(
+        soft_light_channel(base.r, blend.r),
+        soft_light_channel(base.g, blend.g),
+        soft_light_channel(base.b, blend.b)
+    );
+}
+
+// Hard Light blend mode
+float3 hard_light_blend(float3 base, float3 blend)
+{
+    return overlay_blend(blend, base); // Overlay with swapped inputs
+}
+
+// Color Dodge
+float3 color_dodge_blend(float3 base, float3 blend)
+{
+    return min(base / max(1.0 - blend, 0.001), 1.0);
+}
+
+// Color Burn
+float3 color_burn_blend(float3 base, float3 blend)
+{
+    return 1.0 - min((1.0 - base) / max(blend, 0.001), 1.0);
+}
+
+// Linear Light
+float3 linear_light_blend(float3 base, float3 blend)
+{
+    return saturate(base + 2.0 * blend - 1.0);
+}
+
+// Vivid Light
+float3 vivid_light_blend(float3 base, float3 blend)
+{
+    float3 result;
+    result.r = blend.r < 0.5 ? color_burn_blend(base, 2.0 * blend).r : color_dodge_blend(base, 2.0 * (blend - 0.5)).r;
+    result.g = blend.g < 0.5 ? color_burn_blend(base, 2.0 * blend).g : color_dodge_blend(base, 2.0 * (blend - 0.5)).g;
+    result.b = blend.b < 0.5 ? color_burn_blend(base, 2.0 * blend).b : color_dodge_blend(base, 2.0 * (blend - 0.5)).b;
+    return result;
+}
+
+// Main blend function dispatcher
+float3 blend(float3 base, float3 blend_color, uint mode)
+{
+    switch (mode)
+    {
+        case BLEND_NORMAL:
+            return blend_color;
+        case BLEND_ADD:
+            return saturate(base + blend_color);
+        case BLEND_SUBTRACT:
+            return saturate(base - blend_color);
+        case BLEND_MULTIPLY:
+            return base * blend_color;
+        case BLEND_SCREEN:
+            return 1.0 - (1.0 - base) * (1.0 - blend_color);
+        case BLEND_OVERLAY:
+            return overlay_blend(base, blend_color);
+        case BLEND_SOFT_LIGHT:
+            return soft_light_blend(base, blend_color);
+        case BLEND_HARD_LIGHT:
+            return hard_light_blend(base, blend_color);
+        case BLEND_DARKEN:
+            return min(base, blend_color);
+        case BLEND_LIGHTEN:
+            return max(base, blend_color);
+        case BLEND_DIFFERENCE:
+            return abs(base - blend_color);
+        case BLEND_EXCLUSION:
+            return base + blend_color - 2.0 * base * blend_color;
+        case BLEND_COLOR_DODGE:
+            return color_dodge_blend(base, blend_color);
+        case BLEND_COLOR_BURN:
+            return color_burn_blend(base, blend_color);
+        case BLEND_LINEAR_LIGHT:
+            return linear_light_blend(base, blend_color);
+        case BLEND_VIVID_LIGHT:
+            return vivid_light_blend(base, blend_color);
+        default:
+            return blend_color;
+    }
+}
+
+// ============================================================================
+// PARAMETERS
+// ============================================================================
+
+Texture2D BaseTexture;
+SamplerState BaseSampler;
+Texture2D BlendTexture;
+SamplerState BlendSampler;
+RWTexture2D<float4> OutputTexture;
+
+uint BlendMode;
+float Opacity;
+uint2 TextureSize;
+
+// ============================================================================
+// COMPUTE KERNEL
+// ============================================================================
+
+[numthreads(8, 8, 1)]
+void BlendTexturesCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    if (DispatchThreadId.x >= TextureSize.x || DispatchThreadId.y >= TextureSize.y)
+        return;
+    
+    float2 uv = (float2(DispatchThreadId.xy) + 0.5) / float2(TextureSize);
+    
+    // Sample both textures
+    float4 base = BaseTexture.SampleLevel(BaseSampler, uv, 0);
+    float4 blend_sample = BlendTexture.SampleLevel(BlendSampler, uv, 0);
+    
+    // Apply blend mode
+    float3 blended = blend(base.rgb, blend_sample.rgb, BlendMode);
+    
+    // Apply opacity (lerp between base and blended)
+    float3 result = lerp(base.rgb, blended, Opacity * blend_sample.a);
+    
+    // Preserve alpha (max of both for now)
+    float alpha = max(base.a, blend_sample.a * Opacity);
+    
+    OutputTexture[DispatchThreadId.xy] = float4(result, alpha);
+}

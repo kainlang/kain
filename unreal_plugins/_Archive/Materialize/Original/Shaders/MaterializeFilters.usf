@@ -1,0 +1,277 @@
+// Materialize Filter Compute Shaders
+// GPU-accelerated image filtering operations
+// Blur, Sharpen, Edge Detection, Levels, HSL Adjust
+
+#include "/Engine/Private/Common.ush"
+
+// ============================================================================
+// PARAMETERS
+// ============================================================================
+
+Texture2D InputTexture;
+SamplerState InputSampler;
+RWTexture2D<float4> OutputTexture;
+
+uint2 TextureSize;
+float4 FilterParams;  // x=Strength, y=Radius, z=Threshold, w=unused
+float4 FilterParams2; // For levels: x=InBlack, y=InWhite, z=OutBlack, w=OutWhite
+
+// ============================================================================
+// GAUSSIAN BLUR (Separable, two-pass)
+// ============================================================================
+
+// Gaussian weights for 9-tap blur
+static const float GaussianWeights[9] = {
+    0.0162, 0.0540, 0.1216, 0.1933, 0.2258, 0.1933, 0.1216, 0.0540, 0.0162
+};
+
+[numthreads(8, 8, 1)]
+void BlurHorizontalCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    if (DispatchThreadId.x >= TextureSize.x || DispatchThreadId.y >= TextureSize.y)
+        return;
+    
+    float2 texelSize = 1.0 / float2(TextureSize);
+    float2 uv = (float2(DispatchThreadId.xy) + 0.5) * texelSize;
+    float radius = FilterParams.y;
+    
+    float4 result = float4(0, 0, 0, 0);
+    
+    for (int i = -4; i <= 4; i++)
+    {
+        float2 sampleUV = uv + float2(i * texelSize.x * radius, 0);
+        result += InputTexture.SampleLevel(InputSampler, sampleUV, 0) * GaussianWeights[i + 4];
+    }
+    
+    OutputTexture[DispatchThreadId.xy] = result;
+}
+
+[numthreads(8, 8, 1)]
+void BlurVerticalCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    if (DispatchThreadId.x >= TextureSize.x || DispatchThreadId.y >= TextureSize.y)
+        return;
+    
+    float2 texelSize = 1.0 / float2(TextureSize);
+    float2 uv = (float2(DispatchThreadId.xy) + 0.5) * texelSize;
+    float radius = FilterParams.y;
+    
+    float4 result = float4(0, 0, 0, 0);
+    
+    for (int i = -4; i <= 4; i++)
+    {
+        float2 sampleUV = uv + float2(0, i * texelSize.y * radius);
+        result += InputTexture.SampleLevel(InputSampler, sampleUV, 0) * GaussianWeights[i + 4];
+    }
+    
+    OutputTexture[DispatchThreadId.xy] = result;
+}
+
+// ============================================================================
+// SHARPEN (Unsharp Mask)
+// ============================================================================
+
+[numthreads(8, 8, 1)]
+void SharpenCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    if (DispatchThreadId.x >= TextureSize.x || DispatchThreadId.y >= TextureSize.y)
+        return;
+    
+    float2 texelSize = 1.0 / float2(TextureSize);
+    float2 uv = (float2(DispatchThreadId.xy) + 0.5) * texelSize;
+    float strength = FilterParams.x;
+    
+    // Sharpening kernel
+    float4 center = InputTexture.SampleLevel(InputSampler, uv, 0) * 5.0;
+    float4 neighbors = 
+        InputTexture.SampleLevel(InputSampler, uv + float2(-texelSize.x, 0), 0) +
+        InputTexture.SampleLevel(InputSampler, uv + float2(texelSize.x, 0), 0) +
+        InputTexture.SampleLevel(InputSampler, uv + float2(0, -texelSize.y), 0) +
+        InputTexture.SampleLevel(InputSampler, uv + float2(0, texelSize.y), 0);
+    
+    float4 sharpened = center - neighbors;
+    float4 original = InputTexture.SampleLevel(InputSampler, uv, 0);
+    
+    OutputTexture[DispatchThreadId.xy] = saturate(lerp(original, sharpened, strength));
+}
+
+// ============================================================================
+// EDGE DETECTION (Sobel)
+// ============================================================================
+
+[numthreads(8, 8, 1)]
+void EdgeDetectCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    if (DispatchThreadId.x >= TextureSize.x || DispatchThreadId.y >= TextureSize.y)
+        return;
+    
+    float2 texelSize = 1.0 / float2(TextureSize);
+    float2 uv = (float2(DispatchThreadId.xy) + 0.5) * texelSize;
+    float threshold = FilterParams.z;
+    
+    // Sample 3x3 neighborhood
+    static const float3 LumaWeights = float3(0.333, 0.333, 0.333);
+    float tl = dot(InputTexture.SampleLevel(InputSampler, uv + float2(-texelSize.x, -texelSize.y), 0).rgb, LumaWeights);
+    float tc = dot(InputTexture.SampleLevel(InputSampler, uv + float2(0, -texelSize.y), 0).rgb, LumaWeights);
+    float tr = dot(InputTexture.SampleLevel(InputSampler, uv + float2(texelSize.x, -texelSize.y), 0).rgb, LumaWeights);
+    float ml = dot(InputTexture.SampleLevel(InputSampler, uv + float2(-texelSize.x, 0), 0).rgb, LumaWeights);
+    float mr = dot(InputTexture.SampleLevel(InputSampler, uv + float2(texelSize.x, 0), 0).rgb, LumaWeights);
+    float bl = dot(InputTexture.SampleLevel(InputSampler, uv + float2(-texelSize.x, texelSize.y), 0).rgb, LumaWeights);
+    float bc = dot(InputTexture.SampleLevel(InputSampler, uv + float2(0, texelSize.y), 0).rgb, LumaWeights);
+    float br = dot(InputTexture.SampleLevel(InputSampler, uv + float2(texelSize.x, texelSize.y), 0).rgb, LumaWeights);
+    
+    // Sobel operators
+    float gx = -tl - 2.0 * ml - bl + tr + 2.0 * mr + br;
+    float gy = -tl - 2.0 * tc - tr + bl + 2.0 * bc + br;
+    
+    float edge = sqrt(gx * gx + gy * gy);
+    edge = edge > threshold ? edge : 0.0;
+    
+    OutputTexture[DispatchThreadId.xy] = float4(edge, edge, edge, 1.0);
+}
+
+// ============================================================================
+// LEVELS ADJUSTMENT
+// ============================================================================
+
+[numthreads(8, 8, 1)]
+void LevelsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    if (DispatchThreadId.x >= TextureSize.x || DispatchThreadId.y >= TextureSize.y)
+        return;
+    
+    float2 uv = (float2(DispatchThreadId.xy) + 0.5) / float2(TextureSize);
+    float4 color = InputTexture.SampleLevel(InputSampler, uv, 0);
+    
+    float inBlack = FilterParams2.x;
+    float inWhite = FilterParams2.y;
+    float outBlack = FilterParams2.z;
+    float outWhite = FilterParams2.w;
+    
+    // Apply input levels
+    float3 adjusted = (color.rgb - inBlack) / max(inWhite - inBlack, 0.001);
+    adjusted = saturate(adjusted);
+    
+    // Apply output levels
+    adjusted = adjusted * (outWhite - outBlack) + outBlack;
+    
+    OutputTexture[DispatchThreadId.xy] = float4(adjusted, color.a);
+}
+
+// ============================================================================
+// HSL ADJUSTMENT
+// ============================================================================
+
+// RGB to HSL conversion
+float3 rgb_to_hsl(float3 rgb)
+{
+    float maxC = max(rgb.r, max(rgb.g, rgb.b));
+    float minC = min(rgb.r, min(rgb.g, rgb.b));
+    float l = (maxC + minC) * 0.5;
+    
+    if (maxC == minC)
+        return float3(0, 0, l);
+    
+    float d = maxC - minC;
+    float s = l > 0.5 ? d / (2.0 - maxC - minC) : d / (maxC + minC);
+    
+    float h;
+    if (rgb.r == maxC)
+        h = (rgb.g - rgb.b) / d + (rgb.g < rgb.b ? 6.0 : 0.0);
+    else if (rgb.g == maxC)
+        h = (rgb.b - rgb.r) / d + 2.0;
+    else
+        h = (rgb.r - rgb.g) / d + 4.0;
+    
+    h /= 6.0;
+    
+    return float3(h, s, l);
+}
+
+// Hue to RGB helper
+float hue_to_rgb(float p, float q, float t)
+{
+    if (t < 0) t += 1.0;
+    if (t > 1) t -= 1.0;
+    if (t < 1.0/6.0) return p + (q - p) * 6.0 * t;
+    if (t < 1.0/2.0) return q;
+    if (t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
+    return p;
+}
+
+// HSL to RGB conversion
+float3 hsl_to_rgb(float3 hsl)
+{
+    if (hsl.y == 0)
+        return float3(hsl.z, hsl.z, hsl.z);
+    
+    float q = hsl.z < 0.5 ? hsl.z * (1.0 + hsl.y) : hsl.z + hsl.y - hsl.z * hsl.y;
+    float p = 2.0 * hsl.z - q;
+    
+    float r = hue_to_rgb(p, q, hsl.x + 1.0/3.0);
+    float g = hue_to_rgb(p, q, hsl.x);
+    float b = hue_to_rgb(p, q, hsl.x - 1.0/3.0);
+    
+    return float3(r, g, b);
+}
+
+// HSL adjustment parameters in FilterParams: x=HueShift, y=SaturationMult, z=LightnessMult
+[numthreads(8, 8, 1)]
+void HSLAdjustCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    if (DispatchThreadId.x >= TextureSize.x || DispatchThreadId.y >= TextureSize.y)
+        return;
+    
+    float2 uv = (float2(DispatchThreadId.xy) + 0.5) / float2(TextureSize);
+    float4 color = InputTexture.SampleLevel(InputSampler, uv, 0);
+    
+    float hueShift = FilterParams.x;
+    float satMult = FilterParams.y;
+    float lightMult = FilterParams.z;
+    
+    float3 hsl = rgb_to_hsl(color.rgb);
+    
+    // Apply adjustments
+    hsl.x = frac(hsl.x + hueShift);
+    hsl.y = saturate(hsl.y * satMult);
+    hsl.z = saturate(hsl.z * lightMult);
+    
+    float3 result = hsl_to_rgb(hsl);
+    
+    OutputTexture[DispatchThreadId.xy] = float4(result, color.a);
+}
+
+// ============================================================================
+// INVERT
+// ============================================================================
+
+[numthreads(8, 8, 1)]
+void InvertCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    if (DispatchThreadId.x >= TextureSize.x || DispatchThreadId.y >= TextureSize.y)
+        return;
+    
+    float2 uv = (float2(DispatchThreadId.xy) + 0.5) / float2(TextureSize);
+    float4 color = InputTexture.SampleLevel(InputSampler, uv, 0);
+    
+    OutputTexture[DispatchThreadId.xy] = float4(1.0 - color.rgb, color.a);
+}
+
+// ============================================================================
+// GRAYSCALE
+// ============================================================================
+
+[numthreads(8, 8, 1)]
+void GrayscaleCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    if (DispatchThreadId.x >= TextureSize.x || DispatchThreadId.y >= TextureSize.y)
+        return;
+    
+    float2 uv = (float2(DispatchThreadId.xy) + 0.5) / float2(TextureSize);
+    float4 color = InputTexture.SampleLevel(InputSampler, uv, 0);
+    
+    // Luminance weights (Rec. 709)
+    float gray = dot(color.rgb, float3(0.2126, 0.7152, 0.0722));
+    
+    OutputTexture[DispatchThreadId.xy] = float4(gray, gray, gray, color.a);
+}

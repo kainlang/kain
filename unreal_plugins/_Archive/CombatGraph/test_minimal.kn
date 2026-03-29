@@ -1,0 +1,21 @@
+enum ComboInputDirection:
+    DirForward
+    DirBackward
+    DirLeft
+    DirRight
+    DirNeutral
+    _MAX
+
+@blueprint
+fn get_direction_vector(direction: ComboInputDirection) -> Vec3:
+    if direction == ComboInputDirection::DirForward:
+        return vec3(1.0, 0.0, 0.0)
+    if direction == ComboInputDirection::DirBackward:
+        return vec3(-1.0, 0.0, 0.0)
+    if direction == ComboInputDirection::DirLeft:
+        return vec3(0.0, -1.0, 0.0)
+    if direction == ComboInputDirection::DirRight:
+        return vec3(0.0, 1.0, 0.0)
+    if direction == ComboInputDirection::DirNeutral:
+        return vec3(0.0, 0.0, 0.0)
+    return vec3(0.0, 0.0, 0.0)

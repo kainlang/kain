@@ -1,0 +1,365 @@
+# SplineToolsPro - Editor UI
+# Slate-based editor interface for spline manipulation
+
+# Spline editor panel with control point list and property editing
+@slate
+struct SplineEditorPanel:
+    selected_spline: SplineComponent
+    selected_point_index: Int
+    visualization_mode: String
+    show_tangents: Bool
+    show_curvature: Bool
+    
+    # UI state
+    point_list_items: Array<String>
+    current_interpolation_type: SplineInterpolationType
+
+# Details panel customization for SplineComponent
+@details
+struct SplineComponentDetails:
+    target_component: SplineComponent
+    
+    # Property handles
+    @property
+    points_property: String
+    
+    @property
+    interpolation_type_property: String
+    
+    @property
+    is_closed_loop_property: Bool
+    
+    # Per-point property editors
+    @slider(0.0, 1000.0)
+    point_width: Float
+    
+    @color_picker
+    point_color: Vec4
+    
+    @slider(-180.0, 180.0)
+    tangent_angle: Float
+    
+    @slider(0.0, 1000.0)
+    tangent_length: Float
+    
+    @button("Reset Tangents")
+    fn reset_tangents_button():
+        # Reset tangents for selected point
+        if selected_point_index >= 0 and selected_point_index < len(target_component.points):
+            target_component.points[selected_point_index].tangent_mode = SplineTangentMode::Auto
+            recalculate_tangents_around_point(target_component, selected_point_index)
+    
+    @button("Add Point")
+    fn add_point_button():
+        let new_pos = vec3(0.0, 0.0, 0.0)
+        if len(target_component.points) > 0:
+            new_pos = target_component.points[len(target_component.points) - 1].position + vec3(100.0, 0.0, 0.0)
+        add_point(target_component, new_pos, len(target_component.points))
+    
+    @button("Remove Point")
+    fn remove_point_button():
+        if selected_point_index >= 0 and selected_point_index < len(target_component.points):
+            remove_point(target_component, selected_point_index)
+            selected_point_index = -1
+    
+    selected_point_index: Int
+
+# Spline editor viewport with 3D visualization
+@viewport
+struct SplineEditorViewport:
+    @scene_actor
+    preview_spline: SplineActor
+    
+    @camera
+    viewport_camera: Vec3
+    
+    # Viewport state
+    selected_point_index: Int
+    hovered_point_index: Int
+    is_dragging: Bool
+    drag_start_pos: Vec3
+    
+    # Visualization settings
+    show_wireframe: Bool
+    show_control_points: Bool
+    show_tangent_handles: Bool
+    show_curvature_heatmap: Bool
+    
+    # Gizmo state
+    gizmo_mode: String  # "translate", "rotate", "scale"
+    gizmo_space: String  # "world", "local"
+
+# Spline editor toolbar
+@toolbar
+struct SplineEditorToolbar:
+    @button("Add Point")
+    fn add_point_action():
+        println("Add point clicked")
+    
+    @button("Delete Point")
+    fn delete_point_action():
+        println("Delete point clicked")
+    
+    @dropdown("Interpolation")
+    fn interpolation_dropdown():
+        # Options: Linear, Bezier, CatmullRom, BSpline
+        println("Interpolation dropdown")
+    
+    @toggle("Show Tangents")
+    fn toggle_tangents():
+        println("Toggle tangents")
+    
+    @toggle("Show Curvature")
+    fn toggle_curvature():
+        println("Toggle curvature")
+    
+    @toggle("Snap to Grid")
+    fn toggle_snap_to_grid():
+        println("Toggle snap to grid")
+    
+    @separator
+    fn separator_1():
+        # Visual separator
+        pass
+    
+    @button("Smooth Spline")
+    fn smooth_spline_action():
+        println("Smooth spline clicked")
+    
+    @button("Subdivide")
+    fn subdivide_action():
+        println("Subdivide clicked")
+    
+    @button("Simplify")
+    fn simplify_action():
+        println("Simplify clicked")
+
+# Asset editor for spline assets
+@asset_editor
+struct SplineAssetEditor:
+    # Combines viewport, details, and toolbar
+    viewport: SplineEditorViewport
+    details_panel: SplineComponentDetails
+    toolbar: SplineEditorToolbar
+    
+    # Asset being edited
+    current_asset: SplineComponent
+    
+    # Editor state
+    is_modified: Bool
+    auto_save_enabled: Bool
+
+# Editor module for spline tools
+@editor_module
+struct SplineToolsEditorModule:
+    @menu_entry("Tools/Spline Tools/Create Spline Actor", "Create Spline Actor")
+    fn create_spline_actor_menu():
+        println("Creating spline actor...")
+    
+    @menu_entry("Tools/Spline Tools/Convert to Mesh", "Convert Spline to Mesh")
+    fn convert_to_mesh_menu():
+        println("Converting spline to mesh...")
+    
+    @toolbar_button("SplineTools", "SplineIcon")
+    fn spline_tools_button():
+        println("Spline tools button clicked")
+    
+    @menu_entry("Tools/Spline Tools/Smooth Selected", "Smooth Selected Spline")
+    fn smooth_selected_menu():
+        println("Smoothing selected spline...")
+    
+    @menu_entry("Tools/Spline Tools/Subdivide Selected", "Subdivide Selected Spline")
+    fn subdivide_selected_menu():
+        println("Subdividing selected spline...")
+
+# Helper functions for editor UI
+
+fn render_spline_curve(spline: SplineComponent, color: Vec4):
+    # Render spline curve in viewport
+    let samples = 100
+    let i = 0
+    while i < samples:
+        let t0 = i as Float / samples as Float
+        let t1 = (i + 1) as Float / samples as Float
+        
+        let pos0 = evaluate_spline_at_param(spline.points, t0, spline.interpolation_type)
+        let pos1 = evaluate_spline_at_param(spline.points, t1, spline.interpolation_type)
+        
+        # Draw line segment (would use UE5 debug drawing)
+        i = i + 1
+
+fn render_control_point_gizmo(position: Vec3, is_selected: Bool, is_hovered: Bool):
+    # Render sphere gizmo at control point
+    let color = vec4(1.0, 1.0, 1.0, 1.0)
+    
+    if is_selected:
+        color = vec4(1.0, 1.0, 0.0, 1.0)  # Yellow for selected
+    else:
+        if is_hovered:
+            color = vec4(0.0, 1.0, 1.0, 1.0)  # Cyan for hovered
+
+fn render_tangent_handle(point_pos: Vec3, tangent: Vec3, is_in_tangent: Bool):
+    # Render tangent handle as line with arrow
+    let handle_pos = point_pos + tangent
+    let color = if is_in_tangent: vec4(0.0, 1.0, 0.0, 1.0) else: vec4(1.0, 0.0, 0.0, 1.0)
+
+fn render_curvature_heatmap(spline: SplineComponent):
+    # Render spline with color based on curvature
+    let samples = 100
+    let i = 0
+    while i < samples:
+        let t = i as Float / samples as Float
+        
+        # Calculate curvature at this point
+        let n = len(spline.points)
+        if n >= 3:
+            let segment_idx = floor(t * (n - 1) as Float) as Int
+            segment_idx = min_int(segment_idx, n - 3)
+            
+            let p0 = spline.points[segment_idx].position
+            let p1 = spline.points[segment_idx + 1].position
+            let p2 = spline.points[segment_idx + 2].position
+            
+            let curvature_info = calculate_curvature(p0, p1, p2, t)
+            
+            # Map curvature to color (blue = low, red = high)
+            let curvature_normalized = clamp(curvature_info.kappa * 100.0, 0.0, 1.0)
+            let color = vec4(curvature_normalized, 0.0, 1.0 - curvature_normalized, 1.0)
+        
+        i = i + 1
+
+fn handle_viewport_click(viewport: SplineEditorViewport, click_pos: Vec2) -> Int:
+    # Check if click hit a control point
+    let spline = viewport.preview_spline.spline_component
+    let n = len(spline.points)
+    
+    let i = 0
+    while i < n:
+        let point_pos = spline.points[i].position
+        
+        # Project to screen space and check distance
+        # (simplified - would use proper projection)
+        let screen_dist = distance(vec2(point_pos.x, point_pos.y), click_pos)
+        
+        if screen_dist < 20.0:
+            return i
+        
+        i = i + 1
+    
+    return -1
+
+fn handle_viewport_drag(viewport: SplineEditorViewport, drag_delta: Vec2):
+    if viewport.selected_point_index >= 0:
+        let spline = viewport.preview_spline.spline_component
+        
+        if viewport.selected_point_index < len(spline.points):
+            # Update point position based on drag
+            let current_pos = spline.points[viewport.selected_point_index].position
+            let new_pos = vec3(
+                current_pos.x + drag_delta.x,
+                current_pos.y + drag_delta.y,
+                current_pos.z
+            )
+            
+            spline.points[viewport.selected_point_index].position = new_pos
+            spline.is_cache_dirty = true
+
+fn update_details_panel_values(details: SplineComponentDetails):
+    if details.selected_point_index >= 0 and details.selected_point_index < len(details.target_component.points):
+        let point = details.target_component.points[details.selected_point_index]
+        
+        details.point_width = point.width
+        details.point_color = point.color
+        
+        # Calculate tangent angle and length
+        let tangent_len = length(point.out_tangent)
+        details.tangent_length = tangent_len
+        
+        if tangent_len > 0.01:
+            let tangent_normalized = normalize(point.out_tangent)
+            details.tangent_angle = atan2(tangent_normalized.y, tangent_normalized.x) * 57.2957795
+
+fn apply_details_panel_changes(details: SplineComponentDetails):
+    if details.selected_point_index >= 0 and details.selected_point_index < len(details.target_component.points):
+        details.target_component.points[details.selected_point_index].width = details.point_width
+        details.target_component.points[details.selected_point_index].color = details.point_color
+        
+        # Update tangent based on angle and length
+        let angle_rad = details.tangent_angle * 0.0174533
+        let tangent = vec3(
+            cos(angle_rad) * details.tangent_length,
+            sin(angle_rad) * details.tangent_length,
+            0.0
+        )
+        
+        details.target_component.points[details.selected_point_index].out_tangent = tangent
+        details.target_component.points[details.selected_point_index].in_tangent = tangent * -1.0
+        details.target_component.is_cache_dirty = true
+
+fn evaluate_spline_at_param(points: Array<SplinePoint>, t: Float, interpolation_type: SplineInterpolationType) -> Vec3:
+    let n = len(points)
+    if n == 0:
+        return vec3(0.0, 0.0, 0.0)
+    if n == 1:
+        return points[0].position
+    
+    let t_clamped = clamp(t, 0.0, 1.0)
+    let segment_idx = floor(t_clamped * (n - 1) as Float) as Int
+    segment_idx = min_int(segment_idx, n - 2)
+    
+    let local_t = t_clamped * (n - 1) as Float - segment_idx as Float
+    
+    let p0 = points[segment_idx].position
+    let p1 = points[segment_idx + 1].position
+    
+    if interpolation_type == SplineInterpolationType::Linear:
+        return linear_interpolate_points(p0, p1, local_t)
+    else:
+        if interpolation_type == SplineInterpolationType::Bezier:
+            let t0 = points[segment_idx].out_tangent
+            let t1 = points[segment_idx + 1].in_tangent
+            let ctrl1 = p0 + t0
+            let ctrl2 = p1 - t1
+            return evaluate_bezier(p0, ctrl1, ctrl2, p1, local_t)
+        else:
+            if interpolation_type == SplineInterpolationType::CatmullRom:
+                let p_prev = if segment_idx > 0: points[segment_idx - 1].position else: p0
+                let p_next = if segment_idx < n - 2: points[segment_idx + 2].position else: p1
+                return evaluate_catmull_rom(p_prev, p0, p1, p_next, local_t)
+            else:
+                return linear_interpolate_points(p0, p1, local_t)
+
+fn atan2(y: Float, x: Float) -> Float:
+    if abs(x) < 0.0001:
+        if y > 0.0:
+            return 1.5707963
+        else:
+            return -1.5707963
+    
+    let atan_val = y / x
+    if x < 0.0:
+        if y >= 0.0:
+            return atan_val + 3.14159265
+        else:
+            return atan_val - 3.14159265
+    return atan_val
+
+fn cos(angle: Float) -> Float:
+    let x = angle
+    while x > 3.14159265:
+        x = x - 6.28318531
+    while x < -3.14159265:
+        x = x + 6.28318531
+    
+    let x2 = x * x
+    return 1.0 - x2 / 2.0 + x2 * x2 / 24.0
+
+fn sin(angle: Float) -> Float:
+    let x = angle
+    while x > 3.14159265:
+        x = x - 6.28318531
+    while x < -3.14159265:
+        x = x + 6.28318531
+    
+    let x2 = x * x
+    return x - x * x2 / 6.0 + x * x2 * x2 / 120.0

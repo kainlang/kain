@@ -1,0 +1,278 @@
+# VoxelSculptPro - Core Data Structures
+# Defines the fundamental data types for sculpting operations
+
+# Brush Types
+enum BrushType:
+    Standard
+    Smooth
+    Inflate
+    Grab
+    Pinch
+    Flatten
+    Clay
+    Crease
+
+# Brush Falloff Curves
+enum FalloffType:
+    Linear
+    Smooth
+    Sphere
+    Inverse
+    Constant
+
+# Symmetry Axes
+enum SymmetryAxis:
+    None
+    X
+    Y
+    Z
+    XY
+    XZ
+    YZ
+    XYZ
+
+# Mesh Topology Mode
+enum TopologyMode:
+    Static
+    Dynamic
+    Adaptive
+
+# Brush Data Structure
+struct BrushData:
+    brush_type: BrushType
+    position: Vec3
+    radius: Float
+    strength: Float
+    falloff: FalloffType
+    falloff_curve: Float
+    symmetry: SymmetryAxis
+    invert: Bool
+    use_screen_space: Bool
+    alpha_texture_id: Int
+
+# Mesh Vertex Structure
+struct MeshVertex:
+    position: Vec3
+    normal: Vec3
+    tangent: Vec3
+    uv: Vec2
+    color: Vec4
+    bone_indices: Vec4
+    bone_weights: Vec4
+
+# Mesh Triangle Structure
+struct MeshTriangle:
+    vertex_indices: Vec3
+    material_index: Int
+
+# Mesh LOD Level
+struct MeshLOD:
+    vertex_count: Int
+    triangle_count: Int
+    subdivision_level: Int
+    vertex_buffer_offset: Int
+    index_buffer_offset: Int
+
+# Sculpting State
+struct SculptingState:
+    active_brush: BrushData
+    current_lod: Int
+    total_lods: Int
+    vertex_count: Int
+    triangle_count: Int
+    is_sculpting: Bool
+    undo_stack_size: Int
+    redo_stack_size: Int
+    topology_mode: TopologyMode
+    auto_smooth: Bool
+    smooth_strength: Float
+
+# Undo/Redo Delta
+struct MeshDelta:
+    affected_vertex_indices: Array<Int>
+    original_positions: Array<Vec3>
+    original_normals: Array<Vec3>
+    timestamp: Float
+    brush_stroke_id: Int
+
+# Brush Stroke Data
+struct BrushStroke:
+    stroke_id: Int
+    brush_data: BrushData
+    start_position: Vec3
+    end_position: Vec3
+    sample_points: Array<Vec3>
+    sample_count: Int
+    total_distance: Float
+    duration: Float
+
+# Mesh Optimization Settings
+struct OptimizationSettings:
+    target_triangle_count: Int
+    preserve_uvs: Bool
+    preserve_normals: Bool
+    preserve_colors: Bool
+    boundary_weight: Float
+    normal_weight: Float
+    uv_weight: Float
+
+# Subdivision Settings
+struct SubdivisionSettings:
+    subdivision_type: Int
+    iterations: Int
+    smooth_factor: Float
+    preserve_boundaries: Bool
+    preserve_uvs: Bool
+    crease_angle: Float
+
+# Remesh Settings
+struct RemeshSettings:
+    target_edge_length: Float
+    iterations: Int
+    preserve_sharp_edges: Bool
+    sharp_angle_threshold: Float
+    adaptive: Bool
+    density_map_id: Int
+
+# Sculpting Session Data
+struct SculptingSession:
+    session_id: Int
+    mesh_asset_path: String
+    start_time: Float
+    total_strokes: Int
+    total_vertices_modified: Int
+    active_lod_level: Int
+    symmetry_enabled: Bool
+    symmetry_axis: SymmetryAxis
+
+# GPU Buffer Descriptors
+struct VertexBufferDescriptor:
+    buffer_size: Int
+    vertex_count: Int
+    vertex_stride: Int
+    position_offset: Int
+    normal_offset: Int
+    tangent_offset: Int
+    uv_offset: Int
+    color_offset: Int
+
+struct IndexBufferDescriptor:
+    buffer_size: Int
+    index_count: Int
+    index_format: Int
+
+# Shader Resource Bindings
+struct ShaderResourceBindings:
+    vertex_buffer_srv: Int
+    vertex_buffer_uav: Int
+    index_buffer_srv: Int
+    normal_buffer_uav: Int
+    tangent_buffer_uav: Int
+    delta_buffer_uav: Int
+    brush_texture_srv: Int
+
+# Spatial Acceleration Structure
+struct OctreeNode:
+    bounds_min: Vec3
+    bounds_max: Vec3
+    vertex_indices: Array<Int>
+    child_indices: Array<Int>
+    depth: Int
+    is_leaf: Bool
+
+# Mesh Bounds
+struct MeshBounds:
+    center: Vec3
+    extents: Vec3
+    radius: Float
+
+# Material Layer
+struct MaterialLayer:
+    layer_id: Int
+    material_id: Int
+    blend_mode: Int
+    opacity: Float
+    mask_texture_id: Int
+
+# Vertex Paint Data
+struct VertexPaintData:
+    vertex_index: Int
+    color: Vec4
+    blend_weight: Float
+
+# Mesh Statistics
+struct MeshStatistics:
+    total_vertices: Int
+    total_triangles: Int
+    total_edges: Int
+    manifold_edges: Int
+    boundary_edges: Int
+    degenerate_triangles: Int
+    isolated_vertices: Int
+    memory_usage_bytes: Int
+
+# Performance Metrics
+struct PerformanceMetrics:
+    frame_time_ms: Float
+    sculpt_kernel_time_ms: Float
+    normal_recalc_time_ms: Float
+    mesh_update_time_ms: Float
+    vertices_per_second: Float
+    strokes_per_second: Float
+
+# Brush Preset
+struct BrushPreset:
+    preset_name: String
+    brush_data: BrushData
+    icon_texture_id: Int
+    category: String
+    is_favorite: Bool
+
+# Sculpting Tool Settings
+struct ToolSettings:
+    lazy_mouse_enabled: Bool
+    lazy_mouse_radius: Float
+    stabilization_samples: Int
+    pressure_sensitivity: Float
+    pen_tilt_enabled: Bool
+    spacing: Float
+    jitter: Float
+    scatter: Float
+
+# Camera Settings for Sculpting
+struct SculptingCamera:
+    position: Vec3
+    target: Vec3
+    up_vector: Vec3
+    fov: Float
+    near_plane: Float
+    far_plane: Float
+    orbit_speed: Float
+    pan_speed: Float
+    zoom_speed: Float
+
+# Lighting Settings for Preview
+struct PreviewLighting:
+    key_light_direction: Vec3
+    key_light_color: Vec3
+    key_light_intensity: Float
+    fill_light_direction: Vec3
+    fill_light_color: Vec3
+    fill_light_intensity: Float
+    ambient_color: Vec3
+    ambient_intensity: Float
+    show_grid: Bool
+    show_wireframe: Bool
+
+# Export Settings
+struct ExportSettings:
+    export_format: Int
+    export_path: String
+    export_lod_level: Int
+    export_uvs: Bool
+    export_normals: Bool
+    export_tangents: Bool
+    export_colors: Bool
+    export_materials: Bool
+    coordinate_system: Int
+    scale_factor: Float

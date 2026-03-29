@@ -1,0 +1,15 @@
+[package]
+name = "SlateExample"
+version = "1.0.0"
+authors = ["KAIN Research Labs"]
+description = "Slate UI Example - Demonstrates production Slate widget generation with SCompoundWidget, layout containers, delegates, and editor integration"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "SlateExample"
+plugin_dir = "."
+sources = ["slate.kn"]
+shaders = []
+modular_output = true

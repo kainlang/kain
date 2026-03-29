@@ -1,0 +1,346 @@
+actor VoxelPlayer:
+    @replicated
+    state health: Float
+    @replicated
+    state max_health: Float
+    @replicated
+    state inventory: Array<Int>
+    @replicated
+    state selected_slot: Int
+    @replicated
+    state player_name: String
+    
+    state reach_distance: Float
+    state mining_speed: Float
+    state placement_cooldown: Float
+    state last_placement_time: Float
+    
+    on BeginPlay():
+        health = 100.0
+        max_health = 100.0
+        inventory = []
+        selected_slot = 0
+        reach_distance = 5.0
+        mining_speed = 1.0
+        placement_cooldown = 0.2
+        last_placement_time = 0.0
+        
+        for i in 0..36:
+            push(inventory, 0)
+    
+    @tick
+    on Tick(delta: Float):
+        last_placement_time = last_placement_time + delta
+        
+        if IsServer():
+            update_health_regeneration(delta)
+    
+    fn update_health_regeneration(delta: Float):
+        if health < max_health:
+            health = min(health + 1.0 * delta, max_health)
+    
+    on Server_MineBlock(position: BlockPosition):
+        let hit = raycast_voxel()
+        
+        if hit.hit:
+            if hit.distance <= reach_distance:
+                destroy_voxel_at(hit.block_position)
+                Multicast_PlayMiningEffect(hit.position)
+                add_item_to_inventory(hit.voxel_type as Int)
+    
+    on Server_PlaceBlock(position: BlockPosition, voxel_type: VoxelType):
+        if last_placement_time < placement_cooldown:
+            return
+        
+        let hit = raycast_voxel()
+        
+        if hit.hit:
+            if hit.distance <= reach_distance:
+                let place_pos = BlockPosition {
+                    x: hit.block_position.x + (hit.normal.x as Int),
+                    y: hit.block_position.y + (hit.normal.y as Int),
+                    z: hit.block_position.z + (hit.normal.z as Int)
+                }
+                
+                place_voxel_at(place_pos, voxel_type)
+                Multicast_PlayPlacementEffect(vec3(place_pos.x as Float, place_pos.y as Float, place_pos.z as Float))
+                remove_item_from_inventory(voxel_type as Int)
+                
+                last_placement_time = 0.0
+    
+    on Multicast_PlayMiningEffect(position: Vec3):
+        DrawDebugSphere(position, 20.0, vec3(1.0, 0.0, 0.0), 0.5)
+    
+    on Multicast_PlayPlacementEffect(position: Vec3):
+        DrawDebugSphere(position, 20.0, vec3(0.0, 1.0, 0.0), 0.5)
+    
+    fn raycast_voxel() -> VoxelRaycastHit:
+        let start = GetActorLocation()
+        let forward = GetActorForwardVector()
+        let end = start + forward * reach_distance
+        
+        return VoxelRaycastHit {
+            hit: true,
+            position: end,
+            block_position: BlockPosition { x: 0, y: 0, z: 0 },
+            normal: vec3(0.0, 1.0, 0.0),
+            voxel_type: VoxelType::Stone,
+            distance: reach_distance
+        }
+    
+    fn destroy_voxel_at(position: BlockPosition):
+        return
+    
+    fn place_voxel_at(position: BlockPosition, voxel_type: VoxelType):
+        return
+    
+    fn add_item_to_inventory(item_id: Int):
+        for i in 0..len(inventory):
+            if inventory[i] == 0:
+                inventory[i] = item_id
+                return
+    
+    fn remove_item_from_inventory(item_id: Int):
+        for i in 0..len(inventory):
+            if inventory[i] == item_id:
+                inventory[i] = 0
+                return
+    
+    @blueprint_callable
+    fn get_selected_item() -> Int:
+        if selected_slot >= 0 and selected_slot < len(inventory):
+            return inventory[selected_slot]
+        
+        return 0
+    
+    on Server_TakeDamage(amount: Float):
+        health = max(health - amount, 0.0)
+        
+        if health <= 0.0:
+            Server_Die()
+    
+    on Server_Die():
+        Multicast_PlayDeathEffect()
+    
+    on Multicast_PlayDeathEffect():
+        println("Player died!")
+
+actor VoxelItem:
+    @replicated
+    state item_type: VoxelType
+    @replicated
+    state quantity: Int
+    @replicated
+    state velocity: Vec3
+    
+    state lifetime: Float
+    state max_lifetime: Float
+    state pickup_cooldown: Float
+    state spawn_time: Float
+    
+    on BeginPlay():
+        lifetime = 0.0
+        max_lifetime = 300.0
+        pickup_cooldown = 1.0
+        spawn_time = GetGameTimeInSeconds()
+        velocity = vec3(0.0, 0.0, 0.0)
+    
+    @tick
+    on Tick(delta: Float):
+        lifetime = lifetime + delta
+        
+        if lifetime >= max_lifetime:
+            DestroyActor()
+        
+        if IsServer():
+            update_physics(delta)
+            check_player_pickup()
+    
+    fn update_physics(delta: Float):
+        let gravity = vec3(0.0, -9.8, 0.0)
+        velocity = velocity + gravity * delta
+        
+        let current_location = GetActorLocation()
+        let new_location = current_location + velocity * delta
+        
+        SetActorLocation(new_location)
+        
+        if new_location.y < 0.0:
+            velocity = vec3(velocity.x * 0.5, -velocity.y * 0.5, velocity.z * 0.5)
+    
+    fn check_player_pickup():
+        let current_time = GetGameTimeInSeconds()
+        
+        if current_time - spawn_time < pickup_cooldown:
+            return
+    
+    @blueprint_callable
+    fn pickup_item(player: Actor):
+        if IsServer():
+            DestroyActor()
+
+actor VoxelMob:
+    @replicated
+    state health: Float
+    @replicated
+    state max_health: Float
+    @replicated
+    state mob_type: Int
+    @replicated
+    state target_player: Actor
+    
+    state movement_speed: Float
+    state attack_damage: Float
+    state attack_range: Float
+    state detection_range: Float
+    state last_attack_time: Float
+    state attack_cooldown: Float
+    
+    on BeginPlay():
+        health = 50.0
+        max_health = 50.0
+        mob_type = 0
+        movement_speed = 3.0
+        attack_damage = 10.0
+        attack_range = 2.0
+        detection_range = 16.0
+        last_attack_time = 0.0
+        attack_cooldown = 1.0
+    
+    @tick
+    on Tick(delta: Float):
+        if IsServer():
+            update_ai(delta)
+            last_attack_time = last_attack_time + delta
+    
+    fn update_ai(delta: Float):
+        if target_player == null:
+            find_target()
+        else:
+            move_towards_target(delta)
+            try_attack()
+    
+    fn find_target():
+        return
+    
+    fn move_towards_target(delta: Float):
+        let current_location = GetActorLocation()
+        let direction = normalize(vec3(0.0, 0.0, 0.0) - current_location)
+        let new_location = current_location + direction * movement_speed * delta
+        
+        SetActorLocation(new_location)
+    
+    fn try_attack():
+        if last_attack_time < attack_cooldown:
+            return
+        
+        let current_location = GetActorLocation()
+        let distance = length(vec3(0.0, 0.0, 0.0) - current_location)
+        
+        if distance <= attack_range:
+            Server_AttackPlayer()
+            last_attack_time = 0.0
+    
+    on Server_AttackPlayer():
+        Multicast_PlayAttackAnimation()
+    
+    on Multicast_PlayAttackAnimation():
+        DrawDebugLine(GetActorLocation(), GetActorLocation() + GetActorForwardVector() * attack_range, vec3(1.0, 0.0, 0.0), 0.5)
+    
+    on Server_TakeDamage(amount: Float):
+        health = max(health - amount, 0.0)
+        
+        if health <= 0.0:
+            Server_Die()
+    
+    on Server_Die():
+        Multicast_PlayDeathEffect()
+        spawn_loot()
+        DestroyActor()
+    
+    on Multicast_PlayDeathEffect():
+        DrawDebugSphere(GetActorLocation(), 50.0, vec3(1.0, 0.0, 0.0), 2.0)
+    
+    fn spawn_loot():
+        return
+
+actor VoxelStructure:
+    @replicated
+    state structure_type: Int
+    @replicated
+    state structure_data: Array<Int>
+    @replicated
+    state origin_position: Vec3
+    
+    state is_generated: Bool
+    
+    on BeginPlay():
+        structure_type = 0
+        structure_data = []
+        origin_position = GetActorLocation()
+        is_generated = false
+        
+        if IsServer():
+            generate_structure()
+    
+    fn generate_structure():
+        match structure_type:
+            0 => generate_house()
+            1 => generate_tower()
+            2 => generate_dungeon()
+            _ => return
+        
+        is_generated = true
+    
+    fn generate_house():
+        let width = 8
+        let height = 6
+        let depth = 8
+        
+        for x in 0..width:
+            for y in 0..height:
+                for z in 0..depth:
+                    let is_wall = x == 0 or x == width - 1 or z == 0 or z == depth - 1
+                    let is_floor = y == 0
+                    let is_roof = y == height - 1
+                    
+                    if is_wall or is_floor or is_roof:
+                        push(structure_data, 1)
+                    else:
+                        push(structure_data, 0)
+    
+    fn generate_tower():
+        let radius = 4
+        let height = 20
+        
+        for y in 0..height:
+            for x in -radius..radius + 1:
+                for z in -radius..radius + 1:
+                    let distance = sqrt(((x * x + z * z) as Float))
+                    
+                    if distance <= (radius as Float):
+                        push(structure_data, 1)
+                    else:
+                        push(structure_data, 0)
+    
+    fn generate_dungeon():
+        let width = 16
+        let height = 8
+        let depth = 16
+        
+        for x in 0..width:
+            for y in 0..height:
+                for z in 0..depth:
+                    let is_wall = x == 0 or x == width - 1 or z == 0 or z == depth - 1
+                    let is_floor = y == 0
+                    let is_ceiling = y == height - 1
+                    
+                    if is_wall or is_floor or is_ceiling:
+                        push(structure_data, 1)
+                    else:
+                        push(structure_data, 0)
+    
+    @blueprint_callable
+    fn place_structure():
+        if not is_generated:
+            return

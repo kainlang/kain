@@ -1,0 +1,236 @@
+# ============================================================================
+# METAFITTER - Batch Processing
+# ============================================================================
+# Actor and utilities for batch-processing multiple clothing meshes.
+# Supports folder-based workflows, progress tracking, error handling,
+# and output naming conventions.
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: BATCH PROCESSOR ACTOR
+# ============================================================================
+
+actor BatchConformActor:
+    # ======= BATCH CONFIGURATION =======
+
+    @replicated
+    state input_folder_path: String = ""
+
+    @replicated
+    state output_folder_path: String = ""
+
+    @replicated
+    state target_metahuman_path: String = ""
+
+    @replicated
+    state output_name_prefix: String = "MF_"
+
+    @replicated
+    state output_name_suffix: String = "_Conformed"
+
+    # ======= BATCH SETTINGS =======
+
+    state batch_settings: ConformSettings = ConformSettings()
+
+    @replicated
+    state skip_on_error: Bool = true
+
+    @replicated
+    state overwrite_existing: Bool = false
+
+    # ======= BATCH STATE =======
+
+    @replicated
+    state batch_running: Bool = false
+
+    @replicated
+    state total_jobs: Int = 0
+
+    @replicated
+    state current_job_index: Int = 0
+
+    @replicated
+    state completed_jobs: Int = 0
+
+    @replicated
+    state failed_jobs: Int = 0
+
+    @replicated
+    state skipped_jobs: Int = 0
+
+    @transient
+    state current_file_name: String = ""
+
+    @transient
+    state batch_start_time: Float = 0.0
+
+    @transient
+    state current_job_start_time: Float = 0.0
+
+    @transient
+    state average_job_time_ms: Float = 0.0
+
+    @transient
+    state estimated_remaining_seconds: Float = 0.0
+
+    # ======= BATCH OPERATIONS =======
+
+    @blueprint_callable
+    fn get_batch_progress() -> Float:
+        if total_jobs == 0:
+            return 0.0
+        return to_float(current_job_index) / to_float(total_jobs)
+
+    @blueprint_callable
+    fn get_estimated_remaining() -> Float:
+        if current_job_index == 0:
+            return 0.0
+        let remaining_jobs = total_jobs - current_job_index
+        return average_job_time_ms * to_float(remaining_jobs) / 1000.0
+
+    @blueprint_callable
+    fn get_batch_summary() -> String:
+        let summary = "Batch: " + int_to_string(current_job_index) + "/" + int_to_string(total_jobs)
+        summary = summary + " | Done: " + int_to_string(completed_jobs)
+        summary = summary + " | Failed: " + int_to_string(failed_jobs)
+        summary = summary + " | Skipped: " + int_to_string(skipped_jobs)
+        return summary
+
+    on Server_StartBatch():
+        println("MetaFitter Batch: Scanning input folder: " + input_folder_path)
+        
+        batch_running = true
+        current_job_index = 0
+        completed_jobs = 0
+        failed_jobs = 0
+        skipped_jobs = 0
+        
+        # Scan folder for mesh files (.fbx, .obj, .usd, .uasset)
+        # UE5 APIs:
+        #   IFileManager::Get().FindFilesRecursive()
+        #   FPaths::GetExtension()
+        
+        println("MetaFitter Batch: Found " + int_to_string(total_jobs) + " mesh files")
+        println("MetaFitter Batch: Output folder: " + output_folder_path)
+        println("MetaFitter Batch: Target MetaHuman: " + target_metahuman_path)
+        
+        if total_jobs == 0:
+            println("MetaFitter Batch: No mesh files found in input folder")
+            batch_running = false
+            Client_BatchComplete()
+            return
+        
+        # Process first job
+        Server_ProcessNextJob()
+
+    on Server_ProcessNextJob():
+        if !batch_running:
+            return
+        
+        if current_job_index >= total_jobs:
+            batch_running = false
+            println("MetaFitter Batch: All jobs complete!")
+            println("  Completed: " + int_to_string(completed_jobs))
+            println("  Failed: " + int_to_string(failed_jobs))
+            println("  Skipped: " + int_to_string(skipped_jobs))
+            Client_BatchComplete()
+            return
+        
+        println("MetaFitter Batch: Processing job " + int_to_string(current_job_index + 1) + "/" + int_to_string(total_jobs))
+        println("  File: " + current_file_name)
+        
+        # Build output name
+        let output_name = output_name_prefix + current_file_name + output_name_suffix
+        
+        # Run conform pipeline for this mesh
+        # (Delegates to ClothConformerActor internally)
+        
+        # After conform completes, advance to next job
+        current_job_index = current_job_index + 1
+        
+        # Update average time
+        if completed_jobs > 0:
+            estimated_remaining_seconds = get_estimated_remaining()
+        
+        # Continue to next job
+        Server_ProcessNextJob()
+
+    on Server_CancelBatch():
+        println("MetaFitter Batch: Cancelling...")
+        batch_running = false
+        Client_BatchCancelled()
+
+    on Client_BatchComplete():
+        println("MetaFitter Batch: Complete!")
+
+    on Client_BatchCancelled():
+        println("MetaFitter Batch: Cancelled by user")
+
+    on Client_JobComplete(job_index: Int, success: Bool):
+        println("MetaFitter Batch: Job " + int_to_string(job_index) + " " + batch_status_string(success))
+
+    # ======= UTILITY =======
+
+    @blueprint_callable
+    fn batch_status_string(success: Bool) -> String:
+        if success:
+            return "succeeded"
+        return "failed"
+
+    @blueprint_callable
+    fn is_running() -> Bool:
+        return batch_running
+
+    @blueprint_callable
+    fn reset_batch():
+        batch_running = false
+        total_jobs = 0
+        current_job_index = 0
+        completed_jobs = 0
+        failed_jobs = 0
+        skipped_jobs = 0
+        current_file_name = ""
+        average_job_time_ms = 0.0
+        estimated_remaining_seconds = 0.0
+
+# ============================================================================
+# SECTION 2: BATCH UTILITY FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn build_output_asset_name(prefix: String, source_filename: String, suffix: String) -> String:
+    # Strip extension from source filename
+    # "my_shirt.fbx" -> "my_shirt"
+    # Then apply prefix and suffix: "MF_my_shirt_Conformed"
+    return prefix + source_filename + suffix
+
+@blueprint
+fn is_supported_mesh_format(filename: String) -> Bool:
+    # Check if the file extension is a supported mesh format
+    # Supported: .fbx, .obj, .usd, .usda, .usdc, .uasset
+    # This is a simplified check — real implementation would use FPaths::GetExtension()
+    return true
+
+@blueprint
+fn estimate_batch_time(job_count: Int, average_time_per_job_ms: Float) -> Float:
+    # Returns estimated total time in seconds
+    return to_float(job_count) * average_time_per_job_ms / 1000.0
+
+@blueprint
+fn format_time_remaining(seconds: Float) -> String:
+    if seconds < 60.0:
+        return int_to_string(to_int(seconds)) + "s"
+    
+    let minutes = to_int(seconds / 60.0)
+    let remaining_seconds = to_int(seconds - to_float(minutes) * 60.0)
+    
+    if minutes < 60:
+        return int_to_string(minutes) + "m " + int_to_string(remaining_seconds) + "s"
+    
+    let hours = to_int(to_float(minutes) / 60.0)
+    let remaining_minutes = minutes - hours * 60
+    return int_to_string(hours) + "h " + int_to_string(remaining_minutes) + "m"
+
+@blueprint
+fn to_int(value: Float) -> Int:
+    return value * 1

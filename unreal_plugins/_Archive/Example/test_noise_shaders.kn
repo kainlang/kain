@@ -1,0 +1,102 @@
+# ============================================================================
+# Noise Shader Tests - Testing stdlib noise functions
+# ============================================================================
+# Tests: hash, hash2, hash3, hash22, perlin_noise, perlin_noise3,
+#        noise2, noise3, simplex_noise, fbm, fbm2, fbm3,
+#        voronoi, worley_noise, cellular_noise, voronoi_edges,
+#        turbulence, ridged_noise, curl_noise, flow_noise
+
+shader compute TestNoiseGeneration(thread_id: Vec3) -> Unit:
+    uniform scale: Float @0
+    uniform octaves: Int @1
+    uniform seed: Float @2
+    uniform output_buffer: RWBuffer<Vec4> @3
+    
+    let idx = thread_id.x
+    let x = idx * 0.01
+    let y = idx * 0.02
+    let z = idx * 0.03
+    
+    # Test 2D hash functions
+    let uv = vec2(x, y)
+    let h1 = hash(uv)
+    let h2 = hash2(uv)
+    let h22 = hash22(uv)
+    
+    # Test 3D hash
+    let pos3 = vec3(x, y, z)
+    let h3 = hash3(pos3)
+    
+    # Test basic noise functions
+    let pn2 = perlin_noise(uv * scale)
+    let pn3 = perlin_noise3(x, y, z, scale)
+    let n2 = noise2(uv * scale)
+    let n3 = noise3(pos3 * scale)
+    let sn = simplex_noise(x, y, z)
+    
+    # Test FBM variants
+    let fbm_2d = fbm(uv * scale, octaves)
+    let fbm2_val = fbm2(uv * scale, octaves)
+    let fbm3_val = fbm3(pos3 * scale, octaves)
+    
+    # Test Voronoi variants
+    let voronoi_val = voronoi(uv, scale, 1.0, seed)
+    let worley = worley_noise(uv, scale, 1.0, seed)
+    let cellular = cellular_noise(uv, scale, 1.0, seed)
+    let edges = voronoi_edges(uv, scale, 0.1, seed)
+    
+    # Test turbulence and ridged noise
+    let turb = turbulence(uv, scale, octaves, seed)
+    let ridged = ridged_noise(uv, scale, octaves, seed)
+    
+    # Test curl noise (3D vector field)
+    let curl = curl_noise(x, y, z, scale)
+    
+    # Combine results into output
+    let combined = fbm_2d + turb * 0.5 + ridged * 0.3
+    output_buffer[idx] = vec4(combined, worley, edges, 1.0)
+
+shader fragment TestProceduralTexture(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform scale: Float @1
+    uniform octaves: Int @2
+    
+    # Create animated procedural texture using multiple noise types
+    let animated_uv = vec2(uv.x + time * 0.1, uv.y)
+    
+    # Base layer: FBM
+    let base = fbm2(animated_uv * scale, octaves)
+    
+    # Detail layer: Turbulence
+    let detail = turbulence(uv * scale * 2.0, octaves, 0.0)
+    
+    # Pattern layer: Voronoi
+    let pattern = worley_noise(uv * scale * 0.5, 1.0, 0.0)
+    
+    # Edge highlights: Voronoi edges
+    let edges = voronoi_edges(uv * scale, 0.05, 0.0)
+    
+    # Combine layers
+    let combined = base * 0.5 + detail * 0.3 + pattern * 0.2
+    let final_color = vec3(combined, combined * 0.8, combined * 0.6) + vec3(edges, edges, edges)
+    
+    return vec4(final_color.x, final_color.y, final_color.z, 1.0)
+
+shader compute TestCurlNoiseField(thread_id: Vec3) -> Unit:
+    uniform frequency: Float @0
+    uniform output_buffer: RWBuffer<Vec4> @1
+    
+    let idx = thread_id.x
+    let x = idx * 0.1
+    let y = idx * 0.2
+    let z = idx * 0.3
+    
+    # Generate curl noise vector field
+    let curl = curl_noise(x, y, z, frequency)
+    
+    # Test flow noise for animation
+    let time = 1.0
+    let flow_speed = 0.5
+    let flow = flow_noise(vec2(x, y), time, flow_speed)
+    
+    output_buffer[idx] = vec4(curl.x, curl.y, curl.z, flow)

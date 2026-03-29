@@ -1,0 +1,36 @@
+# KAIN Configuration for {{PLUGIN_NAME}}
+
+name = "{{PLUGIN_NAME}}"
+version = "1.0.0"
+authors = ["KAIN Factory Part 2"]
+description = "{{PLUGIN_DESCRIPTION}}"
+
+[build]
+entry = "src/main.kn"
+target = "ue5"
+
+[ue5]
+plugin_name = "{{PLUGIN_NAME}}"
+plugin_dir = ""
+engine_version = "5.4"
+modular_output = true
+
+# All source files in src/ — ordered by dependency
+# List files in dependency order (types/structs first, then components, actors, utilities, editor)
+sources = [
+    "src/main.kn",
+    # Add additional source files here in dependency order
+]
+
+# Example multi-file structure:
+# sources = [
+#     "src/types.kn",
+#     "src/components.kn",
+#     "src/actors.kn",
+#     "src/utilities.kn",
+#     "src/editor.kn",
+# ]
+
+# Stdlib configuration (optional - auto-discovered by default)
+# [ue5]
+# stdlib_path = "../../Kain/stdlib/ue5"

@@ -1,0 +1,773 @@
+// DungeonArchitect — Room Actors
+// Entrance, corridor, treasure, boss, puzzle, secret, dead-end, hub room actors
+
+actor EntranceRoomActor:
+    @replicated
+    state room_id: Int = 0
+    @replicated
+    state room_width: Float = 1000.0
+    @replicated
+    state room_height: Float = 1000.0
+    state spawn_points: Array<Vec3> = []
+    state door_actors: Array<Actor> = []
+    state is_initialized: Bool = false
+    state player_count: Int = 0
+    
+    fn BeginPlay():
+        initialize_room()
+        spawn_entrance_door()
+        create_spawn_points()
+        setup_lighting()
+    
+    fn initialize_room():
+        is_initialized = true
+        println("Entrance room {room_id} initialized")
+    
+    fn spawn_entrance_door():
+        let door_pos = GetActorLocation()
+        door_pos.z = door_pos.z + 200.0
+        
+        let door = spawn_actor("BP_EntranceDoor", door_pos, GetActorRotation())
+        push(door_actors, door)
+    
+    fn create_spawn_points():
+        let center = GetActorLocation()
+        
+        let mut i = 0
+        while i < 4:
+            let angle = (i as Float) * 90.0 * 3.14159 / 180.0
+            let radius = 300.0
+            
+            let spawn_pos = Vec3 {
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle),
+                z: center.z
+            }
+            push(spawn_points, spawn_pos)
+            i = i + 1
+    
+    fn setup_lighting():
+        let light_pos = GetActorLocation()
+        light_pos.z = light_pos.z + 400.0
+        
+        spawn_actor("BP_PointLight", light_pos, GetActorRotation())
+    
+    on Server_PlayerEntered(player: Actor):
+        player_count = player_count + 1
+        println("Player entered entrance room, count: {player_count}")
+        Multicast_OnPlayerEntered(player)
+    
+    on Multicast_OnPlayerEntered(player: Actor):
+        println("Broadcasting player entrance")
+    
+    fn get_spawn_point(index: Int) -> Vec3:
+        if index >= 0 && index < len(spawn_points):
+            return spawn_points[index]
+        return GetActorLocation()
+
+actor CorridorRoomActor:
+    @replicated
+    state room_id: Int = 0
+    @replicated
+    state corridor_width: Float = 300.0
+    @replicated
+    state corridor_length: Float = 1000.0
+    state torch_actors: Array<Actor> = []
+    state enemy_spawn_points: Array<Vec3> = []
+    state is_lit: Bool = true
+    
+    fn BeginPlay():
+        initialize_corridor()
+        place_torches()
+        create_enemy_spawn_points()
+    
+    fn initialize_corridor():
+        println("Corridor room {room_id} initialized")
+    
+    fn place_torches():
+        let start_pos = GetActorLocation()
+        let forward = GetActorForwardVector()
+        
+        let torch_spacing = 500.0
+        let torch_count = (corridor_length / torch_spacing) as Int
+        
+        let mut i = 0
+        while i < torch_count:
+            let distance = (i as Float) * torch_spacing
+            
+            let left_pos = Vec3 {
+                x: start_pos.x + forward.x * distance - forward.y * corridor_width * 0.4,
+                y: start_pos.y + forward.y * distance + forward.x * corridor_width * 0.4,
+                z: start_pos.z + 150.0
+            }
+            
+            let right_pos = Vec3 {
+                x: start_pos.x + forward.x * distance + forward.y * corridor_width * 0.4,
+                y: start_pos.y + forward.y * distance - forward.x * corridor_width * 0.4,
+                z: start_pos.z + 150.0
+            }
+            
+            let torch_left = spawn_actor("BP_Torch", left_pos, GetActorRotation())
+            let torch_right = spawn_actor("BP_Torch", right_pos, GetActorRotation())
+            
+            push(torch_actors, torch_left)
+            push(torch_actors, torch_right)
+            
+            i = i + 1
+    
+    fn create_enemy_spawn_points():
+        let start_pos = GetActorLocation()
+        let forward = GetActorForwardVector()
+        
+        let spawn_count = 3
+        let mut i = 0
+        while i < spawn_count:
+            let distance = corridor_length * ((i as Float) / (spawn_count as Float))
+            
+            let spawn_pos = Vec3 {
+                x: start_pos.x + forward.x * distance,
+                y: start_pos.y + forward.y * distance,
+                z: start_pos.z
+            }
+            push(enemy_spawn_points, spawn_pos)
+            i = i + 1
+    
+    on Server_ToggleLights(enable: Bool):
+        is_lit = enable
+        Multicast_UpdateLights(enable)
+    
+    on Multicast_UpdateLights(enable: Bool):
+        let mut i = 0
+        while i < len(torch_actors):
+            let torch = torch_actors[i]
+            i = i + 1
+
+actor TreasureRoomActor:
+    @replicated
+    state room_id: Int = 0
+    @replicated
+    state room_width: Float = 800.0
+    @replicated
+    state room_height: Float = 800.0
+    @replicated
+    state chest_count: Int = 1
+    @replicated
+    state loot_quality: Float = 0.8
+    @replicated
+    state is_looted: Bool = false
+    state chest_actors: Array<Actor> = []
+    state guardian_actors: Array<Actor> = []
+    state pedestal_actors: Array<Actor> = []
+    
+    fn BeginPlay():
+        initialize_treasure_room()
+        spawn_chests()
+        spawn_pedestals()
+        spawn_guardians()
+        setup_ambient_effects()
+    
+    fn initialize_treasure_room():
+        println("Treasure room {room_id} initialized with quality {loot_quality}")
+    
+    fn spawn_chests():
+        let center = GetActorLocation()
+        
+        let mut i = 0
+        while i < chest_count:
+            let angle = ((i as Float) / (chest_count as Float)) * 360.0 * 3.14159 / 180.0
+            let radius = 200.0
+            
+            let chest_pos = Vec3 {
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle),
+                z: center.z
+            }
+            
+            let chest = spawn_actor("BP_TreasureChest", chest_pos, GetActorRotation())
+            push(chest_actors, chest)
+            i = i + 1
+    
+    fn spawn_pedestals():
+        let center = GetActorLocation()
+        
+        let pedestal_count = 4
+        let mut i = 0
+        while i < pedestal_count:
+            let angle = (i as Float) * 90.0 * 3.14159 / 180.0
+            let radius = 400.0
+            
+            let pedestal_pos = Vec3 {
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle),
+                z: center.z
+            }
+            
+            let pedestal = spawn_actor("BP_Pedestal", pedestal_pos, GetActorRotation())
+            push(pedestal_actors, pedestal)
+            i = i + 1
+    
+    fn spawn_guardians():
+        let center = GetActorLocation()
+        let guardian_count = 2
+        
+        let mut i = 0
+        while i < guardian_count:
+            let angle = ((i as Float) / (guardian_count as Float)) * 360.0 * 3.14159 / 180.0
+            let radius = 300.0
+            
+            let guardian_pos = Vec3 {
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle),
+                z: center.z
+            }
+            
+            let guardian = spawn_actor("BP_Guardian", guardian_pos, GetActorRotation())
+            push(guardian_actors, guardian)
+            i = i + 1
+    
+    fn setup_ambient_effects():
+        let center = GetActorLocation()
+        center.z = center.z + 500.0
+        
+        spawn_actor("BP_GoldenLight", center, GetActorRotation())
+    
+    on Server_OpenChest(chest_index: Int, player: Actor):
+        if chest_index >= 0 && chest_index < len(chest_actors):
+            let chest = chest_actors[chest_index]
+            
+            if !is_looted:
+                is_looted = true
+                Multicast_ChestOpened(chest_index, player)
+    
+    on Multicast_ChestOpened(chest_index: Int, player: Actor):
+        println("Chest {chest_index} opened by player")
+    
+    on Server_AllChestsLooted():
+        Multicast_RoomCompleted()
+    
+    on Multicast_RoomCompleted():
+        println("Treasure room {room_id} completed")
+
+actor BossRoomActor:
+    @replicated
+    state room_id: Int = 0
+    @replicated
+    state room_width: Float = 2000.0
+    @replicated
+    state room_height: Float = 2000.0
+    @replicated
+    state boss_type: String = "DefaultBoss"
+    @replicated
+    state arena_style: String = "Circular"
+    @replicated
+    state is_boss_defeated: Bool = false
+    @replicated
+    state is_arena_active: Bool = false
+    state boss_actor: Actor = null
+    state pillar_actors: Array<Actor> = []
+    state barrier_actors: Array<Actor> = []
+    state loot_spawn_point: Vec3 = vec3(0.0, 0.0, 0.0)
+    
+    fn BeginPlay():
+        initialize_boss_room()
+        spawn_pillars()
+        create_arena_barriers()
+        setup_boss_spawn_point()
+        setup_dramatic_lighting()
+    
+    fn initialize_boss_room():
+        println("Boss room {room_id} initialized: {boss_type} in {arena_style} arena")
+    
+    fn spawn_pillars():
+        let center = GetActorLocation()
+        let pillar_count = 4
+        let radius = 800.0
+        
+        let mut i = 0
+        while i < pillar_count:
+            let angle = (i as Float) * 90.0 * 3.14159 / 180.0
+            
+            let pillar_pos = Vec3 {
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle),
+                z: center.z
+            }
+            
+            let pillar = spawn_actor("BP_Pillar", pillar_pos, GetActorRotation())
+            push(pillar_actors, pillar)
+            i = i + 1
+    
+    fn create_arena_barriers():
+        let center = GetActorLocation()
+        let barrier_count = 8
+        let radius = room_width * 0.45
+        
+        let mut i = 0
+        while i < barrier_count:
+            let angle = ((i as Float) / (barrier_count as Float)) * 360.0 * 3.14159 / 180.0
+            
+            let barrier_pos = Vec3 {
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle),
+                z: center.z
+            }
+            
+            let barrier = spawn_actor("BP_ArenaBarrier", barrier_pos, GetActorRotation())
+            push(barrier_actors, barrier)
+            i = i + 1
+    
+    fn setup_boss_spawn_point():
+        let center = GetActorLocation()
+        loot_spawn_point = center
+    
+    fn setup_dramatic_lighting():
+        let center = GetActorLocation()
+        center.z = center.z + 800.0
+        
+        spawn_actor("BP_DramaticLight", center, GetActorRotation())
+    
+    on Server_StartBossFight(player: Actor):
+        if !is_arena_active:
+            is_arena_active = true
+            spawn_boss()
+            activate_barriers()
+            Multicast_BossFightStarted()
+    
+    fn spawn_boss():
+        let center = GetActorLocation()
+        boss_actor = spawn_actor(boss_type, center, GetActorRotation())
+    
+    fn activate_barriers():
+        let mut i = 0
+        while i < len(barrier_actors):
+            let barrier = barrier_actors[i]
+            i = i + 1
+    
+    on Multicast_BossFightStarted():
+        println("Boss fight started in room {room_id}")
+    
+    on Server_BossDefeated():
+        is_boss_defeated = true
+        deactivate_barriers()
+        spawn_loot()
+        Multicast_BossDefeated()
+    
+    fn deactivate_barriers():
+        let mut i = 0
+        while i < len(barrier_actors):
+            let barrier = barrier_actors[i]
+            i = i + 1
+    
+    fn spawn_loot():
+        spawn_actor("BP_BossLoot", loot_spawn_point, GetActorRotation())
+    
+    on Multicast_BossDefeated():
+        println("Boss defeated in room {room_id}")
+
+actor PuzzleRoomActor:
+    @replicated
+    state room_id: Int = 0
+    @replicated
+    state room_width: Float = 1200.0
+    @replicated
+    state room_height: Float = 1200.0
+    @replicated
+    state puzzle_type: String = "Lever"
+    @replicated
+    state difficulty: Float = 0.5
+    @replicated
+    state is_solved: Bool = false
+    @replicated
+    state time_limit: Float = 0.0
+    @replicated
+    state elapsed_time: Float = 0.0
+    state puzzle_mechanism_actors: Array<Actor> = []
+    state hint_actors: Array<Actor> = []
+    state reward_actor: Actor = null
+    state puzzle_door_actor: Actor = null
+    
+    fn BeginPlay():
+        initialize_puzzle_room()
+        spawn_puzzle_mechanisms()
+        spawn_hints()
+        spawn_puzzle_door()
+    
+    fn initialize_puzzle_room():
+        println("Puzzle room {room_id} initialized: {puzzle_type} difficulty {difficulty}")
+    
+    fn spawn_puzzle_mechanisms():
+        let center = GetActorLocation()
+        
+        if puzzle_type == "Lever":
+            spawn_lever_puzzle(center)
+        else:
+            if puzzle_type == "PressurePlate":
+                spawn_pressure_plate_puzzle(center)
+            else:
+                spawn_lever_puzzle(center)
+    
+    fn spawn_lever_puzzle(center: Vec3):
+        let lever_count = 4
+        let mut i = 0
+        while i < lever_count:
+            let angle = (i as Float) * 90.0 * 3.14159 / 180.0
+            let radius = 400.0
+            
+            let lever_pos = Vec3 {
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle),
+                z: center.z
+            }
+            
+            let lever = spawn_actor("BP_Lever", lever_pos, GetActorRotation())
+            push(puzzle_mechanism_actors, lever)
+            i = i + 1
+    
+    fn spawn_pressure_plate_puzzle(center: Vec3):
+        let plate_count = 5
+        let mut i = 0
+        while i < plate_count:
+            let angle = ((i as Float) / (plate_count as Float)) * 360.0 * 3.14159 / 180.0
+            let radius = 300.0
+            
+            let plate_pos = Vec3 {
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle),
+                z: center.z
+            }
+            
+            let plate = spawn_actor("BP_PressurePlate", plate_pos, GetActorRotation())
+            push(puzzle_mechanism_actors, plate)
+            i = i + 1
+    
+    fn spawn_hints():
+        let center = GetActorLocation()
+        let hint_count = 2
+        
+        let mut i = 0
+        while i < hint_count:
+            let hint_pos = Vec3 {
+                x: center.x + ((i as Float) * 200.0 - 100.0),
+                y: center.y + 500.0,
+                z: center.z + 100.0
+            }
+            
+            let hint = spawn_actor("BP_HintRune", hint_pos, GetActorRotation())
+            push(hint_actors, hint)
+            i = i + 1
+    
+    fn spawn_puzzle_door():
+        let center = GetActorLocation()
+        let door_pos = Vec3 {
+            x: center.x,
+            y: center.y + room_height * 0.4,
+            z: center.z
+        }
+        
+        puzzle_door_actor = spawn_actor("BP_PuzzleDoor", door_pos, GetActorRotation())
+    
+    fn Tick(delta_time: Float):
+        if time_limit > 0.0 && !is_solved:
+            elapsed_time = elapsed_time + delta_time
+            if elapsed_time >= time_limit:
+                Server_PuzzleFailed()
+    
+    on Server_MechanismActivated(mechanism_index: Int):
+        Multicast_MechanismActivated(mechanism_index)
+        check_puzzle_solution()
+    
+    on Multicast_MechanismActivated(mechanism_index: Int):
+        println("Mechanism {mechanism_index} activated")
+    
+    fn check_puzzle_solution():
+        let is_correct = validate_puzzle_state()
+        if is_correct:
+            Server_PuzzleSolved()
+    
+    fn validate_puzzle_state() -> Bool:
+        return true
+    
+    on Server_PuzzleSolved():
+        is_solved = true
+        open_puzzle_door()
+        spawn_reward()
+        Multicast_PuzzleSolved()
+    
+    fn open_puzzle_door():
+        if puzzle_door_actor != null:
+            println("Opening puzzle door")
+    
+    fn spawn_reward():
+        let center = GetActorLocation()
+        reward_actor = spawn_actor("BP_PuzzleReward", center, GetActorRotation())
+    
+    on Multicast_PuzzleSolved():
+        println("Puzzle solved in room {room_id}")
+    
+    on Server_PuzzleFailed():
+        Multicast_PuzzleFailed()
+    
+    on Multicast_PuzzleFailed():
+        println("Puzzle failed in room {room_id}")
+
+actor SecretRoomActor:
+    @replicated
+    state room_id: Int = 0
+    @replicated
+    state room_width: Float = 600.0
+    @replicated
+    state room_height: Float = 600.0
+    @replicated
+    state hidden_door_type: String = "Breakable"
+    @replicated
+    state is_discovered: Bool = false
+    @replicated
+    state loot_quality: Float = 0.9
+    state hidden_door_actor: Actor = null
+    state loot_actors: Array<Actor> = []
+    state rune_actors: Array<Actor> = []
+    
+    fn BeginPlay():
+        initialize_secret_room()
+        spawn_hidden_door()
+        spawn_high_quality_loot()
+        spawn_runes()
+        setup_mysterious_lighting()
+    
+    fn initialize_secret_room():
+        println("Secret room {room_id} initialized with {hidden_door_type} door")
+    
+    fn spawn_hidden_door():
+        let center = GetActorLocation()
+        let door_pos = Vec3 {
+            x: center.x,
+            y: center.y - room_height * 0.4,
+            z: center.z
+        }
+        
+        hidden_door_actor = spawn_actor("BP_HiddenDoor", door_pos, GetActorRotation())
+    
+    fn spawn_high_quality_loot():
+        let center = GetActorLocation()
+        let loot_count = 3
+        
+        let mut i = 0
+        while i < loot_count:
+            let angle = ((i as Float) / (loot_count as Float)) * 360.0 * 3.14159 / 180.0
+            let radius = 150.0
+            
+            let loot_pos = Vec3 {
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle),
+                z: center.z + 50.0
+            }
+            
+            let loot = spawn_actor("BP_RareLoot", loot_pos, GetActorRotation())
+            push(loot_actors, loot)
+            i = i + 1
+    
+    fn spawn_runes():
+        let center = GetActorLocation()
+        let rune_count = 4
+        
+        let mut i = 0
+        while i < rune_count:
+            let angle = (i as Float) * 90.0 * 3.14159 / 180.0
+            let radius = 250.0
+            
+            let rune_pos = Vec3 {
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle),
+                z: center.z + 150.0
+            }
+            
+            let rune = spawn_actor("BP_AncientRune", rune_pos, GetActorRotation())
+            push(rune_actors, rune)
+            i = i + 1
+    
+    fn setup_mysterious_lighting():
+        let center = GetActorLocation()
+        center.z = center.z + 300.0
+        
+        spawn_actor("BP_MysteriousLight", center, GetActorRotation())
+    
+    on Server_RoomDiscovered(player: Actor):
+        if !is_discovered:
+            is_discovered = true
+            reveal_hidden_door()
+            Multicast_RoomDiscovered(player)
+    
+    fn reveal_hidden_door():
+        if hidden_door_actor != null:
+            println("Revealing hidden door")
+    
+    on Multicast_RoomDiscovered(player: Actor):
+        println("Secret room {room_id} discovered")
+
+actor DeadEndRoomActor:
+    @replicated
+    state room_id: Int = 0
+    @replicated
+    state room_width: Float = 600.0
+    @replicated
+    state room_height: Float = 600.0
+    @replicated
+    state enemy_count: Int = 3
+    @replicated
+    state has_loot: Bool = true
+    state enemy_actors: Array<Actor> = []
+    state debris_actors: Array<Actor> = []
+    state loot_actor: Actor = null
+    
+    fn BeginPlay():
+        initialize_dead_end()
+        spawn_enemies()
+        spawn_debris()
+        if has_loot:
+            spawn_minor_loot()
+        setup_dark_lighting()
+    
+    fn initialize_dead_end():
+        println("Dead end room {room_id} initialized")
+    
+    fn spawn_enemies():
+        let center = GetActorLocation()
+        
+        let mut i = 0
+        while i < enemy_count:
+            let angle = ((i as Float) / (enemy_count as Float)) * 360.0 * 3.14159 / 180.0
+            let radius = 200.0
+            
+            let enemy_pos = Vec3 {
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle),
+                z: center.z
+            }
+            
+            let enemy = spawn_actor("BP_Enemy", enemy_pos, GetActorRotation())
+            push(enemy_actors, enemy)
+            i = i + 1
+    
+    fn spawn_debris():
+        let center = GetActorLocation()
+        let debris_count = 5
+        
+        let mut i = 0
+        while i < debris_count:
+            let random_x = ((i * 137) % 100) as Float - 50.0
+            let random_y = ((i * 241) % 100) as Float - 50.0
+            
+            let debris_pos = Vec3 {
+                x: center.x + random_x,
+                y: center.y + random_y,
+                z: center.z
+            }
+            
+            let debris = spawn_actor("BP_Debris", debris_pos, GetActorRotation())
+            push(debris_actors, debris)
+            i = i + 1
+    
+    fn spawn_minor_loot():
+        let center = GetActorLocation()
+        loot_actor = spawn_actor("BP_MinorLoot", center, GetActorRotation())
+    
+    fn setup_dark_lighting():
+        let center = GetActorLocation()
+        center.z = center.z + 200.0
+        
+        spawn_actor("BP_DimLight", center, GetActorRotation())
+
+actor HubRoomActor:
+    @replicated
+    state room_id: Int = 0
+    @replicated
+    state room_width: Float = 1500.0
+    @replicated
+    state room_height: Float = 1500.0
+    @replicated
+    state exit_count: Int = 4
+    @replicated
+    state allow_fast_travel: Bool = true
+    @replicated
+    state is_checkpoint: Bool = true
+    state central_feature_actor: Actor = null
+    state exit_door_actors: Array<Actor> = []
+    state banner_actors: Array<Actor> = []
+    state fountain_actor: Actor = null
+    
+    fn BeginPlay():
+        initialize_hub_room()
+        spawn_central_feature()
+        spawn_exit_doors()
+        spawn_banners()
+        if allow_fast_travel:
+            spawn_fast_travel_point()
+        setup_ambient_lighting()
+    
+    fn initialize_hub_room():
+        println("Hub room {room_id} initialized with {exit_count} exits")
+    
+    fn spawn_central_feature():
+        let center = GetActorLocation()
+        central_feature_actor = spawn_actor("BP_CentralPillar", center, GetActorRotation())
+    
+    fn spawn_exit_doors():
+        let center = GetActorLocation()
+        
+        let mut i = 0
+        while i < exit_count:
+            let angle = ((i as Float) / (exit_count as Float)) * 360.0 * 3.14159 / 180.0
+            let radius = room_width * 0.4
+            
+            let door_pos = Vec3 {
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle),
+                z: center.z
+            }
+            
+            let door = spawn_actor("BP_ExitDoor", door_pos, GetActorRotation())
+            push(exit_door_actors, door)
+            i = i + 1
+    
+    fn spawn_banners():
+        let center = GetActorLocation()
+        let banner_count = 8
+        
+        let mut i = 0
+        while i < banner_count:
+            let angle = ((i as Float) / (banner_count as Float)) * 360.0 * 3.14159 / 180.0
+            let radius = room_width * 0.3
+            
+            let banner_pos = Vec3 {
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle),
+                z: center.z + 200.0
+            }
+            
+            let banner = spawn_actor("BP_Banner", banner_pos, GetActorRotation())
+            push(banner_actors, banner)
+            i = i + 1
+    
+    fn spawn_fast_travel_point():
+        let center = GetActorLocation()
+        fountain_actor = spawn_actor("BP_FastTravelPoint", center, GetActorRotation())
+    
+    fn setup_ambient_lighting():
+        let center = GetActorLocation()
+        center.z = center.z + 600.0
+        
+        spawn_actor("BP_AmbientLight", center, GetActorRotation())
+    
+    on Server_PlayerUsedFastTravel(player: Actor, destination: Int):
+        if allow_fast_travel:
+            Multicast_FastTravelUsed(player, destination)
+    
+    on Multicast_FastTravelUsed(player: Actor, destination: Int):
+        println("Player fast traveled from hub {room_id} to {destination}")
+    
+    on Server_CheckpointActivated(player: Actor):
+        if is_checkpoint:
+            Multicast_CheckpointActivated(player)
+    
+    on Multicast_CheckpointActivated(player: Actor):
+        println("Checkpoint activated in hub {room_id}")

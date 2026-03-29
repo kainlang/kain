@@ -1,0 +1,82 @@
+enum BlendMode:
+    Normal
+    Multiply
+    Overlay
+    Screen
+    Add
+    Subtract
+    Divide
+    Darken
+    Lighten
+    ColorBurn
+    ColorDodge
+    LinearBurn
+    LinearDodge
+
+enum FilterType:
+    Blur
+    Sharpen
+    EdgeDetect
+    Emboss
+    ColorGrade
+    Brightness
+    Contrast
+    Saturation
+    Hue
+    Invert
+    Grayscale
+    Sepia
+
+enum GeneratorType:
+    PerlinNoise
+    SimplexNoise
+    WorleyNoise
+    VoronoiNoise
+    Gradient
+    Checkerboard
+    Stripes
+    Dots
+    Clouds
+    Marble
+    Wood
+    Brick
+
+struct TextureLayer:
+    layer_name: String
+    blend_mode: BlendMode
+    opacity: Float
+    visible: Bool
+    mask_texture: String
+
+@datatable
+struct FilterParameters:
+    filter_type: FilterType
+    intensity: Float
+    radius: Float
+    threshold: Float
+    color_tint: Vec3
+
+@datatable
+struct GeneratorParameters:
+    generator_type: GeneratorType
+    scale: Float
+    octaves: Int
+    persistence: Float
+    lacunarity: Float
+    seed: Int
+    color_a: Vec3
+    color_b: Vec3
+
+struct TextureChannel:
+    channel_name: String
+    resolution: Int
+    format: String
+    data: Array<Float>
+
+struct MaterialPreset:
+    preset_name: String
+    base_color_layers: Array<TextureLayer>
+    normal_layers: Array<TextureLayer>
+    roughness_layers: Array<TextureLayer>
+    metallic_layers: Array<TextureLayer>
+    ao_layers: Array<TextureLayer>

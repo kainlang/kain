@@ -1,0 +1,656 @@
+// ProceduralCity - Traffic Simulation
+// Actor concurrency for vehicle AI, pathfinding, and traffic management
+
+// ============================================================================
+// VEHICLE ACTOR WITH CONCURRENCY
+// ============================================================================
+
+actor VehicleActor:
+    @replicated
+    state vehicle_id: Int = 0
+    
+    @replicated
+    state vehicle_type: VehicleType = VehicleType::Car
+    
+    @replicated(mode: "interpolated", back_time: 0.1)
+    state position: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    
+    @replicated(mode: "interpolated", back_time: 0.1)
+    state velocity: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    
+    @replicated
+    state rotation: Float = 0.0
+    
+    state current_road: Int = -1
+    state current_lane: Int = 0
+    state target_intersection: Int = -1
+    state path: Array<Int> = []
+    state path_index: Int = 0
+    
+    state speed: Float = 0.0
+    state max_speed: Float = 120.0
+    state acceleration: Float = 5.0
+    state braking_distance: Float = 20.0
+    state following_distance: Float = 10.0
+    
+    state target_vehicle: Int = -1
+    state is_stopped: Bool = false
+    state waiting_at_light: Bool = false
+    state crossing_intersection: Bool = false
+    
+    state steering_angle: Float = 0.0
+    state throttle: Float = 0.0
+    state brake: Float = 0.0
+    
+    on Server_Initialize(id: Int, vtype: VehicleType, start_pos: Vec3, start_road: Int):
+        vehicle_id = id
+        vehicle_type = vtype
+        position = start_pos
+        current_road = start_road
+        max_speed = get_vehicle_max_speed(vtype)
+        acceleration = get_vehicle_acceleration(vtype)
+        
+        Multicast_OnVehicleSpawned(id, vtype, start_pos)
+    
+    on Server_SetPath(new_path: Array<Int>):
+        path = new_path
+        path_index = 0
+        
+        if len(path) > 0:
+            target_intersection = path[0]
+    
+    on Server_UpdateMovement(delta_time: Float, road_network: RoadNetwork, nearby_vehicles: Array<VehicleState>):
+        if len(path) == 0:
+            return
+        
+        // Check traffic light at target intersection
+        if target_intersection >= 0 and target_intersection < len(road_network.intersections):
+            let intersection = road_network.intersections[target_intersection]
+            
+            if intersection.has_traffic_light:
+                let light_state = intersection.traffic_light_state
+                
+                if light_state == TrafficLightState::Red or light_state == TrafficLightState::Yellow:
+                    let dist_to_intersection = vec3_distance(position, Vec3 {
+                        x: intersection.position.x,
+                        y: intersection.position.y,
+                        z: 0.0
+                    })
+                    
+                    if dist_to_intersection < 30.0:
+                        waiting_at_light = true
+                        Server_ApplyBrakes(delta_time)
+                        return
+                else:
+                    waiting_at_light = false
+        
+        // Check for vehicles ahead
+        let vehicle_ahead = find_vehicle_ahead(nearby_vehicles)
+        
+        if vehicle_ahead >= 0:
+            let ahead_state = nearby_vehicles[vehicle_ahead]
+            let distance = vec3_distance(position, ahead_state.position)
+            
+            if distance < following_distance:
+                target_vehicle = vehicle_ahead
+                Server_MatchSpeed(ahead_state.speed, delta_time)
+                return
+            else if distance < braking_distance:
+                Server_ApplyBrakes(delta_time)
+                return
+        
+        target_vehicle = -1
+        
+        // Normal movement toward target
+        Server_MoveTowardTarget(delta_time, road_network)
+    
+    on Server_MoveTowardTarget(delta_time: Float, road_network: RoadNetwork):
+        if target_intersection < 0 or target_intersection >= len(road_network.intersections):
+            return
+        
+        let target_pos = Vec3 {
+            x: road_network.intersections[target_intersection].position.x,
+            y: road_network.intersections[target_intersection].position.y,
+            z: 0.0
+        }
+        
+        let direction = vec3_normalize(Vec3 {
+            x: target_pos.x - position.x,
+            y: target_pos.y - position.y,
+            z: 0.0
+        })
+        
+        // Calculate desired speed
+        let distance_to_target = vec3_distance(position, target_pos)
+        let desired_speed = min(max_speed, distance_to_target * 2.0)
+        
+        // Accelerate or decelerate
+        if speed < desired_speed:
+            speed = min(speed + acceleration * delta_time, desired_speed)
+            throttle = 1.0
+            brake = 0.0
+        else:
+            speed = max(speed - acceleration * delta_time * 0.5, desired_speed)
+            throttle = 0.0
+            brake = 0.5
+        
+        // Update velocity
+        velocity = Vec3 {
+            x: direction.x * speed,
+            y: direction.y * speed,
+            z: 0.0
+        }
+        
+        // Update position
+        position = Vec3 {
+            x: position.x + velocity.x * delta_time,
+            y: position.y + velocity.y * delta_time,
+            z: position.z
+        }
+        
+        // Update rotation
+        if vec3_length(velocity) > 0.1:
+            rotation = atan2(velocity.y, velocity.x) * 180.0 / 3.14159
+        
+        // Check if reached target intersection
+        if distance_to_target < 5.0:
+            path_index = path_index + 1
+            
+            if path_index < len(path):
+                target_intersection = path[path_index]
+            else:
+                // Reached destination
+                Server_OnReachedDestination()
+    
+    on Server_ApplyBrakes(delta_time: Float):
+        speed = max(0.0, speed - acceleration * delta_time * 2.0)
+        throttle = 0.0
+        brake = 1.0
+        
+        velocity = Vec3 {
+            x: velocity.x * 0.9,
+            y: velocity.y * 0.9,
+            z: 0.0
+        }
+    
+    on Server_MatchSpeed(target_speed: Float, delta_time: Float):
+        if speed > target_speed:
+            speed = max(target_speed, speed - acceleration * delta_time)
+            brake = 0.5
+        else if speed < target_speed:
+            speed = min(target_speed, speed + acceleration * delta_time * 0.5)
+            throttle = 0.5
+    
+    on Server_OnReachedDestination():
+        Multicast_OnVehicleReachedDestination(vehicle_id)
+    
+    on Multicast_OnVehicleSpawned(id: Int, vtype: VehicleType, pos: Vec3):
+        println("Vehicle spawned: " + (id as String))
+    
+    on Multicast_OnVehicleReachedDestination(id: Int):
+        println("Vehicle reached destination: " + (id as String))
+    
+    fn find_vehicle_ahead(nearby_vehicles: Array<VehicleState>) -> Int:
+        let ahead_id = -1
+        let min_distance = 999999.0
+        
+        let forward = vec3_normalize(velocity)
+        
+        for i in 0..len(nearby_vehicles):
+            let other = nearby_vehicles[i]
+            
+            if other.vehicle_id == vehicle_id:
+                continue
+            
+            let to_other = Vec3 {
+                x: other.position.x - position.x,
+                y: other.position.y - position.y,
+                z: 0.0
+            }
+            
+            let dot = vec3_dot(forward, vec3_normalize(to_other))
+            
+            if dot > 0.7:
+                let distance = vec3_length(to_other)
+                
+                if distance < min_distance:
+                    min_distance = distance
+                    ahead_id = i
+        
+        return ahead_id
+
+// ============================================================================
+// TRAFFIC PATHFINDING
+// ============================================================================
+
+fn find_path_between_intersections(
+    start_intersection: Int,
+    end_intersection: Int,
+    road_network: RoadNetwork
+) -> Array<Int>:
+    let open_set = [start_intersection]
+    let closed_set = []
+    let came_from = []
+    let g_scores = []
+    let f_scores = []
+    
+    // Initialize scores
+    for i in 0..len(road_network.intersections):
+        push(came_from, -1)
+        push(g_scores, 999999.0)
+        push(f_scores, 999999.0)
+    
+    g_scores[start_intersection] = 0.0
+    
+    let start_pos = road_network.intersections[start_intersection].position
+    let end_pos = road_network.intersections[end_intersection].position
+    f_scores[start_intersection] = vec2_distance(start_pos, end_pos)
+    
+    let max_iterations = 1000
+    let iteration = 0
+    
+    while len(open_set) > 0 and iteration < max_iterations:
+        // Find node with lowest f_score in open set
+        let current = find_lowest_f_score(open_set, f_scores)
+        
+        if current == end_intersection:
+            return reconstruct_path(came_from, current)
+        
+        // Remove current from open set
+        open_set = remove_from_array(open_set, current)
+        push(closed_set, current)
+        
+        // Check neighbors
+        let current_intersection = road_network.intersections[current]
+        
+        for road_id in current_intersection.connected_roads:
+            let road = road_network.segments[road_id]
+            
+            // Find neighbor intersection
+            let neighbor = -1
+            for intersection_id in road.connected_intersections:
+                if intersection_id != current:
+                    neighbor = intersection_id
+                    break
+            
+            if neighbor < 0 or contains(closed_set, neighbor):
+                continue
+            
+            let tentative_g = g_scores[current] + vec2_distance(
+                road_network.intersections[current].position,
+                road_network.intersections[neighbor].position
+            )
+            
+            if not contains(open_set, neighbor):
+                push(open_set, neighbor)
+            else if tentative_g >= g_scores[neighbor]:
+                continue
+            
+            came_from[neighbor] = current
+            g_scores[neighbor] = tentative_g
+            f_scores[neighbor] = tentative_g + vec2_distance(
+                road_network.intersections[neighbor].position,
+                end_pos
+            )
+        
+        iteration = iteration + 1
+    
+    return []
+
+fn find_lowest_f_score(open_set: Array<Int>, f_scores: Array<Float>) -> Int:
+    let lowest_id = open_set[0]
+    let lowest_score = f_scores[lowest_id]
+    
+    for i in 1..len(open_set):
+        let node_id = open_set[i]
+        let score = f_scores[node_id]
+        
+        if score < lowest_score:
+            lowest_score = score
+            lowest_id = node_id
+    
+    return lowest_id
+
+fn reconstruct_path(came_from: Array<Int>, current: Int) -> Array<Int>:
+    let path = [current]
+    
+    let max_iterations = 1000
+    let iteration = 0
+    
+    while came_from[current] >= 0 and iteration < max_iterations:
+        current = came_from[current]
+        push(path, current)
+        iteration = iteration + 1
+    
+    return reverse_array(path)
+
+fn reverse_array(arr: Array<Int>) -> Array<Int>:
+    let reversed = []
+    
+    for i in 0..len(arr):
+        let idx = len(arr) - 1 - i
+        push(reversed, arr[idx])
+    
+    return reversed
+
+fn remove_from_array(arr: Array<Int>, value: Int) -> Array<Int>:
+    let result = []
+    
+    for item in arr:
+        if item != value:
+            push(result, item)
+    
+    return result
+
+fn contains(arr: Array<Int>, value: Int) -> Bool:
+    for item in arr:
+        if item == value:
+            return true
+    
+    return false
+
+// ============================================================================
+// TRAFFIC FLOW OPTIMIZATION
+// ============================================================================
+
+fn calculate_traffic_density(road_network: RoadNetwork, vehicles: Array<VehicleState>) -> RoadNetwork:
+    let updated_segments = []
+    
+    for segment in road_network.segments:
+        let vehicle_count = 0
+        
+        for vehicle in vehicles:
+            if vehicle.current_road == segment.id:
+                vehicle_count = vehicle_count + 1
+        
+        let road_length = vec2_distance(segment.start_pos, segment.end_pos)
+        let density = (vehicle_count as Float) / max(1.0, road_length / 10.0)
+        
+        let updated_segment = RoadSegment {
+            id: segment.id,
+            start_pos: segment.start_pos,
+            end_pos: segment.end_pos,
+            road_type: segment.road_type,
+            width: segment.width,
+            lanes: segment.lanes,
+            speed_limit: segment.speed_limit,
+            is_one_way: segment.is_one_way,
+            connected_intersections: segment.connected_intersections,
+            traffic_density: density
+        }
+        
+        push(updated_segments, updated_segment)
+    
+    return RoadNetwork {
+        segments: updated_segments,
+        intersections: road_network.intersections,
+        highway_nodes: road_network.highway_nodes,
+        main_street_nodes: road_network.main_street_nodes,
+        residential_nodes: road_network.residential_nodes
+    }
+
+fn optimize_traffic_light_timing(road_network: RoadNetwork) -> RoadNetwork:
+    let updated_intersections = []
+    
+    for intersection in road_network.intersections:
+        if not intersection.has_traffic_light:
+            push(updated_intersections, intersection)
+            continue
+        
+        // Calculate optimal cycle time based on traffic
+        let total_traffic = 0.0
+        
+        for road_id in intersection.connected_roads:
+            for segment in road_network.segments:
+                if segment.id == road_id:
+                    total_traffic = total_traffic + segment.traffic_density
+        
+        let base_cycle = 30.0
+        let traffic_factor = 1.0 + total_traffic * 0.5
+        let optimal_cycle = base_cycle * traffic_factor
+        
+        push(updated_intersections, intersection)
+    
+    return RoadNetwork {
+        segments: road_network.segments,
+        intersections: updated_intersections,
+        highway_nodes: road_network.highway_nodes,
+        main_street_nodes: road_network.main_street_nodes,
+        residential_nodes: road_network.residential_nodes
+    }
+
+// ============================================================================
+// VEHICLE SPAWNING
+// ============================================================================
+
+fn generate_vehicle_spawn_points(road_network: RoadNetwork, count: Int, seed: Int) -> Array<Vec3>:
+    let spawn_points = []
+    
+    for i in 0..count:
+        let hash = ((i + seed) * 374761393) % len(road_network.segments)
+        let segment = road_network.segments[hash]
+        
+        let t_hash = ((i + seed + 1) * 668265263) % 100
+        let t = (t_hash as Float) / 100.0
+        
+        let spawn_x = segment.start_pos.x + (segment.end_pos.x - segment.start_pos.x) * t
+        let spawn_y = segment.start_pos.y + (segment.end_pos.y - segment.start_pos.y) * t
+        
+        push(spawn_points, Vec3 { x: spawn_x, y: spawn_y, z: 0.0 })
+    
+    return spawn_points
+
+fn select_vehicle_type(seed: Int) -> VehicleType:
+    let hash = (seed * 374761393) % 100
+    
+    if hash < 70:
+        return VehicleType::Car
+    else if hash < 80:
+        return VehicleType::Taxi
+    else if hash < 88:
+        return VehicleType::Bus
+    else if hash < 95:
+        return VehicleType::Truck
+    else if hash < 98:
+        return VehicleType::Delivery
+    else:
+        return VehicleType::Emergency
+
+// ============================================================================
+// COLLISION AVOIDANCE
+// ============================================================================
+
+fn check_collision(vehicle_a: VehicleState, vehicle_b: VehicleState) -> Bool:
+    let distance = vec3_distance(vehicle_a.position, vehicle_b.position)
+    let collision_radius = 3.0
+    
+    return distance < collision_radius
+
+fn resolve_collision(vehicle_a: VehicleState, vehicle_b: VehicleState) -> Vec3:
+    let direction = vec3_normalize(Vec3 {
+        x: vehicle_a.position.x - vehicle_b.position.x,
+        y: vehicle_a.position.y - vehicle_b.position.y,
+        z: 0.0
+    })
+    
+    let separation_force = 5.0
+    
+    return Vec3 {
+        x: direction.x * separation_force,
+        y: direction.y * separation_force,
+        z: 0.0
+    }
+
+fn calculate_steering_force(
+    vehicle: VehicleState,
+    target_pos: Vec3,
+    nearby_vehicles: Array<VehicleState>
+) -> Vec3:
+    // Seek force toward target
+    let desired = vec3_normalize(Vec3 {
+        x: target_pos.x - vehicle.position.x,
+        y: target_pos.y - vehicle.position.y,
+        z: 0.0
+    })
+    
+    let seek_force = Vec3 {
+        x: desired.x * vehicle.max_speed - vehicle.velocity.x,
+        y: desired.y * vehicle.max_speed - vehicle.velocity.y,
+        z: 0.0
+    }
+    
+    // Separation force from nearby vehicles
+    let separation_force = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    let separation_radius = 10.0
+    
+    for other in nearby_vehicles:
+        if other.vehicle_id == vehicle.vehicle_id:
+            continue
+        
+        let distance = vec3_distance(vehicle.position, other.position)
+        
+        if distance < separation_radius and distance > 0.1:
+            let away = vec3_normalize(Vec3 {
+                x: vehicle.position.x - other.position.x,
+                y: vehicle.position.y - other.position.y,
+                z: 0.0
+            })
+            
+            let strength = (separation_radius - distance) / separation_radius
+            
+            separation_force = Vec3 {
+                x: separation_force.x + away.x * strength,
+                y: separation_force.y + away.y * strength,
+                z: 0.0
+            }
+    
+    // Combine forces
+    return Vec3 {
+        x: seek_force.x + separation_force.x * 2.0,
+        y: seek_force.y + separation_force.y * 2.0,
+        z: 0.0
+    }
+
+// ============================================================================
+// LANE MANAGEMENT
+// ============================================================================
+
+fn calculate_lane_position(road: RoadSegment, lane_index: Int, t: Float) -> Vec3:
+    let road_direction = vec2_normalize(Vec2 {
+        x: road.end_pos.x - road.start_pos.x,
+        y: road.end_pos.y - road.start_pos.y
+    })
+    
+    let perpendicular = Vec2 {
+        x: -road_direction.y,
+        y: road_direction.x
+    }
+    
+    let lane_width = road.width / (road.lanes as Float)
+    let lane_offset = ((lane_index as Float) - ((road.lanes as Float) - 1.0) * 0.5) * lane_width
+    
+    let base_x = road.start_pos.x + (road.end_pos.x - road.start_pos.x) * t
+    let base_y = road.start_pos.y + (road.end_pos.y - road.start_pos.y) * t
+    
+    return Vec3 {
+        x: base_x + perpendicular.x * lane_offset,
+        y: base_y + perpendicular.y * lane_offset,
+        z: 0.0
+    }
+
+fn select_optimal_lane(road: RoadSegment, vehicles_in_road: Array<VehicleState>) -> Int:
+    let lane_densities = []
+    
+    for lane in 0..road.lanes:
+        let count = 0
+        
+        for vehicle in vehicles_in_road:
+            if vehicle.current_lane == lane:
+                count = count + 1
+        
+        push(lane_densities, count)
+    
+    // Find lane with lowest density
+    let best_lane = 0
+    let min_density = lane_densities[0]
+    
+    for lane in 1..road.lanes:
+        if lane_densities[lane] < min_density:
+            min_density = lane_densities[lane]
+            best_lane = lane
+    
+    return best_lane
+
+// ============================================================================
+// TRAFFIC STATISTICS
+// ============================================================================
+
+fn calculate_traffic_statistics(vehicles: Array<VehicleState>) -> String:
+    let total_vehicles = len(vehicles)
+    let moving_vehicles = 0
+    let stopped_vehicles = 0
+    let avg_speed = 0.0
+    
+    for vehicle in vehicles:
+        if vehicle.speed > 1.0:
+            moving_vehicles = moving_vehicles + 1
+        else:
+            stopped_vehicles = stopped_vehicles + 1
+        
+        avg_speed = avg_speed + vehicle.speed
+    
+    if total_vehicles > 0:
+        avg_speed = avg_speed / (total_vehicles as Float)
+    
+    return "Traffic Stats: Total=" + (total_vehicles as String) +
+           ", Moving=" + (moving_vehicles as String) +
+           ", Stopped=" + (stopped_vehicles as String) +
+           ", AvgSpeed=" + (avg_speed as String) + "km/h"
+
+fn detect_traffic_jams(road_network: RoadNetwork, threshold: Float) -> Array<Int>:
+    let jammed_roads = []
+    
+    for segment in road_network.segments:
+        if segment.traffic_density > threshold:
+            push(jammed_roads, segment.id)
+    
+    return jammed_roads
+
+fn calculate_average_travel_time(
+    start_intersection: Int,
+    end_intersection: Int,
+    road_network: RoadNetwork
+) -> Float:
+    let path = find_path_between_intersections(start_intersection, end_intersection, road_network)
+    
+    if len(path) == 0:
+        return -1.0
+    
+    let total_distance = 0.0
+    let total_time = 0.0
+    
+    for i in 0..(len(path) - 1):
+        let current_id = path[i]
+        let next_id = path[i + 1]
+        
+        let current_pos = road_network.intersections[current_id].position
+        let next_pos = road_network.intersections[next_id].position
+        
+        let distance = vec2_distance(current_pos, next_pos)
+        total_distance = total_distance + distance
+        
+        // Find road segment between intersections
+        for segment in road_network.segments:
+            let connects = false
+            
+            for int_id in segment.connected_intersections:
+                if int_id == current_id or int_id == next_id:
+                    connects = true
+            
+            if connects:
+                let avg_speed = segment.speed_limit * (1.0 - segment.traffic_density * 0.5)
+                let time = distance / max(1.0, avg_speed)
+                total_time = total_time + time
+                break
+    
+    return total_time

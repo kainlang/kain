@@ -1,0 +1,248 @@
+// FluidDynamicsPro - Material Graphs
+// Fluid rendering materials with refraction, caustics, and foam
+
+material FluidSurfaceMaterial:
+    input albedo_texture: Texture2D
+    input normal_map: Texture2D
+    input depth_texture: Texture2D
+    input scene_color: Texture2D
+    
+    input refraction_index: Float = 1.33
+    input absorption_color: Vec3 = vec3(0.1, 0.3, 0.8)
+    input scatter_color: Vec3 = vec3(0.2, 0.5, 1.0)
+    input surface_smoothness: Float = 0.95
+    input foam_threshold: Float = 0.5
+    input foam_amount: Float = 0.3
+    input caustics_intensity: Float = 1.0
+    input subsurface_radius: Float = 0.5
+    input wave_amplitude: Float = 0.1
+    input wave_frequency: Float = 2.0
+    
+    let uv = uv_coords()
+    let time_val = time()
+    
+    let wave_offset = sine(uv.x * wave_frequency + time_val) * wave_amplitude
+    let animated_uv = uv + vec2(0.0, wave_offset)
+    
+    let base_normal = texture_sample(normal_map, animated_uv).rgb
+    let normal = normalize(base_normal * 2.0 - 1.0)
+    
+    let view_dir = camera_vector()
+    let fresnel = fresnel_schlick(dot(normal, view_dir), 0.02)
+    
+    let refracted_uv = uv + normal.xy * refraction_index * 0.1
+    let refracted_color = texture_sample(scene_color, refracted_uv).rgb
+    
+    let depth = texture_sample(depth_texture, uv).r
+    let water_depth = saturate(depth * 10.0)
+    
+    let absorbed_color = refracted_color * exp(-absorption_color * water_depth)
+    let scattered = scatter_color * water_depth * 0.5
+    
+    let caustics_uv = uv * 5.0 + vec2(time_val * 0.1, time_val * 0.05)
+    let caustics_pattern = caustics_noise(caustics_uv)
+    let caustics = caustics_pattern * caustics_intensity * (1.0 - water_depth)
+    
+    let foam_noise = perlin_noise(uv * 10.0 + time_val * 0.5)
+    let foam_mask = step(foam_threshold, foam_noise)
+    let foam_color = vec3(1.0, 1.0, 1.0) * foam_mask * foam_amount
+    
+    let final_color = absorbed_color + scattered + caustics + foam_color
+    
+    base_color = lerp(final_color, vec3(1.0, 1.0, 1.0), fresnel)
+    metallic = 0.0
+    specular = 0.5
+    roughness = 1.0 - surface_smoothness
+    emissive = caustics * 0.5
+    opacity = 0.9
+
+material FluidParticleMaterial:
+    input particle_color: Vec4 = vec4(0.1, 0.3, 0.8, 0.9)
+    input particle_size: Float = 0.05
+    input foam_color: Vec4 = vec4(1.0, 1.0, 1.0, 1.0)
+    input foam_blend: Float = 0.0
+    input velocity_color_blend: Float = 0.5
+    input max_velocity: Float = 10.0
+    
+    let uv = uv_coords()
+    let center_dist = length(uv - vec2(0.5, 0.5))
+    let sphere_mask = smoothstep(0.5, 0.4, center_dist)
+    
+    let base_color_rgb = lerp(particle_color.rgb, foam_color.rgb, foam_blend)
+    
+    let velocity_factor = saturate(vertex_color().r / max_velocity)
+    let velocity_tint = vec3(1.0, 1.0 - velocity_factor, 1.0 - velocity_factor)
+    let final_color_rgb = lerp(base_color_rgb, velocity_tint, velocity_color_blend * velocity_factor)
+    
+    let alpha = sphere_mask * particle_color.a
+    
+    base_color = final_color_rgb
+    metallic = 0.0
+    specular = 0.3
+    roughness = 0.6
+    opacity = alpha
+    emissive = final_color_rgb * foam_blend * 0.2
+
+material FluidCausticsMaterial:
+    input caustics_texture: Texture2D
+    input caustics_scale: Float = 5.0
+    input caustics_speed: Float = 0.1
+    input caustics_intensity: Float = 1.0
+    input caustics_color: Vec3 = vec3(0.5, 0.8, 1.0)
+    input depth_fade_distance: Float = 10.0
+    
+    let uv = uv_coords()
+    let time_val = time()
+    
+    let caustics_uv1 = uv * caustics_scale + vec2(time_val * caustics_speed, time_val * caustics_speed * 0.5)
+    let caustics_uv2 = uv * caustics_scale * 1.3 - vec2(time_val * caustics_speed * 0.7, time_val * caustics_speed * 0.3)
+    
+    let caustics1 = texture_sample(caustics_texture, caustics_uv1).r
+    let caustics2 = texture_sample(caustics_texture, caustics_uv2).r
+    
+    let caustics_combined = min(caustics1, caustics2)
+    let caustics_enhanced = pow(caustics_combined, 2.0) * caustics_intensity
+    
+    let depth = pixel_depth()
+    let depth_fade = saturate(depth / depth_fade_distance)
+    
+    let caustics_final = caustics_enhanced * depth_fade
+    
+    base_color = vec3(0.0, 0.0, 0.0)
+    emissive = caustics_color * caustics_final
+
+material FluidFoamMaterial:
+    input foam_texture: Texture2D
+    input foam_color: Vec3 = vec3(1.0, 1.0, 1.0)
+    input foam_scale: Float = 10.0
+    input foam_speed: Float = 0.2
+    input foam_opacity: Float = 0.8
+    input foam_roughness: Float = 0.9
+    
+    let uv = uv_coords()
+    let time_val = time()
+    
+    let foam_uv = uv * foam_scale + vec2(time_val * foam_speed, 0.0)
+    let foam_pattern = texture_sample(foam_texture, foam_uv).r
+    
+    let foam_mask = vertex_color().r
+    let foam_intensity = foam_pattern * foam_mask
+    
+    base_color = foam_color
+    metallic = 0.0
+    specular = 0.1
+    roughness = foam_roughness
+    opacity = foam_intensity * foam_opacity
+    emissive = foam_color * foam_intensity * 0.1
+
+material FluidDepthMaterial:
+    input depth_color_shallow: Vec3 = vec3(0.3, 0.7, 0.9)
+    input depth_color_deep: Vec3 = vec3(0.05, 0.1, 0.3)
+    input max_depth: Float = 10.0
+    input depth_falloff: Float = 2.0
+    
+    let depth = pixel_depth()
+    let depth_normalized = saturate(depth / max_depth)
+    let depth_curved = pow(depth_normalized, depth_falloff)
+    
+    let color = lerp(depth_color_shallow, depth_color_deep, depth_curved)
+    
+    base_color = color
+    metallic = 0.0
+    specular = 0.5
+    roughness = 0.3
+    opacity = 1.0
+
+material FluidRefractionMaterial:
+    input scene_texture: Texture2D
+    input normal_map: Texture2D
+    input refraction_strength: Float = 0.1
+    input chromatic_aberration: Float = 0.01
+    input distortion_scale: Float = 1.0
+    
+    let uv = uv_coords()
+    let time_val = time()
+    
+    let distortion_uv = uv * distortion_scale + vec2(time_val * 0.05, time_val * 0.03)
+    let normal = texture_sample(normal_map, distortion_uv).rgb * 2.0 - 1.0
+    
+    let refraction_offset = normal.xy * refraction_strength
+    
+    let uv_r = uv + refraction_offset * (1.0 + chromatic_aberration)
+    let uv_g = uv + refraction_offset
+    let uv_b = uv + refraction_offset * (1.0 - chromatic_aberration)
+    
+    let color_r = texture_sample(scene_texture, uv_r).r
+    let color_g = texture_sample(scene_texture, uv_g).g
+    let color_b = texture_sample(scene_texture, uv_b).b
+    
+    let refracted_color = vec3(color_r, color_g, color_b)
+    
+    base_color = refracted_color
+    metallic = 0.0
+    specular = 0.5
+    roughness = 0.1
+    opacity = 1.0
+
+material FluidSubsurfaceMaterial:
+    input subsurface_color: Vec3 = vec3(0.2, 0.5, 0.8)
+    input subsurface_radius: Float = 0.5
+    input subsurface_falloff: Float = 2.0
+    input thickness_map: Texture2D
+    input light_direction: Vec3 = vec3(0.0, 0.0, 1.0)
+    
+    let uv = uv_coords()
+    let normal = world_normal()
+    
+    let thickness = texture_sample(thickness_map, uv).r
+    
+    let light_dot = saturate(dot(normal, normalize(light_direction)))
+    let subsurface_factor = pow(1.0 - light_dot, subsurface_falloff) * thickness
+    
+    let subsurface_contribution = subsurface_color * subsurface_factor * subsurface_radius
+    
+    base_color = subsurface_color
+    metallic = 0.0
+    specular = 0.3
+    roughness = 0.5
+    opacity = 1.0
+    emissive = subsurface_contribution
+
+material FluidWavesMaterial:
+    input wave_height: Float = 0.5
+    input wave_frequency: Float = 2.0
+    input wave_speed: Float = 1.0
+    input wave_direction: Vec2 = vec2(1.0, 0.0)
+    input wave_steepness: Float = 0.5
+    
+    let uv = uv_coords()
+    let time_val = time()
+    let world_pos = world_position()
+    
+    let wave_pos = dot(world_pos.xy, wave_direction)
+    let wave_phase = wave_pos * wave_frequency - time_val * wave_speed
+    
+    let wave_offset = sine(wave_phase) * wave_height
+    let wave_derivative = cosine(wave_phase) * wave_height * wave_frequency * wave_steepness
+    
+    let tangent = normalize(vec3(wave_direction.x, wave_direction.y, wave_derivative))
+    let binormal = vec3(-wave_direction.y, wave_direction.x, 0.0)
+    let normal = normalize(cross(tangent, binormal))
+    
+    world_position_offset = vec3(0.0, 0.0, wave_offset)
+    world_normal = normal
+    
+    base_color = vec3(0.1, 0.3, 0.8)
+    metallic = 0.0
+    specular = 0.5
+    roughness = 0.2
+    opacity = 0.9
+
+fn caustics_noise(uv: Vec2) -> Float:
+    let n1 = perlin_noise(uv)
+    let n2 = perlin_noise(uv * 2.0 + vec2(100.0, 100.0))
+    let combined = n1 * 0.6 + n2 * 0.4
+    return pow(combined, 3.0)
+
+fn fresnel_schlick(cos_theta: Float, f0: Float) -> Float:
+    return f0 + (1.0 - f0) * pow(1.0 - cos_theta, 5.0)

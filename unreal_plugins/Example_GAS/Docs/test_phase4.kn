@@ -1,0 +1,51 @@
+# Phase 4 (Gameplay Effects) Test File
+# Tests the complete CLI integration pipeline
+
+@gameplay_tags
+namespace Test:
+    Effect:
+        Burn
+        Heal
+        Shield
+
+@gameplay_effect
+struct BurnEffect:
+    duration_policy: "HasDuration"
+    duration_magnitude: 5.0
+    period: 1.0
+    execute_on_application: true
+    
+    modifiers:
+        - attribute: "Health.Current"
+          operation: "Add"
+          magnitude: -10.0
+    
+    owned_tags: ["Test.Effect.Burn"]
+    granted_tags: ["Status.Burning"]
+
+@gameplay_effect
+struct HealEffect:
+    duration_policy: "Instant"
+    
+    modifiers:
+        - attribute: "Health.Current"
+          operation: "Add"
+          magnitude: 50.0
+    
+    owned_tags: ["Test.Effect.Heal"]
+
+@gameplay_effect
+struct ShieldEffect:
+    duration_policy: "HasDuration"
+    duration_magnitude: 10.0
+    stacking_type: "AggregateByTarget"
+    stacking_limit: 3
+    
+    modifiers:
+        - attribute: "Defense.Armor"
+          operation: "Add"
+          magnitude: 25.0
+    
+    owned_tags: ["Test.Effect.Shield"]
+    application_required_tags: ["Status.Alive"]
+    application_ignored_tags: ["Status.Dead"]

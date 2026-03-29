@@ -1,0 +1,667 @@
+// DialogueForge — Graph Runtime
+// NodeData execution and GraphInstance state management
+
+@graph_runtime
+graph DialogueSystem:
+    @node_data
+    node SpeakerNodeData:
+        speaker_id: String = "npc"
+        dialogue_text: String = "Hello"
+        voice_line_path: String = ""
+        subtitle_text: String = ""
+        emotion: SpeakerEmotion = SpeakerEmotion::Neutral
+        camera_angle: CameraAngle = CameraAngle::MediumShot
+        animation_name: String = ""
+        duration: Float = 3.0
+        is_skippable: Bool = true
+        auto_advance: Bool = false
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        next: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Speaker: {speaker_id} says: {dialogue_text}")
+            return 0
+    
+    @node_data
+    node ChoiceNodeData:
+        speaker_id: String = "player"
+        prompt_text: String = "What do you say?"
+        choice1_text: String = "Option 1"
+        choice1_next_id: Int = -1
+        choice2_text: String = "Option 2"
+        choice2_next_id: Int = -1
+        choice3_text: String = "Option 3"
+        choice3_next_id: Int = -1
+        choice4_text: String = "Option 4"
+        choice4_next_id: Int = -1
+        show_choice1: Bool = true
+        show_choice2: Bool = true
+        show_choice3: Bool = false
+        show_choice4: Bool = false
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        choice1: Exec
+        
+        @output_pin
+        choice2: Exec
+        
+        @output_pin
+        choice3: Exec
+        
+        @output_pin
+        choice4: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Choice: {prompt_text}")
+            if show_choice1:
+                println("  1. {choice1_text}")
+            if show_choice2:
+                println("  2. {choice2_text}")
+            if show_choice3:
+                println("  3. {choice3_text}")
+            if show_choice4:
+                println("  4. {choice4_text}")
+            return 0
+    
+    @node_data
+    node ConditionNodeData:
+        condition_type: ConditionType = ConditionType::VariableEquals
+        target_id: String = "quest_complete"
+        comparison_value: Float = 1.0
+        string_value: String = ""
+        invert: Bool = false
+        required: Bool = true
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        success: Exec
+        
+        @output_pin
+        failure: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            let result = evaluate_condition_runtime(condition_type, target_id, comparison_value, instance)
+            if invert:
+                return if result { 1 } else { 0 }
+            return if result { 0 } else { 1 }
+    
+    @node_data
+    node BranchNodeData:
+        condition1_type: ConditionType = ConditionType::VariableEquals
+        condition1_target: String = ""
+        condition1_value: Float = 0.0
+        condition2_type: ConditionType = ConditionType::VariableEquals
+        condition2_target: String = ""
+        condition2_value: Float = 0.0
+        use_condition2: Bool = false
+        require_all: Bool = true
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        true_branch: Exec
+        
+        @output_pin
+        false_branch: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            let result1 = evaluate_condition_runtime(condition1_type, condition1_target, condition1_value, instance)
+            
+            if !use_condition2:
+                return if result1 { 0 } else { 1 }
+            
+            let result2 = evaluate_condition_runtime(condition2_type, condition2_target, condition2_value, instance)
+            
+            if require_all:
+                return if result1 && result2 { 0 } else { 1 }
+            else:
+                return if result1 || result2 { 0 } else { 1 }
+    
+    @node_data
+    node EventNodeData:
+        event_name: String = "OnDialogueEvent"
+        event_param1: String = ""
+        event_param2: String = ""
+        event_param3: String = ""
+        target_actor_tag: String = ""
+        delay: Float = 0.0
+        broadcast_to_all: Bool = false
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        next: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Event triggered: {event_name}")
+            return 0
+    
+    @node_data
+    node QuestNodeData:
+        quest_id: String = "quest_001"
+        quest_action: String = "Start"
+        quest_objective_id: String = ""
+        update_objective_count: Int = 1
+        show_notification: Bool = true
+        notification_text: String = ""
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        next: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Quest action: {quest_action} for quest {quest_id}")
+            return 0
+    
+    @node_data
+    node RandomNodeData:
+        branch1_weight: Float = 1.0
+        branch2_weight: Float = 1.0
+        branch3_weight: Float = 0.0
+        branch4_weight: Float = 0.0
+        use_branch3: Bool = false
+        use_branch4: Bool = false
+        seed: Int = 0
+        use_random_seed: Bool = true
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        branch1: Exec
+        
+        @output_pin
+        branch2: Exec
+        
+        @output_pin
+        branch3: Exec
+        
+        @output_pin
+        branch4: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            let mut weights = []
+            push(weights, branch1_weight)
+            push(weights, branch2_weight)
+            if use_branch3:
+                push(weights, branch3_weight)
+            if use_branch4:
+                push(weights, branch4_weight)
+            
+            let total = branch1_weight + branch2_weight
+            let rand_val = random_float() * total
+            
+            if rand_val < branch1_weight:
+                return 0
+            else:
+                return 1
+    
+    @node_data
+    node DelayNodeData:
+        duration: Float = 2.0
+        show_timer: Bool = false
+        timer_text: String = "Please wait..."
+        can_skip: Bool = true
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        next: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Delay: {duration} seconds")
+            return 0
+    
+    @node_data
+    node AnimationNodeData:
+        target_speaker_id: String = "npc"
+        animation_name: String = "Wave"
+        blend_in_time: Float = 0.2
+        blend_out_time: Float = 0.2
+        play_rate: Float = 1.0
+        loop: Bool = false
+        start_position: Float = 0.0
+        wait_for_completion: Bool = true
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        next: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Play animation: {animation_name} on {target_speaker_id}")
+            return 0
+    
+    @node_data
+    node CameraNodeData:
+        camera_angle: CameraAngle = CameraAngle::MediumShot
+        blend_time: Float = 1.0
+        target_speaker_id: String = ""
+        offset: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+        fov: Float = 90.0
+        use_custom_transform: Bool = false
+        custom_location: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+        custom_rotation: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        next: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Camera: {camera_angle}")
+            return 0
+    
+    @node_data
+    node SoundNodeData:
+        sound_path: String = "/Game/Audio/Dialogue/Sound_01"
+        volume: Float = 1.0
+        pitch: Float = 1.0
+        start_time: Float = 0.0
+        fade_in_duration: Float = 0.0
+        fade_out_duration: Float = 0.0
+        is_2d: Bool = true
+        attenuation_settings: String = ""
+        wait_for_completion: Bool = false
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        next: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Play sound: {sound_path}")
+            return 0
+    
+    @node_data
+    node VariableNodeData:
+        variable_name: String = "my_variable"
+        variable_value: Float = 1.0
+        operation: String = "Set"
+        increment_amount: Float = 1.0
+        is_persistent: Bool = false
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        next: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Variable: {variable_name} = {variable_value}")
+            return 0
+    
+    @node_data
+    node JumpNodeData:
+        target_node_id: Int = -1
+        target_node_name: String = ""
+        use_node_name: Bool = false
+        
+        @input_pin
+        in_exec: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Jump to node: {target_node_id}")
+            return 0
+    
+    @node_data
+    node EndNodeData:
+        end_reason: String = "Completed"
+        trigger_event: Bool = false
+        event_name: String = "OnDialogueEnd"
+        save_state: Bool = true
+        
+        @input_pin
+        in_exec: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Dialogue ended: {end_reason}")
+            return 0
+    
+    @node_data
+    node StartNodeData:
+        graph_name: String = "New Dialogue"
+        description: String = ""
+        category: String = "General"
+        priority: Int = 0
+        auto_start: Bool = false
+        
+        @output_pin
+        start: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Dialogue started: {graph_name}")
+            return 0
+    
+    @node_data
+    node SkillCheckNodeData:
+        skill_name: String = "Persuasion"
+        difficulty_class: Int = 15
+        stat_name: String = "Charisma"
+        allow_retry: Bool = false
+        show_difficulty: Bool = true
+        critical_success_threshold: Int = 20
+        critical_failure_threshold: Int = 1
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        success: Exec
+        
+        @output_pin
+        failure: Exec
+        
+        @output_pin
+        critical_success: Exec
+        
+        @output_pin
+        critical_failure: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            let roll = random_int_range(1, 20)
+            println("Skill check: {skill_name} DC {difficulty_class}, rolled {roll}")
+            
+            if roll >= critical_success_threshold:
+                return 2
+            else if roll <= critical_failure_threshold:
+                return 3
+            else if roll >= difficulty_class:
+                return 0
+            else:
+                return 1
+    
+    @node_data
+    node SubDialogueNodeData:
+        sub_dialogue_graph_id: String = ""
+        sub_dialogue_graph_path: String = ""
+        pass_variables: Bool = true
+        variables_to_pass: String = ""
+        wait_for_completion: Bool = true
+        return_to_parent: Bool = true
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        on_complete: Exec
+        
+        @output_pin
+        on_failed: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Sub-dialogue: {sub_dialogue_graph_id}")
+            return 0
+    
+    @node_data
+    node ParallelNodeData:
+        branch1_enabled: Bool = true
+        branch2_enabled: Bool = true
+        branch3_enabled: Bool = false
+        branch4_enabled: Bool = false
+        wait_for_all: Bool = false
+        timeout: Float = 0.0
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        branch1: Exec
+        
+        @output_pin
+        branch2: Exec
+        
+        @output_pin
+        branch3: Exec
+        
+        @output_pin
+        branch4: Exec
+        
+        @output_pin
+        on_complete: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Parallel execution started")
+            return 0
+    
+    @node_data
+    node InventoryCheckNodeData:
+        item_id: String = "item_key"
+        required_count: Int = 1
+        consume_item: Bool = false
+        show_in_ui: Bool = true
+        failure_message: String = "You don't have the required item."
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        has_item: Exec
+        
+        @output_pin
+        no_item: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Inventory check: {item_id}")
+            return 0
+    
+    @node_data
+    node ReputationCheckNodeData:
+        faction_id: String = "faction_guards"
+        min_reputation: Int = 50
+        max_reputation: Int = 100
+        show_in_ui: Bool = true
+        failure_message: String = "Your reputation is too low."
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        pass: Exec
+        
+        @output_pin
+        fail: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Reputation check: {faction_id}")
+            return 0
+    
+    @node_data
+    node TimeCheckNodeData:
+        min_hour: Int = 0
+        max_hour: Int = 24
+        required_day_of_week: Int = -1
+        required_weather: String = ""
+        invert_check: Bool = false
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        pass: Exec
+        
+        @output_pin
+        fail: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Time check: {min_hour}-{max_hour}")
+            return 0
+    
+    @node_data
+    node GiveItemNodeData:
+        item_id: String = "item_reward"
+        item_count: Int = 1
+        show_notification: Bool = true
+        notification_text: String = "You received an item!"
+        add_to_inventory: Bool = true
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        next: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Give item: {item_id} x{item_count}")
+            return 0
+    
+    @node_data
+    node GiveXPNodeData:
+        xp_amount: Int = 100
+        skill_name: String = ""
+        show_notification: Bool = true
+        notification_text: String = "You gained experience!"
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        next: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Give XP: {xp_amount}")
+            return 0
+    
+    @node_data
+    node ModifyReputationNodeData:
+        faction_id: String = "faction_guards"
+        reputation_change: Int = 10
+        show_notification: Bool = true
+        notification_text: String = ""
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        next: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Modify reputation: {faction_id} by {reputation_change}")
+            return 0
+    
+    @node_data
+    node TeleportNodeData:
+        target_location_name: String = ""
+        target_location: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+        target_rotation: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+        fade_out: Bool = true
+        fade_in: Bool = true
+        fade_duration: Float = 1.0
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        next: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Teleport to: {target_location_name}")
+            return 0
+    
+    @node_data
+    node SpawnActorNodeData:
+        actor_class_name: String = ""
+        spawn_location: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+        spawn_rotation: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+        attach_to_speaker: Bool = false
+        speaker_id: String = ""
+        socket_name: String = ""
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        next: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Spawn actor: {actor_class_name}")
+            return 0
+    
+    @node_data
+    node DestroyActorNodeData:
+        target_actor_tag: String = ""
+        target_speaker_id: String = ""
+        destroy_delay: Float = 0.0
+        play_destroy_effect: Bool = false
+        destroy_effect_path: String = ""
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        next: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Destroy actor: {target_actor_tag}")
+            return 0
+    
+    @node_data
+    node SetFlagNodeData:
+        flag_name: String = "flag_met_npc"
+        flag_value: Bool = true
+        is_persistent: Bool = true
+        category: String = "General"
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        next: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Set flag: {flag_name} = {flag_value}")
+            return 0
+    
+    @node_data
+    node CheckFlagNodeData:
+        flag_name: String = "flag_met_npc"
+        expected_value: Bool = true
+        invert_check: Bool = false
+        
+        @input_pin
+        in_exec: Exec
+        
+        @output_pin
+        true_branch: Exec
+        
+        @output_pin
+        false_branch: Exec
+        
+        fn execute_node(instance: GraphInstance) -> Int:
+            println("Check flag: {flag_name}")
+            return 0
+
+fn evaluate_condition_runtime(cond_type: ConditionType, target: String, value: Float, instance: GraphInstance) -> Bool:
+    match cond_type:
+        ConditionType::VariableEquals =>
+            return true
+        ConditionType::VariableGreater =>
+            return true
+        ConditionType::VariableLess =>
+            return true
+        _ =>
+            return true
+
+fn random_int_range(min: Int, max: Int) -> Int:
+    let range = max - min + 1
+    return min + (random_float() * (range as Float)) as Int
+
+fn random_float() -> Float:
+    return 0.5

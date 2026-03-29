@@ -75,3 +75,19 @@ target_selfhost_probe/**
 # Third-party vendored deps
 third_party/
 third_party/modular_mojo/
+
+# Materialized app outputs and runtime-state sidecars
+/apps/*/generated/
+/apps/*/state/
+/apps/*/native-app/target/
+/apps/*/native-app/generated/
+/apps/*/native-app/state/
+/apps/*/native-app/*.exe
+/apps/*/native-app/*.dll
+/apps/*/native-app/*.pdb
+/apps/*/native-app/main.generated.kn
+/apps/*/native-app/kain_realtime_app_bundle.json
+/apps/*/native-app/kain_reflection_payload.json
+/apps/*/native-app/kain_runtime_compatibility.json
+/apps/*/native-app/kain_runtime_contract.json
+/apps/*/native-app/kain_runtime_version.json

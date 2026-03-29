@@ -1,0 +1,74 @@
+[package]
+name = "StdlibShowcase"
+version = "1.0.0"
+authors = ["Zentako"]
+description = "KAIN stdlib stress-test plugin — exercises every stdlib category (actor, world, gameplay, math, utilities, materials, particles, skeletal_mesh) in a single production UE5 plugin"
+
+[build]
+entry = "Kain/types.kn"
+target = "ue5"
+
+[ue5]
+plugin_name = "StdlibShowcase"
+plugin_dir = ""
+engine_version = "5.4"
+modular_output = true
+
+# All source files ordered by dependency: types → components → actors → subsystem → diagnostics → editor
+sources = [
+    "Kain/types.kn",
+    "Kain/components.kn",
+    "Kain/actors.kn",
+    "Kain/subsystem.kn",
+    "Kain/diagnostics.kn",
+    "Kain/editor.kn",
+]
+
+# Runtime module — core gameplay logic
+[[ue5.modules]]
+name = "StdlibShowcase"
+type = "Runtime"
+loading_phase = "Default"
+source_globs = [
+    "Kain/types.kn",
+    "Kain/components.kn",
+    "Kain/actors.kn",
+    "Kain/subsystem.kn",
+    "Kain/diagnostics.kn",
+]
+public_deps = [
+    "Core",
+    "CoreUObject",
+    "Engine",
+    "InputCore",
+    "RenderCore",
+    "RHI",
+    "Niagara",
+    "GameplayTags",
+    "DeveloperSettings",
+    "NetCore",
+]
+
+# Editor module — diagnostic UI and toolbar
+[[ue5.modules]]
+name = "StdlibShowcaseEditor"
+type = "Editor"
+loading_phase = "PostEngineInit"
+depends_on = ["StdlibShowcase"]
+source_globs = [
+    "Kain/editor.kn",
+]
+public_deps = [
+    "Core",
+    "CoreUObject",
+    "Engine",
+    "UnrealEd",
+    "Slate",
+    "SlateCore",
+    "InputCore",
+    "EditorStyle",
+    "PropertyEditor",
+    "LevelEditor",
+    "ToolMenus",
+    "WorkspaceMenuStructure",
+]

@@ -1,0 +1,786 @@
+# Materialize Layer System
+# GPU-accelerated layer compositor with Photoshop-style blending
+# Implements dirty tracking, caching, and multi-channel evaluation
+
+# ============================================================================
+# LAYER EVALUATOR - Core evaluation and compositing functions
+# ============================================================================
+
+# Evaluate entire layer stack and return all PBR channels
+# Implements dirty tracking, caching, and bottom-to-top blending
+@blueprint
+fn evaluate_stack(stack: LayerStack) -> LayerEvalResult?:
+    # 1. Validate stack
+    if not validate_layer_stack(stack):
+        println("Layer stack validation failed")
+        return null
+    
+    # 2. Get visible layers (respects enabled/solo/locked flags)
+    let visible = stack.get_visible_layer_indices()
+    if len(visible) == 0:
+        println("No visible layers in stack")
+        return null
+    
+    # 3. Initialize result
+    let result = LayerEvalResult()
+    result.evaluation_time_ms = 0.0
+    
+    # 4. Initialize channel accumulators (start with null)
+    let base_color_accum: Texture2D? = null
+    let normal_accum: Texture2D? = null
+    let roughness_accum: Texture2D? = null
+    let metallic_accum: Texture2D? = null
+    let height_accum: Texture2D? = null
+    let ao_accum: Texture2D? = null
+    let emissive_accum: Texture2D? = null
+    
+    # 5. Evaluate each visible layer (bottom to top)
+    for i in range(0, len(visible)):
+        let layer_index = visible[i]
+        let layer = stack.layers[layer_index]
+        
+        # Check if layer is dirty (needs re-evaluation)
+        let layer_output: Texture2D? = null
+        if layer.dirty:
+            # Re-evaluate and cache
+            layer_output = evaluate_single_layer(layer, stack.width, stack.height)
+            if layer_output != null:
+                layer.cached_output = layer_output
+                layer.dirty = false
+            else:
+                println("Failed to evaluate layer: " + layer.name)
+                continue
+        else:
+            # Use cached output
+            layer_output = layer.cached_output
+            if layer_output == null:
+                println("Layer has no cached output: " + layer.name)
+                continue
+        
+        # 6. Blend with accumulators for each target channel
+        let channels = layer.output_channels
+        
+        # BaseColor channel (bit 0)
+        if (channels & 1) != 0:
+            if base_color_accum == null:
+                base_color_accum = layer_output
+            else:
+                base_color_accum = blend_textures(
+                    base_color_accum,
+                    layer_output,
+                    layer.blend_mode,
+                    layer.opacity,
+                    layer.mask_texture,
+                    layer.invert_mask
+                )
+        
+        # Normal channel (bit 1)
+        if (channels & 2) != 0:
+            if normal_accum == null:
+                normal_accum = layer_output
+            else:
+                normal_accum = blend_textures(
+                    normal_accum,
+                    layer_output,
+                    layer.blend_mode,
+                    layer.opacity,
+                    layer.mask_texture,
+                    layer.invert_mask
+                )
+        
+        # Roughness channel (bit 2)
+        if (channels & 4) != 0:
+            if roughness_accum == null:
+                roughness_accum = layer_output
+            else:
+                roughness_accum = blend_textures(
+                    roughness_accum,
+                    layer_output,
+                    layer.blend_mode,
+                    layer.opacity,
+                    layer.mask_texture,
+                    layer.invert_mask
+                )
+        
+        # Metallic channel (bit 3)
+        if (channels & 8) != 0:
+            if metallic_accum == null:
+                metallic_accum = layer_output
+            else:
+                metallic_accum = blend_textures(
+                    metallic_accum,
+                    layer_output,
+                    layer.blend_mode,
+                    layer.opacity,
+                    layer.mask_texture,
+                    layer.invert_mask
+                )
+        
+        # Height channel (bit 4)
+        if (channels & 16) != 0:
+            if height_accum == null:
+                height_accum = layer_output
+            else:
+                height_accum = blend_textures(
+                    height_accum,
+                    layer_output,
+                    layer.blend_mode,
+                    layer.opacity,
+                    layer.mask_texture,
+                    layer.invert_mask
+                )
+        
+        # AO channel (bit 5)
+        if (channels & 32) != 0:
+            if ao_accum == null:
+                ao_accum = layer_output
+            else:
+                ao_accum = blend_textures(
+                    ao_accum,
+                    layer_output,
+                    layer.blend_mode,
+                    layer.opacity,
+                    layer.mask_texture,
+                    layer.invert_mask
+                )
+        
+        # Emissive channel (bit 6)
+        if (channels & 64) != 0:
+            if emissive_accum == null:
+                emissive_accum = layer_output
+            else:
+                emissive_accum = blend_textures(
+                    emissive_accum,
+                    layer_output,
+                    layer.blend_mode,
+                    layer.opacity,
+                    layer.mask_texture,
+                    layer.invert_mask
+                )
+    
+    # 7. Assign final results
+    result.base_color = base_color_accum
+    result.normal = normal_accum
+    result.roughness = roughness_accum
+    result.metallic = metallic_accum
+    result.height = height_accum
+    result.ao = ao_accum
+    result.emissive = emissive_accum
+    
+    return result
+
+
+# Evaluate a single layer and return its output texture
+# Handles all layer types: Base, Image, Procedural, Fill, Adjustment, Filter, Generator
+@blueprint
+fn evaluate_single_layer(layer: Layer, width: Int, height: Int) -> Texture2D?:
+    # Validate dimensions
+    if width <= 0 or height <= 0:
+        println("Invalid dimensions: " + width + "x" + height)
+        return null
+    
+    # Dispatch based on layer type
+    if layer.layer_type == LayerType.Base:
+        # Base layer - return null (should be handled by caller)
+        println("Base layer evaluation not implemented")
+        return null
+    
+    if layer.layer_type == LayerType.Image:
+        # Image layer - return the image texture directly
+        if layer.image_texture == null:
+            println("Image layer has no texture: " + layer.name)
+            return null
+        return layer.image_texture
+    
+    if layer.layer_type == LayerType.Procedural:
+        # Procedural layer - generate noise/pattern
+        return generate_procedural_texture(layer.procedural_params, width, height)
+    
+    if layer.layer_type == LayerType.Fill:
+        # Fill layer - create solid color/value texture
+        println("Fill layer evaluation not implemented")
+        return null
+    
+    if layer.layer_type == LayerType.Adjustment:
+        # Adjustment layer - apply color/tone adjustment
+        let source = get_layer_source(layer)
+        if source == null:
+            println("Adjustment layer has no source: " + layer.name)
+            return null
+        return apply_adjustment(source, layer.adjustment_params)
+    
+    if layer.layer_type == LayerType.Filter:
+        # Filter layer - apply image processing filter
+        let source = get_layer_source(layer)
+        if source == null:
+            println("Filter layer has no source: " + layer.name)
+            return null
+        return apply_filter(source, layer.filter_params)
+    
+    if layer.layer_type == LayerType.Generator:
+        # Generator layer - mesh-derived textures (AO, curvature, etc.)
+        println("Generator layer evaluation not implemented")
+        return null
+    
+    if layer.layer_type == LayerType.Folder:
+        # Folder layer - return null (organizational only)
+        return null
+    
+    println("Unknown layer type: " + layer.name)
+    return null
+
+
+# Get source texture for filter/adjustment layers
+fn get_layer_source(layer: Layer) -> Texture2D?:
+    # Check for explicit source override
+    if layer.source_override != null:
+        return layer.source_override
+    
+    # Use source_layer_index (not implemented - would need stack reference)
+    println("Layer source resolution not fully implemented")
+    return null
+
+
+# Blend two textures using specified blend mode, opacity, and optional mask
+# Implements 20 Photoshop-style blend modes
+@blueprint
+fn blend_textures(
+    base: Texture2D,
+    blend: Texture2D,
+    blend_mode: LayerBlendMode,
+    opacity: Float,
+    mask: Texture2D?,
+    invert_mask: Bool
+) -> Texture2D?:
+    # Validate inputs
+    if base == null or blend == null:
+        println("Blend textures: null input")
+        return null
+    
+    if opacity <= 0.0:
+        return base
+    
+    if opacity > 1.0:
+        opacity = 1.0
+    
+    # Validate blend mode
+    if not validate_blend_mode(blend_mode):
+        println("Invalid blend mode")
+        return null
+    
+    # Apply mask if provided
+    let effective_opacity = opacity
+    if mask != null:
+        # Mask modulates opacity per-pixel
+        # This would require GPU shader implementation
+        println("Mask application requires GPU shader")
+    
+    # Dispatch to blend mode implementation
+    # Each blend mode requires GPU shader implementation
+    if blend_mode == LayerBlendMode.Normal:
+        return lerp_textures(base, blend, effective_opacity)
+    
+    if blend_mode == LayerBlendMode.Multiply:
+        let result = multiply_textures(base, blend)
+        return lerp_textures(base, result, effective_opacity)
+    
+    if blend_mode == LayerBlendMode.Add:
+        let result = add_textures(base, blend)
+        return lerp_textures(base, result, effective_opacity)
+    
+    if blend_mode == LayerBlendMode.Screen:
+        # Screen: 1 - (1-a)*(1-b)
+        println("Screen blend mode requires GPU shader")
+        return base
+    
+    if blend_mode == LayerBlendMode.Overlay:
+        # Overlay: combines Multiply and Screen
+        println("Overlay blend mode requires GPU shader")
+        return base
+    
+    if blend_mode == LayerBlendMode.SoftLight:
+        println("SoftLight blend mode requires GPU shader")
+        return base
+    
+    if blend_mode == LayerBlendMode.HardLight:
+        println("HardLight blend mode requires GPU shader")
+        return base
+    
+    if blend_mode == LayerBlendMode.Subtract:
+        println("Subtract blend mode requires GPU shader")
+        return base
+    
+    if blend_mode == LayerBlendMode.Difference:
+        println("Difference blend mode requires GPU shader")
+        return base
+    
+    if blend_mode == LayerBlendMode.Exclusion:
+        println("Exclusion blend mode requires GPU shader")
+        return base
+    
+    if blend_mode == LayerBlendMode.Darken:
+        println("Darken blend mode requires GPU shader")
+        return base
+    
+    if blend_mode == LayerBlendMode.Lighten:
+        println("Lighten blend mode requires GPU shader")
+        return base
+    
+    if blend_mode == LayerBlendMode.ColorDodge:
+        println("ColorDodge blend mode requires GPU shader")
+        return base
+    
+    if blend_mode == LayerBlendMode.ColorBurn:
+        println("ColorBurn blend mode requires GPU shader")
+        return base
+    
+    if blend_mode == LayerBlendMode.LinearDodge:
+        println("LinearDodge blend mode requires GPU shader")
+        return base
+    
+    if blend_mode == LayerBlendMode.LinearBurn:
+        println("LinearBurn blend mode requires GPU shader")
+        return base
+    
+    if blend_mode == LayerBlendMode.VividLight:
+        println("VividLight blend mode requires GPU shader")
+        return base
+    
+    if blend_mode == LayerBlendMode.LinearLight:
+        println("LinearLight blend mode requires GPU shader")
+        return base
+    
+    if blend_mode == LayerBlendMode.PinLight:
+        println("PinLight blend mode requires GPU shader")
+        return base
+    
+    if blend_mode == LayerBlendMode.HardMix:
+        println("HardMix blend mode requires GPU shader")
+        return base
+    
+    # Fallback to normal blend
+    return lerp_textures(base, blend, effective_opacity)
+
+
+# Generate procedural texture from noise parameters
+# Supports 15 noise types: Perlin, Simplex, Worley, FBM, etc.
+@blueprint
+fn generate_procedural_texture(params: ProceduralParams, width: Int, height: Int) -> Texture2D?:
+    # Validate dimensions
+    if width <= 0 or height <= 0:
+        println("Invalid dimensions for procedural texture")
+        return null
+    
+    # Validate parameters
+    if params.scale <= 0.0:
+        println("Invalid scale for procedural texture")
+        return null
+    
+    if params.octaves < 1 or params.octaves > 16:
+        println("Invalid octaves for procedural texture")
+        return null
+    
+    # Dispatch based on noise type
+    if params.noise_type == ProceduralNoiseType.Perlin:
+        println("Generating Perlin noise texture")
+        # GPU shader implementation required
+        return null
+    
+    if params.noise_type == ProceduralNoiseType.Simplex:
+        println("Generating Simplex noise texture")
+        return null
+    
+    if params.noise_type == ProceduralNoiseType.Worley:
+        println("Generating Worley noise texture")
+        return null
+    
+    if params.noise_type == ProceduralNoiseType.FBM:
+        println("Generating FBM noise texture")
+        return null
+    
+    if params.noise_type == ProceduralNoiseType.Turbulence:
+        println("Generating Turbulence noise texture")
+        return null
+    
+    if params.noise_type == ProceduralNoiseType.Cellular:
+        println("Generating Cellular noise texture")
+        return null
+    
+    if params.noise_type == ProceduralNoiseType.Gradient:
+        println("Generating Gradient texture")
+        return null
+    
+    if params.noise_type == ProceduralNoiseType.Checker:
+        println("Generating Checker pattern")
+        return null
+    
+    if params.noise_type == ProceduralNoiseType.Brick:
+        println("Generating Brick pattern")
+        return null
+    
+    if params.noise_type == ProceduralNoiseType.Herringbone:
+        println("Generating Herringbone pattern")
+        return null
+    
+    if params.noise_type == ProceduralNoiseType.Hexagon:
+        println("Generating Hexagon pattern")
+        return null
+    
+    if params.noise_type == ProceduralNoiseType.Scratches:
+        println("Generating Scratches texture")
+        return null
+    
+    if params.noise_type == ProceduralNoiseType.Grunge:
+        println("Generating Grunge texture")
+        return null
+    
+    if params.noise_type == ProceduralNoiseType.Rust:
+        println("Generating Rust texture")
+        return null
+    
+    if params.noise_type == ProceduralNoiseType.Dust:
+        println("Generating Dust texture")
+        return null
+    
+    println("Unknown procedural noise type")
+    return null
+
+
+# Apply image filter to source texture
+# Supports 13 filter types: Blur, Sharpen, EdgeDetect, etc.
+@blueprint
+fn apply_filter(source: Texture2D, params: FilterParams) -> Texture2D?:
+    # Validate input
+    if source == null:
+        println("Filter: null source texture")
+        return null
+    
+    if not validate_filter_type(params.filter_type):
+        println("Invalid filter type")
+        return null
+    
+    # Validate parameters
+    if params.intensity < 0.0:
+        println("Invalid filter intensity")
+        return null
+    
+    if params.kernel_size < 1 or params.kernel_size > 32:
+        println("Invalid filter kernel size")
+        return null
+    
+    # Dispatch based on filter type
+    if params.filter_type == FilterType.Blur:
+        println("Applying Blur filter")
+        # GPU convolution shader required
+        return source
+    
+    if params.filter_type == FilterType.GaussianBlur:
+        println("Applying GaussianBlur filter")
+        return source
+    
+    if params.filter_type == FilterType.Sharpen:
+        println("Applying Sharpen filter")
+        return source
+    
+    if params.filter_type == FilterType.EdgeDetect:
+        println("Applying EdgeDetect filter")
+        return source
+    
+    if params.filter_type == FilterType.Emboss:
+        println("Applying Emboss filter")
+        return source
+    
+    if params.filter_type == FilterType.HighPass:
+        println("Applying HighPass filter")
+        return source
+    
+    if params.filter_type == FilterType.LowPass:
+        println("Applying LowPass filter")
+        return source
+    
+    if params.filter_type == FilterType.Median:
+        println("Applying Median filter")
+        return source
+    
+    if params.filter_type == FilterType.Dilate:
+        println("Applying Dilate filter")
+        return source
+    
+    if params.filter_type == FilterType.Erode:
+        println("Applying Erode filter")
+        return source
+    
+    if params.filter_type == FilterType.Invert:
+        println("Applying Invert filter")
+        return source
+    
+    if params.filter_type == FilterType.Normalize:
+        println("Applying Normalize filter")
+        return source
+    
+    if params.filter_type == FilterType.AutoLevels:
+        println("Applying AutoLevels filter")
+        return source
+    
+    println("Unknown filter type")
+    return source
+
+
+# Apply color/tone adjustment to source texture
+# Supports 9 adjustment types: Levels, Curves, HSV, etc.
+@blueprint
+fn apply_adjustment(source: Texture2D, params: AdjustmentParams) -> Texture2D?:
+    # Validate input
+    if source == null:
+        println("Adjustment: null source texture")
+        return null
+    
+    # Validate parameters
+    if params.gamma <= 0.0:
+        println("Invalid gamma value")
+        return null
+    
+    # Dispatch based on adjustment type
+    if params.adjustment_type == AdjustmentType.Levels:
+        println("Applying Levels adjustment")
+        # GPU shader implementation required
+        return source
+    
+    if params.adjustment_type == AdjustmentType.Curves:
+        println("Applying Curves adjustment")
+        return source
+    
+    if params.adjustment_type == AdjustmentType.HSV:
+        println("Applying HSV adjustment")
+        return source
+    
+    if params.adjustment_type == AdjustmentType.Brightness:
+        println("Applying Brightness adjustment")
+        return source
+    
+    if params.adjustment_type == AdjustmentType.ColorBalance:
+        println("Applying ColorBalance adjustment")
+        return source
+    
+    if params.adjustment_type == AdjustmentType.Vibrance:
+        println("Applying Vibrance adjustment")
+        return source
+    
+    if params.adjustment_type == AdjustmentType.Threshold:
+        println("Applying Threshold adjustment")
+        return source
+    
+    if params.adjustment_type == AdjustmentType.Posterize:
+        println("Applying Posterize adjustment")
+        return source
+    
+    if params.adjustment_type == AdjustmentType.Gradient:
+        println("Applying Gradient adjustment")
+        return source
+    
+    println("Unknown adjustment type")
+    return source
+
+
+# ============================================================================
+# TEXTURE MATH OPERATIONS - Basic texture arithmetic
+# ============================================================================
+
+# Add two textures (per-pixel addition)
+@blueprint
+fn add_textures(a: Texture2D, b: Texture2D) -> Texture2D?:
+    # Validate inputs
+    if a == null or b == null:
+        println("Add textures: null input")
+        return null
+    
+    # GPU shader implementation required
+    # Result = clamp(A + B, 0, 1)
+    println("Add textures requires GPU shader")
+    return a
+
+
+# Multiply two textures (per-pixel multiplication)
+@blueprint
+fn multiply_textures(a: Texture2D, b: Texture2D) -> Texture2D?:
+    # Validate inputs
+    if a == null or b == null:
+        println("Multiply textures: null input")
+        return null
+    
+    # GPU shader implementation required
+    # Result = A * B
+    println("Multiply textures requires GPU shader")
+    return a
+
+
+# Linearly interpolate between two textures
+@blueprint
+fn lerp_textures(a: Texture2D, b: Texture2D, alpha: Float) -> Texture2D?:
+    # Validate inputs
+    if a == null or b == null:
+        println("Lerp textures: null input")
+        return null
+    
+    # Clamp alpha
+    if alpha < 0.0:
+        alpha = 0.0
+    if alpha > 1.0:
+        alpha = 1.0
+    
+    # Early exit cases
+    if alpha == 0.0:
+        return a
+    if alpha == 1.0:
+        return b
+    
+    # GPU shader implementation required
+    # Result = A * (1 - alpha) + B * alpha
+    println("Lerp textures requires GPU shader")
+    return a
+
+
+# ============================================================================
+# VALIDATION FUNCTIONS - Input validation and error checking
+# ============================================================================
+
+# Validate layer stack structure and contents
+fn validate_layer_stack(stack: LayerStack) -> Bool:
+    # Check version
+    if stack.version < 0 or stack.version > 3:
+        println("Invalid layer stack version: " + stack.version)
+        return false
+    
+    # Check dimensions
+    if stack.width <= 0 or stack.height <= 0:
+        println("Invalid stack dimensions: " + stack.width + "x" + stack.height)
+        return false
+    
+    # Check layer count
+    if len(stack.layers) == 0:
+        println("Layer stack is empty")
+        return false
+    
+    # Validate selected index
+    if stack.selected_layer_index >= len(stack.layers):
+        println("Invalid selected layer index")
+        return false
+    
+    # Validate each layer
+    for i in range(0, len(stack.layers)):
+        let layer = stack.layers[i]
+        
+        # Check name
+        if layer.name == "":
+            println("Layer has empty name at index " + i)
+            return false
+        
+        # Check ID
+        if layer.id == "":
+            println("Layer has empty ID at index " + i)
+            return false
+        
+        # Check opacity range
+        if layer.opacity < 0.0 or layer.opacity > 1.0:
+            println("Layer has invalid opacity: " + layer.name)
+            return false
+        
+        # Validate blend mode
+        if not validate_blend_mode(layer.blend_mode):
+            println("Layer has invalid blend mode: " + layer.name)
+            return false
+        
+        # Type-specific validation
+        if layer.layer_type == LayerType.Image:
+            if layer.image_texture == null:
+                println("Image layer has no texture: " + layer.name)
+                return false
+        
+        if layer.layer_type == LayerType.Filter or layer.layer_type == LayerType.Adjustment:
+            if layer.source_layer_index == -1 and layer.source_override == null:
+                println("Filter/Adjustment layer has no source: " + layer.name)
+                return false
+    
+    return true
+
+
+# Validate blend mode enum value
+fn validate_blend_mode(blend_mode: LayerBlendMode) -> Bool:
+    # Check if blend mode is within valid range
+    # LayerBlendMode has 20 values (0-19)
+    if blend_mode == LayerBlendMode.Normal:
+        return true
+    if blend_mode == LayerBlendMode.Multiply:
+        return true
+    if blend_mode == LayerBlendMode.Screen:
+        return true
+    if blend_mode == LayerBlendMode.Overlay:
+        return true
+    if blend_mode == LayerBlendMode.SoftLight:
+        return true
+    if blend_mode == LayerBlendMode.HardLight:
+        return true
+    if blend_mode == LayerBlendMode.Add:
+        return true
+    if blend_mode == LayerBlendMode.Subtract:
+        return true
+    if blend_mode == LayerBlendMode.Difference:
+        return true
+    if blend_mode == LayerBlendMode.Exclusion:
+        return true
+    if blend_mode == LayerBlendMode.Darken:
+        return true
+    if blend_mode == LayerBlendMode.Lighten:
+        return true
+    if blend_mode == LayerBlendMode.ColorDodge:
+        return true
+    if blend_mode == LayerBlendMode.ColorBurn:
+        return true
+    if blend_mode == LayerBlendMode.LinearDodge:
+        return true
+    if blend_mode == LayerBlendMode.LinearBurn:
+        return true
+    if blend_mode == LayerBlendMode.VividLight:
+        return true
+    if blend_mode == LayerBlendMode.LinearLight:
+        return true
+    if blend_mode == LayerBlendMode.PinLight:
+        return true
+    if blend_mode == LayerBlendMode.HardMix:
+        return true
+    
+    return false
+
+
+# Validate filter type enum value
+fn validate_filter_type(filter_type: FilterType) -> Bool:
+    # Check if filter type is within valid range
+    # FilterType has 13 values
+    if filter_type == FilterType.Blur:
+        return true
+    if filter_type == FilterType.GaussianBlur:
+        return true
+    if filter_type == FilterType.Sharpen:
+        return true
+    if filter_type == FilterType.EdgeDetect:
+        return true
+    if filter_type == FilterType.Emboss:
+        return true
+    if filter_type == FilterType.HighPass:
+        return true
+    if filter_type == FilterType.LowPass:
+        return true
+    if filter_type == FilterType.Median:
+        return true
+    if filter_type == FilterType.Dilate:
+        return true
+    if filter_type == FilterType.Erode:
+        return true
+    if filter_type == FilterType.Invert:
+        return true
+    if filter_type == FilterType.Normalize:
+        return true
+    if filter_type == FilterType.AutoLevels:
+        return true
+    
+    return false

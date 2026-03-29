@@ -1,0 +1,310 @@
+# ============================================================================
+# METAFITTER - Preset Library
+# ============================================================================
+# Pre-configured clothing presets for common clothing types
+# Blueprint-callable functions for preset management
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: PRESET LOOKUP FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn get_physics_params_for_type(clothing_type: ClothingType) -> ClothPhysicsParams:
+    let params = ClothPhysicsParams()
+    
+    match clothing_type:
+        ClothingType::Shirt =>
+            params.stiffness = 0.3
+            params.damping = 0.4
+            params.drag = 0.15
+            params.friction = 0.3
+            params.gravity_scale = 1.0
+            params.wind_scale = 0.8
+            params.mass_per_unit_area = 0.05
+            params.collision_thickness = 1.0
+            params.self_collision_enabled = true
+            params.self_collision_radius = 0.5
+            params.max_distance = 50.0
+            params.backstop_distance = 5.0
+            params.backstop_radius = 3.0
+        ClothingType::Pants =>
+            params.stiffness = 0.5
+            params.damping = 0.5
+            params.drag = 0.1
+            params.friction = 0.4
+            params.gravity_scale = 1.0
+            params.wind_scale = 0.3
+            params.mass_per_unit_area = 0.08
+            params.collision_thickness = 1.2
+            params.self_collision_enabled = true
+            params.self_collision_radius = 0.6
+            params.max_distance = 30.0
+            params.backstop_distance = 4.0
+            params.backstop_radius = 2.5
+        ClothingType::Dress =>
+            params.stiffness = 0.15
+            params.damping = 0.3
+            params.drag = 0.25
+            params.friction = 0.2
+            params.gravity_scale = 1.2
+            params.wind_scale = 1.5
+            params.mass_per_unit_area = 0.04
+            params.collision_thickness = 0.8
+            params.self_collision_enabled = true
+            params.self_collision_radius = 0.4
+            params.max_distance = 80.0
+            params.backstop_distance = 6.0
+            params.backstop_radius = 4.0
+        ClothingType::Jacket =>
+            params.stiffness = 0.7
+            params.damping = 0.6
+            params.drag = 0.08
+            params.friction = 0.5
+            params.gravity_scale = 1.0
+            params.wind_scale = 0.2
+            params.mass_per_unit_area = 0.15
+            params.collision_thickness = 2.0
+            params.self_collision_enabled = false
+            params.self_collision_radius = 0.0
+            params.max_distance = 20.0
+            params.backstop_distance = 3.0
+            params.backstop_radius = 2.0
+        ClothingType::Skirt =>
+            params.stiffness = 0.2
+            params.damping = 0.3
+            params.drag = 0.2
+            params.friction = 0.25
+            params.gravity_scale = 1.1
+            params.wind_scale = 1.2
+            params.mass_per_unit_area = 0.05
+            params.collision_thickness = 0.8
+            params.self_collision_enabled = true
+            params.self_collision_radius = 0.5
+            params.max_distance = 70.0
+            params.backstop_distance = 5.0
+            params.backstop_radius = 3.5
+        ClothingType::Vest =>
+            params.stiffness = 0.6
+            params.damping = 0.5
+            params.drag = 0.1
+            params.friction = 0.4
+            params.gravity_scale = 1.0
+            params.wind_scale = 0.3
+            params.mass_per_unit_area = 0.1
+            params.collision_thickness = 1.5
+            params.self_collision_enabled = false
+            params.self_collision_radius = 0.0
+            params.max_distance = 25.0
+            params.backstop_distance = 3.0
+            params.backstop_radius = 2.0
+        ClothingType::Hoodie =>
+            params.stiffness = 0.4
+            params.damping = 0.45
+            params.drag = 0.12
+            params.friction = 0.35
+            params.gravity_scale = 1.0
+            params.wind_scale = 0.5
+            params.mass_per_unit_area = 0.1
+            params.collision_thickness = 1.5
+            params.self_collision_enabled = true
+            params.self_collision_radius = 0.6
+            params.max_distance = 35.0
+            params.backstop_distance = 4.0
+            params.backstop_radius = 3.0
+        ClothingType::Coat =>
+            params.stiffness = 0.8
+            params.damping = 0.7
+            params.drag = 0.06
+            params.friction = 0.6
+            params.gravity_scale = 1.0
+            params.wind_scale = 0.15
+            params.mass_per_unit_area = 0.2
+            params.collision_thickness = 2.5
+            params.self_collision_enabled = false
+            params.self_collision_radius = 0.0
+            params.max_distance = 15.0
+            params.backstop_distance = 2.0
+            params.backstop_radius = 1.5
+        ClothingType::Scarf =>
+            params.stiffness = 0.1
+            params.damping = 0.2
+            params.drag = 0.3
+            params.friction = 0.15
+            params.gravity_scale = 1.3
+            params.wind_scale = 2.0
+            params.mass_per_unit_area = 0.03
+            params.collision_thickness = 0.5
+            params.self_collision_enabled = true
+            params.self_collision_radius = 0.3
+            params.max_distance = 100.0
+            params.backstop_distance = 8.0
+            params.backstop_radius = 5.0
+        _ =>
+            params.stiffness = 0.4
+            params.damping = 0.4
+            params.drag = 0.1
+            params.friction = 0.3
+            params.gravity_scale = 1.0
+            params.wind_scale = 0.5
+            params.mass_per_unit_area = 0.08
+            params.collision_thickness = 1.0
+            params.self_collision_enabled = true
+            params.self_collision_radius = 0.5
+            params.max_distance = 40.0
+            params.backstop_distance = 5.0
+            params.backstop_radius = 3.0
+    
+    return params
+
+@blueprint
+fn get_default_layer_config(clothing_type: ClothingType) -> LayerConfig:
+    let config = LayerConfig()
+    
+    match clothing_type:
+        ClothingType::Underwear =>
+            config.slot = LayerSlot::Underwear
+            config.order = 0
+            config.offset = 0.0
+            config.collision_offset = 0.0
+            config.hidden_face_map_enabled = true
+        ClothingType::Shirt =>
+            config.slot = LayerSlot::Base
+            config.order = 10
+            config.offset = 0.5
+            config.collision_offset = 0.3
+            config.hidden_face_map_enabled = true
+        ClothingType::Pants =>
+            config.slot = LayerSlot::Base
+            config.order = 10
+            config.offset = 0.3
+            config.collision_offset = 0.2
+            config.hidden_face_map_enabled = true
+        ClothingType::Dress =>
+            config.slot = LayerSlot::Base
+            config.order = 10
+            config.offset = 1.0
+            config.collision_offset = 0.5
+            config.hidden_face_map_enabled = true
+        ClothingType::Vest =>
+            config.slot = LayerSlot::Mid
+            config.order = 20
+            config.offset = 1.0
+            config.collision_offset = 0.5
+            config.hidden_face_map_enabled = false
+        ClothingType::Hoodie =>
+            config.slot = LayerSlot::Mid
+            config.order = 20
+            config.offset = 1.5
+            config.collision_offset = 0.8
+            config.hidden_face_map_enabled = false
+        ClothingType::Jacket =>
+            config.slot = LayerSlot::Outer
+            config.order = 30
+            config.offset = 2.0
+            config.collision_offset = 1.0
+            config.hidden_face_map_enabled = false
+        ClothingType::Coat =>
+            config.slot = LayerSlot::Outer
+            config.order = 30
+            config.offset = 2.5
+            config.collision_offset = 1.2
+            config.hidden_face_map_enabled = false
+        ClothingType::Scarf =>
+            config.slot = LayerSlot::Accessory
+            config.order = 40
+            config.offset = 0.5
+            config.collision_offset = 0.2
+            config.hidden_face_map_enabled = false
+        ClothingType::Hat =>
+            config.slot = LayerSlot::Headwear
+            config.order = 50
+            config.offset = 0.3
+            config.collision_offset = 0.1
+            config.hidden_face_map_enabled = true
+        ClothingType::Shoes =>
+            config.slot = LayerSlot::Footwear
+            config.order = 0
+            config.offset = 0.2
+            config.collision_offset = 0.1
+            config.hidden_face_map_enabled = false
+        ClothingType::Socks =>
+            config.slot = LayerSlot::Footwear
+            config.order = 0
+            config.offset = 0.0
+            config.collision_offset = 0.0
+            config.hidden_face_map_enabled = false
+        _ =>
+            config.slot = LayerSlot::Base
+            config.order = 10
+            config.offset = 0.5
+            config.collision_offset = 0.3
+            config.hidden_face_map_enabled = true
+    
+    return config
+
+@blueprint
+fn get_default_fit_tightness(fit_mode: FitMode) -> Float:
+    match fit_mode:
+        FitMode::SkinTight =>
+            return 0.95
+        FitMode::Tight =>
+            return 0.8
+        FitMode::Regular =>
+            return 0.6
+        FitMode::Loose =>
+            return 0.35
+        FitMode::Flowing =>
+            return 0.15
+        _ =>
+            return 0.5
+
+@blueprint
+fn get_fit_offset_multiplier(fit_mode: FitMode) -> Float:
+    match fit_mode:
+        FitMode::SkinTight =>
+            return 0.1
+        FitMode::Tight =>
+            return 0.3
+        FitMode::Regular =>
+            return 0.6
+        FitMode::Loose =>
+            return 1.2
+        FitMode::Flowing =>
+            return 2.0
+        _ =>
+            return 0.6
+
+@blueprint
+fn create_default_conform_settings() -> ConformSettings:
+    let settings = ConformSettings()
+    settings.clothing_type = ClothingType::Unknown
+    settings.fit_mode = FitMode::Regular
+    settings.fit_tightness = 0.6
+    settings.preserve_wrinkles = true
+    settings.wrinkle_preservation_strength = 0.5
+    settings.physics_preset = PhysicsPreset::Medium
+    settings.layer_slot = LayerSlot::Base
+    settings.layer_order = 10
+    settings.enable_physics = true
+    settings.enable_hidden_face_map = true
+    settings.enable_material_transfer = true
+    settings.collision_primitive_type = CollisionPrimitiveType::Auto
+    settings.smooth_weights = true
+    settings.weight_smoothing_mode = WeightSmoothingMode::Laplacian
+    settings.weight_smoothing_iterations = 3
+    settings.max_bone_influences = 4
+    settings.auto_detect_type = true
+    return settings
+
+@blueprint
+fn apply_clothing_type_defaults(settings: ConformSettings, clothing_type: ClothingType) -> ConformSettings:
+    let result = settings
+    result.clothing_type = clothing_type
+    
+    let layer_config = get_default_layer_config(clothing_type)
+    result.layer_slot = layer_config.slot
+    result.layer_order = layer_config.order
+    result.enable_hidden_face_map = layer_config.hidden_face_map_enabled
+    
+    return result

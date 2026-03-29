@@ -1,0 +1,438 @@
+// DialogueForge — Graph Editor
+// Visual dialogue authoring with 14 node types
+
+@graph_editor
+graph DialogueGraph:
+    @node_type
+    node SpeakerNode:
+        properties:
+            SpeakerId: String = "npc"
+            DialogueText: String = "Hello, traveler."
+            VoiceLinePath: String = ""
+            SubtitleText: String = ""
+            Emotion: SpeakerEmotion = SpeakerEmotion::Neutral
+            CameraAngle: CameraAngle = CameraAngle::MediumShot
+            AnimationName: String = ""
+            Duration: Float = 3.0
+            IsSkippable: Bool = true
+            AutoAdvance: Bool = false
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+    
+    @node_type
+    node ChoiceNode:
+        properties:
+            SpeakerId: String = "player"
+            PromptText: String = "What do you say?"
+            Choice1Text: String = "Option 1"
+            Choice1NextId: Int = -1
+            Choice2Text: String = "Option 2"
+            Choice2NextId: Int = -1
+            Choice3Text: String = "Option 3"
+            Choice3NextId: Int = -1
+            Choice4Text: String = "Option 4"
+            Choice4NextId: Int = -1
+            ShowChoice1: Bool = true
+            ShowChoice2: Bool = true
+            ShowChoice3: Bool = false
+            ShowChoice4: Bool = false
+        inputs:
+            InExec: Exec
+        outputs:
+            Choice1: Exec
+            Choice2: Exec
+            Choice3: Exec
+            Choice4: Exec
+    
+    @node_type
+    node ConditionNode:
+        properties:
+            ConditionType: ConditionType = ConditionType::VariableEquals
+            TargetId: String = "quest_complete"
+            ComparisonValue: Float = 1.0
+            StringValue: String = ""
+            Invert: Bool = false
+            Required: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+            Success: Exec
+            Failure: Exec
+    
+    @node_type
+    node BranchNode:
+        properties:
+            Condition1Type: ConditionType = ConditionType::VariableEquals
+            Condition1Target: String = ""
+            Condition1Value: Float = 0.0
+            Condition2Type: ConditionType = ConditionType::VariableEquals
+            Condition2Target: String = ""
+            Condition2Value: Float = 0.0
+            UseCondition2: Bool = false
+            RequireAll: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+            True: Exec
+            False: Exec
+    
+    @node_type
+    node EventNode:
+        properties:
+            EventName: String = "OnDialogueEvent"
+            EventParam1: String = ""
+            EventParam2: String = ""
+            EventParam3: String = ""
+            TargetActorTag: String = ""
+            Delay: Float = 0.0
+            BroadcastToAll: Bool = false
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+    
+    @node_type
+    node QuestNode:
+        properties:
+            QuestId: String = "quest_001"
+            QuestAction: String = "Start"
+            QuestObjectiveId: String = ""
+            UpdateObjectiveCount: Int = 1
+            ShowNotification: Bool = true
+            NotificationText: String = ""
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+    
+    @node_type
+    node RandomNode:
+        properties:
+            Branch1Weight: Float = 1.0
+            Branch2Weight: Float = 1.0
+            Branch3Weight: Float = 0.0
+            Branch4Weight: Float = 0.0
+            UseBranch3: Bool = false
+            UseBranch4: Bool = false
+            Seed: Int = 0
+            UseRandomSeed: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+            Branch1: Exec
+            Branch2: Exec
+            Branch3: Exec
+            Branch4: Exec
+    
+    @node_type
+    node DelayNode:
+        properties:
+            Duration: Float = 2.0
+            ShowTimer: Bool = false
+            TimerText: String = "Please wait..."
+            CanSkip: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+    
+    @node_type
+    node AnimationNode:
+        properties:
+            TargetSpeakerId: String = "npc"
+            AnimationName: String = "Wave"
+            BlendInTime: Float = 0.2
+            BlendOutTime: Float = 0.2
+            PlayRate: Float = 1.0
+            Loop: Bool = false
+            StartPosition: Float = 0.0
+            WaitForCompletion: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+    
+    @node_type
+    node CameraNode:
+        properties:
+            CameraAngle: CameraAngle = CameraAngle::MediumShot
+            BlendTime: Float = 1.0
+            TargetSpeakerId: String = ""
+            Offset: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+            FOV: Float = 90.0
+            UseCustomTransform: Bool = false
+            CustomLocation: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+            CustomRotation: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+    
+    @node_type
+    node SoundNode:
+        properties:
+            SoundPath: String = "/Game/Audio/Dialogue/Sound_01"
+            Volume: Float = 1.0
+            Pitch: Float = 1.0
+            StartTime: Float = 0.0
+            FadeInDuration: Float = 0.0
+            FadeOutDuration: Float = 0.0
+            Is2D: Bool = true
+            AttenuationSettings: String = ""
+            WaitForCompletion: Bool = false
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+    
+    @node_type
+    node VariableNode:
+        properties:
+            VariableName: String = "my_variable"
+            VariableValue: Float = 1.0
+            Operation: String = "Set"
+            IncrementAmount: Float = 1.0
+            IsPersistent: Bool = false
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+    
+    @node_type
+    node JumpNode:
+        properties:
+            TargetNodeId: Int = -1
+            TargetNodeName: String = ""
+            UseNodeName: Bool = false
+        inputs:
+            InExec: Exec
+        outputs:
+    
+    @node_type
+    node EndNode:
+        properties:
+            EndReason: String = "Completed"
+            TriggerEvent: Bool = false
+            EventName: String = "OnDialogueEnd"
+            SaveState: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+    
+    @node_type
+    node StartNode:
+        properties:
+            GraphName: String = "New Dialogue"
+            Description: String = ""
+            Category: String = "General"
+            Priority: Int = 0
+            AutoStart: Bool = false
+        inputs:
+        outputs:
+            Start: Exec
+    
+    @node_type
+    node CommentNode:
+        properties:
+            CommentText: String = "Add your notes here"
+            CommentColor: Vec3 = Vec3 { x: 0.2, y: 0.8, z: 0.2 }
+            FontSize: Int = 14
+        inputs:
+        outputs:
+    
+    @node_type
+    node SkillCheckNode:
+        properties:
+            SkillName: String = "Persuasion"
+            DifficultyClass: Int = 15
+            StatName: String = "Charisma"
+            AllowRetry: Bool = false
+            ShowDifficulty: Bool = true
+            CriticalSuccessThreshold: Int = 20
+            CriticalFailureThreshold: Int = 1
+        inputs:
+            InExec: Exec
+        outputs:
+            Success: Exec
+            Failure: Exec
+            CriticalSuccess: Exec
+            CriticalFailure: Exec
+    
+    @node_type
+    node SubDialogueNode:
+        properties:
+            SubDialogueGraphId: String = ""
+            SubDialogueGraphPath: String = ""
+            PassVariables: Bool = true
+            VariablesToPass: String = ""
+            WaitForCompletion: Bool = true
+            ReturnToParent: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+            OnComplete: Exec
+            OnFailed: Exec
+    
+    @node_type
+    node ParallelNode:
+        properties:
+            Branch1Enabled: Bool = true
+            Branch2Enabled: Bool = true
+            Branch3Enabled: Bool = false
+            Branch4Enabled: Bool = false
+            WaitForAll: Bool = false
+            Timeout: Float = 0.0
+        inputs:
+            InExec: Exec
+        outputs:
+            Branch1: Exec
+            Branch2: Exec
+            Branch3: Exec
+            Branch4: Exec
+            OnComplete: Exec
+    
+    @node_type
+    node InventoryCheckNode:
+        properties:
+            ItemId: String = "item_key"
+            RequiredCount: Int = 1
+            ConsumeItem: Bool = false
+            ShowInUI: Bool = true
+            FailureMessage: String = "You don't have the required item."
+        inputs:
+            InExec: Exec
+        outputs:
+            HasItem: Exec
+            NoItem: Exec
+    
+    @node_type
+    node ReputationCheckNode:
+        properties:
+            FactionId: String = "faction_guards"
+            MinReputation: Int = 50
+            MaxReputation: Int = 100
+            ShowInUI: Bool = true
+            FailureMessage: String = "Your reputation is too low."
+        inputs:
+            InExec: Exec
+        outputs:
+            Pass: Exec
+            Fail: Exec
+    
+    @node_type
+    node TimeCheckNode:
+        properties:
+            MinHour: Int = 0
+            MaxHour: Int = 24
+            RequiredDayOfWeek: Int = -1
+            RequiredWeather: String = ""
+            InvertCheck: Bool = false
+        inputs:
+            InExec: Exec
+        outputs:
+            Pass: Exec
+            Fail: Exec
+    
+    @node_type
+    node GiveItemNode:
+        properties:
+            ItemId: String = "item_reward"
+            ItemCount: Int = 1
+            ShowNotification: Bool = true
+            NotificationText: String = "You received an item!"
+            AddToInventory: Bool = true
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+    
+    @node_type
+    node GiveXPNode:
+        properties:
+            XPAmount: Int = 100
+            SkillName: String = ""
+            ShowNotification: Bool = true
+            NotificationText: String = "You gained experience!"
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+    
+    @node_type
+    node ModifyReputationNode:
+        properties:
+            FactionId: String = "faction_guards"
+            ReputationChange: Int = 10
+            ShowNotification: Bool = true
+            NotificationText: String = ""
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+    
+    @node_type
+    node TeleportNode:
+        properties:
+            TargetLocationName: String = ""
+            TargetLocation: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+            TargetRotation: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+            FadeOut: Bool = true
+            FadeIn: Bool = true
+            FadeDuration: Float = 1.0
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+    
+    @node_type
+    node SpawnActorNode:
+        properties:
+            ActorClassName: String = ""
+            SpawnLocation: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+            SpawnRotation: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+            AttachToSpeaker: Bool = false
+            SpeakerId: String = ""
+            SocketName: String = ""
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+    
+    @node_type
+    node DestroyActorNode:
+        properties:
+            TargetActorTag: String = ""
+            TargetSpeakerId: String = ""
+            DestroyDelay: Float = 0.0
+            PlayDestroyEffect: Bool = false
+            DestroyEffectPath: String = ""
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+    
+    @node_type
+    node SetFlagNode:
+        properties:
+            FlagName: String = "flag_met_npc"
+            FlagValue: Bool = true
+            IsPersistent: Bool = true
+            Category: String = "General"
+        inputs:
+            InExec: Exec
+        outputs:
+            Next: Exec
+    
+    @node_type
+    node CheckFlagNode:
+        properties:
+            FlagName: String = "flag_met_npc"
+            ExpectedValue: Bool = true
+            InvertCheck: Bool = false
+        inputs:
+            InExec: Exec
+        outputs:
+            True: Exec
+            False: Exec

@@ -1,0 +1,14 @@
+[package]
+name = "CrowdFlowDirector"
+version = "1.0.0"
+authors = ["KAIN Factory Labs"]
+description = "Production crowd choreography plugin for UE5: MoGraph-style procedural layout, fluid-aware steering, and VAT-scale playback for cinematic/event scenes"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "CrowdFlowDirector"
+plugin_dir = "."
+sources = ["crowd_flow_director.kn"]
+modular_output = true

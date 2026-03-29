@@ -1,0 +1,495 @@
+# Layer Blending & Image Filters
+# Photoshop-compatible blend modes and GPU-accelerated filters
+# Consolidates MaterializeBlend.usf + LayerBlend.usf + MaterializeFilters.usf + LayerFilter.usf
+
+# ============================================================================
+# LAYER BLEND SHADER - 20 Photoshop-style blend modes with mask support
+# ============================================================================
+
+shader compute LayerBlend(thread_id: Vec3):
+    uniform base_texture: Sampler2D @0
+    uniform blend_texture: Sampler2D @1
+    uniform mask_texture: Sampler2D @2
+    uniform blend_mode: Int @3
+    uniform opacity: Float @4
+    uniform has_mask: Bool @5
+    uniform invert_mask: Bool @6
+    uniform texture_dimensions: Vec2 @7
+    buffer out_result: RWBuffer<Vec4> @8
+    
+    let pos = thread_id.xy
+    if pos.x >= texture_dimensions.x or pos.y >= texture_dimensions.y:
+        return
+    
+    # Sample textures
+    let uv = (pos + vec2(0.5, 0.5)) / texture_dimensions
+    let base = sample(base_texture, uv)
+    let blend = sample(blend_texture, uv)
+    
+    # Apply mask
+    var mask_value = 1.0
+    if has_mask:
+        mask_value = sample(mask_texture, uv).r
+        if invert_mask:
+            mask_value = 1.0 - mask_value
+    
+    # Apply blend mode
+    let blended = match blend_mode:
+        0 => blend.rgb  # Normal
+        1 => base.rgb * blend.rgb  # Multiply
+        2 => vec3(1.0) - (vec3(1.0) - base.rgb) * (vec3(1.0) - blend.rgb)  # Screen
+        3 => overlay_blend(base.rgb, blend.rgb)  # Overlay
+        4 => soft_light_blend(base.rgb, blend.rgb)  # Soft Light
+        5 => hard_light_blend(base.rgb, blend.rgb)  # Hard Light
+        6 => base.rgb + blend.rgb  # Add
+        7 => base.rgb - blend.rgb  # Subtract
+        8 => abs(base.rgb - blend.rgb)  # Difference
+        9 => base.rgb + blend.rgb - 2.0 * base.rgb * blend.rgb  # Exclusion
+        10 => min(base.rgb, blend.rgb)  # Darken
+        11 => max(base.rgb, blend.rgb)  # Lighten
+        12 => color_dodge(base.rgb, blend.rgb)  # Color Dodge
+        13 => color_burn(base.rgb, blend.rgb)  # Color Burn
+        14 => clamp(base.rgb + blend.rgb, vec3(0.0), vec3(1.0))  # Linear Dodge (Add)
+        15 => clamp(base.rgb + blend.rgb - vec3(1.0), vec3(0.0), vec3(1.0))  # Linear Burn
+        16 => vivid_light(base.rgb, blend.rgb)  # Vivid Light
+        17 => linear_light(base.rgb, blend.rgb)  # Linear Light
+        18 => pin_light(base.rgb, blend.rgb)  # Pin Light
+        19 => hard_mix(base.rgb, blend.rgb)  # Hard Mix
+        _ => blend.rgb
+    
+    # Alpha compositing with mask
+    let effective_opacity = opacity * mask_value
+    let final_blend = effective_opacity * blend.a
+    let result_rgb = lerp(base.rgb, blended, final_blend)
+    let result_a = base.a + blend.a * effective_opacity * (1.0 - base.a)
+    
+    out_result[pos.y * texture_dimensions.x as Int + pos.x] = vec4(result_rgb, result_a)
+
+# ============================================================================
+# BLEND MODE HELPER FUNCTIONS
+# ============================================================================
+
+fn overlay_blend(base: Vec3, blend: Vec3) -> Vec3:
+    return vec3(
+        if base.r < 0.5: 2.0 * base.r * blend.r else: 1.0 - 2.0 * (1.0 - base.r) * (1.0 - blend.r),
+        if base.g < 0.5: 2.0 * base.g * blend.g else: 1.0 - 2.0 * (1.0 - base.g) * (1.0 - blend.g),
+        if base.b < 0.5: 2.0 * base.b * blend.b else: 1.0 - 2.0 * (1.0 - base.b) * (1.0 - blend.b)
+    )
+
+fn soft_light_blend(base: Vec3, blend: Vec3) -> Vec3:
+    # Photoshop soft light formula (pegtop formula)
+    return (vec3(1.0) - 2.0 * blend) * base * base + 2.0 * blend * base
+
+fn hard_light_blend(base: Vec3, blend: Vec3) -> Vec3:
+    # Hard light is overlay with base and blend swapped
+    return overlay_blend(blend, base)
+
+fn color_dodge(base: Vec3, blend: Vec3) -> Vec3:
+    return vec3(
+        if blend.r >= 1.0: 1.0 else: min(base.r / (1.0 - blend.r), 1.0),
+        if blend.g >= 1.0: 1.0 else: min(base.g / (1.0 - blend.g), 1.0),
+        if blend.b >= 1.0: 1.0 else: min(base.b / (1.0 - blend.b), 1.0)
+    )
+
+fn color_burn(base: Vec3, blend: Vec3) -> Vec3:
+    return vec3(
+        if blend.r <= 0.0: 0.0 else: max(1.0 - (1.0 - base.r) / blend.r, 0.0),
+        if blend.g <= 0.0: 0.0 else: max(1.0 - (1.0 - base.g) / blend.g, 0.0),
+        if blend.b <= 0.0: 0.0 else: max(1.0 - (1.0 - base.b) / blend.b, 0.0)
+    )
+
+fn vivid_light(base: Vec3, blend: Vec3) -> Vec3:
+    return vec3(
+        if blend.r < 0.5: color_burn_channel(base.r, 2.0 * blend.r) else: color_dodge_channel(base.r, 2.0 * (blend.r - 0.5)),
+        if blend.g < 0.5: color_burn_channel(base.g, 2.0 * blend.g) else: color_dodge_channel(base.g, 2.0 * (blend.g - 0.5)),
+        if blend.b < 0.5: color_burn_channel(base.b, 2.0 * blend.b) else: color_dodge_channel(base.b, 2.0 * (blend.b - 0.5))
+    )
+
+fn linear_light(base: Vec3, blend: Vec3) -> Vec3:
+    return clamp(base + 2.0 * blend - vec3(1.0), vec3(0.0), vec3(1.0))
+
+fn pin_light(base: Vec3, blend: Vec3) -> Vec3:
+    return vec3(
+        if blend.r < 0.5: min(base.r, 2.0 * blend.r) else: max(base.r, 2.0 * (blend.r - 0.5)),
+        if blend.g < 0.5: min(base.g, 2.0 * blend.g) else: max(base.g, 2.0 * (blend.g - 0.5)),
+        if blend.b < 0.5: min(base.b, 2.0 * blend.b) else: max(base.b, 2.0 * (blend.b - 0.5))
+    )
+
+fn hard_mix(base: Vec3, blend: Vec3) -> Vec3:
+    let vl = vivid_light(base, blend)
+    return vec3(
+        if vl.r < 0.5: 0.0 else: 1.0,
+        if vl.g < 0.5: 0.0 else: 1.0,
+        if vl.b < 0.5: 0.0 else: 1.0
+    )
+
+fn color_burn_channel(base: Float, blend: Float) -> Float:
+    if blend <= 0.0:
+        return 0.0
+    return max(1.0 - (1.0 - base) / blend, 0.0)
+
+fn color_dodge_channel(base: Float, blend: Float) -> Float:
+    if blend >= 1.0:
+        return 1.0
+    return min(base / (1.0 - blend), 1.0)
+
+# ============================================================================
+# IMAGE FILTER SHADER - 13 filter types
+# ============================================================================
+
+shader compute ImageFilter(thread_id: Vec3):
+    uniform input_texture: Sampler2D @0
+    uniform filter_type: Int @1
+    uniform intensity: Float @2
+    uniform kernel_size: Int @3
+    uniform texture_dimensions: Vec2 @4
+    buffer out_texture: RWBuffer<Vec4> @5
+    
+    let pos = thread_id.xy
+    if pos.x >= texture_dimensions.x or pos.y >= texture_dimensions.y:
+        return
+    
+    let uv = (pos + vec2(0.5, 0.5)) / texture_dimensions
+    let source = sample(input_texture, uv)
+    
+    # Apply filter
+    let result = match filter_type:
+        0 => box_blur(input_texture, pos, kernel_size, texture_dimensions)  # Blur
+        1 => gaussian_blur(input_texture, pos, kernel_size, texture_dimensions)  # Gaussian Blur
+        2 => sharpen(input_texture, pos, intensity, texture_dimensions)  # Sharpen
+        3 => edge_detect(input_texture, pos, texture_dimensions)  # Edge Detect
+        4 => emboss(input_texture, pos, texture_dimensions)  # Emboss
+        5 => high_pass(input_texture, pos, kernel_size, texture_dimensions)  # High Pass
+        6 => low_pass(input_texture, pos, kernel_size, texture_dimensions)  # Low Pass
+        7 => median_filter(input_texture, pos, texture_dimensions)  # Median
+        8 => dilate(input_texture, pos, kernel_size, texture_dimensions)  # Dilate
+        9 => erode(input_texture, pos, kernel_size, texture_dimensions)  # Erode
+        10 => vec4(vec3(1.0) - source.rgb, source.a)  # Invert
+        11 => normalize_filter(input_texture, pos, texture_dimensions)  # Normalize
+        12 => auto_levels(input_texture, pos, texture_dimensions)  # Auto Levels
+        _ => source
+    
+    # Blend with source based on intensity (except invert)
+    let final = if filter_type != 10:
+        lerp(source, result, clamp(intensity, 0.0, 1.0))
+    else:
+        result
+    
+    out_texture[pos.y * texture_dimensions.x as Int + pos.x] = final
+
+# ============================================================================
+# FILTER HELPER FUNCTIONS
+# ============================================================================
+
+fn box_blur(tex: Sampler2D, pos: Vec2, radius: Int, dims: Vec2) -> Vec4:
+    var sum = vec4(0.0)
+    var count = 0.0
+    
+    for dy in -radius..radius + 1:
+        for dx in -radius..radius + 1:
+            let sample_pos = pos + vec2(dx as Float, dy as Float)
+            if sample_pos.x >= 0.0 and sample_pos.x < dims.x and sample_pos.y >= 0.0 and sample_pos.y < dims.y:
+                let sample_uv = (sample_pos + vec2(0.5, 0.5)) / dims
+                sum = sum + sample(tex, sample_uv)
+                count = count + 1.0
+    
+    return sum / count
+
+fn gaussian_blur(tex: Sampler2D, pos: Vec2, radius: Int, dims: Vec2) -> Vec4:
+    # 9-tap Gaussian weights
+    let weights = [0.0162, 0.0540, 0.1216, 0.1933, 0.2258, 0.1933, 0.1216, 0.0540, 0.0162]
+    
+    var sum = vec4(0.0)
+    var weight_sum = 0.0
+    
+    let clamped_radius = min(radius, 4)
+    
+    for dy in -clamped_radius..clamped_radius + 1:
+        for dx in -clamped_radius..clamped_radius + 1:
+            let sample_pos = pos + vec2(dx as Float, dy as Float)
+            if sample_pos.x >= 0.0 and sample_pos.x < dims.x and sample_pos.y >= 0.0 and sample_pos.y < dims.y:
+                let sample_uv = (sample_pos + vec2(0.5, 0.5)) / dims
+                let dist = sqrt((dx * dx + dy * dy) as Float)
+                let weight_idx = min(dist as Int, 8)
+                let weight = weights[weight_idx]
+                sum = sum + sample(tex, sample_uv) * weight
+                weight_sum = weight_sum + weight
+    
+    return sum / weight_sum
+
+fn sharpen(tex: Sampler2D, pos: Vec2, strength: Float, dims: Vec2) -> Vec4:
+    # Unsharp mask kernel
+    let uv = (pos + vec2(0.5, 0.5)) / dims
+    let center = sample(tex, uv)
+    
+    var neighbors = vec4(0.0)
+    let offsets = [vec2(-1.0, 0.0), vec2(1.0, 0.0), vec2(0.0, -1.0), vec2(0.0, 1.0)]
+    
+    for i in 0..4:
+        let sample_pos = pos + offsets[i]
+        if sample_pos.x >= 0.0 and sample_pos.x < dims.x and sample_pos.y >= 0.0 and sample_pos.y < dims.y:
+            let sample_uv = (sample_pos + vec2(0.5, 0.5)) / dims
+            neighbors = neighbors + sample(tex, sample_uv)
+    
+    neighbors = neighbors / 4.0
+    let sharpened = center + (center - neighbors) * strength
+    return clamp(sharpened, vec4(0.0), vec4(1.0))
+
+fn edge_detect(tex: Sampler2D, pos: Vec2, dims: Vec2) -> Vec4:
+    # Sobel edge detection
+    let uv = (pos + vec2(0.5, 0.5)) / dims
+    
+    var gx = 0.0
+    var gy = 0.0
+    
+    # Sobel kernels
+    for dy in -1..2:
+        for dx in -1..2:
+            let sample_pos = pos + vec2(dx as Float, dy as Float)
+            if sample_pos.x >= 0.0 and sample_pos.x < dims.x and sample_pos.y >= 0.0 and sample_pos.y < dims.y:
+                let sample_uv = (sample_pos + vec2(0.5, 0.5)) / dims
+                let lum = luminance(sample(tex, sample_uv).rgb)
+                
+                # Sobel X kernel: [-1 0 1; -2 0 2; -1 0 1]
+                let kx = if dx == -1: -1.0 else: if dx == 1: 1.0 else: 0.0
+                let kx_weight = if dy == 0: 2.0 else: 1.0
+                gx = gx + lum * kx * kx_weight
+                
+                # Sobel Y kernel: [-1 -2 -1; 0 0 0; 1 2 1]
+                let ky = if dy == -1: -1.0 else: if dy == 1: 1.0 else: 0.0
+                let ky_weight = if dx == 0: 2.0 else: 1.0
+                gy = gy + lum * ky * ky_weight
+    
+    let magnitude = sqrt(gx * gx + gy * gy)
+    return vec4(vec3(magnitude), 1.0)
+
+fn emboss(tex: Sampler2D, pos: Vec2, dims: Vec2) -> Vec4:
+    # Emboss kernel: [-2 -1 0; -1 1 1; 0 1 2]
+    let uv = (pos + vec2(0.5, 0.5)) / dims
+    
+    var result = 0.0
+    let kernel = [
+        -2.0, -1.0, 0.0,
+        -1.0, 1.0, 1.0,
+        0.0, 1.0, 2.0
+    ]
+    
+    var idx = 0
+    for dy in -1..2:
+        for dx in -1..2:
+            let sample_pos = pos + vec2(dx as Float, dy as Float)
+            if sample_pos.x >= 0.0 and sample_pos.x < dims.x and sample_pos.y >= 0.0 and sample_pos.y < dims.y:
+                let sample_uv = (sample_pos + vec2(0.5, 0.5)) / dims
+                let lum = luminance(sample(tex, sample_uv).rgb)
+                result = result + lum * kernel[idx]
+            idx = idx + 1
+    
+    result = result * 0.5 + 0.5
+    return vec4(vec3(clamp(result, 0.0, 1.0)), 1.0)
+
+fn high_pass(tex: Sampler2D, pos: Vec2, radius: Int, dims: Vec2) -> Vec4:
+    let uv = (pos + vec2(0.5, 0.5)) / dims
+    let center = sample(tex, uv)
+    let blurred = box_blur(tex, pos, radius, dims)
+    return center - blurred + vec4(0.5)
+
+fn low_pass(tex: Sampler2D, pos: Vec2, radius: Int, dims: Vec2) -> Vec4:
+    return box_blur(tex, pos, radius, dims)
+
+fn median_filter(tex: Sampler2D, pos: Vec2, dims: Vec2) -> Vec4:
+    # 3x3 median filter using bubble sort on luminance
+    var samples: Array<Float> = []
+    
+    for dy in -1..2:
+        for dx in -1..2:
+            let sample_pos = pos + vec2(dx as Float, dy as Float)
+            if sample_pos.x >= 0.0 and sample_pos.x < dims.x and sample_pos.y >= 0.0 and sample_pos.y < dims.y:
+                let sample_uv = (sample_pos + vec2(0.5, 0.5)) / dims
+                let lum = luminance(sample(tex, sample_uv).rgb)
+                push(samples, lum)
+    
+    # Bubble sort
+    let n = len(samples)
+    for i in 0..n:
+        for j in 0..n - i - 1:
+            if samples[j] > samples[j + 1]:
+                let temp = samples[j]
+                samples[j] = samples[j + 1]
+                samples[j + 1] = temp
+    
+    # Return median
+    let median_val = samples[n / 2]
+    return vec4(vec3(median_val), 1.0)
+
+fn dilate(tex: Sampler2D, pos: Vec2, radius: Int, dims: Vec2) -> Vec4:
+    # Max filter
+    var max_val = vec4(0.0)
+    
+    for dy in -radius..radius + 1:
+        for dx in -radius..radius + 1:
+            let sample_pos = pos + vec2(dx as Float, dy as Float)
+            if sample_pos.x >= 0.0 and sample_pos.x < dims.x and sample_pos.y >= 0.0 and sample_pos.y < dims.y:
+                let sample_uv = (sample_pos + vec2(0.5, 0.5)) / dims
+                let s = sample(tex, sample_uv)
+                max_val = max(max_val, s)
+    
+    return max_val
+
+fn erode(tex: Sampler2D, pos: Vec2, radius: Int, dims: Vec2) -> Vec4:
+    # Min filter
+    var min_val = vec4(1.0)
+    
+    for dy in -radius..radius + 1:
+        for dx in -radius..radius + 1:
+            let sample_pos = pos + vec2(dx as Float, dy as Float)
+            if sample_pos.x >= 0.0 and sample_pos.x < dims.x and sample_pos.y >= 0.0 and sample_pos.y < dims.y:
+                let sample_uv = (sample_pos + vec2(0.5, 0.5)) / dims
+                let s = sample(tex, sample_uv)
+                min_val = min(min_val, s)
+    
+    return min_val
+
+fn normalize_filter(tex: Sampler2D, pos: Vec2, dims: Vec2) -> Vec4:
+    let uv = (pos + vec2(0.5, 0.5)) / dims
+    let color = sample(tex, uv)
+    
+    # Normalize to 0-1 range
+    let max_component = max(max(color.r, color.g), color.b)
+    if max_component > 0.0:
+        return vec4(color.rgb / max_component, color.a)
+    return color
+
+fn auto_levels(tex: Sampler2D, pos: Vec2, dims: Vec2) -> Vec4:
+    # Simple auto-levels using local neighborhood
+    let uv = (pos + vec2(0.5, 0.5)) / dims
+    let center = sample(tex, uv)
+    
+    var min_val = vec3(1.0)
+    var max_val = vec3(0.0)
+    
+    # Sample 5x5 neighborhood
+    for dy in -2..3:
+        for dx in -2..3:
+            let sample_pos = pos + vec2(dx as Float, dy as Float)
+            if sample_pos.x >= 0.0 and sample_pos.x < dims.x and sample_pos.y >= 0.0 and sample_pos.y < dims.y:
+                let sample_uv = (sample_pos + vec2(0.5, 0.5)) / dims
+                let s = sample(tex, sample_uv).rgb
+                min_val = min(min_val, s)
+                max_val = max(max_val, s)
+    
+    # Remap to 0-1
+    let range = max_val - min_val
+    let adjusted = if range.r > 0.01 and range.g > 0.01 and range.b > 0.01:
+        (center.rgb - min_val) / range
+    else:
+        center.rgb
+    
+    return vec4(clamp(adjusted, vec3(0.0), vec3(1.0)), center.a)
+
+fn luminance(color: Vec3) -> Float:
+    # Rec. 709 luminance
+    return dot(color, vec3(0.2126, 0.7152, 0.0722))
+
+# ============================================================================
+# SEAMLESS TILING SHADER - 3 tiling modes
+# ============================================================================
+
+shader compute Seamless(thread_id: Vec3):
+    uniform input_texture: Sampler2D @0
+    uniform tile_mode: Int @1
+    uniform blend_width: Float @2
+    uniform texture_dimensions: Vec2 @3
+    buffer out_texture: RWBuffer<Vec4> @4
+    
+    let pos = thread_id.xy
+    if pos.x >= texture_dimensions.x or pos.y >= texture_dimensions.y:
+        return
+    
+    # Seamless tiling modes
+    let result = match tile_mode:
+        0 => cross_blend(input_texture, pos, blend_width, texture_dimensions)  # Cross Blend
+        1 => mirror_blend(input_texture, pos, texture_dimensions)  # Mirror Blend
+        2 => histogram_match(input_texture, pos, blend_width, texture_dimensions)  # Histogram Match
+        _ => sample(input_texture, (pos + vec2(0.5, 0.5)) / texture_dimensions)
+    
+    out_texture[pos.y * texture_dimensions.x as Int + pos.x] = result
+
+# ============================================================================
+# SEAMLESS HELPER FUNCTIONS
+# ============================================================================
+
+fn cross_blend(tex: Sampler2D, pos: Vec2, blend_width: Float, dims: Vec2) -> Vec4:
+    # Offset by 50%, blend center seam with diamond mask
+    let uv = (pos + vec2(0.5, 0.5)) / dims
+    
+    # Sample original
+    let original = sample(tex, uv)
+    
+    # Sample offset by 50%
+    let offset_uv = frac(uv + vec2(0.5, 0.5))
+    let offset = sample(tex, offset_uv)
+    
+    # Diamond mask for blending
+    let center = vec2(0.5, 0.5)
+    let dist_to_center = abs(uv.x - center.x) + abs(uv.y - center.y)
+    let blend_factor = smoothstep(0.5 - blend_width, 0.5, dist_to_center)
+    
+    return lerp(original, offset, blend_factor)
+
+fn mirror_blend(tex: Sampler2D, pos: Vec2, dims: Vec2) -> Vec4:
+    # Mirror edges, bilinear blend of 4 quadrants
+    let uv = (pos + vec2(0.5, 0.5)) / dims
+    
+    # Create mirrored UVs
+    let uv_tl = uv  # Top-left (original)
+    let uv_tr = vec2(1.0 - uv.x, uv.y)  # Top-right (mirror X)
+    let uv_bl = vec2(uv.x, 1.0 - uv.y)  # Bottom-left (mirror Y)
+    let uv_br = vec2(1.0 - uv.x, 1.0 - uv.y)  # Bottom-right (mirror both)
+    
+    # Sample all quadrants
+    let s_tl = sample(tex, uv_tl)
+    let s_tr = sample(tex, uv_tr)
+    let s_bl = sample(tex, uv_bl)
+    let s_br = sample(tex, uv_br)
+    
+    # Bilinear blend weights
+    let wx = uv.x
+    let wy = uv.y
+    
+    let top = lerp(s_tl, s_tr, wx)
+    let bottom = lerp(s_bl, s_br, wx)
+    
+    return lerp(top, bottom, wy)
+
+fn histogram_match(tex: Sampler2D, pos: Vec2, blend_width: Float, dims: Vec2) -> Vec4:
+    # Cross-blend + local contrast adjustment
+    let cross = cross_blend(tex, pos, blend_width, dims)
+    
+    # Local contrast adjustment (simplified)
+    let uv = (pos + vec2(0.5, 0.5)) / dims
+    
+    var local_avg = vec3(0.0)
+    var count = 0.0
+    
+    # Sample 3x3 neighborhood
+    for dy in -1..2:
+        for dx in -1..2:
+            let sample_pos = pos + vec2(dx as Float, dy as Float)
+            if sample_pos.x >= 0.0 and sample_pos.x < dims.x and sample_pos.y >= 0.0 and sample_pos.y < dims.y:
+                let sample_uv = (sample_pos + vec2(0.5, 0.5)) / dims
+                local_avg = local_avg + sample(tex, sample_uv).rgb
+                count = count + 1.0
+    
+    local_avg = local_avg / count
+    
+    # Adjust contrast relative to local average
+    let adjusted = (cross.rgb - local_avg) * 1.2 + local_avg
+    
+    return vec4(clamp(adjusted, vec3(0.0), vec3(1.0)), cross.a)
+
+fn frac(v: Vec2) -> Vec2:
+    return vec2(v.x - floor(v.x), v.y - floor(v.y))
+
+fn smoothstep(edge0: Float, edge1: Float, x: Float) -> Float:
+    let t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0)
+    return t * t * (3.0 - 2.0 * t)

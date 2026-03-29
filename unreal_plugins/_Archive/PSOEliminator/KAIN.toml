@@ -1,0 +1,15 @@
+[package]
+name = "PSOEliminator"
+version = "1.0.0"
+authors = ["KAIN Research Labs"]
+description = "Ultimate PSO & Shader Stutter Eliminator - Automated Pipeline State Object caching for stutter-free gameplay"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "PSOEliminator"
+plugin_dir = "."
+sources = ["pso_eliminator.kn"]
+modular_output = true
+ue5_version = "5.4"

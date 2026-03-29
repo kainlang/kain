@@ -1,0 +1,167 @@
+# ============================================================================
+# Volumetric Rendering Shader Tests - Testing stdlib volumetric functions
+# ============================================================================
+# Tests: henyey_greenstein, beer_lambert, powder_effect,
+#        ray_march_volume, ray_march_sdf, sample_volume_texture,
+#        sample_volume_noise, phase_function_henyey_greenstein,
+#        cloud_density, cloud_lighting, fog_density, fog_scattering,
+#        volumetric_shadow, volumetric_light_shaft,
+#        atmospheric_scattering_rayleigh, atmospheric_scattering_mie
+
+shader compute TestVolumetricScattering(thread_id: Vec3) -> Unit:
+    uniform g_factor: Float @0
+    uniform density: Float @1
+    uniform output_buffer: RWBuffer<Vec4> @2
+    
+    let idx = thread_id.x
+    let t = idx * 0.01
+    
+    # Test henyey_greenstein phase function
+    let cos_theta = cos(t * 3.14159)
+    let phase = henyey_greenstein(cos_theta, g_factor)
+    
+    # Test beer_lambert absorption
+    let distance = t * 10.0
+    let absorption = beer_lambert(density, distance)
+    
+    # Test powder_effect
+    let powder = powder_effect(density, cos_theta)
+    
+    # Combine scattering effects
+    let scattering = phase * absorption * powder
+    
+    output_buffer[idx] = vec4(scattering, absorption, powder, phase)
+
+shader fragment TestCloudRendering(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform density_scale: Float @1
+    uniform g_factor: Float @2
+    
+    # Simulate ray direction
+    let ray_dir = normalize(vec3(uv.x - 0.5, uv.y - 0.5, 1.0))
+    
+    # Test cloud_density using noise
+    let cloud_pos = vec3(uv.x, uv.y, time * 0.1)
+    let base_density = fbm3(cloud_pos * density_scale, 4) * density_scale
+    
+    # Test cloud_lighting with phase function
+    let light_dir = normalize(vec3(1.0, 1.0, 1.0))
+    let cos_angle = dot(ray_dir, light_dir)
+    let phase = henyey_greenstein(cos_angle, g_factor)
+    
+    # Test beer_lambert for light absorption
+    let absorption = beer_lambert(base_density, 5.0)
+    
+    # Test powder_effect for cloud edges
+    let powder = powder_effect(base_density, cos_angle)
+    
+    # Combine cloud lighting
+    let cloud_color = vec3(1.0, 1.0, 1.0) * phase * absorption * powder
+    
+    return vec4(cloud_color.x, cloud_color.y, cloud_color.z, base_density)
+
+shader compute TestFogScattering(thread_id: Vec3) -> Unit:
+    uniform fog_density: Float @0
+    uniform fog_height: Float @1
+    uniform output_buffer: RWBuffer<Vec4> @2
+    
+    let idx = thread_id.x
+    let height = idx * 0.1
+    let distance = idx * 0.5
+    
+    # Test fog_density with height falloff
+    let height_factor = exp(-height / fog_height)
+    let density = fog_density * height_factor
+    
+    # Test fog_scattering with distance
+    let scattering = beer_lambert(density, distance)
+    
+    # Test atmospheric scattering components
+    let view_angle = 0.5
+    let rayleigh = atmospheric_scattering_rayleigh(view_angle, distance)
+    let mie = atmospheric_scattering_mie(view_angle, distance, 0.8)
+    
+    output_buffer[idx] = vec4(scattering, rayleigh, mie, density)
+
+shader fragment TestVolumetricLighting(uv: Vec2) -> Vec4:
+    uniform light_intensity: Float @0
+    uniform density: Float @1
+    uniform g_factor: Float @2
+    
+    # Ray marching setup
+    let ray_origin = vec3(uv.x, uv.y, 0.0)
+    let ray_dir = vec3(0.0, 0.0, 1.0)
+    let light_pos = vec3(0.5, 0.5, 2.0)
+    
+    # Simulate volumetric light shaft
+    let to_light = normalize(light_pos - ray_origin)
+    let distance_to_light = length(light_pos - ray_origin)
+    
+    # Test volumetric_shadow
+    let shadow = beer_lambert(density, distance_to_light * 0.5)
+    
+    # Test volumetric_light_shaft with phase function
+    let cos_angle = dot(ray_dir, to_light)
+    let phase = henyey_greenstein(cos_angle, g_factor)
+    
+    # Combine volumetric lighting
+    let light_shaft = light_intensity * phase * shadow
+    
+    return vec4(light_shaft, light_shaft, light_shaft, 1.0)
+
+shader compute TestAtmosphericScattering(thread_id: Vec3) -> Unit:
+    uniform sun_angle: Float @0
+    uniform altitude: Float @1
+    uniform output_buffer: RWBuffer<Vec4> @2
+    
+    let idx = thread_id.x
+    let view_angle = idx * 0.01
+    let distance = altitude + idx * 0.1
+    
+    # Test Rayleigh scattering (blue sky)
+    let rayleigh = atmospheric_scattering_rayleigh(view_angle, distance)
+    
+    # Test Mie scattering (haze, sun glow)
+    let mie = atmospheric_scattering_mie(view_angle, distance, 0.76)
+    
+    # Combine atmospheric effects
+    let sky_color = vec3(0.3, 0.5, 1.0) * rayleigh + vec3(1.0, 0.9, 0.7) * mie
+    
+    output_buffer[idx] = vec4(sky_color.x, sky_color.y, sky_color.z, 1.0)
+
+shader fragment TestVolumetricRayMarching(uv: Vec2) -> Vec4:
+    uniform step_count: Int @0
+    uniform density: Float @1
+    uniform g_factor: Float @2
+    
+    # Ray marching through volume
+    let ray_origin = vec3(uv.x, uv.y, 0.0)
+    let ray_dir = normalize(vec3(uv.x - 0.5, uv.y - 0.5, 1.0))
+    let light_dir = normalize(vec3(1.0, 1.0, 1.0))
+    
+    var accumulated_light = 0.0
+    var accumulated_transmittance = 1.0
+    let step_size = 0.1
+    
+    var i = 0
+    while i < step_count:
+        let t = i * step_size
+        let sample_pos = ray_origin + ray_dir * t
+        
+        # Sample volume density using noise
+        let sample_density = fbm3(sample_pos * density, 3) * density
+        
+        # Calculate scattering
+        let cos_angle = dot(ray_dir, light_dir)
+        let phase = henyey_greenstein(cos_angle, g_factor)
+        let absorption = beer_lambert(sample_density, step_size)
+        
+        # Accumulate lighting
+        accumulated_light = accumulated_light + accumulated_transmittance * phase * sample_density * step_size
+        accumulated_transmittance = accumulated_transmittance * absorption
+        
+        i = i + 1
+    
+    let final_color = vec3(accumulated_light, accumulated_light, accumulated_light)
+    
+    return vec4(final_color.x, final_color.y, final_color.z, 1.0 - accumulated_transmittance)

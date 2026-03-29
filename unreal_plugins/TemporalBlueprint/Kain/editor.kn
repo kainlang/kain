@@ -1,0 +1,25 @@
+# ============================================================================
+# TEMPORAL BLUEPRINT — Editor Module
+# ============================================================================
+
+@editor_module
+struct TemporalBlueprintEditorModule:
+    @menu_entry(path: "Tools/Temporal Blueprint", label: "Open Temporal Editor")
+    fn open_temporal_editor():
+        println("TemporalBlueprint: opening editor panel")
+
+    @menu_entry(path: "Tools/Temporal Blueprint", label: "Snapshot Manager")
+    fn open_snapshot_manager():
+        println("TemporalBlueprint: opening snapshot manager")
+
+    @menu_entry(path: "Tools/Temporal Blueprint", label: "Causality Graph")
+    fn open_causality_graph():
+        println("TemporalBlueprint: opening causality graph")
+
+    @menu_entry(path: "Tools/Temporal Blueprint", label: "Toggle Debug Overlay")
+    fn toggle_debug_overlay():
+        println("TemporalBlueprint: toggling debug overlay")
+
+    @toolbar_button(section: "Temporal", label: "Temporal", icon: "TemporalBlueprint.Icon", tooltip: "Open Temporal Blueprint Editor")
+    fn toolbar_open_editor():
+        println("TemporalBlueprint: toolbar button clicked")

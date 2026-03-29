@@ -153,6 +153,27 @@
       "source": "content.identity.providers"
     },
     {
+      "id": "tenancy",
+      "kind": "card_grid",
+      "eyebrow": "Tenancy",
+      "title": "Tenant and workspace model",
+      "source": "content.tenant_management"
+    },
+    {
+      "id": "sso",
+      "kind": "card_grid",
+      "eyebrow": "SSO",
+      "title": "SSO and provisioning",
+      "source": "content.sso_stack"
+    },
+    {
+      "id": "api-keys",
+      "kind": "card_grid",
+      "eyebrow": "API Keys",
+      "title": "Service account access",
+      "source": "content.api_key_management"
+    },
+    {
       "id": "billing",
       "kind": "card_grid",
       "eyebrow": "Billing",
@@ -202,6 +223,20 @@
       "source": "content.data_collections"
     },
     {
+      "id": "event-bus",
+      "kind": "card_grid",
+      "eyebrow": "Events",
+      "title": "Event bus",
+      "source": "content.event_bus"
+    },
+    {
+      "id": "data-pipelines",
+      "kind": "card_grid",
+      "eyebrow": "Pipelines",
+      "title": "Data pipelines",
+      "source": "content.data_pipelines"
+    },
+    {
       "id": "data-governance",
       "kind": "card_grid",
       "eyebrow": "Governance",
@@ -235,6 +270,13 @@
       "eyebrow": "Integrations",
       "title": "Connectors and transports",
       "source": "content.integrations"
+    },
+    {
+      "id": "integration-marketplace",
+      "kind": "card_grid",
+      "eyebrow": "Marketplace",
+      "title": "Integration marketplace",
+      "source": "content.integration_marketplace"
     },
     {
       "id": "streaming",
@@ -328,6 +370,27 @@
       "source": "content.security"
     },
     {
+      "id": "compliance",
+      "kind": "compliance_grid",
+      "eyebrow": "Compliance",
+      "title": "Governance posture",
+      "source": "content.compliance"
+    },
+    {
+      "id": "compliance-frameworks",
+      "kind": "card_grid",
+      "eyebrow": "Frameworks",
+      "title": "Compliance frameworks",
+      "source": "content.compliance_frameworks"
+    },
+    {
+      "id": "ops-runbooks",
+      "kind": "card_grid",
+      "eyebrow": "Runbooks",
+      "title": "Operational runbooks",
+      "source": "content.ops_runbooks"
+    },
+    {
       "id": "support",
       "kind": "support_grid",
       "eyebrow": "Support",
@@ -410,6 +473,41 @@
       "eyebrow": "Cache",
       "title": "Cache stack",
       "source": "content.cache_stack"
+    },
+    {
+      "id": "database-stack",
+      "kind": "card_grid",
+      "eyebrow": "Database",
+      "title": "Database stack",
+      "source": "content.database_stack"
+    },
+    {
+      "id": "queue-stack",
+      "kind": "card_grid",
+      "eyebrow": "Queues",
+      "title": "Queue and job stack",
+      "source": "content.queue_stack"
+    },
+    {
+      "id": "secrets-stack",
+      "kind": "card_grid",
+      "eyebrow": "Secrets",
+      "title": "Secrets and vault",
+      "source": "content.secrets_stack"
+    },
+    {
+      "id": "config-stack",
+      "kind": "card_grid",
+      "eyebrow": "Config",
+      "title": "Configuration and env",
+      "source": "content.config_stack"
+    },
+    {
+      "id": "background-jobs",
+      "kind": "card_grid",
+      "eyebrow": "Jobs",
+      "title": "Background jobs and schedulers",
+      "source": "content.background_jobs"
     },
     {
       "id": "search-stack",

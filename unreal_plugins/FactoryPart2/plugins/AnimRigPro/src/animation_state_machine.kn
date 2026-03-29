@@ -1,0 +1,693 @@
+# AnimRigPro - Animation State Machine
+# IK/FK blending and constraint activation states
+
+# Animation State Types
+enum AnimationState:
+    Idle
+    Walking
+    Running
+    Jumping
+    Falling
+    Landing
+    Attacking
+    Blocking
+    Dodging
+    Custom
+
+# Transition Condition Types
+enum TransitionCondition:
+    Speed
+    Height
+    Time
+    Input
+    Custom
+
+# State Machine Data
+struct StateMachine:
+    machine_name: String
+    current_state: AnimationState
+    previous_state: AnimationState
+    states: Array<StateData>
+    transitions: Array<TransitionData>
+    global_ik_blend: Float
+    state_time: Float
+    
+    fn create_state_machine(name: String) -> StateMachine:
+        return StateMachine(
+            machine_name: name,
+            current_state: AnimationState.Idle,
+            previous_state: AnimationState.Idle,
+            states: [],
+            transitions: [],
+            global_ik_blend: 0.0,
+            state_time: 0.0
+        )
+    
+    fn add_state(machine: StateMachine, state: StateData) -> StateMachine:
+        let new_states = machine.states
+        push(new_states, state)
+        return StateMachine(
+            machine_name: machine.machine_name,
+            current_state: machine.current_state,
+            previous_state: machine.previous_state,
+            states: new_states,
+            transitions: machine.transitions,
+            global_ik_blend: machine.global_ik_blend,
+            state_time: machine.state_time
+        )
+    
+    fn add_transition(machine: StateMachine, transition: TransitionData) -> StateMachine:
+        let new_transitions = machine.transitions
+        push(new_transitions, transition)
+        return StateMachine(
+            machine_name: machine.machine_name,
+            current_state: machine.current_state,
+            previous_state: machine.previous_state,
+            states: machine.states,
+            transitions: new_transitions,
+            global_ik_blend: machine.global_ik_blend,
+            state_time: machine.state_time
+        )
+
+# State Data
+struct StateData:
+    state_type: AnimationState
+    state_name: String
+    ik_blend_target: Float
+    enabled_ik_chains: Array<String>
+    disabled_ik_chains: Array<String>
+    enabled_constraints: Array<String>
+    disabled_constraints: Array<String>
+    constraint_weights: Array<ConstraintWeight>
+    animation_name: String
+    animation_speed: Float
+    loop_animation: Bool
+    
+    fn create_state(
+        state_type: AnimationState,
+        name: String,
+        ik_blend: Float
+    ) -> StateData:
+        return StateData(
+            state_type: state_type,
+            state_name: name,
+            ik_blend_target: ik_blend,
+            enabled_ik_chains: [],
+            disabled_ik_chains: [],
+            enabled_constraints: [],
+            disabled_constraints: [],
+            constraint_weights: [],
+            animation_name: "",
+            animation_speed: 1.0,
+            loop_animation: true
+        )
+
+# Constraint Weight Override
+struct ConstraintWeight:
+    constraint_name: String
+    weight: Float
+
+# Transition Data
+struct TransitionData:
+    from_state: AnimationState
+    to_state: AnimationState
+    condition_type: TransitionCondition
+    condition_value: Float
+    blend_duration: Float
+    can_interrupt: Bool
+    priority: Int
+    
+    fn create_transition(
+        from: AnimationState,
+        to: AnimationState,
+        condition: TransitionCondition,
+        value: Float
+    ) -> TransitionData:
+        return TransitionData(
+            from_state: from,
+            to_state: to,
+            condition_type: condition,
+            condition_value: value,
+            blend_duration: 0.3,
+            can_interrupt: false,
+            priority: 0
+        )
+
+# State Machine Update
+fn update_state_machine(
+    machine: StateMachine,
+    rig_state: RigState,
+    delta_time: Float,
+    character_speed: Float,
+    character_height: Float,
+    input_flags: Int
+) -> StateMachine:
+    # Update state time
+    let new_state_time = machine.state_time + delta_time
+    
+    # Check for transitions
+    let transition_index = find_valid_transition(
+        machine,
+        character_speed,
+        character_height,
+        new_state_time,
+        input_flags
+    )
+    
+    if transition_index >= 0:
+        let transition = machine.transitions[transition_index]
+        return transition_to_state(machine, transition.to_state, rig_state)
+    
+    # Update IK blend toward target
+    let current_state_data = get_state_data(machine, machine.current_state)
+    if current_state_data.state_name != "":
+        let blend_speed = 2.0
+        let target_blend = current_state_data.ik_blend_target
+        let new_blend = if machine.global_ik_blend < target_blend:
+            min(machine.global_ik_blend + blend_speed * delta_time, target_blend)
+        else:
+            max(machine.global_ik_blend - blend_speed * delta_time, target_blend)
+        
+        return StateMachine(
+            machine_name: machine.machine_name,
+            current_state: machine.current_state,
+            previous_state: machine.previous_state,
+            states: machine.states,
+            transitions: machine.transitions,
+            global_ik_blend: new_blend,
+            state_time: new_state_time
+        )
+    
+    return StateMachine(
+        machine_name: machine.machine_name,
+        current_state: machine.current_state,
+        previous_state: machine.previous_state,
+        states: machine.states,
+        transitions: machine.transitions,
+        global_ik_blend: machine.global_ik_blend,
+        state_time: new_state_time
+    )
+
+# Find valid transition
+fn find_valid_transition(
+    machine: StateMachine,
+    speed: Float,
+    height: Float,
+    time: Float,
+    input: Int
+) -> Int:
+    let best_index = -1
+    let best_priority = -1
+    
+    let i = 0
+    while i < len(machine.transitions):
+        let transition = machine.transitions[i]
+        
+        if transition.from_state != machine.current_state:
+            i = i + 1
+            continue
+        
+        let condition_met = check_transition_condition(
+            transition,
+            speed,
+            height,
+            time,
+            input
+        )
+        
+        if condition_met and transition.priority > best_priority:
+            best_index = i
+            best_priority = transition.priority
+        
+        i = i + 1
+    
+    return best_index
+
+# Check transition condition
+fn check_transition_condition(
+    transition: TransitionData,
+    speed: Float,
+    height: Float,
+    time: Float,
+    input: Int
+) -> Bool:
+    if transition.condition_type == TransitionCondition.Speed:
+        return speed >= transition.condition_value
+    else:
+        if transition.condition_type == TransitionCondition.Height:
+            return height >= transition.condition_value
+        else:
+            if transition.condition_type == TransitionCondition.Time:
+                return time >= transition.condition_value
+            else:
+                if transition.condition_type == TransitionCondition.Input:
+                    return (input & int(transition.condition_value)) != 0
+                else:
+                    return false
+
+# Transition to new state
+fn transition_to_state(
+    machine: StateMachine,
+    new_state: AnimationState,
+    rig_state: RigState
+) -> StateMachine:
+    println("StateMachine: Transitioning from " + 
+            state_to_string(machine.current_state) + " to " + 
+            state_to_string(new_state))
+    
+    # Get new state data
+    let state_data = get_state_data(machine, new_state)
+    
+    # Apply state configuration to rig
+    apply_state_to_rig(state_data, rig_state)
+    
+    return StateMachine(
+        machine_name: machine.machine_name,
+        current_state: new_state,
+        previous_state: machine.current_state,
+        states: machine.states,
+        transitions: machine.transitions,
+        global_ik_blend: machine.global_ik_blend,
+        state_time: 0.0
+    )
+
+# Get state data
+fn get_state_data(machine: StateMachine, state: AnimationState) -> StateData:
+    let i = 0
+    while i < len(machine.states):
+        if machine.states[i].state_type == state:
+            return machine.states[i]
+        i = i + 1
+    
+    return create_state(state, "", 0.0)
+
+# Apply state configuration to rig
+fn apply_state_to_rig(state: StateData, rig_state: RigState):
+    # Enable IK chains
+    let i = 0
+    while i < len(state.enabled_ik_chains):
+        let chain_name = state.enabled_ik_chains[i]
+        let chain_index = find_ik_chain(rig_state, chain_name)
+        if chain_index >= 0:
+            rig_state.ik_chains[chain_index].enabled = true
+        i = i + 1
+    
+    # Disable IK chains
+    i = 0
+    while i < len(state.disabled_ik_chains):
+        let chain_name = state.disabled_ik_chains[i]
+        let chain_index = find_ik_chain(rig_state, chain_name)
+        if chain_index >= 0:
+            rig_state.ik_chains[chain_index].enabled = false
+        i = i + 1
+    
+    # Enable constraints
+    i = 0
+    while i < len(state.enabled_constraints):
+        let constraint_name = state.enabled_constraints[i]
+        enable_constraint_by_name(rig_state, constraint_name, true)
+        i = i + 1
+    
+    # Disable constraints
+    i = 0
+    while i < len(state.disabled_constraints):
+        let constraint_name = state.disabled_constraints[i]
+        enable_constraint_by_name(rig_state, constraint_name, false)
+        i = i + 1
+    
+    # Apply constraint weights
+    i = 0
+    while i < len(state.constraint_weights):
+        let weight_override = state.constraint_weights[i]
+        set_constraint_weight_by_name(rig_state, weight_override.constraint_name, weight_override.weight)
+        i = i + 1
+
+# Helper functions
+fn enable_constraint_by_name(rig_state: RigState, name: String, enabled: Bool):
+    let i = 0
+    while i < len(rig_state.aim_constraints):
+        if rig_state.aim_constraints[i].base.constraint_name == name:
+            rig_state.aim_constraints[i].base.enabled = enabled
+            return
+        i = i + 1
+    
+    i = 0
+    while i < len(rig_state.parent_constraints):
+        if rig_state.parent_constraints[i].base.constraint_name == name:
+            rig_state.parent_constraints[i].base.enabled = enabled
+            return
+        i = i + 1
+    
+    i = 0
+    while i < len(rig_state.position_constraints):
+        if rig_state.position_constraints[i].base.constraint_name == name:
+            rig_state.position_constraints[i].base.enabled = enabled
+            return
+        i = i + 1
+    
+    i = 0
+    while i < len(rig_state.rotation_constraints):
+        if rig_state.rotation_constraints[i].base.constraint_name == name:
+            rig_state.rotation_constraints[i].base.enabled = enabled
+            return
+        i = i + 1
+
+fn set_constraint_weight_by_name(rig_state: RigState, name: String, weight: Float):
+    let i = 0
+    while i < len(rig_state.aim_constraints):
+        if rig_state.aim_constraints[i].base.constraint_name == name:
+            rig_state.aim_constraints[i].base.weight = weight
+            return
+        i = i + 1
+    
+    i = 0
+    while i < len(rig_state.parent_constraints):
+        if rig_state.parent_constraints[i].base.constraint_name == name:
+            rig_state.parent_constraints[i].base.weight = weight
+            return
+        i = i + 1
+    
+    i = 0
+    while i < len(rig_state.position_constraints):
+        if rig_state.position_constraints[i].base.constraint_name == name:
+            rig_state.position_constraints[i].base.weight = weight
+            return
+        i = i + 1
+    
+    i = 0
+    while i < len(rig_state.rotation_constraints):
+        if rig_state.rotation_constraints[i].base.constraint_name == name:
+            rig_state.rotation_constraints[i].base.weight = weight
+            return
+        i = i + 1
+
+fn state_to_string(state: AnimationState) -> String:
+    if state == AnimationState.Idle:
+        return "Idle"
+    else:
+        if state == AnimationState.Walking:
+            return "Walking"
+        else:
+            if state == AnimationState.Running:
+                return "Running"
+            else:
+                if state == AnimationState.Jumping:
+                    return "Jumping"
+                else:
+                    if state == AnimationState.Falling:
+                        return "Falling"
+                    else:
+                        if state == AnimationState.Landing:
+                            return "Landing"
+                        else:
+                            if state == AnimationState.Attacking:
+                                return "Attacking"
+                            else:
+                                if state == AnimationState.Blocking:
+                                    return "Blocking"
+                                else:
+                                    if state == AnimationState.Dodging:
+                                        return "Dodging"
+                                    else:
+                                        return "Custom"
+
+# Preset State Machines
+
+# Humanoid locomotion state machine
+fn create_humanoid_locomotion_machine() -> StateMachine:
+    let machine = create_state_machine("HumanoidLocomotion")
+    
+    # Idle state - FK mode
+    let idle_state = create_state(AnimationState.Idle, "Idle", 0.0)
+    idle_state.animation_name = "Idle_Anim"
+    machine = add_state(machine, idle_state)
+    
+    # Walking state - blend IK/FK
+    let walk_state = create_state(AnimationState.Walking, "Walking", 0.5)
+    walk_state.animation_name = "Walk_Anim"
+    push(walk_state.enabled_ik_chains, "LeftLeg")
+    push(walk_state.enabled_ik_chains, "RightLeg")
+    machine = add_state(machine, walk_state)
+    
+    # Running state - more IK
+    let run_state = create_state(AnimationState.Running, "Running", 0.7)
+    run_state.animation_name = "Run_Anim"
+    push(run_state.enabled_ik_chains, "LeftLeg")
+    push(run_state.enabled_ik_chains, "RightLeg")
+    push(run_state.enabled_ik_chains, "Spine")
+    machine = add_state(machine, run_state)
+    
+    # Jumping state - full IK
+    let jump_state = create_state(AnimationState.Jumping, "Jumping", 1.0)
+    jump_state.animation_name = "Jump_Anim"
+    jump_state.loop_animation = false
+    push(jump_state.enabled_ik_chains, "LeftLeg")
+    push(jump_state.enabled_ik_chains, "RightLeg")
+    push(jump_state.enabled_ik_chains, "LeftArm")
+    push(jump_state.enabled_ik_chains, "RightArm")
+    machine = add_state(machine, jump_state)
+    
+    # Falling state - full IK
+    let fall_state = create_state(AnimationState.Falling, "Falling", 1.0)
+    fall_state.animation_name = "Fall_Anim"
+    push(fall_state.enabled_ik_chains, "LeftLeg")
+    push(fall_state.enabled_ik_chains, "RightLeg")
+    push(fall_state.enabled_ik_chains, "LeftArm")
+    push(fall_state.enabled_ik_chains, "RightArm")
+    machine = add_state(machine, fall_state)
+    
+    # Landing state - blend back to FK
+    let land_state = create_state(AnimationState.Landing, "Landing", 0.3)
+    land_state.animation_name = "Land_Anim"
+    land_state.loop_animation = false
+    machine = add_state(machine, land_state)
+    
+    # Transitions
+    # Idle -> Walking (speed > 10)
+    machine = add_transition(machine, create_transition(
+        AnimationState.Idle,
+        AnimationState.Walking,
+        TransitionCondition.Speed,
+        10.0
+    ))
+    
+    # Walking -> Running (speed > 300)
+    machine = add_transition(machine, create_transition(
+        AnimationState.Walking,
+        AnimationState.Running,
+        TransitionCondition.Speed,
+        300.0
+    ))
+    
+    # Running -> Walking (speed < 250)
+    machine = add_transition(machine, create_transition(
+        AnimationState.Running,
+        AnimationState.Walking,
+        TransitionCondition.Speed,
+        250.0
+    ))
+    
+    # Walking -> Idle (speed < 5)
+    machine = add_transition(machine, create_transition(
+        AnimationState.Walking,
+        AnimationState.Idle,
+        TransitionCondition.Speed,
+        5.0
+    ))
+    
+    # Any -> Jumping (height > 50)
+    machine = add_transition(machine, create_transition(
+        AnimationState.Idle,
+        AnimationState.Jumping,
+        TransitionCondition.Height,
+        50.0
+    ))
+    
+    machine = add_transition(machine, create_transition(
+        AnimationState.Walking,
+        AnimationState.Jumping,
+        TransitionCondition.Height,
+        50.0
+    ))
+    
+    machine = add_transition(machine, create_transition(
+        AnimationState.Running,
+        AnimationState.Jumping,
+        TransitionCondition.Height,
+        50.0
+    ))
+    
+    # Jumping -> Falling (time > 0.5)
+    let jump_to_fall = create_transition(
+        AnimationState.Jumping,
+        AnimationState.Falling,
+        TransitionCondition.Time,
+        0.5
+    )
+    jump_to_fall.blend_duration = 0.1
+    machine = add_transition(machine, jump_to_fall)
+    
+    # Falling -> Landing (height < 10)
+    machine = add_transition(machine, create_transition(
+        AnimationState.Falling,
+        AnimationState.Landing,
+        TransitionCondition.Height,
+        10.0
+    ))
+    
+    # Landing -> Idle (time > 0.3)
+    machine = add_transition(machine, create_transition(
+        AnimationState.Landing,
+        AnimationState.Idle,
+        TransitionCondition.Time,
+        0.3
+    ))
+    
+    return machine
+
+# Combat state machine
+fn create_combat_state_machine() -> StateMachine:
+    let machine = create_state_machine("Combat")
+    
+    # Idle combat stance
+    let idle_state = create_state(AnimationState.Idle, "CombatIdle", 0.5)
+    idle_state.animation_name = "Combat_Idle"
+    push(idle_state.enabled_ik_chains, "Head")
+    machine = add_state(machine, idle_state)
+    
+    # Attacking state - IK for weapon hand
+    let attack_state = create_state(AnimationState.Attacking, "Attacking", 0.8)
+    attack_state.animation_name = "Attack_Anim"
+    attack_state.loop_animation = false
+    push(attack_state.enabled_ik_chains, "RightArm")
+    push(attack_state.enabled_ik_chains, "Head")
+    machine = add_state(machine, attack_state)
+    
+    # Blocking state - both arms IK
+    let block_state = create_state(AnimationState.Blocking, "Blocking", 0.9)
+    block_state.animation_name = "Block_Anim"
+    push(block_state.enabled_ik_chains, "LeftArm")
+    push(block_state.enabled_ik_chains, "RightArm")
+    push(block_state.enabled_ik_chains, "Head")
+    machine = add_state(machine, block_state)
+    
+    # Dodging state - full body IK
+    let dodge_state = create_state(AnimationState.Dodging, "Dodging", 1.0)
+    dodge_state.animation_name = "Dodge_Anim"
+    dodge_state.loop_animation = false
+    push(dodge_state.enabled_ik_chains, "LeftArm")
+    push(dodge_state.enabled_ik_chains, "RightArm")
+    push(dodge_state.enabled_ik_chains, "LeftLeg")
+    push(dodge_state.enabled_ik_chains, "RightLeg")
+    push(dodge_state.enabled_ik_chains, "Spine")
+    machine = add_state(machine, dodge_state)
+    
+    # Transitions (input-based)
+    # Idle -> Attacking (input flag 1)
+    machine = add_transition(machine, create_transition(
+        AnimationState.Idle,
+        AnimationState.Attacking,
+        TransitionCondition.Input,
+        1.0
+    ))
+    
+    # Idle -> Blocking (input flag 2)
+    machine = add_transition(machine, create_transition(
+        AnimationState.Idle,
+        AnimationState.Blocking,
+        TransitionCondition.Input,
+        2.0
+    ))
+    
+    # Idle -> Dodging (input flag 4)
+    machine = add_transition(machine, create_transition(
+        AnimationState.Idle,
+        AnimationState.Dodging,
+        TransitionCondition.Input,
+        4.0
+    ))
+    
+    # Attacking -> Idle (time > 0.6)
+    machine = add_transition(machine, create_transition(
+        AnimationState.Attacking,
+        AnimationState.Idle,
+        TransitionCondition.Time,
+        0.6
+    ))
+    
+    # Blocking -> Idle (input flag 0)
+    machine = add_transition(machine, create_transition(
+        AnimationState.Blocking,
+        AnimationState.Idle,
+        TransitionCondition.Input,
+        0.0
+    ))
+    
+    # Dodging -> Idle (time > 0.4)
+    machine = add_transition(machine, create_transition(
+        AnimationState.Dodging,
+        AnimationState.Idle,
+        TransitionCondition.Time,
+        0.4
+    ))
+    
+    return machine
+
+# Quadruped locomotion state machine
+fn create_quadruped_locomotion_machine() -> StateMachine:
+    let machine = create_state_machine("QuadrupedLocomotion")
+    
+    # Idle state
+    let idle_state = create_state(AnimationState.Idle, "Idle", 0.0)
+    idle_state.animation_name = "Quad_Idle"
+    machine = add_state(machine, idle_state)
+    
+    # Walking state - all legs IK
+    let walk_state = create_state(AnimationState.Walking, "Walking", 0.8)
+    walk_state.animation_name = "Quad_Walk"
+    push(walk_state.enabled_ik_chains, "FrontLeftLeg")
+    push(walk_state.enabled_ik_chains, "FrontRightLeg")
+    push(walk_state.enabled_ik_chains, "BackLeftLeg")
+    push(walk_state.enabled_ik_chains, "BackRightLeg")
+    machine = add_state(machine, walk_state)
+    
+    # Running state - all legs IK + spine
+    let run_state = create_state(AnimationState.Running, "Running", 1.0)
+    run_state.animation_name = "Quad_Run"
+    push(run_state.enabled_ik_chains, "FrontLeftLeg")
+    push(run_state.enabled_ik_chains, "FrontRightLeg")
+    push(run_state.enabled_ik_chains, "BackLeftLeg")
+    push(run_state.enabled_ik_chains, "BackRightLeg")
+    push(run_state.enabled_ik_chains, "Tail")
+    machine = add_state(machine, run_state)
+    
+    # Transitions
+    machine = add_transition(machine, create_transition(
+        AnimationState.Idle,
+        AnimationState.Walking,
+        TransitionCondition.Speed,
+        10.0
+    ))
+    
+    machine = add_transition(machine, create_transition(
+        AnimationState.Walking,
+        AnimationState.Running,
+        TransitionCondition.Speed,
+        300.0
+    ))
+    
+    machine = add_transition(machine, create_transition(
+        AnimationState.Running,
+        AnimationState.Walking,
+        TransitionCondition.Speed,
+        250.0
+    ))
+    
+    machine = add_transition(machine, create_transition(
+        AnimationState.Walking,
+        AnimationState.Idle,
+        TransitionCondition.Speed,
+        5.0
+    ))
+    
+    return machine

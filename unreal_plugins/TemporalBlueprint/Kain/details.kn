@@ -1,0 +1,276 @@
+# ============================================================================
+# TEMPORAL BLUEPRINT — Details Panel Customizations
+# ============================================================================
+# Custom Details panels for TemporalActorProxy, TemporalZoneActor,
+# TemporalAnchorActor, TemporalPortalActor, and TemporalManagerActor.
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: TEMPORAL ACTOR PROXY DETAILS
+# ============================================================================
+
+@details(target="TemporalActorProxy")
+struct FTemporalActorProxyDetails:
+    @category("Temporal|Identity")
+    actor_guid: String
+
+    @category("Temporal|Identity")
+    display_name: String
+
+    @category("Temporal|Behavior")
+    behavior: TemporalActorBehavior
+
+    @category("Temporal|Behavior")
+    native_era: TemporalEra
+
+    @category("Temporal|Visibility")
+    visible_in_ancient: Bool
+
+    @category("Temporal|Visibility")
+    visible_in_past: Bool
+
+    @category("Temporal|Visibility")
+    visible_in_present: Bool
+
+    @category("Temporal|Visibility")
+    visible_in_future: Bool
+
+    @category("Temporal|Visibility")
+    visible_in_apocalyptic: Bool
+
+    @category("Temporal|Visibility")
+    visible_in_alternate: Bool
+
+    @category("Temporal|Visibility")
+    visible_in_void: Bool
+
+    @category("Temporal|Ghost")
+    show_ghost_in_non_native: Bool
+
+    @category("Temporal|Ghost")
+    ghost_opacity: Float
+
+    @category("Temporal|Ghost")
+    ghost_color: Vec3
+
+    @category("Temporal|Ghost")
+    ghost_emissive_strength: Float
+
+    @category("Temporal|CustomData")
+    custom_data_0: Float
+
+    @category("Temporal|CustomData")
+    custom_data_1: Float
+
+    @category("Temporal|CustomData")
+    custom_data_2: Float
+
+    @category("Temporal|CustomData")
+    custom_data_3: Float
+
+    @category("Temporal|Causality")
+    participates_in_causality: Bool
+
+    @category("Temporal|Causality")
+    causality_group_tag: String
+
+# ============================================================================
+# SECTION 2: TEMPORAL ZONE ACTOR DETAILS
+# ============================================================================
+
+@details(target="TemporalZoneActor")
+struct FTemporalZoneDetails:
+    @category("Temporal|Zone")
+    zone_id: Int
+
+    @category("Temporal|Zone")
+    zone_name: String
+
+    @category("Temporal|Zone")
+    forced_era: TemporalEra
+
+    @category("Temporal|Zone")
+    has_forced_era: Bool
+
+    @category("Temporal|Zone")
+    blend_radius: Float
+
+    @category("Temporal|Zone")
+    priority: Int
+
+    @category("Temporal|Zone")
+    enabled: Bool
+
+    @category("Temporal|Zone")
+    zone_extent: Vec3
+
+    @category("Temporal|Zone")
+    zone_shape_is_sphere: Bool
+
+    @category("Temporal|Transition")
+    override_transition_type: Bool
+
+    @category("Temporal|Transition")
+    transition_type: TemporalTransitionType
+
+    @category("Temporal|Transition")
+    transition_duration: Float
+
+    @category("Temporal|Debug")
+    debug_color: Vec3
+
+    @category("Temporal|Debug")
+    show_debug_bounds: Bool
+
+# ============================================================================
+# SECTION 3: TEMPORAL ANCHOR ACTOR DETAILS
+# ============================================================================
+
+@details(target="TemporalAnchorActor")
+struct FTemporalAnchorDetails:
+    @category("Temporal|Anchor")
+    anchor_id: Int
+
+    @category("Temporal|Anchor")
+    anchor_name: String
+
+    @category("Temporal|Anchor")
+    anchor_type: TemporalAnchorType
+
+    @category("Temporal|Anchor")
+    native_era: TemporalEra
+
+    @category("Temporal|Anchor")
+    influence_radius: Float
+
+    @category("Temporal|Trigger")
+    triggers_transition: Bool
+
+    @category("Temporal|Trigger")
+    transition_target_era: TemporalEra
+
+    @category("Temporal|Trigger")
+    require_interaction: Bool
+
+    @category("Temporal|Trigger")
+    trigger_radius: Float
+
+    @category("Temporal|Causality")
+    is_causal: Bool
+
+    @category("Temporal|Causality")
+    causal_group_tag: String
+
+    @category("Temporal|State")
+    is_activated: Bool
+
+    @category("Temporal|State")
+    activation_count: Int
+
+# ============================================================================
+# SECTION 4: TEMPORAL PORTAL ACTOR DETAILS
+# ============================================================================
+
+@details(target="TemporalPortalActor")
+struct FTemporalPortalDetails:
+    @category("Temporal|Portal")
+    portal_id: Int
+
+    @category("Temporal|Portal")
+    portal_name: String
+
+    @category("Temporal|Portal")
+    source_era: TemporalEra
+
+    @category("Temporal|Portal")
+    target_era: TemporalEra
+
+    @category("Temporal|Portal")
+    is_open: Bool
+
+    @category("Temporal|Portal")
+    portal_opacity: Float
+
+    @category("Temporal|Shape")
+    portal_width: Float
+
+    @category("Temporal|Shape")
+    portal_height: Float
+
+    @category("Temporal|Shape")
+    portal_depth: Float
+
+    @category("Temporal|Visual")
+    edge_glow_color: Vec3
+
+    @category("Temporal|Visual")
+    edge_glow_intensity: Float
+
+    @category("Temporal|Visual")
+    distortion_strength: Float
+
+    @category("Temporal|Visual")
+    chromatic_aberration: Float
+
+    @category("Temporal|Visual")
+    flicker_speed: Float
+
+    @category("Temporal|Traversal")
+    allow_traversal: Bool
+
+    @category("Temporal|Traversal")
+    traversal_triggers_transition: Bool
+
+# ============================================================================
+# SECTION 5: TEMPORAL MANAGER ACTOR DETAILS
+# ============================================================================
+
+@details(target="TemporalManagerActor")
+struct FTemporalManagerDetails:
+    @category("Temporal|Global")
+    current_era: TemporalEra
+
+    @category("Temporal|Global")
+    is_locked: Bool
+
+    @category("Temporal|Global")
+    causality_rule: CausalityRule
+
+    @category("Temporal|Transition")
+    default_transition_type: TemporalTransitionType
+
+    @category("Temporal|Transition")
+    default_transition_duration: Float
+
+    @category("Temporal|Transition")
+    allow_player_initiated_transitions: Bool
+
+    @category("Temporal|Snapshots")
+    autosave_snapshots: Bool
+
+    @category("Temporal|Snapshots")
+    max_snapshots: Int
+
+    @category("Temporal|Debug")
+    debug_mode: TemporalDebugMode
+
+    @category("Temporal|Debug")
+    show_era_overlay: Bool
+
+    @category("Temporal|Debug")
+    log_transitions: Bool
+
+    @category("Temporal|Stats")
+    tracked_actor_count: Int
+
+    @category("Temporal|Stats")
+    active_zone_count: Int
+
+    @category("Temporal|Stats")
+    anchor_count: Int
+
+    @category("Temporal|Stats")
+    snapshot_count: Int
+
+    @category("Temporal|Stats")
+    causality_link_count: Int

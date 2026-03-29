@@ -1,0 +1,920 @@
+// QuestMaster — Quest Actors
+// Phase 5: Actors with networking and replication
+
+// ============================================================================
+// QUEST MANAGER ACTOR
+// ============================================================================
+
+actor QuestManagerActor:
+    @replicated
+    state active_quest_count: Int = 0
+    
+    @replicated
+    state tracked_quest_id: String = ""
+    
+    state quest_subsystem_ref: String = ""
+    
+    // ========================================================================
+    // RPC: START QUEST
+    // ========================================================================
+    
+    on Server_StartQuest(quest_id: String, player_id: String):
+        println("Server: Starting quest {quest_id} for player {player_id}")
+        active_quest_count = active_quest_count + 1
+        Multicast_QuestStateChanged(quest_id, "Active")
+    
+    on Server_CompleteQuest(quest_id: String):
+        println("Server: Completing quest {quest_id}")
+        active_quest_count = active_quest_count - 1
+        Multicast_QuestStateChanged(quest_id, "Completed")
+    
+    on Server_FailQuest(quest_id: String, reason: String):
+        println("Server: Failing quest {quest_id} - {reason}")
+        active_quest_count = active_quest_count - 1
+        Multicast_QuestStateChanged(quest_id, "Failed")
+    
+    on Server_AbandonQuest(quest_id: String):
+        println("Server: Abandoning quest {quest_id}")
+        active_quest_count = active_quest_count - 1
+        Multicast_QuestStateChanged(quest_id, "Abandoned")
+    
+    on Server_UpdateObjective(quest_id: String, objective_id: String, count: Int):
+        println("Server: Updating objective {objective_id} to {count}")
+        Multicast_ObjectiveUpdated(quest_id, objective_id, count)
+    
+    // ========================================================================
+    // MULTICAST RPCS
+    // ========================================================================
+    
+    on Multicast_QuestStateChanged(quest_id: String, new_state: String):
+        println("Multicast: Quest {quest_id} state changed to {new_state}")
+    
+    on Multicast_ObjectiveUpdated(quest_id: String, objective_id: String, count: Int):
+        println("Multicast: Objective {objective_id} updated to {count}")
+    
+    // ========================================================================
+    // BLUEPRINT FUNCTIONS
+    // ========================================================================
+    
+    @blueprint
+    fn get_active_quest_count() -> Int:
+        return active_quest_count
+    
+    @blueprint
+    fn get_tracked_quest_id() -> String:
+        return tracked_quest_id
+    
+    @blueprint
+    fn set_tracked_quest(quest_id: String):
+        tracked_quest_id = quest_id
+        println("Tracking quest: {quest_id}")
+    
+    @blueprint
+    fn start_quest_on_server(quest_id: String, player_id: String):
+        Server_StartQuest(quest_id, player_id)
+    
+    @blueprint
+    fn complete_quest_on_server(quest_id: String):
+        Server_CompleteQuest(quest_id)
+    
+    @blueprint
+    fn fail_quest_on_server(quest_id: String, reason: String):
+        Server_FailQuest(quest_id, reason)
+    
+    @blueprint
+    fn abandon_quest_on_server(quest_id: String):
+        Server_AbandonQuest(quest_id)
+    
+    @blueprint
+    fn update_objective_on_server(quest_id: String, objective_id: String, count: Int):
+        Server_UpdateObjective(quest_id, objective_id, count)
+
+// ============================================================================
+// QUEST GIVER ACTOR
+// ============================================================================
+
+actor QuestGiverActor:
+    state available_quests: Array<String> = []
+    state completed_quests: Array<String> = []
+    state repeatable: Bool = false
+    state interaction_text: String = "Talk"
+    state quest_giver_name: String = "Quest Giver"
+    state greeting_text: String = "Hello, traveler!"
+    state farewell_text: String = "Good luck!"
+    
+    // ========================================================================
+    // RPC: ACCEPT QUEST
+    // ========================================================================
+    
+    on Server_AcceptQuest(quest_id: String, player_id: String):
+        println("Server: Player {player_id} accepted quest {quest_id}")
+        
+        let found = false
+        let i = 0
+        while i < len(available_quests):
+            if available_quests[i] == quest_id:
+                found = true
+            i = i + 1
+        
+        if found:
+            println("Quest {quest_id} is available, starting...")
+        else:
+            println("Quest {quest_id} is not available")
+    
+    on Server_TurnInQuest(quest_id: String, player_id: String):
+        println("Server: Player {player_id} turned in quest {quest_id}")
+        push(completed_quests, quest_id)
+    
+    // ========================================================================
+    // INTERACTION LOGIC
+    // ========================================================================
+    
+    @blueprint
+    fn interact_with_player(player_id: String):
+        println("{quest_giver_name}: {greeting_text}")
+        show_available_quests()
+    
+    @blueprint
+    fn show_available_quests():
+        println("Available quests:")
+        let i = 0
+        while i < len(available_quests):
+            println("  - {available_quests[i]}")
+            i = i + 1
+    
+    @blueprint
+    fn add_available_quest(quest_id: String):
+        push(available_quests, quest_id)
+        println("Added available quest: {quest_id}")
+    
+    @blueprint
+    fn remove_available_quest(quest_id: String):
+        println("Removed available quest: {quest_id}")
+    
+    @blueprint
+    fn is_quest_available(quest_id: String) -> Bool:
+        let i = 0
+        while i < len(available_quests):
+            if available_quests[i] == quest_id:
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn is_quest_completed(quest_id: String) -> Bool:
+        let i = 0
+        while i < len(completed_quests):
+            if completed_quests[i] == quest_id:
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn accept_quest_from_player(quest_id: String, player_id: String):
+        Server_AcceptQuest(quest_id, player_id)
+    
+    @blueprint
+    fn turn_in_quest_from_player(quest_id: String, player_id: String):
+        Server_TurnInQuest(quest_id, player_id)
+    
+    @blueprint
+    fn get_available_quest_count() -> Int:
+        return len(available_quests)
+    
+    @blueprint
+    fn get_completed_quest_count() -> Int:
+        return len(completed_quests)
+
+// ============================================================================
+// QUEST OBJECTIVE ACTOR
+// ============================================================================
+
+actor QuestObjectiveActor:
+    @replicated
+    state quest_id: String = ""
+    
+    @replicated
+    state objective_id: String = ""
+    
+    @replicated
+    state target_count: Int = 1
+    
+    @replicated
+    state current_count: Int = 0
+    
+    state auto_complete: Bool = true
+    state objective_type: ObjectiveType = ObjectiveType::Interact
+    state completion_radius: Float = 100.0
+    state show_marker: Bool = true
+    state marker_icon: String = "Objective"
+    
+    // ========================================================================
+    // RPC: UPDATE OBJECTIVE
+    // ========================================================================
+    
+    on Server_UpdateObjective(player_id: String, count: Int):
+        println("Server: Updating objective {objective_id} for player {player_id}")
+        current_count = count
+        
+        if current_count >= target_count && auto_complete:
+            println("Objective {objective_id} completed!")
+            Multicast_ObjectiveCompleted(objective_id)
+    
+    on Multicast_ObjectiveCompleted(obj_id: String):
+        println("Multicast: Objective {obj_id} completed")
+    
+    // ========================================================================
+    // OVERLAP/INTERACTION TRIGGERS
+    // ========================================================================
+    
+    @blueprint
+    fn on_player_overlap(player_id: String):
+        println("Player {player_id} overlapped objective {objective_id}")
+        
+        match objective_type:
+            ObjectiveType::Reach => increment_objective_count(player_id)
+            ObjectiveType::Discover => increment_objective_count(player_id)
+            _ => println("Overlap not handled for this objective type")
+    
+    @blueprint
+    fn on_player_interact(player_id: String):
+        println("Player {player_id} interacted with objective {objective_id}")
+        
+        match objective_type:
+            ObjectiveType::Interact => increment_objective_count(player_id)
+            ObjectiveType::Collect => increment_objective_count(player_id)
+            _ => println("Interaction not handled for this objective type")
+    
+    @blueprint
+    fn increment_objective_count(player_id: String):
+        let new_count = current_count + 1
+        Server_UpdateObjective(player_id, new_count)
+    
+    @blueprint
+    fn set_objective_count(player_id: String, count: Int):
+        Server_UpdateObjective(player_id, count)
+    
+    @blueprint
+    fn reset_objective():
+        current_count = 0
+        println("Reset objective {objective_id}")
+    
+    @blueprint
+    fn get_objective_progress() -> Float:
+        if target_count == 0:
+            return 0.0
+        return (current_count as Float) / (target_count as Float) * 100.0
+    
+    @blueprint
+    fn is_objective_complete() -> Bool:
+        return current_count >= target_count
+    
+    @blueprint
+    fn get_current_count() -> Int:
+        return current_count
+    
+    @blueprint
+    fn get_target_count() -> Int:
+        return target_count
+    
+    @blueprint
+    fn set_target_count(count: Int):
+        target_count = count
+        println("Set target count to {count}")
+
+// ============================================================================
+// QUEST TRIGGER ACTOR
+// ============================================================================
+
+actor QuestTriggerActor:
+    state trigger_type: String = "Overlap"
+    state quest_id: String = ""
+    state event_name: String = ""
+    state one_time: Bool = true
+    state triggered: Bool = false
+    state trigger_delay: Float = 0.0
+    state require_quest_active: Bool = false
+    state trigger_radius: Float = 200.0
+    
+    // ========================================================================
+    // RPC: TRIGGER EVENT
+    // ========================================================================
+    
+    on Server_TriggerEvent(player_id: String, event_data: String):
+        if one_time && triggered:
+            println("Trigger already activated")
+            return
+        
+        println("Server: Triggering event {event_name} for player {player_id}")
+        triggered = true
+        Multicast_EventTriggered(event_name, event_data)
+    
+    on Multicast_EventTriggered(event: String, data: String):
+        println("Multicast: Event {event} triggered with data: {data}")
+    
+    // ========================================================================
+    // OVERLAP/INTERACTION/TIMER LOGIC
+    // ========================================================================
+    
+    @blueprint
+    fn on_player_overlap(player_id: String):
+        if trigger_type == "Overlap":
+            trigger_event_for_player(player_id)
+    
+    @blueprint
+    fn on_player_interact(player_id: String):
+        if trigger_type == "Interact":
+            trigger_event_for_player(player_id)
+    
+    @blueprint
+    fn on_timer_expired():
+        if trigger_type == "Timer":
+            trigger_event_for_player("system")
+    
+    @blueprint
+    fn trigger_event_for_player(player_id: String):
+        if one_time && triggered:
+            return
+        
+        if require_quest_active:
+            println("Checking if quest {quest_id} is active...")
+        
+        Server_TriggerEvent(player_id, "")
+    
+    @blueprint
+    fn reset_trigger():
+        triggered = false
+        println("Reset trigger")
+    
+    @blueprint
+    fn is_triggered() -> Bool:
+        return triggered
+    
+    @blueprint
+    fn set_trigger_type(trig_type: String):
+        trigger_type = trig_type
+        println("Set trigger type to {trig_type}")
+    
+    @blueprint
+    fn set_event_name(event: String):
+        event_name = event
+        println("Set event name to {event}")
+    
+    @blueprint
+    fn set_quest_id(q_id: String):
+        quest_id = q_id
+        println("Set quest ID to {q_id}")
+    
+    @blueprint
+    fn enable_one_time(enabled: Bool):
+        one_time = enabled
+        println("One-time trigger: {enabled}")
+    
+    @blueprint
+    fn get_trigger_type() -> String:
+        return trigger_type
+    
+    @blueprint
+    fn get_event_name() -> String:
+        return event_name
+    
+    @blueprint
+    fn get_quest_id() -> String:
+        return quest_id
+    
+    // ========================================================================
+    // ADDITIONAL QUEST MANAGER FUNCTIONS
+    // ========================================================================
+    
+    @blueprint
+    fn initialize_quest_manager():
+        println("Initializing Quest Manager Actor")
+        active_quest_count = 0
+        tracked_quest_id = ""
+    
+    @blueprint
+    fn shutdown_quest_manager():
+        println("Shutting down Quest Manager Actor")
+    
+    @blueprint
+    fn sync_with_subsystem():
+        println("Syncing Quest Manager with Subsystem")
+    
+    @blueprint
+    fn broadcast_quest_update(quest_id: String):
+        Multicast_QuestStateChanged(quest_id, "Updated")
+    
+    @blueprint
+    fn get_quest_manager_status() -> String:
+        return "Active: {active_quest_count} quests"
+    
+    @blueprint
+    fn is_quest_manager_ready() -> Bool:
+        return true
+    
+    @blueprint
+    fn reset_quest_manager():
+        active_quest_count = 0
+        tracked_quest_id = ""
+        println("Reset Quest Manager")
+
+// ============================================================================
+// ADDITIONAL QUEST GIVER FUNCTIONS
+// ============================================================================
+
+@blueprint
+fn get_quest_giver_location() -> Vec3:
+    return vec3(0.0, 0.0, 0.0)
+
+@blueprint
+fn set_quest_giver_name(name: String):
+    println("Set quest giver name: {name}")
+
+@blueprint
+fn set_greeting_text(text: String):
+    println("Set greeting text: {text}")
+
+@blueprint
+fn set_farewell_text(text: String):
+    println("Set farewell text: {text}")
+
+@blueprint
+fn enable_repeatable_quests(enabled: Bool):
+    println("Repeatable quests: {enabled}")
+
+@blueprint
+fn get_quest_giver_info() -> String:
+    return "Quest Giver with {len(available_quests)} quests"
+
+@blueprint
+fn refresh_available_quests():
+    println("Refreshing available quests")
+
+@blueprint
+fn has_quests_available() -> Bool:
+    return len(available_quests) > 0
+
+@blueprint
+fn can_turn_in_quest(quest_id: String) -> Bool:
+    let i = 0
+    while i < len(completed_quests):
+        if completed_quests[i] == quest_id:
+            return true
+        i = i + 1
+    return false
+
+// ============================================================================
+// ADDITIONAL QUEST OBJECTIVE FUNCTIONS
+// ============================================================================
+
+@blueprint
+fn get_objective_location() -> Vec3:
+    return vec3(0.0, 0.0, 0.0)
+
+@blueprint
+fn set_objective_location(location: Vec3):
+    println("Set objective location: {location}")
+
+@blueprint
+fn enable_auto_complete(enabled: Bool):
+    println("Auto-complete: {enabled}")
+
+@blueprint
+fn set_completion_radius(radius: Float):
+    println("Set completion radius: {radius}")
+
+@blueprint
+fn show_objective_marker(show: Bool):
+    println("Show marker: {show}")
+
+@blueprint
+fn get_objective_info() -> String:
+    return "Objective {objective_id}: {current_count}/{target_count}"
+
+@blueprint
+fn is_objective_in_range(player_location: Vec3) -> Bool:
+    return true
+
+@blueprint
+fn get_distance_to_objective(player_location: Vec3) -> Float:
+    return 0.0
+
+@blueprint
+fn notify_objective_progress():
+    println("Objective progress: {current_count}/{target_count}")
+
+// ============================================================================
+// ADDITIONAL QUEST TRIGGER FUNCTIONS
+// ============================================================================
+
+@blueprint
+fn get_trigger_location() -> Vec3:
+    return vec3(0.0, 0.0, 0.0)
+
+@blueprint
+fn set_trigger_location(location: Vec3):
+    println("Set trigger location: {location}")
+
+@blueprint
+fn set_trigger_radius(radius: Float):
+    println("Set trigger radius: {radius}")
+
+@blueprint
+fn enable_trigger(enabled: Bool):
+    println("Trigger enabled: {enabled}")
+
+@blueprint
+fn set_trigger_delay(delay: Float):
+    println("Set trigger delay: {delay}")
+
+@blueprint
+fn require_quest_active_for_trigger(required: Bool):
+    println("Require quest active: {required}")
+
+@blueprint
+fn get_trigger_info() -> String:
+    return "Trigger: {trigger_type}, Event: {event_name}"
+
+@blueprint
+fn is_trigger_ready() -> Bool:
+    if one_time && triggered:
+        return false
+    return true
+
+@blueprint
+fn get_times_triggered() -> Int:
+    if triggered:
+        return 1
+    return 0
+
+@blueprint
+fn force_trigger():
+    triggered = true
+    println("Force triggered: {event_name}")
+
+
+// ============================================================================
+// QUEST BOARD ACTOR
+// ============================================================================
+
+actor QuestBoardActor:
+    state available_quests: Array<String> = []
+    state featured_quests: Array<String> = []
+    state daily_quests: Array<String> = []
+    state weekly_quests: Array<String> = []
+    state board_name: String = "Quest Board"
+    state board_level_requirement: Int = 1
+    state refresh_interval: Float = 86400.0
+    state last_refresh_time: Float = 0.0
+    
+    @blueprint
+    fn interact_with_board(player_id: String):
+        println("Player {player_id} interacting with quest board")
+        show_available_quests_ui()
+    
+    @blueprint
+    fn show_available_quests_ui():
+        println("Showing quest board UI")
+        println("Available quests: {len(available_quests)}")
+        println("Featured quests: {len(featured_quests)}")
+        println("Daily quests: {len(daily_quests)}")
+        println("Weekly quests: {len(weekly_quests)}")
+    
+    @blueprint
+    fn add_quest_to_board(quest_id: String):
+        push(available_quests, quest_id)
+        println("Added quest to board: {quest_id}")
+    
+    @blueprint
+    fn remove_quest_from_board(quest_id: String):
+        println("Removed quest from board: {quest_id}")
+    
+    @blueprint
+    fn set_featured_quest(quest_id: String):
+        push(featured_quests, quest_id)
+        println("Set featured quest: {quest_id}")
+    
+    @blueprint
+    fn refresh_daily_quests():
+        daily_quests = []
+        println("Refreshed daily quests")
+    
+    @blueprint
+    fn refresh_weekly_quests():
+        weekly_quests = []
+        println("Refreshed weekly quests")
+    
+    @blueprint
+    fn auto_refresh_check(current_time: Float):
+        if current_time - last_refresh_time >= refresh_interval:
+            refresh_daily_quests()
+            last_refresh_time = current_time
+    
+    @blueprint
+    fn get_quest_count() -> Int:
+        return len(available_quests)
+    
+    @blueprint
+    fn get_featured_quest_count() -> Int:
+        return len(featured_quests)
+    
+    @blueprint
+    fn get_daily_quest_count() -> Int:
+        return len(daily_quests)
+    
+    @blueprint
+    fn get_weekly_quest_count() -> Int:
+        return len(weekly_quests)
+    
+    @blueprint
+    fn is_quest_on_board(quest_id: String) -> Bool:
+        let i = 0
+        while i < len(available_quests):
+            if available_quests[i] == quest_id:
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn clear_all_quests():
+        available_quests = []
+        featured_quests = []
+        daily_quests = []
+        weekly_quests = []
+        println("Cleared all quests from board")
+    
+    @blueprint
+    fn set_board_level_requirement(level: Int):
+        board_level_requirement = level
+        println("Set board level requirement: {level}")
+    
+    @blueprint
+    fn can_player_access_board(player_level: Int) -> Bool:
+        return player_level >= board_level_requirement
+
+// ============================================================================
+// QUEST VENDOR ACTOR
+// ============================================================================
+
+actor QuestVendorActor:
+    state vendor_name: String = "Quest Vendor"
+    state quest_items: Array<String> = []
+    state quest_rewards: Array<String> = []
+    state vendor_reputation_required: Int = 0
+    state vendor_faction: String = ""
+    
+    @blueprint
+    fn interact_with_vendor(player_id: String):
+        println("Player {player_id} interacting with quest vendor")
+        show_vendor_ui()
+    
+    @blueprint
+    fn show_vendor_ui():
+        println("Showing vendor UI")
+        println("Quest items: {len(quest_items)}")
+        println("Quest rewards: {len(quest_rewards)}")
+    
+    @blueprint
+    fn purchase_quest_item(player_id: String, item_id: String) -> Bool:
+        println("Player {player_id} purchasing quest item: {item_id}")
+        return true
+    
+    @blueprint
+    fn sell_quest_item(player_id: String, item_id: String) -> Bool:
+        println("Player {player_id} selling quest item: {item_id}")
+        return true
+    
+    @blueprint
+    fn exchange_quest_reward(player_id: String, reward_id: String) -> Bool:
+        println("Player {player_id} exchanging quest reward: {reward_id}")
+        return true
+    
+    @blueprint
+    fn add_quest_item(item_id: String):
+        push(quest_items, item_id)
+        println("Added quest item: {item_id}")
+    
+    @blueprint
+    fn add_quest_reward(reward_id: String):
+        push(quest_rewards, reward_id)
+        println("Added quest reward: {reward_id}")
+    
+    @blueprint
+    fn has_quest_item(item_id: String) -> Bool:
+        let i = 0
+        while i < len(quest_items):
+            if quest_items[i] == item_id:
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn has_quest_reward(reward_id: String) -> Bool:
+        let i = 0
+        while i < len(quest_rewards):
+            if quest_rewards[i] == reward_id:
+                return true
+            i = i + 1
+        return false
+    
+    @blueprint
+    fn set_reputation_requirement(amount: Int):
+        vendor_reputation_required = amount
+        println("Set reputation requirement: {amount}")
+    
+    @blueprint
+    fn can_player_access_vendor(player_reputation: Int) -> Bool:
+        return player_reputation >= vendor_reputation_required
+
+// ============================================================================
+// QUEST COMPANION ACTOR
+// ============================================================================
+
+actor QuestCompanionActor:
+    state companion_name: String = "Quest Companion"
+    state companion_type: String = "Helper"
+    state assigned_quest_id: String = ""
+    state follow_player: Bool = true
+    state provide_hints: Bool = true
+    state companion_dialogue: Array<String> = []
+    
+    @blueprint
+    fn assign_to_quest(quest_id: String):
+        assigned_quest_id = quest_id
+        println("Companion assigned to quest: {quest_id}")
+    
+    @blueprint
+    fn unassign_from_quest():
+        assigned_quest_id = ""
+        println("Companion unassigned from quest")
+    
+    @blueprint
+    fn provide_quest_hint(objective_id: String):
+        if provide_hints:
+            println("Companion hint: Check the objective marker")
+    
+    @blueprint
+    fn speak_dialogue(dialogue_index: Int):
+        if dialogue_index >= 0 && dialogue_index < len(companion_dialogue):
+            println("Companion: {companion_dialogue[dialogue_index]}")
+    
+    @blueprint
+    fn add_dialogue_line(dialogue: String):
+        push(companion_dialogue, dialogue)
+    
+    @blueprint
+    fn enable_following(enabled: Bool):
+        follow_player = enabled
+        println("Companion following: {enabled}")
+    
+    @blueprint
+    fn enable_hints(enabled: Bool):
+        provide_hints = enabled
+        println("Companion hints: {enabled}")
+    
+    @blueprint
+    fn get_assigned_quest() -> String:
+        return assigned_quest_id
+    
+    @blueprint
+    fn is_assigned_to_quest() -> Bool:
+        return assigned_quest_id != ""
+    
+    @blueprint
+    fn dismiss_companion():
+        println("Companion dismissed")
+
+// ============================================================================
+// QUEST PORTAL ACTOR
+// ============================================================================
+
+actor QuestPortalActor:
+    state portal_name: String = "Quest Portal"
+    state destination_quest_id: String = ""
+    state destination_location: Vec3 = vec3(0.0, 0.0, 0.0)
+    state portal_active: Bool = true
+    state requires_quest_complete: Bool = false
+    state required_quest_id: String = ""
+    
+    on Server_ActivatePortal(player_id: String):
+        if portal_active:
+            println("Server: Activating portal for player {player_id}")
+            Multicast_PortalActivated(player_id)
+    
+    on Multicast_PortalActivated(player_id: String):
+        println("Multicast: Portal activated for {player_id}")
+    
+    @blueprint
+    fn interact_with_portal(player_id: String):
+        if can_use_portal(player_id):
+            Server_ActivatePortal(player_id)
+        else:
+            println("Cannot use portal: requirements not met")
+    
+    @blueprint
+    fn can_use_portal(player_id: String) -> Bool:
+        if !portal_active:
+            return false
+        
+        if requires_quest_complete:
+            return false
+        
+        return true
+    
+    @blueprint
+    fn set_destination_quest(quest_id: String):
+        destination_quest_id = quest_id
+        println("Set destination quest: {quest_id}")
+    
+    @blueprint
+    fn set_destination_location(location: Vec3):
+        destination_location = location
+        println("Set destination location: {location}")
+    
+    @blueprint
+    fn activate_portal():
+        portal_active = true
+        println("Portal activated")
+    
+    @blueprint
+    fn deactivate_portal():
+        portal_active = false
+        println("Portal deactivated")
+    
+    @blueprint
+    fn set_quest_requirement(quest_id: String):
+        required_quest_id = quest_id
+        requires_quest_complete = true
+        println("Set quest requirement: {quest_id}")
+    
+    @blueprint
+    fn clear_quest_requirement():
+        required_quest_id = ""
+        requires_quest_complete = false
+        println("Cleared quest requirement")
+    
+    @blueprint
+    fn is_portal_active() -> Bool:
+        return portal_active
+    
+    @blueprint
+    fn get_destination_quest() -> String:
+        return destination_quest_id
+
+// ============================================================================
+// QUEST CHECKPOINT ACTOR
+// ============================================================================
+
+actor QuestCheckpointActor:
+    state checkpoint_name: String = "Checkpoint"
+    state checkpoint_quest_id: String = ""
+    state checkpoint_objective_id: String = ""
+    state auto_save_on_reach: Bool = true
+    state respawn_point: Bool = false
+    state checkpoint_reached: Bool = false
+    
+    on Server_ReachCheckpoint(player_id: String):
+        println("Server: Player {player_id} reached checkpoint")
+        checkpoint_reached = true
+        Multicast_CheckpointReached(player_id)
+    
+    on Multicast_CheckpointReached(player_id: String):
+        println("Multicast: Checkpoint reached by {player_id}")
+    
+    @blueprint
+    fn on_player_reach_checkpoint(player_id: String):
+        if !checkpoint_reached:
+            Server_ReachCheckpoint(player_id)
+            
+            if auto_save_on_reach:
+                save_player_progress(player_id)
+    
+    @blueprint
+    fn save_player_progress(player_id: String):
+        println("Saving player progress at checkpoint")
+    
+    @blueprint
+    fn set_as_respawn_point():
+        respawn_point = true
+        println("Set as respawn point")
+    
+    @blueprint
+    fn reset_checkpoint():
+        checkpoint_reached = false
+        println("Reset checkpoint")
+    
+    @blueprint
+    fn is_checkpoint_reached() -> Bool:
+        return checkpoint_reached
+    
+    @blueprint
+    fn is_respawn_point() -> Bool:
+        return respawn_point
+    
+    @blueprint
+    fn get_checkpoint_quest() -> String:
+        return checkpoint_quest_id
+    
+    @blueprint
+    fn get_checkpoint_objective() -> String:
+        return checkpoint_objective_id

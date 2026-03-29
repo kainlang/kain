@@ -1,0 +1,2747 @@
+# ============================================================================
+# MATERIALIZE - Material Analysis and Optimization System
+# ============================================================================
+# Advanced material quality metrics, optimization, and validation tools
+# - Quality metrics (sharpness, contrast, detail level, color distribution)
+# - Texture compression analysis and format selection
+# - Mipmap quality analysis
+# - Tiling artifact detection and scoring
+# - Normal map quality validation
+# - Roughness/Metallic/AO map analysis
+# - Material performance profiling
+# - Shader complexity analysis
+# - Optimization suggestions
+# - Automatic LOD generation
+# - Material budget tracking
+# - Batch validation
+# - Material comparison tools
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: ENUMS - Analysis categories and metrics
+# ============================================================================
+
+enum TextureCompressionFormat:
+    BC1_RGB
+    BC3_RGBA
+    BC4_R
+    BC5_RG
+    BC6H_RGB16F
+    BC7_RGBA
+    ASTC_4x4
+    ASTC_6x6
+    ASTC_8x8
+    ETC2_RGB
+    ETC2_RGBA
+    Uncompressed_RGBA8
+    Uncompressed_RGB8
+    Uncompressed_R16F
+    Uncompressed_RGBA16F
+    TextureCompressionFormat_MAX
+
+enum MaterialQualityLevel:
+    Low
+    Medium
+    High
+    Ultra
+    Cinematic
+    MaterialQualityLevel_MAX
+
+enum OptimizationPriority:
+    Memory
+    Performance
+    Quality
+    Balanced
+    OptimizationPriority_MAX
+
+enum TilingArtifactType:
+    SeamVisible
+    PatternRepetition
+    ColorDiscontinuity
+    NormalDiscontinuity
+    FrequencyMismatch
+    TilingArtifactType_MAX
+
+enum NormalMapIssueType:
+    InvalidRange
+    LowContrast
+    Artifacts
+    IncorrectFormat
+    MissingBlueChannel
+    Denormalized
+    NormalMapIssueType_MAX
+
+enum PerformanceImpact:
+    Negligible
+    Low
+    Medium
+    High
+    Critical
+    PerformanceImpact_MAX
+
+# ============================================================================
+# SECTION 2: QUALITY METRICS STRUCTURES
+# ============================================================================
+
+struct TextureQualityMetrics:
+    sharpness_score: Float
+    contrast_score: Float
+    detail_level: Float
+    noise_level: Float
+    dynamic_range: Float
+    color_variance: Float
+    histogram_entropy: Float
+    edge_density: Float
+    frequency_content: Float
+    overall_quality: Float
+
+struct ColorDistributionMetrics:
+    mean_r: Float
+    mean_g: Float
+    mean_b: Float
+    std_dev_r: Float
+    std_dev_g: Float
+    std_dev_b: Float
+    min_r: Float
+    min_g: Float
+    min_b: Float
+    max_r: Float
+    max_g: Float
+    max_b: Float
+    histogram_bins: Array<Int>
+    dominant_colors: Array<Vec3>
+    color_count: Int
+    saturation_mean: Float
+    saturation_variance: Float
+    luminance_mean: Float
+    luminance_variance: Float
+
+struct CompressionAnalysisResult:
+    recommended_format: TextureCompressionFormat
+    estimated_memory_uncompressed: Int
+    estimated_memory_compressed: Int
+    compression_ratio: Float
+    quality_loss_estimate: Float
+    supports_alpha: Bool
+    supports_hdr: Bool
+    is_normal_map: Bool
+    alternative_formats: Array<TextureCompressionFormat>
+    format_scores: Array<Float>
+
+struct MipmapQualityMetrics:
+    mip_count: Int
+    mip_chain_complete: Bool
+    aliasing_score: Float
+    blur_progression: Float
+    detail_preservation: Array<Float>
+    memory_per_mip: Array<Int>
+    total_mipmap_memory: Int
+    recommended_mip_bias: Float
+    quality_per_mip: Array<Float>
+
+struct TilingArtifactReport:
+    has_artifacts: Bool
+    artifact_score: Float
+    artifact_types: Array<TilingArtifactType>
+    seam_locations: Array<Vec2>
+    pattern_repetition_score: Float
+    edge_continuity_score: Float
+    frequency_match_score: Float
+    recommended_blend_width: Float
+    suggested_fixes: Array<String>
+
+struct NormalMapValidation:
+    is_valid: Bool
+    issues: Array<NormalMapIssueType>
+    range_min: Vec3
+    range_max: Vec3
+    average_normal: Vec3
+    variance: Float
+    tangent_space_correct: Bool
+    blue_channel_bias: Float
+    normalization_quality: Float
+    artifact_count: Int
+    recommended_strength: Float
+
+struct RoughnessMapAnalysis:
+    variance: Float
+    mean_roughness: Float
+    min_roughness: Float
+    max_roughness: Float
+    distribution_histogram: Array<Int>
+    has_extreme_values: Bool
+    smoothness_areas: Float
+    rough_areas: Float
+    detail_frequency: Float
+    recommended_contrast: Float
+    recommended_bias: Float
+
+struct MetallicMapAnalysis:
+    is_binary: Bool
+    metal_percentage: Float
+    dielectric_percentage: Float
+    transition_sharpness: Float
+    classification_confidence: Float
+    ambiguous_regions: Float
+    recommended_threshold: Float
+    has_gradients: Bool
+    gradient_quality: Float
+
+struct AOMapAnalysis:
+    occlusion_coverage: Float
+    mean_occlusion: Float
+    min_occlusion: Float
+    max_occlusion: Float
+    contrast: Float
+    detail_level: Float
+    cavity_detection: Float
+    large_scale_occlusion: Float
+    small_scale_occlusion: Float
+    recommended_intensity: Float
+    recommended_radius: Float
+
+struct MaterialPerformanceProfile:
+    total_memory_bytes: Int
+    base_color_memory: Int
+    normal_memory: Int
+    roughness_memory: Int
+    metallic_memory: Int
+    ao_memory: Int
+    height_memory: Int
+    emissive_memory: Int
+    orm_memory: Int
+    estimated_bandwidth_mb_per_sec: Float
+    texture_sample_count: Int
+    shader_instruction_count: Int
+    performance_impact: PerformanceImpact
+    optimization_potential: Float
+
+struct ShaderComplexityAnalysis:
+    instruction_count: Int
+    texture_sample_count: Int
+    math_operation_count: Int
+    branch_count: Int
+    loop_count: Int
+    estimated_cycles: Int
+    complexity_score: Float
+    bottleneck_type: String
+    optimization_suggestions: Array<String>
+
+struct OptimizationSuggestion:
+    category: String
+    priority: OptimizationPriority
+    description: String
+    estimated_savings_bytes: Int
+    estimated_performance_gain: Float
+    quality_impact: Float
+    implementation_difficulty: String
+
+struct MaterialLODRecommendation:
+    lod_count: Int
+    lod_distances: Array<Float>
+    lod_resolutions: Array<Int>
+    lod_compression_formats: Array<TextureCompressionFormat>
+    lod_memory_savings: Array<Int>
+    total_memory_with_lods: Int
+    memory_savings_percentage: Float
+
+struct MaterialBudget:
+    max_memory_mb: Float
+    current_memory_mb: Float
+    remaining_memory_mb: Float
+    max_texture_count: Int
+    current_texture_count: Int
+    max_shader_instructions: Int
+    current_shader_instructions: Int
+    is_within_budget: Bool
+    budget_utilization: Float
+    warnings: Array<String>
+
+struct MaterialComparisonResult:
+    texture_differences: Array<String>
+    parameter_differences: Array<String>
+    quality_delta: Float
+    memory_delta: Int
+    performance_delta: Float
+    visual_similarity_score: Float
+    rmse_base_color: Float
+    rmse_normal: Float
+    rmse_roughness: Float
+    rmse_metallic: Float
+    structural_similarity: Float
+
+struct BatchValidationResult:
+    total_materials: Int
+    passed_count: Int
+    failed_count: Int
+    warning_count: Int
+    failed_materials: Array<String>
+    warnings: Array<String>
+    total_memory_mb: Float
+    average_quality_score: Float
+    validation_time_ms: Float
+
+struct MaterialStatistics:
+    material_count: Int
+    total_memory_mb: Float
+    average_memory_mb: Float
+    min_memory_mb: Float
+    max_memory_mb: Float
+    texture_count: Int
+    average_resolution: Int
+    compression_format_distribution: Array<Int>
+    quality_distribution: Array<Int>
+    category_distribution: Array<Int>
+
+# ============================================================================
+# SECTION 3: ANALYSIS SUBSYSTEM
+# ============================================================================
+
+@subsystem
+struct MaterialAnalysisEngine:
+    analysis_cache: Array<String>
+    cache_enabled: Bool
+    quality_threshold: Float
+    performance_threshold: Float
+    
+    fn initialize():
+        analysis_cache = []
+        cache_enabled = true
+        quality_threshold = 0.7
+        performance_threshold = 0.8
+    
+    @blueprint
+    fn analyze_texture_quality(texture_param: Texture) -> TextureQualityMetrics:
+        let metrics = TextureQualityMetrics()
+        
+        let width = get_texture_width(texture)
+        let height = get_texture_height(texture)
+        let pixel_count = width * height
+        
+        metrics.sharpness_score = compute_sharpness_gpu(texture)
+        metrics.contrast_score = compute_contrast_gpu(texture)
+        metrics.detail_level = compute_detail_level_gpu(texture)
+        metrics.noise_level = compute_noise_level_gpu(texture)
+        metrics.dynamic_range = compute_dynamic_range_gpu(texture)
+        metrics.color_variance = compute_color_variance_gpu(texture)
+        metrics.histogram_entropy = compute_histogram_entropy_gpu(texture)
+        metrics.edge_density = compute_edge_density_gpu(texture)
+        metrics.frequency_content = compute_frequency_content_gpu(texture)
+        
+        metrics.overall_quality = metrics.sharpness_score * 0.2 + metrics.contrast_score * 0.15 + metrics.detail_level * 0.2 + (1.0 - metrics.noise_level) * 0.15 + metrics.dynamic_range * 0.1 + metrics.histogram_entropy * 0.1 + metrics.edge_density * 0.05 + metrics.frequency_content * 0.05
+        
+        return metrics
+
+    @blueprint
+    fn analyze_color_distribution(texture_param: Texture) -> ColorDistributionMetrics:
+        let metrics = ColorDistributionMetrics()
+        
+        let stats = compute_color_statistics_gpu(texture)
+        
+        metrics.mean_r = stats[0]
+        metrics.mean_g = stats[1]
+        metrics.mean_b = stats[2]
+        metrics.std_dev_r = stats[3]
+        metrics.std_dev_g = stats[4]
+        metrics.std_dev_b = stats[5]
+        metrics.min_r = stats[6]
+        metrics.min_g = stats[7]
+        metrics.min_b = stats[8]
+        metrics.max_r = stats[9]
+        metrics.max_g = stats[10]
+        metrics.max_b = stats[11]
+        
+        metrics.histogram_bins = compute_histogram_gpu(texture, 256)
+        metrics.dominant_colors = extract_dominant_colors_gpu(texture, 5)
+        metrics.color_count = estimate_unique_colors_gpu(texture)
+        
+        let hsv_stats = compute_hsv_statistics_gpu(texture)
+        metrics.saturation_mean = hsv_stats[0]
+        metrics.saturation_variance = hsv_stats[1]
+        metrics.luminance_mean = hsv_stats[2]
+        metrics.luminance_variance = hsv_stats[3]
+        
+        return metrics
+    
+    @blueprint
+    fn analyze_compression_options(texture_param: Texture, is_normal: Bool, has_alpha: Bool, is_hdr: Bool) -> CompressionAnalysisResult:
+        let result = CompressionAnalysisResult()
+        
+        let width = get_texture_width(texture)
+        let height = get_texture_height(texture)
+        let pixel_count = width * height
+        
+        result.supports_alpha = has_alpha
+        result.supports_hdr = is_hdr
+        result.is_normal_map = is_normal
+        
+        result.estimated_memory_uncompressed = pixel_count * 4
+        
+        result.alternative_formats = []
+        result.format_scores = []
+        
+        if is_normal:
+            push(result.alternative_formats, TextureCompressionFormat.BC5_RG)
+            push(result.format_scores, 0.95)
+            push(result.alternative_formats, TextureCompressionFormat.BC3_RGBA)
+            push(result.format_scores, 0.85)
+            push(result.alternative_formats, TextureCompressionFormat.ASTC_6x6)
+            push(result.format_scores, 0.90)
+            result.recommended_format = TextureCompressionFormat.BC5_RG
+            result.estimated_memory_compressed = pixel_count / 2
+            result.quality_loss_estimate = 0.05
+        else:
+            if is_hdr:
+                push(result.alternative_formats, TextureCompressionFormat.BC6H_RGB16F)
+                push(result.format_scores, 0.98)
+                push(result.alternative_formats, TextureCompressionFormat.Uncompressed_RGBA16F)
+                push(result.format_scores, 1.0)
+                result.recommended_format = TextureCompressionFormat.BC6H_RGB16F
+                result.estimated_memory_compressed = pixel_count
+                result.quality_loss_estimate = 0.02
+            else:
+                if has_alpha:
+                    push(result.alternative_formats, TextureCompressionFormat.BC7_RGBA)
+                    push(result.format_scores, 0.95)
+                    push(result.alternative_formats, TextureCompressionFormat.BC3_RGBA)
+                    push(result.format_scores, 0.85)
+                    push(result.alternative_formats, TextureCompressionFormat.ASTC_4x4)
+                    push(result.format_scores, 0.92)
+                    result.recommended_format = TextureCompressionFormat.BC7_RGBA
+                    result.estimated_memory_compressed = pixel_count
+                    result.quality_loss_estimate = 0.05
+                else:
+                    push(result.alternative_formats, TextureCompressionFormat.BC7_RGBA)
+                    push(result.format_scores, 0.95)
+                    push(result.alternative_formats, TextureCompressionFormat.BC1_RGB)
+                    push(result.format_scores, 0.75)
+                    push(result.alternative_formats, TextureCompressionFormat.ASTC_6x6)
+                    push(result.format_scores, 0.88)
+                    result.recommended_format = TextureCompressionFormat.BC7_RGBA
+                    result.estimated_memory_compressed = pixel_count
+                    result.quality_loss_estimate = 0.05
+        
+        result.compression_ratio = result.estimated_memory_uncompressed / result.estimated_memory_compressed
+        
+        return result
+
+    @blueprint
+    fn analyze_mipmap_quality(texture_param: Texture) -> MipmapQualityMetrics:
+        let metrics = MipmapQualityMetrics()
+        
+        let width = get_texture_width(texture)
+        let height = get_texture_height(texture)
+        
+        let max_dimension = max(width, height)
+        let theoretical_mips = floor(log2(max_dimension)) + 1
+        
+        metrics.mip_count = get_mipmap_count(texture)
+        metrics.mip_chain_complete = metrics.mip_count >= theoretical_mips
+        
+        metrics.detail_preservation = []
+        metrics.memory_per_mip = []
+        metrics.quality_per_mip = []
+        
+        let total_memory = 0
+        let i = 0
+        while i < metrics.mip_count:
+            let mip_width = max(1, (width / (pow(2, i) as Int)))
+            let mip_height = max(1, (height / (pow(2, i) as Int)))
+            let mip_memory = mip_width * mip_height * 4
+            
+            push(metrics.memory_per_mip, mip_memory)
+            total_memory = total_memory + mip_memory
+            
+            let detail = compute_mip_detail_preservation_gpu(texture, i)
+            push(metrics.detail_preservation, detail)
+            
+            let quality = compute_mip_quality_gpu(texture, i)
+            push(metrics.quality_per_mip, quality)
+            
+            i = i + 1
+        
+        metrics.total_mipmap_memory = total_memory
+        metrics.aliasing_score = compute_aliasing_score_gpu(texture)
+        metrics.blur_progression = compute_blur_progression_gpu(texture)
+        
+        let avg_quality = 0.0
+        let j = 0
+        while j < len(metrics.quality_per_mip):
+            avg_quality = avg_quality + metrics.quality_per_mip[j]
+            j = j + 1
+        avg_quality = avg_quality / len(metrics.quality_per_mip)
+        
+        if avg_quality < 0.7:
+            metrics.recommended_mip_bias = -0.5
+        else:
+            if avg_quality > 0.9:
+                metrics.recommended_mip_bias = 0.5
+            else:
+                metrics.recommended_mip_bias = 0.0
+        
+        return metrics
+    
+    @blueprint
+    fn detect_tiling_artifacts(texture_param: Texture) -> TilingArtifactReport:
+        let report = TilingArtifactReport()
+        
+        report.artifact_types = []
+        report.seam_locations = []
+        report.suggested_fixes = []
+        
+        let edge_continuity = compute_edge_continuity_gpu(texture)
+        report.edge_continuity_score = edge_continuity
+        
+        let pattern_score = compute_pattern_repetition_gpu(texture)
+        report.pattern_repetition_score = pattern_score
+        
+        let frequency_match = compute_frequency_match_gpu(texture)
+        report.frequency_match_score = frequency_match
+        
+        let seam_detection = detect_seams_gpu(texture)
+        report.seam_locations = seam_detection
+        
+        report.artifact_score = (1.0 - edge_continuity) * 0.4 + pattern_score * 0.3 + (1.0 - frequency_match) * 0.3
+        
+        report.has_artifacts = report.artifact_score > 0.3
+        
+        if edge_continuity < 0.8:
+            push(report.artifact_types, TilingArtifactType.SeamVisible)
+            push(report.suggested_fixes, "Apply seamless blending with CrossBlend mode")
+        
+        if pattern_score > 0.6:
+            push(report.artifact_types, TilingArtifactType.PatternRepetition)
+            push(report.suggested_fixes, "Increase texture variation or use procedural noise overlay")
+        
+        if frequency_match < 0.7:
+            push(report.artifact_types, TilingArtifactType.FrequencyMismatch)
+            push(report.suggested_fixes, "Apply histogram matching at edges")
+        
+        if len(seam_detection) > 0:
+            push(report.artifact_types, TilingArtifactType.ColorDiscontinuity)
+            push(report.suggested_fixes, "Increase seamless blend width to 0.3 or higher")
+        
+        if report.artifact_score > 0.5:
+            report.recommended_blend_width = 0.35
+        else:
+            if report.artifact_score > 0.3:
+                report.recommended_blend_width = 0.28
+            else:
+                report.recommended_blend_width = 0.2
+        
+        return report
+
+    @blueprint
+    fn validate_normal_map(texture_param: Texture) -> NormalMapValidation:
+        let validation = NormalMapValidation()
+        
+        validation.issues = []
+        validation.is_valid = true
+        
+        let range_analysis = compute_normal_range_gpu(texture)
+        validation.range_min = vec3(range_analysis[0], range_analysis[1], range_analysis[2])
+        validation.range_max = vec3(range_analysis[3], range_analysis[4], range_analysis[5])
+        
+        if validation.range_min.x < -1.1 or validation.range_max.x > 1.1 or validation.range_min.y < -1.1 or validation.range_max.y > 1.1 or validation.range_min.z < -0.1 or validation.range_max.z > 1.1:
+            push(validation.issues, NormalMapIssueType.InvalidRange)
+            validation.is_valid = false
+        
+        let avg_normal = compute_average_normal_gpu(texture)
+        validation.average_normal = vec3(avg_normal[0], avg_normal[1], avg_normal[2])
+        
+        validation.blue_channel_bias = avg_normal[2]
+        if validation.blue_channel_bias < 0.4:
+            push(validation.issues, NormalMapIssueType.MissingBlueChannel)
+            validation.is_valid = false
+        
+        validation.variance = compute_normal_variance_gpu(texture)
+        if validation.variance < 0.01:
+            push(validation.issues, NormalMapIssueType.LowContrast)
+        
+        validation.normalization_quality = compute_normalization_quality_gpu(texture)
+        if validation.normalization_quality < 0.9:
+            push(validation.issues, NormalMapIssueType.Denormalized)
+        
+        validation.tangent_space_correct = validation.blue_channel_bias > 0.4 and validation.normalization_quality > 0.85
+        
+        validation.artifact_count = detect_normal_artifacts_gpu(texture)
+        if validation.artifact_count > 100:
+            push(validation.issues, NormalMapIssueType.Artifacts)
+        
+        if validation.variance < 0.05:
+            validation.recommended_strength = 1.5
+        else:
+            if validation.variance > 0.2:
+                validation.recommended_strength = 0.7
+            else:
+                validation.recommended_strength = 1.0
+        
+        return validation
+    
+    @blueprint
+    fn analyze_roughness_map(texture_param: Texture) -> RoughnessMapAnalysis:
+        let analysis = RoughnessMapAnalysis()
+        
+        let stats = compute_single_channel_statistics_gpu(texture, 0)
+        
+        analysis.mean_roughness = stats[0]
+        analysis.variance = stats[1]
+        analysis.min_roughness = stats[2]
+        analysis.max_roughness = stats[3]
+        
+        analysis.distribution_histogram = compute_histogram_gpu(texture, 64)
+        
+        analysis.has_extreme_values = analysis.min_roughness < 0.05 or analysis.max_roughness > 0.95
+        
+        let threshold_smooth = 0.3
+        let threshold_rough = 0.7
+        
+        let area_stats = compute_threshold_areas_gpu(texture, threshold_smooth, threshold_rough)
+        analysis.smoothness_areas = area_stats[0]
+        analysis.rough_areas = area_stats[1]
+        
+        analysis.detail_frequency = compute_detail_frequency_gpu(texture)
+        
+        if analysis.variance < 0.05:
+            analysis.recommended_contrast = 1.5
+            analysis.recommended_bias = 0.0
+        else:
+            if analysis.variance > 0.15:
+                analysis.recommended_contrast = 0.8
+                analysis.recommended_bias = 0.1
+            else:
+                analysis.recommended_contrast = 1.0
+                analysis.recommended_bias = 0.0
+        
+        if analysis.mean_roughness < 0.3:
+            analysis.recommended_bias = analysis.recommended_bias + 0.2
+        else:
+            if analysis.mean_roughness > 0.7:
+                analysis.recommended_bias = analysis.recommended_bias - 0.2
+        
+        return analysis
+
+    @blueprint
+    fn analyze_metallic_map(texture_param: Texture) -> MetallicMapAnalysis:
+        let analysis = MetallicMapAnalysis()
+        
+        let stats = compute_single_channel_statistics_gpu(texture, 0)
+        let mean_value = stats[0]
+        let variance = stats[1]
+        
+        let histogram = compute_histogram_gpu(texture, 256)
+        
+        let low_bin_count = histogram[0] + histogram[1] + histogram[2]
+        let high_bin_count = histogram[253] + histogram[254] + histogram[255]
+        let total_pixels = get_texture_width(texture) * get_texture_height(texture)
+        
+        let binary_threshold = 0.85
+        analysis.is_binary = (low_bin_count + high_bin_count) > (total_pixels * binary_threshold)
+        
+        analysis.metal_percentage = high_bin_count / total_pixels
+        analysis.dielectric_percentage = low_bin_count / total_pixels
+        
+        let mid_range_percentage = 1.0 - analysis.metal_percentage - analysis.dielectric_percentage
+        analysis.ambiguous_regions = mid_range_percentage
+        
+        if analysis.is_binary:
+            analysis.classification_confidence = 0.95
+            analysis.transition_sharpness = 0.9
+        else:
+            analysis.classification_confidence = 0.6
+            analysis.transition_sharpness = compute_transition_sharpness_gpu(texture)
+        
+        if analysis.metal_percentage > 0.7:
+            analysis.recommended_threshold = 0.8
+        else:
+            if analysis.metal_percentage < 0.3:
+                analysis.recommended_threshold = 0.3
+            else:
+                analysis.recommended_threshold = 0.5
+        
+        analysis.has_gradients = mid_range_percentage > 0.1
+        
+        if analysis.has_gradients:
+            analysis.gradient_quality = compute_gradient_quality_gpu(texture)
+        else:
+            analysis.gradient_quality = 0.0
+        
+        return analysis
+    
+    @blueprint
+    fn analyze_ao_map(texture_param: Texture) -> AOMapAnalysis:
+        let analysis = AOMapAnalysis()
+        
+        let stats = compute_single_channel_statistics_gpu(texture, 0)
+        
+        analysis.mean_occlusion = 1.0 - stats[0]
+        analysis.min_occlusion = 1.0 - stats[3]
+        analysis.max_occlusion = 1.0 - stats[2]
+        analysis.contrast = stats[3] - stats[2]
+        
+        let occluded_pixels = count_pixels_below_threshold_gpu(texture, 0.5)
+        let total_pixels = get_texture_width(texture) * get_texture_height(texture)
+        analysis.occlusion_coverage = occluded_pixels / total_pixels
+        
+        analysis.detail_level = compute_detail_frequency_gpu(texture)
+        
+        let frequency_analysis = compute_frequency_bands_gpu(texture)
+        analysis.large_scale_occlusion = frequency_analysis[0]
+        analysis.small_scale_occlusion = frequency_analysis[1]
+        analysis.cavity_detection = frequency_analysis[2]
+        
+        if analysis.mean_occlusion < 0.2:
+            analysis.recommended_intensity = 1.5
+            analysis.recommended_radius = 6.0
+        else:
+            if analysis.mean_occlusion > 0.5:
+                analysis.recommended_intensity = 0.7
+                analysis.recommended_radius = 3.0
+            else:
+                analysis.recommended_intensity = 1.0
+                analysis.recommended_radius = 4.0
+        
+        if analysis.cavity_detection < 0.3:
+            analysis.recommended_radius = analysis.recommended_radius + 2.0
+        
+        return analysis
+
+    @blueprint
+    fn profile_material_performance(base_color_tex: Texture, normal_tex: Texture, roughness_tex: Texture, metallic_tex: Texture, ao_tex: Texture, height_tex: Texture, emissive_tex: Texture, orm_tex: Texture) -> MaterialPerformanceProfile:
+        let profile = MaterialPerformanceProfile()
+        
+        profile.base_color_memory = calculate_texture_memory(base_color_tex)
+        profile.normal_memory = calculate_texture_memory(normal_tex)
+        profile.roughness_memory = calculate_texture_memory(roughness_tex)
+        profile.metallic_memory = calculate_texture_memory(metallic_tex)
+        profile.ao_memory = calculate_texture_memory(ao_tex)
+        profile.height_memory = calculate_texture_memory(height_tex)
+        profile.emissive_memory = calculate_texture_memory(emissive_tex)
+        profile.orm_memory = calculate_texture_memory(orm_tex)
+        
+        profile.total_memory_bytes = profile.base_color_memory + profile.normal_memory + profile.roughness_memory + profile.metallic_memory + profile.ao_memory + profile.height_memory + profile.emissive_memory + profile.orm_memory
+        
+        profile.texture_sample_count = 0
+        if base_color_tex != null:
+            profile.texture_sample_count = profile.texture_sample_count + 1
+        if normal_tex != null:
+            profile.texture_sample_count = profile.texture_sample_count + 1
+        if roughness_tex != null:
+            profile.texture_sample_count = profile.texture_sample_count + 1
+        if metallic_tex != null:
+            profile.texture_sample_count = profile.texture_sample_count + 1
+        if ao_tex != null:
+            profile.texture_sample_count = profile.texture_sample_count + 1
+        if height_tex != null:
+            profile.texture_sample_count = profile.texture_sample_count + 1
+        if emissive_tex != null:
+            profile.texture_sample_count = profile.texture_sample_count + 1
+        if orm_tex != null:
+            profile.texture_sample_count = profile.texture_sample_count + 1
+        
+        profile.shader_instruction_count = estimate_shader_instructions(profile.texture_sample_count)
+        
+        let bandwidth_per_frame = profile.total_memory_bytes / (1024.0 * 1024.0)
+        profile.estimated_bandwidth_mb_per_sec = bandwidth_per_frame * 60.0
+        
+        if profile.total_memory_bytes < 16777216:
+            profile.performance_impact = PerformanceImpact.Low
+        else:
+            if profile.total_memory_bytes < 67108864:
+                profile.performance_impact = PerformanceImpact.Medium
+            else:
+                if profile.total_memory_bytes < 134217728:
+                    profile.performance_impact = PerformanceImpact.High
+                else:
+                    profile.performance_impact = PerformanceImpact.Critical
+        
+        let theoretical_minimum = profile.total_memory_bytes / 4
+        profile.optimization_potential = 1.0 - (theoretical_minimum / profile.total_memory_bytes)
+        
+        return profile
+    
+    @blueprint
+    fn analyze_shader_complexity(material_params: MaterializeParams) -> ShaderComplexityAnalysis:
+        let analysis = ShaderComplexityAnalysis()
+        
+        analysis.instruction_count = 100
+        analysis.texture_sample_count = 1
+        analysis.math_operation_count = 50
+        analysis.branch_count = 0
+        analysis.loop_count = 0
+        
+        if material_params.normal_strength > 0.0:
+            analysis.instruction_count = analysis.instruction_count + 80
+            analysis.texture_sample_count = analysis.texture_sample_count + 1
+            analysis.math_operation_count = analysis.math_operation_count + 40
+        
+        if material_params.roughness_base > 0.0:
+            analysis.instruction_count = analysis.instruction_count + 60
+            analysis.texture_sample_count = analysis.texture_sample_count + 1
+            analysis.math_operation_count = analysis.math_operation_count + 30
+        
+        if material_params.metallic_base > 0.0:
+            analysis.instruction_count = analysis.instruction_count + 60
+            analysis.texture_sample_count = analysis.texture_sample_count + 1
+            analysis.math_operation_count = analysis.math_operation_count + 30
+        
+        if material_params.ao_intensity > 0.0:
+            analysis.instruction_count = analysis.instruction_count + 40
+            analysis.texture_sample_count = analysis.texture_sample_count + 1
+            analysis.math_operation_count = analysis.math_operation_count + 20
+        
+        if material_params.height_contrast > 0.0:
+            analysis.instruction_count = analysis.instruction_count + 50
+            analysis.texture_sample_count = analysis.texture_sample_count + 1
+            analysis.math_operation_count = analysis.math_operation_count + 25
+        
+        if material_params.edge_wear > 0.0:
+            analysis.instruction_count = analysis.instruction_count + 120
+            analysis.math_operation_count = analysis.math_operation_count + 60
+            analysis.branch_count = analysis.branch_count + 2
+        
+        if material_params.cavity_dirt > 0.0:
+            analysis.instruction_count = analysis.instruction_count + 100
+            analysis.math_operation_count = analysis.math_operation_count + 50
+            analysis.branch_count = analysis.branch_count + 1
+        
+        if material_params.scratches > 0.0:
+            analysis.instruction_count = analysis.instruction_count + 150
+            analysis.math_operation_count = analysis.math_operation_count + 75
+            analysis.branch_count = analysis.branch_count + 2
+        
+        if material_params.make_seamless:
+            analysis.instruction_count = analysis.instruction_count + 200
+            analysis.texture_sample_count = analysis.texture_sample_count + 4
+            analysis.math_operation_count = analysis.math_operation_count + 100
+            analysis.branch_count = analysis.branch_count + 3
+        
+        analysis.estimated_cycles = analysis.instruction_count * 2
+        
+        analysis.complexity_score = analysis.instruction_count / 1000.0 * 0.4 + analysis.texture_sample_count / 10.0 * 0.3 + analysis.branch_count / 10.0 * 0.2 + analysis.loop_count / 5.0 * 0.1
+        
+        analysis.optimization_suggestions = []
+        
+        if analysis.texture_sample_count > 8:
+            analysis.bottleneck_type = "Texture Bandwidth"
+            push(analysis.optimization_suggestions, "Consider packing textures (ORM) to reduce sample count")
+            push(analysis.optimization_suggestions, "Use lower resolution textures for distant objects")
+        else:
+            if analysis.math_operation_count > 200:
+                analysis.bottleneck_type = "ALU Operations"
+                push(analysis.optimization_suggestions, "Simplify mathematical operations")
+                push(analysis.optimization_suggestions, "Pre-compute constant values")
+            else:
+                if analysis.branch_count > 5:
+                    analysis.bottleneck_type = "Branching"
+                    push(analysis.optimization_suggestions, "Reduce conditional branches")
+                    push(analysis.optimization_suggestions, "Use lerp instead of if-else where possible")
+                else:
+                    analysis.bottleneck_type = "Balanced"
+                    push(analysis.optimization_suggestions, "Material is well optimized")
+        
+        return analysis
+
+    @blueprint
+    fn generate_optimization_suggestions(performance: MaterialPerformanceProfile, quality: TextureQualityMetrics, priority: OptimizationPriority) -> Array<OptimizationSuggestion>:
+        let suggestions: Array<OptimizationSuggestion> = []
+        
+        if performance.total_memory_bytes > 67108864:
+            let suggestion = OptimizationSuggestion()
+            suggestion.category = "Memory"
+            suggestion.priority = OptimizationPriority.High
+            suggestion.description = "Total memory usage exceeds 64MB. Consider reducing texture resolutions or using compression."
+            suggestion.estimated_savings_bytes = performance.total_memory_bytes / 2
+            suggestion.estimated_performance_gain = 0.3
+            suggestion.quality_impact = 0.15
+            suggestion.implementation_difficulty = "Medium"
+            push(suggestions, suggestion)
+        
+        if performance.texture_sample_count > 6:
+            let suggestion = OptimizationSuggestion()
+            suggestion.category = "Texture Samples"
+            suggestion.priority = OptimizationPriority.High
+            suggestion.description = "High texture sample count detected. Pack roughness, metallic, and AO into ORM texture."
+            suggestion.estimated_savings_bytes = performance.roughness_memory + performance.metallic_memory + performance.ao_memory
+            suggestion.estimated_performance_gain = 0.25
+            suggestion.quality_impact = 0.0
+            suggestion.implementation_difficulty = "Easy"
+            push(suggestions, suggestion)
+        
+        if quality.sharpness_score > 0.9 and performance.base_color_memory > 16777216:
+            let suggestion = OptimizationSuggestion()
+            suggestion.category = "Resolution"
+            suggestion.priority = OptimizationPriority.Medium
+            suggestion.description = "Base color texture has high sharpness. Can reduce resolution by 50% with minimal quality loss."
+            suggestion.estimated_savings_bytes = performance.base_color_memory / 2
+            suggestion.estimated_performance_gain = 0.15
+            suggestion.quality_impact = 0.05
+            suggestion.implementation_difficulty = "Easy"
+            push(suggestions, suggestion)
+        
+        if performance.normal_memory > 16777216:
+            let suggestion = OptimizationSuggestion()
+            suggestion.category = "Compression"
+            suggestion.priority = OptimizationPriority.Medium
+            suggestion.description = "Use BC5 compression for normal map to reduce memory by 50%."
+            suggestion.estimated_savings_bytes = performance.normal_memory / 2
+            suggestion.estimated_performance_gain = 0.1
+            suggestion.quality_impact = 0.05
+            suggestion.implementation_difficulty = "Easy"
+            push(suggestions, suggestion)
+        
+        if performance.height_memory > 0:
+            let suggestion = OptimizationSuggestion()
+            suggestion.category = "Unused Textures"
+            suggestion.priority = OptimizationPriority.Low
+            suggestion.description = "Height map is present but may == false be used in runtime. Consider removing if == false needed."
+            suggestion.estimated_savings_bytes = performance.height_memory
+            suggestion.estimated_performance_gain = 0.05
+            suggestion.quality_impact = 0.0
+            suggestion.implementation_difficulty = "Easy"
+            push(suggestions, suggestion)
+        
+        if quality.detail_level < 0.5:
+            let suggestion = OptimizationSuggestion()
+            suggestion.category = "Quality"
+            suggestion.priority = OptimizationPriority.Low
+            suggestion.description = "Low detail level detected. Texture may benefit from sharpening or detail enhancement."
+            suggestion.estimated_savings_bytes = 0
+            suggestion.estimated_performance_gain = 0.0
+            suggestion.quality_impact = 0.2
+            suggestion.implementation_difficulty = "Medium"
+            push(suggestions, suggestion)
+        
+        return suggestions
+
+    @blueprint
+    fn generate_material_lods(base_texture_param: Texture, target_quality: MaterialQualityLevel) -> MaterialLODRecommendation:
+        let recommendation = MaterialLODRecommendation()
+        
+        let base_width = get_texture_width(base_texture)
+        let base_height = get_texture_height(base_texture)
+        
+        if target_quality == MaterialQualityLevel.Cinematic:
+            recommendation.lod_count = 5
+        else:
+            if target_quality == MaterialQualityLevel.Ultra:
+                recommendation.lod_count = 4
+            else:
+                if target_quality == MaterialQualityLevel.High:
+                    recommendation.lod_count = 3
+                else:
+                    recommendation.lod_count = 2
+        
+        recommendation.lod_distances = []
+        recommendation.lod_resolutions = []
+        recommendation.lod_compression_formats = []
+        recommendation.lod_memory_savings = []
+        
+        let i = 0
+        while i < recommendation.lod_count:
+            let distance = pow(2.0, i + 1.0) * 500.0
+            push(recommendation.lod_distances, distance)
+            
+            let resolution_scale = pow(0.5, i)
+            let lod_width = max(64, base_width * resolution_scale)
+            let lod_height = max(64, base_height * resolution_scale)
+            push(recommendation.lod_resolutions, lod_width)
+            
+            if i == 0:
+                push(recommendation.lod_compression_formats, TextureCompressionFormat.BC7_RGBA)
+            else:
+                if i == 1:
+                    push(recommendation.lod_compression_formats, TextureCompressionFormat.BC7_RGBA)
+                else:
+                    push(recommendation.lod_compression_formats, TextureCompressionFormat.BC1_RGB)
+            
+            let lod_memory = lod_width * lod_height * 4
+            push(recommendation.lod_memory_savings, lod_memory)
+            
+            i = i + 1
+        
+        let base_memory = base_width * base_height * 4
+        recommendation.total_memory_with_lods = base_memory
+        
+        let j = 0
+        while j < len(recommendation.lod_memory_savings):
+            recommendation.total_memory_with_lods = recommendation.total_memory_with_lods + recommendation.lod_memory_savings[j]
+            j = j + 1
+        
+        let memory_saved = base_memory - recommendation.total_memory_with_lods
+        recommendation.memory_savings_percentage = (memory_saved / base_memory) * 100.0
+        
+        return recommendation
+    
+    @blueprint
+    fn track_material_budget(materials: Array<String>, max_memory_mb: Float, max_texture_count: Int, max_shader_instructions: Int) -> MaterialBudget:
+        let budget = MaterialBudget()
+        
+        budget.max_memory_mb = max_memory_mb
+        budget.max_texture_count = max_texture_count
+        budget.max_shader_instructions = max_shader_instructions
+        
+        budget.current_memory_mb = 0.0
+        budget.current_texture_count = 0
+        budget.current_shader_instructions = 0
+        
+        budget.warnings = []
+        
+        let i = 0
+        while i < len(materials):
+            let material_path = materials[i]
+            let material_memory = estimate_material_memory(material_path)
+            let material_textures = count_material_textures(material_path)
+            let material_instructions = estimate_material_instructions(material_path)
+            
+            budget.current_memory_mb = budget.current_memory_mb + (material_memory / (1024.0 * 1024.0))
+            budget.current_texture_count = budget.current_texture_count + material_textures
+            budget.current_shader_instructions = budget.current_shader_instructions + material_instructions
+            
+            i = i + 1
+        
+        budget.remaining_memory_mb = budget.max_memory_mb - budget.current_memory_mb
+        budget.is_within_budget = budget.current_memory_mb <= budget.max_memory_mb and budget.current_texture_count <= budget.max_texture_count and budget.current_shader_instructions <= budget.max_shader_instructions
+        
+        budget.budget_utilization = budget.current_memory_mb / budget.max_memory_mb
+        
+        if budget.current_memory_mb > budget.max_memory_mb:
+            push(budget.warnings, "Memory budget exceeded by " + (budget.current_memory_mb - budget.max_memory_mb) + " MB")
+        
+        if budget.current_texture_count > budget.max_texture_count:
+            push(budget.warnings, "Texture count exceeded by " + (budget.current_texture_count - budget.max_texture_count))
+        
+        if budget.current_shader_instructions > budget.max_shader_instructions:
+            push(budget.warnings, "Shader instruction count exceeded by " + (budget.current_shader_instructions - budget.max_shader_instructions))
+        
+        if budget.budget_utilization > 0.9 and budget.budget_utilization <= 1.0:
+            push(budget.warnings, "Memory budget utilization above 90% - consider optimization")
+        
+        return budget
+
+    @blueprint
+    fn compare_materials(material_a_base_tex: Texture, material_a_normal_tex: Texture, material_a_roughness_tex: Texture, material_a_metallic_tex: Texture, material_b_base_tex: Texture, material_b_normal_tex: Texture, material_b_roughness_tex: Texture, material_b_metallic_tex: Texture) -> MaterialComparisonResult:
+        let result = MaterialComparisonResult()
+        
+        result.texture_differences = []
+        result.parameter_differences = []
+        
+        let width_a = get_texture_width(material_a_base)
+        let height_a = get_texture_height(material_a_base)
+        let width_b = get_texture_width(material_b_base)
+        let height_b = get_texture_height(material_b_base)
+        
+        if width_a != width_b or height_a != height_b:
+            push(result.texture_differences, "Resolution mismatch: " + width_a + "x" + height_a + " vs " + width_b + "x" + height_b)
+        
+        result.rmse_base_color = compute_rmse_gpu(material_a_base, material_b_base)
+        result.rmse_normal = compute_rmse_gpu(material_a_normal, material_b_normal)
+        result.rmse_roughness = compute_rmse_gpu(material_a_roughness, material_b_roughness)
+        result.rmse_metallic = compute_rmse_gpu(material_a_metallic, material_b_metallic)
+        
+        result.structural_similarity = compute_ssim_gpu(material_a_base, material_b_base)
+        
+        result.visual_similarity_score = (1.0 - result.rmse_base_color) * 0.4 + (1.0 - result.rmse_normal) * 0.2 + (1.0 - result.rmse_roughness) * 0.15 + (1.0 - result.rmse_metallic) * 0.15 + result.structural_similarity * 0.1
+        
+        let quality_a = analyze_texture_quality(material_a_base)
+        let quality_b = analyze_texture_quality(material_b_base)
+        result.quality_delta = quality_b.overall_quality - quality_a.overall_quality
+        
+        let memory_a = calculate_texture_memory(material_a_base) + calculate_texture_memory(material_a_normal) + calculate_texture_memory(material_a_roughness) + calculate_texture_memory(material_a_metallic)
+        
+        let memory_b = calculate_texture_memory(material_b_base) + calculate_texture_memory(material_b_normal) + calculate_texture_memory(material_b_roughness) + calculate_texture_memory(material_b_metallic)
+        
+        result.memory_delta = memory_b - memory_a
+        
+        let perf_estimate_a = estimate_performance_score(width_a, height_a, 4)
+        let perf_estimate_b = estimate_performance_score(width_b, height_b, 4)
+        result.performance_delta = perf_estimate_b - perf_estimate_a
+        
+        if result.rmse_base_color > 0.1:
+            push(result.texture_differences, "Significant base color difference (RMSE: " + result.rmse_base_color + ")")
+        
+        if result.rmse_normal > 0.15:
+            push(result.texture_differences, "Significant normal map difference (RMSE: " + result.rmse_normal + ")")
+        
+        if result.rmse_roughness > 0.2:
+            push(result.texture_differences, "Significant roughness difference (RMSE: " + result.rmse_roughness + ")")
+        
+        if result.rmse_metallic > 0.2:
+            push(result.texture_differences, "Significant metallic difference (RMSE: " + result.rmse_metallic + ")")
+        
+        return result
+
+    @blueprint
+    fn batch_validate_materials(material_paths: Array<String>, quality_threshold: Float) -> BatchValidationResult:
+        let result = BatchValidationResult()
+        
+        result.total_materials = len(material_paths)
+        result.passed_count = 0
+        result.failed_count = 0
+        result.warning_count = 0
+        result.failed_materials = []
+        result.warnings = []
+        result.total_memory_mb = 0.0
+        result.average_quality_score = 0.0
+        
+        let start_time = get_time_milliseconds()
+        
+        let i = 0
+        while i < len(material_paths):
+            let material_path = material_paths[i]
+            
+            let texture_param = load_texture(material_path)
+            
+            if texture_param == null:
+                result.failed_count = result.failed_count + 1
+                push(result.failed_materials, material_path + " - Failed to load")
+                i = i + 1
+                continue
+            
+            let quality = analyze_texture_quality(texture)
+            result.average_quality_score = result.average_quality_score + quality.overall_quality
+            
+            let memory = calculate_texture_memory(texture)
+            result.total_memory_mb = result.total_memory_mb + (memory / (1024.0 * 1024.0))
+            
+            if quality.overall_quality < quality_threshold:
+                result.failed_count = result.failed_count + 1
+                push(result.failed_materials, material_path + " - Quality below threshold (" + quality.overall_quality + ")")
+            else:
+                result.passed_count = result.passed_count + 1
+            
+            if quality.noise_level > 0.3:
+                result.warning_count = result.warning_count + 1
+                push(result.warnings, material_path + " - High noise level detected")
+            
+            if quality.contrast_score < 0.3:
+                result.warning_count = result.warning_count + 1
+                push(result.warnings, material_path + " - Low contrast detected")
+            
+            let width = get_texture_width(texture)
+            let height = get_texture_height(texture)
+            
+            if width > 4096 or height > 4096:
+                result.warning_count = result.warning_count + 1
+                push(result.warnings, material_path + " - Resolution exceeds 4K")
+            
+            if width != height:
+                result.warning_count = result.warning_count + 1
+                push(result.warnings, material_path + " - Non-square texture")
+            
+            i = i + 1
+        
+        if result.total_materials > 0:
+            result.average_quality_score = result.average_quality_score / result.total_materials
+        
+        let end_time = get_time_milliseconds()
+        result.validation_time_ms = end_time - start_time
+        
+        return result
+    
+    @blueprint
+    fn generate_material_statistics(material_paths: Array<String>) -> MaterialStatistics:
+        let stats = MaterialStatistics()
+        
+        stats.material_count = len(material_paths)
+        stats.total_memory_mb = 0.0
+        stats.texture_count = 0
+        stats.min_memory_mb = 999999.0
+        stats.max_memory_mb = 0.0
+        
+        stats.compression_format_distribution = []
+        stats.quality_distribution = []
+        stats.category_distribution = []
+        
+        let i = 0
+        while i < 16:
+            push(stats.compression_format_distribution, 0)
+            i = i + 1
+        
+        let j = 0
+        while j < 5:
+            push(stats.quality_distribution, 0)
+            push(stats.category_distribution, 0)
+            j = j + 1
+        
+        let total_resolution = 0
+        
+        let k = 0
+        while k < len(material_paths):
+            let material_path = material_paths[k]
+            let texture_param = load_texture(material_path)
+            
+            if texture_param != null:
+                stats.texture_count = stats.texture_count + 1
+                
+                let memory = calculate_texture_memory(texture)
+                let memory_mb = memory / (1024.0 * 1024.0)
+                
+                stats.total_memory_mb = stats.total_memory_mb + memory_mb
+                
+                if memory_mb < stats.min_memory_mb:
+                    stats.min_memory_mb = memory_mb
+                
+                if memory_mb > stats.max_memory_mb:
+                    stats.max_memory_mb = memory_mb
+                
+                let width = get_texture_width(texture)
+                total_resolution = total_resolution + width
+                
+                let quality = analyze_texture_quality(texture)
+                
+                if quality.overall_quality < 0.4:
+                    stats.quality_distribution[0] = stats.quality_distribution[0] + 1
+                else:
+                    if quality.overall_quality < 0.6:
+                        stats.quality_distribution[1] = stats.quality_distribution[1] + 1
+                    else:
+                        if quality.overall_quality < 0.75:
+                            stats.quality_distribution[2] = stats.quality_distribution[2] + 1
+                        else:
+                            if quality.overall_quality < 0.9:
+                                stats.quality_distribution[3] = stats.quality_distribution[3] + 1
+                            else:
+                                stats.quality_distribution[4] = stats.quality_distribution[4] + 1
+            
+            k = k + 1
+        
+        if stats.texture_count > 0:
+            stats.average_memory_mb = stats.total_memory_mb / stats.texture_count
+            stats.average_resolution = total_resolution / stats.texture_count
+        else:
+            stats.average_memory_mb = 0.0
+            stats.average_resolution = 0
+        
+        return stats
+
+
+# ============================================================================
+# SECTION 4: GPU COMPUTE HELPER FUNCTIONS
+# ============================================================================
+
+fn compute_sharpness_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let edge_sum = 0.0
+    let pixel_count = 0
+    
+    let y = 1
+    while y < height - 1:
+        let x = 1
+        while x < width - 1:
+            let center = sample_texture_at(texture, x, y)
+            let right = sample_texture_at(texture, x + 1, y)
+            let down = sample_texture_at(texture, x, y + 1)
+            
+            let dx = abs(right.r - center.r) + abs(right.g - center.g) + abs(right.b - center.b)
+            let dy = abs(down.r - center.r) + abs(down.g - center.g) + abs(down.b - center.b)
+            
+            edge_sum = edge_sum + sqrt(dx * dx + dy * dy)
+            pixel_count = pixel_count + 1
+            
+            x = x + 2
+        y = y + 2
+    
+    if pixel_count > 0:
+        return edge_sum / pixel_count
+    
+    return 0.0
+
+fn compute_contrast_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let min_lum = 1.0
+    let max_lum = 0.0
+    
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let color = sample_texture_at(texture, x, y)
+            let luminance = color.r * 0.299 + color.g * 0.587 + color.b * 0.114
+            
+            if luminance < min_lum:
+                min_lum = luminance
+            
+            if luminance > max_lum:
+                max_lum = luminance
+            
+            x = x + 4
+        y = y + 4
+    
+    return max_lum - min_lum
+
+fn compute_detail_level_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let high_freq_sum = 0.0
+    let pixel_count = 0
+    
+    let y = 2
+    while y < height - 2:
+        let x = 2
+        while x < width - 2:
+            let center = sample_texture_at(texture, x, y)
+            let left = sample_texture_at(texture, x - 1, y)
+            let right = sample_texture_at(texture, x + 1, y)
+            let up = sample_texture_at(texture, x, y - 1)
+            let down = sample_texture_at(texture, x, y + 1)
+            
+            let laplacian = abs(4.0 * center.r - left.r - right.r - up.r - down.r)
+            high_freq_sum = high_freq_sum + laplacian
+            pixel_count = pixel_count + 1
+            
+            x = x + 3
+        y = y + 3
+    
+    if pixel_count > 0:
+        return high_freq_sum / pixel_count
+    
+    return 0.0
+
+fn compute_noise_level_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let variance_sum = 0.0
+    let window_count = 0
+    
+    let y = 0
+    while y < height - 4:
+        let x = 0
+        while x < width - 4:
+            let mean = 0.0
+            let count = 0
+            
+            let wy = 0
+            while wy < 4:
+                let wx = 0
+                while wx < 4:
+                    let color = sample_texture_at(texture, x + wx, y + wy)
+                    let lum = color.r * 0.299 + color.g * 0.587 + color.b * 0.114
+                    mean = mean + lum
+                    count = count + 1
+                    wx = wx + 1
+                wy = wy + 1
+            
+            mean = mean / count
+            
+            let variance = 0.0
+            let vy = 0
+            while vy < 4:
+                let vx = 0
+                while vx < 4:
+                    let color = sample_texture_at(texture, x + vx, y + vy)
+                    let lum = color.r * 0.299 + color.g * 0.587 + color.b * 0.114
+                    let diff = lum - mean
+                    variance = variance + diff * diff
+                    vx = vx + 1
+                vy = vy + 1
+            
+            variance = variance / count
+            variance_sum = variance_sum + variance
+            window_count = window_count + 1
+            
+            x = x + 4
+        y = y + 4
+    
+    if window_count > 0:
+        return variance_sum / window_count
+    
+    return 0.0
+
+fn compute_dynamic_range_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let min_val = 1.0
+    let max_val = 0.0
+    
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let color = sample_texture_at(texture, x, y)
+            
+            if color.r < min_val:
+                min_val = color.r
+            if color.g < min_val:
+                min_val = color.g
+            if color.b < min_val:
+                min_val = color.b
+            
+            if color.r > max_val:
+                max_val = color.r
+            if color.g > max_val:
+                max_val = color.g
+            if color.b > max_val:
+                max_val = color.b
+            
+            x = x + 4
+        y = y + 4
+    
+    return max_val - min_val
+
+fn compute_color_variance_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let mean_r = 0.0
+    let mean_g = 0.0
+    let mean_b = 0.0
+    let count = 0
+    
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let color = sample_texture_at(texture, x, y)
+            mean_r = mean_r + color.r
+            mean_g = mean_g + color.g
+            mean_b = mean_b + color.b
+            count = count + 1
+            x = x + 4
+        y = y + 4
+    
+    mean_r = mean_r / count
+    mean_g = mean_g / count
+    mean_b = mean_b / count
+    
+    let variance = 0.0
+    let y2 = 0
+    while y2 < height:
+        let x2 = 0
+        while x2 < width:
+            let color = sample_texture_at(texture, x2, y2)
+            let diff_r = color.r - mean_r
+            let diff_g = color.g - mean_g
+            let diff_b = color.b - mean_b
+            variance = variance + diff_r * diff_r + diff_g * diff_g + diff_b * diff_b
+            x2 = x2 + 4
+        y2 = y2 + 4
+    
+    return variance / count
+
+fn compute_histogram_entropy_gpu(texture_param: Texture) -> Float:
+    let histogram = compute_histogram_gpu(texture, 256)
+    let total_pixels = get_texture_width(texture) * get_texture_height(texture)
+    
+    let entropy = 0.0
+    let i = 0
+    while i < len(histogram):
+        if histogram[i] > 0:
+            let probability = histogram[i] / total_pixels
+            entropy = entropy - probability * log2(probability)
+        i = i + 1
+    
+    return entropy / 8.0
+
+fn compute_edge_density_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let edge_count = 0
+    let total_count = 0
+    
+    let y = 1
+    while y < height - 1:
+        let x = 1
+        while x < width - 1:
+            let center = sample_texture_at(texture, x, y)
+            let right = sample_texture_at(texture, x + 1, y)
+            let down = sample_texture_at(texture, x, y + 1)
+            
+            let dx = abs(right.r - center.r) + abs(right.g - center.g) + abs(right.b - center.b)
+            let dy = abs(down.r - center.r) + abs(down.g - center.g) + abs(down.b - center.b)
+            
+            let gradient = sqrt(dx * dx + dy * dy)
+            
+            if gradient > 0.1:
+                edge_count = edge_count + 1
+            
+            total_count = total_count + 1
+            
+            x = x + 2
+        y = y + 2
+    
+    if total_count > 0:
+        return edge_count / total_count
+    
+    return 0.0
+
+fn compute_frequency_content_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let high_freq = 0.0
+    let low_freq = 0.0
+    let count = 0
+    
+    let y = 1
+    while y < height - 1:
+        let x = 1
+        while x < width - 1:
+            let center = sample_texture_at(texture, x, y)
+            let left = sample_texture_at(texture, x - 1, y)
+            let right = sample_texture_at(texture, x + 1, y)
+            let up = sample_texture_at(texture, x, y - 1)
+            let down = sample_texture_at(texture, x, y + 1)
+            
+            let avg = (left.r + right.r + up.r + down.r) / 4.0
+            let diff = abs(center.r - avg)
+            
+            if diff > 0.05:
+                high_freq = high_freq + 1.0
+            else:
+                low_freq = low_freq + 1.0
+            
+            count = count + 1
+            
+            x = x + 3
+        y = y + 3
+    
+    if count > 0:
+        return high_freq / count
+    
+    return 0.0
+
+fn compute_color_statistics_gpu(texture_param: Texture) -> Array<Float>:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let stats: Array<Float> = []
+    
+    let sum_r = 0.0
+    let sum_g = 0.0
+    let sum_b = 0.0
+    let min_r = 1.0
+    let min_g = 1.0
+    let min_b = 1.0
+    let max_r = 0.0
+    let max_g = 0.0
+    let max_b = 0.0
+    let count = 0
+    
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let color = sample_texture_at(texture, x, y)
+            
+            sum_r = sum_r + color.r
+            sum_g = sum_g + color.g
+            sum_b = sum_b + color.b
+            
+            if color.r < min_r:
+                min_r = color.r
+            if color.g < min_g:
+                min_g = color.g
+            if color.b < min_b:
+                min_b = color.b
+            
+            if color.r > max_r:
+                max_r = color.r
+            if color.g > max_g:
+                max_g = color.g
+            if color.b > max_b:
+                max_b = color.b
+            
+            count = count + 1
+            x = x + 2
+        y = y + 2
+    
+    let mean_r = sum_r / count
+    let mean_g = sum_g / count
+    let mean_b = sum_b / count
+    
+    let var_r = 0.0
+    let var_g = 0.0
+    let var_b = 0.0
+    
+    let y2 = 0
+    while y2 < height:
+        let x2 = 0
+        while x2 < width:
+            let color = sample_texture_at(texture, x2, y2)
+            
+            let diff_r = color.r - mean_r
+            let diff_g = color.g - mean_g
+            let diff_b = color.b - mean_b
+            
+            var_r = var_r + diff_r * diff_r
+            var_g = var_g + diff_g * diff_g
+            var_b = var_b + diff_b * diff_b
+            
+            x2 = x2 + 2
+        y2 = y2 + 2
+    
+    let std_r = sqrt(var_r / count)
+    let std_g = sqrt(var_g / count)
+    let std_b = sqrt(var_b / count)
+    
+    push(stats, mean_r)
+    push(stats, mean_g)
+    push(stats, mean_b)
+    push(stats, std_r)
+    push(stats, std_g)
+    push(stats, std_b)
+    push(stats, min_r)
+    push(stats, min_g)
+    push(stats, min_b)
+    push(stats, max_r)
+    push(stats, max_g)
+    push(stats, max_b)
+    
+    return stats
+
+fn compute_histogram_gpu(texture_param: Texture, bin_count: Int) -> Array<Int>:
+    let histogram: Array<Int> = []
+    
+    let i = 0
+    while i < bin_count:
+        push(histogram, 0)
+        i = i + 1
+    
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let color = sample_texture_at(texture, x, y)
+            let luminance = color.r * 0.299 + color.g * 0.587 + color.b * 0.114
+            
+            let bin_index = floor(luminance * (bin_count - 1))
+            if bin_index >= 0 and bin_index < bin_count:
+                histogram[bin_index] = histogram[bin_index] + 1
+            
+            x = x + 2
+        y = y + 2
+    
+    return histogram
+
+fn extract_dominant_colors_gpu(texture_param: Texture, color_count: Int) -> Array<Vec3>:
+    let colors: Array<Vec3> = []
+    
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let sample_step = max(1, width / 32)
+    
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let color = sample_texture_at(texture, x, y)
+            push(colors, vec3(color.r, color.g, color.b))
+            x = x + sample_step
+        y = y + sample_step
+    
+    let dominant: Array<Vec3> = []
+    let i = 0
+    while i < min(color_count, len(colors)):
+        push(dominant, colors[i * (len(colors) / color_count)])
+        i = i + 1
+    
+    return dominant
+
+fn estimate_unique_colors_gpu(texture_param: Texture) -> Int:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let sample_count = 0
+    let unique_estimate = 0
+    
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            sample_count = sample_count + 1
+            x = x + 8
+        y = y + 8
+    
+    unique_estimate = sample_count * 4
+    
+    return unique_estimate
+
+fn compute_hsv_statistics_gpu(texture_param: Texture) -> Array<Float>:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let sum_saturation = 0.0
+    let sum_value = 0.0
+    let count = 0
+    
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let color = sample_texture_at(texture, x, y)
+            
+            let max_c = max(max(color.r, color.g), color.b)
+            let min_c = min(min(color.r, color.g), color.b)
+            let delta = max_c - min_c
+            
+            let saturation = 0.0
+            if max_c > 0.0:
+                saturation = delta / max_c
+            
+            sum_saturation = sum_saturation + saturation
+            sum_value = sum_value + max_c
+            count = count + 1
+            
+            x = x + 4
+        y = y + 4
+    
+    let mean_saturation = sum_saturation / count
+    let mean_value = sum_value / count
+    
+    let var_saturation = 0.0
+    let var_value = 0.0
+    
+    let y2 = 0
+    while y2 < height:
+        let x2 = 0
+        while x2 < width:
+            let color = sample_texture_at(texture, x2, y2)
+            
+            let max_c = max(max(color.r, color.g), color.b)
+            let min_c = min(min(color.r, color.g), color.b)
+            let delta = max_c - min_c
+            
+            let saturation = 0.0
+            if max_c > 0.0:
+                saturation = delta / max_c
+            
+            let diff_s = saturation - mean_saturation
+            let diff_v = max_c - mean_value
+            
+            var_saturation = var_saturation + diff_s * diff_s
+            var_value = var_value + diff_v * diff_v
+            
+            x2 = x2 + 4
+        y2 = y2 + 4
+    
+    let stats: Array<Float> = []
+    push(stats, mean_saturation)
+    push(stats, var_saturation / count)
+    push(stats, mean_value)
+    push(stats, var_value / count)
+    
+    return stats
+
+fn compute_normal_range_gpu(texture_param: Texture) -> Array<Float>:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let min_x = 1.0
+    let min_y = 1.0
+    let min_z = 1.0
+    let max_x = -1.0
+    let max_y = -1.0
+    let max_z = -1.0
+    
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let color = sample_texture_at(texture, x, y)
+            
+            let nx = color.r * 2.0 - 1.0
+            let ny = color.g * 2.0 - 1.0
+            let nz = color.b * 2.0 - 1.0
+            
+            if nx < min_x:
+                min_x = nx
+            if ny < min_y:
+                min_y = ny
+            if nz < min_z:
+                min_z = nz
+            
+            if nx > max_x:
+                max_x = nx
+            if ny > max_y:
+                max_y = ny
+            if nz > max_z:
+                max_z = nz
+            
+            x = x + 2
+        y = y + 2
+    
+    let result: Array<Float> = []
+    push(result, min_x)
+    push(result, min_y)
+    push(result, min_z)
+    push(result, max_x)
+    push(result, max_y)
+    push(result, max_z)
+    
+    return result
+
+fn compute_average_normal_gpu(texture_param: Texture) -> Array<Float>:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let sum_x = 0.0
+    let sum_y = 0.0
+    let sum_z = 0.0
+    let count = 0
+    
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let color = sample_texture_at(texture, x, y)
+            
+            let nx = color.r * 2.0 - 1.0
+            let ny = color.g * 2.0 - 1.0
+            let nz = color.b * 2.0 - 1.0
+            
+            sum_x = sum_x + nx
+            sum_y = sum_y + ny
+            sum_z = sum_z + nz
+            count = count + 1
+            
+            x = x + 2
+        y = y + 2
+    
+    let result: Array<Float> = []
+    push(result, sum_x / count)
+    push(result, sum_y / count)
+    push(result, sum_z / count)
+    
+    return result
+
+fn compute_normal_variance_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let avg = compute_average_normal_gpu(texture)
+    let mean_x = avg[0]
+    let mean_y = avg[1]
+    let mean_z = avg[2]
+    
+    let variance = 0.0
+    let count = 0
+    
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let color = sample_texture_at(texture, x, y)
+            
+            let nx = color.r * 2.0 - 1.0
+            let ny = color.g * 2.0 - 1.0
+            let nz = color.b * 2.0 - 1.0
+            
+            let diff_x = nx - mean_x
+            let diff_y = ny - mean_y
+            let diff_z = nz - mean_z
+            
+            variance = variance + diff_x * diff_x + diff_y * diff_y + diff_z * diff_z
+            count = count + 1
+            
+            x = x + 2
+        y = y + 2
+    
+    return variance / count
+
+fn compute_normalization_quality_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let normalized_count = 0
+    let total_count = 0
+    
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let color = sample_texture_at(texture, x, y)
+            
+            let nx = color.r * 2.0 - 1.0
+            let ny = color.g * 2.0 - 1.0
+            let nz = color.b * 2.0 - 1.0
+            
+            let length = sqrt(nx * nx + ny * ny + nz * nz)
+            
+            if abs(length - 1.0) < 0.1:
+                normalized_count = normalized_count + 1
+            
+            total_count = total_count + 1
+            
+            x = x + 3
+        y = y + 3
+    
+    if total_count > 0:
+        return normalized_count / total_count
+    
+    return 0.0
+
+fn detect_normal_artifacts_gpu(texture_param: Texture) -> Int:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let artifact_count = 0
+    
+    let y = 1
+    while y < height - 1:
+        let x = 1
+        while x < width - 1:
+            let center = sample_texture_at(texture, x, y)
+            let left = sample_texture_at(texture, x - 1, y)
+            let right = sample_texture_at(texture, x + 1, y)
+            let up = sample_texture_at(texture, x, y - 1)
+            let down = sample_texture_at(texture, x, y + 1)
+            
+            let diff_lr = abs(left.r - right.r) + abs(left.g - right.g) + abs(left.b - right.b)
+            let diff_ud = abs(up.r - down.r) + abs(up.g - down.g) + abs(up.b - down.b)
+            
+            if diff_lr > 0.5 or diff_ud > 0.5:
+                artifact_count = artifact_count + 1
+            
+            x = x + 4
+        y = y + 4
+    
+    return artifact_count
+
+fn compute_single_channel_statistics_gpu(texture_param: Texture, channel: Int) -> Array<Float>:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let sum = 0.0
+    let min_val = 1.0
+    let max_val = 0.0
+    let count = 0
+    
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let color = sample_texture_at(texture, x, y)
+            
+            let value = 0.0
+            if channel == 0:
+                value = color.r
+            else:
+                if channel == 1:
+                    value = color.g
+                else:
+                    value = color.b
+            
+            sum = sum + value
+            
+            if value < min_val:
+                min_val = value
+            
+            if value > max_val:
+                max_val = value
+            
+            count = count + 1
+            x = x + 2
+        y = y + 2
+    
+    let mean = sum / count
+    
+    let variance = 0.0
+    let y2 = 0
+    while y2 < height:
+        let x2 = 0
+        while x2 < width:
+            let color = sample_texture_at(texture, x2, y2)
+            
+            let value = 0.0
+            if channel == 0:
+                value = color.r
+            else:
+                if channel == 1:
+                    value = color.g
+                else:
+                    value = color.b
+            
+            let diff = value - mean
+            variance = variance + diff * diff
+            
+            x2 = x2 + 2
+        y2 = y2 + 2
+    
+    variance = variance / count
+    
+    let stats: Array<Float> = []
+    push(stats, mean)
+    push(stats, variance)
+    push(stats, min_val)
+    push(stats, max_val)
+    
+    return stats
+
+fn compute_threshold_areas_gpu(texture_param: Texture, threshold_low: Float, threshold_high: Float) -> Array<Float>:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let low_count = 0
+    let high_count = 0
+    let total_count = 0
+    
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let color = sample_texture_at(texture, x, y)
+            let value = color.r
+            
+            if value < threshold_low:
+                low_count = low_count + 1
+            else:
+                if value > threshold_high:
+                    high_count = high_count + 1
+            
+            total_count = total_count + 1
+            x = x + 2
+        y = y + 2
+    
+    let result: Array<Float> = []
+    push(result, low_count / total_count)
+    push(result, high_count / total_count)
+    
+    return result
+
+fn compute_detail_frequency_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let high_freq_count = 0
+    let total_count = 0
+    
+    let y = 1
+    while y < height - 1:
+        let x = 1
+        while x < width - 1:
+            let center = sample_texture_at(texture, x, y)
+            let left = sample_texture_at(texture, x - 1, y)
+            let right = sample_texture_at(texture, x + 1, y)
+            
+            let diff = abs(right.r - left.r)
+            
+            if diff > 0.05:
+                high_freq_count = high_freq_count + 1
+            
+            total_count = total_count + 1
+            
+            x = x + 2
+        y = y + 2
+    
+    if total_count > 0:
+        return high_freq_count / total_count
+    
+    return 0.0
+
+fn compute_transition_sharpness_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let sharp_transitions = 0
+    let total_transitions = 0
+    
+    let y = 1
+    while y < height - 1:
+        let x = 1
+        while x < width - 1:
+            let center = sample_texture_at(texture, x, y)
+            let right = sample_texture_at(texture, x + 1, y)
+            
+            let diff = abs(right.r - center.r)
+            
+            if diff > 0.1:
+                total_transitions = total_transitions + 1
+                
+                if diff > 0.4:
+                    sharp_transitions = sharp_transitions + 1
+            
+            x = x + 2
+        y = y + 2
+    
+    if total_transitions > 0:
+        return sharp_transitions / total_transitions
+    
+    return 0.0
+
+fn compute_gradient_quality_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let smooth_gradients = 0
+    let total_gradients = 0
+    
+    let y = 2
+    while y < height - 2:
+        let x = 2
+        while x < width - 2:
+            let center = sample_texture_at(texture, x, y)
+            let left = sample_texture_at(texture, x - 1, y)
+            let right = sample_texture_at(texture, x + 1, y)
+            
+            let gradient = abs(right.r - left.r)
+            
+            if gradient > 0.05 and gradient < 0.5:
+                total_gradients = total_gradients + 1
+                
+                let left2 = sample_texture_at(texture, x - 2, y)
+                let right2 = sample_texture_at(texture, x + 2, y)
+                
+                let gradient2 = abs(right2.r - left2.r)
+                
+                if abs(gradient2 - gradient * 2.0) < 0.1:
+                    smooth_gradients = smooth_gradients + 1
+            
+            x = x + 3
+        y = y + 3
+    
+    if total_gradients > 0:
+        return smooth_gradients / total_gradients
+    
+    return 0.0
+
+fn count_pixels_below_threshold_gpu(texture_param: Texture, threshold: Float) -> Int:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let count = 0
+    
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let color = sample_texture_at(texture, x, y)
+            
+            if color.r < threshold:
+                count = count + 1
+            
+            x = x + 2
+        y = y + 2
+    
+    return count
+
+fn compute_frequency_bands_gpu(texture_param: Texture) -> Array<Float>:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let low_freq = 0.0
+    let high_freq = 0.0
+    let cavity_freq = 0.0
+    let count = 0
+    
+    let y = 2
+    while y < height - 2:
+        let x = 2
+        while x < width - 2:
+            let center = sample_texture_at(texture, x, y)
+            
+            let far_left = sample_texture_at(texture, max(0, x - 4), y)
+            let far_right = sample_texture_at(texture, min(width - 1, x + 4), y)
+            let low_gradient = abs(far_right.r - far_left.r)
+            
+            let near_left = sample_texture_at(texture, x - 1, y)
+            let near_right = sample_texture_at(texture, x + 1, y)
+            let high_gradient = abs(near_right.r - near_left.r)
+            
+            let up = sample_texture_at(texture, x, max(0, y - 1))
+            let down = sample_texture_at(texture, x, min(height - 1, y + 1))
+            let left = sample_texture_at(texture, max(0, x - 1), y)
+            let right = sample_texture_at(texture, min(width - 1, x + 1), y)
+            
+            let avg_neighbors = (up.r + down.r + left.r + right.r) / 4.0
+            let cavity_strength = center.r - avg_neighbors
+            
+            if low_gradient > 0.1:
+                low_freq = low_freq + 1.0
+            
+            if high_gradient > 0.05:
+                high_freq = high_freq + 1.0
+            
+            if cavity_strength < -0.05:
+                cavity_freq = cavity_freq + 1.0
+            
+            count = count + 1
+            
+            x = x + 3
+        y = y + 3
+    
+    let result: Array<Float> = []
+    push(result, low_freq / count)
+    push(result, high_freq / count)
+    push(result, cavity_freq / count)
+    
+    return result
+
+fn compute_edge_continuity_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let continuity_sum = 0.0
+    let sample_count = 0
+    
+    let x = 0
+    while x < width:
+        let top = sample_texture_at(texture, x, 0)
+        let bottom = sample_texture_at(texture, x, height - 1)
+        
+        let diff = abs(top.r - bottom.r) + abs(top.g - bottom.g) + abs(top.b - bottom.b)
+        continuity_sum = continuity_sum + (1.0 - min(1.0, diff))
+        sample_count = sample_count + 1
+        
+        x = x + 4
+    
+    let y = 0
+    while y < height:
+        let left = sample_texture_at(texture, 0, y)
+        let right = sample_texture_at(texture, width - 1, y)
+        
+        let diff = abs(left.r - right.r) + abs(left.g - right.g) + abs(left.b - right.b)
+        continuity_sum = continuity_sum + (1.0 - min(1.0, diff))
+        sample_count = sample_count + 1
+        
+        y = y + 4
+    
+    if sample_count > 0:
+        return continuity_sum / sample_count
+    
+    return 0.0
+
+fn compute_pattern_repetition_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let half_width = width / 2
+    let half_height = height / 2
+    
+    let similarity_sum = 0.0
+    let sample_count = 0
+    
+    let y = 0
+    while y < half_height:
+        let x = 0
+        while x < half_width:
+            let quad1 = sample_texture_at(texture, x, y)
+            let quad2 = sample_texture_at(texture, x + half_width, y)
+            let quad3 = sample_texture_at(texture, x, y + half_height)
+            let quad4 = sample_texture_at(texture, x + half_width, y + half_height)
+            
+            let diff12 = abs(quad1.r - quad2.r) + abs(quad1.g - quad2.g) + abs(quad1.b - quad2.b)
+            let diff13 = abs(quad1.r - quad3.r) + abs(quad1.g - quad3.g) + abs(quad1.b - quad3.b)
+            let diff14 = abs(quad1.r - quad4.r) + abs(quad1.g - quad4.g) + abs(quad1.b - quad4.b)
+            
+            let avg_diff = (diff12 + diff13 + diff14) / 3.0
+            similarity_sum = similarity_sum + (1.0 - min(1.0, avg_diff))
+            sample_count = sample_count + 1
+            
+            x = x + 8
+        y = y + 8
+    
+    if sample_count > 0:
+        return similarity_sum / sample_count
+    
+    return 0.0
+
+fn compute_frequency_match_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let edge_freq_top = 0.0
+    let edge_freq_bottom = 0.0
+    let edge_freq_left = 0.0
+    let edge_freq_right = 0.0
+    
+    let x = 1
+    while x < width - 1:
+        let top_center = sample_texture_at(texture, x, 0)
+        let top_left = sample_texture_at(texture, x - 1, 0)
+        let top_right = sample_texture_at(texture, x + 1, 0)
+        edge_freq_top = edge_freq_top + abs(top_right.r - top_left.r)
+        
+        let bottom_center = sample_texture_at(texture, x, height - 1)
+        let bottom_left = sample_texture_at(texture, x - 1, height - 1)
+        let bottom_right = sample_texture_at(texture, x + 1, height - 1)
+        edge_freq_bottom = edge_freq_bottom + abs(bottom_right.r - bottom_left.r)
+        
+        x = x + 4
+    
+    let y = 1
+    while y < height - 1:
+        let left_center = sample_texture_at(texture, 0, y)
+        let left_up = sample_texture_at(texture, 0, y - 1)
+        let left_down = sample_texture_at(texture, 0, y + 1)
+        edge_freq_left = edge_freq_left + abs(left_down.r - left_up.r)
+        
+        let right_center = sample_texture_at(texture, width - 1, y)
+        let right_up = sample_texture_at(texture, width - 1, y - 1)
+        let right_down = sample_texture_at(texture, width - 1, y + 1)
+        edge_freq_right = edge_freq_right + abs(right_down.r - right_up.r)
+        
+        y = y + 4
+    
+    let avg_horizontal = (edge_freq_top + edge_freq_bottom) / 2.0
+    let avg_vertical = (edge_freq_left + edge_freq_right) / 2.0
+    
+    let match_horizontal = 1.0 - min(1.0, abs(edge_freq_top - edge_freq_bottom) / max(0.001, avg_horizontal))
+    let match_vertical = 1.0 - min(1.0, abs(edge_freq_left - edge_freq_right) / max(0.001, avg_vertical))
+    
+    return (match_horizontal + match_vertical) / 2.0
+
+fn detect_seams_gpu(texture_param: Texture) -> Array<Vec2>:
+    let seams: Array<Vec2> = []
+    
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let x = 0
+    while x < width:
+        let top = sample_texture_at(texture, x, 0)
+        let bottom = sample_texture_at(texture, x, height - 1)
+        
+        let diff = abs(top.r - bottom.r) + abs(top.g - bottom.g) + abs(top.b - bottom.b)
+        
+        if diff > 0.2:
+            push(seams, vec2(x, 0))
+        
+        x = x + 8
+    
+    let y = 0
+    while y < height:
+        let left = sample_texture_at(texture, 0, y)
+        let right = sample_texture_at(texture, width - 1, y)
+        
+        let diff = abs(left.r - right.r) + abs(left.g - right.g) + abs(left.b - right.b)
+        
+        if diff > 0.2:
+            push(seams, vec2(0, y))
+        
+        y = y + 8
+    
+    return seams
+
+fn compute_mip_detail_preservation_gpu(texture_param: Texture, mip_level: Int) -> Float:
+    let base_detail = compute_detail_level_gpu(texture)
+    
+    let mip_texture = get_mipmap_level(texture, mip_level)
+    let mip_detail = compute_detail_level_gpu(mip_texture)
+    
+    let expected_detail = base_detail / pow(2.0, mip_level)
+    
+    if expected_detail > 0.0:
+        return min(1.0, mip_detail / expected_detail)
+    
+    return 1.0
+
+fn compute_mip_quality_gpu(texture_param: Texture, mip_level: Int) -> Float:
+    let mip_texture = get_mipmap_level(texture, mip_level)
+    
+    let sharpness = compute_sharpness_gpu(mip_texture)
+    let contrast = compute_contrast_gpu(mip_texture)
+    let noise = compute_noise_level_gpu(mip_texture)
+    
+    let quality = (sharpness * 0.4 + contrast * 0.3 + (1.0 - noise) * 0.3)
+    
+    return quality
+
+fn compute_aliasing_score_gpu(texture_param: Texture) -> Float:
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    
+    let aliasing_count = 0
+    let total_count = 0
+    
+    let y = 1
+    while y < height - 1:
+        let x = 1
+        while x < width - 1:
+            let center = sample_texture_at(texture, x, y)
+            let left = sample_texture_at(texture, x - 1, y)
+            let right = sample_texture_at(texture, x + 1, y)
+            let up = sample_texture_at(texture, x, y - 1)
+            let down = sample_texture_at(texture, x, y + 1)
+            
+            let avg = (left.r + right.r + up.r + down.r) / 4.0
+            let diff = abs(center.r - avg)
+            
+            if diff > 0.3:
+                aliasing_count = aliasing_count + 1
+            
+            total_count = total_count + 1
+            
+            x = x + 4
+        y = y + 4
+    
+    if total_count > 0:
+        return aliasing_count / total_count
+    
+    return 0.0
+
+fn compute_blur_progression_gpu(texture_param: Texture) -> Float:
+    let mip_count = get_mipmap_count(texture)
+    
+    if mip_count < 2:
+        return 1.0
+    
+    let progression_score = 0.0
+    
+    let i = 0
+    while i < mip_count - 1:
+        let mip_current = get_mipmap_level(texture, i)
+        let mip_next = get_mipmap_level(texture, i + 1)
+        
+        let detail_current = compute_detail_level_gpu(mip_current)
+        let detail_next = compute_detail_level_gpu(mip_next)
+        
+        let expected_ratio = 0.5
+        let actual_ratio = detail_next / max(0.001, detail_current)
+        
+        let score = 1.0 - abs(actual_ratio - expected_ratio)
+        progression_score = progression_score + score
+        
+        i = i + 1
+    
+    return progression_score / (mip_count - 1)
+
+fn compute_rmse_gpu(texture_a: Texture, texture_b: Texture) -> Float:
+    let width_a = get_texture_width(texture_a)
+    let height_a = get_texture_height(texture_a)
+    let width_b = get_texture_width(texture_b)
+    let height_b = get_texture_height(texture_b)
+    
+    let width = min(width_a, width_b)
+    let height = min(height_a, height_b)
+    
+    let sum_squared_error = 0.0
+    let count = 0
+    
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let color_a = sample_texture_at(texture_a, x, y)
+            let color_b = sample_texture_at(texture_b, x, y)
+            
+            let diff_r = color_a.r - color_b.r
+            let diff_g = color_a.g - color_b.g
+            let diff_b = color_a.b - color_b.b
+            
+            sum_squared_error = sum_squared_error + diff_r * diff_r + diff_g * diff_g + diff_b * diff_b
+            count = count + 1
+            
+            x = x + 2
+        y = y + 2
+    
+    if count > 0:
+        return sqrt(sum_squared_error / (count * 3.0))
+    
+    return 0.0
+
+fn compute_ssim_gpu(texture_a: Texture, texture_b: Texture) -> Float:
+    let width_a = get_texture_width(texture_a)
+    let height_a = get_texture_height(texture_a)
+    let width_b = get_texture_width(texture_b)
+    let height_b = get_texture_height(texture_b)
+    
+    let width = min(width_a, width_b)
+    let height = min(height_a, height_b)
+    
+    let window_size = 8
+    let ssim_sum = 0.0
+    let window_count = 0
+    
+    let y = 0
+    while y < height - window_size:
+        let x = 0
+        while x < width - window_size:
+            let mean_a = 0.0
+            let mean_b = 0.0
+            let count = 0
+            
+            let wy = 0
+            while wy < window_size:
+                let wx = 0
+                while wx < window_size:
+                    let color_a = sample_texture_at(texture_a, x + wx, y + wy)
+                    let color_b = sample_texture_at(texture_b, x + wx, y + wy)
+                    
+                    let lum_a = color_a.r * 0.299 + color_a.g * 0.587 + color_a.b * 0.114
+                    let lum_b = color_b.r * 0.299 + color_b.g * 0.587 + color_b.b * 0.114
+                    
+                    mean_a = mean_a + lum_a
+                    mean_b = mean_b + lum_b
+                    count = count + 1
+                    
+                    wx = wx + 1
+                wy = wy + 1
+            
+            mean_a = mean_a / count
+            mean_b = mean_b / count
+            
+            let var_a = 0.0
+            let var_b = 0.0
+            let colet = 0.0
+            
+            let vy = 0
+            while vy < window_size:
+                let vx = 0
+                while vx < window_size:
+                    let color_a = sample_texture_at(texture_a, x + vx, y + vy)
+                    let color_b = sample_texture_at(texture_b, x + vx, y + vy)
+                    
+                    let lum_a = color_a.r * 0.299 + color_a.g * 0.587 + color_a.b * 0.114
+                    let lum_b = color_b.r * 0.299 + color_b.g * 0.587 + color_b.b * 0.114
+                    
+                    let diff_a = lum_a - mean_a
+                    let diff_b = lum_b - mean_b
+                    
+                    var_a = var_a + diff_a * diff_a
+                    var_b = var_b + diff_b * diff_b
+                    colet = colet + diff_a * diff_b
+                    
+                    vx = vx + 1
+                vy = vy + 1
+            
+            var_a = var_a / count
+            var_b = var_b / count
+            colet = colet / count
+            
+            let c1 = 0.01 * 0.01
+            let c2 = 0.03 * 0.03
+            
+            let numerator = (2.0 * mean_a * mean_b + c1) * (2.0 * colet + c2)
+            let denominator = (mean_a * mean_a + mean_b * mean_b + c1) * (var_a + var_b + c2)
+            
+            let ssim = numerator / max(0.0001, denominator)
+            ssim_sum = ssim_sum + ssim
+            window_count = window_count + 1
+            
+            x = x + window_size
+        y = y + window_size
+    
+    if window_count > 0:
+        return ssim_sum / window_count
+    
+    return 0.0
+
+
+# ============================================================================
+# SECTION 5: UTILITY FUNCTIONS
+# ============================================================================
+
+fn calculate_texture_memory(texture_param: Texture) -> Int:
+    if texture_param == null:
+        return 0
+    
+    let width = get_texture_width(texture)
+    let height = get_texture_height(texture)
+    let format = get_texture_format(texture)
+    
+    let bytes_per_pixel = 4
+    
+    if format == "BC1_RGB":
+        bytes_per_pixel = 0.5
+    else:
+        if format == "BC3_RGBA" or format == "BC5_RG":
+            bytes_per_pixel = 1
+        else:
+            if format == "BC7_RGBA":
+                bytes_per_pixel = 1
+            else:
+                if format == "RGBA16F":
+                    bytes_per_pixel = 8
+                else:
+                    if format == "RGB8":
+                        bytes_per_pixel = 3
+                    else:
+                        bytes_per_pixel = 4
+    
+    let base_memory = width * height * bytes_per_pixel
+    
+    let mip_count = get_mipmap_count(texture)
+    let total_memory = base_memory
+    
+    let i = 1
+    while i < mip_count:
+        let mip_width = max(1, (width / (pow(2, i) as Int)))
+        let mip_height = max(1, (height / (pow(2, i) as Int)))
+        total_memory = total_memory + mip_width * mip_height * bytes_per_pixel
+        i = i + 1
+    
+    return total_memory
+
+fn estimate_shader_instructions(texture_sample_count: Int) -> Int:
+    let base_instructions = 50
+    let per_sample_instructions = 40
+    let lighting_instructions = 100
+    let pbr_instructions = 80
+    
+    return base_instructions + texture_sample_count * per_sample_instructions + lighting_instructions + pbr_instructions
+
+fn estimate_performance_score(width: Int, height: Int, texture_count: Int) -> Float:
+    let pixel_count = width * height
+    let memory_score = pixel_count / 4194304.0
+    let texture_score = texture_count / 8.0
+    
+    return memory_score * 0.6 + texture_score * 0.4
+
+fn estimate_material_memory(material_path: String) -> Int:
+    let base_memory = 16777216
+    return base_memory
+
+fn count_material_textures(material_path: String) -> Int:
+    return 5
+
+fn estimate_material_instructions(material_path: String) -> Int:
+    return 400
+
+fn log2(value: Float) -> Float:
+    if value <= 0.0:
+        return 0.0
+    
+    let result = 0.0
+    let temp = value
+    
+    while temp > 2.0:
+        temp = temp / 2.0
+        result = result + 1.0
+    
+    while temp < 1.0:
+        temp = temp * 2.0
+        result = result - 1.0
+    
+    return result
+
+fn min(a: Float, b: Float) -> Float:
+    if a < b:
+        return a
+    return b
+
+fn max(a: Float, b: Float) -> Float:
+    if a > b:
+        return a
+    return b
+
+fn abs(value: Float) -> Float:
+    if value < 0.0:
+        return -value
+    return value
+
+fn sqrt(value: Float) -> Float:
+    if value <= 0.0:
+        return 0.0
+    
+    let guess = value / 2.0
+    let epsilon = 0.00001
+    
+    let i = 0
+    while i < 20:
+        let next_guess = (guess + value / guess) / 2.0
+        
+        if abs(next_guess - guess) < epsilon:
+            return next_guess
+        
+        guess = next_guess
+        i = i + 1
+    
+    return guess
+
+fn pow(base: Float, exponent: Float) -> Float:
+    if exponent == 0.0:
+        return 1.0
+    
+    if exponent == 1.0:
+        return base
+    
+    if exponent == 2.0:
+        return base * base
+    
+    let result = 1.0
+    let exp_int = floor(exponent)
+    
+    let i = 0
+    while i < exp_int:
+        result = result * base
+        i = i + 1
+    
+    return result
+
+fn floor(value: Float) -> Int:
+    let int_value = value
+    if value < 0.0 and value != int_value:
+        return int_value - 1
+    return int_value
+
+fn vec2(x: Float, y: Float) -> Vec2:
+    let result = Vec2()
+    result.x = x
+    result.y = y
+    return result
+
+fn vec3(x: Float, y: Float, z: Float) -> Vec3:
+    let result = Vec3()
+    result.x = x
+    result.y = y
+    result.z = z
+    return result
+
+# ============================================================================
+# SECTION 6: BLUEPRINT HELPER FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn get_texture_width(texture_param: Texture) -> Int:
+    return query_texture_property(texture, "Width")
+
+@blueprint
+fn get_texture_height(texture_param: Texture) -> Int:
+    return query_texture_property(texture, "Height")
+
+@blueprint
+fn get_texture_format(texture_param: Texture) -> String:
+    return query_texture_property_string(texture, "Format")
+
+@blueprint
+fn get_mipmap_count(texture_param: Texture) -> Int:
+    return query_texture_property(texture, "MipCount")
+
+@blueprint
+fn get_mipmap_level(texture_param: Texture, level: Int) -> Texture:
+    return extract_mipmap_level(texture, level)
+
+@blueprint
+fn sample_texture_at(texture_param: Texture, x: Int, y: Int) -> Vec4:
+    return sample_texture_pixel(texture, x, y)
+
+@blueprint
+fn load_texture(path: String) -> Texture:
+    return load_texture_from_path(path)
+
+@blueprint
+fn save_texture(texture_param: Texture, path: String):
+    save_texture_to_path(texture, path)
+
+@blueprint
+fn get_time_milliseconds() -> Float:
+    return get_current_time_ms()
+
+@blueprint
+fn get_file_name_without_extension(path: String) -> String:
+    return extract_filename_no_ext(path)
+
+@blueprint
+fn display_toast(message: String, title: String, duration: Float):
+    show_editor_notification(message, title, duration)
+
+@blueprint
+fn display_error_dialog(message: String, details: String):
+    show_error_message_box(message, details)
+
+@blueprint
+fn display_progress_toast(message: String, progress: Float):
+    show_progress_notification(message, progress)

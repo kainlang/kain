@@ -1,0 +1,60 @@
+# ORM Texture Packing Shader
+# Packs Ambient Occlusion, Roughness, and Metallic into a single RGBA texture
+# UE5 Standard: R=AO, G=Roughness, B=Metallic, A=1.0
+
+# ============================================================================
+# ORM PACKING SHADER
+# ============================================================================
+
+shader compute PackORM(thread_id: Vec3):
+    uniform ao_texture: Sampler2D @0
+    uniform roughness_texture: Sampler2D @1
+    uniform metallic_texture: Sampler2D @2
+    uniform texture_dimensions: Vec2 @3
+    buffer out_orm: RWBuffer<Vec4> @4
+    
+    let pos = thread_id.xy
+    if pos.x >= texture_dimensions.x or pos.y >= texture_dimensions.y:
+        return
+    
+    # Sample input textures
+    let uv = (pos + vec2(0.5, 0.5)) / texture_dimensions
+    let ao = sample(ao_texture, uv).r
+    let roughness = sample(roughness_texture, uv).r
+    let metallic = sample(metallic_texture, uv).r
+    
+    # Pack into ORM format (UE5 standard)
+    # R = Ambient Occlusion
+    # G = Roughness
+    # B = Metallic
+    # A = 1.0 (unused, but required for texture format)
+    out_orm[pos.y * texture_dimensions.x as Int + pos.x] = vec4(ao, roughness, metallic, 1.0)
+
+
+# ============================================================================
+# ORM UNPACKING SHADER (for debugging/preview)
+# ============================================================================
+
+shader compute UnpackORM(thread_id: Vec3):
+    uniform orm_texture: Sampler2D @0
+    uniform channel: Int @1
+    uniform texture_dimensions: Vec2 @2
+    buffer out_texture: RWBuffer<Vec4> @3
+    
+    let pos = thread_id.xy
+    if pos.x >= texture_dimensions.x or pos.y >= texture_dimensions.y:
+        return
+    
+    # Sample ORM texture
+    let uv = (pos + vec2(0.5, 0.5)) / texture_dimensions
+    let orm = sample(orm_texture, uv)
+    
+    # Extract channel
+    let value = match channel:
+        0 => orm.r  # Ambient Occlusion
+        1 => orm.g  # Roughness
+        2 => orm.b  # Metallic
+        _ => 0.0
+    
+    # Output as grayscale
+    out_texture[pos.y * texture_dimensions.x as Int + pos.x] = vec4(vec3(value), 1.0)

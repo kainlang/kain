@@ -1,0 +1,441 @@
+shader compute HeightmapGeneration(thread_id: Vec3):
+    uniform seed: Int @0
+    uniform octaves: Int @1
+    uniform frequency: Float @2
+    uniform amplitude: Float @3
+    uniform lacunarity: Float @4
+    uniform persistence: Float @5
+    uniform terrain_scale: Float @6
+    uniform base_height: Float @7
+    uniform height_multiplier: Float @8
+    uniform chunk_offset_x: Float @9
+    uniform chunk_offset_y: Float @10
+    buffer heightmap: RWBuffer<Float> @11
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    
+    let world_x = (x as Float + chunk_offset_x) * terrain_scale
+    let world_y = (y as Float + chunk_offset_y) * terrain_scale
+    
+    let total = 0.0
+    let current_amplitude = amplitude
+    let current_frequency = frequency
+    let max_value = 0.0
+    
+    for i in 0..octaves:
+        let sample_x = world_x * current_frequency
+        let sample_y = world_y * current_frequency
+        
+        let noise_value = perlin_noise(vec3(sample_x, sample_y, seed as Float))
+        total = total + noise_value * current_amplitude
+        
+        max_value = max_value + current_amplitude
+        current_amplitude = current_amplitude * persistence
+        current_frequency = current_frequency * lacunarity
+    
+    let normalized = total / max_value
+    let height = base_height + normalized * height_multiplier
+    
+    let index = x + y * 256
+    heightmap[index] = height
+
+shader compute HydraulicErosion(thread_id: Vec3):
+    uniform iterations: Int @0
+    uniform erosion_strength: Float @1
+    uniform sediment_capacity: Float @2
+    uniform evaporation_rate: Float @3
+    uniform deposition_rate: Float @4
+    uniform min_slope: Float @5
+    uniform terrain_size: Int @6
+    buffer heightmap: RWBuffer<Float> @7
+    buffer water_map: RWBuffer<Float> @8
+    buffer sediment_map: RWBuffer<Float> @9
+    buffer velocity_map: RWBuffer<Vec2> @10
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    
+    if x >= terrain_size or y >= terrain_size:
+        return
+    
+    let index = x + y * terrain_size
+    let current_height = heightmap[index]
+    let water_amount = water_map[index]
+    let sediment = sediment_map[index]
+    let velocity = velocity_map[index]
+    
+    let find_lowest_neighbor = fn() -> Int:
+        let lowest_height = current_height
+        let lowest_index = -1
+        
+        for dx in -1..2:
+            for dy in -1..2:
+                if dx == 0 and dy == 0:
+                    continue
+                
+                let nx = x + dx
+                let ny = y + dy
+                
+                if nx >= 0 and nx < terrain_size and ny >= 0 and ny < terrain_size:
+                    let neighbor_index = nx + ny * terrain_size
+                    let neighbor_height = heightmap[neighbor_index]
+                    
+                    if neighbor_height < lowest_height:
+                        lowest_height = neighbor_height
+                        lowest_index = neighbor_index
+        
+        return lowest_index
+    
+    let lowest_neighbor = find_lowest_neighbor()
+    
+    if lowest_neighbor >= 0:
+        let height_diff = current_height - heightmap[lowest_neighbor]
+        
+        if height_diff > min_slope:
+            let flow_amount = min(water_amount, height_diff * erosion_strength)
+            
+            let erosion_amount = flow_amount * sediment_capacity
+            heightmap[index] = current_height - erosion_amount
+            
+            sediment_map[index] = sediment + erosion_amount
+            
+            water_map[index] = water_amount - flow_amount
+            water_map[lowest_neighbor] = water_map[lowest_neighbor] + flow_amount
+            
+            let nx = lowest_neighbor % terrain_size
+            let ny = lowest_neighbor / terrain_size
+            let direction = vec2((nx - x) as Float, (ny - y) as Float)
+            velocity_map[index] = direction
+    
+    water_map[index] = water_map[index] * (1.0 - evaporation_rate)
+    
+    if sediment > 0.0:
+        let deposition = sediment * deposition_rate
+        heightmap[index] = heightmap[index] + deposition
+        sediment_map[index] = sediment - deposition
+
+shader compute ThermalErosion(thread_id: Vec3):
+    uniform thermal_angle: Float @0
+    uniform erosion_strength: Float @1
+    uniform terrain_size: Int @2
+    buffer heightmap: RWBuffer<Float> @3
+    buffer temp_heightmap: RWBuffer<Float> @4
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    
+    if x >= terrain_size or y >= terrain_size:
+        return
+    
+    let index = x + y * terrain_size
+    let current_height = heightmap[index]
+    
+    let max_diff = 0.0
+    let total_diff = 0.0
+    let neighbor_count = 0
+    
+    for dx in -1..2:
+        for dy in -1..2:
+            if dx == 0 and dy == 0:
+                continue
+            
+            let nx = x + dx
+            let ny = y + dy
+            
+            if nx >= 0 and nx < terrain_size and ny >= 0 and ny < terrain_size:
+                let neighbor_index = nx + ny * terrain_size
+                let neighbor_height = heightmap[neighbor_index]
+                let height_diff = current_height - neighbor_height
+                
+                if height_diff > thermal_angle:
+                    total_diff = total_diff + height_diff
+                    max_diff = max(max_diff, height_diff)
+                    neighbor_count = neighbor_count + 1
+    
+    if neighbor_count > 0 and max_diff > thermal_angle:
+        let material_to_move = (max_diff - thermal_angle) * erosion_strength
+        temp_heightmap[index] = current_height - material_to_move
+        
+        let material_per_neighbor = material_to_move / (neighbor_count as Float)
+        
+        for dx in -1..2:
+            for dy in -1..2:
+                if dx == 0 and dy == 0:
+                    continue
+                
+                let nx = x + dx
+                let ny = y + dy
+                
+                if nx >= 0 and nx < terrain_size and ny >= 0 and ny < terrain_size:
+                    let neighbor_index = nx + ny * terrain_size
+                    let neighbor_height = heightmap[neighbor_index]
+                    let height_diff = current_height - neighbor_height
+                    
+                    if height_diff > thermal_angle:
+                        temp_heightmap[neighbor_index] = temp_heightmap[neighbor_index] + material_per_neighbor
+    else:
+        temp_heightmap[index] = current_height
+
+shader compute WindErosion(thread_id: Vec3):
+    uniform wind_direction: Vec2 @0
+    uniform wind_strength: Float @1
+    uniform suspension_rate: Float @2
+    uniform abrasion_rate: Float @3
+    uniform terrain_size: Int @4
+    buffer heightmap: RWBuffer<Float> @5
+    buffer sediment_map: RWBuffer<Float> @6
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    
+    if x >= terrain_size or y >= terrain_size:
+        return
+    
+    let index = x + y * terrain_size
+    let current_height = heightmap[index]
+    
+    let wind_x = wind_direction.x * wind_strength
+    let wind_y = wind_direction.y * wind_strength
+    
+    let target_x = x + (wind_x as Int)
+    let target_y = y + (wind_y as Int)
+    
+    if target_x >= 0 and target_x < terrain_size and target_y >= 0 and target_y < terrain_size:
+        let target_index = target_x + target_y * terrain_size
+        let target_height = heightmap[target_index]
+        
+        if current_height > target_height:
+            let erosion_amount = (current_height - target_height) * abrasion_rate
+            heightmap[index] = current_height - erosion_amount
+            
+            sediment_map[index] = sediment_map[index] + erosion_amount
+            
+            let deposition = sediment_map[index] * suspension_rate
+            heightmap[target_index] = target_height + deposition
+            sediment_map[index] = sediment_map[index] - deposition
+
+shader compute BiomeBlending(thread_id: Vec3):
+    uniform terrain_size: Int @0
+    uniform biome_count: Int @1
+    uniform blend_radius: Float @2
+    buffer heightmap: Buffer<Float> @3
+    buffer temperature_map: Buffer<Float> @4
+    buffer humidity_map: Buffer<Float> @5
+    buffer biome_map: RWBuffer<Int> @6
+    buffer biome_weights: RWBuffer<Vec4> @7
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    
+    if x >= terrain_size or y >= terrain_size:
+        return
+    
+    let index = x + y * terrain_size
+    let height = heightmap[index]
+    let temperature = temperature_map[index]
+    let humidity = humidity_map[index]
+    
+    let biome = 0
+    
+    if height < 0.2:
+        biome = 10
+    else:
+        if height < 0.3:
+            biome = 9
+        else:
+            if temperature < 0.2:
+                if height > 0.7:
+                    biome = 8
+                else:
+                    biome = 3
+            else:
+                if temperature < 0.4:
+                    biome = 4
+                else:
+                    if temperature < 0.6:
+                        if humidity < 0.3:
+                            biome = 1
+                        else:
+                            if humidity < 0.6:
+                                biome = 2
+                            else:
+                                biome = 7
+                    else:
+                        if humidity < 0.3:
+                            biome = 0
+                        else:
+                            if humidity < 0.5:
+                                biome = 5
+                            else:
+                                biome = 6
+    
+    biome_map[index] = biome
+    
+    let weights = vec4(0.0, 0.0, 0.0, 0.0)
+    
+    if biome == 0:
+        weights = vec4(1.0, 0.0, 0.0, 0.0)
+    else:
+        if biome == 1:
+            weights = vec4(0.0, 1.0, 0.0, 0.0)
+        else:
+            if biome == 2:
+                weights = vec4(0.0, 0.0, 1.0, 0.0)
+            else:
+                weights = vec4(0.0, 0.0, 0.0, 1.0)
+    
+    biome_weights[index] = weights
+
+shader compute NormalCalculation(thread_id: Vec3):
+    uniform terrain_size: Int @0
+    uniform height_scale: Float @1
+    buffer heightmap: Buffer<Float> @2
+    buffer normal_map: RWBuffer<Vec3> @3
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    
+    if x >= terrain_size or y >= terrain_size:
+        return
+    
+    let index = x + y * terrain_size
+    
+    let get_height = fn(px: Int, py: Int) -> Float:
+        if px < 0 or px >= terrain_size or py < 0 or py >= terrain_size:
+            return heightmap[index]
+        return heightmap[px + py * terrain_size]
+    
+    let height_l = get_height(x - 1, y)
+    let height_r = get_height(x + 1, y)
+    let height_d = get_height(x, y - 1)
+    let height_u = get_height(x, y + 1)
+    
+    let dx = (height_r - height_l) * height_scale
+    let dy = (height_u - height_d) * height_scale
+    
+    let normal = normalize(vec3(-dx, 1.0, -dy))
+    normal_map[index] = normal
+
+shader compute SplatmapGeneration(thread_id: Vec3):
+    uniform terrain_size: Int @0
+    uniform layer_count: Int @1
+    buffer heightmap: Buffer<Float> @2
+    buffer normal_map: Buffer<Vec3> @3
+    buffer biome_map: Buffer<Int> @4
+    buffer layer_heights: Buffer<Float> @5
+    buffer layer_slopes: Buffer<Float> @6
+    buffer splatmap: RWBuffer<Vec4> @7
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    
+    if x >= terrain_size or y >= terrain_size:
+        return
+    
+    let index = x + y * terrain_size
+    let height = heightmap[index]
+    let normal = normal_map[index]
+    let slope = 1.0 - normal.y
+    let biome = biome_map[index]
+    
+    let weights = vec4(0.0, 0.0, 0.0, 0.0)
+    
+    if height < 0.3:
+        weights.x = 1.0
+    else:
+        if height < 0.5:
+            let blend = (height - 0.3) / 0.2
+            weights.x = 1.0 - blend
+            weights.y = blend
+        else:
+            if height < 0.7:
+                weights.y = 1.0
+            else:
+                let blend = (height - 0.7) / 0.3
+                weights.y = 1.0 - blend
+                weights.z = blend
+    
+    if slope > 0.5:
+        let slope_blend = (slope - 0.5) / 0.5
+        weights.w = slope_blend
+        let remaining = 1.0 - slope_blend
+        weights.x = weights.x * remaining
+        weights.y = weights.y * remaining
+        weights.z = weights.z * remaining
+    
+    let total = weights.x + weights.y + weights.z + weights.w
+    if total > 0.0:
+        weights = weights / total
+    
+    splatmap[index] = weights
+
+shader compute LODGeneration(thread_id: Vec3):
+    uniform source_size: Int @0
+    uniform target_size: Int @1
+    uniform lod_level: Int @2
+    buffer source_heightmap: Buffer<Float> @3
+    buffer target_heightmap: RWBuffer<Float> @4
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    
+    if x >= target_size or y >= target_size:
+        return
+    
+    let scale = source_size / target_size
+    let source_x = x * scale
+    let source_y = y * scale
+    
+    let total = 0.0
+    let count = 0
+    
+    for dx in 0..scale:
+        for dy in 0..scale:
+            let sx = source_x + dx
+            let sy = source_y + dy
+            
+            if sx < source_size and sy < source_size:
+                let source_index = sx + sy * source_size
+                total = total + source_heightmap[source_index]
+                count = count + 1
+    
+    let average = total / (count as Float)
+    let target_index = x + y * target_size
+    target_heightmap[target_index] = average
+
+shader compute TerrainCurvature(thread_id: Vec3):
+    uniform terrain_size: Int @0
+    buffer heightmap: Buffer<Float> @1
+    buffer curvature_map: RWBuffer<Float> @2
+    
+    let x = thread_id.x
+    let y = thread_id.y
+    
+    if x >= terrain_size or y >= terrain_size:
+        return
+    
+    let index = x + y * terrain_size
+    let current_height = heightmap[index]
+    
+    let get_height = fn(px: Int, py: Int) -> Float:
+        if px < 0 or px >= terrain_size or py < 0 or py >= terrain_size:
+            return current_height
+        return heightmap[px + py * terrain_size]
+    
+    let sum = 0.0
+    let count = 0
+    
+    for dx in -1..2:
+        for dy in -1..2:
+            if dx == 0 and dy == 0:
+                continue
+            
+            let neighbor_height = get_height(x + dx, y + dy)
+            sum = sum + neighbor_height
+            count = count + 1
+    
+    let average = sum / (count as Float)
+    let curvature = current_height - average
+    
+    curvature_map[index] = curvature

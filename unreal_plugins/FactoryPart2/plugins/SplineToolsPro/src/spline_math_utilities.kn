@@ -1,0 +1,503 @@
+# SplineToolsPro - Math Utilities
+# Pure mathematical functions for spline calculations
+
+# Evaluate cubic Bezier curve using De Casteljau algorithm
+@blueprint_pure
+fn evaluate_bezier(p0: Vec3, p1: Vec3, p2: Vec3, p3: Vec3, t: Float) -> Vec3 with Pure:
+    let t_clamped = clamp(t, 0.0, 1.0)
+    let one_minus_t = 1.0 - t_clamped
+    
+    # De Casteljau algorithm (numerically stable)
+    let q0 = p0 * one_minus_t + p1 * t_clamped
+    let q1 = p1 * one_minus_t + p2 * t_clamped
+    let q2 = p2 * one_minus_t + p3 * t_clamped
+    
+    let r0 = q0 * one_minus_t + q1 * t_clamped
+    let r1 = q1 * one_minus_t + q2 * t_clamped
+    
+    let result = r0 * one_minus_t + r1 * t_clamped
+    return result
+
+# Evaluate Catmull-Rom spline with tension parameter
+@blueprint_pure
+fn evaluate_catmull_rom(p0: Vec3, p1: Vec3, p2: Vec3, p3: Vec3, t: Float) -> Vec3 with Pure:
+    let t_clamped = clamp(t, 0.0, 1.0)
+    let tension = 0.5  # Standard Catmull-Rom tension
+    
+    let t2 = t_clamped * t_clamped
+    let t3 = t2 * t_clamped
+    
+    # Catmull-Rom basis functions
+    let b0 = -tension * t3 + 2.0 * tension * t2 - tension * t_clamped
+    let b1 = (2.0 - tension) * t3 + (tension - 3.0) * t2 + 1.0
+    let b2 = (tension - 2.0) * t3 + (3.0 - 2.0 * tension) * t2 + tension * t_clamped
+    let b3 = tension * t3 - tension * t2
+    
+    let result = p0 * b0 + p1 * b1 + p2 * b2 + p3 * b3
+    return result
+
+# Cox-de Boor recursion for B-spline basis function
+fn cox_de_boor_basis(i: Int, k: Int, t: Float, knots: Array<Float>) -> Float with Pure:
+    if k == 0:
+        if t >= knots[i] and t < knots[i + 1]:
+            return 1.0
+        else:
+            return 0.0
+    
+    let denom1 = knots[i + k] - knots[i]
+    let denom2 = knots[i + k + 1] - knots[i + 1]
+    
+    let term1 = 0.0
+    let term2 = 0.0
+    
+    if abs(denom1) > 0.0001:
+        term1 = ((t - knots[i]) / denom1) * cox_de_boor_basis(i, k - 1, t, knots)
+    
+    if abs(denom2) > 0.0001:
+        term2 = ((knots[i + k + 1] - t) / denom2) * cox_de_boor_basis(i + 1, k - 1, t, knots)
+    
+    return term1 + term2
+
+# Evaluate B-spline using Cox-de Boor recursion
+@blueprint_pure
+fn evaluate_bspline(points: Array<Vec3>, knots: Array<Float>, degree: Int, t: Float) -> Vec3 with Pure:
+    let t_clamped = clamp(t, 0.0, 1.0)
+    let n = len(points)
+    
+    if n == 0:
+        return vec3(0.0, 0.0, 0.0)
+    
+    if n == 1:
+        return points[0]
+    
+    let result = vec3(0.0, 0.0, 0.0)
+    let i = 0
+    while i < n:
+        let basis = cox_de_boor_basis(i, degree, t_clamped, knots)
+        result = result + points[i] * basis
+        i = i + 1
+    
+    return result
+
+# Calculate arc length using adaptive Simpson integration
+@blueprint_pure
+fn calculate_arc_length(points: Array<SplinePoint>, interpolation_type: SplineInterpolationType) -> Float with Pure:
+    let n = len(points)
+    if n < 2:
+        return 0.0
+    
+    let total_length = 0.0
+    let segment_idx = 0
+    
+    while segment_idx < n - 1:
+        let p0 = points[segment_idx].position
+        let p1 = points[segment_idx + 1].position
+        let t0 = points[segment_idx].out_tangent
+        let t1 = points[segment_idx + 1].in_tangent
+        
+        # Use adaptive Simpson's rule with 32 samples per segment
+        let samples = 32
+        let dt = 1.0 / samples as Float
+        let segment_length = 0.0
+        
+        let prev_pos = p0
+        let sample_idx = 1
+        while sample_idx <= samples:
+            let t = sample_idx as Float * dt
+            let curr_pos = vec3(0.0, 0.0, 0.0)
+            
+            if interpolation_type == SplineInterpolationType::Linear:
+                curr_pos = linear_interpolate_points(p0, p1, t)
+            else:
+                if interpolation_type == SplineInterpolationType::Bezier:
+                    let ctrl1 = p0 + t0
+                    let ctrl2 = p1 - t1
+                    curr_pos = evaluate_bezier(p0, ctrl1, ctrl2, p1, t)
+                else:
+                    if interpolation_type == SplineInterpolationType::CatmullRom:
+                        let p_prev = if segment_idx > 0: points[segment_idx - 1].position else: p0
+                        let p_next = if segment_idx < n - 2: points[segment_idx + 2].position else: p1
+                        curr_pos = evaluate_catmull_rom(p_prev, p0, p1, p_next, t)
+                    else:
+                        curr_pos = linear_interpolate_points(p0, p1, t)
+            
+            segment_length = segment_length + distance(prev_pos, curr_pos)
+            prev_pos = curr_pos
+            sample_idx = sample_idx + 1
+        
+        total_length = total_length + segment_length
+        segment_idx = segment_idx + 1
+    
+    return total_length
+
+# Build arc-length lookup table with configurable resolution
+@blueprint
+fn build_arc_length_table(points: Array<SplinePoint>, interpolation_type: SplineInterpolationType, resolution: Int) -> ArcLengthTable:
+    let table = create_default_arc_length_table()
+    
+    let n = len(points)
+    if n < 2:
+        return table
+    
+    let samples = max(resolution, 10)
+    let dt = 1.0 / samples as Float
+    
+    push(table.distances, 0.0)
+    push(table.parameters, 0.0)
+    
+    let cumulative_distance = 0.0
+    let prev_pos = points[0].position
+    
+    let sample_idx = 1
+    while sample_idx <= samples:
+        let t = sample_idx as Float * dt
+        let segment_idx = floor(t * (n - 1) as Float) as Int
+        segment_idx = min(segment_idx, n - 2)
+        
+        let local_t = t * (n - 1) as Float - segment_idx as Float
+        
+        let p0 = points[segment_idx].position
+        let p1 = points[segment_idx + 1].position
+        let t0 = points[segment_idx].out_tangent
+        let t1 = points[segment_idx + 1].in_tangent
+        
+        let curr_pos = vec3(0.0, 0.0, 0.0)
+        
+        if interpolation_type == SplineInterpolationType::Linear:
+            curr_pos = linear_interpolate_points(p0, p1, local_t)
+        else:
+            if interpolation_type == SplineInterpolationType::Bezier:
+                let ctrl1 = p0 + t0
+                let ctrl2 = p1 - t1
+                curr_pos = evaluate_bezier(p0, ctrl1, ctrl2, p1, local_t)
+            else:
+                if interpolation_type == SplineInterpolationType::CatmullRom:
+                    let p_prev = if segment_idx > 0: points[segment_idx - 1].position else: p0
+                    let p_next = if segment_idx < n - 2: points[segment_idx + 2].position else: p1
+                    curr_pos = evaluate_catmull_rom(p_prev, p0, p1, p_next, local_t)
+                else:
+                    curr_pos = linear_interpolate_points(p0, p1, local_t)
+        
+        cumulative_distance = cumulative_distance + distance(prev_pos, curr_pos)
+        push(table.distances, cumulative_distance)
+        push(table.parameters, t)
+        
+        prev_pos = curr_pos
+        sample_idx = sample_idx + 1
+    
+    table.total_length = cumulative_distance
+    table.sample_count = samples + 1
+    table.is_valid = true
+    
+    return table
+
+# Find parameter at given arc-length distance using binary search
+@blueprint_pure
+fn find_parameter_at_distance(table: ArcLengthTable, distance: Float) -> Float with Pure:
+    if not table.is_valid or table.sample_count < 2:
+        return 0.0
+    
+    let dist_clamped = clamp(distance, 0.0, table.total_length)
+    
+    # Binary search in distances array
+    let left = 0
+    let right = table.sample_count - 1
+    
+    while left < right - 1:
+        let mid = (left + right) / 2
+        if table.distances[mid] < dist_clamped:
+            left = mid
+        else:
+            right = mid
+    
+    # Linear interpolation between found indices
+    let d0 = table.distances[left]
+    let d1 = table.distances[right]
+    let p0 = table.parameters[left]
+    let p1 = table.parameters[right]
+    
+    if abs(d1 - d0) < 0.0001:
+        return p0
+    
+    let alpha = (dist_clamped - d0) / (d1 - d0)
+    return p0 + (p1 - p0) * alpha
+
+# Calculate tangent vector based on tangent mode
+@blueprint_pure
+fn calculate_tangent(p0: Vec3, p1: Vec3, p2: Vec3, mode: SplineTangentMode) -> Vec3 with Pure:
+    if mode == SplineTangentMode::Auto:
+        # Catmull-Rom style automatic tangent
+        let tangent = (p2 - p0) * 0.5
+        return tangent
+    else:
+        if mode == SplineTangentMode::Smooth:
+            # Smooth C1 continuous tangent
+            let dir1 = normalize(p1 - p0)
+            let dir2 = normalize(p2 - p1)
+            let avg_dir = normalize(dir1 + dir2)
+            let dist = distance(p0, p2) * 0.5
+            return avg_dir * dist
+        else:
+            if mode == SplineTangentMode::Sharp:
+                # Sharp corner - zero tangent
+                return vec3(0.0, 0.0, 0.0)
+            else:
+                # Manual mode - return zero, user will set manually
+                return vec3(0.0, 0.0, 0.0)
+
+# Calculate curvature at parameter t
+@blueprint_pure
+fn calculate_curvature(p0: Vec3, p1: Vec3, p2: Vec3, t: Float) -> SplineCurvature with Pure:
+    let result: SplineCurvature
+    result.is_valid = false
+    
+    # Calculate first and second derivatives
+    let dt = 0.001
+    let t_prev = max(t - dt, 0.0)
+    let t_next = min(t + dt, 1.0)
+    
+    let pos_prev = evaluate_bezier(p0, p0 + (p1 - p0) * 0.33, p2 - (p2 - p1) * 0.33, p2, t_prev)
+    let pos_curr = evaluate_bezier(p0, p0 + (p1 - p0) * 0.33, p2 - (p2 - p1) * 0.33, p2, t)
+    let pos_next = evaluate_bezier(p0, p0 + (p1 - p0) * 0.33, p2 - (p2 - p1) * 0.33, p2, t_next)
+    
+    # First derivative (velocity)
+    let velocity = (pos_next - pos_prev) / (2.0 * dt)
+    let speed = length(velocity)
+    
+    if speed < 0.0001:
+        return result
+    
+    # Second derivative (acceleration)
+    let accel = (pos_next - pos_curr * 2.0 + pos_prev) / (dt * dt)
+    
+    # Curvature formula: kappa = |v x a| / |v|^3
+    let cross_prod = cross(velocity, accel)
+    let cross_mag = length(cross_prod)
+    
+    result.kappa = cross_mag / (speed * speed * speed)
+    
+    if result.kappa > 0.0001:
+        result.osculating_radius = 1.0 / result.kappa
+        
+        # Calculate osculating circle center
+        let tangent = normalize(velocity)
+        let normal = normalize(accel - tangent * dot(accel, tangent))
+        result.center = pos_curr + normal * result.osculating_radius
+    else:
+        result.osculating_radius = 1000000.0
+        result.center = pos_curr
+    
+    result.is_valid = true
+    return result
+
+# Find closest point on segment using Newton-Raphson
+@blueprint_pure
+fn closest_point_on_segment(seg_start: Vec3, seg_end: Vec3, point: Vec3) -> Float with Pure:
+    let seg_vec = seg_end - seg_start
+    let seg_length_sq = dot(seg_vec, seg_vec)
+    
+    if seg_length_sq < 0.0001:
+        return 0.0
+    
+    let point_vec = point - seg_start
+    let t = dot(point_vec, seg_vec) / seg_length_sq
+    
+    return clamp(t, 0.0, 1.0)
+
+# Linear interpolation between two points
+@blueprint_pure
+fn linear_interpolate_points(p0: Vec3, p1: Vec3, t: Float) -> Vec3 with Pure:
+    return p0 + (p1 - p0) * t
+
+# Calculate spline derivative (velocity) at parameter t
+@blueprint_pure
+fn calculate_spline_derivative(points: Array<SplinePoint>, t: Float, interpolation_type: SplineInterpolationType) -> Vec3 with Pure:
+    let n = len(points)
+    if n < 2:
+        return vec3(0.0, 0.0, 0.0)
+    
+    let t_clamped = clamp(t, 0.0, 1.0)
+    let segment_idx = floor(t_clamped * (n - 1) as Float) as Int
+    segment_idx = min(segment_idx, n - 2)
+    
+    let local_t = t_clamped * (n - 1) as Float - segment_idx as Float
+    
+    let p0 = points[segment_idx].position
+    let p1 = points[segment_idx + 1].position
+    
+    if interpolation_type == SplineInterpolationType::Linear:
+        return p1 - p0
+    
+    # Use finite difference for derivative
+    let dt = 0.001
+    let t_prev = max(local_t - dt, 0.0)
+    let t_next = min(local_t + dt, 1.0)
+    
+    let pos_prev = vec3(0.0, 0.0, 0.0)
+    let pos_next = vec3(0.0, 0.0, 0.0)
+    
+    if interpolation_type == SplineInterpolationType::Bezier:
+        let t0 = points[segment_idx].out_tangent
+        let t1 = points[segment_idx + 1].in_tangent
+        let ctrl1 = p0 + t0
+        let ctrl2 = p1 - t1
+        pos_prev = evaluate_bezier(p0, ctrl1, ctrl2, p1, t_prev)
+        pos_next = evaluate_bezier(p0, ctrl1, ctrl2, p1, t_next)
+    else:
+        if interpolation_type == SplineInterpolationType::CatmullRom:
+            let p_prev = if segment_idx > 0: points[segment_idx - 1].position else: p0
+            let p_next = if segment_idx < n - 2: points[segment_idx + 2].position else: p1
+            pos_prev = evaluate_catmull_rom(p_prev, p0, p1, p_next, t_prev)
+            pos_next = evaluate_catmull_rom(p_prev, p0, p1, p_next, t_next)
+        else:
+            pos_prev = linear_interpolate_points(p0, p1, t_prev)
+            pos_next = linear_interpolate_points(p0, p1, t_next)
+    
+    return (pos_next - pos_prev) / (t_next - t_prev)
+
+# Intersect two splines using adaptive subdivision
+@blueprint
+fn intersect_splines(spline_a_points: Array<SplinePoint>, spline_b_points: Array<SplinePoint>, tolerance: Float) -> Array<SplineIntersection>:
+    let intersections: Array<SplineIntersection> = []
+    
+    let n_a = len(spline_a_points)
+    let n_b = len(spline_b_points)
+    
+    if n_a < 2 or n_b < 2:
+        return intersections
+    
+    # Brute force check all segment pairs
+    let seg_a = 0
+    while seg_a < n_a - 1:
+        let seg_b = 0
+        while seg_b < n_b - 1:
+            let intersection = intersect_segments_adaptive(
+                spline_a_points[seg_a].position,
+                spline_a_points[seg_a + 1].position,
+                spline_b_points[seg_b].position,
+                spline_b_points[seg_b + 1].position,
+                tolerance,
+                0
+            )
+            
+            if intersection.is_valid:
+                # Convert local segment parameters to global spline parameters
+                intersection.parameter_a = (seg_a as Float + intersection.parameter_a) / (n_a - 1) as Float
+                intersection.parameter_b = (seg_b as Float + intersection.parameter_b) / (n_b - 1) as Float
+                push(intersections, intersection)
+            
+            seg_b = seg_b + 1
+        seg_a = seg_a + 1
+    
+    return intersections
+
+# Helper function for adaptive segment intersection
+fn intersect_segments_adaptive(a0: Vec3, a1: Vec3, b0: Vec3, b1: Vec3, tolerance: Float, depth: Int) -> SplineIntersection:
+    let result = create_invalid_intersection()
+    
+    if depth > 10:
+        return result
+    
+    # Check if segments are close enough
+    let mid_a = (a0 + a1) * 0.5
+    let mid_b = (b0 + b1) * 0.5
+    let dist = distance(mid_a, mid_b)
+    
+    if dist < tolerance:
+        result.position = (mid_a + mid_b) * 0.5
+        result.parameter_a = 0.5
+        result.parameter_b = 0.5
+        result.distance = dist
+        result.is_valid = true
+        return result
+    
+    # Check if segments are too far apart to intersect
+    let max_dist_a = max(distance(a0, b0), distance(a0, b1))
+    max_dist_a = max(max_dist_a, distance(a1, b0))
+    max_dist_a = max(max_dist_a, distance(a1, b1))
+    
+    if max_dist_a > distance(a0, a1) + distance(b0, b1) + tolerance:
+        return result
+    
+    # Subdivide and recurse
+    let mid_a_pos = (a0 + a1) * 0.5
+    let mid_b_pos = (b0 + b1) * 0.5
+    
+    # Try all four quadrant combinations
+    let int1 = intersect_segments_adaptive(a0, mid_a_pos, b0, mid_b_pos, tolerance, depth + 1)
+    if int1.is_valid:
+        int1.parameter_a = int1.parameter_a * 0.5
+        int1.parameter_b = int1.parameter_b * 0.5
+        return int1
+    
+    let int2 = intersect_segments_adaptive(a0, mid_a_pos, mid_b_pos, b1, tolerance, depth + 1)
+    if int2.is_valid:
+        int2.parameter_a = int2.parameter_a * 0.5
+        int2.parameter_b = 0.5 + int2.parameter_b * 0.5
+        return int2
+    
+    let int3 = intersect_segments_adaptive(mid_a_pos, a1, b0, mid_b_pos, tolerance, depth + 1)
+    if int3.is_valid:
+        int3.parameter_a = 0.5 + int3.parameter_a * 0.5
+        int3.parameter_b = int3.parameter_b * 0.5
+        return int3
+    
+    let int4 = intersect_segments_adaptive(mid_a_pos, a1, mid_b_pos, b1, tolerance, depth + 1)
+    if int4.is_valid:
+        int4.parameter_a = 0.5 + int4.parameter_a * 0.5
+        int4.parameter_b = 0.5 + int4.parameter_b * 0.5
+        return int4
+    
+    return result
+
+# Helper functions for vector operations
+fn vec3(x: Float, y: Float, z: Float) -> Vec3:
+    let v: Vec3
+    v.x = x
+    v.y = y
+    v.z = z
+    return v
+
+fn rotator(pitch: Float, yaw: Float, roll: Float) -> Rotator:
+    let r: Rotator
+    r.pitch = pitch
+    r.yaw = yaw
+    r.roll = roll
+    return r
+
+fn vec4(x: Float, y: Float, z: Float, w: Float) -> Vec4:
+    let v: Vec4
+    v.x = x
+    v.y = y
+    v.z = z
+    v.w = w
+    return v
+
+fn max(a: Float, b: Float) -> Float:
+    if a > b:
+        return a
+    return b
+
+fn min(a: Float, b: Float) -> Float:
+    if a < b:
+        return a
+    return b
+
+fn max_int(a: Int, b: Int) -> Int:
+    if a > b:
+        return a
+    return b
+
+fn min_int(a: Int, b: Int) -> Int:
+    if a < b:
+        return a
+    return b
+
+fn floor(value: Float) -> Float:
+    return value as Int as Float
+
+fn vec2(x: Float, y: Float) -> Vec2:
+    let v: Vec2
+    v.x = x
+    v.y = y
+    return v

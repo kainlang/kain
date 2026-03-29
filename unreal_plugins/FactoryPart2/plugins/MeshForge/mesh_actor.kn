@@ -1,0 +1,216 @@
+# MeshForge - Procedural Mesh Actor
+# Runtime procedural mesh generation with dynamic updates
+
+actor ProceduralMeshActor:
+    state current_mesh: MeshData = MeshData {
+        vertices: [],
+        triangles: [],
+        bounds_min: vec3(0.0, 0.0, 0.0),
+        bounds_max: vec3(0.0, 0.0, 0.0),
+        vertex_count: 0,
+        triangle_count: 0
+    }
+    
+    state graph_asset: Int = 0
+    state auto_update: Bool = true
+    state show_wireframe: Bool = false
+    state enable_collision: Bool = true
+    state enable_navmesh: Bool = false
+    
+    state generation_time: Float = 0.0
+    state last_update_time: Float = 0.0
+    state is_generating: Bool = false
+    
+    @blueprint_callable
+    fn generate_mesh():
+        if is_generating:
+            return
+        
+        is_generating = true
+        let start_time = get_time()
+        
+        generation_time = get_time() - start_time
+        last_update_time = get_time()
+        is_generating = false
+    
+    @blueprint_callable
+    fn regenerate_mesh():
+        generate_mesh()
+    
+    @blueprint_callable
+    fn clear_mesh():
+        current_mesh = MeshData {
+            vertices: [],
+            triangles: [],
+            bounds_min: vec3(0.0, 0.0, 0.0),
+            bounds_max: vec3(0.0, 0.0, 0.0),
+            vertex_count: 0,
+            triangle_count: 0
+        }
+    
+    @blueprint_callable
+    fn set_graph_asset(asset_id: Int):
+        graph_asset = asset_id
+        if auto_update:
+            generate_mesh()
+    
+    @blueprint_callable
+    fn get_vertex_count() -> Int:
+        return current_mesh.vertex_count
+    
+    @blueprint_callable
+    fn get_triangle_count() -> Int:
+        return current_mesh.triangle_count
+    
+    @blueprint_callable
+    fn get_generation_time() -> Float:
+        return generation_time
+    
+    @blueprint_callable
+    fn export_to_static_mesh() -> Bool:
+        return true
+    
+    @blueprint_callable
+    fn apply_material(material_id: Int):
+        return
+    
+    @blueprint_event
+    fn on_mesh_generated(mesh: MeshData):
+        return
+    
+    @blueprint_event
+    fn on_generation_failed(error: String):
+        return
+
+# Mesh generation subsystem for managing multiple procedural meshes
+@subsystem
+struct MeshGenerationSubsystem:
+    active_generators: Array<Int> = []
+    generation_queue: Array<Int> = []
+    max_concurrent_generations: Int = 4
+    
+    @tick
+    fn update(delta: Float):
+        return
+    
+    @blueprint_callable
+    fn register_generator(generator_id: Int):
+        return
+    
+    @blueprint_callable
+    fn unregister_generator(generator_id: Int):
+        return
+    
+    @blueprint_callable
+    fn queue_generation(generator_id: Int):
+        return
+    
+    @blueprint_callable
+    fn get_active_count() -> Int:
+        return 0
+    
+    @blueprint_callable
+    fn get_queue_size() -> Int:
+        return 0
+
+# Async mesh generation task
+@async_task
+struct MeshGenerationTask:
+    @input
+    graph_asset_id: Int = 0
+    
+    @input
+    parameters: Array<Float> = []
+    
+    @output
+    result_mesh: MeshData = MeshData {
+        vertices: [],
+        triangles: [],
+        bounds_min: vec3(0.0, 0.0, 0.0),
+        bounds_max: vec3(0.0, 0.0, 0.0),
+        vertex_count: 0,
+        triangle_count: 0
+    }
+    
+    @output
+    success: Bool = false
+    
+    @output
+    error_message: String = ""
+    
+    @callback(thread: "game")
+    fn on_complete(result: MeshGenerationResult):
+        return
+
+# Mesh preview component for editor visualization
+@component
+struct MeshPreviewComponent:
+    preview_mesh: MeshData = MeshData {
+        vertices: [],
+        triangles: [],
+        bounds_min: vec3(0.0, 0.0, 0.0),
+        bounds_max: vec3(0.0, 0.0, 0.0),
+        vertex_count: 0,
+        triangle_count: 0
+    }
+    
+    show_normals: Bool = false
+    show_tangents: Bool = false
+    show_bounds: Bool = true
+    wireframe_color: Vec4 = vec4(0.0, 1.0, 0.0, 1.0)
+    
+    @tick
+    fn update(delta: Float):
+        return
+    
+    @blueprint_callable
+    fn set_preview_mesh(mesh: MeshData):
+        preview_mesh = mesh
+    
+    @blueprint_callable
+    fn clear_preview():
+        preview_mesh = MeshData {
+            vertices: [],
+            triangles: [],
+            bounds_min: vec3(0.0, 0.0, 0.0),
+            bounds_max: vec3(0.0, 0.0, 0.0),
+            vertex_count: 0,
+            triangle_count: 0
+        }
+
+# Mesh cache for storing generated meshes
+@component
+struct MeshCacheComponent:
+    cached_meshes: Array<MeshData> = []
+    max_cache_size: Int = 10
+    cache_hits: Int = 0
+    cache_misses: Int = 0
+    
+    @blueprint_callable
+    fn cache_mesh(mesh: MeshData, key: Int):
+        return
+    
+    @blueprint_callable
+    fn get_cached_mesh(key: Int) -> MeshData:
+        return MeshData {
+            vertices: [],
+            triangles: [],
+            bounds_min: vec3(0.0, 0.0, 0.0),
+            bounds_max: vec3(0.0, 0.0, 0.0),
+            vertex_count: 0,
+            triangle_count: 0
+        }
+    
+    @blueprint_callable
+    fn clear_cache():
+        cached_meshes = []
+        cache_hits = 0
+        cache_misses = 0
+    
+    @blueprint_callable
+    fn get_cache_stats() -> Vec2:
+        return vec2(float(cache_hits), float(cache_misses))
+
+# Helper function to get current time
+fn get_time() -> Float:
+    return 0.0

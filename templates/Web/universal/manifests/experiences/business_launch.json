@@ -29,6 +29,48 @@
       "source": "content.brand_system"
     },
     {
+      "id": "creative-system",
+      "kind": "card_grid",
+      "eyebrow": "Creative",
+      "title": "Creative systems",
+      "source": "content.creative_systems"
+    },
+    {
+      "id": "copy-deck",
+      "kind": "card_grid",
+      "eyebrow": "Copy",
+      "title": "Copy deck",
+      "source": "content.copy_deck"
+    },
+    {
+      "id": "content-models",
+      "kind": "card_grid",
+      "eyebrow": "Models",
+      "title": "Content models",
+      "source": "content.content_models"
+    },
+    {
+      "id": "editorial-workflow",
+      "kind": "process_steps",
+      "eyebrow": "Editorial",
+      "title": "Editorial workflow",
+      "source": "content.editorial_workflow"
+    },
+    {
+      "id": "email-templates",
+      "kind": "card_grid",
+      "eyebrow": "Email",
+      "title": "Email templates",
+      "source": "content.email_templates"
+    },
+    {
+      "id": "campaign-briefs",
+      "kind": "card_grid",
+      "eyebrow": "Campaigns",
+      "title": "Campaign briefs",
+      "source": "content.campaign_briefs"
+    },
+    {
       "id": "social-presence",
       "kind": "card_grid",
       "eyebrow": "Social",
@@ -202,6 +244,41 @@
       "eyebrow": "Cache",
       "title": "Cache stack",
       "source": "content.cache_stack"
+    },
+    {
+      "id": "database-stack",
+      "kind": "card_grid",
+      "eyebrow": "Database",
+      "title": "Database stack",
+      "source": "content.database_stack"
+    },
+    {
+      "id": "queue-stack",
+      "kind": "card_grid",
+      "eyebrow": "Queues",
+      "title": "Queue and job stack",
+      "source": "content.queue_stack"
+    },
+    {
+      "id": "secrets-stack",
+      "kind": "card_grid",
+      "eyebrow": "Secrets",
+      "title": "Secrets and vault",
+      "source": "content.secrets_stack"
+    },
+    {
+      "id": "config-stack",
+      "kind": "card_grid",
+      "eyebrow": "Config",
+      "title": "Configuration and env",
+      "source": "content.config_stack"
+    },
+    {
+      "id": "background-jobs",
+      "kind": "card_grid",
+      "eyebrow": "Jobs",
+      "title": "Background jobs and schedulers",
+      "source": "content.background_jobs"
     },
     {
       "id": "search-stack",

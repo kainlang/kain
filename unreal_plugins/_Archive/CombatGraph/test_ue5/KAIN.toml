@@ -1,0 +1,11 @@
+[package]
+name = "TestUE5"
+version = "1.0.0"
+
+[ue5]
+plugin_name = "TestUE5"
+engine_version = "5.4"
+
+[[ue5.modules]]
+name = "TestUE5"
+type = "Runtime"

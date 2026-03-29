@@ -23,19 +23,22 @@ around four rules:
 - a shared Node helper runtime for manifest loading, HTML rendering, search, forms, feed/sitemap output, and local serving
 - a bundled client-islands lane (Preact + Three.js) so React/TypeScript-style UI and real WebGL scenes ship without Rust
 - KainScript (`.ks`) support inside the client bundle so JS + JSDoc modules can sit beside TSX islands
+- FFI bridge + client/server runtime registries that keep Node runtime and browser lanes explicit
 - actor ops, agent studio, and system contract explorer islands for actor-backed servers and chat-heavy sites
 - manifest registries for themes, content, scenes, and experiences
 - archetypes for business, portfolio, immersive 3D, chat, docs, operator, app-shell, commerce, realtime, actor-server, and hybrid site modes
 - website systems for docs links, search, FAQ, pricing, testimonials, prompt decks, capability matrices, blueprint grids, app modules, UI kit (components + layouts + tokens), auth strategy, identity verification, fraud/risk controls, consent and preference centers, audit logs, data exports, commerce offers, product catalog, inventory, fulfillment, shipping, returns, loyalty, referrals, ads, personalization, PWA/offline support, customer portal, marketplace stack, content syndication, data platform, data collections, realtime channels, local form capture, actor routes, actor policies + metrics, status boards, roadmaps, release notes, feature flags, incident response playbooks, incident history, CRM pipelines, enablement programs, onboarding flows, reliability SLOs, data retention policies, brand systems, social presence, content calendars, release pipelines, QA programs, domain/edge stacks, trust centers, team/career panels, press kits, support lanes, legal policies, security controls, RSS, robots, and sitemap output
-- frontend stack + UI runtime registries (TypeScript/React-like runtime, routing, state, data, and build pipeline metadata) plus chat runtime and actor runtime system registries
+- frontend stack + UI runtime registries plus dedicated UI state, routing, data, form, motion, testing, and tooling stacks for React/TypeScript-style shells, alongside chat runtime and actor runtime system registries
 - expanded frontend framework targets (React/Next/Remix/Astro/SvelteKit/Vue/Solid) plus richer UI components, layouts, and token recipes
 - expanded infrastructure + observability metadata (edge/serverless/data/logs/cost) alongside security, performance, and accessibility targets
 - growth, experiments, service catalog, success playbooks, notification channels, release notes, feature flags, incident response, and CRM pipeline metadata modeled alongside the core web systems
-- identity providers, billing plans, subscription tiers, CMS workflow, media libraries, automation flows, webhook events, API reference, developer portal, SEO posture, chat playbooks/tools/memory, and agent rosters included in the system contract
+- creative direction systems (copy decks, content models, editorial flow, email templates, campaign briefs, icon/motion/illustration libraries)
+- identity providers, tenant management, SSO/SCIM, API key management, billing plans, subscription tiers, CMS workflow, media libraries, automation flows, webhook events, integration marketplace, event bus, data pipelines, API reference, developer portal, SEO posture, chat playbooks/tools/memory, compliance frameworks, ops runbooks, and agent rosters included in the system contract
 - scene pipelines, render stacks, interaction modes, device profiles, model/voice/moderation stacks, actor supervision queues, and data governance + backup plans modeled in the system contract
 - runtime APIs for catalog, scene descriptors, forms, search documents, chat, streaming previews, auth, identity verification, consent, audit logs, data exports, fraud/risk, marketplace, content syndication, commerce, integrations, data collections, frontend stack, UI runtime, chat runtime, actor runtime, UI schema, and full system contracts
 - runtime APIs for cookie sessions, base64 uploads, and local analytics events (JSONL) to support chat-heavy and operator-heavy sites
 - analytics stack, attribution, warehouse, and CDP registries for data/marketing ops
+- PWA manifest, service worker, offline fallback, and installable icon output for app-like web shells
 - a `package.json` script surface so users can build or serve without Rust or Cargo
 
 ## Intent

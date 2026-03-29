@@ -1,0 +1,389 @@
+// DialogueForge — GAS Integration
+// Gameplay Ability System integration for dialogue-triggered abilities and effects
+// Note: This is a placeholder implementation as GAS crate may not be available
+
+struct DialogueAbilityTrigger:
+    ability_class_name: String
+    trigger_node_id: Int
+    trigger_on_enter: Bool
+    trigger_on_exit: Bool
+    target_speaker: Bool
+    target_listener: Bool
+    ability_level: Int
+    cooldown: Float
+    last_trigger_time: Float
+
+struct DialogueGameplayEffect:
+    effect_class_name: String
+    trigger_node_id: Int
+    duration: Float
+    magnitude: Float
+    target_speaker: Bool
+    target_listener: Bool
+    stack_count: Int
+    effect_tags: Array<String>
+
+struct DialogueAttributeModifier:
+    attribute_name: String
+    modifier_op: String
+    modifier_value: Float
+    trigger_node_id: Int
+    is_permanent: Bool
+    duration: Float
+
+struct DialogueTagContainer:
+    owned_tags: Array<String>
+    blocked_tags: Array<String>
+    required_tags: Array<String>
+
+struct DialogueAbilityCondition:
+    required_ability: String
+    required_level: Int
+    required_tags: Array<String>
+    blocked_tags: Array<String>
+    check_cooldown: Bool
+
+@component
+struct DialogueAbilityComponent:
+    @replicated
+    active_triggers: Array<DialogueAbilityTrigger> = []
+    @replicated
+    active_effects: Array<DialogueGameplayEffect> = []
+    attribute_modifiers: Array<DialogueAttributeModifier> = []
+    dialogue_tags: DialogueTagContainer = DialogueTagContainer {
+        owned_tags: [],
+        blocked_tags: [],
+        required_tags: []
+    }
+    ability_system_component: Actor = null
+    auto_register_abilities: Bool = true
+    debug_ability_triggers: Bool = false
+    
+    fn register_ability_trigger(trigger: DialogueAbilityTrigger):
+        push(active_triggers, trigger)
+        
+        if debug_ability_triggers:
+            println("Registered ability trigger: {trigger.ability_class_name} for node {trigger.trigger_node_id}")
+    
+    fn unregister_ability_trigger(node_id: Int):
+        let mut i = 0
+        while i < len(active_triggers):
+            if active_triggers[i].trigger_node_id == node_id:
+                if debug_ability_triggers:
+                    println("Unregistered ability trigger for node {node_id}")
+                return
+            i = i + 1
+    
+    fn trigger_abilities_for_node(node_id: Int, is_enter: Bool, speaker: Actor, listener: Actor):
+        let mut i = 0
+        while i < len(active_triggers):
+            let trigger = active_triggers[i]
+            if trigger.trigger_node_id == node_id:
+                let should_trigger = if is_enter { trigger.trigger_on_enter } else { trigger.trigger_on_exit }
+                
+                if should_trigger:
+                    if can_trigger_ability(trigger):
+                        activate_ability(trigger, speaker, listener)
+            i = i + 1
+    
+    fn can_trigger_ability(trigger: DialogueAbilityTrigger) -> Bool:
+        if trigger.cooldown > 0.0:
+            let current_time = get_world_time()
+            if current_time - trigger.last_trigger_time < trigger.cooldown:
+                return false
+        
+        return true
+    
+    fn activate_ability(trigger: DialogueAbilityTrigger, speaker: Actor, listener: Actor):
+        if debug_ability_triggers:
+            println("Activating ability: {trigger.ability_class_name}")
+        
+        trigger.last_trigger_time = get_world_time()
+    
+    fn apply_gameplay_effect(effect: DialogueGameplayEffect, speaker: Actor, listener: Actor):
+        push(active_effects, effect)
+        
+        if debug_ability_triggers:
+            println("Applied gameplay effect: {effect.effect_class_name}")
+    
+    fn remove_gameplay_effect(effect_class: String):
+        let mut i = 0
+        while i < len(active_effects):
+            if active_effects[i].effect_class_name == effect_class:
+                if debug_ability_triggers:
+                    println("Removed gameplay effect: {effect_class}")
+                return
+            i = i + 1
+    
+    fn modify_attribute(modifier: DialogueAttributeModifier, target: Actor):
+        push(attribute_modifiers, modifier)
+        
+        if debug_ability_triggers:
+            println("Modified attribute: {modifier.attribute_name} by {modifier.modifier_value}")
+    
+    fn add_dialogue_tag(tag: String):
+        push(dialogue_tags.owned_tags, tag)
+    
+    fn remove_dialogue_tag(tag: String):
+        let mut i = 0
+        while i < len(dialogue_tags.owned_tags):
+            if dialogue_tags.owned_tags[i] == tag:
+                return
+            i = i + 1
+    
+    fn has_dialogue_tag(tag: String) -> Bool:
+        let mut i = 0
+        while i < len(dialogue_tags.owned_tags):
+            if dialogue_tags.owned_tags[i] == tag:
+                return true
+            i = i + 1
+        return false
+    
+    fn block_dialogue_tag(tag: String):
+        push(dialogue_tags.blocked_tags, tag)
+    
+    fn unblock_dialogue_tag(tag: String):
+        let mut i = 0
+        while i < len(dialogue_tags.blocked_tags):
+            if dialogue_tags.blocked_tags[i] == tag:
+                return
+            i = i + 1
+    
+    fn is_tag_blocked(tag: String) -> Bool:
+        let mut i = 0
+        while i < len(dialogue_tags.blocked_tags):
+            if dialogue_tags.blocked_tags[i] == tag:
+                return true
+            i = i + 1
+        return false
+    
+    fn check_ability_condition(condition: DialogueAbilityCondition) -> Bool:
+        let mut i = 0
+        while i < len(condition.required_tags):
+            if !has_dialogue_tag(condition.required_tags[i]):
+                return false
+            i = i + 1
+        
+        let mut j = 0
+        while j < len(condition.blocked_tags):
+            if has_dialogue_tag(condition.blocked_tags[j]):
+                return false
+            j = j + 1
+        
+        return true
+    
+    fn clear_all_triggers():
+        active_triggers = []
+    
+    fn clear_all_effects():
+        active_effects = []
+    
+    fn clear_all_modifiers():
+        attribute_modifiers = []
+    
+    fn clear_all_tags():
+        dialogue_tags.owned_tags = []
+        dialogue_tags.blocked_tags = []
+        dialogue_tags.required_tags = []
+
+actor DialogueAbilityManagerActor:
+    state registered_components: Array<Actor> = []
+    state global_ability_triggers: Array<DialogueAbilityTrigger> = []
+    state global_effects: Array<DialogueGameplayEffect> = []
+    state ability_cooldowns: Array<Float> = []
+    state debug_mode: Bool = false
+    
+    on Server_RegisterComponent(component: Actor):
+        push(registered_components, component)
+        
+        if debug_mode:
+            println("Registered dialogue ability component")
+    
+    on Server_UnregisterComponent(component: Actor):
+        let mut i = 0
+        while i < len(registered_components):
+            if registered_components[i] == component:
+                if debug_mode:
+                    println("Unregistered dialogue ability component")
+                return
+            i = i + 1
+    
+    on Server_TriggerGlobalAbility(ability_class: String, node_id: Int):
+        if debug_mode:
+            println("Triggering global ability: {ability_class} for node {node_id}")
+        
+        Multicast_OnGlobalAbilityTriggered(ability_class, node_id)
+    
+    on Server_ApplyGlobalEffect(effect_class: String, duration: Float, magnitude: Float):
+        let effect = DialogueGameplayEffect {
+            effect_class_name: effect_class,
+            trigger_node_id: -1,
+            duration: duration,
+            magnitude: magnitude,
+            target_speaker: false,
+            target_listener: false,
+            stack_count: 1,
+            effect_tags: []
+        }
+        
+        push(global_effects, effect)
+        
+        Multicast_OnGlobalEffectApplied(effect_class, duration, magnitude)
+    
+    on Multicast_OnGlobalAbilityTriggered(ability_class: String, node_id: Int):
+        println("Global ability triggered: {ability_class}")
+    
+    on Multicast_OnGlobalEffectApplied(effect_class: String, duration: Float, magnitude: Float):
+        println("Global effect applied: {effect_class}")
+    
+    @blueprint_callable
+    fn get_registered_component_count() -> Int:
+        return len(registered_components)
+    
+    @blueprint_callable
+    fn get_global_effect_count() -> Int:
+        return len(global_effects)
+    
+    @blueprint_callable
+    fn clear_global_effects():
+        global_effects = []
+    
+    @blueprint_callable
+    fn enable_debug_mode(enabled: Bool):
+        debug_mode = enabled
+
+@blueprint
+fn create_ability_trigger(ability_class: String, node_id: Int, on_enter: Bool, on_exit: Bool) -> DialogueAbilityTrigger:
+    return DialogueAbilityTrigger {
+        ability_class_name: ability_class,
+        trigger_node_id: node_id,
+        trigger_on_enter: on_enter,
+        trigger_on_exit: on_exit,
+        target_speaker: true,
+        target_listener: false,
+        ability_level: 1,
+        cooldown: 0.0,
+        last_trigger_time: 0.0
+    }
+
+@blueprint
+fn create_gameplay_effect(effect_class: String, node_id: Int, duration: Float, magnitude: Float) -> DialogueGameplayEffect:
+    return DialogueGameplayEffect {
+        effect_class_name: effect_class,
+        trigger_node_id: node_id,
+        duration: duration,
+        magnitude: magnitude,
+        target_speaker: true,
+        target_listener: false,
+        stack_count: 1,
+        effect_tags: []
+    }
+
+@blueprint
+fn create_attribute_modifier(attribute: String, operation: String, value: Float, node_id: Int) -> DialogueAttributeModifier:
+    return DialogueAttributeModifier {
+        attribute_name: attribute,
+        modifier_op: operation,
+        modifier_value: value,
+        trigger_node_id: node_id,
+        is_permanent: false,
+        duration: 0.0
+    }
+
+@blueprint
+fn create_ability_condition(required_ability: String, required_level: Int, required_tags: Array<String>) -> DialogueAbilityCondition:
+    return DialogueAbilityCondition {
+        required_ability: required_ability,
+        required_level: required_level,
+        required_tags: required_tags,
+        blocked_tags: [],
+        check_cooldown: true
+    }
+
+@blueprint
+fn register_ability_trigger_to_component(component: Actor, trigger: DialogueAbilityTrigger):
+    println("Registering ability trigger to component")
+
+@blueprint
+fn trigger_dialogue_ability(component: Actor, ability_class: String, target: Actor):
+    println("Triggering dialogue ability: {ability_class}")
+
+@blueprint
+fn apply_dialogue_effect(component: Actor, effect: DialogueGameplayEffect, target: Actor):
+    println("Applying dialogue effect")
+
+@blueprint
+fn modify_dialogue_attribute(component: Actor, modifier: DialogueAttributeModifier, target: Actor):
+    println("Modifying dialogue attribute: {modifier.attribute_name}")
+
+@blueprint
+fn add_dialogue_gameplay_tag(component: Actor, tag: String):
+    println("Adding dialogue tag: {tag}")
+
+@blueprint
+fn remove_dialogue_gameplay_tag(component: Actor, tag: String):
+    println("Removing dialogue tag: {tag}")
+
+@blueprint
+fn has_dialogue_gameplay_tag(component: Actor, tag: String) -> Bool:
+    return false
+
+@blueprint
+fn check_dialogue_ability_condition(component: Actor, condition: DialogueAbilityCondition) -> Bool:
+    return true
+
+@blueprint
+fn get_dialogue_ability_manager() -> Actor:
+    return null
+
+@blueprint
+fn trigger_global_dialogue_ability(manager: Actor, ability_class: String, node_id: Int):
+    println("Triggering global dialogue ability: {ability_class}")
+
+@blueprint
+fn apply_global_dialogue_effect(manager: Actor, effect_class: String, duration: Float, magnitude: Float):
+    println("Applying global dialogue effect: {effect_class}")
+
+@blueprint
+fn grant_ability_from_dialogue(target: Actor, ability_class: String, level: Int) -> Bool:
+    println("Granting ability from dialogue: {ability_class}")
+    return true
+
+@blueprint
+fn remove_ability_from_dialogue(target: Actor, ability_class: String) -> Bool:
+    println("Removing ability from dialogue: {ability_class}")
+    return true
+
+@blueprint
+fn activate_ability_by_dialogue(target: Actor, ability_class: String) -> Bool:
+    println("Activating ability by dialogue: {ability_class}")
+    return true
+
+@blueprint
+fn cancel_ability_by_dialogue(target: Actor, ability_class: String) -> Bool:
+    println("Cancelling ability by dialogue: {ability_class}")
+    return true
+
+@blueprint
+fn get_ability_level_from_dialogue(target: Actor, ability_class: String) -> Int:
+    return 1
+
+@blueprint
+fn set_ability_level_from_dialogue(target: Actor, ability_class: String, level: Int):
+    println("Setting ability level: {ability_class} to {level}")
+
+@blueprint
+fn apply_dialogue_damage(target: Actor, damage: Float, damage_type: String):
+    println("Applying dialogue damage: {damage}")
+
+@blueprint
+fn apply_dialogue_healing(target: Actor, healing: Float):
+    println("Applying dialogue healing: {healing}")
+
+@blueprint
+fn modify_dialogue_stat(target: Actor, stat_name: String, value: Float, is_permanent: Bool):
+    println("Modifying dialogue stat: {stat_name} by {value}")
+
+@blueprint
+fn get_dialogue_stat_value(target: Actor, stat_name: String) -> Float:
+    return 0.0

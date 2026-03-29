@@ -1,0 +1,415 @@
+# ============================================================================
+# CINEMA4D MOGRAPH - Actors
+# ============================================================================
+# Actor definitions for the mograph cloner system
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: CLONER ACTOR
+# ============================================================================
+
+actor ClonerActor:
+    # ======= REPLICATED STATE =======
+    
+    @replicated
+    state instance_count: Int = 0
+    
+    @replicated
+    state time_scale: Float = 1.0
+    
+    @replicated
+    state effector_radius: Float = 500.0
+    
+    @replicated
+    state effector_falloff: Float = 0.5
+    
+    # ======= COMPONENTS =======
+    
+    @component
+    state instance_comp: ClonerInstanceComponent = ClonerInstanceComponent()
+    
+    @component
+    state animation_comp: ClonerAnimationComponent = ClonerAnimationComponent()
+    
+    @component
+    state vfx_comp: ClonerVFXComponent = ClonerVFXComponent()
+    
+    @component
+    state perf_comp: ClonerPerformanceComponent = ClonerPerformanceComponent()
+    
+    # ======= CONFIGURATION STATE =======
+    
+    state anim_tweak_mode: Bool = false
+    state skeletal_mode: SkeletalMode = SkeletalMode::PhysicsIK
+    state skeletal_mode_distance: Float = 2000.0
+    
+    # Effector configuration
+    state effector_shape: EffectorShape = EffectorShape::Sphere
+    state effector_extent: Vec3 = vec3(250, 250, 250)
+    state effector_inner_radius: Float = 100.0
+    state invert_effector: Bool = false
+    state auto_discover_effectors: Bool = false
+    state effector_search_radius: Float = 2000.0
+    
+    # Distribution layers
+    state distribution_layer_count: Int = 0
+    
+    # Performance
+    state optimize_static: Bool = true
+    state update_skip_frames: Int = 0
+    
+    # Sequencer proxy values
+    state grid_count: Vec3 = vec3(3, 3, 1)
+    state grid_spacing: Vec3 = vec3(150, 150, 150)
+    
+    # ======= TRANSIENT STATE =======
+    
+    @transient
+    state needs_rebuild: Bool = true
+    
+    @transient
+    state modifiers_dirty: Bool = true
+    
+    @transient
+    state frame_counter: Int = 0
+    
+    @transient
+    state use_override_time: Bool = false
+    
+    @transient
+    state override_time: Float = 0.0
+    
+    # ======= LIFECYCLE =======
+    
+    on BeginPlay():
+        println("ClonerActor initialized")
+        
+        # Initialize components
+        instance_comp.needs_rebuild = true
+        instance_comp.modifiers_dirty = true
+        instance_comp.instance_count = 0
+        
+        animation_comp.time_scale = time_scale
+        animation_comp.is_animating = false
+        animation_comp.world_time = 0.0
+        animation_comp.last_world_time = 0.0
+        
+        vfx_comp.vfx_scale = 1.0
+        vfx_comp.vfx_active = false
+        
+        perf_comp.optimize_static_instances = optimize_static
+        perf_comp.update_skip_frames = update_skip_frames
+        perf_comp.frame_counter = 0
+        perf_comp.skeletal_mode = skeletal_mode
+        perf_comp.skeletal_mode_distance_threshold = skeletal_mode_distance
+        
+        # Force initial rebuild
+        Server_ForceRebuild()
+    
+    on Tick(delta_time: Float):
+        # Performance optimization - skip frames if configured
+        frame_counter = frame_counter + 1
+        if update_skip_frames > 0:
+            if frame_counter % (update_skip_frames + 1) != 0:
+                return
+        
+        # Update animation time
+        if use_override_time:
+            animation_comp.world_time = override_time
+        else:
+            animation_comp.world_time = animation_comp.world_time + delta_time * time_scale
+        
+        # Check if we need to rebuild
+        if needs_rebuild:
+            Server_RebuildInstances()
+            needs_rebuild = false
+        
+        # Update modifiers if dirty
+        if modifiers_dirty:
+            Server_UpdateModifiers(delta_time)
+            modifiers_dirty = false
+        
+        # Update effector influence
+        Server_UpdateEffectors()
+    
+    # ======= SERVER RPCs =======
+    
+    on Server_ForceRebuild():
+        needs_rebuild = true
+        instance_comp.needs_rebuild = true
+        Multicast_AnnounceRebuild()
+    
+    on Server_RebuildInstances():
+        println("Rebuilding instances...")
+        
+        # Calculate instance count based on distribution layers
+        # This is simplified - real implementation would iterate layers
+        let count = int(grid_count.x * grid_count.y * grid_count.z)
+        instance_count = count
+        instance_comp.instance_count = count
+        
+        # Update max instance count for stats
+        if count > instance_comp.max_instance_count:
+            instance_comp.max_instance_count = count
+        
+        Multicast_InstancesRebuilt(count)
+    
+    on Server_UpdateModifiers(delta_time: Float):
+        # Update modifier animation state
+        animation_comp.is_animating = true
+        
+        # This would apply all modifiers in the stack
+        # Simplified for now
+        pass
+    
+    on Server_UpdateEffectors():
+        # Update effector influence on instances
+        # This would query the effector subsystem
+        # Simplified for now
+        pass
+    
+    on Server_SetTimeScale(new_scale: Float):
+        time_scale = new_scale
+        animation_comp.time_scale = new_scale
+        Multicast_TimeScaleChanged(new_scale)
+    
+    on Server_SetEffectorRadius(radius: Float):
+        effector_radius = radius
+        Multicast_EffectorRadiusChanged(radius)
+    
+    on Server_SetEffectorFalloff(falloff: Float):
+        effector_falloff = falloff
+        Multicast_EffectorFalloffChanged(falloff)
+    
+    on Server_SetGridCount(count: Vec3):
+        grid_count = count
+        needs_rebuild = true
+        Multicast_GridCountChanged(count)
+    
+    on Server_SetGridSpacing(spacing: Vec3):
+        grid_spacing = spacing
+        needs_rebuild = true
+        Multicast_GridSpacingChanged(spacing)
+    
+    on Server_SetVisualizationMode(show_vectors: Bool, show_pressure: Bool):
+        Multicast_VisualizationChanged(show_vectors, show_pressure)
+    
+    on Server_HideAllClones():
+        Multicast_AllClonesHidden()
+    
+    on Server_ShowAllClones():
+        Multicast_AllClonesShown()
+    
+    on Server_SetCloneVisible(index: Int, visible: Bool):
+        Multicast_CloneVisibilityChanged(index, visible)
+    
+    # ======= CLIENT RPCs =======
+    
+    on Client_UpdateTelemetry(g_force: Float, mach: Float, aoa: Float):
+        println("Telemetry - G: {g_force}, Mach: {mach}, AoA: {aoa}")
+    
+    # ======= MULTICAST RPCs =======
+    
+    on Multicast_AnnounceRebuild():
+        println("Cloner rebuild requested")
+    
+    on Multicast_InstancesRebuilt(count: Int):
+        println("Instances rebuilt: {count} clones")
+    
+    on Multicast_TimeScaleChanged(new_scale: Float):
+        println("Time scale: {new_scale}")
+    
+    on Multicast_EffectorRadiusChanged(radius: Float):
+        println("Effector radius: {radius}")
+    
+    on Multicast_EffectorFalloffChanged(falloff: Float):
+        println("Effector falloff: {falloff}")
+    
+    on Multicast_GridCountChanged(count: Vec3):
+        println("Grid count changed")
+    
+    on Multicast_GridSpacingChanged(spacing: Vec3):
+        println("Grid spacing changed")
+    
+    on Multicast_VisualizationChanged(show_vectors: Bool, show_pressure: Bool):
+        println("Visualization updated")
+    
+    on Multicast_AllClonesHidden():
+        println("All clones hidden")
+    
+    on Multicast_AllClonesShown():
+        println("All clones shown")
+    
+    on Multicast_CloneVisibilityChanged(index: Int, visible: Bool):
+        println("Clone {index} visibility: {visible}")
+    
+    # ======= BLUEPRINT EVENTS =======
+    
+    @blueprint_event
+    fn on_cloner_rebuilt():
+        println("Blueprint event: Cloner rebuilt")
+    
+    @blueprint_event
+    fn on_cloner_updated(delta_time: Float):
+        println("Blueprint event: Cloner updated")
+    
+    @blueprint_event
+    fn on_clone_interacted(clone_index: Int, hit_location: Vec3):
+        println("Blueprint event: Clone {clone_index} interacted at {hit_location}")
+    
+    # ======= BLUEPRINT CALLABLE METHODS =======
+    
+    @blueprint_callable
+    fn ForceRebuild():
+        Server_ForceRebuild()
+    
+    @blueprint_callable
+    fn SetTimeScale(scale: Float):
+        Server_SetTimeScale(scale)
+    
+    @blueprint_callable
+    fn SetEffectorRadius(radius: Float):
+        Server_SetEffectorRadius(radius)
+    
+    @blueprint_callable
+    fn SetEffectorFalloff(falloff: Float):
+        Server_SetEffectorFalloff(falloff)
+    
+    @blueprint_callable
+    fn SetGridCount(count: Vec3):
+        Server_SetGridCount(count)
+    
+    @blueprint_callable
+    fn SetGridSpacing(spacing: Vec3):
+        Server_SetGridSpacing(spacing)
+    
+    @blueprint_callable
+    fn HideAllClones():
+        Server_HideAllClones()
+    
+    @blueprint_callable
+    fn ShowAllClones():
+        Server_ShowAllClones()
+    
+    @blueprint_callable
+    fn SetCloneVisible(index: Int, visible: Bool):
+        Server_SetCloneVisible(index, visible)
+    
+    @blueprint_callable
+    fn MarkModifiersDirty():
+        modifiers_dirty = true
+    
+    @blueprint_pure
+    fn GetInstanceCount() -> Int:
+        return instance_count
+    
+    @blueprint_pure
+    fn GetGridCount() -> Vec3:
+        return grid_count
+    
+    @blueprint_pure
+    fn GetGridSpacing() -> Vec3:
+        return grid_spacing
+    
+    @blueprint_pure
+    fn IsAnimating() -> Bool:
+        return animation_comp.is_animating
+    
+    @blueprint_callable
+    fn GetCloneTransform(index: Int) -> Vec3:
+        # This would return the actual transform
+        # Simplified for now
+        return vec3(0, 0, 0)
+    
+    @blueprint_callable
+    fn GetCloneLocation(index: Int) -> Vec3:
+        # This would return the actual location
+        # Simplified for now
+        return vec3(0, 0, 0)
+    
+    @blueprint_callable
+    fn GetNearestCloneIndex(world_location: Vec3) -> Int:
+        # This would find the nearest clone
+        # Simplified for now
+        return 0
+    
+    @blueprint_callable
+    fn GetEffectorInfluenceAtLocation(world_location: Vec3) -> Float:
+        # This would calculate effector influence
+        # Simplified for now
+        return 0.0
+
+# ============================================================================
+# SECTION 2: EFFECTOR SUBSYSTEM ACTOR
+# ============================================================================
+
+@subsystem
+actor ClonerEffectorSubsystem:
+    state effector_count: Int = 0
+    
+    @transient
+    state is_dirty: Bool = false
+    
+    @transient
+    state kdtree_built: Bool = false
+    
+    on BeginPlay():
+        println("ClonerEffectorSubsystem initialized")
+        effector_count = 0
+        is_dirty = false
+        kdtree_built = false
+    
+    on Tick(delta_time: Float):
+        # Rebuild spatial index if dirty
+        if is_dirty:
+            Server_RebuildIndex()
+            is_dirty = false
+    
+    on Server_RegisterEffector():
+        effector_count = effector_count + 1
+        is_dirty = true
+        Multicast_EffectorRegistered(effector_count)
+    
+    on Server_UnregisterEffector():
+        effector_count = effector_count - 1
+        is_dirty = true
+        Multicast_EffectorUnregistered(effector_count)
+    
+    on Server_RebuildIndex():
+        println("Rebuilding effector spatial index...")
+        kdtree_built = true
+        Multicast_IndexRebuilt()
+    
+    on Server_MarkDirty():
+        is_dirty = true
+    
+    on Multicast_EffectorRegistered(count: Int):
+        println("Effector registered. Total: {count}")
+    
+    on Multicast_EffectorUnregistered(count: Int):
+        println("Effector unregistered. Total: {count}")
+    
+    on Multicast_IndexRebuilt():
+        println("Effector spatial index rebuilt")
+    
+    @blueprint_callable
+    fn RegisterEffector():
+        Server_RegisterEffector()
+    
+    @blueprint_callable
+    fn UnregisterEffector():
+        Server_UnregisterEffector()
+    
+    @blueprint_callable
+    fn MarkDirty():
+        Server_MarkDirty()
+    
+    @blueprint_callable
+    fn FindEffectorsNear(location: Vec3, radius: Float) -> Int:
+        # This would query the KD-tree
+        # Returns count of effectors found
+        return 0
+    
+    @blueprint_pure
+    fn GetEffectorCount() -> Int:
+        return effector_count

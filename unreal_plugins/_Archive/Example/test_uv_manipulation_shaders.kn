@@ -1,0 +1,110 @@
+# ============================================================================
+# UV Manipulation Shader Tests - Testing stdlib UV functions
+# ============================================================================
+# Tests: rotate_uv, polar_coordinates, vignette, chromatic_aberration,
+#        scale_uv, offset_uv, cartesian_to_polar, parallax_mapping,
+#        parallax_occlusion_mapping, triplanar_mapping, spherical_mapping
+
+shader fragment TestUVRotation(uv: Vec2) -> Vec4:
+    uniform rotation_angle: Float @0
+    uniform time: Float @1
+    
+    # Test rotate_uv
+    let rotated = rotate_uv(uv, rotation_angle + time)
+    
+    # Create pattern to visualize rotation
+    let pattern = sin(rotated.x * 10.0) * cos(rotated.y * 10.0)
+    
+    return vec4(pattern, pattern, pattern, 1.0)
+
+shader fragment TestPolarCoordinates(uv: Vec2) -> Vec4:
+    uniform scale: Float @0
+    
+    # Test polar_coordinates conversion
+    let polar = polar_coordinates(uv)
+    let radius = polar.x
+    let angle = polar.y
+    
+    # Create radial pattern
+    let radial_pattern = sin(radius * scale * 10.0)
+    let angular_pattern = sin(angle * 8.0)
+    
+    let combined = radial_pattern * angular_pattern
+    
+    return vec4(combined, radius, angle, 1.0)
+
+shader fragment TestVignette(uv: Vec2) -> Vec4:
+    uniform vignette_intensity: Float @0
+    
+    # Base color
+    let base_color = vec3(uv.x, uv.y, 0.5)
+    
+    # Test vignette effect
+    let vignette_mask = vignette(uv, vignette_intensity)
+    
+    # Apply vignette to color
+    let vignetted = base_color * vignette_mask
+    
+    return vec4(vignetted.x, vignetted.y, vignetted.z, 1.0)
+
+shader fragment TestChromaticAberration(uv: Vec2) -> Vec4:
+    uniform aberration_offset: Float @0
+    
+    # Test chromatic_aberration
+    let aberrated = chromatic_aberration(uv, aberration_offset)
+    
+    # Simulate RGB channel separation
+    let r_channel = aberrated.x
+    let g_channel = uv.x
+    let b_channel = aberrated.y
+    
+    return vec4(r_channel, g_channel, b_channel, 1.0)
+
+shader compute TestUVTransformations(thread_id: Vec3) -> Unit:
+    uniform scale: Float @0
+    uniform offset_x: Float @1
+    uniform offset_y: Float @2
+    uniform rotation: Float @3
+    uniform output_buffer: RWBuffer<Vec4> @4
+    
+    let idx = thread_id.x
+    let u = idx * 0.01
+    let v = idx * 0.02
+    let uv = vec2(u, v)
+    
+    # Test scale_uv
+    let scaled = scale_uv(uv, scale)
+    
+    # Test offset_uv
+    let offset = vec2(offset_x, offset_y)
+    let offsetted = offset_uv(scaled, offset)
+    
+    # Test rotate_uv
+    let rotated = rotate_uv(offsetted, rotation)
+    
+    # Test cartesian_to_polar
+    let polar = cartesian_to_polar(rotated)
+    
+    output_buffer[idx] = vec4(rotated.x, rotated.y, polar.x, polar.y)
+
+shader fragment TestAdvancedUVEffects(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform intensity: Float @1
+    
+    # Animated rotation
+    let rotated = rotate_uv(uv, time * 0.5)
+    
+    # Polar distortion
+    let polar = polar_coordinates(rotated)
+    let distorted_uv = vec2(polar.x * sin(polar.y * 4.0 + time), polar.y)
+    
+    # Vignette overlay
+    let vignette_val = vignette(uv, intensity)
+    
+    # Chromatic aberration
+    let aberrated = chromatic_aberration(distorted_uv, 0.02)
+    
+    # Combine effects
+    let color = vec3(aberrated.x, distorted_uv.x, aberrated.y) * vignette_val
+    
+    return vec4(color.x, color.y, color.z, 1.0)

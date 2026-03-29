@@ -1,0 +1,14 @@
+[package]
+name = "LowLevelAbiSmoke"
+version = "1.0.0"
+authors = ["KAIN Factory Labs"]
+description = "UE5 smoke project built from an imported C ABI/layout fixture to validate low-level systems lowering through the Factory pipeline"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "LowLevelAbiSmoke"
+plugin_dir = "."
+sources = ["named_pack_stack.kn"]
+modular_output = true

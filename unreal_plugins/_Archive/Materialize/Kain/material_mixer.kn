@@ -1,0 +1,716 @@
+# Material Mixer System for Materialize Plugin
+# Advanced material blending, mixing, and distribution system
+
+# ============================================================================
+# CORE TYPES
+# ============================================================================
+
+enum BlendMode:
+    HeightBased
+    VertexColor
+    Slope
+    Height
+    Curvature
+    Distance
+    Triplanar
+    MaterialID
+    Decal
+    BlendMode_MAX
+
+enum ProjectionMode:
+    UV
+    Triplanar
+    WorldSpace
+    LocalSpace
+    CylindricalUV
+    SphericalUV
+    ProjectionMode_MAX
+
+struct BlendParameters:
+    blend_sharpness: Float = 0.5
+    height_contrast: Float = 1.0
+    transition_width: Float = 0.1
+    noise_scale: Float = 1.0
+    noise_strength: Float = 0.0
+
+struct TriplanarSettings:
+    world_scale: Float = 1.0
+    blend_sharpness: Float = 8.0
+    use_world_space: Bool = true
+    offset: Vec3 = vec3(0.0, 0.0, 0.0)
+
+struct MaterialIDMask:
+    material_id: Int
+    mask_channel: Int
+    falloff: Float = 0.1
+    invert: Bool = false
+
+struct SlopeDistribution:
+    min_slope: Float = 0.0
+    max_slope: Float = 90.0
+    falloff: Float = 5.0
+    invert: Bool = false
+
+struct HeightDistribution:
+    min_height: Float = 0.0
+    max_height: Float = 1000.0
+    falloff: Float = 50.0
+    invert: Bool = false
+
+struct CurvatureSettings:
+    convex_strength: Float = 1.0
+    concave_strength: Float = 1.0
+    detection_radius: Float = 10.0
+    threshold: Float = 0.1
+
+@serializable
+struct LODSettings:
+    near_distance: Float = 0.0
+    far_distance: Float = 5000.0
+    transition_range: Float = 500.0
+    use_dithering: Bool = true
+
+@serializable
+struct MaterialLayer:
+    material_index: Int
+    blend_mode: BlendMode
+    blend_weight: Float = 1.0
+    blend_params: BlendParameters
+    triplanar: TriplanarSettings
+    slope_dist: SlopeDistribution
+    height_dist: HeightDistribution
+    curvature: CurvatureSettings
+    enabled: Bool = true
+
+struct MaterialAtlasEntry:
+    material_id: Int
+    uv_offset: Vec2
+    uv_scale: Vec2
+    rotation: Float = 0.0
+
+@serializable
+struct DecalProjection:
+    position: Vec3
+    rotation: Vec3
+    scale: Vec3
+    material_index: Int
+    blend_mode: BlendMode
+    opacity: Float = 1.0
+    falloff: Float = 0.1
+
+# ============================================================================
+# MATERIAL MIXER COMPONENT
+# ============================================================================
+
+@component
+struct MaterialMixerComponent:
+    @editanywhere
+    layers: Array<MaterialLayer> = []
+    
+    @editanywhere
+    atlas_entries: Array<MaterialAtlasEntry> = []
+    
+    @editanywhere
+    decals: Array<DecalProjection> = []
+    
+    @editanywhere
+    lod_settings: LODSettings
+    
+    @editanywhere
+    macro_detail_scale: Float = 10.0
+    
+    @editanywhere
+    micro_detail_scale: Float = 0.1
+    
+    @editanywhere
+    detail_blend_distance: Float = 1000.0
+    
+    @editanywhere
+    use_vertex_colors: Bool = true
+    
+    @editanywhere
+    use_material_ids: Bool = false
+    
+    @editanywhere
+    global_tiling: Float = 1.0
+
+# ============================================================================
+# BLENDING FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn height_based_blend(height_a: Float, height_b: Float, blend: Float, sharpness: Float) -> Float:
+    let h_a = height_a + blend
+    let h_b = height_b + (1.0 - blend)
+    let diff = h_a - h_b
+    let sharp_diff = diff * sharpness
+    return saturate(sharp_diff * 0.5 + 0.5)
+
+@blueprint
+fn height_blend_multi(heights: Array<Float>, weights: Array<Float>, sharpness: Float) -> Array<Float>:
+    let count = len(heights)
+    let result: Array<Float> = []
+    
+    let weighted_heights: Array<Float> = []
+    let i = 0
+    while i < count:
+        let wh = heights[i] + weights[i]
+        push(weighted_heights, wh)
+        i = i + 1
+    
+    let max_height = max_array(weighted_heights)
+    
+    let sum = 0.0
+    i = 0
+    while i < count:
+        let diff = weighted_heights[i] - max_height + 0.5
+        let blend_val = pow(saturate(diff * 2.0), sharpness)
+        push(result, blend_val)
+        sum = sum + blend_val
+        i = i + 1
+    
+    if sum > 0.0:
+        i = 0
+        while i < count:
+            result[i] = result[i] / sum
+            i = i + 1
+    
+    return result
+
+@blueprint
+fn triplanar_weights(world_normal: Vec3, sharpness: Float) -> Vec3:
+    let weights = abs(world_normal)
+    weights = pow(weights, vec3(sharpness, sharpness, sharpness))
+    let sum = weights.x + weights.y + weights.z
+    return weights / sum
+
+@blueprint
+fn sample_triplanar(texture_param: Sampler2D, world_pos: Vec3, world_normal: Vec3, settings: TriplanarSettings) -> Vec4:
+    let weights = triplanar_weights(world_normal, settings.blend_sharpness)
+    
+    let scale = settings.world_scale
+    let offset = settings.offset
+    
+    let uv_x = (world_pos.yz + offset.yz) * scale
+    let uv_y = (world_pos.xz + offset.xz) * scale
+    let uv_z = (world_pos.xy + offset.xy) * scale
+    
+    let sample_x = sample(texture, uv_x)
+    let sample_y = sample(texture, uv_y)
+    let sample_z = sample(texture, uv_z)
+    
+    return sample_x * weights.x + sample_y * weights.y + sample_z * weights.z
+
+@blueprint
+fn calculate_slope(world_normal: Vec3) -> Float:
+    let up = vec3(0.0, 0.0, 1.0)
+    let dot_val = dot(world_normal, up)
+    let angle = acos(saturate(dot_val))
+    return angle * 57.2958
+
+@blueprint
+fn slope_mask(world_normal: Vec3, dist: SlopeDistribution) -> Float:
+    let slope = calculate_slope(world_normal)
+    let min_val = dist.min_slope
+    let max_val = dist.max_slope
+    let falloff = dist.falloff
+    
+    let lower = smoothstep(min_val - falloff, min_val, slope)
+    let upper = 1.0 - smoothstep(max_val, max_val + falloff, slope)
+    let mask = lower * upper
+    
+    if dist.invert:
+        return 1.0 - mask
+    return mask
+
+@blueprint
+fn height_mask(world_z: Float, dist: HeightDistribution) -> Float:
+    let min_val = dist.min_height
+    let max_val = dist.max_height
+    let falloff = dist.falloff
+    
+    let lower = smoothstep(min_val - falloff, min_val, world_z)
+    let upper = 1.0 - smoothstep(max_val, max_val + falloff, world_z)
+    let mask = lower * upper
+    
+    if dist.invert:
+        return 1.0 - mask
+    return mask
+
+@blueprint
+fn calculate_curvature(position: Vec3, normal: Vec3, settings: CurvatureSettings) -> Float:
+    let radius = settings.detection_radius
+    let threshold = settings.threshold
+    
+    let offset_x = vec3(radius, 0.0, 0.0)
+    let offset_y = vec3(0.0, radius, 0.0)
+    
+    let sample_count = 8.0
+    let angle_step = 6.28318 / sample_count
+    
+    let curvature_sum = 0.0
+    let i = 0
+    while i < 8:
+        let angle = angle_step * i
+        let cos_a = cos(angle)
+        let sin_a = sin(angle)
+        let offset = vec3(cos_a * radius, sin_a * radius, 0.0)
+        
+        let neighbor_pos = position + offset
+        let height_diff = neighbor_pos.z - position.z
+        let expected_diff = dot(offset, normal)
+        let curvature = height_diff - expected_diff
+        
+        curvature_sum = curvature_sum + curvature
+        i = i + 1
+    
+    let avg_curvature = curvature_sum / sample_count
+    
+    let convex = saturate(avg_curvature / threshold) * settings.convex_strength
+    let concave = saturate(-avg_curvature / threshold) * settings.concave_strength
+    
+    return convex - concave
+
+@blueprint
+fn vertex_color_blend(vertex_color: Vec4, channel: Int) -> Float:
+    if channel == 0:
+        return vertex_color.r
+    if channel == 1:
+        return vertex_color.g
+    if channel == 2:
+        return vertex_color.b
+    if channel == 3:
+        return vertex_color.a
+    return 0.0
+
+@blueprint
+fn material_id_mask(material_id: Int, mask: MaterialIDMask) -> Float:
+    if material_id == mask.material_id:
+        let base = 1.0
+        if mask.invert:
+            return 0.0
+        return base
+    
+    let falloff_val = 1.0 - saturate(abs(material_id - mask.material_id) / max(mask.falloff, 0.001))
+    if mask.invert:
+        return 1.0 - falloff_val
+    return falloff_val
+
+@blueprint
+fn distance_lod_blend(distance: Float, lod: LODSettings) -> Float:
+    let near = lod.near_distance
+    let far = lod.far_distance
+    let transition = lod.transition_range
+    
+    let blend_start = far - transition
+    return smoothstep(blend_start, far, distance)
+
+@blueprint
+fn dither_pattern(screen_pos: Vec2, threshold: Float) -> Float:
+    let pattern = frac(sin(dot(screen_pos, vec2(12.9898, 78.233))) * 43758.5453)
+    if pattern < threshold:
+        return 0.0
+    return 1.0
+
+# ============================================================================
+# ATLAS FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn pack_atlas_uv(base_uv: Vec2, entry: MaterialAtlasEntry) -> Vec2:
+    let centered = base_uv - vec2(0.5, 0.5)
+    
+    let cos_r = cos(entry.rotation)
+    let sin_r = sin(entry.rotation)
+    let rotated_x = centered.x * cos_r - centered.y * sin_r
+    let rotated_y = centered.x * sin_r + centered.y * cos_r
+    let rotated = vec2(rotated_x, rotated_y)
+    
+    let scaled = rotated * entry.uv_scale
+    let final_uv = scaled + vec2(0.5, 0.5) + entry.uv_offset
+    
+    return final_uv
+
+@blueprint
+fn unpack_atlas_uv(atlas_uv: Vec2, entry: MaterialAtlasEntry) -> Vec2:
+    let offset_removed = atlas_uv - entry.uv_offset
+    let centered = offset_removed - vec2(0.5, 0.5)
+    
+    let unscaled = centered / entry.uv_scale
+    
+    let cos_r = cos(-entry.rotation)
+    let sin_r = sin(-entry.rotation)
+    let rotated_x = unscaled.x * cos_r - unscaled.y * sin_r
+    let rotated_y = unscaled.x * sin_r + unscaled.y * cos_r
+    
+    return vec2(rotated_x, rotated_y) + vec2(0.5, 0.5)
+
+# ============================================================================
+# DECAL PROJECTION
+# ============================================================================
+
+@blueprint
+fn project_decal(world_pos: Vec3, decal: DecalProjection) -> Vec3:
+    let local_pos = world_pos - decal.position
+    
+    let cos_x = cos(decal.rotation.x)
+    let sin_x = sin(decal.rotation.x)
+    let cos_y = cos(decal.rotation.y)
+    let sin_y = sin(decal.rotation.y)
+    let cos_z = cos(decal.rotation.z)
+    let sin_z = sin(decal.rotation.z)
+    
+    let rotated_y = local_pos.y * cos_x - local_pos.z * sin_x
+    let rotated_z = local_pos.y * sin_x + local_pos.z * cos_x
+    let temp_y = rotated_y
+    let temp_z = rotated_z
+    
+    let rotated_x = local_pos.x * cos_y + temp_z * sin_y
+    let final_z = -local_pos.x * sin_y + temp_z * cos_y
+    let temp_x = rotated_x
+    
+    let final_x = temp_x * cos_z - temp_y * sin_z
+    let final_y = temp_x * sin_z + temp_y * cos_z
+    
+    let scaled = vec3(final_x / decal.scale.x, final_y / decal.scale.y, final_z / decal.scale.z)
+    
+    return scaled
+
+@blueprint
+fn decal_mask(projected_pos: Vec3, falloff: Float) -> Float:
+    let dist_x = abs(projected_pos.x)
+    let dist_y = abs(projected_pos.y)
+    let dist_z = abs(projected_pos.z)
+    
+    if dist_x > 0.5 or dist_y > 0.5 or dist_z > 0.5:
+        return 0.0
+    
+    let edge_dist_x = 0.5 - dist_x
+    let edge_dist_y = 0.5 - dist_y
+    let edge_dist_z = 0.5 - dist_z
+    
+    let min_edge_dist = min(min(edge_dist_x, edge_dist_y), edge_dist_z)
+    
+    return smoothstep(0.0, falloff, min_edge_dist)
+
+@blueprint
+fn decal_uv(projected_pos: Vec3) -> Vec2:
+    return vec2(projected_pos.x + 0.5, projected_pos.y + 0.5)
+
+# ============================================================================
+# MACRO/MICRO DETAIL BLENDING
+# ============================================================================
+
+@blueprint
+fn detail_blend_factor(distance: Float, blend_distance: Float) -> Float:
+    return saturate(distance / blend_distance)
+
+@blueprint
+fn blend_macro_micro(macro_value: Vec4, micro_value: Vec4, distance: Float, blend_distance: Float) -> Vec4:
+    let factor = detail_blend_factor(distance, blend_distance)
+    return lerp(micro_value, macro_value, factor)
+
+@blueprint
+fn sample_detail_normal(normal_map: Sampler2D, uv: Vec2, strength: Float) -> Vec3:
+    let normal_sample = sample(normal_map, uv)
+    let normal_xy = normal_sample.xy * 2.0 - 1.0
+    let scaled_xy = normal_xy * strength
+    let normal_z = sqrt(saturate(1.0 - dot(scaled_xy, scaled_xy)))
+    return vec3(scaled_xy.x, scaled_xy.y, normal_z)
+
+@blueprint
+fn blend_normals(base_normal: Vec3, detail_normal: Vec3) -> Vec3:
+    let combined = vec3(
+        base_normal.x + detail_normal.x,
+        base_normal.y + detail_normal.y,
+        base_normal.z * detail_normal.z
+    )
+    return normalize(combined)
+
+# ============================================================================
+# NOISE FUNCTIONS FOR BLENDING
+# ============================================================================
+
+@blueprint
+fn perlin_noise_2d(uv: Vec2) -> Float:
+    let i = floor(uv)
+    let f = frac(uv)
+    
+    let a = hash_2d(i)
+    let b = hash_2d(i + vec2(1.0, 0.0))
+    let c = hash_2d(i + vec2(0.0, 1.0))
+    let d = hash_2d(i + vec2(1.0, 1.0))
+    
+    let u = f * f * (3.0 - 2.0 * f)
+    
+    return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y)
+
+@blueprint
+fn hash_2d(p: Vec2) -> Float:
+    let p3 = frac(vec3(p.x, p.y, p.x) * 0.1031)
+    let dot_val = dot(p3, vec3(p3.y + 33.33, p3.z + 33.33, p3.x + 33.33))
+    let p3_shifted = p3 + dot_val
+    return frac((p3_shifted.x + p3_shifted.y) * p3_shifted.z)
+
+@blueprint
+fn fbm_noise(uv: Vec2, octaves: Int) -> Float:
+    let value = 0.0
+    let amplitude = 0.5
+    let frequency = 1.0
+    
+    let i = 0
+    while i < octaves:
+        value = value + amplitude * perlin_noise_2d(uv * frequency)
+        frequency = frequency * 2.0
+        amplitude = amplitude * 0.5
+        i = i + 1
+    
+    return value
+
+@blueprint
+fn apply_blend_noise(blend_value: Float, uv: Vec2, params: BlendParameters) -> Float:
+    if params.noise_strength <= 0.0:
+        return blend_value
+    
+    let noise = fbm_noise(uv * params.noise_scale, 3)
+    let noise_offset = (noise - 0.5) * params.noise_strength
+    return saturate(blend_value + noise_offset)
+
+# ============================================================================
+# LAYER EVALUATION
+# ============================================================================
+
+@blueprint
+fn evaluate_layer_weight(layer: MaterialLayer, world_pos: Vec3, world_normal: Vec3, vertex_color: Vec4, material_id: Int, distance: Float
+) -> Float:
+    if layer.enabled == false:
+        return 0.0
+    
+    let weight = layer.blend_weight
+    
+    if layer.blend_mode == BlendMode::Slope:
+        weight = weight * slope_mask(world_normal, layer.slope_dist)
+    
+    if layer.blend_mode == BlendMode::Height:
+        weight = weight * height_mask(world_pos.z, layer.height_dist)
+    
+    if layer.blend_mode == BlendMode::Curvature:
+        let curvature = calculate_curvature(world_pos, world_normal, layer.curvature)
+        weight = weight * saturate(curvature)
+    
+    if layer.blend_mode == BlendMode::VertexColor:
+        let vc_weight = vertex_color_blend(vertex_color, layer.material_index % 4)
+        weight = weight * vc_weight
+    
+    return saturate(weight)
+
+@blueprint
+fn evaluate_all_layers(layers: Array<MaterialLayer>, world_pos: Vec3, world_normal: Vec3, vertex_color: Vec4, material_id: Int, distance: Float
+) -> Array<Float>:
+    let weights: Array<Float> = []
+    let count = len(layers)
+    
+    let i = 0
+    while i < count:
+        let weight = evaluate_layer_weight(layers[i], world_pos, world_normal, vertex_color, material_id, distance)
+        push(weights, weight)
+        i = i + 1
+    
+    return weights
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+@blueprint
+fn max_array(values: Array<Float>) -> Float:
+    if len(values) == 0:
+        return 0.0
+    
+    let max_val = values[0]
+    let i = 1
+    while i < len(values):
+        if values[i] > max_val:
+            max_val = values[i]
+        i = i + 1
+    
+    return max_val
+
+@blueprint
+fn normalize_weights(weights: Array<Float>) -> Array<Float>:
+    let sum = 0.0
+    let i = 0
+    while i < len(weights):
+        sum = sum + weights[i]
+        i = i + 1
+    
+    if sum <= 0.0:
+        return weights
+    
+    let normalized: Array<Float> = []
+    i = 0
+    while i < len(weights):
+        push(normalized, weights[i] / sum)
+        i = i + 1
+    
+    return normalized
+
+@blueprint
+fn lerp(a: Float, b: Float, t: Float) -> Float:
+    return a + (b - a) * t
+
+@blueprint
+fn smoothstep(edge0: Float, edge1: Float, x: Float) -> Float:
+    let t = saturate((x - edge0) / (edge1 - edge0))
+    return t * t * (3.0 - 2.0 * t)
+
+@blueprint
+fn saturate(x: Float) -> Float:
+    return clamp(x, 0.0, 1.0)
+
+@blueprint
+fn frac(x: Float) -> Float:
+    return x - floor(x)
+
+@blueprint
+fn vec2(x: Float, y: Float) -> Vec2:
+    return vec2_make(x, y)
+
+@blueprint
+fn vec3(x: Float, y: Float, z: Float) -> Vec3:
+    return vec3_make(x, y, z)
+
+@blueprint
+fn vec4(x: Float, y: Float, z: Float, w: Float) -> Vec4:
+    return vec4_make(x, y, z, w)
+
+# ============================================================================
+# MATERIAL MIXER ACTOR
+# ============================================================================
+
+actor MaterialMixer:
+    @component
+    state mixer_component: MaterialMixerComponent = MaterialMixerComponent()
+    @component
+    state preview_mesh: StaticMeshComponent = StaticMeshComponent()
+    state auto_update: Bool = true
+    state debug_mode: Bool = false
+    state debug_layer_index: Int = 0
+    
+    on Server_AddLayer(layer: MaterialLayer):
+        push(mixer_component.layers, layer)
+        if auto_update:
+            Multicast_UpdateMaterial()
+    
+    on Server_RemoveLayer(index: Int):
+        if index >= 0 and index < len(mixer_component.layers):
+            remove_at(mixer_component.layers, index)
+            if auto_update:
+                Multicast_UpdateMaterial()
+    
+    on Server_UpdateLayer(index: Int, layer: MaterialLayer):
+        if index >= 0 and index < len(mixer_component.layers):
+            mixer_component.layers[index] = layer
+            if auto_update:
+                Multicast_UpdateMaterial()
+    
+    on Server_AddDecal(decal: DecalProjection):
+        push(mixer_component.decals, decal)
+        if auto_update:
+            Multicast_UpdateMaterial()
+    
+    on Server_SetLODSettings(lod: LODSettings):
+        mixer_component.lod_settings = lod
+        if auto_update:
+            Multicast_UpdateMaterial()
+    
+    on Multicast_UpdateMaterial():
+        println("Material mixer updated")
+    
+    on Server_ToggleDebugMode():
+        debug_mode = debug_mode == false
+        Multicast_UpdateMaterial()
+    
+    on Server_SetDebugLayer(index: Int):
+        debug_layer_index = index
+        if debug_mode:
+            Multicast_UpdateMaterial()
+
+# ============================================================================
+# BLUEPRINT FUNCTION LIBRARY
+# ============================================================================
+
+@blueprint
+fn create_material_layer(material_index: Int, blend_mode: BlendMode, blend_weight: Float) -> MaterialLayer:
+    let layer = MaterialLayer()
+    layer.material_index = material_index
+    layer.blend_mode = blend_mode
+    layer.blend_weight = blend_weight
+    layer.blend_params = BlendParameters()
+    layer.triplanar = TriplanarSettings()
+    layer.slope_dist = SlopeDistribution()
+    layer.height_dist = HeightDistribution()
+    layer.curvature = CurvatureSettings()
+    layer.enabled = true
+    return layer
+
+@blueprint
+fn create_slope_layer(material_index: Int, min_slope: Float, max_slope: Float, weight: Float) -> MaterialLayer:
+    let layer = create_material_layer(material_index, BlendMode::Slope, weight)
+    layer.slope_dist.min_slope = min_slope
+    layer.slope_dist.max_slope = max_slope
+    return layer
+
+@blueprint
+fn create_height_layer(material_index: Int, min_height: Float, max_height: Float, weight: Float) -> MaterialLayer:
+    let layer = create_material_layer(material_index, BlendMode::Height, weight)
+    layer.height_dist.min_height = min_height
+    layer.height_dist.max_height = max_height
+    return layer
+
+@blueprint
+fn create_triplanar_settings(world_scale: Float, blend_sharpness: Float) -> TriplanarSettings:
+    let s = TriplanarSettings()
+    s.world_scale = world_scale
+    s.blend_sharpness = blend_sharpness
+    s.use_world_space = true
+    s.offset = vec3(0.0, 0.0, 0.0)
+    return s
+
+@blueprint
+fn create_decal_projection(position: Vec3, rotation: Vec3, scale: Vec3, material_index: Int, opacity: Float) -> DecalProjection:
+    let d = DecalProjection()
+    d.position = position
+    d.rotation = rotation
+    d.scale = scale
+    d.material_index = material_index
+    d.blend_mode = BlendMode::Decal
+    d.opacity = opacity
+    d.falloff = 0.1
+    return d
+
+@blueprint
+fn create_atlas_entry(material_id: Int, uv_offset: Vec2, uv_scale: Vec2) -> MaterialAtlasEntry:
+    let e = MaterialAtlasEntry()
+    e.material_id = material_id
+    e.uv_offset = uv_offset
+    e.uv_scale = uv_scale
+    e.rotation = 0.0
+    return e
+
+@blueprint
+fn blend_materials(material_a: Vec4, material_b: Vec4, blend: Float) -> Vec4:
+    return lerp_vec4(material_a, material_b, blend)
+
+@blueprint
+fn lerp_vec4(a: Vec4, b: Vec4, t: Float) -> Vec4:
+    return vec4(lerp(a.x, b.x, t), lerp(a.y, b.y, t), lerp(a.z, b.z, t), lerp(a.w, b.w, t))
+
+@blueprint
+fn remove_at(arr: Array<MaterialLayer>, index: Int):
+    let new_arr: Array<MaterialLayer> = []
+    let i = 0
+    while i < len(arr):
+        if i != index:
+            push(new_arr, arr[i])
+        i = i + 1

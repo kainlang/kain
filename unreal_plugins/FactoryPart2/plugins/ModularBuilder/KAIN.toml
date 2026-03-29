@@ -1,0 +1,35 @@
+[package]
+name = "ModularBuilder"
+version = "1.0.0"
+authors = ["KAIN Factory Assembly Line"]
+
+[ue5]
+plugin_name = "ModularBuilder"
+engine_version = "5.4"
+category = "Level Design"
+description = "Modular building system with snap-together pieces, editor UI, and Blueprint integration"
+
+sources = [
+    "src/building_data_structures.kn",
+    "src/building_snap_system.kn",
+    "src/building_persistence.kn",
+    "src/building_subsystems.kn",
+    "src/building_actors.kn",
+    "src/building_blueprint_library.kn",
+    "src/building_editor_ui.kn",
+]
+
+[[ue5.modules]]
+name = "ModularBuilder"
+type = "Runtime"
+loading_phase = "Default"
+
+[[ue5.modules]]
+name = "ModularBuilderEditor"
+type = "Editor"
+depends_on = ["ModularBuilder"]
+loading_phase = "Default"
+
+[build]
+targets = ["ue5"]
+output_dir = "Generated"

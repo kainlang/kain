@@ -1,0 +1,14 @@
+[package]
+name = "MetaHumanVAT"
+version = "1.0.0"
+authors = ["KAIN Factory Labs"]
+description = "MetaHuman Crowd & VAT Scaler - Convert skeletal MetaHuman animations into GPU-driven Vertex Animation Textures for massive crowd rendering"
+
+[build]
+targets = ["ue5"]
+
+[ue5]
+plugin_name = "MetaHumanVAT"
+plugin_dir = "."
+sources = ["metahuman_vat.kn"]
+modular_output = true

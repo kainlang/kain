@@ -1,0 +1,340 @@
+# ============================================================================
+# METAFITTER - Types, Enums, and Core Data Structures
+# ============================================================================
+# Auto-Conforming Clothing System for MetaHumans
+# Foundation types used across all MetaFitter modules
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: ENUMS — Clothing classification and configuration modes
+# ============================================================================
+
+enum ClothingType:
+    Shirt
+    Pants
+    Dress
+    Jacket
+    Shoes
+    Hat
+    Gloves
+    Belt
+    Scarf
+    Skirt
+    Vest
+    Hoodie
+    Coat
+    Underwear
+    Socks
+    Jewelry
+    Glasses
+    Mask
+    Unknown
+    _MAX
+
+enum FitMode:
+    SkinTight
+    Tight
+    Regular
+    Loose
+    Flowing
+    Custom
+    _MAX
+
+enum PhysicsPreset:
+    None
+    Soft
+    Medium
+    Stiff
+    Rigid
+    Fluid
+    Heavy
+    Custom
+    _MAX
+
+enum ConformStage:
+    Idle
+    Analyzing
+    Detecting
+    Fitting
+    Rigging
+    PhysicsSetup
+    MaterialSetup
+    HiddenFaceMap
+    Finalizing
+    Complete
+    Failed
+    _MAX
+
+enum LayerSlot:
+    Underwear
+    Base
+    Mid
+    Outer
+    Accessory
+    Headwear
+    Footwear
+    _MAX
+
+enum MeshAnalysisResult:
+    Success
+    InvalidTopology
+    TooFewVertices
+    TooManyVertices
+    NoUVs
+    NonManifold
+    OpenEdges
+    _MAX
+
+enum WeightSmoothingMode:
+    None
+    Laplacian
+    HeatDiffusion
+    DistanceBased
+    _MAX
+
+enum CollisionPrimitiveType:
+    Capsule
+    Sphere
+    Box
+    ConvexHull
+    Auto
+    _MAX
+
+enum BatchJobStatus:
+    Queued
+    Processing
+    Complete
+    Failed
+    Skipped
+    _MAX
+
+enum ClothingRegion:
+    Head
+    Neck
+    Torso
+    UpperArm
+    LowerArm
+    Hand
+    Waist
+    Hip
+    UpperLeg
+    LowerLeg
+    Foot
+    FullBody
+    _MAX
+
+# ============================================================================
+# SECTION 2: STRUCTS — Core data structures
+# ============================================================================
+
+struct MeshTopologyInfo:
+    vertex_count: Int
+    triangle_count: Int
+    edge_count: Int
+    uv_channel_count: Int
+    material_slot_count: Int
+    has_normals: Bool
+    has_tangents: Bool
+    is_manifold: Bool
+    has_open_edges: Bool
+    bounding_box_min: Vec3
+    bounding_box_max: Vec3
+    bounding_box_center: Vec3
+    bounding_box_extent: Vec3
+    surface_area: Float
+
+struct ClothingOpenings:
+    has_neck_opening: Bool
+    has_left_arm_opening: Bool
+    has_right_arm_opening: Bool
+    has_waist_opening: Bool
+    has_left_leg_opening: Bool
+    has_right_leg_opening: Bool
+    has_front_opening: Bool
+    opening_count: Int
+
+struct CoverageMap:
+    covers_head: Bool
+    covers_neck: Bool
+    covers_torso: Bool
+    covers_upper_arms: Bool
+    covers_lower_arms: Bool
+    covers_hands: Bool
+    covers_waist: Bool
+    covers_hips: Bool
+    covers_upper_legs: Bool
+    covers_lower_legs: Bool
+    covers_feet: Bool
+    coverage_percentage: Float
+
+struct BoneInfluence:
+    bone_index: Int
+    bone_name: String
+    weight: Float
+    distance: Float
+
+struct VertexWeightData:
+    vertex_index: Int
+    influence_count: Int
+    bone_index_0: Int
+    bone_index_1: Int
+    bone_index_2: Int
+    bone_index_3: Int
+    weight_0: Float
+    weight_1: Float
+    weight_2: Float
+    weight_3: Float
+
+struct ShrinkwrapResult:
+    success: Bool
+    vertices_projected: Int
+    vertices_skipped: Int
+    average_offset: Float
+    max_offset: Float
+    clipping_detected: Bool
+    clipping_vertex_count: Int
+
+struct ConformResult:
+    success: Bool
+    stage_reached: ConformStage
+    error_message: String
+    elapsed_time_ms: Float
+    vertex_count: Int
+    bone_count: Int
+    physics_enabled: Bool
+    layer_slot: LayerSlot
+    clothing_type: ClothingType
+
+struct ClothPhysicsParams:
+    stiffness: Float
+    damping: Float
+    drag: Float
+    friction: Float
+    gravity_scale: Float
+    wind_scale: Float
+    mass_per_unit_area: Float
+    collision_thickness: Float
+    self_collision_enabled: Bool
+    self_collision_radius: Float
+    max_distance: Float
+    backstop_distance: Float
+    backstop_radius: Float
+
+struct LayerConfig:
+    slot: LayerSlot
+    order: Int
+    offset: Float
+    collision_offset: Float
+    hidden_face_map_enabled: Bool
+
+struct CollisionPrimitive:
+    primitive_type: CollisionPrimitiveType
+    bone_name: String
+    location: Vec3
+    rotation: Vec3
+    extent: Vec3
+    radius: Float
+    length: Float
+
+struct HiddenFaceMapConfig:
+    resolution: Int
+    dilation_pixels: Int
+    blur_radius: Float
+    threshold: Float
+    include_head: Bool
+    include_body: Bool
+
+struct ConformSettings:
+    clothing_type: ClothingType
+    fit_mode: FitMode
+    fit_tightness: Float
+    preserve_wrinkles: Bool
+    wrinkle_preservation_strength: Float
+    physics_preset: PhysicsPreset
+    layer_slot: LayerSlot
+    layer_order: Int
+    enable_physics: Bool
+    enable_hidden_face_map: Bool
+    enable_material_transfer: Bool
+    collision_primitive_type: CollisionPrimitiveType
+    smooth_weights: Bool
+    weight_smoothing_mode: WeightSmoothingMode
+    weight_smoothing_iterations: Int
+    max_bone_influences: Int
+    auto_detect_type: Bool
+
+struct BatchJobEntry:
+    source_path: String
+    output_name: String
+    status: BatchJobStatus
+    settings: ConformSettings
+    result: ConformResult
+    progress: Float
+    error_message: String
+
+struct PresetEntry:
+    preset_name: String
+    description: String
+    clothing_type: ClothingType
+    fit_mode: FitMode
+    fit_tightness: Float
+    physics_preset: PhysicsPreset
+    layer_slot: LayerSlot
+    preserve_wrinkles: Bool
+    enable_physics: Bool
+    enable_hidden_face_map: Bool
+
+# ============================================================================
+# SECTION 3: DATATABLES — Preset data for clothing types and physics
+# ============================================================================
+
+@datatable
+struct ClothingTypePresetData:
+    id: Int
+    clothing_type: Int
+    display_name: String
+    description: String
+    default_fit_mode: Int
+    default_fit_tightness: Float
+    default_physics_preset: Int
+    default_layer_slot: Int
+    default_layer_order: Int
+    stiffness: Float
+    damping: Float
+    drag: Float
+    friction: Float
+    gravity_scale: Float
+    wind_scale: Float
+    collision_thickness: Float
+    preserve_wrinkles: Bool
+
+@datatable
+struct PhysicsPresetData:
+    id: Int
+    preset_name: String
+    description: String
+    stiffness: Float
+    damping: Float
+    drag: Float
+    friction: Float
+    gravity_scale: Float
+    wind_scale: Float
+    mass_per_unit_area: Float
+    collision_thickness: Float
+    self_collision_enabled: Bool
+    self_collision_radius: Float
+    max_distance: Float
+    backstop_distance: Float
+    backstop_radius: Float
+
+@datatable
+struct FitModePresetData:
+    id: Int
+    fit_mode_name: String
+    description: String
+    tightness_min: Float
+    tightness_max: Float
+    tightness_default: Float
+    offset_multiplier: Float
+    wrinkle_preservation: Float
+    smooth_iterations: Int

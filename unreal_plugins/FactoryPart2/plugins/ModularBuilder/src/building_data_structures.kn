@@ -1,0 +1,776 @@
+// ModularBuilder - Data Structures
+// Phase 2: Core enums, structs, DataTables, and helper functions
+// Target: ~1,200 LOC
+
+// ============================================================================
+// ENUMS (12 total)
+// ============================================================================
+
+enum SnapPointType:
+    Wall
+    Floor
+    Ceiling
+    Corner
+    Edge
+    Pillar
+    Roof
+    Foundation
+    Decorative
+    Custom
+
+enum AlignmentMode:
+    Exact
+    Rotate90
+    Rotate45
+    Free
+
+enum BuildMode:
+    Place
+    Select
+    Delete
+    Rotate
+    Paint
+    Move
+    Copy
+
+enum PieceCategory:
+    Walls
+    Floors
+    Roofs
+    Stairs
+    Doors
+    Windows
+    Decorative
+    Structural
+    Furniture
+    Lighting
+    Custom
+
+enum StructuralType:
+    Foundation
+    Support
+    Dependent
+    Decorative
+    Freestanding
+
+enum ValidationResult:
+    Valid
+    InvalidSnap
+    Overlapping
+    NoSupport
+    OutOfBounds
+    InsufficientClearance
+    InvalidPlacement
+    PermissionDenied
+    Custom
+
+enum PlacementRule:
+    RequireGround
+    RequireSupport
+    AllowOverlap
+    RequireSnap
+    NoOverlap
+    RequireClearance
+    RequireFoundation
+    Custom
+
+enum SnapIndicatorColor:
+    Green
+    Yellow
+    Red
+    Blue
+    White
+    Orange
+    Purple
+
+enum BuildPermission:
+    Owner
+    Team
+    Public
+    Admin
+    Custom
+
+enum SerializationFormat:
+    JSON
+    Binary
+    Compressed
+
+enum ExportFormat:
+    StaticMesh
+    JSON
+    FBX
+    OBJ
+
+enum PerformanceMode:
+    Quality
+    Balanced
+    Performance
+    Ultra
+
+// ============================================================================
+// CORE STRUCTS (25 total)
+// ============================================================================
+
+struct SnapPointData:
+    point_type: SnapPointType
+    local_position: Vec3
+    local_rotation: Vec3
+    snap_radius: Float
+    alignment_mode: AlignmentMode
+    compatible_types: Array<SnapPointType>
+    required_tags: Array<String>
+    excluded_tags: Array<String>
+    is_occupied: Bool
+    connected_piece_id: Int
+    snap_offset: Vec3
+    rotation_constraint: Float
+    priority: Int
+
+struct BuildingPieceDefinition:
+    piece_id: String
+    display_name: String
+    description: String
+    category: PieceCategory
+    subcategory: String
+    mesh_variants: Array<String>
+    snap_points: Array<SnapPointData>
+    tags: Array<String>
+    structural_type: StructuralType
+    placement_rules: Array<PlacementRule>
+    bounds_size: Vec3
+    bounds_offset: Vec3
+    cost: Int
+    build_time: Float
+    health: Float
+    thumbnail_path: String
+    icon_path: String
+    author: String
+    version: Int
+
+struct PieceInstance:
+    instance_id: Int
+    piece_id: String
+    variant_index: Int
+    world_transform: Transform
+    snap_connections: Array<Int>
+    material_overrides: Array<String>
+    custom_properties: Map<String, String>
+    owner_id: Int
+    team_id: Int
+    placement_time: Float
+    last_modified_time: Float
+    is_valid: Bool
+    is_locked: Bool
+    health_current: Float
+    health_max: Float
+
+struct SnapQueryResult:
+    found_snap: Bool
+    snap_point_index: Int
+    target_piece_id: Int
+    target_snap_index: Int
+    alignment_transform: Transform
+    distance: Float
+    validation_result: ValidationResult
+    compatibility_score: Float
+    is_occupied: Bool
+    required_rotation: Vec3
+
+struct BuildingState:
+    building_id: String
+    building_name: String
+    piece_instances: Array<PieceInstance>
+    total_piece_count: Int
+    bounds_min: Vec3
+    bounds_max: Vec3
+    creation_time: Float
+    last_modified_time: Float
+    version: Int
+    author_id: Int
+    is_locked: Bool
+    metadata: Map<String, String>
+
+struct StructuralChain:
+    chain_id: Int
+    foundation_piece_id: Int
+    supported_piece_ids: Array<Int>
+    chain_depth: Int
+    max_depth: Int
+    is_stable: Bool
+    support_strength: Float
+    weak_points: Array<Int>
+    collapse_risk: Float
+
+struct CategoryNode:
+    category_name: String
+    display_name: String
+    parent_category: String
+    child_categories: Array<String>
+    piece_ids: Array<String>
+    icon_path: String
+    description: String
+    is_expanded: Bool
+    display_order: Int
+    piece_count: Int
+
+struct PlacementValidation:
+    is_valid: Bool
+    validation_result: ValidationResult
+    error_message: String
+    warning_message: String
+    suggested_fix: String
+    conflicting_pieces: Array<Int>
+    required_actions: Array<String>
+    can_force_place: Bool
+
+struct BuildCommand:
+    command_id: Int
+    command_type: String
+    piece_id: String
+    instance_id: Int
+    transform_before: Transform
+    transform_after: Transform
+    timestamp: Float
+    executor_id: Int
+    can_undo: Bool
+    can_redo: Bool
+    command_data: Map<String, String>
+
+struct PerformanceMetrics:
+    total_pieces: Int
+    visible_pieces: Int
+    instanced_pieces: Int
+    snap_query_time_ms: Float
+    render_time_ms: Float
+    memory_usage_mb: Float
+    frame_time_ms: Float
+    instanced_mesh_count: Int
+    draw_calls: Int
+    triangle_count: Int
+
+struct SpatialGridCell:
+    cell_position: Vec3
+    piece_ids: Array<Int>
+    snap_point_count: Int
+    is_dirty: Bool
+    last_update_time: Float
+
+struct MaterialOverride:
+    slot_index: Int
+    material_path: String
+    material_name: String
+    is_dynamic: Bool
+    parameters: Map<String, Float>
+
+struct SnapConnection:
+    source_piece_id: Int
+    source_snap_index: Int
+    target_piece_id: Int
+    target_snap_index: Int
+    connection_strength: Float
+    is_locked: Bool
+    connection_time: Float
+
+struct BuildingBounds:
+    min_point: Vec3
+    max_point: Vec3
+    center: Vec3
+    size: Vec3
+    volume: Float
+    is_valid: Bool
+
+struct PieceVariant:
+    variant_index: Int
+    variant_name: String
+    mesh_path: String
+    material_paths: Array<String>
+    thumbnail_path: String
+    is_default: Bool
+    rarity: String
+
+struct SnapIndicatorState:
+    is_visible: Bool
+    indicator_color: SnapIndicatorColor
+    snap_result: SnapQueryResult
+    screen_position: Vec2
+    world_position: Vec3
+    scale: Float
+
+struct BuildSession:
+    session_id: String
+    player_id: Int
+    start_time: Float
+    end_time: Float
+    pieces_placed: Int
+    pieces_removed: Int
+    undo_count: Int
+    redo_count: Int
+    is_active: Bool
+
+struct PerformanceSettings:
+    performance_mode: PerformanceMode
+    enable_instancing: Bool
+    enable_hlod: Bool
+    enable_occlusion_culling: Bool
+    max_visible_pieces: Int
+    lod_distance_multiplier: Float
+    shadow_distance: Float
+    max_draw_calls: Int
+
+struct ValidationRule:
+    rule_name: String
+    rule_type: String
+    is_enabled: Bool
+    severity: String
+    error_message: String
+    validation_function: String
+    parameters: Map<String, String>
+
+struct ExportSettings:
+    export_format: ExportFormat
+    include_materials: Bool
+    include_collisions: Bool
+    merge_meshes: Bool
+    optimize_geometry: Bool
+    export_path: String
+    file_name: String
+
+struct UndoRedoState:
+    undo_stack: Array<BuildCommand>
+    redo_stack: Array<BuildCommand>
+    max_undo_depth: Int
+    current_index: Int
+    can_undo: Bool
+    can_redo: Bool
+
+struct SnapCompatibilityRule:
+    source_type: SnapPointType
+    target_type: SnapPointType
+    is_compatible: Bool
+    alignment_mode: AlignmentMode
+    rotation_offset: Float
+    position_offset: Vec3
+
+struct PieceFilter:
+    category_filter: Array<PieceCategory>
+    tag_filter: Array<String>
+    tag_logic: String
+    search_text: String
+    min_cost: Int
+    max_cost: Int
+    structural_type_filter: Array<StructuralType>
+
+struct BuildingStatistics:
+    total_pieces: Int
+    pieces_by_category: Map<String, Int>
+    pieces_by_tag: Map<String, Int>
+    total_cost: Int
+    total_build_time: Float
+    average_piece_health: Float
+    structural_integrity: Float
+    foundation_count: Int
+    unsupported_count: Int
+
+// ============================================================================
+// DATATABLE STRUCTS (4 total)
+// ============================================================================
+
+@datatable
+struct PieceDataTable:
+    piece_id: String
+    display_name: String
+    category: PieceCategory
+    mesh_path: String
+    thumbnail_path: String
+    snap_point_count: Int
+    tags: String
+    cost: Int
+    structural_type: StructuralType
+    description: String
+
+@datatable
+struct CategoryDataTable:
+    category_name: String
+    display_name: String
+    parent_category: String
+    display_order: Int
+    icon_path: String
+    description: String
+    is_visible: Bool
+
+@datatable
+struct SnapCompatibilityTable:
+    source_type: SnapPointType
+    target_type: SnapPointType
+    is_compatible: Bool
+    alignment_mode: AlignmentMode
+    rotation_offset: Float
+    position_offset_x: Float
+    position_offset_y: Float
+    position_offset_z: Float
+
+@datatable
+struct MaterialCollectionTable:
+    collection_name: String
+    collection_id: String
+    material_paths: String
+    preview_texture: String
+    tags: String
+    description: String
+
+// ============================================================================
+// HELPER FUNCTIONS (20+ functions)
+// ============================================================================
+
+// Struct creation helpers
+@blueprint_callable
+fn create_snap_point_data(point_type: SnapPointType, position: Vec3, rotation: Vec3, radius: Float) -> SnapPointData:
+    let snap_point = SnapPointData {
+        point_type: point_type,
+        local_position: position,
+        local_rotation: rotation,
+        snap_radius: radius,
+        alignment_mode: AlignmentMode::Exact,
+        compatible_types: [],
+        required_tags: [],
+        excluded_tags: [],
+        is_occupied: false,
+        connected_piece_id: -1,
+        snap_offset: vec3(0.0, 0.0, 0.0),
+        rotation_constraint: 0.0,
+        priority: 0
+    }
+    return snap_point
+
+@blueprint_callable
+fn create_piece_instance(piece_id: String, instance_id: Int, transform: Transform) -> PieceInstance:
+    let instance = PieceInstance {
+        instance_id: instance_id,
+        piece_id: piece_id,
+        variant_index: 0,
+        world_transform: transform,
+        snap_connections: [],
+        material_overrides: [],
+        custom_properties: {},
+        owner_id: -1,
+        team_id: -1,
+        placement_time: 0.0,
+        last_modified_time: 0.0,
+        is_valid: true,
+        is_locked: false,
+        health_current: 100.0,
+        health_max: 100.0
+    }
+    return instance
+
+@blueprint_callable
+fn create_building_state(building_id: String, building_name: String) -> BuildingState:
+    let state = BuildingState {
+        building_id: building_id,
+        building_name: building_name,
+        piece_instances: [],
+        total_piece_count: 0,
+        bounds_min: vec3(0.0, 0.0, 0.0),
+        bounds_max: vec3(0.0, 0.0, 0.0),
+        creation_time: 0.0,
+        last_modified_time: 0.0,
+        version: 1,
+        author_id: -1,
+        is_locked: false,
+        metadata: {}
+    }
+    return state
+
+@blueprint_callable
+fn create_structural_chain(foundation_id: Int) -> StructuralChain:
+    let chain = StructuralChain {
+        chain_id: foundation_id,
+        foundation_piece_id: foundation_id,
+        supported_piece_ids: [],
+        chain_depth: 0,
+        max_depth: 10,
+        is_stable: true,
+        support_strength: 1.0,
+        weak_points: [],
+        collapse_risk: 0.0
+    }
+    return chain
+
+@blueprint_callable
+fn create_snap_query_result() -> SnapQueryResult:
+    let result = SnapQueryResult {
+        found_snap: false,
+        snap_point_index: -1,
+        target_piece_id: -1,
+        target_snap_index: -1,
+        alignment_transform: Transform { position: vec3(0.0, 0.0, 0.0), rotation: vec3(0.0, 0.0, 0.0), scale: vec3(1.0, 1.0, 1.0) },
+        distance: 0.0,
+        validation_result: ValidationResult::Valid,
+        compatibility_score: 0.0,
+        is_occupied: false,
+        required_rotation: vec3(0.0, 0.0, 0.0)
+    }
+    return result
+
+@blueprint_callable
+fn create_placement_validation(is_valid: Bool, result: ValidationResult, message: String) -> PlacementValidation:
+    let validation = PlacementValidation {
+        is_valid: is_valid,
+        validation_result: result,
+        error_message: message,
+        warning_message: "",
+        suggested_fix: "",
+        conflicting_pieces: [],
+        required_actions: [],
+        can_force_place: false
+    }
+    return validation
+
+@blueprint_callable
+fn create_build_command(command_type: String, piece_id: String, instance_id: Int) -> BuildCommand:
+    let command = BuildCommand {
+        command_id: 0,
+        command_type: command_type,
+        piece_id: piece_id,
+        instance_id: instance_id,
+        transform_before: Transform { position: vec3(0.0, 0.0, 0.0), rotation: vec3(0.0, 0.0, 0.0), scale: vec3(1.0, 1.0, 1.0) },
+        transform_after: Transform { position: vec3(0.0, 0.0, 0.0), rotation: vec3(0.0, 0.0, 0.0), scale: vec3(1.0, 1.0, 1.0) },
+        timestamp: 0.0,
+        executor_id: -1,
+        can_undo: true,
+        can_redo: false,
+        command_data: {}
+    }
+    return command
+
+@blueprint_callable
+fn create_performance_metrics() -> PerformanceMetrics:
+    let metrics = PerformanceMetrics {
+        total_pieces: 0,
+        visible_pieces: 0,
+        instanced_pieces: 0,
+        snap_query_time_ms: 0.0,
+        render_time_ms: 0.0,
+        memory_usage_mb: 0.0,
+        frame_time_ms: 0.0,
+        instanced_mesh_count: 0,
+        draw_calls: 0,
+        triangle_count: 0
+    }
+    return metrics
+
+// Validation functions
+@blueprint_callable
+fn validate_snap_point_data(snap_point: SnapPointData) -> Bool:
+    if snap_point.snap_radius <= 0.0:
+        return false
+    if len(snap_point.compatible_types) == 0:
+        return false
+    return true
+
+@blueprint_callable
+fn validate_piece_instance(instance: PieceInstance) -> Bool:
+    if instance.instance_id < 0:
+        return false
+    if instance.piece_id == "":
+        return false
+    if instance.variant_index < 0:
+        return false
+    return true
+
+@blueprint_callable
+fn validate_building_state(state: BuildingState) -> Bool:
+    if state.building_id == "":
+        return false
+    if state.version < 1:
+        return false
+    if state.total_piece_count != len(state.piece_instances):
+        return false
+    return true
+
+@blueprint_callable
+fn validate_structural_chain(chain: StructuralChain) -> Bool:
+    if chain.foundation_piece_id < 0:
+        return false
+    if chain.chain_depth < 0:
+        return false
+    if chain.support_strength < 0.0 or chain.support_strength > 1.0:
+        return false
+    return true
+
+// Query functions
+@blueprint_callable
+fn is_snap_point_compatible(source: SnapPointData, target: SnapPointData) -> Bool:
+    let source_compatible = false
+    let i = 0
+    while i < len(source.compatible_types):
+        if source.compatible_types[i] == target.point_type:
+            source_compatible = true
+        i = i + 1
+    
+    let target_compatible = false
+    let j = 0
+    while j < len(target.compatible_types):
+        if target.compatible_types[j] == source.point_type:
+            target_compatible = true
+        j = j + 1
+    
+    return source_compatible and target_compatible
+
+@blueprint_callable
+fn has_required_tags(piece_tags: Array<String>, required_tags: Array<String>) -> Bool:
+    let i = 0
+    while i < len(required_tags):
+        let found = false
+        let j = 0
+        while j < len(piece_tags):
+            if piece_tags[j] == required_tags[i]:
+                found = true
+            j = j + 1
+        if not found:
+            return false
+        i = i + 1
+    return true
+
+@blueprint_callable
+fn has_excluded_tags(piece_tags: Array<String>, excluded_tags: Array<String>) -> Bool:
+    let i = 0
+    while i < len(excluded_tags):
+        let j = 0
+        while j < len(piece_tags):
+            if piece_tags[j] == excluded_tags[i]:
+                return true
+            j = j + 1
+        i = i + 1
+    return false
+
+@blueprint_callable
+fn calculate_bounds_from_pieces(pieces: Array<PieceInstance>) -> BuildingBounds:
+    if len(pieces) == 0:
+        return BuildingBounds {
+            min_point: vec3(0.0, 0.0, 0.0),
+            max_point: vec3(0.0, 0.0, 0.0),
+            center: vec3(0.0, 0.0, 0.0),
+            size: vec3(0.0, 0.0, 0.0),
+            volume: 0.0,
+            is_valid: false
+        }
+    
+    let min_x = pieces[0].world_transform.position.x
+    let min_y = pieces[0].world_transform.position.y
+    let min_z = pieces[0].world_transform.position.z
+    let max_x = pieces[0].world_transform.position.x
+    let max_y = pieces[0].world_transform.position.y
+    let max_z = pieces[0].world_transform.position.z
+    
+    let i = 1
+    while i < len(pieces):
+        let pos = pieces[i].world_transform.position
+        if pos.x < min_x:
+            min_x = pos.x
+        if pos.y < min_y:
+            min_y = pos.y
+        if pos.z < min_z:
+            min_z = pos.z
+        if pos.x > max_x:
+            max_x = pos.x
+        if pos.y > max_y:
+            max_y = pos.y
+        if pos.z > max_z:
+            max_z = pos.z
+        i = i + 1
+    
+    let min_point = vec3(min_x, min_y, min_z)
+    let max_point = vec3(max_x, max_y, max_z)
+    let size = vec3(max_x - min_x, max_y - min_y, max_z - min_z)
+    let center = vec3((min_x + max_x) / 2.0, (min_y + max_y) / 2.0, (min_z + max_z) / 2.0)
+    let volume = size.x * size.y * size.z
+    
+    return BuildingBounds {
+        min_point: min_point,
+        max_point: max_point,
+        center: center,
+        size: size,
+        volume: volume,
+        is_valid: true
+    }
+
+@blueprint_callable
+fn count_pieces_by_category(pieces: Array<PieceInstance>, definitions: Map<String, BuildingPieceDefinition>, category: PieceCategory) -> Int:
+    let count = 0
+    let i = 0
+    while i < len(pieces):
+        let piece_id = pieces[i].piece_id
+        if definitions.contains_key(piece_id):
+            let def = definitions[piece_id]
+            if def.category == category:
+                count = count + 1
+        i = i + 1
+    return count
+
+@blueprint_callable
+fn calculate_total_cost(pieces: Array<PieceInstance>, definitions: Map<String, BuildingPieceDefinition>) -> Int:
+    let total_cost = 0
+    let i = 0
+    while i < len(pieces):
+        let piece_id = pieces[i].piece_id
+        if definitions.contains_key(piece_id):
+            let def = definitions[piece_id]
+            total_cost = total_cost + def.cost
+        i = i + 1
+    return total_cost
+
+@blueprint_callable
+fn get_pieces_with_tag(pieces: Array<PieceInstance>, definitions: Map<String, BuildingPieceDefinition>, tag: String) -> Array<Int>:
+    let result = []
+    let i = 0
+    while i < len(pieces):
+        let piece_id = pieces[i].piece_id
+        if definitions.contains_key(piece_id):
+            let def = definitions[piece_id]
+            let j = 0
+            while j < len(def.tags):
+                if def.tags[j] == tag:
+                    push(result, pieces[i].instance_id)
+                j = j + 1
+        i = i + 1
+    return result
+
+@blueprint_callable
+fn filter_pieces_by_structural_type(pieces: Array<PieceInstance>, definitions: Map<String, BuildingPieceDefinition>, structural_type: StructuralType) -> Array<Int>:
+    let result = []
+    let i = 0
+    while i < len(pieces):
+        let piece_id = pieces[i].piece_id
+        if definitions.contains_key(piece_id):
+            let def = definitions[piece_id]
+            if def.structural_type == structural_type:
+                push(result, pieces[i].instance_id)
+        i = i + 1
+    return result
+
+@blueprint_callable
+fn calculate_average_health(pieces: Array<PieceInstance>) -> Float:
+    if len(pieces) == 0:
+        return 0.0
+    
+    let total_health = 0.0
+    let i = 0
+    while i < len(pieces):
+        let health_percent = (pieces[i].health_current / pieces[i].health_max) * 100.0
+        total_health = total_health + health_percent
+        i = i + 1
+    
+    return total_health / float(len(pieces))
+
+@blueprint_callable
+fn get_connected_piece_ids(instance: PieceInstance) -> Array<Int>:
+    return instance.snap_connections
+
+@blueprint_callable
+fn is_piece_locked(instance: PieceInstance) -> Bool:
+    return instance.is_locked
+
+@blueprint_callable
+fn get_piece_age(instance: PieceInstance, current_time: Float) -> Float:
+    return current_time - instance.placement_time

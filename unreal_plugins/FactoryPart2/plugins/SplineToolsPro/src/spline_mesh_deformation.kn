@@ -1,0 +1,267 @@
+# SplineToolsPro - Mesh Deformation
+# Mesh deformation algorithms and async tasks
+
+# Deform a single vertex along spline
+@blueprint_pure
+fn deform_vertex_along_spline(vertex: Vec3, spline_points: Array<SplinePoint>, params: SplineMeshParams, interpolation_type: SplineInterpolationType) -> Vec3 with Pure:
+    # Find closest point on spline to vertex
+    let closest_param = find_closest_param_for_vertex(vertex, spline_points, interpolation_type)
+    
+    # Get spline position and tangent at that parameter
+    let spline_pos = evaluate_spline_at_param(spline_points, closest_param, interpolation_type)
+    let spline_tangent = calculate_spline_derivative(spline_points, closest_param, interpolation_type)
+    spline_tangent = normalize(spline_tangent)
+    
+    # Calculate cross-section transform
+    let transform = calculate_cross_section_transform(spline_pos, spline_tangent, params.up_axis)
+    
+    # Get vertex offset from spline
+    let vertex_offset = vertex - spline_pos
+    
+    # Transform vertex to local spline space
+    let local_vertex = transform_to_local_space(vertex_offset, transform)
+    
+    # Apply deformations
+    let deformed = local_vertex
+    
+    # Apply twist
+    let twist_angle = lerp(params.twist_start, params.twist_end, closest_param)
+    deformed = apply_twist(deformed, twist_angle, closest_param)
+    
+    # Apply scale
+    let scale = lerp_vec3(params.scale_start, params.scale_end, closest_param)
+    deformed = vec3(deformed.x * scale.x, deformed.y * scale.y, deformed.z * scale.z)
+    
+    # Transform back to world space
+    let world_vertex = transform_to_world_space(deformed, transform)
+    
+    # Add spline position and offset
+    return world_vertex + spline_pos + params.offset
+
+# Calculate cross-section transform (local coordinate frame)
+@blueprint_pure
+fn calculate_cross_section_transform(spline_pos: Vec3, tangent: Vec3, up: Vec3) -> Mat3 with Pure:
+    let forward = normalize(tangent)
+    let right = normalize(cross(up, forward))
+    let corrected_up = cross(forward, right)
+    
+    # Create transformation matrix
+    let transform: Mat3
+    transform.right = right
+    transform.up = corrected_up
+    transform.forward = forward
+    
+    return transform
+
+# Apply twist deformation
+@blueprint_pure
+fn apply_twist(vertex: Vec3, twist_angle: Float, distance: Float) -> Vec3 with Pure:
+    let angle_rad = twist_angle * 0.0174533  # Degrees to radians
+    
+    # Rotate around forward axis (Z)
+    let cos_angle = cos(angle_rad)
+    let sin_angle = sin(angle_rad)
+    
+    let twisted: Vec3
+    twisted.x = vertex.x * cos_angle - vertex.y * sin_angle
+    twisted.y = vertex.x * sin_angle + vertex.y * cos_angle
+    twisted.z = vertex.z
+    
+    return twisted
+
+# Apply scale deformation
+@blueprint_pure
+fn apply_scale(vertex: Vec3, scale_curve: Vec3, distance: Float) -> Vec3 with Pure:
+    return vec3(
+        vertex.x * scale_curve.x,
+        vertex.y * scale_curve.y,
+        vertex.z * scale_curve.z
+    )
+
+# Apply offset deformation
+@blueprint_pure
+fn apply_offset(vertex: Vec3, offset_vector: Vec3) -> Vec3 with Pure:
+    return vertex + offset_vector
+
+# Batch deform mesh for performance
+@blueprint
+fn batch_deform_mesh(vertices: Array<Vec3>, spline_points: Array<SplinePoint>, params: SplineMeshParams, interpolation_type: SplineInterpolationType) -> Array<Vec3>:
+    let deformed_vertices: Array<Vec3> = []
+    
+    let i = 0
+    while i < len(vertices):
+        let deformed = deform_vertex_along_spline(vertices[i], spline_points, params, interpolation_type)
+        push(deformed_vertices, deformed)
+        i = i + 1
+    
+    return deformed_vertices
+
+# Async mesh deformation task
+@async_task
+struct MeshDeformationTask:
+    @input
+    vertices: Array<Vec3>
+    
+    @input
+    spline_points: Array<SplinePoint>
+    
+    @input
+    deform_params: SplineMeshParams
+    
+    @input
+    interpolation_type: SplineInterpolationType
+    
+    @output
+    deformed_vertices: Array<Vec3>
+    
+    @callback(thread: "game")
+    fn on_deformation_complete(result: Array<Vec3>):
+        println("Mesh deformation complete: {len(result)} vertices")
+
+# Chunk vertices for parallel processing
+@blueprint
+fn chunk_vertices(vertices: Array<Vec3>, chunk_size: Int) -> Array<Array<Vec3>>:
+    let chunks: Array<Array<Vec3>> = []
+    let current_chunk: Array<Vec3> = []
+    
+    let i = 0
+    while i < len(vertices):
+        push(current_chunk, vertices[i])
+        
+        if len(current_chunk) >= chunk_size:
+            push(chunks, current_chunk)
+            current_chunk = []
+        
+        i = i + 1
+    
+    # Add remaining vertices
+    if len(current_chunk) > 0:
+        push(chunks, current_chunk)
+    
+    return chunks
+
+# Validate deformation parameters
+@blueprint
+fn validate_deformation_params(params: SplineMeshParams) -> Bool:
+    # Check scale validity
+    if params.scale_start.x <= 0.0 or params.scale_start.y <= 0.0 or params.scale_start.z <= 0.0:
+        return false
+    
+    if params.scale_end.x <= 0.0 or params.scale_end.y <= 0.0 or params.scale_end.z <= 0.0:
+        return false
+    
+    # Check segments per point
+    if params.segments_per_point <= 0:
+        return false
+    
+    # Check axis validity
+    let forward_len = length(params.forward_axis)
+    let up_len = length(params.up_axis)
+    
+    if forward_len < 0.1 or up_len < 0.1:
+        return false
+    
+    return true
+
+# Helper functions
+
+fn find_closest_param_for_vertex(vertex: Vec3, spline_points: Array<SplinePoint>, interpolation_type: SplineInterpolationType) -> Float:
+    let n = len(spline_points)
+    if n < 2:
+        return 0.0
+    
+    let min_dist = 1000000.0
+    let best_param = 0.0
+    
+    # Sample spline at regular intervals
+    let samples = 50
+    let i = 0
+    while i <= samples:
+        let t = i as Float / samples as Float
+        let spline_pos = evaluate_spline_at_param(spline_points, t, interpolation_type)
+        let dist = distance(vertex, spline_pos)
+        
+        if dist < min_dist:
+            min_dist = dist
+            best_param = t
+        
+        i = i + 1
+    
+    return best_param
+
+fn evaluate_spline_at_param(points: Array<SplinePoint>, t: Float, interpolation_type: SplineInterpolationType) -> Vec3:
+    let n = len(points)
+    if n == 0:
+        return vec3(0.0, 0.0, 0.0)
+    if n == 1:
+        return points[0].position
+    
+    let t_clamped = clamp(t, 0.0, 1.0)
+    let segment_idx = floor(t_clamped * (n - 1) as Float) as Int
+    segment_idx = min_int(segment_idx, n - 2)
+    
+    let local_t = t_clamped * (n - 1) as Float - segment_idx as Float
+    
+    let p0 = points[segment_idx].position
+    let p1 = points[segment_idx + 1].position
+    
+    if interpolation_type == SplineInterpolationType::Linear:
+        return linear_interpolate_points(p0, p1, local_t)
+    else:
+        if interpolation_type == SplineInterpolationType::Bezier:
+            let t0 = points[segment_idx].out_tangent
+            let t1 = points[segment_idx + 1].in_tangent
+            let ctrl1 = p0 + t0
+            let ctrl2 = p1 - t1
+            return evaluate_bezier(p0, ctrl1, ctrl2, p1, local_t)
+        else:
+            if interpolation_type == SplineInterpolationType::CatmullRom:
+                let p_prev = if segment_idx > 0: points[segment_idx - 1].position else: p0
+                let p_next = if segment_idx < n - 2: points[segment_idx + 2].position else: p1
+                return evaluate_catmull_rom(p_prev, p0, p1, p_next, local_t)
+            else:
+                return linear_interpolate_points(p0, p1, local_t)
+
+fn transform_to_local_space(vertex: Vec3, transform: Mat3) -> Vec3:
+    let local: Vec3
+    local.x = dot(vertex, transform.right)
+    local.y = dot(vertex, transform.up)
+    local.z = dot(vertex, transform.forward)
+    return local
+
+fn transform_to_world_space(vertex: Vec3, transform: Mat3) -> Vec3:
+    let world: Vec3
+    world.x = vertex.x * transform.right.x + vertex.y * transform.up.x + vertex.z * transform.forward.x
+    world.y = vertex.x * transform.right.y + vertex.y * transform.up.y + vertex.z * transform.forward.y
+    world.z = vertex.x * transform.right.z + vertex.y * transform.up.z + vertex.z * transform.forward.z
+    return world
+
+fn cos(angle: Float) -> Float:
+    # Taylor series approximation for cosine
+    let x = angle
+    while x > 3.14159265:
+        x = x - 6.28318531
+    while x < -3.14159265:
+        x = x + 6.28318531
+    
+    let x2 = x * x
+    let result = 1.0 - x2 / 2.0 + x2 * x2 / 24.0 - x2 * x2 * x2 / 720.0
+    return result
+
+fn sin(angle: Float) -> Float:
+    # Taylor series approximation for sine
+    let x = angle
+    while x > 3.14159265:
+        x = x - 6.28318531
+    while x < -3.14159265:
+        x = x + 6.28318531
+    
+    let x2 = x * x
+    let result = x - x * x2 / 6.0 + x * x2 * x2 / 120.0 - x * x2 * x2 * x2 / 5040.0
+    return result
+
+# Matrix3x3 struct for transformations
+struct Mat3:
+    right: Vec3
+    up: Vec3
+    forward: Vec3

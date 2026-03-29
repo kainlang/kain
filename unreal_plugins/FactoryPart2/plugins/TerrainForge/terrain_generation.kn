@@ -1,0 +1,292 @@
+@blueprint
+fn generate_perlin_noise(x: Float, y: Float, seed: Int, octaves: Int, frequency: Float, amplitude: Float, lacunarity: Float, persistence: Float) -> Float:
+    let total = 0.0
+    let current_amplitude = amplitude
+    let current_frequency = frequency
+    let max_value = 0.0
+    
+    for i in 0..octaves:
+        let sample_x = x * current_frequency
+        let sample_y = y * current_frequency
+        
+        let noise_value = perlin_noise(vec3(sample_x, sample_y, seed as Float))
+        total = total + noise_value * current_amplitude
+        
+        max_value = max_value + current_amplitude
+        current_amplitude = current_amplitude * persistence
+        current_frequency = current_frequency * lacunarity
+    
+    return total / max_value
+
+@blueprint
+fn generate_diamond_square(size: Int, roughness: Float, seed: Int) -> Array<Float>:
+    let heightmap: Array<Float> = []
+    
+    for i in 0..(size * size):
+        push(heightmap, 0.0)
+    
+    let set_height = fn(x: Int, y: Int, value: Float):
+        if x >= 0 and x < size and y >= 0 and y < size:
+            heightmap[x + y * size] = value
+    
+    let get_height = fn(x: Int, y: Int) -> Float:
+        if x < 0 or x >= size or y < 0 or y >= size:
+            return 0.0
+        return heightmap[x + y * size]
+    
+    set_height(0, 0, perlin_noise(vec3(0.0, 0.0, seed as Float)))
+    set_height(size - 1, 0, perlin_noise(vec3(1.0, 0.0, seed as Float)))
+    set_height(0, size - 1, perlin_noise(vec3(0.0, 1.0, seed as Float)))
+    set_height(size - 1, size - 1, perlin_noise(vec3(1.0, 1.0, seed as Float)))
+    
+    return heightmap
+
+@blueprint
+fn generate_voronoi_terrain(width: Int, height: Int, point_count: Int, seed: Int) -> Array<Float>:
+    let heightmap: Array<Float> = []
+    let points: Array<Vec2> = []
+    
+    for i in 0..point_count:
+        let px = perlin_noise(vec3(i as Float, 0.0, seed as Float)) * (width as Float)
+        let py = perlin_noise(vec3(i as Float, 1.0, seed as Float)) * (height as Float)
+        push(points, vec2(px, py))
+    
+    for y in 0..height:
+        for x in 0..width:
+            let pos = vec2(x as Float, y as Float)
+            let min_dist = 999999.0
+            
+            for point in points:
+                let dist = distance(pos, point)
+                if dist < min_dist:
+                    min_dist = dist
+            
+            let normalized_dist = min_dist / sqrt((width * width + height * height) as Float)
+            push(heightmap, normalized_dist)
+    
+    return heightmap
+
+@blueprint
+fn apply_hydraulic_erosion_cpu(heightmap: Array<Float>, width: Int, height: Int, iterations: Int, erosion_strength: Float) -> Array<Float>:
+    let result = heightmap
+    let water_map: Array<Float> = []
+    let sediment_map: Array<Float> = []
+    
+    for i in 0..(width * height):
+        push(water_map, 1.0)
+        push(sediment_map, 0.0)
+    
+    for iter in 0..iterations:
+        for y in 1..(height - 1):
+            for x in 1..(width - 1):
+                let index = x + y * width
+                let current_height = result[index]
+                
+                let lowest_height = current_height
+                let lowest_x = x
+                let lowest_y = y
+                
+                for dy in -1..2:
+                    for dx in -1..2:
+                        if dx == 0 and dy == 0:
+                            continue
+                        
+                        let nx = x + dx
+                        let ny = y + dy
+                        let neighbor_index = nx + ny * width
+                        let neighbor_height = result[neighbor_index]
+                        
+                        if neighbor_height < lowest_height:
+                            lowest_height = neighbor_height
+                            lowest_x = nx
+                            lowest_y = ny
+                
+                if lowest_x != x or lowest_y != y:
+                    let height_diff = current_height - lowest_height
+                    let erosion_amount = height_diff * erosion_strength * water_map[index]
+                    
+                    result[index] = current_height - erosion_amount
+                    sediment_map[index] = sediment_map[index] + erosion_amount
+                    
+                    let lowest_index = lowest_x + lowest_y * width
+                    water_map[lowest_index] = water_map[lowest_index] + water_map[index] * 0.5
+    
+    return result
+
+@blueprint
+fn apply_thermal_erosion_cpu(heightmap: Array<Float>, width: Int, height: Int, iterations: Int, thermal_angle: Float) -> Array<Float>:
+    let result = heightmap
+    
+    for iter in 0..iterations:
+        let temp_map: Array<Float> = []
+        
+        for i in 0..(width * height):
+            push(temp_map, result[i])
+        
+        for y in 1..(height - 1):
+            for x in 1..(width - 1):
+                let index = x + y * width
+                let current_height = result[index]
+                
+                let max_diff = 0.0
+                let neighbor_count = 0
+                
+                for dy in -1..2:
+                    for dx in -1..2:
+                        if dx == 0 and dy == 0:
+                            continue
+                        
+                        let nx = x + dx
+                        let ny = y + dy
+                        let neighbor_index = nx + ny * width
+                        let neighbor_height = result[neighbor_index]
+                        let height_diff = current_height - neighbor_height
+                        
+                        if height_diff > thermal_angle:
+                            max_diff = max(max_diff, height_diff)
+                            neighbor_count = neighbor_count + 1
+                
+                if neighbor_count > 0 and max_diff > thermal_angle:
+                    let material_to_move = (max_diff - thermal_angle) * 0.5
+                    temp_map[index] = current_height - material_to_move
+                    
+                    let material_per_neighbor = material_to_move / (neighbor_count as Float)
+                    
+                    for dy in -1..2:
+                        for dx in -1..2:
+                            if dx == 0 and dy == 0:
+                                continue
+                            
+                            let nx = x + dx
+                            let ny = y + dy
+                            let neighbor_index = nx + ny * width
+                            let neighbor_height = result[neighbor_index]
+                            let height_diff = current_height - neighbor_height
+                            
+                            if height_diff > thermal_angle:
+                                temp_map[neighbor_index] = temp_map[neighbor_index] + material_per_neighbor
+        
+        result = temp_map
+    
+    return result
+
+@blueprint
+fn calculate_terrain_normals(heightmap: Array<Float>, width: Int, height: Int, height_scale: Float) -> Array<Vec3>:
+    let normals: Array<Vec3> = []
+    
+    for y in 0..height:
+        for x in 0..width:
+            let index = x + y * width
+            
+            let get_height = fn(px: Int, py: Int) -> Float:
+                if px < 0 or px >= width or py < 0 or py >= height:
+                    return heightmap[index]
+                return heightmap[px + py * width]
+            
+            let height_l = get_height(x - 1, y)
+            let height_r = get_height(x + 1, y)
+            let height_d = get_height(x, y - 1)
+            let height_u = get_height(x, y + 1)
+            
+            let dx = (height_r - height_l) * height_scale
+            let dy = (height_u - height_d) * height_scale
+            
+            let normal = normalize(vec3(-dx, 1.0, -dy))
+            push(normals, normal)
+    
+    return normals
+
+@blueprint
+fn generate_biome_map(heightmap: Array<Float>, width: Int, height: Int, seed: Int) -> Array<Int>:
+    let biome_map: Array<Int> = []
+    
+    for y in 0..height:
+        for x in 0..width:
+            let index = x + y * width
+            let height_value = heightmap[index]
+            
+            let temperature = perlin_noise(vec3((x as Float) * 0.01, (y as Float) * 0.01, seed as Float))
+            let humidity = perlin_noise(vec3((x as Float) * 0.01, (y as Float) * 0.01, (seed + 1000) as Float))
+            
+            let biome = 0
+            
+            if height_value < 0.2:
+                biome = 10
+            else:
+                if height_value < 0.3:
+                    biome = 9
+                else:
+                    if temperature < 0.2:
+                        if height_value > 0.7:
+                            biome = 8
+                        else:
+                            biome = 3
+                    else:
+                        if temperature < 0.4:
+                            biome = 4
+                        else:
+                            if temperature < 0.6:
+                                if humidity < 0.3:
+                                    biome = 1
+                                else:
+                                    if humidity < 0.6:
+                                        biome = 2
+                                    else:
+                                        biome = 7
+                            else:
+                                if humidity < 0.3:
+                                    biome = 0
+                                else:
+                                    if humidity < 0.5:
+                                        biome = 5
+                                    else:
+                                        biome = 6
+            
+            push(biome_map, biome)
+    
+    return biome_map
+
+@blueprint
+fn generate_splatmap(heightmap: Array<Float>, normals: Array<Vec3>, biome_map: Array<Int>, width: Int, height: Int) -> Array<Vec4>:
+    let splatmap: Array<Vec4> = []
+    
+    for y in 0..height:
+        for x in 0..width:
+            let index = x + y * width
+            let height_value = heightmap[index]
+            let normal = normals[index]
+            let slope = 1.0 - normal.y
+            let biome = biome_map[index]
+            
+            let weights = vec4(0.0, 0.0, 0.0, 0.0)
+            
+            if height_value < 0.3:
+                weights.x = 1.0
+            else:
+                if height_value < 0.5:
+                    let blend = (height_value - 0.3) / 0.2
+                    weights.x = 1.0 - blend
+                    weights.y = blend
+                else:
+                    if height_value < 0.7:
+                        weights.y = 1.0
+                    else:
+                        let blend = (height_value - 0.7) / 0.3
+                        weights.y = 1.0 - blend
+                        weights.z = blend
+            
+            if slope > 0.5:
+                let slope_blend = (slope - 0.5) / 0.5
+                weights.w = slope_blend
+                let remaining = 1.0 - slope_blend
+                weights.x = weights.x * remaining
+                weights.y = weights.y * remaining
+                weights.z = weights.z * remaining
+            
+            let total = weights.x + weights.y + weights.z + weights.w
+            if total > 0.0:
+                weights = weights / total
+            
+            push(splatmap, weights)
+    
+    return splatmap

@@ -1,0 +1,96 @@
+[package]
+name = "Materialize"
+version = "1.0.0"
+authors = ["K-Studio"]
+description = "Professional PBR material generation and layer compositing system - Substance Sampler clone for UE5"
+
+[build]
+entry = "Kain/types.kn"
+target = "ue5"
+
+[ue5]
+plugin_name = "Materialize"
+plugin_dir = ""
+engine_version = "5.4"
+modular_output = true
+category = "Material Tools"
+
+# All source files in dependency order
+sources = [
+    "Kain/types.kn",
+    "Kain/shaders.kn",
+    "Kain/compute_engine.kn",
+    "Kain/layer_system.kn",
+    "Kain/graph_runtime.kn",
+    "Kain/graph_editor.kn",
+    "Kain/editor_ui.kn",
+    "Kain/asset_tools.kn",
+    "Kain/material_analysis.kn",
+    "Kain/material_export.kn",
+    "Kain/material_mixer.kn",
+    "Kain/particle_effects.kn",
+    "Kain/texture_synthesis.kn",
+    "Kain/ai_features.kn",
+]
+
+# Multi-module architecture: Runtime + Editor
+[[ue5.modules]]
+name = "Materialize"
+type = "Runtime"
+loading_phase = "Default"
+source_globs = [
+    "Kain/types.kn",
+    "Kain/shaders.kn",
+    "Kain/compute_engine.kn",
+    "Kain/layer_system.kn",
+    "Kain/graph_runtime.kn",
+    "Kain/material_analysis.kn",
+    "Kain/material_export.kn",
+    "Kain/material_mixer.kn",
+    "Kain/particle_effects.kn",
+    "Kain/texture_synthesis.kn",
+    "Kain/ai_features.kn",
+]
+public_deps = [
+    "Core",
+    "CoreUObject",
+    "Engine",
+    "InputCore",
+    "RenderCore",
+    "RHI",
+    "Renderer",
+    "Projects",
+    "DeveloperSettings",
+    "ImageWrapper",
+    "AssetRegistry",
+]
+
+[[ue5.modules]]
+name = "MaterializeEditor"
+type = "Editor"
+loading_phase = "PostEngineInit"
+depends_on = ["Materialize"]
+source_globs = [
+    "Kain/graph_editor.kn",
+    "Kain/editor_ui.kn",
+    "Kain/asset_tools.kn",
+]
+public_deps = [
+    "Core",
+    "CoreUObject",
+    "Engine",
+    "UnrealEd",
+    "Slate",
+    "SlateCore",
+    "InputCore",
+    "EditorStyle",
+    "PropertyEditor",
+    "LevelEditor",
+    "ContentBrowser",
+    "AssetTools",
+    "ToolMenus",
+    "WorkspaceMenuStructure",
+    "EditorSubsystem",
+    "AdvancedPreviewScene",
+    "AssetRegistry",
+]

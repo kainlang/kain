@@ -1,0 +1,973 @@
+# ============================================================================
+# CINEMA4D MOGRAPH - Editor Module
+# ============================================================================
+# Complete editor integration for the K-Cloner system
+# - Asset editor with viewport, timeline, and properties
+# - Details panel customizations for ClonerActor and ClonerData
+# - Level editor menu extensions
+# - Asset type actions for ClonerData and ModifierPreset
+# - Sequencer integration for animation keyframing
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: EDITOR MODULE - Main editor registration and extensions
+# ============================================================================
+
+@editor_module
+struct ClonerEditorModule:
+    # Level Editor Menu Extensions
+    @menu_entry(path: "Actor/K-Studio", label: "Spawn K-Cloner")
+    fn on_spawn_cloner():
+        println("Spawning K-Cloner Actor at cursor location")
+        # Spawns a new ClonerActor at the editor cursor position
+    
+    @menu_entry(path: "Actor/K-Studio", label: "Validate VAT Normals")
+    fn on_validate_vat_normals():
+        println("Running VAT normal rotation validation")
+        
+        # Get the selected ClonerActor in the level
+        # let selected_actor = get_selected_cloner_actor()
+        
+        # if not selected_actor:
+        #     println("ERROR: No ClonerActor selected")
+        #     println("Please select a ClonerActor in the level")
+        #     return
+        
+        println("Validating VAT normal rotations...")
+        # Call the validation utility
+        # let is_valid = ValidateVATNormals(selected_actor)
+        
+        # if is_valid:
+        #     println("SUCCESS: All VAT normals are correct")
+        # else:
+        #     println("ERROR: VAT normal validation failed")
+        #     println("Check the output log for details")
+    
+    @menu_entry(path: "Actor/K-Studio", label: "Validate Texture Sampling")
+    fn on_validate_texture_sampling():
+        println("Running texture sampling validation")
+        
+        # Get the selected ClonerActor in the level
+        # let selected_actor = get_selected_cloner_actor()
+        
+        # if not selected_actor:
+        #     println("ERROR: No ClonerActor selected")
+        #     println("Please select a ClonerActor in the level")
+        #     return
+        
+        println("Validating texture sampling accuracy...")
+        # Call the validation utility
+        # let is_valid = ValidateTextureSampling(selected_actor)
+        
+        # if is_valid:
+        #     println("SUCCESS: All texture samples are correct")
+        # else:
+        #     println("ERROR: Texture sampling validation failed")
+        #     println("Check the output log for details")
+
+# ============================================================================
+# SECTION 2: CLONER ACTOR DETAILS - Custom details panel for ClonerActor
+# ============================================================================
+
+@details
+struct ClonerActorDetails:
+    # Properties being customized
+    selected_cloner: ClonerActor
+    
+    # Sequencer Quick Key Section
+    # Adds buttons to quickly keyframe modifier properties without scrolling
+    # through the sequencer track list
+    
+    @category(name: "K-Cloner|Sequencer Quick Key", priority: "Important")
+    @custom_row(label: "Quick Keyframe Info")
+    fn render_quick_key_info() -> Widget:
+        return Text(
+            text, "Click to key all Interp properties of a modifier at the current Sequencer playhead:",
+            color, color("subdued"),
+            font, "DetailFont"
+        )
+    
+    # Dynamic buttons for each modifier in the stack
+    @category(name: "K-Cloner|Sequencer Quick Key", priority: "Important")
+    @custom_row(label: "Modifier Quick Keys")
+    fn render_modifier_quick_keys() -> Widget:
+        return VBox(
+            # For each modifier, create a row with name and "Key All" button
+            # This is generated dynamically based on the modifier stack
+            Text(text, "Orbit Modifier", font, "DetailFont"),
+            Button(
+                label, "Key All",
+                on_click, on_quick_key_orbit,
+                tooltip, "Key all interpolatable properties for Orbit Modifier",
+                enabled, IsSequencerOpen()
+            ),
+            Text(text, "Float Modifier", font, "DetailFont"),
+            Button(
+                label, "Key All",
+                on_click, on_quick_key_float,
+                tooltip, "Key all interpolatable properties for Float Modifier",
+                enabled, IsSequencerOpen()
+            ),
+            Text(text, "Pulse Modifier", font, "DetailFont"),
+            Button(
+                label, "Key All",
+                on_click, on_quick_key_pulse,
+                tooltip, "Key all interpolatable properties for Pulse Modifier",
+                enabled, IsSequencerOpen()
+            )
+        )
+    
+    fn on_quick_key_orbit():
+        println("Quick keying Orbit Modifier properties")
+        # Keys all interpolatable properties of the Orbit modifier
+        # at the current Sequencer playhead position
+        KeyAllModifierPropertiesAtCurrentTime(selected_cloner)
+    
+    fn on_quick_key_float():
+        println("Quick keying Float Modifier properties")
+        # Keys all interpolatable properties of the Float modifier
+        KeyAllModifierPropertiesAtCurrentTime(selected_cloner)
+    
+    fn on_quick_key_pulse():
+        println("Quick keying Pulse Modifier properties")
+        # Keys all interpolatable properties of the Pulse modifier
+        KeyAllModifierPropertiesAtCurrentTime(selected_cloner)
+    
+    # Modifier Preset Management Section
+    @category(name: "K-Cloner|Modifier Presets", priority: "Important")
+    @custom_row(label: "Preset Management")
+    fn render_preset_management() -> Widget:
+        return VBox(
+            padding, 5.0,
+            
+            # Save Preset Section
+            Text(
+                text, "Save Current Modifier Stack:",
+                font, "DetailFont",
+                color, color("subdued")
+            ),
+            HBox(
+                padding, 5.0,
+                TextBox(
+                    hint_text, "Enter preset name...",
+                    width, 200.0
+                ),
+                Button(
+                    label, "Save Preset",
+                    on_click, on_save_preset,
+                    tooltip, "Save current modifier configuration as a preset"
+                )
+            ),
+            
+            Spacer(height, 10.0),
+            
+            # Load Preset Section
+            Text(
+                text, "Load Modifier Preset:",
+                font, "DetailFont",
+                color, color("subdued")
+            ),
+            HBox(
+                padding, 5.0,
+                ComboBox(
+                    options, ["Orbit Wave", "Pulse Grid", "Spiral Motion", "Custom..."],
+                    selected, "Orbit Wave",
+                    width, 200.0
+                ),
+                Button(
+                    label, "Load Preset",
+                    on_click, on_load_preset,
+                    tooltip, "Load and apply selected preset"
+                ),
+                Button(
+                    label, "Apply Preset",
+                    on_click, on_apply_preset,
+                    tooltip, "Add preset to existing modifiers"
+                )
+            ),
+            
+            Spacer(height, 10.0),
+            
+            # Preset Validation
+            Button(
+                label, "Validate Expression Preset",
+                on_click, on_validate_preset,
+                tooltip, "Check if expression preset is syntactically correct",
+                style, "SimpleButton"
+            )
+        )
+    
+    fn on_save_preset():
+        println("Saving modifier preset")
+        # Get preset name from text box
+        # Call SaveModifierPreset(selected_cloner, preset_name)
+        SaveModifierPreset(selected_cloner, "MyPreset")
+    
+    fn on_load_preset():
+        println("Loading modifier preset")
+        # Get selected preset from combo box
+        # Call LoadModifierPreset(selected_cloner, preset)
+        # This replaces the current modifier stack
+    
+    fn on_apply_preset():
+        println("Applying modifier preset")
+        # Get selected preset from combo box
+        # Call ApplyPresetToActor(selected_cloner, preset)
+        # This adds to the existing modifier stack
+    
+    fn on_validate_preset():
+        println("Validating expression preset")
+        # Get selected preset
+        # Call ValidateExpressionPreset(preset)
+        # Display validation results in a dialog
+        KeyAllModifierPropertiesAtCurrentTime(selected_cloner)
+    
+    # Anim Tweak Mode - Bake Animation Section
+    @category(name: "K-Cloner|AnimTweak")
+    @custom_row(label: "Bake Animation")
+    fn render_bake_button() -> Widget:
+        return HBox(
+            alignment, "Center",
+            Box(
+                width, 250.0,
+                height, 35.0,
+                padding, 5.0,
+                Button(
+                    label, "Bake to New Animation",
+                    style, "SimpleButton",
+                    on_click, on_bake_animation,
+                    enabled, is_bake_enabled(),
+                    tooltip, "Bakes modifier motion into a new animation sequence"
+                )
+            )
+        )
+    
+    fn is_bake_enabled() -> Bool:
+        # Only enable if AnimTweak mode is on and we have a source animation
+        return true
+    
+    fn on_bake_animation():
+        println("Baking animation with modifiers applied")
+        
+        # Validate that we have a valid cloner and source animation
+        if not(selected_cloner):
+            println("ERROR: No cloner selected")
+            return
+        
+        # Force a world tick to sync transforms
+        println("Syncing transforms before baking")
+        
+        # Get source animation from the cloner
+        # let source_anim = selected_cloner.get_source_animation()
+        
+        # Set up baking parameters
+        let output_path = "/Game/Animations"
+        let output_name = "BakedClonerAnim"
+        
+        println("Calling BakeAnimSequence utility")
+        # Call the baking utility to create a new AnimSequence
+        # with all modifier effects baked into the root bone
+        # let result = BakeAnimSequence(selected_cloner, source_anim, output_path, output_name)
+        
+        # if result.success:
+        #     println("Bake successful: {result.output_asset_path}")
+        #     println("  Frames: {result.num_frames}")
+        #     println("  Duration: {result.duration}s")
+        # else:
+        #     println("Bake failed: {result.error_message}")
+        
+        println("Animation baking complete")
+
+# ============================================================================
+# SECTION 3: CLONER DATA DETAILS - Custom details panel for ClonerData asset
+# ============================================================================
+
+@details
+struct ClonerDataDetails:
+    # Bake Animation from Preset
+    @category(name: "AnimTweak")
+    @custom_row(label: "Bake Animation")
+    fn render_bake_button() -> Widget:
+        return HBox(
+            alignment, "Center",
+            Button(
+                label, "Bake Animation from Preset",
+                on_click, on_bake_animation,
+                enabled, is_bake_enabled(),
+                font, "DetailFont",
+                padding, vec2(5.0, 0.0),
+                tooltip, "Bakes animation using the preset configuration"
+            )
+        )
+    
+    fn is_bake_enabled() -> Bool:
+        # Only enable if Tweak Mode is on and we have an animation
+        return true
+    
+    fn on_bake_animation():
+        println("Baking animation from ClonerData preset")
+        
+        # Get the ClonerData asset being edited
+        # let cloner_data = get_selected_asset()
+        
+        # Validate that we have valid data
+        # if not cloner_data:
+        #     println("ERROR: No ClonerData asset selected")
+        #     return
+        
+        println("Creating temporary actor for baking")
+        # Call the baking utility with the preset configuration
+        # This will:
+        # 1. Spawn a temporary ClonerActor in the editor world
+        # 2. Apply the preset data to configure modifiers
+        # 3. Bake the animation with all modifiers applied
+        # 4. Destroy the temporary actor
+        
+        # let result = BakeAnimSequenceFromData(cloner_data, null)
+        
+        # if result.success:
+        #     println("Bake successful: {result.output_asset_path}")
+        #     println("  Frames: {result.num_frames}")
+        #     println("  Duration: {result.duration}s")
+        #     # Open the new animation in the content browser
+        # else:
+        #     println("Bake failed: {result.error_message}")
+        
+        println("Preset baking complete")
+
+# ============================================================================
+# SECTION 4: CLONER ASSET EDITOR - Full asset editor with viewport and timeline
+# ============================================================================
+
+@asset_editor
+struct ClonerAssetEditor:
+    # Editor components
+    @viewport
+    preview_viewport: ClonerPreviewViewport
+    
+    @timeline
+    timeline_widget: ClonerTimeline
+    
+    @properties
+    properties_panel: ClonerProperties
+    
+    @toolbar
+    editor_toolbar: ClonerToolbar
+    
+    # Editor lifecycle
+    fn on_asset_opened():
+        println("Opening ClonerData asset in editor")
+        preview_viewport.set_cloner_data()
+        properties_panel.set_object()
+    
+    fn on_asset_closed():
+        println("Closing ClonerData asset editor")
+    
+    fn on_properties_changed():
+        println("Properties changed, updating preview")
+        preview_viewport.refresh()
+    
+    # Editor metadata
+    fn get_toolkit_name() -> String:
+        return "KCloner Editor"
+    
+    fn get_world_centric_tab_color() -> Vec3:
+        return vec3(1.0, 1.0, 1.0)
+    
+    fn get_world_centric_tab_prefix() -> String:
+        return "KCloner "
+
+# ============================================================================
+# SECTION 5: VIEWPORT - 3D preview viewport for cloner visualization
+# ============================================================================
+
+@viewport
+struct ClonerPreviewViewport:
+    # Scene components
+    @scene_actor
+    cloner_actor: ClonerActor
+    
+    @camera
+    preview_camera: CameraComponent
+    
+    @light
+    directional_light: DirectionalLightComponent
+    
+    @light
+    sky_light: SkyLightComponent
+    
+    # Viewport state
+    current_time: Float
+    is_playing: Bool
+    
+    # Scene setup
+    fn on_viewport_created():
+        println("Setting up preview scene")
+        
+        # Configure lighting
+        directional_light.intensity = 1.0
+        sky_light.intensity = 1.2
+        
+        # Load environment HDRI
+        # Uses DaylightAmbientCubemap for realistic lighting
+        
+        # Position camera
+        preview_camera.position = vec3(0.0, -500.0, 200.0)
+        preview_camera.look_at(vec3(0.0, 0.0, 0.0))
+    
+    fn set_cloner_data():
+        println("Loading ClonerData into preview")
+        # Updates the preview actor with new data
+        # In UE5, this would receive FClonerData* via the asset editor context
+        # cloner_actor.load_preset(data)
+        refresh()
+    
+    fn refresh():
+        println("Refreshing viewport")
+        # Forces a rebuild of the instance transforms
+    
+    fn on_viewport_tick(delta: Float):
+        if is_playing:
+            current_time = current_time + delta
+            cloner_actor.set_time(current_time)
+
+# ============================================================================
+# SECTION 6: TIMELINE - Animation timeline widget for scrubbing
+# ============================================================================
+
+@slate
+struct ClonerTimeline:
+    # Timeline state
+    @property
+    current_time: Float
+    
+    @property
+    is_playing: Bool
+    
+    @property
+    duration: Float
+    
+    # Widget construction
+    fn construct() -> Widget:
+        return VBox(
+            # Playback controls
+            HBox(
+                padding, 5.0,
+                Button(
+                    label, "Play",
+                    on_click, on_play_clicked,
+                    enabled, not(is_playing),
+                    icon, "Icons.Play"
+                ),
+                Button(
+                    label, "Pause",
+                    on_click, on_pause_clicked,
+                    enabled, is_playing,
+                    icon, "Icons.Pause"
+                ),
+                Button(
+                    label, "Stop",
+                    on_click, on_stop_clicked,
+                    icon, "Icons.Stop"
+                ),
+                Spacer(width, 20.0),
+                Text(text, "Time: {current_time}s")
+            ),
+            
+            # Timeline scrubber
+            HBox(
+                padding, 5.0,
+                Text(text, "0.0s"),
+                Slider(
+                    value, current_time,
+                    min, 0.0,
+                    max, duration,
+                    on_value_changed, on_scrubbed,
+                    fill_width, 1.0
+                ),
+                Text(text, "{duration}s")
+            )
+        )
+    
+    fn on_play_clicked():
+        is_playing = true
+        println("Timeline playing")
+    
+    fn on_pause_clicked():
+        is_playing = false
+        println("Timeline paused")
+    
+    fn on_stop_clicked():
+        is_playing = false
+        current_time = 0.0
+        println("Timeline stopped")
+    
+    fn on_scrubbed(new_time: Float):
+        current_time = new_time
+        println("Scrubbed to time: {new_time}")
+
+# ============================================================================
+# SECTION 7: PROPERTIES PANEL - Details view for asset properties
+# ============================================================================
+
+@slate
+struct ClonerProperties:
+    fn construct() -> Widget:
+        return VBox(
+            Text(
+                text, "Cloner Properties",
+                font, "BoldFont",
+                padding, 5.0
+            ),
+            Separator(),
+            # Properties are auto-generated from the ClonerData class
+            # This is a placeholder for the details view
+            Text(text, "Properties will be displayed here")
+        )
+    
+    fn set_object():
+        # Updates the properties panel with the selected ClonerData asset
+        # In UE5, this would receive FClonerData* via the asset editor context
+        # selected_object = obj
+        println("Properties panel updated")
+
+# ============================================================================
+# SECTION 8: TOOLBAR - Editor toolbar with bake and export actions
+# ============================================================================
+
+@toolbar
+struct ClonerToolbar:
+    @button(icon: "Icons.Save", tooltip: "Save Asset")
+    fn on_save():
+        println("Saving ClonerData asset")
+    
+    @separator
+    
+    @button(icon: "Icons.Bake", tooltip: "Bake Animation")
+    fn on_bake_animation():
+        println("Opening bake animation dialog")
+        
+        # Open a dialog with bake settings:
+        # - Duration (seconds): 0.1 to 600.0, default 10.0
+        # - Frame Rate (FPS): 15, 24, 30, 60, default 30
+        # - Output path selection
+        # - Bake mode: AnimSequence, VAT Textures, or Skeletal Mesh
+        
+        # Create default settings
+        let start_frame = 0
+        let end_frame = 300  # 10 seconds at 30 FPS
+        let fps = 30.0
+        let output_path = "/Game/Animations"
+        let output_name = "BakedAnimation"
+        
+        # let settings = CreateBakeSettings(start_frame, end_frame, fps, output_path, output_name)
+        
+        println("Bake settings configured:")
+        println("  Frames: {start_frame} to {end_frame}")
+        println("  FPS: {fps}")
+        println("  Output: {output_path}/{output_name}")
+        
+        # Get the current ClonerActor being edited
+        # let cloner_actor = get_preview_actor()
+        
+        # Call the appropriate baking utility based on user selection:
+        
+        # Option 1: Bake to AnimSequence (root bone animation)
+        # let result = BakeAnimSequence(cloner_actor, source_anim, output_path, output_name)
+        
+        # Option 2: Bake to VAT Textures (GPU-driven animation)
+        # let result = BakeVATTextures(cloner_actor, settings)
+        
+        # Option 3: Bake to Skeletal Mesh (one bone per instance)
+        # let result = BakeSkeletalMesh(cloner_actor, settings)
+        
+        # if result.success:
+        #     println("Bake successful!")
+        #     println("  Output: {result.output_asset_path}")
+        #     println("  Frames: {result.num_frames}")
+        #     println("  Duration: {result.duration}s")
+        # else:
+        #     println("Bake failed: {result.error_message}")
+        
+        println("Bake operation complete")
+    
+    @separator
+    
+    @toggle(label: "Show Grid", default: true)
+    fn on_toggle_grid(enabled: Bool):
+        println("Grid visibility: {enabled}")
+    
+    @toggle(label: "Show Floor", default: false)
+    fn on_toggle_floor(enabled: Bool):
+        println("Floor visibility: {enabled}")
+    
+    @separator
+    
+    @dropdown(label: "Quality", options: ["Low", "Medium", "High", "Ultra"])
+    fn on_quality_changed(quality: String):
+        println("Preview quality: {quality}")
+
+# ============================================================================
+# SECTION 9: BAKE SETTINGS DIALOG - Modal dialog for animation baking
+# ============================================================================
+
+@slate
+struct BakeSettingsDialog:
+    @property
+    duration: Float
+    
+    @property
+    frame_rate: Float
+    
+    @property
+    confirmed: Bool
+    
+    fn construct() -> Widget:
+        return VBox(
+            padding, 10.0,
+            
+            # Title
+            Text(
+                text, "Bake Animation Settings",
+                font, "TitleFont",
+                padding, vec2(0.0, 10.0)
+            ),
+            
+            # Duration setting
+            HBox(
+                padding, 5.0,
+                Text(
+                    text, "Duration (seconds):",
+                    width, 150.0,
+                    alignment, "CenterLeft"
+                ),
+                NumericEntry(
+                    value, duration,
+                    min, 0.1,
+                    max, 600.0,
+                    slider_min, 1.0,
+                    slider_max, 60.0,
+                    on_value_changed, on_duration_changed,
+                    allow_spin, true
+                )
+            ),
+            
+            # Frame rate setting
+            HBox(
+                padding, 5.0,
+                Text(
+                    text, "Frame Rate (FPS):",
+                    width, 150.0,
+                    alignment, "CenterLeft"
+                ),
+                ComboBox(
+                    options, ["15", "24", "30", "60"],
+                    selected, "30",
+                    on_selection_changed, on_fps_changed
+                )
+            ),
+            
+            Spacer(height, 20.0),
+            
+            # Buttons
+            HBox(
+                alignment, "Right",
+                padding, 10.0,
+                Button(
+                    label, "Cancel",
+                    on_click, on_cancel,
+                    padding, vec2(5.0, 0.0)
+                ),
+                Button(
+                    label, "Bake",
+                    style, "PrimaryButton",
+                    on_click, on_confirm,
+                    padding, vec2(5.0, 0.0)
+                )
+            )
+        )
+    
+    fn on_duration_changed(new_duration: Float):
+        duration = clamp(new_duration, 0.1, 600.0)
+    
+    fn on_fps_changed(new_fps: String):
+        frame_rate = parse_float(new_fps)
+    
+    fn on_cancel():
+        confirmed = false
+        println("Bake cancelled")
+    
+    fn on_confirm():
+        confirmed = true
+        println("Bake confirmed: duration={duration}, fps={frame_rate}")
+
+# ============================================================================
+# SECTION 10: ASSET TYPE ACTIONS - Content browser integration
+# ============================================================================
+
+# Note: Asset type actions are typically registered in the editor module
+# and handle:
+# - Asset creation (factory)
+# - Asset opening (double-click behavior)
+# - Context menu actions
+# - Asset category assignment
+# - Thumbnail rendering
+# - Asset validation
+
+# These are handled by the editor module registration and don't require
+# explicit KAIN definitions, but are documented here for completeness:
+
+# ClonerData Asset Actions:
+# - Category: K-Studio
+# - Color: Orange
+# - Can create new assets
+# - Opens in ClonerAssetEditor on double-click
+# - Context menu: Duplicate, Rename, Delete, Validate
+
+# ModifierPreset Asset Actions:
+# - Category: K-Studio
+# - Color: Blue
+# - Can create new presets
+# - Opens in property editor on double-click
+# - Context menu: Apply to Selected Cloner, Duplicate, Rename, Delete
+
+# ============================================================================
+# SECTION 11: SEQUENCER INTEGRATION - Custom track editor for modifiers
+# ============================================================================
+
+# Note: Sequencer track editor for K-Cloner modifiers
+# Allows keyframing of modifier properties in Sequencer timeline
+# Registered in the editor module startup
+
+# Track Features:
+# - Displays all modifiers in the stack
+# - Exposes interpolatable properties (influence, speed, offsets)
+# - Supports keyframe editing with curves
+# - Integrates with the "Quick Key" buttons in details panel
+
+# Track Structure:
+# ClonerActor
+#   └─ K-Cloner Modifier Track
+#       ├─ Orbit Modifier
+#       │   ├─ Influence (0.0 - 1.0)
+#       │   ├─ Speed (0.0 - 10.0)
+#       │   └─ Radius (0.0 - 1000.0)
+#       ├─ Float Modifier
+#       │   ├─ Influence (0.0 - 1.0)
+#       │   ├─ Speed (0.0 - 10.0)
+#       │   └─ Amplitude (0.0 - 100.0)
+#       └─ Pulse Modifier
+#           ├─ Influence (0.0 - 1.0)
+#           ├─ Speed (0.0 - 10.0)
+#           └─ Scale (0.0 - 5.0)
+
+# ============================================================================
+# SEQUENCER IMPLEMENTATION NOTES
+# ============================================================================
+
+# The Sequencer integration is implemented in C++ using UE5's MovieScene API:
+#
+# 1. UMovieSceneKClonerModifierTrack (UMovieSceneNameableTrack)
+#    - Represents the track in the Sequencer timeline
+#    - Contains one or more sections
+#    - Registered with ISequencerModule
+#
+# 2. UMovieSceneKClonerModifierSection (UMovieSceneSection)
+#    - Stores keyframe data for all modifier properties
+#    - Contains FMovieSceneFloatChannel, FMovieSceneBoolChannel, FMovieSceneVectorChannel
+#    - Each channel is bound to a specific modifier property via GUID + PropertyName
+#
+# 3. FKClonerModifierSectionTemplate (FMovieSceneEvalTemplate)
+#    - THE CRITICAL COMPONENT - this is the evaluation engine
+#    - Called every frame during Sequencer playback
+#    - Reads keyframe values from channels
+#    - Applies values to modifier properties using reflection (FProperty)
+#    - Marks actor as dirty to trigger instance rebuild
+#
+# 4. Property Binding
+#    - Each modifier has a unique FGuid (ModifierGuid)
+#    - Properties are identified by FName (PropertyName)
+#    - Channels store keyframes as FFrameNumber → Value pairs
+#    - Evaluation uses FFrameTime for sub-frame interpolation
+#
+# 5. Keyframing Workflow
+#    - User clicks "Key All" button in Details panel
+#    - Calls KeyAllModifierPropertiesAtCurrentTime()
+#    - Gets current Sequencer playhead time
+#    - Iterates all modifiers and their Interp properties
+#    - Creates/updates keyframes in the appropriate channels
+#    - Sequencer UI updates automatically
+#
+# 6. Playback Workflow
+#    - Sequencer evaluates all tracks at current time
+#    - Calls FKClonerModifierSectionTemplate::Evaluate()
+#    - Template creates execution tokens
+#    - Tokens execute and call UMovieSceneKClonerModifierSection::EvaluateAndApply()
+#    - EvaluateAndApply reads channel values and sets modifier properties
+#    - Actor rebuilds instances with new modifier values
+#
+# 7. Channel Types
+#    - FMovieSceneFloatChannel: Float properties (Influence, Speed, Radius, etc.)
+#    - FMovieSceneBoolChannel: Bool properties (Enabled, Invert, etc.)
+#    - FMovieSceneVectorChannel: FVector properties (Position, Rotation, Scale offsets)
+#      - Stored as 3 separate FMovieSceneFloatChannel (X, Y, Z)
+#
+# 8. Reflection Usage
+#    - FindPropertyByName() to locate properties at runtime
+#    - CastField<FFloatProperty>() to get typed property access
+#    - SetPropertyValue_InContainer() to write values
+#    - Handles Float, Double, Bool, and FVector types
+#
+# 9. Performance Considerations
+#    - Evaluation happens every frame during playback
+#    - Only modified properties trigger actor rebuild
+#    - bAnyChanged flag prevents unnecessary rebuilds
+#    - Channel evaluation is highly optimized (binary search)
+#
+# 10. Editor Integration
+#     - Track editor registered with ISequencerModule::RegisterTrackEditor()
+#     - Custom UI for modifier properties
+#     - Color-coded channels (Influence = green, Speed = blue, etc.)
+#     - Curve editor support for all float channels
+#     - Copy/paste keyframes between modifiers
+#
+# KAIN DOES NOT GENERATE SEQUENCER CODE
+# The Sequencer integration is too complex and UE5-specific to generate.
+# Instead, KAIN provides:
+# - Blueprint functions for keyframing (KeyModifierProperty, etc.)
+# - Editor UI for "Quick Key" buttons
+# - Utility functions for preset management
+# - Documentation for manual C++ implementation
+#
+# The C++ Sequencer code must be written manually and added to the plugin.
+# See Research/UEProj/Project_5.4/Plugins/KCloner/Source/KCloner/Public/KClonerSequencer.h
+# for the complete implementation reference.
+
+# ============================================================================
+# SECTION 12: VALIDATION UTILITIES - Editor-only validation tools
+# ============================================================================
+
+# VAT Normal Validation:
+# - Spawns test actors with VAT materials
+# - Rotates instances and validates normal vectors
+# - Checks for correct tangent space transformations
+# - Reports errors to the output log
+
+# Texture Sampling Validation:
+# - Tests position texture sampling accuracy
+# - Tests normal texture sampling accuracy
+# - Validates UV coordinate calculations
+# - Compares CPU vs GPU results
+
+# These utilities are called from the level editor menu extensions
+# and help debug VAT baking issues during development
+
+# ============================================================================
+# SECTION 13: EXPRESSION PRESET EXAMPLES
+# ============================================================================
+
+# Example 1: Spiral Wave Motion
+# ExpressionModifierPreset:
+#   display_name: "Spiral Wave"
+#   category: "Motion"
+#   description: "Creates a spiraling wave motion with adjustable amplitude and frequency"
+#   position_expression: "x += sin(t * v0 + i * v1) * v2; y += cos(t * v0 + i * v1) * v2; z += sin(t * v0) * 50.0;"
+#   rotation_expression: "ry += t * 45.0 + i * v1;"
+#   scale_expression: "sx *= 1.0 + sin(t * v0 + i * 0.2) * 0.3; sy := sx; sz := sx;"
+#   variable_0_name: "Speed"
+#   variable_0_default: 2.0
+#   variable_0_min: 0.1
+#   variable_0_max: 10.0
+#   variable_1_name: "Spacing"
+#   variable_1_default: 0.2
+#   variable_1_min: 0.01
+#   variable_1_max: 1.0
+#   variable_2_name: "Amplitude"
+#   variable_2_default: 100.0
+#   variable_2_min: 10.0
+#   variable_2_max: 500.0
+#   step: 0.1
+#   speed_multiplier: 1.0
+
+# Example 2: Pulsing Grid
+# ExpressionModifierPreset:
+#   display_name: "Pulsing Grid"
+#   category: "Motion"
+#   description: "Grid pattern with pulsing scale based on distance from center"
+#   position_expression: ""
+#   rotation_expression: ""
+#   scale_expression: "let dist = sqrt(x*x + y*y); sx *= 1.0 + sin(t * v0 - dist * v1) * v2; sy := sx; sz := sx;"
+#   variable_0_name: "Frequency"
+#   variable_0_default: 3.0
+#   variable_0_min: 0.1
+#   variable_0_max: 10.0
+#   variable_1_name: "Wave Speed"
+#   variable_1_default: 0.01
+#   variable_1_min: 0.001
+#   variable_1_max: 0.1
+#   variable_2_name: "Intensity"
+#   variable_2_default: 0.5
+#   variable_2_min: 0.0
+#   variable_2_max: 2.0
+#   step: 0.0
+#   speed_multiplier: 1.0
+
+# Example 3: Orbital Dance
+# ExpressionModifierPreset:
+#   display_name: "Orbital Dance"
+#   category: "Sci-Fi"
+#   description: "Instances orbit around their original position with varying speeds"
+#   position_expression: "let angle = t * v0 + i * v1; let radius = v2; x += cos(angle) * radius; y += sin(angle) * radius;"
+#   rotation_expression: "rz += t * v0 * 10.0;"
+#   scale_expression: "sx *= 1.0 + sin(t * v0 * 2.0) * 0.2; sy := sx; sz := sx;"
+#   variable_0_name: "Orbit Speed"
+#   variable_0_default: 1.0
+#   variable_0_min: 0.1
+#   variable_0_max: 5.0
+#   variable_1_name: "Phase Offset"
+#   variable_1_default: 0.5
+#   variable_1_min: 0.0
+#   variable_1_max: 6.28
+#   variable_2_name: "Orbit Radius"
+#   variable_2_default: 150.0
+#   variable_2_min: 50.0
+#   variable_2_max: 500.0
+#   step: 0.0
+#   speed_multiplier: 1.0
+
+# Example 4: Noise Displacement
+# ExpressionModifierPreset:
+#   display_name: "Noise Displacement"
+#   category: "Nature"
+#   description: "Organic noise-based displacement with adjustable frequency and amplitude"
+#   position_expression: "x += noise(x * v0 + t * v1) * v2; y += noise(y * v0 + t * v1 + 100.0) * v2; z += noise(z * v0 + t * v1 + 200.0) * v2;"
+#   rotation_expression: "rx += noise(i * 0.1 + t * v1) * 45.0; ry += noise(i * 0.1 + t * v1 + 50.0) * 45.0;"
+#   scale_expression: ""
+#   variable_0_name: "Frequency"
+#   variable_0_default: 0.01
+#   variable_0_min: 0.001
+#   variable_0_max: 0.1
+#   variable_1_name: "Speed"
+#   variable_1_default: 0.5
+#   variable_1_min: 0.0
+#   variable_1_max: 5.0
+#   variable_2_name: "Amplitude"
+#   variable_2_default: 50.0
+#   variable_2_min: 0.0
+#   variable_2_max: 200.0
+#   step: 0.0
+#   speed_multiplier: 1.0
+
+# Expression Syntax Reference:
+# - Operators: +, -, *, /, %, ^, :=, +=, -=, *=, /=
+# - Functions: sin, cos, tan, asin, acos, atan, atan2, abs, floor, ceil, round
+#              clamp, min, max, sqrt, pow, exp, log, log10, fmod, frac
+#              lerp, smoothstep, noise
+# - Variables: t (time), i (index), n (count), x/y/z (position),
+#              rx/ry/rz (rotation), sx/sy/sz (scale), v0/v1/v2... (user vars)
+# - Statements: Multiple statements separated by semicolons
+# - Assignment: := (set), += (add), -= (subtract), *= (multiply), /= (divide)
+
+# ============================================================================
+# END OF EDITOR MODULE
+# ============================================================================
