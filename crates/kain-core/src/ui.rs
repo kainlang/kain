@@ -983,7 +983,10 @@ fn compiler_emitted_runtime_truth_exists(output: &UiBuildOutput) -> bool {
         || !output.systems.animation_tracks.is_empty()
         || !output.systems.surfaces.is_empty()
         || !theme_registry_is_empty(&output.systems.theme_registry)
-        || !output.systems.workspace_layout.is_empty()
+        || !output.systems.workspace_layout.roots.is_empty()
+        || output.systems.workspace_layout.persistence_key.is_some()
+        || output.systems.workspace_layout.virtualization_enabled
+        || !output.systems.workspace_layout.active_tabs.is_empty()
         || output
             .systems
             .session_state

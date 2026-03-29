@@ -257,6 +257,8 @@ static int kain_ui_extract_bool_field(
     return 0;
 }
 
+static KainUiCompiledNodeKind kain_ui_parse_node_kind(const char* value);
+
 static int kain_ui_extract_object_field_bounds(
     const char* scope_start,
     const char* scope_end,
