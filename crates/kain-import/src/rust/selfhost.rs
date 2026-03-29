@@ -386,6 +386,10 @@ fn is_test_like_file(path: &Path) -> bool {
 fn is_allowed_diagnostic(diag: &str, options: &RustSelfHostOptions) -> bool {
     let diag_class = classify_diagnostic(diag);
 
+    if is_always_fatal_diagnostic_class(diag_class) {
+        return false;
+    }
+
     if options
         .allowlist
         .hard_fail_conditions
@@ -408,6 +412,18 @@ fn is_allowed_diagnostic(diag: &str, options: &RustSelfHostOptions) -> bool {
         return true;
     }
     false
+}
+
+fn is_always_fatal_diagnostic_class(diag_class: Option<&'static str>) -> bool {
+    matches!(
+        diag_class,
+        Some("dyn_trait_lowering")
+            | Some("macro_direct_lowering_miss")
+            | Some("macro_policy_rejected")
+            | Some("unsupported_expr_lowering")
+            | Some("unsupported_literal_lowering")
+            | Some("unsupported_pattern_lowering")
+    )
 }
 
 fn marker_matches_diagnostic(marker: &str, diag: &str, diag_class: Option<&'static str>) -> bool {
@@ -464,6 +480,9 @@ fn marker_class(marker: &str) -> Option<&'static str> {
     if normalized.contains("unsupported expression kind") {
         return Some("unsupported_expr_lowering");
     }
+    if normalized.contains("closure pattern binding lowered lossy") {
+        return Some("closure_pattern_lowering");
+    }
     if normalized.contains("unsupported literal lowered to none") {
         return Some("unsupported_literal_lowering");
     }
@@ -511,6 +530,9 @@ fn classify_diagnostic(diag: &str) -> Option<&'static str> {
     if normalized.contains("unsupported expression kind") {
         return Some("unsupported_expr_lowering");
     }
+    if normalized.contains("closure pattern binding lowered lossy") {
+        return Some("closure_pattern_lowering");
+    }
     if normalized.contains("unsupported literal lowered to none") {
         return Some("unsupported_literal_lowering");
     }
@@ -541,6 +563,7 @@ fn known_diagnostic_class(value: &str) -> Option<&'static str> {
         "macro_direct_lowering_miss" => Some("macro_direct_lowering_miss"),
         "macro_policy_rejected" => Some("macro_policy_rejected"),
         "trait_surface_lowering" => Some("trait_surface_lowering"),
+        "closure_pattern_lowering" => Some("closure_pattern_lowering"),
         "unsupported_expr_lowering" => Some("unsupported_expr_lowering"),
         "unsupported_literal_lowering" => Some("unsupported_literal_lowering"),
         "unsupported_pattern_lowering" => Some("unsupported_pattern_lowering"),
@@ -768,5 +791,16 @@ mod tests {
         let diag =
             "SELFHOST_STRICT [class:unsupported_pattern_lowering]: unsupported pattern lowered to wildcard";
         assert!(is_allowed_diagnostic(diag, &options));
+    }
+
+    #[test]
+    fn always_fatal_semantic_loss_classes_ignore_phase1_allowlist() {
+        let mut options = RustSelfHostOptions::default();
+        options
+            .allowlist
+            .phase1_acceptable_diagnostics
+            .push("class:dyn_trait_lowering".to_string());
+        let diag = "SELFHOST_STRICT [class:dyn_trait_lowering]: dyn trait type lowered to impl Write (dynamic dispatch semantics narrowed)";
+        assert!(!is_allowed_diagnostic(diag, &options));
     }
 }

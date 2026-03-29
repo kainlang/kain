@@ -5,6 +5,61 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=518d2c8a8d0b1a86 -->
+## 2026-03-29 04:02:55 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `da7be8da`
+- Changed files: 10
+- [.M] `crates/cli/src/import_rust.rs`
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-core/src/ui.rs`
+- [.M] `crates/kain-import/src/rust/mod.rs`
+- [.M] `crates/kain-import/src/rust/selfhost.rs`
+- [.M] `crates/kain-import/src/rust/transformer.rs`
+- [.M] `crates/kain-import/src/rust/types.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+- [.M] `crates/kain-ui/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=fb79a12d52863529 -->
+## 2026-03-29 04:02:15 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `da7be8da`
+- Changed files: 9
+- [.M] `crates/cli/src/import_rust.rs`
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-core/src/ui.rs`
+- [.M] `crates/kain-import/src/rust/mod.rs`
+- [.M] `crates/kain-import/src/rust/selfhost.rs`
+- [.M] `crates/kain-import/src/rust/transformer.rs`
+- [.M] `crates/kain-import/src/rust/types.rs`
+- [.M] `crates/kain-ui-native/src/lib.rs`
+
+<!-- polytools-changelog:fingerprint=c4ac583990ebbafa -->
+## 2026-03-29 04:01:17 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `da7be8da`
+- Changed files: 7
+- [.M] `crates/cli/src/import_rust.rs`
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-import/src/rust/mod.rs`
+- [.M] `crates/kain-import/src/rust/selfhost.rs`
+- [.M] `crates/kain-import/src/rust/transformer.rs`
+- [.M] `crates/kain-import/src/rust/types.rs`
+
+<!-- polytools-changelog:fingerprint=82bdaf72e3255d84 -->
+## 2026-03-29 03:59:48 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `da7be8da`
+- Changed files: 5
+- [.M] `crates/cli/src/import_rust.rs`
+- [.M] `crates/kain-import/src/rust/mod.rs`
+- [.M] `crates/kain-import/src/rust/selfhost.rs`
+- [.M] `crates/kain-import/src/rust/transformer.rs`
+- [.M] `crates/kain-import/src/rust/types.rs`
+
 <!-- polytools-changelog:fingerprint=7f8c2f7da2c8d2c4 -->
 ## 2026-03-29 03:52:14 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

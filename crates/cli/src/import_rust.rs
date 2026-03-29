@@ -33,12 +33,19 @@ struct ImportRustSummary {
     imported_files: usize,
     skipped_files: usize,
     failed_files: Vec<(PathBuf, String)>,
+    diagnostics: Vec<(PathBuf, Vec<String>)>,
 }
 
 #[derive(Debug, Serialize)]
 struct ImportRustFailureEntry {
     file: String,
     error: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ImportRustDiagnosticEntry {
+    file: String,
+    diagnostics: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -54,6 +61,7 @@ struct ImportRustFailureReport {
     imported_files: usize,
     skipped_files: usize,
     failed_files: Vec<ImportRustFailureEntry>,
+    lossy_diagnostics: Vec<ImportRustDiagnosticEntry>,
     generated_kain_path: Option<String>,
     compiled_output_path: Option<String>,
     generated_at_utc: String,
@@ -162,6 +170,13 @@ pub fn import_rust_with_batch(
                 println!("     ... {} more", summary.failed_files.len() - 20);
             }
         }
+        if !summary.diagnostics.is_empty() {
+            let total_diags: usize = summary.diagnostics.iter().map(|(_, diags)| diags.len()).sum();
+            println!("   Lossy lowering: {} diagnostic(s) across {} file(s)", total_diags, summary.diagnostics.len());
+        }
+    } else if !summary.diagnostics.is_empty() {
+        let total_diags: usize = summary.diagnostics.iter().map(|(_, diags)| diags.len()).sum();
+        println!("   Lossy lowering: {} diagnostic(s)", total_diags);
     }
 
     maybe_write_failure_report(
@@ -182,13 +197,14 @@ fn import_path_to_program(
     batch: &ImportRustBatchOptions,
 ) -> KainResult<(kain_core::ast::Program, ImportRustSummary)> {
     if input.is_file() {
-        let program = kain_import::import_rust(input)
+        let (program, diagnostics) = kain_import::import_rust_file_detailed(input)
             .map_err(|e| KainError::runtime(format!("Rust import failed: {}", e)))?;
         return Ok((
             program,
             ImportRustSummary {
                 discovered_files: 1,
                 imported_files: 1,
+                diagnostics: if diagnostics.is_empty() { Vec::new() } else { vec![(input.to_path_buf(), diagnostics)] },
                 ..ImportRustSummary::default()
             },
         ));
@@ -222,9 +238,12 @@ fn import_path_to_program(
             continue;
         }
 
-        match kain_import::import_rust(&file) {
-            Ok(program) => {
+        match kain_import::import_rust_file_detailed(&file) {
+            Ok((program, diagnostics)) => {
                 summary.imported_files += 1;
+                if !diagnostics.is_empty() {
+                    summary.diagnostics.push((file.clone(), diagnostics));
+                }
 
                 if batch.flat {
                     merged_items.extend(program.items);
@@ -324,6 +343,14 @@ fn maybe_write_failure_report(
                 error: error.clone(),
             })
             .collect(),
+        lossy_diagnostics: summary
+            .diagnostics
+            .iter()
+            .map(|(path, diagnostics)| ImportRustDiagnosticEntry {
+                file: path.display().to_string(),
+                diagnostics: diagnostics.clone(),
+            })
+            .collect(),
         generated_kain_path: generated_kain_path.map(|p| p.display().to_string()),
         compiled_output_path: compiled_output_path.map(|p| p.display().to_string()),
         generated_at_utc: chrono::Utc::now().to_rfc3339(),
@@ -360,7 +387,15 @@ fn resolve_report_path(
         return Some(path.clone());
     }
 
-    if input.is_dir() && !summary.failed_files.is_empty() {
+    if input.is_dir() && (!summary.failed_files.is_empty() || !summary.diagnostics.is_empty()) {
+        return Some(
+            output
+                .map(|out| out.with_extension("import_report.json"))
+                .unwrap_or_else(|| input.with_extension("import_report.json")),
+        );
+    }
+
+    if input.is_file() && !summary.diagnostics.is_empty() {
         return Some(
             output
                 .map(|out| out.with_extension("import_report.json"))
@@ -610,7 +645,7 @@ fn write_struct(output: &mut String, s: &kain_core::ast::Struct, indent: usize) 
     write_line(output, indent, &format!("struct {}:", s.name))?;
 
     if s.fields.is_empty() {
-        write_line(output, indent + 1, "# empty Rust struct lowered to pass")?;
+        write_line(output, indent + 1, "# LOSSY LOWERING: empty Rust struct lowered to pass")?;
     } else {
         for field in &s.fields {
             write_line(
@@ -632,7 +667,7 @@ fn write_enum(output: &mut String, e: &kain_core::ast::Enum, indent: usize) -> K
     write_line(output, indent, &format!("enum {}:", e.name))?;
 
     if e.variants.is_empty() {
-        write_line(output, indent + 1, "# empty Rust enum lowered to pass")?;
+        write_line(output, indent + 1, "# LOSSY LOWERING: empty Rust enum lowered to pass")?;
     } else {
         for variant in &e.variants {
             let variant_str = match &variant.fields {
@@ -672,7 +707,7 @@ fn write_trait(
 
     write_line(output, indent, &format!("trait {}:", value.name))?;
     if value.methods.is_empty() {
-        write_line(output, indent + 1, "# empty Rust impl lowered to pass")?;
+        write_line(output, indent + 1, "# LOSSY LOWERING: empty Rust impl lowered to pass")?;
     } else {
         for method in &value.methods {
             let mut signature = format!("fn {}(", method.name);
@@ -715,7 +750,7 @@ fn write_impl(output: &mut String, value: &kain_core::ast::Impl, indent: usize) 
     write_line(output, indent, &header)?;
 
     if value.methods.is_empty() {
-        write_line(output, indent + 1, "# empty Rust impl lowered to pass")?;
+        write_line(output, indent + 1, "# LOSSY LOWERING: empty Rust impl lowered to pass")?;
     } else {
         for method in &value.methods {
             write_function(output, method, indent + 1)?;
@@ -733,7 +768,7 @@ fn write_block(
     indent: usize,
 ) -> KainResult<()> {
     if block.stmts.is_empty() {
-        write_line(output, indent, "# empty Rust block lowered to pass")?;
+        write_line(output, indent, "# LOSSY LOWERING: empty Rust block lowered to pass")?;
         return Ok(());
     }
 
@@ -766,7 +801,7 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
                 write_line(output, indent, "return")
             }
         }
-        _ => write_line(output, indent, "# unsupported Rust statement lowered as placeholder; inspect source AST"),
+        _ => write_line(output, indent, "# LOSSY LOWERING: unsupported Rust statement lowered as placeholder; inspect source AST"),
     }
 }
 
@@ -799,7 +834,7 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
         kain_core::ast::Expr::None(_) => "none".to_string(),
         kain_core::ast::Expr::Ident(name, _) => name.clone(),
         kain_core::ast::Expr::AsyncBlock(value, _) => format!("async {}", expr_to_string(value)),
-        _ => "# unsupported Rust expression lowered as placeholder; inspect source AST".to_string(),
+        _ => "# LOSSY LOWERING: unsupported Rust expression lowered as placeholder; inspect source AST".to_string(),
     }
 }
 
@@ -916,4 +951,18 @@ fn count_enums(program: &kain_core::ast::Program) -> usize {
         .iter()
         .filter(|item| matches!(item, kain_core::ast::Item::Enum(_)))
         .count()
+}
+
+
+fn count_enums(program: &kain_core::ast::Program) -> usize {
+    program
+        .items
+        .iter()
+        .filter(|item| matches!(item, kain_core::ast::Item::Enum(_)))
+        .count()
+}
+tem| matches!(item, kain_core::ast::Item::Enum(_)))
+        .count()
+}
+     .count()
 }

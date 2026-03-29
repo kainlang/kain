@@ -41,11 +41,12 @@ use kain_core::{
 };
 use kain_ui::{
     ui_resolve_theme_for_node, ui_runtime_bundle_from_json, ui_runtime_bundle_from_output,
-    ui_runtime_bundle_to_json, ui_step_animation_runtime, ui_transfer_hot_reload_state,
+    ui_runtime_bundle_to_json, ui_step_animation_runtime,
     validate_ui_runtime_bundle, UiBuildOutput, UiLayoutAlignment, UiLayoutKind, UiLength,
-    UiLengthUnit, UiNode, UiNodeId, UiOverflowBehavior, UiPatch, UiResolvedTheme, UiRuntimeBundle,
-    UiRuntimeMetadata, UiStyleState, UiSurface, UiSurfaceCompositionMode, UiSurfaceKind,
-    UiSurfaceRendererPreference, UiThemeRegistry, UiTree, UiValue, UiWidgetKind,
+    UiLengthUnit, UiNode, UiNodeId, UiOverflowBehavior, UiPatch, UiResolvedTheme, UiRuntime,
+    UiRuntimeBundle, UiRuntimeMetadata, UiRuntimeStepInput, UiStyleState, UiSurface,
+    UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference, UiThemeRegistry, UiTree,
+    UiValue, UiWidgetKind,
     UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
 };
 use wgpu::util::DeviceExt;
@@ -3096,6 +3097,7 @@ fn snap_vec3(value: Vec3, step: f32) -> Vec3 {
 struct KainUiNativeApp {
     config: KainUiNativeAppConfig,
     runtime_settings: KainUiNativeRuntimeSettings,
+    runtime: UiRuntime,
     output: UiBuildOutput,
     debug_tree: String,
     app_manifest_path: Option<String>,
@@ -3184,10 +3186,12 @@ impl KainUiNativeApp {
             command_bridge_path.as_deref().unwrap_or("<none>"),
             runtime_snapshot_origin.as_deref().unwrap_or("<none>"),
         ));
+        let runtime = UiRuntime::new(output.tree.clone(), output.systems.clone());
         let debug_tree = render_ui_output_debug(&output);
         Self {
             config,
             runtime_settings,
+            runtime,
             output,
             debug_tree,
             app_manifest_path,
@@ -3209,6 +3213,21 @@ impl KainUiNativeApp {
             frame_dt_seconds: 1.0 / 60.0,
             boot_mode,
         }
+    }
+
+    fn runtime_output_snapshot(&self) -> UiBuildOutput {
+        UiBuildOutput {
+            tree: self.runtime.tree.clone(),
+            patches: Vec::new(),
+            systems: self.runtime.systems.clone(),
+        }
+    }
+
+    fn sync_render_output_from_runtime(&mut self, patches: Vec<UiPatch>) {
+        self.output.tree = self.runtime.tree.clone();
+        self.output.systems = self.runtime.systems.clone();
+        self.output.patches = patches;
+        self.debug_tree = render_ui_output_debug(&self.output);
     }
 
     fn emit_runtime_command(&self, command: &NativeAppRuntimeCommand) {
@@ -3509,9 +3528,9 @@ impl KainUiNativeApp {
             return;
         }
 
-        let mut next_output = bundle.output.clone();
-        let previous_output = std::mem::replace(&mut self.output, next_output.clone());
-        let report = ui_transfer_hot_reload_state(&previous_output, &mut next_output);
+        let previous_output = self.runtime_output_snapshot();
+        let reload_output = self.runtime.reload(bundle.output);
+        let next_output = self.runtime_output_snapshot();
         let previous_viewport_surfaces = std::mem::take(&mut self.viewport_surfaces);
         let previous_shader_surfaces = std::mem::take(&mut self.shader_surfaces);
         self.viewport_surfaces =
@@ -3519,8 +3538,7 @@ impl KainUiNativeApp {
         self.shader_surfaces =
             transfer_surface_state_map(&previous_output, &next_output, previous_shader_surfaces);
         self.shader_surface_texture_cache.clear();
-        self.output = next_output;
-        self.debug_tree = render_ui_output_debug(&self.output);
+        self.sync_render_output_from_runtime(Vec::new());
         self.config.window_title = bundle.metadata.window_title.clone();
         self.config.root_component = bundle.metadata.root_component.clone();
         self.config.initial_window_size = bundle.metadata.initial_window_size;
@@ -3528,11 +3546,11 @@ impl KainUiNativeApp {
         trace_runtime(format!(
             "runtime_reload: applied runtime bundle {} focus={} selection={} docking={} animations={} session={}",
             path,
-            report.focus_transferred,
-            report.selection_transferred,
-            report.docking_transferred,
-            report.animation_tracks_transferred,
-            report.session_values_transferred,
+            reload_output.report.focus_transferred,
+            reload_output.report.selection_transferred,
+            reload_output.report.docking_transferred,
+            reload_output.report.animation_tracks_transferred,
+            reload_output.report.session_values_transferred,
         ));
     }
 
@@ -5093,19 +5111,24 @@ impl eframe::App for KainUiNativeApp {
             .clamp(1.0 / 240.0, 0.050);
         self.last_frame_instant = frame_now;
         self.poll_runtime_reloads();
-
-        let app_theme = resolve_app_theme(&self.output);
-        apply_runtime_visuals(ctx, &app_theme);
         ctx.request_repaint_after(Duration::from_millis(
             self.runtime_settings.repaint_interval_ms,
         ));
         self.viewport_input = snapshot_viewport_input(ctx);
         self.viewport_surfaces
-            .retain(|id, _| self.output.tree.nodes.contains_key(id));
+            .retain(|id, _| self.runtime.tree.nodes.contains_key(id));
         self.shader_surfaces
-            .retain(|id, _| self.output.tree.nodes.contains_key(id));
+            .retain(|id, _| self.runtime.tree.nodes.contains_key(id));
         let animation_delta_ms = (self.frame_dt_seconds * 1000.0).round().clamp(1.0, 64.0) as u32;
-        let _ = ui_step_animation_runtime(&mut self.output.systems, animation_delta_ms);
+        let step_output = self.runtime.step(&UiRuntimeStepInput {
+            transaction_label: Some("native_frame_tick".to_string()),
+            delta_ms: animation_delta_ms,
+            events: Vec::new(),
+            signal_updates: Vec::new(),
+        });
+        self.sync_render_output_from_runtime(step_output.tree_patches);
+        let app_theme = resolve_app_theme(&self.output);
+        apply_runtime_visuals(ctx, &app_theme);
         let theme_registry = self.output.systems.theme_registry.clone();
         let product_shell = is_product_desktop_theme(&app_theme, self.app_runtime_snapshot.as_ref());
         let show_topbar = show_runtime_topbar(&app_theme, !product_shell);

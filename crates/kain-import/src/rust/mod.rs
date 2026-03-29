@@ -67,11 +67,23 @@ pub fn import_rust_file(path: &Path) -> Result<Program> {
     import_rust_source(&source, path)
 }
 
+/// Import a single Rust source file and return diagnostics.
+pub fn import_rust_file_detailed(path: &Path) -> Result<(Program, Vec<String>)> {
+    let source = std::fs::read_to_string(path).map_err(ImportError::IoError)?;
+    import_rust_source_detailed(&source, path)
+}
+
 /// Import Rust source from a string (useful for testing and REPL use).
 pub fn import_rust_source(source: &str, path: &Path) -> Result<Program> {
+    import_rust_source_detailed(source, path).map(|(program, _)| program)
+}
+
+/// Import Rust source from a string and return diagnostics.
+pub fn import_rust_source_detailed(source: &str, path: &Path) -> Result<(Program, Vec<String>)> {
     let file = parser::parse_rust(source, path)?;
     let mut tx = RustTransformer::new();
-    tx.transform(file)
+    let program = tx.transform(file)?;
+    Ok((program, tx.diagnostics))
 }
 
 /// Import multiple Rust files into a single merged KAIN program (flat mode).
@@ -79,7 +91,13 @@ pub fn import_rust_source(source: &str, path: &Path) -> Result<Program> {
 /// All symbols land in top-level scope. Use this for self-hosting imports
 /// where you want the entire compiler in one `.kn` file.
 pub fn import_rust_project(paths: &[&Path]) -> Result<Program> {
+    import_rust_project_detailed(paths).map(|(program, _)| program)
+}
+
+/// Import multiple Rust files into a single merged KAIN program and return diagnostics.
+pub fn import_rust_project_detailed(paths: &[&Path]) -> Result<(Program, Vec<String>)> {
     let mut all_items = Vec::new();
+    let mut diagnostics = Vec::new();
     let span = kain_core::span::Span::default();
 
     for path in paths {
@@ -88,12 +106,16 @@ pub fn import_rust_project(paths: &[&Path]) -> Result<Program> {
         let mut tx = RustTransformer::new();
         let program = tx.transform(file)?;
         all_items.extend(program.items);
+        diagnostics.extend(tx.diagnostics);
     }
 
-    Ok(Program {
-        items: all_items,
-        span,
-    })
+    Ok((
+        Program {
+            items: all_items,
+            span,
+        },
+        diagnostics,
+    ))
 }
 
 /// Recursively collect and import all `.rs` files under a directory.
@@ -101,19 +123,25 @@ pub fn import_rust_project(paths: &[&Path]) -> Result<Program> {
 /// `flat = true`  → all symbols merged into one top-level scope (for self-hosting)
 /// `flat = false` → each file wrapped in a `mod <name>:` block
 pub fn import_rust_dir(dir: &Path, flat: bool) -> Result<Program> {
+    import_rust_dir_detailed(dir, flat).map(|(program, _)| program)
+}
+
+/// Import a Rust directory and return diagnostics.
+pub fn import_rust_dir_detailed(dir: &Path, flat: bool) -> Result<(Program, Vec<String>)> {
     let files = collect_rust_files(dir)?;
     let paths: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
 
     if flat {
-        import_rust_project(&paths)
+        import_rust_project_detailed(&paths)
     } else {
-        import_rust_project_modular(&paths)
+        import_rust_project_modular_detailed(&paths)
     }
 }
 
 /// Import with per-file module wrapping (mirrors Rust's directory/module layout).
-fn import_rust_project_modular(paths: &[&Path]) -> Result<Program> {
-    let mut top_items = Vec::new();
+fn import_rust_project_detailed(paths: &[&Path]) -> Result<(Program, Vec<String>)> {
+    let mut all_items = Vec::new();
+    let mut diagnostics = Vec::new();
     let span = kain_core::span::Span::default();
 
     for path in paths {
@@ -121,6 +149,24 @@ fn import_rust_project_modular(paths: &[&Path]) -> Result<Program> {
         let file = parser::parse_rust(&source, path)?;
         let mut tx = RustTransformer::new();
         let program = tx.transform(file)?;
+        all_items.extend(program.items);
+        diagnostics.extend(tx.diagnostics);
+    }
+
+    Ok((Program { items: all_items, span }, diagnostics))
+}
+
+fn import_rust_project_modular_detailed(paths: &[&Path]) -> Result<(Program, Vec<String>)> {
+    let mut top_items = Vec::new();
+    let mut diagnostics = Vec::new();
+    let span = kain_core::span::Span::default();
+
+    for path in paths {
+        let source = std::fs::read_to_string(path).map_err(ImportError::IoError)?;
+        let file = parser::parse_rust(&source, path)?;
+        let mut tx = RustTransformer::new();
+        let program = tx.transform(file)?;
+        diagnostics.extend(tx.diagnostics);
 
         let module_path = module_path_for_file(path);
         if module_path.is_empty() {
@@ -130,10 +176,7 @@ fn import_rust_project_modular(paths: &[&Path]) -> Result<Program> {
         }
     }
 
-    Ok(Program {
-        items: top_items,
-        span,
-    })
+    Ok((Program { items: top_items, span }, diagnostics))
 }
 
 fn module_path_for_file(path: &Path) -> Vec<String> {

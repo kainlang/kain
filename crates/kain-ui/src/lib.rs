@@ -1366,7 +1366,7 @@ pub fn ui_runtime_bundle_from_output(
     output: UiBuildOutput,
 ) -> UiRuntimeBundle {
     let mut output = output;
-    if output.systems.is_empty() {
+    if ui_runtime_bundle_requires_compatibility_backfill(&output) {
         // Compatibility-only fallback for legacy bundles.
         // New authored UI must emit runtime systems explicitly.
         output.systems = ui_runtime_systems_from_tree(&output.tree);
@@ -1379,13 +1379,27 @@ pub fn ui_runtime_bundle_from_output(
             UiValue::String("tree_shape_backfill".to_string()),
         );
     }
-    let native_projection = ui_native_projection_from_output(&output);
+    let native_projection = build_compatibility_native_projection(&output);
     UiRuntimeBundle {
         schema_version: UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
         metadata,
         output,
         native_projection,
     }
+}
+
+fn ui_runtime_bundle_requires_compatibility_backfill(output: &UiBuildOutput) -> bool {
+    matches!(
+        output
+            .systems
+            .session_state
+            .get("ui.runtime.force_compatibility_backfill"),
+        Some(UiValue::Bool(true))
+    ) || output.systems.is_empty()
+}
+
+fn build_compatibility_native_projection(output: &UiBuildOutput) -> UiNativeProjection {
+    ui_native_projection_from_output(output)
 }
 
 pub fn ui_runtime_bundle_to_json(bundle: &UiRuntimeBundle) -> Result<String, serde_json::Error> {

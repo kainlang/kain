@@ -490,12 +490,12 @@ impl RustTransformer {
     }
 
     fn map_type_checked(&mut self, ty: &syn::Type) -> Type {
-        if let Some(trait_name) = dyn_trait_name(ty) {
+        if let Some((kind, trait_name)) = trait_like_type_name(ty) {
             self.note_lossy_class(
-                "dyn_trait_lowering",
+                "trait_object_lowering",
                 format!(
-                    "dyn trait type lowered to impl {} (dynamic dispatch semantics narrowed)",
-                    trait_name
+                    "{} lowered to impl {} (dynamic dispatch semantics narrowed)",
+                    kind, trait_name
                 ),
             );
         }
@@ -1559,6 +1559,15 @@ impl RustTransformer {
                 Ok(Expr::Try(Box::new(inner), S))
             }
 
+            syn::Expr::TryBlock(tb) => {
+                self.note_lossy_class(
+                    "unsupported_expr_lowering",
+                    "try block lowered as plain block; ? semantics preserved only where inner expressions retain it".to_string(),
+                );
+                let block = self.transform_block(&tb.block)?;
+                Ok(Expr::Block(block, S))
+            }
+
             // ── await ─────────────────────────────────────────────────────
             syn::Expr::Await(a) => {
                 let inner = self.transform_expr(&a.base)?;
@@ -1593,11 +1602,12 @@ impl RustTransformer {
             }
 
             // ── Dereference: `*expr` ──────────────────────────────────────
-            // ── Paren ─────────────────────────────────────────────────────
+            // ── Paren / Group ─────────────────────────────────────────────
             syn::Expr::Paren(p) => {
                 let inner = self.transform_expr(&p.expr)?;
                 Ok(Expr::Paren(Box::new(inner), S))
             }
+            syn::Expr::Group(g) => self.transform_expr(&g.expr),
 
             // ── Range ─────────────────────────────────────────────────────
             syn::Expr::Range(r) => {
@@ -2670,7 +2680,7 @@ fn member_name(member: &syn::Member) -> String {
     }
 }
 
-fn dyn_trait_name(ty: &syn::Type) -> Option<String> {
+fn trait_like_type_name(ty: &syn::Type) -> Option<(&'static str, String)> {
     match ty {
         syn::Type::TraitObject(obj) => obj.bounds.iter().find_map(|bound| {
             if let syn::TypeParamBound::Trait(trait_bound) = bound {
@@ -2678,27 +2688,38 @@ fn dyn_trait_name(ty: &syn::Type) -> Option<String> {
                     .path
                     .segments
                     .last()
-                    .map(|segment| segment.ident.to_string())
+                    .map(|segment| ("dyn trait", segment.ident.to_string()))
             } else {
                 None
             }
         }),
-        syn::Type::Reference(reference) => dyn_trait_name(&reference.elem),
-        syn::Type::Ptr(pointer) => dyn_trait_name(&pointer.elem),
-        syn::Type::Array(array) => dyn_trait_name(&array.elem),
-        syn::Type::Slice(slice) => dyn_trait_name(&slice.elem),
-        syn::Type::Group(group) => dyn_trait_name(&group.elem),
-        syn::Type::Paren(paren) => dyn_trait_name(&paren.elem),
-        syn::Type::Tuple(tuple) => tuple.elems.iter().find_map(dyn_trait_name),
+        syn::Type::ImplTrait(imp) => imp.bounds.iter().find_map(|bound| {
+            if let syn::TypeParamBound::Trait(trait_bound) = bound {
+                trait_bound
+                    .path
+                    .segments
+                    .last()
+                    .map(|segment| ("impl trait", segment.ident.to_string()))
+            } else {
+                None
+            }
+        }),
+        syn::Type::Reference(reference) => trait_like_type_name(&reference.elem),
+        syn::Type::Ptr(pointer) => trait_like_type_name(&pointer.elem),
+        syn::Type::Array(array) => trait_like_type_name(&array.elem),
+        syn::Type::Slice(slice) => trait_like_type_name(&slice.elem),
+        syn::Type::Group(group) => trait_like_type_name(&group.elem),
+        syn::Type::Paren(paren) => trait_like_type_name(&paren.elem),
+        syn::Type::Tuple(tuple) => tuple.elems.iter().find_map(trait_like_type_name),
         syn::Type::BareFn(function) => {
             for input in &function.inputs {
-                if let Some(name) = dyn_trait_name(&input.ty) {
-                    return Some(name);
+                if let Some(found) = trait_like_type_name(&input.ty) {
+                    return Some(found);
                 }
             }
             match &function.output {
                 syn::ReturnType::Default => None,
-                syn::ReturnType::Type(_, output) => dyn_trait_name(output),
+                syn::ReturnType::Type(_, output) => trait_like_type_name(output),
             }
         }
         syn::Type::Path(path) => {
@@ -2707,13 +2728,13 @@ fn dyn_trait_name(ty: &syn::Type) -> Option<String> {
                     for arg in &arguments.args {
                         match arg {
                             syn::GenericArgument::Type(inner) => {
-                                if let Some(name) = dyn_trait_name(inner) {
-                                    return Some(name);
+                                if let Some(found) = trait_like_type_name(inner) {
+                                    return Some(found);
                                 }
                             }
                             syn::GenericArgument::AssocType(binding) => {
-                                if let Some(name) = dyn_trait_name(&binding.ty) {
-                                    return Some(name);
+                                if let Some(found) = trait_like_type_name(&binding.ty) {
+                                    return Some(found);
                                 }
                             }
                             _ => {}

@@ -608,6 +608,7 @@ impl AuthoredUiSystemsAccumulator {
         }
 
         self.apply_workspace_contract(output);
+        ensure_compiler_owned_ui_contract_version(output);
         self.apply_compat_backfill(output);
     }
 
@@ -647,10 +648,20 @@ impl AuthoredUiSystemsAccumulator {
     }
 
     fn apply_compat_backfill(&self, output: &mut UiBuildOutput) {
-        // Compatibility-only backfill: unless an app opts into the authored-first contract
-        // marker, preserve the legacy behavior where `kain-ui` infers missing systems from tree shape.
-        let opted_in = output.systems.session_state.contains_key("ui.contract.version");
-        if opted_in {
+        // Compatibility-only backfill. Compiler-emitted runtime truth now wins by default;
+        // legacy tree inference should only run when the output is still genuinely empty
+        // or when a caller explicitly asks for the old bridge path.
+        let force_legacy_backfill = matches!(
+            output
+                .systems
+                .session_state
+                .get("ui.runtime.force_compatibility_backfill"),
+            Some(UiValue::Bool(true))
+        );
+        let has_authored_contract = output.systems.session_state.contains_key("ui.contract.version");
+        let needs_legacy_backfill =
+            force_legacy_backfill || (!has_authored_contract && !compiler_emitted_runtime_truth_exists(output));
+        if !needs_legacy_backfill {
             return;
         }
 
@@ -919,6 +930,37 @@ fn serialize_contract_json(value: &[serde_json::Value]) -> Option<String> {
 
 fn serialize_workspace_layout_contract(layout: &kain_ui::UiWorkspaceLayout) -> Option<String> {
     serde_json::to_string_pretty(layout).ok()
+}
+
+fn ensure_compiler_owned_ui_contract_version(output: &mut UiBuildOutput) {
+    if output.systems.session_state.contains_key("ui.contract.version") {
+        return;
+    }
+    if !compiler_emitted_runtime_truth_exists(output) {
+        return;
+    }
+    output.systems.session_state.insert(
+        "ui.contract.version".to_string(),
+        UiValue::String(UI_AUTHORING_CONTRACT_VERSION.to_string()),
+    );
+}
+
+fn compiler_emitted_runtime_truth_exists(output: &UiBuildOutput) -> bool {
+    !output.systems.computed.is_empty()
+        || !output.systems.event_routes.is_empty()
+        || !output.systems.focus_graph.scopes.is_empty()
+        || output.systems.focus_graph.default_scope.is_some()
+        || !output.systems.selection_model.scopes.is_empty()
+        || output.systems.selection_model.active_scope.is_some()
+        || !output.systems.animation_tracks.is_empty()
+        || !output.systems.surfaces.is_empty()
+        || !theme_registry_is_empty(&output.systems.theme_registry)
+        || !output.systems.workspace_layout.is_empty()
+        || output
+            .systems
+            .session_state
+            .keys()
+            .any(|key| key.starts_with("ui.contract.") || key.starts_with("ui.event.route."))
 }
 
 fn render_authored_expr_contract(expr: &Expr) -> String {

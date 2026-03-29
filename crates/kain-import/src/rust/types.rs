@@ -48,17 +48,32 @@ impl RustTypeMapper {
     }
 
     pub fn resolve_path_segments(&self, path: &syn::Path) -> Vec<String> {
-        let mut segments = path
-            .segments
-            .iter()
-            .map(|seg| seg.ident.to_string())
-            .collect::<Vec<_>>();
+        let mut segments = self.normalize_path_segments(path);
         if let Some(first) = segments.first().cloned() {
             if let Some(expanded) = self.visible_paths.get(&first) {
                 let mut resolved = expanded.clone();
                 resolved.extend(segments.drain(1..));
                 return resolved;
             }
+        }
+        segments
+    }
+
+    fn normalize_path_segments(&self, path: &syn::Path) -> Vec<String> {
+        let mut segments = path
+            .segments
+            .iter()
+            .map(|seg| seg.ident.to_string())
+            .collect::<Vec<_>>();
+        if segments.is_empty() {
+            return segments;
+        }
+        let rooted = matches!(
+            segments.first().map(String::as_str),
+            Some("crate" | "self" | "super" | "std" | "core" | "alloc")
+        );
+        if rooted {
+            segments.remove(0);
         }
         segments
     }
