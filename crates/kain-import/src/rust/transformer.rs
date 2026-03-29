@@ -287,8 +287,22 @@ impl RustTransformer {
 
     fn should_skip_item(&self, item: &syn::Item) -> bool {
         match item {
+            syn::Item::Const(node) => has_cfg_test_attr(&node.attrs),
+            syn::Item::Enum(node) => has_cfg_test_attr(&node.attrs),
+            syn::Item::ExternCrate(node) => has_cfg_test_attr(&node.attrs),
+            syn::Item::Fn(node) => has_cfg_test_attr(&node.attrs),
+            syn::Item::ForeignMod(node) => has_cfg_test_attr(&node.attrs),
+            syn::Item::Impl(node) => has_cfg_test_attr(&node.attrs),
+            syn::Item::Macro(node) => has_cfg_test_attr(&node.attrs),
             syn::Item::Mod(module) => self.should_skip_module(module),
-            _ => has_cfg_test_attr(item.attrs()),
+            syn::Item::Static(node) => has_cfg_test_attr(&node.attrs),
+            syn::Item::Struct(node) => has_cfg_test_attr(&node.attrs),
+            syn::Item::Trait(node) => has_cfg_test_attr(&node.attrs),
+            syn::Item::TraitAlias(node) => has_cfg_test_attr(&node.attrs),
+            syn::Item::Type(node) => has_cfg_test_attr(&node.attrs),
+            syn::Item::Union(node) => has_cfg_test_attr(&node.attrs),
+            syn::Item::Use(node) => has_cfg_test_attr(&node.attrs),
+            _ => false,
         }
     }
 
@@ -1622,7 +1636,7 @@ impl RustTransformer {
             }
 
             // ── Verbatim / unknown ─────────────────────────────────────────
-            _ => {
+            other => {
                 self.note_lossy_class(
                     "unsupported_expr_lowering",
                     format!("unsupported expression kind: {}", Self::expr_kind_name(other)),

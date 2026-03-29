@@ -320,7 +320,7 @@ impl RustTypeMapper {
 
     fn first_non_auto_trait_bound(
         &self,
-        bounds: &syn::punctuated::Punctuated<syn::TypeParamBound, syn::token::Add>,
+        bounds: &syn::punctuated::Punctuated<syn::TypeParamBound, syn::Token![+]>,
     ) -> Option<(String, Vec<Type>)> {
         for bound in bounds {
             let syn::TypeParamBound::Trait(tb) = bound else {
