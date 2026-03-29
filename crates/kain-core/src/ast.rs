@@ -853,6 +853,7 @@ pub enum VariantFields {
 pub struct Trait {
     pub name: String,
     pub generics: Vec<Generic>,
+    pub supertraits: Vec<Type>,
     pub methods: Vec<TraitMethod>,
     pub visibility: Visibility,
     pub span: Span,

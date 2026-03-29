@@ -89,7 +89,7 @@ fn default_ui_workbenches() -> Array<UiWorkbenchDescriptor>:
             tab_label: "Render",
             title: "Render And Composite Control Room",
             hero_title: "Review renders, composite plans, and final publish risk in one control room",
-            hero_summary: "Delegated preview, pathtrace, accumulation, denoise, and frame scheduling stay explicit in one control room instead of collapsing into a single preview button. The accumulation and denoise stages are still authored report seams, not a native temporal-history runtime.",
+            hero_summary: "Delegated preview, pathtrace, accumulation, denoise, and frame scheduling stay explicit in one control room instead of collapsing into a single preview button. The accumulation and denoise stages are still authored report seams, not a native temporal-history runtime, and the native C ABI / Rust / GPU / Python / Node seams stay visible for the next extension step.",
             focus_surface: "render_lounge",
             featured_tools: ["render_preview", "comp_rebuild"],
             quick_commands: ["render.preview", "render.pathtrace_preview", "lighting.review_preview", "render.delegate_preview", "render.review_capture", "ui.focus_runtime_lane_map", "compositor.rebuild", "ui.open_property_grid", "publish.package"],

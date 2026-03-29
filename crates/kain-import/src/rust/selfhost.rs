@@ -468,7 +468,9 @@ fn marker_class(marker: &str) -> Option<&'static str> {
     }
     if normalized.contains("unsafe trait")
         || normalized.contains("auto trait")
-        || normalized.contains("supertraits skipped")
+        || normalized.contains("supertraits lowered")
+        || normalized.contains("lifetime supertrait")
+        || normalized.contains("unsupported supertrait bound")
         || normalized.contains("trait method")
         || normalized.contains("impl method")
         || normalized.contains("associated type")
@@ -518,7 +520,9 @@ fn classify_diagnostic(diag: &str) -> Option<&'static str> {
     }
     if normalized.contains("unsafe trait")
         || normalized.contains("auto trait")
-        || normalized.contains("supertraits skipped")
+        || normalized.contains("supertraits lowered")
+        || normalized.contains("lifetime supertrait")
+        || normalized.contains("unsupported supertrait bound")
         || normalized.contains("trait method")
         || normalized.contains("impl method")
         || normalized.contains("associated type")
@@ -804,3 +808,5 @@ mod tests {
         assert!(!is_allowed_diagnostic(diag, &options));
     }
 }
+
+

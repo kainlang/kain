@@ -685,7 +685,7 @@ fn write_struct(output: &mut String, s: &kain_core::ast::Struct, indent: usize) 
     write_line(output, indent, &format!("struct {}:", s.name))?;
 
     if s.fields.is_empty() {
-        write_line(output, indent + 1, "# LOSSY LOWERING: empty Rust struct lowered to pass")?;
+        write_line(output, indent + 1, &lossy_marker("empty_struct_lowering", "empty Rust struct lowered to pass", None))?;
     } else {
         for field in &s.fields {
             write_line(
@@ -707,7 +707,7 @@ fn write_enum(output: &mut String, e: &kain_core::ast::Enum, indent: usize) -> K
     write_line(output, indent, &format!("enum {}:", e.name))?;
 
     if e.variants.is_empty() {
-        write_line(output, indent + 1, "# LOSSY LOWERING: empty Rust enum lowered to pass")?;
+        write_line(output, indent + 1, &lossy_marker("empty_enum_lowering", "empty Rust enum lowered to pass", None))?;
     } else {
         for variant in &e.variants {
             let variant_str = match &variant.fields {
@@ -745,9 +745,20 @@ fn write_trait(
 ) -> KainResult<()> {
     use std::fmt::Write;
 
-    write_line(output, indent, &format!("trait {}:", value.name))?;
+    let trait_header = if value.supertraits.is_empty() {
+        format!("trait {}:", value.name)
+    } else {
+        let supertraits = value
+            .supertraits
+            .iter()
+            .map(type_to_string)
+            .collect::<Vec<_>>()
+            .join(" + ");
+        format!("trait {} <: {}:", value.name, supertraits)
+    };
+    write_line(output, indent, &trait_header)?;
     if value.methods.is_empty() {
-        write_line(output, indent + 1, "# LOSSY LOWERING: empty Rust impl lowered to pass")?;
+        write_line(output, indent + 1, &lossy_marker("empty_trait_lowering", "empty Rust trait lowered to pass", None))?;
     } else {
         for method in &value.methods {
             let mut signature = format!("fn {}(", method.name);
@@ -766,7 +777,7 @@ fn write_trait(
             if let Some(default_impl) = &method.default_impl {
                 write_block(output, default_impl, indent + 2)?;
             } else {
-                write_line(output, indent + 2, "# missing Rust trait default body lowered to pass (placeholder retained)")?;
+                write_line(output, indent + 2, &lossy_marker("missing_trait_default_body", "missing Rust trait default body lowered to pass", Some("restore the original Rust body or add a concrete KAIN lowering")))?;
             }
         }
     }
@@ -790,7 +801,7 @@ fn write_impl(output: &mut String, value: &kain_core::ast::Impl, indent: usize) 
     write_line(output, indent, &header)?;
 
     if value.methods.is_empty() {
-        write_line(output, indent + 1, "# LOSSY LOWERING: empty Rust impl lowered to pass")?;
+        write_line(output, indent + 1, &lossy_marker("empty_impl_lowering", "empty Rust impl lowered to pass", None))?;
     } else {
         for method in &value.methods {
             write_function(output, method, indent + 1)?;
@@ -841,7 +852,15 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
                 write_line(output, indent, "return")
             }
         }
-        _ => write_line(output, indent, "# LOSSY LOWERING: unsupported Rust statement lowered as placeholder; inspect source AST"),
+        _ => write_line(
+            output,
+            indent,
+            &lossy_marker(
+                "unsupported_stmt_lowering",
+                "unsupported Rust statement lowered as placeholder",
+                Some("inspect the matching diagnostic in import_report.json and replace this seam with a concrete lowering"),
+            ),
+        ),
     }
 }
 
@@ -849,6 +868,51 @@ fn write_line(output: &mut String, indent: usize, line: &str) -> KainResult<()> 
     use std::fmt::Write;
     writeln!(output, "{}{}", "    ".repeat(indent), line)
         .map_err(|e| KainError::runtime(format!("Failed to generate source: {}", e)))
+}
+
+fn lossy_marker(class: &str, message: &str, repair_hint: Option<&str>) -> String {
+    match repair_hint {
+        Some(hint) => format!(
+            "# LOSSY LOWERING [class:{class}]: {message} | repair: {hint}",
+        ),
+        None => format!("# LOSSY LOWERING [class:{class}]: {message}"),
+    }
+}
+
+fn module_path_string_for_report(root: &Path, path: &Path) -> Option<String> {
+    let rel = path.strip_prefix(root).unwrap_or(path);
+    let module_path = module_path_for_relative_file(rel);
+    if module_path.is_empty() {
+        None
+    } else {
+        Some(module_path.join("::"))
+    }
+}
+
+fn diagnostic_class_counts_single(diagnostics: &[String]) -> BTreeMap<String, usize> {
+    let mut counts = BTreeMap::new();
+    for diag in diagnostics {
+        if let Some(class) = diagnostic_class(diag) {
+            *counts.entry(class.to_string()).or_insert(0) += 1;
+        }
+    }
+    counts
+}
+
+fn diagnostic_class_counts(diagnostics: &[(PathBuf, Vec<String>)]) -> BTreeMap<String, usize> {
+    let mut counts = BTreeMap::new();
+    for (_, file_diags) in diagnostics {
+        for diag in file_diags {
+            if let Some(class) = diagnostic_class(diag) {
+                *counts.entry(class.to_string()).or_insert(0) += 1;
+            }
+        }
+    }
+    counts
+}
+
+fn diagnostic_class(diag: &str) -> Option<&str> {
+    diag.split("[class:").nth(1)?.split(']').next().map(str::trim).filter(|s| !s.is_empty())
 }
 
 fn pattern_to_string(pattern: &kain_core::ast::Pattern) -> String {
@@ -874,7 +938,7 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
         kain_core::ast::Expr::None(_) => "none".to_string(),
         kain_core::ast::Expr::Ident(name, _) => name.clone(),
         kain_core::ast::Expr::AsyncBlock(value, _) => format!("async {}", expr_to_string(value)),
-        _ => "# LOSSY LOWERING: unsupported Rust expression lowered as placeholder; inspect source AST".to_string(),
+        _ => lossy_marker("unsupported_expr_lowering", "unsupported Rust expression lowered as placeholder", Some("inspect the matching diagnostic in import_report.json and restore the original Rust expression")),
     }
 }
 

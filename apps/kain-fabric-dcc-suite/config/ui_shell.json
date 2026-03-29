@@ -279,6 +279,7 @@
         "Favor compact chrome over airy demo-card spacing.",
         "Keep command dispatch, inspector routing, and layout return paths obvious.",
         "Keep the runtime lane map one click away so bridge seams stay inspectable.",
+        "Favor Kain-authored orchestration over hidden host magic; keep the native C ABI, Rust crate, GPU, Python, and Node seams visible.",
         "Treat the render spine as pathtrace -> accumulation -> denoise, with report receipts visible even before the runtime seam exists.",
         "Use the shell as a real workstation frame, not a showcase scaffold."
       ]
@@ -529,7 +530,7 @@
       "tab_label": "Render",
       "title": "Render Workbench",
       "hero_title": "Render and composite control room",
-      "hero_summary": "Delegated preview, pathtrace, accumulation, denoise, and frame scheduling stay explicit in the frame.",
+      "hero_summary": "Delegated preview, pathtrace, accumulation, denoise, frame scheduling, and multi-runtime bridge seams stay explicit in the frame.",
       "focus_surface_id": "render_lounge",
       "featured_tool_ids": [
         "render_preview",

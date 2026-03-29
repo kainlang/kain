@@ -223,3 +223,10 @@
 - In `M:\Code\Kain\apps\kain-fabric-dcc-suite`, added `asset_registry` to the publish workbench's center surfaces and tightened the publish hero copy so delivery now keeps lineage visible alongside packages, jobs, and receipts.
 - Mirrored the same publish-workbench change in `session/ui_workbench_registry.kn`, then reran `scripts/materialize-shell.ps1` and `scripts/materialize-session-state.ps1` so `generated/main.generated.kn`, `state/runtime_snapshot.json`, and `state/session_document.json` stayed aligned.
 - This is still an authored shell/workbench visibility pass, not a native publish runtime; the clean seam remains richer delivery validation and residency telemetry when a host-backed lane is ready.
+
+## 2026-03-29 - Workbench Copy Re-centered On Multi-Runtime Bridge Seams
+
+- Tightened `config/ui_shell.json` and `session/ui_workbench_registry.kn` so the render control room now calls out multi-runtime bridge seams alongside the progressive render spine.
+- The operator notes now explicitly prefer Kain-authored orchestration while keeping the native C ABI, Rust crate, GPU, Python, and Node seams visible.
+- `scripts/materialize-session-state.ps1` refreshed `state/runtime_snapshot.json` and `state/session_document.json`; `scripts/materialize-shell.ps1` hit a transient file लॉक on `generated/main.generated.kn`, so the shell projection still needs a clean rerun once the lock clears.
+- Clean next seam: rerun shell materialization and then keep pushing the same multi-runtime visibility into actual native/GPU execution lanes.

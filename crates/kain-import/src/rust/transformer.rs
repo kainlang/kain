@@ -593,13 +593,53 @@ impl RustTransformer {
                 Ok(vec![])
             }
             syn::Item::Macro(mac) => {
-                let macro_name = path_to_ident(&mac.mac.path);
-                let macro_name = if macro_name.is_empty() { "<anonymous macro>".to_string() } else { macro_name };
+                let macro_name = mac
+                    .ident
+                    .as_ref()
+                    .map(|ident| ident.to_string())
+                    .filter(|name| !name.is_empty())
+                    .or_else(|| {
+                        let path_name = path_to_ident(&mac.mac.path);
+                        (!path_name.is_empty()).then_some(path_name)
+                    })
+                    .unwrap_or_else(|| "<anonymous macro>".to_string());
+
+                if mac.mac.path.is_ident("macro_rules") && mac.ident.is_some() {
+                    let body_tokens = mac.mac.tokens.to_string();
+                    self.note_lossy_class(
+                        "macro_item_preserved",
+                        format!(
+                            "macro_rules! {} preserved as macro definition stub with raw token body",
+                            macro_name
+                        ),
+                    );
+                    return Ok(vec![Item::Macro(MacroDef {
+                        name: macro_name,
+                        params: Vec::new(),
+                        body: MacroBody::Tokens(vec![MacroToken {
+                            content: body_tokens,
+                            span: S,
+                        }]),
+                        span: S,
+                    })]);
+                }
+
                 self.note_lossy_class(
                     "macro_item",
-                    format!("macro item {} skipped (proc-macro / item macro not lowered yet)", macro_name),
+                    format!(
+                        "macro item {} preserved as raw macro stub (item/proc macro not lowered yet)",
+                        macro_name
+                    ),
                 );
-                Ok(vec![])
+                Ok(vec![Item::Macro(MacroDef {
+                    name: macro_name,
+                    params: Vec::new(),
+                    body: MacroBody::Tokens(vec![MacroToken {
+                        content: mac.mac.tokens.to_string(),
+                        span: S,
+                    }]),
+                    span: S,
+                })])
             }
             syn::Item::ForeignMod(foreign_mod) => {
                 let abi = foreign_mod
@@ -779,10 +819,37 @@ impl RustTransformer {
                 format!("auto trait {} lowered as normal trait", name),
             );
         }
-        if !t.supertraits.is_empty() {
+        let mut supertraits = Vec::new();
+        for bound in &t.supertraits {
+            match bound {
+                syn::TypeParamBound::Trait(trait_bound) => {
+                    let trait_ty = self.map_type_checked(&syn::Type::Path(syn::TypePath {
+                        qself: None,
+                        path: trait_bound.path.clone(),
+                    }));
+                    supertraits.push(trait_ty);
+                }
+                syn::TypeParamBound::Lifetime(lifetime) => {
+                    self.note_lossy_class(
+                        "trait_surface_lowering",
+                        format!(
+                            "trait {} lifetime supertrait '{}' skipped",
+                            name, lifetime.ident
+                        ),
+                    );
+                }
+                other => {
+                    self.note_lossy_class(
+                        "trait_surface_lowering",
+                        format!("trait {} unsupported supertrait bound skipped: {:?}", name, other),
+                    );
+                }
+            }
+        }
+        if !supertraits.is_empty() {
             self.note_lossy_class(
                 "trait_surface_lowering",
-                format!("trait {} supertraits skipped", name),
+                format!("trait {} supertraits lowered as trait metadata", name),
             );
         }
         if t.generics.where_clause.is_some() {
@@ -881,6 +948,7 @@ impl RustTransformer {
         Ok(Trait {
             name,
             generics,
+            supertraits,
             methods,
             visibility: visibility(&t.vis),
             span: S,
@@ -3189,6 +3257,25 @@ mod tests {
     }
 
     #[test]
+    fn lowers_trait_supertraits_into_metadata() {
+        let program = transform_source(
+            r#"
+            trait RendererUploadBridge: Send + Sync {
+                fn upload(&self);
+            }
+            "#,
+        );
+
+        let Item::Trait(value) = &program.items[0] else {
+            panic!("expected trait item");
+        };
+
+        assert_eq!(value.supertraits.len(), 2);
+        assert!(matches!(&value.supertraits[0], Type::Named { name, .. } if name == "Send"));
+        assert!(matches!(&value.supertraits[1], Type::Named { name, .. } if name == "Sync"));
+    }
+
+    #[test]
     fn records_dyn_trait_lowering_diagnostics() {
         let (program, diagnostics) = transform_with_diagnostics(
             r#"
@@ -3503,6 +3590,32 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diag| diag.contains("class:unsupported_literal_lowering")));
+    }
+
+    #[test]
+    fn preserves_macro_rules_definitions_as_macro_items() {
+        let (program, diagnostics) = transform_with_diagnostics(
+            r#"
+            macro_rules! define_handle {
+                ($name:ident) => {
+                    fn $name() {}
+                };
+            }
+            "#,
+        );
+
+        assert!(matches!(
+            &program.items[0],
+            Item::Macro(MacroDef {
+                name,
+                body: MacroBody::Tokens(_),
+                ..
+            }) if name == "define_handle"
+        ));
+        assert!(diagnostics.iter().any(|diag| {
+            diag.contains("class:macro_item_preserved")
+                && diag.contains("macro_rules! define_handle preserved")
+        }));
     }
 
     #[test]

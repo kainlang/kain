@@ -943,6 +943,7 @@ impl<'a> Parser<'a> {
         Ok(Item::Trait(Trait {
             name,
             generics,
+            supertraits: Vec::new(),
             methods,
             visibility: vis,
             span: start.merge(self.current_span()),
