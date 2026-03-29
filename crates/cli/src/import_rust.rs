@@ -172,11 +172,35 @@ pub fn import_rust_with_batch(
         }
         if !summary.diagnostics.is_empty() {
             let total_diags: usize = summary.diagnostics.iter().map(|(_, diags)| diags.len()).sum();
-            println!("   Lossy lowering: {} diagnostic(s) across {} file(s)", total_diags, summary.diagnostics.len());
+            let external_mod_diags: usize = summary
+                .diagnostics
+                .iter()
+                .flat_map(|(_, diags)| diags.iter())
+                .filter(|diag| diag.contains("class:external_mod_decl"))
+                .count();
+            let visible_diags = total_diags.saturating_sub(external_mod_diags);
+            if visible_diags > 0 {
+                println!("   Lossy lowering: {} diagnostic(s) across {} file(s)", visible_diags, summary.diagnostics.len());
+            }
+            if external_mod_diags > 0 {
+                println!("   External module declarations: {} note(s) (directory structure preserved)", external_mod_diags);
+            }
         }
     } else if !summary.diagnostics.is_empty() {
         let total_diags: usize = summary.diagnostics.iter().map(|(_, diags)| diags.len()).sum();
-        println!("   Lossy lowering: {} diagnostic(s)", total_diags);
+        let external_mod_diags: usize = summary
+            .diagnostics
+            .iter()
+            .flat_map(|(_, diags)| diags.iter())
+            .filter(|diag| diag.contains("class:external_mod_decl"))
+            .count();
+        let visible_diags = total_diags.saturating_sub(external_mod_diags);
+        if visible_diags > 0 {
+            println!("   Lossy lowering: {} diagnostic(s)", visible_diags);
+        }
+        if external_mod_diags > 0 {
+            println!("   External module declarations: {} note(s)", external_mod_diags);
+        }
     }
 
     maybe_write_failure_report(

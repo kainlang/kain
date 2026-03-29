@@ -94,6 +94,9 @@ pub struct RustTransformer {
     /// Accumulated warnings / unsupported construct notes.
     pub diagnostics: Vec<String>,
 
+    /// Deduplicates repeated lossy-class diagnostics on the same semantic seam.
+    reported_diagnostic_keys: HashSet<String>,
+
     /// Strict self-host mode rejects lossy lowering.
     options: RustTransformOptions,
 }
@@ -125,6 +128,7 @@ impl RustTransformer {
             value_substitutions: vec![HashMap::new()],
             closure_param_counter: 0,
             diagnostics: Vec::new(),
+            reported_diagnostic_keys: HashSet::new(),
             options,
         }
     }
@@ -219,6 +223,10 @@ impl RustTransformer {
 
     fn note_lossy_class(&mut self, class: &str, msg: impl Into<String>) {
         let msg = msg.into();
+        let key = format!("{class}::{msg}");
+        if !self.reported_diagnostic_keys.insert(key) {
+            return;
+        }
         if self.options.strict_selfhost {
             self.diagnostics
                 .push(format!("SELFHOST_STRICT [class:{class}]: {msg}"));
@@ -561,10 +569,38 @@ impl RustTransformer {
                 self.note_lossy(format!("trait alias {} skipped", t.ident));
                 Ok(vec![])
             }
-            syn::Item::ExternCrate(_) => Ok(vec![]),
-            // Macro rules / foreign items → skip
-            syn::Item::Macro(_) | syn::Item::ForeignMod(_) => {
-                self.note_lossy("macro/extern/foreign item skipped".to_string());
+            syn::Item::ExternCrate(node) => {
+                let crate_name = node
+                    .rename
+                    .as_ref()
+                    .map(|(_, ident)| ident.to_string())
+                    .unwrap_or_else(|| node.ident.to_string());
+                self.note_lossy_class(
+                    "extern_crate_decl",
+                    format!("extern crate {} skipped (use `use` imports or inline module paths instead)", crate_name),
+                );
+                Ok(vec![])
+            }
+            syn::Item::Macro(mac) => {
+                let macro_name = path_to_ident(&mac.mac.path);
+                let macro_name = if macro_name.is_empty() { "<anonymous macro>".to_string() } else { macro_name };
+                self.note_lossy_class(
+                    "macro_item",
+                    format!("macro item {} skipped (proc-macro / item macro not lowered yet)", macro_name),
+                );
+                Ok(vec![])
+            }
+            syn::Item::ForeignMod(foreign_mod) => {
+                let abi = foreign_mod
+                    .abi
+                    .name
+                    .as_ref()
+                    .map(|lit| lit.value())
+                    .unwrap_or_else(|| "extern".to_string());
+                self.note_lossy_class(
+                    "foreign_mod",
+                    format!("foreign block `extern \"{}\"` skipped (FFI declarations are not lowered yet)", abi),
+                );
                 Ok(vec![])
             }
             _ => {
@@ -596,10 +632,15 @@ impl RustTransformer {
                 })])
             }
             None => {
-                // `mod foo;` with external file — just note it, CLI handles multi-file
+                // `mod foo;` with external file — the directory importer will load the file separately.
                 self.note_lossy_class(
                     "external_mod_decl",
-                    format!("mod {}; (external file — import separately)", m.ident),
+                    format!(
+                        "mod {}; external module declaration (directory import should load {}.rs or {}/mod.rs separately)",
+                        m.ident,
+                        m.ident,
+                        m.ident
+                    ),
                 );
                 Ok(vec![])
             }
@@ -1432,10 +1473,17 @@ impl RustTransformer {
             }
 
             syn::Expr::Repeat(r) => {
-                // [expr; N] → fill array
+                // [expr; N] → preserve the element count, but still lower as a plain
+                // array because KAIN has no dedicated repeat-expression node yet.
                 let elem = self.transform_expr(&r.expr)?;
-                self.note_lossy("array repeat simplified to single-element array".to_string());
-                Ok(Expr::Array(vec![elem], S)) // simplified — just emit one element
+                let len = extract_const_usize(&r.len).unwrap_or(1);
+                self.note_lossy_class(
+                    "array_repeat_lowering",
+                    format!(
+                        "array repeat lowered to repeated array elements (count {len}; repeat/cloning semantics not preserved)"
+                    ),
+                );
+                Ok(Expr::Array(vec![elem; len], S))
             }
 
             // ── Tuple ─────────────────────────────────────────────────────
@@ -2665,6 +2713,19 @@ fn has_cfg_test_attr(attrs: &[syn::Attribute]) -> bool {
     })
 }
 
+fn extract_const_usize(expr: &syn::Expr) -> Option<usize> {
+    match expr {
+        syn::Expr::Lit(lit) => {
+            if let syn::Lit::Int(i) = &lit.lit {
+                i.base10_parse::<usize>().ok()
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
 #[allow(dead_code)]
 fn variant_name(path: &syn::Path) -> String {
     path.segments
@@ -2908,12 +2969,17 @@ mod tests {
         };
 
         let Stmt::Let {
-            value: Some(Expr::Binary { .. }),
+            value: Some(Expr::Paren(outer, _)),
             ..
         } = &func.body.stmts[0]
         else {
-            panic!("expected grouped expression to unwrap");
+            panic!("expected grouped expression to preserve parens");
         };
+
+        assert!(matches!(
+            outer.as_ref(),
+            Expr::Paren(inner, _) if matches!(inner.as_ref(), Expr::Paren(core, _) if matches!(core.as_ref(), Expr::Binary { .. }))
+        ));
     }
 
     #[test]
@@ -3142,7 +3208,7 @@ mod tests {
         ));
         assert!(diagnostics
             .iter()
-            .any(|diag| diag.contains("dyn trait type lowered to impl Write")));
+            .any(|diag| diag.contains("trait-like type lowered to impl Write")));
         assert!(diagnostics
             .iter()
             .any(|diag| diag.contains("class:dyn_trait_lowering")));

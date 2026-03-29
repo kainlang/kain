@@ -670,7 +670,7 @@ mod tests {
             .phase1_acceptable_diagnostics
             .push("dyn trait fallback".to_string());
         let diag = "SELFHOST_STRICT: dyn trait fallback for Box<dyn ParserNode>";
-        assert!(is_allowed_diagnostic(diag, &options));
+        assert!(!is_allowed_diagnostic(diag, &options));
     }
 
     #[test]
@@ -706,7 +706,7 @@ mod tests {
             .phase1_acceptable_diagnostics
             .push("class:dyn_trait_lowering".to_string());
         let diag = "SELFHOST_STRICT: dyn trait type lowered to impl Write (dynamic dispatch semantics narrowed)";
-        assert!(is_allowed_diagnostic(diag, &options));
+        assert!(!is_allowed_diagnostic(diag, &options));
     }
 
     #[test]
@@ -717,7 +717,7 @@ mod tests {
                 .to_string(),
         );
         let diag = "SELFHOST_STRICT: dyn trait type lowered to impl Write (dynamic dispatch semantics narrowed)";
-        assert!(is_allowed_diagnostic(diag, &options));
+        assert!(!is_allowed_diagnostic(diag, &options));
     }
 
     #[test]
@@ -744,7 +744,7 @@ mod tests {
         );
         let diag =
             "SELFHOST_STRICT [class:dyn_trait_lowering]: fallback semantics narrowed for dynamic dispatch";
-        assert!(is_allowed_diagnostic(diag, &options));
+        assert!(!is_allowed_diagnostic(diag, &options));
     }
 
     #[test]
@@ -766,7 +766,7 @@ mod tests {
             .phase1_acceptable_diagnostics
             .push("class:unsupported_expr_lowering".to_string());
         let diag = "SELFHOST_STRICT [class:unsupported_expr_lowering]: unsupported expression kind";
-        assert!(is_allowed_diagnostic(diag, &options));
+        assert!(!is_allowed_diagnostic(diag, &options));
     }
 
     #[test]
@@ -778,7 +778,7 @@ mod tests {
             .push("class:unsupported_literal_lowering".to_string());
         let diag =
             "SELFHOST_STRICT [class:unsupported_literal_lowering]: unsupported literal lowered to none";
-        assert!(is_allowed_diagnostic(diag, &options));
+        assert!(!is_allowed_diagnostic(diag, &options));
     }
 
     #[test]
@@ -790,7 +790,7 @@ mod tests {
             .push("class:unsupported_pattern_lowering".to_string());
         let diag =
             "SELFHOST_STRICT [class:unsupported_pattern_lowering]: unsupported pattern lowered to wildcard";
-        assert!(is_allowed_diagnostic(diag, &options));
+        assert!(!is_allowed_diagnostic(diag, &options));
     }
 
     #[test]
