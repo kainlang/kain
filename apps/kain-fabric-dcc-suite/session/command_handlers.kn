@@ -145,6 +145,18 @@ fn command_handlers() -> Array<CommandHandlerDescriptor>:
             immediate_effect: "request render preview planning"
         },
         CommandHandlerDescriptor {
+            command_kind: "render.delegate_preview",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "request delegated render-room planning"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "lighting.review_preview",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "request lighting review planning"
+        },
+        CommandHandlerDescriptor {
             command_kind: "compositor.rebuild",
             reducer_owner: "session.reducers",
             planner_owner: "session.intent_planner",

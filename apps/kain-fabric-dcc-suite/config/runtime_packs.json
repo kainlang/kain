@@ -89,6 +89,36 @@
       "label": "Automation Ops Pack",
       "category": "runtime-pack",
       "summary": "Background jobs, schedules, report retention, and promotion rules."
+    },
+    {
+      "id": "render_delegation_pack",
+      "label": "Render Delegation Pack",
+      "category": "runtime-pack",
+      "summary": "Render delegation, capture routing, and backend presentation seams."
+    },
+    {
+      "id": "lighting_review_pack",
+      "label": "Lighting Review Pack",
+      "category": "runtime-pack",
+      "summary": "Lighting lookdev review, probe-grid checks, and frame-grade feedback."
+    },
+    {
+      "id": "review_capture_pack",
+      "label": "Review Capture Pack",
+      "category": "runtime-pack",
+      "summary": "Review annotations, evidence capture, and playback-friendly frame outputs."
+    },
+    {
+      "id": "ffi_bridge_pack",
+      "label": "FFI Bridge Pack",
+      "category": "runtime-pack",
+      "summary": "Declared native helper bridges for C ABI, Rust, and device seams."
+    },
+    {
+      "id": "paint_uv_pack",
+      "label": "Paint And UV Pack",
+      "category": "runtime-pack",
+      "summary": "Paint layer stacking, UV charts, brush behavior, and deformation-aware surfaces."
     }
   ]
 }

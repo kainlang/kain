@@ -144,6 +144,7 @@ pub fn import_rust_with_batch(
     println!("   Structs: {}", count_structs(&program));
     println!("   Enums: {}", count_enums(&program));
     if input.is_dir() {
+        println!("   Directory structure: preserved as nested modules unless flat mode is enabled");
         println!(
             "   Rust files: discovered {}, imported {}, skipped {}, failed {}",
             summary.discovered_files,
@@ -228,21 +229,26 @@ fn import_path_to_program(
                 if batch.flat {
                     merged_items.extend(program.items);
                 } else {
-                    let base_name = sanitize_module_name(rel);
-                    let entry = module_name_counts.entry(base_name.clone()).or_insert(0);
-                    *entry += 1;
-                    let module_name = if *entry == 1 {
-                        base_name
+                    let module_path = module_path_for_relative_file(rel);
+                    if module_path.is_empty() {
+                        merged_items.extend(program.items);
                     } else {
-                        format!("{base_name}_{}", *entry)
-                    };
+                        let entry = module_name_counts
+                            .entry(module_path.join("::"))
+                            .or_insert(0);
+                        *entry += 1;
+                        let resolved_module_path = if *entry == 1 {
+                            module_path
+                        } else {
+                            let mut adjusted = module_path;
+                            if let Some(last) = adjusted.last_mut() {
+                                *last = format!("{}_{}", last, *entry);
+                            }
+                            adjusted
+                        };
 
-                    merged_items.push(kain_core::ast::Item::Mod(kain_core::ast::Mod {
-                        name: module_name,
-                        inline: Some(program.items),
-                        visibility: kain_core::ast::Visibility::Public,
-                        span: kain_core::span::Span::default(),
-                    }));
+                        merged_items.push(build_nested_module(&resolved_module_path, program.items));
+                    }
                 }
             }
             Err(err) => {
@@ -441,47 +447,54 @@ fn path_matches_filters(path: &Path, includes: &[String], excludes: &[String]) -
     !excludes.iter().any(|exc| normalized.contains(exc))
 }
 
-fn sanitize_module_name(path: &Path) -> String {
+fn module_path_for_relative_file(path: &Path) -> Vec<String> {
     let mut parts = Vec::new();
-    let mut saw_file_name = false;
+    let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+    let preserve_root_file = matches!(file_name, "lib.rs" | "main.rs");
+    let preserve_mod_file = file_name == "mod.rs";
 
-    for component in path.components() {
-        let raw = component.as_os_str().to_string_lossy();
-        let mut part = raw.to_string();
+    if preserve_root_file {
+        return Vec::new();
+    }
 
-        if !saw_file_name && part.contains('.') {
-            part = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("module")
-                .to_string();
-            saw_file_name = true;
-        } else if path.file_name().is_some_and(|f| f == component.as_os_str()) {
-            part = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("module")
-                .to_string();
-            saw_file_name = true;
-        }
-
-        let sanitized = part
-            .chars()
-            .map(|ch| {
-                if ch.is_ascii_alphanumeric() {
-                    ch.to_ascii_lowercase()
-                } else {
-                    '_'
-                }
-            })
-            .collect::<String>();
-
-        if !sanitized.is_empty() {
-            parts.push(sanitized);
+    if let Some(parent) = path.parent() {
+        for component in parent.components() {
+            let part = sanitize_module_component(&component.as_os_str().to_string_lossy());
+            if !part.is_empty() {
+                parts.push(part);
+            }
         }
     }
 
-    let mut name = parts.join("_");
+    let file_stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("module");
+    let leaf = if preserve_mod_file && !parts.is_empty() {
+        None
+    } else {
+        Some(sanitize_module_component(file_stem))
+    };
+    if let Some(leaf) = leaf.filter(|leaf| !leaf.is_empty()) {
+        parts.push(leaf);
+    }
+
+    if parts.is_empty() {
+        parts.push("module".to_string());
+    }
+
+    parts
+}
+
+fn sanitize_module_component(raw: &str) -> String {
+    let mut name = raw
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+
     while name.contains("__") {
         name = name.replace("__", "_");
     }
@@ -494,6 +507,20 @@ fn sanitize_module_name(path: &Path) -> String {
         return format!("m_{name}");
     }
     name
+}
+
+fn build_nested_module(path: &[String], items: Vec<kain_core::ast::Item>) -> kain_core::ast::Item {
+    let mut current = items;
+    for name in path.iter().rev() {
+        current = vec![kain_core::ast::Item::Mod(kain_core::ast::Mod {
+            name: name.clone(),
+            inline: Some(current),
+            visibility: kain_core::ast::Visibility::Public,
+            span: kain_core::span::Span::default(),
+        })];
+    }
+
+    current.into_iter().next().expect("nested module wrapper")
 }
 
 /// Generate KAIN source code from AST
@@ -583,7 +610,7 @@ fn write_struct(output: &mut String, s: &kain_core::ast::Struct, indent: usize) 
     write_line(output, indent, &format!("struct {}:", s.name))?;
 
     if s.fields.is_empty() {
-        write_line(output, indent + 1, "pass")?;
+        write_line(output, indent + 1, "# empty Rust struct lowered to pass")?;
     } else {
         for field in &s.fields {
             write_line(
@@ -605,7 +632,7 @@ fn write_enum(output: &mut String, e: &kain_core::ast::Enum, indent: usize) -> K
     write_line(output, indent, &format!("enum {}:", e.name))?;
 
     if e.variants.is_empty() {
-        write_line(output, indent + 1, "pass")?;
+        write_line(output, indent + 1, "# empty Rust enum lowered to pass")?;
     } else {
         for variant in &e.variants {
             let variant_str = match &variant.fields {
@@ -645,7 +672,7 @@ fn write_trait(
 
     write_line(output, indent, &format!("trait {}:", value.name))?;
     if value.methods.is_empty() {
-        write_line(output, indent + 1, "pass")?;
+        write_line(output, indent + 1, "# empty Rust impl lowered to pass")?;
     } else {
         for method in &value.methods {
             let mut signature = format!("fn {}(", method.name);
@@ -664,7 +691,7 @@ fn write_trait(
             if let Some(default_impl) = &method.default_impl {
                 write_block(output, default_impl, indent + 2)?;
             } else {
-                write_line(output, indent + 2, "pass")?;
+                write_line(output, indent + 2, "# missing Rust trait default body lowered to pass (placeholder retained)")?;
             }
         }
     }
@@ -688,7 +715,7 @@ fn write_impl(output: &mut String, value: &kain_core::ast::Impl, indent: usize) 
     write_line(output, indent, &header)?;
 
     if value.methods.is_empty() {
-        write_line(output, indent + 1, "pass")?;
+        write_line(output, indent + 1, "# empty Rust impl lowered to pass")?;
     } else {
         for method in &value.methods {
             write_function(output, method, indent + 1)?;
@@ -706,7 +733,7 @@ fn write_block(
     indent: usize,
 ) -> KainResult<()> {
     if block.stmts.is_empty() {
-        write_line(output, indent, "pass")?;
+        write_line(output, indent, "# empty Rust block lowered to pass")?;
         return Ok(());
     }
 
@@ -739,7 +766,7 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
                 write_line(output, indent, "return")
             }
         }
-        _ => write_line(output, indent, "# <stmt>"),
+        _ => write_line(output, indent, "# unsupported Rust statement lowered as placeholder; inspect source AST"),
     }
 }
 
@@ -772,7 +799,7 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
         kain_core::ast::Expr::None(_) => "none".to_string(),
         kain_core::ast::Expr::Ident(name, _) => name.clone(),
         kain_core::ast::Expr::AsyncBlock(value, _) => format!("async {}", expr_to_string(value)),
-        _ => "# <expr>".to_string(),
+        _ => "# unsupported Rust expression lowered as placeholder; inspect source AST".to_string(),
     }
 }
 

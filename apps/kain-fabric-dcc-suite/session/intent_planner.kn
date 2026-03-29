@@ -172,6 +172,20 @@ fn plan_for_command(
             priority: material_priority,
             debounce_ms: 16
         })
+    if command_kind == "render.delegate_preview":
+        intents.push(PlannedIntent {
+            intent_id: "render.delegate_preview",
+            reason: "delegated render-room preview requested",
+            priority: 64,
+            debounce_ms: 24
+        })
+    if command_kind == "lighting.review_preview":
+        intents.push(PlannedIntent {
+            intent_id: "lighting.review_preview",
+            reason: "lighting review pass requested",
+            priority: 66,
+            debounce_ms: 24
+        })
     if render_dirty:
         intents.push(PlannedIntent {
             intent_id: "render.preview",

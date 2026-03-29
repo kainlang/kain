@@ -49,8 +49,23 @@
 - Registered `render_denoise_report` in the pipeline, report registry, and render intent outputs so the progressive-preview spine now reads pathtrace -> accumulation -> denoise in the authored registry graph.
 - This is still an authored reporting seam, not a real denoise kernel or history-buffer runtime; the clean extension path is to back it with an actual accumulation/temporal filter lane when the native/GPU seam is ready.
 
+## 2026-03-29 - Render Progression Made Visible In The Shell
+
+- `config/ui_shell.json` now calls out the progressive render chain explicitly in operator notes and the render control-room hero copy, so pathtrace -> accumulation -> denoise reads as a first-class preview spine instead of hidden implied plumbing.
+- `scripts/materialize-shell.ps1` and `scripts/materialize-session-state.ps1` were rerun after the shell tweak so the generated shell and live snapshot stay aligned with the authored UI registry.
+- This is still a shell-level honesty pass, not a new render runtime; the next clean step is to keep turning the render chain into real history-buffer or denoise execution once the runtime seam is ready.
+
 ## 2026-03-28 - Fuel-First Direction Lock-In
 
 - Direction update: stop treating the app like a registry demo and keep pushing product heat into the flagship lane.
 - Priorities now: render/pathtrace/accumulation/denoise, asset import pipelines, UI/shell wiring, and native host/FFI seams.
 - Docs only matter when they directly unblock shipping or explain a real runtime limitation.
+
+## 2026-03-29 - Render-Room Lanes Wired In
+
+- Added the first dedicated render-room lanes to `kain-fabric-dcc-suite`: `render.delegate_preview` and `lighting.review_preview`.
+- New Fabric graphs live at `fabric/intents/render_delegate.fabric.toml` and `fabric/intents/lighting_review.fabric.toml`.
+- Added Kain projection files for the new lanes: `src/render_delegation_projection.kn` and `src/lighting_review_projection.kn`.
+- Extended the suite registries so these lanes are first-class in `runtime_packs`, `report_kinds`, `command_registry`, `fabric_intents`, `report_registry`, `command_handlers`, `reducers`, `intent_planner`, and the dispatcher hot-path list.
+- Validation succeeded: queueing both new commands now runs Fabric and materializes `render.delegate_preview:succeeded` and `lighting.review_preview:succeeded`.
+- The suite is now moving from preview-only render plumbing into a more believable render room with delegated preview and lighting review contracts.

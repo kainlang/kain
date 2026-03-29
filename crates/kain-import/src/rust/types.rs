@@ -249,18 +249,12 @@ impl RustTypeMapper {
     // ── impl Trait ────────────────────────────────────────────────────────
 
     fn map_impl_trait(&self, i: &syn::TypeImplTrait) -> Type {
-        for bound in &i.bounds {
-            if let syn::TypeParamBound::Trait(tb) = bound {
-                if let Some(seg) = tb.path.segments.last() {
-                    let trait_name = seg.ident.to_string();
-                    let generics = self.generic_args(&seg.arguments);
-                    return Type::Impl {
-                        trait_name,
-                        generics,
-                        span: S,
-                    };
-                }
-            }
+        if let Some((trait_name, generics)) = self.first_non_auto_trait_bound(&i.bounds) {
+            return Type::Impl {
+                trait_name,
+                generics,
+                span: S,
+            };
         }
         Type::Infer(S)
     }
@@ -269,18 +263,12 @@ impl RustTypeMapper {
 
     fn map_trait_object(&self, t: &syn::TypeTraitObject) -> Type {
         // dyn Trait → impl Trait (same structural semantics in KAIN)
-        for bound in &t.bounds {
-            if let syn::TypeParamBound::Trait(tb) = bound {
-                if let Some(seg) = tb.path.segments.last() {
-                    let trait_name = seg.ident.to_string();
-                    let generics = self.generic_args(&seg.arguments);
-                    return Type::Impl {
-                        trait_name,
-                        generics,
-                        span: S,
-                    };
-                }
-            }
+        if let Some((trait_name, generics)) = self.first_non_auto_trait_bound(&t.bounds) {
+            return Type::Impl {
+                trait_name,
+                generics,
+                span: S,
+            };
         }
         Type::Infer(S)
     }
@@ -328,6 +316,29 @@ impl RustTypeMapper {
                 }),
             })
             .collect()
+    }
+
+    fn first_non_auto_trait_bound(
+        &self,
+        bounds: &syn::punctuated::Punctuated<syn::TypeParamBound, syn::token::Add>,
+    ) -> Option<(String, Vec<Type>)> {
+        for bound in bounds {
+            let syn::TypeParamBound::Trait(tb) = bound else {
+                continue;
+            };
+            let Some(seg) = tb.path.segments.last() else {
+                continue;
+            };
+            let trait_name = seg.ident.to_string();
+            if matches!(
+                trait_name.as_str(),
+                "Send" | "Sync" | "Sized" | "Unpin" | "UnwindSafe" | "RefUnwindSafe"
+            ) {
+                continue;
+            }
+            return Some((trait_name, self.generic_args(&seg.arguments)));
+        }
+        None
     }
 }
 

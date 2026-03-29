@@ -180,6 +180,26 @@
       ]
     },
     {
+      "id": "render.delegate_preview",
+      "label": "Render Delegate Preview",
+      "lane": "render",
+      "graph": "fabric/intents/render_delegate.fabric.toml",
+      "debounce_ms": 24,
+      "produces": [
+        "render_delegation_report"
+      ]
+    },
+    {
+      "id": "lighting.review_preview",
+      "label": "Lighting Review Preview",
+      "lane": "render",
+      "graph": "fabric/intents/lighting_review.fabric.toml",
+      "debounce_ms": 24,
+      "produces": [
+        "lighting_review_report"
+      ]
+    },
+    {
       "id": "compositor.rebuild",
       "label": "Compositor Rebuild",
       "lane": "compositor",

@@ -120,6 +120,20 @@
       "summary": "Tensor inference readiness and serving report."
     },
     {
+      "id": "render_delegation_report",
+      "report_uri": "report://render/delegation",
+      "producer_step": "render_delegation_projection",
+      "output_name": "render_delegation_report",
+      "summary": "Render delegation and backend routing report."
+    },
+    {
+      "id": "lighting_review_report",
+      "report_uri": "report://lighting/review",
+      "producer_step": "lighting_review_projection",
+      "output_name": "lighting_review_report",
+      "summary": "Lighting review and frame-grade feedback report."
+    },
+    {
       "id": "publish_summary",
       "report_uri": "artifact://publish/summary",
       "producer_step": "publish_suite_report",

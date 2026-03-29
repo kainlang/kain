@@ -5,6 +5,24 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=516aaffea2e504db -->
+## 2026-03-29 03:51:07 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `624cd142`
+- Changed files: 4
+- [.M] `crates/cli/src/import_rust.rs`
+- [.M] `crates/kain-import/src/rust/mod.rs`
+- [.M] `crates/kain-import/src/rust/transformer.rs`
+- [.M] `crates/kain-import/src/rust/types.rs`
+
+<!-- polytools-changelog:fingerprint=514b74a6f909743f -->
+## 2026-03-29 03:50:14 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `624cd142`
+- Changed files: 2
+- [.M] `crates/cli/src/import_rust.rs`
+- [.M] `crates/kain-import/src/rust/transformer.rs`
+
 <!-- polytools-changelog:fingerprint=5000352c3060c775 -->
 ## 2026-03-28 20:24:31 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

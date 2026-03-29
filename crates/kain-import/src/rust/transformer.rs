@@ -227,6 +227,78 @@ impl RustTransformer {
         }
     }
 
+    fn lit_kind_name(lit: &syn::Lit) -> &'static str {
+        match lit {
+            syn::Lit::Bool(_) => "bool",
+            syn::Lit::Byte(_) => "byte",
+            syn::Lit::ByteStr(_) => "byte-str",
+            syn::Lit::Char(_) => "char",
+            syn::Lit::Float(_) => "float",
+            syn::Lit::Int(_) => "int",
+            syn::Lit::Str(_) => "str",
+            syn::Lit::Verbatim(_) => "verbatim",
+            _ => "unknown",
+        }
+    }
+
+    fn expr_kind_name(expr: &syn::Expr) -> &'static str {
+        match expr {
+            syn::Expr::Array(_) => "array",
+            syn::Expr::Assign(_) => "assign",
+            syn::Expr::Async(_) => "async",
+            syn::Expr::Await(_) => "await",
+            syn::Expr::Binary(_) => "binary",
+            syn::Expr::Block(_) => "block",
+            syn::Expr::Break(_) => "break",
+            syn::Expr::Call(_) => "call",
+            syn::Expr::Cast(_) => "cast",
+            syn::Expr::Closure(_) => "closure",
+            syn::Expr::Const(_) => "const",
+            syn::Expr::Continue(_) => "continue",
+            syn::Expr::Field(_) => "field",
+            syn::Expr::ForLoop(_) => "for-loop",
+            syn::Expr::Group(_) => "group",
+            syn::Expr::If(_) => "if",
+            syn::Expr::Index(_) => "index",
+            syn::Expr::Infer(_) => "infer",
+            syn::Expr::Let(_) => "let",
+            syn::Expr::Lit(_) => "literal",
+            syn::Expr::Loop(_) => "loop",
+            syn::Expr::Macro(_) => "macro",
+            syn::Expr::Match(_) => "match",
+            syn::Expr::MethodCall(_) => "method-call",
+            syn::Expr::Paren(_) => "paren",
+            syn::Expr::Path(_) => "path",
+            syn::Expr::Range(_) => "range",
+            syn::Expr::Reference(_) => "reference",
+            syn::Expr::Repeat(_) => "repeat",
+            syn::Expr::Return(_) => "return",
+            syn::Expr::Struct(_) => "struct",
+            syn::Expr::Try(_) => "try",
+            syn::Expr::TryBlock(_) => "try-block",
+            syn::Expr::Tuple(_) => "tuple",
+            syn::Expr::Unary(_) => "unary",
+            syn::Expr::Unsafe(_) => "unsafe",
+            syn::Expr::While(_) => "while",
+            syn::Expr::Yield(_) => "yield",
+            _ => "unknown",
+        }
+    }
+
+    fn should_skip_item(&self, item: &syn::Item) -> bool {
+        match item {
+            syn::Item::Mod(module) => self.should_skip_module(module),
+            _ => has_cfg_test_attr(item.attrs()),
+        }
+    }
+
+    fn should_skip_module(&self, module: &syn::ItemMod) -> bool {
+        if module.ident == "tests" {
+            return true;
+        }
+        has_cfg_test_attr(&module.attrs)
+    }
+
     // ── Scope helpers ─────────────────────────────────────────────────────
 
     fn push_scope(&mut self) {
@@ -452,6 +524,10 @@ impl RustTransformer {
     // ─────────────────────────────────────────────────────────────────────
 
     fn transform_item(&mut self, item: &syn::Item) -> Result<Vec<Item>> {
+        if self.should_skip_item(item) {
+            return Ok(vec![]);
+        }
+
         match item {
             syn::Item::Fn(f) => Ok(self
                 .transform_fn(f)?
@@ -487,6 +563,10 @@ impl RustTransformer {
     // ── mod blocks ───────────────────────────────────────────────────────
 
     fn transform_mod(&mut self, m: &syn::ItemMod) -> Result<Vec<Item>> {
+        if self.should_skip_module(m) {
+            return Ok(vec![]);
+        }
+
         match &m.content {
             Some((_, items)) => {
                 let mut kain_items = Vec::new();
@@ -1545,7 +1625,7 @@ impl RustTransformer {
             _ => {
                 self.note_lossy_class(
                     "unsupported_expr_lowering",
-                    "unsupported expression kind".to_string(),
+                    format!("unsupported expression kind: {}", Self::expr_kind_name(other)),
                 );
                 Ok(Expr::None(S))
             }
@@ -1576,7 +1656,7 @@ impl RustTransformer {
             _ => {
                 self.note_lossy_class(
                     "unsupported_literal_lowering",
-                    "unsupported literal lowered to none".to_string(),
+                    format!("unsupported literal kind: {}", Self::lit_kind_name(&lit.lit)),
                 );
                 Ok(Expr::None(S))
             }
@@ -1875,7 +1955,7 @@ impl RustTransformer {
             _ => {
                 self.note_lossy_class(
                     "unsupported_pattern_lowering",
-                    "unsupported pattern lowered to wildcard".to_string(),
+                    "unsupported pattern lowered to wildcard (binding loss possible)".to_string(),
                 );
                 Pattern::Wildcard(S)
             }
@@ -2552,6 +2632,15 @@ fn path_to_ident(path: &syn::Path) -> String {
         .join("::")
 }
 
+fn has_cfg_test_attr(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(|attr| {
+        attr.path().is_ident("cfg")
+            && attr
+                .parse_args::<syn::Ident>()
+                .is_ok_and(|ident| ident == "test")
+    })
+}
+
 #[allow(dead_code)]
 fn variant_name(path: &syn::Path) -> String {
     path.segments
@@ -2857,6 +2946,25 @@ mod tests {
         assert_eq!(name, "__kain_writeln_fmt");
         assert_eq!(args.len(), 2);
         assert!(matches!(&args[1], Expr::String(text, _) if text.is_empty()));
+    }
+
+    #[test]
+    fn skips_test_modules_and_cfg_test_items_by_default() {
+        let program = transform_source(
+            r#"
+            #[cfg(test)]
+            fn helper() {}
+
+            mod tests {
+                pub fn hidden() {}
+            }
+
+            fn visible() {}
+            "#,
+        );
+
+        assert_eq!(program.items.len(), 1);
+        assert!(matches!(&program.items[0], Item::Function(func) if func.name == "visible"));
     }
 
     #[test]

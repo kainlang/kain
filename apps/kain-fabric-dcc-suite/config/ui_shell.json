@@ -118,6 +118,8 @@
         "ui.focus_workspace_navigator",
         "render.preview",
         "render.pathtrace_preview",
+        "lighting.review_preview",
+        "render.delegate_preview",
         "publish.package"
       ]
     },
@@ -243,6 +245,7 @@
       "notes": [
         "Command spotlight remains shell-owned so operators can bootstrap, switch lanes, preview, and publish without hunting through page-local inspectors.",
         "The report browser should make mesh and topology lineage obvious alongside rig, render, tensor, automation, and publish receipts.",
+        "The progressive render chain should stay legible as pathtrace -> accumulation -> denoise so preview fuel is visible, not implied.",
         "The runtime-lane matrix should stay visible in the chrome so Kain, Fabric, Python, GPU, native C, Rust, and Node ownership never has to be inferred.",
         "The shell should keep the active lane obvious and leave one clean return path to the authored workbench frame.",
         "The authored frame should feel intentionally dense instead of generic or toy-like."
@@ -476,7 +479,7 @@
       "tab_label": "Render",
       "title": "Render And Composite Control Room",
       "hero_title": "Review renders, composite plans, and final publish risk in one control room",
-      "hero_summary": "Render and comp should feel like a real production room with visible outputs, not a final step hidden behind a single preview button.",
+      "hero_summary": "Render and comp should feel like a real production room with visible outputs, not a final step hidden behind a single preview button. The progressive preview chain stays legible from pathtrace through accumulation and denoise.",
       "focus_surface_id": "render_lounge",
       "featured_tool_ids": [
         "render_preview",

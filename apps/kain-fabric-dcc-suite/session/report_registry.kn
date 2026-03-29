@@ -67,6 +67,18 @@ fn default_reports() -> Array<ReportDescriptor>:
             summary: "Render preview planning report"
         },
         ReportDescriptor {
+            id: "render_delegation_report",
+            report_uri: "report://render/delegation",
+            producer_step: "render_delegation_projection",
+            summary: "Delegated render-room routing report"
+        },
+        ReportDescriptor {
+            id: "lighting_review_report",
+            report_uri: "report://lighting/review",
+            producer_step: "lighting_review_projection",
+            summary: "Lighting review and frame-grade feedback report"
+        },
+        ReportDescriptor {
             id: "topology_history_report",
             report_uri: "report://topology/history",
             producer_step: "topology_history_projection",

@@ -332,6 +332,27 @@
       }
     },
     {
+      "id": "render.delegate_preview",
+      "label": "Render Delegate Preview",
+      "surface": "render_lounge",
+      "summary": "Runs a delegated render-room pass that fuses preview and pathtrace outputs into a backend routing report.",
+      "intent": "render.delegate_preview",
+      "payload_schema": {
+        "camera_id": "string"
+      }
+    },
+    {
+      "id": "lighting.review_preview",
+      "label": "Lighting Review Preview",
+      "surface": "render_lounge",
+      "summary": "Runs a lighting review pass over current render products, delegation output, and material receipts.",
+      "intent": "lighting.review_preview",
+      "payload_schema": {
+        "camera_id": "string",
+        "lighting_profile": "string"
+      }
+    },
+    {
       "id": "compositor.rebuild",
       "label": "Rebuild Composite",
       "surface": "compositor_stack",

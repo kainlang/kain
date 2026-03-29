@@ -383,6 +383,25 @@ foreach ($rawLine in $RawLines) {
             Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "material.export_textures" "material export requested" 74 0 $CommandId)
             Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "publish.package" "publish bundle depends on exported textures" 40 0 $CommandId)
         }
+        "render.delegate_preview" {
+            $SessionDocument.workspace.active_mode = "render_comp"
+            $SessionDocument.render.camera_id = [string](Get-PayloadValue -Payload $Payload -Key "camera_id" -Default $SessionDocument.render.camera_id)
+            $SessionDocument.dirty.render_dirty = $false
+            $SessionDocument.dirty.compositor_dirty = $false
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "render.delegate_preview" "delegated render room preview requested" 64 24 $CommandId)
+        }
+        "lighting.review_preview" {
+            $SessionDocument.workspace.active_mode = "render_comp"
+            $SessionDocument.render.camera_id = [string](Get-PayloadValue -Payload $Payload -Key "camera_id" -Default $SessionDocument.render.camera_id)
+            if (-not ($SessionDocument.render.PSObject.Properties.Name -contains "lighting_profile_id")) {
+                $SessionDocument.render | Add-Member -NotePropertyName lighting_profile_id -NotePropertyValue ""
+            }
+            $SessionDocument.render.lighting_profile_id = [string](Get-PayloadValue -Payload $Payload -Key "lighting_profile" -Default $SessionDocument.render.lighting_profile_id)
+            $SessionDocument.dirty.render_dirty = $false
+            $SessionDocument.dirty.material_dirty = $false
+            $SessionDocument.dirty.compositor_dirty = $false
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "lighting.review_preview" "lighting review requested" 66 24 $CommandId)
+        }
         "render.preview" {
             $SessionDocument.workspace.active_mode = "render_comp"
             $SessionDocument.render.camera_id = [string](Get-PayloadValue -Payload $Payload -Key "camera_id" -Default $SessionDocument.render.camera_id)
@@ -440,7 +459,7 @@ $CompletedIntents = New-Object System.Collections.ArrayList
 $PendingIntents = New-Object System.Collections.ArrayList
 
 if ($ExecuteFabricHotPath -and @($IntentQueue).Count -gt 0) {
-    $hotPathIntentIds = @("material.bake_preview", "render.preview", "render.pathtrace_preview")
+    $hotPathIntentIds = @("material.bake_preview", "render.preview", "render.pathtrace_preview", "render.delegate_preview", "lighting.review_preview")
     $sortedIntents = @($IntentQueue | Sort-Object priority -Descending)
     foreach ($intent in $sortedIntents) {
         if ($hotPathIntentIds -contains [string]$intent.id) {

@@ -90,6 +90,7 @@ struct RenderState:
     camera_id: String
     view_transform: String
     render_profile: String
+    lighting_profile_id: String
     aov_set: String
 
 struct CompositorState:
@@ -249,6 +250,7 @@ fn default_session_document() -> SessionDocument:
             camera_id: "camera/startup_authoring",
             view_transform: "acescg",
             render_profile: "viewport_quality",
+            lighting_profile_id: "lighting/review/neutral",
             aov_set: "beauty_plus_utility"
         },
         compositor: CompositorState {

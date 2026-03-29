@@ -61,6 +61,16 @@
       "summary": "Builds the path-traced render report from the GPU preview buffer and upstream material/SVG receipts."
     },
     {
+      "id": "render_delegation_projection",
+      "runtime": "kain",
+      "summary": "Builds the delegated render-room routing report from preview and pathtrace outputs."
+    },
+    {
+      "id": "lighting_review_projection",
+      "runtime": "kain",
+      "summary": "Builds the lighting review report from render, pathtrace, delegation, and material receipts."
+    },
+    {
       "id": "render_accumulation_projection",
       "runtime": "kain",
       "summary": "Builds the temporal accumulation report from the path-traced buffer and upstream material/SVG receipts."

@@ -111,9 +111,8 @@ pub fn import_rust_dir(dir: &Path, flat: bool) -> Result<Program> {
     }
 }
 
-/// Import with per-file module wrapping (mirrors C importer directory mode).
+/// Import with per-file module wrapping (mirrors Rust's directory/module layout).
 fn import_rust_project_modular(paths: &[&Path]) -> Result<Program> {
-    use kain_core::ast::{Item, Mod};
     let mut top_items = Vec::new();
     let span = kain_core::span::Span::default();
 
@@ -123,25 +122,82 @@ fn import_rust_project_modular(paths: &[&Path]) -> Result<Program> {
         let mut tx = RustTransformer::new();
         let program = tx.transform(file)?;
 
-        // Use file stem as module name (e.g., parser.rs → mod parser)
-        let mod_name = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("unknown")
-            .to_string();
-
-        top_items.push(Item::Mod(Mod {
-            name: mod_name,
-            inline: Some(program.items),
-            visibility: kain_core::ast::Visibility::Public,
-            span,
-        }));
+        let module_path = module_path_for_file(path);
+        if module_path.is_empty() {
+            top_items.extend(program.items);
+        } else {
+            top_items.push(build_nested_module(&module_path, program.items));
+        }
     }
 
     Ok(Program {
         items: top_items,
         span,
     })
+}
+
+fn module_path_for_file(path: &Path) -> Vec<String> {
+    let mut parts = Vec::new();
+    let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+
+    if matches!(file_name, "lib.rs" | "main.rs") {
+        return Vec::new();
+    }
+
+    if let Some(parent) = path.parent() {
+        for component in parent.components() {
+            let part = sanitize_module_component(&component.as_os_str().to_string_lossy());
+            if !part.is_empty() {
+                parts.push(part);
+            }
+        }
+    }
+
+    let file_stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("module");
+    if !(file_name == "mod.rs" && !parts.is_empty()) {
+        let leaf = sanitize_module_component(file_stem);
+        if !leaf.is_empty() {
+            parts.push(leaf);
+        }
+    }
+
+    if parts.is_empty() {
+        parts.push("module".to_string());
+    }
+
+    parts
+}
+
+fn sanitize_module_component(raw: &str) -> String {
+    let mut name = raw
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch.to_ascii_lowercase() } else { '_' })
+        .collect::<String>();
+    while name.contains("__") {
+        name = name.replace("__", "_");
+    }
+    name = name.trim_matches('_').to_string();
+    if name.is_empty() {
+        return "module".to_string();
+    }
+    if name.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+        return format!("m_{name}");
+    }
+    name
+}
+
+fn build_nested_module(path: &[String], items: Vec<kain_core::ast::Item>) -> kain_core::ast::Item {
+    let mut current = items;
+    for name in path.iter().rev() {
+        current = vec![kain_core::ast::Item::Mod(kain_core::ast::Mod {
+            name: name.clone(),
+            inline: Some(current),
+            visibility: kain_core::ast::Visibility::Public,
+            span: kain_core::span::Span::default(),
+        })];
+    }
+
+    current.into_iter().next().expect("nested module wrapper")
 }
 
 fn collect_rust_files(dir: &Path) -> Result<Vec<std::path::PathBuf>> {

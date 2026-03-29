@@ -1,0 +1,175 @@
+version = 1
+
+[workspace]
+root = "../.."
+search_roots = ["src", "scripts", "shaders"]
+
+[[requires]]
+key = "session.local"
+version = 1
+optional = false
+
+[[steps]]
+id = "python_suite_bootstrap"
+runtime = "python"
+entry = "scripts/python_suite_bootstrap.py"
+
+[[steps.outputs]]
+name = "project_settings"
+kind = "value"
+
+[[steps]]
+id = "dcc_suite_seed"
+runtime = "kain"
+entry = "src/main.kn"
+depends_on = ["python_suite_bootstrap"]
+
+[[steps.outputs]]
+name = "material_authoring_document"
+kind = "value"
+
+[[steps.outputs]]
+name = "svg_mask_document"
+kind = "value"
+
+[[steps.outputs]]
+name = "preview_src"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "preview_dst"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "session_report"
+kind = "value"
+
+[[steps]]
+id = "material_authoring_projection"
+runtime = "kain"
+entry = "src/material_authoring_projection.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed"]
+
+[[steps.outputs]]
+name = "material_authoring_report"
+kind = "value"
+
+[[steps]]
+id = "svg_material_mask_projection"
+runtime = "kain"
+entry = "src/svg_material_mask_projection.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "material_authoring_projection"]
+
+[[steps.outputs]]
+name = "svg_mask_report"
+kind = "value"
+
+[[steps]]
+id = "gpu_render_preview"
+runtime = "gpu_compute"
+shader_source = "shaders/render_preview_lighting.kn"
+compute_key = "DccSuiteRenderPreviewLighting"
+depends_on = ["dcc_suite_seed", "material_authoring_projection", "svg_material_mask_projection"]
+
+[[steps.outputs]]
+name = "preview_dst"
+kind = "shared_buffer"
+
+[[steps]]
+id = "material_texture_export_projection"
+runtime = "kain"
+entry = "src/material_texture_export_projection.kn"
+depends_on = [
+    "python_suite_bootstrap",
+    "dcc_suite_seed",
+    "material_authoring_projection",
+    "svg_material_mask_projection",
+    "gpu_render_preview"
+]
+
+[[steps.outputs]]
+name = "material_texture_export_report"
+kind = "value"
+
+[[steps]]
+id = "render_preview_projection"
+runtime = "kain"
+entry = "src/render_preview_projection.kn"
+depends_on = [
+    "python_suite_bootstrap",
+    "dcc_suite_seed",
+    "material_authoring_projection",
+    "svg_material_mask_projection",
+    "gpu_render_preview",
+    "material_texture_export_projection"
+]
+
+[[steps.outputs]]
+name = "render_preview_report"
+kind = "value"
+
+[[steps]]
+id = "gpu_pathtrace_preview"
+runtime = "gpu_compute"
+shader_source = "shaders/pathtrace_preview_lighting.kn"
+compute_key = "DccSuitePathTracePreviewLighting"
+depends_on = ["dcc_suite_seed", "material_authoring_projection", "svg_material_mask_projection", "gpu_render_preview"]
+
+[[steps.outputs]]
+name = "pathtrace_dst"
+kind = "shared_buffer"
+
+[[steps]]
+id = "pathtrace_preview_projection"
+runtime = "kain"
+entry = "src/pathtrace_preview_projection.kn"
+depends_on = [
+    "python_suite_bootstrap",
+    "dcc_suite_seed",
+    "material_authoring_projection",
+    "svg_material_mask_projection",
+    "gpu_render_preview",
+    "gpu_pathtrace_preview",
+    "render_preview_projection"
+]
+
+[[steps.outputs]]
+name = "pathtrace_preview_report"
+kind = "value"
+
+[[steps]]
+id = "render_delegation_projection"
+runtime = "kain"
+entry = "src/render_delegation_projection.kn"
+depends_on = [
+    "python_suite_bootstrap",
+    "dcc_suite_seed",
+    "render_preview_projection",
+    "pathtrace_preview_projection"
+]
+
+[[steps.outputs]]
+name = "render_delegation_report"
+kind = "value"
+
+[[steps]]
+id = "lighting_review_projection"
+runtime = "kain"
+entry = "src/lighting_review_projection.kn"
+depends_on = [
+    "python_suite_bootstrap",
+    "dcc_suite_seed",
+    "material_authoring_projection",
+    "svg_material_mask_projection",
+    "render_preview_projection",
+    "pathtrace_preview_projection",
+    "render_delegation_projection"
+]
+
+[[steps.outputs]]
+name = "lighting_review_report"
+kind = "value"
+
+[reports]
+directory = ".kain/fabric/intents/lighting_review"
+emit_jsonl_events = true
