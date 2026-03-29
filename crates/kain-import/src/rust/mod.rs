@@ -139,23 +139,6 @@ pub fn import_rust_dir_detailed(dir: &Path, flat: bool) -> Result<(Program, Vec<
 }
 
 /// Import with per-file module wrapping (mirrors Rust's directory/module layout).
-fn import_rust_project_detailed(paths: &[&Path]) -> Result<(Program, Vec<String>)> {
-    let mut all_items = Vec::new();
-    let mut diagnostics = Vec::new();
-    let span = kain_core::span::Span::default();
-
-    for path in paths {
-        let source = std::fs::read_to_string(path).map_err(ImportError::IoError)?;
-        let file = parser::parse_rust(&source, path)?;
-        let mut tx = RustTransformer::new();
-        let program = tx.transform(file)?;
-        all_items.extend(program.items);
-        diagnostics.extend(tx.diagnostics);
-    }
-
-    Ok((Program { items: all_items, span }, diagnostics))
-}
-
 fn import_rust_project_modular_detailed(paths: &[&Path]) -> Result<(Program, Vec<String>)> {
     let mut top_items = Vec::new();
     let mut diagnostics = Vec::new();

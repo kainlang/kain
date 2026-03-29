@@ -952,17 +952,3 @@ fn count_enums(program: &kain_core::ast::Program) -> usize {
         .filter(|item| matches!(item, kain_core::ast::Item::Enum(_)))
         .count()
 }
-
-
-fn count_enums(program: &kain_core::ast::Program) -> usize {
-    program
-        .items
-        .iter()
-        .filter(|item| matches!(item, kain_core::ast::Item::Enum(_)))
-        .count()
-}
-tem| matches!(item, kain_core::ast::Item::Enum(_)))
-        .count()
-}
-     .count()
-}
