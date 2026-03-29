@@ -6,6 +6,7 @@ fn sculpt_brush_report_path() -> String:
 
 fn build_sculpt_brush_report_json(settings: Any, state: Any, intent: Any) -> String:
     let active_mesh_resource_id = state.mesh.active_edit_target_id
+    let deformation_profile = state.materials.deformation_surface_id
     let brush_data = intent.payload.get_as::<SculptBrushData>("brush_data")
     let json = "{\n"
     let json = json + "  \"kind\": \"sculpt_brush_report\",\n"
@@ -40,6 +41,11 @@ public fn execute_sculpt_brush_step(intent: Intent, state: State) -> State {
 struct SculptBrushData {
     pub origin: Vec3,
     pub direction: Vec3,
+    pub radius: f32,
+    pub strength: f32,
+    pub falloff_curve: String,
+}
+direction: Vec3,
     pub radius: f32,
     pub strength: f32,
     pub falloff_curve: String,

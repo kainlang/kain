@@ -207,6 +207,23 @@
         "preview_dst"
       ],
       "summary": "Generates stable ID- and utility-style matte weights for comp graph inspection and selective rebuild work."
+    },
+    {
+      "id": "render_review_capture",
+      "lane": "render_comp",
+      "status": "staged_library",
+      "shader_source": "shaders/render_aov_pack.kn",
+      "compute_key": "DccSuiteRenderAovPack",
+      "primary_manifests": [
+        "fabric/intents/render_review.fabric.toml"
+      ],
+      "inputs": [
+        "preview_src"
+      ],
+      "outputs": [
+        "preview_dst"
+      ],
+      "summary": "Packs review-friendly AOV signals for capture, visibility, and compositor handoff."
     }
   ]
 }

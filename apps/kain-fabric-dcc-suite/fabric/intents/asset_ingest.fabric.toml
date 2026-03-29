@@ -28,6 +28,56 @@ depends_on = ["python_suite_bootstrap"]
 name = "asset_ingest_report"
 kind = "value"
 
+[[steps]]
+id = "asset_source_manifest_projection"
+runtime = "kain"
+entry = "src/asset_source_manifest_projection.kn"
+depends_on = ["asset_ingest_session"]
+
+[[steps.outputs]]
+name = "asset_source_manifest_report"
+kind = "value"
+
+[[steps]]
+id = "interchange_transcode_projection"
+runtime = "kain"
+entry = "src/interchange_transcode_projection.kn"
+depends_on = ["asset_source_manifest_projection"]
+
+[[steps.outputs]]
+name = "interchange_transcode_report"
+kind = "value"
+
+[[steps]]
+id = "scene_exchange_projection"
+runtime = "kain"
+entry = "src/scene_exchange_projection.kn"
+depends_on = ["interchange_transcode_projection"]
+
+[[steps.outputs]]
+name = "scene_exchange_report"
+kind = "value"
+
+[[steps]]
+id = "asset_registry_lineage_projection"
+runtime = "kain"
+entry = "src/asset_registry_lineage_projection.kn"
+depends_on = ["scene_exchange_projection"]
+
+[[steps.outputs]]
+name = "asset_lineage_report"
+kind = "value"
+
+[[steps]]
+id = "media_ingest_projection"
+runtime = "kain"
+entry = "src/media_ingest_projection.kn"
+depends_on = ["interchange_transcode_projection"]
+
+[[steps.outputs]]
+name = "media_ingest_report"
+kind = "value"
+
 [reports]
 directory = ".kain/fabric/intents/asset_ingest"
 emit_jsonl_events = true

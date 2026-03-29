@@ -127,6 +127,27 @@
       "summary": "Render delegation and backend routing report."
     },
     {
+      "id": "render_aov_pack_report",
+      "report_uri": "report://render/aov-pack",
+      "producer_step": "render_aov_pack_projection",
+      "output_name": "render_aov_pack_report",
+      "summary": "AOV packing and review capture budget report."
+    },
+    {
+      "id": "render_review_capture_report",
+      "report_uri": "report://render/review-capture",
+      "producer_step": "render_review_capture_projection",
+      "output_name": "render_review_capture_report",
+      "summary": "Review evidence capture and playback routing report."
+    },
+    {
+      "id": "render_visibility_report",
+      "report_uri": "report://render/visibility",
+      "producer_step": "render_visibility_projection",
+      "output_name": "render_visibility_report",
+      "summary": "Visibility and culling telemetry report for the render room."
+    },
+    {
       "id": "lighting_review_report",
       "report_uri": "report://lighting/review",
       "producer_step": "lighting_review_projection",
@@ -139,6 +160,41 @@
       "producer_step": "publish_suite_report",
       "output_name": "publish_summary",
       "summary": "Publish and delivery summary emitted through the Node bridge."
+    },
+    {
+      "id": "asset_source_manifest_report",
+      "report_uri": "report://asset/source-manifest",
+      "producer_step": "asset_source_manifest_projection",
+      "output_name": "asset_source_manifest_report",
+      "summary": "Source-id-first asset source manifest report."
+    },
+    {
+      "id": "asset_lineage_report",
+      "report_uri": "report://asset/lineage",
+      "producer_step": "asset_registry_lineage_projection",
+      "output_name": "asset_lineage_report",
+      "summary": "Asset lineage and residency routing report."
+    },
+    {
+      "id": "scene_exchange_report",
+      "report_uri": "report://scene/exchange",
+      "producer_step": "scene_exchange_projection",
+      "output_name": "scene_exchange_report",
+      "summary": "Scene exchange routing report for layer composition and asset resolver policy."
+    },
+    {
+      "id": "interchange_transcode_report",
+      "report_uri": "report://interchange/transcode",
+      "producer_step": "interchange_transcode_projection",
+      "output_name": "interchange_transcode_report",
+      "summary": "Interchange transcode routing report for source-id-first import normalization."
+    },
+    {
+      "id": "media_ingest_report",
+      "report_uri": "report://media/ingest",
+      "producer_step": "media_ingest_projection",
+      "output_name": "media_ingest_report",
+      "summary": "Media ingest and proxy-safe transcode report."
     }
   ]
 }

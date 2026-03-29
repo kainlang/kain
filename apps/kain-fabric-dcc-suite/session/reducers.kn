@@ -534,7 +534,7 @@ fn reduce_command(command_kind: String, payload_summary: String, current_tool: S
         return ReducerOutcome {
             next_workspace_mode: "material_lookdev",
             next_active_tool: "material_layer_paint",
-            status_banner: "material layer paint queued",
+            status_banner: "material layer paint queued with deformation-aware surface policy",
             asset_dirty: false,
             sculpt_dirty: false,
             topology_dirty: false,
@@ -622,7 +622,26 @@ fn reduce_command(command_kind: String, payload_summary: String, current_tool: S
             compositor_dirty: false,
             publish_dirty: false,
             tensor_dirty: false,
-            queued_intents: ["lighting.review_preview"],
+            queued_intents: ["lighting.review_preview", "render.review_capture"],
+            session_needs_save: false
+        }
+    if command_kind == "render.review_capture":
+        return ReducerOutcome {
+            next_workspace_mode: "render_comp",
+            next_active_tool: current_tool,
+            status_banner: "render review capture requested",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            render_dirty: false,
+            compositor_dirty: false,
+            publish_dirty: false,
+            tensor_dirty: false,
+            queued_intents: ["render.review_capture"],
             session_needs_save: false
         }
     if command_kind == "render.preview":

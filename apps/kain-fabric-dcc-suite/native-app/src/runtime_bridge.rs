@@ -173,6 +173,7 @@ fn apply_command_request(
         "material.edit_svg_mask" => apply_svg_mask_edit(session_document),
         "material.bake_preview" => apply_material_bake_preview(session_document),
         "material.export_textures" => apply_material_export(session_document),
+        "render.review_capture" => apply_render_review_capture(session_document, runtime_snapshot),
         "render.preview" => apply_render_preview(session_document, runtime_snapshot),
         "compositor.rebuild" => apply_compositor_rebuild(session_document, runtime_snapshot),
         "publish.package" => apply_publish_package(session_document, runtime_snapshot),
@@ -759,6 +760,15 @@ fn apply_material_bake_preview(session_document: &mut Value) {
 
 fn apply_material_export(session_document: &mut Value) {
     set_bool_at_path(session_document, &["dirty", "material_dirty"], false);
+    set_bool_at_path(session_document, &["dirty", "publish_dirty"], true);
+}
+
+fn apply_render_review_capture(session_document: &mut Value, runtime_snapshot: &Value) {
+    if tool_exists(runtime_snapshot, "render_review_capture") {
+        apply_tool_defaults_from_snapshot(session_document, runtime_snapshot, "render_review_capture");
+    }
+    set_bool_at_path(session_document, &["dirty", "render_dirty"], false);
+    set_bool_at_path(session_document, &["dirty", "compositor_dirty"], true);
     set_bool_at_path(session_document, &["dirty", "publish_dirty"], true);
 }
 

@@ -169,6 +169,12 @@ fn command_handlers() -> Array<CommandHandlerDescriptor>:
             immediate_effect: "request lighting review planning"
         },
         CommandHandlerDescriptor {
+            command_kind: "render.review_capture",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "request render review capture planning"
+        },
+        CommandHandlerDescriptor {
             command_kind: "compositor.rebuild",
             reducer_owner: "session.reducers",
             planner_owner: "session.intent_planner",

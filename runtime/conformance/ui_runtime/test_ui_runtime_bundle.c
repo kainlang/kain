@@ -120,6 +120,31 @@ static int test_true(int condition, const char* message) {
     return 1;
 }
 
+static int test_bundle_root_and_nodes_are_canonical(const KainUiCompiledBundle* bundle) {
+    if (!test_true(bundle->has_root_id, "bundle should expose canonical output.tree root")) {
+        return 0;
+    }
+    if (!test_true(bundle->root_id == 1ull, "bundle root id should match canonical output.tree root")) {
+        return 0;
+    }
+    if (!test_true(bundle->node_count == 3, "bundle should expose three canonical output.tree nodes")) {
+        return 0;
+    }
+    if (!test_true(bundle->nodes[0].id == bundle->root_id, "root component should stay first canonical node")) {
+        return 0;
+    }
+    if (!test_true(bundle->nodes[0].kind == KAIN_UI_COMPILED_NODE_PANEL, "canonical root node should be a panel")) {
+        return 0;
+    }
+    if (!test_true(bundle->nodes[1].parent_id == bundle->root_id, "second node should preserve canonical parent")) {
+        return 0;
+    }
+    if (!test_true(bundle->nodes[2].parent_id == bundle->root_id, "third node should preserve canonical parent")) {
+        return 0;
+    }
+    return 1;
+}
+
 int main(void) {
     KainUiCompiledBundle* bundle;
     KainUiRuntimeValidationReport* report;
@@ -143,7 +168,7 @@ int main(void) {
     if (!test_true(bundle->loaded, "bundle should be marked loaded")) {
         goto cleanup;
     }
-    if (!test_true(bundle->node_count == 3, "bundle should expose three nodes")) {
+    if (!test_bundle_root_and_nodes_are_canonical(bundle)) {
         goto cleanup;
     }
 
@@ -157,7 +182,7 @@ int main(void) {
     if (!test_true(report->overlay_compatible, "bundle should be overlay compatible")) {
         goto cleanup;
     }
-    if (!test_true(report->component_count == 3, "validation should count all components")) {
+    if (!test_true(report->component_count == 3, "validation should count all canonical output.tree components")) {
         goto cleanup;
     }
     if (!test_true(report->focusable_count >= 2, "validation should detect focusable components")) {

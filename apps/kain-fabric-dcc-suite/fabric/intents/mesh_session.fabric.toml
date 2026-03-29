@@ -73,10 +73,24 @@ name = "mesh_uv_pack_report"
 kind = "value"
 
 [[steps]]
+id = "mesh_edit_session_projection"
+runtime = "kain"
+entry = "src/mesh_edit_session_projection.kn"
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "mesh_subdivision_projection", "mesh_uv_pack_projection"]
+
+[[steps.outputs]]
+name = "mesh_contract_signature"
+kind = "value"
+
+[[steps.outputs]]
+name = "mesh_topology_signature"
+kind = "value"
+
+[[steps]]
 id = "mesh_session_projection"
 runtime = "kain"
 entry = "src/mesh_session_projection.kn"
-depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "mesh_topology_projection", "mesh_subdivision_projection", "mesh_uv_pack_projection"]
+depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "mesh_topology_projection", "mesh_subdivision_projection", "mesh_uv_pack_projection", "mesh_edit_session_projection"]
 
 [[steps.outputs]]
 name = "mesh_contract_report"

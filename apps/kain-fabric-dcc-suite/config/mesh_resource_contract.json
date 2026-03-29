@@ -23,7 +23,23 @@
       "owner": "app",
       "kind": "value",
       "source": "mesh_edit_session",
-      "summary": "Canonical active mesh edit target that sculpt and topology lanes bind to."
+      "summary": "Canonical active mesh edit target that sculpt, subdivision, UV packing, and topology lanes bind to."
+    },
+    {
+      "id": "mesh_subdivision_mesh_document",
+      "resource_uri": "mesh://topology/subdivision/current",
+      "owner": "app",
+      "kind": "value",
+      "source": "mesh_subdivision_projection",
+      "summary": "Catmull-Clark-style subdivision output contract for the active mesh edit target."
+    },
+    {
+      "id": "mesh_uv_layout_mesh_document",
+      "resource_uri": "mesh://uv/layout/current",
+      "owner": "app",
+      "kind": "value",
+      "source": "mesh_uv_pack_projection",
+      "summary": "UV packing layout contract for the active edit target and its baked topology output."
     },
     {
       "id": "topology_output_mesh_document",

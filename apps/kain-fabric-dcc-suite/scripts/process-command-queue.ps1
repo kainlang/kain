@@ -401,6 +401,15 @@ foreach ($rawLine in $RawLines) {
             $SessionDocument.dirty.material_dirty = $false
             $SessionDocument.dirty.compositor_dirty = $false
             Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "lighting.review_preview" "lighting review requested" 66 24 $CommandId)
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "render.review_capture" "lighting review needs capture and AOV telemetry" 68 32 $CommandId)
+        }
+        "render.review_capture" {
+            $SessionDocument.workspace.active_mode = "render_comp"
+            $SessionDocument.render.camera_id = [string](Get-PayloadValue -Payload $Payload -Key "camera_id" -Default $SessionDocument.render.camera_id)
+            $SessionDocument.dirty.render_dirty = $false
+            $SessionDocument.dirty.compositor_dirty = $true
+            $SessionDocument.dirty.publish_dirty = $true
+            Add-IntentIfMissing -IntentQueue $IntentQueue -Bridge $Bridge -Intent (New-Intent "render.review_capture" "render review capture requested" 68 32 $CommandId)
         }
         "render.preview" {
             $SessionDocument.workspace.active_mode = "render_comp"
@@ -459,7 +468,7 @@ $CompletedIntents = New-Object System.Collections.ArrayList
 $PendingIntents = New-Object System.Collections.ArrayList
 
 if ($ExecuteFabricHotPath -and @($IntentQueue).Count -gt 0) {
-    $hotPathIntentIds = @("material.bake_preview", "render.preview", "render.pathtrace_preview", "render.delegate_preview", "lighting.review_preview")
+    $hotPathIntentIds = @("material.bake_preview", "render.preview", "render.pathtrace_preview", "render.delegate_preview", "lighting.review_preview", "render.review_capture")
     $sortedIntents = @($IntentQueue | Sort-Object priority -Descending)
     foreach ($intent in $sortedIntents) {
         if ($hotPathIntentIds -contains [string]$intent.id) {

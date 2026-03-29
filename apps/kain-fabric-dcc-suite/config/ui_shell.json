@@ -345,7 +345,7 @@
       "tab_label": "Lookdev",
       "title": "Material Workbench",
       "hero_title": "Lookdev with layered material density",
-      "hero_summary": "Texture sets, masks, and export presets stay first-class.",
+      "hero_summary": "Texture sets, paint layers, UV policy, masks, and export presets stay first-class.",
       "focus_surface_id": "material_graph",
       "featured_tool_ids": [
         "material_layer_paint",
@@ -477,7 +477,7 @@
       "tab_label": "Render",
       "title": "Render Workbench",
       "hero_title": "Render and composite control room",
-      "hero_summary": "Preview, accumulation, and denoise remain explicit in the frame.",
+      "hero_summary": "Delegated preview, pathtrace, accumulation, denoise, and frame scheduling stay explicit in the frame.",
       "focus_surface_id": "render_lounge",
       "featured_tool_ids": [
         "render_preview",

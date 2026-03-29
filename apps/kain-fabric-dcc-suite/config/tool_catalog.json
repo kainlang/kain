@@ -48,7 +48,7 @@
       "id": "material_layer_paint",
       "label": "Material Layer Paint",
       "lane": "material_lookdev",
-      "summary": "Mask, ID, and procedural material layer authoring.",
+      "summary": "Mask, ID, procedural layer authoring, and deformation-aware paint response.",
       "gizmo_enabled": false
     },
     {

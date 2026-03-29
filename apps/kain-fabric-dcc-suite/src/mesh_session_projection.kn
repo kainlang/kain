@@ -4,13 +4,16 @@ fn app_state_root() -> String:
 fn mesh_contract_report_path() -> String:
     return app_state_root() + "/mesh_contract_report.json"
 
-fn build_mesh_contract_report_json(settings: Any, scene_graph_document: String, mesh_resource_contract_document: String) -> String:
+fn build_mesh_contract_report_json(settings: Any, scene_graph_document: String, mesh_resource_contract_document: String, active_edit_target_document: String, subdivision_document: String, uv_layout_document: String) -> String:
     let json = "{\n"
     let json = json + "  \"kind\": \"mesh_contract_report\",\n"
     let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
     let json = json + "  \"workspace_mode\": \"" + settings.workspace_mode + "\",\n"
     let json = json + "  \"scene_graph_document\": \"" + scene_graph_document + "\",\n"
     let json = json + "  \"mesh_resource_contract_document\": \"" + mesh_resource_contract_document + "\",\n"
+    let json = json + "  \"active_edit_target_document\": \"" + active_edit_target_document + "\",\n"
+    let json = json + "  \"subdivision_document\": \"" + subdivision_document + "\",\n"
+    let json = json + "  \"uv_layout_document\": \"" + uv_layout_document + "\",\n"
     let json = json + "  \"mesh_command_ids\": [\n"
     let json = json + "    \"mesh.open_document\",\n"
     let json = json + "    \"mesh.set_edit_target\",\n"
@@ -18,9 +21,11 @@ fn build_mesh_contract_report_json(settings: Any, scene_graph_document: String, 
     let json = json + "    \"mesh.create_primitive\",\n"
     let json = json + "    \"mesh.import_asset\",\n"
     let json = json + "    \"mesh.edit_topology\",\n"
-    let json = json + "    \"mesh.rebuild_topology\"\n"
+    let json = json + "    \"mesh.rebuild_topology\",\n"
+    let json = json + "    \"mesh.subdivide\",\n"
+    let json = json + "    \"mesh.pack_uv\"\n"
     let json = json + "  ],\n"
-    let json = json + "  \"limitation\": \"Kain owns the mesh contract and session routing, but durable mesh normalization and topology solving still require a native runtime seam.\"\n"
+    let json = json + "  \"limitation\": \"Kain owns the mesh contract and session routing, but durable mesh normalization, subdivision solving, and UV packing still require a native runtime seam.\"\n"
     let json = json + "}\n"
     return json
 
@@ -28,7 +33,10 @@ fn main() -> String:
     let settings = fabric_inputs.python_suite_bootstrap.project_settings
     let scene_graph_document = fabric_inputs.dcc_suite_seed.scene_graph_document
     let mesh_resource_contract_document = fabric_inputs.dcc_suite_seed.mesh_resource_contract_document
-    let report_json = build_mesh_contract_report_json(settings, scene_graph_document, mesh_resource_contract_document)
+    let active_edit_target_document = fabric_inputs.dcc_suite_seed.active_editable_mesh_document
+    let subdivision_document = fabric_inputs.mesh_subdivision_projection.mesh_subdivision_report
+    let uv_layout_document = fabric_inputs.mesh_uv_pack_projection.mesh_uv_pack_report
+    let report_json = build_mesh_contract_report_json(settings, scene_graph_document, mesh_resource_contract_document, active_edit_target_document, subdivision_document, uv_layout_document)
 
     write_file(mesh_contract_report_path(), report_json)
 

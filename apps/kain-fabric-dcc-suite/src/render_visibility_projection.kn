@@ -1,0 +1,37 @@
+use std::interop::bridge
+
+fn app_state_root() -> String:
+    return "apps/kain-fabric-dcc-suite/state"
+
+fn render_visibility_report_path() -> String:
+    return app_state_root() + "/render_visibility_report.json"
+
+fn build_render_visibility_report_json(settings: Any, render_aov_report: String, review_capture_report: String, schedule_report: String) -> String:
+    let visibility_layers = settings.runtime_pack_count + settings.preview_count + 4
+    let cull_budget = settings.preview_count + settings.tensor_feature_count + 1
+    let review_capture_count = settings.preview_count + settings.tensor_feature_count + 3
+
+    let json = "{\n"
+    let json = json + "  \"kind\": \"render_visibility_report\",\n"
+    let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
+    let json = json + "  \"workspace_mode\": \"" + settings.workspace_mode + "\",\n"
+    let json = json + "  \"visibility_profile\": \"aaa_render_room_visibility_culling\",\n"
+    let json = json + "  \"visibility_layers\": " + str(visibility_layers) + ",\n"
+    let json = json + "  \"cull_budget_hint\": " + str(cull_budget) + ",\n"
+    let json = json + "  \"review_capture_count\": " + str(review_capture_count) + ",\n"
+    let json = json + "  \"upstream_render_aov_pack_report\": \"" + render_aov_report + "\",\n"
+    let json = json + "  \"upstream_render_review_capture_report\": \"" + review_capture_report + "\",\n"
+    let json = json + "  \"upstream_render_frame_schedule_report\": \"" + schedule_report + "\"\n"
+    let json = json + "}\n"
+    return json
+
+fn main() -> String:
+    let settings = fabric_inputs.python_suite_bootstrap.project_settings
+    let render_aov_report = fabric_inputs.render_aov_pack_projection.render_aov_pack_report
+    let review_capture_report = fabric_inputs.render_review_capture_projection.render_review_capture_report
+    let schedule_report = fabric_inputs.render_frame_schedule_projection.render_frame_schedule_report
+    let report_json = build_render_visibility_report_json(settings, render_aov_report, review_capture_report, schedule_report)
+
+    write_file(render_visibility_report_path(), report_json)
+
+    return "render-visibility:" + settings.workspace_mode + ":layers=" + str(settings.runtime_pack_count + settings.preview_count + 4) + ":cull=" + str(settings.preview_count + settings.tensor_feature_count + 1)

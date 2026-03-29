@@ -14,7 +14,11 @@
         "1": {
           "id": 1,
           "kind": "Panel",
-          "props": {},
+          "props": {
+            "title": "Root Panel",
+            "text": "compiled overlay",
+            "tag": "panel"
+          },
           "children": [2, 3],
           "layout": {
             "kind": "Stack",
@@ -52,7 +56,11 @@
           "kind": {
             "Element": "input"
           },
-          "props": {},
+          "props": {
+            "title": "Name Field",
+            "text": "Ada",
+            "tag": "input"
+          },
           "children": [],
           "layout": {
             "kind": "Flow",
@@ -88,7 +96,11 @@
         "3": {
           "id": 3,
           "kind": "Viewport3D",
-          "props": {},
+          "props": {
+            "title": "Viewport",
+            "tag": "viewport",
+            "scene": "magma_terraces"
+          },
           "children": [],
           "layout": {
             "kind": "Absolute",

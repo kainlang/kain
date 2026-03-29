@@ -5,6 +5,47 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=398acd20dc8aa51e -->
+## 2026-03-29 04:13:04 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `085e4646`
+- Changed files: 10
+- [.M] `crates/kain-ui/tests/ui_runtime_native_projection_parity.rs`
+- [.M] `runtime/conformance/ui_runtime/fixtures/ui_runtime_parity_bundle.json`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_bundle.c`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_focus.c`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_parity.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_sculpt_win32.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [.M] `runtime/native/src/ui/kain_ui_compiled_bundle.c`
+- [.M] `runtime/native/src/ui/kain_ui_compiled_overlay.c`
+- [.M] `runtime/native/src/ui/kain_ui_runtime.c`
+
+<!-- polytools-changelog:fingerprint=8c764c82b9383439 -->
+## 2026-03-29 04:12:15 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `085e4646`
+- Changed files: 8
+- [.M] `crates/kain-ui/tests/ui_runtime_native_projection_parity.rs`
+- [.M] `runtime/conformance/ui_runtime/fixtures/ui_runtime_parity_bundle.json`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_bundle.c`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_focus.c`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_parity.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_sculpt_win32.c`
+- [.M] `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- [.M] `runtime/native/src/ui/kain_ui_compiled_overlay.c`
+
+<!-- polytools-changelog:fingerprint=99c11bdf0e340407 -->
+## 2026-03-29 04:09:49 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `085e4646`
+- Changed files: 5
+- [.M] `crates/kain-ui/tests/ui_runtime_native_projection_parity.rs`
+- [.M] `runtime/conformance/ui_runtime/fixtures/ui_runtime_parity_bundle.json`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_bundle.c`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_focus.c`
+- [.M] `runtime/conformance/ui_runtime/test_ui_runtime_parity.c`
+
 <!-- polytools-changelog:fingerprint=f5529347e6c4e185 -->
 ## 2026-03-29 04:03:21 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

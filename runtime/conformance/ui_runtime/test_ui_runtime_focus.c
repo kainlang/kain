@@ -120,6 +120,22 @@ static int test_true(int condition, const char* message) {
     return 1;
 }
 
+static int test_focus_bundle_uses_canonical_root(const KainUiCompiledBundle* bundle) {
+    if (!test_true(bundle->has_root_id, "focus smoke should expose canonical output.tree root")) {
+        return 0;
+    }
+    if (!test_true(bundle->root_id == 1ull, "focus smoke root should match canonical output.tree root")) {
+        return 0;
+    }
+    if (!test_true(bundle->nodes[1].parent_id == bundle->root_id, "editable field should remain parented under canonical root")) {
+        return 0;
+    }
+    if (!test_true(bundle->nodes[2].parent_id == bundle->root_id, "viewport should remain parented under canonical root")) {
+        return 0;
+    }
+    return 1;
+}
+
 static int route_event(KainUiRuntimeState* state, KainUiRuntimeEvent* event, KainUiRuntimeEventResult* result) {
     if (!kain_ui_runtime_route_event(state, event, result)) {
         return test_fail("event should have been handled");
@@ -149,6 +165,9 @@ int main(void) {
 
     kain_ui_runtime_test_fill_bundle(bundle);
     kain_ui_runtime_test_fill_state(state, bundle);
+    if (!test_focus_bundle_uses_canonical_root(bundle)) {
+        goto cleanup;
+    }
 
     fprintf(stderr, "[focus] request focus\n");
     fflush(stderr);

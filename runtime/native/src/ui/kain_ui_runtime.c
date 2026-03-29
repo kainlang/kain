@@ -345,7 +345,7 @@ static int kain_ui_runtime_validate_bundle_inner(
             KAIN_DIAG_SEVERITY_ERROR,
             KAIN_DIAG_CODE_UI_BUNDLE_INVALID_SCHEMA,
             "ui bundle missing root",
-            "native_projection.root_id was not set"
+            "canonical output.tree.root was not set"
         );
     }
     if (!bundle->window_title[0]) {

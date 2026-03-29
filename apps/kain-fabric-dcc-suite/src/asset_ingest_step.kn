@@ -4,6 +4,10 @@
 
 struct AssetIngestResult {
     asset_id: String
+    source_id: String
+    transcode_profile_id: String
+    scene_exchange_id: String
+    lineage_id: String
     geometry_nodes: Int
     materials_discovered: Int
     status: String
@@ -26,11 +30,19 @@ fn native_ingest_usd(file_path: String, buffer_ptr: Ptr, buffer_len: Int) -> Int
 fn main() -> AssetIngestResult:
     let settings = fabric_inputs.python_suite_bootstrap.project_settings
     let target_file = fabric_inputs.asset_file_path
+    let source_id = fabric_inputs.asset_ingest_session.source_id
+    let transcode_profile_id = fabric_inputs.asset_ingest_session.transcode_profile_id
+    let scene_exchange_id = fabric_inputs.scene_exchange_projection.scene_exchange_id
+    let lineage_id = fabric_inputs.asset_ingest_session.lineage_id
 
     // 1. Pre-flight validation in Kain
-    if not target_file.ends_with(".usd") and not target_file.ends_with(".abc"):
+    if not target_file.ends_with(".usd") and not target_file.ends_with(".abc") and not target_file.ends_with(".gltf") and not target_file.ends_with(".glb"):
         return AssetIngestResult(
             asset_id: "none",
+            source_id: source_id,
+            transcode_profile_id: transcode_profile_id,
+            scene_exchange_id: scene_exchange_id,
+            lineage_id: lineage_id,
             geometry_nodes: 0,
             materials_discovered: 0,
             status: "error: unsupported format"
@@ -40,12 +52,16 @@ fn main() -> AssetIngestResult:
     // (Simulated 64MB buffer for ingest)
     let ingest_buffer = allocate_buffer(64 * 1024 * 1024)
 
-    // 3. Delegate to Rust FFI for actual USD parsing
+    // 3. Delegate to Rust FFI for actual interchange parsing
     let bytes_written = native_ingest_usd(target_file, ingest_buffer.ptr, ingest_buffer.size)
 
     if bytes_written <= 0:
         return AssetIngestResult(
             asset_id: "none",
+            source_id: source_id,
+            transcode_profile_id: transcode_profile_id,
+            scene_exchange_id: scene_exchange_id,
+            lineage_id: lineage_id,
             geometry_nodes: 0,
             materials_discovered: 0,
             status: "error: native ingest failed"
@@ -56,6 +72,10 @@ fn main() -> AssetIngestResult:
 
     return AssetIngestResult(
         asset_id: "asset_" + settings.project_name + "_ingested",
+        source_id: source_id,
+        transcode_profile_id: transcode_profile_id,
+        scene_exchange_id: scene_exchange_id,
+        lineage_id: lineage_id,
         geometry_nodes: parsed_nodes.len,
         materials_discovered: count_materials(parsed_nodes),
         status: "success"

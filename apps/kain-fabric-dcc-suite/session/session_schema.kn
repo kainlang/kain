@@ -21,6 +21,9 @@ struct ToolState:
     active_tool: String
     brush_radius: Int
     brush_strength_percent: Int
+    brush_falloff_profile: String
+    brush_surface_policy: String
+    uv_policy_id: String
 
 struct GizmoState:
     active_profile_id: String
@@ -69,6 +72,8 @@ struct MaterialState:
     active_export_preset_id: String
     preview_profile: String
     channel_profile: String
+    layer_response_profile: String
+    deformation_surface_id: String
     paint_resolution: Int
 
 struct RigState:
@@ -180,7 +185,10 @@ fn default_session_document() -> SessionDocument:
         tooling: ToolState {
             active_tool: "select",
             brush_radius: 42,
-            brush_strength_percent: 68
+            brush_strength_percent: 68,
+            brush_falloff_profile: "surface_tight",
+            brush_surface_policy: "deformation_aware",
+            uv_policy_id: "uv_policy/udim_tiled_islands"
         },
         gizmo: GizmoState {
             active_profile_id: "dcc_transform_universal",
@@ -229,6 +237,8 @@ fn default_session_document() -> SessionDocument:
             active_export_preset_id: "export/metalrough_orm_painter",
             preview_profile: "material_preview_balanced",
             channel_profile: "basecolor_normal_roughness_metallic_ao_height_emissive",
+            layer_response_profile: "paint_fill_filter_smart_stack",
+            deformation_surface_id: "surface/hero_deformation_shell",
             paint_resolution: 4096
         },
         rig: RigState {
@@ -294,5 +304,13 @@ fn default_session_document() -> SessionDocument:
             latest_fabric_status: "idle",
             active_intents: [],
             active_jobs: []
+        }
+    }
+tatus: "idle",
+            active_intents: [],
+            active_jobs: []
+        }
+    }
+obs: []
         }
     }

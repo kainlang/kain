@@ -103,6 +103,12 @@
       "summary": "Lighting lookdev review, probe-grid checks, and frame-grade feedback."
     },
     {
+      "id": "render_aov_pack",
+      "label": "Render AOV Pack",
+      "category": "runtime-pack",
+      "summary": "Beauty, utility, matte, and review AOV packing for frame inspection."
+    },
+    {
       "id": "review_capture_pack",
       "label": "Review Capture Pack",
       "category": "runtime-pack",

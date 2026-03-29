@@ -8,6 +8,7 @@ fn build_svg_mask_report_json(settings: Any, svg_document: String) -> String:
     let vector_shape_count = settings.preview_count + 5
     let anchor_count = settings.runtime_pack_count + 2
     let decal_count = settings.runtime_pack_count + 1
+    let surface_policy = "deformation_aware_svg_masking"
     let json = "{\\n"
     let json = json + "  \\\"kind\\\": \\\"svg_mask_report\\\",\\n"
     let json = json + "  \\\"project\\\": \\\"" + settings.project_name + "\\\",\\n"
@@ -15,6 +16,7 @@ fn build_svg_mask_report_json(settings: Any, svg_document: String) -> String:
     let json = json + "  \\\"vector_shape_count\\\": " + str(vector_shape_count) + ",\\n"
     let json = json + "  \\\"anchor_count\\\": " + str(anchor_count) + ",\\n"
     let json = json + "  \\\"decal_count\\\": " + str(decal_count) + ",\\n"
+    let json = json + "  \\\"surface_policy\\\": \\\"" + surface_policy + "\\\",\\n"
     let json = json + "  \\\"trim_sheet_mode\\\": \\\"hybrid_svg_and_bake\\\",\\n"
     let json = json + "  \\\"svg_document\\\": \\\"" + svg_document + "\\\"\\n"
     let json = json + "}\\n"

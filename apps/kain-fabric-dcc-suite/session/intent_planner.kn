@@ -173,7 +173,7 @@ fn plan_for_command(
         if command_kind == "material.author_texture_set":
             material_reason = "texture set membership or bake preset changed"
         if command_kind == "material.paint_layer":
-            material_reason = "layer stack changed and preview textures must refresh"
+            material_reason = "layer stack and brush response changed so deformation-aware preview textures must refresh"
         if command_kind == "material.edit_svg_mask":
             material_reason = "svg mask stack changed and preview textures must refresh"
         if command_kind == "material.export_textures":
@@ -199,6 +199,13 @@ fn plan_for_command(
             reason: "lighting review pass requested",
             priority: 66,
             debounce_ms: 24
+        })
+    if command_kind == "render.review_capture":
+        intents.push(PlannedIntent {
+            intent_id: "render.review_capture",
+            reason: "review capture, AOV packing, and visibility telemetry requested",
+            priority: 68,
+            debounce_ms: 32
         })
     if render_dirty:
         intents.push(PlannedIntent {

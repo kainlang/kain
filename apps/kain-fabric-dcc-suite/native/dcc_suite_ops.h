@@ -15,6 +15,8 @@ extern "C" {
 
 DCC_SUITE_EXPORT const char* dcc_suite_sculpt_signature(int grid_resolution, int checksum, int accent);
 DCC_SUITE_EXPORT const char* dcc_suite_sculpt_report(int grid_resolution, int active_samples, int checksum, int accent);
+DCC_SUITE_EXPORT const char* dcc_suite_mesh_edit_target_signature(const char* mesh_resource_uri, const char* edit_target_uri, const char* topology_uri);
+DCC_SUITE_EXPORT const char* dcc_suite_mesh_topology_signature(const char* topology_policy, int target_subdivision_level, int uv_islands, int edit_target_checksum);
 
 #ifdef __cplusplus
 }

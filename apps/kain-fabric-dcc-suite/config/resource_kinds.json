@@ -188,6 +188,42 @@
       "output_name": "rig_sync_report",
       "storage": "fabric-report",
       "summary": "Extension seam document for the native Rust/C++ solver adapter expected to own IK and bone evaluation."
+    },
+    {
+      "id": "asset_lineage_document",
+      "resource_uri": "asset://lineage/current",
+      "kind": "value",
+      "producer_step": "asset_registry_lineage_projection",
+      "output_name": "asset_lineage_report",
+      "storage": "fabric-report",
+      "summary": "Asset lineage contract for source, transcode, scene exchange, and residency edges."
+    },
+    {
+      "id": "scene_exchange_document",
+      "resource_uri": "scene://exchange/current",
+      "kind": "value",
+      "producer_step": "scene_exchange_projection",
+      "output_name": "scene_exchange_report",
+      "storage": "fabric-report",
+      "summary": "Scene exchange contract that carries USD-style layer policy and asset resolver routing."
+    },
+    {
+      "id": "interchange_transcode_document",
+      "resource_uri": "interchange://transcode/current",
+      "kind": "value",
+      "producer_step": "interchange_transcode_projection",
+      "output_name": "interchange_transcode_report",
+      "storage": "fabric-report",
+      "summary": "Interchange transcode contract for source-id-first import normalization."
+    },
+    {
+      "id": "media_ingest_document",
+      "resource_uri": "media://ingest/current",
+      "kind": "value",
+      "producer_step": "media_ingest_projection",
+      "output_name": "media_ingest_report",
+      "storage": "fabric-report",
+      "summary": "Media ingest contract for proxy and review-safe transcode routing."
     }
   ]
 }

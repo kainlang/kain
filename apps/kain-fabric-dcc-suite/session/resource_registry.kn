@@ -61,7 +61,21 @@ fn default_resources() -> Array<ResourceDescriptor>:
             resource_uri: "mesh://editing/active",
             kind: "value",
             producer_step: "mesh_edit_session",
-            summary: "Current editable mesh target that imported assets and primitive edits resolve into; this is the shared edit target seam"
+            summary: "Current editable mesh target that imported assets, primitive edits, subdivision, and UV packing resolve into; this is the shared edit target seam"
+        },
+        ResourceDescriptor {
+            id: "mesh_subdivision_mesh_document",
+            resource_uri: "mesh://topology/subdivision/current",
+            kind: "value",
+            producer_step: "mesh_subdivision_projection",
+            summary: "Catmull-Clark-style subdivision output contract for the active edit target"
+        },
+        ResourceDescriptor {
+            id: "mesh_uv_layout_mesh_document",
+            resource_uri: "mesh://uv/layout/current",
+            kind: "value",
+            producer_step: "mesh_uv_pack_projection",
+            summary: "UV packing layout contract for the active edit target and baked topology output"
         },
         ResourceDescriptor {
             id: "topology_output_mesh_document",

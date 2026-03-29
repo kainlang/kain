@@ -25,6 +25,18 @@ fn default_reports() -> Array<ReportDescriptor>:
             summary: "Mesh session and contract routing report"
         },
         ReportDescriptor {
+            id: "mesh_subdivision_report",
+            report_uri: "report://mesh/subdivision",
+            producer_step: "mesh_subdivision_projection",
+            summary: "Catmull-Clark-style subdivision report for the active edit target"
+        },
+        ReportDescriptor {
+            id: "mesh_uv_pack_report",
+            report_uri: "report://mesh/uv-pack",
+            producer_step: "mesh_uv_pack_projection",
+            summary: "UV packing report for the active edit target and baked topology output"
+        },
+        ReportDescriptor {
             id: "sculpt_report",
             report_uri: "report://sculpt/current",
             producer_step: "native_sculpt_kernel",
@@ -77,6 +89,24 @@ fn default_reports() -> Array<ReportDescriptor>:
             report_uri: "report://lighting/review",
             producer_step: "lighting_review_projection",
             summary: "Lighting review and frame-grade feedback report"
+        },
+        ReportDescriptor {
+            id: "render_aov_pack_report",
+            report_uri: "report://render/aov-pack",
+            producer_step: "render_aov_pack_projection",
+            summary: "AOV packing and review capture budget report"
+        },
+        ReportDescriptor {
+            id: "render_review_capture_report",
+            report_uri: "report://render/review-capture",
+            producer_step: "render_review_capture_projection",
+            summary: "Review evidence capture and playback routing report"
+        },
+        ReportDescriptor {
+            id: "render_visibility_report",
+            report_uri: "report://render/visibility",
+            producer_step: "render_visibility_projection",
+            summary: "Visibility and culling telemetry report for the render room"
         },
         ReportDescriptor {
             id: "topology_history_report",

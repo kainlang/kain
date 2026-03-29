@@ -1,0 +1,14 @@
+{
+  "asset_pipeline": {
+    "source_id": "kain_fabric_dcc_suite_asset_pipeline",
+    "lane": "asset_pipeline",
+    "source_priority": "source_id_first",
+    "import_profile_policy": "transcode_profile_selected_before_geometry_or_material_projection",
+    "lineage_policy": "source_manifest -> interchange_transcode -> scene_exchange -> asset_registry -> session_routing",
+    "supported_source_kinds": ["usd", "usda", "usdc", "abc", "gltf", "glb", "fbx", "obj", "exr", "wav", "mp4"],
+    "supported_transcode_profiles": ["scene_exchange", "mesh_import", "material_plate", "media_proxy", "review_proxy"],
+    "routed_runtime_ids": ["asset_registry_runtime", "interchange_runtime", "scene_exchange_runtime", "media_runtime"],
+    "session_route_scope": "asset_ingest_session",
+    "summary": "Source-id-first asset pipeline contract for ingest, transcode selection, lineage, and session routing."
+  }
+}

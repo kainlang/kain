@@ -42,6 +42,40 @@ static int test_str_eq(const char* actual, const char* expected, const char* mes
     return 1;
 }
 
+static int test_root_and_nodes_are_canonical(
+    const KainUiCompiledBundle* compiled_bundle,
+    const KainUiRuntimeState* runtime_state
+) {
+    if (!test_true(compiled_bundle->has_root_id, "compiled bundle should expose a root id")) {
+        return 0;
+    }
+    if (!test_true(compiled_bundle->root_id == 1ull, "compiled bundle root id should match canonical output.tree root")) {
+        return 0;
+    }
+    if (!test_true(runtime_state->bundle.root_id == compiled_bundle->root_id, "runtime state bundle root should match compiled bundle")) {
+        return 0;
+    }
+    if (!test_true(compiled_bundle->node_count == 3, "compiled bundle should expose three canonical output.tree nodes")) {
+        return 0;
+    }
+    if (!test_true(runtime_state->component_count == compiled_bundle->node_count, "runtime component count should match canonical node count")) {
+        return 0;
+    }
+    if (!test_true(compiled_bundle->nodes[0].id == compiled_bundle->root_id, "canonical root node should be first compiled node")) {
+        return 0;
+    }
+    if (!test_true(compiled_bundle->nodes[0].kind == KAIN_UI_COMPILED_NODE_PANEL, "canonical root node should be a panel")) {
+        return 0;
+    }
+    if (!test_true(compiled_bundle->nodes[1].kind == KAIN_UI_COMPILED_NODE_ELEMENT, "second canonical node should be an element")) {
+        return 0;
+    }
+    if (!test_true(compiled_bundle->nodes[2].kind == KAIN_UI_COMPILED_NODE_VIEWPORT3D, "third canonical node should be a viewport3d")) {
+        return 0;
+    }
+    return 1;
+}
+
 int main(void) {
     const char* fixture_path = parity_fixture_path();
     KainUiCompiledBundle* compiled_bundle;
@@ -74,28 +108,19 @@ int main(void) {
     if (!test_true(runtime_state->loaded, "runtime state should report loaded")) {
         goto cleanup;
     }
-    if (!test_true(compiled_bundle->has_root_id, "compiled bundle should expose a root id")) {
+    if (!test_root_and_nodes_are_canonical(compiled_bundle, runtime_state)) {
         goto cleanup;
     }
-    if (!test_true(compiled_bundle->root_id == 1ull, "compiled bundle root id should match fixture")) {
+    if (!test_str_eq(compiled_bundle->primary_panel_title, "UI Surface", "compiled bundle compatibility panel title")) {
         goto cleanup;
     }
-    if (!test_true(runtime_state->bundle.root_id == compiled_bundle->root_id, "runtime state bundle root should match compiled bundle")) {
+    if (!test_str_eq(runtime_state->bundle.primary_panel_title, compiled_bundle->primary_panel_title, "runtime bundle compatibility panel title")) {
         goto cleanup;
     }
-    if (!test_true(runtime_state->component_count == compiled_bundle->node_count, "runtime component count should match compiled node count")) {
+    if (!test_str_eq(runtime_state->bundle.primary_viewport_title, "Viewport", "runtime bundle compatibility viewport title")) {
         goto cleanup;
     }
-    if (!test_str_eq(compiled_bundle->primary_panel_title, "UI Surface", "compiled bundle primary panel title")) {
-        goto cleanup;
-    }
-    if (!test_str_eq(runtime_state->bundle.primary_panel_title, compiled_bundle->primary_panel_title, "runtime bundle primary panel title")) {
-        goto cleanup;
-    }
-    if (!test_str_eq(runtime_state->bundle.primary_viewport_title, "Viewport", "runtime bundle primary viewport title")) {
-        goto cleanup;
-    }
-    if (!test_str_eq(runtime_state->bundle.primary_viewport_scene, "magma_terraces", "runtime bundle primary viewport scene")) {
+    if (!test_str_eq(runtime_state->bundle.primary_viewport_scene, "magma_terraces", "runtime bundle compatibility viewport scene")) {
         goto cleanup;
     }
 
@@ -123,25 +148,10 @@ int main(void) {
     if (!test_true(runtime_viewport->id == compiled_viewport->id, "runtime viewport id should match compiled projection")) {
         goto cleanup;
     }
-    if (!test_true(compiled_bundle->node_count == 3, "projection should include exactly three nodes")) {
-        goto cleanup;
-    }
-    if (!test_true(compiled_bundle->nodes[0].id == compiled_bundle->root_id, "root node should be first native projection node")) {
-        goto cleanup;
-    }
-    if (!test_true(compiled_bundle->nodes[0].kind == KAIN_UI_COMPILED_NODE_PANEL, "root projection node should be a panel")) {
-        goto cleanup;
-    }
-    if (!test_true(compiled_bundle->nodes[1].kind == KAIN_UI_COMPILED_NODE_ELEMENT, "second projection node should be an element")) {
-        goto cleanup;
-    }
-    if (!test_true(compiled_bundle->nodes[2].kind == KAIN_UI_COMPILED_NODE_VIEWPORT3D, "third projection node should be a viewport3d")) {
-        goto cleanup;
-    }
     if (!test_true(runtime_state->validation.valid, "runtime validation should be valid")) {
         goto cleanup;
     }
-    if (!test_true(runtime_state->validation.component_count == compiled_bundle->node_count, "runtime validation component count should match projection")) {
+    if (!test_true(runtime_state->validation.component_count == compiled_bundle->node_count, "runtime validation component count should match canonical output.tree nodes")) {
         goto cleanup;
     }
     if (!test_true(runtime_state->validation.overlay_compatible, "runtime validation should keep overlay compatibility")) {

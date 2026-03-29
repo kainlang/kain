@@ -56,6 +56,60 @@ typedef struct {
     double* heights;
 } KainNativeSculptApp;
 
+static const KainUiCompiledNode* kain_native_sculpt_find_root_node(const KainUiCompiledBundle* bundle) {
+    int index;
+
+    if (!bundle || !bundle->loaded) {
+        return NULL;
+    }
+
+    if (bundle->has_root_id) {
+        for (index = 0; index < bundle->node_count; ++index) {
+            if (bundle->nodes[index].id == bundle->root_id) {
+                return &bundle->nodes[index];
+            }
+        }
+    }
+
+    for (index = 0; index < bundle->node_count; ++index) {
+        if (!bundle->nodes[index].has_parent) {
+            return &bundle->nodes[index];
+        }
+    }
+
+    return bundle->node_count > 0 ? &bundle->nodes[0] : NULL;
+}
+
+static const KainUiCompiledNode* kain_native_sculpt_find_primary_viewport_node(const KainUiCompiledBundle* bundle) {
+    const KainUiCompiledNode* root_node = kain_native_sculpt_find_root_node(bundle);
+    const KainUiCompiledNode* viewport_node;
+
+    if (root_node && (root_node->kind == KAIN_UI_COMPILED_NODE_VIEWPORT3D || root_node->kind == KAIN_UI_COMPILED_NODE_VIEWPORT2D)) {
+        return root_node;
+    }
+
+    viewport_node = kain_ui_compiled_bundle_find_first_kind(bundle, KAIN_UI_COMPILED_NODE_VIEWPORT3D);
+    if (viewport_node) {
+        return viewport_node;
+    }
+
+    return kain_ui_compiled_bundle_find_first_kind(bundle, KAIN_UI_COMPILED_NODE_VIEWPORT2D);
+}
+
+static const char* kain_native_sculpt_resolve_compiled_scene(const KainUiCompiledBundle* bundle) {
+    const KainUiCompiledNode* viewport_node = kain_native_sculpt_find_primary_viewport_node(bundle);
+    const KainUiCompiledNode* root_node = kain_native_sculpt_find_root_node(bundle);
+
+    if (viewport_node && viewport_node->scene[0]) {
+        return viewport_node->scene;
+    }
+    if (root_node && root_node->scene[0]) {
+        return root_node->scene;
+    }
+
+    return bundle ? bundle->primary_viewport_scene : NULL;
+}
+
 static void kain_native_sculpt_try_load_compiled_ui(KainNativeSculptApp* app) {
     if (!app) {
         return;
@@ -67,8 +121,9 @@ static void kain_native_sculpt_try_load_compiled_ui(KainNativeSculptApp* app) {
     }
 
     if (kain_ui_compiled_bundle_load_from_env(KAIN_UI_COMPILED_BUNDLE_ENV, &app->compiled_ui)) {
-        if (!app->realtime_bundle.loaded && app->compiled_ui.primary_viewport_scene[0]) {
-            app->settings.profile = kain_find_viewport_profile(app->compiled_ui.primary_viewport_scene);
+        const char* viewport_scene = kain_native_sculpt_resolve_compiled_scene(&app->compiled_ui);
+        if (!app->realtime_bundle.loaded && viewport_scene && viewport_scene[0]) {
+            app->settings.profile = kain_find_viewport_profile(viewport_scene);
         }
     } else {
         kain_ui_compiled_bundle_init(&app->compiled_ui);

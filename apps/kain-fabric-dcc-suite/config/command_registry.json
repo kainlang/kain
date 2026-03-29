@@ -377,6 +377,17 @@
       }
     },
     {
+      "id": "render.review_capture",
+      "label": "Render Review Capture",
+      "surface": "render_lounge",
+      "summary": "Builds review-ready AOV packs, capture evidence, and visibility telemetry for frame review.",
+      "intent": "render.review_capture",
+      "payload_schema": {
+        "camera_id": "string",
+        "capture_profile": "string"
+      }
+    },
+    {
       "id": "compositor.rebuild",
       "label": "Rebuild Composite",
       "surface": "compositor_stack",
@@ -414,6 +425,42 @@
       "intent": "tensor.infer_step",
       "payload_schema": {
         "model_id": "string"
+      }
+    },
+    {
+      "id": "asset.route_source_manifest",
+      "label": "Route Source Manifest",
+      "surface": "asset_ingest",
+      "summary": "Routes an imported source manifest through transcode, scene exchange, lineage, and media consumers.",
+      "intent": "asset.ingest_package",
+      "payload_schema": {
+        "source_id": "string",
+        "source_uri": "string",
+        "transcode_profile_id": "string"
+      }
+    },
+    {
+      "id": "asset.route_scene_exchange",
+      "label": "Route Scene Exchange",
+      "surface": "scene_graph",
+      "summary": "Routes an imported asset into the scene exchange contract and session graph.",
+      "intent": "asset.ingest_package",
+      "payload_schema": {
+        "source_id": "string",
+        "source_uri": "string",
+        "scene_exchange_id": "string"
+      }
+    },
+    {
+      "id": "asset.route_asset_lineage",
+      "label": "Route Asset Lineage",
+      "surface": "asset_registry",
+      "summary": "Records asset lineage and residency edges for imported source ids.",
+      "intent": "asset.ingest_package",
+      "payload_schema": {
+        "source_id": "string",
+        "source_uri": "string",
+        "lineage_id": "string"
       }
     }
   ]

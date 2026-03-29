@@ -19,7 +19,12 @@
       "graph": "fabric/intents/asset_ingest.fabric.toml",
       "debounce_ms": 0,
       "produces": [
-        "asset_ingest_report"
+        "asset_ingest_report",
+        "asset_source_manifest_report",
+        "interchange_transcode_report",
+        "scene_exchange_report",
+        "asset_lineage_report",
+        "media_ingest_report"
       ]
     },
     {
@@ -217,6 +222,18 @@
       "debounce_ms": 24,
       "produces": [
         "lighting_review_report"
+      ]
+    },
+    {
+      "id": "render.review_capture",
+      "label": "Render Review Capture",
+      "lane": "render",
+      "graph": "fabric/intents/render_review.fabric.toml",
+      "debounce_ms": 32,
+      "produces": [
+        "render_aov_pack_report",
+        "render_review_capture_report",
+        "render_visibility_report"
       ]
     },
     {

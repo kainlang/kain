@@ -1,0 +1,37 @@
+use std::interop::bridge
+
+fn app_state_root() -> String:
+    return "apps/kain-fabric-dcc-suite/state"
+
+fn render_review_capture_report_path() -> String:
+    return app_state_root() + "/render_review_capture_report.json"
+
+fn build_render_review_capture_report_json(settings: Any, render_aov_report: String, render_report: String, pathtrace_report: String) -> String:
+    let review_capture_count = settings.preview_count + settings.tensor_feature_count + 3
+    let visibility_slots = settings.runtime_pack_count + settings.preview_count + 2
+    let culling_ratio = settings.preview_count + 1
+
+    let json = "{\n"
+    let json = json + "  \"kind\": \"render_review_capture_report\",\n"
+    let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
+    let json = json + "  \"workspace_mode\": \"" + settings.workspace_mode + "\",\n"
+    let json = json + "  \"render_profile\": \"aaa_review_capture\",\n"
+    let json = json + "  \"review_capture_count\": " + str(review_capture_count) + ",\n"
+    let json = json + "  \"visibility_slots\": " + str(visibility_slots) + ",\n"
+    let json = json + "  \"culling_ratio_hint\": " + str(culling_ratio) + ",\n"
+    let json = json + "  \"upstream_render_aov_pack_report\": \"" + render_aov_report + "\",\n"
+    let json = json + "  \"upstream_render_preview_report\": \"" + render_report + "\",\n"
+    let json = json + "  \"upstream_pathtrace_report\": \"" + pathtrace_report + "\"\n"
+    let json = json + "}\n"
+    return json
+
+fn main() -> String:
+    let settings = fabric_inputs.python_suite_bootstrap.project_settings
+    let render_aov_report = fabric_inputs.render_aov_pack_projection.render_aov_pack_report
+    let render_report = fabric_inputs.render_preview_projection.render_preview_report
+    let pathtrace_report = fabric_inputs.pathtrace_preview_projection.pathtrace_preview_report
+    let report_json = build_render_review_capture_report_json(settings, render_aov_report, render_report, pathtrace_report)
+
+    write_file(render_review_capture_report_path(), report_json)
+
+    return "render-review-capture:" + settings.workspace_mode + ":captures=" + str(settings.preview_count + settings.tensor_feature_count + 3) + ":visibility=" + str(settings.runtime_pack_count + settings.preview_count + 2)

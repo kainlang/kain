@@ -5,6 +5,105 @@ static const char* kain_ui_overlay_value_or_default(const char* value, const cha
     return (value && value[0]) ? value : fallback;
 }
 
+static const KainUiCompiledNode* kain_ui_overlay_find_root_node(const KainUiCompiledBundle* bundle) {
+    int index;
+
+    if (!bundle || !bundle->loaded) {
+        return NULL;
+    }
+
+    if (bundle->has_root_id) {
+        for (index = 0; index < bundle->node_count; ++index) {
+            if (bundle->nodes[index].id == bundle->root_id) {
+                return &bundle->nodes[index];
+            }
+        }
+    }
+
+    for (index = 0; index < bundle->node_count; ++index) {
+        if (!bundle->nodes[index].has_parent) {
+            return &bundle->nodes[index];
+        }
+    }
+
+    return bundle->node_count > 0 ? &bundle->nodes[0] : NULL;
+}
+
+static const KainUiCompiledNode* kain_ui_overlay_find_primary_panel_node(const KainUiCompiledBundle* bundle) {
+    const KainUiCompiledNode* root_node = kain_ui_overlay_find_root_node(bundle);
+    const KainUiCompiledNode* panel_node;
+
+    if (root_node && (root_node->kind == KAIN_UI_COMPILED_NODE_PANEL || root_node->kind == KAIN_UI_COMPILED_NODE_OVERLAY)) {
+        return root_node;
+    }
+
+    panel_node = kain_ui_compiled_bundle_find_first_kind(bundle, KAIN_UI_COMPILED_NODE_PANEL);
+    if (panel_node) {
+        return panel_node;
+    }
+
+    return kain_ui_compiled_bundle_find_first_kind(bundle, KAIN_UI_COMPILED_NODE_OVERLAY);
+}
+
+static const KainUiCompiledNode* kain_ui_overlay_find_primary_viewport_node(const KainUiCompiledBundle* bundle) {
+    const KainUiCompiledNode* root_node = kain_ui_overlay_find_root_node(bundle);
+    const KainUiCompiledNode* viewport_node;
+
+    if (root_node && (root_node->kind == KAIN_UI_COMPILED_NODE_VIEWPORT3D || root_node->kind == KAIN_UI_COMPILED_NODE_VIEWPORT2D)) {
+        return root_node;
+    }
+
+    viewport_node = kain_ui_compiled_bundle_find_first_kind(bundle, KAIN_UI_COMPILED_NODE_VIEWPORT3D);
+    if (viewport_node) {
+        return viewport_node;
+    }
+
+    return kain_ui_compiled_bundle_find_first_kind(bundle, KAIN_UI_COMPILED_NODE_VIEWPORT2D);
+}
+
+static const char* kain_ui_overlay_resolve_panel_title(const KainUiCompiledBundle* bundle, const char* fallback_title) {
+    const KainUiCompiledNode* panel_node = kain_ui_overlay_find_primary_panel_node(bundle);
+
+    if (panel_node && panel_node->title[0]) {
+        return panel_node->title;
+    }
+
+    return kain_ui_overlay_value_or_default(
+        bundle ? bundle->primary_panel_title : NULL,
+        fallback_title
+    );
+}
+
+static const char* kain_ui_overlay_resolve_viewport_title(const KainUiCompiledBundle* bundle, const char* fallback_title) {
+    const KainUiCompiledNode* viewport_node = kain_ui_overlay_find_primary_viewport_node(bundle);
+
+    if (viewport_node && viewport_node->title[0]) {
+        return viewport_node->title;
+    }
+
+    return kain_ui_overlay_value_or_default(
+        bundle ? bundle->primary_viewport_title : NULL,
+        fallback_title
+    );
+}
+
+static const char* kain_ui_overlay_resolve_scene_name(const KainUiCompiledBundle* bundle, const char* fallback_scene) {
+    const KainUiCompiledNode* viewport_node = kain_ui_overlay_find_primary_viewport_node(bundle);
+    const KainUiCompiledNode* root_node = kain_ui_overlay_find_root_node(bundle);
+
+    if (viewport_node && viewport_node->scene[0]) {
+        return viewport_node->scene;
+    }
+    if (root_node && root_node->scene[0]) {
+        return root_node->scene;
+    }
+
+    return kain_ui_overlay_value_or_default(
+        bundle ? bundle->primary_viewport_scene : NULL,
+        fallback_scene
+    );
+}
+
 static void kain_ui_overlay_push_line(
     const char** lines,
     int* line_count,
@@ -105,6 +204,8 @@ void kain_ui_compiled_overlay_render(
     const char* viewport_title;
     const char* scene_name;
     const char* subtitle_line;
+    const KainUiCompiledNode* panel_node = NULL;
+    const KainUiCompiledNode* viewport_node = NULL;
     const KainUiCompiledNode* inspector = NULL;
     const KainUiCompiledNode* tree = NULL;
     const KainUiCompiledNode* timeline = NULL;
@@ -119,15 +220,17 @@ void kain_ui_compiled_overlay_render(
     scene_name = spec->profile ? spec->profile->id : "default";
 
     if (bundle && bundle->loaded) {
-        panel_title = kain_ui_overlay_value_or_default(bundle->primary_panel_title, panel_title);
-        viewport_title = kain_ui_overlay_value_or_default(bundle->primary_viewport_title, viewport_title);
-        scene_name = kain_ui_overlay_value_or_default(bundle->primary_viewport_scene, scene_name);
-        snprintf(generated_lines[generated_count], sizeof(generated_lines[generated_count]), "compiled ui  |  %s  |  scene %s", viewport_title, scene_name);
-        kain_ui_overlay_push_line(lines, &line_count, generated_lines[generated_count]);
-        generated_count += 1;
+        panel_node = kain_ui_overlay_find_primary_panel_node(bundle);
+        viewport_node = kain_ui_overlay_find_primary_viewport_node(bundle);
         inspector = kain_ui_compiled_bundle_find_first_kind(bundle, KAIN_UI_COMPILED_NODE_INSPECTOR);
         tree = kain_ui_compiled_bundle_find_first_kind(bundle, KAIN_UI_COMPILED_NODE_TREE);
         timeline = kain_ui_compiled_bundle_find_first_kind(bundle, KAIN_UI_COMPILED_NODE_TIMELINE);
+        panel_title = kain_ui_overlay_resolve_panel_title(bundle, panel_title);
+        viewport_title = kain_ui_overlay_resolve_viewport_title(bundle, viewport_title);
+        scene_name = kain_ui_overlay_resolve_scene_name(bundle, scene_name);
+        snprintf(generated_lines[generated_count], sizeof(generated_lines[generated_count]), "compiled ui  |  %s  |  scene %s", viewport_title, scene_name);
+        kain_ui_overlay_push_line(lines, &line_count, generated_lines[generated_count]);
+        generated_count += 1;
     } else if (subtitle_line && subtitle_line[0]) {
         kain_ui_overlay_push_line(lines, &line_count, subtitle_line);
     }
@@ -167,6 +270,16 @@ void kain_ui_compiled_overlay_render(
                     timeline,
                     "timeline",
                     "playback surface ready"
+                );
+                kain_ui_overlay_push_line(lines, &line_count, generated_lines[generated_count]);
+                generated_count += 1;
+            } else if (viewport_node && generated_count < 4 && line_count < KAIN_UI_COMPILED_OVERLAY_MAX_LINES) {
+                kain_ui_overlay_format_node_line(
+                    generated_lines[generated_count],
+                    sizeof(generated_lines[generated_count]),
+                    viewport_node,
+                    "viewport",
+                    scene_name
                 );
                 kain_ui_overlay_push_line(lines, &line_count, generated_lines[generated_count]);
                 generated_count += 1;
