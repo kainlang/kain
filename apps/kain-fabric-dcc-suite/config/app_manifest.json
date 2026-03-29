@@ -2,7 +2,7 @@
   "app_id": "kain.fabric.dcc-suite",
   "name": "Kain Fabric DCC Suite",
   "version": "0.1.0",
-  "window_title": "Kain Fabric DCC Suite — Workstation",
+  "window_title": "Kain Fabric DCC Suite — DCC Shell",
   "root_component": "App",
   "layout_id": "kain_fabric_dcc_suite_shell",
   "native_presentation": {

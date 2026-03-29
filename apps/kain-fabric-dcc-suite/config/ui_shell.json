@@ -4,8 +4,8 @@
   "shell_chrome": {
     "brand": {
       "eyebrow": "KAIN FABRIC SUITE",
-      "title": "DCC Workstation",
-      "summary": "Docked workstation frame with a real viewport, rails, inspectors, and execution strip."
+      "title": "DCC Shell",
+      "summary": "Docked DCC frame with a fixed command bar, outliner rail, attributes rail, viewport, and execution controls wired to the new native UI systems."
     },
     "menu_items": [
       {
@@ -114,7 +114,7 @@
     "command_spotlight": {
       "eyebrow": "Command Spotlight",
       "title": "Command Launcher",
-      "summary": "One shell launcher for mode switches, focused commands, and rail jumps.",
+      "summary": "One shell launcher for mode switches, focused commands, and rail jumps, kept in the fixed DCC frame.",
       "command_ids": [
         "project.bootstrap",
         "workspace.switch_mode",
@@ -136,13 +136,13 @@
     },
     "workspace_switcher": {
       "eyebrow": "Workspace Switcher",
-      "title": "Lane navigation",
-      "summary": "Mode chips mirror workstation modes and keep the current lane obvious."
+      "title": "Outliner Navigation",
+      "summary": "Mode chips mirror workstation modes and keep the current lane obvious. Native UI systems stay one click away."
     },
     "workspace_navigator": {
       "eyebrow": "Workspace Navigator",
-      "title": "Lane Rail",
-      "summary": "Docked lane rail keeps the active mode and return path obvious.",
+      "title": "Outliner Rail",
+      "summary": "Docked outliner rail keeps the active mode, native UI systems, and return path obvious.",
       "properties": [
         {
           "label": "Active scene",
@@ -199,8 +199,8 @@
     },
     "system_rack": {
       "eyebrow": "System Rack",
-      "title": "System Rack",
-      "summary": "Registry scale, lane ownership, and report density stay visible without opening a second inspector.",
+      "title": "Workbench Rack",
+      "summary": "Registry scale, lane ownership, report density, and native UI system support stay visible without opening a second inspector.",
       "status_item_ids": [
         "command_count",
         "pipeline_step_count",
@@ -247,8 +247,8 @@
     },
     "property_grid": {
       "eyebrow": "Property Grid",
-      "title": "Property Rail",
-      "summary": "Dense inspector rail for context-sensitive properties.",
+      "title": "Attributes Rail",
+      "summary": "Dense attributes rail for context-sensitive properties in the native DCC frame.",
       "properties": [
         {
           "label": "Surface",
@@ -279,7 +279,7 @@
     "operator_notes": {
       "eyebrow": "Operator Context",
       "title": "Workbench stance",
-      "summary": "The shell should feel like a mounted DCC workstation: docked, dense, and unapologetically functional.",
+      "summary": "The shell should feel like a mounted Fabric DCC shell: docked, dense, and unapologetically functional.",
       "notes": [
         "Keep the active lane obvious at all times.",
         "Favor docked panes over card stacks and feed-like layouts.",
@@ -289,7 +289,7 @@
         "Treat the render spine as pathtrace -> accumulation -> denoise, with report receipts visible even before the runtime seam exists.",
         "Use the shell as a real workstation frame, not a showcase scaffold.",
         "Prefer fixed dock regions over document-flow panes.",
-        "Keep viewport, rails, and inspector stacks anchored instead of expanding like a web page.",
+        "Keep viewport, rails, and inspector stacks anchored through the native dock system instead of expanding like a web page.",
         "If a surface reads like a card or feed, restyle it as a docked workstation pane or remove it from the main frame.",
         "Treat scroll as an exception, not the default navigation model.",
         "Make the viewport, lane rail, inspectors, and status strip feel mechanically mounted to the shell."
@@ -300,7 +300,7 @@
     {
       "mode_id": "scene_assembly",
       "tab_label": "Scene",
-      "title": "Scene Deck",
+      "title": "Scene Workbench",
       "hero_title": "Viewport-first scene assembly",
       "hero_summary": "The docked outliner and tools stay pinned left, attributes and registries stay right, and the timeline and jobs sit on the bottom rail.",
       "focus_surface_id": "viewport_stage",
@@ -355,7 +355,7 @@
     {
       "mode_id": "sculpt_model",
       "tab_label": "Model",
-      "title": "Model Deck",
+      "title": "Model Workbench",
       "hero_title": "Viewport-dominant sculpting",
       "hero_summary": "Brushes, topology, and attribute inspection stay wrapped around the central viewport.",
       "focus_surface_id": "viewport_stage",
@@ -405,7 +405,7 @@
     {
       "mode_id": "material_lookdev",
       "tab_label": "Lookdev",
-      "title": "Lookdev Deck",
+      "title": "Lookdev Workbench",
       "hero_title": "Viewport-led lookdev",
       "hero_summary": "Texture sets, paint layers, UV policy, masks, and export presets stay first-class around the viewport.",
       "focus_surface_id": "viewport_stage",

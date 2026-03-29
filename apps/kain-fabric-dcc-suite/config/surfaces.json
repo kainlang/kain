@@ -56,7 +56,7 @@
     },
     {
       "id": "asset_pipeline_manifest",
-      "title": "Asset Pipeline Manifest",
+      "title": "Asset Intake Manifest",
       "dock": "right",
       "kind": "inspector",
       "summary": "Source-id-first intake policy, transcode selection, and routed runtime matrix for the ingest lane.",
@@ -92,7 +92,7 @@
     },
     {
       "id": "selection_inspector",
-      "title": "Selection Inspector",
+      "title": "Selection Attributes",
       "dock": "right",
       "kind": "inspector",
       "summary": "Primary inspector rail for selection, transform, and metadata.",
@@ -121,7 +121,7 @@
     },
     {
       "id": "workspace_navigator",
-      "title": "Lane Rail",
+      "title": "Outliner Rail",
       "dock": "left",
       "kind": "tree",
       "summary": "Persistent lane rail that keeps the active mode and return path obvious.",
@@ -208,7 +208,7 @@
     },
     {
       "id": "property_grid",
-      "title": "Property Rail",
+      "title": "Attributes Rail",
       "dock": "right",
       "kind": "inspector",
       "summary": "Secondary inspector rail for context-sensitive properties.",
@@ -237,7 +237,7 @@
     },
     {
       "id": "status_strip",
-      "title": "Status Rail",
+      "title": "Status Bar",
       "dock": "bottom",
       "kind": "inspector",
       "summary": "Persistent bottom strip for mode, selection, bridge, and dirty state.",

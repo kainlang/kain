@@ -959,7 +959,7 @@ $ShellMetrics = New-ShellMetrics `
 
 $lines = New-Object System.Collections.Generic.List[string]
 Add-Line $lines "component App():"
-Add-Line $lines "    render <slot layout=`"column`" gap={10} padding={10} overflow_y=`"hidden`" persistent_layout_id=`"dcc_root_slot`">"
+Add-Line $lines "    render <panel title=`"$($Manifest.window_title)`" scope=`"dcc_shell`" variant=`"shell_root`" layout=`"dock`" gap={10} persistent_layout_id=`"dcc_root_frame`">"
 Add-Lines $lines (Render-ThemeBlock -Theme $Theme -Indent "        ")
 Add-Line $lines "        <panel title=`"$($Manifest.window_title)`" scope=`"dcc_shell`" variant=`"shell_root`" layout=`"dock`" gap={10} persistent_layout_id=`"dcc_shell_root`">"
 Add-Lines $lines (Render-ShellTopBar -ShellChrome $ShellChrome -ShellMetrics $ShellMetrics -Scope "dcc_shell" -Indent "            ")
@@ -1005,7 +1005,7 @@ Add-Lines $lines (Render-TextLines -Items $Jobs -Formatter { param($job) "$($job
 Add-Line $lines "                </inspector>"
 Add-Line $lines "            </panel>"
 Add-Line $lines "        </panel>"
-Add-Line $lines "    </slot>"
+Add-Line $lines "    </panel>"
 
 $OutputPath = Join-Path $AppRoot "generated/main.generated.kn"
 Set-Content -Path $OutputPath -Value (Join-Lines $lines) -NoNewline

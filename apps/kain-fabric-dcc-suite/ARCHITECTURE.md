@@ -29,7 +29,7 @@ The scaffold is split into seven durable ownership layers:
 `native-app/src/main.rs` and `native-app/src/runtime_bridge.rs` now provide a file-backed command/session/host bridge. `kain-ui-native` emits command requests into `state/command_queue.jsonl`; the bridge mutates `state/session_document.json`, rewrites `state/runtime_snapshot.json`, and relies on `kain-ui-native` file watchers to hot-reload the shell state.
 
 7. Materialized outputs
-`generated/main.generated.kn`, `state/runtime_snapshot.json`, `state/session_document.json`, `state/command_queue.jsonl`, and the lane receipt files in `state/*.json` are projected artifacts produced from the registries, the latest Fabric reports, and the live bridge loop.
+`generated/main.generated.kn`, `state/runtime_snapshot.json`, `state/session_document.json`, `state/command_queue.jsonl`, and the lane receipt files in `state/*.json` are projected artifacts produced from the registries, the latest Fabric reports, and the live bridge loop. The current shell materializer now emits a dock-rooted panel at the top level instead of a generic slot wrapper so the generated UI stays aligned with the native dock systems.
 
 ## Ownership Boundaries
 
@@ -61,7 +61,7 @@ The scaffold is split into seven durable ownership layers:
 - `config/tool_catalog.json`: tool and operator rail, including smart material, SVG mask, channel-pack export tools, and per-tool gizmo defaults.
 - `config/gizmo_registry.json`: universal gizmo profile and per-viewport binding registry.
 - `config/ui_theme.json`: semantic tokens, scopes, variants, and widget defaults for the universal studio shell, including authored workspace rails, status strips, property grids, and command surfaces.
-- `config/ui_shell.json`: workspace-page layout manifest with per-mode workbench composition and authored chrome blocks. The authored shell telemetry now includes `report_count` so report inventory stays visible at a glance.
+- `config/ui_shell.json`: workspace-page layout manifest with per-mode workbench composition and authored chrome blocks. The authored shell now leans harder into DCC language (`DCC Shell`, `Outliner Rail`, `Attributes Rail`, `Status Bar`, `Command Launcher`) so the native UI frame reads like a mounted workstation instead of a general app dashboard. The authored shell telemetry still includes `report_count` so report inventory stays visible at a glance.
 - `session/derived_state.kn`: workspace and pipeline read models, now including a registry-backed runtime-lane count and compact lane summary so the shell can reflect lane ownership without hand-written prose.
 - `config/command_registry.json`: canonical command surface for operators, routing, automation, painter-style material authoring, export, shell navigation, and property-grid state changes.
 - `config/fabric_pipeline.json`: shell-facing summary of the broad pipeline.

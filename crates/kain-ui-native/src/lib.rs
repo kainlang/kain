@@ -5169,10 +5169,9 @@ impl eframe::App for KainUiNativeApp {
         let product_shell =
             is_product_desktop_theme(&app_theme, self.app_runtime_snapshot.as_ref());
         let show_topbar = show_runtime_topbar(&app_theme, !product_shell);
-        let show_inspector = show_runtime_inspector(
-            &app_theme,
-            self.runtime_settings.show_runtime_inspector || !product_shell,
-        );
+        let show_inspector = show_runtime_inspector(&app_theme, false)
+            && self.runtime_settings.show_runtime_inspector
+            && product_shell;
 
         if show_topbar {
             trace_runtime("app_update: topbar");

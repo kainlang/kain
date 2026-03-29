@@ -15,7 +15,7 @@
     {
       "name": "theme.chrome.inspector.visible",
       "category": "state",
-      "value": true
+      "value": false
     },
     {
       "name": "theme.spacing.scale",
