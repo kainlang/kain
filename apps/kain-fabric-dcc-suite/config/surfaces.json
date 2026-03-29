@@ -55,6 +55,35 @@
       ]
     },
     {
+      "id": "asset_pipeline_manifest",
+      "title": "Asset Pipeline Manifest",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Source-id-first intake policy, transcode selection, and routed runtime matrix for the ingest lane.",
+      "properties": [
+        {
+          "label": "Source priority",
+          "value": "Source-id first",
+          "detail": "manifest-owned"
+        },
+        {
+          "label": "Lineage policy",
+          "value": "source_manifest -> interchange_transcode -> scene_exchange -> asset_registry -> session_routing",
+          "detail": "durable route"
+        },
+        {
+          "label": "Profiles",
+          "value": "scene_exchange, mesh_import, material_plate, media_proxy, review_proxy",
+          "detail": "selected before projection"
+        },
+        {
+          "label": "Runtimes",
+          "value": "asset_registry / interchange / scene_exchange / media",
+          "detail": "bridge-visible"
+        }
+      ]
+    },
+    {
       "id": "tool_shelf",
       "title": "Tool Shelf",
       "dock": "right",

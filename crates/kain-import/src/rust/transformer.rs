@@ -499,13 +499,24 @@ impl RustTransformer {
 
     fn map_type_checked(&mut self, ty: &syn::Type) -> Type {
         if let Some((kind, trait_name)) = trait_like_type_name(ty) {
-            self.note_lossy_class(
-                "trait_object_lowering",
-                format!(
-                    "{} lowered to impl {} (dynamic dispatch semantics narrowed)",
-                    kind, trait_name
+            let (class, message) = match kind {
+                "dyn trait" => (
+                    "trait_object_lowering",
+                    format!(
+                        "dyn trait object lowered to impl {} (dynamic dispatch / vtable semantics erased)",
+                        trait_name
+                    ),
                 ),
-            );
+                "impl trait" => (
+                    "impl_trait_lowering",
+                    format!("impl Trait lowered to impl {}", trait_name),
+                ),
+                _ => (
+                    "trait_object_lowering",
+                    format!("{} lowered to impl {}", kind, trait_name),
+                ),
+            };
+            self.note_lossy_class(class, message);
         }
         self.type_mapper.map_type(ty)
     }
@@ -2745,22 +2756,14 @@ fn trait_like_type_name(ty: &syn::Type) -> Option<(&'static str, String)> {
     match ty {
         syn::Type::TraitObject(obj) => obj.bounds.iter().find_map(|bound| {
             if let syn::TypeParamBound::Trait(trait_bound) = bound {
-                trait_bound
-                    .path
-                    .segments
-                    .last()
-                    .map(|segment| ("dyn trait", segment.ident.to_string()))
+                Some(("dyn trait", path_to_ident(&trait_bound.path)))
             } else {
                 None
             }
         }),
         syn::Type::ImplTrait(imp) => imp.bounds.iter().find_map(|bound| {
             if let syn::TypeParamBound::Trait(trait_bound) = bound {
-                trait_bound
-                    .path
-                    .segments
-                    .last()
-                    .map(|segment| ("impl trait", segment.ident.to_string()))
+                Some(("impl trait", path_to_ident(&trait_bound.path)))
             } else {
                 None
             }
@@ -3203,15 +3206,33 @@ mod tests {
                 if name == "Box"
                 && matches!(
                     generics.first(),
-                    Some(Type::Impl { trait_name, .. }) if trait_name == "Write"
+                    Some(Type::Impl { trait_name, .. }) if trait_name == "std::fmt::Write"
                 )
         ));
         assert!(diagnostics
             .iter()
-            .any(|diag| diag.contains("trait-like type lowered to impl Write")));
+            .any(|diag| diag.contains("dyn trait object lowered to impl std::fmt::Write")));
         assert!(diagnostics
             .iter()
-            .any(|diag| diag.contains("class:dyn_trait_lowering")));
+            .any(|diag| diag.contains("class:trait_object_lowering")));
+    }
+
+    #[test]
+    fn records_impl_trait_lowering_diagnostics_separately() {
+        let (_program, diagnostics) = transform_with_diagnostics(
+            r#"
+            fn build() -> impl std::fmt::Debug {
+                1
+            }
+            "#,
+        );
+
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.contains("impl Trait lowered to impl std::fmt::Debug")));
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.contains("class:impl_trait_lowering")));
     }
 
     #[test]

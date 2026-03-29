@@ -164,6 +164,33 @@
         "the active lane should always be obvious from the authored frame."
       ]
     },
+    "asset_pipeline_manifest": {
+      "eyebrow": "Asset Intake",
+      "title": "Asset pipeline manifest",
+      "summary": "Source-id-first ingest rules, transcode selection, and lineage policy stay visible in the scene and publish frames.",
+      "properties": [
+        {
+          "label": "Source priority",
+          "value": "Source-id first",
+          "detail": "manifest-owned"
+        },
+        {
+          "label": "Lineage policy",
+          "value": "source_manifest -> interchange_transcode -> scene_exchange -> asset_registry -> session_routing",
+          "detail": "route contract"
+        },
+        {
+          "label": "Profiles",
+          "value": "scene_exchange / mesh_import / material_plate / media_proxy / review_proxy",
+          "detail": "selected early"
+        },
+        {
+          "label": "Runtimes",
+          "value": "asset_registry / interchange / scene_exchange / media",
+          "detail": "bridge-visible"
+        }
+      ]
+    },
     "system_rack": {
       "eyebrow": "System Rack",
       "title": "Shell telemetry",
@@ -293,7 +320,8 @@
         "command_palette",
         "property_grid",
         "report_browser",
-        "asset_registry"
+        "asset_registry",
+        "asset_pipeline_manifest"
       ],
       "bottom_surface_ids": [
         "status_strip",
@@ -570,6 +598,7 @@
         "publish_console",
         "workspace_navigator",
         "runtime_lane_map",
+        "asset_pipeline_manifest",
         "command_palette",
         "property_grid",
         "selection_inspector"

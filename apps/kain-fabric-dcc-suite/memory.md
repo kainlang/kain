@@ -1,5 +1,12 @@
 # Kain Fabric DCC Suite Memory
 
+## 2026-03-29 - Asset Pipeline Manifest Surfaced In The Shell
+
+- Added a dedicated `asset_pipeline_manifest` inspector surface in `config/surfaces.json` and surfaced it in the scene and publish workbenches through `config/ui_shell.json` plus `session/ui_workbench_registry.kn`.
+- The new surface makes the source-id-first intake policy, lineage chain, transcode profile set, and routed runtime matrix visible alongside the existing asset registry instead of leaving the asset lane as an implicit contract.
+- Reran `scripts/materialize-shell.ps1` and `scripts/materialize-session-state.ps1` so `generated/main.generated.kn`, `state/runtime_snapshot.json`, and `state/session_document.json` stayed aligned with the authored registry after the shell update.
+- Clean next seam: wire richer residency/manifest telemetry from a real importer or interchange runtime when that lane is ready.
+
 ## 2026-03-28 - Runtime Lane Docs Now Match The Registry
 
 - `README.md` and `ARCHITECTURE.md` now describe `config/runtime_lanes.json` as the explicit source of truth for the Kain / Fabric / Python / GPU / native C / Rust / Node ownership matrix.

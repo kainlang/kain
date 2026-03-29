@@ -24,7 +24,7 @@ fn default_ui_workbenches() -> Array<UiWorkbenchDescriptor>:
             featured_tools: ["select", "kitbash_placement"],
             quick_commands: ["project.bootstrap", "workspace.switch_mode", "ui.show_command_palette", "ui.focus_runtime_lane_map", "asset.ingest_package", "render.preview", "render.review_capture"],
             center_surfaces: ["scene_graph", "asset_ingest", "render_lounge"],
-            right_surfaces: ["selection_inspector", "workspace_navigator", "runtime_lane_map", "property_grid", "tool_shelf", "report_browser"],
+            right_surfaces: ["selection_inspector", "workspace_navigator", "runtime_lane_map", "property_grid", "asset_pipeline_manifest", "tool_shelf", "report_browser"],
             bottom_surfaces: ["status_strip", "animation_timeline", "jobs_monitor"],
             intent_ids: ["project.bootstrap", "asset.ingest_package", "render.preview", "render.review_capture", "publish.package"]
         },
@@ -108,7 +108,7 @@ fn default_ui_workbenches() -> Array<UiWorkbenchDescriptor>:
             featured_tools: ["publish_bundle"],
             quick_commands: ["ui.show_command_palette", "ui.open_property_grid", "publish.package", "tensor.train_step", "tensor.infer_step", "project.bootstrap"],
             center_surfaces: ["publish_console", "report_browser", "asset_registry", "render_lounge"],
-            right_surfaces: ["material_export_board", "workspace_navigator", "runtime_lane_map", "command_palette", "property_grid", "selection_inspector"],
+            right_surfaces: ["material_export_board", "workspace_navigator", "runtime_lane_map", "asset_pipeline_manifest", "command_palette", "property_grid", "selection_inspector"],
             bottom_surfaces: ["status_strip", "jobs_monitor", "compositor_stack"],
             intent_ids: ["publish.package", "tensor.train_step", "tensor.infer_step"]
         }

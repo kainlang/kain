@@ -1,6 +1,6 @@
 use crate::error::{KainError, KainResult};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -39,13 +39,18 @@ struct ImportRustSummary {
 #[derive(Debug, Serialize)]
 struct ImportRustFailureEntry {
     file: String,
+    module_path: Option<String>,
     error: String,
+    repair_hint: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
 struct ImportRustDiagnosticEntry {
     file: String,
+    module_path: Option<String>,
     diagnostics: Vec<String>,
+    diagnostic_classes: BTreeMap<String, usize>,
+    repair_hint: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -62,6 +67,7 @@ struct ImportRustFailureReport {
     skipped_files: usize,
     failed_files: Vec<ImportRustFailureEntry>,
     lossy_diagnostics: Vec<ImportRustDiagnosticEntry>,
+    diagnostics_by_class: BTreeMap<String, usize>,
     generated_kain_path: Option<String>,
     compiled_output_path: Option<String>,
     generated_at_utc: String,
@@ -172,15 +178,17 @@ pub fn import_rust_with_batch(
         }
         if !summary.diagnostics.is_empty() {
             let total_diags: usize = summary.diagnostics.iter().map(|(_, diags)| diags.len()).sum();
-            let external_mod_diags: usize = summary
-                .diagnostics
-                .iter()
-                .flat_map(|(_, diags)| diags.iter())
-                .filter(|diag| diag.contains("class:external_mod_decl"))
-                .count();
+            let class_counts = diagnostic_class_counts(&summary.diagnostics);
+            let external_mod_diags = *class_counts.get("external_mod_decl").unwrap_or(&0);
             let visible_diags = total_diags.saturating_sub(external_mod_diags);
             if visible_diags > 0 {
                 println!("   Lossy lowering: {} diagnostic(s) across {} file(s)", visible_diags, summary.diagnostics.len());
+                if let Some((class, count)) = class_counts
+                    .iter()
+                    .find(|(class, _)| class.as_str() != "external_mod_decl")
+                {
+                    println!("   Primary repair seam: class:{} ({} note(s))", class, count);
+                }
             }
             if external_mod_diags > 0 {
                 println!("   External module declarations: {} note(s) (directory structure preserved)", external_mod_diags);
@@ -188,15 +196,17 @@ pub fn import_rust_with_batch(
         }
     } else if !summary.diagnostics.is_empty() {
         let total_diags: usize = summary.diagnostics.iter().map(|(_, diags)| diags.len()).sum();
-        let external_mod_diags: usize = summary
-            .diagnostics
-            .iter()
-            .flat_map(|(_, diags)| diags.iter())
-            .filter(|diag| diag.contains("class:external_mod_decl"))
-            .count();
+        let class_counts = diagnostic_class_counts(&summary.diagnostics);
+        let external_mod_diags = *class_counts.get("external_mod_decl").unwrap_or(&0);
         let visible_diags = total_diags.saturating_sub(external_mod_diags);
         if visible_diags > 0 {
             println!("   Lossy lowering: {} diagnostic(s)", visible_diags);
+            if let Some((class, count)) = class_counts
+                .iter()
+                .find(|(class, _)| class.as_str() != "external_mod_decl")
+            {
+                println!("   Primary repair seam: class:{} ({} note(s))", class, count);
+            }
         }
         if external_mod_diags > 0 {
             println!("   External module declarations: {} note(s)", external_mod_diags);
@@ -364,7 +374,9 @@ fn maybe_write_failure_report(
             .iter()
             .map(|(path, error)| ImportRustFailureEntry {
                 file: path.display().to_string(),
+                module_path: module_path_string_for_report(input, path),
                 error: error.clone(),
+                repair_hint: Some("re-run the importer on this file with --report-json to isolate the failing seam".to_string()),
             })
             .collect(),
         lossy_diagnostics: summary
@@ -372,9 +384,13 @@ fn maybe_write_failure_report(
             .iter()
             .map(|(path, diagnostics)| ImportRustDiagnosticEntry {
                 file: path.display().to_string(),
+                module_path: module_path_string_for_report(input, path),
+                diagnostic_classes: diagnostic_class_counts_single(diagnostics),
                 diagnostics: diagnostics.clone(),
+                repair_hint: Some("search these class markers in the generated .kn or import report; they point at the lowered seam".to_string()),
             })
             .collect(),
+        diagnostics_by_class: diagnostic_class_counts(&summary.diagnostics),
         generated_kain_path: generated_kain_path.map(|p| p.display().to_string()),
         compiled_output_path: compiled_output_path.map(|p| p.display().to_string()),
         generated_at_utc: chrono::Utc::now().to_rfc3339(),
