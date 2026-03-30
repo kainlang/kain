@@ -10,15 +10,18 @@ fn build_render_review_capture_report_json(settings: Any, render_aov_report: Str
     let review_capture_count = settings.preview_count + settings.tensor_feature_count + 3
     let visibility_slots = settings.runtime_pack_count + settings.preview_count + 2
     let culling_ratio = settings.preview_count + 1
+    let aov_set = "beauty, diffuse, specular, normal, utility, matte"
 
     let json = "{\n"
     let json = json + "  \"kind\": \"render_review_capture_report\",\n"
     let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
     let json = json + "  \"workspace_mode\": \"" + settings.workspace_mode + "\",\n"
     let json = json + "  \"render_profile\": \"aaa_review_capture\",\n"
+    let json = json + "  \"aov_set\": \"" + aov_set + "\",\n"
     let json = json + "  \"review_capture_count\": " + str(review_capture_count) + ",\n"
     let json = json + "  \"visibility_slots\": " + str(visibility_slots) + ",\n"
     let json = json + "  \"culling_ratio_hint\": " + str(culling_ratio) + ",\n"
+    let json = json + "  \"capture_profile\": \"frame_review_pack\",\n"
     let json = json + "  \"upstream_render_aov_pack_report\": \"" + render_aov_report + "\",\n"
     let json = json + "  \"upstream_render_preview_report\": \"" + render_report + "\",\n"
     let json = json + "  \"upstream_pathtrace_report\": \"" + pathtrace_report + "\"\n"

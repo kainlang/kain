@@ -5,6 +5,38 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=c4befb351abab491 -->
+## 2026-03-29 20:55:39 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `7eca77bd`
+- Changed files: 11
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/cli/src/repair.rs`
+- [.M] `crates/kain-repair/src/lib.rs`
+- [??] `crates/kain-repair/src/engine.rs`
+- [??] `crates/kain-repair/src/registry.rs`
+- [??] `crates/kain-repair/tests/fixtures/kain_repair_namespace_path.kn`
+- [??] `crates/kain-repair/tests/fixtures/kain_repair_parser_block.kn`
+- [??] `crates/kain-repair/tests/fixtures/kain_repair_reserved_self.kn`
+- [??] `crates/kain-repair/tests/fixtures/kain_repair_unterminated_comment.kn`
+- [??] `crates/kain-repair/tests/repair_fixtures.rs`
+
+<!-- polytools-changelog:fingerprint=81b9a6ea530e80b5 -->
+## 2026-03-29 20:53:06 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `7eca77bd`
+- Changed files: 9
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/cli/src/repair.rs`
+- [.M] `crates/kain-repair/src/lib.rs`
+- [??] `crates/kain-repair/src/registry.rs`
+- [??] `crates/kain-repair/tests/fixtures/kain_repair_namespace_path.kn`
+- [??] `crates/kain-repair/tests/fixtures/kain_repair_parser_block.kn`
+- [??] `crates/kain-repair/tests/fixtures/kain_repair_reserved_self.kn`
+- [??] `crates/kain-repair/tests/fixtures/kain_repair_unterminated_comment.kn`
+- [??] `crates/kain-repair/tests/repair_fixtures.rs`
+
 <!-- polytools-changelog:fingerprint=c401dd8577244944 -->
 ## 2026-03-29 20:47:04 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

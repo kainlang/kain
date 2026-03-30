@@ -227,6 +227,7 @@ $SessionDocument = [ordered]@{
         denoise_profile = "viewport_temporal_denoise"
         review_capture_profile = "frame_review_pack"
     }
+    viewport_frame_feedback = if ($LatestFabricStatus -eq "succeeded") { "frame steady / preview responsive" } else { "frame warming / preview stabilizing" }
     compositor = [ordered]@{
         active_stack_id = "comp/final_review"
         last_rebuild_reason = "bootstrap"
@@ -398,6 +399,7 @@ $RuntimeSnapshot = [ordered]@{
         runtime_lane_summary = $RuntimeLaneSummary
         runtime_lane_registry_summary = $RuntimeLaneRegistrySummary
         render_preview_chain = "pathtrace -> accumulation -> denoise"
+        viewport_frame_feedback = $RuntimeSnapshot.viewport_frame_feedback
         extension_seams = @(
             "material lane still projects authoring receipts rather than a true native painter runtime",
             "tensor lane still reports readiness and plan state rather than executing a full typed tensor artifact contract",

@@ -53,3 +53,10 @@
 - Surfaced a new `Asset Intake` metric in `config/ui_shell.json` so the top rail now shows source-id-first ingest status alongside lane ownership, bridge health, and render chain telemetry.
 - Re-materialized `state/runtime_snapshot.json`, `state/session_document.json`, and `generated/main.generated.kn` after the shell update so the live projection stayed aligned.
 - Clean extension seam: if ingest grows richer package, transcode, or lineage telemetry later, the same status slot can keep projecting it without giving the native shell semantic ownership.
+
+## 2026-03-29 - Tensor lane now carries explicit artifact shape and registry entries
+
+- Tightened `scripts/python_tensor_train_step.py` and `scripts/python_tensor_infer_step.py` so the returned tensor plans now include explicit `tensor_feature_shape`, `input_shape`, `output_shape`, and nested `artifact_shape` payloads instead of only a terse summary string.
+- Added first-class tensor corpus, checkpoint, dispatch, and result resource/report descriptors in `config/resource_kinds.json`, `config/report_kinds.json`, `session/resource_registry.kn`, and `session/report_registry.kn` so the tensor lane can project its receipts through the same registry-backed path as the rest of the suite.
+- The tensor lane still stays honest about runtime limits: the Python seam can describe shapes and receipts, but it does not claim a fully wired training or inference runtime.
+- Clean extension seam: downstream Fabric or native consumers can now rely on the richer artifact metadata without needing to invent their own tensor receipt vocabulary.

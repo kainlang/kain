@@ -310,6 +310,19 @@
       }
     },
     {
+      "id": "material.ingest_scan_plate",
+      "label": "Ingest Scan Plate",
+      "surface": "asset_ingest",
+      "summary": "Stages a scan plate into the current material contract with sampler-style metadata, source lineage, and ingest receipts.",
+      "intent": "asset.ingest_package",
+      "payload_schema": {
+        "source_id": "string",
+        "source_uri": "string",
+        "package_kind": "string",
+        "import_profile_id": "string"
+      }
+    },
+    {
       "id": "material.paint_layer",
       "label": "Paint Material Layer",
       "surface": "material_layers",
@@ -322,6 +335,18 @@
         "brush_response_profile": "string",
         "texel_density_target": "number",
         "deformation_surface_id": "string"
+      }
+    },
+    {
+      "id": "material.resolve_smart_mask",
+      "label": "Resolve Smart Mask",
+      "surface": "svg_mask_canvas",
+      "summary": "Rebuilds smart-mask anchors, wear responses, and scan-derived trim masks for the active material stack.",
+      "intent": "material.bake_preview",
+      "payload_schema": {
+        "document_id": "string",
+        "mask_stack_id": "string",
+        "resolve_profile_id": "string"
       }
     },
     {
@@ -376,6 +401,17 @@
       "intent": "material.bake_preview",
       "payload_schema": {
         "deformation_surface_id": "string"
+      }
+    },
+    {
+      "id": "material.review_export_receipt",
+      "label": "Review Export Receipt",
+      "surface": "material_export_board",
+      "summary": "Shows the packed export receipt, target runtime, and channel routing before delivery.",
+      "intent": "material.export_textures",
+      "payload_schema": {
+        "preset_id": "string",
+        "target_runtime": "string"
       }
     },
     {
@@ -480,12 +516,13 @@
       "id": "asset.route_source_manifest",
       "label": "Route Source Manifest",
       "surface": "asset_ingest",
-      "summary": "Routes an imported source manifest through transcode, scene exchange, lineage, and media consumers.",
+      "summary": "Routes a source-id-first manifest through interchange, transcode, scene exchange, lineage, and media consumers.",
       "intent": "asset.ingest_package",
       "payload_schema": {
         "source_id": "string",
         "source_uri": "string",
-        "transcode_profile_id": "string"
+        "transcode_profile_id": "string",
+        "scene_exchange_id": "string"
       }
     },
     {

@@ -416,6 +416,7 @@ function New-ShellMetrics {
         runtime_lane_health = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_health) { [string]$Snapshot.runtime_lane_health } else { "warming" }
         runtime_lane_health_detail = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_health_detail) { [string]$Snapshot.runtime_lane_health_detail } else { "bridge warming / fabric warming" }
         render_preview_chain = if ($null -ne $Snapshot -and $null -ne $Snapshot.render_preview_chain) { [string]$Snapshot.render_preview_chain } else { "pathtrace -> accumulation -> denoise" }
+        viewport_frame_feedback = if ($null -ne $Snapshot -and $null -ne $Snapshot.viewport_frame_feedback) { [string]$Snapshot.viewport_frame_feedback } else { "frame warming / preview stabilizing" }
         command_count = @($Commands).Count
         pipeline_step_count = @($Pipeline).Count
         intent_count = @($Intents).Count

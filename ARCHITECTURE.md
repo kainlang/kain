@@ -56,9 +56,10 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, typechecker, comptime, runtime contract emission, realtime bundle metadata
 - [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, native app materialization, packaged launcher snapshots, compute residency sidecars
 - [cli](/M:/Code/Kain/crates/cli): `kain` command surface
+- [kain-repair](/M:/Code/Kain/crates/kain-repair): profile-driven deterministic source repair engine consumed by the doctor/CLI repair lane; now split into a declarative rule registry plus a per-rule execution engine so repair policy stays visible and mode-aware
 - [kain-host](/M:/Code/Kain/crates/kain-host): Rust embedding and native function registration
 - [kain-reflect](/M:/Code/Kain/crates/kain-reflect): reflection schemas and type identity
-- [kain-repair](/M:/Code/Kain/crates/kain-repair): deterministic source-text repair layer for parser-hostile Kain syntax, intended for `doctor` integration
+- [kain-repair](/M:/Code/Kain/crates/kain-repair): profile-driven deterministic source repair engine consumed by the doctor/CLI repair lane; now split into a declarative rule registry plus a per-rule execution engine so repair policy stays visible and mode-aware
 - [kain-sdk](/M:/Code/Kain/crates/kain-sdk): high-level embedding facade
 - [kain-interop](/M:/Code/Kain/crates/kain-interop): shared buffer/image payload contracts
 - [kain-gpu-runtime](/M:/Code/Kain/crates/kain-gpu-runtime): Vulkan compute executor consuming emitted shader bundles and residency metadata
@@ -202,6 +203,7 @@ If the debug CLI is missing:
 
 - The root `README.md` is useful, but live source and the built CLI are the real source of truth.
 - The `cli` suite no longer depends on the external self-hosting fixture under `M:\Code\Other\kainselfhosting\...`; the repo-local import-c fixture under `crates/cli/tests/fixtures/import_c` is the durable regression source now.
+- The repair lane is profile-driven. If a file is being "fixed" in a way that changes meaning, that is a bug in the caller or profile selection, not a feature.
 - Large Windows test binaries can hit linker OOM pressure.
 - `generated/`, `target/`, `.kain`, runtime sidecars, and compiled smoke outputs are disposable unless explicitly archived under `docs/validation/` or `docs/recent/`.
 - The live SM64 decomp root currently sits at `M:\Code\Other\Research\sm64-master\sm64-master`, not the outer `sm64-master` folder. The older stale import reports pointed at the outer folder, which hid a real pathing mistake.

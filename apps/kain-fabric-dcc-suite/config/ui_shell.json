@@ -5,7 +5,7 @@
     "brand": {
       "eyebrow": "KAIN FABRIC SUITE",
       "title": "DCC Shell",
-      "summary": "Docked DCC frame with a fixed command bar, outliner rail, attributes rail, viewport, and execution controls wired to the new native UI systems."
+      "summary": "Docked workstation frame with a fixed command spine, viewport, rails, and execution controls wired to the native UI systems."
     },
     "menu_items": [
       {
@@ -117,6 +117,12 @@
         "caption": "pathtrace → accumulation → denoise"
       },
       {
+        "id": "viewport_frame_feedback",
+        "label": "Viewport Frame",
+        "metric_source": "viewport_frame_feedback",
+        "caption": "viewport response"
+      },
+      {
         "id": "command_count",
         "label": "Commands",
         "metric_source": "command_count",
@@ -144,7 +150,7 @@
     "command_spotlight": {
       "eyebrow": "Command Spotlight",
       "title": "Command Launcher",
-      "summary": "One shell launcher for mode switches, focused commands, and rail jumps, kept in the fixed DCC frame.",
+      "summary": "One command spine for mode switches, focused actions, and rail jumps, kept inside the docked workstation frame.",
       "command_ids": [
         "project.bootstrap",
         "workspace.switch_mode",
@@ -172,7 +178,7 @@
     "workspace_navigator": {
       "eyebrow": "Workspace Navigator",
       "title": "Outliner Rail",
-      "summary": "Docked outliner rail keeps the active mode, native UI systems, and return path obvious.",
+      "summary": "Docked outliner rail keeps the active mode, return path, and native system seams obvious.",
       "properties": [
         {
           "label": "Active scene",
@@ -203,7 +209,7 @@
     "asset_pipeline_manifest": {
       "eyebrow": "Asset Intake",
       "title": "Asset pipeline manifest",
-      "summary": "Source-id-first ingest rules, transcode selection, and lineage policy stay visible in the scene and publish frames.",
+      "summary": "Source-id-first ingest rules, transcode selection, media ingest routing, and lineage policy stay visible in the scene and publish frames.",
       "properties": [
         {
           "label": "Source priority",
@@ -216,9 +222,19 @@
           "detail": "route contract"
         },
         {
+          "label": "Ingest route",
+          "value": "source_manifest / media_ingest / transcode_proxy",
+          "detail": "premium routing"
+        },
+        {
           "label": "Profiles",
           "value": "scene_exchange / mesh_import / material_plate / media_proxy / review_proxy",
           "detail": "selected early"
+        },
+        {
+          "label": "Receipts",
+          "value": "source_manifest / interchange_transcode / scene_exchange / asset_registry / media_ingest",
+          "detail": "lineage trail"
         },
         {
           "label": "Runtimes",
@@ -247,7 +263,7 @@
     "status_strip": {
       "eyebrow": "Status Strip",
       "title": "Status Rail",
-      "summary": "Persistent bottom rail for mode, selection, bridge, and dirty state.",
+      "summary": "Persistent bottom rail for mode, selection, bridge, and dirtied state.",
       "properties": [
         {
           "label": "Mode",
@@ -278,7 +294,7 @@
     "property_grid": {
       "eyebrow": "Property Grid",
       "title": "Attributes Rail",
-      "summary": "Dense attributes rail for context-sensitive properties in the native DCC frame.",
+      "summary": "Dense attributes rail for context-sensitive properties in the docked workstation frame.",
       "properties": [
         {
           "label": "Surface",
@@ -309,7 +325,7 @@
     "operator_notes": {
       "eyebrow": "Operator Context",
       "title": "Workbench stance",
-      "summary": "The shell should feel like a mounted Fabric DCC shell: docked, dense, and unapologetically functional.",
+      "summary": "The shell should feel like a mounted Fabric workstation: docked, dense, and confidently built for production.",
       "notes": [
         "Keep the active lane obvious at all times.",
         "Favor docked panes over card stacks and feed-like layouts.",
@@ -317,10 +333,10 @@
         "Keep the runtime lane map one click away so bridge seams stay inspectable.",
         "Favor Kain-authored orchestration over hidden host magic; keep the native C ABI, Rust crate, GPU, Python, and Node seams visible.",
         "Treat the render spine as pathtrace -> accumulation -> denoise, with report receipts visible even before the runtime seam exists.",
-        "Use the shell as a real workstation frame, not a showcase scaffold.",
+        "Use the shell as a real workstation frame, not a showcase or admin scaffold.",
         "Prefer fixed dock regions over document-flow panes.",
         "Keep viewport, rails, and inspector stacks anchored through the native dock system instead of expanding like a web page.",
-        "If a surface reads like a card or feed, restyle it as a docked workstation pane or remove it from the main frame.",
+        "If a surface reads like a card, feed, or admin panel, restyle it as a docked workstation pane or remove it from the main frame.",
         "Treat scroll as an exception, not the default navigation model.",
         "Make the viewport, lane rail, inspectors, and status strip feel mechanically mounted to the shell."
       ]
@@ -585,7 +601,7 @@
       "tab_label": "Render",
       "title": "Render Room",
       "hero_title": "Render and composite control room",
-      "hero_summary": "Delegated preview, pathtrace, accumulation, denoise, frame scheduling, and bridge seams stay explicit in the docked control frame.",
+      "hero_summary": "Viewport preview, pathtrace, accumulation, denoise, review capture, and frame scheduling stay explicit in the docked control frame.",
       "focus_surface_id": "viewport_stage",
       "featured_tool_ids": [
         "render_preview",

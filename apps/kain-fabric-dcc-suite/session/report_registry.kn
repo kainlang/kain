@@ -187,16 +187,22 @@ fn default_reports() -> Array<ReportDescriptor>:
             summary: "Tensor corpus and dataset lineage report"
         },
         ReportDescriptor {
+            id: "tensor_checkpoint_report",
+            report_uri: "report://tensor/checkpoint",
+            producer_step: "tensor_train_stage",
+            summary: "Tensor checkpoint projection report"
+        },
+        ReportDescriptor {
             id: "tensor_inference_report",
             report_uri: "report://tensor/inference",
             producer_step: "tensor_infer_stage",
             summary: "Tensor inference readiness report"
         },
         ReportDescriptor {
-            id: "tensor_checkpoint_report",
-            report_uri: "report://tensor/checkpoint",
-            producer_step: "tensor_train_stage",
-            summary: "Tensor checkpoint projection report"
+            id: "tensor_inference_result_report",
+            report_uri: "report://tensor/inference-result",
+            producer_step: "tensor_infer_stage",
+            summary: "Tensor inference result and output-buffer report"
         },
         ReportDescriptor {
             id: "publish_summary",

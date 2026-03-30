@@ -218,6 +218,34 @@ fn default_resources() -> Array<ResourceDescriptor>:
             summary: "Tensor inference output buffer"
         },
         ResourceDescriptor {
+            id: "tensor_training_dispatch",
+            resource_uri: "report://tensor/training-dispatch",
+            kind: "value",
+            producer_step: "tensor_train_stage",
+            summary: "Tensor training dispatch receipt"
+        },
+        ResourceDescriptor {
+            id: "tensor_training_checkpoint",
+            resource_uri: "report://tensor/training-checkpoint",
+            kind: "value",
+            producer_step: "tensor_train_stage",
+            summary: "Tensor training checkpoint receipt"
+        },
+        ResourceDescriptor {
+            id: "tensor_inference_dispatch",
+            resource_uri: "report://tensor/inference-dispatch",
+            kind: "value",
+            producer_step: "tensor_infer_stage",
+            summary: "Tensor inference dispatch receipt"
+        },
+        ResourceDescriptor {
+            id: "tensor_inference_result",
+            resource_uri: "report://tensor/inference-result",
+            kind: "value",
+            producer_step: "tensor_infer_stage",
+            summary: "Tensor inference result receipt"
+        },
+        ResourceDescriptor {
             id: "sculpt_heightfield_source",
             resource_uri: "buffer://sculpt/heightfield-source",
             kind: "shared_buffer",

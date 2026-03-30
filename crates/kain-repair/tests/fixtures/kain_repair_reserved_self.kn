@@ -1,0 +1,6 @@
+impl WidgetBuilder {
+	fn Self(value: Int) -> Self {
+		let type = value
+		Self:build(type)
+	}
+}

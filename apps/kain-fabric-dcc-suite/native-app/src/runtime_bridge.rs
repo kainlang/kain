@@ -162,6 +162,9 @@ fn apply_command_request(
         "mesh.rebuild_topology" => apply_mesh_rebuild_topology(session_document),
         "mesh.subdivide" => apply_mesh_subdivide(session_document),
         "mesh.pack_uv" => apply_mesh_pack_uv(session_document),
+        "evaluation.recompute_graph" => apply_evaluation_recompute(session_document),
+        "evaluation.cook_graph" => apply_evaluation_cook(session_document),
+        "cache.materialize" => apply_cache_materialize(session_document),
         "tool.activate" => apply_tool_cycle(session_document, runtime_snapshot),
         "gizmo.set_mode" => apply_gizmo_mode_cycle(session_document),
         "gizmo.set_space" => apply_gizmo_space_toggle(session_document),
@@ -308,8 +311,17 @@ fn apply_asset_ingest(session_document: &mut Value, processed_command_count: usi
     }
 }
 
-fn apply_mesh_open_document(session_document: &mut Value, _processed_command_count: usize) {
-    set_mesh_contract_report(session_document, "mesh.open_document");
+fn sync_mesh_contract_target(session_document: &mut Value) {
+    set_string_at_path(
+        session_document,
+        &["mesh", "mesh_contract_document_id"],
+        MESH_CONTRACT_DOCUMENT_ID,
+    );
+    set_string_at_path(
+        session_document,
+        &["mesh", "mesh_contract_document_uri"],
+        MESH_CONTRACT_DOCUMENT_URI,
+    );
     set_string_at_path(
         session_document,
         &["mesh", "active_document_id"],
@@ -330,6 +342,21 @@ fn apply_mesh_open_document(session_document: &mut Value, _processed_command_cou
         &["mesh", "active_edit_target_uri"],
         MESH_ACTIVE_EDIT_TARGET_URI,
     );
+    set_string_at_path(
+        session_document,
+        &["topology_history", "history_document_id"],
+        TOPOLOGY_HISTORY_DOCUMENT_ID,
+    );
+    set_string_at_path(
+        session_document,
+        &["topology_history", "history_document_uri"],
+        TOPOLOGY_HISTORY_DOCUMENT_URI,
+    );
+}
+
+fn apply_mesh_open_document(session_document: &mut Value, _processed_command_count: usize) {
+    set_mesh_contract_report(session_document, "mesh.open_document");
+    sync_mesh_contract_target(session_document);
     set_string_at_path(
         session_document,
         &["mesh", "topology_edit_mode"],
@@ -431,16 +458,7 @@ fn apply_mesh_create_primitive(
         &["mesh", "active_document_uri"],
         MESH_AUTHORED_PRIMITIVE_URI,
     );
-    set_string_at_path(
-        session_document,
-        &["mesh", "active_edit_target_id"],
-        MESH_ACTIVE_EDIT_TARGET_ID,
-    );
-    set_string_at_path(
-        session_document,
-        &["mesh", "active_edit_target_uri"],
-        MESH_ACTIVE_EDIT_TARGET_URI,
-    );
+    sync_mesh_contract_target(session_document);
     set_string_at_path(
         session_document,
         &["mesh", "mesh_authoring_policy_id"],
@@ -474,11 +492,7 @@ fn apply_mesh_import_asset(session_document: &mut Value, _processed_command_coun
         &["mesh", "active_document_id"],
         MESH_IMPORTED_PAYLOAD_DOCUMENT_ID,
     );
-    set_string_at_path(
-        session_document,
-        &["mesh", "active_edit_target_id"],
-        MESH_ACTIVE_EDIT_TARGET_ID,
-    );
+    sync_mesh_contract_target(session_document);
     set_string_at_path(
         session_document,
         &["mesh", "mesh_authoring_policy_id"],
@@ -568,11 +582,7 @@ fn apply_mesh_rebuild_topology(session_document: &mut Value) {
         &["mesh", "active_document_uri"],
         MESH_TOPOLOGY_OUTPUT_URI,
     );
-    set_string_at_path(
-        session_document,
-        &["mesh", "active_edit_target_id"],
-        MESH_ACTIVE_EDIT_TARGET_ID,
-    );
+    sync_mesh_contract_target(session_document);
     set_string_at_path(
         session_document,
         &["mesh", "active_edit_target_uri"],
@@ -698,8 +708,79 @@ fn apply_topology_rebuild(session_document: &mut Value) {
         &["topology_history", "last_upstream_topology_report"],
         TOPOLOGY_HISTORY_REBUILD_REPORT,
     );
+    set_string_at_path(
+        session_document,
+        &["evaluation", "last_recompute_reason"],
+        "topology.rebuild",
+    );
+    set_string_at_path(
+        session_document,
+        &["cache", "last_materialization_reason"],
+        "topology.rebuild",
+    );
     set_bool_at_path(session_document, &["dirty", "topology_dirty"], false);
+    set_bool_at_path(session_document, &["dirty", "evaluation_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "cache_dirty"], true);
     set_bool_at_path(session_document, &["dirty", "render_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "session_needs_save"], true);
+}
+
+fn apply_evaluation_recompute(session_document: &mut Value) {
+    set_string_at_path(
+        session_document,
+        &["evaluation", "last_recompute_reason"],
+        "evaluation.recompute_graph",
+    );
+    set_string_at_path(
+        session_document,
+        &["evaluation", "last_upstream_dependency_report"],
+        "state/evaluation_dependency_report.json",
+    );
+    set_bool_at_path(session_document, &["dirty", "evaluation_dirty"], false);
+    set_bool_at_path(session_document, &["dirty", "cache_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "session_needs_save"], true);
+}
+
+fn apply_evaluation_cook(session_document: &mut Value) {
+    set_string_at_path(
+        session_document,
+        &["evaluation", "last_recompute_reason"],
+        "evaluation.cook_graph",
+    );
+    set_string_at_path(
+        session_document,
+        &["evaluation", "last_cook_output_id"],
+        "evaluation_cook_output_document",
+    );
+    set_string_at_path(
+        session_document,
+        &["cache", "last_materialization_reason"],
+        "evaluation.cook_graph",
+    );
+    set_bool_at_path(session_document, &["dirty", "evaluation_dirty"], false);
+    set_bool_at_path(session_document, &["dirty", "cache_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "render_dirty"], true);
+    set_bool_at_path(session_document, &["dirty", "session_needs_save"], true);
+}
+
+fn apply_cache_materialize(session_document: &mut Value) {
+    set_string_at_path(
+        session_document,
+        &["cache", "last_materialization_reason"],
+        "cache.materialize",
+    );
+    set_string_at_path(
+        session_document,
+        &["cache", "last_materialized_resource_id"],
+        "evaluation_cook_output_document",
+    );
+    set_string_at_path(
+        session_document,
+        &["cache", "last_cache_report_path"],
+        "state/cache_materialization_report.json",
+    );
+    set_bool_at_path(session_document, &["dirty", "cache_dirty"], false);
+    set_bool_at_path(session_document, &["dirty", "publish_dirty"], true);
     set_bool_at_path(session_document, &["dirty", "session_needs_save"], true);
 }
 

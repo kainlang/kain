@@ -127,6 +127,33 @@
       "summary": "Feature buffer staged for tensor-oriented training and inference planning."
     },
     {
+      "id": "tensor_training_corpus",
+      "resource_uri": "dataset://tensor/training-corpus",
+      "kind": "value",
+      "producer_step": "python_suite_bootstrap",
+      "output_name": "tensor_training_corpus",
+      "storage": "fabric-report",
+      "summary": "Tensor training corpus contract seeded from authored project settings."
+    },
+    {
+      "id": "tensor_model_checkpoint",
+      "resource_uri": "artifact://tensor/model-checkpoint",
+      "kind": "value",
+      "producer_step": "tensor_train_stage",
+      "output_name": "tensor_model_checkpoint",
+      "storage": "fabric-report",
+      "summary": "Tensor model checkpoint contract for the preview model."
+    },
+    {
+      "id": "tensor_inference_output",
+      "resource_uri": "buffer://tensor/inference/output",
+      "kind": "shared_buffer",
+      "producer_step": "tensor_infer_stage",
+      "output_name": "tensor_inference_output",
+      "storage": "shared-buffer",
+      "summary": "Tensor inference output buffer."
+    },
+    {
       "id": "sculpt_heightfield_source",
       "resource_uri": "buffer://sculpt/heightfield-source",
       "kind": "shared_buffer",

@@ -74,6 +74,10 @@ depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "rig_graph_analysis"]
 name = "tensor_training_report"
 kind = "value"
 
+[[steps.outputs]]
+name = "tensor_training_checkpoint"
+kind = "value"
+
 [[steps]]
 id = "tensor_training_bridge"
 runtime = "kain"

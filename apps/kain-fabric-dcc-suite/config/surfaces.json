@@ -294,14 +294,14 @@
       "title": "Material Graph",
       "dock": "bottom",
       "kind": "graph",
-      "summary": "Layered shading, texture routing, smart materials, and scan-derived material inputs."
+      "summary": "Layered shading, texture routing, smart materials, scan ingestion, and export receipts."
     },
     {
       "id": "material_layers",
       "title": "Material Layers",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Layer stacks, generators, fill layers, paint layers, and channel blend modes.",
+      "summary": "Layer stacks, generators, fill layers, paint layers, smart masks, and channel blend modes.",
       "properties": [
         {
           "label": "Layer count",
@@ -310,13 +310,13 @@
         },
         {
           "label": "Blend policy",
-          "value": "Smart materials",
-          "detail": "authoring default"
+          "value": "Smart materials + scan masks",
+          "detail": "wear, trim, cavity, and plate ingest"
         },
         {
           "label": "Smart masks",
-          "value": "Anchor driven",
-          "detail": "wear, trim, cavity"
+          "value": "Anchor driven + sampler",
+          "detail": "scan-derived mask resolution"
         },
         {
           "label": "Paint target",
@@ -342,7 +342,7 @@
       "title": "Texture Set Inspector",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Texture set membership, UDIM coverage, channel packs, and bake preset assignment.",
+      "summary": "Texture set membership, UDIM coverage, scan plate inputs, channel packs, and bake preset assignment.",
       "properties": [
         {
           "label": "Texture set",
@@ -360,6 +360,11 @@
           "detail": "authoring default"
         },
         {
+          "label": "Scan plate",
+          "value": "Sampler ingest",
+          "detail": "source material input"
+        },
+        {
           "label": "Bake preset",
           "value": "Packed PBR",
           "detail": "publish ready"
@@ -371,7 +376,7 @@
       "title": "Material Export Board",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Target packers, channel routing, export presets, and downstream DCC/runtime consumers.",
+      "summary": "Target packers, channel routing, export presets, runtime receipts, and downstream consumers.",
       "properties": [
         {
           "label": "Profile",
@@ -390,8 +395,8 @@
         },
         {
           "label": "Receipt",
-          "value": "Pending",
-          "detail": "publish review"
+          "value": "Material export receipt",
+          "detail": "review before delivery"
         }
       ]
     },
@@ -400,7 +405,7 @@
       "title": "Paint Runtime Surface",
       "dock": "bottom",
       "kind": "graph",
-      "summary": "Paint-layer blend, brush response, and deformation-aware preview receipts.",
+      "summary": "Paint-layer blend, brush response, scan ingest, and deformation-aware preview receipts.",
       "properties": [
         {
           "label": "Brush response",
@@ -416,6 +421,11 @@
           "label": "Texel density",
           "value": "256",
           "detail": "hero surface target"
+        },
+        {
+          "label": "Scan ingest",
+          "value": "Sampler plate",
+          "detail": "source-projected"
         }
       ]
     },
@@ -439,7 +449,7 @@
         {
           "label": "Padding",
           "value": "2-4 px",
-          "detail": "dynamic"
+          "detail": "bake + export"
         }
       ]
     },
@@ -463,7 +473,7 @@
         {
           "label": "Blend stability",
           "value": "Tracked",
-          "detail": "preview contract"
+          "detail": "paint-safe"
         }
       ]
     },

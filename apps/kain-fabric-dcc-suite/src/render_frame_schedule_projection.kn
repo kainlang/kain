@@ -9,6 +9,8 @@ fn build_render_frame_schedule_report_json(settings: Any, preview_report: String
     let capture_stride = settings.preview_count + 1
     let review_capture_count = settings.tensor_feature_count + 2
     let aov_slots = settings.runtime_pack_count + 4
+    let accumulation_profile = "progressive_preview"
+    let denoise_profile = "viewport_temporal_denoise"
 
     let json = "{\n"
     let json = json + "  \"kind\": \"render_frame_schedule_report\",\n"
@@ -19,6 +21,8 @@ fn build_render_frame_schedule_report_json(settings: Any, preview_report: String
     let json = json + "  \"capture_stride\": " + str(capture_stride) + ",\n"
     let json = json + "  \"review_capture_count\": " + str(review_capture_count) + ",\n"
     let json = json + "  \"aov_slots\": " + str(aov_slots) + ",\n"
+    let json = json + "  \"accumulation_profile\": \"" + accumulation_profile + "\",\n"
+    let json = json + "  \"denoise_profile\": \"" + denoise_profile + "\",\n"
     let json = json + "  \"upstream_render_preview_report\": \"" + preview_report + "\",\n"
     let json = json + "  \"upstream_pathtrace_report\": \"" + pathtrace_report + "\",\n"
     let json = json + "  \"upstream_render_accumulation_report\": \"" + accumulation_report + "\",\n"

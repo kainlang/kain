@@ -933,6 +933,7 @@ dependencies = [
  "kain-host",
  "kain-import",
  "kain-omni",
+ "kain-repair",
  "kain-sys-codegen",
  "minijinja",
  "notify",
@@ -3022,6 +3023,10 @@ dependencies = [
 
 [[package]]
 name = "kain-reflect"
+version = "0.1.0"
+
+[[package]]
+name = "kain-repair"
 version = "0.1.0"
 
 [[package]]

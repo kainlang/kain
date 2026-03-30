@@ -73,8 +73,15 @@ struct MaterialState:
     preview_profile: String
     channel_profile: String
     layer_response_profile: String
+    brush_response_profile: String
+    smart_mask_profile: String
+    scan_ingest_profile: String
+    uv_policy_id: String
+    texture_set_receipt_id: String
+    export_receipt_id: String
     deformation_surface_id: String
     paint_resolution: Int
+    texel_density_target: Int
 
 struct RigState:
     active_rig_id: String
@@ -257,13 +264,13 @@ fn default_session_document() -> SessionDocument:
             preview_profile: "material_preview_balanced",
             channel_profile: "basecolor_normal_roughness_metallic_ao_height_emissive",
             layer_response_profile: "paint_fill_filter_smart_stack",
-            brush_response_profile: "pressure_weighted_surface_tight",
             smart_mask_profile: "anchor_driven_wear_and_trim_masks",
             scan_ingest_profile: "sampler_style_scan_plate_ingest",
-            uv_policy_id: "uv_policy/udim_tiled_islands",
-            texel_density_target: 256,
+            texture_set_receipt_id: "receipt/material_texture_set_current",
+            export_receipt_id: "receipt/material_texture_export_current",
             deformation_surface_id: "surface/hero_deformation_shell",
-            paint_resolution: 4096
+            paint_resolution: 4096,
+            texel_density_target: 256
         },
         rig: RigState {
             active_rig_id: "rig/hero_body",

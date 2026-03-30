@@ -8,6 +8,9 @@ pub const PRESENTATION_PROFILE_ENV: &str = "KAIN_UI_NATIVE_PRESENTATION_PROFILE"
 pub const PRESENTATION_LAYOUT_ENV: &str = "KAIN_UI_NATIVE_PRESENTATION_LAYOUT";
 pub const PRESENTATION_FIXED_REGIONS_ENV: &str = "KAIN_UI_NATIVE_FIXED_REGIONS";
 pub const PRESENTATION_DOCUMENT_FLOW_ENV: &str = "KAIN_UI_NATIVE_DOCUMENT_FLOW";
+pub const MESH_CONTRACT_REPORT_ENV: &str = "KAIN_UI_NATIVE_MESH_CONTRACT_REPORT";
+pub const TOPOLOGY_HISTORY_REPORT_ENV: &str = "KAIN_UI_NATIVE_TOPOLOGY_HISTORY_REPORT";
+pub const MESH_CONTRACT_DOCUMENT_ENV: &str = "KAIN_UI_NATIVE_MESH_CONTRACT_DOCUMENT";
 
 pub const CONTRACT_ROOT_URI: &str = "bridge://kain-fabric-dcc-suite/native";
 pub const CONTRACT_ROOT_REPORT_URI: &str = "report://bridge/native-contract";
@@ -103,7 +106,7 @@ impl NativeBridgeContract {
             .find(|seam| command_id.starts_with(seam.command_prefix))
     }
 
-    pub fn command_environment_pairs(&self) -> [(&'static str, &'static str); 8] {
+    pub fn command_environment_pairs(&self) -> [(&'static str, &'static str); 11] {
         [
             (RUNTIME_BUNDLE_ENV, "native_app_bundle.json"),
             (REALTIME_BUNDLE_ENV, "kain_realtime_app_bundle.json"),
@@ -111,14 +114,28 @@ impl NativeBridgeContract {
             (APP_SNAPSHOT_ENV, "state/runtime_snapshot.json"),
             (PRESENTATION_PROFILE_ENV, "dcc_authoring_balanced"),
             (PRESENTATION_LAYOUT_ENV, "dock"),
-            (PRESENTATION_FIXED_REGIONS_ENV, "center,left,right,bottom,top"),
+            (
+                PRESENTATION_FIXED_REGIONS_ENV,
+                "center,left,right,bottom,top",
+            ),
             (PRESENTATION_DOCUMENT_FLOW_ENV, "false"),
+            (
+                MESH_CONTRACT_DOCUMENT_ENV,
+                "state/mesh_contract_report.json",
+            ),
+            (MESH_CONTRACT_REPORT_ENV, "state/mesh_contract_report.json"),
+            (
+                TOPOLOGY_HISTORY_REPORT_ENV,
+                "state/topology_history_report.json",
+            ),
         ]
     }
 }
 
 pub fn resolve_bundle_path(file_name: &str, manifest_dir: &str) -> PathBuf {
-    PathBuf::from(manifest_dir).join("generated").join(file_name)
+    PathBuf::from(manifest_dir)
+        .join("generated")
+        .join(file_name)
 }
 
 pub fn resolve_project_path(manifest_dir: &str, relative_source_path: &str) -> PathBuf {

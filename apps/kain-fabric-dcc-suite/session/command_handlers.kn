@@ -217,6 +217,24 @@ fn command_handlers() -> Array<CommandHandlerDescriptor>:
             immediate_effect: "build packed texture export receipts"
         },
         CommandHandlerDescriptor {
+            command_kind: "evaluation.recompute_graph",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "recompute graph dependency flow and mark cook inputs dirty"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "evaluation.cook_graph",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "cook the evaluation graph and stage downstream materialization"
+        },
+        CommandHandlerDescriptor {
+            command_kind: "cache.materialize",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "materialize cooked graph output into cache receipts"
+        },
+        CommandHandlerDescriptor {
             command_kind: "render.preview",
             reducer_owner: "session.reducers",
             planner_owner: "session.intent_planner",

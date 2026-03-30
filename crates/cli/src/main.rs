@@ -1341,15 +1341,21 @@ fn main() {
                             eprintln!(" Doctor repair requested without a file path.");
                             std::process::exit(1);
                         };
-                        match repair::run(path, mode) {
+                        match repair::run(path, repair_args.profile, mode) {
                             Ok(report) => {
-                                print_repair_report(path, &report, mode);
+                                print_repair_report(
+                                    path,
+                                    &report,
+                                    mode,
+                                    repair_args.selected_profile_label(),
+                                );
                             }
                             Err(err) => {
                                 eprintln!(" Doctor repair failed: {}", err);
                                 std::process::exit(1);
                             }
                         }
+                        return;
                     }
                     print_doctor(launcher);
                 }
@@ -1860,23 +1866,60 @@ fn main() {
     handler.join().unwrap();
 }
 
-fn print_repair_report(path: &Path, report: &kain_repair::RepairReport, mode: kain_repair::RepairMode) {
+fn print_repair_report(
+    path: &Path,
+    report: &kain_repair::RepairReport,
+    mode: kain_repair::RepairMode,
+    profile: &str,
+) {
     println!(" Repair Target: {}", path.display());
+    println!(" Selected Profile: {}", profile);
     println!(" Repair Mode: {:?}", mode);
+    println!(
+        " Action Class: {}",
+        if matches!(mode, kain_repair::RepairMode::ApplyAggressive) {
+            "aggressive"
+        } else {
+            "safe"
+        }
+    );
+
     if report.issues.is_empty() {
-        println!(" Repairs: none needed");
+        println!(" Fixes Applied: none needed");
+        println!(" Remaining Diagnostics: 0");
         return;
     }
 
-    for issue in &report.issues {
-        println!("   - {}", issue);
+    let mut safe_fixes = 0usize;
+    let mut aggressive_fixes = 0usize;
+    println!(" Fixes:");
+    for fix in &report.issues {
+        let is_aggressive = is_aggressive_fix(fix);
+        if is_aggressive {
+            aggressive_fixes += 1;
+        } else {
+            safe_fixes += 1;
+        }
+        println!(
+            "   - [{}] {}",
+            if is_aggressive { "aggressive" } else { "safe" },
+            fix
+        );
     }
-    if report.changed() {
-        println!(" Applied Fixes: {}", report.applied_count());
-    } else {
-        println!(" Applied Fixes: 0");
-    }
+    println!(" Applied Fixes: {}", report.applied_count());
+    println!("   Safe Fixes: {}", safe_fixes);
+    println!("   Aggressive Fixes: {}", aggressive_fixes);
     println!(" Remaining Diagnostics: {}", report.remaining_count());
+}
+
+fn is_aggressive_fix(issue: &str) -> bool {
+    let issue = issue.to_ascii_lowercase();
+    issue.contains("reserved")
+        || issue.contains("inline")
+        || issue.contains("namespace")
+        || issue.contains("reconstruct")
+        || issue.contains("unterminated block comment")
+        || issue.contains("indentation")
 }
 
 fn print_doctor(active_launcher: LauncherKind) {

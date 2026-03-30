@@ -1,90 +1,48 @@
-# MEMORY.md
+# MEMORY
 
-## 2026-03-29 - selfhost auto-repair docs added
+## 2026-03-29 - doctor CLI UX gained profile-aware repair reporting
 
-Documented the new Kain self-host auto-repair lane so future agents can find the architecture, doctor-facing usage, and the safe-vs-dangerous guardrails in one place.
+The `kain doctor` repair lane now feels more like a first-class operator command instead of a bare file fixer.
 
 What changed:
 
-- Added `docs/pipeline/SELFHOST_REPAIR.md` with:
-  - architecture notes for `crates/kain-selfhost`
-  - repair lane flow and report locations
-  - doctor-first usage guidance
-  - guardrails for syntax repair vs semantic rewriting
-  - phased roadmap for the feature
-- Linked the repair doc from:
-  - `docs/pipeline/README.md`
-  - root `README.md`
-  - `ARCHITECTURE.md`
+- `crates/cli/src/repair.rs`
+  - Added a `--profile` selector on the repair sub-surface with `safe` and `aggressive` presets.
+  - The repair runner now receives the selected profile and passes it through to `kain-repair`.
+  - Safe profile disables the higher-risk semantic rewrites; aggressive keeps the full default repair profile.
+- `crates/cli/src/main.rs`
+  - Doctor repair output now reports:
+    - selected profile
+    - repair mode
+    - safe vs aggressive action class
+    - fixes applied/suggested
+    - remaining diagnostics
+    - per-fix classification as safe/aggressive
+  - Repair runs now return after printing the repair report instead of falling through to the normal doctor diagnostics.
+- `crates/cli/src/lib.rs`
+  - Updated the launcher shortcut hints to show the profile-aware repair surface.
+
+Command surface now includes:
+
+- `kain doctor`
+- `kain doctor --repair <file>`
+- `kain doctor --repair <file> --profile safe`
+- `kain doctor --repair <file> --profile aggressive`
+- `kain doctor --repair <file> --suggest`
+- `kain doctor --repair <file> --dry-run`
+- `kain doctor --repair <file> --write`
 
 Notes:
 
-- The docs deliberately frame repair as a bounded copy/validate loop, not a source-mutating rewrite system.
-- `kain doctor` is treated as the provenance check before entering the repair lane.
+- I did not run tests or `cargo check`, per instruction.
+- The CLI surface stays backward-compatible; existing `--repair`, `--suggest`, `--dry-run`, and `--write` flows still work.
+- The repair output now exposes the difference between conservative normalization and more invasive parser-recovery work so users can see what was actually attempted.
 
-## 2026-03-29 - kain-repair foundation introduced
+## 2026-03-29 - repair surface coherence pass
 
-Created a new workspace crate, `crates/kain-repair`, as the first dedicated repair lane for parser-hostile Kain source.
+Stabilization pass on the auto-repair wiring:
 
-What landed:
-
-- New public API shape:
-  - `RepairInput`
-  - `RepairProfile`
-  - `RepairMode` (`Check`, `Suggest`, `ApplySafe`, `ApplyAggressive`)
-  - `FixKind`
-  - `AppliedFix`
-  - `RepairResult`
-  - `repair_text`
-  - `repair_text_with_input`
-  - `suggest_fixes`
-- Deterministic repair passes implemented in the first cut:
-  - normalize CRLF/CR to LF
-  - trim trailing spaces and tabs
-  - collapse excessive blank-line runs
-  - ensure a final newline
-  - append a block-comment closer when unterminated comments are detected
-
-Notes / constraints:
-
-- The crate is intentionally conservative and source-text only for now; it does not depend on `kain-core` yet.
-- The workspace root now includes `crates/kain-repair` as a member.
-- No CLI wiring yet; this crate is meant to become the repair engine consumed by `doctor` later.
-
-Recommended next step:
-
-- Wire this crate into `doctor`/CLI diagnostics once the API settles, and add parser-aware repair heuristics only where they remain deterministic and safe.
-
-
-## 2026-03-29 - kain-repair foundation introduced
-
-Created a new workspace crate, `crates/kain-repair`, as the first dedicated repair lane for parser-hostile Kain source.
-
-What landed:
-
-- New public API shape:
-  - `RepairInput`
-  - `RepairProfile`
-  - `RepairMode` (`Check`, `Suggest`, `ApplySafe`, `ApplyAggressive`)
-  - `FixKind`
-  - `AppliedFix`
-  - `RepairResult`
-  - `repair_text`
-  - `repair_text_with_input`
-  - `suggest_fixes`
-- Deterministic repair passes implemented in the first cut:
-  - normalize CRLF/CR to LF
-  - trim trailing spaces and tabs
-  - collapse excessive blank-line runs
-  - ensure a final newline
-  - append a block-comment closer when unterminated comments are detected
-
-Notes / constraints:
-
-- The crate is intentionally conservative and source-text only for now; it does not depend on `kain-core` yet.
-- The workspace root now includes `crates/kain-repair` as a member.
-- No CLI wiring yet; this crate is meant to become the repair engine consumed by `doctor` later.
-
-Recommended next step:
-
-- Wire this crate into `doctor`/CLI diagnostics once the API settles, and add parser-aware repair heuristics only where they remain deterministic and safe.
+- Added `crates/kain-repair::repair_source_with_profile(...)` so the CLI can pass a profile through instead of flattening everything to the default profile.
+- Kept the CLI repair branch aligned with the existing `RepairMode` contract in `kain-repair` instead of inventing extra mode variants in the caller.
+- Doctor repair output now clearly labels the selected profile and classifies the mode as safe or aggressive.
+- This was a low-conflict cleanup pass: no tests, no cargo check.

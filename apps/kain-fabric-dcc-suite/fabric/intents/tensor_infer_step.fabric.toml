@@ -72,6 +72,10 @@ depends_on = ["python_suite_bootstrap", "dcc_suite_seed", "tensor_train_stage"]
 name = "tensor_inference_report"
 kind = "value"
 
+[[steps.outputs]]
+name = "tensor_inference_result"
+kind = "value"
+
 [[steps]]
 id = "tensor_inference_bridge"
 runtime = "kain"

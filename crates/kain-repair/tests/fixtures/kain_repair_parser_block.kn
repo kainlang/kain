@@ -1,0 +1,5 @@
+// Repaired from a parser-fragmented K_OS output
+fn repair_scene(state: SceneState) {
+    let renderer = SceneRenderer::new(state)
+    renderer.begin()
+}

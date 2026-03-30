@@ -10,12 +10,14 @@ fn build_render_visibility_report_json(settings: Any, render_aov_report: String,
     let visibility_layers = settings.runtime_pack_count + settings.preview_count + 4
     let cull_budget = settings.preview_count + settings.tensor_feature_count + 1
     let review_capture_count = settings.preview_count + settings.tensor_feature_count + 3
+    let aov_slots = settings.runtime_pack_count + 4
 
     let json = "{\n"
     let json = json + "  \"kind\": \"render_visibility_report\",\n"
     let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
     let json = json + "  \"workspace_mode\": \"" + settings.workspace_mode + "\",\n"
     let json = json + "  \"visibility_profile\": \"aaa_render_room_visibility_culling\",\n"
+    let json = json + "  \"aov_slots\": " + str(aov_slots) + ",\n"
     let json = json + "  \"visibility_layers\": " + str(visibility_layers) + ",\n"
     let json = json + "  \"cull_budget_hint\": " + str(cull_budget) + ",\n"
     let json = json + "  \"review_capture_count\": " + str(review_capture_count) + ",\n"

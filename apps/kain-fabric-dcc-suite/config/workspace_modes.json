@@ -13,7 +13,7 @@
     {
       "id": "material_lookdev",
       "label": "Material And Lookdev",
-      "summary": "PBR texture sets, paint layers, SVG masks, smart materials, and export presets."
+      "summary": "PBR texture sets, scan plates, paint layers, SVG masks, smart materials, and export receipts."
     },
     {
       "id": "rig_anim",

@@ -5,10 +5,13 @@
     "source_priority": "source_id_first",
     "import_profile_policy": "transcode_profile_selected_before_geometry_or_material_projection",
     "lineage_policy": "source_manifest -> interchange_transcode -> scene_exchange -> asset_registry -> session_routing",
+    "ingest_route_policy": "source_manifest -> media_ingest -> transcode_proxy -> session_routing",
+    "scene_exchange_policy": "scene_exchange -> mesh_import -> material_plate -> review_proxy",
     "supported_source_kinds": ["usd", "usda", "usdc", "abc", "gltf", "glb", "fbx", "obj", "exr", "wav", "mp4"],
     "supported_transcode_profiles": ["scene_exchange", "mesh_import", "material_plate", "media_proxy", "review_proxy"],
     "routed_runtime_ids": ["asset_registry_runtime", "interchange_runtime", "scene_exchange_runtime", "media_runtime"],
     "session_route_scope": "asset_ingest_session",
-    "summary": "Source-id-first asset pipeline contract for ingest, transcode selection, lineage, and session routing."
+    "lineage_receipts": ["source_manifest", "interchange_transcode", "scene_exchange", "asset_registry", "media_ingest"],
+    "summary": "Source-id-first asset pipeline contract for ingest, transcode selection, media ingest routing, lineage, and session routing."
   }
 }

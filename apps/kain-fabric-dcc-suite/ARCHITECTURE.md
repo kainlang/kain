@@ -133,7 +133,7 @@ The scaffold is split into seven durable ownership layers:
 ## Extension Seams That Are Intentional
 
 - The asset import lane now speaks in source-id-first manifests, interchange transcode, scene exchange, asset lineage, and media ingest receipts. The current contracts are app-owned projections and routing state, not a native interchange runtime or serializer ownership.
-- The tensor lane now emits explicit dispatch, checkpoint, and inference-result receipts in `state/*.json`. A first-class typed tensor artifact contract across Python, Kain, and GPU runtime lanes is still future work.
+- The tensor lane now emits explicit dispatch, checkpoint, and inference-result receipts in `state/*.json`, and the Python bridge now also exposes shape-aware artifact metadata for training and inference plans. A first-class typed tensor artifact contract across Python, Kain, and GPU runtime lanes is still future work.
 - The sim lane now emits durable plan and report receipts in `state/*.json` rather than a mock string return, but it is still not a real solver runtime. That keeps the current repo honest until a durable sim contract exists.
 - The compositor lane now emits durable rebuild-plan and rebuild-report receipts in `state/*.json`, but real graph execution and frame assembly should still arrive through a broader runtime extension rather than by overloading shell presentation code.
 - The mesh lane now has real Kain-authored projection writers for imported payloads, authored primitives, Catmull-Clark-style subdivision, and UV packing receipts. It also now emits a native mesh runtime signature through the C helper seam, giving the lane a concrete extension point for geometry ownership without pretending the app itself solves remesh math.

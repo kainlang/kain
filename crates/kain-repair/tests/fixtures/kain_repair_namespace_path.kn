@@ -1,0 +1,5 @@
+use kain/runtime/native
+
+fn bootstrap() {
+    let bridge = host\bridge::load()
+}

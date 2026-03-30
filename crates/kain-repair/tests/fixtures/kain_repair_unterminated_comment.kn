@@ -1,0 +1,5 @@
+fn comment_fixup() {
+    let note = 1;
+    /* repair lane output left this open
+    note += 1;
+}
