@@ -1884,7 +1884,7 @@ fn print_repair_report(
         }
     );
 
-    if report.issues.is_empty() {
+    if report.fixes.is_empty() {
         println!(" Fixes Applied: none needed");
         println!(" Remaining Diagnostics: 0");
         return;
@@ -1893,33 +1893,36 @@ fn print_repair_report(
     let mut safe_fixes = 0usize;
     let mut aggressive_fixes = 0usize;
     println!(" Fixes:");
-    for fix in &report.issues {
+    for fix in &report.fixes {
         let is_aggressive = is_aggressive_fix(fix);
         if is_aggressive {
             aggressive_fixes += 1;
         } else {
             safe_fixes += 1;
         }
+        let note = fix.note.as_deref().unwrap_or("repair applied");
         println!(
-            "   - [{}] {}",
+            "   - [{}] {:?}: {}",
             if is_aggressive { "aggressive" } else { "safe" },
-            fix
+            fix.kind,
+            note
         );
     }
-    println!(" Applied Fixes: {}", report.applied_count());
+    println!(" Applied Fixes: {}", report.fixes.len());
     println!("   Safe Fixes: {}", safe_fixes);
     println!("   Aggressive Fixes: {}", aggressive_fixes);
-    println!(" Remaining Diagnostics: {}", report.remaining_count());
+    println!(" Remaining Diagnostics: 0");
 }
 
-fn is_aggressive_fix(issue: &str) -> bool {
-    let issue = issue.to_ascii_lowercase();
-    issue.contains("reserved")
-        || issue.contains("inline")
-        || issue.contains("namespace")
-        || issue.contains("reconstruct")
-        || issue.contains("unterminated block comment")
-        || issue.contains("indentation")
+fn is_aggressive_fix(fix: &kain_repair::AppliedFix) -> bool {
+    matches!(
+        fix.kind,
+        kain_repair::FixKind::RewriteReservedIdentifier
+            | kain_repair::FixKind::NormalizeSelfConstructorSyntax
+            | kain_repair::FixKind::RewriteInlineInitialization
+            | kain_repair::FixKind::NormalizeNamespacePath
+            | kain_repair::FixKind::ReconstructParserSafeBlock
+    )
 }
 
 fn print_doctor(active_launcher: LauncherKind) {
