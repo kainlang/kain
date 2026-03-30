@@ -268,6 +268,8 @@ $BridgeStatus = [ordered]@{
     session_document_path = $BridgeSessionPath
     processed_command_count = 0
 }
+$RuntimeLaneHealth = if ($BridgeStatus.status -eq "live" -and $LatestFabricStatus -eq "succeeded") { "healthy" } elseif ($BridgeStatus.status -eq "live") { "bridge-live" } elseif ($LatestFabricStatus -eq "succeeded") { "fabric-green" } else { "warming" }
+$RuntimeLaneHealthDetail = if ($RuntimeLaneHealth -eq "healthy") { "bridge live / fabric succeeded" } elseif ($RuntimeLaneHealth -eq "bridge-live") { "bridge live / fabric waiting" } elseif ($RuntimeLaneHealth -eq "fabric-green") { "fabric succeeded / bridge warming" } else { "bridge warming / fabric warming" }
 
 $StepStatus = @($Pipeline | ForEach-Object {
     [ordered]@{
@@ -380,7 +382,10 @@ $RuntimeSnapshot = [ordered]@{
         }
         bridge = $BridgeStatus
         bridge_status = $BridgeStatus.status
+        runtime_lane_health = $RuntimeLaneHealth
+        runtime_lane_health_detail = $RuntimeLaneHealthDetail
         runtime_lane_summary = $RuntimeLaneSummary
+        render_preview_chain = "pathtrace -> accumulation -> denoise"
         extension_seams = @(
             "material lane still projects authoring receipts rather than a true native painter runtime",
             "tensor lane still reports readiness and plan state rather than executing a full typed tensor artifact contract",

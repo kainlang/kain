@@ -1495,6 +1495,7 @@ impl RustTransformer {
             // ── Function call ─────────────────────────────────────────────
             syn::Expr::Call(c) => {
                 let callee = self.transform_expr(&c.func)?;
+                let callee = self.peel_expr_wrapper(callee);
                 let args = self.transform_call_args(&c.args)?;
                 Ok(Expr::Call {
                     callee: Box::new(callee),
@@ -1506,6 +1507,7 @@ impl RustTransformer {
             // ── Method call ───────────────────────────────────────────────
             syn::Expr::MethodCall(m) => {
                 let receiver = self.transform_expr(&m.receiver)?;
+                let receiver = self.peel_expr_wrapper(receiver);
                 let method = self.rename_value(&m.method.to_string());
                 let args = self.transform_call_args(&m.args)?;
                 Ok(Expr::MethodCall {
@@ -1689,10 +1691,10 @@ impl RustTransformer {
             syn::Expr::TryBlock(tb) => {
                 self.note_lossy_class(
                     "unsupported_expr_lowering",
-                    "try block lowered as plain block; ? semantics preserved only where inner expressions retain it".to_string(),
+                    "try block lowered as a value-producing block; ? semantics preserved only where inner expressions retain it".to_string(),
                 );
                 let block = self.transform_block(&tb.block)?;
-                Ok(Expr::Block(block, S))
+                Ok(Expr::Comptime(Box::new(Expr::Block(block, S)), S))
             }
 
             // ── await ─────────────────────────────────────────────────────
@@ -2165,6 +2167,19 @@ impl RustTransformer {
     }
 
     // ── Call args ────────────────────────────────────────────────────────
+
+    fn peel_expr_wrapper(&mut self, expr: Expr) -> Expr {
+        match expr {
+            Expr::Paren(inner, _) => self.peel_expr_wrapper(*inner),
+            Expr::Block(block, _) if block.stmts.len() == 1 => {
+                match block.stmts.into_iter().next().unwrap() {
+                    Stmt::Expr(inner) => self.peel_expr_wrapper(inner),
+                    other => Expr::Block(Block { stmts: vec![other], span: S }, S),
+                }
+            }
+            other => other,
+        }
+    }
 
     fn transform_call_args(
         &mut self,
@@ -3041,6 +3056,44 @@ mod tests {
     }
 
     #[test]
+    fn lowers_chain_expression_heads_without_spurious_wrappers() {
+        let program = transform_source(
+            r#"
+            fn demo(values: Vec<String>) {
+                let total = (values.iter()).count();
+                let joined = ({ values.iter() }).map(|value| format!("{value}"));
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Let {
+            value: Some(Expr::MethodCall { receiver, method, .. }),
+            ..
+        } = &func.body.stmts[0]
+        else {
+            panic!("expected chained method call");
+        };
+        assert_eq!(method, "count");
+        assert!(matches!(receiver.as_ref(), Expr::MethodCall { method, .. } if method == "iter"));
+
+        let Stmt::Let {
+            value: Some(Expr::MethodCall { receiver, method, args, .. }),
+            ..
+        } = &func.body.stmts[1]
+        else {
+            panic!("expected mapped chain");
+        };
+        assert_eq!(method, "map");
+        assert!(matches!(receiver.as_ref(), Expr::MethodCall { method, .. } if method == "iter"));
+        assert_eq!(args.len(), 1);
+        assert!(matches!(&args[0].value, Expr::Lambda { .. }));
+    }
+
+    #[test]
     fn unwraps_grouped_expressions_without_loss() {
         let program = transform_source(
             r#"
@@ -3066,6 +3119,79 @@ mod tests {
             outer.as_ref(),
             Expr::Paren(inner, _) if matches!(inner.as_ref(), Expr::Paren(core, _) if matches!(core.as_ref(), Expr::Binary { .. }))
         ));
+    }
+
+    #[test]
+    fn lowers_value_if_and_casts_inside_constructor_and_helpers() {
+        let program = transform_source(
+            r#"
+            struct Demo {
+                value: u64,
+            }
+
+            impl Demo {
+                fn from_parts(flag: bool, frame_count: usize, fps: f32) -> Self {
+                    Self {
+                        value: if flag {
+                            ((frame_count as f32 / fps) * 1000.0) as u64
+                        } else {
+                            0_u64
+                        },
+                    }
+                }
+            }
+            "#,
+        );
+
+        let Item::Struct(_) = &program.items[0] else {
+            panic!("expected struct");
+        };
+
+        let Item::Impl(imp) = &program.items[1] else {
+            panic!("expected impl");
+        };
+
+        let func = &imp.methods[0];
+
+        let Stmt::Expr(Expr::Struct { fields, .. }) = &func.body.stmts[0] else {
+            panic!("expected constructor body to lower to struct expression");
+        };
+
+        let Some((field, Expr::If { condition, then_branch, else_branch, .. })) =
+            fields.iter().find(|(field, _)| field == "value")
+        else {
+            panic!("expected value field to lower to if-expression");
+        };
+
+        assert_eq!(field, "value");
+        assert!(matches!(condition.as_ref(), Expr::Ident(name, _) if name == "flag"));
+        assert!(matches!(then_branch.stmts.as_slice(), [Stmt::Expr(Expr::Cast { .. })]));
+        assert!(matches!(else_branch.as_deref(), Some(ElseBranch::Else(block)) if matches!(block.stmts.as_slice(), [Stmt::Expr(Expr::Int(0, _))])));
+    }
+
+    #[test]
+    fn lowers_try_blocks_as_value_producing_blocks() {
+        let program = transform_source(
+            r#"
+            fn demo() {
+                let value = try { 1 + 2 };
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Let {
+            value: Some(Expr::Comptime(inner, _)),
+            ..
+        } = &func.body.stmts[0]
+        else {
+            panic!("expected try block to stay value-producing");
+        };
+
+        assert!(matches!(inner.as_ref(), Expr::Block(_, _)));
     }
 
     #[test]

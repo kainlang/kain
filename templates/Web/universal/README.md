@@ -28,11 +28,43 @@
   - client bundler (Preact + Three.js) for React/TypeScript-esque islands
   - KainScript (`.ks`) support in the client bundle loader
   - PWA manifest, offline fallback, and service worker output
-  - local search, frontend stack + Kain UI stack + UI runtime + UI state/routing/data/forms/motion/testing/tooling stacks, chat runtime, actor runtime, agent knowledge/memory/tool registries, chat (playbooks/tools/memory), prompt-deck, UI kit, catalog, app/auth/commerce/data/realtime, 3D scene assets/materials/lighting/cameras/animation/physics/audio/XR/shaders, growth/experiments/service catalog, creative systems (copy decks, content models, editorial flow, email templates, campaigns, icon/motion/illustration libraries), support + feedback + survey + messaging + payments + scheduling + privacy lanes, actor jobs/schedules/hosts, runtime hosts + deployment targets, session, uploads, analytics, form, and route APIs
+  - local search, frontend stack + Kain UI stack + UI runtime + UI state/routing/data/forms/motion/testing/tooling stacks, chat runtime, actor runtime, agent knowledge/memory/tool registries, chat (playbooks/tools/memory), prompt-deck, UI kit, catalog, app/auth/commerce data (product catalog, inventory, fulfillment, shipping, returns, loyalty, referrals, customer portal, ads), data platform, realtime, 3D scene assets/materials/lighting/cameras/animation/physics/audio/XR/shaders, growth/experiments/service catalog, creative systems (copy decks, content models, editorial flow, email templates, campaigns, icon/motion/illustration libraries), support + feedback + survey + messaging + payments + scheduling + privacy lanes, actor jobs/schedules/hosts, runtime hosts + deployment targets, session, uploads, analytics, form, and route APIs
   - static artifact writer
   - actor-aware local HTTP + SSE + WebSocket server with agent-scoped chat routing
 - `package.json`
   - Node scripts for build, inspect, and local serving
+
+### Runtime Routing + Storage Config
+
+`manifests/app.json` now owns the runtime storage + endpoint layout so the Node FFI lane is fully data-driven:
+
+```json
+"site_runtime": {
+  "host": "127.0.0.1",
+  "default_port": 4318,
+  "storage": {
+    "root": "runtime",
+    "submissions": "submissions",
+    "uploads": "uploads",
+    "analytics": "analytics",
+    "auth": "auth",
+    "chat": "chat"
+  },
+  "routes": {
+    "chat": "/api/chat",
+    "chat_stream": "/api/chat/stream",
+    "chat_ws": "/ws/chat",
+    "realtime_stream": "/api/realtime/stream",
+    "realtime_ws": "/ws/realtime",
+    "uploads": "/api/uploads",
+    "uploads_prefix": "/uploads/",
+    "analytics_event": "/api/analytics/event",
+    "analytics_events": "/api/analytics/events"
+  }
+}
+```
+
+These values flow into `site.data.json`, `system.contract.json`, and the island hydration contract so client islands stay consistent without hard-coded endpoints.
 
 ## Manifest Surface
 
@@ -145,6 +177,7 @@ New reusable section kinds in this pass:
 - `integration_grid`
 - `realtime_channels`
 - `data_collections`
+- `experience_catalog` (experience matrix island)
 - `uploads_lab`
 - `analytics_lab`
 - `card_grid` with `content.chat_personas`

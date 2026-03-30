@@ -1906,23 +1906,6 @@ fn widget_display_label(kind: &UiWidgetKind) -> &'static str {
     }
 }
 
-fn widget_accessory_label(kind: &UiWidgetKind) -> &'static str {
-    match kind {
-        UiWidgetKind::Panel => "panel",
-        UiWidgetKind::Inspector => "property inspector",
-        UiWidgetKind::Graph => "node graph",
-        UiWidgetKind::Timeline => "sequencer",
-        UiWidgetKind::Table => "data table",
-        UiWidgetKind::Tree => "hierarchy tree",
-        UiWidgetKind::Viewport2D => "2D viewport",
-        UiWidgetKind::Viewport3D => "3D viewport",
-        UiWidgetKind::Overlay => "overlay",
-        UiWidgetKind::Slot => "slot",
-        UiWidgetKind::Text => "text",
-        UiWidgetKind::ComponentRef(_) => "component",
-        UiWidgetKind::Element(_) => "element",
-    }
-}
 
 fn candidate_theme_keys(widget_key: &str, variant: Option<&str>, property: &str) -> Vec<String> {
     let mut keys = Vec::with_capacity(4);
@@ -5913,7 +5896,15 @@ fn render_node(
                             ui.add_space(theme.gap * 0.55);
                         }
                         render_widget_body_frame(ui, &theme, |ui| {
-                            render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+                            if matches!(node.kind, UiWidgetKind::Slot) {
+                                if let Some(viewport_id) = canonical_viewport_descendant(tree, node) {
+                                    render_node(app, ui, ctx, tree, theme_registry, app_theme, viewport_id);
+                                } else {
+                                    render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+                                }
+                            } else {
+                                render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+                            }
                         });
                     });
                 }
@@ -5940,7 +5931,11 @@ fn render_generic_element_node(
     );
     themed_frame(&theme).show(ui, |ui| {
         if product_shell {
-            render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+            render_widget_header(ui, &theme, &pretty_element_title(tag));
+            ui.add_space(theme.gap * 0.48);
+            render_widget_body_frame(ui, &theme, |ui| {
+                render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+            });
         } else {
             ui.small(
                 RichText::new(format!("<{tag}>"))
@@ -6725,6 +6720,69 @@ fn render_child_entry(
     }
 }
 
+fn canonical_viewport_descendant(tree: &UiTree, node: &UiNode) -> Option<UiNodeId> {
+    for child_id in &node.children {
+        let Some(child_node) = tree.node(*child_id) else {
+            continue;
+        };
+        match child_node.kind {
+            UiWidgetKind::Viewport2D | UiWidgetKind::Viewport3D => return Some(*child_id),
+            _ => {
+                if let Some(descendant) = canonical_viewport_descendant(tree, child_node) {
+                    return Some(descendant);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn render_center_area_entry(
+    app: &mut KainUiNativeApp,
+    ui: &mut egui::Ui,
+    ctx: &egui::Context,
+    tree: &UiTree,
+    theme_registry: &UiThemeRegistry,
+    app_theme: &NativeAppTheme,
+    entry: &ChildRenderEntry,
+) {
+    match entry {
+        ChildRenderEntry::Single(id) => {
+            if let Some(node) = tree.node(*id) {
+                if !matches!(node.kind, UiWidgetKind::Viewport2D | UiWidgetKind::Viewport3D) {
+                    if let Some(viewport_id) = canonical_viewport_descendant(tree, node) {
+                        render_node(app, ui, ctx, tree, theme_registry, app_theme, viewport_id);
+                        return;
+                    }
+                }
+            }
+            render_node(app, ui, ctx, tree, theme_registry, app_theme, *id);
+        }
+        ChildRenderEntry::TabGroup { group_id, tabs } => {
+            if let Some(active_tab_id) = resolve_active_tab_child(app, tree, group_id, tabs) {
+                if let Some(active_node) = tree.node(active_tab_id) {
+                    if !matches!(active_node.kind, UiWidgetKind::Viewport2D | UiWidgetKind::Viewport3D) {
+                        if let Some(viewport_id) = canonical_viewport_descendant(tree, active_node) {
+                            render_node(app, ui, ctx, tree, theme_registry, app_theme, viewport_id);
+                            return;
+                        }
+                    }
+                }
+            }
+            render_tab_group(
+                app,
+                ui,
+                ctx,
+                tree,
+                theme_registry,
+                app_theme,
+                group_id,
+                tabs,
+            );
+        }
+    }
+}
+
 fn resolve_active_tab_child(
     app: &mut KainUiNativeApp,
     tree: &UiTree,
@@ -6997,7 +7055,15 @@ fn render_children_content(
 
                 ui.scope(|ui| {
                     for entry in &center {
-                        render_child_entry(app, ui, ctx, tree, theme_registry, app_theme, entry);
+                        render_center_area_entry(
+                            app,
+                            ui,
+                            ctx,
+                            tree,
+                            theme_registry,
+                            app_theme,
+                            entry,
+                        );
                     }
                 });
 

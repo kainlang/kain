@@ -12,6 +12,11 @@ type UploadResponse = {
   error?: string;
 };
 
+type Props = {
+  uploadEndpoint?: string;
+  servePrefix?: string;
+};
+
 async function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -21,9 +26,9 @@ async function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-async function uploadFile(file: File): Promise<UploadResponse> {
+async function uploadFile(file: File, endpoint: string): Promise<UploadResponse> {
   const content_base64 = await fileToDataUrl(file);
-  const response = await fetch("/api/uploads", {
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify({
@@ -35,14 +40,16 @@ async function uploadFile(file: File): Promise<UploadResponse> {
   return (await response.json()) as UploadResponse;
 }
 
-export function UploadsLabIsland() {
+export function UploadsLabIsland(props: Props) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [uploads, setUploads] = useState<NonNullable<UploadResponse["file"]>[]>([]);
+  const uploadEndpoint = props.uploadEndpoint || "/api/uploads";
+  const servePrefix = props.servePrefix || "/uploads/";
 
   const hint = useMemo(
-    () => "Posts base64 payloads to /api/uploads and serves them from /uploads/* while the local server is running.",
-    []
+    () => `Posts base64 payloads to ${uploadEndpoint} and serves them from ${servePrefix}* while the local server is running.`,
+    [uploadEndpoint, servePrefix]
   );
 
   const onFile = async (file: File | null) => {
@@ -50,7 +57,7 @@ export function UploadsLabIsland() {
     try {
       setBusy(true);
       setStatus("uploading");
-      const payload = await uploadFile(file);
+      const payload = await uploadFile(file, uploadEndpoint);
       if (!payload.ok || !payload.file) {
         setStatus(payload.error || "upload failed");
         return;
@@ -98,4 +105,3 @@ export function UploadsLabIsland() {
     </div>
   );
 }
-

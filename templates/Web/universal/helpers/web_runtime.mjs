@@ -135,6 +135,47 @@ function readJsonIfExists(filePath, fallbackValue) {
   }
 }
 
+function normalizeRoutePath(value, fallbackValue) {
+  const raw = String(value || fallbackValue || "").trim();
+  if (!raw) return "/";
+  return raw.startsWith("/") ? raw : `/${raw}`;
+}
+
+function normalizeRoutePrefix(value, fallbackValue) {
+  const raw = normalizeRoutePath(value, fallbackValue);
+  return raw.endsWith("/") ? raw : `${raw}/`;
+}
+
+function normalizeRuntimeConfig(app) {
+  const runtime = app.site_runtime || {};
+  const storage = runtime.storage || {};
+  const routes = runtime.routes || {};
+  return {
+    host: runtime.host || "127.0.0.1",
+    port: Number(runtime.default_port || 4318),
+    client_features: runtime.client_features || [],
+    storage: {
+      root: String(storage.root || "runtime"),
+      submissions: String(storage.submissions || "submissions"),
+      uploads: String(storage.uploads || "uploads"),
+      analytics: String(storage.analytics || "analytics"),
+      auth: String(storage.auth || "auth"),
+      chat: String(storage.chat || "chat")
+    },
+    routes: {
+      chat: normalizeRoutePath(routes.chat, "/api/chat"),
+      chat_stream: normalizeRoutePath(routes.chat_stream, "/api/chat/stream"),
+      chat_ws: normalizeRoutePath(routes.chat_ws, "/ws/chat"),
+      realtime_stream: normalizeRoutePath(routes.realtime_stream, "/api/realtime/stream"),
+      realtime_ws: normalizeRoutePath(routes.realtime_ws, "/ws/realtime"),
+      uploads: normalizeRoutePath(routes.uploads, "/api/uploads"),
+      uploads_prefix: normalizeRoutePrefix(routes.uploads_prefix, "/uploads/"),
+      analytics_event: normalizeRoutePath(routes.analytics_event, "/api/analytics/event"),
+      analytics_events: normalizeRoutePath(routes.analytics_events, "/api/analytics/events")
+    }
+  };
+}
+
 function getClientBundleConfig(app) {
   const config = app.client_bundle || null;
   if (!config || config.enabled !== true) {
@@ -1614,6 +1655,30 @@ function renderUiStacks(model) {
 </section>`;
 }
 
+function renderExperienceCatalog(model) {
+  const entries = buildExperienceCatalogEntries(model.context);
+  const cards = entries.map((entry) => {
+    const slug = String(entry.output_slug || "").replace(/^\/+|\/+$/g, "");
+    const href = slug ? `/${slug}/` : "/";
+    const tags = [entry.mode, entry.theme, entry.content, entry.scene].filter(Boolean);
+    return `<article class="experience-catalog-card">
+  <p class="card-kicker">${escapeHtml(String(entry.mode || "experience")).toUpperCase()}</p>
+  <h3>${escapeHtml(entry.page_title || entry.id || "Experience")}</h3>
+  <p class="experience-catalog-meta">${escapeHtml(slug || "root")}</p>
+  ${tags.length ? `<div class="experience-catalog-tags">${tags
+    .map((tag) => `<span class="experience-catalog-pill">${escapeHtml(String(tag))}</span>`)
+    .join("")}</div>` : ""}
+  <a class="action secondary" href="${escapeHtml(href)}">View experience</a>
+</article>`;
+  }).join("");
+
+  return `<section class="experience-catalog-shell">
+  <div class="logo-pill"><span>Experience catalog</span><span>${entries.length} archetypes</span></div>
+  <div class="experience-catalog-grid">${cards}</div>
+  <div data-kain-island="experience-catalog" data-site-data="site.data.json"></div>
+</section>`;
+}
+
 function renderAgentStudio(model) {
   const agents = model.content.ai_agents?.agents || [];
   const knowledge = model.content.knowledge_sources || [];
@@ -1693,7 +1758,7 @@ function renderActorOps(model) {
 }
 
 function renderSystemContract(model) {
-  const clientFeatures = model.context.app.site_runtime.client_features || [];
+  const clientFeatures = model.runtime.client_features || [];
   return `<section class="system-contract-shell">
   <div class="system-contract-summary">
     <article class="system-contract-card">
@@ -1884,6 +1949,8 @@ function renderSectionBlock(section, model) {
     });
   } else if (kind === "ui_stacks") {
     bodyHtml = renderUiStacks(model);
+  } else if (kind === "experience_catalog") {
+    bodyHtml = renderExperienceCatalog(model);
   } else if (kind === "cta") {
     const title = getModelValue(model, normalized.title_source, normalized.title || "");
     const body = getModelValue(model, normalized.body_source, normalized.body || "");
@@ -1924,6 +1991,16 @@ function buildDerivedSearchDocuments(model) {
       href: "#work",
       tags: entry.tags || []
     });
+  }
+  for (const experience of Object.values(model.context.experiences || {})) {
+    const slug = String(experience.output_slug || "").replace(/^\/+|\/+$/g, "");
+    const href = slug ? `/${slug}/` : "/";
+    pushDocument(
+      "experience",
+      experience.page_title || experience.id,
+      `mode: ${experience.mode || "site"}`,
+      href
+    );
   }
   for (const item of model.content.faq_items || []) {
     pushDocument("faq", item.question, Array.isArray(item.answer) ? item.answer.join(" ") : item.answer, "#faq");
@@ -1987,6 +2064,36 @@ function buildDerivedSearchDocuments(model) {
   }
   for (const entry of model.content.privacy_requests || []) {
     pushDocument("privacy", entry.title || entry.name, entry.body || entry.summary || "", "#privacy");
+  }
+  for (const entry of model.content.product_catalog || []) {
+    pushDocument("product", entry.title || entry.name, entry.body || entry.summary || "", "#product-catalog");
+  }
+  for (const entry of model.content.inventory_stack || []) {
+    pushDocument("inventory", entry.title || entry.name, entry.body || entry.summary || "", "#inventory-stack");
+  }
+  for (const entry of model.content.fulfillment_stack || []) {
+    pushDocument("fulfillment", entry.title || entry.name, entry.body || entry.summary || "", "#fulfillment-stack");
+  }
+  for (const entry of model.content.shipping_stack || []) {
+    pushDocument("shipping", entry.title || entry.name, entry.body || entry.summary || "", "#shipping-stack");
+  }
+  for (const entry of model.content.returns_policy || []) {
+    pushDocument("returns", entry.title || entry.name, entry.body || entry.summary || "", "#returns-policy");
+  }
+  for (const entry of model.content.loyalty_program || []) {
+    pushDocument("loyalty", entry.title || entry.name, entry.body || entry.summary || "", "#loyalty-program");
+  }
+  for (const entry of model.content.referral_program || []) {
+    pushDocument("referral", entry.title || entry.name, entry.body || entry.summary || "", "#referral-program");
+  }
+  for (const entry of model.content.ads_stack || []) {
+    pushDocument("ads", entry.title || entry.name, entry.body || entry.summary || "", "#ads-stack");
+  }
+  for (const entry of model.content.customer_portal || []) {
+    pushDocument("portal", entry.title || entry.name, entry.body || entry.summary || "", "#customer-portal");
+  }
+  for (const entry of model.content.data_platform || []) {
+    pushDocument("data-platform", entry.title || entry.name, entry.body || entry.summary || "", "#data-platform");
   }
   for (const entry of model.content.release_notes?.entries || []) {
     pushDocument("release", entry.version, entry.summary, "#releases");
@@ -2737,6 +2844,7 @@ function buildSiteData(model) {
   }));
   return {
     experience_id: model.experience.id,
+    experience_catalog: buildExperienceCatalogEntries(model.context),
     mode: model.experience.mode,
     output_slug: model.experience.output_slug,
     page_title: model.experience.page_title,
@@ -2777,7 +2885,8 @@ function buildSiteData(model) {
       tags: post.tags,
       href: post.href
     })),
-    client_features: model.context.app.site_runtime.client_features || [],
+    runtime: model.runtime,
+    client_features: model.runtime.client_features || [],
     prompt_presets: model.content.prompt_presets || [],
     chat_personas: model.content.chat_personas || [],
     chat_modes: model.content.chat_modes || [],
@@ -2881,6 +2990,16 @@ function buildSiteData(model) {
     client_runtime_stack: model.content.client_runtime_stack || [],
     server_runtime_stack: model.content.server_runtime_stack || [],
     commerce: model.content.commerce || null,
+    product_catalog: model.content.product_catalog || [],
+    inventory_stack: model.content.inventory_stack || [],
+    fulfillment_stack: model.content.fulfillment_stack || [],
+    shipping_stack: model.content.shipping_stack || [],
+    returns_policy: model.content.returns_policy || [],
+    loyalty_program: model.content.loyalty_program || [],
+    referral_program: model.content.referral_program || [],
+    ads_stack: model.content.ads_stack || [],
+    customer_portal: model.content.customer_portal || [],
+    data_platform: model.content.data_platform || [],
     uploads: model.content.uploads || null,
     analytics: model.content.analytics || null,
     analytics_stack: model.content.analytics_stack || [],
@@ -3001,6 +3120,7 @@ function buildModel(appManifestPath, experienceId) {
     theme,
     content,
     scene,
+    runtime: normalizeRuntimeConfig(context.app),
     output_dir: path.resolve(context.root_dir, context.app.output_root, experience.output_slug)
   };
 }
@@ -3009,8 +3129,10 @@ function renderClientRuntime(model, siteData) {
   const chatSeed = JSON.stringify(model.content.chat_seed || []);
   const searchDocuments = JSON.stringify(siteData.search_documents || []);
   const promptPresets = JSON.stringify(siteData.prompt_presets || []);
+  const runtimeRoutes = JSON.stringify(siteData.runtime?.routes || {});
   return `<script>
 (() => {
+  const runtimeRoutes = ${runtimeRoutes};
   const metricCards = document.querySelectorAll('[data-kain-component="metric-card"] .metric-value');
   for (const metric of metricCards) {
     const raw = metric.getAttribute('data-target-value') || metric.textContent || '';
@@ -3073,7 +3195,7 @@ function renderClientRuntime(model, siteData) {
       const prompt = input?.value?.trim();
       if (!prompt) return;
       seedBox.insertAdjacentHTML('beforeend', '<article class="chat-bubble user"><p class="chat-role">user</p><p>' + prompt.replaceAll('<', '&lt;') + '</p></article>');
-      const endpoint = form.getAttribute('data-chat-endpoint') || '/api/chat';
+      const endpoint = form.getAttribute('data-chat-endpoint') || runtimeRoutes.chat || '/api/chat';
       try {
         const response = await fetch(endpoint + '?prompt=' + encodeURIComponent(prompt));
         const payload = await response.json();
@@ -3243,7 +3365,7 @@ function renderDocument(model, siteData, options = {}) {
       gap: 18px;
       margin-top: 18px;
     }
-    .panel, .hero-card, .metric-card, .feature-card, .portfolio-card, .route-card, .actor-card, .timeline-row, .pricing-card, .testimonial-card, .doc-card, .link-card, .command-card, .logo-pill, .search-result, .process-card, .prompt-card, .team-card, .support-card, .status-card, .career-card, .legal-card, .press-card, .partner-card, .security-card {
+    .panel, .hero-card, .metric-card, .feature-card, .portfolio-card, .route-card, .actor-card, .timeline-row, .pricing-card, .testimonial-card, .doc-card, .link-card, .command-card, .logo-pill, .search-result, .process-card, .prompt-card, .team-card, .support-card, .status-card, .career-card, .legal-card, .press-card, .partner-card, .security-card, .experience-catalog-card {
       border-radius: 24px;
       border: 1px solid var(--line);
       background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
@@ -3259,12 +3381,12 @@ function renderDocument(model, siteData, options = {}) {
       color: var(--muted);
       line-height: 1.5;
     }
-    .metric-grid, .feature-grid, .growth-grid, .experiment-grid, .service-grid, .notification-grid, .topology-grid, .portfolio-grid, .docs-grid, .link-grid, .command-grid, .pricing-grid, .testimonial-grid, .process-grid, .prompt-grid, .team-grid, .support-grid, .status-grid, .career-grid, .legal-grid {
+    .metric-grid, .feature-grid, .growth-grid, .experiment-grid, .service-grid, .notification-grid, .topology-grid, .portfolio-grid, .docs-grid, .link-grid, .command-grid, .pricing-grid, .testimonial-grid, .process-grid, .prompt-grid, .team-grid, .support-grid, .status-grid, .career-grid, .legal-grid, .experience-catalog-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 14px;
     }
-    .metric-card, .feature-card, .portfolio-card, .route-card, .actor-card, .pricing-card, .testimonial-card, .doc-card, .link-card, .command-card, .search-result, .process-card, .prompt-card, .team-card, .support-card, .status-card, .career-card, .legal-card, .press-card, .partner-card, .security-card {
+    .metric-card, .feature-card, .portfolio-card, .route-card, .actor-card, .pricing-card, .testimonial-card, .doc-card, .link-card, .command-card, .search-result, .process-card, .prompt-card, .team-card, .support-card, .status-card, .career-card, .legal-card, .press-card, .partner-card, .security-card, .experience-catalog-card {
       padding: 16px;
     }
     .status-card[data-status="operational"] { border-color: rgba(90, 228, 255, 0.5); }
@@ -3456,7 +3578,20 @@ function renderDocument(model, siteData, options = {}) {
       gap: 12px;
       align-content: start;
     }
-    .auth-shell, .app-shell, .ui-kit-shell, .ui-stack-shell { display: grid; gap: 14px; }
+    .auth-shell, .app-shell, .ui-kit-shell, .ui-stack-shell, .experience-catalog-shell { display: grid; gap: 14px; }
+    .experience-catalog-card { display: grid; gap: 10px; align-content: start; }
+    .experience-catalog-meta { margin: 0; color: var(--muted); font-size: 12px; }
+    .experience-catalog-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .experience-catalog-pill {
+      border-radius: 999px;
+      padding: 4px 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: rgba(255,255,255,0.03);
+    }
     .ui-kit-summary {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3511,6 +3646,46 @@ function renderDocument(model, siteData, options = {}) {
     .kain-island-panel-copy { margin: 8px 0 0; color: var(--muted); line-height: 1.5; }
     .kain-island-panel-tags { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
     .kain-island-panel-hint { margin-top: 12px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .kain-catalog-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .kain-catalog-controls input,
+    .kain-catalog-controls select {
+      min-height: 38px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+    }
+    .kain-catalog-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .kain-catalog-card {
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 12px;
+      background: rgba(255,255,255,0.03);
+      display: grid;
+      gap: 8px;
+    }
+    .kain-catalog-card h4 { margin: 0; font-family: var(--font-display); }
+    .kain-catalog-meta { margin: 0; color: var(--muted); font-size: 12px; }
+    .kain-catalog-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .kain-catalog-pill {
+      border-radius: 999px;
+      padding: 4px 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: rgba(255,255,255,0.03);
+    }
     .kain-ui-stack-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -3877,7 +4052,7 @@ function buildSummary(model) {
     service_worker_path: pwaConfig.enabled ? path.join(model.output_dir, "service-worker.js") : null,
     offline_path: pwaConfig.enabled ? path.join(model.output_dir, "offline", "index.html") : null,
     pwa_icon_path: pwaIconPath,
-    server_port: model.context.app.site_runtime.default_port,
+    server_port: model.runtime.port,
     output_dir: model.output_dir,
     route_count: (model.content.server_routes || []).length,
     actor_count: (model.content.actor_roles || []).length,
@@ -4100,6 +4275,16 @@ self.addEventListener('fetch', (event) => {
 }
 
 function buildSystemContract(model, siteData, actorServerPlan) {
+  const runtimeRoutes = siteData.runtime?.routes || {};
+  const chatHttp = normalizeRoutePath(runtimeRoutes.chat, "/api/chat");
+  const chatStream = normalizeRoutePath(runtimeRoutes.chat_stream, "/api/chat/stream");
+  const chatWs = normalizeRoutePath(runtimeRoutes.chat_ws, "/ws/chat");
+  const realtimeStream = normalizeRoutePath(runtimeRoutes.realtime_stream, "/api/realtime/stream");
+  const realtimeWs = normalizeRoutePath(runtimeRoutes.realtime_ws, "/ws/realtime");
+  const uploadsEndpoint = normalizeRoutePath(runtimeRoutes.uploads, "/api/uploads");
+  const uploadsPrefix = normalizeRoutePrefix(runtimeRoutes.uploads_prefix, "/uploads/");
+  const analyticsEvent = normalizeRoutePath(runtimeRoutes.analytics_event, "/api/analytics/event");
+  const analyticsEvents = normalizeRoutePath(runtimeRoutes.analytics_events, "/api/analytics/events");
   return {
     template: model.context.app.name,
     experience: {
@@ -4114,8 +4299,8 @@ function buildSystemContract(model, siteData, actorServerPlan) {
       client_features: siteData.client_features || []
     },
     streaming: {
-      chat: { http: "/api/chat", sse: "/api/chat/stream", ws: "/ws/chat" },
-      realtime: { sse: "/api/realtime/stream", ws: "/ws/realtime" }
+      chat: { http: chatHttp, sse: chatStream, ws: chatWs },
+      realtime: { sse: realtimeStream, ws: realtimeWs }
     },
     sessions: {
       me: "/api/auth/session",
@@ -4123,12 +4308,12 @@ function buildSystemContract(model, siteData, actorServerPlan) {
       logout: "/api/auth/session/logout"
     },
     uploads: {
-      upload: "/api/uploads",
-      serve_prefix: "/uploads/"
+      upload: uploadsEndpoint,
+      serve_prefix: uploadsPrefix
     },
     analytics: {
-      event: "/api/analytics/event",
-      events: "/api/analytics/events"
+      event: analyticsEvent,
+      events: analyticsEvents
     },
     analytics_stack: "/api/analytics/stack",
     attribution_stack: "/api/analytics/attribution",
@@ -4206,6 +4391,16 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     marketplace_stack: "/api/marketplace",
     integration_marketplace: "/api/integrations/marketplace",
     content_syndication: "/api/syndication",
+    product_catalog: "/api/commerce/catalog",
+    inventory_stack: "/api/commerce/inventory",
+    fulfillment_stack: "/api/commerce/fulfillment",
+    shipping_stack: "/api/commerce/shipping",
+    returns_policy: "/api/commerce/returns",
+    loyalty_program: "/api/commerce/loyalty",
+    referral_program: "/api/commerce/referrals",
+    customer_portal: "/api/portal",
+    ads_stack: "/api/ads",
+    data_platform: "/api/data-platform",
     event_bus: "/api/event-bus",
     data_pipelines: "/api/data-pipelines",
     actor_topology: "/api/actors/topology",
@@ -4443,8 +4638,19 @@ function buildSystemContract(model, siteData, actorServerPlan) {
 }
 
 function buildUiSchema(model, siteData) {
+  const runtimeRoutes = siteData.runtime?.routes || {};
+  const chatHttp = normalizeRoutePath(runtimeRoutes.chat, "/api/chat");
+  const chatStream = normalizeRoutePath(runtimeRoutes.chat_stream, "/api/chat/stream");
+  const chatWs = normalizeRoutePath(runtimeRoutes.chat_ws, "/ws/chat");
+  const realtimeStream = normalizeRoutePath(runtimeRoutes.realtime_stream, "/api/realtime/stream");
+  const realtimeWs = normalizeRoutePath(runtimeRoutes.realtime_ws, "/ws/realtime");
+  const uploadsEndpoint = normalizeRoutePath(runtimeRoutes.uploads, "/api/uploads");
+  const uploadsPrefix = normalizeRoutePrefix(runtimeRoutes.uploads_prefix, "/uploads/");
+  const analyticsEvent = normalizeRoutePath(runtimeRoutes.analytics_event, "/api/analytics/event");
+  const analyticsEvents = normalizeRoutePath(runtimeRoutes.analytics_events, "/api/analytics/events");
   const islandKindForSectionKind = (kind) => {
     if (kind === "app_shell") return "app-shell";
+    if (kind === "experience_catalog") return "experience-catalog";
     if (kind === "agent_studio") return "agent-studio";
     if (kind === "actor_ops") return "actor-ops";
     if (kind === "realtime_channels") return "realtime";
@@ -4492,9 +4698,9 @@ function buildUiSchema(model, siteData) {
           island_kind: island,
           site_data: "site.data.json",
           server_endpoints: island === "chat"
-            ? { chat: "/api/chat", stream: "/api/chat/stream", ws: "/ws/chat" }
+            ? { chat: chatHttp, stream: chatStream, ws: chatWs }
             : island === "realtime"
-              ? { stream: "/api/realtime/stream", ws: "/ws/realtime" }
+              ? { stream: realtimeStream, ws: realtimeWs }
               : island === "scene"
                 ? { scene: "/api/scene" }
                 : island === "status"
@@ -4502,9 +4708,9 @@ function buildUiSchema(model, siteData) {
                 : island === "auth-session"
                   ? { me: "/api/auth/session", login: "/api/auth/session/login", logout: "/api/auth/session/logout" }
                 : island === "uploads"
-                  ? { upload: "/api/uploads", serve_prefix: "/uploads/" }
+                  ? { upload: uploadsEndpoint, serve_prefix: uploadsPrefix }
                   : island === "analytics"
-                  ? { event: "/api/analytics/event", events: "/api/analytics/events" }
+                  ? { event: analyticsEvent, events: analyticsEvents }
                     : island === "agent-studio"
                       ? {
                         agents: "/api/agents",
@@ -4512,11 +4718,13 @@ function buildUiSchema(model, siteData) {
                         memory: "/api/agents/memory",
                         tools: "/api/agents/tools",
                         workflows: "/api/agents/workflows",
-                        chat: "/api/chat",
-                        stream: "/api/chat/stream"
+                        chat: chatHttp,
+                        stream: chatStream
                       }
                       : island === "actor-ops"
                         ? { actors: "/api/actors", routes: "/api/routes", topology: "/api/actors/topology" }
+                        : island === "experience-catalog"
+                          ? { catalog: "/api/catalog" }
                         : island === "system-contract"
                           ? { contract: "/api/system.contract.json", ui_schema: "/api/ui.schema.json" }
                           : island === "ui-kit"
@@ -4852,6 +5060,7 @@ export function buildExperience(appManifestPath, experienceId) {
 
   return {
     ...summary,
+    runtime: model.runtime,
     html: renderDocument(model, siteData),
     pages,
     assets,
@@ -4947,6 +5156,16 @@ function buildChatReply(bundle, plan, prompt, options = {}) {
 }
 
 function buildApiRoutes(model, siteData) {
+  const runtimeRoutes = model.runtime?.routes || {};
+  const chatHttp = normalizeRoutePath(runtimeRoutes.chat, "/api/chat");
+  const chatStream = normalizeRoutePath(runtimeRoutes.chat_stream, "/api/chat/stream");
+  const chatWs = normalizeRoutePath(runtimeRoutes.chat_ws, "/ws/chat");
+  const realtimeStream = normalizeRoutePath(runtimeRoutes.realtime_stream, "/api/realtime/stream");
+  const realtimeWs = normalizeRoutePath(runtimeRoutes.realtime_ws, "/ws/realtime");
+  const uploadsEndpoint = normalizeRoutePath(runtimeRoutes.uploads, "/api/uploads");
+  const uploadsPrefix = normalizeRoutePrefix(runtimeRoutes.uploads_prefix, "/uploads/");
+  const analyticsEvent = normalizeRoutePath(runtimeRoutes.analytics_event, "/api/analytics/event");
+  const analyticsEvents = normalizeRoutePath(runtimeRoutes.analytics_events, "/api/analytics/events");
   const builtInRoutes = [
     { method: "GET", path: "/", purpose: "serves the experience shell", actor: "site_renderer" },
     { method: "GET", path: "/site.data.json", purpose: "returns the flattened site data payload", actor: "site_renderer" },
@@ -4980,9 +5199,9 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/blog/posts", purpose: "returns the blog post registry metadata", actor: "site_renderer" },
     { method: "GET", path: "/api/search/documents", purpose: "returns the local search document index", actor: "search_indexer" },
     { method: "GET", path: "/api/search", purpose: "queries the local search document index", actor: "search_indexer" },
-    { method: "GET", path: "/api/chat", purpose: "returns chat seed messages or a local reply", actor: "chat_seed_router" },
-    { method: "POST", path: "/api/chat", purpose: "accepts a prompt payload and returns a local reply", actor: "chat_seed_router" },
-    { method: "GET", path: "/api/chat/stream", purpose: "returns a server-sent event preview for local chat pipelines", actor: "chat_seed_router" },
+    { method: "GET", path: chatHttp, purpose: "returns chat seed messages or a local reply", actor: "chat_seed_router" },
+    { method: "POST", path: chatHttp, purpose: "accepts a prompt payload and returns a local reply", actor: "chat_seed_router" },
+    { method: "GET", path: chatStream, purpose: "returns a server-sent event preview for local chat pipelines", actor: "chat_seed_router" },
     { method: "GET", path: "/api/chat/models", purpose: "returns model stack metadata", actor: "chat_seed_router" },
     { method: "GET", path: "/api/voice", purpose: "returns voice stack metadata", actor: "chat_seed_router" },
     { method: "GET", path: "/api/moderation", purpose: "returns moderation policy metadata", actor: "chat_seed_router" },
@@ -5050,6 +5269,16 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/actors/schedules", purpose: "returns actor schedule metadata", actor: "mesh_supervisor" },
     { method: "GET", path: "/api/actors/hosts", purpose: "returns actor host metadata", actor: "mesh_supervisor" },
     { method: "GET", path: "/api/commerce", purpose: "returns sellable offers and membership metadata", actor: "commerce_orchestrator" },
+    { method: "GET", path: "/api/commerce/catalog", purpose: "returns product catalog metadata", actor: "commerce_orchestrator" },
+    { method: "GET", path: "/api/commerce/inventory", purpose: "returns inventory stack metadata", actor: "commerce_orchestrator" },
+    { method: "GET", path: "/api/commerce/fulfillment", purpose: "returns fulfillment stack metadata", actor: "commerce_orchestrator" },
+    { method: "GET", path: "/api/commerce/shipping", purpose: "returns shipping stack metadata", actor: "commerce_orchestrator" },
+    { method: "GET", path: "/api/commerce/returns", purpose: "returns returns policy metadata", actor: "commerce_orchestrator" },
+    { method: "GET", path: "/api/commerce/loyalty", purpose: "returns loyalty program metadata", actor: "commerce_orchestrator" },
+    { method: "GET", path: "/api/commerce/referrals", purpose: "returns referral program metadata", actor: "commerce_orchestrator" },
+    { method: "GET", path: "/api/portal", purpose: "returns customer portal metadata", actor: "commerce_orchestrator" },
+    { method: "GET", path: "/api/ads", purpose: "returns paid acquisition and ads metadata", actor: "growth_ops" },
+    { method: "GET", path: "/api/data-platform", purpose: "returns data platform metadata", actor: "data_keeper" },
     { method: "GET", path: "/api/data", purpose: "returns typed collection and persistence metadata", actor: "data_keeper" },
     { method: "GET", path: "/api/event-bus", purpose: "returns event bus metadata", actor: "data_keeper" },
     { method: "GET", path: "/api/data-pipelines", purpose: "returns data pipeline metadata", actor: "data_keeper" },
@@ -5108,18 +5337,18 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: "/api/partners", purpose: "returns partner metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/press", purpose: "returns press kit metadata", actor: "runtime_reporter" },
     { method: "GET", path: "/api/careers", purpose: "returns careers metadata", actor: "runtime_reporter" },
-    { method: "POST", path: "/api/uploads", purpose: "accepts base64 uploads and persists them under the runtime folder", actor: "upload_gate" },
-    { method: "GET", path: "/uploads/*", purpose: "serves uploaded files from the runtime uploads folder (local server only)", actor: "upload_gate" },
-    { method: "POST", path: "/api/analytics/event", purpose: "captures client analytics events to JSONL", actor: "analytics_sentinel" },
-    { method: "GET", path: "/api/analytics/events", purpose: "returns recent analytics events (local server only)", actor: "analytics_sentinel" },
+    { method: "POST", path: uploadsEndpoint, purpose: "accepts base64 uploads and persists them under the runtime folder", actor: "upload_gate" },
+    { method: "GET", path: `${uploadsPrefix}*`, purpose: "serves uploaded files from the runtime uploads folder (local server only)", actor: "upload_gate" },
+    { method: "POST", path: analyticsEvent, purpose: "captures client analytics events to JSONL", actor: "analytics_sentinel" },
+    { method: "GET", path: analyticsEvents, purpose: "returns recent analytics events (local server only)", actor: "analytics_sentinel" },
     { method: "GET", path: "/api/analytics/stack", purpose: "returns analytics stack metadata", actor: "analytics_sentinel" },
     { method: "GET", path: "/api/analytics/attribution", purpose: "returns attribution stack metadata", actor: "analytics_sentinel" },
     { method: "GET", path: "/api/analytics/warehouse", purpose: "returns data warehouse metadata", actor: "analytics_sentinel" },
     { method: "GET", path: "/api/analytics/cdp", purpose: "returns CDP stack metadata", actor: "analytics_sentinel" },
     { method: "GET", path: "/api/realtime", purpose: "returns live channel descriptors and event cadence", actor: "signal_broker" },
-    { method: "GET", path: "/api/realtime/stream", purpose: "returns a server-sent event preview for realtime channels", actor: "signal_broker" },
-    { method: "WS", path: "/ws/realtime", purpose: "websocket stream for realtime channels", actor: "signal_broker" },
-    { method: "WS", path: "/ws/chat", purpose: "websocket message lane for chat experiments", actor: "chat_seed_router" },
+    { method: "GET", path: realtimeStream, purpose: "returns a server-sent event preview for realtime channels", actor: "signal_broker" },
+    { method: "WS", path: realtimeWs, purpose: "websocket stream for realtime channels", actor: "signal_broker" },
+    { method: "WS", path: chatWs, purpose: "websocket message lane for chat experiments", actor: "chat_seed_router" },
     { method: "GET", path: "/api/actors/topology", purpose: "returns actor mesh topology nodes and edges", actor: "mesh_supervisor" },
     { method: "GET", path: "/api/system.contract.json", purpose: "returns the complete website system contract", actor: "runtime_reporter" },
     { method: "GET", path: "/api/ui.schema.json", purpose: "returns the UI composition schema", actor: "runtime_reporter" },
@@ -5160,8 +5389,9 @@ export function buildActorServerPlan(appManifestPath, experienceId) {
   const siteData = buildSiteData(model);
   return {
     id: model.experience.id,
-    port: model.context.app.site_runtime.default_port,
-    host: model.context.app.site_runtime.host,
+    port: model.runtime.port,
+    host: model.runtime.host,
+    runtime: model.runtime,
     routes: buildApiRoutes(model, siteData),
     actors: model.content.actor_roles || [],
     actor_playbooks: siteData.actor_playbooks || [],
@@ -5223,6 +5453,16 @@ export function buildActorServerPlan(appManifestPath, experienceId) {
     ui_layouts: siteData.ui_layouts || [],
     ui_tokens: siteData.ui_tokens || [],
     commerce: siteData.commerce || null,
+    product_catalog: siteData.product_catalog || [],
+    inventory_stack: siteData.inventory_stack || [],
+    fulfillment_stack: siteData.fulfillment_stack || [],
+    shipping_stack: siteData.shipping_stack || [],
+    returns_policy: siteData.returns_policy || [],
+    loyalty_program: siteData.loyalty_program || [],
+    referral_program: siteData.referral_program || [],
+    ads_stack: siteData.ads_stack || [],
+    customer_portal: siteData.customer_portal || [],
+    data_platform: siteData.data_platform || [],
     uploads: siteData.uploads || null,
     analytics: siteData.analytics || null,
     analytics_stack: siteData.analytics_stack || [],
@@ -5366,9 +5606,9 @@ export function buildMatrix(appManifestPath) {
     output_root: context.app.output_root,
     experience_count: experiences.length,
     artifact_count: experienceArtifacts + 2 + (clientBundleEnabled ? 2 : 0),
-    server_port: context.app.site_runtime.default_port,
+    server_port: normalizeRuntimeConfig(context.app).port,
     experience_ids: experiences.map((entry) => entry.id),
-    client_features: context.app.site_runtime.client_features || [],
+    client_features: normalizeRuntimeConfig(context.app).client_features || [],
     modes: experiences.map((entry) => entry.mode),
     client_bundle: clientBundleEnabled ? { enabled: true } : { enabled: false }
   };
@@ -5412,9 +5652,9 @@ export function writeMatrix(appManifestPath) {
     output_root: context.app.output_root,
     experience_count: built.length,
     artifact_count: experienceArtifacts + 2 + (getClientBundlePaths(context) ? 2 : 0),
-    server_port: context.app.site_runtime.default_port,
+    server_port: normalizeRuntimeConfig(context.app).port,
     experience_ids: built.map((entry) => entry.id),
-    client_features: context.app.site_runtime.client_features || [],
+    client_features: normalizeRuntimeConfig(context.app).client_features || [],
     modes: built.map((entry) => entry.mode)
   };
   writeJson(path.join(outputRoot, "matrix.summary.json"), summary);
@@ -5475,13 +5715,29 @@ function parseRequestBody(request) {
 }
 
 function persistSubmission(bundle, formId, payload) {
-  const logPath = path.join(bundle.output_dir || path.dirname(bundle.html_path), "runtime", "submissions", `${formId}.jsonl`);
+  const runtime = runtimeStorageForBundle(bundle);
+  const logPath = path.join(runtime.root_abs, runtime.submissions, `${formId}.jsonl`);
   appendText(logPath, JSON.stringify({ received_at: new Date().toISOString(), payload }) + "\n");
   return logPath;
 }
 
+function runtimeStorageForBundle(bundle) {
+  const runtime = bundle.runtime || bundle.site_data?.runtime || {};
+  const storage = runtime.storage || {};
+  const root = String(storage.root || "runtime");
+  return {
+    root,
+    root_abs: path.join(bundle.output_dir || path.dirname(bundle.html_path), root),
+    submissions: String(storage.submissions || "submissions"),
+    uploads: String(storage.uploads || "uploads"),
+    analytics: String(storage.analytics || "analytics"),
+    auth: String(storage.auth || "auth"),
+    chat: String(storage.chat || "chat")
+  };
+}
+
 function runtimeRootForBundle(bundle) {
-  return path.join(bundle.output_dir || path.dirname(bundle.html_path), "runtime");
+  return runtimeStorageForBundle(bundle).root_abs;
 }
 
 function parseCookies(headerValue) {
@@ -5517,17 +5773,17 @@ function sanitizedFileName(value) {
 }
 
 function persistAnalyticsEvent(bundle, eventPayload) {
-  const root = runtimeRootForBundle(bundle);
-  const logPath = path.join(root, "analytics", "events.jsonl");
+  const runtime = runtimeStorageForBundle(bundle);
+  const logPath = path.join(runtime.root_abs, runtime.analytics, "events.jsonl");
   const entry = { received_at: new Date().toISOString(), ...eventPayload };
   appendText(logPath, JSON.stringify(entry) + "\n");
   return { logPath, entry };
 }
 
 function persistUpload(bundle, uploadPayload) {
-  const root = runtimeRootForBundle(bundle);
+  const runtime = runtimeStorageForBundle(bundle);
   const today = new Date().toISOString().slice(0, 10);
-  const folder = path.join(root, "uploads", today);
+  const folder = path.join(runtime.root_abs, runtime.uploads, today);
   ensureDir(folder);
 
   const fileName = sanitizedFileName(uploadPayload.filename || uploadPayload.name || "upload.bin");
@@ -5540,7 +5796,9 @@ function persistUpload(bundle, uploadPayload) {
   const bytes = Buffer.from(base64, "base64");
   writeBinary(absPath, bytes);
 
-  const relativeHref = `/uploads/${today}/${storedName}`;
+  const routes = bundle.runtime?.routes || bundle.site_data?.runtime?.routes || {};
+  const uploadPrefix = normalizeRoutePrefix(routes.uploads_prefix, "/uploads/");
+  const relativeHref = `${uploadPrefix}${today}/${storedName}`;
   return {
     abs_path: absPath,
     href: relativeHref,
@@ -5551,7 +5809,8 @@ function persistUpload(bundle, uploadPayload) {
 }
 
 function loadSessionStore(bundle) {
-  const storePath = path.join(runtimeRootForBundle(bundle), "auth", "sessions.json");
+  const runtime = runtimeStorageForBundle(bundle);
+  const storePath = path.join(runtime.root_abs, runtime.auth, "sessions.json");
   const store = readJsonIfExists(storePath, { sessions: {} });
   return { storePath, store };
 }
@@ -5588,6 +5847,16 @@ async function serveExperience(appManifestPath, experienceId) {
   const clientBundle = ensureClientBundle(context, { force: false });
   const bundle = buildExperience(appManifestPath, experienceId);
   const plan = bundle.actor_server;
+  const runtimeRoutes = bundle.runtime?.routes || bundle.site_data?.runtime?.routes || {};
+  const chatHttp = normalizeRoutePath(runtimeRoutes.chat, "/api/chat");
+  const chatStream = normalizeRoutePath(runtimeRoutes.chat_stream, "/api/chat/stream");
+  const chatWs = normalizeRoutePath(runtimeRoutes.chat_ws, "/ws/chat");
+  const realtimeStream = normalizeRoutePath(runtimeRoutes.realtime_stream, "/api/realtime/stream");
+  const realtimeWs = normalizeRoutePath(runtimeRoutes.realtime_ws, "/ws/realtime");
+  const uploadsEndpoint = normalizeRoutePath(runtimeRoutes.uploads, "/api/uploads");
+  const uploadsPrefix = normalizeRoutePrefix(runtimeRoutes.uploads_prefix, "/uploads/");
+  const analyticsEvent = normalizeRoutePath(runtimeRoutes.analytics_event, "/api/analytics/event");
+  const analyticsEvents = normalizeRoutePath(runtimeRoutes.analytics_events, "/api/analytics/events");
   const searchIndex = bundle.site_data.search_documents || [];
   const chatSeed = bundle.manifest.content.chat_seed || [];
   const pagesByRoute = new Map((bundle.pages || []).map((page) => [page.route, page]));
@@ -6066,6 +6335,46 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, bundle.site_data.commerce || {});
       return;
     }
+    if (request.method === "GET" && pathname === "/api/commerce/catalog") {
+      sendJson(response, 200, bundle.site_data.product_catalog || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/commerce/inventory") {
+      sendJson(response, 200, bundle.site_data.inventory_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/commerce/fulfillment") {
+      sendJson(response, 200, bundle.site_data.fulfillment_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/commerce/shipping") {
+      sendJson(response, 200, bundle.site_data.shipping_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/commerce/returns") {
+      sendJson(response, 200, bundle.site_data.returns_policy || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/commerce/loyalty") {
+      sendJson(response, 200, bundle.site_data.loyalty_program || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/commerce/referrals") {
+      sendJson(response, 200, bundle.site_data.referral_program || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/portal") {
+      sendJson(response, 200, bundle.site_data.customer_portal || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/ads") {
+      sendJson(response, 200, bundle.site_data.ads_stack || []);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/api/data-platform") {
+      sendJson(response, 200, bundle.site_data.data_platform || []);
+      return;
+    }
     if (request.method === "GET" && pathname === "/api/data") {
       sendJson(response, 200, bundle.site_data.data_collections || []);
       return;
@@ -6358,7 +6667,7 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, bundle.site_data.streaming_stack || []);
       return;
     }
-    if (request.method === "GET" && pathname === "/api/chat") {
+    if (request.method === "GET" && pathname === chatHttp) {
       const prompt = requestUrl.searchParams.get("prompt");
       const persona = requestUrl.searchParams.get("persona");
       const mode = requestUrl.searchParams.get("mode");
@@ -6370,7 +6679,7 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, { reply: buildChatReply(bundle, plan, prompt, { persona, mode, agent }) });
       return;
     }
-    if (request.method === "POST" && pathname === "/api/chat") {
+    if (request.method === "POST" && pathname === chatHttp) {
       const payload = await parseRequestBody(request);
       const prompt = payload.prompt || payload.message || payload.text;
       const persona = payload.persona || null;
@@ -6383,7 +6692,7 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, { reply: buildChatReply(bundle, plan, String(prompt), { persona, mode, agent }) });
       return;
     }
-    if (request.method === "GET" && pathname === "/api/chat/stream") {
+    if (request.method === "GET" && pathname === chatStream) {
       response.writeHead(200, {
         "content-type": "text/event-stream; charset=utf-8",
         "cache-control": "no-cache",
@@ -6430,7 +6739,7 @@ async function serveExperience(appManifestPath, experienceId) {
       request.on("close", () => clearInterval(interval));
       return;
     }
-    if (request.method === "GET" && pathname === "/api/realtime/stream") {
+    if (request.method === "GET" && pathname === realtimeStream) {
       response.writeHead(200, {
         "content-type": "text/event-stream; charset=utf-8",
         "cache-control": "no-cache",
@@ -6467,7 +6776,7 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, { query, items });
       return;
     }
-    if (request.method === "POST" && pathname === "/api/analytics/event") {
+    if (request.method === "POST" && pathname === analyticsEvent) {
       const payload = await parseRequestBody(request);
       const eventName = String(payload.name || payload.event || "").trim();
       if (!eventName) {
@@ -6484,9 +6793,10 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, { ok: true, event: entry, log_path: logPath });
       return;
     }
-    if (request.method === "GET" && pathname === "/api/analytics/events") {
+    if (request.method === "GET" && pathname === analyticsEvents) {
       const limit = Math.min(Math.max(Number(requestUrl.searchParams.get("limit") || 30), 1), 200);
-      const logPath = path.join(runtimeRootForBundle(bundle), "analytics", "events.jsonl");
+      const runtime = runtimeStorageForBundle(bundle);
+      const logPath = path.join(runtime.root_abs, runtime.analytics, "events.jsonl");
       const entries = [];
       if (fs.existsSync(logPath)) {
         const lines = fs.readFileSync(logPath, "utf8").trim().split("\n").filter(Boolean);
@@ -6517,7 +6827,7 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, bundle.site_data.cdp_stack || []);
       return;
     }
-    if (request.method === "POST" && pathname === "/api/uploads") {
+    if (request.method === "POST" && pathname === uploadsEndpoint) {
       const payload = await parseRequestBody(request);
       const maxBytes = 10 * 1024 * 1024;
       const rawBase64 = String(payload.content_base64 || payload.base64 || "");
@@ -6535,10 +6845,11 @@ async function serveExperience(appManifestPath, experienceId) {
       sendJson(response, 200, { ok: true, file: stored });
       return;
     }
-    if (request.method === "GET" && pathname.startsWith("/uploads/")) {
-      const relative = pathname.slice("/uploads/".length);
+    if (request.method === "GET" && pathname.startsWith(uploadsPrefix)) {
+      const relative = pathname.slice(uploadsPrefix.length);
       const normalized = path.normalize(relative).replace(/^([/\\\\])+/, "");
-      const uploadsRoot = path.join(runtimeRootForBundle(bundle), "uploads");
+      const runtime = runtimeStorageForBundle(bundle);
+      const uploadsRoot = path.join(runtime.root_abs, runtime.uploads);
       const filePath = path.resolve(uploadsRoot, normalized);
       if (!filePath.startsWith(path.resolve(uploadsRoot))) {
         sendJson(response, 403, { error: "forbidden" });
@@ -6583,7 +6894,7 @@ async function serveExperience(appManifestPath, experienceId) {
     server.on("upgrade", (request, socket, head) => {
       try {
         const requestUrl = new URL(request.url || "/", "http://localhost");
-        if (requestUrl.pathname !== "/ws/realtime" && requestUrl.pathname !== "/ws/chat") {
+        if (requestUrl.pathname !== realtimeWs && requestUrl.pathname !== chatWs) {
           socket.destroy();
           return;
         }
@@ -6596,7 +6907,7 @@ async function serveExperience(appManifestPath, experienceId) {
     });
 
     wss.on("connection", (ws, requestUrl) => {
-      if (requestUrl.pathname === "/ws/realtime") {
+      if (requestUrl.pathname === realtimeWs) {
         const channels = bundle.site_data.realtime_channels || [];
         let tick = 0;
         ws.send(JSON.stringify({ event: "channels", channels, tick, at: new Date().toISOString() }));
@@ -6608,7 +6919,7 @@ async function serveExperience(appManifestPath, experienceId) {
         return;
       }
 
-      if (requestUrl.pathname === "/ws/chat") {
+      if (requestUrl.pathname === chatWs) {
         ws.send(JSON.stringify({ event: "ready", experience: bundle.id }));
         ws.on("message", (raw) => {
           try {

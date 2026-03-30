@@ -189,7 +189,16 @@
           "label": "Node bridge",
           "value": "Publish hop",
           "detail": "delivery and host-adjacent bridge surfaces"
+        },
+        {
+          "label": "Live health",
+          "value": "Projected",
+          "detail": "runtime_lane_health from the live snapshot"
         }
+      ],
+      "notes": [
+        "Keep the lane map and health row visible so operators can spot bridge drift without opening a second inspector.",
+        "Treat runtime_lane_health as projected state from the live snapshot, not as semantic ownership in the shell."
       ]
     },
     {

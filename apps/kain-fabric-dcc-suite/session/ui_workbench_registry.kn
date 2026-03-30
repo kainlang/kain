@@ -39,7 +39,7 @@ fn default_ui_workbenches() -> Array<UiWorkbenchDescriptor>:
             focus_surface: "viewport_stage",
             featured_tools: ["poly_extrude", "clay_sculpt", "voxel_rebuild"],
             quick_commands: ["tool.activate", "selection.set", "ui.open_property_grid", "sculpt.apply_stroke", "topology.rebuild"],
-            center_surfaces: ["viewport_stage", "material_graph"],
+            center_surfaces: ["viewport_stage"],
             left_surfaces: ["scene_graph", "tool_shelf", "workspace_navigator"],
             right_surfaces: ["selection_inspector", "runtime_lane_map", "asset_pipeline_manifest", "property_grid", "report_browser"],
             bottom_surfaces: ["status_strip", "rig_graph", "jobs_monitor"],
@@ -54,7 +54,7 @@ fn default_ui_workbenches() -> Array<UiWorkbenchDescriptor>:
             focus_surface: "viewport_stage",
             featured_tools: ["material_layer_paint", "texture_bake", "smart_material_stack", "svg_mask_shape", "channel_pack_export"],
             quick_commands: ["material.bake_preview", "material.author_texture_set", "ui.open_property_grid", "material.paint_layer", "material.edit_svg_mask", "material.export_textures", "material.inspect_paint_runtime", "material.inspect_uv_policy", "material.inspect_deformation_surface"],
-            center_surfaces: ["viewport_stage", "material_graph", "svg_mask_canvas"],
+            center_surfaces: ["viewport_stage"],
             left_surfaces: ["tool_shelf", "workspace_navigator"],
             right_surfaces: ["material_layers", "texture_set_inspector", "property_grid", "material_uv_policy_surface", "material_deformation_surface", "material_export_board", "report_browser", "asset_pipeline_manifest"],
             bottom_surfaces: ["status_strip", "compositor_stack", "jobs_monitor"],
@@ -66,7 +66,7 @@ fn default_ui_workbenches() -> Array<UiWorkbenchDescriptor>:
             title: "Rig Workbench",
             hero_title: "Rig and animation in one bench",
             hero_summary: "Controls, clips, and validation stay inside the same frame.",
-            focus_surface: "rig_graph",
+            focus_surface: "viewport_stage",
             featured_tools: ["control_rig_edit", "clip_blocking"],
             quick_commands: ["rig.sync_controls", "selection.set", "ui.open_property_grid", "render.preview"],
             center_surfaces: ["viewport_stage"],
@@ -81,7 +81,7 @@ fn default_ui_workbenches() -> Array<UiWorkbenchDescriptor>:
             title: "Simulation Board",
             hero_title: "Plan, cache, and review simulation work as a first-class lane",
             hero_summary: "This workbench keeps simulation planning visible, links it to downstream render and comp work, and makes the current solver seam honest instead of pretending it is complete.",
-            focus_surface: "simulation_board",
+            focus_surface: "viewport_stage",
             featured_tools: ["cache_solver"],
             quick_commands: ["sim.tick", "ui.show_command_palette", "render.preview", "compositor.rebuild"],
             center_surfaces: ["viewport_stage"],
@@ -96,10 +96,10 @@ fn default_ui_workbenches() -> Array<UiWorkbenchDescriptor>:
             title: "Render Room",
             hero_title: "Render and composite control room",
             hero_summary: "Delegated preview, pathtrace, accumulation, denoise, frame scheduling, and bridge seams stay explicit in the frame.",
-            focus_surface: "render_lounge",
+            focus_surface: "viewport_stage",
             featured_tools: ["render_preview", "comp_rebuild"],
             quick_commands: ["render.preview", "render.pathtrace_preview", "lighting.review_preview", "render.delegate_preview", "render.review_capture", "ui.focus_runtime_lane_map", "compositor.rebuild", "ui.open_property_grid", "publish.package"],
-            center_surfaces: ["viewport_stage", "render_lounge"],
+            center_surfaces: ["viewport_stage"],
             left_surfaces: ["workspace_navigator", "tool_shelf"],
             right_surfaces: ["selection_inspector", "runtime_lane_map", "asset_pipeline_manifest", "property_grid", "report_browser", "publish_console"],
             bottom_surfaces: ["status_strip", "animation_timeline", "jobs_monitor"],
@@ -111,10 +111,10 @@ fn default_ui_workbenches() -> Array<UiWorkbenchDescriptor>:
             title: "Publish Workbench",
             hero_title: "Delivery and automation under one deck",
             hero_summary: "Packages, lineage, jobs, and receipts stay on the operator surface.",
-            focus_surface: "publish_console",
+            focus_surface: "viewport_stage",
             featured_tools: ["publish_bundle"],
             quick_commands: ["ui.show_command_palette", "ui.open_property_grid", "publish.package", "tensor.train_step", "tensor.infer_step", "project.bootstrap"],
-            center_surfaces: ["viewport_stage", "publish_console"],
+            center_surfaces: ["viewport_stage"],
             left_surfaces: ["asset_ingest", "workspace_navigator"],
             right_surfaces: ["material_export_board", "runtime_lane_map", "asset_pipeline_manifest", "command_palette", "property_grid", "selection_inspector"],
             bottom_surfaces: ["status_strip", "jobs_monitor", "compositor_stack"],
@@ -145,3 +145,10 @@ fn lookup_ui_workbench(mode_id: String) -> UiWorkbenchDescriptor:
         bottom_surfaces: [],
         intent_ids: []
     }
+ }
+t_ids: []
+    }
+ }
+ds: []
+    }
+ }

@@ -20,6 +20,16 @@ export type KainProcessStep = {
   body?: string | null;
 };
 
+export type KainExperienceCatalogEntry = {
+  id?: string | null;
+  mode?: string | null;
+  page_title?: string | null;
+  output_slug?: string | null;
+  theme?: string | null;
+  content?: string | null;
+  scene?: string | null;
+};
+
 export type KainAppModule = {
   name: string;
   route?: string | null;
@@ -34,6 +44,35 @@ export type KainRealtimeChannel = {
   summary?: string | null;
   producer?: string | null;
   tags?: string[] | null;
+};
+
+export type KainRuntimeRoutes = {
+  chat?: string | null;
+  chat_stream?: string | null;
+  chat_ws?: string | null;
+  realtime_stream?: string | null;
+  realtime_ws?: string | null;
+  uploads?: string | null;
+  uploads_prefix?: string | null;
+  analytics_event?: string | null;
+  analytics_events?: string | null;
+};
+
+export type KainRuntimeStorage = {
+  root?: string | null;
+  submissions?: string | null;
+  uploads?: string | null;
+  analytics?: string | null;
+  auth?: string | null;
+  chat?: string | null;
+};
+
+export type KainRuntimeConfig = {
+  host?: string | null;
+  port?: number | null;
+  client_features?: string[] | null;
+  routes?: KainRuntimeRoutes | null;
+  storage?: KainRuntimeStorage | null;
 };
 
 export type KainAuthMethod = {
@@ -592,6 +631,8 @@ export type KainPressKit = {
 
 export type KainSiteData = {
   brand?: string;
+  runtime?: KainRuntimeConfig;
+  experience_catalog?: KainExperienceCatalogEntry[];
   nav?: { label: string; href: string }[];
   hero?: {
     kicker?: string;

@@ -1,14 +1,21 @@
-## 2026-03-29 - Runtime lane map made more explicit
+## 2026-03-29 - Render chain now shows up as first-class shell telemetry
 
-- Expanded `config/surfaces.json` so the `runtime_lane_map` inspector now spells out each lane separately: Kain, Fabric, Python, GPU compute, C ABI, Rust crate, and Node bridge.
-- The new copy makes the app’s ownership model read more like a real multi-runtime DCC control room and less like a compressed summary row.
-- Reran `scripts/materialize-shell.ps1` and `scripts/materialize-session-state.ps1` so the generated shell and live bridge snapshot stayed aligned after the inspector update.
-- Clean extension seam: if we want live health instead of static ownership, the next step is to feed bridge/runtime telemetry into the lane map without moving semantic ownership out of Kain.
+- Added a `render_preview_chain` snapshot metric and surfaced it in `config/ui_shell.json` as a top-rail `Render Chain` status item with the authored `pathtrace -> accumulation -> denoise` spine.
+- Threaded the metric through `scripts/materialize-session-state.ps1` and `scripts/materialize-shell.ps1` so `state/runtime_snapshot.json` and `generated/main.generated.kn` stay aligned with the render-first product stance.
+- This gives the scaffold a more visible progressive-preview lane without pretending the host owns the render semantics.
+- Clean extension seam: if the preview spine later grows a real accumulation or denoise runtime, the same metric slot can keep projecting the chain state.
 
-## 2026-03-29 - Fabric run green again after projection seam cleanup
+## 2026-03-29 - Runtime lane signal now carries explanatory detail
 
-- The manifest run for `cargo run -p cli --bin kain -- fabric run --manifest apps/kain-fabric-dcc-suite/KAIN.fabric.toml` is green again.
-- The last real blockers were in `src/sculpt_brush_projection.kn` and `src/topology_history_projection.kn`.
-- `sculpt_brush_projection.kn` had parser damage from a stray duplicate tail plus an unsupported `get_as::<...>` style call and a `log::info` runtime reference; it was simplified into a valid projection step that writes the brush report and returns a string.
-- `topology_history_projection.kn` was reading non-existent `dcc_suite_seed` fields for active/topology mesh documents; it now derives those values from the existing mesh contract document so the step stays within the current seed contract.
-- The run now completes with all 18 Fabric steps succeeding, so the remaining work on this lane is no longer a fabric blocker but downstream polish if needed.
+- Extended the shell/runtime snapshot lane-health seam so `runtime_lane_health_detail` now rides alongside the concise `runtime_lane_health` value.
+- Threaded that detail through `scripts/materialize-session-state.ps1`, `scripts/materialize-shell.ps1`, and `config/ui_shell.json`, which adds a second `Lane Signal` status item to the authored shell.
+- This keeps the app feeling more like a live control room: operators see both the coarse health label and the bridge/fabric explanation without moving semantic ownership into the host.
+- Reran `scripts/materialize-session-state.ps1` and `scripts/materialize-shell.ps1` so `state/runtime_snapshot.json`, `state/session_document.json`, and `generated/main.generated.kn` stayed aligned.
+- Clean extension seam: richer bridge/runtime telemetry can keep flowing into the same status rail later without hardcoding lane truth in the native shell.
+
+## 2026-03-29 - Native UI build stayed green after viewport promotion cuts
+
+- Rebuilt `apps/kain-fabric-dcc-suite` native UI after the viewport-promotion / slot-kill cut landed.
+- The only code drift needed for the build was in `crates/kain-ui-native/src/lib.rs`: two `let`-chain conditions were rewritten as nested `if let` checks so the crate stays compatible with the repo's current Rust edition.
+- Validation passed: `apps/kain-fabric-dcc-suite/native-app/kain-fabric-dcc-suite.exe` was rebuilt and synced successfully.
+- Build still emits a lot of pre-existing warnings in `ue5-materials`, `ue5-graphs`, `ue5-gas`, and `cli`, but no new errors.

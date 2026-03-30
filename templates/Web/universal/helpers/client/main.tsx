@@ -8,6 +8,7 @@ import { AnalyticsLabIsland } from "./islands/AnalyticsLabIsland";
 import { ActorOpsIsland } from "./islands/ActorOpsIsland";
 import { AuthSessionIsland } from "./islands/AuthSessionIsland";
 import { ChatLabIsland } from "./islands/ChatLabIsland";
+import { ExperienceCatalogIsland } from "./islands/ExperienceCatalogIsland";
 import { RealtimeChannelsIsland } from "./islands/RealtimeChannelsIsland";
 import { SceneViewportIsland } from "./islands/SceneViewportIsland";
 import { StatusWatchIsland } from "./islands/StatusWatchIsland";
@@ -21,6 +22,7 @@ type IslandKind =
   | "agent-studio"
   | "app-shell"
   | "chat"
+  | "experience-catalog"
   | "realtime"
   | "scene"
   | "status"
@@ -55,6 +57,10 @@ async function mountTarget(target: IslandTarget) {
   const siteData = await loadSiteData(target.siteDataPath);
   if (target.kind === "app-shell") {
     render(<AppShellIsland modules={siteData.app_modules || []} />, target.node);
+    return;
+  }
+  if (target.kind === "experience-catalog") {
+    render(<ExperienceCatalogIsland entries={siteData.experience_catalog || []} />, target.node);
     return;
   }
   if (target.kind === "actor-ops") {
@@ -104,6 +110,7 @@ async function mountTarget(target: IslandTarget) {
     render(
       <UiStacksIsland
         uiRuntime={siteData.ui_runtime || []}
+        kainUi={siteData.kain_ui_stack || []}
         uiState={siteData.ui_state_stack || []}
         uiRouting={siteData.ui_routing_stack || []}
         uiData={siteData.ui_data_stack || []}
@@ -129,6 +136,7 @@ async function mountTarget(target: IslandTarget) {
     return;
   }
   if (target.kind === "chat") {
+    const runtimeRoutes = siteData.runtime?.routes || {};
     render(
       <ChatLabIsland
         seed={siteData.chat_seed || []}
@@ -138,6 +146,8 @@ async function mountTarget(target: IslandTarget) {
         playbooks={siteData.chat_playbooks || []}
         tools={siteData.chat_tools || []}
         memory={siteData.chat_memory || []}
+        chatEndpoint={runtimeRoutes.chat}
+        streamEndpoint={runtimeRoutes.chat_stream}
       />,
       target.node
     );
@@ -148,11 +158,25 @@ async function mountTarget(target: IslandTarget) {
     return;
   }
   if (target.kind === "uploads") {
-    render(<UploadsLabIsland />, target.node);
+    const runtimeRoutes = siteData.runtime?.routes || {};
+    render(
+      <UploadsLabIsland
+        uploadEndpoint={runtimeRoutes.uploads}
+        servePrefix={runtimeRoutes.uploads_prefix}
+      />,
+      target.node
+    );
     return;
   }
   if (target.kind === "analytics") {
-    render(<AnalyticsLabIsland />, target.node);
+    const runtimeRoutes = siteData.runtime?.routes || {};
+    render(
+      <AnalyticsLabIsland
+        eventEndpoint={runtimeRoutes.analytics_event}
+        eventsEndpoint={runtimeRoutes.analytics_events}
+      />,
+      target.node
+    );
     return;
   }
   if (target.kind === "system-contract") {

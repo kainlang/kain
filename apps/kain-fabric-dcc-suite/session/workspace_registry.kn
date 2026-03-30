@@ -21,43 +21,43 @@ fn default_workspaces() -> Array<WorkspaceDescriptor>:
         WorkspaceDescriptor {
             id: "material_lookdev",
             label: "Material And Lookdev",
-            focus_surface: "material_graph",
+            focus_surface: "viewport_stage",
             summary: "PBR texture sets, svg masks, smart materials, and packed export authoring"
         },
         WorkspaceDescriptor {
             id: "rig_anim",
             label: "Rig And Animation",
-            focus_surface: "rig_graph",
+            focus_surface: "viewport_stage",
             summary: "Rig controls, clips, and deformation review"
         },
         WorkspaceDescriptor {
             id: "sim_fx",
             label: "Simulation And FX",
-            focus_surface: "simulation_board",
+            focus_surface: "viewport_stage",
             summary: "Caches, solvers, and replay diagnostics"
         },
         WorkspaceDescriptor {
             id: "render_comp",
             label: "Render And Composite",
-            focus_surface: "render_lounge",
+            focus_surface: "viewport_stage",
             summary: "Render products, frame assembly, and compositor planning"
         },
         WorkspaceDescriptor {
             id: "publish_automation",
             label: "Publish And Automation",
-            focus_surface: "publish_console",
+            focus_surface: "viewport_stage",
             summary: "Package review, delivery, and recurring automation"
         },
         WorkspaceDescriptor {
             id: "jobs_orchestration",
             label: "Jobs And Orchestration",
-            focus_surface: "jobs_monitor",
+            focus_surface: "viewport_stage",
             summary: "Retry ledgers, queue dispatch, receipts, and launch gating"
         },
         WorkspaceDescriptor {
             id: "runtime_reflection",
             label: "Runtime Reflection",
-            focus_surface: "report_browser",
+            focus_surface: "viewport_stage",
             summary: "Schema catalogs, registry views, and reflected launch metadata"
         }
     ]

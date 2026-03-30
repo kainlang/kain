@@ -87,6 +87,24 @@
         "caption": "native session mirror"
       },
       {
+        "id": "runtime_lane_health",
+        "label": "Lane Health",
+        "metric_source": "runtime_lane_health",
+        "caption": "bridge + fabric"
+      },
+      {
+        "id": "runtime_lane_health_detail",
+        "label": "Lane Signal",
+        "metric_source": "runtime_lane_health_detail",
+        "caption": "health detail"
+      },
+      {
+        "id": "render_preview_chain",
+        "label": "Render Chain",
+        "metric_source": "render_preview_chain",
+        "caption": "pathtrace → accumulation → denoise"
+      },
+      {
         "id": "command_count",
         "label": "Commands",
         "metric_source": "command_count",
@@ -556,7 +574,7 @@
       "title": "Render Room",
       "hero_title": "Render and composite control room",
       "hero_summary": "Delegated preview, pathtrace, accumulation, denoise, frame scheduling, and bridge seams stay explicit in the docked control frame.",
-      "focus_surface_id": "render_lounge",
+      "focus_surface_id": "viewport_stage",
       "featured_tool_ids": [
         "render_preview",
         "comp_rebuild"
@@ -573,8 +591,7 @@
         "publish.package"
       ],
       "center_surface_ids": [
-        "viewport_stage",
-        "render_lounge"
+        "viewport_stage"
       ],
       "right_surface_ids": [
         "selection_inspector",

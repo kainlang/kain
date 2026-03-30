@@ -16,16 +16,25 @@ type AnalyticsListResponse = {
   items: AnalyticsEvent[];
 };
 
-async function fetchEvents(limit = 30): Promise<AnalyticsListResponse> {
-  const url = new URL("/api/analytics/events", window.location.href);
+type Props = {
+  eventEndpoint?: string;
+  eventsEndpoint?: string;
+};
+
+async function fetchEvents(limit = 30, endpoint = "/api/analytics/events"): Promise<AnalyticsListResponse> {
+  const url = new URL(endpoint, window.location.href);
   url.searchParams.set("limit", String(limit));
   const response = await fetch(url.toString(), { headers: { accept: "application/json" } });
   if (!response.ok) throw new Error(`events fetch failed: ${response.status}`);
   return (await response.json()) as AnalyticsListResponse;
 }
 
-async function postEvent(name: string, properties: Record<string, unknown>): Promise<{ ok: boolean }> {
-  const response = await fetch("/api/analytics/event", {
+async function postEvent(
+  name: string,
+  properties: Record<string, unknown>,
+  endpoint = "/api/analytics/event"
+): Promise<{ ok: boolean }> {
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify({
@@ -39,14 +48,16 @@ async function postEvent(name: string, properties: Record<string, unknown>): Pro
   return (await response.json()) as { ok: boolean };
 }
 
-export function AnalyticsLabIsland() {
+export function AnalyticsLabIsland(props: Props) {
   const [items, setItems] = useState<AnalyticsEvent[]>([]);
   const [status, setStatus] = useState<string | null>(null);
+  const eventsEndpoint = props.eventsEndpoint || "/api/analytics/events";
+  const eventEndpoint = props.eventEndpoint || "/api/analytics/event";
 
   const refresh = async () => {
     try {
       setStatus("loading");
-      const payload = await fetchEvents(30);
+      const payload = await fetchEvents(30, eventsEndpoint);
       setItems(payload.items || []);
       setStatus(`loaded ${payload.items?.length || 0}`);
     } catch (error) {
@@ -57,7 +68,7 @@ export function AnalyticsLabIsland() {
   const sendPing = async () => {
     try {
       setStatus("posting");
-      await postEvent("kain.template.ping", { tag: "manual", tick: Date.now() });
+      await postEvent("kain.template.ping", { tag: "manual", tick: Date.now() }, eventEndpoint);
       await refresh();
     } catch (error) {
       setStatus((error as Error).message || "error");
@@ -107,4 +118,3 @@ export function AnalyticsLabIsland() {
     </div>
   );
 }
-

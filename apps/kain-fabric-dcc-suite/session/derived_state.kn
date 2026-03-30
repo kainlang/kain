@@ -17,12 +17,6 @@ fn derive_workspace_read_model(active_mode: String, active_tool: String, selecti
     if tensor_dirty:
         dirty_lanes.push("tensor")
     let focus_surface = "viewport_stage"
-    if active_mode == "material_lookdev":
-        focus_surface = "material_layers"
-    if active_mode == "rig_anim":
-        focus_surface = "rig_graph"
-    if active_mode == "render_comp":
-        focus_surface = "render_lounge"
     let operator_summary = active_mode + ":tool=" + active_tool + ":selection=" + str(selection_count)
     return WorkspaceReadModel {
         active_mode: active_mode,

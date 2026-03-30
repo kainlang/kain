@@ -412,6 +412,9 @@ function New-ShellMetrics {
         runtime_lane_count = $runtimeLaneCount
         runtime_lane_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_summary) { [string]$Snapshot.runtime_lane_summary } else { "n/a" }
         bridge_status = if ($null -ne $Snapshot -and $null -ne $Snapshot.bridge_status) { [string]$Snapshot.bridge_status } elseif ($null -ne $Snapshot -and $null -ne $Snapshot.bridge -and $null -ne $Snapshot.bridge.status) { [string]$Snapshot.bridge.status } else { "n/a" }
+        runtime_lane_health = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_health) { [string]$Snapshot.runtime_lane_health } else { "warming" }
+        runtime_lane_health_detail = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_health_detail) { [string]$Snapshot.runtime_lane_health_detail } else { "bridge warming / fabric warming" }
+        render_preview_chain = if ($null -ne $Snapshot -and $null -ne $Snapshot.render_preview_chain) { [string]$Snapshot.render_preview_chain } else { "pathtrace -> accumulation -> denoise" }
         command_count = @($Commands).Count
         pipeline_step_count = @($Pipeline).Count
         intent_count = @($Intents).Count
@@ -437,6 +440,10 @@ function Get-ShellMetricValue {
 
     $value = $ShellMetrics[$MetricSource]
     if ($MetricSource -eq "latest_fabric_status") {
+        return ([string]$value).ToUpperInvariant()
+    }
+
+    if ($MetricSource -eq "runtime_lane_health") {
         return ([string]$value).ToUpperInvariant()
     }
 
