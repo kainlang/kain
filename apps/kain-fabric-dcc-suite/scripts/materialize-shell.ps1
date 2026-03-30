@@ -411,6 +411,7 @@ function New-ShellMetrics {
         runtime_pack_count = $runtimePackCount
         runtime_lane_count = $runtimeLaneCount
         runtime_lane_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_summary) { [string]$Snapshot.runtime_lane_summary } else { "n/a" }
+        runtime_lane_registry_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_registry_summary) { [string]$Snapshot.runtime_lane_registry_summary } else { "n/a" }
         bridge_status = if ($null -ne $Snapshot -and $null -ne $Snapshot.bridge_status) { [string]$Snapshot.bridge_status } elseif ($null -ne $Snapshot -and $null -ne $Snapshot.bridge -and $null -ne $Snapshot.bridge.status) { [string]$Snapshot.bridge.status } else { "n/a" }
         runtime_lane_health = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_health) { [string]$Snapshot.runtime_lane_health } else { "warming" }
         runtime_lane_health_detail = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_health_detail) { [string]$Snapshot.runtime_lane_health_detail } else { "bridge warming / fabric warming" }

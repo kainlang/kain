@@ -117,7 +117,28 @@ fn default_resources() -> Array<ResourceDescriptor>:
             resource_uri: "graph://evaluation/current",
             kind: "value",
             producer_step: "dcc_suite_seed",
-            summary: "Scene evaluation graph contract for dirty propagation and dependency scheduling"
+            summary: "Scene evaluation graph contract for dirty propagation, dependency scheduling, and cook staging"
+        },
+        ResourceDescriptor {
+            id: "evaluation_cook_output_document",
+            resource_uri: "graph://evaluation/cook/current",
+            kind: "value",
+            producer_step: "evaluation_cook_projection",
+            summary: "Cooked evaluation output used to feed materialization and downstream graph consumers"
+        },
+        ResourceDescriptor {
+            id: "cache_graph_document",
+            resource_uri: "graph://cache/current",
+            kind: "value",
+            producer_step: "dcc_suite_seed",
+            summary: "Cache graph contract for materialization, dependency snapshots, and cook outputs"
+        },
+        ResourceDescriptor {
+            id: "cache_materialization_document",
+            resource_uri: "artifact://cache/materialization/current",
+            kind: "value",
+            producer_step: "cache_materialize_projection",
+            summary: "Materialized cache receipt for downstream runtime and shell consumers"
         },
         ResourceDescriptor {
             id: "persistence_snapshot_document",

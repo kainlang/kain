@@ -25,6 +25,7 @@ fn build_mesh_contract_report_json(settings: Any, scene_graph_document: String, 
     let json = json + "    \"mesh.subdivide\",\n"
     let json = json + "    \"mesh.pack_uv\"\n"
     let json = json + "  ],\n"
+    let json = json + "  \"edit_target_route\": \"mesh://editing/active -> mesh://topology/subdivision/current -> mesh://topology/output/current -> mesh://topology/history/current\",\n"
     let json = json + "  \"limitation\": \"Kain owns the mesh contract and session routing, but durable mesh normalization, subdivision solving, and UV packing still require a native runtime seam.\"\n"
     let json = json + "}\n"
     return json

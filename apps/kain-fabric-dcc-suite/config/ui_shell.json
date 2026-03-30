@@ -81,6 +81,12 @@
         "caption": "kain | fabric | python | gpu_compute | c_abi | rust_crate | node_bridge"
       },
       {
+        "id": "runtime_lane_registry_summary",
+        "label": "Lane Roster",
+        "metric_source": "runtime_lane_registry_summary",
+        "caption": "registry-backed lane ownership"
+      },
+      {
         "id": "bridge_status",
         "label": "Bridge",
         "metric_source": "bridge_status",

@@ -382,53 +382,58 @@
       "id": "render.preview",
       "label": "Render Preview",
       "surface": "render_lounge",
-      "summary": "Stages a preview render refresh and updates render-facing reports.",
+      "summary": "Stages a viewport-quality preview refresh with explicit camera and render-profile routing.",
       "intent": "render.preview",
       "payload_schema": {
-        "camera_id": "string"
+        "camera_id": "string",
+        "render_profile": "string"
       }
     },
     {
       "id": "render.pathtrace_preview",
       "label": "Path Trace Preview",
       "surface": "render_lounge",
-      "summary": "Stages a path-traced render preview with a heavier SPIR-V-flavored GPU lane and richer frame reports.",
+      "summary": "Stages a path-traced preview with bounce budget, accumulation, denoise, and frame-grade feedback.",
       "intent": "render.pathtrace_preview",
       "payload_schema": {
         "camera_id": "string",
-        "bounce_budget": "number"
+        "bounce_budget": "number",
+        "accumulation_profile": "string"
       }
     },
     {
       "id": "render.delegate_preview",
       "label": "Render Delegate Preview",
       "surface": "render_lounge",
-      "summary": "Runs a delegated render-room pass that fuses preview and pathtrace outputs into a backend routing report.",
+      "summary": "Runs a delegated render-room pass that fuses preview and pathtrace outputs into a routing report.",
       "intent": "render.delegate_preview",
       "payload_schema": {
-        "camera_id": "string"
+        "camera_id": "string",
+        "delegate_profile": "string"
       }
     },
     {
       "id": "lighting.review_preview",
       "label": "Lighting Review Preview",
       "surface": "render_lounge",
-      "summary": "Runs a lighting review pass over current render products, delegation output, and material receipts.",
+      "summary": "Runs a lighting review pass over render products, delegation output, and material receipts.",
       "intent": "lighting.review_preview",
       "payload_schema": {
         "camera_id": "string",
-        "lighting_profile": "string"
+        "lighting_profile": "string",
+        "review_profile": "string"
       }
     },
     {
       "id": "render.review_capture",
       "label": "Render Review Capture",
       "surface": "render_lounge",
-      "summary": "Builds review-ready AOV packs, capture evidence, and visibility telemetry for frame review.",
+      "summary": "Builds review-ready AOV packs, capture evidence, visibility telemetry, and playback routing.",
       "intent": "render.review_capture",
       "payload_schema": {
         "camera_id": "string",
-        "capture_profile": "string"
+        "capture_profile": "string",
+        "aov_set": "string"
       }
     },
     {

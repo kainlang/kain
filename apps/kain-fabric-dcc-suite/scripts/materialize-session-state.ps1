@@ -104,6 +104,11 @@ $RuntimeLaneSummary = if ($null -ne $RuntimeLanes) {
 } else {
     "n/a"
 }
+$RuntimeLaneRegistrySummary = if ($null -ne $RuntimeLanes) {
+    ($RuntimeLanes | ForEach-Object { "$($_.label) [$($_.runtime)]" }) -join " · "
+} else {
+    "Kain Semantics Lane [kain] · Fabric Orchestration Lane [fabric] · Python Bootstrap Lane [python] · GPU Compute Lane [gpu_compute] · Native C ABI Lane [c_abi] · Rust Analysis Lane [rust_crate] · Node Bridge Lane [node_bridge]"
+}
 $Resources = (Get-Content (Join-Path $AppRoot "config/resource_kinds.json") -Raw | ConvertFrom-Json).resource_kinds
 $MeshContract = Get-Content (Join-Path $AppRoot "config/mesh_resource_contract.json") -Raw | ConvertFrom-Json
 $Reports = (Get-Content (Join-Path $AppRoot "config/report_kinds.json") -Raw | ConvertFrom-Json).report_kinds
@@ -215,6 +220,9 @@ $SessionDocument = [ordered]@{
         view_transform = "acescg"
         render_profile = "viewport_quality"
         aov_set = "beauty_plus_utility"
+        accumulation_profile = "progressive_preview"
+        denoise_profile = "viewport_temporal_denoise"
+        review_capture_profile = "frame_review_pack"
     }
     compositor = [ordered]@{
         active_stack_id = "comp/final_review"
@@ -385,6 +393,7 @@ $RuntimeSnapshot = [ordered]@{
         runtime_lane_health = $RuntimeLaneHealth
         runtime_lane_health_detail = $RuntimeLaneHealthDetail
         runtime_lane_summary = $RuntimeLaneSummary
+        runtime_lane_registry_summary = $RuntimeLaneRegistrySummary
         render_preview_chain = "pathtrace -> accumulation -> denoise"
         extension_seams = @(
             "material lane still projects authoring receipts rather than a true native painter runtime",

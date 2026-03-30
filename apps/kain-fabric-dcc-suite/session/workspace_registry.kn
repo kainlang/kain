@@ -10,7 +10,7 @@ fn default_workspaces() -> Array<WorkspaceDescriptor>:
             id: "scene_assembly",
             label: "Scene Assembly",
             focus_surface: "viewport_stage",
-            summary: "Scene graph authoring, layout, and asset placement"
+            summary: "Scene graph authoring, layout, asset placement, and evaluation flow"
         },
         WorkspaceDescriptor {
             id: "sculpt_model",

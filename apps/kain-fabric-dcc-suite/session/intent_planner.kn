@@ -138,6 +138,27 @@ fn plan_for_command(
             priority: 88,
             debounce_ms: 0
         })
+    if command_kind == "evaluation.recompute_graph":
+        intents.push(PlannedIntent {
+            intent_id: "evaluation.recompute_graph",
+            reason: "evaluation graph requested a recompute against current dependency flow",
+            priority: 67,
+            debounce_ms: 0
+        })
+    if command_kind == "evaluation.cook_graph":
+        intents.push(PlannedIntent {
+            intent_id: "evaluation.cook_graph",
+            reason: "evaluation graph cooked a dependency snapshot and needs materialization",
+            priority: 64,
+            debounce_ms: 8
+        })
+    if command_kind == "cache.materialize":
+        intents.push(PlannedIntent {
+            intent_id: "cache.materialize",
+            reason: "cache graph requested a materialization pass for downstream consumers",
+            priority: 60,
+            debounce_ms: 12
+        })
     if command_kind == "material.author_texture_set":
         intents.push(PlannedIntent {
             intent_id: "material.bake_preview",

@@ -43,6 +43,18 @@ fn default_jobs() -> Array<AutomationJobDescriptor>:
             summary: "Stages warm caches for repeatable simulation review"
         },
         AutomationJobDescriptor {
+            id: "evaluation_graph_recompute",
+            label: "Evaluation Graph Recompute",
+            schedule: "on_scene_open_and_selection_change",
+            summary: "Recomputes dependency flow and graph cooks after authoring changes"
+        },
+        AutomationJobDescriptor {
+            id: "cache_materialization_pass",
+            label: "Cache Materialization Pass",
+            schedule: "on_evaluation_cook_or_publish_candidate",
+            summary: "Materializes cooked graph output for render, publish, and bridge consumers"
+        },
+        AutomationJobDescriptor {
             id: "tensor_readiness_probe",
             label: "Tensor Readiness Probe",
             schedule: "manual_or_nightly",

@@ -79,6 +79,24 @@ fn default_reports() -> Array<ReportDescriptor>:
             summary: "Topology and graph health report"
         },
         ReportDescriptor {
+            id: "evaluation_dependency_report",
+            report_uri: "report://evaluation/dependency",
+            producer_step: "evaluation_recompute_projection",
+            summary: "Evaluation dependency graph and dirty-propagation report"
+        },
+        ReportDescriptor {
+            id: "evaluation_cook_report",
+            report_uri: "report://evaluation/cook",
+            producer_step: "evaluation_cook_projection",
+            summary: "Cooked evaluation graph report for downstream materialization"
+        },
+        ReportDescriptor {
+            id: "cache_materialization_report",
+            report_uri: "report://cache/materialization",
+            producer_step: "cache_materialize_projection",
+            summary: "Cache materialization and runtime handoff report"
+        },
+        ReportDescriptor {
             id: "rig_sync_report",
             report_uri: "report://rig/sync",
             producer_step: "rig_sync_projection",

@@ -52,6 +52,20 @@
       "gizmo_enabled": false
     },
     {
+      "id": "smart_material_stack",
+      "label": "Smart Material Stack",
+      "lane": "material_lookdev",
+      "summary": "Generator, wear, cavity, and anchor-driven mask stacks for Substance-style lookdev layers.",
+      "gizmo_enabled": false
+    },
+    {
+      "id": "scan_ingest_plate",
+      "label": "Scan Ingest Plate",
+      "lane": "material_lookdev",
+      "summary": "Sampler-flavored texture and scan plate ingestion for albedo, roughness, normal, and detail sources.",
+      "gizmo_enabled": false
+    },
+    {
       "id": "texture_bake",
       "label": "Texture Bake",
       "lane": "material_lookdev",

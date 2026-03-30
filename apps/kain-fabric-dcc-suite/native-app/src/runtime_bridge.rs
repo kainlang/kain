@@ -401,6 +401,8 @@ fn apply_mesh_create_primitive(
         "primitive/cylinder".to_string(),
         "primitive/uv_sphere".to_string(),
         "primitive/cone".to_string(),
+        "primitive/torus".to_string(),
+        "primitive/plane".to_string(),
     ];
     let current_template = get_string_at_path(
         session_document,
@@ -414,6 +416,11 @@ fn apply_mesh_create_primitive(
             next_template,
         );
     }
+    set_string_array_at_path(
+        session_document,
+        &["mesh", "primitive_templates"],
+        &primitive_templates,
+    );
     set_string_at_path(
         session_document,
         &["mesh", "active_document_id"],
@@ -533,6 +540,11 @@ fn apply_mesh_rebuild_topology(session_document: &mut Value) {
     set_mesh_contract_report(session_document, "mesh.rebuild_topology");
     set_string_at_path(
         session_document,
+        &["mesh", "subdivision_level"],
+        "2",
+    );
+    set_string_at_path(
+        session_document,
         &["reports", "topology_history_report_id"],
         TOPOLOGY_HISTORY_REPORT_ID,
     );
@@ -610,6 +622,11 @@ fn apply_mesh_rebuild_topology(session_document: &mut Value) {
 
 fn apply_mesh_subdivide(session_document: &mut Value) {
     set_string_at_path(session_document, &["mesh", "topology_edit_mode"], "subdivide");
+    set_string_at_path(
+        session_document,
+        &["mesh", "subdivision_level"],
+        "3",
+    );
     set_string_at_path(
         session_document,
         &["mesh", "mesh_authoring_policy_id"],

@@ -5,12 +5,14 @@ struct WorkspaceReadModel:
     dirty_lanes: Array<String>
     runtime_lane_count: Int
     runtime_lane_summary: String
+    evaluation_summary: String
+    cache_summary: String
 
 struct PipelineHealthReadModel:
     severity: String
     summary: String
 
-fn derive_workspace_read_model(active_mode: String, active_tool: String, selection_count: Int, publish_dirty: Bool, tensor_dirty: Bool, runtime_lane_count: Int, runtime_lane_summary: String) -> WorkspaceReadModel:
+fn derive_workspace_read_model(active_mode: String, active_tool: String, selection_count: Int, publish_dirty: Bool, tensor_dirty: Bool, runtime_lane_count: Int, runtime_lane_summary: String, evaluation_summary: String, cache_summary: String) -> WorkspaceReadModel:
     let dirty_lanes = []
     if publish_dirty:
         dirty_lanes.push("publish")
@@ -24,7 +26,9 @@ fn derive_workspace_read_model(active_mode: String, active_tool: String, selecti
         operator_summary: operator_summary,
         dirty_lanes: dirty_lanes,
         runtime_lane_count: runtime_lane_count,
-        runtime_lane_summary: runtime_lane_summary
+        runtime_lane_summary: runtime_lane_summary,
+        evaluation_summary: evaluation_summary,
+        cache_summary: cache_summary
     }
 
 fn derive_pipeline_health(latest_status: String, render_dirty: Bool, compositor_dirty: Bool, publish_dirty: Bool) -> PipelineHealthReadModel:

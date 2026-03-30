@@ -197,8 +197,9 @@
         }
       ],
       "notes": [
-        "Keep the lane map and health row visible so operators can spot bridge drift without opening a second inspector.",
-        "Treat runtime_lane_health as projected state from the live snapshot, not as semantic ownership in the shell."
+        "Keep the lane map, roster, and health row visible so operators can spot bridge drift without opening a second inspector.",
+        "Treat runtime_lane_health as projected state from the live snapshot, not as semantic ownership in the shell.",
+        "Treat runtime_lane_registry_summary as the authored roster projection from config/runtime_lanes.json."
       ]
     },
     {
@@ -293,7 +294,7 @@
       "title": "Material Graph",
       "dock": "bottom",
       "kind": "graph",
-      "summary": "Layered shading, texture routing, and smart materials."
+      "summary": "Layered shading, texture routing, smart materials, and scan-derived material inputs."
     },
     {
       "id": "material_layers",
@@ -311,6 +312,11 @@
           "label": "Blend policy",
           "value": "Smart materials",
           "detail": "authoring default"
+        },
+        {
+          "label": "Smart masks",
+          "value": "Anchor driven",
+          "detail": "wear, trim, cavity"
         },
         {
           "label": "Paint target",

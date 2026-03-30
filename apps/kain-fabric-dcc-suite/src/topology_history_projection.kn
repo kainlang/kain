@@ -6,6 +6,8 @@ fn topology_history_report_path() -> String:
 
 fn build_topology_history_report_json(settings: Any, topology_report: String, mesh_resource_contract_document: String) -> String:
     let rebuild_count = settings.runtime_pack_count + settings.preview_count + 1
+    let authored_decisions = "primitive->edit-target->subdivide->rebuild->pack_uv"
+    let lineage_route = "mesh://editing/active -> mesh://topology/output/current -> mesh://topology/history/current"
     let json = "{\n"
     let json = json + "  \"kind\": \"topology_history_report\",\n"
     let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
@@ -14,6 +16,8 @@ fn build_topology_history_report_json(settings: Any, topology_report: String, me
     let json = json + "  \"resource_uri\": \"mesh://topology/history/current\",\n"
     let json = json + "  \"history_policy\": \"topology_rebuild_lineage\",\n"
     let json = json + "  \"rebuild_count\": " + str(rebuild_count) + ",\n"
+    let json = json + "  \"authored_decisions\": \"" + authored_decisions + "\",\n"
+    let json = json + "  \"lineage_route\": \"" + lineage_route + "\",\n"
     let json = json + "  \"mesh_resource_contract_document\": \"" + mesh_resource_contract_document + "\",\n"
     let json = json + "  \"active_edit_target\": \"" + mesh_resource_contract_document + "\",\n"
     let json = json + "  \"topology_output\": \"" + mesh_resource_contract_document + "\",\n"

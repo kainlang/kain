@@ -51,6 +51,14 @@ The scaffold is split into seven durable ownership layers:
 - Shared viewport startup geometry is still only a bootstrap realization. It is acceptable for `crates/kain-3D` to materialize a temporary cube or support mesh for the opening viewport, but that runtime geometry should not be mistaken for the durable mesh ownership boundary.
 - The next durable contract should explicitly cover imported assets, authored primitives, topology history, and topology edits as first-class mesh resources so the viewport, sculpt lane, and topology lane all speak the same id-based language.
 
+
+## Evaluation / Cook / Cache Seam
+
+- The app now treats graph evaluation and cache materialization as explicit session-owned contracts, not just implied downstream work.
+- `session/session_schema.kn` carries dedicated `evaluation` and `cache` blocks for dirty propagation, cook outputs, and cache materialization receipts.
+- `session/intent_planner.kn` and `session/reducers.kn` now route `evaluation.recompute_graph`, `evaluation.cook_graph`, and `cache.materialize` as first-class intents so operator actions can fan out through dependency flow more like a Houdini-style cook chain.
+- `session/resource_registry.kn`, `session/report_registry.kn`, and `session/job_registry.kn` name the cook/materialization outputs directly so downstream runtime seams can consume stable ids instead of ad-hoc strings.
+
 ## Main Files
 
 - `KAIN.toml`: app package and build contract.
@@ -129,7 +137,7 @@ The scaffold is split into seven durable ownership layers:
 - The sim lane now emits durable plan and report receipts in `state/*.json` rather than a mock string return, but it is still not a real solver runtime. That keeps the current repo honest until a durable sim contract exists.
 - The compositor lane now emits durable rebuild-plan and rebuild-report receipts in `state/*.json`, but real graph execution and frame assembly should still arrive through a broader runtime extension rather than by overloading shell presentation code.
 - The mesh lane now has real Kain-authored projection writers for imported payloads, authored primitives, Catmull-Clark-style subdivision, and UV packing receipts. It also now emits a native mesh runtime signature through the C helper seam, giving the lane a concrete extension point for geometry ownership without pretending the app itself solves remesh math.
-- The material lane now emits durable authoring, SVG mask, export, paint-runtime, UV policy, and deformation receipts in `state/*.json`, but it is still not a native painter engine with tiled brush evaluation, GPU bakers, or live sparse texture streaming. Those remain explicit extension seams.
+- The material lane now emits durable authoring, SVG mask, export, paint-runtime, UV policy, and deformation receipts in `state/*.json`, and the session contract now also carries explicit smart-mask and scan-ingest profiles so the lookdev bench can read more like a layered paint + sampler hybrid. It is still not a native painter engine with tiled brush evaluation, GPU bakers, or live sparse texture streaming. Those remain explicit extension seams.
 - The sculpt lane now emits a real GPU-owned heightfield delta buffer and native-facing sculpt receipts, but it is still not a production mesh sculpt engine with BVH queries, voxel remeshing, multiresolution data, or tablet-pressure sampling. Those remain explicit extension seams.
 - The sculpt and topology seam modules should be read as resource-contract adapters, not as mesh owners. They are expected to operate on active edit targets identified by resource id and hand the mutated or rebuilt mesh back through the app-owned resource contract.
 - The shader catalog is intentionally broader than the currently scheduled Fabric steps. Some shader files are staged for near-term lane growth rather than being scheduled in every graph immediately.

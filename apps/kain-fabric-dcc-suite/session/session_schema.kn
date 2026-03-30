@@ -91,12 +91,29 @@ struct SimulationState:
     last_tick_frame: Int
     solver_profile: String
 
+struct EvaluationState:
+    graph_document_id: String
+    graph_document_uri: String
+    last_recompute_reason: String
+    last_upstream_dependency_report: String
+    last_cook_output_id: String
+
+struct CacheState:
+    cache_graph_id: String
+    cache_graph_uri: String
+    last_materialization_reason: String
+    last_materialized_resource_id: String
+    last_cache_report_path: String
+
 struct RenderState:
     camera_id: String
     view_transform: String
     render_profile: String
     lighting_profile_id: String
     aov_set: String
+    accumulation_profile: String
+    denoise_profile: String
+    review_capture_profile: String
 
 struct CompositorState:
     active_stack_id: String
@@ -151,6 +168,8 @@ struct SessionDocument:
     rig: RigState
     animation: AnimationState
     simulation: SimulationState
+    evaluation: EvaluationState
+    cache: CacheState
     render: RenderState
     compositor: CompositorState
     publish: PublishState
@@ -239,6 +258,8 @@ fn default_session_document() -> SessionDocument:
             channel_profile: "basecolor_normal_roughness_metallic_ao_height_emissive",
             layer_response_profile: "paint_fill_filter_smart_stack",
             brush_response_profile: "pressure_weighted_surface_tight",
+            smart_mask_profile: "anchor_driven_wear_and_trim_masks",
+            scan_ingest_profile: "sampler_style_scan_plate_ingest",
             uv_policy_id: "uv_policy/udim_tiled_islands",
             texel_density_target: 256,
             deformation_surface_id: "surface/hero_deformation_shell",
@@ -259,12 +280,29 @@ fn default_session_document() -> SessionDocument:
             last_tick_frame: 96,
             solver_profile: "cloth_preview"
         },
+        evaluation: EvaluationState {
+            graph_document_id: "evaluation_graph_document",
+            graph_document_uri: "graph://evaluation/current",
+            last_recompute_reason: "bootstrap",
+            last_upstream_dependency_report: "state/evaluation_dependency_report.json",
+            last_cook_output_id: "evaluation_cook_output_document"
+        },
+        cache: CacheState {
+            cache_graph_id: "cache_graph_document",
+            cache_graph_uri: "graph://cache/current",
+            last_materialization_reason: "bootstrap",
+            last_materialized_resource_id: "topology_output_mesh_document",
+            last_cache_report_path: "state/cache_materialization_report.json"
+        },
         render: RenderState {
             camera_id: "camera/startup_authoring",
             view_transform: "acescg",
             render_profile: "viewport_quality",
             lighting_profile_id: "lighting/review/neutral",
-            aov_set: "beauty_plus_utility"
+            aov_set: "beauty_plus_utility",
+            accumulation_profile: "progressive_preview",
+            denoise_profile: "viewport_temporal_denoise",
+            review_capture_profile: "frame_review_pack"
         },
         compositor: CompositorState {
             active_stack_id: "comp/final_review",
@@ -307,13 +345,5 @@ fn default_session_document() -> SessionDocument:
             latest_fabric_status: "idle",
             active_intents: [],
             active_jobs: []
-        }
-    }
-tatus: "idle",
-            active_intents: [],
-            active_jobs: []
-        }
-    }
-obs: []
         }
     }
