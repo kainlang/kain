@@ -18,6 +18,7 @@ members = [
     "crates/kain-host-derive",
     "crates/kain-reflect",
     "crates/kain-build",
+    "crates/kain-repair",
     "crates/kain-sdk",
     "crates/ue5",
     "crates/ue5-shaders",

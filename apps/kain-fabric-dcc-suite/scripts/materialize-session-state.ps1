@@ -188,6 +188,9 @@ $SessionDocument = [ordered]@{
         last_package_kind = "gltf"
         staged_package_count = 1
     }
+    asset_ingest_summary = "gltf intake ready / 1 staged package"
+    asset_ingest_status = "intake ready"
+    asset_ingest_count = 1
     materials = [ordered]@{
         active_material_id = "material/hero_surface"
         active_graph_id = "graph/lookdev_primary"

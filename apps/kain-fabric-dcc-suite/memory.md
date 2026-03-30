@@ -46,3 +46,10 @@
 - Tightened the lookdev workbench copy and tool shelf so the material lane reads more like layered paint + smart materials + sampler-style ingestion instead of just generic PBR authoring.
 - The paint-runtime and export projections now emit richer receipts for smart masks, scan ingestion, channel-pack profiles, and runtime delivery targets.
 - Clean seam: keep the richer painter contracts in session/config/projection files; the host should stay a projector, not the source of truth.
+
+## 2026-03-29 - Asset intake now has a visible top-rail status
+
+- Added `asset_ingest_status` and related summary/count fields to the projected runtime snapshot so ingest has a direct shell-facing seam instead of only living inside the ingest block.
+- Surfaced a new `Asset Intake` metric in `config/ui_shell.json` so the top rail now shows source-id-first ingest status alongside lane ownership, bridge health, and render chain telemetry.
+- Re-materialized `state/runtime_snapshot.json`, `state/session_document.json`, and `generated/main.generated.kn` after the shell update so the live projection stayed aligned.
+- Clean extension seam: if ingest grows richer package, transcode, or lineage telemetry later, the same status slot can keep projecting it without giving the native shell semantic ownership.

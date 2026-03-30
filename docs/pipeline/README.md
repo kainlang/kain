@@ -11,6 +11,7 @@ It should stay focused on how the pipeline is organized, what the canonical trut
 - [`../../runtime/README.md`](../../runtime/README.md) for the broader native runtime overview.
 - [`../../runtime/parallel/README.md`](../../runtime/parallel/README.md) for the non-C companion lane.
 - [`./CRATES_PIPELINE.md`](./CRATES_PIPELINE.md) for the crate maintenance pipeline.
+- [`./SELFHOST_REPAIR.md`](./SELFHOST_REPAIR.md) for the Kain self-host auto-repair lane.
 - [`../README.md`](../README.md) for the docs landing page.
 
 ## Current Scope

@@ -1,0 +1,8 @@
+[package]
+name = "kain-repair"
+version = "0.1.0"
+edition = "2021"
+description = "Deterministic repair helpers for parser-hostile Kain source"
+license = "MIT"
+
+[dependencies]

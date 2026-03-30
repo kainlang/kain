@@ -87,6 +87,12 @@
         "caption": "registry-backed lane ownership"
       },
       {
+        "id": "asset_ingest_status",
+        "label": "Asset Intake",
+        "metric_source": "asset_ingest_status",
+        "caption": "source-id-first ingest"
+      },
+      {
         "id": "bridge_status",
         "label": "Bridge",
         "metric_source": "bridge_status",
