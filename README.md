@@ -290,10 +290,14 @@ Current command families:
 - `phase1`
 - `phase2`
 
+`phase2` is the repair-oriented lane: it builds the self-host slice, applies bounded repairs to copied outputs, and validates the repaired workspace.
+
 ```powershell
 kain selfhost phase1
 kain selfhost phase2
 ```
+
+Repair-specific notes live in [`docs/pipeline/SELFHOST_REPAIR.md`](docs/pipeline/SELFHOST_REPAIR.md).
 
 ### `kain omni`
 

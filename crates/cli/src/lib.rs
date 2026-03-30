@@ -21,6 +21,7 @@ pub mod lsp;
 pub mod native_ui_build;
 pub mod omni;
 pub mod packager;
+pub mod repair;
 pub mod rust_build;
 pub mod selfhost;
 pub mod selfhost_report;
@@ -69,6 +70,7 @@ const KN_SHORTCUTS: &[&str] = &[
     "kn run <file.kn>            Explicit interpret mode",
     "kn build <file.kn> -t rust  Generate Rust output",
     "kn doctor                   Inspect PATH + runtime wiring",
+    "kn doctor --repair <file>    Repair a source file in place or dry-run",
 ];
 
 const KN_PYTHON_FFI_MODULES: &[&str] = &[

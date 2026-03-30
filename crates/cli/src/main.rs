@@ -12,6 +12,7 @@ use cli::lsp;
 use cli::native_ui_build;
 use cli::omni;
 use cli::packager;
+use cli::repair::{self, DoctorRepairArgs};
 use cli::rust_build;
 use cli::selfhost;
 use cli::{
@@ -196,7 +197,10 @@ enum Commands {
     Lsp,
 
     /// Show binary/build diagnostics and resolved compiler capabilities
-    Doctor,
+    Doctor {
+        #[command(flatten)]
+        repair: DoctorRepairArgs,
+    },
 
     /// Run self-host bootstrap workflows
     Selfhost {
@@ -1331,7 +1335,22 @@ fn main() {
                         lsp::run_server().await;
                     });
                 }
-                Some(Commands::Doctor) => {
+                Some(Commands::Doctor { repair: repair_args }) => {
+                    if let Some(mode) = repair_args.selected_mode() {
+                        let Some(path) = repair_args.repair.as_ref() else {
+                            eprintln!(" Doctor repair requested without a file path.");
+                            std::process::exit(1);
+                        };
+                        match repair::run(path, mode) {
+                            Ok(report) => {
+                                print_repair_report(path, &report, mode);
+                            }
+                            Err(err) => {
+                                eprintln!(" Doctor repair failed: {}", err);
+                                std::process::exit(1);
+                            }
+                        }
+                    }
                     print_doctor(launcher);
                 }
                 Some(Commands::Selfhost { command }) => {
@@ -1839,6 +1858,25 @@ fn main() {
         .unwrap();
 
     handler.join().unwrap();
+}
+
+fn print_repair_report(path: &Path, report: &kain_repair::RepairReport, mode: kain_repair::RepairMode) {
+    println!(" Repair Target: {}", path.display());
+    println!(" Repair Mode: {:?}", mode);
+    if report.issues.is_empty() {
+        println!(" Repairs: none needed");
+        return;
+    }
+
+    for issue in &report.issues {
+        println!("   - {}", issue);
+    }
+    if report.changed() {
+        println!(" Applied Fixes: {}", report.applied_count());
+    } else {
+        println!(" Applied Fixes: 0");
+    }
+    println!(" Remaining Diagnostics: {}", report.remaining_count());
 }
 
 fn print_doctor(active_launcher: LauncherKind) {

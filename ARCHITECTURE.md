@@ -58,6 +58,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [cli](/M:/Code/Kain/crates/cli): `kain` command surface
 - [kain-host](/M:/Code/Kain/crates/kain-host): Rust embedding and native function registration
 - [kain-reflect](/M:/Code/Kain/crates/kain-reflect): reflection schemas and type identity
+- [kain-repair](/M:/Code/Kain/crates/kain-repair): deterministic source-text repair layer for parser-hostile Kain syntax, intended for `doctor` integration
 - [kain-sdk](/M:/Code/Kain/crates/kain-sdk): high-level embedding facade
 - [kain-interop](/M:/Code/Kain/crates/kain-interop): shared buffer/image payload contracts
 - [kain-gpu-runtime](/M:/Code/Kain/crates/kain-gpu-runtime): Vulkan compute executor consuming emitted shader bundles and residency metadata
@@ -169,6 +170,7 @@ Typical commands:
 - `kain run <file.kn>`
 - `kain gpu-artifacts <file.kn> --output <dir>`
 - `kain selfhost phase1`
+- `kain selfhost phase2` for the bounded self-host repair lane
 - `kain omni build`
 - `kain fabric init --template polyglot`
 - `kain fabric validate`

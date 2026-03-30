@@ -5439,3 +5439,63 @@ fn default_output_dir_for_phase(repo_root: &Path, phase_name: &str) -> PathBuf {
         base.join(phase_name)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn repair_named_function_block_repairs_collapse_and_preserves_following_blocks() {
+        let source = r#"fn lower_type_memory(ty: &Type):
+    match ty:
+    Type::Named { name: name, generics: generics } => Type::Named { name: name, generics: generics.into_iter().collect(), span: span.clone() }
+
+fn untouched_afterwards():
+    return none
+"#;
+
+        let repaired = repair_named_function_block(source, "fn lower_type_memory(", |_| {
+            [
+                "fn lower_type_memory(ty: &Type):",
+                "    match ty:",
+                "        Type::Named { name: name, generics: generics } => Type::Named { name: name, generics: generics.into_iter().collect(), span: span.clone() }",
+            ]
+            .join("\n")
+        });
+
+        assert!(repaired.contains("    match ty:\n        Type::Named"));
+        assert!(repaired.contains("\n\nfn untouched_afterwards():"));
+    }
+
+    #[test]
+    fn indent_repaired_block_matches_nested_selfhost_layout() {
+        let block = [
+            "fn repair_self(node: Self):",
+            "    match node:",
+            "        Self::Block { body: body } => body",
+            "        Self::Path { path: path } => path",
+        ]
+        .join("\n");
+
+        let indented = indent_repaired_block(&block, "    ");
+        assert!(indented.starts_with("    fn repair_self(node: Self):"));
+        assert!(indented.contains("\n        match node:"));
+        assert!(indented.contains("\n            Self::Block"));
+    }
+
+    #[test]
+    fn sanitize_identifier_pushes_reserved_and_contextual_ids_out_of_the_way() {
+        assert_eq!(sanitize_identifier("self"), "self_");
+        assert_eq!(sanitize_identifier("Self"), "Self_");
+        assert_eq!(sanitize_identifier("state"), "state_");
+        assert_eq!(sanitize_identifier("shader"), "shader_");
+        assert_eq!(sanitize_identifier("3d-path"), "_3d_path");
+    }
+
+    #[test]
+    fn sanitize_path_to_ident_covers_parser_hostile_path_forms() {
+        assert_eq!(sanitize_path_to_ident("crate::repair::Self"), "crate__repair__Self_");
+        assert_eq!(sanitize_path_to_ident("std::collections::HashMap"), "std__collections__HashMap");
+        assert_eq!(sanitize_expr_path("foo::bar::baz"), "foo__bar__baz");
+    }
+}
