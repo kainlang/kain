@@ -1527,6 +1527,7 @@ impl RustTransformer {
                     .map(|fv| {
                         let field_name = self.rename_field(&member_name(&fv.member));
                         let val = self.transform_expr(&fv.expr)?;
+                        let val = self.peel_expr_wrapper(val);
                         Ok((field_name, val))
                     })
                     .collect::<Result<Vec<_>>>()?;
@@ -1600,7 +1601,8 @@ impl RustTransformer {
                     syn::ReturnType::Default => None,
                     syn::ReturnType::Type(_, ty) => Some(self.map_type_checked(ty)),
                 };
-                let body = self.transform_expr(&cl.body)?;
+                let lowered_body = self.transform_expr(&cl.body)?;
+                let body = self.peel_expr_wrapper(lowered_body);
                 self.pop_value_substitution_scope();
                 self.pop_scope();
                 Ok(Expr::Lambda {
@@ -2177,6 +2179,12 @@ impl RustTransformer {
                     other => Expr::Block(Block { stmts: vec![other], span: S }, S),
                 }
             }
+            Expr::Ref { value, mutable, span } => Expr::Ref {
+                value: Box::new(self.peel_expr_wrapper(*value)),
+                mutable,
+                span,
+            },
+            Expr::Try(inner, span) => Expr::Try(Box::new(self.peel_expr_wrapper(*inner)), span),
             other => other,
         }
     }
@@ -3059,9 +3067,11 @@ mod tests {
     fn lowers_chain_expression_heads_without_spurious_wrappers() {
         let program = transform_source(
             r#"
-            fn demo(values: Vec<String>) {
+            fn demo(values: Vec<String>, path: &Path) {
                 let total = (values.iter()).count();
                 let joined = ({ values.iter() }).map(|value| format!("{value}"));
+                let parsed = (serde_json::from_str::<String>("\"ok\"")?).len();
+                let cached = (hash_file(path)?).to_string();
             }
             "#,
         );
@@ -3090,7 +3100,56 @@ mod tests {
         assert_eq!(method, "map");
         assert!(matches!(receiver.as_ref(), Expr::MethodCall { method, .. } if method == "iter"));
         assert_eq!(args.len(), 1);
-        assert!(matches!(&args[0].value, Expr::Lambda { .. }));
+        let Expr::Lambda { body, .. } = &args[0].value else {
+            panic!("expected closure argument to lower to lambda");
+        };
+        let lambda_body = match body.as_ref() {
+            Expr::Ref { value, .. } => value.as_ref(),
+            other => other,
+        };
+        assert!(
+            !matches!(lambda_body, Expr::None(_)),
+            "expected closure body to preserve a real lowered expression"
+        );
+
+        let Stmt::Let {
+            value: Some(Expr::MethodCall { receiver, method, .. }),
+            ..
+        } = &func.body.stmts[2]
+        else {
+            panic!("expected try-wrapped chain head to survive");
+        };
+        assert_eq!(method, "len");
+        assert!(matches!(receiver.as_ref(), Expr::Try(_, _)));
+
+        let Stmt::Let {
+            value: Some(Expr::MethodCall { receiver, method, .. }),
+            ..
+        } = &func.body.stmts[3]
+        else {
+            panic!("expected try-wrapped call head to survive");
+        };
+        assert_eq!(method, "to_string");
+        assert!(matches!(receiver.as_ref(), Expr::Try(_, _)));
+    }
+
+    #[test]
+    fn lowers_borrowed_and_generic_call_heads_in_utility_code() {
+        let (_program, diagnostics) = transform_with_diagnostics(
+            r#"
+            fn demo(json: String, cache_dir: std::path::PathBuf) {
+                let parsed = serde_json::from_str(&json);
+                let path = cache_dir.join(format!("{}.json", parsed));
+                let call = (&serde_json::from_str)(&json);
+                let _ = path;
+                let _ = call;
+            }
+            "#,
+        );
+
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag.contains("class:unsupported_expr_lowering")));
     }
 
     #[test]
@@ -3167,6 +3226,51 @@ mod tests {
         assert!(matches!(condition.as_ref(), Expr::Ident(name, _) if name == "flag"));
         assert!(matches!(then_branch.stmts.as_slice(), [Stmt::Expr(Expr::Cast { .. })]));
         assert!(matches!(else_branch.as_deref(), Some(ElseBranch::Else(block)) if matches!(block.stmts.as_slice(), [Stmt::Expr(Expr::Int(0, _))])));
+    }
+
+    #[test]
+    fn lowers_struct_field_values_with_calls_borrows_and_groups() {
+        let program = transform_source(
+            r#"
+            struct Demo {
+                value: usize,
+                other: usize,
+                third: usize,
+            }
+
+            impl Demo {
+                fn make(items: Vec<usize>, count: usize) -> Self {
+                    Self {
+                        value: (items.iter().count()),
+                        other: { count.saturating_add(1) },
+                        third: (&count).clone(),
+                    }
+                }
+            }
+            "#,
+        );
+
+        let Item::Impl(imp) = &program.items[1] else {
+            panic!("expected impl");
+        };
+
+        let func = &imp.methods[0];
+        let Stmt::Expr(Expr::Struct { fields, .. }) = &func.body.stmts[0] else {
+            panic!("expected struct constructor");
+        };
+
+        assert!(matches!(
+            fields.iter().find(|(field, _)| field == "value").map(|(_, expr)| expr),
+            Some(Expr::MethodCall { method, .. }) if method == "count"
+        ));
+        assert!(matches!(
+            fields.iter().find(|(field, _)| field == "other").map(|(_, expr)| expr),
+            Some(Expr::MethodCall { method, .. }) if method == "saturating_add"
+        ));
+        assert!(matches!(
+            fields.iter().find(|(field, _)| field == "third").map(|(_, expr)| expr),
+            Some(Expr::MethodCall { method, .. }) if method == "clone"
+        ));
     }
 
     #[test]

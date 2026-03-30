@@ -10,6 +10,24 @@ It should preserve:
 - what remains incomplete or dangerous
 - what future work should preserve instead of accidentally undoing
 
+## 2026-03-29 - Universal Web Template Added Tool + Actor Dispatch Endpoints
+
+The universal web template now includes data-driven runtime routes for tool execution and actor dispatch, including local logging for chat/agent tool calls and actor dispatch events.
+
+Update:
+
+- `M:/Templates/Web/universal/manifests/app.json` now includes tool/actor runtime storage lanes plus new runtime routes for chat tool execution, agent tool execution, actor dispatch, and actor event retrieval.
+- `M:/Templates/Web/universal/helpers/web_runtime.mjs` now normalizes the new routes, records tool/actor dispatch payloads to runtime JSONL logs, exposes the endpoints in the system contract, API route catalog, and HTTP server, and adds actor event retrieval.
+- `M:/Templates/Web/universal/helpers/client/lib/kain_site_data.ts` now includes the new runtime route and storage fields.
+- Updated the universal README and limitations note to reflect the new runtime routes and local-only tool/actor dispatch logging.
+
+What future work should preserve:
+
+- keep tool/actor dispatch routes data-driven via `site_runtime.routes`
+- keep local tool execution and actor dispatch logging in the helper runtime until Kain-native adapters land
+
+Current run recorded at 2026-03-29T20:07:03.5908302-04:00.
+
 ## 2026-03-29 - Universal Web Template Commerce/Portal/Data Platform Coverage
 
 The universal web template now exposes additional commerce, portal, and data-platform systems end-to-end through site data, system contracts, API routes, and search indexing without introducing Rust dependencies.

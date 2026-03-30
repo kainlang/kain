@@ -1,4 +1,26 @@
-use crate::bridge_contract::{NativeBridgeContract, CONTRACT_ROOT_REPORT_URI, CONTRACT_ROOT_URI};
+use crate::bridge_contract::{
+    NativeBridgeContract,
+    CONTRACT_ROOT_REPORT_URI,
+    CONTRACT_ROOT_URI,
+    MESH_ACTIVE_EDIT_TARGET_ID,
+    MESH_ACTIVE_EDIT_TARGET_URI,
+    MESH_AUTHORED_PRIMITIVE_DOCUMENT_ID,
+    MESH_AUTHORED_PRIMITIVE_URI,
+    MESH_CONTRACT_DOCUMENT_ID,
+    MESH_CONTRACT_DOCUMENT_URI,
+    MESH_CONTRACT_REPORT_ID,
+    MESH_CONTRACT_REPORT_PATH,
+    MESH_CONTRACT_REPORT_URI,
+    MESH_IMPORTED_PAYLOAD_DOCUMENT_ID,
+    MESH_IMPORTED_PAYLOAD_URI,
+    MESH_TOPOLOGY_OUTPUT_DOCUMENT_ID,
+    MESH_TOPOLOGY_OUTPUT_URI,
+    TOPOLOGY_HISTORY_DOCUMENT_ID,
+    TOPOLOGY_HISTORY_DOCUMENT_URI,
+    TOPOLOGY_HISTORY_REPORT_ID,
+    TOPOLOGY_HISTORY_REPORT_PATH,
+    TOPOLOGY_HISTORY_REPORT_URI,
+};
 
 use std::{
     collections::BTreeSet,
@@ -12,23 +34,7 @@ use serde_json::{json, Value};
 
 const BRIDGE_POLL_INTERVAL_MS: u64 = 150;
 
-const MESH_CONTRACT_DOCUMENT_ID: &str = "mesh_resource_contract_document";
-const MESH_ACTIVE_EDIT_TARGET_ID: &str = "active_editable_mesh_document";
-const MESH_IMPORTED_PAYLOAD_DOCUMENT_ID: &str = "imported_mesh_payload_document";
-const MESH_AUTHORED_PRIMITIVE_DOCUMENT_ID: &str = "authored_primitive_definition_document";
-const MESH_TOPOLOGY_OUTPUT_DOCUMENT_ID: &str = "topology_output_mesh_document";
-
-const MESH_CONTRACT_DOCUMENT_URI: &str = "mesh://contract/current";
-const MESH_ACTIVE_EDIT_TARGET_URI: &str = "mesh://editing/active";
-const MESH_IMPORTED_PAYLOAD_URI: &str = "mesh://imports/current/payloads";
-const MESH_AUTHORED_PRIMITIVE_URI: &str = "mesh://primitives/authored/definitions";
-const MESH_TOPOLOGY_OUTPUT_URI: &str = "mesh://topology/output/current";
-const TOPOLOGY_HISTORY_DOCUMENT_ID: &str = "topology_history_mesh_document";
-const TOPOLOGY_HISTORY_DOCUMENT_URI: &str = "mesh://topology/history/current";
 const TOPOLOGY_HISTORY_REBUILD_REPORT: &str = "state/topology_history_report.json";
-const MESH_CONTRACT_REPORT_ID: &str = "mesh_contract_report";
-const MESH_CONTRACT_REPORT_URI: &str = "report://mesh/contract";
-const MESH_CONTRACT_REPORT_PATH: &str = "state/mesh_contract_report.json";
 
 #[derive(Clone, Debug)]
 pub struct LiveBridgePaths {
@@ -528,17 +534,17 @@ fn apply_mesh_rebuild_topology(session_document: &mut Value) {
     set_string_at_path(
         session_document,
         &["reports", "topology_history_report_id"],
-        "topology_history_report",
+        TOPOLOGY_HISTORY_REPORT_ID,
     );
     set_string_at_path(
         session_document,
         &["reports", "topology_history_report_uri"],
-        "report://topology/history",
+        TOPOLOGY_HISTORY_REPORT_URI,
     );
     set_string_at_path(
         session_document,
         &["reports", "topology_history_report_path"],
-        TOPOLOGY_HISTORY_REBUILD_REPORT,
+        TOPOLOGY_HISTORY_REPORT_PATH,
     );
     set_string_at_path(
         session_document,

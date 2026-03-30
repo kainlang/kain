@@ -359,9 +359,29 @@ struct NativeAppRuntimeDccSuiteState {
     #[serde(default)]
     derived: NativeAppRuntimeDccSuiteDerivedState,
     #[serde(default)]
+    presentation: NativeAppRuntimeDccSuitePresentation,
+    #[serde(default)]
     latest_command: Option<NativeAppRuntimeBridgeCommandRecord>,
     #[serde(default)]
     bridge: NativeAppRuntimeBridgeStatus,
+}
+
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+struct NativeAppRuntimeDccSuitePresentation {
+    #[serde(default)]
+    layout: String,
+    #[serde(default)]
+    fixed_workspace_frame: bool,
+    #[serde(default)]
+    viewport_centered_layout: bool,
+    #[serde(default)]
+    document_flow_surfaces: bool,
+    #[serde(default)]
+    startup_focus_surface: String,
+    #[serde(default)]
+    startup_lane_rail: String,
+    #[serde(default)]
+    dock_regions: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, serde::Deserialize)]
@@ -2248,11 +2268,28 @@ fn is_product_desktop_theme(
             | "kain_fabric_universal_studio"
             | "kain-fabric-universal-studio"
     );
+    let snapshot_presentation = snapshot
+        .and_then(|value| value.dcc_suite_state.as_ref())
+        .map(|state| &state.presentation);
+    let canonical_product_frame = snapshot_presentation.is_some_and(|presentation| {
+        presentation.fixed_workspace_frame
+            || presentation.viewport_centered_layout
+            || presentation.layout.eq_ignore_ascii_case("dock")
+            || presentation.dock_regions.iter().any(|region| {
+                matches!(region.as_str(), "center" | "left" | "right" | "bottom" | "top")
+            })
+    });
     let known_product_app = snapshot.is_some_and(|value| {
         value.app_id.eq_ignore_ascii_case("kade.desktop")
             || value.app_id.eq_ignore_ascii_case("kain.fabric.dcc-suite")
     });
-    known_product_theme || known_product_app
+    known_product_theme || canonical_product_frame || known_product_app
+}
+
+fn runtime_shell_presentation<'a>(
+    snapshot: Option<&'a NativeAppRuntimeSnapshot>,
+) -> Option<&'a NativeAppRuntimeDccSuitePresentation> {
+    snapshot?.dcc_suite_state.as_ref().map(|state| &state.presentation)
 }
 
 fn widget_title_visible(
@@ -5162,10 +5199,12 @@ impl eframe::App for KainUiNativeApp {
         let theme_registry = self.output.systems.theme_registry.clone();
         let product_shell =
             is_product_desktop_theme(&app_theme, self.app_runtime_snapshot.as_ref());
-        let show_topbar = show_runtime_topbar(&app_theme, false) && !product_shell;
+        let presentation = runtime_shell_presentation(self.app_runtime_snapshot.as_ref());
+        let show_topbar = show_runtime_topbar(&app_theme, false)
+            && !presentation.is_some_and(|value| value.fixed_workspace_frame);
         let show_inspector = show_runtime_inspector(&app_theme, false)
             && self.runtime_settings.show_runtime_inspector
-            && !product_shell;
+            && !presentation.is_some_and(|value| value.fixed_workspace_frame);
 
         if show_topbar {
             trace_runtime("app_update: topbar");

@@ -8,6 +8,7 @@ import { build as esbuildBuild } from "esbuild";
 const runtimeFile = fileURLToPath(import.meta.url);
 const runtimeDirectory = path.dirname(runtimeFile);
 const defaultManifestPath = "manifests/app.json";
+const dashboardEntryName = "dashboard.html";
 
 const contentTypesByExtension = {
   ".css": "text/css; charset=utf-8",
@@ -177,17 +178,97 @@ function createHtmlDocument(model) {
 `;
 }
 
+function createDashboardDocument(model) {
+  const dashboardRows = [
+    ["Workspaces", model.workspaces.length],
+    ["Tools", model.tools.length],
+    ["Brushes", model.brushes.length],
+    ["Panels", model.panels.length],
+    ["Scenes", model.scenes.length],
+  ]
+    .map(([label, value]) => `        <li><strong>${label}</strong><span>${value}</span></li>`)
+    .join("\n");
+
+  const registryCards = Object.entries({
+    workspaces: model.workspaces,
+    tools: model.tools,
+    brushes: model.brushes,
+    panels: model.panels,
+    scenes: model.scenes,
+  })
+    .map(
+      ([name, entries]) => `      <section class="card">
+        <h2>${name}</h2>
+        <p>${entries.length} registered entries</p>
+      </section>`,
+    )
+    .join("\n");
+
+  const appModelPath = toPosixPath(path.relative(model.output_root_absolute, path.join(model.output_root_absolute, "app-model.json")));
+  const buildReportPath = toPosixPath(path.relative(model.output_root_absolute, path.join(model.output_root_absolute, "build-report.json")));
+  const clientBundlePath = toPosixPath(path.relative(model.output_root_absolute, model.client_bundle_absolute));
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${model.name} — Dev Dashboard</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+      body { margin: 0; background: #0f1218; color: #f5f2eb; }
+      main { max-width: 1120px; margin: 0 auto; padding: 32px; }
+      .hero, .card, .artifact { background: #181d27; border: 1px solid #2d3645; border-radius: 16px; }
+      .hero { padding: 24px; display: grid; gap: 16px; margin-bottom: 20px; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+      .card, .artifact { padding: 16px; }
+      ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+      li { display: flex; justify-content: space-between; gap: 12px; }
+      code { background: #11151c; padding: 2px 6px; border-radius: 6px; }
+      a { color: #ffd18c; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div>
+          <h1>${model.name}</h1>
+          <p>${model.summary}</p>
+        </div>
+        <ul>
+${dashboardRows}
+        </ul>
+      </section>
+      <section class="grid">
+${registryCards}
+      </section>
+      <section class="artifact" style="margin-top: 20px;">
+        <h2>Packaging outputs</h2>
+        <ul>
+          <li><strong>App model</strong><span><code>${appModelPath}</code></span></li>
+          <li><strong>Build report</strong><span><code>${buildReportPath}</code></span></li>
+          <li><strong>Client bundle</strong><span><code>${clientBundlePath}</code></span></li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>
+`;
+}
+
 async function emitRuntimeOutputs(model, clientArtifacts) {
   await ensureDirectory(model.output_root_absolute);
 
   const runtimeModelPath = path.join(model.output_root_absolute, "app-model.json");
   const buildReportPath = path.join(model.output_root_absolute, "build-report.json");
   const htmlDocument = createHtmlDocument(model);
+  const dashboardDocument = createDashboardDocument(model);
   const summary = buildSummary(model);
 
   await fs.writeFile(runtimeModelPath, JSON.stringify(model, null, 2) + "\n", "utf8");
   await fs.writeFile(buildReportPath, JSON.stringify({ summary, clientArtifacts }, null, 2) + "\n", "utf8");
   await fs.writeFile(model.html_entry_absolute, htmlDocument, "utf8");
+  await fs.writeFile(path.join(model.output_root_absolute, dashboardEntryName), dashboardDocument, "utf8");
 
   return summary;
 }
@@ -275,6 +356,13 @@ async function runCli() {
 
   if (command === "serve") {
     await serveApp(".", manifestPath);
+    return;
+  }
+
+  if (command === "dashboard") {
+    const model = await loadAppConfig(".", manifestPath);
+    await buildApp(".", manifestPath);
+    console.log(JSON.stringify({ dashboard: path.join(model.output_root_absolute, dashboardEntryName) }, null, 2));
     return;
   }
 

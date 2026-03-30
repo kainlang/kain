@@ -8,6 +8,7 @@
     "bundle:client": "node ./helpers/studio_runtime.mjs bundle-client manifests/app.json",
     "build": "node ./helpers/studio_runtime.mjs build manifests/app.json",
     "print": "node ./helpers/studio_runtime.mjs print manifests/app.json",
+    "dashboard": "node ./helpers/studio_runtime.mjs dashboard manifests/app.json",
     "serve": "node ./helpers/studio_runtime.mjs serve manifests/app.json",
     "desktop:dev": "npm run build && electron .",
     "desktop:package": "npm run build && electron-builder -w portable"

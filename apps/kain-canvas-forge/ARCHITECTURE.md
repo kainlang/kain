@@ -75,7 +75,8 @@ cargo run -p cli --bin kain -- run apps/kain-canvas-forge/src/main.kn
 
 ## Common Errors
 
-- `npm install` must run before the bundler or Electron scripts can work because `esbuild`, `preact`, `three`, and `electron` are Node dependencies, not repo-global guarantees.
+- `npm install` must run before the bundler, dashboard, or Electron scripts can work because `esbuild`, `preact`, `three`, and `electron` are Node dependencies, not repo-global guarantees.
 - `outputs/` is disposable generated output and should be rebuilt rather than edited.
+- `npm run dashboard` is the fastest way to inspect manifest counts and packaged artifact paths without opening the full studio shell.
 - If the client bundle is missing, rerun `npm run build` before launching the desktop wrapper.
 

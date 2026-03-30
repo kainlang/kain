@@ -12,6 +12,26 @@ pub const PRESENTATION_DOCUMENT_FLOW_ENV: &str = "KAIN_UI_NATIVE_DOCUMENT_FLOW";
 pub const CONTRACT_ROOT_URI: &str = "bridge://kain-fabric-dcc-suite/native";
 pub const CONTRACT_ROOT_REPORT_URI: &str = "report://bridge/native-contract";
 
+pub const MESH_CONTRACT_DOCUMENT_ID: &str = "mesh_resource_contract_document";
+pub const MESH_CONTRACT_DOCUMENT_URI: &str = "mesh://contract/current";
+pub const MESH_ACTIVE_EDIT_TARGET_ID: &str = "active_editable_mesh_document";
+pub const MESH_ACTIVE_EDIT_TARGET_URI: &str = "mesh://editing/active";
+pub const MESH_IMPORTED_PAYLOAD_DOCUMENT_ID: &str = "imported_mesh_payload_document";
+pub const MESH_IMPORTED_PAYLOAD_URI: &str = "mesh://imports/current/payloads";
+pub const MESH_AUTHORED_PRIMITIVE_DOCUMENT_ID: &str = "authored_primitive_definition_document";
+pub const MESH_AUTHORED_PRIMITIVE_URI: &str = "mesh://primitives/authored/definitions";
+pub const MESH_TOPOLOGY_OUTPUT_DOCUMENT_ID: &str = "topology_output_mesh_document";
+pub const MESH_TOPOLOGY_OUTPUT_URI: &str = "mesh://topology/output/current";
+pub const TOPOLOGY_HISTORY_DOCUMENT_ID: &str = "topology_history_mesh_document";
+pub const TOPOLOGY_HISTORY_DOCUMENT_URI: &str = "mesh://topology/history/current";
+
+pub const MESH_CONTRACT_REPORT_ID: &str = "mesh_contract_report";
+pub const MESH_CONTRACT_REPORT_URI: &str = "report://mesh/contract";
+pub const MESH_CONTRACT_REPORT_PATH: &str = "state/mesh_contract_report.json";
+pub const TOPOLOGY_HISTORY_REPORT_ID: &str = "topology_history_report";
+pub const TOPOLOGY_HISTORY_REPORT_URI: &str = "report://topology/history";
+pub const TOPOLOGY_HISTORY_REPORT_PATH: &str = "state/topology_history_report.json";
+
 pub const TOPIC_TOPOLOGY: &str = "topology";
 pub const TOPIC_SCULPT: &str = "sculpt";
 pub const TOPIC_MESH: &str = "mesh";

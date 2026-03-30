@@ -1,12 +1,57 @@
 """
-Python-based validation rules for KAIN Oracle
-Allows dynamic rule loading and custom validation logic
+Python-based validation rules for KAIN Oracle.
+
+This lane is a consumer, not the owner, of semantic truth. When a canonical
+contract profile is available, rules should read that profile instead of
+hardcoding project semantics in Python.
 """
 
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+import json
+import os
 import re
+
+
+_CANONICAL_RULE_PROFILE: Optional[Dict[str, Any]] = None
+
+
+def _load_canonical_rule_profile() -> Dict[str, Any]:
+    global _CANONICAL_RULE_PROFILE
+    if _CANONICAL_RULE_PROFILE is not None:
+        return _CANONICAL_RULE_PROFILE
+
+    profile: Dict[str, Any] = {}
+    candidate_paths = []
+
+    env_path = os.environ.get("KAIN_UE5_RULE_PROFILE")
+    if env_path:
+        candidate_paths.append(Path(env_path))
+
+    candidate_paths.extend(
+        [
+            Path.cwd() / "generated" / "schema" / "ue5_rule_profile.json",
+            Path.cwd() / "generated" / "schemas" / "ue5_rule_profile.json",
+            Path(__file__).resolve().parent / "ue5_rule_profile.json",
+        ]
+    )
+
+    for path in candidate_paths:
+        if not path.exists():
+            continue
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(loaded, dict):
+            profile = loaded
+            profile.setdefault("source_path", str(path))
+            break
+
+    _CANONICAL_RULE_PROFILE = profile
+    return profile
 
 
 class IssueSeverity(Enum):
@@ -75,13 +120,22 @@ class ActorNamingRule(ValidationRule):
         issues = []
         name = data.get("name", "")
         
+        profile = _load_canonical_rule_profile()
+        reserved_prefixes = tuple(profile.get("reserved_actor_prefixes", ["U", "A", "F"]))
+        auto_prefix = profile.get("actor_auto_prefix", "A")
+
         # Check for reserved prefixes
-        if name.startswith("U") or name.startswith("A") or name.startswith("F"):
+        if name.startswith(reserved_prefixes):
             issues.append(ValidationIssue(
                 severity=IssueSeverity.WARNING,
                 category=IssueCategory.NAMING,
-                message=f"Actor '{name}' starts with UE5 prefix. The compiler will add 'A' prefix automatically.",
-                fix_suggestion=f"Rename to '{name[1:]}' and let the compiler add the 'A' prefix."
+                message=(
+                    f"Actor '{name}' starts with a reserved UE5 prefix. "
+                    f"The compiler will add '{auto_prefix}' automatically."
+                ),
+                fix_suggestion=(
+                    f"Rename to '{name[1:]}' and let the compiler add the '{auto_prefix}' prefix."
+                )
             ))
         
         # Check for numeric-only names
@@ -94,7 +148,12 @@ class ActorNamingRule(ValidationRule):
             ))
         
         # Check for overly generic names
-        generic_names = ["Actor", "Object", "Thing", "Item", "Entity"]
+        generic_names = tuple(
+            _load_canonical_rule_profile().get(
+                "generic_actor_names",
+                ["Actor", "Object", "Thing", "Item", "Entity"],
+            )
+        )
         if name in generic_names:
             issues.append(ValidationIssue(
                 severity=IssueSeverity.WARNING,
@@ -381,7 +440,12 @@ class MarketplaceNamingRule(ValidationRule):
         name = data.get("name", "")
         
         # Check for profanity or inappropriate names
-        inappropriate_words = ["test", "temp", "debug", "foo", "bar", "baz"]
+        inappropriate_words = tuple(
+            _load_canonical_rule_profile().get(
+                "marketplace_blacklist",
+                ["test", "temp", "debug", "foo", "bar", "baz"],
+            )
+        )
         if any(word in name.lower() for word in inappropriate_words):
             issues.append(ValidationIssue(
                 severity=IssueSeverity.WARNING,

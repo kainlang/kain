@@ -15,7 +15,7 @@ The goal is to prove that the current Node + TypeScript + Three lane can already
 ## Main Pieces
 
 - `manifests/*.json`: source of truth for workspaces, tools, brushes, panels, and 3D scene presets
-- `helpers/studio_runtime.mjs`: Node runtime for manifest loading, client bundling, HTML emission, and local serving
+- `helpers/studio_runtime.mjs`: Node runtime for manifest loading, client bundling, HTML/dashboard emission, and local serving
 - `helpers/client/*`: Preact + Three.js client bundle
 - `desktop/*`: Electron wrapper for desktop preview and packaging
 - `src/main.kn`: Kain orchestration entrypoint that drives the Node helper runtime

@@ -13,9 +13,14 @@
 - Reran `scripts/materialize-session-state.ps1` and `scripts/materialize-shell.ps1` so `state/runtime_snapshot.json`, `state/session_document.json`, and `generated/main.generated.kn` stayed aligned.
 - Clean extension seam: richer bridge/runtime telemetry can keep flowing into the same status rail later without hardcoding lane truth in the native shell.
 
-## 2026-03-29 - Native UI build stayed green after viewport promotion cuts
+## 2026-03-29 - Native shell now reads canonical presentation hints from the runtime snapshot
 
-- Rebuilt `apps/kain-fabric-dcc-suite` native UI after the viewport-promotion / slot-kill cut landed.
-- The only code drift needed for the build was in `crates/kain-ui-native/src/lib.rs`: two `let`-chain conditions were rewritten as nested `if let` checks so the crate stays compatible with the repo's current Rust edition.
-- Validation passed: `apps/kain-fabric-dcc-suite/native-app/kain-fabric-dcc-suite.exe` was rebuilt and synced successfully.
-- Build still emits a lot of pre-existing warnings in `ue5-materials`, `ue5-graphs`, `ue5-gas`, and `cli`, but no new errors.
+- Extended `crates/kain-ui-native` so the native host recognizes `dcc_suite_state.presentation` as the source for fixed-workspace / centered-layout shell behavior instead of relying only on host-local app/theme heuristics.
+- The DCC runtime snapshot already carries the presentation block from `native-app/src/runtime_bridge.rs`; the native UI now consumes it directly for topbar/inspector suppression and product-shell detection.
+- This is a small but important drift cut: the shell keeps its chrome decisions closer to the projected runtime contract rather than inventing presentation semantics locally.
+
+## 2026-03-29 - Bridge contract constants centralized for mesh/topology seams
+
+- Moved the canonical mesh contract, active edit target, imported payload, authored primitive, topology output, and topology-history ids/URIs plus report metadata into `native-app/src/bridge_contract.rs`.
+- Updated `native-app/src/runtime_bridge.rs` to write the shared constants back into session/report state so the live bridge stops duplicating those ids as local literals.
+- This reduces schema drift in the Fabric/runtime lane and keeps the native bridge behaving like a thin adapter instead of a parallel contract source.
