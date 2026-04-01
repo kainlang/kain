@@ -50,12 +50,16 @@ export type KainRuntimeRoutes = {
   chat?: string | null;
   chat_stream?: string | null;
   chat_ws?: string | null;
+  chat_tools?: string | null;
+  chat_tool_events?: string | null;
   realtime_stream?: string | null;
   realtime_ws?: string | null;
   uploads?: string | null;
   uploads_prefix?: string | null;
   analytics_event?: string | null;
   analytics_events?: string | null;
+  actors_dispatch?: string | null;
+  actors_events?: string | null;
 };
 
 export type KainRuntimeStorage = {
@@ -65,6 +69,8 @@ export type KainRuntimeStorage = {
   analytics?: string | null;
   auth?: string | null;
   chat?: string | null;
+  actors?: string | null;
+  tools?: string | null;
 };
 
 export type KainRuntimeConfig = {

@@ -160,18 +160,24 @@ function normalizeRuntimeConfig(app) {
       uploads: String(storage.uploads || "uploads"),
       analytics: String(storage.analytics || "analytics"),
       auth: String(storage.auth || "auth"),
-      chat: String(storage.chat || "chat")
+      chat: String(storage.chat || "chat"),
+      actors: String(storage.actors || "actors"),
+      tools: String(storage.tools || "tools")
     },
     routes: {
       chat: normalizeRoutePath(routes.chat, "/api/chat"),
       chat_stream: normalizeRoutePath(routes.chat_stream, "/api/chat/stream"),
       chat_ws: normalizeRoutePath(routes.chat_ws, "/ws/chat"),
+      chat_tools: normalizeRoutePath(routes.chat_tools, "/api/chat/tools"),
+      chat_tool_events: normalizeRoutePath(routes.chat_tool_events, "/api/chat/tools/events"),
       realtime_stream: normalizeRoutePath(routes.realtime_stream, "/api/realtime/stream"),
       realtime_ws: normalizeRoutePath(routes.realtime_ws, "/ws/realtime"),
       uploads: normalizeRoutePath(routes.uploads, "/api/uploads"),
       uploads_prefix: normalizeRoutePrefix(routes.uploads_prefix, "/uploads/"),
       analytics_event: normalizeRoutePath(routes.analytics_event, "/api/analytics/event"),
-      analytics_events: normalizeRoutePath(routes.analytics_events, "/api/analytics/events")
+      analytics_events: normalizeRoutePath(routes.analytics_events, "/api/analytics/events"),
+      actors_dispatch: normalizeRoutePath(routes.actors_dispatch, "/api/actors/dispatch"),
+      actors_events: normalizeRoutePath(routes.actors_events, "/api/actors/events")
     }
   };
 }
@@ -4279,12 +4285,16 @@ function buildSystemContract(model, siteData, actorServerPlan) {
   const chatHttp = normalizeRoutePath(runtimeRoutes.chat, "/api/chat");
   const chatStream = normalizeRoutePath(runtimeRoutes.chat_stream, "/api/chat/stream");
   const chatWs = normalizeRoutePath(runtimeRoutes.chat_ws, "/ws/chat");
+  const chatTools = normalizeRoutePath(runtimeRoutes.chat_tools, "/api/chat/tools");
+  const chatToolEvents = normalizeRoutePath(runtimeRoutes.chat_tool_events, "/api/chat/tools/events");
   const realtimeStream = normalizeRoutePath(runtimeRoutes.realtime_stream, "/api/realtime/stream");
   const realtimeWs = normalizeRoutePath(runtimeRoutes.realtime_ws, "/ws/realtime");
   const uploadsEndpoint = normalizeRoutePath(runtimeRoutes.uploads, "/api/uploads");
   const uploadsPrefix = normalizeRoutePrefix(runtimeRoutes.uploads_prefix, "/uploads/");
   const analyticsEvent = normalizeRoutePath(runtimeRoutes.analytics_event, "/api/analytics/event");
   const analyticsEvents = normalizeRoutePath(runtimeRoutes.analytics_events, "/api/analytics/events");
+  const actorsDispatch = normalizeRoutePath(runtimeRoutes.actors_dispatch, "/api/actors/dispatch");
+  const actorsEvents = normalizeRoutePath(runtimeRoutes.actors_events, "/api/actors/events");
   return {
     template: model.context.app.name,
     experience: {
@@ -4337,7 +4347,8 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     client_runtime_stack: "/api/runtime/client",
     server_runtime_stack: "/api/runtime/server",
     chat_playbooks: "/api/chat/playbooks",
-    chat_tools: "/api/chat/tools",
+    chat_tools: chatTools,
+    chat_tool_events: chatToolEvents,
     chat_memory: "/api/chat/memory",
     chat_models: "/api/chat/models",
     voice: "/api/voice",
@@ -4404,6 +4415,8 @@ function buildSystemContract(model, siteData, actorServerPlan) {
     event_bus: "/api/event-bus",
     data_pipelines: "/api/data-pipelines",
     actor_topology: "/api/actors/topology",
+    actor_dispatch: actorsDispatch,
+    actor_events: actorsEvents,
     actor_policies: "/api/actors/policies",
     actor_metrics: "/api/actors/metrics",
     actor_supervision: "/api/actors/supervision",
@@ -4642,12 +4655,16 @@ function buildUiSchema(model, siteData) {
   const chatHttp = normalizeRoutePath(runtimeRoutes.chat, "/api/chat");
   const chatStream = normalizeRoutePath(runtimeRoutes.chat_stream, "/api/chat/stream");
   const chatWs = normalizeRoutePath(runtimeRoutes.chat_ws, "/ws/chat");
+  const chatTools = normalizeRoutePath(runtimeRoutes.chat_tools, "/api/chat/tools");
+  const chatToolEvents = normalizeRoutePath(runtimeRoutes.chat_tool_events, "/api/chat/tools/events");
   const realtimeStream = normalizeRoutePath(runtimeRoutes.realtime_stream, "/api/realtime/stream");
   const realtimeWs = normalizeRoutePath(runtimeRoutes.realtime_ws, "/ws/realtime");
   const uploadsEndpoint = normalizeRoutePath(runtimeRoutes.uploads, "/api/uploads");
   const uploadsPrefix = normalizeRoutePrefix(runtimeRoutes.uploads_prefix, "/uploads/");
   const analyticsEvent = normalizeRoutePath(runtimeRoutes.analytics_event, "/api/analytics/event");
   const analyticsEvents = normalizeRoutePath(runtimeRoutes.analytics_events, "/api/analytics/events");
+  const actorsDispatch = normalizeRoutePath(runtimeRoutes.actors_dispatch, "/api/actors/dispatch");
+  const actorsEvents = normalizeRoutePath(runtimeRoutes.actors_events, "/api/actors/events");
   const islandKindForSectionKind = (kind) => {
     if (kind === "app_shell") return "app-shell";
     if (kind === "experience_catalog") return "experience-catalog";
@@ -4698,7 +4715,7 @@ function buildUiSchema(model, siteData) {
           island_kind: island,
           site_data: "site.data.json",
           server_endpoints: island === "chat"
-            ? { chat: chatHttp, stream: chatStream, ws: chatWs }
+            ? { chat: chatHttp, stream: chatStream, ws: chatWs, tools: chatTools, tool_events: chatToolEvents }
             : island === "realtime"
               ? { stream: realtimeStream, ws: realtimeWs }
               : island === "scene"
@@ -4722,7 +4739,13 @@ function buildUiSchema(model, siteData) {
                         stream: chatStream
                       }
                       : island === "actor-ops"
-                        ? { actors: "/api/actors", routes: "/api/routes", topology: "/api/actors/topology" }
+                        ? {
+                          actors: "/api/actors",
+                          routes: "/api/routes",
+                          topology: "/api/actors/topology",
+                          dispatch: actorsDispatch,
+                          events: actorsEvents
+                        }
                         : island === "experience-catalog"
                           ? { catalog: "/api/catalog" }
                         : island === "system-contract"
@@ -5202,6 +5225,9 @@ function buildApiRoutes(model, siteData) {
     { method: "GET", path: chatHttp, purpose: "returns chat seed messages or a local reply", actor: "chat_seed_router" },
     { method: "POST", path: chatHttp, purpose: "accepts a prompt payload and returns a local reply", actor: "chat_seed_router" },
     { method: "GET", path: chatStream, purpose: "returns a server-sent event preview for local chat pipelines", actor: "chat_seed_router" },
+    { method: "GET", path: chatTools, purpose: "returns chat tool metadata", actor: "chat_seed_router" },
+    { method: "POST", path: chatTools, purpose: "accepts chat tool dispatch payloads", actor: "chat_seed_router" },
+    { method: "GET", path: chatToolEvents, purpose: "returns recent chat tool dispatch events", actor: "chat_seed_router" },
     { method: "GET", path: "/api/chat/models", purpose: "returns model stack metadata", actor: "chat_seed_router" },
     { method: "GET", path: "/api/voice", purpose: "returns voice stack metadata", actor: "chat_seed_router" },
     { method: "GET", path: "/api/moderation", purpose: "returns moderation policy metadata", actor: "chat_seed_router" },
@@ -5721,6 +5747,55 @@ function persistSubmission(bundle, formId, payload) {
   return logPath;
 }
 
+function readJsonlEntries(filePath, limit = 80) {
+  if (!fs.existsSync(filePath)) return [];
+  const raw = fs.readFileSync(filePath, "utf8");
+  if (!raw.trim()) return [];
+  const lines = raw.trim().split(/\r?\n/);
+  const sliced = lines.slice(Math.max(0, lines.length - limit));
+  return sliced
+    .map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return { raw: line };
+      }
+    })
+    .filter(Boolean);
+}
+
+function persistToolCall(bundle, payload) {
+  const runtime = runtimeStorageForBundle(bundle);
+  const logPath = path.join(runtime.root_abs, runtime.tools, "tool_calls.jsonl");
+  const entry = {
+    id: crypto.randomUUID(),
+    created_at: new Date().toISOString(),
+    tool: payload?.tool || payload?.tool_id || null,
+    actor: payload?.actor || null,
+    prompt: payload?.prompt || null,
+    persona: payload?.persona || null,
+    mode: payload?.mode || null,
+    agent: payload?.agent || null,
+    payload: payload?.payload || payload?.args || payload || null
+  };
+  appendText(logPath, JSON.stringify(entry) + "\n");
+  return { logPath, entry };
+}
+
+function persistActorDispatch(bundle, payload) {
+  const runtime = runtimeStorageForBundle(bundle);
+  const logPath = path.join(runtime.root_abs, runtime.actors, "actor_events.jsonl");
+  const entry = {
+    id: crypto.randomUUID(),
+    created_at: new Date().toISOString(),
+    actor_id: payload?.actor_id || payload?.actor || null,
+    action: payload?.action || payload?.command || null,
+    payload: payload?.payload || payload?.args || payload || null
+  };
+  appendText(logPath, JSON.stringify(entry) + "\n");
+  return { logPath, entry };
+}
+
 function runtimeStorageForBundle(bundle) {
   const runtime = bundle.runtime || bundle.site_data?.runtime || {};
   const storage = runtime.storage || {};
@@ -5732,7 +5807,9 @@ function runtimeStorageForBundle(bundle) {
     uploads: String(storage.uploads || "uploads"),
     analytics: String(storage.analytics || "analytics"),
     auth: String(storage.auth || "auth"),
-    chat: String(storage.chat || "chat")
+    chat: String(storage.chat || "chat"),
+    actors: String(storage.actors || "actors"),
+    tools: String(storage.tools || "tools")
   };
 }
 

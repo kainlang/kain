@@ -30,3 +30,13 @@ export function normalizeSelectionLabel(value) {
     .replace(/[^a-zA-Z0-9\s\-_.]/g, "")
     .slice(0, 80);
 }
+
+/**
+ * @param {string} value
+ * @returns {string}
+ */
+export function normalizeToolPayload(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return raw.slice(0, 1200);
+}

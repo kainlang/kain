@@ -53,18 +53,24 @@
       "uploads": "uploads",
       "analytics": "analytics",
       "auth": "auth",
-      "chat": "chat"
+      "chat": "chat",
+      "actors": "actors",
+      "tools": "tools"
     },
     "routes": {
       "chat": "/api/chat",
       "chat_stream": "/api/chat/stream",
       "chat_ws": "/ws/chat",
+      "chat_tools": "/api/chat/tools",
+      "chat_tool_events": "/api/chat/tools/events",
       "realtime_stream": "/api/realtime/stream",
       "realtime_ws": "/ws/realtime",
       "uploads": "/api/uploads",
       "uploads_prefix": "/uploads/",
       "analytics_event": "/api/analytics/event",
-      "analytics_events": "/api/analytics/events"
+      "analytics_events": "/api/analytics/events",
+      "actors_dispatch": "/api/actors/dispatch",
+      "actors_events": "/api/actors/events"
     },
     "client_features": [
       "metric_card",
@@ -106,6 +112,10 @@
       "kain_script_stack",
       "client_runtime_stack",
       "server_runtime_stack",
+      "chat_tools",
+      "chat_tool_events",
+      "actor_dispatch",
+      "actor_events",
       "uploads_lab",
       "analytics_lab",
       "analytics_stack",
