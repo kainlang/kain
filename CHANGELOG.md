@@ -5,6 +5,53 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=5c41c42ccdbdf9fa -->
+## 2026-04-01 16:59:25 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `29051154`
+- Changed files: 14
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/cli/src/repair.rs`
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+- [.M] `crates/kain-repair/src/engine.rs`
+- [.M] `crates/kain-repair/src/lib.rs`
+- [.M] `crates/kain-repair/src/registry.rs`
+- [.M] `crates/kain-repair/tests/fixtures/kain_repair_reserved_self.kn`
+- [.M] `crates/kain-repair/tests/repair_fixtures.rs`
+- [.M] `crates/repomap.md`
+- [??] `crates/kain-repair/tests/fixtures/kain_repair_declaration_headers.kn`
+- [??] `crates/kain-repair/tests/fixtures/kain_repair_impl_type_tokens.kn`
+- [??] `crates/kain-repair/tests/fixtures/kain_repair_nested_declarations.kn`
+
+<!-- polytools-changelog:fingerprint=49664a95eb435684 -->
+## 2026-03-29 21:06:00 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `29051154`
+- Changed files: 8
+- [.M] `crates/cli/src/lib.rs`
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/cli/src/repair.rs`
+- [.M] `crates/kain-repair/src/engine.rs`
+- [.M] `crates/kain-repair/src/lib.rs`
+- [.M] `crates/kain-repair/src/registry.rs`
+- [.M] `crates/kain-repair/tests/repair_fixtures.rs`
+- [??] `crates/kain-repair/tests/fixtures/kain_repair_declaration_headers.kn`
+
+<!-- polytools-changelog:fingerprint=2686861befe5a34f -->
+## 2026-03-29 21:05:40 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `29051154`
+- Changed files: 7
+- [.M] `crates/cli/src/main.rs`
+- [.M] `crates/cli/src/repair.rs`
+- [.M] `crates/kain-repair/src/engine.rs`
+- [.M] `crates/kain-repair/src/lib.rs`
+- [.M] `crates/kain-repair/src/registry.rs`
+- [.M] `crates/kain-repair/tests/repair_fixtures.rs`
+- [??] `crates/kain-repair/tests/fixtures/kain_repair_declaration_headers.kn`
+
 <!-- polytools-changelog:fingerprint=12a1dc8e22adb243 -->
 ## 2026-03-29 21:00:28 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

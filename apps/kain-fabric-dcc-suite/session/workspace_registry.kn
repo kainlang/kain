@@ -7,57 +7,69 @@ struct WorkspaceDescriptor:
 fn default_workspaces() -> Array<WorkspaceDescriptor>:
     return [
         WorkspaceDescriptor {
-            id: "scene_assembly",
-            label: "Scene Assembly",
+            id: "layout",
+            label: "Layout",
             focus_surface: "viewport_stage",
-            summary: "Scene graph authoring, layout, asset placement, and evaluation flow"
+            summary: "Scene layout, blocking, outliner structure, and set dressing"
         },
         WorkspaceDescriptor {
-            id: "sculpt_model",
-            label: "Sculpt And Model",
+            id: "model",
+            label: "Model",
             focus_surface: "viewport_stage",
-            summary: "Modeling, sculpting, remesh, and topology shaping"
+            summary: "Hard-surface modeling and mesh construction"
         },
         WorkspaceDescriptor {
-            id: "material_lookdev",
-            label: "Material And Lookdev",
+            id: "sculpt",
+            label: "Sculpt",
             focus_surface: "viewport_stage",
-            summary: "PBR texture sets, svg masks, smart materials, and packed export authoring"
+            summary: "Brush-first sculpting, heightfields, and topology shaping"
         },
         WorkspaceDescriptor {
-            id: "rig_anim",
-            label: "Rig And Animation",
+            id: "paint",
+            label: "Paint",
             focus_surface: "viewport_stage",
-            summary: "Rig controls, clips, and deformation review"
+            summary: "Texture paint, masks, and export receipts"
         },
         WorkspaceDescriptor {
-            id: "sim_fx",
-            label: "Simulation And FX",
+            id: "lookdev",
+            label: "Lookdev",
             focus_surface: "viewport_stage",
-            summary: "Caches, solvers, and replay diagnostics"
+            summary: "Material authoring, UV policy, and lookdev review"
         },
         WorkspaceDescriptor {
-            id: "render_comp",
-            label: "Render And Composite",
+            id: "rig",
+            label: "Rig",
             focus_surface: "viewport_stage",
-            summary: "Render products, frame assembly, and compositor planning"
+            summary: "Control rigs and deformation setup"
         },
         WorkspaceDescriptor {
-            id: "publish_automation",
-            label: "Publish And Automation",
+            id: "animate",
+            label: "Animate",
             focus_surface: "viewport_stage",
-            summary: "Package review, delivery, and recurring automation"
+            summary: "Blocking, playback, clips, and timing review"
         },
         WorkspaceDescriptor {
-            id: "jobs_orchestration",
-            label: "Jobs And Orchestration",
+            id: "sim",
+            label: "Sim",
             focus_surface: "viewport_stage",
-            summary: "Retry ledgers, queue dispatch, receipts, and launch gating"
+            summary: "Solver planning, cache review, and diagnostics"
         },
         WorkspaceDescriptor {
-            id: "runtime_reflection",
-            label: "Runtime Reflection",
+            id: "render",
+            label: "Render",
             focus_surface: "viewport_stage",
-            summary: "Schema catalogs, registry views, and reflected launch metadata"
+            summary: "Render preview, pathtrace, accumulation, and review capture"
+        },
+        WorkspaceDescriptor {
+            id: "compositing",
+            label: "Compositing",
+            focus_surface: "viewport_stage",
+            summary: "Frame assembly, AOV review, and compositor rebuild"
+        },
+        WorkspaceDescriptor {
+            id: "publish",
+            label: "Publish",
+            focus_surface: "viewport_stage",
+            summary: "Packaging, lineage, delivery, and automation"
         }
     ]

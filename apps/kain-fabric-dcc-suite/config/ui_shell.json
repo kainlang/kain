@@ -75,6 +75,12 @@
         "caption": "lane matrix"
       },
       {
+        "id": "power_lane_count",
+        "label": "Power",
+        "metric_source": "power_lane_count",
+        "caption": "Kain + Fabric + Python + GPU + C ABI + Rust + Node"
+      },
+      {
         "id": "runtime_lane_summary",
         "label": "Lane Map",
         "metric_source": "runtime_lane_summary",
@@ -85,6 +91,12 @@
         "label": "Lane Roster",
         "metric_source": "runtime_lane_registry_summary",
         "caption": "registry-backed lane ownership"
+      },
+      {
+        "id": "viewport_mode_count",
+        "label": "Viewport Modes",
+        "metric_source": "viewport_mode_count",
+        "caption": "layout / model / sculpt / paint / lookdev / render"
       },
       {
         "id": "asset_ingest_status",
@@ -109,6 +121,12 @@
         "label": "Lane Signal",
         "metric_source": "runtime_lane_health_detail",
         "caption": "health detail"
+      },
+      {
+        "id": "assist_context_summary",
+        "label": "Assist",
+        "metric_source": "assist_context_summary",
+        "caption": "mode / tool / tensor"
       },
       {
         "id": "render_preview_chain",
@@ -170,6 +188,97 @@
         "publish.package"
       ]
     },
+    "dock_spine": {
+    "title": "Workbench Dock Spine",
+    "summary": "Persistent dock groups that keep tabs, panes, and persistent rails mounted like a workstation instead of a page.",
+    "regions": {
+      "left": {
+        "role": "authoring_rail",
+        "behavior": "pinned",
+        "tab_policy": "stacked",
+        "pane_policy": "persistent",
+        "group_ids": ["workspace_navigator", "scene_graph", "asset_ingest", "tool_shelf"]
+      },
+      "right": {
+        "role": "inspector_rail",
+        "behavior": "pinned",
+        "tab_policy": "stacked",
+        "pane_policy": "persistent",
+        "group_ids": ["selection_inspector", "runtime_lane_map", "property_grid", "report_browser", "asset_registry", "asset_pipeline_manifest", "publish_console"]
+      },
+      "bottom": {
+        "role": "execution_rail",
+        "behavior": "pinned",
+        "tab_policy": "stacked",
+        "pane_policy": "persistent",
+        "group_ids": ["status_strip", "animation_timeline", "jobs_monitor", "compositor_stack", "rig_graph", "simulation_board"]
+      },
+      "top": {
+        "role": "command_rail",
+        "behavior": "anchored",
+        "tab_policy": "single",
+        "pane_policy": "launcher",
+        "group_ids": ["command_palette"]
+      },
+      "center": {
+        "role": "stage_surface",
+        "behavior": "locked",
+        "tab_policy": "single",
+        "pane_policy": "primary",
+        "group_ids": ["viewport_stage"]
+      }
+    },
+    "tab_groups": [
+      {
+        "id": "dcc-workspaces",
+        "title": "Workspace Modes",
+        "role": "mode_switcher",
+        "surfaces": ["scene_assembly", "sculpt_model", "material_lookdev", "rig_anim", "sim_fx", "render_comp", "publish_automation"],
+        "persistent": true
+      },
+      {
+        "id": "dcc-pane-rails",
+        "title": "Dock Rails",
+        "role": "pane_stack",
+        "surfaces": ["workspace_navigator", "selection_inspector", "property_grid", "status_strip"],
+        "persistent": true
+      },
+      {
+        "id": "dcc-inspector-tabs",
+        "title": "Inspector Tabs",
+        "role": "inspector_cluster",
+        "surfaces": ["runtime_lane_map", "asset_registry", "asset_pipeline_manifest", "report_browser"],
+        "persistent": true
+      }
+    ],
+    "pane_semantics": {
+      "persistent_surfaces": ["viewport_stage", "workspace_navigator", "scene_graph", "asset_ingest", "tool_shelf", "selection_inspector", "runtime_lane_map", "property_grid", "report_browser", "asset_registry", "asset_pipeline_manifest", "status_strip", "animation_timeline", "jobs_monitor", "compositor_stack", "rig_graph", "simulation_board", "command_palette", "publish_console"],
+      "tabbed_surfaces": ["runtime_lane_map", "asset_registry", "asset_pipeline_manifest", "report_browser", "property_grid", "selection_inspector"],
+      "launcher_surfaces": ["command_palette"],
+      "stage_surfaces": ["viewport_stage"]
+    },
+    "surface_contracts": {
+      "viewport_stage": {
+        "kind": "primary_stage",
+        "dock": "center",
+        "behavior": "locked"
+      },
+      "workspace_navigator": {
+        "kind": "mode_rail",
+        "dock": "left",
+        "behavior": "persistent"
+      },
+      "selection_inspector": {
+        "kind": "inspector_rail",
+        "dock": "right",
+        "behavior": "persistent"
+      },
+      "status_strip": {
+        "kind": "status_rail",
+        "dock": "bottom",
+        "behavior": "persistent"
+      }
+    },
     "workspace_switcher": {
       "eyebrow": "Workspace Switcher",
       "title": "Outliner Navigation",
@@ -178,7 +287,7 @@
     "workspace_navigator": {
       "eyebrow": "Workspace Navigator",
       "title": "Outliner Rail",
-      "summary": "Docked outliner rail keeps the active mode, return path, and native system seams obvious.",
+      "summary": "Docked outliner rail keeps the active mode, return path, assist context, and native system seams obvious.",
       "properties": [
         {
           "label": "Active scene",
@@ -271,6 +380,11 @@
           "detail": "registry-owned"
         },
         {
+          "label": "Viewport",
+          "value": "Mode-aware",
+          "detail": "layout / model / sculpt / paint / lookdev / render"
+        },
+        {
           "label": "Selection",
           "value": "Context visible",
           "detail": "mode-local"
@@ -344,355 +458,170 @@
   },
   "workspace_pages": [
     {
-      "mode_id": "scene_assembly",
-      "tab_label": "Scene",
-      "title": "Scene Workbench",
-      "hero_title": "Viewport-first scene assembly",
-      "hero_summary": "The docked outliner and tools stay pinned left, attributes and registries stay right, and the timeline and jobs sit on the bottom rail.",
+      "mode_id": "layout",
+      "tab_label": "Layout",
+      "title": "Layout Workbench",
+      "hero_title": "Scene layout and blocking",
+      "hero_summary": "The docked outliner and placement tools stay pinned left, attributes and registries stay right, and the timeline and jobs sit on the bottom rail.",
       "focus_surface_id": "viewport_stage",
-      "featured_tool_ids": [
-        "select",
-        "kitbash_placement"
-      ],
-      "quick_command_ids": [
-        "project.bootstrap",
-        "workspace.switch_mode",
-        "ui.show_command_palette",
-        "asset.ingest_package",
-        "asset.route_source_manifest",
-        "asset.route_scene_exchange",
-        "asset.route_asset_lineage",
-        "render.preview",
-        "render.pathtrace_preview",
-        "render.review_capture"
-      ],
-      "center_surface_ids": [
-        "viewport_stage"
-      ],
-      "right_surface_ids": [
-        "selection_inspector",
-        "runtime_lane_map",
-        "command_palette",
-        "property_grid",
-        "report_browser",
-        "asset_registry",
-        "asset_pipeline_manifest"
-      ],
-      "bottom_surface_ids": [
-        "status_strip",
-        "animation_timeline",
-        "jobs_monitor"
-      ],
-      "intent_ids": [
-        "project.bootstrap",
-        "asset.ingest_package",
-        "render.preview",
-        "render.pathtrace_preview",
-        "render.review_capture",
-        "publish.package"
-      ],
-      "left_surface_ids": [
-        "scene_graph",
-        "asset_ingest",
-        "workspace_navigator",
-        "tool_shelf"
-      ]
+      "featured_tool_ids": ["select", "kitbash_placement"],
+      "quick_command_ids": ["project.bootstrap", "workspace.switch_mode", "ui.show_command_palette", "asset.ingest_package", "asset.route_source_manifest", "render.preview"],
+      "center_surface_ids": ["viewport_stage"],
+      "right_surface_ids": ["selection_inspector", "runtime_lane_map", "command_palette", "property_grid", "report_browser", "asset_registry", "asset_pipeline_manifest"],
+      "bottom_surface_ids": ["status_strip", "animation_timeline", "jobs_monitor"],
+      "intent_ids": ["project.bootstrap", "asset.ingest_package", "render.preview", "publish.package"],
+      "left_surface_ids": ["scene_graph", "asset_ingest", "workspace_navigator", "tool_shelf"]
     },
     {
-      "mode_id": "sculpt_model",
+      "mode_id": "model",
       "tab_label": "Model",
       "title": "Model Workbench",
-      "hero_title": "Viewport-dominant sculpting",
-      "hero_summary": "Brushes, topology, and attribute inspection stay wrapped around the central viewport.",
+      "hero_title": "Mesh construction bench",
+      "hero_summary": "Hard-surface modeling, polygon editing, and topology control stay close to the viewport and property rail.",
       "focus_surface_id": "viewport_stage",
-      "featured_tool_ids": [
-        "poly_extrude",
-        "clay_sculpt",
-        "voxel_rebuild"
-      ],
-      "quick_command_ids": [
-        "tool.activate",
-        "selection.set",
-        "ui.open_property_grid",
-        "sculpt.apply_stroke",
-        "topology.rebuild",
-        "render.pathtrace_preview"
-      ],
-      "center_surface_ids": [
-        "viewport_stage"
-      ],
-      "right_surface_ids": [
-        "selection_inspector",
-        "workspace_navigator",
-        "runtime_lane_map",
-        "asset_pipeline_manifest",
-        "property_grid",
-        "tool_shelf",
-        "report_browser"
-      ],
-      "bottom_surface_ids": [
-        "status_strip",
-        "rig_graph",
-        "jobs_monitor"
-      ],
-      "intent_ids": [
-        "sculpt.apply_stroke",
-        "topology.rebuild",
-        "material.bake_preview",
-        "publish.package",
-        "render.pathtrace_preview"
-      ],
-      "left_surface_ids": [
-        "scene_graph",
-        "tool_shelf",
-        "workspace_navigator"
-      ]
+      "featured_tool_ids": ["poly_extrude", "edge_loop"],
+      "quick_command_ids": ["tool.activate", "selection.set", "ui.open_property_grid", "topology.rebuild", "render.pathtrace_preview"],
+      "center_surface_ids": ["viewport_stage"],
+      "right_surface_ids": ["selection_inspector", "runtime_lane_map", "asset_pipeline_manifest", "property_grid", "report_browser"],
+      "bottom_surface_ids": ["status_strip", "jobs_monitor"],
+      "intent_ids": ["topology.rebuild", "material.bake_preview", "publish.package"],
+      "left_surface_ids": ["scene_graph", "tool_shelf", "workspace_navigator"]
     },
     {
-      "mode_id": "material_lookdev",
+      "mode_id": "sculpt",
+      "tab_label": "Sculpt",
+      "title": "Sculpt Workbench",
+      "hero_title": "Brush-first mesh shaping",
+      "hero_summary": "Brushes, heightfield iteration, and deform-heavy edits stay wrapped around the center viewport like a true sculpt bench.",
+      "focus_surface_id": "viewport_stage",
+      "featured_tool_ids": ["clay_sculpt", "voxel_rebuild"],
+      "quick_command_ids": ["tool.activate", "selection.set", "ui.open_property_grid", "sculpt.apply_stroke", "topology.rebuild"],
+      "center_surface_ids": ["viewport_stage"],
+      "right_surface_ids": ["selection_inspector", "runtime_lane_map", "asset_pipeline_manifest", "property_grid", "report_browser"],
+      "bottom_surface_ids": ["status_strip", "rig_graph", "jobs_monitor"],
+      "intent_ids": ["sculpt.apply_stroke", "topology.rebuild", "material.bake_preview", "publish.package"],
+      "left_surface_ids": ["scene_graph", "tool_shelf", "workspace_navigator"]
+    },
+    {
+      "mode_id": "paint",
+      "tab_label": "Paint",
+      "title": "Paint Workbench",
+      "hero_title": "Texture paint console",
+      "hero_summary": "Paint layers, masks, channels, and export receipts stay in a premium painter layout with the viewport still centered.",
+      "focus_surface_id": "viewport_stage",
+      "featured_tool_ids": ["material_layer_paint", "svg_mask_shape", "channel_pack_export"],
+      "quick_command_ids": ["material.paint_layer", "material.edit_svg_mask", "material.export_textures", "material.inspect_paint_runtime", "material.inspect_uv_policy"],
+      "center_surface_ids": ["viewport_stage"],
+      "right_surface_ids": ["material_layers", "texture_set_inspector", "property_grid", "material_export_board", "report_browser", "asset_pipeline_manifest"],
+      "bottom_surface_ids": ["status_strip", "compositor_stack", "jobs_monitor"],
+      "intent_ids": ["material.paint_layer", "material.edit_svg_mask", "material.export_textures", "asset.ingest_package"],
+      "left_surface_ids": ["tool_shelf", "workspace_navigator"]
+    },
+    {
+      "mode_id": "lookdev",
       "tab_label": "Lookdev",
       "title": "Lookdev Workbench",
-      "hero_title": "Viewport-led lookdev",
-      "hero_summary": "Texture sets, paint layers, UV policy, masks, and export presets stay first-class around the viewport.",
+      "hero_title": "Material review and shading",
+      "hero_summary": "Texture sets, smart materials, UV policy, and lookdev receipts sit in the docked viewport frame.",
       "focus_surface_id": "viewport_stage",
-      "featured_tool_ids": [
-        "material_layer_paint",
-        "texture_bake",
-        "smart_material_stack",
-        "svg_mask_shape",
-        "channel_pack_export"
-      ],
-      "quick_command_ids": [
-        "material.bake_preview",
-        "material.author_texture_set",
-        "ui.open_property_grid",
-        "material.paint_layer",
-        "material.edit_svg_mask",
-        "material.export_textures",
-        "material.inspect_paint_runtime",
-        "material.inspect_uv_policy",
-        "material.inspect_deformation_surface",
-        "render.pathtrace_preview"
-      ],
-      "center_surface_ids": [
-        "viewport_stage"
-      ],
-      "right_surface_ids": [
-        "material_layers",
-        "texture_set_inspector",
-        "workspace_navigator",
-        "runtime_lane_map",
-        "asset_pipeline_manifest",
-        "property_grid",
-        "material_uv_policy_surface",
-        "material_deformation_surface",
-        "material_export_board",
-        "report_browser"
-      ],
-      "bottom_surface_ids": [
-        "status_strip",
-        "compositor_stack",
-        "jobs_monitor"
-      ],
-      "intent_ids": [
-        "material.bake_preview",
-        "material.export_textures",
-        "render.preview",
-        "render.pathtrace_preview",
-        "compositor.rebuild"
-      ],
-      "left_surface_ids": [
-        "tool_shelf",
-        "workspace_navigator"
-      ]
+      "featured_tool_ids": ["texture_bake", "smart_material_stack", "scan_ingest_plate", "sampler_scan_mask"],
+      "quick_command_ids": ["material.bake_preview", "material.author_texture_set", "material.ingest_scan_plate", "material.resolve_smart_mask", "ui.open_property_grid", "material.review_export_receipt", "material.inspect_paint_runtime", "material.inspect_uv_policy", "material.inspect_deformation_surface", "render.preview"],
+      "center_surface_ids": ["viewport_stage"],
+      "right_surface_ids": ["material_layers", "texture_set_inspector", "property_grid", "material_paint_runtime_surface", "material_uv_policy_surface", "material_deformation_surface", "material_export_board", "report_browser", "asset_pipeline_manifest"],
+      "bottom_surface_ids": ["status_strip", "compositor_stack", "jobs_monitor"],
+      "intent_ids": ["material.bake_preview", "material.export_textures", "render.preview", "compositor.rebuild", "asset.ingest_package"],
+      "left_surface_ids": ["tool_shelf", "workspace_navigator"]
     },
     {
-      "mode_id": "rig_anim",
+      "mode_id": "rig",
       "tab_label": "Rig",
       "title": "Rig Workbench",
-      "hero_title": "Rig and animation in one bench",
-      "hero_summary": "Graphs, clips, and validation stay inside the same frame.",
+      "hero_title": "Control rig bench",
+      "hero_summary": "Controls, deformation setup, and solver sync stay inside one disciplined rigging station.",
       "focus_surface_id": "viewport_stage",
-      "featured_tool_ids": [
-        "control_rig_edit",
-        "clip_blocking"
-      ],
-      "quick_command_ids": [
-        "rig.sync_controls",
-        "selection.set",
-        "ui.open_property_grid",
-        "render.preview",
-        "render.pathtrace_preview"
-      ],
-      "center_surface_ids": [
-        "viewport_stage"
-      ],
-      "right_surface_ids": [
-        "selection_inspector",
-        "workspace_navigator",
-        "runtime_lane_map",
-        "property_grid",
-        "tool_shelf",
-        "report_browser"
-      ],
-      "bottom_surface_ids": [
-        "status_strip",
-        "simulation_board",
-        "jobs_monitor"
-      ],
-      "intent_ids": [
-        "rig.sync_controls",
-        "render.preview",
-        "render.pathtrace_preview",
-        "publish.package"
-      ],
-      "left_surface_ids": [
-        "scene_graph",
-        "tool_shelf",
-        "workspace_navigator"
-      ]
-    },
-    {
-      "mode_id": "sim_fx",
-      "tab_label": "Sim",
-      "title": "Simulation Board",
-      "hero_title": "Simulation in the viewport frame",
-      "hero_summary": "Cache planning and review stay visible and honest.",
-      "focus_surface_id": "viewport_stage",
-      "featured_tool_ids": [
-        "cache_solver"
-      ],
-      "quick_command_ids": [
-        "sim.tick",
-        "ui.show_command_palette",
-        "render.preview",
-        "render.pathtrace_preview",
-        "compositor.rebuild"
-      ],
-      "center_surface_ids": [
-        "viewport_stage"
-      ],
-      "right_surface_ids": [
-        "selection_inspector",
-        "workspace_navigator",
-        "runtime_lane_map",
-        "property_grid",
-        "report_browser"
-      ],
-      "bottom_surface_ids": [
-        "status_strip",
-        "animation_timeline",
-        "jobs_monitor"
-      ],
-      "intent_ids": [
-        "sim.tick",
-        "render.preview",
-        "render.pathtrace_preview",
-        "compositor.rebuild",
-        "publish.package"
-      ],
-      "left_surface_ids": [
-        "scene_graph",
-        "workspace_navigator"
-      ]
-    },
-    {
-      "mode_id": "render_comp",
-      "tab_label": "Render",
-      "title": "Render Room",
-      "hero_title": "Render and composite control room",
-      "hero_summary": "Viewport preview, pathtrace, accumulation, denoise, review capture, and frame scheduling stay explicit in the docked control frame.",
-      "focus_surface_id": "viewport_stage",
-      "featured_tool_ids": [
-        "render_preview",
-        "comp_rebuild"
-      ],
-      "quick_command_ids": [
-        "render.preview",
-        "render.pathtrace_preview",
-        "render.review_capture",
-        "render.delegate_preview",
-        "lighting.review_preview",
-        "ui.focus_runtime_lane_map",
-        "compositor.rebuild",
-        "ui.open_property_grid",
-        "publish.package"
-      ],
-      "center_surface_ids": [
-        "viewport_stage"
-      ],
-      "right_surface_ids": [
-        "selection_inspector",
-        "workspace_navigator",
-        "runtime_lane_map",
-        "asset_pipeline_manifest",
-        "property_grid",
-        "report_browser",
-        "publish_console"
-      ],
-      "bottom_surface_ids": [
-        "status_strip",
-        "animation_timeline",
-        "jobs_monitor"
-      ],
-      "intent_ids": [
-        "render.preview",
-        "render.pathtrace_preview",
-        "render.review_capture",
-        "compositor.rebuild",
-        "publish.package"
-      ],
-      "left_surface_ids": [
-        "workspace_navigator",
-        "tool_shelf"
-      ]
+      "featured_tool_ids": ["control_rig_edit", "rig_validation"],
+      "quick_command_ids": ["rig.sync_controls", "selection.set", "ui.open_property_grid", "render.preview", "render.pathtrace_preview"],
+      "center_surface_ids": ["viewport_stage"],
+      "right_surface_ids": ["selection_inspector", "runtime_lane_map", "property_grid", "report_browser"],
+      "bottom_surface_ids": ["status_strip", "simulation_board", "jobs_monitor"],
+      "intent_ids": ["rig.sync_controls", "render.preview", "publish.package"],
+      "left_surface_ids": ["scene_graph", "tool_shelf", "workspace_navigator"]
     },
     {
       "mode_id": "publish_automation",
+      "tab_label": "Animate",
+      "title": "Animate Workbench",
+      "hero_title": "Blocking and timing bench",
+      "hero_summary": "Playback, clips, and timing review stay explicit with the viewport, navigator, and timeline anchored in place.",
+      "focus_surface_id": "viewport_stage",
+      "featured_tool_ids": ["clip_blocking", "timeline_marking"],
+      "quick_command_ids": ["animation.play", "selection.set", "ui.open_property_grid", "render.preview", "render.review_capture"],
+      "center_surface_ids": ["viewport_stage"],
+      "right_surface_ids": ["selection_inspector", "runtime_lane_map", "property_grid", "report_browser"],
+      "bottom_surface_ids": ["status_strip", "animation_timeline", "jobs_monitor"],
+      "intent_ids": ["render.preview", "publish.package"],
+      "left_surface_ids": ["scene_graph", "workspace_navigator", "tool_shelf"]
+    },
+    {
+      "mode_id": "sim",
+      "tab_label": "Sim",
+      "title": "Simulation Board",
+      "hero_title": "Solver planning and cache review",
+      "hero_summary": "Simulation work stays visible as a board, with cache review and downstream render checks kept honest.",
+      "focus_surface_id": "viewport_stage",
+      "featured_tool_ids": ["cache_solver"],
+      "quick_command_ids": ["sim.tick", "ui.show_command_palette", "render.preview", "render.pathtrace_preview", "compositor.rebuild"],
+      "center_surface_ids": ["viewport_stage"],
+      "right_surface_ids": ["selection_inspector", "runtime_lane_map", "property_grid", "report_browser"],
+      "bottom_surface_ids": ["status_strip", "animation_timeline", "jobs_monitor"],
+      "intent_ids": ["sim.tick", "render.preview", "compositor.rebuild", "publish.package"],
+      "left_surface_ids": ["scene_graph", "workspace_navigator"]
+    },
+    {
+      "mode_id": "render",
+      "tab_label": "Render",
+      "title": "Render Room",
+      "hero_title": "Render control room",
+      "hero_summary": "Pathtrace, accumulation, denoise, review capture, and AOV posture stay explicit in the render room.",
+      "focus_surface_id": "viewport_stage",
+      "featured_tool_ids": ["render_preview", "pathtrace_review"],
+      "quick_command_ids": ["render.preview", "render.pathtrace_preview", "lighting.review_preview", "render.delegate_preview", "render.review_capture", "ui.focus_runtime_lane_map", "ui.open_property_grid", "publish.package"],
+      "center_surface_ids": ["viewport_stage"],
+      "right_surface_ids": ["selection_inspector", "runtime_lane_map", "asset_pipeline_manifest", "property_grid", "report_browser", "publish_console"],
+      "bottom_surface_ids": ["status_strip", "animation_timeline", "jobs_monitor"],
+      "intent_ids": ["render.preview", "render.pathtrace_preview", "lighting.review_preview", "render.delegate_preview", "render.review_capture", "publish.package"],
+      "left_surface_ids": ["workspace_navigator", "tool_shelf"]
+    },
+    {
+      "mode_id": "compositing",
+      "tab_label": "Compositing",
+      "title": "Compositing Deck",
+      "hero_title": "Frame assembly and rebuild",
+      "hero_summary": "AOV review, frame scheduling, and compositor rebuild controls stay on a dedicated compositing deck.",
+      "focus_surface_id": "viewport_stage",
+      "featured_tool_ids": ["comp_rebuild", "aov_review"],
+      "quick_command_ids": ["compositor.rebuild", "render.aov_pack", "render.review_capture", "ui.open_property_grid", "publish.package"],
+      "center_surface_ids": ["viewport_stage"],
+      "right_surface_ids": ["selection_inspector", "runtime_lane_map", "asset_pipeline_manifest", "property_grid", "report_browser"],
+      "bottom_surface_ids": ["status_strip", "compositor_stack", "jobs_monitor"],
+      "intent_ids": ["compositor.rebuild", "render.review_capture", "publish.package"],
+      "left_surface_ids": ["workspace_navigator", "tool_shelf"]
+    },
+    {
+      "mode_id": "publish",
       "tab_label": "Publish",
       "title": "Publish Workbench",
-      "hero_title": "Delivery in the operator frame",
-      "hero_summary": "Packages, lineage, jobs, and receipts stay on the operator rail.",
+      "hero_title": "Delivery and automation deck",
+      "hero_summary": "Packages, lineage, jobs, and receipts stay on the operator rail so publishing feels mounted, not floating.",
       "focus_surface_id": "viewport_stage",
-      "featured_tool_ids": [
-        "publish_bundle"
-      ],
-      "quick_command_ids": [
-        "ui.show_command_palette",
-        "ui.open_property_grid",
-        "publish.package",
-        "tensor.train_step",
-        "tensor.infer_step",
-        "project.bootstrap",
-        "render.pathtrace_preview"
-      ],
-      "center_surface_ids": [
-        "viewport_stage"
-      ],
-      "right_surface_ids": [
-        "publish_console",
-        "workspace_navigator",
-        "runtime_lane_map",
-        "asset_pipeline_manifest",
-        "command_palette",
-        "property_grid",
-        "selection_inspector"
-      ],
-      "bottom_surface_ids": [
-        "status_strip",
-        "jobs_monitor",
-        "compositor_stack"
-      ],
-      "intent_ids": [
-        "publish.package",
-        "tensor.train_step",
-        "tensor.infer_step",
-        "render.pathtrace_preview"
-      ],
-      "left_surface_ids": [
-        "asset_ingest",
-        "workspace_navigator"
-      ]
+      "featured_tool_ids": ["publish_bundle"],
+      "quick_command_ids": ["ui.show_command_palette", "ui.open_property_grid", "publish.package", "tensor.train_step", "tensor.infer_step", "project.bootstrap"],
+      "center_surface_ids": ["viewport_stage"],
+      "right_surface_ids": ["material_export_board", "runtime_lane_map", "asset_pipeline_manifest", "command_palette", "property_grid", "selection_inspector"],
+      "bottom_surface_ids": ["status_strip", "jobs_monitor", "compositor_stack"],
+      "intent_ids": ["publish.package", "tensor.train_step", "tensor.infer_step"],
+      "left_surface_ids": ["asset_ingest", "workspace_navigator"]
     }
   ]
+}
 }

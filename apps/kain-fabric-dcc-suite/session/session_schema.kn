@@ -17,6 +17,25 @@ struct WorkspaceState:
     layout_id: String
     available_modes: Array<String>
 
+struct WorkbenchState:
+    active_workbench_id: String
+    active_tab_group_id: String
+    active_dock_id: String
+    active_pane_id: String
+    last_materialized_shell_path: String
+    last_runtime_snapshot_path: String
+
+struct ViewportState:
+    active_mode: String
+    overlay_policy_id: String
+    tool_policy_id: String
+    view_profile_id: String
+    hud_density: String
+    mode_count: Int
+    mode_summary: String
+    mode_registry_summary: String
+    mode_registry_entries: Array<String>
+
 struct ToolState:
     active_tool: String
     brush_radius: Int
@@ -61,6 +80,16 @@ struct AssetIngestState:
     last_package_uri: String
     last_package_kind: String
     staged_package_count: Int
+
+struct AssetPipelineState:
+    source_id: String
+    session_route_scope: String
+    source_priority: String
+    transcode_profiles: Array<String>
+    routed_runtime_ids: Array<String>
+    lineage_receipts: Array<String>
+    registry_entries: Array<String>
+    summary: String
 
 struct MaterialState:
     active_material_id: String
@@ -161,9 +190,31 @@ struct ReportState:
     mesh_contract_report_uri: String
     mesh_contract_report_path: String
 
+struct RuntimeLaneEntry:
+    id: String
+    label: String
+    owner: String
+    runtime: String
+    summary: String
+
+struct RuntimePackEntry:
+    id: String
+    label: String
+    category: String
+    summary: String
+
+struct FabricIntentEntry:
+    id: String
+    label: String
+    lane: String
+    graph: String
+    summary: String
+
 struct SessionDocument:
     project: ProjectState
     workspace: WorkspaceState
+    workbench: WorkbenchState
+    viewport: ViewportState
     tooling: ToolState
     gizmo: GizmoState
     selection: SelectionState
@@ -171,6 +222,7 @@ struct SessionDocument:
     mesh: MeshState
     topology_history: TopologyHistoryState
     ingest: AssetIngestState
+    asset_pipeline: AssetPipelineState
     materials: MaterialState
     rig: RigState
     animation: AnimationState
@@ -182,6 +234,11 @@ struct SessionDocument:
     publish: PublishState
     automation: AutomationState
     reports: ReportState
+    runtime_lane_registry: Array<RuntimeLaneEntry>
+    runtime_pack_registry: Array<RuntimePackEntry>
+    fabric_intent_registry: Array<FabricIntentEntry>
+    command_registry: Array<CommandRegistryEntry>
+    assist: AssistState
     dirty: DirtyState
     jobs: JobState
 
@@ -196,6 +253,66 @@ fn default_workspace_modes() -> Array<String>:
         "publish_automation"
     ]
 
+fn default_viewport_mode_for_workspace_mode(workspace_mode: String) -> ViewportState:
+    if workspace_mode == "sculpt_model":
+        return ViewportState {
+            active_mode: "model",
+            overlay_policy_id: "overlay_policy/model_topology",
+            tool_policy_id: "tool_policy/model_edit_first",
+            view_profile_id: "view_profile/model_topology",
+            hud_density: "medium",
+            mode_count: 6,
+            mode_summary: "layout | model | sculpt | paint | lookdev | render",
+            mode_registry_summary: "layout => overlay_policy/layout_clear | model => overlay_policy/model_topology | sculpt => overlay_policy/sculpt_brush | paint => overlay_policy/paint_layers | lookdev => overlay_policy/lookdev_balanced | render => overlay_policy/render_review",
+            mode_registry_entries: ["Layout [layout] => overlay_policy/layout_clear / tool_policy/layout_nav_first / view_profile/layout_blocking", "Model [model] => overlay_policy/model_topology / tool_policy/model_edit_first / view_profile/model_topology", "Sculpt [sculpt] => overlay_policy/sculpt_brush / tool_policy/sculpt_brush_first / view_profile/sculpt_surface", "Paint [paint] => overlay_policy/paint_layers / tool_policy/paint_layer_first / view_profile/paint_authoring", "Lookdev [lookdev] => overlay_policy/lookdev_balanced / tool_policy/lookdev_eval / view_profile/lookdev_balanced", "Render [render] => overlay_policy/render_review / tool_policy/render_review / view_profile/render_room"]
+        }
+    if workspace_mode == "material_lookdev":
+        return ViewportState {
+            active_mode: "lookdev",
+            overlay_policy_id: "overlay_policy/lookdev_balanced",
+            tool_policy_id: "tool_policy/lookdev_eval",
+            view_profile_id: "view_profile/lookdev_balanced",
+            hud_density: "balanced",
+            mode_count: 6,
+            mode_summary: "layout | model | sculpt | paint | lookdev | render",
+            mode_registry_summary: "layout => overlay_policy/layout_clear | model => overlay_policy/model_topology | sculpt => overlay_policy/sculpt_brush | paint => overlay_policy/paint_layers | lookdev => overlay_policy/lookdev_balanced | render => overlay_policy/render_review"
+            mode_registry_entries: ["Layout [layout] => overlay_policy/layout_clear / tool_policy/layout_nav_first / view_profile/layout_blocking", "Model [model] => overlay_policy/model_topology / tool_policy/model_edit_first / view_profile/model_topology", "Sculpt [sculpt] => overlay_policy/sculpt_brush / tool_policy/sculpt_brush_first / view_profile/sculpt_surface", "Paint [paint] => overlay_policy/paint_layers / tool_policy/paint_layer_first / view_profile/paint_authoring", "Lookdev [lookdev] => overlay_policy/lookdev_balanced / tool_policy/lookdev_eval / view_profile/lookdev_balanced", "Render [render] => overlay_policy/render_review / tool_policy/render_review / view_profile/render_room"]
+        }
+    if workspace_mode == "render_comp":
+        return ViewportState {
+            active_mode: "render",
+            overlay_policy_id: "overlay_policy/render_review",
+            tool_policy_id: "tool_policy/render_review",
+            view_profile_id: "view_profile/render_room",
+            hud_density: "balanced",
+            mode_count: 6,
+            mode_summary: "layout | model | sculpt | paint | lookdev | render",
+            mode_registry_summary: "layout => overlay_policy/layout_clear | model => overlay_policy/model_topology | sculpt => overlay_policy/sculpt_brush | paint => overlay_policy/paint_layers | lookdev => overlay_policy/lookdev_balanced | render => overlay_policy/render_review"
+            mode_registry_entries: ["Layout [layout] => overlay_policy/layout_clear / tool_policy/layout_nav_first / view_profile/layout_blocking", "Model [model] => overlay_policy/model_topology / tool_policy/model_edit_first / view_profile/model_topology", "Sculpt [sculpt] => overlay_policy/sculpt_brush / tool_policy/sculpt_brush_first / view_profile/sculpt_surface", "Paint [paint] => overlay_policy/paint_layers / tool_policy/paint_layer_first / view_profile/paint_authoring", "Lookdev [lookdev] => overlay_policy/lookdev_balanced / tool_policy/lookdev_eval / view_profile/lookdev_balanced", "Render [render] => overlay_policy/render_review / tool_policy/render_review / view_profile/render_room"]
+        }
+    if workspace_mode == "scene_assembly":
+        return ViewportState {
+            active_mode: "layout",
+            overlay_policy_id: "overlay_policy/layout_clear",
+            tool_policy_id: "tool_policy/layout_nav_first",
+            view_profile_id: "view_profile/layout_blocking",
+            hud_density: "light",
+            mode_count: 6,
+            mode_summary: "layout | model | sculpt | paint | lookdev | render",
+            mode_registry_summary: "layout => overlay_policy/layout_clear | model => overlay_policy/model_topology | sculpt => overlay_policy/sculpt_brush | paint => overlay_policy/paint_layers | lookdev => overlay_policy/lookdev_balanced | render => overlay_policy/render_review"
+            mode_registry_entries: ["Layout [layout] => overlay_policy/layout_clear / tool_policy/layout_nav_first / view_profile/layout_blocking", "Model [model] => overlay_policy/model_topology / tool_policy/model_edit_first / view_profile/model_topology", "Sculpt [sculpt] => overlay_policy/sculpt_brush / tool_policy/sculpt_brush_first / view_profile/sculpt_surface", "Paint [paint] => overlay_policy/paint_layers / tool_policy/paint_layer_first / view_profile/paint_authoring", "Lookdev [lookdev] => overlay_policy/lookdev_balanced / tool_policy/lookdev_eval / view_profile/lookdev_balanced", "Render [render] => overlay_policy/render_review / tool_policy/render_review / view_profile/render_room"]
+        }
+    return ViewportState {
+        active_mode: "layout",
+        overlay_policy_id: "overlay_policy/layout_clear",
+        tool_policy_id: "tool_policy/layout_nav_first",
+        view_profile_id: "view_profile/layout_blocking",
+        hud_density: "light",
+        mode_count: 6,
+        mode_summary: "layout | model | sculpt | paint | lookdev | render",
+        mode_registry_summary: "layout => overlay_policy/layout_clear | model => overlay_policy/model_topology | sculpt => overlay_policy/sculpt_brush | paint => overlay_policy/paint_layers | lookdev => overlay_policy/lookdev_balanced | render => overlay_policy/render_review"
+    }
+
 fn default_session_document() -> SessionDocument:
     return SessionDocument {
         project: ProjectState {
@@ -207,6 +324,37 @@ fn default_session_document() -> SessionDocument:
             active_mode: "scene_assembly",
             layout_id: "kain_fabric_dcc_suite_shell",
             available_modes: default_workspace_modes()
+        },
+        workbench: WorkbenchState {
+            active_workbench_id: "scene_assembly",
+            active_tab_group_id: "dcc-workspaces",
+            active_dock_id: "dcc_workbench_pages",
+            active_pane_id: "pane/viewport_stage",
+            last_materialized_shell_path: "generated/main.generated.kn",
+            last_runtime_snapshot_path: "state/runtime_snapshot.json"
+        },
+        viewport: ViewportState {
+            active_mode: "layout",
+            overlay_policy_id: "overlay_policy/layout_clear",
+            tool_policy_id: "tool_policy/layout_nav_first",
+            view_profile_id: "view_profile/layout_blocking",
+            hud_density: "light",
+            mode_count: 6,
+            mode_summary: "layout | model | sculpt | paint | lookdev | render",
+            mode_registry_summary: "layout => overlay_policy/layout_clear | model => overlay_policy/model_topology | sculpt => overlay_policy/sculpt_brush | paint => overlay_policy/paint_layers | lookdev => overlay_policy/lookdev_balanced | render => overlay_policy/render_review"
+            mode_registry_entries: ["Layout [layout] => overlay_policy/layout_clear / tool_policy/layout_nav_first / view_profile/layout_blocking", "Model [model] => overlay_policy/model_topology / tool_policy/model_edit_first / view_profile/model_topology", "Sculpt [sculpt] => overlay_policy/sculpt_brush / tool_policy/sculpt_brush_first / view_profile/sculpt_surface", "Paint [paint] => overlay_policy/paint_layers / tool_policy/paint_layer_first / view_profile/paint_authoring", "Lookdev [lookdev] => overlay_policy/lookdev_balanced / tool_policy/lookdev_eval / view_profile/lookdev_balanced", "Render [render] => overlay_policy/render_review / tool_policy/render_review / view_profile/render_room"]
+        },
+        context: EditorContextState {
+            active_workspace_id: "workspace/scene_assembly",
+            active_pane_id: "pane/viewport_stage",
+            active_tool_id: "select",
+            active_object_id: "entity/blender_startup_cube",
+            active_edit_target_id: "entity/blender_startup_cube",
+            active_material_id: "material/hero_surface",
+            active_texture_set_id: "textureset/hero_body_udim1001",
+            active_graph_node_id: "graph/lookdev_primary",
+            active_frame: 96,
+            active_viewport_mode: "lookdev"
         },
         tooling: ToolState {
             active_tool: "select",
@@ -333,6 +481,58 @@ fn default_session_document() -> SessionDocument:
             topology_history_report_uri: "report://topology/history",
             topology_history_report_path: "state/topology_history_report.json"
         },
+        runtime_lane_registry: [
+            RuntimeLaneEntry {
+                id: "kain_semantics_lane",
+                label: "Kain Semantics Lane",
+                owner: "kain",
+                runtime: "kain",
+                summary: "Session truth, intent routing, resource/report registries, and authored DCC semantics stay in Kain."
+            },
+            RuntimeLaneEntry {
+                id: "fabric_orchestration_lane",
+                label: "Fabric Orchestration Lane",
+                owner: "fabric",
+                runtime: "fabric",
+                summary: "Step ordering, dependency edges, reusable intent graphs, and report emission stay in Fabric."
+            },
+            RuntimeLaneEntry {
+                id: "python_bootstrap_lane",
+                label: "Python Bootstrap Lane",
+                owner: "python",
+                runtime: "python",
+                summary: "Project bootstrap, registry hydration, and tensor preflight stay in the Python seam."
+            },
+            RuntimeLaneEntry {
+                id: "gpu_compute_lane",
+                label: "GPU Compute Lane",
+                owner: "gpu",
+                runtime: "gpu_compute",
+                summary: "Preview bake, sculpt displacement, material packing, and compositor-style shader work stay on the GPU seam."
+            },
+            RuntimeLaneEntry {
+                id: "native_c_abi_lane",
+                label: "Native C ABI Lane",
+                owner: "native_c",
+                runtime: "c_abi",
+                summary: "Narrow helper seams like sculpt signatures and brush snapshots stay behind the C ABI bridge."
+            },
+            RuntimeLaneEntry {
+                id: "rust_analysis_lane",
+                label: "Rust Analysis Lane",
+                owner: "rust",
+                runtime: "rust_crate",
+                summary: "Graph analysis, topology health, and narrow helper logic stay in the Rust crate lane."
+            },
+            RuntimeLaneEntry {
+                id: "node_bridge_lane",
+                label: "Node Bridge Lane",
+                owner: "node",
+                runtime: "node_bridge",
+                summary: "Publishing, delivery, and host-adjacent bridge surfaces can round-trip through Node when Kain delegates the final bridge hop."
+            }
+        ],
+        fabric_intent_registry: [],
         dirty: DirtyState {
             asset_dirty: false,
             sculpt_dirty: false,
@@ -351,6 +551,10 @@ fn default_session_document() -> SessionDocument:
             latest_fabric_session_id: "",
             latest_fabric_status: "idle",
             active_intents: [],
+            active_jobs: []
+        }
+    }
+          active_intents: [],
             active_jobs: []
         }
     }

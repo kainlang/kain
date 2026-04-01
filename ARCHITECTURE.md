@@ -56,10 +56,9 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, typechecker, comptime, runtime contract emission, realtime bundle metadata
 - [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, native app materialization, packaged launcher snapshots, compute residency sidecars
 - [cli](/M:/Code/Kain/crates/cli): `kain` command surface
-- [kain-repair](/M:/Code/Kain/crates/kain-repair): profile-driven deterministic source repair engine consumed by the doctor/CLI repair lane; now split into a declarative rule registry plus a per-rule execution engine so repair policy stays visible and mode-aware
+- [kain-repair](/M:/Code/Kain/crates/kain-repair): profile-driven deterministic source repair engine consumed by the doctor/CLI repair lane; now split into a declarative rule registry plus a per-rule execution engine so repair policy stays visible and mode-aware; includes header normalization for parser-hostile `enum_` / `struct_` / `trait_` / `impl_` declaration forms
 - [kain-host](/M:/Code/Kain/crates/kain-host): Rust embedding and native function registration
 - [kain-reflect](/M:/Code/Kain/crates/kain-reflect): reflection schemas and type identity
-- [kain-repair](/M:/Code/Kain/crates/kain-repair): profile-driven deterministic source repair engine consumed by the doctor/CLI repair lane; now split into a declarative rule registry plus a per-rule execution engine so repair policy stays visible and mode-aware
 - [kain-sdk](/M:/Code/Kain/crates/kain-sdk): high-level embedding facade
 - [kain-interop](/M:/Code/Kain/crates/kain-interop): shared buffer/image payload contracts
 - [kain-gpu-runtime](/M:/Code/Kain/crates/kain-gpu-runtime): Vulkan compute executor consuming emitted shader bundles and residency metadata
@@ -166,6 +165,8 @@ Prefer the live CLI and source over stale docs when they disagree.
 Typical commands:
 
 - `kain doctor`
+- `kain doctor --repair <file>`
+- `kain doctor --repair-tree <dir>`
 - `kain build`
 - `kain build native-ui <file.kn>`
 - `kain run <file.kn>`

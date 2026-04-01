@@ -95,19 +95,50 @@ $Modes = (Get-Content (Join-Path $AppRoot "config/workspace_modes.json") -Raw | 
 $Surfaces = (Get-Content (Join-Path $AppRoot "config/surfaces.json") -Raw | ConvertFrom-Json).surfaces
 $Tools = (Get-Content (Join-Path $AppRoot "config/tool_catalog.json") -Raw | ConvertFrom-Json).tools
 $Commands = (Get-Content (Join-Path $AppRoot "config/command_registry.json") -Raw | ConvertFrom-Json).commands
+$CommandSummary = if ($null -ne $Commands) {
+    ($Commands | ForEach-Object { "$($_.label) [$($_.id)]" }) -join " | "
+} else {
+    "n/a"
+}
 $Intents = (Get-Content (Join-Path $AppRoot "config/fabric_intents.json") -Raw | ConvertFrom-Json).intents
+$IntentSummary = if ($null -ne $Intents) {
+    ($Intents | ForEach-Object { "$($_.label) [$($_.id)]" }) -join " | "
+} else {
+    "n/a"
+}
 $Pipeline = (Get-Content (Join-Path $AppRoot "config/fabric_pipeline.json") -Raw | ConvertFrom-Json).steps
 $RuntimePacks = (Get-Content (Join-Path $AppRoot "config/runtime_packs.json") -Raw | ConvertFrom-Json).runtime_packs
+$RuntimePackSummary = if ($null -ne $RuntimePacks) {
+    ($RuntimePacks | ForEach-Object { "$($_.label) [$($_.id)]" }) -join " | "
+} else {
+    "n/a"
+}
 $RuntimeLanes = (Get-Content (Join-Path $AppRoot "config/runtime_lanes.json") -Raw | ConvertFrom-Json).runtime_lanes
+$ViewportModes = (Get-Content (Join-Path $AppRoot "config/viewport_modes.json") -Raw | ConvertFrom-Json).modes
+$ViewportModeRegistryEntries = if ($null -ne $ViewportModes) {
+    $ViewportModes | ForEach-Object { "$($_.label) [$($_.id)] => $($_.overlay_policy_id) / $($_.tool_policy_id) / $($_.view_profile_id)" }
+} else {
+    @("Layout [layout] => overlay_policy/layout_clear / tool_policy/layout_nav_first / view_profile/layout_blocking", "Model [model] => overlay_policy/model_topology / tool_policy/model_edit_first / view_profile/model_topology", "Sculpt [sculpt] => overlay_policy/sculpt_brush / tool_policy/sculpt_brush_first / view_profile/sculpt_surface", "Paint [paint] => overlay_policy/paint_layers / tool_policy/paint_layer_first / view_profile/paint_authoring", "Lookdev [lookdev] => overlay_policy/lookdev_balanced / tool_policy/lookdev_eval / view_profile/lookdev_balanced", "Render [render] => overlay_policy/render_review / tool_policy/render_review / view_profile/render_room")
+}
+$AssetPipeline = Get-Content (Join-Path $AppRoot "config/asset_pipeline_manifest.json") -Raw | ConvertFrom-Json
+$AssetPipelineRecord = $AssetPipeline.asset_pipeline
+$AssetPipelineSummary = [string]$AssetPipelineRecord.summary
 $RuntimeLaneSummary = if ($null -ne $RuntimeLanes) {
     ($RuntimeLanes | ForEach-Object { $_.runtime }) -join " | "
 } else {
     "n/a"
 }
 $RuntimeLaneRegistrySummary = if ($null -ne $RuntimeLanes) {
-    ($RuntimeLanes | ForEach-Object { "$($_.label) [$($_.runtime)]" }) -join " · "
+    ($RuntimeLanes | ForEach-Object { "$($_.label) [$($_.runtime)]" }) -join " | "
 } else {
-    "Kain Semantics Lane [kain] · Fabric Orchestration Lane [fabric] · Python Bootstrap Lane [python] · GPU Compute Lane [gpu_compute] · Native C ABI Lane [c_abi] · Rust Analysis Lane [rust_crate] · Node Bridge Lane [node_bridge]"
+    "Kain Semantics Lane [kain] | Fabric Orchestration Lane [fabric] | Python Bootstrap Lane [python] | GPU Compute Lane [gpu_compute] | Native C ABI Lane [c_abi] | Rust Analysis Lane [rust_crate] | Node Bridge Lane [node_bridge]"
+}
+$PowerLaneRegistryEntries = if ($null -ne $RuntimeLanes) { @($RuntimeLanes) } else { @() }
+$PowerLaneCount = @($PowerLaneRegistryEntries).Count
+$PowerLaneSummary = if ($PowerLaneCount -gt 0) {
+    ($PowerLaneRegistryEntries | ForEach-Object { "$($_.label) [$($_.runtime)]" }) -join " | "
+} else {
+    $RuntimeLaneRegistrySummary
 }
 $Resources = (Get-Content (Join-Path $AppRoot "config/resource_kinds.json") -Raw | ConvertFrom-Json).resource_kinds
 $MeshContract = Get-Content (Join-Path $AppRoot "config/mesh_resource_contract.json") -Raw | ConvertFrom-Json
@@ -121,10 +152,30 @@ $LatestFabricStatus = if ($null -eq $LatestReport) { "idle" } else { $LatestRepo
 $NowIso = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $SessionId = if ($null -eq $LatestReport) { "dcc-suite-session-bootstrap" } else { $LatestReport.session_id }
 
+function Get-ViewportModeForWorkspaceMode {
+    param(
+        [string]$WorkspaceMode,
+        [System.Collections.IEnumerable]$ViewportModeItems
+    )
+
+    $modeById = @{}
+    foreach ($mode in $ViewportModeItems) {
+        $modeById[$mode.id] = $mode
+    }
+
+    switch ($WorkspaceMode) {
+        "sculpt_model" { return $modeById["model"] }
+        "material_lookdev" { return $modeById["lookdev"] }
+        "render_comp" { return $modeById["render"] }
+        default { return $modeById["layout"] }
+    }
+}
+
 $DefaultModeId = "scene_assembly"
 $ActiveModeId = $DefaultModeId
 $ActiveModeLabel = Find-ModeLabel -Modes $Modes -ModeId $ActiveModeId
 $RecentSessionTitle = "$($Manifest.name) | $ActiveModeLabel"
+$ActiveViewportMode = Get-ViewportModeForWorkspaceMode -WorkspaceMode $ActiveModeId -ViewportModeItems $ViewportModes
 
 $CommandSnapshots = New-CommandSnapshots -Commands $Commands
 $RuntimeTools = New-RequiredCapabilityTools -Capabilities $Manifest.required_runtime_capabilities
@@ -153,6 +204,55 @@ $SessionDocument = [ordered]@{
         active_mode = $ActiveModeId
         layout_id = $Manifest.layout_id
         available_modes = @($Modes | ForEach-Object { $_.id })
+    }
+    runtime_lane_registry_entries = $RuntimeLanes
+    power_lane_registry_entries = $PowerLaneRegistryEntries
+    runtime_lane_count = @($RuntimeLanes).Count
+    power_lane_count = $PowerLaneCount
+    runtime_lane_summary = $RuntimeLaneSummary
+    power_lane_summary = $PowerLaneSummary
+    runtime_lane_registry_summary = $RuntimeLaneRegistrySummary
+    runtime_pack_registry_entries = $RuntimePacks
+    runtime_pack_count = @($RuntimePacks).Count
+    runtime_pack_summary = $RuntimePackSummary
+    fabric_intent_registry_entries = $Intents
+    fabric_intent_count = @($Intents).Count
+    fabric_intent_summary = $IntentSummary
+    command_registry = $Commands
+    command_registry_entries = $Commands
+    command_count = @($Commands).Count
+    command_summary = $CommandSummary
+    viewport = [ordered]@{
+        active_mode = $ActiveViewportMode.id
+        overlay_policy_id = $ActiveViewportMode.overlay_policy_id
+        tool_policy_id = $ActiveViewportMode.tool_policy_id
+        view_profile_id = $ActiveViewportMode.view_profile_id
+        hud_density = $ActiveViewportMode.hud_density
+        mode_count = @($ViewportModes).Count
+        mode_summary = ($ViewportModes | ForEach-Object { $_.id }) -join " | "
+        mode_registry_summary = ($ViewportModes | ForEach-Object { "$($_.id) => $($_.overlay_policy_id)" }) -join " | "
+        mode_registry_entries = @($ViewportModeRegistryEntries)
+    }
+    workbench = [ordered]@{
+        active_workbench_id = $ActiveModeId
+        active_tab_group_id = $UiShell.page_tab_group_id
+        active_dock_id = "dcc_workbench_pages"
+        active_pane_id = "pane/viewport_stage"
+        last_materialized_shell_path = "generated/main.generated.kn"
+        last_runtime_snapshot_path = "state/runtime_snapshot.json"
+        summary = "$ActiveModeId:tabs=$($UiShell.page_tab_group_id):dock=dcc_workbench_pages:pane=pane/viewport_stage"
+    }
+    context = [ordered]@{
+        active_workspace_id = "workspace/$ActiveModeId"
+        active_pane_id = "pane/viewport_stage"
+        active_tool_id = "select"
+        active_object_id = "entity/blender_startup_cube"
+        active_edit_target_id = "entity/blender_startup_cube"
+        active_material_id = "material/hero_surface"
+        active_texture_set_id = "textureset/hero_body_udim1001"
+        active_graph_node_id = "graph/lookdev_primary"
+        active_frame = 96
+        active_viewport_mode = $ActiveViewportMode.id
     }
     tooling = [ordered]@{
         active_tool = "select"
@@ -187,6 +287,16 @@ $SessionDocument = [ordered]@{
         last_package_uri = "asset://starter/kitbash_hangar"
         last_package_kind = "gltf"
         staged_package_count = 1
+    }
+    asset_pipeline = [ordered]@{
+        source_id = $AssetPipelineRecord.source_id
+        session_route_scope = $AssetPipelineRecord.session_route_scope
+        source_priority = $AssetPipelineRecord.source_priority
+        transcode_profiles = @($AssetPipelineRecord.supported_transcode_profiles)
+        routed_runtime_ids = @($AssetPipelineRecord.routed_runtime_ids)
+        lineage_receipts = @($AssetPipelineRecord.lineage_receipts)
+        registry_entries = @($AssetPipeline.asset_pipeline.source_id, $AssetPipeline.asset_pipeline.lane, $AssetPipeline.asset_pipeline.session_route_scope)
+        summary = $AssetPipelineSummary
     }
     asset_ingest_summary = "gltf intake ready / 1 staged package"
     asset_ingest_status = "intake ready"
@@ -250,6 +360,23 @@ $SessionDocument = [ordered]@{
         topology_history_report_uri = "report://topology/history"
         topology_history_report_path = "state/topology_history_report.json"
     }
+    runtime_lane_registry = $RuntimeLanes
+    power_lane_registry = $PowerLaneRegistryEntries
+    assist = [ordered]@{
+        context_report_id = "assist_context_report"
+        context_report_uri = "report://assist/context"
+        context_report_path = "state/assist_context_report.json"
+        suggestion_report_id = "assist_suggestion_report"
+        suggestion_report_uri = "report://assist/suggestion"
+        suggestion_report_path = "state/assist_suggestion_report.json"
+        tensor_artifact_id = "assist_tensor_artifact"
+        tensor_artifact_uri = "artifact://assist/tensor-context"
+        tensor_artifact_path = "state/assist_tensor_context.json"
+        assistant_profile = "contextual_tensor_aware"
+        context_summary = "mode=$ActiveModeLabel | layout=$($Manifest.layout_id) | tensor=warm"
+        suggestion_summary = "watch selection, mode, and tensor dirty state together"
+        workspace_layout_hint = $Manifest.layout_id
+    }
     dirty = [ordered]@{
         asset_dirty = $false
         sculpt_dirty = $false
@@ -309,6 +436,8 @@ $RuntimeSnapshot = [ordered]@{
         }
     )
     commands = $CommandSnapshots
+    runtime_lane_registry = $RuntimeLanes
+    power_lane_registry = $PowerLaneRegistryEntries
     providers = @(
         [ordered]@{
             id = "native_runtime"
@@ -394,10 +523,29 @@ $RuntimeSnapshot = [ordered]@{
         }
         bridge = $BridgeStatus
         bridge_status = $BridgeStatus.status
+        workbench = [ordered]@{
+            active_workbench_id = $ActiveModeId
+            active_tab_group_id = $UiShell.page_tab_group_id
+            active_dock_id = "dcc_workbench_pages"
+            active_pane_id = "pane/viewport_stage"
+            materialized_shell_path = "generated/main.generated.kn"
+            runtime_snapshot_path = "state/runtime_snapshot.json"
+        }
         runtime_lane_health = $RuntimeLaneHealth
         runtime_lane_health_detail = $RuntimeLaneHealthDetail
         runtime_lane_summary = $RuntimeLaneSummary
         runtime_lane_registry_summary = $RuntimeLaneRegistrySummary
+        runtime_pack_registry_entries = $RuntimePacks
+        runtime_pack_count = @($RuntimePacks).Count
+        runtime_pack_summary = $RuntimePackSummary
+        fabric_intent_registry = $Intents
+        fabric_intent_registry_entries = $Intents
+        fabric_intent_count = @($Intents).Count
+        fabric_intent_summary = $IntentSummary
+        viewport_mode_count = @($ViewportModes).Count
+        viewport_mode_summary = ($ViewportModes | ForEach-Object { $_.id }) -join " | "
+        viewport_mode_registry_summary = ($ViewportModes | ForEach-Object { "$($_.id) => $($_.overlay_policy_id)" }) -join " | "
+        viewport_mode_registry_entries = @($ViewportModeRegistryEntries)
         render_preview_chain = "pathtrace -> accumulation -> denoise"
         viewport_frame_feedback = $RuntimeSnapshot.viewport_frame_feedback
         extension_seams = @(

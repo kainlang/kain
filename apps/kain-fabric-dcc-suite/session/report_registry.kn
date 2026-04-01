@@ -163,6 +163,18 @@ fn default_reports() -> Array<ReportDescriptor>:
             summary: "Topology lineage and replacement-history report"
         },
         ReportDescriptor {
+            id: "assist_context_report",
+            report_uri: "report://assist/context",
+            producer_step: "context_assist_projection",
+            summary: "Workspace, mode, layout, and tensor-aware assist context report"
+        },
+        ReportDescriptor {
+            id: "assist_suggestion_report",
+            report_uri: "report://assist/suggestion",
+            producer_step: "context_assist_projection",
+            summary: "Assist suggestion report driven by current workspace context"
+        },
+        ReportDescriptor {
             id: "material_texture_export_report",
             report_uri: "report://material/export",
             producer_step: "material_texture_export_projection",

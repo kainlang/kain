@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at_utc": "2026-03-30T00:00:19.621141+00:00",
+  "generated_at_utc": "2026-03-31T08:00:24.645231+00:00",
   "display_name": "Code/Kain/crates",
   "directory": "M:\\Code\\Kain\\crates",
   "summary": {
@@ -48,7 +48,7 @@
         "type": "cargo",
         "package_name": "cli",
         "workspace_members": 0,
-        "dependency_count": 39
+        "dependency_count": 40
       },
       {
         "path": "gpu/Cargo.toml",
@@ -121,7 +121,7 @@
         "dependency_count": 6
       }
     ],
-    "manifest_count_total": 44,
+    "manifest_count_total": 45,
     "sampled_file_count": 220
   },
   "nodes": [

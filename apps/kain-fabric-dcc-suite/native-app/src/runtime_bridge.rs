@@ -993,6 +993,78 @@ fn sync_runtime_snapshot_from_session(
     set_string_array_at_path(session_document, &["jobs", "active_intents"], &active_intent_ids);
 
     set_value_at_path(
+        session_document,
+        &["context", "active_workspace_id"],
+        format!("workspace/{active_mode}"),
+    );
+    set_value_at_path(
+        session_document,
+        &["context", "active_pane_id"],
+        "pane/viewport_stage",
+    );
+    set_value_at_path(
+        session_document,
+        &["context", "active_tool_id"],
+        active_tool.clone(),
+    );
+    set_value_at_path(
+        session_document,
+        &["context", "active_object_id"],
+        get_string_vec_at_path(session_document, &["selection", "entity_ids"]).first().cloned().unwrap_or_default(),
+    );
+    set_value_at_path(
+        session_document,
+        &["context", "active_edit_target_id"],
+        get_string_at_path(session_document, &["mesh", "active_edit_target_id"]).unwrap_or_default(),
+    );
+    set_value_at_path(
+        session_document,
+        &["context", "active_material_id"],
+        get_string_at_path(session_document, &["materials", "active_material_id"]).unwrap_or_default(),
+    );
+    set_value_at_path(
+        session_document,
+        &["context", "active_texture_set_id"],
+        get_string_at_path(session_document, &["materials", "active_texture_set_id"]).unwrap_or_default(),
+    );
+    set_value_at_path(
+        session_document,
+        &["context", "active_graph_node_id"],
+        get_string_at_path(session_document, &["materials", "active_graph_id"]).unwrap_or_default(),
+    );
+    set_value_at_path(
+        session_document,
+        &["context", "active_frame"],
+        animation_frame,
+    );
+    let (viewport_mode, overlay_policy_id, tool_policy_id, view_profile_id) = viewport_mode_for_workspace_mode(&active_mode);
+    set_value_at_path(
+        session_document,
+        &["context", "active_viewport_mode"],
+        viewport_mode,
+    );
+    set_value_at_path(
+        session_document,
+        &["viewport", "active_mode"],
+        viewport_mode,
+    );
+    set_value_at_path(
+        session_document,
+        &["viewport", "overlay_policy_id"],
+        overlay_policy_id,
+    );
+    set_value_at_path(
+        session_document,
+        &["viewport", "tool_policy_id"],
+        tool_policy_id,
+    );
+    set_value_at_path(
+        session_document,
+        &["viewport", "view_profile_id"],
+        view_profile_id,
+    );
+
+    set_value_at_path(
         runtime_snapshot,
         &["dcc_suite_state", "session"],
         session_document.clone(),
@@ -1007,10 +1079,211 @@ fn sync_runtime_snapshot_from_session(
         &["dcc_suite_state", "derived", "active_tool_label"],
         active_tool_label.clone(),
     );
+    let assist_context_summary = format!("mode={active_mode_label} | tool={active_tool_label} | layout=dock");
+    let tensor_dirty_now = get_bool_at_path(session_document, &["dirty", "tensor_dirty"]).unwrap_or(false);
+    let assist_suggestion_summary = if tensor_dirty_now {
+        format!("{active_mode_label}: tensor dirty; check mode-specific preview and publish handoff")
+    } else {
+        format!("{active_mode_label}: tensor warm; keep selection and layout aligned")
+    };
     set_string_at_path(
         runtime_snapshot,
         &["dcc_suite_state", "derived", "selection_summary"],
         format!("{selection_count} entity selected"),
+    );
+    set_value_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "derived", "editor_context"],
+        json!({
+            "active_workspace_id": format!("workspace/{active_mode}"),
+            "active_pane_id": "pane/viewport_stage",
+            "active_tool_id": active_tool.clone(),
+            "active_object_id": get_string_vec_at_path(session_document, &["selection", "entity_ids"]).first().cloned().unwrap_or_default(),
+            "active_edit_target_id": get_string_at_path(session_document, &["mesh", "active_edit_target_id"]).unwrap_or_default(),
+            "active_material_id": get_string_at_path(session_document, &["materials", "active_material_id"]).unwrap_or_default(),
+            "active_texture_set_id": get_string_at_path(session_document, &["materials", "active_texture_set_id"]).unwrap_or_default(),
+            "active_graph_node_id": get_string_at_path(session_document, &["materials", "active_graph_id"]).unwrap_or_default(),
+            "active_frame": animation_frame,
+            "active_viewport_mode": viewport_mode
+        }),
+    );
+    set_value_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "viewport"],
+        json!({
+            "active_mode": viewport_mode,
+            "overlay_policy_id": overlay_policy_id,
+            "tool_policy_id": tool_policy_id,
+            "view_profile_id": view_profile_id
+        }),
+    );
+    set_value_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "derived", "editor_context"],
+        json!({
+            "active_workspace_id": format!("workspace/{active_mode}"),
+            "active_pane_id": "pane/viewport_stage",
+            "active_tool_id": active_tool.clone(),
+            "active_object_id": get_string_vec_at_path(session_document, &["selection", "entity_ids"]).first().cloned().unwrap_or_default(),
+            "active_edit_target_id": get_string_at_path(session_document, &["mesh", "active_edit_target_id"]).unwrap_or_default(),
+            "active_material_id": get_string_at_path(session_document, &["materials", "active_material_id"]).unwrap_or_default(),
+            "active_texture_set_id": get_string_at_path(session_document, &["materials", "active_texture_set_id"]).unwrap_or_default(),
+            "active_graph_node_id": get_string_at_path(session_document, &["materials", "active_graph_id"]).unwrap_or_default(),
+            "active_frame": animation_frame,
+            "active_viewport_mode": viewport_mode
+        }),
+    );
+    set_value_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "viewport"],
+        json!({
+            "active_mode": viewport_mode,
+            "overlay_policy_id": overlay_policy_id,
+            "tool_policy_id": tool_policy_id,
+            "view_profile_id": view_profile_id
+        }),
+    );
+    set_string_at_path(
+        runtime_snapshot,
+        &["runtime_lane_summary"],
+        get_string_at_path(session_document, &["runtime_lane_summary"]).unwrap_or_else(|| "n/a".to_string()),
+    );
+    set_string_at_path(
+        runtime_snapshot,
+        &["power_lane_summary"],
+        get_string_at_path(session_document, &["power_lane_summary"]).unwrap_or_else(|| "n/a".to_string()),
+    );
+    set_string_at_path(
+        runtime_snapshot,
+        &["runtime_lane_registry_summary"],
+        get_string_at_path(session_document, &["runtime_lane_registry_summary"]).unwrap_or_else(|| "n/a".to_string()),
+    );
+    set_i64_at_path(
+        runtime_snapshot,
+        &["runtime_lane_count"],
+        get_i64_at_path(session_document, &["runtime_lane_count"]).unwrap_or(0),
+    );
+    set_i64_at_path(
+        runtime_snapshot,
+        &["power_lane_count"],
+        get_i64_at_path(session_document, &["power_lane_count"]).unwrap_or(0),
+    );
+    if let Some(runtime_lane_registry_entries) = session_document.get("runtime_lane_registry").cloned() {
+        set_value_at_path(
+            runtime_snapshot,
+            &["runtime_lane_registry"],
+            runtime_lane_registry_entries,
+        );
+    }
+    if let Some(power_lane_registry_entries) = session_document.get("power_lane_registry").cloned() {
+        set_value_at_path(
+            runtime_snapshot,
+            &["power_lane_registry"],
+            power_lane_registry_entries,
+        );
+    }
+    set_string_at_path(
+        runtime_snapshot,
+        &["runtime_pack_summary"],
+        get_string_at_path(session_document, &["runtime_pack_summary"]).unwrap_or_else(|| "n/a".to_string()),
+    );
+    set_i64_at_path(
+        runtime_snapshot,
+        &["runtime_pack_count"],
+        get_i64_at_path(session_document, &["runtime_pack_count"]).unwrap_or(0),
+    );
+    if let Some(runtime_pack_registry_entries) = session_document.get("runtime_pack_registry").cloned() {
+        set_value_at_path(
+            runtime_snapshot,
+            &["runtime_pack_registry"],
+            runtime_pack_registry_entries,
+        );
+    }
+    set_string_at_path(
+        runtime_snapshot,
+        &["fabric_intent_summary"],
+        get_string_at_path(session_document, &["fabric_intent_summary"]).unwrap_or_else(|| "n/a".to_string()),
+    );
+    set_i64_at_path(
+        runtime_snapshot,
+        &["fabric_intent_count"],
+        get_i64_at_path(session_document, &["fabric_intent_count"]).unwrap_or(0),
+    );
+    if let Some(fabric_intent_registry) = session_document.get("fabric_intent_registry").cloned() {
+        set_value_at_path(
+            runtime_snapshot,
+            &["fabric_intent_registry"],
+            fabric_intent_registry,
+        );
+    }
+    if let Some(fabric_intent_registry_entries) = session_document.get("fabric_intent_registry_entries").cloned() {
+        set_value_at_path(
+            runtime_snapshot,
+            &["fabric_intent_registry_entries"],
+            fabric_intent_registry_entries,
+        );
+    }
+    set_string_at_path(
+        runtime_snapshot,
+        &["command_summary"],
+        get_string_at_path(session_document, &["command_summary"]).unwrap_or_else(|| "n/a".to_string()),
+    );
+    set_i64_at_path(
+        runtime_snapshot,
+        &["command_count"],
+        get_i64_at_path(session_document, &["command_count"]).unwrap_or(0),
+    );
+    if let Some(command_registry_entries) = session_document.get("command_registry_entries").cloned() {
+        set_value_at_path(
+            runtime_snapshot,
+            &["command_registry_entries"],
+            command_registry_entries,
+        );
+    }
+    if let Some(workbench) = session_document.get("workbench").cloned() {
+        set_value_at_path(runtime_snapshot, &["workbench"], workbench);
+    }
+    set_string_at_path(
+        runtime_snapshot,
+        &["workbench_summary"],
+        get_string_at_path(session_document, &["workbench", "summary"]).unwrap_or_else(|| "n/a".to_string()),
+    );
+    set_string_at_path(
+        runtime_snapshot,
+        &["viewport_mode_summary"],
+        get_string_at_path(session_document, &["viewport", "mode_summary"]).unwrap_or_else(|| "n/a".to_string()),
+    );
+    set_string_at_path(
+        runtime_snapshot,
+        &["viewport_mode_registry_summary"],
+        get_string_at_path(session_document, &["viewport", "mode_registry_summary"]).unwrap_or_else(|| "n/a".to_string()),
+    );
+    if let Some(viewport_mode_registry_entries) = get_value_at_path(session_document, &["viewport", "mode_registry_entries"]) {
+        set_value_at_path(
+            runtime_snapshot,
+            &["viewport_mode_registry_entries"],
+            viewport_mode_registry_entries,
+        );
+    }
+    set_string_at_path(
+        runtime_snapshot,
+        &["asset_pipeline_summary"],
+        get_string_at_path(session_document, &["asset_pipeline", "summary"]).unwrap_or_else(|| "n/a".to_string()),
+    );
+    if let Some(asset_pipeline) = session_document.get("asset_pipeline").cloned() {
+        set_value_at_path(runtime_snapshot, &["asset_pipeline"], asset_pipeline);
+    }
+    if let Some(asset_pipeline_registry_entries) = get_value_at_path(session_document, &["asset_pipeline", "registry_entries"]) {
+        set_value_at_path(
+            runtime_snapshot,
+            &["asset_pipeline_registry_entries"],
+            asset_pipeline_registry_entries,
+        );
+    }
+    set_string_at_path(
+        runtime_snapshot,
+        &["viewport_frame_feedback"],
+        get_string_at_path(session_document, &["viewport_frame_feedback"]).unwrap_or_else(|| "frame warming / preview stabilizing".to_string()),
     );
     set_string_at_path(
         runtime_snapshot,
@@ -1026,6 +1299,31 @@ fn sync_runtime_snapshot_from_session(
         next_intent_queue.len() as i64,
     );
     set_string_at_path(runtime_snapshot, &["dcc_suite_state", "bridge", "status"], "live");
+    set_string_at_path(
+        session_document,
+        &["assist", "assistant_profile"],
+        "contextual_tensor_aware",
+    );
+    set_string_at_path(
+        session_document,
+        &["assist", "context_summary"],
+        assist_context_summary.clone(),
+    );
+    set_string_at_path(
+        session_document,
+        &["assist", "suggestion_summary"],
+        assist_suggestion_summary.clone(),
+    );
+    set_string_at_path(
+        session_document,
+        &["assist", "workspace_layout_hint"],
+        "dock",
+    );
+    set_value_at_path(
+        runtime_snapshot,
+        &["dcc_suite_state", "session"],
+        session_document.clone(),
+    );
     set_value_at_path(
         runtime_snapshot,
         &["dcc_suite_state", "presentation"],
@@ -1036,7 +1334,14 @@ fn sync_runtime_snapshot_from_session(
             "document_flow_surfaces": false,
             "viewport_centered_layout": true,
             "startup_focus_surface": "viewport_stage",
-            "startup_lane_rail": "workspace_navigator"
+            "startup_lane_rail": "workspace_navigator",
+            "dock_spine": {
+                "page_tab_group_id": "dcc-workspaces",
+                "persistent_panes": ["viewport_stage", "workspace_navigator", "scene_graph", "asset_ingest", "tool_shelf", "selection_inspector", "runtime_lane_map", "property_grid", "report_browser", "asset_registry", "asset_pipeline_manifest", "status_strip", "animation_timeline", "jobs_monitor", "compositor_stack", "rig_graph", "simulation_board", "command_palette", "publish_console"],
+                "tabbed_inspector_groups": ["runtime_lane_map", "asset_registry", "asset_pipeline_manifest", "report_browser", "property_grid", "selection_inspector"],
+                "locked_stage_surface": "viewport_stage",
+                "dock_behavior": "persistent_workstation"
+            }
         }),
     );
     set_string_at_path(
@@ -1407,6 +1712,15 @@ fn get_string_at_path(value: &Value, path: &[&str]) -> Option<String> {
     value_at_path(value, path)
         .and_then(Value::as_str)
         .map(|value| value.to_string())
+}
+
+fn viewport_mode_for_workspace_mode(workspace_mode: &str) -> (&'static str, &'static str, &'static str, &'static str) {
+    match workspace_mode {
+        "sculpt_model" => ("model", "overlay_policy/model_topology", "tool_policy/model_edit_first", "view_profile/model_topology"),
+        "material_lookdev" => ("lookdev", "overlay_policy/lookdev_balanced", "tool_policy/lookdev_eval", "view_profile/lookdev_balanced"),
+        "render_comp" => ("render", "overlay_policy/render_review", "tool_policy/render_review", "view_profile/render_room"),
+        _ => ("layout", "overlay_policy/layout_clear", "tool_policy/layout_nav_first", "view_profile/layout_blocking"),
+    }
 }
 
 fn get_bool_at_path(value: &Value, path: &[&str]) -> Option<bool> {

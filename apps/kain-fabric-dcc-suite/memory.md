@@ -1,62 +1,38 @@
-## 2026-03-29 - Runtime lane roster now projects from the authored registry
+## 2026-03-31 - Kain Fabric DCC scaffold: session materializer now derives viewport posture from workspace mode
 
-- Extended the Kain Fabric DCC shell so `config/runtime_lanes.json` now feeds a new `runtime_lane_registry_summary` metric in `state/runtime_snapshot.json` and `config/ui_shell.json`.
-- The top shell now has a `Lane Roster` status item alongside the existing lane map / health signals, which makes the authored ownership matrix visible as registry-backed data instead of only as compact runtime codes.
-- Updated `config/surfaces.json` notes so `runtime_lane_map` explicitly calls out the roster projection seam.
-- Reran `scripts/materialize-session-state.ps1` and `scripts/materialize-shell.ps1` so `state/runtime_snapshot.json`, `state/session_document.json`, and `generated/main.generated.kn` stayed aligned.
-- Clean extension seam: if the lane registry grows more owners or sub-lanes, the same registry summary slot can keep projecting the authored roster without giving the native shell semantic ownership.
+- Updated `scripts/materialize-session-state.ps1` so the bootstrapped viewport now resolves its active mode, overlay policy, tool policy, view profile, and HUD density from the workspace mode instead of hardcoding layout defaults.
+- This keeps the authored session bootstrap aligned with the same workspace-to-viewport mapping the native bridge already uses, which reduces drift between the one-shot materialized state and live bridge rewrites.
+- Validation: `powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/materialize-session-state.ps1` and `cargo check --manifest-path native-app/Cargo.toml` both pass.
+- Clean seam: keep deriving viewport posture from workspace mode in every session/state projection path so startup and live bridge semantics stay matched.
 
-## 2026-03-29 - Render chain now shows up as first-class shell telemetry
+## 2026-03-31 - Kain Fabric DCC scaffold: live bridge now mirrors workbench state into the runtime snapshot
 
-- Added a `render_preview_chain` snapshot metric and surfaced it in `config/ui_shell.json` as a top-rail `Render Chain` status item with the authored `pathtrace -> accumulation -> denoise` spine.
-- Threaded the metric through `scripts/materialize-session-state.ps1` and `scripts/materialize-shell.ps1` so `state/runtime_snapshot.json` and `generated/main.generated.kn` stay aligned with the render-first product stance.
-- This gives the scaffold a more visible progressive-preview lane without pretending the host owns the render semantics.
-- Clean extension seam: if the preview spine later grows a real accumulation or denoise runtime, the same metric slot can keep projecting the chain state.
+- Extended `native-app/src/runtime_bridge.rs` so the live bridge now projects the `workbench` block plus a derived `workbench_summary` into `state/runtime_snapshot.json` alongside the other registry-backed lanes.
+- Added a `summary` field to the materialized session workbench block in `scripts/materialize-session-state.ps1` so the native bridge has a stable dock/tab/pane string to mirror instead of rebuilding it ad hoc.
+- Validation: `powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/materialize-session-state.ps1` and `cargo check --manifest-path native-app/Cargo.toml` both pass.
+- Clean seam: keep mirroring dock/workbench contracts into the live snapshot whenever the native shell needs layout truth without re-reading the authored session document.
 
-## 2026-03-29 - Runtime lane signal now carries explanatory detail
+## 2026-03-31 - Kain Fabric DCC scaffold: runtime bridge now mirrors command registry state into the live snapshot
 
-- Extended the shell/runtime snapshot lane-health seam so `runtime_lane_health_detail` now rides alongside the concise `runtime_lane_health` value.
-- Threaded that detail through `scripts/materialize-session-state.ps1`, `scripts/materialize-shell.ps1`, and `config/ui_shell.json`, which adds a second `Lane Signal` status item to the authored shell.
-- This keeps the app feeling more like a live control room: operators see both the coarse health label and the bridge/fabric explanation without moving semantic ownership into the host.
-- Reran `scripts/materialize-session-state.ps1` and `scripts/materialize-shell.ps1` so `state/runtime_snapshot.json`, `state/session_document.json`, and `generated/main.generated.kn` stayed aligned.
-- Clean extension seam: richer bridge/runtime telemetry can keep flowing into the same status rail later without hardcoding lane truth in the native shell.
+- Extended `native-app/src/runtime_bridge.rs` so the live bridge now projects `command_summary`, `command_count`, and `command_registry_entries` into `state/runtime_snapshot.json` alongside the other registry-backed lanes.
+- This keeps the authored command surface visible to native-shell consumers even after live bridge mutations, not just during the one-shot session materialization pass.
+- Validation: `cargo check --manifest-path native-app/Cargo.toml` passes.
+- Clean seam: keep mirroring registry-backed operator surfaces into the live bridge whenever the native host needs to inspect them without re-reading config or session docs.
 
-## 2026-03-29 - Native shell now reads canonical presentation hints from the runtime snapshot
+## 2026-03-31 - Kain Fabric DCC scaffold: command registry now has a typed session lane too
 
-- Extended `crates/kain-ui-native` so the native host recognizes `dcc_suite_state.presentation` as the source for fixed-workspace / centered-layout shell behavior instead of relying only on host-local app/theme heuristics.
-- The DCC runtime snapshot already carries the presentation block from `native-app/src/runtime_bridge.rs`; the native UI now consumes it directly for topbar/inspector suppression and product-shell detection.
-- This is a small but important drift cut: the shell keeps its chrome decisions closer to the projected runtime contract rather than inventing presentation semantics locally.
+- Extended `session/session_schema.kn` and `session/derived_state.kn` so the workspace read model can carry `command_count`, `command_summary`, and `command_registry_entries` alongside the existing registry-backed lanes.
+- Threaded `command_registry` / `command_registry_entries` through `scripts/materialize-session-state.ps1` so the live session document now preserves the authored command surface, not just the runtime snapshot chrome.
+- Clean seam: keep promoting shell-critical registries into the typed session model when the native host or operator rails may want to iterate them directly instead of re-parsing snapshot JSON.
 
-## 2026-03-29 - Render room now carries richer preview and review state
+## 2026-03-31 - Kain Fabric DCC scaffold: asset pipeline roster now stays structured through session and bridge layers
 
-- Extended the render session contract to carry `accumulation_profile`, `denoise_profile`, and `review_capture_profile` alongside the existing camera, render profile, lighting profile, and AOV set.
-- Tightened the render command registry so the lounge commands speak in viewport-quality preview, pathtrace accumulation, denoise, delegate routing, lighting review, and review capture terms instead of generic preview language.
-- Refreshed the render workbench copy so the render room reads like a real control surface for viewport preview, AOV review, and frame capture.
-- The clean extension seam is still the same: keep render semantics in the session/config projections and let the native shell consume those projections rather than inventing its own render vocabulary.
+- Added `asset_pipeline.registry_entries` to the typed session shape and session materializer so the intake contract carries a roster instead of only a summary string.
+- Threaded those registry entries into the live runtime snapshot so native-shell consumers can inspect the asset pipeline without reconstructing it from prose.
+- Clean seam: keep promoting manifest-backed rosters into both the session document and live snapshot whenever the shell needs a direct lane inventory.
 
-## 2026-03-29 - Bridge contract constants centralized for mesh/topology seams
+## 2026-04-01 - Kain Fabric DCC scaffold: runtime lane registry remains a first-class shell signal
 
-- Moved the canonical mesh contract, active edit target, imported payload, authored primitive, topology output, and topology-history ids/URIs plus report metadata into `native-app/src/bridge_contract.rs`.
-- Updated `native-app/src/runtime_bridge.rs` to write the shared constants back into session/report state so the live bridge stops duplicating those ids as local literals.
-- This reduces schema drift in the Fabric/runtime lane and keeps the native bridge behaving like a thin adapter instead of a parallel contract source.
-
-## 2026-03-29 - Material lane got a painter/sampler polish pass
-
-- Extended the material session contract with explicit smart-mask and scan-ingest profiles alongside the existing brush, UV, texel-density, and deformation fields.
-- Tightened the lookdev workbench copy and tool shelf so the material lane reads more like layered paint + smart materials + sampler-style ingestion instead of just generic PBR authoring.
-- The paint-runtime and export projections now emit richer receipts for smart masks, scan ingestion, channel-pack profiles, and runtime delivery targets.
-- Clean seam: keep the richer painter contracts in session/config/projection files; the host should stay a projector, not the source of truth.
-
-## 2026-03-29 - Asset intake now has a visible top-rail status
-
-- Added `asset_ingest_status` and related summary/count fields to the projected runtime snapshot so ingest has a direct shell-facing seam instead of only living inside the ingest block.
-- Surfaced a new `Asset Intake` metric in `config/ui_shell.json` so the top rail now shows source-id-first ingest status alongside lane ownership, bridge health, and render chain telemetry.
-- Re-materialized `state/runtime_snapshot.json`, `state/session_document.json`, and `generated/main.generated.kn` after the shell update so the live projection stayed aligned.
-- Clean extension seam: if ingest grows richer package, transcode, or lineage telemetry later, the same status slot can keep projecting it without giving the native shell semantic ownership.
-
-## 2026-03-29 - Tensor lane now carries explicit artifact shape and registry entries
-
-- Tightened `scripts/python_tensor_train_step.py` and `scripts/python_tensor_infer_step.py` so the returned tensor plans now include explicit `tensor_feature_shape`, `input_shape`, `output_shape`, and nested `artifact_shape` payloads instead of only a terse summary string.
-- Added first-class tensor corpus, checkpoint, dispatch, and result resource/report descriptors in `config/resource_kinds.json`, `config/report_kinds.json`, `session/resource_registry.kn`, and `session/report_registry.kn` so the tensor lane can project its receipts through the same registry-backed path as the rest of the suite.
-- The tensor lane still stays honest about runtime limits: the Python seam can describe shapes and receipts, but it does not claim a fully wired training or inference runtime.
-- Clean extension seam: downstream Fabric or native consumers can now rely on the richer artifact metadata without needing to invent their own tensor receipt vocabulary.
+- Confirmed the scaffold still threads `config/runtime_lanes.json` through the session materializer, live bridge, and shell registry rail, with explicit counts, summaries, and fallback projection when snapshot data is sparse.
+- The current high-leverage seam is to keep lane ownership visible in live chrome and bridge consumers so Kain/Fabric/Python/GPU/C ABI/Rust/Node semantics stay data-driven instead of host-hardcoded.
+- Clean seam: keep the runtime lane registry authoritative in config, then mirror it everywhere the editor chrome needs to explain ownership without re-parsing prose.

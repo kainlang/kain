@@ -1,0 +1,15 @@
+enum AssetKind:
+    struct AssetRecord:
+        name: String
+        size: Int
+
+    impl AssetRecord:
+        fn new(name: String, size: Int) -> Self:
+            Self::make(name, size)
+
+    enum AssetState:
+        Ready
+        Loading
+
+fn after_assets():
+    pass

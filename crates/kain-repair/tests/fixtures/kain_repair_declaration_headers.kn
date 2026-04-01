@@ -1,0 +1,25 @@
+enum_ AssetType:
+    Static
+    Skeletal
+
+struct_ AnimationSourceKind:
+    name: String
+
+trait_ AssetCodec:
+    fn load(self) -> Unit
+
+impl_ AssetCodec for AssetType:
+    fn load(self) -> Unit:
+        return Unit()
+
+mod_ library:
+    use core::String
+
+mod_ material:
+    use core::String
+
+mod_ preset:
+    use core::String
+
+mod_ texture:
+    use core::String

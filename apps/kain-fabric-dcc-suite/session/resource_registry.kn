@@ -246,6 +246,20 @@ fn default_resources() -> Array<ResourceDescriptor>:
             summary: "Tensor inference result receipt"
         },
         ResourceDescriptor {
+            id: "assist_context_report",
+            resource_uri: "report://assist/context",
+            kind: "value",
+            producer_step: "context_assist_projection",
+            summary: "Workspace context report for assist routing"
+        },
+        ResourceDescriptor {
+            id: "assist_tensor_artifact",
+            resource_uri: "artifact://assist/tensor-context",
+            kind: "value",
+            producer_step: "context_assist_projection",
+            summary: "Tensor-aware assist artifact summary"
+        },
+        ResourceDescriptor {
             id: "sculpt_heightfield_source",
             resource_uri: "buffer://sculpt/heightfield-source",
             kind: "shared_buffer",

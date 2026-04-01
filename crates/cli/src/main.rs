@@ -1337,21 +1337,45 @@ fn main() {
                 }
                 Some(Commands::Doctor { repair: repair_args }) => {
                     if let Some(mode) = repair_args.selected_mode() {
-                        let Some(path) = repair_args.repair.as_ref() else {
-                            eprintln!(" Doctor repair requested without a file path.");
-                            std::process::exit(1);
-                        };
-                        match repair::run(path, repair_args.profile, mode) {
-                            Ok(report) => {
-                                print_repair_report(
-                                    path,
-                                    &report,
-                                    mode,
-                                    repair_args.selected_profile_label(),
-                                );
+                        let profile_label = repair_args.selected_profile_label();
+                        match repair_args.target_kind() {
+                            Some(repair::DoctorRepairTargetKind::File) => {
+                                let Some(path) = repair_args.repair.as_ref() else {
+                                    eprintln!(" Doctor repair requested without a file path.");
+                                    std::process::exit(1);
+                                };
+                                match repair::run(path, repair_args.profile, mode) {
+                                    Ok(report) => {
+                                        print_repair_report(path, &report, mode, profile_label);
+                                    }
+                                    Err(err) => {
+                                        eprintln!(" Doctor repair failed: {}", err);
+                                        std::process::exit(1);
+                                    }
+                                }
                             }
-                            Err(err) => {
-                                eprintln!(" Doctor repair failed: {}", err);
+                            Some(repair::DoctorRepairTargetKind::Tree) => {
+                                let Some(root) = repair_args.repair_tree.as_ref() else {
+                                    eprintln!(" Doctor repair tree requested without a directory path.");
+                                    std::process::exit(1);
+                                };
+                                match repair::run_tree(root, repair_args.profile, mode) {
+                                    Ok(report) => {
+                                        print_repair_tree_report(
+                                            root,
+                                            &report,
+                                            mode,
+                                            profile_label,
+                                        );
+                                    }
+                                    Err(err) => {
+                                        eprintln!(" Doctor repair tree failed: {}", err);
+                                        std::process::exit(1);
+                                    }
+                                }
+                            }
+                            None => {
+                                eprintln!(" Doctor repair requested without a target path.");
                                 std::process::exit(1);
                             }
                         }
@@ -1875,12 +1899,14 @@ fn print_repair_report(
     println!(" Repair Target: {}", path.display());
     println!(" Selected Profile: {}", profile);
     println!(" Repair Mode: {:?}", mode);
+    println!(" Safety Class: {:?}", report.safety_class);
+    println!(" Unknown Risk: {:?}", report.remaining_unknown_risk);
     println!(
-        " Action Class: {}",
-        if matches!(mode, kain_repair::RepairMode::ApplyAggressive) {
-            "aggressive"
-        } else {
-            "safe"
+        " Parser Proof: {}",
+        match report.parser_proof_status() {
+            Some(kain_repair::ParserProofStatus::Passed) => "passed",
+            Some(kain_repair::ParserProofStatus::Failed) => "failed",
+            None => "unverified",
         }
     );
 
@@ -1890,16 +1916,10 @@ fn print_repair_report(
         return;
     }
 
-    let mut safe_fixes = 0usize;
-    let mut aggressive_fixes = 0usize;
+    println!(" Fixes Applied: {}", report.fixes_applied);
     println!(" Fixes:");
     for fix in &report.fixes {
         let is_aggressive = is_aggressive_fix(fix);
-        if is_aggressive {
-            aggressive_fixes += 1;
-        } else {
-            safe_fixes += 1;
-        }
         let note = fix.note.as_deref().unwrap_or("repair applied");
         println!(
             "   - [{}] {:?}: {}",
@@ -1908,10 +1928,49 @@ fn print_repair_report(
             note
         );
     }
-    println!(" Applied Fixes: {}", report.fixes.len());
-    println!("   Safe Fixes: {}", safe_fixes);
-    println!("   Aggressive Fixes: {}", aggressive_fixes);
     println!(" Remaining Diagnostics: 0");
+}
+
+fn print_repair_tree_report(
+    root: &Path,
+    report: &repair::DoctorRepairBatchReport,
+    mode: kain_repair::RepairMode,
+    profile: &str,
+) {
+    println!(" Repair Root: {}", root.display());
+    println!(" Selected Profile: {}", profile);
+    println!(" Repair Mode: {:?}", mode);
+    println!(
+        " Action Class: {}",
+        if matches!(mode, kain_repair::RepairMode::ApplyAggressive) {
+            "aggressive"
+        } else {
+            "safe"
+        }
+    );
+    println!(" Files Scanned: {}", report.scanned);
+    println!(" Files Changed: {}", report.changed);
+    println!(" Files Written: {}", report.written);
+    println!(" Files Failed: {}", report.failed);
+    for outcome in &report.outcomes {
+        match &outcome.result {
+            Ok(file_report) => {
+                println!(
+                    "   - {} [{}] {}",
+                    outcome.path.display(),
+                    if file_report.changed() { "changed" } else { "unchanged" },
+                    if file_report.fixes.is_empty() {
+                        "no fixes"
+                    } else {
+                        "repairs applied"
+                    }
+                );
+            }
+            Err(err) => {
+                println!("   - {} [failed] {}", outcome.path.display(), err);
+            }
+        }
+    }
 }
 
 fn is_aggressive_fix(fix: &kain_repair::AppliedFix) -> bool {

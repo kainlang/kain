@@ -9,7 +9,19 @@
       "scene": "dcc_suite_scene",
       "presentation_profile": "dcc_authoring_balanced",
       "gizmo_binding": "primary_dcc_viewport",
-      "summary": "Fixed central viewport editor surface for authoring, review, and capture."
+      "summary": "Fixed central viewport editor surface for authoring, review, and capture.",
+      "properties": [
+        {
+          "label": "Viewport mode",
+          "value": "layout / model / sculpt / paint / lookdev / render",
+          "detail": "session-owned"
+        },
+        {
+          "label": "Overlay policy",
+          "value": "Mode-driven",
+          "detail": "viewport-aware"
+        }
+      ]
     },
     {
       "id": "scene_graph",
@@ -194,6 +206,16 @@
           "label": "Live health",
           "value": "Projected",
           "detail": "runtime_lane_health from the live snapshot"
+        },
+        {
+          "label": "Lane roster",
+          "value": "Registry-backed",
+          "detail": "runtime_lane_registry_summary from config/runtime_lanes.json"
+        },
+        {
+          "label": "Power lanes",
+          "value": "kain / fabric / python / gpu / c_abi / rust / node",
+          "detail": "multi-runtime authoring spine"
         }
       ],
       "notes": [
@@ -291,17 +313,17 @@
     },
     {
       "id": "material_graph",
-      "title": "Material Graph",
+      "title": "Paint Graph",
       "dock": "bottom",
       "kind": "graph",
-      "summary": "Layered shading, texture routing, smart materials, scan ingestion, and export receipts."
+      "summary": "Layered shading, texture routing, smart materials, scan ingestion, and export receipts for the paint bench."
     },
     {
       "id": "material_layers",
-      "title": "Material Layers",
+      "title": "Paint Layers",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Layer stacks, generators, fill layers, paint layers, smart masks, and channel blend modes.",
+      "summary": "Layer stacks, generators, fill layers, paint layers, smart masks, and channel blend modes for the authored bench.",
       "properties": [
         {
           "label": "Layer count",
@@ -342,7 +364,7 @@
       "title": "Texture Set Inspector",
       "dock": "right",
       "kind": "inspector",
-      "summary": "Texture set membership, UDIM coverage, scan plate inputs, channel packs, and bake preset assignment.",
+      "summary": "Texture set membership, UDIM coverage, scan plate inputs, channel packs, and bake preset assignment for the bench.",
       "properties": [
         {
           "label": "Texture set",
@@ -503,12 +525,17 @@
       "title": "Render Lounge",
       "dock": "bottom",
       "kind": "graph",
-      "summary": "Preview frames, history, and render budgets.",
+      "summary": "Preview frames, AOV posture, history, and render budgets.",
       "properties": [
         {
           "label": "Preview chain",
           "value": "Pathtrace \u00e2\u2020\u2019 accumulation \u00e2\u2020\u2019 denoise",
           "detail": "authoring spine"
+        },
+        {
+          "label": "AOV posture",
+          "value": "Beauty + utility + matte",
+          "detail": "review ready"
         },
         {
           "label": "Budget",
@@ -524,6 +551,64 @@
           "label": "Review",
           "value": "Delegated",
           "detail": "lighting and capture ready"
+        }
+      ]
+    },
+    {
+      "id": "aov_review_board",
+      "title": "AOV Review Board",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Beauty, utility, matte, and review capture routing for the render room.",
+      "properties": [
+        {
+          "label": "AOV set",
+          "value": "Beauty + utility",
+          "detail": "inspection first"
+        },
+        {
+          "label": "Review posture",
+          "value": "Lighting + capture",
+          "detail": "delegated review"
+        },
+        {
+          "label": "Frame grade",
+          "value": "Balanced",
+          "detail": "preview continuity"
+        },
+        {
+          "label": "Visibility",
+          "value": "Tracked",
+          "detail": "report-backed"
+        }
+      ]
+    },
+    {
+      "id": "render_capture_board",
+      "title": "Review Capture Board",
+      "dock": "right",
+      "kind": "inspector",
+      "summary": "Frame capture, playback routing, and compositor handoff for review passes.",
+      "properties": [
+        {
+          "label": "Capture profile",
+          "value": "Frame review pack",
+          "detail": "operator visible"
+        },
+        {
+          "label": "Playback",
+          "value": "Review-safe",
+          "detail": "handoff ready"
+        },
+        {
+          "label": "Compositor handoff",
+          "value": "Explicit",
+          "detail": "final review room"
+        },
+        {
+          "label": "Retention",
+          "value": "Durable",
+          "detail": "app-owned receipts"
         }
       ]
     },

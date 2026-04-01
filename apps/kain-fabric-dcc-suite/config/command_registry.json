@@ -301,7 +301,7 @@
       "id": "material.author_texture_set",
       "label": "Author Texture Set",
       "surface": "texture_set_inspector",
-      "summary": "Updates the active texture set, UDIM coverage, and channel preset for the current material.",
+      "summary": "Updates the active texture set, UDIM coverage, and channel preset for the current paint bench.",
       "intent": "material.bake_preview",
       "payload_schema": {
         "texture_set_id": "string",
@@ -313,7 +313,7 @@
       "id": "material.ingest_scan_plate",
       "label": "Ingest Scan Plate",
       "surface": "asset_ingest",
-      "summary": "Stages a scan plate into the current material contract with sampler-style metadata, source lineage, and ingest receipts.",
+      "summary": "Stages a scan plate into the current material contract with sampler-style metadata, source lineage, and ingest receipts for the paint bench.",
       "intent": "asset.ingest_package",
       "payload_schema": {
         "source_id": "string",
@@ -326,7 +326,7 @@
       "id": "material.paint_layer",
       "label": "Paint Material Layer",
       "surface": "material_layers",
-      "summary": "Queues layer-stack changes for fill, paint, filter, and smart-material operators.",
+      "summary": "Queues layer-stack changes for fill, paint, filter, and smart-material operators in the authored paint bench.",
       "intent": "material.bake_preview",
       "payload_schema": {
         "layer_id": "string",
@@ -341,7 +341,7 @@
       "id": "material.resolve_smart_mask",
       "label": "Resolve Smart Mask",
       "surface": "svg_mask_canvas",
-      "summary": "Rebuilds smart-mask anchors, wear responses, and scan-derived trim masks for the active material stack.",
+      "summary": "Rebuilds smart-mask anchors, wear responses, and scan-derived trim masks for the active material stack and paint bench.",
       "intent": "material.bake_preview",
       "payload_schema": {
         "document_id": "string",
@@ -376,7 +376,7 @@
       "id": "material.inspect_paint_runtime",
       "label": "Inspect Paint Runtime",
       "surface": "material_paint_runtime_surface",
-      "summary": "Shows the deformation-aware paint runtime report for layer blend and brush response tuning.",
+      "summary": "Shows the deformation-aware paint runtime report for layer blend and brush response tuning on the paint bench.",
       "intent": "material.bake_preview",
       "payload_schema": {
         "layer_id": "string",

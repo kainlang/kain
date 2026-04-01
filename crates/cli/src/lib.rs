@@ -71,6 +71,7 @@ const KN_SHORTCUTS: &[&str] = &[
     "kn build <file.kn> -t rust  Generate Rust output",
     "kn doctor                   Inspect PATH + runtime wiring",
     "kn doctor --repair <file>    Repair a source file in place or dry-run",
+    "kn doctor --repair-tree <dir> Repair every .kn file under a tree",
     "kn doctor --repair <file> --profile aggressive",
 ];
 

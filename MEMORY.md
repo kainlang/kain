@@ -1,48 +1,56 @@
 # MEMORY
 
-## 2026-03-29 - doctor CLI UX gained profile-aware repair reporting
+## 2026-03-29 - self constructor/type normalization now covers Self_ migration artifacts
 
-The `kain doctor` repair lane now feels more like a first-class operator command instead of a bare file fixer.
+The repair engine picked up a narrower normalization pass for `Self_` forms that show up in migration drafts and still trip the parser.
 
 What changed:
 
-- `crates/cli/src/repair.rs`
-  - Added a `--profile` selector on the repair sub-surface with `safe` and `aggressive` presets.
-  - The repair runner now receives the selected profile and passes it through to `kain-repair`.
-  - Safe profile disables the higher-risk semantic rewrites; aggressive keeps the full default repair profile.
-- `crates/cli/src/main.rs`
-  - Doctor repair output now reports:
-    - selected profile
-    - repair mode
-    - safe vs aggressive action class
-    - fixes applied/suggested
-    - remaining diagnostics
-    - per-fix classification as safe/aggressive
-  - Repair runs now return after printing the repair report instead of falling through to the normal doctor diagnostics.
-- `crates/cli/src/lib.rs`
-  - Updated the launcher shortcut hints to show the profile-aware repair surface.
+- `crates/kain-repair/src/engine.rs`
+  - Expanded `normalize_self_constructor_syntax` from a bare `Self:`/`Self :` rewrite into a line-aware pass that also handles `Self_` artifacts in constructor and type positions.
+  - The pass now normalizes low-risk punctuation-adjacent forms such as `Self_:` / `Self_ :` / `Self_::`, `-> Self_`, `: Self_`, `(Self_`, ` Self_)`, and comma-adjacent variants.
+- `crates/kain-repair/tests/fixtures/kain_repair_reserved_self.kn`
+  - Added `Self_`-shaped constructor and return-type examples alongside the existing reserved-identifier drift case.
+- `crates/kain-repair/tests/repair_fixtures.rs`
+  - Updated assertions to prove `Self_` is normalized back into parser-safe `Self` / `Self::` forms.
 
-Command surface now includes:
+Behavior now covered:
 
-- `kain doctor`
-- `kain doctor --repair <file>`
-- `kain doctor --repair <file> --profile safe`
-- `kain doctor --repair <file> --profile aggressive`
-- `kain doctor --repair <file> --suggest`
-- `kain doctor --repair <file> --dry-run`
-- `kain doctor --repair <file> --write`
+- `fn Self_(value: Int) -> Self_` -> `fn Self(value: Int) -> Self`
+- `Self_:build(type)` -> `Self::build(type)`
+- `Result<Self_, Self_>` -> `Result<Self, Self>`
+- `Self_(left, right)` -> `Self(left, right)`
 
 Notes:
 
-- I did not run tests or `cargo check`, per instruction.
-- The CLI surface stays backward-compatible; existing `--repair`, `--suggest`, `--dry-run`, and `--write` flows still work.
-- The repair output now exposes the difference between conservative normalization and more invasive parser-recovery work so users can see what was actually attempted.
+- No tests or `cargo check` were run.
+- This is intentionally conservative: it only rewrites obvious migration artifacts in places where `Self_` is acting like a bogus constructor/type token, not arbitrary identifiers.
 
-## 2026-03-29 - repair surface coherence pass
+## 2026-03-29 - nested declaration placement now flattens parser-hostile blocks
 
-Stabilization pass on the auto-repair wiring:
+The repair engine now has a deterministic pass for nested declaration blocks that migration drafts tuck inside other declarations and the parser rejects outright.
 
-- Added `crates/kain-repair::repair_source_with_profile(...)` so the CLI can pass a profile through instead of flattening everything to the default profile.
-- Kept the CLI repair branch aligned with the existing `RepairMode` contract in `kain-repair` instead of inventing extra mode variants in the caller.
-- Doctor repair output now clearly labels the selected profile and classifies the mode as safe or aggressive.
-- This was a low-conflict cleanup pass: no tests, no cargo check.
+What changed:
+
+- `crates/kain-repair/src/engine.rs`
+  - Added `flatten_nested_declaration_placement`, a line-oriented pass that detects nested `enum` / `struct` / `trait` / `impl` headers and lifts the whole declaration block back to top-level placement by stripping the surrounding indentation.
+- `crates/kain-repair/src/registry.rs`
+  - Registered the new rule as a safe class pass and placed it after declaration-header normalization.
+- `crates/kain-repair/src/lib.rs`
+  - Added `FixKind::FlattenNestedDeclarationPlacement` and a `flatten_nested_declarations` profile toggle.
+- `crates/kain-repair/tests/fixtures/kain_repair_nested_declarations.kn`
+- `crates/kain-repair/tests/repair_fixtures.rs`
+  - Added fixture coverage for nested `struct`, `impl`, and `enum` declarations under an outer `enum`.
+
+Behavior now covered:
+
+- Nested `struct ...:` blocks inside an `enum ...:` are flattened to top-level `struct ...:` blocks.
+- Nested `impl ...:` blocks inside an `enum ...:` are flattened to top-level `impl ...:` blocks.
+- Nested `enum ...:` blocks inside an `enum ...:` are flattened to top-level sibling declarations.
+
+This should eliminate parser failures where proof-tree output shows declarations embedded in declaration bodies, and it should move any remaining failure to the next seam: actual semantic restructuring, invalid block contents, or other non-declaration syntax errors.
+
+Notes:
+
+- No tests or `cargo check` were run.
+- The pass is deliberately mechanical. It does not try to rebuild module semantics; it only gets obviously hostile nested declaration placement out of the parser's way.

@@ -55,13 +55,15 @@ fn trailing_whitespace(_: &RepairProfile) -> bool { true }
 fn blank_lines(_: &RepairProfile) -> bool { true }
 fn block_comments(profile: &RepairProfile) -> bool { profile.fix_unterminated_block_comments }
 fn indentation(profile: &RepairProfile) -> bool { profile.normalize_indentation }
+fn declaration_headers(profile: &RepairProfile) -> bool { profile.normalize_declaration_headers }
+fn flatten_nested_declarations(profile: &RepairProfile) -> bool { profile.flatten_nested_declarations }
 fn reserved_identifiers(profile: &RepairProfile) -> bool { profile.rewrite_reserved_identifiers }
 fn self_ctor(profile: &RepairProfile) -> bool { profile.normalize_self_constructor_syntax }
 fn inline_initializers(profile: &RepairProfile) -> bool { profile.rewrite_inline_initializers }
 fn namespace_paths(profile: &RepairProfile) -> bool { profile.normalize_namespace_paths }
 fn parser_safe_blocks(profile: &RepairProfile) -> bool { profile.reconstruct_parser_safe_blocks }
 
-const RULES: [RepairRule; 10] = [
+const RULES: [RepairRule; 12] = [
     RepairRule {
         metadata: RuleMetadata { id: "normalize_line_endings", kind: crate::FixKind::NormalizeLineEndings, safety: RuleSafety::Safe, scope: RuleScope::Generic },
         enabled_in_apply_safe: true, enabled_in_apply_aggressive: true, enabled_in_dry_run: true, enabled_in_suggest: true,
@@ -86,6 +88,16 @@ const RULES: [RepairRule; 10] = [
         metadata: RuleMetadata { id: "normalize_indentation", kind: crate::FixKind::NormalizeIndentation, safety: RuleSafety::Safe, scope: RuleScope::Code },
         enabled_in_apply_safe: true, enabled_in_apply_aggressive: true, enabled_in_dry_run: true, enabled_in_suggest: true,
         profile_gate: indentation, apply: crate::engine::apply_normalize_indentation,
+    },
+    RepairRule {
+        metadata: RuleMetadata { id: "normalize_declaration_headers", kind: crate::FixKind::NormalizeDeclarationHeader, safety: RuleSafety::Safe, scope: RuleScope::Class },
+        enabled_in_apply_safe: true, enabled_in_apply_aggressive: true, enabled_in_dry_run: true, enabled_in_suggest: true,
+        profile_gate: declaration_headers, apply: crate::engine::apply_normalize_declaration_headers,
+    },
+    RepairRule {
+        metadata: RuleMetadata { id: "flatten_nested_declaration_placement", kind: crate::FixKind::FlattenNestedDeclarationPlacement, safety: RuleSafety::Safe, scope: RuleScope::Class },
+        enabled_in_apply_safe: true, enabled_in_apply_aggressive: true, enabled_in_dry_run: true, enabled_in_suggest: true,
+        profile_gate: flatten_nested_declarations, apply: crate::engine::apply_flatten_nested_declaration_placement,
     },
     RepairRule {
         metadata: RuleMetadata { id: "rewrite_reserved_identifiers", kind: crate::FixKind::RewriteReservedIdentifier, safety: RuleSafety::Aggressive, scope: RuleScope::Class },

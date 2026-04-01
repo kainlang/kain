@@ -381,7 +381,8 @@ function New-ShellMetrics {
         [System.Collections.IEnumerable]$Intents,
         [System.Collections.IEnumerable]$Reports,
         [System.Collections.IEnumerable]$Jobs,
-        [System.Collections.IEnumerable]$RuntimePacks
+        [System.Collections.IEnumerable]$RuntimePacks,
+        [System.Collections.IEnumerable]$ViewportModes
     )
 
     $runtimePackCount = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_packs) {
@@ -398,20 +399,41 @@ function New-ShellMetrics {
         0
     }
 
+    $powerLaneCount = if ($null -ne $Snapshot -and $null -ne $Snapshot.power_lane_registry) {
+        @($Snapshot.power_lane_registry).Count
+    } elseif ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_registry) {
+        @($Snapshot.runtime_lane_registry).Count
+    } elseif ($null -ne $RuntimeLanes) {
+        @($RuntimeLanes).Count
+    } else {
+        0
+    }
+
     $extensionSeamCount = if ($null -ne $Snapshot -and $null -ne $Snapshot.extension_seams) {
         @($Snapshot.extension_seams).Count
     } else {
         0
     }
 
+    $viewportModeCount = if ($null -ne $ViewportModes) { @($ViewportModes).Count } else { 0 }
+
     return @{
         latest_fabric_status = Resolve-LatestFabricStatus -Snapshot $Snapshot
         workspace_mode_count = @($Modes).Count
+        viewport_mode_count = $viewportModeCount
         surface_count = @($Surfaces).Count
-        runtime_pack_count = $runtimePackCount
         runtime_lane_count = $runtimeLaneCount
+        power_lane_count = $powerLaneCount
         runtime_lane_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_summary) { [string]$Snapshot.runtime_lane_summary } else { "n/a" }
+        power_lane_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.power_lane_summary) { [string]$Snapshot.power_lane_summary } else { "n/a" }
         runtime_lane_registry_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_registry_summary) { [string]$Snapshot.runtime_lane_registry_summary } else { "n/a" }
+        runtime_pack_count = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_packs) { @($Snapshot.runtime_packs).Count } else { @($RuntimePacks).Count }
+        runtime_pack_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_pack_summary) { [string]$Snapshot.runtime_pack_summary } else { (($RuntimePacks | ForEach-Object { "$($_.label) [$($_.id)]" }) -join " | ") }
+        fabric_intent_count = if ($null -ne $Snapshot -and $null -ne $Snapshot.fabric_intents) { @($Snapshot.fabric_intents).Count } else { @($Intents).Count }
+        fabric_intent_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.fabric_intent_summary) { [string]$Snapshot.fabric_intent_summary } else { (($Intents | ForEach-Object { "$($_.label) [$($_.id)]" }) -join " | ") }
+        viewport_mode_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.viewport_mode_summary) { [string]$Snapshot.viewport_mode_summary } else { (($ViewportModes | ForEach-Object { $_.id }) -join " | ") }
+        viewport_mode_registry_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.viewport_mode_registry_summary) { [string]$Snapshot.viewport_mode_registry_summary } else { (($ViewportModes | ForEach-Object { "$($_.id) => $($_.overlay_policy_id)" }) -join " | ") }
+        asset_pipeline_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.asset_pipeline_summary) { [string]$Snapshot.asset_pipeline_summary } else { [string]$AssetPipeline.asset_pipeline.summary }
         bridge_status = if ($null -ne $Snapshot -and $null -ne $Snapshot.bridge_status) { [string]$Snapshot.bridge_status } elseif ($null -ne $Snapshot -and $null -ne $Snapshot.bridge -and $null -ne $Snapshot.bridge.status) { [string]$Snapshot.bridge.status } else { "n/a" }
         runtime_lane_health = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_health) { [string]$Snapshot.runtime_lane_health } else { "warming" }
         runtime_lane_health_detail = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_health_detail) { [string]$Snapshot.runtime_lane_health_detail } else { "bridge warming / fabric warming" }
@@ -535,6 +557,7 @@ function Get-SurfaceCardVariant {
 function Render-SurfaceCard {
     param(
         $Surface,
+        $Snapshot,
         [hashtable]$ShellMetrics,
         [System.Collections.IEnumerable]$Reports,
         [string]$Scope,
@@ -558,6 +581,11 @@ function Render-SurfaceCard {
         Add-Line $lines (Render-TextNode -Role "callout" -Value "Mesh and topology lineage stay first in this browser." -Indent "$Indent    ")
         Add-Line $lines (Render-TextNode -Role "caption" -Value (("Registry-backed report inventory: " + $ShellMetrics.report_count + " kinds") ) -Indent "$Indent    ")
         Add-Line $lines (Render-TextNode -Role "caption" -Value (("Registry-backed families: " + ($reportFamilies -join ", ")) ) -Indent "$Indent    ")
+    }
+
+    if ([string]$Surface.id -eq "runtime_lane_map") {
+        $runtimeLaneRegistry = if ($null -ne $Snapshot -and $null -ne $Snapshot.power_lane_registry) { $Snapshot.power_lane_registry } elseif ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_registry) { $Snapshot.runtime_lane_registry } else { @() }
+        Add-Lines $lines (Render-RuntimeLaneRegistryCard -RuntimeLanes $runtimeLaneRegistry -ShellMetrics $ShellMetrics -Scope $Scope -Indent "$Indent    ")
     }
     Add-Lines $lines (Render-SurfaceWidget -Surface $Surface -Indent "$Indent    ")
     Add-Line $lines "$Indent</panel>"
@@ -682,6 +710,38 @@ function Render-SystemRack {
     return $lines
 }
 
+function Render-RuntimeLaneRegistryCard {
+    param(
+        [System.Collections.IEnumerable]$RuntimeLanes,
+        [hashtable]$ShellMetrics,
+        [string]$Scope,
+        [string]$Indent = ""
+    )
+
+    $lanes = @($RuntimeLanes)
+    $lines = New-Object System.Collections.Generic.List[string]
+    Add-Line $lines "$Indent<panel title=`"Runtime Lane Registry`" scope=`"$Scope`" variant=`"property_grid`" layout=`"column`" gap={6} persistent_layout_id=`"dcc_runtime_lane_registry`">"
+    Add-Line $lines (Render-TextNode -Role "eyebrow" -Value "RUNTIME LANES" -Indent "$Indent    ")
+    Add-Line $lines (Render-TextNode -Role "title" -Value "Runtime Lane Registry" -Indent "$Indent    ")
+    Add-Line $lines (Render-TextNode -Role "caption" -Value ("Structured lane ownership stays authored in config/runtime_lanes.json and projected into the live snapshot.") -Indent "$Indent    ")
+    Add-Line $lines "$Indent    <panel title=`"Lane Registry Rows`" scope=`"$Scope`" variant=`"property_grid`" layout=`"column`" gap={4} persistent_layout_id=`"dcc_runtime_lane_registry_rows`">"
+    foreach ($lane in $lanes) {
+        $laneTitle = "$($lane.label) [$($lane.runtime)]"
+        $laneSummary = [string]$lane.summary
+        $laneDetail = "owner=$($lane.owner) | runtime=$($lane.runtime)"
+        Add-Line $lines "$Indent        <panel title=`"$laneTitle`" scope=`"$Scope`" variant=`"property_row`" layout=`"column`" gap={1} persistent_layout_id=`"$(ConvertTo-KnSafeId ("runtime_lane_" + $lane.id))`">"
+        Add-Line $lines (Render-TextNode -Role "eyebrow" -Value ($lane.owner.ToUpperInvariant()) -Indent "$Indent            ")
+        Add-Line $lines (Render-TextNode -Role "title" -Value $laneTitle -Indent "$Indent            ")
+        Add-Line $lines (Render-TextNode -Role "caption" -Value $laneSummary -Indent "$Indent            ")
+        Add-Line $lines (Render-TextNode -Role "caption" -Value $laneDetail -Indent "$Indent            ")
+        Add-Line $lines "$Indent        </panel>"
+    }
+    Add-Line $lines "$Indent    </panel>"
+    Add-Lines $lines (Render-TextLines -Items @($ShellMetrics.runtime_lane_registry_summary) -Formatter { param($item) $item } -Role "caption" -Indent "$Indent    ")
+    Add-Line $lines "$Indent</panel>"
+    return $lines
+}
+
 function Render-ShellTopBar {
     param(
         $ShellChrome,
@@ -707,7 +767,19 @@ function Render-ShellTopBar {
 
     Add-Line $lines "$Indent            <panel title=`"Status Strip`" scope=`"$Scope`" variant=`"status_rack`" layout=`"column`" gap={4} persistent_layout_id=`"dcc_status_rack`">"
     Add-Line $lines (Render-TextNode -Role "eyebrow" -Value "RUNTIME STATUS" -Indent "$Indent            ")
-    Add-Line $lines (Render-TextNode -Role "caption" -Value "Live session scale and pipeline health for the active shell." -Indent "$Indent            ")
+    Add-Line $lines (Render-TextNode -Role "caption" -Value "Live session scale, lane ownership, and pipeline health for the active shell." -Indent "$Indent            ")
+    Add-Line $lines (Render-TextNode -Role "caption" -Value ("Lane roster: " + [string]$ShellMetrics.runtime_lane_registry_summary) -Indent "$Indent            ")
+    Add-Line $lines (Render-TextNode -Role "caption" -Value ("Runtime packs: " + [string]$ShellMetrics.runtime_pack_summary) -Indent "$Indent            ")
+    Add-Line $lines (Render-TextNode -Role "caption" -Value (("Fabric intents: " + [string]$ShellMetrics.fabric_intent_count + " live / " + [string]$ShellMetrics.fabric_intent_summary) ) -Indent "$Indent            ")
+    Add-Line $lines (Render-TextNode -Role "caption" -Value ("Viewport modes: " + [string]$ShellMetrics.viewport_mode_registry_summary) -Indent "$Indent            ")
+    Add-Line $lines (Render-TextNode -Role "caption" -Value ("Asset intake: " + [string]$ShellMetrics.asset_pipeline_summary) -Indent "$Indent            ")
+    if ([string]::IsNullOrWhiteSpace([string]$ShellMetrics.runtime_lane_registry_summary) -or [string]$ShellMetrics.runtime_lane_registry_summary -eq "n/a") {
+        Add-Line $lines (Render-TextNode -Role "caption" -Value "Lane roster falls back to config/runtime_lanes.json when snapshot projection is sparse." -Indent "$Indent            ")
+    }
+    Add-Line $lines (Render-TextNode -Role "caption" -Value ("Power lanes: " + [string]$ShellMetrics.power_lane_count + " :: " + [string]$ShellMetrics.power_lane_summary) -Indent "$Indent            ")
+    if ([string]::IsNullOrWhiteSpace([string]$ShellMetrics.viewport_mode_registry_summary) -or [string]$ShellMetrics.viewport_mode_registry_summary -eq "n/a") {
+        Add-Line $lines (Render-TextNode -Role "caption" -Value "Viewport modes fall back to config/viewport_modes.json when snapshot projection is sparse." -Indent "$Indent            ")
+    }
     Add-Line $lines "$Indent                <slot layout=`"row`" gap={6} overflow_x=`"scroll`" persistent_layout_id=`"dcc_status_metrics`">"
     foreach ($statusItem in $topBarStatusItems) {
         Add-Lines $lines (Render-ChromeMetricCard -StatusItem $statusItem -ShellMetrics $ShellMetrics -Scope $Scope -PersistentLayoutIdPrefix "topbar_status" -Indent "$Indent                    ")
@@ -858,14 +930,14 @@ function Render-WorkspacePage {
     Add-Lines $lines (Render-TextLines -Items $intents -Formatter { param($intent) "$($intent.label) | $($intent.graph)" } -Role "body" -Indent "                        ")
     Add-Line $lines "                    </inspector>"
     foreach ($surface in $rightSurfaces) {
-        Add-Lines $lines (Render-SurfaceCard -Surface $surface -ShellMetrics $ShellMetrics -Reports $Reports -Scope $Scope -Variant "surface_card" -PersistentLayoutId "${pageLayoutPrefix}_right_$($surface.id)" -Indent "                    ")
+        Add-Lines $lines (Render-SurfaceCard -Surface $surface -Snapshot $Snapshot -ShellMetrics $ShellMetrics -Reports $Reports -Scope $Scope -Variant "surface_card" -PersistentLayoutId "${pageLayoutPrefix}_right_$($surface.id)" -Indent "                    ")
     }
     Add-Line $lines "                </panel>"
 
     Add-Line $lines "                <panel title=`"Execution Strip`" dock=`"bottom`" split_ratio={0.2} min_height={180} max_height={320} resizable={true} layout=`"column`" gap={10} persistent_layout_id=`"${pageLayoutPrefix}_telemetry_tray`">"
     Add-Line $lines "                    <panel title=`"Execution Surfaces`" layout=`"grid`" columns={$telemetryDeckColumns} gap={10} persistent_layout_id=`"${pageLayoutPrefix}_execution_surfaces`">"
     foreach ($surface in $bottomSurfaces) {
-        Add-Lines $lines (Render-SurfaceCard -Surface $surface -ShellMetrics $ShellMetrics -Reports $Reports -Scope $Scope -Variant "quiet_card" -PersistentLayoutId "${pageLayoutPrefix}_bottom_$($surface.id)" -Indent "                        ")
+        Add-Lines $lines (Render-SurfaceCard -Surface $surface -Snapshot $Snapshot -ShellMetrics $ShellMetrics -Reports $Reports -Scope $Scope -Variant "quiet_card" -PersistentLayoutId "${pageLayoutPrefix}_bottom_$($surface.id)" -Indent "                        ")
     }
     Add-Line $lines "                    </panel>"
     Add-Line $lines "                    <inspector title=`"Capability Notes`" persistent_layout_id=`"${pageLayoutPrefix}_extension_seams`">"
@@ -892,6 +964,8 @@ $Resources = (Get-Content (Join-Path $AppRoot "config/resource_kinds.json") -Raw
 $Reports = (Get-Content (Join-Path $AppRoot "config/report_kinds.json") -Raw | ConvertFrom-Json).report_kinds
 $RuntimePacks = (Get-Content (Join-Path $AppRoot "config/runtime_packs.json") -Raw | ConvertFrom-Json).runtime_packs
 $RuntimeLanes = (Get-Content (Join-Path $AppRoot "config/runtime_lanes.json") -Raw | ConvertFrom-Json).runtime_lanes
+$AssetPipeline = Get-Content (Join-Path $AppRoot "config/asset_pipeline_manifest.json") -Raw | ConvertFrom-Json
+$ViewportModes = (Get-Content (Join-Path $AppRoot "config/viewport_modes.json") -Raw | ConvertFrom-Json).modes
 $Jobs = (Get-Content (Join-Path $AppRoot "config/automation_jobs.json") -Raw | ConvertFrom-Json).jobs
 $Theme = Get-Content (Join-Path $AppRoot "config/ui_theme.json") -Raw | ConvertFrom-Json
 $UiShell = Get-Content (Join-Path $AppRoot "config/ui_shell.json") -Raw | ConvertFrom-Json
@@ -928,7 +1002,8 @@ $ShellMetrics = New-ShellMetrics `
     -Intents $Intents `
     -Reports $Reports `
     -Jobs $Jobs `
-    -RuntimePacks $RuntimePacks
+    -RuntimePacks $RuntimePacks `
+    -ViewportModes $ViewportModes
 
 $lines = New-Object System.Collections.Generic.List[string]
 Add-Line $lines "component App():"
@@ -972,6 +1047,9 @@ Add-Lines $lines (Render-TextLines -Items $Resources -Formatter { param($resourc
 Add-Line $lines "                </inspector>"
 Add-Line $lines "                <inspector title=`"Reports`" persistent_layout_id=`"dcc_registry_reports`">"
 Add-Lines $lines (Render-TextLines -Items $Reports -Formatter { param($report) "$($report.report_uri) | $($report.summary)" } -Role "caption" -Indent "                    ")
+Add-Line $lines "                </inspector>"
+Add-Line $lines "                <inspector title=`"Viewport Modes`" persistent_layout_id=`"dcc_registry_viewport_modes`">"
+Add-Lines $lines (Render-TextLines -Items $ViewportModes -Formatter { param($mode) "$($mode.id) | gizmo=$($mode.gizmo_mode) | profile=$($mode.view_profile_id)" } -Role "caption" -Indent "                    ")
 Add-Line $lines "                </inspector>"
 Add-Line $lines "                <inspector title=`"Automation`" persistent_layout_id=`"dcc_registry_automation`">"
 Add-Lines $lines (Render-TextLines -Items $Jobs -Formatter { param($job) "$($job.label) | $($job.schedule)" } -Role "caption" -Indent "                    ")

@@ -138,6 +138,13 @@ fn plan_for_command(
             priority: 88,
             debounce_ms: 0
         })
+    if command_kind == "ui.focus_editor_context":
+        intents.push(PlannedIntent {
+            intent_id: "ui.focus_editor_context",
+            reason: "editor routing needs to sync the active workspace and context panel state",
+            priority: 86,
+            debounce_ms: 0
+        })
     if command_kind == "evaluation.recompute_graph":
         intents.push(PlannedIntent {
             intent_id: "evaluation.recompute_graph",

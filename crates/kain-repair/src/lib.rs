@@ -28,6 +28,8 @@ pub struct RepairProfile {
     pub normalize_line_endings: bool,
     pub fix_unterminated_block_comments: bool,
     pub normalize_indentation: bool,
+    pub normalize_declaration_headers: bool,
+    pub flatten_nested_declarations: bool,
     pub rewrite_reserved_identifiers: bool,
     pub normalize_self_constructor_syntax: bool,
     pub rewrite_inline_initializers: bool,
@@ -37,7 +39,7 @@ pub struct RepairProfile {
 
 impl Default for RepairProfile {
     fn default() -> Self {
-        Self { trim_trailing_whitespace: true, ensure_final_newline: true, collapse_extra_blank_lines: true, normalize_line_endings: true, fix_unterminated_block_comments: true, normalize_indentation: true, rewrite_reserved_identifiers: true, normalize_self_constructor_syntax: true, rewrite_inline_initializers: true, normalize_namespace_paths: true, reconstruct_parser_safe_blocks: true }
+        Self { trim_trailing_whitespace: true, ensure_final_newline: true, collapse_extra_blank_lines: true, normalize_line_endings: true, fix_unterminated_block_comments: true, normalize_indentation: true, normalize_declaration_headers: true, flatten_nested_declarations: true, rewrite_reserved_identifiers: true, normalize_self_constructor_syntax: true, rewrite_inline_initializers: true, normalize_namespace_paths: true, reconstruct_parser_safe_blocks: true }
     }
 }
 
@@ -54,6 +56,9 @@ pub enum FixKind {
     CloseUnterminatedBlockComment,
     InsertMissingBlockCommentCloser,
     NormalizeIndentation,
+    NormalizeDeclarationHeader,
+    FlattenNestedDeclarationPlacement,
+    NormalizeImplTypeToken,
     RewriteReservedIdentifier,
     NormalizeSelfConstructorSyntax,
     RewriteInlineInitialization,
@@ -70,20 +75,64 @@ pub struct RepairResult { pub original: String, pub repaired: String, pub change
 impl RepairResult { pub fn unchanged(original: impl Into<String>) -> Self { let original = original.into(); Self { repaired: original.clone(), original, changed: false, fixes: Vec::new() } } }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseValidation {
+    pub passed: bool,
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepairSafetyClass {
+    Safe,
+    Aggressive,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepairRiskLevel {
+    Low,
+    Elevated,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParserProofStatus {
+    Passed,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepairReport {
     pub original: String,
     pub repaired: String,
     pub changed: bool,
     pub fixes: Vec<AppliedFix>,
+    pub fixes_applied: usize,
+    pub safety_class: RepairSafetyClass,
+    pub remaining_unknown_risk: RepairRiskLevel,
+    pub post_repair_parse: Option<ParseValidation>,
 }
 
 impl From<RepairResult> for RepairReport {
     fn from(value: RepairResult) -> Self {
-        Self { original: value.original, repaired: value.repaired, changed: value.changed, fixes: value.fixes }
+        let fixes_applied = value.fixes.len();
+        let has_aggressive_fix = value.fixes.iter().any(|fix| matches!(fix.kind, FixKind::RewriteReservedIdentifier | FixKind::NormalizeSelfConstructorSyntax | FixKind::RewriteInlineInitialization | FixKind::NormalizeNamespacePath | FixKind::ReconstructParserSafeBlock));
+        let safety_class = if has_aggressive_fix { RepairSafetyClass::Aggressive } else { RepairSafetyClass::Safe };
+        let remaining_unknown_risk = if fixes_applied == 0 { RepairRiskLevel::Unknown } else if has_aggressive_fix { RepairRiskLevel::Elevated } else { RepairRiskLevel::Low };
+        Self { original: value.original, repaired: value.repaired, changed: value.changed, fixes: value.fixes, fixes_applied, safety_class, remaining_unknown_risk, post_repair_parse: None }
     }
 }
 
-impl RepairReport { pub fn changed(&self) -> bool { self.changed } }
+impl RepairReport {
+    pub fn changed(&self) -> bool { self.changed }
+
+    pub fn parser_proof_status(&self) -> Option<ParserProofStatus> {
+        self.post_repair_parse.as_ref().map(|validation| if validation.passed { ParserProofStatus::Passed } else { ParserProofStatus::Failed })
+    }
+
+    pub fn with_post_repair_parse(mut self, validation: ParseValidation) -> Self {
+        self.post_repair_parse = Some(validation);
+        self
+    }
+}
 
 pub fn repair_text(text: impl AsRef<str>) -> RepairResult { repair_text_with_input(&RepairInput::new(text.as_ref().to_owned())) }
 

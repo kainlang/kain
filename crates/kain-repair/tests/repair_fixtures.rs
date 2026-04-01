@@ -26,9 +26,71 @@ fn reserved_identifier_and_self_constructor_fixture_repairs_symbol_drift() {
     let result = repair_text_with_input(&RepairInput::new(source).with_mode(RepairMode::ApplySafe));
 
     assert!(result.changed);
-    assert!(result.repaired.contains("fn Self_(value: Int) -> Self_"));
+    assert!(result.repaired.contains("fn Self(value: Int) -> Self"));
     assert!(result.repaired.contains("let type_ = value"));
     assert!(result.repaired.contains("Self::build(type_)"));
+    assert!(result.repaired.contains("fn build_pair(left: Self, right: Self) -> Result<Self, Self>"));
+    assert!(result.repaired.contains("Result::ok(Self(left, right))"));
+}
+
+#[test]
+fn repair_report_exposes_fix_counts_and_risk_classes() {
+    let source = fixture("kain_repair_reserved_self.kn");
+    let report = kain_repair::repair_source_with_profile(
+        &source,
+        RepairProfile::default(),
+        RepairMode::ApplyAggressive,
+    );
+
+    assert!(report.changed());
+    assert!(report.fixes_applied > 0);
+    assert_eq!(report.fixes_applied, report.fixes.len());
+    assert_eq!(report.safety_class, kain_repair::RepairSafetyClass::Aggressive);
+    assert_eq!(report.remaining_unknown_risk, kain_repair::RepairRiskLevel::Elevated);
+    assert_eq!(report.parser_proof_status(), None);
+}
+
+#[test]
+fn declaration_header_fixture_normalizes_reserved_suffix_headers() {
+    let source = fixture("kain_repair_declaration_headers.kn");
+    let result = repair_text_with_input(&RepairInput::new(source).with_mode(RepairMode::ApplySafe));
+
+    assert!(result.changed);
+    assert!(result.repaired.contains("enum AssetType:"));
+    assert!(result.repaired.contains("struct AnimationSourceKind:"));
+    assert!(result.repaired.contains("trait AssetCodec:"));
+    assert!(result.repaired.contains("impl AssetCodec for AssetType:"));
+    assert!(result.repaired.contains("mod library:"));
+    assert!(result.repaired.contains("mod material:"));
+    assert!(result.repaired.contains("mod preset:"));
+    assert!(result.repaired.contains("mod texture:"));
+}
+
+#[test]
+fn nested_declaration_fixture_flattens_nested_blocks_to_top_level() {
+    let source = fixture("kain_repair_nested_declarations.kn");
+    let result = repair_text_with_input(&RepairInput::new(source).with_mode(RepairMode::ApplySafe));
+
+    assert!(result.changed);
+    assert!(result.repaired.contains("enum AssetKind:"));
+    assert!(result.repaired.contains("struct AssetRecord:"));
+    assert!(result.repaired.contains("impl AssetRecord:"));
+    assert!(result.repaired.contains("enum AssetState:"));
+    assert!(result.repaired.contains("fn after_assets():"));
+    assert!(result.repaired.lines().any(|line| line == "struct AssetRecord:"));
+    assert!(result.repaired.lines().any(|line| line == "impl AssetRecord:"));
+    assert!(result.repaired.lines().any(|line| line == "enum AssetState:"));
+}
+
+#[test]
+fn impl_type_token_fixture_normalizes_parameter_and_type_positions() {
+    let source = fixture("kain_repair_impl_type_tokens.kn");
+    let result = repair_text_with_input(&RepairInput::new(source).with_mode(RepairMode::ApplySafe));
+
+    assert!(result.changed);
+    assert!(result.repaired.contains("fn with_name(plugin_name: impl Into<String>) -> Self:"));
+    assert!(result.repaired.contains("let name: impl Display = plugin_name"));
+    assert!(result.repaired.contains("return Self::new(name)"));
 }
 
 #[test]

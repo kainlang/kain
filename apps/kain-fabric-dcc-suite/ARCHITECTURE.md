@@ -41,6 +41,8 @@ The scaffold is split into seven durable ownership layers:
 - The app owns the `dcc_suite_scene` viewport intent and startup-session semantics, while the shared `crates/kain-3D` scene catalog currently owns the temporary procedural realization of the startup mesh, floor, backdrop, and studio light rig until a first-class mesh asset contract lands.
 - The native shell may emit command events and host the bridge loop, but it still must not become the semantic owner of workspace lanes, command routing, or session truth. Session truth remains the document projected from app-owned schema plus reducers.
 - The session document now carries a small `reports` block for `mesh_contract_report` and `topology_history_report` so the live bridge can expose report vocabulary directly in state instead of forcing tools to infer it from generated files alone.
+- The session document also now carries an explicit `workbench` block for active workbench id, tab group, dock, pane, and last materialized shell/snapshot paths so dock/tab coherence can be derived instead of hand-waved.
+- A small `assist` seam now carries tensor-aware context and suggestion receipts so shell chrome can surface workspace- and layout-sensitive hints without moving canonical planning ownership into the native host.
 
 ## Mesh Contract
 
@@ -70,6 +72,8 @@ The scaffold is split into seven durable ownership layers:
 - `config/gizmo_registry.json`: universal gizmo profile and per-viewport binding registry.
 - `config/ui_theme.json`: semantic tokens, scopes, variants, and widget defaults for the universal studio shell, including authored workspace rails, status strips, property grids, and command surfaces.
 - `config/ui_shell.json`: workspace-page layout manifest with per-mode workbench composition and authored chrome blocks. The authored shell now leans harder into DCC language (`DCC Shell`, `Outliner Rail`, `Attributes Rail`, `Status Bar`, `Command Launcher`) so the native UI frame reads like a mounted workstation instead of a general app dashboard. The authored shell telemetry still includes `report_count` so report inventory stays visible at a glance.
+- `config/viewport_modes.json`: viewport-mode registry for layout, model, sculpt, paint, lookdev, and render. It keeps overlay policy, tool policy, and view-profile semantics data-driven so the viewport can change posture without host-side hardcoding, and the shell materializer now projects it into the live registry rail.
+- The top-level workspace spine is now explicit as `Layout / Model / Sculpt / Paint / Lookdev / Rig / Animate / Sim / Render / Compositing / Publish`; keep those ids and tab labels aligned across `config/workspace_modes.json`, `session/workspace_registry.kn`, `session/ui_workbench_registry.kn`, `config/ui_shell.json`, and the startup workspace mode in `config/app_manifest.json`.
 - `session/derived_state.kn`: workspace and pipeline read models, now including a registry-backed runtime-lane count and compact lane summary so the shell can reflect lane ownership without hand-written prose.
 - `config/command_registry.json`: canonical command surface for operators, routing, automation, painter-style material authoring, export, shell navigation, and property-grid state changes.
 - `config/fabric_pipeline.json`: shell-facing summary of the broad pipeline.
@@ -99,7 +103,7 @@ The scaffold is split into seven durable ownership layers:
 - `shaders/render_preview_lighting.kn`: render-preview GPU seam used by the render lounge graph.
 - `shaders/compositor_tone_map.kn`: compositor GPU seam used by the rebuild graph.
 - `shaders/material_layer_blend_preview.kn`, `shaders/svg_mask_raster.kn`, `shaders/smart_material_resolve.kn`, `shaders/viewport_lighting_preview.kn`, `shaders/render_aov_pack.kn`, and `shaders/compositor_id_matte.kn`: staged shader library coverage for the suite’s likely next GPU responsibilities.
-- `scripts/materialize-shell.ps1`: data-driven shell materializer.
+- `scripts/materialize-shell.ps1`: data-driven shell materializer that projects the authored runtime lane registry into the live `runtime_lane_map` chrome surface.
 - `scripts/materialize-session-state.ps1`: runtime snapshot plus session-document materializer from config and latest Fabric report. It also seeds the bridge command queue.
 - `native-app/src/main.rs`: native launcher that resolves the live bridge sidecars and exports bridge env vars for `kain-ui-native`.
 - `native-app/src/runtime_bridge.rs`: background bridge loop that consumes JSONL commands, mutates the session document, rewrites the runtime snapshot, and mirrors state sidecars when both app and native-app copies exist.

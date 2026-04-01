@@ -1,11 +1,11 @@
 # Code/Kain/crates Flow Map
 
 - Directory: `M:\Code\Kain\crates`
-- Generated (UTC): `2026-03-30T00:00:19.621141+00:00`
+- Generated (UTC): `2026-03-31T08:00:24.645231+00:00`
 - Languages: `JSON, JavaScript, Kain, Markdown, Rust, TOML, TypeScript`
 - Entry files: `kain-ui-native/src/main.rs, kain-fast3d-runtime/src/main.rs, cli/src/main.rs, web/src/lib.rs`
 - Manifests: `cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo`
-- Additional manifests omitted from markdown: `32`
+- Additional manifests omitted from markdown: `33`
 
 ```mermaid
 flowchart LR
@@ -64,7 +64,7 @@ flowchart LR
 
 ## Manifest Summary
 - `browser/Cargo.toml`: cargo, deps: 4
-- `cli/Cargo.toml`: cargo, deps: 39
+- `cli/Cargo.toml`: cargo, deps: 40
 - `gpu/Cargo.toml`: cargo, deps: 4
 - `kain-3D/Cargo.toml`: cargo, deps: 7
 - `kain-asm/Cargo.toml`: cargo, deps: 12

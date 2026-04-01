@@ -6,7 +6,7 @@
   "root_component": "App",
   "layout_id": "kain_fabric_dcc_suite_shell",
   "native_presentation": {
-    "startup_workspace_mode": "scene_assembly",
+    "startup_workspace_mode": "layout",
     "startup_focus_surface": "viewport_stage",
     "startup_lane_rail": "workspace_navigator",
     "show_bridge_lane_rail": true,
@@ -24,6 +24,7 @@
     "gizmo_registry": "config/gizmo_registry.json",
     "ui_theme": "config/ui_theme.json",
     "ui_shell": "config/ui_shell.json",
+    "viewport_modes": "config/viewport_modes.json",
     "command_registry": "config/command_registry.json",
     "fabric_pipeline": "config/fabric_pipeline.json",
     "fabric_intents": "config/fabric_intents.json",

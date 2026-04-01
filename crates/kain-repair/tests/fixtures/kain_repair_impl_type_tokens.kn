@@ -1,0 +1,3 @@
+fn with_name(plugin_name: impl_ Into<String>) -> Self_:
+    let name: impl_ Display = plugin_name
+    return Self_::new(name)

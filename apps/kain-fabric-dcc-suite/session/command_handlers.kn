@@ -37,6 +37,12 @@ fn command_handlers() -> Array<CommandHandlerDescriptor>:
             immediate_effect: "raise the property grid for the active selection"
         },
         CommandHandlerDescriptor {
+            command_kind: "ui.focus_editor_context",
+            reducer_owner: "session.reducers",
+            planner_owner: "session.intent_planner",
+            immediate_effect: "route the shell to the active workspace, pane, tool, object, and edit target"
+        },
+        CommandHandlerDescriptor {
             command_kind: "ui.toggle_status_strip",
             reducer_owner: "session.reducers",
             planner_owner: "session.intent_planner",

@@ -91,6 +91,16 @@ pub fn apply_normalize_indentation(text: &str, _: RepairMode) -> Option<(String,
     (out != text).then(|| (out.clone(), AppliedFix { kind: FixKind::NormalizeIndentation, start: 0, end: text.len(), replacement: out, note: Some("normalized tabs and ragged leading indentation".into()) }))
 }
 
+pub fn apply_normalize_declaration_headers(text: &str, _: RepairMode) -> Option<(String, AppliedFix)> {
+    let out = normalize_declaration_headers(text);
+    (out != text).then(|| (out.clone(), AppliedFix { kind: FixKind::NormalizeDeclarationHeader, start: 0, end: text.len(), replacement: out, note: Some("normalized parser-hostile declaration headers into canonical Kain syntax".into()) }))
+}
+
+pub fn apply_flatten_nested_declaration_placement(text: &str, _: RepairMode) -> Option<(String, AppliedFix)> {
+    let out = flatten_nested_declaration_placement(text);
+    (out != text).then(|| (out.clone(), AppliedFix { kind: FixKind::FlattenNestedDeclarationPlacement, start: 0, end: text.len(), replacement: out, note: Some("flattened nested declaration blocks to top-level placement".into()) }))
+}
+
 pub fn apply_rewrite_reserved_identifiers(text: &str, _: RepairMode) -> Option<(String, AppliedFix)> {
     let out = rewrite_reserved_identifiers(text);
     (out != text).then(|| (out.clone(), AppliedFix { kind: FixKind::RewriteReservedIdentifier, start: 0, end: text.len(), replacement: out, note: Some("rewrote parser-hostile reserved identifiers with a deterministic suffix".into()) }))
@@ -132,19 +142,182 @@ fn normalize_indentation(source: &str) -> String {
 
 fn rewrite_reserved_identifiers(source: &str) -> String {
     const RESERVED: &[&str] = &["type", "mod", "self", "Self", "use", "impl", "struct", "enum", "trait", "const", "var"];
-    let mut out = source.to_string();
-    for reserved in RESERVED {
-        let replacement = format!("{reserved}_");
-        let mut cursor = 0usize;
-        while let Some(pos) = find_word(&out, reserved, cursor) {
-            out.replace_range(pos..pos + reserved.len(), &replacement);
-            cursor = pos + replacement.len();
+    let mut out_lines = Vec::new();
+    for line in source.lines() {
+        let (_, trimmed) = split_leading_whitespace(line);
+        let header_keyword = trimmed
+            .split_whitespace()
+            .next()
+            .map(|kw| kw.trim_end_matches(':'))
+            .filter(|kw| matches!(*kw, "enum" | "struct" | "trait" | "impl"));
+
+        let mut current = line.to_string();
+        for reserved in RESERVED {
+            if header_keyword == Some(*reserved) {
+                continue;
+            }
+            let replacement = format!("{reserved}_");
+            let mut cursor = 0usize;
+            while let Some(pos) = find_word(&current, reserved, cursor) {
+                current.replace_range(pos..pos + reserved.len(), &replacement);
+                cursor = pos + replacement.len();
+            }
         }
+        out_lines.push(current);
     }
-    out
+    out_lines.join("\n")
 }
 
-fn normalize_self_constructor_syntax(source: &str) -> String { source.replace("Self:", "Self::").replace("Self :", "Self::") }
+fn normalize_declaration_headers(source: &str) -> String {
+    let mut out = String::with_capacity(source.len());
+    let mut changed = false;
+    for line in source.lines() {
+        let (prefix, body) = split_leading_whitespace(line);
+        let (next, line_changed) = normalize_declaration_header_line(body);
+        changed |= line_changed;
+        out.push_str(prefix);
+        out.push_str(&next);
+        out.push('\n');
+    }
+    if source.ends_with('\n') { out } else { changed.then_some(out.trim_end_matches('\n').to_string()).unwrap_or_else(|| source.to_string()) }
+}
+
+fn normalize_declaration_header_line(line: &str) -> (String, bool) {
+    let trimmed = line.trim_start();
+    let indent = &line[..line.len() - trimmed.len()];
+    let Some(split_at) = trimmed.find(char::is_whitespace) else { return (line.to_string(), false); };
+    let (keyword, rest) = trimmed.split_at(split_at);
+    let rest = rest.trim_start();
+    let is_declaration = matches!(keyword, "enum_" | "struct_" | "trait_" | "impl_");
+    if !is_declaration { return (line.to_string(), false); }
+    let canonical = keyword.trim_end_matches('_');
+    let rest = rest.trim_end_matches(':');
+    let mut normalized = String::new();
+    normalized.push_str(indent);
+    normalized.push_str(canonical);
+    normalized.push(' ');
+    normalized.push_str(rest);
+    if trimmed.ends_with(':') { normalized.push(':'); }
+    (normalized, true)
+}
+
+fn flatten_nested_declaration_placement(source: &str) -> String {
+    const DECLARATION_KEYWORDS: [&str; 4] = ["enum", "struct", "trait", "impl"];
+    let lines: Vec<&str> = source.lines().collect();
+    let mut out = String::with_capacity(source.len());
+    let mut index = 0usize;
+
+    while index < lines.len() {
+        let line = lines[index];
+        let (indent, trimmed) = split_leading_whitespace(line);
+        let current_indent_width = indent_width(indent);
+        let starts_nested_declaration = current_indent_width > 0 && starts_with_declaration_header(trimmed, &DECLARATION_KEYWORDS);
+
+        if !starts_nested_declaration {
+            out.push_str(line);
+            out.push('\n');
+            index += 1;
+            continue;
+        }
+
+        let block_end = find_declaration_block_end(&lines, index, current_indent_width, &DECLARATION_KEYWORDS);
+        let base_indent = current_indent_width;
+        for block_index in index..block_end {
+            let block_line = lines[block_index];
+            if block_line.trim().is_empty() {
+                out.push('\n');
+                continue;
+            }
+            let (block_indent, _) = split_leading_whitespace(block_line);
+            let dedented = if indent_width(block_indent) >= base_indent {
+                &block_line[base_indent.min(block_line.len())..]
+            } else {
+                block_line
+            };
+            out.push_str(dedented);
+            out.push('\n');
+        }
+        index = block_end;
+    }
+
+    out.trim_end_matches('\n').to_string()
+}
+
+fn find_declaration_block_end(lines: &[&str], start: usize, base_indent: usize, keywords: &[&str]) -> usize {
+    let mut index = start + 1;
+    while index < lines.len() {
+        let line = lines[index];
+        let (indent, trimmed) = split_leading_whitespace(line);
+        if trimmed.is_empty() { index += 1; continue; }
+        let current_indent = indent_width(indent);
+        if current_indent <= base_indent && starts_with_declaration_header(trimmed, keywords) {
+            break;
+        }
+        if current_indent < base_indent {
+            break;
+        }
+        index += 1;
+    }
+    index
+}
+
+fn starts_with_declaration_header(text: &str, keywords: &[&str]) -> bool {
+    let keyword = text.split_whitespace().next().map(|token| token.trim_end_matches(':'));
+    keyword.map(|kw| keywords.contains(&kw)).unwrap_or(false)
+}
+
+fn indent_width(indent: &str) -> usize {
+    indent.chars().map(|ch| if ch == '\t' { 4 } else { 1 }).sum()
+}
+
+fn indent_width_of(indent: &str) -> usize {
+    indent_width(indent)
+}
+
+fn split_leading_whitespace(line: &str) -> (&str, &str) {
+    let trimmed = line.trim_start_matches([' ', '\t']);
+    let indent_len = line.len() - trimmed.len();
+    (&line[..indent_len], trimmed)
+}
+
+fn normalize_self_constructor_syntax(source: &str) -> String {
+    let mut out = String::with_capacity(source.len());
+    for line in source.lines() {
+        let (next, _) = normalize_self_constructor_line(line);
+        out.push_str(&next);
+        out.push('\n');
+    }
+    out.trim_end_matches('\n').to_string()
+}
+
+fn normalize_self_constructor_line(line: &str) -> (String, bool) {
+    let mut current = line.to_string();
+    let mut changed = false;
+
+    changed |= replace_word_form(&mut current, "Self_:", "Self::");
+    changed |= replace_word_form(&mut current, "Self_ :", "Self::");
+    changed |= replace_word_form(&mut current, "Self_::", "Self::");
+    changed |= replace_word_form(&mut current, "-> Self_", "-> Self");
+    changed |= replace_word_form(&mut current, ": Self_", ": Self");
+    changed |= replace_word_form(&mut current, "(Self_", "(Self");
+    changed |= replace_word_form(&mut current, " Self_)", " Self)");
+    changed |= replace_word_form(&mut current, ", Self_", ", Self");
+    changed |= replace_word_form(&mut current, " Self_,", " Self,");
+
+    (current, changed)
+}
+
+fn replace_word_form(text: &mut String, needle: &str, replacement: &str) -> bool {
+    if !text.contains(needle) {
+        return false;
+    }
+    let updated = text.replace(needle, replacement);
+    if updated == *text {
+        return false;
+    }
+    *text = updated;
+    true
+}
 fn rewrite_inline_initializers(source: &str) -> String {
     let mut out = String::with_capacity(source.len());
     for line in source.lines() {

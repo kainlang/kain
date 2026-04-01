@@ -1,6 +1,10 @@
 impl WidgetBuilder {
-	fn Self(value: Int) -> Self {
+	fn Self_(value: Int) -> Self_ {
 		let type = value
-		Self:build(type)
+		Self_:build(type)
+	}
+
+	fn build_pair(left: Self_, right: Self_) -> Result<Self_, Self_> {
+		return Result::ok(Self_(left, right))
 	}
 }

@@ -1,11 +1,11 @@
 # Code/Kain Flow Map
 
 - Directory: `M:\Code\Kain`
-- Generated (UTC): `2026-03-30T00:00:19.539012+00:00`
+- Generated (UTC): `2026-03-31T08:00:24.526665+00:00`
 - Languages: `JSON, Markdown, Rust, TOML`
 - Entry files: `Cargo.toml, unreal/unrealmodding-main/Cargo.toml, apps/ZenDAW/Cargo.toml, unreal/unrealmodding-main/unreal_pak_cli/Cargo.toml`
 - Manifests: `cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo`
-- Additional manifests omitted from markdown: `53`
+- Additional manifests omitted from markdown: `54`
 
 ```mermaid
 flowchart LR
@@ -49,7 +49,7 @@ flowchart LR
 ```
 
 ## Manifest Summary
-- `Cargo.toml`: cargo, workspace members: 43, deps: 0
+- `Cargo.toml`: cargo, workspace members: 44, deps: 0
 - `apps/ZenDAW/Cargo.toml`: cargo, workspace members: 8, deps: 0
 - `unreal/unrealmodding-main/Cargo.toml`: cargo, workspace members: 16, deps: 0
 - `apps/kade-desktop/controller/Cargo.toml`: cargo, deps: 5

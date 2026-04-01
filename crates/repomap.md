@@ -45,6 +45,7 @@ Companion artifacts:
                 └── 📜 registry_writer.rs
                 └── 📜 ue5_pipeline.rs
                 └── 📜 uplugin_gen.rs
+            └── 📜 repair.rs
             └── 📜 rust_build.rs
             └── 📜 selfhost.rs
             └── 📜 selfhost_report.rs
@@ -224,6 +225,13 @@ Companion artifacts:
     └── 📂 kain-reflect
         └── 📂 src
             └── 📜 lib.rs
+    └── 📂 kain-repair
+        └── 📂 src
+            └── 📜 engine.rs
+            └── 📜 lib.rs
+            └── 📜 registry.rs
+        └── 📂 tests
+            └── 📂 fixtures
     └── 📂 kain-sdk
         └── 📂 src
             └── 📜 lib.rs

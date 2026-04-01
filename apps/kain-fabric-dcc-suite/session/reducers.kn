@@ -376,6 +376,27 @@ fn reduce_command(command_kind: String, payload_summary: String, current_tool: S
             queued_intents: [],
             session_needs_save: false
         }
+    if command_kind == "ui.focus_editor_context":
+        return ReducerOutcome {
+            next_workspace_mode: current_mode,
+            next_active_tool: current_tool,
+            status_banner: "editor context focused",
+            asset_dirty: false,
+            sculpt_dirty: false,
+            topology_dirty: false,
+            material_dirty: false,
+            rig_dirty: false,
+            animation_dirty: false,
+            simulation_dirty: false,
+            evaluation_dirty: false,
+            cache_dirty: false,
+            render_dirty: false,
+            compositor_dirty: false,
+            publish_dirty: false,
+            tensor_dirty: false,
+            queued_intents: ["ui.focus_editor_context"],
+            session_needs_save: false
+        }
     if command_kind == "selection.set":
         return ReducerOutcome {
             next_workspace_mode: current_mode,
