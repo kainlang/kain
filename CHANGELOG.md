@@ -5,6 +5,14 @@ Entries record tracked git working tree changes for configured workspaces.
 
 <!-- polytools-changelog-entries:start -->
 
+<!-- polytools-changelog:fingerprint=063543e3c6c82cf3 -->
+## 2026-04-03 20:37:46 -04:00 | workspace `kain` | branch `master`
+- Tracked roots: `crates`, `smoketest`, `runtime`
+- Git HEAD: `e43efb96`
+- Changed files: 2
+- [.M] `crates/flowgraph.json`
+- [.M] `crates/flowmap.md`
+
 <!-- polytools-changelog:fingerprint=5c41c42ccdbdf9fa -->
 ## 2026-04-01 16:59:25 -04:00 | workspace `kain` | branch `master`
 - Tracked roots: `crates`, `smoketest`, `runtime`

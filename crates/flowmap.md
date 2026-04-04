@@ -1,7 +1,7 @@
 # Code/Kain/crates Flow Map
 
 - Directory: `M:\Code\Kain\crates`
-- Generated (UTC): `2026-03-31T08:00:24.645231+00:00`
+- Generated (UTC): `2026-04-04T00:24:14.086774+00:00`
 - Languages: `JSON, JavaScript, Kain, Markdown, Rust, TOML, TypeScript`
 - Entry files: `kain-ui-native/src/main.rs, kain-fast3d-runtime/src/main.rs, cli/src/main.rs, web/src/lib.rs`
 - Manifests: `cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo, cargo`

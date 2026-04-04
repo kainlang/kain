@@ -1184,6 +1184,13 @@ fn sync_runtime_snapshot_from_session(
     }
     set_string_at_path(
         runtime_snapshot,
+        &["power_lane_registry_summary"],
+        get_string_at_path(session_document, &["power_lane_registry_summary"]).unwrap_or_else(|| {
+            get_string_at_path(session_document, &["runtime_lane_registry_summary"]).unwrap_or_else(|| "n/a".to_string())
+        }),
+    );
+    set_string_at_path(
+        runtime_snapshot,
         &["runtime_pack_summary"],
         get_string_at_path(session_document, &["runtime_pack_summary"]).unwrap_or_else(|| "n/a".to_string()),
     );

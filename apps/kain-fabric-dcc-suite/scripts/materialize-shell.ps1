@@ -427,6 +427,7 @@ function New-ShellMetrics {
         runtime_lane_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_summary) { [string]$Snapshot.runtime_lane_summary } else { "n/a" }
         power_lane_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.power_lane_summary) { [string]$Snapshot.power_lane_summary } else { "n/a" }
         runtime_lane_registry_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_registry_summary) { [string]$Snapshot.runtime_lane_registry_summary } else { "n/a" }
+        power_lane_registry_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.power_lane_registry_summary) { [string]$Snapshot.power_lane_registry_summary } elseif ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_lane_registry_summary) { [string]$Snapshot.runtime_lane_registry_summary } else { "n/a" }
         runtime_pack_count = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_packs) { @($Snapshot.runtime_packs).Count } else { @($RuntimePacks).Count }
         runtime_pack_summary = if ($null -ne $Snapshot -and $null -ne $Snapshot.runtime_pack_summary) { [string]$Snapshot.runtime_pack_summary } else { (($RuntimePacks | ForEach-Object { "$($_.label) [$($_.id)]" }) -join " | ") }
         fabric_intent_count = if ($null -ne $Snapshot -and $null -ne $Snapshot.fabric_intents) { @($Snapshot.fabric_intents).Count } else { @($Intents).Count }
@@ -776,7 +777,7 @@ function Render-ShellTopBar {
     if ([string]::IsNullOrWhiteSpace([string]$ShellMetrics.runtime_lane_registry_summary) -or [string]$ShellMetrics.runtime_lane_registry_summary -eq "n/a") {
         Add-Line $lines (Render-TextNode -Role "caption" -Value "Lane roster falls back to config/runtime_lanes.json when snapshot projection is sparse." -Indent "$Indent            ")
     }
-    Add-Line $lines (Render-TextNode -Role "caption" -Value ("Power lanes: " + [string]$ShellMetrics.power_lane_count + " :: " + [string]$ShellMetrics.power_lane_summary) -Indent "$Indent            ")
+    Add-Line $lines (Render-TextNode -Role "caption" -Value ("Power lanes: " + [string]$ShellMetrics.power_lane_count + " :: " + [string]$ShellMetrics.power_lane_registry_summary) -Indent "$Indent            ")
     if ([string]::IsNullOrWhiteSpace([string]$ShellMetrics.viewport_mode_registry_summary) -or [string]$ShellMetrics.viewport_mode_registry_summary -eq "n/a") {
         Add-Line $lines (Render-TextNode -Role "caption" -Value "Viewport modes fall back to config/viewport_modes.json when snapshot projection is sparse." -Indent "$Indent            ")
     }

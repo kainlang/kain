@@ -1,5 +1,52 @@
 # MEMORY
 
+## 2026-04-02 - official UE5 authoring docs pipeline added under unreal_plugins/OfficialDocs
+
+The repo now has a dedicated UE5-facing docs set aimed at teaching plugin authoring with Kain as a UE5 DSL and codegen pipeline.
+
+What changed:
+
+- Added `unreal_plugins/OfficialDocs/README.md`
+  - Introduces the UE5-only documentation lane, the current crate ownership split, and the recommended reading order.
+- Added `unreal_plugins/OfficialDocs/01-Getting-Started.md`
+  - Establishes the DSL mental model, minimal `KAIN.toml` shape, first build flow, and the role of The Oracle.
+- Added `unreal_plugins/OfficialDocs/02-KAIN-TOML-And-Project-Layout.md`
+  - Documents the UE5 manifest shape, module layout patterns, and recommended source organization.
+- Added `unreal_plugins/OfficialDocs/03-Language-To-UE5-Mapping.md`
+  - Explains how Kain constructs map to UE5 runtime output: actors, components, subsystems, structs, enums, replication, RPCs, async tasks, and state machines.
+- Added `unreal_plugins/OfficialDocs/04-Editor-UI-And-Tools.md`
+  - Covers Slate, Details, viewports, toolbars, asset editors, editor modules, and reactive editor bindings.
+- Added `unreal_plugins/OfficialDocs/05-Shaders-Materials-And-Graphs.md`
+  - Covers shader authoring, material graph generation, graph editor/runtime systems, and current shader-manifest caveats.
+- Added `unreal_plugins/OfficialDocs/06-Blueprints-GAS-And-Config.md`
+  - Covers Blueprint generation, the staged maturity of GAS support, and developer settings/config generation.
+- Added `unreal_plugins/OfficialDocs/07-Imports-Injection-And-Migration.md`
+  - Frames `kain inject` plus Rust/TS/C imports as UE5 adoption accelerators instead of the main product headline.
+- Added `unreal_plugins/OfficialDocs/08-Examples-Feature-Matrix-And-Limits.md`
+  - Summarizes the strongest example plugins, a high-level feature matrix, and current known limits worth preserving in future docs and marketing.
+
+Design decisions:
+
+- The docs intentionally position Kain as a UE5 DSL and codegen system rather than trying to explain the entire compiler at once.
+- The docs keep strong separation between:
+  - production-ready core UE5 codegen
+  - advanced but real adjacent lanes
+  - partially wired or staged features such as broader GAS phases
+- The docs are example-driven and lean on `unreal_plugins/*` as proof instead of only crate-internal claims.
+
+Current risks:
+
+- The new docs are broad and product-facing, but they are still a first-pass foundation rather than a complete reference for every single attribute or crate submodule.
+- Future doc passes should expand exact syntax coverage for:
+  - editor attributes
+  - graph schemas and runtime graphs
+  - shader and material authoring details
+  - config attribute variants
+
+Recommended next step:
+
+- Add a second-pass UE5 docs expansion with deeper syntax reference pages and a dedicated "cookbook" section built from the strongest example plugins such as `Example_Comprehensive`, `Example_Graph`, `Example_Shader`, `FluidFlow`, and `MetaFitter`.
+
 ## 2026-03-29 - self constructor/type normalization now covers Self_ migration artifacts
 
 The repair engine picked up a narrower normalization pass for `Self_` forms that show up in migration drafts and still trip the parser.
