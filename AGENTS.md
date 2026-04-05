@@ -9,14 +9,13 @@
 - Assume every codebase in this workspace is private and unreleased. That makes aggressive cleanup, meaningful refactors, and bold architectural corrections acceptable when they materially improve the system.
 - Prefer complete implementations over partial scaffolding when feasible. If a placeholder is the honest next step, label it clearly.
 
-## Testing Policy
+## Git
 
-- Before running tests or heavy validation, ask the user once and treat the answer as a conversation-wide toggle.
-- This includes commands such as `cargo test`, `vitest`, `bun test`, `kain test`, broad test suites, and similar heavy validation passes.
-- If a command might count as testing, treat it as testing and ask first.
-- If the user says yes, testing mode stays enabled for the rest of the conversation unless they change it.
-- If the user says no, assume `NO_TEST_MODE` is active and keep moving. In that mode, do not run tests unless the user later asks for them explicitly.
-- Prefer batching tests near the end of a coding stretch unless the user wants earlier validation.
+- Always commit your changes to git.
+- Always push your changes to git.
+- Always use a descriptive commit message.
+- Always use a descriptive tag name.
+- Always use a descriptive commit message.
 
 ## Execution Style
 
