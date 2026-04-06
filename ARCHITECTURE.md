@@ -203,9 +203,11 @@ If the debug CLI is missing:
 ## Common Errors
 
 - The root `README.md` is useful, but live source and the built CLI are the real source of truth.
+- Fresh clones may not include a populated `toolchain/llvm/bin/clang.exe` even though older docs and helper scripts reference it. When that happens, install LLVM separately and point `KAIN_CLANG_PATH` at the external `clang.exe`; `scripts/sync-kain-source-of-truth.ps1` now falls back to PATH and `C:\Program Files\LLVM\bin\clang.exe` before assuming the vendored drop exists.
 - The `cli` suite no longer depends on the external self-hosting fixture under `M:\Code\Other\kainselfhosting\...`; the repo-local import-c fixture under `crates/cli/tests/fixtures/import_c` is the durable regression source now.
 - The repair lane is profile-driven. If a file is being "fixed" in a way that changes meaning, that is a bug in the caller or profile selection, not a feature.
 - Large Windows test binaries can hit linker OOM pressure.
+- The workspace still pins `pyo3 0.20.x`, so a machine-default Python 3.13+ or 3.14 can break builds. Prefer Python 3.12, set `PYO3_PYTHON` explicitly when needed, and keep the Python 3.12 install directory on PATH so the built `kain.exe` can resolve `python312.dll` at runtime.
 - `generated/`, `target/`, `.kain`, runtime sidecars, and compiled smoke outputs are disposable unless explicitly archived under `docs/validation/` or `docs/recent/`.
 - The live SM64 decomp root currently sits at `M:\Code\Other\Research\sm64-master\sm64-master`, not the outer `sm64-master` folder. The older stale import reports pointed at the outer folder, which hid a real pathing mistake.
 - The native runtime is Windows-first today. Linux and macOS surfaces exist, but much of that lane is still stubbed or partial.
