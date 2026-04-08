@@ -1,5 +1,41 @@
 # MEMORY
 
+## 2026-04-08 - kain-core now performs real executable-body semantic checks
+
+The language core picked up the first meaningful semantic-trust pass instead of only walking bodies for syntax-shape validation.
+
+What changed:
+
+- Updated `crates/kain-core/src/types.rs`
+  - Expanded the type environment to track global symbols, method signatures, and enum variant payloads.
+  - Added real semantic checking for executable bodies: `let` bindings, assignments, returns, calls, method calls, conditionals, loops, `match`, `await`, async blocks, and core low-level memory expressions.
+  - Added `ResolvedType::Future(Box<ResolvedType>)` and taught the checker to understand `impl Future<T>`, `async ...`, and `await ...`.
+  - Added compatibility-aware builtins for shader/runtime semantics that the stricter checker now depends on, including `Void`, `Vec4`, `vec2` / `vec3` / `vec4`, `dispatch_thread_id`, tuple swizzles like `.x`, and `StorageBuffer<T>` indexing.
+  - Added early semantic errors for return-type mismatches, incompatible `match` arm result types, and duplicate boolean match arms.
+- Added `crates/kain-core/tests/semantic_typecheck_test.rs`
+  - Locks in the new behavior with focused tests for return checking, `match` arm validation, duplicate boolean-arm rejection, and typed async/await acceptance.
+- Updated `ARCHITECTURE.md`
+  - Documented that `kain-core` now performs executable-body semantic validation before downstream bundle/codegen lanes consume the typed program.
+
+Design decisions:
+
+- Kept the public `TypedProgram` / `TypedItem` surface stable for downstream crates in this phase instead of forcing a broad typed-IR migration immediately.
+- Chose a permissive semantic checker that errors on clear known mismatches but still falls back to `Unknown` for unsupported or backend-specific language corners, so the wider repo does not break all at once.
+- Treated shader/runtime builtins as compiler-known semantic symbols rather than leaving them as implicit runtime-only behavior.
+
+Current risks:
+
+- The checker is materially stronger, but it is still not a full “typed IR everywhere” system yet; many paths still degrade to `Unknown` instead of proving precise types.
+- Full `cargo test -p kain-core --lib --tests` on this machine still shows unrelated/pre-existing failures outside this patch:
+  - `language_features::tests::default_profile_keeps_struct_literals_disabled`
+  - `stdlib::tests::test_find_stdlib_from_env_var` when `KAIN_STDLIB_PATH` is already exported in the shell
+  - two `realtime_app_bundle` tests around viewport parsing / duplicate scene emission
+- Warning-capable diagnostics and hardening of non-exhaustive `match` are still future work; this patch validates arm agreement and obvious duplicate bool arms, but it does not yet introduce a formal warnings channel.
+
+Recommended next step:
+
+- Add a typed-body IR layer on top of this semantic pass and thread its results into monomorphization, runtime-contract emission, and downstream codegen so fewer language paths need to fall back to `Unknown`.
+
 ## 2026-04-06 - Windows bootstrap now falls back to installed LLVM and Python 3.12
 
 Fresh-clone Windows setup now has a more durable path when the repo-local LLVM drop is missing and the machine default Python is newer than the pinned PyO3 lane supports.

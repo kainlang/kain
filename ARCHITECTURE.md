@@ -53,7 +53,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 
 ## Key Crates
 
-- [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, typechecker, comptime, runtime contract emission, realtime bundle metadata
+- [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, comptime, runtime contract emission, realtime bundle metadata
 - [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, native app materialization, packaged launcher snapshots, compute residency sidecars
 - [cli](/M:/Code/Kain/crates/cli): `kain` command surface
 - [kain-repair](/M:/Code/Kain/crates/kain-repair): profile-driven deterministic source repair engine consumed by the doctor/CLI repair lane; now split into a declarative rule registry plus a per-rule execution engine so repair policy stays visible and mode-aware; includes header normalization for parser-hostile `enum_` / `struct_` / `trait_` / `impl_` declaration forms
@@ -71,6 +71,8 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 ### Compile and runtime bundle flow
 
 `Kain source -> kain-core semantic analysis -> runtime contract / realtime app bundle / shader bundle metadata -> kain-driver materialization -> runtime/native and accelerated lanes consume the same bundle family`
+
+The semantic-analysis part of that pipeline now includes real executable-body checks in `kain-core`, not only declaration registration. The compiler validates return values, call arguments, `match` arm type agreement, duplicate boolean arms, and `await` / `async` future typing before downstream codegen and bundle emission consume the typed program.
 
 ### Host bridge flow
 
@@ -238,4 +240,3 @@ Key rules for this lane:
 - Node FFI owns browser packaging, local serving, and actor-server runtime glue.
 - themes, content, scenes, and experiences are registry-driven data, not scattered starter literals.
 - web template boilerplate should prefer reusable stdlib wrappers (`std::javascript::site_runtime`, `std::javascript::site_actor`) plus shared helper runtimes over copy-pasted starter code.
-
