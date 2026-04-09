@@ -11,6 +11,7 @@ use kain_c_ffi::{
 };
 use kain_core::diagnostics::SpanMapper;
 use kain_core::runtime::{self, Env, Value};
+use kain_core::ResolvedType;
 use kain_core::{
     CompileTarget, ComputeMetadata, ComputeStreamPlan, ComputeTensorPlan, Item, Lexer, Parser,
     ShaderStage,
@@ -1537,8 +1538,13 @@ fn interpret_fabric_kain_source(
     source: &str,
 ) -> Result<Value, FabricFailureReason> {
     register_fabric_extensions();
+    let source = format!("{}\n{source}", render_kain_interop_prelude());
     let typed = kain_driver::DriverSession::default()
-        .frontend_to_typed_program(source, CompileTarget::Interpret)
+        .frontend_to_typed_program_with_extra_globals(
+            &source,
+            CompileTarget::Interpret,
+            fabric_semantic_globals(),
+        )
         .map_err(|err| runtime_bridge_failure(context.step, "compile_failed", err))?;
     let mut env = Env::new();
     env.define_global("fabric_inputs", context.fabric_inputs.clone());
@@ -1574,6 +1580,42 @@ fn interpret_fabric_kain_source(
     runtime::interpret_with_env(&mut env, &typed)
         .map(normalize_runtime_value)
         .map_err(|err| runtime_bridge_failure(context.step, "execution_failed", err))
+}
+
+fn fabric_semantic_globals() -> Vec<(String, ResolvedType)> {
+    vec![
+        ("fabric_inputs".to_string(), ResolvedType::Unknown),
+        ("fabric_serialized_inputs".to_string(), ResolvedType::Unknown),
+        ("fabric_context".to_string(), ResolvedType::Unknown),
+    ]
+}
+
+fn render_kain_interop_prelude() -> &'static str {
+    r#"@extern fn kain_shared_buffer_info(target: _InteropTarget) -> Any
+@extern fn kain_shared_buffer_bytes(target: _InteropTarget) -> Any
+@extern fn kain_shared_buffer_from_bytes(bytes: _InteropBytes, element_type: String, shape: _InteropShape, format: String, mime_type: String) -> Any
+@extern fn kain_shared_image_info(target: _InteropTarget) -> Any
+@extern fn kain_shared_image_bytes(target: _InteropTarget) -> Any
+@extern fn kain_shared_image_from_bytes(bytes: _InteropBytes, width: Int, height: Int, channels: Int, layout: String, pixel_format: String, mime_type: String) -> Any
+
+fn interop_shared_buffer_info(target: _InteropTarget) -> Any:
+    return kain_shared_buffer_info(target)
+
+fn interop_shared_buffer_bytes(target: _InteropTarget) -> Any:
+    return kain_shared_buffer_bytes(target)
+
+fn interop_shared_buffer_from_bytes(bytes: _InteropBytes, element_type: String, shape: _InteropShape, format: String, mime_type: String) -> Any:
+    return kain_shared_buffer_from_bytes(bytes, element_type, shape, format, mime_type)
+
+fn interop_shared_image_info(target: _InteropTarget) -> Any:
+    return kain_shared_image_info(target)
+
+fn interop_shared_image_bytes(target: _InteropTarget) -> Any:
+    return kain_shared_image_bytes(target)
+
+fn interop_shared_image_from_bytes(bytes: _InteropBytes, width: Int, height: Int, channels: Int, layout: String, pixel_format: String, mime_type: String) -> Any:
+    return kain_shared_image_from_bytes(bytes, width, height, channels, layout, pixel_format, mime_type)
+"#
 }
 
 fn register_fabric_extensions() {
@@ -1667,13 +1709,91 @@ fn render_node_output_projection(
     lines.join("\n    ")
 }
 
+fn render_fabric_inputs_binding(
+    context: &FabricAdapterContext,
+) -> Result<String, FabricFailureReason> {
+    let json_value = value_to_json_snapshot(&script_safe_value(&context.fabric_inputs)).ok_or_else(|| {
+        fabric_failure(
+            "fabric_inputs_serialize_failed",
+            format!(
+                "Fabric step '{}' could not serialize canonical script inputs",
+                context.step.id
+            ),
+        )
+    })?;
+    let json_text = serde_json::to_string(&json_value).map_err(|err| {
+        fabric_failure(
+            "fabric_inputs_serialize_failed",
+            format!(
+                "Fabric step '{}' could not render script inputs as JSON: {err}",
+                context.step.id
+            ),
+        )
+    })?;
+    Ok(format!(
+        "let fabric_inputs = json_parse({})",
+        kain_string_literal(&json_text)
+    ))
+}
+
+fn render_python_bridge_prelude() -> &'static str {
+    r#"@extern fn json_parse(source: String) -> Any
+@extern fn py_exec(code: String) -> Unit
+@extern fn py_import(name: String) -> Any
+@extern fn py_call(target: _PyTarget, args: _PyArgs) -> Any
+@extern fn py_call_raw(target: _PyTarget, args: _PyArgs) -> Any
+@extern fn py_getattr(target: _PyTarget, name: String) -> Any
+@extern fn py_getattr_raw(target: _PyTarget, name: String) -> Any
+@extern fn py_hasattr(target: _PyTarget, name: String) -> Bool
+@extern fn kain_shared_buffer_from_py(target: _PyTarget) -> Any
+@extern fn kain_shared_image_from_py(target: _PyTarget) -> Any
+
+fn py_bridge_exec(code: String):
+    py_exec(code)
+
+fn py_bridge_require_module(name: String) -> Any:
+    return py_import(name)
+
+fn py_bridge_call(target: _PyTarget, args: _PyArgs) -> Any:
+    return py_call(target, args)
+
+fn py_bridge_call_attr(target: _PyTarget, attr: String, args: _PyArgs) -> Any:
+    let callable = py_getattr(target, attr)
+    return py_call(callable, args)
+
+fn py_bridge_call_raw(target: _PyTarget, args: _PyArgs) -> Any:
+    return py_call_raw(target, args)
+
+fn py_bridge_call_attr_raw(target: _PyTarget, attr: String, args: _PyArgs) -> Any:
+    let callable = py_getattr_raw(target, attr)
+    return py_call_raw(callable, args)
+
+fn py_bridge_getattr(target: _PyTarget, name: String) -> Any:
+    return py_getattr(target, name)
+
+fn py_bridge_getattr_raw(target: _PyTarget, name: String) -> Any:
+    return py_getattr_raw(target, name)
+
+fn py_bridge_hasattr(target: _PyTarget, name: String) -> Bool:
+    return py_hasattr(target, name)
+
+fn py_bridge_shared_buffer(target: _PyTarget) -> Any:
+    return kain_shared_buffer_from_py(target)
+
+fn py_bridge_shared_image(target: _PyTarget) -> Any:
+    return kain_shared_image_from_py(target)
+"#
+}
+
 fn render_python_harness(context: &FabricAdapterContext) -> Result<String, FabricFailureReason> {
     let runtime_call = python_call_expression(context)?;
+    let fabric_inputs_binding = render_fabric_inputs_binding(context)?;
+    let bridge_prelude = render_python_bridge_prelude();
     let output_struct = render_declared_output_struct("FabricPythonOutputs", &context.step.outputs)
         .map(|definition| format!("{definition}\n\n"))
         .unwrap_or_default();
     Ok(format!(
-        "use std::python::bridge\n\n{output_struct}fn main() -> Any:\n    {runtime_call}\n"
+        "{bridge_prelude}\n{output_struct}fn main() -> Any:\n    {fabric_inputs_binding}\n    {runtime_call}\n"
     ))
 }
 
@@ -1801,6 +1921,8 @@ fn render_node_harness(context: &FabricAdapterContext) -> Result<String, FabricF
 
     let import_literal = kain_string_literal(&import_specifier);
     let export_literal = kain_string_literal(&export_name);
+    let fabric_inputs_binding = render_fabric_inputs_binding(context)?;
+    let bridge_prelude = render_node_bridge_prelude();
     let output_struct = render_declared_output_struct("FabricNodeOutputs", &context.step.outputs)
         .map(|definition| format!("{definition}\n\n"))
         .unwrap_or_default();
@@ -1834,8 +1956,53 @@ fn render_node_harness(context: &FabricAdapterContext) -> Result<String, FabricF
     };
 
     Ok(format!(
-        "use std::javascript::bridge\nuse std::javascript::web\n\n{output_struct}fn main() -> Any:\n    {runtime_lines}\n"
+        "{bridge_prelude}\n{output_struct}fn main() -> Any:\n    {fabric_inputs_binding}\n    {runtime_lines}\n"
     ))
+}
+
+fn render_node_bridge_prelude() -> &'static str {
+    r#"@extern fn json_parse(source: String) -> Any
+@extern fn js_import(specifier: String) -> Any
+@extern fn js_call(target: _JsTarget, args: _JsArgs) -> Any
+@extern fn js_call_raw(target: _JsTarget, args: _JsArgs) -> Any
+@extern fn js_getattr(target: _JsTarget, name: String) -> Any
+@extern fn js_getattr_raw(target: _JsTarget, name: String) -> Any
+@extern fn js_hasattr(target: _JsTarget, name: String) -> Bool
+@extern fn kain_shared_buffer_from_js(target: _JsTarget) -> Any
+@extern fn kain_shared_image_from_js(target: _JsTarget) -> Any
+
+fn js_bridge_import(specifier: String) -> Any:
+    return js_import(specifier)
+
+fn js_bridge_call(target: _JsTarget, args: _JsArgs) -> Any:
+    return js_call(target, args)
+
+fn js_bridge_call_raw(target: _JsTarget, args: _JsArgs) -> Any:
+    return js_call_raw(target, args)
+
+fn js_bridge_call_method(target: _JsTarget, name: String, args: _JsArgs) -> Any:
+    let callable = js_getattr(target, name)
+    return js_call(callable, args)
+
+fn js_bridge_call_method_raw(target: _JsTarget, name: String, args: _JsArgs) -> Any:
+    let callable = js_getattr_raw(target, name)
+    return js_call_raw(callable, args)
+
+fn js_bridge_getattr(target: _JsTarget, name: String) -> Any:
+    return js_getattr(target, name)
+
+fn js_bridge_getattr_raw(target: _JsTarget, name: String) -> Any:
+    return js_getattr_raw(target, name)
+
+fn js_bridge_hasattr(target: _JsTarget, name: String) -> Bool:
+    return js_hasattr(target, name)
+
+fn js_web_shared_buffer(target: _JsTarget) -> Any:
+    return kain_shared_buffer_from_js(target)
+
+fn js_web_shared_image(target: _JsTarget) -> Any:
+    return kain_shared_image_from_js(target)
+"#
 }
 
 fn read_step_source(

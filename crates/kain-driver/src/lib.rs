@@ -15,7 +15,7 @@ use kain_core::runtime;
 use kain_core::{
     comptime, diagnostics, emit_realtime_app_bundle, emit_runtime_contract_bundle, monomorphize,
     realtime_app_bundle_to_json, stdlib, types, CompileTarget, Lexer, Parser, RealtimeAppBundle,
-    RuntimeContractBundle, ShaderArtifactBundle, TypedItem, TypedProgram,
+    ResolvedType, RuntimeContractBundle, ShaderArtifactBundle, TypedItem, TypedProgram,
 };
 
 #[cfg(all(feature = "gpu", feature = "sys"))]
@@ -212,6 +212,22 @@ impl DriverSession {
         source: &str,
         target: CompileTarget,
     ) -> Result<CheckedFrontend, KainError> {
+        self.frontend_to_checked_program_with_extra_globals(
+            source,
+            target,
+            std::iter::empty::<(String, ResolvedType)>(),
+        )
+    }
+
+    pub fn frontend_to_checked_program_with_extra_globals<I>(
+        &self,
+        source: &str,
+        target: CompileTarget,
+        extra_globals: I,
+    ) -> Result<CheckedFrontend, KainError>
+    where
+        I: IntoIterator<Item = (String, ResolvedType)>,
+    {
         register_frontend_extensions_for_target(target);
         let source = prepare_frontend_source_for_target(source, target)?;
 
@@ -222,7 +238,7 @@ impl DriverSession {
         let span_mapper = diagnostics::SpanMapper::new(&full_source);
         let mut ast = Parser::new(&tokens, &span_mapper, "<input>").parse()?;
         comptime::eval_program(&mut ast)?;
-        let typed = types::check(&ast, &span_mapper, "<input>")?;
+        let typed = types::check_with_extra_globals(&ast, &span_mapper, "<input>", extra_globals)?;
         Ok(CheckedFrontend { ast, typed })
     }
 
@@ -241,6 +257,20 @@ impl DriverSession {
         target: CompileTarget,
     ) -> Result<TypedProgram, KainError> {
         Ok(self.frontend_to_checked_program(source, target)?.typed)
+    }
+
+    pub fn frontend_to_typed_program_with_extra_globals<I>(
+        &self,
+        source: &str,
+        target: CompileTarget,
+        extra_globals: I,
+    ) -> Result<TypedProgram, KainError>
+    where
+        I: IntoIterator<Item = (String, ResolvedType)>,
+    {
+        Ok(self
+            .frontend_to_checked_program_with_extra_globals(source, target, extra_globals)?
+            .typed)
     }
 
     pub fn compile_runtime_contract_bundle(

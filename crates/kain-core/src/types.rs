@@ -426,7 +426,27 @@ pub fn check(
     span_mapper: &SpanMapper,
     filename: &str,
 ) -> KainResult<TypedProgram> {
+    check_with_extra_globals(
+        program,
+        span_mapper,
+        filename,
+        std::iter::empty::<(String, ResolvedType)>(),
+    )
+}
+
+pub fn check_with_extra_globals<I>(
+    program: &Program,
+    span_mapper: &SpanMapper,
+    filename: &str,
+    extra_globals: I,
+) -> KainResult<TypedProgram>
+where
+    I: IntoIterator<Item = (String, ResolvedType)>,
+{
     let mut env = TypeEnv::new(span_mapper, filename);
+    for (name, ty) in extra_globals {
+        env.define_global(name, ty);
+    }
 
     // First pass: Register types, globals, and methods.
     for item in &program.items {
