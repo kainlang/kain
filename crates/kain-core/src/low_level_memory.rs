@@ -1002,6 +1002,23 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                 .collect(),
             span: *span,
         },
+        Expr::StageCall {
+            runtime,
+            function,
+            args,
+            span,
+        } => Expr::StageCall {
+            runtime: *runtime,
+            function: function.clone(),
+            args: args
+                .iter()
+                .map(|arg| CallArg {
+                    value: lower_expr_memory_with_ctx(&arg.value, ctx),
+                    ..arg.clone()
+                })
+                .collect(),
+            span: *span,
+        },
         Expr::MethodCall {
             receiver,
             method,
@@ -2357,6 +2374,9 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
                     .find_map(|arg| first_memory_expr_context(&arg.value, base.clone()))
             })
         }
+        Expr::StageCall { args, .. } => args
+            .iter()
+            .find_map(|arg| first_memory_expr_context(&arg.value, base.clone())),
         Expr::MethodCall { receiver, args, .. } => {
             first_memory_expr_context(receiver, base.clone()).or_else(|| {
                 args.iter()

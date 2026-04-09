@@ -39,6 +39,9 @@ pub enum Value {
     Struct(String, Arc<RwLock<HashMap<String, Value>>>),
     HostObject(String, Arc<dyn Any + Send + Sync>),
     Function(String),
+    Patch(String),
+    Converge(String),
+    Orchestrate(String),
     NativeFn(String, fn(&mut Env, Vec<Value>) -> KainResult<Value>),
     ActorRef(ActorRef),
     None,
@@ -79,6 +82,9 @@ impl fmt::Debug for Value {
             Value::Struct(name, fields) => write!(f, "Struct({}, {:?})", name, fields),
             Value::HostObject(name, _) => write!(f, "HostObject({})", name),
             Value::Function(name) => write!(f, "Function({})", name),
+            Value::Patch(name) => write!(f, "Patch({})", name),
+            Value::Converge(name) => write!(f, "Converge({})", name),
+            Value::Orchestrate(name) => write!(f, "Orchestrate({})", name),
             Value::NativeFn(name, _) => write!(f, "NativeFn({})", name),
             Value::StructConstructor(name, _) => write!(f, "StructConstructor({})", name),
             Value::ActorRef(r) => write!(f, "ActorRef({:?})", r),
@@ -150,6 +156,9 @@ impl fmt::Display for Value {
             }
             Value::HostObject(name, _) => write!(f, "<host {}>", name),
             Value::Function(name) => write!(f, "<fn {}>", name),
+            Value::Patch(name) => write!(f, "<patch {}>", name),
+            Value::Converge(name) => write!(f, "<converge {}>", name),
+            Value::Orchestrate(name) => write!(f, "<orchestrate {}>", name),
             Value::NativeFn(name, _) => write!(f, "<native fn {}>", name),
             Value::StructConstructor(name, _) => write!(f, "<constructor {}>", name),
             Value::ActorRef(r) => write!(f, "<actor {}>", r.id),
@@ -236,11 +245,36 @@ pub struct Message {
     pub args: Vec<Value>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExecutionLane {
+    Interpret,
+    Test,
+}
+
+#[derive(Debug, Clone)]
+struct ActivePatchFrame {
+    name: String,
+    mutation_paths: Vec<String>,
+    undo_mode: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct PatchRuntimeRecord {
+    pub name: String,
+    pub mutation_paths: Vec<String>,
+    pub undo_mode: String,
+}
+
 /// Interpreter environment
 #[derive(Clone)]
 pub struct Env {
     scopes: Vec<HashMap<String, Value>>,
     functions: HashMap<String, Function>,
+    patches: HashMap<String, PatchDef>,
+    patch_undo_modes: HashMap<String, String>,
+    converges: HashMap<String, ConvergeDef>,
+    orchestrates: HashMap<String, OrchestrateDef>,
+    worlds: HashMap<String, Arc<RwLock<HashMap<String, Value>>>>,
     components: HashMap<String, Component>,
     inline_modules: HashMap<String, Vec<Item>>,
     /// Methods: type_name -> method_name -> function
@@ -252,6 +286,10 @@ pub struct Env {
     actor_defs: HashMap<String, Actor>,
     /// ID of the current actor if running inside one
     self_actor_id: Option<u64>,
+    execution_lane: ExecutionLane,
+    active_capabilities: Vec<String>,
+    active_patch_frames: Vec<ActivePatchFrame>,
+    patch_records: Vec<PatchRuntimeRecord>,
     extension_state: HashMap<String, Arc<dyn Any + Send + Sync>>,
 }
 
@@ -260,6 +298,11 @@ impl Env {
         let mut env = Self {
             scopes: vec![HashMap::new()],
             functions: HashMap::new(),
+            patches: HashMap::new(),
+            patch_undo_modes: HashMap::new(),
+            converges: HashMap::new(),
+            orchestrates: HashMap::new(),
+            worlds: HashMap::new(),
             components: HashMap::new(),
             inline_modules: HashMap::new(),
             methods: HashMap::new(),
@@ -267,6 +310,15 @@ impl Env {
             next_actor_id: 1,
             actor_defs: HashMap::new(),
             self_actor_id: None,
+            execution_lane: ExecutionLane::Interpret,
+            active_capabilities: vec![
+                "patch.transactions".to_string(),
+                "converge.dispatch".to_string(),
+                "orchestrate.pipeline".to_string(),
+                "host.runtime.interpret".to_string(),
+            ],
+            active_patch_frames: Vec::new(),
+            patch_records: Vec::new(),
             extension_state: HashMap::new(),
         };
 
@@ -953,6 +1005,9 @@ impl Env {
                 Value::Struct(name, _) => name.as_str(),
                 Value::HostObject(name, _) => return Ok(Value::String(name.clone())),
                 Value::Function(_) => "function",
+                Value::Patch(_) => "patch",
+                Value::Converge(_) => "converge",
+                Value::Orchestrate(_) => "orchestrate",
                 Value::NativeFn(_, _) => "native_function",
                 Value::ActorRef(_) => "actor",
                 Value::None => "none",
@@ -1902,6 +1957,86 @@ impl Env {
         self.components.insert(component.name.clone(), component);
     }
 
+    fn set_execution_lane(&mut self, lane: ExecutionLane) {
+        self.execution_lane = lane;
+        self.active_capabilities
+            .retain(|capability| capability != "host.runtime.interpret" && capability != "host.runtime.test");
+        self.active_capabilities.push(match lane {
+            ExecutionLane::Interpret => "host.runtime.interpret".to_string(),
+            ExecutionLane::Test => "host.runtime.test".to_string(),
+        });
+    }
+
+    fn register_patch_value(&mut self, patch: &PatchDef, undo_mode: String) {
+        self.patches.insert(patch.name.clone(), patch.clone());
+        self.patch_undo_modes.insert(patch.name.clone(), undo_mode);
+        self.define(patch.name.clone(), Value::Patch(patch.name.clone()));
+    }
+
+    fn register_converge_value(&mut self, converge: &ConvergeDef) {
+        self.converges.insert(converge.name.clone(), converge.clone());
+        self.define(
+            converge.name.clone(),
+            Value::Converge(converge.name.clone()),
+        );
+    }
+
+    fn register_orchestrate_value(&mut self, orchestrate: &OrchestrateDef) {
+        self.orchestrates
+            .insert(orchestrate.name.clone(), orchestrate.clone());
+        self.define(
+            orchestrate.name.clone(),
+            Value::Orchestrate(orchestrate.name.clone()),
+        );
+    }
+
+    fn register_world_value(&mut self, world: &WorldDef) -> KainResult<()> {
+        let mut state_values = HashMap::new();
+        for state in &world.states {
+            let value = eval_expr(self, &state.initial)?;
+            state_values.insert(state.name.clone(), value);
+        }
+        let world_value = Arc::new(RwLock::new(state_values));
+        self.worlds.insert(world.name.clone(), world_value.clone());
+        self.define(world.name.clone(), Value::Struct(world.name.clone(), world_value));
+        Ok(())
+    }
+
+    pub fn patch_records(&self) -> &[PatchRuntimeRecord] {
+        &self.patch_records
+    }
+
+    fn begin_active_patch(&mut self, name: &str) {
+        let undo_mode = self
+            .patch_undo_modes
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| "best_effort".to_string());
+        self.active_patch_frames.push(ActivePatchFrame {
+            name: name.to_string(),
+            mutation_paths: Vec::new(),
+            undo_mode,
+        });
+    }
+
+    fn record_patch_mutation_path(&mut self, path: String) {
+        if let Some(frame) = self.active_patch_frames.last_mut() {
+            frame.mutation_paths.push(path);
+        }
+    }
+
+    fn finish_active_patch(&mut self) {
+        if let Some(mut frame) = self.active_patch_frames.pop() {
+            frame.mutation_paths.sort();
+            frame.mutation_paths.dedup();
+            self.patch_records.push(PatchRuntimeRecord {
+                name: frame.name,
+                mutation_paths: frame.mutation_paths,
+                undo_mode: frame.undo_mode,
+            });
+        }
+    }
+
     pub fn register_program_items(&mut self, program: &Program) -> KainResult<()> {
         for item in &program.items {
             self.register_item(item)?;
@@ -1928,6 +2063,18 @@ impl Env {
             Item::Function(f) => {
                 self.functions.insert(f.name.clone(), f.clone());
                 self.define(f.name.clone(), Value::Function(f.name.clone()));
+            }
+            Item::Patch(patch) => {
+                self.register_patch_value(patch, infer_patch_undo_mode(patch));
+            }
+            Item::Converge(converge) => {
+                self.register_converge_value(converge);
+            }
+            Item::World(world) => {
+                self.register_world_value(world)?;
+            }
+            Item::Orchestrate(orchestrate) => {
+                self.register_orchestrate_value(orchestrate);
             }
             Item::Component(c) => self.register_component(c.clone()),
             Item::Struct(s) => {
@@ -2007,6 +2154,24 @@ impl Env {
             TypedItem::Function(f) => {
                 self.functions.insert(f.ast.name.clone(), f.ast.clone());
                 self.define(f.ast.name.clone(), Value::Function(f.ast.name.clone()));
+            }
+            TypedItem::Patch(patch) => {
+                self.register_patch_value(
+                    &patch.ast,
+                    match patch.undo_mode {
+                        crate::types::PatchUndoMode::Reversible => "reversible".to_string(),
+                        crate::types::PatchUndoMode::BestEffort => "best_effort".to_string(),
+                    },
+                );
+            }
+            TypedItem::Converge(converge) => {
+                self.register_converge_value(&converge.ast);
+            }
+            TypedItem::World(world) => {
+                self.register_world_value(&world.ast)?;
+            }
+            TypedItem::Orchestrate(orchestrate) => {
+                self.register_orchestrate_value(&orchestrate.ast);
             }
             TypedItem::Component(c) => self.register_component(c.ast.clone()),
             TypedItem::Struct(s) => {
@@ -2158,6 +2323,7 @@ pub fn interpret(program: &TypedProgram) -> KainResult<Value> {
 }
 
 pub fn interpret_with_env(env: &mut Env, program: &TypedProgram) -> KainResult<Value> {
+    env.set_execution_lane(ExecutionLane::Interpret);
     env.register_typed_program(program)?;
     env.apply_registered_extensions();
     if env.functions.contains_key("main") {
@@ -2271,65 +2437,7 @@ fn load_module(env: &mut Env, u: &Use) -> KainResult<()> {
 
     // Register items
     for item in program.items {
-        match item {
-            Item::Function(f) => {
-                env.functions.insert(f.name.clone(), f.clone());
-                env.define(f.name.clone(), Value::Function(f.name.clone()));
-            }
-            Item::Component(c) => {
-                env.components.insert(c.name.clone(), c);
-            }
-            Item::Struct(s) => {
-                let field_names = s.fields.iter().map(|f| f.name.clone()).collect();
-                env.define(
-                    s.name.clone(),
-                    Value::StructConstructor(s.name.clone(), field_names),
-                );
-            }
-            Item::Enum(e) => {
-                // Register enum variants as constructors
-                for variant in &e.variants {
-                    let variant_name = format!("{}::{}", e.name, variant.name);
-                    env.define(
-                        variant_name,
-                        Value::Function(format!("{}::{}", e.name, variant.name)),
-                    );
-                }
-            }
-            Item::Actor(a) => {
-                env.actor_defs.insert(a.name.clone(), a);
-            }
-            Item::Const(c) => {
-                let val = eval_expr(env, &c.value)?;
-                env.define(c.name.clone(), val);
-            }
-            Item::Impl(i) => {
-                if let Type::Named { name, .. } = &i.target_type {
-                    // First, collect lowered function registrations
-                    let lowered_fns: Vec<(String, Function)> = i
-                        .methods
-                        .iter()
-                        .map(|m| (format!("{}_{}", name, m.name), m.clone()))
-                        .collect();
-
-                    // Register lowered functions
-                    for (lowered_name, method) in lowered_fns {
-                        env.functions.insert(lowered_name.clone(), method);
-                        env.define(lowered_name.clone(), Value::Function(lowered_name));
-                    }
-
-                    // Then register methods
-                    let type_methods = env.methods.entry(name.clone()).or_insert_with(HashMap::new);
-                    for method in &i.methods {
-                        type_methods.insert(method.name.clone(), method.clone());
-                    }
-                }
-            }
-            Item::Use(u) => {
-                load_module(env, &u)?;
-            }
-            _ => {}
-        }
+        env.register_item(&item)?;
     }
 
     Ok(())
@@ -2556,7 +2664,11 @@ fn eval_stmt(env: &mut Env, stmt: &Stmt) -> KainResult<Value> {
 
 fn eval_assignment(env: &mut Env, target: &Expr, value: Value) -> KainResult<()> {
     match target {
-        Expr::Ident(name, _) => env.assign(name, value),
+        Expr::Ident(name, _) => {
+            env.assign(name, value)?;
+            env.record_patch_mutation_path(name.clone());
+            Ok(())
+        }
         Expr::Field { object, field, .. } => {
             let obj_val = eval_expr(env, object)?;
             if let Value::Struct(_, fields) = obj_val {
@@ -2572,6 +2684,9 @@ fn eval_assignment(env: &mut Env, target: &Expr, value: Value) -> KainResult<()>
                 return Err(KainError::runtime(
                     "Field assignment only supported on structs",
                 ));
+            }
+            if let Some(path) = runtime_patch_target_path(target) {
+                env.record_patch_mutation_path(path);
             }
             Ok(())
         }
@@ -2591,8 +2706,11 @@ fn eval_assignment(env: &mut Env, target: &Expr, value: Value) -> KainResult<()>
                 _ => {
                     return Err(KainError::runtime(
                         "Index assignment only supported on arrays with int index",
-                    ))
+                        ))
                 }
+            }
+            if let Some(path) = runtime_patch_target_path(target) {
+                env.record_patch_mutation_path(path);
             }
             Ok(())
         }
@@ -2828,6 +2946,24 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             call_function(env, func_val, arg_vals)
         }
 
+        Expr::StageCall {
+            function, args, ..
+        } => {
+            let func_val = env
+                .lookup(function)
+                .cloned()
+                .ok_or_else(|| KainError::runtime(format!("Function not found: {}", function)))?;
+            let mut arg_vals = Vec::new();
+            for arg in args {
+                let value = eval_expr(env, &arg.value)?;
+                if let Value::Return(_) = value {
+                    return Ok(value);
+                }
+                arg_vals.push(value);
+            }
+            call_function(env, func_val, arg_vals)
+        }
+
         Expr::Try(inner, _) => {
             let val = eval_expr(env, inner)?;
             if let Value::Return(_) = val {
@@ -2936,6 +3072,9 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                             Value::Struct(name, _) => return Ok(Value::String(name.clone())),
                             Value::HostObject(name, _) => return Ok(Value::String(name.clone())),
                             Value::Function(_) => "function",
+                            Value::Patch(_) => "patch",
+                            Value::Converge(_) => "converge",
+                            Value::Orchestrate(_) => "orchestrate",
                             Value::NativeFn(_, _) => "native_fn",
                             Value::StructConstructor(_, _) => "struct_constructor",
                             Value::ActorRef(_) => "actor",
@@ -3203,14 +3342,26 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             let actor_defs = env.actor_defs.clone();
             let inline_modules = env.inline_modules.clone();
             let methods = env.methods.clone();
+            let patches = env.patches.clone();
+            let patch_undo_modes = env.patch_undo_modes.clone();
+            let converges = env.converges.clone();
+            let orchestrates = env.orchestrates.clone();
+            let worlds = env.worlds.clone();
             let global_scope = env.scopes.first().cloned().unwrap_or_default();
             let actor_name = actor.clone();
             let self_sender = tx.clone();
+            let execution_lane = env.execution_lane;
+            let active_capabilities = env.active_capabilities.clone();
 
             std::thread::spawn(move || {
                 let mut actor_env = Env {
                     scopes: vec![global_scope],
                     functions,
+                    patches,
+                    patch_undo_modes,
+                    converges,
+                    orchestrates,
+                    worlds,
                     components,
                     inline_modules,
                     methods,
@@ -3218,6 +3369,10 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     next_actor_id: 0,
                     actor_defs,
                     self_actor_id: Some(id),
+                    execution_lane,
+                    active_capabilities,
+                    active_patch_frames: Vec::new(),
+                    patch_records: Vec::new(),
                     extension_state: HashMap::new(),
                 };
 
@@ -3605,6 +3760,9 @@ fn call_function(env: &mut Env, func: Value, args: Vec<Value>) -> KainResult<Val
                 v => Ok(v),
             }
         }
+        Value::Patch(name) => execute_patch_call(env, &name, args),
+        Value::Converge(name) => execute_converge_call(env, &name, args),
+        Value::Orchestrate(name) => execute_orchestrate_call(env, &name, args),
         Value::NativeFn(_, f) => f(env, args),
         Value::Closure(params, body, captured) => {
             if params.len() != args.len() {
@@ -3648,6 +3806,372 @@ fn call_function(env: &mut Env, func: Value, args: Vec<Value>) -> KainResult<Val
             Ok(Value::Struct(name, Arc::new(RwLock::new(field_vals))))
         }
         _ => Err(KainError::runtime("Not a function")),
+    }
+}
+
+fn execute_patch_call(env: &mut Env, name: &str, args: Vec<Value>) -> KainResult<Value> {
+    let patch = env
+        .patches
+        .get(name)
+        .cloned()
+        .ok_or_else(|| KainError::runtime(format!("Patch not found: {}", name)))?;
+    if patch.params.len() != args.len() {
+        return Err(KainError::runtime(format!(
+            "Patch {} expected {} arguments, got {}",
+            name,
+            patch.params.len(),
+            args.len()
+        )));
+    }
+
+    env.begin_active_patch(name);
+    env.push_scope();
+    for (param, arg) in patch.params.iter().zip(args.into_iter()) {
+        env.define(param.name.clone(), arg);
+    }
+    let result = eval_block(env, &patch.body)?;
+    env.pop_scope();
+    env.finish_active_patch();
+
+    match result {
+        Value::Return(v) => Ok(*v),
+        value => Ok(value),
+    }
+}
+
+fn execute_converge_call(env: &mut Env, name: &str, args: Vec<Value>) -> KainResult<Value> {
+    let converge = env
+        .converges
+        .get(name)
+        .cloned()
+        .ok_or_else(|| KainError::runtime(format!("Converge definition not found: {}", name)))?;
+    if converge.params.len() != args.len() {
+        return Err(KainError::runtime(format!(
+            "Converge {} expected {} arguments, got {}",
+            name,
+            converge.params.len(),
+            args.len()
+        )));
+    }
+
+    let selected_lane = select_converge_lane(env, &converge);
+    let selected_result = execute_function_body(env, &converge.params, &selected_lane.body, args.clone())?;
+
+    if env.execution_lane == ExecutionLane::Test {
+        let spec_result = execute_function_body(env, &converge.params, &converge.spec_lane.body, args)?;
+        if !runtime_values_semantically_equal(&selected_result, &spec_result) {
+            return Err(KainError::runtime(format!(
+                "Converge verification failed for {}: selected lane '{}' diverged from spec '{}'",
+                name, selected_lane.lane_name, converge.spec_lane.lane_name
+            )));
+        }
+    }
+
+    Ok(selected_result)
+}
+
+fn execute_orchestrate_call(env: &mut Env, name: &str, args: Vec<Value>) -> KainResult<Value> {
+    let orchestrate = env
+        .orchestrates
+        .get(name)
+        .cloned()
+        .ok_or_else(|| KainError::runtime(format!("Orchestrate definition not found: {}", name)))?;
+    if orchestrate.params.len() != args.len() {
+        return Err(KainError::runtime(format!(
+            "Orchestrate {} expected {} arguments, got {}",
+            name,
+            orchestrate.params.len(),
+            args.len()
+        )));
+    }
+    execute_function_body(env, &orchestrate.params, &orchestrate.body, args)
+}
+
+fn execute_function_body(
+    env: &mut Env,
+    params: &[Param],
+    body: &Block,
+    args: Vec<Value>,
+) -> KainResult<Value> {
+    env.push_scope();
+    for (param, arg) in params.iter().zip(args.into_iter()) {
+        env.define(param.name.clone(), arg);
+    }
+    let result = eval_block(env, body)?;
+    env.pop_scope();
+    match result {
+        Value::Return(v) => Ok(*v),
+        value => Ok(value),
+    }
+}
+
+fn select_converge_lane<'a>(env: &Env, converge: &'a ConvergeDef) -> &'a ConvergeLane {
+    converge
+        .fast_lanes
+        .iter()
+        .find(|lane| {
+            lane.selector
+                .as_ref()
+                .is_some_and(|selector| converge_selector_matches(env, selector))
+        })
+        .unwrap_or(&converge.spec_lane)
+}
+
+fn converge_selector_matches(env: &Env, selector: &ConvergeSelector) -> bool {
+    match selector {
+        ConvergeSelector::Target(target) => match env.execution_lane {
+            ExecutionLane::Interpret => target == "interpret",
+            ExecutionLane::Test => target == "test",
+        },
+        ConvergeSelector::Capability(capability) => env
+            .active_capabilities
+            .iter()
+            .any(|entry| entry == capability),
+    }
+}
+
+fn runtime_values_semantically_equal(left: &Value, right: &Value) -> bool {
+    match (left, right) {
+        (Value::Unit, Value::Unit)
+        | (Value::None, Value::None)
+        | (Value::Continue, Value::Continue) => true,
+        (Value::Bool(left), Value::Bool(right)) => left == right,
+        (Value::Int(left), Value::Int(right)) => left == right,
+        (Value::Float(left), Value::Float(right)) => (left - right).abs() <= 1e-6,
+        (Value::String(left), Value::String(right)) => left == right,
+        (Value::Tuple(left), Value::Tuple(right)) => {
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right.iter())
+                    .all(|(left, right)| runtime_values_semantically_equal(left, right))
+        }
+        (Value::Array(left), Value::Array(right)) => {
+            let left = left.read().unwrap();
+            let right = right.read().unwrap();
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right.iter())
+                    .all(|(left, right)| runtime_values_semantically_equal(left, right))
+        }
+        (Value::Struct(left_name, left_fields), Value::Struct(right_name, right_fields)) => {
+            if left_name != right_name {
+                return false;
+            }
+            let left_fields = left_fields.read().unwrap();
+            let right_fields = right_fields.read().unwrap();
+            left_fields.len() == right_fields.len()
+                && left_fields.iter().all(|(key, left_value)| {
+                    right_fields.get(key).is_some_and(|right_value| {
+                        runtime_values_semantically_equal(left_value, right_value)
+                    })
+                })
+        }
+        (Value::EnumVariant(left_enum, left_variant, left_fields), Value::EnumVariant(right_enum, right_variant, right_fields)) => {
+            left_enum == right_enum
+                && left_variant == right_variant
+                && left_fields.len() == right_fields.len()
+                && left_fields
+                    .iter()
+                    .zip(right_fields.iter())
+                    .all(|(left, right)| runtime_values_semantically_equal(left, right))
+        }
+        (Value::Return(left), Value::Return(right))
+        | (Value::Break(Some(left)), Value::Break(Some(right))) => {
+            runtime_values_semantically_equal(left, right)
+        }
+        (Value::Break(None), Value::Break(None)) => true,
+        (Value::Result(left_ok, left_value), Value::Result(right_ok, right_value)) => {
+            left_ok == right_ok && runtime_values_semantically_equal(left_value, right_value)
+        }
+        (Value::Poll(left_ready, left_value), Value::Poll(right_ready, right_value)) => {
+            left_ready == right_ready
+                && match (left_value, right_value) {
+                    (Some(left), Some(right)) => runtime_values_semantically_equal(left, right),
+                    (None, None) => true,
+                    _ => false,
+                }
+        }
+        _ => false,
+    }
+}
+
+fn infer_patch_undo_mode(patch: &PatchDef) -> String {
+    if block_contains_runtime_best_effort_effects(&patch.body) {
+        "best_effort".to_string()
+    } else {
+        "reversible".to_string()
+    }
+}
+
+fn block_contains_runtime_best_effort_effects(block: &Block) -> bool {
+    block.stmts.iter().any(stmt_contains_runtime_best_effort_effects)
+}
+
+fn stmt_contains_runtime_best_effort_effects(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Expr(expr) => expr_contains_runtime_best_effort_effects(expr),
+        Stmt::Let { value, .. } => value
+            .as_ref()
+            .is_some_and(|value| expr_contains_runtime_best_effort_effects(value)),
+        Stmt::Return(value, _) | Stmt::Break(value, _) => value
+            .as_ref()
+            .is_some_and(|value| expr_contains_runtime_best_effort_effects(value)),
+        Stmt::For { iter, body, .. } => {
+            expr_contains_runtime_best_effort_effects(iter)
+                || block_contains_runtime_best_effort_effects(body)
+        }
+        Stmt::While { condition, body, .. } => {
+            expr_contains_runtime_best_effort_effects(condition)
+                || block_contains_runtime_best_effort_effects(body)
+        }
+        Stmt::Loop { body, .. } => block_contains_runtime_best_effort_effects(body),
+        Stmt::Item(_) | Stmt::Continue(_) => false,
+    }
+}
+
+fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> bool {
+    match expr {
+        Expr::Call { .. }
+        | Expr::MethodCall { .. }
+        | Expr::StageCall { .. }
+        | Expr::Spawn { .. }
+        | Expr::SendMsg { .. }
+        | Expr::Await(_, _)
+        | Expr::AsyncBlock(_, _) => true,
+        Expr::Assign { target, value, .. } => {
+            expr_contains_runtime_best_effort_effects(target)
+                || expr_contains_runtime_best_effort_effects(value)
+        }
+        Expr::Binary { left, right, .. } => {
+            expr_contains_runtime_best_effort_effects(left)
+                || expr_contains_runtime_best_effort_effects(right)
+        }
+        Expr::Unary { operand, .. }
+        | Expr::Try(operand, _)
+        | Expr::Ref { value: operand, .. }
+        | Expr::AddrOf { value: operand, .. }
+        | Expr::Deref(operand, _)
+        | Expr::Paren(operand, _)
+        | Expr::Comptime(operand, _)
+        | Expr::Cast { value: operand, .. } => expr_contains_runtime_best_effort_effects(operand),
+        Expr::Field { object, .. } => expr_contains_runtime_best_effort_effects(object),
+        Expr::Index { object, index, .. } => {
+            expr_contains_runtime_best_effort_effects(object)
+                || expr_contains_runtime_best_effort_effects(index)
+        }
+        Expr::Struct { fields, rest, .. } => {
+            fields
+                .iter()
+                .any(|(_, value)| expr_contains_runtime_best_effort_effects(value))
+                || rest
+                    .as_ref()
+                    .is_some_and(|rest| expr_contains_runtime_best_effort_effects(rest))
+        }
+        Expr::AggregateInit { fields, .. } => fields
+            .iter()
+            .any(|(_, value)| expr_contains_runtime_best_effort_effects(value)),
+        Expr::EnumVariant { fields, .. } => match fields {
+            EnumVariantFields::Tuple(values) => values
+                .iter()
+                .any(expr_contains_runtime_best_effort_effects),
+            EnumVariantFields::Struct(values) => values
+                .iter()
+                .any(|(_, value)| expr_contains_runtime_best_effort_effects(value)),
+            EnumVariantFields::Unit => false,
+        },
+        Expr::Array(values, _) | Expr::Tuple(values, _) | Expr::FString(values, _) => {
+            values.iter().any(expr_contains_runtime_best_effort_effects)
+        }
+        Expr::Range { start, end, .. } => {
+            start
+                .as_ref()
+                .is_some_and(|value| expr_contains_runtime_best_effort_effects(value))
+                || end
+                    .as_ref()
+                    .is_some_and(|value| expr_contains_runtime_best_effort_effects(value))
+        }
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            expr_contains_runtime_best_effort_effects(condition)
+                || block_contains_runtime_best_effort_effects(then_branch)
+                || else_branch.as_ref().is_some_and(|branch| match branch.as_ref() {
+                    ElseBranch::Else(block) => block_contains_runtime_best_effort_effects(block),
+                    ElseBranch::ElseIf(condition, block, next) => {
+                        expr_contains_runtime_best_effort_effects(condition)
+                            || block_contains_runtime_best_effort_effects(block)
+                            || next
+                                .as_ref()
+                                .is_some_and(|next| match next.as_ref() {
+                                    ElseBranch::Else(block) => {
+                                        block_contains_runtime_best_effort_effects(block)
+                                    }
+                                    ElseBranch::ElseIf(..) => true,
+                                })
+                    }
+                })
+        }
+        Expr::Match { scrutinee, arms, .. } => {
+            expr_contains_runtime_best_effort_effects(scrutinee)
+                || arms.iter().any(|arm| {
+                    arm.guard
+                        .as_ref()
+                        .is_some_and(|guard| expr_contains_runtime_best_effort_effects(guard))
+                        || expr_contains_runtime_best_effort_effects(&arm.body)
+                })
+        }
+        Expr::Lambda { body, .. } => expr_contains_runtime_best_effort_effects(body),
+        Expr::PtrOffset { pointer, offset, .. } => {
+            expr_contains_runtime_best_effort_effects(pointer)
+                || expr_contains_runtime_best_effort_effects(offset)
+        }
+        Expr::MemLoad { pointer, .. } => expr_contains_runtime_best_effort_effects(pointer),
+        Expr::MemStore { pointer, value, .. } => {
+            expr_contains_runtime_best_effort_effects(pointer)
+                || expr_contains_runtime_best_effort_effects(value)
+        }
+        Expr::Return(value, _) | Expr::Break(value, _) => value
+            .as_ref()
+            .is_some_and(|value| expr_contains_runtime_best_effort_effects(value)),
+        Expr::Block(block, _) => block_contains_runtime_best_effort_effects(block),
+        Expr::JSX(_, _)
+        | Expr::MacroCall { .. }
+        | Expr::Int(_, _)
+        | Expr::Float(_, _)
+        | Expr::String(_, _)
+        | Expr::Bool(_, _)
+        | Expr::None(_)
+        | Expr::Ident(_, _)
+        | Expr::Alloca { .. }
+        | Expr::Uninit { .. }
+        | Expr::Alloc { .. }
+        | Expr::Realloc { .. }
+        | Expr::SizeOfType { .. }
+        | Expr::AlignOfType { .. }
+        | Expr::Continue(_) => false,
+    }
+}
+
+fn runtime_patch_target_path(target: &Expr) -> Option<String> {
+    match target {
+        Expr::Ident(name, _) => Some(name.clone()),
+        Expr::Field { object, field, .. } => {
+            runtime_patch_target_path(object).map(|base| format!("{base}.{field}"))
+        }
+        Expr::Index { object, index, .. } => runtime_patch_target_path(object).map(|base| {
+            let suffix = match index.as_ref() {
+                Expr::Int(value, _) => format!("[{value}]"),
+                _ => "[]".to_string(),
+            };
+            format!("{base}{suffix}")
+        }),
+        Expr::Deref(inner, _) => runtime_patch_target_path(inner),
+        _ => None,
     }
 }
 
@@ -3826,47 +4350,9 @@ pub fn run_tests(program: &TypedProgram) -> KainResult<()> {
 
     // Initialize env
     let mut env = Env::new();
+    env.set_execution_lane(ExecutionLane::Test);
 
-    for item in &program.items {
-        if let crate::types::TypedItem::Mod(module) = item {
-            env.register_inline_module(&module.ast, &[])?;
-        }
-    }
-
-    // Register items first (functions, etc.)
-    for item in &program.items {
-        match item {
-            crate::types::TypedItem::Function(f) => {
-                env.functions.insert(f.ast.name.clone(), f.ast.clone());
-                // Also define in scope for lookup
-                env.define(f.ast.name.clone(), Value::Function(f.ast.name.clone()));
-            }
-            crate::types::TypedItem::Actor(a) => {
-                env.actor_defs.insert(a.ast.name.clone(), a.ast.clone());
-            }
-            crate::types::TypedItem::Component(c) => {
-                env.components.insert(c.ast.name.clone(), c.ast.clone());
-            }
-            crate::types::TypedItem::Const(c) => {
-                let val = eval_expr(&mut env, &c.ast.value)?;
-                env.define(c.ast.name.clone(), val);
-            }
-            crate::types::TypedItem::Impl(i) => {
-                let type_name = match &i.ast.target_type {
-                    Type::Named { name, .. } => name.clone(),
-                    _ => continue,
-                };
-                let type_methods = env.methods.entry(type_name).or_insert_with(HashMap::new);
-                for method in &i.ast.methods {
-                    type_methods.insert(method.name.clone(), method.clone());
-                }
-            }
-            crate::types::TypedItem::Use(u) => {
-                load_module(&mut env, &u.ast)?;
-            }
-            _ => {}
-        }
-    }
+    env.register_typed_program(program)?;
     env.apply_registered_extensions();
 
     // Run tests

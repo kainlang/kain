@@ -994,7 +994,7 @@ fn compiler_emitted_runtime_truth_exists(output: &UiBuildOutput) -> bool {
             .any(|key| key.starts_with("ui.contract.") || key.starts_with("ui.event.route."))
 }
 
-fn render_authored_expr_contract(expr: &Expr) -> String {
+pub(crate) fn render_authored_expr_contract(expr: &Expr) -> String {
     match expr {
         Expr::Int(value, _) => value.to_string(),
         Expr::Float(value, _) => value.to_string(),
@@ -1098,6 +1098,19 @@ fn render_authored_expr_contract(expr: &Expr) -> String {
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("{callee_text}({rendered_args})")
+        }
+        Expr::StageCall {
+            runtime,
+            function,
+            args,
+            ..
+        } => {
+            let rendered_args = args
+                .iter()
+                .map(render_authored_call_arg_contract)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{} {function}({rendered_args})", runtime.as_str())
         }
         Expr::MethodCall {
             receiver,

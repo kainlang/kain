@@ -43,6 +43,18 @@ pub enum Item {
     /// `fn name(args) -> Type with Effects: body`
     Function(Function),
 
+    /// `patch name(args) -> Type: body`
+    Patch(PatchDef),
+
+    /// `converge name(args) -> Type: spec/fast lanes`
+    Converge(ConvergeDef),
+
+    /// `world Name: state/surface projections`
+    World(WorldDef),
+
+    /// `orchestrate name(args) -> Type: stages`
+    Orchestrate(OrchestrateDef),
+
     /// `component Name(props) -> UI with Reactive: jsx`
     Component(Component),
 
@@ -131,6 +143,125 @@ pub struct TestDef {
     pub name: String,
     pub body: Block,
     pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PatchDef {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub return_type: Option<Type>,
+    pub body: Block,
+    pub visibility: Visibility,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConvergeDef {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub return_type: Option<Type>,
+    pub spec_lane: ConvergeLane,
+    pub fast_lanes: Vec<ConvergeLane>,
+    pub verify_random_count: Option<u32>,
+    pub visibility: Visibility,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConvergeLaneKind {
+    Spec,
+    Fast,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConvergeSelector {
+    Target(String),
+    Capability(String),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConvergeLane {
+    pub kind: ConvergeLaneKind,
+    pub lane_name: String,
+    pub selector: Option<ConvergeSelector>,
+    pub body: Block,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WorldDef {
+    pub name: String,
+    pub states: Vec<WorldStateSlot>,
+    pub surfaces: Vec<WorldSurfaceProjection>,
+    pub visibility: Visibility,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WorldStateSlot {
+    pub name: String,
+    pub ty: Type,
+    pub initial: Expr,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WorldSurfaceKind {
+    NativeUi,
+    Viewport3d,
+    Web,
+    Ue5,
+}
+
+impl WorldSurfaceKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::NativeUi => "native_ui",
+            Self::Viewport3d => "viewport3d",
+            Self::Web => "web",
+            Self::Ue5 => "ue5",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WorldSurfaceProjection {
+    pub kind: WorldSurfaceKind,
+    pub expr: Expr,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OrchestrateDef {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub return_type: Option<Type>,
+    pub body: Block,
+    pub visibility: Visibility,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum OrchestrateStageRuntime {
+    Kain,
+    Rust,
+    Python,
+    Node,
+}
+
+impl OrchestrateStageRuntime {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Kain => "kain",
+            Self::Rust => "rust",
+            Self::Python => "python",
+            Self::Node => "node",
+        }
+    }
 }
 
 // === FUNCTIONS ===
@@ -1147,6 +1278,14 @@ pub enum Expr {
         span: Span,
     },
 
+    /// Polyglot stage call: `rust fn(args)` / `python fn(args)` / `node fn(args)` / `kain fn(args)`
+    StageCall {
+        runtime: OrchestrateStageRuntime,
+        function: String,
+        args: Vec<CallArg>,
+        span: Span,
+    },
+
     /// Method call: `obj.method(args)`
     MethodCall {
         receiver: Box<Expr>,
@@ -1383,6 +1522,7 @@ impl Expr {
             | Expr::Binary { span: s, .. }
             | Expr::Unary { span: s, .. }
             | Expr::Call { span: s, .. }
+            | Expr::StageCall { span: s, .. }
             | Expr::MethodCall { span: s, .. }
             | Expr::Field { span: s, .. }
             | Expr::Index { span: s, .. }
@@ -1982,6 +2122,74 @@ fn collect_type_names_from_item(item: &Item, out: &mut HashSet<String>) {
                 }
             }
         }
+        Item::Patch(patch) => {
+            for param in &patch.params {
+                collect_type_names_from_type(&param.ty, out);
+                if let Some(default) = &param.default {
+                    collect_type_names_from_expr(default, out);
+                }
+            }
+            if let Some(ret) = &patch.return_type {
+                collect_type_names_from_type(ret, out);
+            }
+            collect_type_names_from_block(&patch.body, out);
+            for attr in &patch.attributes {
+                for arg in &attr.args {
+                    collect_type_names_from_expr(arg, out);
+                }
+            }
+        }
+        Item::Converge(converge) => {
+            for param in &converge.params {
+                collect_type_names_from_type(&param.ty, out);
+                if let Some(default) = &param.default {
+                    collect_type_names_from_expr(default, out);
+                }
+            }
+            if let Some(ret) = &converge.return_type {
+                collect_type_names_from_type(ret, out);
+            }
+            collect_type_names_from_block(&converge.spec_lane.body, out);
+            for lane in &converge.fast_lanes {
+                collect_type_names_from_block(&lane.body, out);
+            }
+            for attr in &converge.attributes {
+                for arg in &attr.args {
+                    collect_type_names_from_expr(arg, out);
+                }
+            }
+        }
+        Item::World(world) => {
+            for state in &world.states {
+                collect_type_names_from_type(&state.ty, out);
+                collect_type_names_from_expr(&state.initial, out);
+            }
+            for surface in &world.surfaces {
+                collect_type_names_from_expr(&surface.expr, out);
+            }
+            for attr in &world.attributes {
+                for arg in &attr.args {
+                    collect_type_names_from_expr(arg, out);
+                }
+            }
+        }
+        Item::Orchestrate(orchestrate) => {
+            for param in &orchestrate.params {
+                collect_type_names_from_type(&param.ty, out);
+                if let Some(default) = &param.default {
+                    collect_type_names_from_expr(default, out);
+                }
+            }
+            if let Some(ret) = &orchestrate.return_type {
+                collect_type_names_from_type(ret, out);
+            }
+            collect_type_names_from_block(&orchestrate.body, out);
+            for attr in &orchestrate.attributes {
+                for arg in &attr.args {
+                    collect_type_names_from_expr(arg, out);
+                }
+            }
+        }
         Item::Struct(s) => {
             for f in &s.fields {
                 collect_type_names_from_type(&f.ty, out);
@@ -2417,6 +2625,11 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
         }
         Expr::Call { callee, args, .. } => {
             collect_type_names_from_expr(callee, out);
+            for arg in args {
+                collect_type_names_from_expr(&arg.value, out);
+            }
+        }
+        Expr::StageCall { args, .. } => {
             for arg in args {
                 collect_type_names_from_expr(&arg.value, out);
             }

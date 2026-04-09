@@ -1,6 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-use crate::ast::{ComputeMetadata, ShaderStage, Type, COMPUTE_PLAN_CAPABILITY_KEY};
+use crate::ast::{
+    ComputeMetadata, ConvergeSelector, ShaderStage, Type, WorldSurfaceKind,
+    COMPUTE_PLAN_CAPABILITY_KEY,
+};
+use crate::types::{PatchUndoMode, TypedConverge, TypedOrchestrate, TypedPatch, TypedWorld};
+use crate::ui::render_authored_expr_contract;
 use crate::{CompileTarget, TypedItem, TypedProgram, TypedShader};
 use kain_ui::{
     UiBuildOutput, UiDockPlacement, UiHotReloadPlan, UiLayoutKind, UiMotionPolicy, UiNode,
@@ -16,6 +21,14 @@ pub struct RealtimeAppBundle {
     pub schema_version: u32,
     pub target: String,
     pub render: RenderSceneBundle,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub patches: Vec<RealtimePatchBinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub converges: Vec<RealtimeConvergeBinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub worlds: Vec<RealtimeWorldBinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub orchestrations: Vec<RealtimeOrchestrationBinding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub shader_canvases: Vec<RealtimeShaderCanvasBinding>,
     pub shader_bundle_refs: Vec<RealtimeShaderBundleRef>,
@@ -324,6 +337,71 @@ pub struct RealtimeAssetBinding {
     pub source: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RealtimePatchBinding {
+    pub name: String,
+    pub mutation_paths: Vec<String>,
+    pub undo_mode: String,
+    pub collaboration_event: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RealtimeConvergeLaneBinding {
+    pub lane_name: String,
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selector: Option<String>,
+    pub symbol: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RealtimeConvergeBinding {
+    pub name: String,
+    pub dispatcher_symbol: String,
+    pub spec_lane: RealtimeConvergeLaneBinding,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fast_lanes: Vec<RealtimeConvergeLaneBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verify_random_count: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RealtimeWorldStateBinding {
+    pub name: String,
+    pub type_name: String,
+    pub initial_expr: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RealtimeWorldSurfaceBinding {
+    pub kind: String,
+    pub authored_expr: String,
+    pub surface_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RealtimeWorldBinding {
+    pub name: String,
+    pub state_slots: Vec<RealtimeWorldStateBinding>,
+    pub surfaces: Vec<RealtimeWorldSurfaceBinding>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RealtimeOrchestrationStageBinding {
+    pub runtime: String,
+    pub function: String,
+    pub binding_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RealtimeOrchestrationBinding {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub return_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stages: Vec<RealtimeOrchestrationStageBinding>,
+}
+
 pub fn emit_realtime_app_bundle(
     program: &TypedProgram,
     ui_output: Option<&UiBuildOutput>,
@@ -333,12 +411,20 @@ pub fn emit_realtime_app_bundle(
     let shader_canvases = collect_shader_canvas_bindings(ui_output, &shader_bundle_refs);
     let scenes = collect_scene_bindings(ui_output, &shader_bundle_refs);
     let materials = collect_materials(program, &scenes);
+    let patches = collect_patch_bindings(program);
+    let converges = collect_converge_bindings(program);
+    let worlds = collect_world_bindings(program);
+    let orchestrations = collect_orchestration_bindings(program);
     let assets = collect_assets(ui_output);
     let has_explicit_compute_metadata = program_has_explicit_compute_metadata(program);
     let tool_caps = collect_tool_caps(
         program,
         ui_output,
         &shader_canvases,
+        &worlds,
+        !patches.is_empty(),
+        !converges.is_empty(),
+        !orchestrations.is_empty(),
         has_explicit_compute_metadata,
     );
     let requirements = collect_requirements(
@@ -346,7 +432,11 @@ pub fn emit_realtime_app_bundle(
         &scenes,
         &shader_canvases,
         &shader_bundle_refs,
+        &worlds,
         &tool_caps,
+        !patches.is_empty(),
+        !converges.is_empty(),
+        !orchestrations.is_empty(),
         has_explicit_compute_metadata,
     );
     let ui_contracts = collect_ui_contracts(ui_output);
@@ -355,6 +445,10 @@ pub fn emit_realtime_app_bundle(
         schema_version: REALTIME_APP_BUNDLE_SCHEMA_VERSION,
         target: compile_target_name(target).to_string(),
         render: RenderSceneBundle { scenes, materials },
+        patches,
+        converges,
+        worlds,
+        orchestrations,
         shader_canvases,
         shader_bundle_refs,
         assets,
@@ -624,6 +718,178 @@ fn collect_shader_bundle_refs_into(items: &[TypedItem], output: &mut Vec<Realtim
             TypedItem::Mod(module) => collect_shader_bundle_refs_into(&module.items, output),
             _ => {}
         }
+    }
+}
+
+fn collect_patch_bindings(program: &TypedProgram) -> Vec<RealtimePatchBinding> {
+    let mut bindings = Vec::new();
+    collect_patch_bindings_into(&program.items, &mut bindings);
+    bindings.sort_by(|left, right| left.name.cmp(&right.name));
+    bindings
+}
+
+fn collect_patch_bindings_into(items: &[TypedItem], output: &mut Vec<RealtimePatchBinding>) {
+    for item in items {
+        match item {
+            TypedItem::Patch(patch) => output.push(realtime_patch_binding(patch)),
+            TypedItem::Mod(module) => collect_patch_bindings_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn realtime_patch_binding(patch: &TypedPatch) -> RealtimePatchBinding {
+    RealtimePatchBinding {
+        name: patch.ast.name.clone(),
+        mutation_paths: patch.mutation_paths.clone(),
+        undo_mode: match patch.undo_mode {
+            PatchUndoMode::Reversible => "reversible".to_string(),
+            PatchUndoMode::BestEffort => "best_effort".to_string(),
+        },
+        collaboration_event: format!("patch.{}", patch.ast.name),
+    }
+}
+
+fn collect_converge_bindings(program: &TypedProgram) -> Vec<RealtimeConvergeBinding> {
+    let mut bindings = Vec::new();
+    collect_converge_bindings_into(&program.items, &mut bindings);
+    bindings.sort_by(|left, right| left.name.cmp(&right.name));
+    bindings
+}
+
+fn collect_converge_bindings_into(items: &[TypedItem], output: &mut Vec<RealtimeConvergeBinding>) {
+    for item in items {
+        match item {
+            TypedItem::Converge(converge) => output.push(realtime_converge_binding(converge)),
+            TypedItem::Mod(module) => collect_converge_bindings_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn realtime_converge_binding(converge: &TypedConverge) -> RealtimeConvergeBinding {
+    RealtimeConvergeBinding {
+        name: converge.ast.name.clone(),
+        dispatcher_symbol: converge.ast.name.clone(),
+        spec_lane: realtime_converge_lane_binding(&converge.ast.name, &converge.ast.spec_lane),
+        fast_lanes: converge
+            .ast
+            .fast_lanes
+            .iter()
+            .map(|lane| realtime_converge_lane_binding(&converge.ast.name, lane))
+            .collect(),
+        verify_random_count: converge.ast.verify_random_count,
+    }
+}
+
+fn realtime_converge_lane_binding(
+    converge_name: &str,
+    lane: &crate::ast::ConvergeLane,
+) -> RealtimeConvergeLaneBinding {
+    let selector = match &lane.selector {
+        Some(ConvergeSelector::Target(value)) => Some(format!("target:{value}")),
+        Some(ConvergeSelector::Capability(value)) => Some(format!("capability:{value}")),
+        None => None,
+    };
+    RealtimeConvergeLaneBinding {
+        lane_name: lane.lane_name.clone(),
+        kind: match lane.kind {
+            crate::ast::ConvergeLaneKind::Spec => "spec".to_string(),
+            crate::ast::ConvergeLaneKind::Fast => "fast".to_string(),
+        },
+        selector,
+        symbol: format!(
+            "{}__{}",
+            converge_name,
+            sanitize_bundle_symbol_ident(&lane.lane_name)
+        ),
+    }
+}
+
+fn collect_world_bindings(program: &TypedProgram) -> Vec<RealtimeWorldBinding> {
+    let mut bindings = Vec::new();
+    collect_world_bindings_into(&program.items, &mut bindings);
+    bindings.sort_by(|left, right| left.name.cmp(&right.name));
+    bindings
+}
+
+fn collect_world_bindings_into(items: &[TypedItem], output: &mut Vec<RealtimeWorldBinding>) {
+    for item in items {
+        match item {
+            TypedItem::World(world) => output.push(realtime_world_binding(world)),
+            TypedItem::Mod(module) => collect_world_bindings_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn realtime_world_binding(world: &TypedWorld) -> RealtimeWorldBinding {
+    let mut surfaces = world
+        .ast
+        .surfaces
+        .iter()
+        .map(|surface| RealtimeWorldSurfaceBinding {
+            kind: surface.kind.as_str().to_string(),
+            authored_expr: render_authored_expr_contract(&surface.expr),
+            surface_key: format!("world.{}.{}", world.ast.name, surface.kind.as_str()),
+        })
+        .collect::<Vec<_>>();
+    surfaces.sort_by(|left, right| left.kind.cmp(&right.kind));
+    RealtimeWorldBinding {
+        name: world.ast.name.clone(),
+        state_slots: world
+            .ast
+            .states
+            .iter()
+            .map(|state| RealtimeWorldStateBinding {
+                name: state.name.clone(),
+                type_name: render_contract_type_name(&state.ty),
+                initial_expr: render_authored_expr_contract(&state.initial),
+            })
+            .collect(),
+        surfaces,
+    }
+}
+
+fn collect_orchestration_bindings(program: &TypedProgram) -> Vec<RealtimeOrchestrationBinding> {
+    let mut bindings = Vec::new();
+    collect_orchestration_bindings_into(&program.items, &mut bindings);
+    bindings.sort_by(|left, right| left.name.cmp(&right.name));
+    bindings
+}
+
+fn collect_orchestration_bindings_into(
+    items: &[TypedItem],
+    output: &mut Vec<RealtimeOrchestrationBinding>,
+) {
+    for item in items {
+        match item {
+            TypedItem::Orchestrate(orchestrate) => {
+                output.push(realtime_orchestration_binding(orchestrate));
+            }
+            TypedItem::Mod(module) => collect_orchestration_bindings_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn realtime_orchestration_binding(orchestrate: &TypedOrchestrate) -> RealtimeOrchestrationBinding {
+    RealtimeOrchestrationBinding {
+        name: orchestrate.ast.name.clone(),
+        return_type: orchestrate
+            .ast
+            .return_type
+            .as_ref()
+            .map(render_contract_type_name),
+        stages: orchestrate
+            .stages
+            .iter()
+            .map(|stage| RealtimeOrchestrationStageBinding {
+                runtime: stage.runtime.as_str().to_string(),
+                function: stage.function.clone(),
+                binding_name: stage.binding_name.clone(),
+            })
+            .collect(),
     }
 }
 
@@ -1545,9 +1811,22 @@ fn collect_tool_caps(
     program: &TypedProgram,
     ui_output: Option<&UiBuildOutput>,
     shader_canvases: &[RealtimeShaderCanvasBinding],
+    worlds: &[RealtimeWorldBinding],
+    has_patches: bool,
+    has_converges: bool,
+    has_orchestrations: bool,
     has_explicit_compute_metadata: bool,
 ) -> Vec<String> {
     let mut caps = Vec::new();
+    if has_patches {
+        caps.push("patch.transactions".to_string());
+    }
+    if has_converges {
+        caps.push("converge.dispatch".to_string());
+    }
+    if has_orchestrations {
+        caps.push("orchestrate.pipeline".to_string());
+    }
     if let Some(output) = ui_output {
         if output
             .systems
@@ -1572,6 +1851,20 @@ fn collect_tool_caps(
             .any(|surface| surface.kind == UiSurfaceKind::Timeline)
         {
             caps.push("tool.timeline".to_string());
+        }
+    }
+    for world in worlds {
+        for surface in &world.surfaces {
+            match surface.kind.as_str() {
+                "native_ui" => caps.push("world.native-ui".to_string()),
+                "viewport3d" => {
+                    caps.push("world.viewport3d".to_string());
+                    caps.push("viewport.3d".to_string());
+                }
+                "web" => caps.push("world.web".to_string()),
+                "ue5" => caps.push("world.ue5".to_string()),
+                _ => {}
+            }
         }
     }
     if !shader_canvases.is_empty() {
@@ -1606,16 +1899,45 @@ fn collect_requirements(
     scenes: &[RealtimeSceneBinding],
     shader_canvases: &[RealtimeShaderCanvasBinding],
     shader_bundle_refs: &[RealtimeShaderBundleRef],
+    worlds: &[RealtimeWorldBinding],
     tool_caps: &[String],
+    has_patches: bool,
+    has_converges: bool,
+    has_orchestrations: bool,
     has_explicit_compute_metadata: bool,
 ) -> Vec<String> {
     let has_compute_refs = shader_bundle_refs
         .iter()
         .any(|entry| entry.stage == "compute");
+    let has_world_native_ui = bundle_has_world_surface(worlds, WorldSurfaceKind::NativeUi);
+    let has_world_viewport3d = bundle_has_world_surface(worlds, WorldSurfaceKind::Viewport3d);
+    let has_world_web = bundle_has_world_surface(worlds, WorldSurfaceKind::Web);
+    let has_world_ue5 = bundle_has_world_surface(worlds, WorldSurfaceKind::Ue5);
     let mut requirements = vec![
         "runtime.contract.bundle".to_string(),
         "shader.bundle.metadata".to_string(),
     ];
+    if has_patches {
+        requirements.push("patch.transactions".to_string());
+    }
+    if has_converges {
+        requirements.push("converge.dispatch".to_string());
+    }
+    if has_orchestrations {
+        requirements.push("orchestrate.pipeline".to_string());
+    }
+    if has_world_native_ui {
+        requirements.push("world.native-ui".to_string());
+    }
+    if has_world_viewport3d {
+        requirements.push("world.viewport3d".to_string());
+    }
+    if has_world_web {
+        requirements.push("world.web".to_string());
+    }
+    if has_world_ue5 {
+        requirements.push("world.ue5".to_string());
+    }
     if !shader_bundle_refs.is_empty() {
         requirements.push("gpu.shader-bundles".to_string());
     }
@@ -1640,6 +1962,14 @@ fn collect_requirements(
     match target {
         CompileTarget::Rust => requirements.push("host.native-ui".to_string()),
         CompileTarget::Llvm => requirements.push("host.raw-native".to_string()),
+        CompileTarget::Js | CompileTarget::Ts | CompileTarget::Wasm | CompileTarget::Hybrid
+            if has_world_web =>
+        {
+            requirements.push("host.web".to_string());
+        }
+        CompileTarget::Ue5 | CompileTarget::Ue5Editor if has_world_ue5 => {
+            requirements.push("host.ue5".to_string());
+        }
         _ => {}
     }
     requirements.sort();
@@ -1665,6 +1995,47 @@ fn compile_target_name(target: CompileTarget) -> &'static str {
         CompileTarget::Test => "test",
         CompileTarget::Ks => "ks",
     }
+}
+
+fn render_contract_type_name(ty: &Type) -> String {
+    match ty {
+        Type::Named { name, .. } => name.clone(),
+        Type::Tuple(_, _) => "Tuple".to_string(),
+        Type::Array(_, _, _) => "Array".to_string(),
+        Type::Slice(_, _) => "Slice".to_string(),
+        Type::Ref { inner, .. } => format!("&{}", render_contract_type_name(inner)),
+        Type::Ptr { inner, .. } => format!("*{}", render_contract_type_name(inner)),
+        Type::Option(inner, _) => format!("Option<{}>", render_contract_type_name(inner)),
+        Type::Result(ok, _, _) => format!("Result<{}>", render_contract_type_name(ok)),
+        Type::Unit(_) => "Unit".to_string(),
+        Type::Never(_) => "Never".to_string(),
+        _ => "Unknown".to_string(),
+    }
+}
+
+fn sanitize_bundle_symbol_ident(name: &str) -> String {
+    let sanitized = name
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || character == '_' {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    if sanitized.is_empty() {
+        "lane".to_string()
+    } else {
+        sanitized
+    }
+}
+
+fn bundle_has_world_surface(worlds: &[RealtimeWorldBinding], kind: WorldSurfaceKind) -> bool {
+    let expected = kind.as_str();
+    worlds
+        .iter()
+        .any(|world| world.surfaces.iter().any(|surface| surface.kind == expected))
 }
 
 #[cfg(test)]

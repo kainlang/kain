@@ -8,7 +8,7 @@ use std::path::PathBuf;
 #[cfg(test)]
 use std::sync::Mutex;
 
-use kain_core::ast::Program;
+use kain_core::ast::{Expr, Program, WorldSurfaceKind};
 use kain_core::error::KainError;
 use kain_core::monomorphize::MonomorphizedProgram;
 use kain_core::runtime;
@@ -255,9 +255,7 @@ impl DriverSession {
         let typed = self.frontend_to_typed_program(source, target)?;
         let prepared_source =
             prepare_c_ffi_source(source, target).unwrap_or_else(|_| source.to_string());
-        let resolved_root_component = root_component
-            .map(str::to_string)
-            .or_else(|| discover_root_component_name(&typed));
+        let resolved_root_component = resolve_root_component_name(&typed, root_component)?;
         let ui_output = if let Some(root_component) = resolved_root_component.as_deref() {
             Some(kain_core::build_ui_output_from_source(
                 &prepared_source,
@@ -730,11 +728,106 @@ pub fn compile_realtime_app_bundle(
     DriverSession::default().compile_realtime_app_bundle(source, target, root_component)
 }
 
-fn discover_root_component_name(program: &TypedProgram) -> Option<String> {
-    program.items.iter().find_map(|item| match item {
-        TypedItem::Component(component) => Some(component.ast.name.clone()),
+pub(crate) fn resolve_root_component_name(
+    program: &TypedProgram,
+    requested_root: Option<&str>,
+) -> Result<Option<String>, KainError> {
+    let component_names = collect_component_names(&program.items);
+    let world_roots = collect_world_native_ui_roots(&program.items)?;
+
+    if let Some(requested_root) = requested_root.map(str::trim).filter(|value| !value.is_empty()) {
+        if let Some((_, root_component)) =
+            world_roots.iter().find(|(world_name, _)| world_name == requested_root)
+        {
+            return Ok(Some(root_component.clone()));
+        }
+        if component_names.iter().any(|name| name == requested_root) {
+            return Ok(Some(requested_root.to_string()));
+        }
+        return Err(KainError::runtime(format!(
+            "Configured root '{}' did not match any component or world",
+            requested_root
+        )));
+    }
+
+    if world_roots.len() > 1 {
+        let world_names = world_roots
+            .iter()
+            .map(|(world_name, _)| world_name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(KainError::runtime(format!(
+            "Multiple worlds declare native_ui surfaces ({world_names}); pass --root <world-name> to select one explicitly"
+        )));
+    }
+    if let Some((_, root_component)) = world_roots.into_iter().next() {
+        return Ok(Some(root_component));
+    }
+    if let Some(app) = component_names.iter().find(|name| name.as_str() == "App") {
+        return Ok(Some(app.clone()));
+    }
+    Ok(component_names.into_iter().next())
+}
+
+fn collect_component_names(items: &[TypedItem]) -> Vec<String> {
+    let mut names = Vec::new();
+    collect_component_names_into(items, &mut names);
+    names
+}
+
+fn collect_component_names_into(items: &[TypedItem], output: &mut Vec<String>) {
+    for item in items {
+        match item {
+            TypedItem::Component(component) => output.push(component.ast.name.clone()),
+            TypedItem::Mod(module) => collect_component_names_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn collect_world_native_ui_roots(items: &[TypedItem]) -> Result<Vec<(String, String)>, KainError> {
+    let mut roots = Vec::new();
+    collect_world_native_ui_roots_into(items, &mut roots)?;
+    Ok(roots)
+}
+
+fn collect_world_native_ui_roots_into(
+    items: &[TypedItem],
+    output: &mut Vec<(String, String)>,
+) -> Result<(), KainError> {
+    for item in items {
+        match item {
+            TypedItem::World(world) => {
+                let root_component = world
+                    .ast
+                    .surfaces
+                    .iter()
+                    .find(|surface| surface.kind == WorldSurfaceKind::NativeUi)
+                    .and_then(|surface| expr_component_name(&surface.expr))
+                    .ok_or_else(|| {
+                        KainError::runtime(format!(
+                            "World '{}' native_ui surface does not resolve to a component name",
+                            world.ast.name
+                        ))
+                    })?;
+                output.push((world.ast.name.clone(), root_component));
+            }
+            TypedItem::Mod(module) => collect_world_native_ui_roots_into(&module.items, output)?,
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn expr_component_name(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Ident(name, _) => Some(name.clone()),
+        Expr::Call { callee, .. } => match callee.as_ref() {
+            Expr::Ident(name, _) => Some(name.clone()),
+            _ => None,
+        },
         _ => None,
-    })
+    }
 }
 
 pub fn compile_gpu_artifacts(source: &str) -> Result<GpuArtifactOutput, KainError> {

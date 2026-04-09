@@ -39,6 +39,10 @@ pub struct TypedMod {
 #[derive(Debug, Clone)]
 pub enum TypedItem {
     Function(TypedFunction),
+    Patch(TypedPatch),
+    Converge(TypedConverge),
+    World(TypedWorld),
+    Orchestrate(TypedOrchestrate),
     Component(TypedComponent),
     Shader(TypedShader),
     Actor(TypedActor),
@@ -97,6 +101,46 @@ pub struct TypedFunction {
     pub ast: Function,
     pub resolved_type: ResolvedType,
     pub effects: EffectSet,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PatchUndoMode {
+    Reversible,
+    BestEffort,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypedPatch {
+    pub ast: PatchDef,
+    pub resolved_type: ResolvedType,
+    pub effects: EffectSet,
+    pub mutation_paths: Vec<String>,
+    pub undo_mode: PatchUndoMode,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypedConverge {
+    pub ast: ConvergeDef,
+    pub resolved_type: ResolvedType,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypedWorld {
+    pub ast: WorldDef,
+}
+
+#[derive(Debug, Clone)]
+pub struct OrchestrateStageDescriptor {
+    pub runtime: OrchestrateStageRuntime,
+    pub function: String,
+    pub binding_name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypedOrchestrate {
+    pub ast: OrchestrateDef,
+    pub resolved_type: ResolvedType,
+    pub stages: Vec<OrchestrateStageDescriptor>,
 }
 
 #[derive(Debug, Clone)]
@@ -434,6 +478,33 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
         Item::Function(f) => {
             env.define_global(f.name.clone(), function_signature(env, f, None)?);
         }
+        Item::Patch(patch) => {
+            env.define_global(
+                patch.name.clone(),
+                function_signature(env, &patch_function_view(patch), None)?,
+            );
+        }
+        Item::Converge(converge) => {
+            env.define_global(
+                converge.name.clone(),
+                function_signature(env, &converge_dispatcher_view(converge), None)?,
+            );
+        }
+        Item::World(world) => {
+            let mut fields = HashMap::new();
+            for state in &world.states {
+                fields.insert(state.name.clone(), resolve_type_in_env(env, &state.ty)?);
+            }
+            let world_ty = ResolvedType::Struct(world.name.clone(), fields);
+            env.types.insert(world.name.clone(), world_ty.clone());
+            env.define_global(world.name.clone(), world_ty);
+        }
+        Item::Orchestrate(orchestrate) => {
+            env.define_global(
+                orchestrate.name.clone(),
+                function_signature(env, &orchestrate_function_view(orchestrate), None)?,
+            );
+        }
         Item::Const(c) => {
             env.define_global(c.name.clone(), resolve_type_in_env(env, &c.ty)?);
         }
@@ -492,6 +563,12 @@ fn check_item_into(env: &mut TypeEnv, item: &Item, out: &mut Vec<TypedItem>) -> 
 fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
     match item {
         Item::Function(f) => Ok(TypedItem::Function(check_function(env, f)?)),
+        Item::Patch(patch) => Ok(TypedItem::Patch(check_patch(env, patch)?)),
+        Item::Converge(converge) => Ok(TypedItem::Converge(check_converge(env, converge)?)),
+        Item::World(world) => Ok(TypedItem::World(check_world(env, world)?)),
+        Item::Orchestrate(orchestrate) => {
+            Ok(TypedItem::Orchestrate(check_orchestrate(env, orchestrate)?))
+        }
         Item::Struct(s) => Ok(TypedItem::Struct(check_struct(env, s)?)),
         Item::Enum(e) => Ok(TypedItem::Enum(check_enum(env, e)?)),
         Item::Trait(t) => Ok(TypedItem::Trait(TypedTrait { ast: t.clone() })),
@@ -674,6 +751,612 @@ fn check_function_with_self(
         resolved_type,
         effects,
     })
+}
+
+fn patch_function_view(patch: &PatchDef) -> Function {
+    Function {
+        name: patch.name.clone(),
+        generics: vec![],
+        params: patch.params.clone(),
+        return_type: patch.return_type.clone(),
+        effects: vec![],
+        body: patch.body.clone(),
+        visibility: patch.visibility,
+        attributes: patch.attributes.clone(),
+        span: patch.span,
+    }
+}
+
+fn converge_dispatcher_view(converge: &ConvergeDef) -> Function {
+    Function {
+        name: converge.name.clone(),
+        generics: vec![],
+        params: converge.params.clone(),
+        return_type: converge.return_type.clone(),
+        effects: vec![],
+        body: Block {
+            stmts: vec![],
+            span: converge.span,
+        },
+        visibility: converge.visibility,
+        attributes: converge.attributes.clone(),
+        span: converge.span,
+    }
+}
+
+fn converge_lane_function_view(converge: &ConvergeDef, lane: &ConvergeLane) -> Function {
+    Function {
+        name: format!("__kain_converge__{}__{}", converge.name, lane.lane_name),
+        generics: vec![],
+        params: converge.params.clone(),
+        return_type: converge.return_type.clone(),
+        effects: vec![],
+        body: lane.body.clone(),
+        visibility: converge.visibility,
+        attributes: converge.attributes.clone(),
+        span: lane.span,
+    }
+}
+
+fn orchestrate_function_view(orchestrate: &OrchestrateDef) -> Function {
+    Function {
+        name: orchestrate.name.clone(),
+        generics: vec![],
+        params: orchestrate.params.clone(),
+        return_type: orchestrate.return_type.clone(),
+        effects: vec![],
+        body: orchestrate.body.clone(),
+        visibility: orchestrate.visibility,
+        attributes: orchestrate.attributes.clone(),
+        span: orchestrate.span,
+    }
+}
+
+fn check_patch(env: &mut TypeEnv, patch: &PatchDef) -> KainResult<TypedPatch> {
+    let typed_fn = check_function(env, &patch_function_view(patch))?;
+    let mutation_paths = collect_patch_mutation_paths_from_block(&patch.body);
+    let undo_mode = if patch_body_requires_best_effort(&patch.body) {
+        PatchUndoMode::BestEffort
+    } else {
+        PatchUndoMode::Reversible
+    };
+    Ok(TypedPatch {
+        ast: patch.clone(),
+        resolved_type: typed_fn.resolved_type,
+        effects: typed_fn.effects,
+        mutation_paths,
+        undo_mode,
+    })
+}
+
+fn check_converge(env: &mut TypeEnv, converge: &ConvergeDef) -> KainResult<TypedConverge> {
+    let resolved_type = function_signature(env, &converge_dispatcher_view(converge), None)?;
+    let expected_signature = resolved_type.clone();
+    check_function(env, &converge_lane_function_view(converge, &converge.spec_lane))?;
+    for lane in &converge.fast_lanes {
+        check_function(env, &converge_lane_function_view(converge, lane))?;
+        let lane_signature = function_signature(env, &converge_lane_function_view(converge, lane), None)?;
+        if lane_signature != expected_signature {
+            return Err(env.type_error(
+                format!(
+                    "Converge lane '{}' does not match dispatcher signature",
+                    lane.lane_name
+                ),
+                lane.span,
+            ));
+        }
+    }
+    Ok(TypedConverge {
+        ast: converge.clone(),
+        resolved_type,
+    })
+}
+
+fn check_world(env: &mut TypeEnv, world: &WorldDef) -> KainResult<TypedWorld> {
+    let mut state_types = HashMap::new();
+    let mut seen_surface_kinds = HashSet::new();
+    for state in &world.states {
+        let resolved_ty = resolve_type_in_env(env, &state.ty)?;
+        let initial_ty = infer_expr_type(env, &state.initial, None)?;
+        ensure_type_compatible(
+            env,
+            &resolved_ty,
+            &initial_ty,
+            state.initial.span(),
+            "world state initializer",
+        )?;
+        env.define_global(state.name.clone(), resolved_ty.clone());
+        state_types.insert(state.name.clone(), resolved_ty);
+    }
+    let world_ty = ResolvedType::Struct(world.name.clone(), state_types);
+    env.types.insert(world.name.clone(), world_ty.clone());
+    env.define_global(world.name.clone(), world_ty);
+    for surface in &world.surfaces {
+        if !seen_surface_kinds.insert(surface.kind) {
+            return Err(env.type_error(
+                format!(
+                    "world '{}' declares duplicate '{}' surface",
+                    world.name,
+                    surface.kind.as_str()
+                ),
+                surface.span,
+            ));
+        }
+        check_world_surface_projection(env, surface)?;
+    }
+    for required_surface_kind in [
+        WorldSurfaceKind::NativeUi,
+        WorldSurfaceKind::Viewport3d,
+        WorldSurfaceKind::Web,
+        WorldSurfaceKind::Ue5,
+    ] {
+        if !seen_surface_kinds.contains(&required_surface_kind) {
+            return Err(env.type_error(
+                format!(
+                    "world '{}' is missing required '{}' surface",
+                    world.name,
+                    required_surface_kind.as_str()
+                ),
+                world.span,
+            ));
+        }
+    }
+    Ok(TypedWorld { ast: world.clone() })
+}
+
+fn check_orchestrate(env: &mut TypeEnv, orchestrate: &OrchestrateDef) -> KainResult<TypedOrchestrate> {
+    let typed_fn = check_function(env, &orchestrate_function_view(orchestrate))?;
+    let stages = collect_orchestrate_stage_descriptors(&orchestrate.body);
+    Ok(TypedOrchestrate {
+        ast: orchestrate.clone(),
+        resolved_type: typed_fn.resolved_type,
+        stages,
+    })
+}
+
+fn check_world_surface_projection(
+    env: &mut TypeEnv,
+    surface: &WorldSurfaceProjection,
+) -> KainResult<()> {
+    match surface.kind {
+        WorldSurfaceKind::NativeUi | WorldSurfaceKind::Web => match &surface.expr {
+            Expr::Ident(_, _) => Ok(()),
+            Expr::Call { callee, .. } => match callee.as_ref() {
+                Expr::Ident(_, _) => Ok(()),
+                other => Err(env.type_error(
+                    format!(
+                        "world surface '{}' expects a component identifier or call, found {:?}",
+                        surface.kind.as_str(),
+                        other
+                    ),
+                    surface.span,
+                )),
+            },
+            other => Err(env.type_error(
+                format!(
+                    "world surface '{}' expects a component identifier or call, found {:?}",
+                    surface.kind.as_str(),
+                    other
+                ),
+                surface.span,
+            )),
+        },
+        WorldSurfaceKind::Viewport3d | WorldSurfaceKind::Ue5 => match &surface.expr {
+            Expr::Ident(_, _) | Expr::String(_, _) => Ok(()),
+            other => Err(env.type_error(
+                format!(
+                    "world surface '{}' expects an identifier or string literal, found {:?}",
+                    surface.kind.as_str(),
+                    other
+                ),
+                surface.span,
+            )),
+        },
+    }
+}
+
+fn collect_patch_mutation_paths_from_block(block: &Block) -> Vec<String> {
+    let mut paths = Vec::new();
+    for stmt in &block.stmts {
+        collect_patch_mutation_paths_from_stmt(stmt, &mut paths);
+    }
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
+fn collect_patch_mutation_paths_from_stmt(stmt: &Stmt, output: &mut Vec<String>) {
+    match stmt {
+        Stmt::Let { value, .. } => {
+            if let Some(value) = value {
+                collect_patch_mutation_paths_from_expr(value, output);
+            }
+        }
+        Stmt::Expr(expr) => collect_patch_mutation_paths_from_expr(expr, output),
+        Stmt::Return(value, _) | Stmt::Break(value, _) => {
+            if let Some(value) = value {
+                collect_patch_mutation_paths_from_expr(value, output);
+            }
+        }
+        Stmt::For { iter, body, .. } => {
+            collect_patch_mutation_paths_from_expr(iter, output);
+            for stmt in &body.stmts {
+                collect_patch_mutation_paths_from_stmt(stmt, output);
+            }
+        }
+        Stmt::While { condition, body, .. } => {
+            collect_patch_mutation_paths_from_expr(condition, output);
+            for stmt in &body.stmts {
+                collect_patch_mutation_paths_from_stmt(stmt, output);
+            }
+        }
+        Stmt::Loop { body, .. } => {
+            for stmt in &body.stmts {
+                collect_patch_mutation_paths_from_stmt(stmt, output);
+            }
+        }
+        Stmt::Item(_) | Stmt::Continue(_) => {}
+    }
+}
+
+fn collect_patch_mutation_paths_from_expr(expr: &Expr, output: &mut Vec<String>) {
+    match expr {
+        Expr::Assign { target, value, .. } => {
+            if let Some(path) = patch_target_path(target) {
+                output.push(path);
+            }
+            collect_patch_mutation_paths_from_expr(value, output);
+        }
+        Expr::Call { callee, args, .. } => {
+            collect_patch_mutation_paths_from_expr(callee, output);
+            for arg in args {
+                collect_patch_mutation_paths_from_expr(&arg.value, output);
+            }
+        }
+        Expr::StageCall { args, .. } | Expr::MethodCall { args, .. } => {
+            for arg in args {
+                collect_patch_mutation_paths_from_expr(&arg.value, output);
+            }
+        }
+        Expr::Binary { left, right, .. } => {
+            collect_patch_mutation_paths_from_expr(left, output);
+            collect_patch_mutation_paths_from_expr(right, output);
+        }
+        Expr::Unary { operand, .. }
+        | Expr::Try(operand, _)
+        | Expr::Await(operand, _)
+        | Expr::AsyncBlock(operand, _)
+        | Expr::Ref { value: operand, .. }
+        | Expr::AddrOf { value: operand, .. }
+        | Expr::Deref(operand, _)
+        | Expr::Paren(operand, _) => collect_patch_mutation_paths_from_expr(operand, output),
+        Expr::Field { object, .. } => collect_patch_mutation_paths_from_expr(object, output),
+        Expr::Index { object, index, .. } => {
+            collect_patch_mutation_paths_from_expr(object, output);
+            collect_patch_mutation_paths_from_expr(index, output);
+        }
+        Expr::Struct { fields, rest, .. } => {
+            for (_, value) in fields {
+                collect_patch_mutation_paths_from_expr(value, output);
+            }
+            if let Some(rest) = rest {
+                collect_patch_mutation_paths_from_expr(rest, output);
+            }
+        }
+        Expr::AggregateInit { fields, .. } => {
+            for (_, value) in fields {
+                collect_patch_mutation_paths_from_expr(value, output);
+            }
+        }
+        Expr::EnumVariant { fields, .. } => match fields {
+            EnumVariantFields::Tuple(values) => {
+                for value in values {
+                    collect_patch_mutation_paths_from_expr(value, output);
+                }
+            }
+            EnumVariantFields::Struct(values) => {
+                for (_, value) in values {
+                    collect_patch_mutation_paths_from_expr(value, output);
+                }
+            }
+            EnumVariantFields::Unit => {}
+        },
+        Expr::Array(values, _) | Expr::Tuple(values, _) => {
+            for value in values {
+                collect_patch_mutation_paths_from_expr(value, output);
+            }
+        }
+        Expr::Range { start, end, .. } => {
+            if let Some(start) = start {
+                collect_patch_mutation_paths_from_expr(start, output);
+            }
+            if let Some(end) = end {
+                collect_patch_mutation_paths_from_expr(end, output);
+            }
+        }
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            collect_patch_mutation_paths_from_expr(condition, output);
+            for stmt in &then_branch.stmts {
+                collect_patch_mutation_paths_from_stmt(stmt, output);
+            }
+            if let Some(else_branch) = else_branch {
+                collect_patch_mutation_paths_from_else_branch(else_branch, output);
+            }
+        }
+        Expr::Match { scrutinee, arms, .. } => {
+            collect_patch_mutation_paths_from_expr(scrutinee, output);
+            for arm in arms {
+                if let Some(guard) = &arm.guard {
+                    collect_patch_mutation_paths_from_expr(guard, output);
+                }
+                collect_patch_mutation_paths_from_expr(&arm.body, output);
+            }
+        }
+        Expr::Lambda { body, .. } => collect_patch_mutation_paths_from_expr(body, output),
+        Expr::MemStore { pointer, value, .. } => {
+            collect_patch_mutation_paths_from_expr(pointer, output);
+            collect_patch_mutation_paths_from_expr(value, output);
+        }
+        Expr::PtrOffset { pointer, offset, .. } => {
+            collect_patch_mutation_paths_from_expr(pointer, output);
+            collect_patch_mutation_paths_from_expr(offset, output);
+        }
+        Expr::MemLoad { pointer, .. }
+        | Expr::Cast { value: pointer, .. }
+        | Expr::Comptime(pointer, _) => collect_patch_mutation_paths_from_expr(pointer, output),
+        Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => {
+            for (_, value) in init {
+                collect_patch_mutation_paths_from_expr(value, output);
+            }
+        }
+        Expr::Return(value, _) | Expr::Break(value, _) => {
+            if let Some(value) = value {
+                collect_patch_mutation_paths_from_expr(value, output);
+            }
+        }
+        Expr::JSX(_, _)
+        | Expr::MacroCall { .. }
+        | Expr::Int(_, _)
+        | Expr::Float(_, _)
+        | Expr::String(_, _)
+        | Expr::FString(_, _)
+        | Expr::Bool(_, _)
+        | Expr::None(_)
+        | Expr::Ident(_, _)
+        | Expr::Alloca { .. }
+        | Expr::Uninit { .. }
+        | Expr::Alloc { .. }
+        | Expr::Realloc { .. }
+        | Expr::SizeOfType { .. }
+        | Expr::AlignOfType { .. }
+        | Expr::Continue(_) => {}
+        Expr::Block(block, _) => {
+            for stmt in &block.stmts {
+                collect_patch_mutation_paths_from_stmt(stmt, output);
+            }
+        }
+    }
+}
+
+fn collect_patch_mutation_paths_from_else_branch(branch: &ElseBranch, output: &mut Vec<String>) {
+    match branch {
+        ElseBranch::Else(block) => {
+            for stmt in &block.stmts {
+                collect_patch_mutation_paths_from_stmt(stmt, output);
+            }
+        }
+        ElseBranch::ElseIf(condition, block, next) => {
+            collect_patch_mutation_paths_from_expr(condition, output);
+            for stmt in &block.stmts {
+                collect_patch_mutation_paths_from_stmt(stmt, output);
+            }
+            if let Some(next) = next {
+                collect_patch_mutation_paths_from_else_branch(next, output);
+            }
+        }
+    }
+}
+
+fn patch_target_path(target: &Expr) -> Option<String> {
+    match target {
+        Expr::Ident(name, _) => Some(name.clone()),
+        Expr::Field { object, field, .. } => patch_target_path(object).map(|base| format!("{base}.{field}")),
+        Expr::Index { object, index, .. } => patch_target_path(object).map(|base| {
+            let suffix = match index.as_ref() {
+                Expr::Int(value, _) => format!("[{value}]"),
+                _ => "[]".to_string(),
+            };
+            format!("{base}{suffix}")
+        }),
+        Expr::Deref(inner, _) => patch_target_path(inner),
+        _ => None,
+    }
+}
+
+fn patch_body_requires_best_effort(block: &Block) -> bool {
+    block
+        .stmts
+        .iter()
+        .any(stmt_requires_best_effort_patch_mode)
+}
+
+fn stmt_requires_best_effort_patch_mode(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Expr(expr) => expr_requires_best_effort_patch_mode(expr),
+        Stmt::Let { value, .. } => value
+            .as_ref()
+            .is_some_and(expr_requires_best_effort_patch_mode),
+        Stmt::Return(value, _) | Stmt::Break(value, _) => value
+            .as_ref()
+            .is_some_and(expr_requires_best_effort_patch_mode),
+        Stmt::For { iter, body, .. } => {
+            expr_requires_best_effort_patch_mode(iter)
+                || body.stmts.iter().any(stmt_requires_best_effort_patch_mode)
+        }
+        Stmt::While { condition, body, .. } => {
+            expr_requires_best_effort_patch_mode(condition)
+                || body.stmts.iter().any(stmt_requires_best_effort_patch_mode)
+        }
+        Stmt::Loop { body, .. } => body.stmts.iter().any(stmt_requires_best_effort_patch_mode),
+        Stmt::Item(_) | Stmt::Continue(_) => false,
+    }
+}
+
+fn expr_requires_best_effort_patch_mode(expr: &Expr) -> bool {
+    match expr {
+        Expr::Call { .. }
+        | Expr::MethodCall { .. }
+        | Expr::StageCall { .. }
+        | Expr::Spawn { .. }
+        | Expr::SendMsg { .. }
+        | Expr::Await(_, _)
+        | Expr::AsyncBlock(_, _) => true,
+        Expr::Assign { target, value, .. } => {
+            expr_requires_best_effort_patch_mode(target) || expr_requires_best_effort_patch_mode(value)
+        }
+        Expr::Binary { left, right, .. } => {
+            expr_requires_best_effort_patch_mode(left) || expr_requires_best_effort_patch_mode(right)
+        }
+        Expr::Unary { operand, .. }
+        | Expr::Try(operand, _)
+        | Expr::Ref { value: operand, .. }
+        | Expr::AddrOf { value: operand, .. }
+        | Expr::Deref(operand, _)
+        | Expr::Paren(operand, _)
+        | Expr::Cast { value: operand, .. }
+        | Expr::Comptime(operand, _) => expr_requires_best_effort_patch_mode(operand),
+        Expr::Field { object, .. } => expr_requires_best_effort_patch_mode(object),
+        Expr::Index { object, index, .. } => {
+            expr_requires_best_effort_patch_mode(object) || expr_requires_best_effort_patch_mode(index)
+        }
+        Expr::Struct { fields, rest, .. } => {
+            fields.iter().any(|(_, value)| expr_requires_best_effort_patch_mode(value))
+                || rest
+                    .as_ref()
+                    .is_some_and(|rest| expr_requires_best_effort_patch_mode(rest))
+        }
+        Expr::AggregateInit { fields, .. } => fields
+            .iter()
+            .any(|(_, value)| expr_requires_best_effort_patch_mode(value)),
+        Expr::EnumVariant { fields, .. } => match fields {
+            EnumVariantFields::Tuple(values) => values.iter().any(expr_requires_best_effort_patch_mode),
+            EnumVariantFields::Struct(values) => values
+                .iter()
+                .any(|(_, value)| expr_requires_best_effort_patch_mode(value)),
+            EnumVariantFields::Unit => false,
+        },
+        Expr::Array(values, _) | Expr::Tuple(values, _) => {
+            values.iter().any(expr_requires_best_effort_patch_mode)
+        }
+        Expr::Range { start, end, .. } => {
+            start
+                .as_ref()
+                .is_some_and(|value| expr_requires_best_effort_patch_mode(value))
+                || end
+                    .as_ref()
+                    .is_some_and(|value| expr_requires_best_effort_patch_mode(value))
+        }
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            expr_requires_best_effort_patch_mode(condition)
+                || then_branch
+                    .stmts
+                    .iter()
+                    .any(stmt_requires_best_effort_patch_mode)
+                || else_branch.as_ref().is_some_and(|branch| match branch.as_ref() {
+                    ElseBranch::Else(block) => block
+                        .stmts
+                        .iter()
+                        .any(stmt_requires_best_effort_patch_mode),
+                    ElseBranch::ElseIf(condition, block, next) => {
+                        expr_requires_best_effort_patch_mode(condition)
+                            || block
+                                .stmts
+                                .iter()
+                                .any(stmt_requires_best_effort_patch_mode)
+                            || next.as_ref().is_some_and(|next| match next.as_ref() {
+                                ElseBranch::Else(block) => block
+                                    .stmts
+                                    .iter()
+                                    .any(stmt_requires_best_effort_patch_mode),
+                                ElseBranch::ElseIf(..) => true,
+                            })
+                    }
+                })
+        }
+        Expr::Match { scrutinee, arms, .. } => {
+            expr_requires_best_effort_patch_mode(scrutinee)
+                || arms.iter().any(|arm| {
+                    arm.guard
+                        .as_ref()
+                        .is_some_and(expr_requires_best_effort_patch_mode)
+                        || expr_requires_best_effort_patch_mode(&arm.body)
+                })
+        }
+        Expr::Lambda { body, .. } => expr_requires_best_effort_patch_mode(body),
+        Expr::PtrOffset { pointer, offset, .. } => {
+            expr_requires_best_effort_patch_mode(pointer)
+                || expr_requires_best_effort_patch_mode(offset)
+        }
+        Expr::MemLoad { pointer, .. } => expr_requires_best_effort_patch_mode(pointer),
+        Expr::MemStore { pointer, value, .. } => {
+            expr_requires_best_effort_patch_mode(pointer)
+                || expr_requires_best_effort_patch_mode(value)
+        }
+        Expr::Return(value, _) | Expr::Break(value, _) => value
+            .as_ref()
+            .is_some_and(|value| expr_requires_best_effort_patch_mode(value)),
+        Expr::Block(block, _) => block.stmts.iter().any(stmt_requires_best_effort_patch_mode),
+        Expr::JSX(_, _)
+        | Expr::MacroCall { .. }
+        | Expr::Int(_, _)
+        | Expr::Float(_, _)
+        | Expr::String(_, _)
+        | Expr::FString(_, _)
+        | Expr::Bool(_, _)
+        | Expr::None(_)
+        | Expr::Ident(_, _)
+        | Expr::Alloca { .. }
+        | Expr::Uninit { .. }
+        | Expr::Alloc { .. }
+        | Expr::Realloc { .. }
+        | Expr::SizeOfType { .. }
+        | Expr::AlignOfType { .. }
+        | Expr::Continue(_) => false,
+    }
+}
+
+fn collect_orchestrate_stage_descriptors(block: &Block) -> Vec<OrchestrateStageDescriptor> {
+    let mut stages = Vec::new();
+    for stmt in &block.stmts {
+        if let Stmt::Let {
+            pattern:
+                Pattern::Binding {
+                    name,
+                    mutable: _,
+                    span: _,
+                },
+            value: Some(Expr::StageCall { runtime, function, .. }),
+            ..
+        } = stmt
+        {
+            stages.push(OrchestrateStageDescriptor {
+                runtime: *runtime,
+                function: function.clone(),
+                binding_name: name.clone(),
+            });
+        }
+    }
+    stages
 }
 
 fn check_struct(env: &mut TypeEnv, s: &Struct) -> KainResult<TypedStruct> {
@@ -911,6 +1594,10 @@ fn resolve_type_impl(env: Option<&TypeEnv>, ty: &Type) -> KainResult<ResolvedTyp
 fn item_span(item: &Item) -> Span {
     match item {
         Item::Function(f) => f.span,
+        Item::Patch(patch) => patch.span,
+        Item::Converge(converge) => converge.span,
+        Item::World(world) => world.span,
+        Item::Orchestrate(orchestrate) => orchestrate.span,
         Item::Struct(s) => s.span,
         Item::Enum(e) => e.span,
         Item::Trait(t) => t.span,
@@ -1158,6 +1845,50 @@ fn infer_expr_type(
             let left_ty = infer_expr_type(env, left, ctx)?;
             let right_ty = infer_expr_type(env, right, ctx)?;
             infer_binary_type(env, op, &left_ty, &right_ty, *span)
+        }
+        Expr::StageCall {
+            function,
+            args,
+            span,
+            ..
+        } => {
+            let callee_ty = env.lookup(function).cloned().ok_or_else(|| {
+                env.type_error(
+                    format!("Unknown orchestrate stage function '{}'", function),
+                    *span,
+                )
+            })?;
+            let arg_types = args
+                .iter()
+                .map(|arg| infer_expr_type(env, &arg.value, ctx))
+                .collect::<Result<Vec<_>, _>>()?;
+            match callee_ty {
+                ResolvedType::Function { params, ret, .. } => {
+                    if params.len() != arg_types.len() {
+                        return Err(env.type_error(
+                            format!(
+                                "Expected {} argument(s), found {}",
+                                params.len(),
+                                arg_types.len()
+                            ),
+                            *span,
+                        ));
+                    }
+                    for (param_ty, arg_ty) in params.iter().zip(arg_types.iter()) {
+                        ensure_type_compatible(env, param_ty, arg_ty, *span, "stage argument")?;
+                    }
+                    Ok(*ret)
+                }
+                ResolvedType::Unknown => Ok(ResolvedType::Unknown),
+                other => Err(env.type_error(
+                    format!(
+                        "Orchestrate stage '{}' does not resolve to a function (found {})",
+                        function,
+                        describe_type(&other)
+                    ),
+                    *span,
+                )),
+            }
         }
         Expr::Call { callee, args, span } => {
             let callee_ty = infer_expr_type(env, callee, ctx)?;

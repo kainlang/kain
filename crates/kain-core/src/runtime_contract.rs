@@ -2,8 +2,10 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::ast::{ShaderStage, Type, COMPUTE_PLAN_CAPABILITY_KEY};
+use crate::ast::{ConvergeSelector, ShaderStage, Type, WorldSurfaceKind, COMPUTE_PLAN_CAPABILITY_KEY};
 use crate::low_level_memory::backend_memory_capabilities;
+use crate::types::{PatchUndoMode, TypedConverge, TypedOrchestrate, TypedPatch, TypedWorld};
+use crate::ui::render_authored_expr_contract;
 use crate::{CompileTarget, TypedItem, TypedProgram};
 
 pub const RUNTIME_CONTRACT_SCHEMA_VERSION: u32 = 1;
@@ -15,6 +17,14 @@ pub struct RuntimeContractBundle {
     pub required_capabilities: Vec<RuntimeCapability>,
     pub service_bindings: Vec<RuntimeServiceBinding>,
     pub items: Vec<RuntimeContractItem>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub patches: Vec<RuntimePatchContract>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub converges: Vec<RuntimeConvergeContract>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub worlds: Vec<RuntimeWorldContract>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub orchestrations: Vec<RuntimeOrchestrationContract>,
     pub reflection: RuntimeReflectionSummary,
     pub compatibility: RuntimeCompatibilityMetadata,
     pub reflection_payload: Option<RuntimeReflectionPayload>,
@@ -94,6 +104,74 @@ pub struct RuntimeContractItem {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimePatchContract {
+    pub name: String,
+    pub mutation_paths: Vec<String>,
+    pub replay_log_schema: Vec<String>,
+    pub invalidation_keys: Vec<String>,
+    pub collaboration_event: String,
+    pub undo_mode: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeConvergeLaneContract {
+    pub lane_name: String,
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selector_kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selector_value: Option<String>,
+    pub symbol: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeConvergeContract {
+    pub name: String,
+    pub dispatcher_symbol: String,
+    pub spec_lane: RuntimeConvergeLaneContract,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fast_lanes: Vec<RuntimeConvergeLaneContract>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verify_random_count: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeWorldStateContract {
+    pub name: String,
+    pub type_name: String,
+    pub initial_expr: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeWorldSurfaceContract {
+    pub kind: String,
+    pub authored_expr: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeWorldContract {
+    pub name: String,
+    pub state_slots: Vec<RuntimeWorldStateContract>,
+    pub surfaces: Vec<RuntimeWorldSurfaceContract>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeOrchestrationStageContract {
+    pub runtime: String,
+    pub function: String,
+    pub binding_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeOrchestrationContract {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub return_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stages: Vec<RuntimeOrchestrationStageContract>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RuntimeReflectionSummary {
     pub emitted: bool,
     pub schema_names: Vec<String>,
@@ -167,6 +245,10 @@ pub fn emit_runtime_contract_bundle(
     let mut reflection_names = BTreeSet::new();
     collect_runtime_items(&program.items, &mut items, &mut reflection_names);
     items.sort_by(|left, right| left.id.cmp(&right.id));
+    let patches = collect_patch_contracts(&program.items);
+    let converges = collect_converge_contracts(&program.items);
+    let worlds = collect_world_contracts(&program.items);
+    let orchestrations = collect_orchestration_contracts(&program.items);
 
     let summary = summarize_items(&program.items);
 
@@ -191,6 +273,10 @@ pub fn emit_runtime_contract_bundle(
         required_capabilities,
         service_bindings,
         items,
+        patches,
+        converges,
+        worlds,
+        orchestrations,
         reflection: RuntimeReflectionSummary {
             emitted: reflection_emitted,
             schema_names: reflection_names.into_iter().collect(),
@@ -341,6 +427,55 @@ fn collect_runtime_capabilities(
             Some("Program declares editor or graph tooling surfaces."),
         ));
     }
+    if summary.patches > 0 {
+        capabilities.push(runtime_capability(
+            "patch.transactions",
+            "kain-core.runtime",
+            Some("Program declares compiler-owned transactional patch semantics."),
+        ));
+    }
+    if summary.converges > 0 {
+        capabilities.push(runtime_capability(
+            "converge.dispatch",
+            "kain-core.runtime",
+            Some("Program declares multi-lane converge dispatch semantics."),
+        ));
+    }
+    if summary.orchestrations > 0 {
+        capabilities.push(runtime_capability(
+            "orchestrate.pipeline",
+            "kain-core.runtime",
+            Some("Program declares typed polyglot orchestration stages."),
+        ));
+    }
+    if summary.world_native_ui > 0 {
+        capabilities.push(runtime_capability(
+            "world.native-ui",
+            "kain-core.runtime_contract",
+            Some("Program declares compiler-owned native UI world projections."),
+        ));
+    }
+    if summary.world_viewport3d > 0 {
+        capabilities.push(runtime_capability(
+            "world.viewport3d",
+            "kain-core.runtime_contract",
+            Some("Program declares compiler-owned viewport3d world projections."),
+        ));
+    }
+    if summary.world_web > 0 {
+        capabilities.push(runtime_capability(
+            "world.web",
+            "kain-core.runtime_contract",
+            Some("Program declares compiler-owned web world projections."),
+        ));
+    }
+    if summary.world_ue5 > 0 {
+        capabilities.push(runtime_capability(
+            "world.ue5",
+            "kain-core.runtime_contract",
+            Some("Program declares compiler-owned UE5 world projections."),
+        ));
+    }
 
     match target {
         CompileTarget::Rust => {
@@ -431,6 +566,61 @@ fn runtime_service_bindings_for_target(
             "raw-native",
         ));
     }
+    if summary.patches > 0 {
+        bindings.push(runtime_service_binding(
+            "patch.transactions",
+            "kain-core",
+            runtime_lane_name(target),
+        ));
+    }
+    if summary.converges > 0 {
+        bindings.push(runtime_service_binding(
+            "converge.dispatch",
+            "kain-core",
+            runtime_lane_name(target),
+        ));
+    }
+    if summary.orchestrations > 0 {
+        bindings.push(runtime_service_binding(
+            "orchestrate.pipeline",
+            "kain-core",
+            runtime_lane_name(target),
+        ));
+    }
+    if summary.world_native_ui > 0 && matches!(target, CompileTarget::Rust | CompileTarget::Llvm) {
+        bindings.push(runtime_service_binding(
+            "world.native-ui",
+            if matches!(target, CompileTarget::Rust) {
+                "kain-ui"
+            } else {
+                "runtime/native"
+            },
+            runtime_lane_name(target),
+        ));
+    }
+    if summary.world_viewport3d > 0 && matches!(target, CompileTarget::Rust | CompileTarget::Llvm)
+    {
+        bindings.push(runtime_service_binding(
+            "world.viewport3d",
+            if matches!(target, CompileTarget::Rust) {
+                "kain-ui-native"
+            } else {
+                "runtime/native"
+            },
+            runtime_lane_name(target),
+        ));
+    }
+    if summary.world_web > 0
+        && matches!(
+            target,
+            CompileTarget::Js | CompileTarget::Ts | CompileTarget::Wasm | CompileTarget::Hybrid
+        )
+    {
+        bindings.push(runtime_service_binding("world.web", "web", runtime_lane_name(target)));
+    }
+    if summary.world_ue5 > 0 && matches!(target, CompileTarget::Ue5 | CompileTarget::Ue5Editor) {
+        bindings.push(runtime_service_binding("world.ue5", "ue5", runtime_lane_name(target)));
+    }
 
     bindings
 }
@@ -460,6 +650,19 @@ fn collect_runtime_items(
         match item {
             TypedItem::Function(function) => {
                 output.push(runtime_contract_item("function", &function.ast.name));
+            }
+            TypedItem::Patch(patch) => {
+                output.push(runtime_contract_item("patch", &patch.ast.name));
+            }
+            TypedItem::Converge(converge) => {
+                output.push(runtime_contract_item("converge", &converge.ast.name));
+            }
+            TypedItem::World(world) => {
+                output.push(runtime_contract_item("world", &world.ast.name));
+                reflection_names.insert(world.ast.name.clone());
+            }
+            TypedItem::Orchestrate(orchestrate) => {
+                output.push(runtime_contract_item("orchestrate", &orchestrate.ast.name));
             }
             TypedItem::Component(component) => {
                 output.push(runtime_contract_item("component", &component.ast.name));
@@ -554,6 +757,223 @@ fn runtime_contract_item(kind: &str, name: &str) -> RuntimeContractItem {
         id: format!("{kind}:{name}"),
         name: name.to_string(),
         kind: kind.to_string(),
+    }
+}
+
+fn collect_patch_contracts(items: &[TypedItem]) -> Vec<RuntimePatchContract> {
+    let mut contracts = Vec::new();
+    collect_patch_contracts_into(items, &mut contracts);
+    contracts.sort_by(|left, right| left.name.cmp(&right.name));
+    contracts
+}
+
+fn collect_patch_contracts_into(items: &[TypedItem], output: &mut Vec<RuntimePatchContract>) {
+    for item in items {
+        match item {
+            TypedItem::Patch(patch) => output.push(runtime_patch_contract(patch)),
+            TypedItem::Mod(module) => collect_patch_contracts_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn runtime_patch_contract(patch: &TypedPatch) -> RuntimePatchContract {
+    let mutation_paths = patch.mutation_paths.clone();
+    RuntimePatchContract {
+        name: patch.ast.name.clone(),
+        replay_log_schema: mutation_paths
+            .iter()
+            .map(|path| format!("set:{path}"))
+            .collect(),
+        invalidation_keys: patch_invalidation_keys(&mutation_paths),
+        collaboration_event: format!("patch.{}", patch.ast.name),
+        undo_mode: match patch.undo_mode {
+            PatchUndoMode::Reversible => "reversible".to_string(),
+            PatchUndoMode::BestEffort => "best_effort".to_string(),
+        },
+        mutation_paths,
+    }
+}
+
+fn patch_invalidation_keys(mutation_paths: &[String]) -> Vec<String> {
+    let mut keys = mutation_paths
+        .iter()
+        .map(|path| {
+            let cutoff = path
+                .find(|character| character == '.' || character == '[')
+                .unwrap_or(path.len());
+            path[..cutoff].to_string()
+        })
+        .filter(|entry| !entry.is_empty())
+        .collect::<Vec<_>>();
+    keys.sort();
+    keys.dedup();
+    keys
+}
+
+fn collect_converge_contracts(items: &[TypedItem]) -> Vec<RuntimeConvergeContract> {
+    let mut contracts = Vec::new();
+    collect_converge_contracts_into(items, &mut contracts);
+    contracts.sort_by(|left, right| left.name.cmp(&right.name));
+    contracts
+}
+
+fn collect_converge_contracts_into(items: &[TypedItem], output: &mut Vec<RuntimeConvergeContract>) {
+    for item in items {
+        match item {
+            TypedItem::Converge(converge) => output.push(runtime_converge_contract(converge)),
+            TypedItem::Mod(module) => collect_converge_contracts_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn runtime_converge_contract(converge: &TypedConverge) -> RuntimeConvergeContract {
+    let fast_lanes = converge
+        .ast
+        .fast_lanes
+        .iter()
+        .map(|lane| runtime_converge_lane_contract(&converge.ast.name, lane))
+        .collect::<Vec<_>>();
+    RuntimeConvergeContract {
+        name: converge.ast.name.clone(),
+        dispatcher_symbol: converge.ast.name.clone(),
+        spec_lane: runtime_converge_lane_contract(&converge.ast.name, &converge.ast.spec_lane),
+        fast_lanes,
+        verify_random_count: converge.ast.verify_random_count,
+    }
+}
+
+fn runtime_converge_lane_contract(
+    converge_name: &str,
+    lane: &crate::ast::ConvergeLane,
+) -> RuntimeConvergeLaneContract {
+    let (selector_kind, selector_value) = match &lane.selector {
+        Some(ConvergeSelector::Target(value)) => {
+            (Some("target".to_string()), Some(value.clone()))
+        }
+        Some(ConvergeSelector::Capability(value)) => {
+            (Some("capability".to_string()), Some(value.clone()))
+        }
+        None => (None, None),
+    };
+    RuntimeConvergeLaneContract {
+        lane_name: lane.lane_name.clone(),
+        kind: match lane.kind {
+            crate::ast::ConvergeLaneKind::Spec => "spec".to_string(),
+            crate::ast::ConvergeLaneKind::Fast => "fast".to_string(),
+        },
+        selector_kind,
+        selector_value,
+        symbol: format!(
+            "{}__{}",
+            converge_name,
+            sanitize_contract_ident(&lane.lane_name)
+        ),
+    }
+}
+
+fn collect_world_contracts(items: &[TypedItem]) -> Vec<RuntimeWorldContract> {
+    let mut contracts = Vec::new();
+    collect_world_contracts_into(items, &mut contracts);
+    contracts.sort_by(|left, right| left.name.cmp(&right.name));
+    contracts
+}
+
+fn collect_world_contracts_into(items: &[TypedItem], output: &mut Vec<RuntimeWorldContract>) {
+    for item in items {
+        match item {
+            TypedItem::World(world) => output.push(runtime_world_contract(world)),
+            TypedItem::Mod(module) => collect_world_contracts_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn runtime_world_contract(world: &TypedWorld) -> RuntimeWorldContract {
+    let mut surfaces = world
+        .ast
+        .surfaces
+        .iter()
+        .map(|surface| RuntimeWorldSurfaceContract {
+            kind: surface.kind.as_str().to_string(),
+            authored_expr: render_authored_expr_contract(&surface.expr),
+        })
+        .collect::<Vec<_>>();
+    surfaces.sort_by(|left, right| left.kind.cmp(&right.kind));
+    RuntimeWorldContract {
+        name: world.ast.name.clone(),
+        state_slots: world
+            .ast
+            .states
+            .iter()
+            .map(|state| RuntimeWorldStateContract {
+                name: state.name.clone(),
+                type_name: type_to_string(&state.ty),
+                initial_expr: render_authored_expr_contract(&state.initial),
+            })
+            .collect(),
+        surfaces,
+    }
+}
+
+fn collect_orchestration_contracts(items: &[TypedItem]) -> Vec<RuntimeOrchestrationContract> {
+    let mut contracts = Vec::new();
+    collect_orchestration_contracts_into(items, &mut contracts);
+    contracts.sort_by(|left, right| left.name.cmp(&right.name));
+    contracts
+}
+
+fn collect_orchestration_contracts_into(
+    items: &[TypedItem],
+    output: &mut Vec<RuntimeOrchestrationContract>,
+) {
+    for item in items {
+        match item {
+            TypedItem::Orchestrate(orchestrate) => {
+                output.push(runtime_orchestration_contract(orchestrate));
+            }
+            TypedItem::Mod(module) => collect_orchestration_contracts_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn runtime_orchestration_contract(orchestrate: &TypedOrchestrate) -> RuntimeOrchestrationContract {
+    RuntimeOrchestrationContract {
+        name: orchestrate.ast.name.clone(),
+        return_type: orchestrate
+            .ast
+            .return_type
+            .as_ref()
+            .map(type_to_string),
+        stages: orchestrate
+            .stages
+            .iter()
+            .map(|stage| RuntimeOrchestrationStageContract {
+                runtime: stage.runtime.as_str().to_string(),
+                function: stage.function.clone(),
+                binding_name: stage.binding_name.clone(),
+            })
+            .collect(),
+    }
+}
+
+fn sanitize_contract_ident(name: &str) -> String {
+    let sanitized = name
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || character == '_' {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    if sanitized.is_empty() {
+        "lane".to_string()
+    } else {
+        sanitized
     }
 }
 
@@ -662,6 +1082,14 @@ struct ItemSummary {
     components: usize,
     actors: usize,
     async_tasks: usize,
+    patches: usize,
+    converges: usize,
+    worlds: usize,
+    orchestrations: usize,
+    world_native_ui: usize,
+    world_viewport3d: usize,
+    world_web: usize,
+    world_ue5: usize,
     shaders: usize,
     compute_shaders: usize,
     compute_plan_shaders: usize,
@@ -685,6 +1113,20 @@ fn summarize_items_into(items: &[TypedItem], summary: &mut ItemSummary) {
             TypedItem::Component(_) => summary.components += 1,
             TypedItem::Actor(_) => summary.actors += 1,
             TypedItem::AsyncTask(_) => summary.async_tasks += 1,
+            TypedItem::Patch(_) => summary.patches += 1,
+            TypedItem::Converge(_) => summary.converges += 1,
+            TypedItem::World(world) => {
+                summary.worlds += 1;
+                for surface in &world.ast.surfaces {
+                    match surface.kind {
+                        WorldSurfaceKind::NativeUi => summary.world_native_ui += 1,
+                        WorldSurfaceKind::Viewport3d => summary.world_viewport3d += 1,
+                        WorldSurfaceKind::Web => summary.world_web += 1,
+                        WorldSurfaceKind::Ue5 => summary.world_ue5 += 1,
+                    }
+                }
+            }
+            TypedItem::Orchestrate(_) => summary.orchestrations += 1,
             TypedItem::Shader(shader) => {
                 summary.shaders += 1;
                 if matches!(shader.ast.stage, ShaderStage::Compute) {
@@ -820,6 +1262,39 @@ fn collect_reflection_data(
                     type_id: Some(type_id),
                 });
             }
+            TypedItem::World(world) => {
+                let type_id = *type_id_counter;
+                *type_id_counter += 1;
+                let item_id = *item_id_counter;
+                *item_id_counter += 1;
+
+                let fields = world
+                    .ast
+                    .states
+                    .iter()
+                    .map(|state| ReflectedField {
+                        name: state.name.clone(),
+                        type_name: type_to_string(&state.ty),
+                        offset_hint: None,
+                    })
+                    .collect();
+
+                types.push(ReflectedType {
+                    type_id,
+                    name: world.ast.name.clone(),
+                    kind: "world".to_string(),
+                    size_hint: None,
+                    fields,
+                });
+
+                items.push(ReflectedItem {
+                    item_id,
+                    name: world.ast.name.clone(),
+                    kind: "world".to_string(),
+                    module_path: module_path.to_string(),
+                    type_id: Some(type_id),
+                });
+            }
             TypedItem::Actor(actor) => {
                 let item_id = *item_id_counter;
                 *item_id_counter += 1;
@@ -877,6 +1352,42 @@ fn collect_reflection_data(
                     item_id,
                     name: function.ast.name.clone(),
                     kind: "function".to_string(),
+                    module_path: module_path.to_string(),
+                    type_id: None,
+                });
+            }
+            TypedItem::Patch(patch) => {
+                let item_id = *item_id_counter;
+                *item_id_counter += 1;
+
+                items.push(ReflectedItem {
+                    item_id,
+                    name: patch.ast.name.clone(),
+                    kind: "patch".to_string(),
+                    module_path: module_path.to_string(),
+                    type_id: None,
+                });
+            }
+            TypedItem::Converge(converge) => {
+                let item_id = *item_id_counter;
+                *item_id_counter += 1;
+
+                items.push(ReflectedItem {
+                    item_id,
+                    name: converge.ast.name.clone(),
+                    kind: "converge".to_string(),
+                    module_path: module_path.to_string(),
+                    type_id: None,
+                });
+            }
+            TypedItem::Orchestrate(orchestrate) => {
+                let item_id = *item_id_counter;
+                *item_id_counter += 1;
+
+                items.push(ReflectedItem {
+                    item_id,
+                    name: orchestrate.ast.name.clone(),
+                    kind: "orchestrate".to_string(),
                     module_path: module_path.to_string(),
                     type_id: None,
                 });

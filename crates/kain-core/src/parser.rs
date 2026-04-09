@@ -206,6 +206,16 @@ pub const RESERVED_KEYWORDS: &[&str] = &[
     "TEXTVIEW",
 ];
 
+fn parse_orchestrate_stage_runtime(name: &str) -> Option<OrchestrateStageRuntime> {
+    match name {
+        "kain" => Some(OrchestrateStageRuntime::Kain),
+        "rust" => Some(OrchestrateStageRuntime::Rust),
+        "python" => Some(OrchestrateStageRuntime::Python),
+        "node" => Some(OrchestrateStageRuntime::Node),
+        _ => None,
+    }
+}
+
 pub struct Parser<'a> {
     tokens: &'a [Token],
     pos: usize,
@@ -384,6 +394,23 @@ impl<'a> Parser<'a> {
                         }
                     }
                 }
+
+                TokenKind::Ident(ref name)
+                    if Self::is_contextual_item_start_name(name.as_str()) =>
+                {
+                    let before_pos = self.pos;
+                    match self.parse_item() {
+                        Ok(item) => items.push(item),
+                        Err(e) => {
+                            self.errors.push(e);
+                            self.synchronize();
+                            // Guard against no-progress recovery loops.
+                            if self.pos == before_pos && !self.at_end() {
+                                self.advance();
+                            }
+                        }
+                    }
+                }
                 
                 // TODO: Future token kinds for advanced features:
                 // - TokenKind::Interface (for UE5 interfaces)
@@ -484,27 +511,32 @@ impl<'a> Parser<'a> {
 
     /// Check if the current token could start a new top-level item.
     fn is_item_start(&self) -> bool {
-        matches!(
-            self.peek_kind(),
+        match self.peek_kind() {
             TokenKind::At
-                | TokenKind::Fn
-                | TokenKind::Struct
-                | TokenKind::Enum
-                | TokenKind::Actor
-                | TokenKind::Component
-                | TokenKind::Shader
-                | TokenKind::Pub
-                | TokenKind::Const
-                | TokenKind::Mod
-                | TokenKind::Use
-                | TokenKind::Impl
-                | TokenKind::Macro
-                | TokenKind::Test
-                | TokenKind::AsyncKw
-                | TokenKind::TypeKw
-                | TokenKind::Trait
-                | TokenKind::Comptime
-        )
+            | TokenKind::Fn
+            | TokenKind::Struct
+            | TokenKind::Enum
+            | TokenKind::Actor
+            | TokenKind::Component
+            | TokenKind::Shader
+            | TokenKind::Pub
+            | TokenKind::Const
+            | TokenKind::Mod
+            | TokenKind::Use
+            | TokenKind::Impl
+            | TokenKind::Macro
+            | TokenKind::Test
+            | TokenKind::AsyncKw
+            | TokenKind::TypeKw
+            | TokenKind::Trait
+            | TokenKind::Comptime => true,
+            TokenKind::Ident(name) => Self::is_contextual_item_start_name(name.as_str()),
+            _ => false,
+        }
+    }
+
+    fn is_contextual_item_start_name(name: &str) -> bool {
+        matches!(name, "patch" | "converge" | "world" | "orchestrate")
     }
 
     fn parse_path_name(&mut self) -> KainResult<String> {
@@ -724,9 +756,17 @@ impl<'a> Parser<'a> {
             TokenKind::Trait => self.parse_trait(vis),
             TokenKind::Impl => self.parse_impl(),
             TokenKind::TypeKw => self.parse_type_alias(vis),
+            TokenKind::Ident(ref name) if name == "patch" => self.parse_patch(vis, attributes),
+            TokenKind::Ident(ref name) if name == "converge" => {
+                self.parse_converge(vis, attributes)
+            }
+            TokenKind::Ident(ref name) if name == "world" => self.parse_world(vis, attributes),
+            TokenKind::Ident(ref name) if name == "orchestrate" => {
+                self.parse_orchestrate(vis, attributes)
+            }
             _ => Err(self.parser_error(
                 format!(
-                    "Expected item (fn, struct, enum, actor, component, shader, material, trait, impl, mod, use, const, test), found {}",
+                    "Expected item (fn, patch, converge, world, orchestrate, struct, enum, actor, component, shader, material, trait, impl, mod, use, const, test), found {}",
                     self.token_to_user_string(&self.peek_kind())
                 ),
                 self.current_span()
@@ -1251,6 +1291,321 @@ impl<'a> Parser<'a> {
             attributes: vec![],
             span: start.merge(body_span),
         }))
+    }
+
+    fn parse_patch(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect_contextual_ident("patch")?;
+        let name = self.parse_ident()?;
+        self.expect(TokenKind::LParen)?;
+        let params = self.parse_params()?;
+        self.expect(TokenKind::RParen)?;
+        let return_type = if self.check(TokenKind::Arrow) {
+            self.advance();
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+        self.expect(TokenKind::Colon)?;
+        let body = self.parse_block()?;
+        let body_span = body.span;
+        Ok(Item::Patch(PatchDef {
+            name,
+            params,
+            return_type,
+            body,
+            visibility: vis,
+            attributes: attrs,
+            span: start.merge(body_span),
+        }))
+    }
+
+    fn parse_orchestrate(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect_contextual_ident("orchestrate")?;
+        let name = self.parse_ident()?;
+        self.expect(TokenKind::LParen)?;
+        let params = self.parse_params()?;
+        self.expect(TokenKind::RParen)?;
+        let return_type = if self.check(TokenKind::Arrow) {
+            self.advance();
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+        self.expect(TokenKind::Colon)?;
+        let body = self.parse_block()?;
+        let body_span = body.span;
+        Ok(Item::Orchestrate(OrchestrateDef {
+            name,
+            params,
+            return_type,
+            body,
+            visibility: vis,
+            attributes: attrs,
+            span: start.merge(body_span),
+        }))
+    }
+
+    fn parse_converge(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect_contextual_ident("converge")?;
+        let name = self.parse_ident()?;
+        self.expect(TokenKind::LParen)?;
+        let params = self.parse_params()?;
+        self.expect(TokenKind::RParen)?;
+        let return_type = if self.check(TokenKind::Arrow) {
+            self.advance();
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+        self.expect(TokenKind::Colon)?;
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+
+        let mut spec_lane = None;
+        let mut fast_lanes = Vec::new();
+        let mut verify_random_count = None;
+
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
+            match self.peek_kind() {
+                TokenKind::Ident(ref name) if name == "spec" => {
+                    if spec_lane.is_some() {
+                        return Err(self.parser_error(
+                            "converge blocks may only declare one spec lane",
+                            self.current_span(),
+                        ));
+                    }
+                    spec_lane = Some(self.parse_converge_lane(ConvergeLaneKind::Spec)?);
+                }
+                TokenKind::Ident(ref name) if name == "fast" => {
+                    fast_lanes.push(self.parse_converge_lane(ConvergeLaneKind::Fast)?);
+                }
+                TokenKind::Ident(ref name) if name == "verify" => {
+                    verify_random_count = Some(self.parse_converge_verify_random_count()?);
+                }
+                _ => {
+                    return Err(self.parser_error(
+                        "Expected 'spec', 'fast', or 'verify' inside converge block",
+                        self.current_span(),
+                    ))
+                }
+            }
+            self.skip_newlines();
+        }
+
+        self.expect(TokenKind::Dedent)?;
+
+        let spec_lane = spec_lane.ok_or_else(|| {
+            self.parser_error(
+                "converge blocks require exactly one spec lane",
+                start.merge(self.current_span()),
+            )
+        })?;
+        if fast_lanes.is_empty() {
+            return Err(self.parser_error(
+                "converge blocks require at least one fast lane",
+                start.merge(self.current_span()),
+            ));
+        }
+
+        Ok(Item::Converge(ConvergeDef {
+            name,
+            params,
+            return_type,
+            spec_lane,
+            fast_lanes,
+            verify_random_count,
+            visibility: vis,
+            attributes: attrs,
+            span: start.merge(self.current_span()),
+        }))
+    }
+
+    fn parse_world(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect_contextual_ident("world")?;
+        let name = self.parse_ident()?;
+        self.expect(TokenKind::Colon)?;
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+
+        let mut states = Vec::new();
+        let mut surfaces = Vec::new();
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
+            match self.peek_kind() {
+                TokenKind::Ident(ref entry) if entry == "state" => {
+                    states.push(self.parse_world_state_slot()?);
+                }
+                TokenKind::Ident(ref entry) if entry == "surface" => {
+                    surfaces.push(self.parse_world_surface_projection()?);
+                }
+                _ => {
+                    return Err(self.parser_error(
+                        "Expected 'state' or 'surface' inside world block",
+                        self.current_span(),
+                    ))
+                }
+            }
+            self.skip_newlines();
+        }
+
+        self.expect(TokenKind::Dedent)?;
+        Ok(Item::World(WorldDef {
+            name,
+            states,
+            surfaces,
+            visibility: vis,
+            attributes: attrs,
+            span: start.merge(self.current_span()),
+        }))
+    }
+
+    fn parse_converge_lane(&mut self, kind: ConvergeLaneKind) -> KainResult<ConvergeLane> {
+        let start = self.current_span();
+        match kind {
+            ConvergeLaneKind::Spec => self.expect_contextual_ident("spec")?,
+            ConvergeLaneKind::Fast => self.expect_contextual_ident("fast")?,
+        }
+        let lane_name = self.parse_ident()?;
+        let selector = if self.peek_contextual_ident("when") {
+            self.advance();
+            Some(self.parse_converge_selector()?)
+        } else {
+            None
+        };
+        self.expect(TokenKind::Colon)?;
+        let body = self.parse_block()?;
+        Ok(ConvergeLane {
+            kind,
+            lane_name,
+            selector,
+            span: start.merge(body.span),
+            body,
+        })
+    }
+
+    fn parse_converge_selector(&mut self) -> KainResult<ConvergeSelector> {
+        if self.peek_contextual_ident("target") {
+            self.advance();
+            self.expect(TokenKind::LParen)?;
+            let value = self.parse_string_like_argument("target selector")?;
+            self.expect(TokenKind::RParen)?;
+            Ok(ConvergeSelector::Target(value))
+        } else if self.peek_contextual_ident("capability") {
+            self.advance();
+            self.expect(TokenKind::LParen)?;
+            let value = self.parse_string_like_argument("capability selector")?;
+            self.expect(TokenKind::RParen)?;
+            Ok(ConvergeSelector::Capability(value))
+        } else {
+            Err(self.parser_error(
+                "Expected converge selector 'target(\"...\")' or 'capability(\"...\")'",
+                self.current_span(),
+            ))
+        }
+    }
+
+    fn parse_converge_verify_random_count(&mut self) -> KainResult<u32> {
+        self.expect_contextual_ident("verify")?;
+        self.expect_contextual_ident("random")?;
+        self.expect(TokenKind::LParen)?;
+        let count = match self.peek_kind() {
+            TokenKind::Int(value) if value >= 0 => {
+                self.advance();
+                value as u32
+            }
+            _ => {
+                return Err(self.parser_error(
+                    "verify random(...) expects a non-negative integer sample count",
+                    self.current_span(),
+                ))
+            }
+        };
+        self.expect(TokenKind::RParen)?;
+        Ok(count)
+    }
+
+    fn parse_world_state_slot(&mut self) -> KainResult<WorldStateSlot> {
+        let start = self.current_span();
+        self.expect_contextual_ident("state")?;
+        let name = self.parse_ident()?;
+        self.expect(TokenKind::Colon)?;
+        let ty = self.parse_type()?;
+        self.expect(TokenKind::Eq)?;
+        let initial = self.parse_expr()?;
+        Ok(WorldStateSlot {
+            name,
+            ty,
+            initial,
+            span: start.merge(self.current_span()),
+        })
+    }
+
+    fn parse_world_surface_projection(&mut self) -> KainResult<WorldSurfaceProjection> {
+        let start = self.current_span();
+        self.expect_contextual_ident("surface")?;
+        let kind = match self.peek_kind() {
+            TokenKind::Ident(ref value) if value == "native_ui" => {
+                self.advance();
+                WorldSurfaceKind::NativeUi
+            }
+            TokenKind::Ident(ref value) if value == "viewport3d" => {
+                self.advance();
+                WorldSurfaceKind::Viewport3d
+            }
+            TokenKind::Ident(ref value) if value == "web" => {
+                self.advance();
+                WorldSurfaceKind::Web
+            }
+            TokenKind::Ident(ref value) if value == "ue5" => {
+                self.advance();
+                WorldSurfaceKind::Ue5
+            }
+            _ => {
+                return Err(self.parser_error(
+                    "Expected world surface kind native_ui, viewport3d, web, or ue5",
+                    self.current_span(),
+                ))
+            }
+        };
+        self.expect(TokenKind::FatArrow)?;
+        let expr = self.parse_expr()?;
+        Ok(WorldSurfaceProjection {
+            kind,
+            expr,
+            span: start.merge(self.current_span()),
+        })
+    }
+
+    fn parse_string_like_argument(&mut self, label: &str) -> KainResult<String> {
+        match self.peek_kind() {
+            TokenKind::String(ref value) => {
+                let value = value.clone();
+                self.advance();
+                Ok(value)
+            }
+            TokenKind::Ident(ref value) => {
+                let value = value.clone();
+                self.advance();
+                Ok(value)
+            }
+            _ => Err(self.parser_error(
+                format!("{label} expects a string or identifier"),
+                self.current_span(),
+            )),
+        }
     }
     #[allow(dead_code)]
     fn parse_component(&mut self, vis: Visibility) -> KainResult<Item> {
@@ -3683,6 +4038,29 @@ impl<'a> Parser<'a> {
             TokenKind::Ident(ref s) => {
                 let name = s.clone();
                 self.advance();
+
+                if let Some(runtime) = parse_orchestrate_stage_runtime(name.as_str()) {
+                    let saved_pos = self.pos;
+                    if matches!(
+                        self.peek_kind(),
+                        TokenKind::Ident(_) | TokenKind::SelfLower | TokenKind::SelfUpper
+                    ) {
+                        let function = self.parse_path_name()?;
+                        if self.check(TokenKind::LParen) {
+                            self.advance();
+                            let args = self.parse_call_args()?;
+                            self.expect(TokenKind::RParen)?;
+                            return Ok(Expr::StageCall {
+                                runtime,
+                                function,
+                                args,
+                                span: span.merge(self.current_span()),
+                            });
+                        }
+                    }
+                    self.pos = saved_pos;
+                }
+
                 let path_segments = self.parse_path_segments_after(name.clone())?;
                 let path_name = Self::join_path_segments(&path_segments);
                 let is_variant_path = Self::path_looks_like_enum_variant(&path_segments);
@@ -5457,6 +5835,11 @@ impl<'a> Parser<'a> {
     fn check_newline(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::Newline(_))
     }
+
+    fn peek_contextual_ident(&self, expected: &str) -> bool {
+        matches!(self.peek_kind(), TokenKind::Ident(ref value) if value == expected)
+    }
+
     fn skip_formatting(&mut self) {
         while matches!(
             self.peek_kind(),
@@ -5479,6 +5862,22 @@ impl<'a> Parser<'a> {
                 format!(
                     "Expected {}, got {}",
                     crate::error::token_kind_to_user_string(&k),
+                    crate::error::token_kind_to_user_string(&self.peek_kind())
+                ),
+                self.current_span(),
+            ))
+        }
+    }
+
+    fn expect_contextual_ident(&mut self, expected: &str) -> KainResult<()> {
+        if self.peek_contextual_ident(expected) {
+            self.advance();
+            Ok(())
+        } else {
+            Err(self.parser_error(
+                format!(
+                    "Expected contextual keyword '{}', got {}",
+                    expected,
                     crate::error::token_kind_to_user_string(&self.peek_kind())
                 ),
                 self.current_span(),

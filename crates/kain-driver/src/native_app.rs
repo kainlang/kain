@@ -7,13 +7,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::compute_residency::{
     write_compute_residency_sidecars, COMPUTE_RESIDENCY_ENV_VAR, COMPUTE_RESIDENCY_FILE_NAME,
 };
-use crate::{DriverSession, RustBundleOutput, ShaderArtifactBundleOutput};
-use kain_core::ast::Item;
-use kain_core::diagnostics::SpanMapper;
+use crate::{
+    resolve_root_component_name, DriverSession, RustBundleOutput, ShaderArtifactBundleOutput,
+};
 use kain_core::error::KainError;
 use kain_core::{
     build_ui_output_from_source, realtime_app_bundle_to_json, runtime_contract_bundle_to_json,
-    CompileTarget, Lexer, Parser, RealtimeAppBundle, RealtimeAssetBinding, RuntimeCapability,
+    CompileTarget, RealtimeAppBundle, RealtimeAssetBinding, RuntimeCapability,
     RuntimeCompatibilityMetadata, RuntimeContractBundle, RuntimePlatformAvailabilityMetadata,
     RuntimeServiceBinding, RuntimeVersionRecord,
 };
@@ -881,37 +881,13 @@ pub fn discover_native_app_root_component(
     configured_root: Option<&str>,
     source_name: &str,
 ) -> Result<Option<String>, KainError> {
-    let tokens = Lexer::new(source).tokenize()?;
-    let span_mapper = SpanMapper::new(source);
-    let program = Parser::new(&tokens, &span_mapper, source_name).parse()?;
-    let component_names: Vec<_> = program
-        .items
-        .iter()
-        .filter_map(|item| match item {
-            Item::Component(component) => Some(component.name.clone()),
-            _ => None,
-        })
-        .collect();
-
-    if let Some(root) = configured_root.filter(|value| !value.trim().is_empty()) {
-        if component_names.iter().any(|name| name == root) {
-            return Ok(Some(root.to_string()));
-        }
-        return Err(KainError::runtime(format!(
-            "Configured native app root component '{}' was not found in {}",
-            root, source_name
-        )));
-    }
-
-    if component_names.is_empty() {
-        return Ok(None);
-    }
-
-    if let Some(app) = component_names.iter().find(|name| name.as_str() == "App") {
-        return Ok(Some(app.clone()));
-    }
-
-    Ok(component_names.into_iter().next())
+    let typed = DriverSession::default().frontend_to_typed_program(source, CompileTarget::Rust)?;
+    resolve_root_component_name(&typed, configured_root).map_err(|error| {
+        KainError::runtime(format!(
+            "Failed to discover native app root for {}: {}",
+            source_name, error
+        ))
+    })
 }
 
 fn render_manifest(
