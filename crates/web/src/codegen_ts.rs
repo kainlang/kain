@@ -1899,6 +1899,9 @@ impl TSGen {
                     ok_t, err_t
                 )
             }
+            ResolvedType::Future(inner) => {
+                format!("Promise<{}>", self.resolved_type_to_ts(inner))
+            }
             ResolvedType::Ref { inner, .. } => self.resolved_type_to_ts(inner),
             ResolvedType::Ptr { inner, .. } => self.resolved_type_to_ts(inner),
             ResolvedType::Function { params, ret, .. } => {

@@ -367,6 +367,7 @@ impl LlvmGenerator {
             ResolvedType::Slice(_) => "i64".into(),
             ResolvedType::Option(inner) => self.map_type(inner),
             ResolvedType::Result(ok, _) => self.map_type(ok),
+            ResolvedType::Future(inner) => self.map_type(inner),
             ResolvedType::Function { .. } => "i64".into(), // Function pointers
             ResolvedType::Generic(name) => self.map_type_from_str(name),
             ResolvedType::Tuple(items) => {

@@ -182,6 +182,9 @@ impl KsGen {
                 self.resolved_jsdoc(ok),
                 self.resolved_jsdoc(err)
             ),
+            ResolvedType::Future(inner) => {
+                format!("Promise<{}>", self.resolved_jsdoc(inner))
+            }
             ResolvedType::Ref { inner, .. } => self.resolved_jsdoc(inner),
             ResolvedType::Struct(name, _)
             | ResolvedType::Enum(name, _)

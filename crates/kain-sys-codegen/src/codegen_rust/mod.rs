@@ -2242,6 +2242,14 @@ impl RustGen {
                 let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
                 format!("{}({})", fn_name, arg_strs.join(", "))
             }
+            Expr::StageCall { function, args, .. } => {
+                let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
+                format!(
+                    "{}({})",
+                    self.normalize_runtime_path(function),
+                    arg_strs.join(", ")
+                )
+            }
             Expr::MethodCall { receiver, method, args, .. } => {
                 let recv = self.gen_expr(receiver);
                 let normalized_method = self.normalize_runtime_method(method);
@@ -2871,6 +2879,11 @@ impl RustGen {
             }
             Expr::Call { callee, args, .. } => {
                 self.collect_mutated_bindings_in_expr(callee, names);
+                for arg in args {
+                    self.collect_mutated_bindings_in_expr(&arg.value, names);
+                }
+            }
+            Expr::StageCall { args, .. } => {
                 for arg in args {
                     self.collect_mutated_bindings_in_expr(&arg.value, names);
                 }

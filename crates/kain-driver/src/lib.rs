@@ -1148,6 +1148,63 @@ test smoke:
     }
 
     #[test]
+    fn compile_realtime_bundle_uses_single_world_native_ui_surface_as_root() {
+        let source = r#"
+world Studio:
+    state counter: Int = 0
+    surface native_ui => App
+    surface viewport3d => "StudioPreview"
+    surface web => App
+    surface ue5 => "StudioBridge"
+
+component App():
+    render <panel title="Studio" />
+"#;
+
+        let output =
+            compile_realtime_app_bundle(source, CompileTarget::Rust, None).expect("realtime bundle");
+        assert_eq!(output.bundle.worlds.len(), 1);
+        assert_eq!(output.bundle.worlds[0].name, "Studio");
+        assert!(output
+            .bundle
+            .worlds[0]
+            .surfaces
+            .iter()
+            .any(|surface| surface.kind == "native_ui" && surface.authored_expr == "App"));
+    }
+
+    #[test]
+    fn compile_realtime_bundle_requires_explicit_selection_when_multiple_worlds_exist() {
+        let source = r#"
+world Studio:
+    state counter: Int = 0
+    surface native_ui => App
+    surface viewport3d => "StudioPreview"
+    surface web => App
+    surface ue5 => "StudioBridge"
+
+world ShellWorld:
+    state counter: Int = 0
+    surface native_ui => Shell
+    surface viewport3d => "ShellPreview"
+    surface web => Shell
+    surface ue5 => "ShellBridge"
+
+component App():
+    render <panel />
+
+component Shell():
+    render <panel />
+"#;
+
+        let error = compile_realtime_app_bundle(source, CompileTarget::Rust, None)
+            .expect_err("multiple worlds should require explicit selection");
+        assert!(error
+            .to_string()
+            .contains("Multiple worlds declare native_ui surfaces"));
+    }
+
+    #[test]
     fn interpret_target_supports_rust_crate_imports_from_kain_manifest() {
         let _guard = TEST_CWD_LOCK.lock().expect("cwd lock");
         let temp = tempfile::tempdir().expect("tempdir");

@@ -2559,6 +2559,7 @@ fn expr_kind_name(expr: &Expr) -> &'static str {
         Expr::Binary { .. } => "Binary",
         Expr::Unary { .. } => "Unary",
         Expr::Call { .. } => "Call",
+        Expr::StageCall { .. } => "StageCall",
         Expr::MethodCall { .. } => "MethodCall",
         Expr::Field { .. } => "Field",
         Expr::Index { .. } => "Index",

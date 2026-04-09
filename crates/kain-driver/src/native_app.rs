@@ -2115,6 +2115,56 @@ component App():
     }
 
     #[test]
+    fn discover_root_component_uses_single_world_native_ui_surface() {
+        let source = r#"
+world Studio:
+    state counter: Int = 0
+    surface native_ui => App
+    surface viewport3d => "StudioPreview"
+    surface web => App
+    surface ue5 => "StudioBridge"
+
+component App():
+    render <panel />
+"#;
+
+        let root = discover_native_app_root_component(source, None, "app.kn")
+            .expect("world root discovery should succeed");
+        assert_eq!(root.as_deref(), Some("App"));
+    }
+
+    #[test]
+    fn discover_root_component_requires_explicit_world_selection_when_multiple_worlds_exist() {
+        let source = r#"
+world Studio:
+    state counter: Int = 0
+    surface native_ui => App
+    surface viewport3d => "StudioPreview"
+    surface web => App
+    surface ue5 => "StudioBridge"
+
+world ShellWorld:
+    state counter: Int = 0
+    surface native_ui => Shell
+    surface viewport3d => "ShellPreview"
+    surface web => Shell
+    surface ue5 => "ShellBridge"
+
+component App():
+    render <panel />
+
+component Shell():
+    render <panel />
+"#;
+
+        let error = discover_native_app_root_component(source, None, "app.kn")
+            .expect_err("multiple worlds should require explicit selection");
+        assert!(error
+            .to_string()
+            .contains("Multiple worlds declare native_ui surfaces"));
+    }
+
+    #[test]
     fn compile_native_app_bundle_collects_ui_and_rust_outputs() {
         let source = r#"
 component App():
