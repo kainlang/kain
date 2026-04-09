@@ -57,6 +57,24 @@ kain import-asm
 kain lsp
 ```
 
+Bootstrap the repo-local toolchain and CLI with the root installer:
+
+```bash
+python3 install_kain.py
+source generated/kain-env.sh
+kain doctor
+```
+
+On Windows:
+
+```powershell
+py install_kain.py
+. .\generated\kain-env.ps1
+kain doctor
+```
+
+The installer resolves or installs platform LLVM, bundles `clang` into `toolchain/llvm/bin`, builds `kain`, installs `kain` and `kn` into the cargo bin directory, and emits activation scripts under `generated/`.
+
 ---
 
 ## Current State

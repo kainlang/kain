@@ -1,5 +1,44 @@
 # MEMORY
 
+## 2026-04-09 - root universal installer now bundles clang into the repo toolchain
+
+The repo now has a root cross-platform bootstrap entrypoint at `install_kain.py`.
+
+What changed:
+
+- Added `install_kain.py`
+  - Detects Linux, macOS, or Windows at runtime.
+  - Resolves `clang` from the repo toolchain, `KAIN_CLANG_PATH`, PATH, or common platform install locations.
+  - Falls back to platform package managers when `clang` is missing:
+    - Linux: `apt-get`, `dnf`, `yum`, `pacman`, `zypper`, `apk`
+    - macOS: `brew`
+    - Windows: `winget`, `choco`, `scoop`
+  - Bundles clang back into the repo under `toolchain/llvm/bin`:
+    - Unix-like systems symlink the discovered LLVM tools into the repo-local toolchain bin dir.
+    - Windows mirrors the relevant `clang` / `llvm` / `lld` executables and DLLs into the repo-local toolchain bin dir.
+  - Writes `toolchain/llvm/kain_bundle_manifest.json` so future agents can see where the current bundled toolchain came from.
+  - Builds `cargo build --release -p cli`, installs `kain` and `kn` into the cargo bin dir, and emits activation scripts under `generated/kain-env.sh` and `generated/kain-env.ps1`.
+- Updated docs
+  - `README.md` now points at the root installer as the first bootstrap step.
+  - `toolchain/README.md` documents that the installer repopulates `toolchain/llvm/bin`.
+  - `ARCHITECTURE.md` adds the new installer to common commands and fresh-clone guidance.
+
+Design decisions:
+
+- Kept the installer as a single root Python script so Linux, macOS, and Windows all share one bootstrap path.
+- Chose repo-local clang bundling over env-only discovery because too much of the repo still assumes `toolchain/llvm/bin/clang*` exists.
+- Emitted activation scripts instead of directly mutating user shell profiles in v1. That keeps the installer deterministic and avoids hidden shell-specific side effects.
+
+Current risks:
+
+- The package-manager install paths are best-effort. Some machines will still need manual LLVM setup, especially when `sudo`, `winget`, or `brew` is unavailable.
+- Windows bundling currently mirrors the relevant LLVM bin files rather than managing a full versioned LLVM drop under `toolchain/llvm`.
+- The older `scripts/sync-kain-source-of-truth.ps1` path still exists, so the repo now has both a Windows-specific sync script and the new universal installer until that consolidation happens.
+
+Recommended next step:
+
+- Make the Windows PowerShell sync path delegate to `install_kain.py` or share one manifest-driven bootstrap core so the repo only has one real installer contract.
+
 ## 2026-04-08 - compiler-owned intent quartet landed across parser, runtime, bundles, and driver root selection
 
 Kain picked up the first full pass of the compiler-owned intent quartet: `patch`, `converge`, `world`, and `orchestrate`.

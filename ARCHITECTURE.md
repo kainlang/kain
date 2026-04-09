@@ -178,6 +178,8 @@ Prefer the live CLI and source over stale docs when they disagree.
 
 Typical commands:
 
+- `python3 install_kain.py`
+- `py install_kain.py`
 - `kain doctor`
 - `kain doctor --repair <file>`
 - `kain doctor --repair-tree <dir>`
@@ -217,6 +219,7 @@ If the debug CLI is missing:
 ## Common Errors
 
 - The root `README.md` is useful, but live source and the built CLI are the real source of truth.
+- Fresh Linux and macOS clones should start with the root `install_kain.py` bootstrapper. It is now the cross-platform entrypoint that resolves or installs LLVM, repopulates `toolchain/llvm/bin`, builds `kain`, installs `kain` and `kn`, and emits shell activation scripts under `generated/`.
 - Fresh clones may not include a populated `toolchain/llvm/bin/clang.exe` even though older docs and helper scripts reference it. When that happens, install LLVM separately and point `KAIN_CLANG_PATH` at the external `clang.exe`; `scripts/sync-kain-source-of-truth.ps1` now falls back to PATH and `C:\Program Files\LLVM\bin\clang.exe` before assuming the vendored drop exists.
 - The `cli` suite no longer depends on the external self-hosting fixture under `M:\Code\Other\kainselfhosting\...`; the repo-local import-c fixture under `crates/cli/tests/fixtures/import_c` is the durable regression source now.
 - The repair lane is profile-driven. If a file is being "fixed" in a way that changes meaning, that is a bug in the caller or profile selection, not a feature.
