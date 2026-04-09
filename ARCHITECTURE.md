@@ -38,9 +38,11 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [repomap.md](/M:/Code/Kain/repomap.md): top-level folder map
 - [MEMORY.md](/M:/Code/Kain/MEMORY.md): durable architectural task memory
 - [docs/kainplan/ui_slate_x100](/M:/Code/Kain/docs/kainplan/ui_slate_x100): active UI overhaul docs, acceptance criteria, regression notes, and Gamma operator guidance
+- [docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md](/M:/Code/Kain/docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md): syntax, lowering, bundle contracts, and validation notes for `patch`, `converge`, `world`, and `orchestrate`
 - [crates](/M:/Code/Kain/crates): workspace crates
 - [runtime](/M:/Code/Kain/runtime): native runtime substrate, conformance, fixtures, and companion lanes
 - [smoketest](/M:/Code/Kain/smoketest): capability proof matrix for bridges, UI, 3D, and mixed runtimes
+- [smoketest/compiler_owned_intent](/M:/Code/Kain/smoketest/compiler_owned_intent): compiler-owned intent quartet smoke covering `kain run` plus LLVM runtime-contract / realtime-bundle staging
 - [smoketest/UI](/M:/Code/Kain/smoketest/UI): UI proof surface for authored shells, dense operator layouts, shader-canvas proofs, and packaged native launches
 - [smoketest/allinone](/M:/Code/Kain/smoketest/allinone): broad regression harness that replays importers, standalone FFI bridges, GPU artifacts, Omni, Fabric, and UE5 codegen into per-lane output folders
 - [docs](/M:/Code/Kain/docs): doctrine, plans, pipeline notes, validation notes, and research
@@ -53,7 +55,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 
 ## Key Crates
 
-- [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, comptime, runtime contract emission, realtime bundle metadata
+- [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, comptime, runtime contract emission, realtime bundle metadata, and the compiler-owned intent quartet (`patch`, `converge`, `world`, `orchestrate`)
 - [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, native app materialization, packaged launcher snapshots, compute residency sidecars
 - [cli](/M:/Code/Kain/crates/cli): `kain` command surface
 - [kain-repair](/M:/Code/Kain/crates/kain-repair): profile-driven deterministic source repair engine consumed by the doctor/CLI repair lane; now split into a declarative rule registry plus a per-rule execution engine so repair policy stays visible and mode-aware; includes header normalization for parser-hostile `enum_` / `struct_` / `trait_` / `impl_` declaration forms
@@ -73,6 +75,15 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 `Kain source -> kain-core semantic analysis -> runtime contract / realtime app bundle / shader bundle metadata -> kain-driver materialization -> runtime/native and accelerated lanes consume the same bundle family`
 
 The semantic-analysis part of that pipeline now includes real executable-body checks in `kain-core`, not only declaration registration. The compiler validates return values, call arguments, `match` arm type agreement, duplicate boolean arms, and `await` / `async` future typing before downstream codegen and bundle emission consume the typed program.
+
+That same frontend lane now owns four additional semantic declarations:
+
+- `patch` lowers to transactional mutation metadata with inferred undo mode plus explicit `patches[]` contract sections.
+- `converge` lowers to dispatcher-plus-lane metadata with deterministic selection and test-lane verification through `converges[]`.
+- `world` lowers to shared state/surface projection metadata through `worlds[]` and is the first pass at compiler-owned multi-surface projection.
+- `orchestrate` lowers to typed sequential stage metadata through `orchestrations[]`.
+
+The runtime-contract and realtime-bundle families now both carry these explicit sections, and downstream adapters should consume them directly instead of reverse-engineering equivalent intent from local conventions.
 
 ### Host bridge flow
 
@@ -141,6 +152,7 @@ The native packaging lane is the operator-facing loop for UI iteration:
 - The runtime snapshot is the reload/control surface, not hidden launcher state. It carries explicit provider, session, workspace, command, and capability records, including the `runtime.reload` command already emitted by the packaging path.
 - Devtools and inspectors must stay opt-in and remain represented in packaged truth, not injected as default product chrome.
 - When a packaged launch stops reflecting a change, check the materialized manifest and snapshot sidecars first. That is the stable operator boundary before assuming the host itself is wrong.
+- native-ui root discovery can now resolve a single `world`'s `native_ui` surface automatically, and it must reject ambiguous multi-world inputs unless the caller provides an explicit `--root` selection.
 
 ### Viewport Contract Lane
 
@@ -214,6 +226,7 @@ If the debug CLI is missing:
 - The live SM64 decomp root currently sits at `M:\Code\Other\Research\sm64-master\sm64-master`, not the outer `sm64-master` folder. The older stale import reports pointed at the outer folder, which hid a real pathing mistake.
 - The native runtime is Windows-first today. Linux and macOS surfaces exist, but much of that lane is still stubbed or partial.
 - The compute pipeline is mid-transition from heuristic metadata to compiler-owned truth. When touching it, prefer extending bundle contracts over adding new runtime-only inference.
+- Multiple authored `world` roots are now treated as an explicit-selection problem, not a guessing problem. If build/run flows see more than one world, require a caller-provided selection instead of silently picking one.
 - Frontend bridge registration must be target-scoped. Host/runtime extensions that are valid for `Interpret` or `Test` must not leak into shader artifact compilation or other non-host targets, or Fabric and direct driver paths will diverge.
 - The native shader-canvas lane is SPIR-V-canonical at the bundle level, but the current WGPU host still resolves WGSL for execution. Do not mistake that compatibility bridge for permission to move shader-canvas truth out of the emitted bundles.
 - The native packaging loop is file-backed. If hot reload or packaged state looks stale, verify the generated `app_manifest.json`, `runtime_snapshot.json`, and launcher env vars before blaming the runtime.

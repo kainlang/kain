@@ -1,5 +1,49 @@
 # MEMORY
 
+## 2026-04-08 - compiler-owned intent quartet landed across parser, runtime, bundles, and driver root selection
+
+Kain picked up the first full pass of the compiler-owned intent quartet: `patch`, `converge`, `world`, and `orchestrate`.
+
+What changed:
+
+- Updated `crates/kain-core/src/ast.rs`, `parser.rs`, and `types.rs`
+  - Added new top-level item forms for `patch`, `converge`, `world`, and `orchestrate`.
+  - Added `Expr::StageCall` for typed stage-runtime syntax such as `rust fn_name(...)`.
+  - Added typed-item support, world surface validation, required-v1 world surfaces, patch mutation-path collection, patch undo-mode classification, converge signature checking, and orchestration stage descriptors.
+- Updated `crates/kain-core/src/runtime.rs`
+  - Registered and executed `patch`, `converge`, and `orchestrate` as real runtime values.
+  - Added patch transaction recording with mutation paths and undo mode.
+  - Added converge lane dispatch plus test-lane verification against `spec`.
+  - Preserved concrete test failure messages in `run_tests` so converge mismatch diagnostics survive the harness boundary.
+- Updated `crates/kain-core/src/runtime_contract.rs` and `realtime_app_bundle.rs`
+  - Added explicit `patches[]`, `converges[]`, `worlds[]`, and `orchestrations[]` sections.
+  - Added capability / requirement keys for `patch.transactions`, `converge.dispatch`, `world.native-ui`, `world.viewport3d`, `world.web`, `world.ue5`, and `orchestrate.pipeline`.
+- Updated downstream consumers
+  - `crates/kain-driver/src/lib.rs` and `crates/kain-driver/src/native_app.rs` now resolve native-ui roots from a single `world`'s `native_ui` surface and reject ambiguous multi-world inputs without an explicit selection.
+  - `crates/web`, `crates/gpu`, `crates/kain-sys-codegen`, and `crates/ue5` were patched for the new `ResolvedType::Future` / `Expr::StageCall` / `TypedItem` exhaustiveness fallout so the feature compiles through the wider toolchain.
+- Added focused validation
+  - `crates/kain-core/tests/compiler_owned_intent_test.rs`
+  - new driver/native-app unit coverage for single-world auto-root and multi-world rejection
+  - `smoketest/compiler_owned_intent` plus an `allinone` manifest entry
+  - `docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md`
+
+Design decisions:
+
+- Kept the new starters contextual at legal item boundaries instead of reserving them globally.
+- Treated the quartet as bounded semantic declarations, not expression-wide grammar rewrites.
+- Required all four `world` surfaces in v1 to keep projection coverage explicit instead of leaving partial adapter truth ambiguous.
+- Kept `orchestrate` stage-runtime labels semantic in v1; the runtime still dispatches through existing function execution rather than invoking external bridges directly.
+
+Current risks:
+
+- The new feature lane is covered by focused tests, but full `cargo test -p kain-driver --lib` still includes unrelated long-running / networked / pre-existing failures outside this implementation slice.
+- `smoketest/compiler_owned_intent/run_smoke.ps1` was added but not executed in this Linux session.
+- `world` root selection is currently wired through native-ui/realtime root discovery; deeper per-adapter activation logic for viewport/web/UE5 remains future work.
+
+Recommended next step:
+
+- Make `world` an explicit first-class selection target across more CLI/package flows and teach `orchestrate` stage runtimes to hand off into the real Rust/Python/Node bridge crates instead of stopping at semantic labels.
+
 ## 2026-04-08 - kain-core now performs real executable-body semantic checks
 
 The language core picked up the first meaningful semantic-trust pass instead of only walking bodies for syntax-shape validation.
