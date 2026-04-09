@@ -526,6 +526,12 @@ fn register_node_stdlib(stdlib: &mut StdLib) {
             doc: "Import a JavaScript or Node module",
         },
         BuiltinFn {
+            name: "js_import_raw",
+            params: vec![("specifier", "String")],
+            return_type: "Any",
+            doc: "Import a JavaScript or Node module and keep the raw module handle",
+        },
+        BuiltinFn {
             name: "js_call",
             params: vec![("target", "Any"), ("args", "Any")],
             return_type: "Any",
@@ -656,6 +662,7 @@ fn register_node_env(env: &mut Env) {
     env.register_native_fn("js_eval_raw", builtin_js_eval_raw);
     env.register_native_fn("js_exec", builtin_js_exec);
     env.register_native_fn("js_import", builtin_js_import);
+    env.register_native_fn("js_import_raw", builtin_js_import_raw);
     env.register_native_fn("js_call", builtin_js_call);
     env.register_native_fn("js_call_raw", builtin_js_call_raw);
     env.register_native_fn("js_call_method", builtin_js_call_method);
@@ -709,6 +716,14 @@ fn builtin_js_import(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
     wire_to_value(&request_node(
         env,
         json!({ "op": "import", "specifier": specifier, "raw": false }),
+    )?)
+}
+
+fn builtin_js_import_raw(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    let specifier = expect_string_arg(&args, 0, "js_import_raw")?;
+    wire_to_value(&request_node(
+        env,
+        json!({ "op": "import", "specifier": specifier, "raw": true }),
     )?)
 }
 
@@ -1501,6 +1516,8 @@ mod tests {
     use kain_core::stdlib::StdLib;
     use kain_core::types;
     use kain_core::CompileTarget;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn javascript_builtins_extend_stdlib_metadata() {
@@ -1509,6 +1526,7 @@ mod tests {
         assert!(stdlib.functions.contains_key("js_eval"));
         assert!(stdlib.functions.contains_key("js_exec"));
         assert!(stdlib.functions.contains_key("js_import"));
+        assert!(stdlib.functions.contains_key("js_import_raw"));
         assert!(stdlib.functions.contains_key("js_call"));
         assert!(stdlib.functions.contains_key("js_call_method"));
         assert!(stdlib.functions.contains_key("js_getattr"));
@@ -1540,6 +1558,8 @@ mod tests {
     fn javascript_exec_and_eval_persist_scope() {
         let result = interpret_source(
             r#"
+use std::javascript::bridge
+
 fn main() -> Int:
     js_exec("globalThis.kainNodeValue = 39")
     return js_eval("globalThis.kainNodeValue + 3")
@@ -1556,6 +1576,8 @@ fn main() -> Int:
     fn javascript_import_and_call_support_node_modules() {
         let result = interpret_source(
             r#"
+use std::javascript::bridge
+
 fn main() -> String:
     let path = js_import("node:path")
     return js_call_method(path, "basename", ["M:/Code/Kain/demo/orbit.html"])
@@ -1569,9 +1591,65 @@ fn main() -> String:
     }
 
     #[test]
+    fn javascript_raw_import_and_call_support_node_modules() {
+        let result = interpret_source(
+            r#"
+use std::javascript::bridge
+
+fn main() -> String:
+    let path = js_import_raw("node:path")
+    return js_call_method(path, "basename", ["M:/Code/Kain/demo/orbit.html"])
+"#,
+        );
+
+        match result {
+            Value::String(value) => assert_eq!(value, "orbit.html"),
+            other => panic!("expected String(\"orbit.html\"), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn javascript_raw_import_and_call_support_local_modules() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let module_dir = std::env::temp_dir().join(format!("kain-node-test-{unique}"));
+        fs::create_dir_all(&module_dir).unwrap();
+        let module_path = module_dir.join("local_step.mjs");
+        fs::write(
+            &module_path,
+            "export function run() { return 'local-raw-ok'; }\n",
+        )
+        .unwrap();
+        let module_literal =
+            serde_json::to_string(&module_path.display().to_string()).unwrap();
+        let source = format!(
+            r#"
+use std::javascript::bridge
+
+fn main() -> String:
+    let module_ref = js_import_raw({module_literal})
+    return js_call_method(module_ref, "run", [])
+"#
+        );
+
+        let result = interpret_source(&source);
+        match result {
+            Value::String(value) => assert_eq!(value, "local-raw-ok"),
+            other => panic!("expected String(\"local-raw-ok\"), got {other:?}"),
+        }
+
+        let _ = fs::remove_file(&module_path);
+        let _ = fs::remove_dir(&module_dir);
+    }
+
+    #[test]
     fn javascript_buffer_info_and_bytes_support_typed_arrays() {
         let result = interpret_source(
             r#"
+use std::javascript::bridge
+
 fn main():
     let bytes = js_eval_raw("new Uint8Array([4, 8, 15, 16, 23, 42])")
     let info = js_buffer_info(bytes)
@@ -1628,6 +1706,8 @@ fn main():
     fn javascript_document_and_image_payload_adapters_work() {
         let result = interpret_source(
             r#"
+use std::javascript::bridge
+
 fn main():
     let document = js_eval_raw("({ kind: 'document', title: 'Signal Notes', text: '<!doctype html><html><body>signal</body></html>', mime_type: 'text/html' })")
     let image = js_eval_raw("({ kind: 'canvas', width: 64, height: 32, mime_type: 'image/svg+xml', text: '<svg viewBox=\"0 0 64 32\"></svg>', bytes: new TextEncoder().encode('<svg viewBox=\"0 0 64 32\"></svg>') })")
@@ -1660,6 +1740,8 @@ fn main():
     fn javascript_can_materialize_shared_image_contracts() {
         let result = interpret_source(
             r#"
+use std::javascript::bridge
+
 fn main():
     let image = js_eval_raw("({ kind: 'image', width: 8, height: 4, channels: 3, layout: 'HWC', pixel_format: 'rgb8', representation: 'raster', mime_type: 'image/x-kain-raster', bytes: new Uint8Array(8 * 4 * 3).fill(17) })")
     let shared_image = kain_shared_image_from_js(image)

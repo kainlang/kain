@@ -174,9 +174,13 @@ fn render_canonical_module_source(resolved: &ResolvedCLibrary, bundle: &BindingB
                 output.push_str(&format!(" -> {}", binding.return_type.render_kain()));
             }
             output.push_str(":\n");
-            output.push_str("            return ");
-            output.push_str(binding.return_type.default_literal());
-            output.push_str("\n\n");
+            if matches!(binding.return_type, BridgeType::Unit) {
+                output.push_str("            return\n\n");
+            } else {
+                output.push_str("            return ");
+                output.push_str(binding.return_type.default_literal());
+                output.push_str("\n\n");
+            }
         }
     }
     output

@@ -4161,8 +4161,15 @@ fn execute_node_stage_call(env: &mut Env, function: &str, args: Vec<Value>) -> K
 
     let args_value = runtime_array_value(args);
     if let Some((module_name, attr_name)) = function.rsplit_once("::") {
-        let module =
-            env.call_named_function("js_import", vec![Value::String(module_name.to_string())])?;
+        let module_import_builtin = if env.lookup_value("js_import_raw").is_some() {
+            "js_import_raw"
+        } else {
+            "js_import"
+        };
+        let module = env.call_named_function(
+            module_import_builtin,
+            vec![Value::String(module_name.to_string())],
+        )?;
         env.call_named_function(
             "js_call_method",
             vec![module, Value::String(attr_name.to_string()), args_value],

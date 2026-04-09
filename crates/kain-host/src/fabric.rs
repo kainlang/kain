@@ -11,7 +11,7 @@ use kain_c_ffi::{
 };
 use kain_core::diagnostics::SpanMapper;
 use kain_core::runtime::{self, Env, Value};
-use kain_core::ResolvedType;
+use kain_core::{EffectSet, IntSize, ResolvedType};
 use kain_core::{
     CompileTarget, ComputeMetadata, ComputeStreamPlan, ComputeTensorPlan, Item, Lexer, Parser,
     ShaderStage,
@@ -1587,30 +1587,89 @@ fn fabric_semantic_globals() -> Vec<(String, ResolvedType)> {
         ("fabric_inputs".to_string(), ResolvedType::Unknown),
         ("fabric_serialized_inputs".to_string(), ResolvedType::Unknown),
         ("fabric_context".to_string(), ResolvedType::Unknown),
+        (
+            "str".to_string(),
+            ResolvedType::Function {
+                params: vec![ResolvedType::Unknown],
+                ret: Box::new(ResolvedType::String),
+                effects: EffectSet::new(),
+            },
+        ),
+        (
+            "assert".to_string(),
+            ResolvedType::Function {
+                params: vec![ResolvedType::Bool, ResolvedType::String],
+                ret: Box::new(ResolvedType::Unit),
+                effects: EffectSet::new(),
+            },
+        ),
+        (
+            "len".to_string(),
+            ResolvedType::Function {
+                params: vec![ResolvedType::Unknown],
+                ret: Box::new(ResolvedType::Int(IntSize::I64)),
+                effects: EffectSet::new(),
+            },
+        ),
     ]
 }
 
 fn render_kain_interop_prelude() -> &'static str {
-    r#"@extern fn kain_shared_buffer_info(target: _InteropTarget) -> Any
-@extern fn kain_shared_buffer_bytes(target: _InteropTarget) -> Any
+    r#"struct KainSharedBufferInfo:
+    contract: String
+    contract_version: Int
+    element_type: String
+    element_size: Int
+    shape: Any
+    strides: Any
+    format: Any
+    mime_type: Any
+    source_runtime: String
+    source_backend: Any
+    ownership: String
+    labels: Any
+    byte_length: Int
+    element_count: Int
+
+struct KainSharedImageInfo:
+    contract: String
+    contract_version: Int
+    representation: String
+    width: Int
+    height: Int
+    channels: Int
+    layout: String
+    pixel_format: String
+    mime_type: String
+    row_stride: Int
+    color_space: String
+    alpha_mode: String
+    source_runtime: String
+    source_backend: Any
+    ownership: String
+    labels: Any
+    byte_length: Int
+
+@extern fn kain_shared_buffer_info(target: _InteropTarget) -> KainSharedBufferInfo
+@extern fn kain_shared_buffer_bytes(target: _InteropTarget) -> Array<Int>
 @extern fn kain_shared_buffer_from_bytes(bytes: _InteropBytes, element_type: String, shape: _InteropShape, format: String, mime_type: String) -> Any
-@extern fn kain_shared_image_info(target: _InteropTarget) -> Any
-@extern fn kain_shared_image_bytes(target: _InteropTarget) -> Any
+@extern fn kain_shared_image_info(target: _InteropTarget) -> KainSharedImageInfo
+@extern fn kain_shared_image_bytes(target: _InteropTarget) -> Array<Int>
 @extern fn kain_shared_image_from_bytes(bytes: _InteropBytes, width: Int, height: Int, channels: Int, layout: String, pixel_format: String, mime_type: String) -> Any
 
-fn interop_shared_buffer_info(target: _InteropTarget) -> Any:
+fn interop_shared_buffer_info(target: _InteropTarget) -> KainSharedBufferInfo:
     return kain_shared_buffer_info(target)
 
-fn interop_shared_buffer_bytes(target: _InteropTarget) -> Any:
+fn interop_shared_buffer_bytes(target: _InteropTarget) -> Array<Int>:
     return kain_shared_buffer_bytes(target)
 
 fn interop_shared_buffer_from_bytes(bytes: _InteropBytes, element_type: String, shape: _InteropShape, format: String, mime_type: String) -> Any:
     return kain_shared_buffer_from_bytes(bytes, element_type, shape, format, mime_type)
 
-fn interop_shared_image_info(target: _InteropTarget) -> Any:
+fn interop_shared_image_info(target: _InteropTarget) -> KainSharedImageInfo:
     return kain_shared_image_info(target)
 
-fn interop_shared_image_bytes(target: _InteropTarget) -> Any:
+fn interop_shared_image_bytes(target: _InteropTarget) -> Array<Int>:
     return kain_shared_image_bytes(target)
 
 fn interop_shared_image_from_bytes(bytes: _InteropBytes, width: Int, height: Int, channels: Int, layout: String, pixel_format: String, mime_type: String) -> Any:
@@ -1651,16 +1710,16 @@ fn render_python_output_projection(
             let field_name = kain_string_literal(&output.name);
             let value_expr = match output.kind {
                 FabricContractKind::Value => format!(
-                    "py_bridge_call(\"__kain_fabric_output_field\", [fabric_result, {field_name}])"
+                    "py_bridge_call(\"__kain_fabric_output_field\", [{field_name}])"
                 ),
                 FabricContractKind::SharedBuffer => format!(
-                    "py_bridge_shared_buffer(py_bridge_call_raw(\"__kain_fabric_output_field\", [fabric_result, {field_name}]))"
+                    "py_bridge_shared_buffer(py_bridge_call_raw(\"__kain_fabric_output_field\", [{field_name}]))"
                 ),
                 FabricContractKind::SharedImage => format!(
-                    "py_bridge_shared_image(py_bridge_call_raw(\"__kain_fabric_output_field\", [fabric_result, {field_name}]))"
+                    "py_bridge_shared_image(py_bridge_call_raw(\"__kain_fabric_output_field\", [{field_name}]))"
                 ),
                 FabricContractKind::ComputePlan => format!(
-                    "py_bridge_call(\"__kain_fabric_output_field\", [fabric_result, {field_name}])"
+                    "py_bridge_call(\"__kain_fabric_output_field\", [{field_name}])"
                 ),
             };
             format!("{}: {value_expr}", output.name)
@@ -1679,7 +1738,7 @@ fn render_node_output_projection(
         .map(|output| {
             let field_name = kain_string_literal(&output.name);
             let marker = kain_string_literal(&fabric_missing_output_marker(&output.name));
-            format!("assert(js_bridge_hasattr(fabric_result, {field_name}), {marker})")
+            format!("assert(js_hasattr(fabric_result, {field_name}), {marker})")
         })
         .collect::<Vec<_>>();
     let fields = outputs
@@ -1687,18 +1746,14 @@ fn render_node_output_projection(
         .map(|output| {
             let field_name = kain_string_literal(&output.name);
             let value_expr = match output.kind {
-                FabricContractKind::Value => {
-                    format!("js_bridge_getattr(fabric_result, {field_name})")
-                }
+                FabricContractKind::Value => format!("js_getattr(fabric_result, {field_name})"),
                 FabricContractKind::SharedBuffer => format!(
-                    "js_web_shared_buffer(js_bridge_getattr_raw(fabric_result, {field_name}))"
+                    "kain_shared_buffer_from_js(js_getattr_raw(fabric_result, {field_name}))"
                 ),
                 FabricContractKind::SharedImage => format!(
-                    "js_web_shared_image(js_bridge_getattr_raw(fabric_result, {field_name}))"
+                    "kain_shared_image_from_js(js_getattr_raw(fabric_result, {field_name}))"
                 ),
-                FabricContractKind::ComputePlan => {
-                    format!("js_bridge_getattr(fabric_result, {field_name})")
-                }
+                FabricContractKind::ComputePlan => format!("js_getattr(fabric_result, {field_name})"),
             };
             format!("{}: {value_expr}", output.name)
         })
@@ -1789,18 +1844,23 @@ fn render_python_harness(context: &FabricAdapterContext) -> Result<String, Fabri
     let runtime_call = python_call_expression(context)?;
     let fabric_inputs_binding = render_fabric_inputs_binding(context)?;
     let bridge_prelude = render_python_bridge_prelude();
+    let return_type = if context.step.outputs.len() > 1 {
+        "FabricPythonOutputs"
+    } else {
+        "Any"
+    };
     let output_struct = render_declared_output_struct("FabricPythonOutputs", &context.step.outputs)
         .map(|definition| format!("{definition}\n\n"))
         .unwrap_or_default();
     Ok(format!(
-        "{bridge_prelude}\n{output_struct}fn main() -> Any:\n    {fabric_inputs_binding}\n    {runtime_call}\n"
+        "{bridge_prelude}\n{output_struct}fn main() -> {return_type}:\n    {fabric_inputs_binding}\n    {runtime_call}\n"
     ))
 }
 
 fn python_call_expression(context: &FabricAdapterContext) -> Result<String, FabricFailureReason> {
     let multi_output_step = context.step.outputs.len() > 1;
     let python_output_helper = kain_string_literal(&format!(
-        "def __kain_fabric_output_field(payload, name):\n    try:\n        if isinstance(payload, dict):\n            return payload[name]\n        return getattr(payload, name)\n    except KeyError:\n        raise KeyError(\"{FABRIC_MISSING_OUTPUT_MARKER}:\" + str(name))\n    except AttributeError:\n        raise AttributeError(\"{FABRIC_MISSING_OUTPUT_MARKER}:\" + str(name))\n"
+        "def __kain_fabric_capture(payload):\n    globals()['__kain_fabric_payload'] = payload\n\ndef __kain_fabric_output_field(name):\n    payload = globals()['__kain_fabric_payload']\n    try:\n        if isinstance(payload, dict):\n            return payload[name]\n        return getattr(payload, name)\n    except KeyError:\n        raise KeyError(\"{FABRIC_MISSING_OUTPUT_MARKER}:\" + str(name))\n    except AttributeError:\n        raise AttributeError(\"{FABRIC_MISSING_OUTPUT_MARKER}:\" + str(name))\n"
     ));
 
     if let Some(entry) = &context.step.entry {
@@ -1817,7 +1877,7 @@ fn python_call_expression(context: &FabricAdapterContext) -> Result<String, Fabr
             let projection =
                 render_python_output_projection("FabricPythonOutputs", &context.step.outputs);
             Ok(format!(
-                "py_bridge_exec({exec_source})\n    py_bridge_exec({python_output_helper})\n    let fabric_result = py_bridge_call_raw({callable}, [fabric_inputs])\n    {projection}"
+                "py_bridge_exec({exec_source})\n    py_bridge_exec({python_output_helper})\n    let fabric_result = py_bridge_call_raw({callable}, [fabric_inputs])\n    py_bridge_call_raw(\"__kain_fabric_capture\", [fabric_result])\n    {projection}"
             ))
         } else {
             let single_output_kind = context
@@ -1863,7 +1923,7 @@ fn python_call_expression(context: &FabricAdapterContext) -> Result<String, Fabr
             let projection =
                 render_python_output_projection("FabricPythonOutputs", &context.step.outputs);
             Ok(format!(
-                "py_bridge_exec({python_output_helper})\n    let fabric_module = py_bridge_require_module({module_literal})\n    let fabric_result = py_bridge_call_attr_raw(fabric_module, \"run\", [fabric_inputs])\n    {projection}"
+                "py_bridge_exec({python_output_helper})\n    let fabric_module = py_bridge_require_module({module_literal})\n    let fabric_result = py_bridge_call_attr_raw(fabric_module, \"run\", [fabric_inputs])\n    py_bridge_call_raw(\"__kain_fabric_capture\", [fabric_result])\n    {projection}"
             ))
         } else {
             let single_output_kind = context
@@ -1923,13 +1983,18 @@ fn render_node_harness(context: &FabricAdapterContext) -> Result<String, FabricF
     let export_literal = kain_string_literal(&export_name);
     let fabric_inputs_binding = render_fabric_inputs_binding(context)?;
     let bridge_prelude = render_node_bridge_prelude();
+    let return_type = if context.step.outputs.len() > 1 {
+        "FabricNodeOutputs"
+    } else {
+        "Any"
+    };
     let output_struct = render_declared_output_struct("FabricNodeOutputs", &context.step.outputs)
         .map(|definition| format!("{definition}\n\n"))
         .unwrap_or_default();
     let runtime_lines = if context.step.outputs.len() > 1 {
         let projection = render_node_output_projection("FabricNodeOutputs", &context.step.outputs);
         format!(
-            "let module_ref = js_bridge_import({import_literal})\n    let fabric_result = js_bridge_call_method_raw(module_ref, {export_literal}, [fabric_inputs])\n    {projection}"
+            "let module_ref = js_import_raw({import_literal})\n    let fabric_result = js_call_method_raw(module_ref, {export_literal}, [fabric_inputs])\n    {projection}"
         )
     } else {
         let single_output_kind = context
@@ -1939,32 +2004,31 @@ fn render_node_harness(context: &FabricAdapterContext) -> Result<String, FabricF
             .map(|output| output.kind)
             .unwrap_or(FabricContractKind::Value);
         let result_expr = match single_output_kind {
-            FabricContractKind::Value => {
-                format!("js_bridge_call_method(module_ref, {export_literal}, [fabric_inputs])")
-            }
+            FabricContractKind::Value => format!("js_call_method(module_ref, {export_literal}, [fabric_inputs])"),
             FabricContractKind::SharedBuffer => format!(
-                "js_web_shared_buffer(js_bridge_call_method_raw(module_ref, {export_literal}, [fabric_inputs]))"
+                "kain_shared_buffer_from_js(js_call_method_raw(module_ref, {export_literal}, [fabric_inputs]))"
             ),
             FabricContractKind::SharedImage => format!(
-                "js_web_shared_image(js_bridge_call_method_raw(module_ref, {export_literal}, [fabric_inputs]))"
+                "kain_shared_image_from_js(js_call_method_raw(module_ref, {export_literal}, [fabric_inputs]))"
             ),
-            FabricContractKind::ComputePlan => {
-                format!("js_bridge_call_method(module_ref, {export_literal}, [fabric_inputs])")
-            }
+            FabricContractKind::ComputePlan => format!("js_call_method(module_ref, {export_literal}, [fabric_inputs])"),
         };
-        format!("let module_ref = js_bridge_import({import_literal})\n    return {result_expr}")
+        format!("let module_ref = js_import_raw({import_literal})\n    return {result_expr}")
     };
 
     Ok(format!(
-        "{bridge_prelude}\n{output_struct}fn main() -> Any:\n    {fabric_inputs_binding}\n    {runtime_lines}\n"
+        "{bridge_prelude}\n{output_struct}fn main() -> {return_type}:\n    {fabric_inputs_binding}\n    {runtime_lines}\n"
     ))
 }
 
 fn render_node_bridge_prelude() -> &'static str {
     r#"@extern fn json_parse(source: String) -> Any
 @extern fn js_import(specifier: String) -> Any
+@extern fn js_import_raw(specifier: String) -> Any
 @extern fn js_call(target: _JsTarget, args: _JsArgs) -> Any
 @extern fn js_call_raw(target: _JsTarget, args: _JsArgs) -> Any
+@extern fn js_call_method(target: _JsTarget, name: String, args: _JsArgs) -> Any
+@extern fn js_call_method_raw(target: _JsTarget, name: String, args: _JsArgs) -> Any
 @extern fn js_getattr(target: _JsTarget, name: String) -> Any
 @extern fn js_getattr_raw(target: _JsTarget, name: String) -> Any
 @extern fn js_hasattr(target: _JsTarget, name: String) -> Bool
@@ -1972,7 +2036,7 @@ fn render_node_bridge_prelude() -> &'static str {
 @extern fn kain_shared_image_from_js(target: _JsTarget) -> Any
 
 fn js_bridge_import(specifier: String) -> Any:
-    return js_import(specifier)
+    return js_import_raw(specifier)
 
 fn js_bridge_call(target: _JsTarget, args: _JsArgs) -> Any:
     return js_call(target, args)
@@ -1981,12 +2045,10 @@ fn js_bridge_call_raw(target: _JsTarget, args: _JsArgs) -> Any:
     return js_call_raw(target, args)
 
 fn js_bridge_call_method(target: _JsTarget, name: String, args: _JsArgs) -> Any:
-    let callable = js_getattr(target, name)
-    return js_call(callable, args)
+    return js_call_method(target, name, args)
 
 fn js_bridge_call_method_raw(target: _JsTarget, name: String, args: _JsArgs) -> Any:
-    let callable = js_getattr_raw(target, name)
-    return js_call_raw(callable, args)
+    return js_call_method_raw(target, name, args)
 
 fn js_bridge_getattr(target: _JsTarget, name: String) -> Any:
     return js_getattr(target, name)
@@ -2047,7 +2109,8 @@ fn validate_c_library_alignment(
     let Some(declared_library) = &step.library else {
         return Ok(());
     };
-    let declared_file_name = declared_library
+    let expanded_declared_library = expand_platform_dynamic_library_tokens(declared_library);
+    let declared_file_name = expanded_declared_library
         .file_name()
         .and_then(|value| value.to_str());
     let imported_file_name = imported_shared_library
@@ -2063,7 +2126,7 @@ fn validate_c_library_alignment(
             format!(
                 "Fabric step '{}' declared library '{}' but the resolved C import pointed at '{}'",
                 step.id,
-                declared_library.display(),
+                expanded_declared_library.display(),
                 imported_shared_library
                     .as_ref()
                     .map(|value| value.display().to_string())
@@ -2532,14 +2595,15 @@ mod tests {
         let harness = render_node_harness(&context).unwrap();
 
         assert!(harness.contains("struct FabricNodeOutputs:"));
-        assert!(harness.contains("js_bridge_call_method_raw"));
+        assert!(harness.contains("js_import_raw("));
+        assert!(harness.contains("js_call_method_raw("));
         assert!(harness.contains("[fabric_inputs]"));
         assert!(!harness.contains("fabric_serialized_inputs"));
         assert!(harness.contains("__kain_fabric_missing_output__:report"));
-        assert!(harness.contains("js_bridge_hasattr(fabric_result"));
-        assert!(harness.contains("js_bridge_getattr(fabric_result"));
-        assert!(harness.contains("js_web_shared_image("));
-        assert!(harness.contains("js_web_shared_buffer("));
+        assert!(harness.contains("js_hasattr(fabric_result"));
+        assert!(harness.contains("js_getattr(fabric_result"));
+        assert!(harness.contains("kain_shared_image_from_js("));
+        assert!(harness.contains("kain_shared_buffer_from_js("));
     }
 
     #[test]
@@ -2952,7 +3016,7 @@ mod tests {
         let step = result.step_results.first().expect("step result");
         assert_eq!(step.status, FabricStepStatus::Failed);
         let error = step.error.as_ref().expect("missing step failure");
-        assert_eq!(error.code, "missing_output_field");
+        assert_eq!(error.code, "missing_output_field", "{}", error.message);
         assert!(error.message.contains("bridge_step"));
         assert!(error.message.contains("missing"));
         let details = error.details.as_ref().expect("failure details");
