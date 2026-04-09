@@ -26,6 +26,16 @@ static void copy_text(char* out, size_t out_cap, const char* text) {
     out[out_cap - 1] = '\0';
 }
 
+static int count_service_bits(unsigned int mask) {
+    int count = 0;
+
+    while (mask != 0u) {
+        count += (mask & 1u) != 0u ? 1 : 0;
+        mask >>= 1u;
+    }
+    return count;
+}
+
 static int test_required_service_failure_reporting(void) {
     KainRuntimeContractBundle bundle;
     KainRuntimeContractValidation validation;
@@ -155,9 +165,11 @@ static int test_optional_service_downgrade_reporting(void) {
     KainStartupValidationResult result;
     KainRuntimeContractValidation validation;
     char report[1024];
+    int expected_optional_service_count;
     int passed;
 
     printf("Test 2: Optional Service Downgrade Reporting\n");
+    expected_optional_service_count = count_service_bits(KAIN_RUNTIME_SERVICE_OPTIONAL_MASK);
 
     kain_runtime_contract_init(&bundle);
     bundle.loaded = 1;
@@ -211,8 +223,12 @@ static int test_optional_service_downgrade_reporting(void) {
         return 1;
     }
 
-    if (result.optional_services_degraded != 2) {
-        printf("  FAIL: expected 2 degraded optional services, got %d\n", result.optional_services_degraded);
+    if (result.optional_services_degraded != expected_optional_service_count) {
+        printf(
+            "  FAIL: expected %d degraded optional services, got %d\n",
+            expected_optional_service_count,
+            result.optional_services_degraded
+        );
         return 1;
     }
 

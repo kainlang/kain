@@ -1,6 +1,5 @@
 #include "../../include/kain_runtime_ui.h"
 
-#ifdef _WIN32
 static const char* kain_ui_find_substring(
     const char* start,
     const char* end,
@@ -777,4 +776,3 @@ const KainUiCompiledNode* kain_ui_compiled_bundle_find_first_kind(
 
     return NULL;
 }
-#endif

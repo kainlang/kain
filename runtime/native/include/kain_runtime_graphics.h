@@ -4,7 +4,6 @@
 #include <stddef.h>
 #include "kain_runtime_win32.h"
 
-#ifdef _WIN32
 #define KAIN_RUNTIME_GRAPHICS_ENV "KAIN_REALTIME_APP_BUNDLE"
 #define KAIN_RUNTIME_GRAPHICS_SIDECAR_SUFFIX ".realtime_app.json"
 #define KAIN_RUNTIME_GRAPHICS_MAX_TARGET 32
@@ -351,6 +350,5 @@ int kain_runtime_graphics_execute_primary_compute(
     KainRuntimeGraphicsExecutionState* state
 );
 int kain_win32_gl_surface_supports_graphics_bundle(const KainRuntimeGraphicsBundle* bundle);
-#endif
 
 #endif

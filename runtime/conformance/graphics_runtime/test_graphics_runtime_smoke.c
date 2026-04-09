@@ -409,12 +409,10 @@ static int test_graphics_bundle_from_json(void) {
     if (!check_contains(validation.reason, "ready", "validation.reason")) return 0;
 
     kain_runtime_graphics_format_summary(&bundle, summary, sizeof(summary));
-    if (!check_contains(summary, "shader refs 3", "summary shader refs")) return 0;
-    if (!check_contains(summary, "material bindings 2", "summary material bindings")) return 0;
-    if (!check_contains(summary, "compute bindings 2", "summary compute bindings")) return 0;
-    if (!check_contains(summary, "compute wg 8,8,1", "summary compute wg")) return 0;
-    if (!check_contains(summary, "compute dispatch 16,16,1", "summary compute dispatch")) return 0;
-    if (!check_contains(summary, "compute 1", "summary compute")) return 0;
+    if (!check_contains(summary, "shader refs v/f/c=1/1/1", "summary shader refs")) return 0;
+    if (!check_contains(summary, "compute bind/t/s/n=2/0/0/0", "summary compute bindings")) return 0;
+    if (!check_contains(summary, "graph p/a/d=3/4/2", "summary render graph")) return 0;
+    if (!check_contains(summary, "schedule s/b=3/2", "summary compute schedule")) return 0;
 
     return 1;
 }
@@ -446,9 +444,9 @@ static int test_graphics_material_and_compute_snapshot_persistence(void) {
     if (!check_true(kain_win32_gl_surface_supports_graphics_bundle(&snapshot) == 1, "gl_surface_supports_graphics_bundle(snapshot)")) return 0;
 
     kain_runtime_graphics_format_summary(&snapshot, summary, sizeof(summary));
-    if (!check_contains(summary, "material bindings 2", "snapshot summary material bindings")) return 0;
-    if (!check_contains(summary, "compute bindings 2", "snapshot summary compute bindings")) return 0;
-    if (!check_contains(summary, "compute dispatch 16,16,1", "snapshot summary compute dispatch")) return 0;
+    if (!check_contains(summary, "shader refs v/f/c=1/1/1", "snapshot summary shader refs")) return 0;
+    if (!check_contains(summary, "compute bind/t/s/n=2/0/0/0", "snapshot summary compute bindings")) return 0;
+    if (!check_contains(summary, "schedule s/b=3/2", "snapshot summary compute schedule")) return 0;
 
     return 1;
 }

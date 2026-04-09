@@ -1,8 +1,6 @@
 #include "../../include/kain_ui_runtime.h"
 #include "../../include/kain_runtime_version.h"
 
-#ifdef _WIN32
-
 typedef struct {
     KainUiCompiledNodeKind kind;
     const char* role;
@@ -1003,4 +1001,3 @@ unsigned int kain_ui_runtime_state_capabilities(const KainUiRuntimeState* state)
 
     return state->capability_flags;
 }
-#endif

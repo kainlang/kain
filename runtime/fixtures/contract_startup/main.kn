@@ -4,7 +4,7 @@
 
 // This is the absolute minimum Kain program that produces a runtime contract.
 // It has no actors, no UI, no async, no graphics - just enough to validate
-// that the native runtime can load and parse a contract bundle.
+// that the native runtime can load and parse a contract bundle on any host.
 
-fn main():
-    print("Contract startup smoke: OK")
+fn main() -> Int:
+    return 0

@@ -1666,19 +1666,17 @@ static FILE* reflection_open_file(const char* path, const char* mode) {
 }
 
 static char* reflection_get_env_value(const char* env_name) {
-#ifdef _WIN32
-    size_t length = 0;
-    char* value = NULL;
     if (!env_name) {
         return NULL;
     }
-    if (_dupenv_s(&value, &length, env_name) != 0) {
-        return NULL;
+    {
+        size_t length = 0;
+        char* value = NULL;
+        if (_dupenv_s(&value, &length, env_name) != 0) {
+            return NULL;
+        }
+        return value;
     }
-    return value;
-#else
-    return getenv(env_name);
-#endif
 }
 
 static void reflection_set_diag(

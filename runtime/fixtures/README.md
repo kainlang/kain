@@ -36,7 +36,7 @@ This directory contains minimal smoke programs and artifacts for validating nati
 ```bash
 cd runtime/fixtures/contract_startup
 # Compile and validate contract loading
-kain build main.kn --target rust
+kain build main.kn --target llvm --output generated/contract_startup.ll
 ```
 
 ---
@@ -63,7 +63,7 @@ kain build main.kn --target rust
 ```bash
 cd runtime/fixtures/realtime_startup
 # Compile and validate realtime bundle loading
-kain build main.kn --target rust
+kain build main.kn --target llvm --output generated/realtime_startup.ll
 ```
 
 ---

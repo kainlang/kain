@@ -4,7 +4,6 @@
 #include "kain_runtime_scene.h"
 #include "kain_runtime_win32.h"
 
-#ifdef _WIN32
 #define KAIN_NATIVE_WORLD_ASSET_ENV "KAIN_NATIVE_WORLD_ASSET"
 #define KAIN_NATIVE_WORLD_TARGET_EXTENT_ENV "KAIN_NATIVE_WORLD_TARGET_EXTENT"
 #define KAIN_NATIVE_WORLD_SCALE_ENV "KAIN_NATIVE_WORLD_SCALE"
@@ -86,6 +85,5 @@ void kain_native_scene_asset_describe_ingestion(
     const KainNativeSceneAsset* asset,
     KainRuntimeIngestionDescriptor* descriptor
 );
-#endif
 
 #endif

@@ -3,7 +3,6 @@
 
 #include "kain_runtime_win32.h"
 
-#ifdef _WIN32
 #define KAIN_RUNTIME_REALTIME_ENV "KAIN_REALTIME_APP_BUNDLE"
 #define KAIN_RUNTIME_REALTIME_SIDECAR_SUFFIX ".realtime_app.json"
 #define KAIN_RUNTIME_REALTIME_MAX_TARGET 32
@@ -55,6 +54,5 @@ int kain_runtime_realtime_load_for_current_process(
     const char* env_name,
     KainRuntimeRealtimeBundle* bundle
 );
-#endif
 
 #endif

@@ -20,11 +20,14 @@
     "description": "KAIN native C runtime for compiled programs",
     "compatibility_class": "experimental",
     "target_platforms": ["windows", "linux", "macos"],
-    "active_platforms": ["windows"],
+    "active_platforms": ["windows", "linux"],
     "build_requirements": {
       "c_standard": "C99",
       "compiler": "MSVC, GCC, or Clang",
-      "dependencies": ["Windows SDK (for Win32 builds)"]
+      "dependencies": [
+        "Windows SDK (for Win32 builds)",
+        "POSIX threads (for Linux builds)"
+      ]
     }
   },
   "sources": {

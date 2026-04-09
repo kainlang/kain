@@ -64,6 +64,7 @@ RUNTIME_SOURCES=(
     "$NATIVE_SRC/core/kain_runtime_version.c"
     "$NATIVE_SRC/core/kain_runtime_diagnostics.c"
     "$NATIVE_SRC/core/kain_runtime_reflection.c"
+    "$NATIVE_SRC/core/kain_runtime_scene.c"
 )
 
 compile_test() {

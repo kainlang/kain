@@ -3,7 +3,6 @@
 
 #include "kain_runtime_win32.h"
 
-#ifdef _WIN32
 #define KAIN_UI_COMPILED_BUNDLE_ENV "KAIN_NATIVE_UI_BUNDLE"
 #define KAIN_UI_COMPILED_BUNDLE_MAX_NODES 128
 #define KAIN_UI_COMPILED_BUNDLE_MAX_TITLE 160
@@ -135,6 +134,5 @@ void kain_ui_compiled_overlay_render(
     const KainUiCompiledBundle* bundle,
     const KainUiCompiledOverlaySpec* spec
 );
-#endif
 
 #endif

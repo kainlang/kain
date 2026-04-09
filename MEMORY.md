@@ -1,5 +1,46 @@
 # MEMORY
 
+## 2026-04-09 - Linux LLVM and raw-native runtime lanes now validate end-to-end
+
+The native runtime's Linux surface is no longer blocked at the public-header and validation-harness level.
+
+What changed:
+
+- Updated `runtime/native/include/*` and `runtime/native/src/core/*`
+  - Removed Win32-only outer gating from the shared runtime-contract, realtime, UI, asset, graphics, and UI-runtime headers so Linux builds can see the same ABI contract types.
+  - Kept the Win32-specific host structs and platform host APIs gated, but moved generic helpers and shared ABI types into the cross-platform surface.
+  - Replaced the Unix `usleep(...)` path in `kain_runtime_core.c` with `nanosleep(...)` so the runtime compiles cleanly under modern POSIX feature levels.
+- Added Linux runtime support sources
+  - `runtime/native/src/platform/linux/kain_runtime_linux_shared.c` now owns Linux env/path/vector helpers plus `_putenv_s`/`Sleep`-adjacent compatibility through the shared base shims.
+  - `runtime/native/src/platform/linux/kain_runtime_linux_graphics.c` provides the Linux implementation of `kain_win32_gl_surface_supports_graphics_bundle(...)` so the graphics validation lane can stay source-compatible while the host-specific OpenGL path remains Windows-only.
+- Hardened runtime validation and conformance on Linux
+  - Normalized runtime shell scripts to LF and taught the fixture runner to prefer the repo-local `target/debug/kain` or `target/release/kain` before falling back to PATH.
+  - Switched the native smoke fixtures to current frontend-valid `fn main() -> Int: return 0` programs and made the LLVM fixture path require the final executable, not just the emitted `.ll`.
+  - Updated reflection, diagnostics, UI, graphics, and actor conformance harnesses so they compile and run against Linux sources instead of hard-coded Win32 helper objects.
+  - Reworked `runtime/validate_native_runtime.sh` so it validates the actual Linux runtime loop: CLI build, native runtime compile, LLVM/raw-native fixtures, and full conformance.
+- Updated user-facing/runtime metadata
+  - `runtime/native_runtime.toml` and `runtime/native_runtime_metadata.json` now advertise Linux in the core raw-native lane and include the Linux-specific source set / thread dependency.
+  - `crates/cli/src/main.rs` now prints Linux/macOS install-refresh guidance instead of a PowerShell-only message when the active binary comes from `target/`.
+
+Validation completed on this Linux host:
+
+- `cargo build -p cli`
+- `./target/debug/kain doctor`
+- minimal `kain build -t llvm` producing and running a native executable
+- `./runtime/compile_native_runtime.sh`
+- `./runtime/fixtures/validate_all.sh`
+- `./runtime/conformance/run_all.sh`
+- `./runtime/validate_native_runtime.sh`
+
+Current risks:
+
+- The core raw-native/LLVM/runtime-contract lanes are validated on Linux, but the platform-host services in `native_runtime.toml` (`platform.app-host`, `platform.input`, `gfx.viewport`) are still explicitly Windows-only. Linux support is real for the shared runtime substrate, not yet for the Win32 desktop host layer.
+- Several runtime/conformance C files still emit warnings under clang on Linux, but the suite passes.
+
+Recommended next step:
+
+- Add a non-Win32 native host provider for app-host/input/viewport services so the higher-level packaged native desktop lane can advertise Linux parity without relying on Win32-only service entries.
+
 ## 2026-04-09 - root universal installer now bundles clang into the repo toolchain
 
 The repo now has a root cross-platform bootstrap entrypoint at `install_kain.py`.

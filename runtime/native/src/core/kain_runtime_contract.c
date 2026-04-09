@@ -1,7 +1,6 @@
 #include "../../include/kain_runtime_contract.h"
 #include "../../include/kain_runtime_services.h"
 
-#ifdef _WIN32
 typedef struct {
     const char* key;
     unsigned int mask;
@@ -813,8 +812,6 @@ int kain_runtime_contract_validate_startup(
 
     return 1;
 }
-#endif
-
 /*
  * Populate Service Registry with Native Runtime Services
  *

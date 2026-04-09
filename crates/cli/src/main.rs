@@ -2119,9 +2119,15 @@ fn print_doctor(active_launcher: LauncherKind) {
     if let Some(path) = current_exe.as_deref() {
         if is_repo_target_binary(path) {
             println!(" Warning: active kain comes from a repo target directory.");
-            println!(
-                "          Refresh/install a stable PATH binary with scripts/sync-kain-source-of-truth.ps1."
-            );
+            if cfg!(windows) {
+                println!(
+                    "          Refresh/install a stable PATH binary with scripts/sync-kain-source-of-truth.ps1."
+                );
+            } else {
+                println!(
+                    "          Refresh/install a stable PATH binary with python3 install_kain.py and source generated/kain-env.sh."
+                );
+            }
         }
     }
 }

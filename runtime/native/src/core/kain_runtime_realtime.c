@@ -2,7 +2,6 @@
 #include "../../include/kain_runtime_graphics.h"
 #include <math.h>
 
-#ifdef _WIN32
 static const char* kain_runtime_realtime_find_substring(
     const char* haystack,
     const char* haystack_end,
@@ -3088,4 +3087,3 @@ int kain_runtime_graphics_load_for_current_process(
     kain_runtime_graphics_init(bundle);
     return 0;
 }
-#endif

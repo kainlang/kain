@@ -13,7 +13,7 @@
 #   --continue-on-error  Continue running tests even if one fails
 #   --help               Show this help message
 
-set -e  # Exit on error (unless --continue-on-error is set)
+set -euo pipefail
 
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -119,17 +119,17 @@ run_step() {
     echo ""
 }
 
-# Step 1: kain-core tests
-run_step 1 "kain-core tests" "cargo test --package kain-core"
+# Step 1: CLI build
+run_step 1 "CLI build" "cargo build -p cli"
 
-# Step 2: kain-driver tests
-run_step 2 "kain-driver tests" "cargo test --package kain-driver"
+# Step 2: Native runtime compilation
+run_step 2 "Native runtime compilation" "./runtime/compile_native_runtime.sh"
 
-# Step 3: kain-sys-codegen tests
-run_step 3 "kain-sys-codegen tests" "cargo test --package kain-sys-codegen"
+# Step 3: LLVM/raw-native fixtures
+run_step 3 "LLVM and raw-native fixtures" "./runtime/fixtures/validate_all.sh"
 
-# Step 4: Native runtime compilation
-run_step 4 "Native runtime compilation" "./runtime/compile_native_runtime.sh"
+# Step 4: Native runtime conformance
+run_step 4 "Native runtime conformance" "./runtime/conformance/run_all.sh"
 
 # Print summary
 echo "╔════════════════════════════════════════════════════════════════╗"
@@ -152,7 +152,7 @@ echo ""
 if [[ $FAILED_STEPS -eq 0 ]]; then
     echo "🎉 All validation steps passed!"
     echo ""
-    echo "The native runtime and its compiler/driver dependencies are validated."
+    echo "The Linux native runtime, LLVM lane, and raw-native conformance surface are validated."
     echo "See runtime/NATIVE_RUNTIME_VALIDATION.md for details."
     exit 0
 else

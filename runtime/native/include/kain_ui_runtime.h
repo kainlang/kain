@@ -4,7 +4,6 @@
 #include "kain_runtime_ui.h"
 #include "kain_runtime_diagnostics.h"
 
-#ifdef _WIN32
 #define KAIN_UI_RUNTIME_MAX_COMPONENTS KAIN_UI_COMPILED_BUNDLE_MAX_NODES
 #define KAIN_UI_RUNTIME_MAX_ISSUES 16
 #define KAIN_UI_RUNTIME_MAX_EVENT_TEXT 160
@@ -153,7 +152,5 @@ int kain_ui_runtime_route_event(
 );
 int kain_ui_runtime_has_capability(const KainUiRuntimeState* state, unsigned int capability_mask);
 unsigned int kain_ui_runtime_state_capabilities(const KainUiRuntimeState* state);
-
-#endif
 
 #endif

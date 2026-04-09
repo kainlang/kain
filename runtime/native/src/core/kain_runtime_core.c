@@ -242,7 +242,23 @@ void kain_sleep(double seconds) {
 #ifdef _WIN32
     Sleep((DWORD)(seconds * 1000.0));
 #else
-    usleep((useconds_t)(seconds * 1000000.0));
+    struct timespec delay;
+
+    if (seconds <= 0.0) {
+        return;
+    }
+
+    delay.tv_sec = (time_t)seconds;
+    delay.tv_nsec = (long)((seconds - (double)delay.tv_sec) * 1000000000.0);
+    if (delay.tv_nsec < 0) {
+        delay.tv_nsec = 0;
+    } else if (delay.tv_nsec >= 1000000000L) {
+        delay.tv_sec += 1;
+        delay.tv_nsec -= 1000000000L;
+    }
+
+    while (nanosleep(&delay, &delay) != 0 && errno == EINTR) {
+    }
 #endif
 }
 

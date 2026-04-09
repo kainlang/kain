@@ -32,6 +32,7 @@ COMMON_CFLAGS=(
     -Wall
     -Wextra
     -std=c11
+    -D_POSIX_C_SOURCE=200809L
     -I"$NATIVE_INCLUDE"
 )
 
@@ -40,15 +41,16 @@ COMMON_SOURCES=(
     "$NATIVE_SRC/core/kain_runtime_diagnostics.c"
     "$NATIVE_SRC/core/kain_runtime_services.c"
     "$NATIVE_SRC/core/kain_runtime_contract.c"
-    "$NATIVE_SRC/platform/win32/kain_runtime_win32_shared.c"
 )
 
 if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32* ]]; then
     PLATFORM_CFLAGS=(-D_CRT_SECURE_NO_WARNINGS)
     PLATFORM_LDFLAGS=(-lws2_32 -luser32 -lgdi32 -lopengl32)
+    COMMON_SOURCES+=("$NATIVE_SRC/platform/win32/kain_runtime_win32_shared.c")
 else
-    echo "Diagnostics conformance currently targets the Windows native runtime." >&2
-    exit 1
+    PLATFORM_CFLAGS=()
+    PLATFORM_LDFLAGS=(-lpthread -lm)
+    COMMON_SOURCES+=("$NATIVE_SRC/platform/linux/kain_runtime_linux_shared.c")
 fi
 
 mkdir -p "$OUT_DIR"

@@ -37,7 +37,10 @@ windows_sources = [
     "native/src/platform/win32/kain_runtime_sculpt_win32.c",
 ]
 
-linux_sources = []
+linux_sources = [
+    "native/src/platform/linux/kain_runtime_linux_shared.c",
+    "native/src/platform/linux/kain_runtime_linux_graphics.c",
+]
 
 macos_sources = []
 
@@ -279,5 +282,5 @@ description = "Plugin and foreign service integration"
 # Platform-Specific Link Dependencies
 [link]
 windows = ["legacy_stdio_definitions", "user32", "gdi32", "opengl32", "ws2_32"]
-linux = []
+linux = ["pthread"]
 macos = []

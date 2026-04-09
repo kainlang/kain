@@ -5,7 +5,6 @@
 #include "kain_runtime_version.h"
 #include "kain_runtime_services.h"
 
-#ifdef _WIN32
 #define KAIN_RUNTIME_CONTRACT_ENV "KAIN_RUNTIME_CONTRACT"
 #define KAIN_RUNTIME_CONTRACT_STRICT_ENV "KAIN_RUNTIME_CONTRACT_STRICT"
 #define KAIN_RUNTIME_CONTRACT_SIDECAR_SUFFIX ".runtime_contract.json"
@@ -146,7 +145,5 @@ int kain_runtime_contract_validate_startup_enhanced(
     unsigned int optional_service_mask,
     KainStartupValidationResult* result
 );
-
-#endif /* _WIN32 */
 
 #endif /* KAIN_RUNTIME_CONTRACT_H */

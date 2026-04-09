@@ -194,12 +194,15 @@ Typical commands:
 - `kain fabric validate`
 - `kain fabric run`
 - `kain import-c`, `kain import-rust`, `kain import-ts`, `kain import-asm`, `kain import-crate`
+- `./runtime/fixtures/validate_all.sh`
+- `./runtime/conformance/run_all.sh`
+- `./runtime/validate_native_runtime.sh`
 - `powershell -ExecutionPolicy Bypass -File smoketest/allinone/run_all.ps1`
 
 If the debug CLI is missing:
 
 - `cargo build -p cli`
-- `target/debug/kain.exe --help`
+- `target/debug/kain --help`
 
 ## Architectural Guardrails
 
@@ -227,7 +230,7 @@ If the debug CLI is missing:
 - The workspace still pins `pyo3 0.20.x`, so a machine-default Python 3.13+ or 3.14 can break builds. Prefer Python 3.12, set `PYO3_PYTHON` explicitly when needed, and keep the Python 3.12 install directory on PATH so the built `kain.exe` can resolve `python312.dll` at runtime.
 - `generated/`, `target/`, `.kain`, runtime sidecars, and compiled smoke outputs are disposable unless explicitly archived under `docs/validation/` or `docs/recent/`.
 - The live SM64 decomp root currently sits at `M:\Code\Other\Research\sm64-master\sm64-master`, not the outer `sm64-master` folder. The older stale import reports pointed at the outer folder, which hid a real pathing mistake.
-- The native runtime is Windows-first today. Linux and macOS surfaces exist, but much of that lane is still stubbed or partial.
+- Linux now validates the core raw-native lane end-to-end: `cargo build -p cli`, `kain build -t llvm`, `./runtime/fixtures/validate_all.sh`, `./runtime/conformance/run_all.sh`, and `./runtime/validate_native_runtime.sh` all pass on a Linux host. The Win32 app-host, input, and viewport host services are still Windows-specific until a non-Win32 native host lands.
 - The compute pipeline is mid-transition from heuristic metadata to compiler-owned truth. When touching it, prefer extending bundle contracts over adding new runtime-only inference.
 - Multiple authored `world` roots are now treated as an explicit-selection problem, not a guessing problem. If build/run flows see more than one world, require a caller-provided selection instead of silently picking one.
 - Frontend bridge registration must be target-scoped. Host/runtime extensions that are valid for `Interpret` or `Test` must not leak into shader artifact compilation or other non-host targets, or Fabric and direct driver paths will diverge.

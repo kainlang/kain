@@ -94,11 +94,7 @@ int main(void) {
     printf("Message sent to actor\n");
     
     /* Wait a bit for actor to process */
-#ifdef _WIN32
     Sleep(100);
-#else
-    usleep(100000);
-#endif
     
     /* Check actor state */
     KainActorState state = kain_actor_get_state(actor_id);
