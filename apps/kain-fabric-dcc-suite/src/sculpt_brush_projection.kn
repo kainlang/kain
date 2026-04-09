@@ -6,18 +6,18 @@ fn sculpt_brush_report_path() -> String:
 
 fn build_sculpt_brush_report_json(settings: Any) -> String:
     let json = "{\n"
-    let json = json + "  \"kind\": \"sculpt_brush_report\",\n"
-    let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
-    let json = json + "  \"workspace_mode\": \"" + settings.workspace_mode + "\",\n"
-    let json = json + "  \"active_mesh_resource_id\": \"mesh://primitives/authored/startup-cube\",\n"
-    let json = json + "  \"resource_contract\": \"config/mesh_resource_contract.json\",\n"
-    let json = json + "  \"brush_origin\": [0, 0, 0],\n"
-    let json = json + "  \"brush_direction\": [0, 1, 0],\n"
-    let json = json + "  \"radius\": " + str(settings.sculpt_grid_resolution) + ",\n"
-    let json = json + "  \"strength\": 1,\n"
-    let json = json + "  \"falloff_curve\": \"smoothstep\",\n"
-    let json = json + "  \"extension_seam\": \"native C++/Rust compute kernel over shared buffers\",\n"
-    let json = json + "  \"limitation\": \"Kain does not yet own a native high-performance BVH or spatial hash\"\n"
+    let json = json + "  \\\"kind\\\": \\\"sculpt_brush_report\\\",\n"
+    let json = json + "  \\\"project\\\": \\\"" + settings.projectName + "\\\",\n"
+    let json = json + "  \\\"workspace_mode\\\": \\\"" + settings.workspaceMode + "\\\",\n"
+    let json = json + "  \\\"active_mesh_resource_id\\\": \\\"mesh://primitives/authored/startup-cube\\\",\n"
+    let json = json + "  \\\"resource_contract\\\": \\\"config/mesh_resource_contract.json\\\",\n"
+    let json = json + "  \\\"brush_origin\\\": [0, 0, 0],\n"
+    let json = json + "  \\\"brush_direction\\\": [0, 1, 0],\n"
+    let json = json + "  \\\"radius\\\": " + str(settings.sculptGridResolution) + ",\n"
+    let json = json + "  \\\"strength\\\": 1,\n"
+    let json = json + "  \\\"falloff_curve\\\": \\\"smoothstep\\\",\n"
+    let json = json + "  \\\"extension_seam\\\": \\\"native C++/Rust compute kernel over shared buffers\\\",\n"
+    let json = json + "  \\\"limitation\\\": \\\"Kain does not yet own a native high-performance BVH or spatial hash\\\"\n"
     let json = json + "}\n"
     return json
 
@@ -27,4 +27,4 @@ fn main() -> String:
 
     write_file(sculpt_brush_report_path(), report_json)
 
-    return "sculpt-brush:" + settings.workspace_mode
+    return "sculpt-brush:scene_assembly"

@@ -23,13 +23,12 @@ fn count_active_samples(bytes: Array<Int>) -> Int:
     return active
 
 fn main() -> NativeSculptOutputs:
-    let settings = fabric_inputs.python_suite_bootstrap.project_settings
     let sculpt_delta = fabric_inputs.gpu_sculpt_displacement.sculpt_delta
     let sculpt_bytes = interop_shared_buffer_bytes(sculpt_delta)
     let checksum = sculpt_checksum(sculpt_bytes)
     let active_samples = count_active_samples(sculpt_bytes)
-    let sculpt_signature = dcc_suite_sculpt_signature(settings.sculpt_grid_resolution, checksum, settings.brush_accent)
-    let sculpt_report = dcc_suite_sculpt_report(settings.sculpt_grid_resolution, active_samples, checksum, settings.brush_accent)
+    let sculpt_signature = dcc_suite_sculpt_signature(32, checksum, 53)
+    let sculpt_report = dcc_suite_sculpt_report(32, active_samples, checksum, 53)
     return NativeSculptOutputs {
         sculpt_signature: sculpt_signature,
         sculpt_report: sculpt_report

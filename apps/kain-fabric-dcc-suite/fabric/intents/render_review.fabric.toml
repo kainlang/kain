@@ -11,8 +11,8 @@ optional = false
 
 [[steps]]
 id = "python_suite_bootstrap"
-runtime = "python"
-entry = "scripts/python_suite_bootstrap.py"
+runtime = "kain"
+entry = "src/python_suite_bootstrap.kn"
 
 [[steps.outputs]]
 name = "project_settings"

@@ -19,6 +19,12 @@
 - Validation: `cargo check --manifest-path native-app/Cargo.toml` passes.
 - Clean seam: keep mirroring registry-backed operator surfaces into the live bridge whenever the native host needs to inspect them without re-reading config or session docs.
 
+## 2026-04-09 - Linux bootstrap path for the Fabric DCC shell
+
+- Added `scripts/materialize_session_state.py` and `scripts/materialize_shell.py` so Linux machines can regenerate `state/runtime_snapshot.json`, `state/session_document.json`, and `generated/main.generated.kn` without PowerShell.
+- Added `scripts/build-native-library.sh`, `scripts/patch_native_app_bridge.py`, and `scripts/build-native-ui-linux.sh` so the Linux path now rebuilds the `.so`, rematerializes the ignored native app package, reapplies the file-backed bridge wiring that `kain build native-ui --bundle-only` overwrites, and compiles the debug desktop binary end-to-end.
+- Durable risk: the Fabric graph is still unhealthy before UI materialization. The current native shell bring-up path is valid for Linux desktop verification, but the Fabric-first bootstrap still needs a separate repair pass.
+
 ## 2026-03-31 - Kain Fabric DCC scaffold: command registry now has a typed session lane too
 
 - Extended `session/session_schema.kn` and `session/derived_state.kn` so the workspace read model can carry `command_count`, `command_summary`, and `command_registry_entries` alongside the existing registry-backed lanes.

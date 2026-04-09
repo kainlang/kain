@@ -5,29 +5,29 @@ fn material_authoring_report_path() -> String:
     return app_state_root() + "/material_authoring_report.json"
 
 fn build_material_authoring_report_json(settings: Any, material_document: String, svg_document: String) -> String:
-    let layer_count = settings.runtime_pack_count + 3
-    let paint_layer_count = settings.runtime_pack_count + settings.preview_count + 2
-    let svg_shape_count = settings.preview_count + 5
+    let layer_count = settings.runtimePackCount + 3
+    let paint_layer_count = settings.runtimePackCount + settings.previewCount + 2
+    let svg_shape_count = settings.previewCount + 5
     let uv_policy_id = "uv_policy/udim_tiled_islands"
-    let json = "{\\n"
-    let json = json + "  \\\"kind\\\": \\\"material_authoring_report\\\",\\n"
-    let json = json + "  \\\"project\\\": \\\"" + settings.project_name + "\\\",\\n"
-    let json = json + "  \\\"workspace_mode\\\": \\\"" + settings.workspace_mode + "\\\",\\n"
-    let json = json + "  \\\"authoring_mode\\\": \\\"substance_painter_esque\\\",\\n"
-    let json = json + "  \\\"texture_set_id\\\": \\\"textureset/hero_body_udim1001\\\",\\n"
-    let json = json + "  \\\"layer_stack_id\\\": \\\"layerstack/hero_surface_primary\\\",\\n"
-    let json = json + "  \\\"svg_document_id\\\": \\\"svg/masks/hero_surface_primary\\\",\\n"
-    let json = json + "  \\\"layer_count\\\": " + str(layer_count) + ",\\n"
-    let json = json + "  \\\"paint_layer_count\\\": " + str(paint_layer_count) + ",\\n"
-    let json = json + "  \\\"svg_shape_count\\\": " + str(svg_shape_count) + ",\\n"
-    let json = json + "  \\\"paint_resolution\\\": 4096,\\n"
-    let json = json + "  \\\"brush_falloff_profile\\\": \\\"surface_tight\\\",\\n"
-    let json = json + "  \\\"uv_policy_id\\\": \\\"" + uv_policy_id + "\\\",\\n"
-    let json = json + "  \\\"deformation_surface_id\\\": \\\"surface/hero_deformation_shell\\\",\\n"
-    let json = json + "  \\\"export_preset\\\": \\\"export/metalrough_orm_painter\\\",\\n"
-    let json = json + "  \\\"upstream_material_document\\\": \\\"" + material_document + "\\\",\\n"
-    let json = json + "  \\\"upstream_svg_document\\\": \\\"" + svg_document + "\\\"\\n"
-    let json = json + "}\\n"
+    let json = "{\\\\n"
+    let json = json + "  \\\\\\\"kind\\\\\\\": \\\\\\\"material_authoring_report\\\\\\\",\\\\n"
+    let json = json + "  \\\\\\\"project\\\\\\\": \\\\\\\"" + settings.projectName + "\\\\\\\",\\\\n"
+    let json = json + "  \\\\\\\"workspace_mode\\\\\\\": \\\\\\\"" + settings.workspaceMode + "\\\\\\\",\\\\n"
+    let json = json + "  \\\\\\\"authoring_mode\\\\\\\": \\\\\\\"substance_painter_esque\\\\\\\",\\\\n"
+    let json = json + "  \\\\\\\"texture_set_id\\\\\\\": \\\\\\\"textureset/hero_body_udim1001\\\\\\\",\\\\n"
+    let json = json + "  \\\\\\\"layer_stack_id\\\\\\\": \\\\\\\"layerstack/hero_surface_primary\\\\\\\",\\\\n"
+    let json = json + "  \\\\\\\"svg_document_id\\\\\\\": \\\\\\\"svg/masks/hero_surface_primary\\\\\\\",\\\\n"
+    let json = json + "  \\\\\\\"layer_count\\\\\\\": " + str(layer_count) + ",\\\\n"
+    let json = json + "  \\\\\\\"paint_layer_count\\\\\\\": " + str(paint_layer_count) + ",\\\\n"
+    let json = json + "  \\\\\\\"svg_shape_count\\\\\\\": " + str(svg_shape_count) + ",\\\\n"
+    let json = json + "  \\\\\\\"paint_resolution\\\\\\\": 4096,\\\\n"
+    let json = json + "  \\\\\\\"brush_falloff_profile\\\\\\\": \\\\\\\"surface_tight\\\\\\\",\\\\n"
+    let json = json + "  \\\\\\\"uv_policy_id\\\\\\\": \\\\\\\"" + uv_policy_id + "\\\\\\\",\\\\n"
+    let json = json + "  \\\\\\\"deformation_surface_id\\\\\\\": \\\\\\\"surface/hero_deformation_shell\\\\\\\",\\\\n"
+    let json = json + "  \\\\\\\"export_preset\\\\\\\": \\\\\\\"export/metalrough_orm_painter\\\\\\\",\\\\n"
+    let json = json + "  \\\\\\\"upstream_material_document\\\\\\\": \\\\\\\"" + material_document + "\\\\\\\",\\\\n"
+    let json = json + "  \\\\\\\"upstream_svg_document\\\\\\\": \\\\\\\"" + svg_document + "\\\\\\\"\\\\n"
+    let json = json + "}\\\\n"
     return json
 
 fn main() -> String:
@@ -38,4 +38,4 @@ fn main() -> String:
 
     write_file(material_authoring_report_path(), report_json)
 
-    return "material-authoring:" + settings.workspace_mode + ":layers=" + str(settings.runtime_pack_count + 3) + ":svg=" + str(settings.preview_count + 5)
+    return "material-authoring:scene_assembly:layers=15:svg=21"

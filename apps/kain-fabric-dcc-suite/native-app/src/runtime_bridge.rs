@@ -995,73 +995,90 @@ fn sync_runtime_snapshot_from_session(
     set_value_at_path(
         session_document,
         &["context", "active_workspace_id"],
-        format!("workspace/{active_mode}"),
+        Value::String(format!("workspace/{active_mode}")),
     );
     set_value_at_path(
         session_document,
         &["context", "active_pane_id"],
-        "pane/viewport_stage",
+        Value::String("pane/viewport_stage".to_string()),
     );
     set_value_at_path(
         session_document,
         &["context", "active_tool_id"],
-        active_tool.clone(),
+        Value::String(active_tool.clone()),
     );
     set_value_at_path(
         session_document,
         &["context", "active_object_id"],
-        get_string_vec_at_path(session_document, &["selection", "entity_ids"]).first().cloned().unwrap_or_default(),
+        Value::String(
+            get_string_vec_at_path(session_document, &["selection", "entity_ids"])
+                .first()
+                .cloned()
+                .unwrap_or_default(),
+        ),
     );
     set_value_at_path(
         session_document,
         &["context", "active_edit_target_id"],
-        get_string_at_path(session_document, &["mesh", "active_edit_target_id"]).unwrap_or_default(),
+        Value::String(
+            get_string_at_path(session_document, &["mesh", "active_edit_target_id"])
+                .unwrap_or_default(),
+        ),
     );
     set_value_at_path(
         session_document,
         &["context", "active_material_id"],
-        get_string_at_path(session_document, &["materials", "active_material_id"]).unwrap_or_default(),
+        Value::String(
+            get_string_at_path(session_document, &["materials", "active_material_id"])
+                .unwrap_or_default(),
+        ),
     );
     set_value_at_path(
         session_document,
         &["context", "active_texture_set_id"],
-        get_string_at_path(session_document, &["materials", "active_texture_set_id"]).unwrap_or_default(),
+        Value::String(
+            get_string_at_path(session_document, &["materials", "active_texture_set_id"])
+                .unwrap_or_default(),
+        ),
     );
     set_value_at_path(
         session_document,
         &["context", "active_graph_node_id"],
-        get_string_at_path(session_document, &["materials", "active_graph_id"]).unwrap_or_default(),
+        Value::String(
+            get_string_at_path(session_document, &["materials", "active_graph_id"])
+                .unwrap_or_default(),
+        ),
     );
     set_value_at_path(
         session_document,
         &["context", "active_frame"],
-        animation_frame,
+        Value::Number(animation_frame.into()),
     );
     let (viewport_mode, overlay_policy_id, tool_policy_id, view_profile_id) = viewport_mode_for_workspace_mode(&active_mode);
     set_value_at_path(
         session_document,
         &["context", "active_viewport_mode"],
-        viewport_mode,
+        Value::String(viewport_mode.to_string()),
     );
     set_value_at_path(
         session_document,
         &["viewport", "active_mode"],
-        viewport_mode,
+        Value::String(viewport_mode.to_string()),
     );
     set_value_at_path(
         session_document,
         &["viewport", "overlay_policy_id"],
-        overlay_policy_id,
+        Value::String(overlay_policy_id.to_string()),
     );
     set_value_at_path(
         session_document,
         &["viewport", "tool_policy_id"],
-        tool_policy_id,
+        Value::String(tool_policy_id.to_string()),
     );
     set_value_at_path(
         session_document,
         &["viewport", "view_profile_id"],
-        view_profile_id,
+        Value::String(view_profile_id.to_string()),
     );
 
     set_value_at_path(
@@ -1661,6 +1678,10 @@ fn value_at_path<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {
     Some(current)
 }
 
+fn get_value_at_path(value: &Value, path: &[&str]) -> Option<Value> {
+    value_at_path(value, path).cloned()
+}
+
 fn ensure_object_value(value: &mut Value) -> &mut serde_json::Map<String, Value> {
     if !value.is_object() {
         *value = json!({});
@@ -1784,5 +1805,3 @@ fn ensure_array_object_at_index<'a>(
     }
     array.get_mut(index).map(ensure_object_value)
 }
-
-

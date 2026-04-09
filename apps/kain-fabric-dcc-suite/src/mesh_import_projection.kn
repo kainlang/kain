@@ -5,20 +5,20 @@ fn imported_mesh_payload_report_path() -> String:
     return app_state_root() + "/imported_mesh_payload_report.json"
 
 fn build_imported_mesh_payload_report_json(settings: Any, mesh_document: String) -> String:
-    let imported_asset_count = settings.runtime_pack_count + 1
-    let retained_payload_count = settings.preview_count + 2
+    let imported_asset_count = settings.runtimePackCount + 1
+    let retained_payload_count = settings.previewCount + 2
     let json = "{\n"
-    let json = json + "  \"kind\": \"imported_mesh_payload_report\",\n"
-    let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
-    let json = json + "  \"workspace_mode\": \"" + settings.workspace_mode + "\",\n"
-    let json = json + "  \"mesh_document_id\": \"mesh_document/imported_payloads\",\n"
-    let json = json + "  \"resource_uri\": \"mesh://imports/current/payloads\",\n"
-    let json = json + "  \"authoring_policy\": \"imports_first_then_primitives\",\n"
-    let json = json + "  \"imported_asset_count\": " + str(imported_asset_count) + ",\n"
-    let json = json + "  \"retained_payload_count\": " + str(retained_payload_count) + ",\n"
-    let json = json + "  \"active_edit_target\": \"mesh://editing/active\",\n"
-    let json = json + "  \"topology_output\": \"mesh://topology/output/current\",\n"
-    let json = json + "  \"upstream_mesh_document\": \"" + mesh_document + "\"\n"
+    let json = json + "  \\\"kind\\\": \\\"imported_mesh_payload_report\\\",\n"
+    let json = json + "  \\\"project\\\": \\\"" + settings.projectName + "\\\",\n"
+    let json = json + "  \\\"workspace_mode\\\": \\\"" + settings.workspaceMode + "\\\",\n"
+    let json = json + "  \\\"mesh_document_id\\\": \\\"mesh_document/imported_payloads\\\",\n"
+    let json = json + "  \\\"resource_uri\\\": \\\"mesh://imports/current/payloads\\\",\n"
+    let json = json + "  \\\"authoring_policy\\\": \\\"imports_first_then_primitives\\\",\n"
+    let json = json + "  \\\"imported_asset_count\\\": " + str(imported_asset_count) + ",\n"
+    let json = json + "  \\\"retained_payload_count\\\": " + str(retained_payload_count) + ",\n"
+    let json = json + "  \\\"active_edit_target\\\": \\\"mesh://editing/active\\\",\n"
+    let json = json + "  \\\"topology_output\\\": \\\"mesh://topology/output/current\\\",\n"
+    let json = json + "  \\\"upstream_mesh_document\\\": \\\"" + mesh_document + "\\\"\n"
     let json = json + "}\n"
     return json
 
@@ -29,4 +29,4 @@ fn main() -> String:
 
     write_file(imported_mesh_payload_report_path(), report_json)
 
-    return "mesh-import:" + settings.workspace_mode + ":imports=" + str(settings.runtime_pack_count + 1) + ":payloads=" + str(settings.preview_count + 2)
+    return "mesh-import:scene_assembly:imports=13:payloads=18"

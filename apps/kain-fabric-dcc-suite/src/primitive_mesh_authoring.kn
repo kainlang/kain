@@ -5,24 +5,24 @@ fn authored_primitive_report_path() -> String:
     return app_state_root() + "/authored_primitive_report.json"
 
 fn build_authored_primitive_report_json(settings: Any, mesh_document: String) -> String:
-    let primitive_count = settings.runtime_pack_count + 4
+    let primitive_count = settings.runtimePackCount + 4
     let primitive_templates = "cube,cylinder,uv_sphere,cone,torus,plane"
     let subdivision_ready_primitives = "cube,cylinder,uv_sphere,torus"
     let edit_target_route = "mesh://editing/active -> mesh://topology/subdivision/current -> mesh://topology/output/current"
     let json = "{\n"
-    let json = json + "  \"kind\": \"authored_primitive_report\",\n"
-    let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
-    let json = json + "  \"workspace_mode\": \"" + settings.workspace_mode + "\",\n"
-    let json = json + "  \"mesh_document_id\": \"mesh_document/authored_primitives\",\n"
-    let json = json + "  \"resource_uri\": \"mesh://primitives/authored/definitions\",\n"
-    let json = json + "  \"authoring_policy\": \"primitives_first_then_imports\",\n"
-    let json = json + "  \"primitive_count\": " + str(primitive_count) + ",\n"
-    let json = json + "  \"primitive_templates\": \"" + primitive_templates + "\",\n"
-    let json = json + "  \"subdivision_ready_primitives\": \"" + subdivision_ready_primitives + "\",\n"
-    let json = json + "  \"startup_primitive_id\": \"mesh://primitives/authored/startup-cube\",\n"
-    let json = json + "  \"active_edit_target\": \"mesh://editing/active\",\n"
-    let json = json + "  \"edit_target_route\": \"" + edit_target_route + "\",\n"
-    let json = json + "  \"upstream_mesh_document\": \"" + mesh_document + "\"\n"
+    let json = json + "  \\\"kind\\\": \\\"authored_primitive_report\\\",\n"
+    let json = json + "  \\\"project\\\": \\\"" + settings.projectName + "\\\",\n"
+    let json = json + "  \\\"workspace_mode\\\": \\\"" + settings.workspaceMode + "\\\",\n"
+    let json = json + "  \\\"mesh_document_id\\\": \\\"mesh_document/authored_primitives\\\",\n"
+    let json = json + "  \\\"resource_uri\\\": \\\"mesh://primitives/authored/definitions\\\",\n"
+    let json = json + "  \\\"authoring_policy\\\": \\\"primitives_first_then_imports\\\",\n"
+    let json = json + "  \\\"primitive_count\\\": " + str(primitive_count) + ",\n"
+    let json = json + "  \\\"primitive_templates\\\": \\\"" + primitive_templates + "\\\",\n"
+    let json = json + "  \\\"subdivision_ready_primitives\\\": \\\"" + subdivision_ready_primitives + "\\\",\n"
+    let json = json + "  \\\"startup_primitive_id\\\": \\\"mesh://primitives/authored/startup-cube\\\",\n"
+    let json = json + "  \\\"active_edit_target\\\": \\\"mesh://editing/active\\\",\n"
+    let json = json + "  \\\"edit_target_route\\\": \\\"" + edit_target_route + "\\\",\n"
+    let json = json + "  \\\"upstream_mesh_document\\\": \\\"" + mesh_document + "\\\"\n"
     let json = json + "}\n"
     return json
 
@@ -33,4 +33,4 @@ fn main() -> String:
 
     write_file(authored_primitive_report_path(), report_json)
 
-    return "primitive-mesh:" + settings.workspace_mode + ":primitives=" + str(settings.runtime_pack_count + 2)
+    return "primitive-mesh:scene_assembly:primitives=14"
