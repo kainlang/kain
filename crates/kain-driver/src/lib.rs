@@ -282,6 +282,10 @@ impl DriverSession {
         Ok(emit_runtime_contract_bundle(&typed, target))
     }
 
+    pub fn format_source(&self, source: &str) -> Result<String, KainError> {
+        kain_core::format_source(source)
+    }
+
     pub fn compile_realtime_app_bundle(
         &self,
         source: &str,
@@ -782,9 +786,13 @@ pub(crate) fn resolve_world_selection(
     let component_names = collect_component_names(&program.items);
     let world_roots = collect_world_native_ui_roots(&program.items)?;
 
-    if let Some(requested_root) = requested_root.map(str::trim).filter(|value| !value.is_empty()) {
-        if let Some((_, root_component)) =
-            world_roots.iter().find(|(world_name, _)| world_name == requested_root)
+    if let Some(requested_root) = requested_root
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        if let Some((_, root_component)) = world_roots
+            .iter()
+            .find(|(world_name, _)| world_name == requested_root)
         {
             return Ok(ResolvedWorldSelection {
                 root_component: Some(root_component.clone()),
@@ -1146,6 +1154,10 @@ pub fn compile_runtime_contract_bundle(
     DriverSession::default().compile_runtime_contract_bundle(source, target)
 }
 
+pub fn format_source(source: &str) -> Result<String, KainError> {
+    DriverSession::default().format_source(source)
+}
+
 #[cfg(feature = "ue5")]
 pub fn compile_ue5(
     source: &str,
@@ -1293,17 +1305,19 @@ component App():
     render <panel title="Studio" />
 "#;
 
-        let output =
-            compile_realtime_app_bundle(source, CompileTarget::Rust, None).expect("realtime bundle");
+        let output = compile_realtime_app_bundle(source, CompileTarget::Rust, None)
+            .expect("realtime bundle");
         assert_eq!(output.bundle.worlds.len(), 1);
         assert_eq!(output.bundle.worlds[0].name, "Studio");
         assert_eq!(
-            output.bundle.active_world.as_ref().map(|world| world.name.as_str()),
+            output
+                .bundle
+                .active_world
+                .as_ref()
+                .map(|world| world.name.as_str()),
             Some("Studio")
         );
-        assert!(output
-            .bundle
-            .worlds[0]
+        assert!(output.bundle.worlds[0]
             .surfaces
             .iter()
             .any(|surface| surface.kind == "native_ui" && surface.authored_expr == "App"));
@@ -1367,7 +1381,11 @@ component Shell():
         let output = compile_realtime_app_bundle(source, CompileTarget::Rust, Some("ShellWorld"))
             .expect("explicit world selection should compile");
         assert_eq!(
-            output.bundle.active_world.as_ref().map(|world| world.name.as_str()),
+            output
+                .bundle
+                .active_world
+                .as_ref()
+                .map(|world| world.name.as_str()),
             Some("ShellWorld")
         );
     }
@@ -1732,7 +1750,10 @@ shader compute stream_pulse(id: UVec3) -> Vec4:
             )
             .expect("shader compile should not inherit host-only frontend state");
 
-        assert_eq!(output.bundle.canonical_native_payload, ShaderArtifactFormat::Spirv);
+        assert_eq!(
+            output.bundle.canonical_native_payload,
+            ShaderArtifactFormat::Spirv
+        );
         assert_eq!(output.bundle.entry_points.len(), 1);
         assert_eq!(output.bundle.entry_points[0].stage, "compute");
     }

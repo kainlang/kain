@@ -55,9 +55,9 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 
 ## Key Crates
 
-- [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, comptime, runtime contract emission, realtime bundle metadata, and the compiler-owned intent quartet (`patch`, `converge`, `world`, `orchestrate`)
-- [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, native app materialization, packaged launcher snapshots, compute residency sidecars
-- [cli](/M:/Code/Kain/crates/cli): `kain` command surface
+- [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, compiler-owned source formatter, comptime, runtime contract emission, realtime bundle metadata, and the compiler-owned intent quartet (`patch`, `converge`, `world`, `orchestrate`)
+- [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, native app materialization, packaged launcher snapshots, compute residency sidecars, and thin embeddable frontend helpers such as `format_source`
+- [cli](/M:/Code/Kain/crates/cli): `kain` command surface, including `kain format` / `kain fmt` for canonical source formatting
 - [kain-repair](/M:/Code/Kain/crates/kain-repair): profile-driven deterministic source repair engine consumed by the doctor/CLI repair lane; now split into a declarative rule registry plus a per-rule execution engine so repair policy stays visible and mode-aware; includes header normalization for parser-hostile `enum_` / `struct_` / `trait_` / `impl_` declaration forms
 - [kain-host](/M:/Code/Kain/crates/kain-host): Rust embedding and native function registration
 - [kain-reflect](/M:/Code/Kain/crates/kain-reflect): reflection schemas and type identity
@@ -84,6 +84,12 @@ That same frontend lane now owns four additional semantic declarations:
 - `orchestrate` lowers to typed sequential stage metadata through `orchestrations[]`.
 
 The runtime-contract and realtime-bundle families now both carry these explicit sections, and downstream adapters should consume them directly instead of reverse-engineering equivalent intent from local conventions.
+
+### Formatting flow
+
+`Kain source -> kain-core lexer/parser -> compiler-owned AST printer -> kain-driver helper -> cli format command`
+
+The formatter now lives in `crates/kain-core/src/formatter.rs` and is intentionally compiler-owned. The rule is the same as the rest of the toolchain: editors, CLIs, and future LLM workflows should reuse the compiler printer instead of growing lane-local pretty-printers that drift from the actual grammar.
 
 ### Host bridge flow
 
@@ -186,6 +192,8 @@ Typical commands:
 - `kain build`
 - `kain build native-ui <file.kn>`
 - `kain run <file.kn>`
+- `kain format <file.kn>`
+- `kain fmt --check <file.kn>`
 - `kain gpu-artifacts <file.kn> --output <dir>`
 - `kain selfhost phase1`
 - `kain selfhost phase2` for the bounded self-host repair lane
@@ -231,6 +239,8 @@ If the debug CLI is missing:
 - The compute pipeline is mid-transition from heuristic metadata to compiler-owned truth. When touching it, prefer extending bundle contracts over adding new runtime-only inference.
 - Multiple authored `world` roots are now treated as an explicit-selection problem, not a guessing problem. If build/run flows see more than one world, require a caller-provided selection instead of silently picking one.
 - Frontend bridge registration must be target-scoped. Host/runtime extensions that are valid for `Interpret` or `Test` must not leak into shader artifact compilation or other non-host targets, or Fabric and direct driver paths will diverge.
+- The formatter is AST-based in v1, and the lexer still drops comments. `kain format` is canonical for code structure today, but it will currently discard authored comments until trivia becomes part of the frontend contract.
+- The formatter deliberately errors on a few parser-hostile or non-round-trippable shapes instead of emitting lossy source. Current notable cases are empty executable blocks, `shader surface` emission, and standalone block/comptime expressions that do not map cleanly back to authored statement form.
 - The native shader-canvas lane is SPIR-V-canonical at the bundle level, but the current WGPU host still resolves WGSL for execution. Do not mistake that compatibility bridge for permission to move shader-canvas truth out of the emitted bundles.
 - The native packaging loop is file-backed. If hot reload or packaged state looks stale, verify the generated `app_manifest.json`, `runtime_snapshot.json`, and launcher env vars before blaming the runtime.
 - Fabric Python execution should stay behind `kain-python` helpers. Do not make `kain-host` reach directly into `pyo3` imports or `PythonScopeState` internals when the Python lane can expose a narrower execution API.
