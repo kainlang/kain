@@ -1445,7 +1445,7 @@ impl<'a> Parser<'a> {
             }
 
             match self.peek_kind() {
-                TokenKind::Ident(ref entry) if entry == "state" => {
+                TokenKind::State => {
                     states.push(self.parse_world_state_slot()?);
                 }
                 TokenKind::Ident(ref entry) if entry == "surface" => {
@@ -1539,7 +1539,7 @@ impl<'a> Parser<'a> {
 
     fn parse_world_state_slot(&mut self) -> KainResult<WorldStateSlot> {
         let start = self.current_span();
-        self.expect_contextual_ident("state")?;
+        self.expect(TokenKind::State)?;
         let name = self.parse_ident()?;
         self.expect(TokenKind::Colon)?;
         let ty = self.parse_type()?;

@@ -4347,6 +4347,7 @@ pub fn run_tests(program: &TypedProgram) -> KainResult<()> {
     println!("\n Running Tests...\n");
     let mut passed = 0;
     let mut failed = 0;
+    let mut failure_messages = Vec::new();
 
     // Initialize env
     let mut env = Env::new();
@@ -4372,6 +4373,7 @@ pub fn run_tests(program: &TypedProgram) -> KainResult<()> {
                     println!("FAILED");
                     println!("  Error: {}", e);
                     failed += 1;
+                    failure_messages.push(format!("{}: {}", test.ast.name, e));
                 }
             }
 
@@ -4387,7 +4389,10 @@ pub fn run_tests(program: &TypedProgram) -> KainResult<()> {
     );
 
     if failed > 0 {
-        Err(KainError::runtime("Some tests failed"))
+        Err(KainError::runtime(format!(
+            "Some tests failed: {}",
+            failure_messages.join("; ")
+        )))
     } else {
         Ok(())
     }

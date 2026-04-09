@@ -7132,6 +7132,21 @@ fn collect_type_names(ty: &Type, out: &mut std::collections::HashSet<String>) {
 fn item_uses_kain_runtime(item: &TypedItem) -> bool {
     match item {
         TypedItem::Function(f) => block_uses_kain_runtime(&f.ast.body),
+        TypedItem::Patch(patch) => block_uses_kain_runtime(&patch.ast.body),
+        TypedItem::Converge(converge) => {
+            block_uses_kain_runtime(&converge.ast.spec_lane.body)
+                || converge
+                    .ast
+                    .fast_lanes
+                    .iter()
+                    .any(|lane| block_uses_kain_runtime(&lane.body))
+        }
+        TypedItem::World(world) => world
+            .ast
+            .states
+            .iter()
+            .any(|state| expr_uses_kain_runtime(&state.initial)),
+        TypedItem::Orchestrate(orchestrate) => block_uses_kain_runtime(&orchestrate.ast.body),
         TypedItem::Component(c) => {
             c.ast
                 .state
@@ -7264,6 +7279,7 @@ fn expr_uses_kain_runtime(expr: &Expr) -> bool {
             expr_uses_kain_runtime(callee)
                 || args.iter().any(|arg| expr_uses_kain_runtime(&arg.value))
         }
+        Expr::StageCall { args, .. } => args.iter().any(|arg| expr_uses_kain_runtime(&arg.value)),
         Expr::MethodCall { receiver, args, .. } => {
             expr_uses_kain_runtime(receiver)
                 || args.iter().any(|arg| expr_uses_kain_runtime(&arg.value))

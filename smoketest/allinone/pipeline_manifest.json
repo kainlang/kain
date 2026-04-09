@@ -272,6 +272,28 @@
       "expected_outputs": [
         "outputs/ue5/AllInOneUe5Smoke/AllInOneUe5Smoke.uplugin"
       ]
+    },
+    {
+      "id": "compiler_owned_intent",
+      "type": "process",
+      "description": "Run the compiler-owned intent quartet smoke through kain run plus LLVM bundle staging.",
+      "working_directory": "compiler_owned_intent",
+      "executable": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "run_smoke.ps1"
+      ],
+      "cleanup_paths": [
+        "compiler_owned_intent/output"
+      ],
+      "expected_outputs": [
+        "compiler_owned_intent/output/compiler_owned_intent.ll",
+        "compiler_owned_intent/output/compiler_owned_intent.runtime_contract.json",
+        "compiler_owned_intent/output/compiler_owned_intent.realtime_app.json",
+        "compiler_owned_intent/output/summary.txt"
+      ]
     }
   ]
 }

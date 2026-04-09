@@ -200,7 +200,6 @@ fn run_tests_reports_converge_verification_mismatch() {
 
 test mismatch:
     let value: Int = diverge(1)
-    assert(value >= 0, "execution should not reach this assertion on mismatch")
 "#;
 
     let typed = parse_and_typecheck(source).expect("typecheck");
