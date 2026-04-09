@@ -56,7 +56,7 @@ id = "native_filter"
 runtime = "c_abi"
 entry = "src/native_step.kn"
 module = "image_fx"
-library = "native/image_fx.dll"
+library = "native/${kain_dynlib:image_fx}"
 depends_on = ["kain_orchestrator"]
 
 [[steps.outputs]]

@@ -27,6 +27,8 @@ pub struct RealtimeAppBundle {
     pub converges: Vec<RealtimeConvergeBinding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub worlds: Vec<RealtimeWorldBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_world: Option<RealtimeWorldBinding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub orchestrations: Vec<RealtimeOrchestrationBinding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -414,6 +416,11 @@ pub fn emit_realtime_app_bundle(
     let patches = collect_patch_bindings(program);
     let converges = collect_converge_bindings(program);
     let worlds = collect_world_bindings(program);
+    let active_world = if worlds.len() == 1 {
+        worlds.first().cloned()
+    } else {
+        None
+    };
     let orchestrations = collect_orchestration_bindings(program);
     let assets = collect_assets(ui_output);
     let has_explicit_compute_metadata = program_has_explicit_compute_metadata(program);
@@ -448,6 +455,7 @@ pub fn emit_realtime_app_bundle(
         patches,
         converges,
         worlds,
+        active_world,
         orchestrations,
         shader_canvases,
         shader_bundle_refs,

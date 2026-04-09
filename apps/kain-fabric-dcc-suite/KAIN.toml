@@ -19,7 +19,7 @@ workspace_manifest = "config/app_manifest.json"
 [[c_ffi.libraries]]
 name = "dcc_suite_ops"
 header = "native/dcc_suite_ops.h"
-shared_lib = "native/dcc_suite_ops.dll"
+shared_lib = "native/${kain_dynlib:dcc_suite_ops}"
 
 [manifests]
 app = "config/app_manifest.json"

@@ -226,8 +226,11 @@ impl FabricExecutor {
                     .map(|entry| resolve_fabric_path(&session.workspace_root, entry));
                 let resolved_manifest_path =
                     resolve_runtime_manifest_path(&session.manifest_root, step);
-                let resolved_library = step
+                let selected_library = step
                     .library
+                    .as_ref()
+                    .map(|library| expand_platform_dynamic_library_tokens(library.as_path()));
+                let resolved_library = selected_library
                     .as_ref()
                     .map(|library| resolve_fabric_path(&session.workspace_root, library));
                 let resolved_shader_source = step
@@ -243,7 +246,7 @@ impl FabricExecutor {
                         module: step.module.clone(),
                         crate_name: step.crate_name.clone(),
                         manifest_path: step.manifest_path.clone(),
-                        library: step.library.clone(),
+                        library: selected_library,
                         shader_source: step.shader_source.clone(),
                         compute_key: step.compute_key.clone(),
                         adapter: None,
@@ -1177,6 +1180,37 @@ fn resolve_upstream_binding_bytes(
         }
     }
     None
+}
+
+fn expand_platform_dynamic_library_tokens(path: &Path) -> PathBuf {
+    let source = path.to_string_lossy();
+    let mut expanded = source.into_owned();
+    const TOKEN_PREFIX: &str = "${kain_dynlib:";
+
+    while let Some(start) = expanded.find(TOKEN_PREFIX) {
+        let token_end = expanded[start..]
+            .find('}')
+            .map(|offset| start + offset)
+            .unwrap_or(expanded.len());
+        if token_end >= expanded.len() {
+            break;
+        }
+        let library_stem = &expanded[start + TOKEN_PREFIX.len()..token_end];
+        let replacement = current_platform_dynamic_library_name(library_stem);
+        expanded.replace_range(start..=token_end, &replacement);
+    }
+
+    PathBuf::from(expanded)
+}
+
+fn current_platform_dynamic_library_name(stem: &str) -> String {
+    if cfg!(target_os = "windows") {
+        format!("{stem}.dll")
+    } else if cfg!(target_os = "macos") {
+        format!("lib{stem}.dylib")
+    } else {
+        format!("lib{stem}.so")
+    }
 }
 
 fn resolve_upstream_binding_shape(
@@ -2650,9 +2684,13 @@ mod tests {
             native_dir.join("libimage_fx.so")
         };
 
-        let status = std::process::Command::new("clang")
-            .arg("-shared")
-            .arg("-O2")
+        let mut command = std::process::Command::new("clang");
+        if cfg!(target_os = "windows") {
+            command.args(["-shared", "-O2"]);
+        } else {
+            command.args(["-shared", "-fPIC", "-O2"]);
+        }
+        let status = command
             .arg(&source)
             .arg("-o")
             .arg(&output)

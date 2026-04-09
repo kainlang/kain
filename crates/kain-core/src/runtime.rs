@@ -256,6 +256,49 @@ struct ActivePatchFrame {
     name: String,
     mutation_paths: Vec<String>,
     undo_mode: String,
+    changes: Vec<ActivePatchChange>,
+}
+
+#[derive(Debug, Clone)]
+enum PatchMutationTarget {
+    StructField {
+        fields: Arc<RwLock<HashMap<String, Value>>>,
+        field: String,
+    },
+    ArrayIndex {
+        values: Arc<RwLock<Vec<Value>>>,
+        index: usize,
+    },
+}
+
+#[derive(Debug, Clone)]
+struct ActivePatchChange {
+    path: String,
+    target: PatchMutationTarget,
+    old_value: Value,
+    new_value: Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct PatchMutationRecord {
+    pub path: String,
+    pub old_value: Value,
+    pub new_value: Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct PatchCollaborationEvent {
+    pub event_id: String,
+    pub patch_name: String,
+    pub mutation_paths: Vec<String>,
+    pub undo_mode: String,
+}
+
+#[derive(Debug, Clone)]
+struct ReplayablePatchRecord {
+    name: String,
+    undo_mode: String,
+    changes: Vec<ActivePatchChange>,
 }
 
 #[derive(Debug, Clone)]
@@ -263,6 +306,8 @@ pub struct PatchRuntimeRecord {
     pub name: String,
     pub mutation_paths: Vec<String>,
     pub undo_mode: String,
+    pub changes: Vec<PatchMutationRecord>,
+    pub collaboration_event: String,
 }
 
 /// Interpreter environment
@@ -290,6 +335,10 @@ pub struct Env {
     active_capabilities: Vec<String>,
     active_patch_frames: Vec<ActivePatchFrame>,
     patch_records: Vec<PatchRuntimeRecord>,
+    patch_replay_catalog: Vec<ReplayablePatchRecord>,
+    replayable_patch_history: Vec<ReplayablePatchRecord>,
+    undone_patch_records: Vec<ReplayablePatchRecord>,
+    patch_collaboration_events: Vec<PatchCollaborationEvent>,
     extension_state: HashMap<String, Arc<dyn Any + Send + Sync>>,
 }
 
@@ -319,6 +368,10 @@ impl Env {
             ],
             active_patch_frames: Vec::new(),
             patch_records: Vec::new(),
+            patch_replay_catalog: Vec::new(),
+            replayable_patch_history: Vec::new(),
+            undone_patch_records: Vec::new(),
+            patch_collaboration_events: Vec::new(),
             extension_state: HashMap::new(),
         };
 
@@ -1854,6 +1907,46 @@ impl Env {
             }
         });
 
+        self.define_native("patch_history", |env, _args| {
+            Ok(runtime_array_value(
+                env.patch_records()
+                    .iter()
+                    .map(runtime_patch_record_value)
+                    .collect(),
+            ))
+        });
+
+        self.define_native("patch_collaboration_events", |env, _args| {
+            Ok(runtime_array_value(
+                env.patch_collaboration_events()
+                    .iter()
+                    .map(runtime_patch_collaboration_event_value)
+                    .collect(),
+            ))
+        });
+
+        self.define_native("patch_undo_last", |env, _args| {
+            Ok(Value::Bool(env.undo_last_patch()?))
+        });
+
+        self.define_native("patch_replay_last", |env, _args| {
+            Ok(Value::Bool(env.replay_last_undone_patch()?))
+        });
+
+        self.define_native("patch_replay", |env, args| {
+            let Some(Value::Int(index)) = args.first() else {
+                return Err(KainError::runtime(
+                    "patch_replay: expected 1 integer argument (history_index)",
+                ));
+            };
+            if *index < 0 {
+                return Err(KainError::runtime(
+                    "patch_replay: history_index must be non-negative",
+                ));
+            }
+            Ok(Value::Bool(env.replay_patch_record(*index as usize)?))
+        });
+
         // === ASYNC RUNTIME ===
 
         // block_on: Run a future to completion, blocking the current thread
@@ -2006,6 +2099,10 @@ impl Env {
         &self.patch_records
     }
 
+    pub fn patch_collaboration_events(&self) -> &[PatchCollaborationEvent] {
+        &self.patch_collaboration_events
+    }
+
     fn begin_active_patch(&mut self, name: &str) {
         let undo_mode = self
             .patch_undo_modes
@@ -2016,12 +2113,14 @@ impl Env {
             name: name.to_string(),
             mutation_paths: Vec::new(),
             undo_mode,
+            changes: Vec::new(),
         });
     }
 
-    fn record_patch_mutation_path(&mut self, path: String) {
+    fn record_patch_change(&mut self, change: ActivePatchChange) {
         if let Some(frame) = self.active_patch_frames.last_mut() {
-            frame.mutation_paths.push(path);
+            frame.mutation_paths.push(change.path.clone());
+            frame.changes.push(change);
         }
     }
 
@@ -2029,12 +2128,93 @@ impl Env {
         if let Some(mut frame) = self.active_patch_frames.pop() {
             frame.mutation_paths.sort();
             frame.mutation_paths.dedup();
+            let collaboration_event = format!("patch.{}.applied", frame.name);
+            let changes = frame
+                .changes
+                .iter()
+                .map(|change| PatchMutationRecord {
+                    path: change.path.clone(),
+                    old_value: change.old_value.clone(),
+                    new_value: change.new_value.clone(),
+                })
+                .collect::<Vec<_>>();
+            let replayable_record = ReplayablePatchRecord {
+                name: frame.name.clone(),
+                undo_mode: frame.undo_mode.clone(),
+                changes: frame.changes,
+            };
             self.patch_records.push(PatchRuntimeRecord {
                 name: frame.name,
                 mutation_paths: frame.mutation_paths,
                 undo_mode: frame.undo_mode,
+                changes,
+                collaboration_event: collaboration_event.clone(),
             });
+            self.patch_replay_catalog.push(replayable_record.clone());
+            self.replayable_patch_history.push(replayable_record.clone());
+            self.undone_patch_records.clear();
+            self.patch_collaboration_events
+                .push(PatchCollaborationEvent {
+                    event_id: collaboration_event,
+                    patch_name: replayable_record.name,
+                    mutation_paths: self
+                        .patch_records
+                        .last()
+                        .map(|record| record.mutation_paths.clone())
+                        .unwrap_or_default(),
+                    undo_mode: replayable_record.undo_mode,
+                });
         }
+    }
+
+    fn cancel_active_patch(&mut self) -> KainResult<()> {
+        if let Some(frame) = self.active_patch_frames.pop() {
+            if frame.undo_mode == "reversible" {
+                for change in frame.changes.iter().rev() {
+                    apply_patch_change_value(change, false)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn undo_last_patch(&mut self) -> KainResult<bool> {
+        let Some(record) = self
+            .replayable_patch_history
+            .iter()
+            .rposition(|record| record.undo_mode == "reversible")
+            .map(|index| self.replayable_patch_history.remove(index))
+        else {
+            return Ok(false);
+        };
+
+        for change in record.changes.iter().rev() {
+            apply_patch_change_value(change, false)?;
+        }
+        self.undone_patch_records.push(record);
+        Ok(true)
+    }
+
+    fn replay_last_undone_patch(&mut self) -> KainResult<bool> {
+        let Some(record) = self.undone_patch_records.pop() else {
+            return Ok(false);
+        };
+        for change in &record.changes {
+            apply_patch_change_value(change, true)?;
+        }
+        self.replayable_patch_history.push(record);
+        Ok(true)
+    }
+
+    fn replay_patch_record(&mut self, index: usize) -> KainResult<bool> {
+        let Some(record) = self.patch_replay_catalog.get(index).cloned() else {
+            return Ok(false);
+        };
+        for change in &record.changes {
+            apply_patch_change_value(change, true)?;
+        }
+        self.replayable_patch_history.push(record);
+        Ok(true)
     }
 
     pub fn register_program_items(&mut self, program: &Program) -> KainResult<()> {
@@ -2666,13 +2846,29 @@ fn eval_assignment(env: &mut Env, target: &Expr, value: Value) -> KainResult<()>
     match target {
         Expr::Ident(name, _) => {
             env.assign(name, value)?;
-            env.record_patch_mutation_path(name.clone());
             Ok(())
         }
         Expr::Field { object, field, .. } => {
             let obj_val = eval_expr(env, object)?;
             if let Value::Struct(_, fields) = obj_val {
-                fields.write().unwrap().insert(field.clone(), value);
+                let old_value = fields
+                    .read()
+                    .unwrap()
+                    .get(field)
+                    .cloned()
+                    .unwrap_or(Value::None);
+                fields.write().unwrap().insert(field.clone(), value.clone());
+                if let Some(path) = runtime_patch_target_path(target) {
+                    env.record_patch_change(ActivePatchChange {
+                        path,
+                        target: PatchMutationTarget::StructField {
+                            fields: fields.clone(),
+                            field: field.clone(),
+                        },
+                        old_value,
+                        new_value: value,
+                    });
+                }
             } else if let Value::ActorRef(r) = obj_val {
                 if let Some(self_id) = env.self_actor_id {
                     if self_id == r.id {
@@ -2685,20 +2881,29 @@ fn eval_assignment(env: &mut Env, target: &Expr, value: Value) -> KainResult<()>
                     "Field assignment only supported on structs",
                 ));
             }
-            if let Some(path) = runtime_patch_target_path(target) {
-                env.record_patch_mutation_path(path);
-            }
             Ok(())
         }
         Expr::Index { object, index, .. } => {
             let obj_val = eval_expr(env, object)?;
             let idx_val = eval_expr(env, index)?;
             match (obj_val, idx_val) {
-                (Value::Array(arr), Value::Int(i)) => {
+                (Value::Array(values), Value::Int(i)) => {
                     let i = i as usize;
-                    let mut arr = arr.write().unwrap();
-                    if i < arr.len() {
-                        arr[i] = value;
+                    let mut array_values = values.write().unwrap();
+                    if i < array_values.len() {
+                        let old_value = array_values[i].clone();
+                        array_values[i] = value.clone();
+                        if let Some(path) = runtime_patch_target_path(target) {
+                            env.record_patch_change(ActivePatchChange {
+                                path,
+                                target: PatchMutationTarget::ArrayIndex {
+                                    values: values.clone(),
+                                    index: i,
+                                },
+                                old_value,
+                                new_value: value,
+                            });
+                        }
                     } else {
                         return Err(KainError::runtime("Index out of bounds"));
                     }
@@ -2708,9 +2913,6 @@ fn eval_assignment(env: &mut Env, target: &Expr, value: Value) -> KainResult<()>
                         "Index assignment only supported on arrays with int index",
                         ))
                 }
-            }
-            if let Some(path) = runtime_patch_target_path(target) {
-                env.record_patch_mutation_path(path);
             }
             Ok(())
         }
@@ -2947,12 +3149,11 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
         }
 
         Expr::StageCall {
-            function, args, ..
+            runtime,
+            function,
+            args,
+            ..
         } => {
-            let func_val = env
-                .lookup(function)
-                .cloned()
-                .ok_or_else(|| KainError::runtime(format!("Function not found: {}", function)))?;
             let mut arg_vals = Vec::new();
             for arg in args {
                 let value = eval_expr(env, &arg.value)?;
@@ -2961,7 +3162,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                 }
                 arg_vals.push(value);
             }
-            call_function(env, func_val, arg_vals)
+            execute_stage_call(env, *runtime, function, arg_vals)
         }
 
         Expr::Try(inner, _) => {
@@ -3373,6 +3574,10 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     active_capabilities,
                     active_patch_frames: Vec::new(),
                     patch_records: Vec::new(),
+                    patch_replay_catalog: Vec::new(),
+                    replayable_patch_history: Vec::new(),
+                    undone_patch_records: Vec::new(),
+                    patch_collaboration_events: Vec::new(),
                     extension_state: HashMap::new(),
                 };
 
@@ -3829,8 +4034,15 @@ fn execute_patch_call(env: &mut Env, name: &str, args: Vec<Value>) -> KainResult
     for (param, arg) in patch.params.iter().zip(args.into_iter()) {
         env.define(param.name.clone(), arg);
     }
-    let result = eval_block(env, &patch.body)?;
+    let result = eval_block(env, &patch.body);
     env.pop_scope();
+    let result = match result {
+        Ok(result) => result,
+        Err(error) => {
+            env.cancel_active_patch()?;
+            return Err(error);
+        }
+    };
     env.finish_active_patch();
 
     match result {
@@ -3885,6 +4097,79 @@ fn execute_orchestrate_call(env: &mut Env, name: &str, args: Vec<Value>) -> Kain
         )));
     }
     execute_function_body(env, &orchestrate.params, &orchestrate.body, args)
+}
+
+fn execute_stage_call(
+    env: &mut Env,
+    runtime: OrchestrateStageRuntime,
+    function: &str,
+    args: Vec<Value>,
+) -> KainResult<Value> {
+    match runtime {
+        OrchestrateStageRuntime::Kain | OrchestrateStageRuntime::Rust => {
+            env.call_named_function(function, args)
+        }
+        OrchestrateStageRuntime::Python => {
+            execute_python_stage_call(env, function, args.clone()).or_else(|error| {
+                if env.lookup_value(function).is_some() {
+                    env.call_named_function(function, args)
+                } else {
+                    Err(error)
+                }
+            })
+        }
+        OrchestrateStageRuntime::Node => {
+            execute_node_stage_call(env, function, args.clone()).or_else(|error| {
+                if env.lookup_value(function).is_some() {
+                    env.call_named_function(function, args)
+                } else {
+                    Err(error)
+                }
+            })
+        }
+    }
+}
+
+fn execute_python_stage_call(env: &mut Env, function: &str, args: Vec<Value>) -> KainResult<Value> {
+    if env.lookup_value("py_call").is_none() {
+        return Err(KainError::runtime(
+            "Python orchestrate stage requested but python bridge is not registered",
+        ));
+    }
+
+    let args_value = runtime_array_value(args);
+    if let Some((module_name, attr_name)) = function.rsplit_once("::") {
+        let module = env.call_named_function(
+            "py_import",
+            vec![Value::String(module_name.replace("::", "."))],
+        )?;
+        env.call_named_function(
+            "py_call",
+            vec![module, Value::String(attr_name.to_string()), args_value],
+        )
+    } else {
+        env.call_named_function("py_call", vec![Value::String(function.to_string()), args_value])
+    }
+}
+
+fn execute_node_stage_call(env: &mut Env, function: &str, args: Vec<Value>) -> KainResult<Value> {
+    if env.lookup_value("js_call").is_none() {
+        return Err(KainError::runtime(
+            "Node orchestrate stage requested but node bridge is not registered",
+        ));
+    }
+
+    let args_value = runtime_array_value(args);
+    if let Some((module_name, attr_name)) = function.rsplit_once("::") {
+        let module =
+            env.call_named_function("js_import", vec![Value::String(module_name.to_string())])?;
+        env.call_named_function(
+            "js_call_method",
+            vec![module, Value::String(attr_name.to_string()), args_value],
+        )
+    } else {
+        env.call_named_function("js_call", vec![Value::String(function.to_string()), args_value])
+    }
 }
 
 fn execute_function_body(
@@ -4173,6 +4458,101 @@ fn runtime_patch_target_path(target: &Expr) -> Option<String> {
         Expr::Deref(inner, _) => runtime_patch_target_path(inner),
         _ => None,
     }
+}
+
+fn apply_patch_change_value(change: &ActivePatchChange, use_new_value: bool) -> KainResult<()> {
+    let value = if use_new_value {
+        change.new_value.clone()
+    } else {
+        change.old_value.clone()
+    };
+    match &change.target {
+        PatchMutationTarget::StructField { fields, field } => {
+            fields.write().unwrap().insert(field.clone(), value);
+            Ok(())
+        }
+        PatchMutationTarget::ArrayIndex { values, index } => {
+            let mut items = values.write().unwrap();
+            if *index >= items.len() {
+                return Err(KainError::runtime(format!(
+                    "Patch replay target '{}' no longer exists at index {}",
+                    change.path, index
+                )));
+            }
+            items[*index] = value;
+            Ok(())
+        }
+    }
+}
+
+fn runtime_array_value(values: Vec<Value>) -> Value {
+    Value::Array(Arc::new(RwLock::new(values)))
+}
+
+fn runtime_string_array_value(values: &[String]) -> Value {
+    runtime_array_value(values.iter().cloned().map(Value::String).collect())
+}
+
+fn runtime_struct_value(name: &str, fields: Vec<(String, Value)>) -> Value {
+    let mut values = HashMap::new();
+    for (field, value) in fields {
+        values.insert(field, value);
+    }
+    Value::Struct(name.to_string(), Arc::new(RwLock::new(values)))
+}
+
+fn runtime_patch_mutation_record_value(change: &PatchMutationRecord) -> Value {
+    runtime_struct_value(
+        "PatchMutationRecord",
+        vec![
+            ("path".to_string(), Value::String(change.path.clone())),
+            ("old_value".to_string(), change.old_value.clone()),
+            ("new_value".to_string(), change.new_value.clone()),
+        ],
+    )
+}
+
+fn runtime_patch_record_value(record: &PatchRuntimeRecord) -> Value {
+    runtime_struct_value(
+        "PatchRuntimeRecord",
+        vec![
+            ("name".to_string(), Value::String(record.name.clone())),
+            (
+                "mutation_paths".to_string(),
+                runtime_string_array_value(&record.mutation_paths),
+            ),
+            ("undo_mode".to_string(), Value::String(record.undo_mode.clone())),
+            (
+                "collaboration_event".to_string(),
+                Value::String(record.collaboration_event.clone()),
+            ),
+            (
+                "changes".to_string(),
+                runtime_array_value(
+                    record
+                        .changes
+                        .iter()
+                        .map(runtime_patch_mutation_record_value)
+                        .collect(),
+                ),
+            ),
+        ],
+    )
+}
+
+fn runtime_patch_collaboration_event_value(event: &PatchCollaborationEvent) -> Value {
+    runtime_struct_value(
+        "PatchCollaborationEvent",
+        vec![
+            ("event_id".to_string(), Value::String(event.event_id.clone())),
+            ("patch_name".to_string(), Value::String(event.patch_name.clone())),
+            (
+                "mutation_paths".to_string(),
+                runtime_string_array_value(&event.mutation_paths),
+            ),
+            ("undo_mode".to_string(), Value::String(event.undo_mode.clone())),
+        ],
+    )
 }
 
 fn eval_binop(op: BinaryOp, left: Value, right: Value) -> KainResult<Value> {

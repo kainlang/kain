@@ -41,15 +41,15 @@ static const KainPlatformDescriptorTemplate KAIN_PLATFORM_TEMPLATES[] = {
     },
     {
         KAIN_PLATFORM_KIND_LINUX,
-        0,
+        1,
         KAIN_PLATFORM_SERVICE_FILESYSTEM |
         KAIN_PLATFORM_SERVICE_PROCESS |
         KAIN_PLATFORM_SERVICE_TIMERS |
         KAIN_PLATFORM_SERVICE_NETWORK,
         0,
         "linux",
-        "stub",
-        "Linux native lane is currently a stub and does not provide app host, input, viewport, or graphics services"
+        "posix-core",
+        "Linux native lane currently provides core filesystem, process, timer, and network services; app host, input, viewport, and graphics remain adapter work"
     },
     {
         KAIN_PLATFORM_KIND_MACOS,

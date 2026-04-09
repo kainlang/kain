@@ -12,4 +12,4 @@ targets = ["run", "test"]
 [[c_ffi.libraries]]
 name = "image_fx"
 header = "native/image_fx.h"
-shared_lib = "native/image_fx.dll"
+shared_lib = "native/${kain_dynlib:image_fx}"

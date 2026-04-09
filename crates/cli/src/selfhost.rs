@@ -699,6 +699,11 @@ fn collect_macro_calls_from_expr(
                 collect_macro_calls_from_expr(&arg.value, required, counts);
             }
         }
+        Expr::StageCall { args, .. } => {
+            for arg in args {
+                collect_macro_calls_from_expr(&arg.value, required, counts);
+            }
+        }
         Expr::MethodCall { receiver, args, .. } => {
             collect_macro_calls_from_expr(receiver, required, counts);
             for arg in args {

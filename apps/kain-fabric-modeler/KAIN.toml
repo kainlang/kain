@@ -19,7 +19,7 @@ workspace_manifest = "config/app_manifest.json"
 [[c_ffi.libraries]]
 name = "modeler_ops"
 header = "native/modeler_ops.h"
-shared_lib = "native/modeler_ops.dll"
+shared_lib = "native/${kain_dynlib:modeler_ops}"
 [manifests]
 app = "config/app_manifest.json"
 surfaces = "config/surfaces.json"
@@ -37,4 +37,3 @@ session_command_handlers = "session/command_handlers.kn"
 session_intent_planner = "session/intent_planner.kn"
 session_resource_registry = "session/resource_registry.kn"
 session_report_registry = "session/report_registry.kn"
-

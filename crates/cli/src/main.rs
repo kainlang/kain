@@ -39,6 +39,12 @@ struct NativeRuntimeManifest {
     #[serde(default)]
     sources: Vec<PathBuf>,
     #[serde(default)]
+    windows_sources: Vec<PathBuf>,
+    #[serde(default)]
+    linux_sources: Vec<PathBuf>,
+    #[serde(default)]
+    macos_sources: Vec<PathBuf>,
+    #[serde(default)]
     include_dirs: Vec<PathBuf>,
     #[serde(default)]
     defines: Vec<String>,
@@ -2314,7 +2320,8 @@ fn load_native_runtime_manifest(
             err
         )
     })?;
-    if manifest.sources.is_empty() {
+    let selected_sources = current_platform_runtime_sources(&manifest);
+    if manifest.sources.is_empty() && selected_sources.is_empty() {
         return Err(format!(
             "runtime manifest {} does not declare any sources",
             manifest_path.display()
@@ -2330,6 +2337,7 @@ fn load_native_runtime_manifest(
     let sources = manifest
         .sources
         .iter()
+        .chain(selected_sources.iter())
         .map(|path| resolve_runtime_path(manifest_dir, path))
         .collect::<Vec<_>>();
     let include_dirs = manifest
@@ -2370,6 +2378,16 @@ fn load_native_runtime_manifest(
             libs
         }),
     })
+}
+
+fn current_platform_runtime_sources(manifest: &NativeRuntimeManifest) -> &[PathBuf] {
+    if cfg!(windows) {
+        &manifest.windows_sources
+    } else if cfg!(target_os = "macos") {
+        &manifest.macos_sources
+    } else {
+        &manifest.linux_sources
+    }
 }
 
 fn compile_native_runtime_bundle(

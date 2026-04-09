@@ -59,6 +59,18 @@ mkdir -p "$OUTPUT_DIR"
 
 MANIFEST_PATH="$PROJECT_ROOT/runtime/native_runtime.toml"
 
+# Detect platform before resolving manifest sources so platform-specific arrays can be merged.
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
+    PLATFORM="windows"
+elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    PLATFORM="linux"
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    PLATFORM="macos"
+else
+    echo "Error: Unsupported platform: $OSTYPE"
+    exit 1
+fi
+
 parse_manifest_array() {
     local key="$1"
     awk -v key="$key" '
@@ -104,10 +116,14 @@ RUNTIME_BUNDLE_NAME="kain-native-runtime"
 
 if [[ -f "$MANIFEST_PATH" ]]; then
     mapfile -t MANIFEST_SOURCES < <(parse_manifest_array "sources")
+    mapfile -t MANIFEST_PLATFORM_SOURCES < <(parse_manifest_array "${PLATFORM}_sources")
     mapfile -t MANIFEST_INCLUDE_DIRS < <(parse_manifest_array "include_dirs")
 
-    if [[ ${#MANIFEST_SOURCES[@]} -gt 0 ]]; then
-        for relative_source in "${MANIFEST_SOURCES[@]}"; do
+    if [[ ${#MANIFEST_SOURCES[@]} -gt 0 || ${#MANIFEST_PLATFORM_SOURCES[@]} -gt 0 ]]; then
+        for relative_source in "${MANIFEST_SOURCES[@]}" "${MANIFEST_PLATFORM_SOURCES[@]}"; do
+            if [[ -z "$relative_source" ]]; then
+                continue
+            fi
             RUNTIME_SOURCES+=("$PROJECT_ROOT/runtime/$relative_source")
         done
         for relative_include in "${MANIFEST_INCLUDE_DIRS[@]}"; do
@@ -124,18 +140,6 @@ fi
 
 if [[ ${#RUNTIME_INCLUDE_DIRS[@]} -eq 0 ]]; then
     RUNTIME_INCLUDE_DIRS=("$PROJECT_ROOT/runtime/native/include")
-fi
-
-# Detect platform
-if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
-    PLATFORM="windows"
-elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    PLATFORM="linux"
-elif [[ "$OSTYPE" == "darwin"* ]]; then
-    PLATFORM="macos"
-else
-    echo "Error: Unsupported platform: $OSTYPE"
-    exit 1
 fi
 
 echo "=== KAIN Native Runtime Compilation ==="

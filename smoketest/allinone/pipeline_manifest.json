@@ -59,19 +59,18 @@
       "type": "process",
       "description": "Build the dedicated C ABI bridge fixture for the standalone FFI smoke.",
       "working_directory": "fixtures/c_ffi",
-      "executable": "clang",
+      "executable": "python",
       "args": [
-        "-shared",
-        "-O2",
+        "../../build_shared_library.py",
         "native/beacon_math.c",
-        "-o",
-        "native/beacon_math.dll"
+        "beacon_math",
+        "native/beacon_math.build.txt"
       ],
       "cleanup_paths": [
-        "fixtures/c_ffi/native/beacon_math.dll"
+        "fixtures/c_ffi/native/beacon_math.build.txt"
       ],
       "expected_outputs": [
-        "fixtures/c_ffi/native/beacon_math.dll"
+        "fixtures/c_ffi/native/beacon_math.build.txt"
       ]
     },
     {
@@ -208,19 +207,18 @@
       "type": "process",
       "description": "Build the local Fabric C ABI sidecar.",
       "working_directory": "fixtures/fabric",
-      "executable": "clang",
+      "executable": "python",
       "args": [
-        "-shared",
-        "-O2",
+        "../../build_shared_library.py",
         "native/image_fx.c",
-        "-o",
-        "native/image_fx.dll"
+        "image_fx",
+        "native/image_fx.build.txt"
       ],
       "cleanup_paths": [
-        "fixtures/fabric/native/image_fx.dll"
+        "fixtures/fabric/native/image_fx.build.txt"
       ],
       "expected_outputs": [
-        "fixtures/fabric/native/image_fx.dll"
+        "fixtures/fabric/native/image_fx.build.txt"
       ]
     },
     {
@@ -278,12 +276,9 @@
       "type": "process",
       "description": "Run the compiler-owned intent quartet smoke through kain run plus LLVM bundle staging.",
       "working_directory": "compiler_owned_intent",
-      "executable": "powershell",
+      "executable": "python",
       "args": [
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "run_smoke.ps1"
+        "run_smoke.py"
       ],
       "cleanup_paths": [
         "compiler_owned_intent/output"

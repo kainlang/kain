@@ -21,18 +21,25 @@ sources = [
     "native/src/core/kain_runtime_union.c",
     "native/src/core/kain_runtime_actor.c",
     "native/src/asset/kain_asset_gltf.c",
-    "native/src/gfx/opengl/kain_gl_win32_host.c",
-    "native/src/platform/win32/kain_win32_app_host.c",
-    "native/src/platform/win32/kain_win32_input_host.c",
-    "native/src/platform/win32/kain_runtime_win32_shared.c",
     "native/src/platform/kain_runtime_platform.c",
     "native/src/ui/kain_ui_compiled_bundle.c",
     "native/src/ui/kain_ui_compiled_overlay.c",
     "native/src/ui/kain_ui_overlay.c",
     "native/src/ui/kain_ui_runtime.c",
+]
+
+windows_sources = [
+    "native/src/gfx/opengl/kain_gl_win32_host.c",
+    "native/src/platform/win32/kain_win32_app_host.c",
+    "native/src/platform/win32/kain_win32_input_host.c",
+    "native/src/platform/win32/kain_runtime_win32_shared.c",
     "native/src/platform/win32/kain_runtime_viewport_win32.c",
     "native/src/platform/win32/kain_runtime_sculpt_win32.c",
 ]
+
+linux_sources = []
+
+macos_sources = []
 
 include_dirs = ["native/include"]
 
@@ -50,7 +57,7 @@ abi_patch = 0
 [metadata]
 description = "KAIN native C runtime for compiled programs"
 target_platforms = ["windows", "linux", "macos"]
-active_platforms = ["windows"]  # Currently implemented platforms
+active_platforms = ["windows", "linux"]  # Native core runtime currently compiles on Windows and Linux
 runtime_lane = "raw-native"
 compatibility_class = "experimental"  # experimental, stable, production
 

@@ -441,6 +441,34 @@ impl<'a> AnalysisBuilder<'a> {
     fn collect_item(&mut self, item: &Item) -> Option<DocumentSymbol> {
         match item {
             Item::Function(function) => Some(self.collect_function_symbol(function, false)),
+            Item::Patch(patch) => self.simple_named_item_symbol(
+                &patch.name,
+                patch.span,
+                Some(format!("patch {}", patch.name)),
+                SymbolKind::FUNCTION,
+                AnalysisCompletionKind::Function,
+            ),
+            Item::Converge(converge) => self.simple_named_item_symbol(
+                &converge.name,
+                converge.span,
+                Some(format!("converge {}", converge.name)),
+                SymbolKind::FUNCTION,
+                AnalysisCompletionKind::Function,
+            ),
+            Item::World(world) => self.simple_named_item_symbol(
+                &world.name,
+                world.span,
+                Some(format!("world {}", world.name)),
+                SymbolKind::MODULE,
+                AnalysisCompletionKind::Module,
+            ),
+            Item::Orchestrate(orchestrate) => self.simple_named_item_symbol(
+                &orchestrate.name,
+                orchestrate.span,
+                Some(format!("orchestrate {}", orchestrate.name)),
+                SymbolKind::FUNCTION,
+                AnalysisCompletionKind::Function,
+            ),
             Item::Component(component) => Some(self.collect_component_symbol(component)),
             Item::Shader(shader) => Some(self.collect_shader_symbol(shader)),
             Item::Actor(actor) => Some(self.collect_actor_symbol(actor)),

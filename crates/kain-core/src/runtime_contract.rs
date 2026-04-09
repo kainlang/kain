@@ -23,6 +23,8 @@ pub struct RuntimeContractBundle {
     pub converges: Vec<RuntimeConvergeContract>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub worlds: Vec<RuntimeWorldContract>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_world: Option<RuntimeWorldContract>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub orchestrations: Vec<RuntimeOrchestrationContract>,
     pub reflection: RuntimeReflectionSummary,
@@ -248,6 +250,11 @@ pub fn emit_runtime_contract_bundle(
     let patches = collect_patch_contracts(&program.items);
     let converges = collect_converge_contracts(&program.items);
     let worlds = collect_world_contracts(&program.items);
+    let active_world = if worlds.len() == 1 {
+        worlds.first().cloned()
+    } else {
+        None
+    };
     let orchestrations = collect_orchestration_contracts(&program.items);
 
     let summary = summarize_items(&program.items);
@@ -276,6 +283,7 @@ pub fn emit_runtime_contract_bundle(
         patches,
         converges,
         worlds,
+        active_world,
         orchestrations,
         reflection: RuntimeReflectionSummary {
             emitted: reflection_emitted,

@@ -180,6 +180,12 @@ pub struct CheckedFrontend {
     pub typed: TypedProgram,
 }
 
+#[derive(Debug, Clone, Default)]
+struct ResolvedWorldSelection {
+    root_component: Option<String>,
+    active_world_name: Option<String>,
+}
+
 #[cfg(feature = "sys")]
 #[derive(Debug, Clone)]
 pub struct RustBundleOutput {
@@ -255,8 +261,8 @@ impl DriverSession {
         let typed = self.frontend_to_typed_program(source, target)?;
         let prepared_source =
             prepare_c_ffi_source(source, target).unwrap_or_else(|_| source.to_string());
-        let resolved_root_component = resolve_root_component_name(&typed, root_component)?;
-        let ui_output = if let Some(root_component) = resolved_root_component.as_deref() {
+        let resolved_world = resolve_world_selection(&typed, root_component)?;
+        let ui_output = if let Some(root_component) = resolved_world.root_component.as_deref() {
             Some(kain_core::build_ui_output_from_source(
                 &prepared_source,
                 root_component,
@@ -264,7 +270,11 @@ impl DriverSession {
         } else {
             None
         };
-        let bundle = emit_realtime_app_bundle(&typed, ui_output.as_ref(), target);
+        let mut bundle = emit_realtime_app_bundle(&typed, ui_output.as_ref(), target);
+        apply_active_world_selection_to_realtime_bundle(
+            &mut bundle,
+            resolved_world.active_world_name.as_deref(),
+        )?;
         let bundle_json = realtime_app_bundle_to_json(&bundle).map_err(|err| {
             KainError::runtime(format!(
                 "Failed to serialize realtime app bundle JSON: {err}"
@@ -732,6 +742,13 @@ pub(crate) fn resolve_root_component_name(
     program: &TypedProgram,
     requested_root: Option<&str>,
 ) -> Result<Option<String>, KainError> {
+    Ok(resolve_world_selection(program, requested_root)?.root_component)
+}
+
+pub(crate) fn resolve_world_selection(
+    program: &TypedProgram,
+    requested_root: Option<&str>,
+) -> Result<ResolvedWorldSelection, KainError> {
     let component_names = collect_component_names(&program.items);
     let world_roots = collect_world_native_ui_roots(&program.items)?;
 
@@ -739,10 +756,19 @@ pub(crate) fn resolve_root_component_name(
         if let Some((_, root_component)) =
             world_roots.iter().find(|(world_name, _)| world_name == requested_root)
         {
-            return Ok(Some(root_component.clone()));
+            return Ok(ResolvedWorldSelection {
+                root_component: Some(root_component.clone()),
+                active_world_name: Some(requested_root.to_string()),
+            });
         }
         if component_names.iter().any(|name| name == requested_root) {
-            return Ok(Some(requested_root.to_string()));
+            return Ok(ResolvedWorldSelection {
+                root_component: Some(requested_root.to_string()),
+                active_world_name: world_roots
+                    .first()
+                    .filter(|_| world_roots.len() == 1)
+                    .map(|(world_name, _)| world_name.clone()),
+            });
         }
         return Err(KainError::runtime(format!(
             "Configured root '{}' did not match any component or world",
@@ -760,13 +786,88 @@ pub(crate) fn resolve_root_component_name(
             "Multiple worlds declare native_ui surfaces ({world_names}); pass --root <world-name> to select one explicitly"
         )));
     }
-    if let Some((_, root_component)) = world_roots.into_iter().next() {
-        return Ok(Some(root_component));
+    if let Some((world_name, root_component)) = world_roots.first() {
+        return Ok(ResolvedWorldSelection {
+            root_component: Some(root_component.clone()),
+            active_world_name: Some(world_name.clone()),
+        });
     }
     if let Some(app) = component_names.iter().find(|name| name.as_str() == "App") {
-        return Ok(Some(app.clone()));
+        return Ok(ResolvedWorldSelection {
+            root_component: Some(app.clone()),
+            active_world_name: None,
+        });
     }
-    Ok(component_names.into_iter().next())
+    Ok(ResolvedWorldSelection {
+        root_component: component_names.into_iter().next(),
+        active_world_name: None,
+    })
+}
+
+pub(crate) fn apply_active_world_selection_to_realtime_bundle(
+    bundle: &mut RealtimeAppBundle,
+    active_world_name: Option<&str>,
+) -> Result<(), KainError> {
+    bundle.active_world = resolve_realtime_active_world(bundle, active_world_name)?;
+    Ok(())
+}
+
+pub(crate) fn apply_active_world_selection_to_runtime_contract(
+    bundle: &mut RuntimeContractBundle,
+    active_world_name: Option<&str>,
+) -> Result<(), KainError> {
+    bundle.active_world = resolve_runtime_contract_active_world(bundle, active_world_name)?;
+    Ok(())
+}
+
+fn resolve_realtime_active_world(
+    bundle: &RealtimeAppBundle,
+    active_world_name: Option<&str>,
+) -> Result<Option<kain_core::RealtimeWorldBinding>, KainError> {
+    if let Some(active_world_name) = active_world_name {
+        return bundle
+            .worlds
+            .iter()
+            .find(|world| world.name == active_world_name)
+            .cloned()
+            .map(Some)
+            .ok_or_else(|| {
+                KainError::runtime(format!(
+                    "Requested active world '{}' was not emitted into the realtime bundle",
+                    active_world_name
+                ))
+            });
+    }
+    Ok(if bundle.worlds.len() == 1 {
+        bundle.worlds.first().cloned()
+    } else {
+        None
+    })
+}
+
+fn resolve_runtime_contract_active_world(
+    bundle: &RuntimeContractBundle,
+    active_world_name: Option<&str>,
+) -> Result<Option<kain_core::RuntimeWorldContract>, KainError> {
+    if let Some(active_world_name) = active_world_name {
+        return bundle
+            .worlds
+            .iter()
+            .find(|world| world.name == active_world_name)
+            .cloned()
+            .map(Some)
+            .ok_or_else(|| {
+                KainError::runtime(format!(
+                    "Requested active world '{}' was not emitted into the runtime contract bundle",
+                    active_world_name
+                ))
+            });
+    }
+    Ok(if bundle.worlds.len() == 1 {
+        bundle.worlds.first().cloned()
+    } else {
+        None
+    })
 }
 
 fn collect_component_names(items: &[TypedItem]) -> Vec<String> {
@@ -1104,6 +1205,7 @@ fn find_metadata_dir() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kain_core::runtime::{interpret_with_env, Env, Value};
     use std::fs;
 
     static TEST_CWD_LOCK: Mutex<()> = Mutex::new(());
@@ -1165,6 +1267,10 @@ component App():
             compile_realtime_app_bundle(source, CompileTarget::Rust, None).expect("realtime bundle");
         assert_eq!(output.bundle.worlds.len(), 1);
         assert_eq!(output.bundle.worlds[0].name, "Studio");
+        assert_eq!(
+            output.bundle.active_world.as_ref().map(|world| world.name.as_str()),
+            Some("Studio")
+        );
         assert!(output
             .bundle
             .worlds[0]
@@ -1202,6 +1308,147 @@ component Shell():
         assert!(error
             .to_string()
             .contains("Multiple worlds declare native_ui surfaces"));
+    }
+
+    #[test]
+    fn compile_realtime_bundle_selects_requested_world_by_name() {
+        let source = r#"
+world Studio:
+    state counter: Int = 0
+    surface native_ui => App
+    surface viewport3d => "StudioPreview"
+    surface web => App
+    surface ue5 => "StudioBridge"
+
+world ShellWorld:
+    state counter: Int = 0
+    surface native_ui => Shell
+    surface viewport3d => "ShellPreview"
+    surface web => Shell
+    surface ue5 => "ShellBridge"
+
+component App():
+    render <panel title="Studio" />
+
+component Shell():
+    render <panel title="Shell" />
+"#;
+
+        let output = compile_realtime_app_bundle(source, CompileTarget::Rust, Some("ShellWorld"))
+            .expect("explicit world selection should compile");
+        assert_eq!(
+            output.bundle.active_world.as_ref().map(|world| world.name.as_str()),
+            Some("ShellWorld")
+        );
+    }
+
+    #[test]
+    fn interpret_target_executes_orchestrate_python_and_node_stages_via_registered_bridges() {
+        let output = compile(
+            r#"
+@extern fn py_exec(code: String) -> Unit
+@extern fn js_exec(code: String) -> Unit
+
+fn __kain_stage_py_add(value: Int) -> Int:
+    return value + 1000
+
+fn __kain_stage_js_add(value: Int) -> Int:
+    return value + 2000
+
+orchestrate pipeline(value: Int) -> Int:
+    let a: Int = python __kain_stage_py_add(value)
+    let b: Int = node __kain_stage_js_add(a)
+    return b
+
+fn main() -> Int:
+    py_exec("def __kain_stage_py_add(value):\n    return value + 10")
+    js_exec("globalThis.__kain_stage_js_add = (value) => value + 20")
+    return pipeline(1)
+"#,
+            CompileTarget::Interpret,
+        )
+        .expect("interpret pipeline");
+
+        assert_eq!(output, "31");
+    }
+
+    #[test]
+    fn interpret_target_exposes_patch_runtime_undo_and_replay_builtins() {
+        let typed = DriverSession::default()
+            .frontend_to_typed_program(
+                r#"
+world Studio:
+    state counter: Int = 0
+    surface native_ui => App
+    surface viewport3d => "StudioPreview"
+    surface web => App
+    surface ue5 => "StudioBridge"
+
+component App():
+    render <panel title="Studio" />
+
+patch set_counter(studio: Studio, to: Int) -> Int:
+    studio.counter = to
+    return studio.counter
+
+fn main() -> Int:
+    let studio = Studio
+    return set_counter(studio, 7)
+"#,
+                CompileTarget::Interpret,
+            )
+            .expect("typed program");
+        let mut env = Env::new();
+        let output = interpret_with_env(&mut env, &typed).expect("interpret patch runtime");
+        match output {
+            Value::Int(value) => assert_eq!(value, 7),
+            other => panic!("expected Int(7), got {other:?}"),
+        }
+
+        let history = env
+            .call_named_function("patch_history", vec![])
+            .expect("patch history");
+        match history {
+            Value::Array(values) => assert_eq!(values.read().unwrap().len(), 1),
+            other => panic!("expected patch history array, got {other:?}"),
+        }
+
+        let events = env
+            .call_named_function("patch_collaboration_events", vec![])
+            .expect("patch collaboration events");
+        match events {
+            Value::Array(values) => assert_eq!(values.read().unwrap().len(), 1),
+            other => panic!("expected patch collaboration event array, got {other:?}"),
+        }
+
+        let undone = env
+            .call_named_function("patch_undo_last", vec![])
+            .expect("patch undo");
+        match undone {
+            Value::Bool(value) => assert!(value),
+            other => panic!("expected patch undo bool, got {other:?}"),
+        }
+        assert_eq!(read_world_counter(&env, "Studio"), 0);
+
+        let replayed = env
+            .call_named_function("patch_replay_last", vec![])
+            .expect("patch replay");
+        match replayed {
+            Value::Bool(value) => assert!(value),
+            other => panic!("expected patch replay bool, got {other:?}"),
+        }
+        assert_eq!(read_world_counter(&env, "Studio"), 7);
+    }
+
+    fn read_world_counter(env: &Env, world_name: &str) -> i64 {
+        let Some(Value::Struct(_, fields)) = env.lookup_value(world_name) else {
+            panic!("expected world struct for {world_name}");
+        };
+        let fields = fields.read().expect("world fields");
+        let Some(Value::Int(value)) = fields.get("counter") else {
+            panic!("expected Int counter field for {world_name}");
+        };
+        *value
     }
 
     #[test]

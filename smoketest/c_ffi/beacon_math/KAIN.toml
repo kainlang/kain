@@ -12,4 +12,4 @@ targets = ["run", "test"]
 [[c_ffi.libraries]]
 name = "beacon_math"
 header = "native/beacon_math.h"
-shared_lib = "native/beacon_math.dll"
+shared_lib = "native/${kain_dynlib:beacon_math}"

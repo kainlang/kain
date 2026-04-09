@@ -1288,3 +1288,8 @@ extern fn string_contains(haystack: String, needle: String) -> Bool
 extern fn is_digit(c: String) -> Bool
 extern fn file_exists(path: String) -> Bool
 extern fn read_file(path: String) -> Result<String, String>
+extern fn patch_history() -> Array<Any>
+extern fn patch_collaboration_events() -> Array<Any>
+extern fn patch_undo_last() -> Bool
+extern fn patch_replay_last() -> Bool
+extern fn patch_replay(history_index: Int) -> Bool

@@ -881,6 +881,19 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
                 .join(", ");
             format!("{}({args})", expr_to_string(callee))
         }
+        kain_core::ast::Expr::StageCall {
+            runtime,
+            function,
+            args,
+            ..
+        } => {
+            let args = args
+                .iter()
+                .map(call_arg_to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{} {}({args})", runtime.as_str(), function)
+        }
         kain_core::ast::Expr::MethodCall {
             receiver,
             method,

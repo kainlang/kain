@@ -56,7 +56,7 @@ id = "native_sculpt_kernel"
 runtime = "c_abi"
 entry = "src/native_sculpt_step.kn"
 module = "dcc_suite_ops"
-library = "native/dcc_suite_ops.dll"
+library = "native/${kain_dynlib:dcc_suite_ops}"
 depends_on = ["python_suite_bootstrap", "gpu_sculpt_displacement"]
 
 [[steps.outputs]]

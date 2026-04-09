@@ -109,6 +109,7 @@ fn runtime_contract_emits_compiler_owned_intent_sections() {
     assert_eq!(bundle.orchestrations.len(), 1);
     assert_eq!(bundle.worlds[0].surfaces.len(), 4);
     assert_eq!(bundle.patches[0].undo_mode, "reversible");
+    assert_eq!(bundle.active_world.as_ref().map(|world| world.name.as_str()), Some("Studio"));
     assert!(bundle
         .required_capabilities
         .iter()
@@ -160,6 +161,7 @@ fn realtime_bundle_emits_compiler_owned_intent_sections() {
     assert_eq!(bundle.worlds.len(), 1);
     assert_eq!(bundle.orchestrations.len(), 1);
     assert_eq!(bundle.worlds[0].surfaces.len(), 4);
+    assert_eq!(bundle.active_world.as_ref().map(|world| world.name.as_str()), Some("Studio"));
     assert!(bundle.tool_caps.iter().any(|entry| entry == "patch.transactions"));
     assert!(bundle.tool_caps.iter().any(|entry| entry == "converge.dispatch"));
     assert!(bundle.tool_caps.iter().any(|entry| entry == "world.native-ui"));
@@ -187,6 +189,17 @@ fn runtime_executes_patch_converge_and_orchestrate_and_records_patch_transaction
     assert_eq!(env.patch_records()[0].name, "set_counter");
     assert_eq!(env.patch_records()[0].undo_mode, "reversible");
     assert_eq!(env.patch_records()[0].mutation_paths, vec!["studio.counter"]);
+    assert_eq!(env.patch_records()[0].changes.len(), 1);
+    assert_eq!(
+        env.patch_records()[0].collaboration_event,
+        "patch.set_counter.applied"
+    );
+    assert_eq!(env.patch_collaboration_events().len(), 1);
+    assert_eq!(env.patch_collaboration_events()[0].patch_name, "set_counter");
+    assert_eq!(
+        env.patch_collaboration_events()[0].mutation_paths,
+        vec!["studio.counter"]
+    );
 }
 
 #[test]

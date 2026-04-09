@@ -8,7 +8,8 @@ use crate::compute_residency::{
     write_compute_residency_sidecars, COMPUTE_RESIDENCY_ENV_VAR, COMPUTE_RESIDENCY_FILE_NAME,
 };
 use crate::{
-    resolve_root_component_name, DriverSession, RustBundleOutput, ShaderArtifactBundleOutput,
+    apply_active_world_selection_to_runtime_contract, resolve_root_component_name, DriverSession,
+    RustBundleOutput, ShaderArtifactBundleOutput,
 };
 use kain_core::error::KainError;
 use kain_core::{
@@ -29,7 +30,6 @@ const NATIVE_APP_REALTIME_BUNDLE_FILE_NAME: &str = "kain_realtime_app_bundle.jso
 const NATIVE_APP_SHADER_BUNDLE_FILE_NAME: &str = "kain_shader_bundle.json";
 const NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME: &str = "kain_runtime_version.json";
 const NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME: &str = "kain_reflection_payload.json";
-const NATIVE_APP_WINDOWS_RUNTIME_DLL_FILE_NAME: &str = "kain_gpu_runtime.dll";
 const NATIVE_APP_C_FFI_PACKAGE_MANIFEST_FILE_NAME: &str = "kain_c_host_bridges.json";
 const NATIVE_APP_CONFIG_DIR_NAME: &str = "config";
 const NATIVE_APP_STATE_DIR_NAME: &str = "state";
@@ -254,6 +254,7 @@ struct NativeAppManifest {
     version: String,
     window_title: String,
     root_component: String,
+    active_world: Option<String>,
     layout_id: String,
     required_runtime_capabilities: Vec<String>,
     target_outputs: Vec<String>,
@@ -312,6 +313,7 @@ struct NativeAppHotReloadIdentity {
     name: String,
     window_title: String,
     root_component: String,
+    active_world: Option<String>,
     layout_id: String,
 }
 
@@ -376,6 +378,7 @@ struct NativeAppRuntimeSnapshot {
     version: String,
     window_title: String,
     root_component: String,
+    active_world: Option<String>,
     layout_id: String,
     required_runtime_capabilities: Vec<String>,
     panels: Vec<NativeAppRuntimePanel>,
@@ -489,6 +492,10 @@ impl DriverSession {
         let realtime = self
             .compile_realtime_app_bundle(source, CompileTarget::Rust, Some(&root_component))?
             .bundle;
+        apply_active_world_selection_to_runtime_contract(
+            &mut runtime_contract,
+            realtime.active_world.as_ref().map(|world| world.name.as_str()),
+        )?;
         let shader_bundle = self.compile_shader_artifact_bundle(source).ok();
         let ui = build_ui_output_from_source(&prepared_ui_source, &root_component)?;
         let metadata = NativeAppMetadata {
@@ -814,7 +821,7 @@ impl DriverSession {
                 NATIVE_APP_SHADER_BUNDLE_FILE_NAME,
                 NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME,
                 NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME,
-                NATIVE_APP_WINDOWS_RUNTIME_DLL_FILE_NAME,
+                gpu_runtime_library_file_name(),
                 NATIVE_APP_C_FFI_PACKAGE_MANIFEST_FILE_NAME,
             ];
             runtime_sidecar_file_names.extend(
@@ -1350,6 +1357,7 @@ fn build_native_app_manifest(
         version,
         window_title: bundle.metadata.window_title.clone(),
         root_component: bundle.metadata.root_component.clone(),
+        active_world: bundle.realtime.active_world.as_ref().map(|world| world.name.clone()),
         layout_id: format!("{}_shell", bundle.metadata.app_name.replace('-', "_")),
         required_runtime_capabilities,
         target_outputs: vec!["native-ui-bundle".to_string(), "native-exe".to_string()],
@@ -1398,6 +1406,7 @@ fn build_native_app_runtime_snapshot(
         version: app_manifest.version.clone(),
         window_title: bundle.metadata.window_title.clone(),
         root_component: bundle.metadata.root_component.clone(),
+        active_world: app_manifest.active_world.clone(),
         layout_id: app_manifest.layout_id.clone(),
         required_runtime_capabilities: app_manifest.required_runtime_capabilities.clone(),
         panels: vec![NativeAppRuntimePanel {
@@ -1519,6 +1528,7 @@ fn build_native_app_hot_reload_metadata(
         name: bundle.metadata.window_title.clone(),
         window_title: bundle.metadata.window_title.clone(),
         root_component: bundle.metadata.root_component.clone(),
+        active_world: bundle.realtime.active_world.as_ref().map(|world| world.name.clone()),
         layout_id: format!("{}_shell", bundle.metadata.app_name.replace('-', "_")),
     };
     let mut artifact_fingerprints = vec![
@@ -1724,12 +1734,10 @@ fn materialize_gpu_runtime_library(
     artifact_root: &Path,
     release: bool,
 ) -> Result<Option<PathBuf>, KainError> {
-    if !cfg!(windows) {
-        return Ok(None);
-    }
     let Some(workspace_root) = find_workspace_root_with_gpu_runtime() else {
         return Ok(None);
     };
+    let runtime_library_file_name = gpu_runtime_library_file_name();
 
     let mut command = Command::new("cargo");
     command.arg("build").arg("-p").arg("kain-gpu-runtime");
@@ -1753,17 +1761,28 @@ fn materialize_gpu_runtime_library(
         )));
     }
 
-    let built_dll = workspace_root
+    let built_library = workspace_root
         .join("target")
         .join(if release { "release" } else { "debug" })
-        .join(NATIVE_APP_WINDOWS_RUNTIME_DLL_FILE_NAME);
-    if !built_dll.exists() {
+        .join(runtime_library_file_name);
+    if !built_library.exists() {
         return Ok(None);
     }
 
-    let destination = artifact_root.join(NATIVE_APP_WINDOWS_RUNTIME_DLL_FILE_NAME);
-    fs::copy(&built_dll, &destination).map_err(io_error("copy kain-gpu-runtime dll"))?;
+    let destination = artifact_root.join(runtime_library_file_name);
+    fs::copy(&built_library, &destination)
+        .map_err(io_error("copy kain-gpu-runtime shared library"))?;
     Ok(Some(destination))
+}
+
+fn gpu_runtime_library_file_name() -> &'static str {
+    if cfg!(windows) {
+        "kain_gpu_runtime.dll"
+    } else if cfg!(target_os = "macos") {
+        "libkain_gpu_runtime.dylib"
+    } else {
+        "libkain_gpu_runtime.so"
+    }
 }
 
 fn find_workspace_root_with_gpu_runtime() -> Option<PathBuf> {
@@ -2210,6 +2229,45 @@ component App():
     }
 
     #[test]
+    fn compile_native_app_bundle_propagates_active_world_selection() {
+        let source = r#"
+world Studio:
+    state counter: Int = 0
+    surface native_ui => App
+    surface viewport3d => "StudioPreview"
+    surface web => App
+    surface ue5 => "StudioBridge"
+
+component App():
+    render <panel title="Studio" />
+"#;
+
+        let bundle = compile_native_app_bundle(
+            source,
+            &NativeAppBundleConfig {
+                app_name: Some("Studio Shell".to_string()),
+                window_title: Some("Studio Shell".to_string()),
+                source_file_name: Some("studio.kn".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("native app bundle generation should succeed");
+
+        assert_eq!(
+            bundle.realtime.active_world.as_ref().map(|world| world.name.as_str()),
+            Some("Studio")
+        );
+        assert_eq!(
+            bundle
+                .runtime_contract
+                .active_world
+                .as_ref()
+                .map(|world| world.name.as_str()),
+            Some("Studio")
+        );
+    }
+
+    #[test]
     fn materialize_native_app_bundle_writes_scaffold_and_artifacts() {
         let temp = TempDir::new().expect("temp dir");
         let project_dir = temp.path().join("native-app");
@@ -2437,9 +2495,13 @@ component App():
                 .iter()
                 .any(|platform| platform == "windows"));
             assert!(version
+                .target_platforms
+                .iter()
+                .any(|platform| platform == "linux"));
+            assert!(version
                 .active_platforms
                 .iter()
-                .any(|platform| platform == "windows"));
+                .any(|platform| platform == std::env::consts::OS));
             assert_eq!(
                 bundle
                     .runtime_contract
@@ -2479,9 +2541,13 @@ component App():
                 .iter()
                 .any(|platform| platform == "windows"));
             assert!(platform
+                .target_platforms
+                .iter()
+                .any(|platform| platform == "linux"));
+            assert!(platform
                 .active_platforms
                 .iter()
-                .any(|platform| platform == "windows"));
+                .any(|platform| platform == std::env::consts::OS));
             assert_eq!(
                 platform.runtime_platform.as_deref(),
                 Some(std::env::consts::OS)

@@ -437,10 +437,42 @@ fn find_kain_manifest_root(start_dir: &Path) -> Option<PathBuf> {
 }
 
 fn resolve_relative_path(root: &Path, path: &Path) -> PathBuf {
-    if path.is_absolute() {
-        path.to_path_buf()
+    let expanded = expand_platform_dynamic_library_tokens(path);
+    if expanded.is_absolute() {
+        expanded
     } else {
-        root.join(path)
+        root.join(expanded)
+    }
+}
+
+fn expand_platform_dynamic_library_tokens(path: &Path) -> PathBuf {
+    let source = path.to_string_lossy();
+    let mut expanded = source.into_owned();
+    const TOKEN_PREFIX: &str = "${kain_dynlib:";
+
+    while let Some(start) = expanded.find(TOKEN_PREFIX) {
+        let token_end = expanded[start..]
+            .find('}')
+            .map(|offset| start + offset)
+            .unwrap_or(expanded.len());
+        if token_end >= expanded.len() {
+            break;
+        }
+        let library_stem = &expanded[start + TOKEN_PREFIX.len()..token_end];
+        let replacement = current_platform_dynamic_library_name(library_stem);
+        expanded.replace_range(start..=token_end, &replacement);
+    }
+
+    PathBuf::from(expanded)
+}
+
+fn current_platform_dynamic_library_name(stem: &str) -> String {
+    if cfg!(target_os = "windows") {
+        format!("{stem}.dll")
+    } else if cfg!(target_os = "macos") {
+        format!("lib{stem}.dylib")
+    } else {
+        format!("lib{stem}.so")
     }
 }
 
@@ -770,6 +802,51 @@ mod tests {
             Value::String(value) => assert!(value.starts_with("imagefx:2x1:")),
             other => panic!("expected imagefx signature, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn resolve_library_expands_platform_dynamic_library_tokens() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let native_dir = root.join("native");
+        fs::create_dir_all(&native_dir).expect("native dir");
+
+        let (header_path, source_path, dylib_path) = c_fixture_paths(&native_dir);
+        fs::write(
+            &header_path,
+            "#if defined(_WIN32)\n#define BEACON_EXPORT __declspec(dllexport)\n#else\n#define BEACON_EXPORT\n#endif\nBEACON_EXPORT int beacon_add(int a, int b);\n",
+        )
+        .expect("header");
+        fs::write(
+            &source_path,
+            "#include \"beacon_math.h\"\nint beacon_add(int a, int b) { return a + b; }\n",
+        )
+        .expect("source");
+        compile_shared_library(&source_path, &dylib_path);
+        fs::write(
+            root.join("KAIN.toml"),
+            format!(
+                "[c_ffi]\n\n[[c_ffi.libraries]]\nname = \"beacon_math\"\nheader = \"{}\"\nshared_lib = \"native/${{kain_dynlib:beacon_math}}\"\n",
+                header_path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/"),
+            ),
+        )
+        .expect("manifest");
+
+        let (resolved, _) = resolve_library(
+            "beacon_math",
+            &PrepareContext {
+                current_dir: Some(root.to_path_buf()),
+                manifest_path: Some(root.join("KAIN.toml")),
+            },
+        )
+        .expect("resolve library");
+
+        assert_eq!(resolved.shared_lib_path.as_deref(), Some(dylib_path.as_path()));
     }
 
     fn c_fixture_paths(native_dir: &Path) -> (PathBuf, PathBuf, PathBuf) {

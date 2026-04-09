@@ -1039,16 +1039,6 @@ const char* imagefx_signature(int width, int height, uint64_t checksum) {
 }
 "#;
 
-fn polyglot_native_library_name() -> &'static str {
-    if cfg!(target_os = "windows") {
-        "image_fx.dll"
-    } else if cfg!(target_os = "macos") {
-        "libimage_fx.dylib"
-    } else {
-        "libimage_fx.so"
-    }
-}
-
 fn polyglot_native_compile_command() -> &'static str {
     if cfg!(target_os = "windows") {
         "clang -shared -O2 native/image_fx.c -o native/image_fx.dll"
@@ -1060,10 +1050,7 @@ fn polyglot_native_compile_command() -> &'static str {
 }
 
 fn render_polyglot_kain_manifest() -> String {
-    format!(
-        "[c_ffi]\n\n[[c_ffi.libraries]]\nname = \"image_fx\"\nheader = \"native/image_fx.h\"\nshared_lib = \"native/{}\"\n",
-        polyglot_native_library_name()
-    )
+    "[c_ffi]\n\n[[c_ffi.libraries]]\nname = \"image_fx\"\nheader = \"native/image_fx.h\"\nshared_lib = \"native/${kain_dynlib:image_fx}\"\n".to_string()
 }
 
 fn render_polyglot_readme() -> String {
@@ -1171,10 +1158,7 @@ fn polyglot_manifest_template() -> FabricManifest {
                 module: Some("image_fx".to_string()),
                 crate_name: None,
                 manifest_path: None,
-                library: Some(PathBuf::from(format!(
-                    "native/{}",
-                    polyglot_native_library_name()
-                ))),
+                library: Some(PathBuf::from("native/${kain_dynlib:image_fx}")),
                 shader_source: None,
                 compute_key: None,
                 depends_on: vec!["kain_orchestrator".to_string()],
@@ -1274,10 +1258,7 @@ mod tests {
         assert_eq!(manifest.steps[0].outputs[0].name, "settings");
         assert_eq!(
             manifest.steps[2].library.as_deref(),
-            Some(Path::new(&format!(
-                "native/{}",
-                polyglot_native_library_name()
-            )))
+            Some(Path::new("native/${kain_dynlib:image_fx}"))
         );
         assert_eq!(
             manifest.steps[3].crate_name.as_deref(),
