@@ -1,5 +1,32 @@
 # MEMORY
 
+## 2026-04-10 - intent_forge_quartet adds a real native 3D executable smoke for the compiler-owned intent system
+
+The repo now has a richer visual proof for the compiler-owned intent quartet under `smoketest/3D/intent_forge_quartet`.
+
+What changed:
+
+- Added `smoketest/3D/intent_forge_quartet/smoke.kn`
+  - Authors a studio-style native shell with a central `viewport3d`, left tool rack, right inspector rail, and bottom activity strip.
+  - Uses `world IntentForge`, two `patch` declarations, one `converge`, and one `orchestrate` in the same executable app.
+  - Keeps a deterministic `main()` result of `105` so `kain run` and the packaged native-ui path can be checked together.
+- Added `smoketest/3D/intent_forge_quartet/run_smoke.py`
+  - Runs `kain run` on the authored file.
+  - Builds the packaged native-ui executable.
+  - Verifies generated runtime contract, realtime bundle, and native app bundle artifacts.
+- Added `smoketest/3D/intent_forge_quartet/launch_native_app.sh`
+  - Linux-friendly launcher for rebuilding and opening the packaged executable.
+
+Design decisions:
+
+- The smoke intentionally uses a richer editor-like shell rather than the earlier minimal quartet proof so the feature is exercised inside a UI shape that reads like an actual DCC/tool app.
+- The smoke stays inside currently proven native-ui and viewport primitives instead of inventing a separate rendering lane just for the quartet demo.
+
+Current risks:
+
+- The scene still uses the current generic viewport scene lane, so this is primarily a packaging-and-shell proof rather than a custom geometry-runtime proof.
+- `smoketest/3D/` is globally ignored in the repo, so these source files need explicit force-add handling until the broader ignore policy is cleaned up.
+
 ## 2026-04-09 - Linux LLVM and raw-native runtime lanes now validate end-to-end
 
 The native runtime's Linux surface is no longer blocked at the public-header and validation-harness level.

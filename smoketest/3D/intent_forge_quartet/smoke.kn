@@ -1,0 +1,162 @@
+world IntentForge:
+    state brush_energy: Int = 64
+    state orbit_radius: Int = 18
+    state active_layer: Int = 2
+    surface native_ui => App
+    surface viewport3d => "intent_forge_preview"
+    surface web => App
+    surface ue5 => "IntentForgePreview"
+
+component App():
+    render <slot layout="column" gap={14} padding={14}>
+        <theme name="intent_forge">
+            <scope name="forge" selector="intent-forge" />
+            <token name="theme.background.top" category="color" value="#07101a" />
+            <token name="theme.background.bottom" category="color" value="#0f1826" />
+            <token name="theme.surface.base" category="color" value="#101b2c" />
+            <token name="theme.surface.alt" category="color" value="#162335" />
+            <token name="theme.surface.overlay" category="color" value="#111926e6" />
+            <token name="theme.accent.primary" category="color" value="#7ee0ff" />
+            <token name="theme.highlight" category="color" value="#ffb36b" />
+            <token name="theme.text.default" category="color" value="#f4f9ff" />
+            <token name="theme.text.muted" category="color" value="#94a8bf" />
+            <token name="widget.panel.surface.mode" category="surface" value="layered" />
+            <token name="widget.inspector.surface.mode" category="surface" value="glass" />
+            <token name="widget.tree.surface.mode" category="surface" value="flat" />
+            <token name="widget.graph.surface.mode" category="surface" value="canvas" />
+            <token name="widget.timeline.surface.mode" category="surface" value="accent" />
+            <token name="widget.viewport3d.surface.mode" category="surface" value="canvas" />
+
+            <variant scope="forge" name="masthead">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.padding" category="space" value={16} />
+            </variant>
+
+            <variant scope="forge" name="card">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.padding" category="space" value={12} />
+            </variant>
+
+            <variant scope="forge" name="shell">
+                <token name="surface.mode" category="surface" value="ghost" />
+                <token name="surface.padding" category="space" value={8} />
+            </variant>
+        </theme>
+
+        <panel title="Intent Forge Studio" scope="forge" variant="masthead" layout="row" gap={16}>
+            <panel title="Mission" scope="forge" variant="shell" layout="column" gap={6}>
+                <text role="eyebrow">COMPILER-OWNED INTENT 3D STUDIO</text>
+                <text role="title">{"A full native shell built on world, patch, converge, and orchestrate."}</text>
+                <text role="body">{"This executable is meant to look and feel like a real editor surface: viewport-first, tool-heavy, and explicitly authored around the new semantic system instead of a tiny proof card."}</text>
+            </panel>
+            <panel title="Metrics" scope="forge" variant="shell" layout="row" gap={12}>
+                <panel title="Brush" scope="forge" variant="card" layout="column" gap={3}>
+                    <text role="metric">72</text>
+                    <text role="caption">patched energy</text>
+                </panel>
+                <panel title="Orbit" scope="forge" variant="card" layout="column" gap={3}>
+                    <text role="metric">22</text>
+                    <text role="caption">patched radius</text>
+                </panel>
+                <panel title="Preview" scope="forge" variant="card" layout="column" gap={3}>
+                    <text role="metric">105</text>
+                    <text role="caption">orchestrated result</text>
+                </panel>
+            </panel>
+        </panel>
+
+        <panel title="Intent Forge Workspace" scope="forge" variant="shell" layout="dock" gap={12} persistent_layout_id="intent_forge_workspace">
+            <panel title="Tool Rack" dock="left" split_ratio={0.2} min_width={250} max_width={360} resizable={true} layout="column" gap={12}>
+                <inspector title="Session State" scope="forge">
+                    <text role="caption">{"world IntentForge owns the shared authored root and all four projection surfaces."}</text>
+                    <text role="caption">{"patch charge_brush and patch retune_orbit drive editor-session mutation."}</text>
+                    <text role="caption">{"active_layer stays compiler-owned instead of drifting into adapter-local chrome."}</text>
+                </inspector>
+                <tree title="Patch Ledger" scope="forge">
+                    <text role="caption">charge_brush</text>
+                    <text role="caption">retune_orbit</text>
+                    <text role="caption">preview_pipeline</text>
+                </tree>
+                <panel title="Operator Notes" scope="forge" variant="card" layout="column" gap={5}>
+                    <text role="title">Viewport-first shell</text>
+                    <text role="caption">{"This is intentionally closer to a real DCC/editor workstation than the earlier minimal quartet proof."}</text>
+                </panel>
+            </panel>
+
+            <panel title="Forge Stage" dock="center" layout="column" gap={12}>
+                <viewport3d title="Intent Forge Preview" scope="forge" scene="intent_forge_preview" />
+                <panel title="Realtime Operators" scope="forge" variant="shell" layout="row" gap={12}>
+                    <graph title="Converge Budget" scope="forge">
+                        <text role="caption">{"preview_seed keeps one semantic solve and two fast-lane selectors under converge."}</text>
+                    </graph>
+                    <timeline title="Pipeline Staging" scope="forge">
+                        <text role="caption">{"kain -> rust -> python -> node preview pass staging"}</text>
+                    </timeline>
+                </panel>
+            </panel>
+
+            <panel title="Inspector Rail" dock="right" split_ratio={0.24} min_width={280} max_width={380} resizable={true} layout="column" gap={12}>
+                <inspector title="Pipeline Contract" scope="forge">
+                    <text role="caption">{"orchestrate preview_pipeline is typed, sequential, and emitted into the runtime + realtime bundles."}</text>
+                    <text role="caption">{"converge preview_seed keeps capability-driven lane selection visible in authored source."}</text>
+                </inspector>
+                <panel title="Visual Goal" scope="forge" variant="card" layout="column" gap={6}>
+                    <text role="title">Not a toy viewport</text>
+                    <text role="caption">{"The point of this app is to prove the new language system inside a shell that reads like an actual product surface, not a single placeholder panel."}</text>
+                </panel>
+                <tree title="World Surfaces" scope="forge">
+                    <text role="caption">native_ui => App</text>
+                    <text role="caption">viewport3d => intent_forge_preview</text>
+                    <text role="caption">web => App</text>
+                    <text role="caption">ue5 => IntentForgePreview</text>
+                </tree>
+            </panel>
+
+            <panel title="Activity Strip" dock="bottom" split_ratio={0.2} min_height={180} max_height={260} resizable={true} layout="row" gap={12}>
+                <timeline title="Session Activity" scope="forge">
+                    <text role="caption">startup</text>
+                    <text role="caption">patch apply</text>
+                    <text role="caption">converge select</text>
+                    <text role="caption">orchestrate stage</text>
+                </timeline>
+                <panel title="Compiler-Owned Signals" scope="forge" variant="card" layout="column" gap={6}>
+                    <text role="caption">{"Required capabilities land in the packaged runtime contract."}</text>
+                    <text role="caption">{"The same authored file drives both kain run and build native-ui."}</text>
+                    <text role="caption">{"The packaged executable is the visual proof for the new system."}</text>
+                </panel>
+            </panel>
+        </panel>
+    </slot>
+
+patch charge_brush(forge: IntentForge, delta: Int) -> Int:
+    forge.brush_energy = forge.brush_energy + delta
+    return forge.brush_energy
+
+patch retune_orbit(forge: IntentForge, delta: Int) -> Int:
+    forge.orbit_radius = forge.orbit_radius + delta
+    return forge.orbit_radius
+
+fn stage_gain(value: Int) -> Int:
+    return value + 3
+
+converge preview_seed(value: Int) -> Int:
+    spec reference:
+        return value + 2
+    fast interpret_lane when target("interpret"):
+        return value + 2
+    fast dispatch_lane when capability("converge.dispatch"):
+        return value + 2
+    verify random(16)
+
+orchestrate preview_pipeline(value: Int) -> Int:
+    let seeded: Int = kain preview_seed(value)
+    let sculpted: Int = rust stage_gain(seeded)
+    let lit: Int = python stage_gain(sculpted)
+    let packaged: Int = node stage_gain(lit)
+    return packaged
+
+fn main() -> Int:
+    let forge = IntentForge
+    let charged = charge_brush(forge, 8)
+    let orbit = retune_orbit(forge, 4)
+    return preview_pipeline(charged + orbit)
