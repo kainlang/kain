@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "target": "llvm",
+  "render": {
+    "scenes": [],
+    "materials": []
+  },
+  "patches": [
+    {
+      "name": "set_counter",
+      "mutation_paths": [
+        "studio.counter"
+      ],
+      "undo_mode": "reversible",
+      "collaboration_event": "patch.set_counter"
+    }
+  ],
+  "converges": [
+    {
+      "name": "choose_value",
+      "dispatcher_symbol": "choose_value",
+      "spec_lane": {
+        "lane_name": "reference",
+        "kind": "spec",
+        "symbol": "choose_value__reference"
+      },
+      "fast_lanes": [
+        {
+          "lane_name": "interpret_lane",
+          "kind": "fast",
+          "selector": "target:interpret",
+          "symbol": "choose_value__interpret_lane"
+        }
+      ]
+    }
+  ],
+  "worlds": [
+    {
+      "name": "Studio",
+      "state_slots": [
+        {
+          "name": "counter",
+          "type_name": "Int",
+          "initial_expr": "1"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "native_ui",
+          "authored_expr": "App",
+          "surface_key": "world.Studio.native_ui"
+        }
+      ]
+    }
+  ],
+  "active_world": {
+    "name": "Studio",
+    "state_slots": [
+      {
+        "name": "counter",
+        "type_name": "Int",
+        "initial_expr": "1"
+      }
+    ],
+    "surfaces": [
+      {
+        "kind": "native_ui",
+        "authored_expr": "App",
+        "surface_key": "world.Studio.native_ui"
+      }
+    ]
+  },
+  "orchestrations": [
+    {
+      "name": "pipeline",
+      "return_type": "Int",
+      "stages": [
+        {
+          "runtime": "kain",
+          "function": "choose_value",
+          "binding_name": "staged"
+        },
+        {
+          "runtime": "rust",
+          "function": "stage_bias",
+          "binding_name": "echoed"
+        }
+      ]
+    }
+  ],
+  "shader_bundle_refs": [],
+  "assets": [],
+  "tool_caps": [
+    "converge.dispatch",
+    "orchestrate.pipeline",
+    "patch.transactions",
+    "world.native-ui"
+  ],
+  "requirements": [
+    "converge.dispatch",
+    "host.raw-native",
+    "orchestrate.pipeline",
+    "patch.transactions",
+    "runtime.contract.bundle",
+    "shader.bundle.metadata",
+    "world.native-ui"
+  ],
+  "ui_contracts": {
+    "contract_version": "ui_slate_x100.authoring_contract.v1",
+    "widget_registry_json": null,
+    "command_registry_json": null,
+    "computed_registry_json": null,
+    "event_routes_json": null,
+    "hot_reload_json": null,
+    "focus_graph_json": null,
+    "selection_model_json": null,
+    "overlay_stack_json": null,
+    "motion_policy_json": null,
+    "paint_registry_json": null,
+    "motion_registry_json": null,
+    "workspace_schema_json": null,
+    "workspace_layout_json": "{\n  \"roots\": [],\n  \"persistence_key\": null,\n  \"virtualization_enabled\": false,\n  \"active_tabs\": {}\n}",
+    "workspace_layout": null,
+    "structure_index": [
+      {
+        "id": 2,
+        "identity_key": "2",
+        "kind": "component:App",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null
+      }
+    ]
+  }
+}

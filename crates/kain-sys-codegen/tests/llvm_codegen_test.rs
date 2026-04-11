@@ -587,6 +587,7 @@ fn llvm_generates_actor_spawn_and_send_message_paths() {
     assert!(
         llvm.contains("call void @KAIN_spawn(i8* bitcast (void (i8*)* @Printer_run to i8*), i8*")
     );
+    assert!(llvm.contains("call i8* @mq_new()"));
     assert!(llvm.contains("call void @mq_push(i8* "));
     assert!(llvm.contains("%Printer_Print = type { i64 }"));
 }

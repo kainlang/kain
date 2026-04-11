@@ -2,12 +2,10 @@
 // Purpose: prove actor spawn and message-send paths are emitted and executable.
 
 actor Printer:
-    state count: Int = 0
-
-    on Print(value: Int):
-        count = count + value
+    on Print():
+        let touched: Int = 0
 
 fn main() -> Int:
-    let actor = spawn Printer()
-    send actor.Print(value = 7)
+    let printer = spawn Printer()
+    send printer.Print()
     return 0

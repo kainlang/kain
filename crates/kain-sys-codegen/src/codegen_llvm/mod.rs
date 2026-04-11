@@ -3614,7 +3614,11 @@ impl LlvmGenerator {
                 // Initialize fields
                 let mut provided: HashMap<String, Expr> = init.iter().cloned().collect();
                 for (i, (field_name, field_ty)) in def.iter().enumerate() {
-                    let (val, val_ty) = if let Some(expr) = provided.remove(field_name) {
+                    let (val, val_ty) = if field_name == "__mailbox" {
+                        let mailbox_reg = self.next_reg();
+                        self.emit(&format!("  {} = call i8* @mq_new()", mailbox_reg));
+                        (mailbox_reg, "i8*".into())
+                    } else if let Some(expr) = provided.remove(field_name) {
                         self.compile_expr(&expr)?
                     } else {
                         // Default zero init

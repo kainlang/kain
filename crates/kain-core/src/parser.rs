@@ -3743,13 +3743,13 @@ impl<'a> Parser<'a> {
                 self.advance();
                 let expr = self.parse_postfix()?;
 
-                if let Expr::Call { callee, args, span } = expr {
-                    if let Expr::Field {
-                        object,
-                        field,
-                        span: _,
-                    } = *callee
-                    {
+                match expr {
+                    Expr::MethodCall {
+                        receiver,
+                        method,
+                        args,
+                        span,
+                    } => {
                         let mut data = Vec::new();
                         for arg in args {
                             if let Some(name) = arg.name {
@@ -3761,19 +3761,42 @@ impl<'a> Parser<'a> {
                             }
                         }
                         Ok(Expr::SendMsg {
-                            target: object,
-                            message: field,
+                            target: receiver,
+                            message: method,
                             data,
                             span: start.merge(span),
                         })
-                    } else {
-                        Err(self.parser_error(
-                            "Expected method call after send (e.g., actor.message())",
-                            span,
-                        ))
                     }
-                } else {
-                    Err(self.parser_error("Expected message call after send", expr.span()))
+                    Expr::Call { callee, args, span } => {
+                        if let Expr::Field {
+                            object,
+                            field,
+                            span: _,
+                        } = *callee
+                        {
+                            let mut data = Vec::new();
+                            for arg in args {
+                                if let Some(name) = arg.name {
+                                    data.push((name, arg.value));
+                                } else {
+                                    return Err(self
+                                        .parser_error("Send requires named arguments", arg.span));
+                                }
+                            }
+                            Ok(Expr::SendMsg {
+                                target: object,
+                                message: field,
+                                data,
+                                span: start.merge(span),
+                            })
+                        } else {
+                            Err(self.parser_error(
+                                "Expected method call after send (e.g., actor.message())",
+                                span,
+                            ))
+                        }
+                    }
+                    _ => Err(self.parser_error("Expected message call after send", expr.span())),
                 }
             }
             _ => self.parse_postfix(),
