@@ -16,9 +16,9 @@ pub use authoring::{
 };
 pub use host::{install_runtime_natives, Kain3dSession, KAIN_3D_MODULE_NAME};
 pub use interaction::{
-    CpuPickingService, ManipulatorAxis, ManipulatorDelta, ManipulatorMode, ManipulatorSpace,
-    ManipulatorState, PickTargetId, PickingHit, PickingQuery, PickingRay, PickingService,
-    SceneCommand, SceneTransaction,
+    apply_manipulator_drag, CpuPickingService, ManipulatorAxis, ManipulatorDelta, ManipulatorMode,
+    ManipulatorSnapSettings, ManipulatorSpace, ManipulatorState, PickTargetId, PickingHit,
+    PickingQuery, PickingRay, PickingService, SceneCommand, SceneTransaction,
 };
 pub use math::{ColorRgb, Mat4, Transform, Vec2, Vec3};
 pub use prelude::{emit_kain_prelude, reflected_type_registry};

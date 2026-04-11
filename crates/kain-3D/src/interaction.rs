@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
-use crate::{CameraPose, RenderResolution, SceneCatalog, SceneDescription, Transform, Vec3};
+use crate::{
+    CameraPose, Mat4, RenderResolution, SceneCatalog, SceneDescription, Transform, Vec2, Vec3,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PickTargetId {
@@ -124,6 +126,165 @@ impl Default for ManipulatorDelta {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ManipulatorSnapSettings {
+    pub translation_step: Option<f32>,
+    pub rotation_step_radians: Option<f32>,
+    pub scale_step: Option<f32>,
+}
+
+pub fn apply_manipulator_drag(
+    camera: &CameraPose,
+    resolution: RenderResolution,
+    drag_origin_transform: &Transform,
+    pointer_delta: Vec2,
+    manipulator_mode: ManipulatorMode,
+    manipulator_space: ManipulatorSpace,
+    manipulator_axis: ManipulatorAxis,
+    snap_enabled: bool,
+    snap_settings: ManipulatorSnapSettings,
+) -> Transform {
+    let viewport_scale = (resolution.width.min(resolution.height) as f32).max(1.0);
+    let depth_scale = (camera.position.distance(drag_origin_transform.translation) * 2.4
+        / viewport_scale)
+        .clamp(0.006, 0.18);
+    let camera_right = camera.right();
+    let camera_up = camera.right().cross(camera.forward()).normalize();
+
+    let mut updated_transform = drag_origin_transform.clone();
+    match manipulator_mode {
+        ManipulatorMode::Translate => {
+            let translation_delta = match manipulator_axis {
+                ManipulatorAxis::Screen => {
+                    camera_right * (pointer_delta.x * depth_scale)
+                        + camera_up * (-pointer_delta.y * depth_scale)
+                }
+                ManipulatorAxis::X | ManipulatorAxis::Y | ManipulatorAxis::Z => {
+                    let axis = manipulator_direction(
+                        drag_origin_transform,
+                        manipulator_space,
+                        manipulator_axis,
+                    );
+                    axis * projected_drag_amount(pointer_delta, axis, camera_right, camera_up)
+                        * depth_scale
+                }
+                ManipulatorAxis::PlaneXY | ManipulatorAxis::PlaneXZ | ManipulatorAxis::PlaneYZ => {
+                    let (basis_u, basis_v) = manipulator_plane_basis(
+                        drag_origin_transform,
+                        manipulator_space,
+                        manipulator_axis,
+                    );
+                    basis_u * (pointer_delta.x * depth_scale)
+                        + basis_v * (-pointer_delta.y * depth_scale)
+                }
+            };
+            updated_transform.translation = drag_origin_transform.translation + translation_delta;
+            if snap_enabled {
+                if let Some(step) = snap_settings.translation_step {
+                    updated_transform.translation = snap_vec3(updated_transform.translation, step);
+                }
+            }
+        }
+        ManipulatorMode::Rotate => {
+            match manipulator_axis {
+                ManipulatorAxis::Screen => {
+                    updated_transform.rotation_radians = drag_origin_transform.rotation_radians
+                        + Vec3::new(pointer_delta.y * -0.008, pointer_delta.x * 0.008, 0.0);
+                }
+                ManipulatorAxis::X | ManipulatorAxis::Y | ManipulatorAxis::Z => {
+                    let amount = projected_drag_amount(
+                        pointer_delta,
+                        manipulator_direction(
+                            drag_origin_transform,
+                            manipulator_space,
+                            manipulator_axis,
+                        ),
+                        camera_right,
+                        camera_up,
+                    ) * 0.008;
+                    let rotation_delta = match manipulator_axis {
+                        ManipulatorAxis::X => Vec3::new(amount, 0.0, 0.0),
+                        ManipulatorAxis::Y => Vec3::new(0.0, amount, 0.0),
+                        ManipulatorAxis::Z => Vec3::new(0.0, 0.0, amount),
+                        _ => Vec3::ZERO,
+                    };
+                    updated_transform.rotation_radians =
+                        drag_origin_transform.rotation_radians + rotation_delta;
+                }
+                ManipulatorAxis::PlaneXY | ManipulatorAxis::PlaneXZ | ManipulatorAxis::PlaneYZ => {
+                    let amount = (pointer_delta.x - pointer_delta.y) * 0.006;
+                    let rotation_delta = match manipulator_axis {
+                        ManipulatorAxis::PlaneXY => Vec3::new(0.0, 0.0, amount),
+                        ManipulatorAxis::PlaneXZ => Vec3::new(0.0, amount, 0.0),
+                        ManipulatorAxis::PlaneYZ => Vec3::new(amount, 0.0, 0.0),
+                        _ => Vec3::ZERO,
+                    };
+                    updated_transform.rotation_radians =
+                        drag_origin_transform.rotation_radians + rotation_delta;
+                }
+            }
+            if snap_enabled {
+                if let Some(step) = snap_settings.rotation_step_radians {
+                    updated_transform.rotation_radians =
+                        snap_vec3(updated_transform.rotation_radians, step);
+                }
+            }
+        }
+        ManipulatorMode::Scale => {
+            let base_scale = drag_origin_transform.scale;
+            match manipulator_axis {
+                ManipulatorAxis::Screen => {
+                    let scale_factor =
+                        (1.0 + (pointer_delta.x - pointer_delta.y) * 0.004).clamp(0.25, 5.0);
+                    updated_transform.scale = base_scale * scale_factor;
+                }
+                ManipulatorAxis::X | ManipulatorAxis::Y | ManipulatorAxis::Z => {
+                    let amount = projected_drag_amount(
+                        pointer_delta,
+                        manipulator_direction(
+                            drag_origin_transform,
+                            manipulator_space,
+                            manipulator_axis,
+                        ),
+                        camera_right,
+                        camera_up,
+                    ) * 0.004;
+                    let scale_factor = (1.0 + amount).clamp(0.25, 5.0);
+                    let axis_scale = match manipulator_axis {
+                        ManipulatorAxis::X => Vec3::new(scale_factor, 1.0, 1.0),
+                        ManipulatorAxis::Y => Vec3::new(1.0, scale_factor, 1.0),
+                        ManipulatorAxis::Z => Vec3::new(1.0, 1.0, scale_factor),
+                        _ => Vec3::new(1.0, 1.0, 1.0),
+                    };
+                    updated_transform.scale = base_scale.component_mul(axis_scale);
+                }
+                ManipulatorAxis::PlaneXY | ManipulatorAxis::PlaneXZ | ManipulatorAxis::PlaneYZ => {
+                    let scale_factor =
+                        (1.0 + (pointer_delta.x - pointer_delta.y) * 0.0035).clamp(0.25, 5.0);
+                    let plane_scale = match manipulator_axis {
+                        ManipulatorAxis::PlaneXY => Vec3::new(scale_factor, scale_factor, 1.0),
+                        ManipulatorAxis::PlaneXZ => Vec3::new(scale_factor, 1.0, scale_factor),
+                        ManipulatorAxis::PlaneYZ => Vec3::new(1.0, scale_factor, scale_factor),
+                        _ => Vec3::new(1.0, 1.0, 1.0),
+                    };
+                    updated_transform.scale = base_scale.component_mul(plane_scale);
+                }
+            }
+            if snap_enabled {
+                if let Some(step) = snap_settings.scale_step {
+                    updated_transform.scale = Vec3::new(
+                        round_to_step(updated_transform.scale.x, step).max(step),
+                        round_to_step(updated_transform.scale.y, step).max(step),
+                        round_to_step(updated_transform.scale.z, step).max(step),
+                    );
+                }
+            }
+        }
+    }
+
+    updated_transform
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum SceneCommand {
     Select {
@@ -177,12 +338,7 @@ impl CpuPickingService {
         query: &PickingQuery,
         instance_transform_overrides: &BTreeMap<String, Transform>,
     ) -> Option<PickingHit> {
-        self.pick_scene_filtered_with_overrides(
-            scene,
-            query,
-            None,
-            instance_transform_overrides,
-        )
+        self.pick_scene_filtered_with_overrides(scene, query, None, instance_transform_overrides)
     }
 
     pub fn pick_catalog_scene_with_overrides(
@@ -357,13 +513,81 @@ fn to_vec3(position: [f32; 4]) -> Vec3 {
     Vec3::new(position[0] / w, position[1] / w, position[2] / w)
 }
 
+fn manipulator_direction(
+    drag_origin_transform: &Transform,
+    manipulator_space: ManipulatorSpace,
+    manipulator_axis: ManipulatorAxis,
+) -> Vec3 {
+    let axis = match manipulator_axis {
+        ManipulatorAxis::X => Vec3::new(1.0, 0.0, 0.0),
+        ManipulatorAxis::Y => Vec3::new(0.0, 1.0, 0.0),
+        ManipulatorAxis::Z => Vec3::new(0.0, 0.0, 1.0),
+        _ => return Vec3::ZERO,
+    };
+
+    match manipulator_space {
+        ManipulatorSpace::World => axis,
+        ManipulatorSpace::Local => Mat4::rotation_xyz(drag_origin_transform.rotation_radians)
+            .transform_vector(axis)
+            .normalize(),
+    }
+}
+
+fn manipulator_plane_basis(
+    drag_origin_transform: &Transform,
+    manipulator_space: ManipulatorSpace,
+    manipulator_axis: ManipulatorAxis,
+) -> (Vec3, Vec3) {
+    let (axis_u, axis_v) = match manipulator_axis {
+        ManipulatorAxis::PlaneXY => (ManipulatorAxis::X, ManipulatorAxis::Y),
+        ManipulatorAxis::PlaneXZ => (ManipulatorAxis::X, ManipulatorAxis::Z),
+        ManipulatorAxis::PlaneYZ => (ManipulatorAxis::Y, ManipulatorAxis::Z),
+        _ => return (Vec3::ZERO, Vec3::ZERO),
+    };
+    (
+        manipulator_direction(drag_origin_transform, manipulator_space, axis_u),
+        manipulator_direction(drag_origin_transform, manipulator_space, axis_v),
+    )
+}
+
+fn projected_drag_amount(
+    pointer_delta: Vec2,
+    world_axis: Vec3,
+    camera_right: Vec3,
+    camera_up: Vec3,
+) -> f32 {
+    let projected = Vec2::new(world_axis.dot(camera_right), -world_axis.dot(camera_up));
+    let fallback = if projected.length() <= f32::EPSILON {
+        Vec2::new(1.0, 0.0)
+    } else {
+        projected.normalize()
+    };
+    pointer_delta.dot(fallback)
+}
+
+fn round_to_step(value: f32, step: f32) -> f32 {
+    if step.abs() <= f32::EPSILON {
+        value
+    } else {
+        (value / step).round() * step
+    }
+}
+
+fn snap_vec3(value: Vec3, step: f32) -> Vec3 {
+    Vec3::new(
+        round_to_step(value.x, step),
+        round_to_step(value.y, step),
+        round_to_step(value.z, step),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
     use crate::{
         BackgroundGradient, Camera, ColorRgb, DirectionalLight, Geometry, LightingRig, Material,
-        PointLight, SceneDescription, SceneInstance, Transform, Vec3,
+        PointLight, SceneDescription, SceneInstance, Transform, Vec2, Vec3,
     };
 
     use super::*;
@@ -473,5 +697,124 @@ mod tests {
         let hit = CpuPickingService.pick_scene(&scene, &PickingQuery::new(ray, 0.0));
 
         assert!(hit.is_none());
+    }
+
+    #[test]
+    fn screen_translate_drag_updates_world_position() {
+        let camera = CameraPose {
+            position: Vec3::new(0.0, 4.0, 10.0),
+            target: Vec3::ZERO,
+            up: Vec3::UP,
+            fov_y_degrees: 60.0,
+            near_plane: 0.1,
+            far_plane: 100.0,
+        };
+        let origin = Transform::identity().with_translation(Vec3::new(1.0, 2.0, 3.0));
+
+        let updated = apply_manipulator_drag(
+            &camera,
+            RenderResolution::new(1280, 720),
+            &origin,
+            Vec2::new(120.0, -48.0),
+            ManipulatorMode::Translate,
+            ManipulatorSpace::World,
+            ManipulatorAxis::Screen,
+            false,
+            ManipulatorSnapSettings::default(),
+        );
+
+        assert!(updated.translation.x > origin.translation.x);
+        assert!(updated.translation.y > origin.translation.y);
+    }
+
+    #[test]
+    fn axis_scale_drag_remains_positive() {
+        let camera = CameraPose {
+            position: Vec3::new(0.0, 4.0, 10.0),
+            target: Vec3::ZERO,
+            up: Vec3::UP,
+            fov_y_degrees: 60.0,
+            near_plane: 0.1,
+            far_plane: 100.0,
+        };
+        let origin = Transform::identity().with_scale(Vec3::new(2.0, 3.0, 4.0));
+
+        let updated = apply_manipulator_drag(
+            &camera,
+            RenderResolution::new(1280, 720),
+            &origin,
+            Vec2::new(-900.0, 900.0),
+            ManipulatorMode::Scale,
+            ManipulatorSpace::World,
+            ManipulatorAxis::X,
+            false,
+            ManipulatorSnapSettings::default(),
+        );
+
+        assert!(updated.scale.x > 0.0);
+        assert_eq!(updated.scale.y, origin.scale.y);
+        assert_eq!(updated.scale.z, origin.scale.z);
+    }
+
+    #[test]
+    fn translate_drag_snaps_when_enabled() {
+        let camera = CameraPose {
+            position: Vec3::new(0.0, 4.0, 10.0),
+            target: Vec3::ZERO,
+            up: Vec3::UP,
+            fov_y_degrees: 60.0,
+            near_plane: 0.1,
+            far_plane: 100.0,
+        };
+        let origin = Transform::identity().with_translation(Vec3::new(0.3, 0.7, 1.1));
+
+        let updated = apply_manipulator_drag(
+            &camera,
+            RenderResolution::new(1280, 720),
+            &origin,
+            Vec2::new(67.0, -19.0),
+            ManipulatorMode::Translate,
+            ManipulatorSpace::World,
+            ManipulatorAxis::Screen,
+            true,
+            ManipulatorSnapSettings {
+                translation_step: Some(0.5),
+                rotation_step_radians: None,
+                scale_step: None,
+            },
+        );
+
+        assert!((updated.translation.x * 2.0).fract().abs() <= 1.0e-4);
+        assert!((updated.translation.y * 2.0).fract().abs() <= 1.0e-4);
+    }
+
+    #[test]
+    fn local_axis_translation_respects_object_rotation() {
+        let camera = CameraPose {
+            position: Vec3::new(6.0, 3.0, 6.0),
+            target: Vec3::ZERO,
+            up: Vec3::UP,
+            fov_y_degrees: 55.0,
+            near_plane: 0.1,
+            far_plane: 100.0,
+        };
+        let origin = Transform::identity()
+            .with_translation(Vec3::new(0.0, 0.0, 0.0))
+            .with_rotation(Vec3::new(0.0, std::f32::consts::FRAC_PI_2, 0.0));
+
+        let updated = apply_manipulator_drag(
+            &camera,
+            RenderResolution::new(1280, 720),
+            &origin,
+            Vec2::new(140.0, 0.0),
+            ManipulatorMode::Translate,
+            ManipulatorSpace::Local,
+            ManipulatorAxis::X,
+            false,
+            ManipulatorSnapSettings::default(),
+        );
+
+        assert!(updated.translation.z.abs() > 0.01);
+        assert!(updated.translation.x.abs() < updated.translation.z.abs());
     }
 }

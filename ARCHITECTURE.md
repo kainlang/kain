@@ -161,6 +161,7 @@ Viewport startup intent now follows the same compiler-owned pattern:
 - `kain-core` emits `render.scenes` bindings with authored scene ids plus optional camera and presentation metadata
 - `kain-ui-native` and `runtime/native` consume those bundle defaults first and only fall back to local scene/profile defaults when the bundle leaves a field unspecified
 - scene ids, shader refs, camera presets, and presentation presets should travel together through the realtime bundle instead of being re-guessed independently by each host
+- `kain-3D` now owns the reusable manipulator drag contract as well: screen drag, axis/plane constraints, snap application, and local-vs-world transform math live in `crates/kain-3D/src/interaction.rs`, while `kain-ui-native` should stay a host/input forwarder instead of carrying a second copy of viewport-edit math
 
 ## Important Folders By Intent
 

@@ -1,5 +1,45 @@
 # MEMORY
 
+## 2026-04-10 - manipulator math moved into kain-3d and the host prelude now uses real extern 3D bindings
+
+The 3D lane no longer leaves core viewport edit math stranded inside `kain-ui-native`.
+
+What changed:
+
+- Updated `crates/kain-3D/src/interaction.rs` and `crates/kain-3D/src/lib.rs`
+  - Added `ManipulatorSnapSettings` plus `apply_manipulator_drag(...)` as the reusable 3D interaction contract.
+  - Centralized screen-drag translation/rotation/scale math in `kain-3D` instead of keeping it host-local.
+  - Added constrained drag handling for screen, axis, and plane manipulator modes, plus local-vs-world basis resolution and snap application.
+  - Added focused tests for screen drag movement, snap behavior, axis scale positivity, and local-axis translation under object rotation.
+- Updated `crates/kain-ui-native/src/lib.rs`
+  - Switched the viewport manipulation path to call `kain-3D`’s shared drag helper instead of its own private transform math.
+  - Kept `kain-ui-native` in the host-forwarding role: it still owns input capture and viewport chrome, but the transform result is now computed by the 3D crate.
+- Updated `crates/kain-3D/src/prelude.rs`
+  - Replaced fake Kain-bodied `__zen3d_*` helper implementations with `@extern fn` declarations that match the native bindings installed by `Kain3dSession`.
+  - This fixed the existing `kain-3d` host test failure where the generated prelude was constructing placeholder 3D values instead of binding to the Rust-native helpers cleanly.
+- Updated `ARCHITECTURE.md`
+  - Recorded that manipulator drag math is now a `kain-3D` responsibility under the viewport contract lane.
+
+Validation completed:
+
+- `cargo test -p kain-3d --lib -- --nocapture`
+- `cargo test -p kain-ui-native viewport_ -- --nocapture`
+
+Design decisions:
+
+- Chose a shared drag API first instead of adding more ad hoc viewport behaviors in `kain-ui-native`, because the current weakness was ownership drift more than missing host chrome.
+- Kept the first integration using `ManipulatorAxis::Screen` in the native UI lane so the host change stays low-risk while the 3D crate can already support axis/plane-constrained drags for the next pass.
+- Used `@extern fn` in the 3D prelude because the helper functions are truly native host bindings; fake Kain return bodies were hiding that seam and were fragile under typechecking.
+
+Current risks:
+
+- `kain-ui-native` still defaults to screen-space drag activation; it is not yet choosing gizmo axes from handle hits, so the richer axis/plane drag support in `kain-3D` is only partially exercised by the current host.
+- Rotation still lands in Euler component updates, which is acceptable for the current transform model but not a final professional-grade manipulator representation.
+
+Recommended next step:
+
+- Use the GPU/CPU picking paths to identify active gizmo handles and feed real `ManipulatorAxis` selections into `apply_manipulator_drag(...)`, so the native viewport graduates from screen-drag transforms to actual axis/plane gizmo interaction.
+
 ## 2026-04-10 - intent_forge_quartet adds a real native 3D executable smoke for the compiler-owned intent system
 
 The repo now has a richer visual proof for the compiler-owned intent quartet under `smoketest/3D/intent_forge_quartet`.

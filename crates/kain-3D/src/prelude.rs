@@ -180,96 +180,27 @@ mod zen3d:
     fn rgb(r: Float, g: Float, b: Float) -> ColorRgb:
         return ColorRgb { r: r, g: g, b: b }
 
-    fn __zen3d_box_geometry(size: Vec3) -> Geometry:
-        return Geometry {
-            positions: [],
-            normals: [],
-            uvs: [],
-            colors: [],
-            indices: [],
-            topology: GeometryTopology::Triangles,
-        }
+    @extern fn __zen3d_box_geometry(size: Vec3) -> Geometry
 
-    fn __zen3d_plane_geometry(size: Vec2) -> Geometry:
-        return Geometry {
-            positions: [],
-            normals: [],
-            uvs: [],
-            colors: [],
-            indices: [],
-            topology: GeometryTopology::Triangles,
-        }
+    @extern fn __zen3d_plane_geometry(size: Vec2) -> Geometry
 
-    fn __zen3d_uv_sphere(radius: Float, latitude_segments: Int, longitude_segments: Int) -> Geometry:
-        let _latitude = latitude_segments
-        let _longitude = longitude_segments
-        return Geometry {
-            positions: [],
-            normals: [],
-            uvs: [],
-            colors: [],
-            indices: [],
-            topology: GeometryTopology::Triangles,
-        }
+    @extern fn __zen3d_uv_sphere(radius: Float, latitude_segments: Int, longitude_segments: Int) -> Geometry
 
-    fn __zen3d_standard_material(base_color: ColorRgb) -> Material:
-        return Material {
-            base_color: base_color,
-            specular_color: ColorRgb { r: 1.0, g: 1.0, b: 1.0 },
-            ambient_strength: 0.2,
-            diffuse_strength: 1.0,
-            specular_strength: 0.28,
-            shininess: 18.0,
-        }
+    @extern fn __zen3d_standard_material(base_color: ColorRgb) -> Material
 
-    fn __zen3d_matte_material(base_color: ColorRgb) -> Material:
-        return Material {
-            base_color: base_color,
-            specular_color: ColorRgb { r: 1.0, g: 1.0, b: 1.0 },
-            ambient_strength: 0.2,
-            diffuse_strength: 1.0,
-            specular_strength: 0.06,
-            shininess: 6.0,
-        }
+    @extern fn __zen3d_matte_material(base_color: ColorRgb) -> Material
 
-    fn __zen3d_glossy_material(base_color: ColorRgb) -> Material:
-        return Material {
-            base_color: base_color,
-            specular_color: ColorRgb { r: 1.0, g: 1.0, b: 1.0 },
-            ambient_strength: 0.2,
-            diffuse_strength: 1.0,
-            specular_strength: 0.52,
-            shininess: 36.0,
-        }
+    @extern fn __zen3d_glossy_material(base_color: ColorRgb) -> Material
 
-    fn __zen3d_orbit_camera(target: Vec3, orbit_radius: Float, orbit_height: Float) -> Camera:
-        return Camera {
-            target: target,
-            up: Vec3 { x: 0.0, y: 1.0, z: 0.0 },
-            orbit_radius: orbit_radius,
-            orbit_height: orbit_height,
-            orbit_speed_radians_per_second: 0.0,
-            fov_y_degrees: 55.0,
-            near_plane: 0.1,
-            far_plane: 250.0,
-        }
+    @extern fn __zen3d_orbit_camera(target: Vec3, orbit_radius: Float, orbit_height: Float) -> Camera
 
-    fn __zen3d_radial_field(center: Vec3, inner_radius: Float, outer_radius: Float) -> Field:
-        return Field::Radial(center, inner_radius, outer_radius)
+    @extern fn __zen3d_radial_field(center: Vec3, inner_radius: Float, outer_radius: Float) -> Field
 
-    fn __zen3d_twist(axis: Vec3, angle_radians: Float) -> Modifier:
-        return Modifier::Twist(axis, angle_radians)
+    @extern fn __zen3d_twist(axis: Vec3, angle_radians: Float) -> Modifier
 
-    fn __zen3d_noise_displace(amplitude: Float, frequency: Float) -> Modifier:
-        return Modifier::NoiseDisplace(amplitude, frequency)
+    @extern fn __zen3d_noise_displace(amplitude: Float, frequency: Float) -> Modifier
 
-    fn __zen3d_brush(radius: Float, strength: Float) -> Brush:
-        return Brush {
-            radius: radius,
-            strength: strength,
-            spacing: 0.15,
-            falloff: BrushFalloff::Smooth,
-        }
+    @extern fn __zen3d_brush(radius: Float, strength: Float) -> Brush
 
     fn box_geometry(size: Vec3) -> Geometry:
         return __zen3d_box_geometry(size)

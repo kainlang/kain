@@ -18,11 +18,13 @@ use fdsm::{
 use fdsm_ttf_parser::{load_shape_from_face, ttf_parser::Face};
 use image::RgbaImage;
 use kain_3d::{
-    default_viewport_shader_bundle, prepare_wgpu_frame, wgsl_module_source, CameraPose,
-    CpuPickingService, GizmoVertex, GpuVertex, ManipulatorMode, ManipulatorSpace, ParticleVertex,
-    PickingHit, PickingQuery, PickingRay, PreparedWgpuFrame, RenderBackend, RenderResolution,
-    RenderStats, RenderViewSettings, SceneCatalog, SceneDescription, SceneUniforms,
-    SoftwareRenderer, Transform as SceneTransform, Vec3, WgpuRenderer, VIEWPORT_SHADER_MODULE_NAME,
+    apply_manipulator_drag, default_viewport_shader_bundle, prepare_wgpu_frame, wgsl_module_source,
+    CameraPose, CpuPickingService, GizmoVertex, GpuVertex, ManipulatorAxis, ManipulatorMode,
+    ManipulatorSnapSettings, ManipulatorSpace, ParticleVertex, PickingHit, PickingQuery,
+    PickingRay, PreparedWgpuFrame, RenderBackend, RenderResolution, RenderStats,
+    RenderViewSettings, SceneCatalog, SceneDescription, SceneUniforms, SoftwareRenderer,
+    Transform as SceneTransform, Vec2 as SceneVec2, Vec3, WgpuRenderer,
+    VIEWPORT_SHADER_MODULE_NAME,
 };
 use kain_core::{
     build_ui_output_from_source, realtime_app_bundle_from_json, render_ui_output_debug,
@@ -39,9 +41,8 @@ use kain_ui::{
     ui_runtime_bundle_to_json, validate_ui_runtime_bundle, UiBuildOutput, UiLayoutAlignment,
     UiLayoutKind, UiLength, UiLengthUnit, UiNode, UiNodeId, UiOverflowBehavior, UiPatch,
     UiResolvedTheme, UiRuntime, UiRuntimeBundle, UiRuntimeMetadata, UiRuntimeStepInput,
-    UiStyleState, UiSurface, UiSurfaceCompositionMode, UiSurfaceKind,
-    UiSurfaceRendererPreference, UiThemeRegistry, UiTree, UiValue, UiWidgetKind,
-    UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
+    UiStyleState, UiSurface, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
+    UiThemeRegistry, UiTree, UiValue, UiWidgetKind, UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
 };
 use nalgebra::{Affine2, Similarity2, Vector2};
 use wgpu::util::DeviceExt;
@@ -1926,7 +1927,6 @@ fn widget_display_label(kind: &UiWidgetKind) -> &'static str {
     }
 }
 
-
 fn candidate_theme_keys(widget_key: &str, variant: Option<&str>, property: &str) -> Vec<String> {
     let mut keys = Vec::with_capacity(4);
     if let Some(variant) = variant {
@@ -2222,11 +2222,7 @@ fn render_tag_chip(ui: &mut egui::Ui, theme: &NativeWidgetTheme, label: &str, em
         });
 }
 
-fn render_widget_header(
-    ui: &mut egui::Ui,
-    theme: &NativeWidgetTheme,
-    title: &str,
-) {
+fn render_widget_header(ui: &mut egui::Ui, theme: &NativeWidgetTheme, title: &str) {
     Frame::new()
         .fill(theme.header_fill)
         .stroke(Stroke::new(1.0, theme.header_stroke))
@@ -2276,7 +2272,10 @@ fn is_product_desktop_theme(
             || presentation.viewport_centered_layout
             || presentation.layout.eq_ignore_ascii_case("dock")
             || presentation.dock_regions.iter().any(|region| {
-                matches!(region.as_str(), "center" | "left" | "right" | "bottom" | "top")
+                matches!(
+                    region.as_str(),
+                    "center" | "left" | "right" | "bottom" | "top"
+                )
             })
     });
     let known_product_app = snapshot.is_some_and(|value| {
@@ -2289,7 +2288,10 @@ fn is_product_desktop_theme(
 fn runtime_shell_presentation<'a>(
     snapshot: Option<&'a NativeAppRuntimeSnapshot>,
 ) -> Option<&'a NativeAppRuntimeDccSuitePresentation> {
-    snapshot?.dcc_suite_state.as_ref().map(|state| &state.presentation)
+    snapshot?
+        .dcc_suite_state
+        .as_ref()
+        .map(|state| &state.presentation)
 }
 
 fn widget_title_visible(
@@ -2846,13 +2848,6 @@ enum ViewportManipulatorDragTrigger {
     AltPrimaryDrag,
 }
 
-#[derive(Clone, Copy, Debug)]
-struct ViewportGizmoSnapSettings {
-    translation_step: Option<f32>,
-    rotation_step_radians: Option<f32>,
-    scale_step: Option<f32>,
-}
-
 impl ViewportCameraController {
     fn from_pose(pose: &CameraPose) -> Self {
         let forward = pose.forward();
@@ -3107,10 +3102,8 @@ fn capture_viewport_pressed_hotkeys(input: &egui::InputState) -> BTreeSet<String
         .collect()
 }
 
-fn viewport_gizmo_snap_settings(
-    binding: &RealtimeViewportGizmoBinding,
-) -> ViewportGizmoSnapSettings {
-    ViewportGizmoSnapSettings {
+fn viewport_gizmo_snap_settings(binding: &RealtimeViewportGizmoBinding) -> ManipulatorSnapSettings {
+    ManipulatorSnapSettings {
         translation_step: binding
             .translate_snap_units
             .filter(|value| *value > f32::EPSILON),
@@ -3123,22 +3116,6 @@ fn viewport_gizmo_snap_settings(
             .filter(|value| value.abs() > f32::EPSILON)
             .map(|value| value / 100.0),
     }
-}
-
-fn round_to_step(value: f32, step: f32) -> f32 {
-    if step.abs() <= f32::EPSILON {
-        value
-    } else {
-        (value / step).round() * step
-    }
-}
-
-fn snap_vec3(value: Vec3, step: f32) -> Vec3 {
-    Vec3::new(
-        round_to_step(value.x, step),
-        round_to_step(value.y, step),
-        round_to_step(value.z, step),
-    )
 }
 
 struct KainUiNativeApp {
@@ -5936,13 +5913,38 @@ fn render_node(
                         }
                         render_widget_body_frame(ui, &theme, |ui| {
                             if matches!(node.kind, UiWidgetKind::Slot) {
-                                if let Some(viewport_id) = canonical_viewport_descendant(tree, node) {
-                                    render_node(app, ui, ctx, tree, theme_registry, app_theme, viewport_id);
+                                if let Some(viewport_id) = canonical_viewport_descendant(tree, node)
+                                {
+                                    render_node(
+                                        app,
+                                        ui,
+                                        ctx,
+                                        tree,
+                                        theme_registry,
+                                        app_theme,
+                                        viewport_id,
+                                    );
                                 } else {
-                                    render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+                                    render_children(
+                                        app,
+                                        ui,
+                                        ctx,
+                                        tree,
+                                        theme_registry,
+                                        app_theme,
+                                        node,
+                                    );
                                 }
                             } else {
-                                render_children(app, ui, ctx, tree, theme_registry, app_theme, node);
+                                render_children(
+                                    app,
+                                    ui,
+                                    ctx,
+                                    tree,
+                                    theme_registry,
+                                    app_theme,
+                                    node,
+                                );
                             }
                         });
                     });
@@ -6788,7 +6790,10 @@ fn render_center_area_entry(
     match entry {
         ChildRenderEntry::Single(id) => {
             if let Some(node) = tree.node(*id) {
-                if !matches!(node.kind, UiWidgetKind::Viewport2D | UiWidgetKind::Viewport3D) {
+                if !matches!(
+                    node.kind,
+                    UiWidgetKind::Viewport2D | UiWidgetKind::Viewport3D
+                ) {
                     if let Some(viewport_id) = canonical_viewport_descendant(tree, node) {
                         render_node(app, ui, ctx, tree, theme_registry, app_theme, viewport_id);
                         return;
@@ -6800,8 +6805,12 @@ fn render_center_area_entry(
         ChildRenderEntry::TabGroup { group_id, tabs } => {
             if let Some(active_tab_id) = resolve_active_tab_child(app, tree, group_id, tabs) {
                 if let Some(active_node) = tree.node(active_tab_id) {
-                    if !matches!(active_node.kind, UiWidgetKind::Viewport2D | UiWidgetKind::Viewport3D) {
-                        if let Some(viewport_id) = canonical_viewport_descendant(tree, active_node) {
+                    if !matches!(
+                        active_node.kind,
+                        UiWidgetKind::Viewport2D | UiWidgetKind::Viewport3D
+                    ) {
+                        if let Some(viewport_id) = canonical_viewport_descendant(tree, active_node)
+                        {
                             render_node(app, ui, ctx, tree, theme_registry, app_theme, viewport_id);
                             return;
                         }
@@ -7990,13 +7999,14 @@ fn sync_viewport_manipulation(
         return;
     };
     let pointer_delta = pointer_pos - active_manipulation.drag_origin_pointer;
-    let updated_transform = manipulated_transform_from_drag(
+    let updated_transform = apply_manipulator_drag(
         camera,
         resolution,
+        &active_manipulation.drag_origin_transform,
+        SceneVec2::new(pointer_delta.x, pointer_delta.y),
         surface.manipulator_mode,
         surface.manipulator_space,
-        &active_manipulation.drag_origin_transform,
-        pointer_delta,
+        ManipulatorAxis::Screen,
         surface.snap_enabled,
         viewport_gizmo_snap_settings(gizmo_binding),
     );
@@ -8017,63 +8027,6 @@ fn resolve_effective_instance_transform(
         .into_iter()
         .find(|instance| instance.id == instance_id)
         .map(|instance| instance.transform)
-}
-
-fn manipulated_transform_from_drag(
-    camera: &CameraPose,
-    resolution: RenderResolution,
-    manipulator_mode: ManipulatorMode,
-    manipulator_space: ManipulatorSpace,
-    drag_origin_transform: &SceneTransform,
-    pointer_delta: Vec2,
-    snap_enabled: bool,
-    snap_settings: ViewportGizmoSnapSettings,
-) -> SceneTransform {
-    let viewport_scale = (resolution.width.min(resolution.height) as f32).max(1.0);
-    let depth_scale = (camera.position.distance(drag_origin_transform.translation) * 2.4
-        / viewport_scale)
-        .clamp(0.006, 0.18);
-    let camera_right = camera.right();
-    let camera_up = camera.right().cross(camera.forward()).normalize();
-
-    let mut updated_transform = drag_origin_transform.clone();
-    match manipulator_mode {
-        ManipulatorMode::Translate => {
-            updated_transform.translation = drag_origin_transform.translation
-                + camera_right * (pointer_delta.x * depth_scale)
-                + camera_up * (-pointer_delta.y * depth_scale);
-            if snap_enabled {
-                if let Some(step) = snap_settings.translation_step {
-                    updated_transform.translation = snap_vec3(updated_transform.translation, step);
-                }
-            }
-        }
-        ManipulatorMode::Rotate => {
-            updated_transform.rotation_radians = drag_origin_transform.rotation_radians
-                + Vec3::new(pointer_delta.y * -0.008, pointer_delta.x * 0.008, 0.0);
-            if snap_enabled {
-                if let Some(step) = snap_settings.rotation_step_radians {
-                    updated_transform.rotation_radians =
-                        snap_vec3(updated_transform.rotation_radians, step);
-                }
-            }
-        }
-        ManipulatorMode::Scale => {
-            let scale_factor = (1.0 + (pointer_delta.x - pointer_delta.y) * 0.004).clamp(0.25, 5.0);
-            updated_transform.scale = drag_origin_transform.scale * scale_factor;
-            if snap_enabled {
-                if let Some(step) = snap_settings.scale_step {
-                    updated_transform.scale = Vec3::new(
-                        round_to_step(updated_transform.scale.x, step).max(step),
-                        round_to_step(updated_transform.scale.y, step).max(step),
-                        round_to_step(updated_transform.scale.z, step).max(step),
-                    );
-                }
-            }
-        }
-    }
-    let _ = manipulator_space;
-    updated_transform
 }
 
 fn apply_viewport_grounding(
@@ -8843,13 +8796,14 @@ mod tests {
         };
         let origin = SceneTransform::identity().with_translation(Vec3::new(1.0, 2.0, 3.0));
 
-        let updated = manipulated_transform_from_drag(
+        let updated = apply_manipulator_drag(
             &camera,
             RenderResolution::new(1280, 720),
+            &origin,
+            SceneVec2::new(120.0, -48.0),
             ManipulatorMode::Translate,
             ManipulatorSpace::World,
-            &origin,
-            Vec2::new(120.0, -48.0),
+            ManipulatorAxis::Screen,
             false,
             viewport_gizmo_snap_settings(&default_viewport_gizmo_binding()),
         );
@@ -8870,13 +8824,14 @@ mod tests {
         };
         let origin = SceneTransform::identity().with_scale(Vec3::new(2.0, 3.0, 4.0));
 
-        let updated = manipulated_transform_from_drag(
+        let updated = apply_manipulator_drag(
             &camera,
             RenderResolution::new(1280, 720),
+            &origin,
+            SceneVec2::new(-900.0, 900.0),
             ManipulatorMode::Scale,
             ManipulatorSpace::World,
-            &origin,
-            Vec2::new(-900.0, 900.0),
+            ManipulatorAxis::Screen,
             false,
             viewport_gizmo_snap_settings(&default_viewport_gizmo_binding()),
         );
@@ -8898,15 +8853,16 @@ mod tests {
         };
         let origin = SceneTransform::identity().with_translation(Vec3::new(0.3, 0.7, 1.1));
 
-        let updated = manipulated_transform_from_drag(
+        let updated = apply_manipulator_drag(
             &camera,
             RenderResolution::new(1280, 720),
+            &origin,
+            SceneVec2::new(67.0, -19.0),
             ManipulatorMode::Translate,
             ManipulatorSpace::World,
-            &origin,
-            Vec2::new(67.0, -19.0),
+            ManipulatorAxis::Screen,
             true,
-            ViewportGizmoSnapSettings {
+            ManipulatorSnapSettings {
                 translation_step: Some(0.5),
                 rotation_step_radians: None,
                 scale_step: None,
