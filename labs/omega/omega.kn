@@ -1,0 +1,149 @@
+// OMEGA - modernized for current Kain
+// The original file tried to prove that one authored language could own
+// compiler logic, runtime logic, UI, cluster reasoning, audio reasoning,
+// and tensor-heavy compute ideas in one place. This port keeps that thesis
+// while using syntax that exists today.
+
+world Omega:
+    state compiler_heat: Int = 12
+    state audio_voices: Int = 8
+    state cluster_nodes: Int = 5
+    state tensor_tiles: Int = 16
+    surface native_ui => App
+    surface viewport3d => "OmegaViewport"
+    surface web => App
+    surface ue5 => "OmegaViewport"
+
+component App():
+    render <slot layout="column" gap={12} padding={12}>
+        <panel title="OMEGA / 2026" layout="column" gap={6}>
+            <text role="title">{"One file. Real logic. Current Kain."}</text>
+            <text role="caption">{"This modern Omega keeps the old thesis while using world, patch, converge, orchestrate, actors, and regular authored functions that compile today."}</text>
+        </panel>
+        <panel title="Active Lanes" layout="column" gap={4}>
+            <text role="caption">{"compiler + runtime semantics"}</text>
+            <text role="caption">{"native_ui + viewport3d projection"}</text>
+            <text role="caption">{"cluster math + tensor-core planning + audio scoring"}</text>
+        </panel>
+        <viewport3d title="Omega Stage" scene="OmegaViewport" />
+    </slot>
+
+enum OmegaPhase:
+    Boot
+    Compile
+    Render
+    Serve
+    Learn
+
+struct CompilerLedger:
+    parsed_units: Int
+    optimized_units: Int
+
+struct AudioPatch:
+    voices: Int
+    modulation_depth: Int
+
+struct ClusterPlan:
+    replicas: Int
+    quorum: Int
+
+struct TensorCorePlan:
+    tiles: Int
+    accumulation_steps: Int
+    lanes: Int
+
+actor OmegaSupervisor:
+    state queued_jobs: Int = 0
+    state last_score: Int = 0
+
+    fn queue_jobs(amount: Int) -> Int:
+        return amount + 1
+
+    fn remember(score: Int) -> Int:
+        return score
+
+fn phase_bias(phase: OmegaPhase) -> Int:
+    if phase == OmegaPhase::Boot:
+        return 1
+    if phase == OmegaPhase::Compile:
+        return 5
+    if phase == OmegaPhase::Render:
+        return 7
+    if phase == OmegaPhase::Serve:
+        return 11
+    return 13
+
+fn combine_compiler_ledger(ledger: CompilerLedger) -> Int:
+    return ledger.parsed_units + ledger.optimized_units
+
+fn synth_voice_energy(patch: AudioPatch) -> Int:
+    return patch.voices * 2 + patch.modulation_depth
+
+fn stabilize_cluster(replicas: Int) -> ClusterPlan:
+    let quorum: Int = (replicas / 2) + 1
+    return ClusterPlan { replicas: replicas, quorum: quorum }
+
+fn tensor_core_score(plan: TensorCorePlan) -> Int:
+    return plan.tiles * plan.lanes + plan.accumulation_steps
+
+fn stage_bias(value: Int) -> Int:
+    return value + 2
+
+patch raise_compiler_heat(omega: Omega, delta: Int) -> Int:
+    omega.compiler_heat = omega.compiler_heat + delta
+    return omega.compiler_heat
+
+patch widen_audio_field(omega: Omega, delta: Int) -> Int:
+    omega.audio_voices = omega.audio_voices + delta
+    return omega.audio_voices
+
+patch expand_cluster_ring(omega: Omega, delta: Int) -> Int:
+    omega.cluster_nodes = omega.cluster_nodes + delta
+    return omega.cluster_nodes
+
+patch scale_tensor_tiles(omega: Omega, delta: Int) -> Int:
+    omega.tensor_tiles = omega.tensor_tiles + delta
+    return omega.tensor_tiles
+
+converge omega_seed(value: Int) -> Int:
+    spec reference:
+        return value + 3
+    fast interpret_lane when target("interpret"):
+        return value + 3
+    fast dispatch_lane when capability("converge.dispatch"):
+        return value + 3
+    verify random(12)
+
+orchestrate omega_pipeline(value: Int) -> Int:
+    let seeded: Int = kain omega_seed(value)
+    let rendered: Int = rust stage_bias(seeded)
+    let served: Int = python stage_bias(rendered)
+    let learned: Int = node stage_bias(served)
+    return learned
+
+fn main() -> Int:
+    let omega = Omega
+
+    let compiler_heat = raise_compiler_heat(omega, 9)
+    let audio_voices = widen_audio_field(omega, 4)
+    let cluster_nodes = expand_cluster_ring(omega, 2)
+    let tensor_tiles = scale_tensor_tiles(omega, 8)
+
+    let compiler = CompilerLedger {
+        parsed_units: compiler_heat,
+        optimized_units: phase_bias(OmegaPhase::Compile),
+    }
+    let audio = AudioPatch {
+        voices: audio_voices,
+        modulation_depth: phase_bias(OmegaPhase::Render),
+    }
+    let cluster = stabilize_cluster(cluster_nodes)
+    let tensor = TensorCorePlan {
+        tiles: tensor_tiles,
+        accumulation_steps: phase_bias(OmegaPhase::Learn),
+        lanes: 2,
+    }
+
+    let local_score = combine_compiler_ledger(compiler) + synth_voice_energy(audio) + cluster.quorum + tensor_core_score(tensor)
+
+    return omega_pipeline(local_score)
