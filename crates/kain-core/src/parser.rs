@@ -536,7 +536,7 @@ impl<'a> Parser<'a> {
     }
 
     fn is_contextual_item_start_name(name: &str) -> bool {
-        matches!(name, "patch" | "converge" | "world" | "orchestrate")
+        matches!(name, "patch" | "law" | "converge" | "world" | "orchestrate")
     }
 
     fn parse_path_name(&mut self) -> KainResult<String> {
@@ -757,6 +757,7 @@ impl<'a> Parser<'a> {
             TokenKind::Impl => self.parse_impl(),
             TokenKind::TypeKw => self.parse_type_alias(vis),
             TokenKind::Ident(ref name) if name == "patch" => self.parse_patch(vis, attributes),
+            TokenKind::Ident(ref name) if name == "law" => self.parse_law(vis, attributes),
             TokenKind::Ident(ref name) if name == "converge" => {
                 self.parse_converge(vis, attributes)
             }
@@ -766,7 +767,7 @@ impl<'a> Parser<'a> {
             }
             _ => Err(self.parser_error(
                 format!(
-                    "Expected item (fn, patch, converge, world, orchestrate, struct, enum, actor, component, shader, material, trait, impl, mod, use, const, test), found {}",
+                    "Expected item (fn, patch, law, converge, world, orchestrate, struct, enum, actor, component, shader, material, trait, impl, mod, use, const, test), found {}",
                     self.token_to_user_string(&self.peek_kind())
                 ),
                 self.current_span()
@@ -1317,6 +1318,28 @@ impl<'a> Parser<'a> {
             visibility: vis,
             attributes: attrs,
             span: start.merge(body_span),
+        }))
+    }
+
+    fn parse_law(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect_contextual_ident("law")?;
+        let name = self.parse_ident()?;
+        self.expect(TokenKind::LParen)?;
+        let params = self.parse_params()?;
+        self.expect(TokenKind::RParen)?;
+        self.expect(TokenKind::Arrow)?;
+        let return_type = self.parse_type()?;
+        self.expect(TokenKind::Colon)?;
+        let body = self.parse_block()?;
+        Ok(Item::Law(LawDef {
+            name,
+            params,
+            return_type,
+            body,
+            visibility: vis,
+            attributes: attrs,
+            span: start.merge(self.current_span()),
         }))
     }
 

@@ -43,11 +43,11 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [repomap.md](/M:/Code/Kain/repomap.md): top-level folder map
 - [MEMORY.md](/M:/Code/Kain/MEMORY.md): durable architectural task memory
 - [docs/kainplan/ui_slate_x100](/M:/Code/Kain/docs/kainplan/ui_slate_x100): active UI overhaul docs, acceptance criteria, regression notes, and Gamma operator guidance
-- [docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md](/M:/Code/Kain/docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md): syntax, lowering, bundle contracts, and validation notes for `patch`, `converge`, `world`, and `orchestrate`
+- [docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md](/M:/Code/Kain/docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md): syntax, lowering, bundle contracts, and validation notes for the compiler-owned intent suite: `law`, `patch`, `converge`, `world`, and `orchestrate`
 - [crates](/M:/Code/Kain/crates): workspace crates
 - [runtime](/M:/Code/Kain/runtime): native runtime substrate, conformance, fixtures, and companion lanes
 - [smoketest](/M:/Code/Kain/smoketest): capability proof matrix for bridges, UI, 3D, and mixed runtimes
-- [smoketest/compiler_owned_intent](/M:/Code/Kain/smoketest/compiler_owned_intent): compiler-owned intent quartet smoke covering `kain run` plus LLVM runtime-contract / realtime-bundle staging
+- [smoketest/compiler_owned_intent](/M:/Code/Kain/smoketest/compiler_owned_intent): compiler-owned intent suite smoke covering `kain run` plus LLVM runtime-contract / realtime-bundle staging
 - [smoketest/UI](/M:/Code/Kain/smoketest/UI): UI proof surface for authored shells, dense operator layouts, shader-canvas proofs, and packaged native launches
 - [smoketest/allinone](/M:/Code/Kain/smoketest/allinone): broad regression harness that replays importers, standalone FFI bridges, GPU artifacts, Omni, Fabric, and UE5 codegen into per-lane output folders
 - [docs](/M:/Code/Kain/docs): doctrine, plans, pipeline notes, validation notes, and research
@@ -60,7 +60,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 
 ## Key Crates
 
-- [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, `comptime`, interpreter/runtime execution for real Kain logic, runtime contract emission, realtime bundle metadata, and the compiler-owned intent quartet (`patch`, `converge`, `world`, `orchestrate`)
+- [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, `comptime`, interpreter/runtime execution for real Kain logic, runtime contract emission, realtime bundle metadata, and the compiler-owned intent suite (`law`, `patch`, `converge`, `world`, `orchestrate`)
 - [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, native app materialization, packaged launcher snapshots, compute residency sidecars
 - [cli](/M:/Code/Kain/crates/cli): `kain` command surface
 - [kain-repair](/M:/Code/Kain/crates/kain-repair): profile-driven deterministic source repair engine consumed by the doctor/CLI repair lane; now split into a declarative rule registry plus a per-rule execution engine so repair policy stays visible and mode-aware; includes header normalization for parser-hostile `enum_` / `struct_` / `trait_` / `impl_` declaration forms
@@ -85,7 +85,7 @@ This repo does not only compile source outward into foreign runtimes. `kain-core
 - async/await and future/poll semantics in the in-language runtime lane
 - actor state initialization, message handling, and runtime-side actor behavior
 - JSX/UI expression evaluation and signal-driven UI contract execution
-- runtime execution of `patch`, `converge`, and `orchestrate`, including converge verification and patch transaction recording
+- runtime execution of `law`, `patch`, `converge`, and `orchestrate`, including law calls, converge verification, and patch transaction recording
 
 When `kain run` succeeds, Kain is not merely validating authored source before handing work to another backend. In many cases it is executing the language's own semantic model directly. Treat that lane as a first-class truth source for what Kain code means.
 
@@ -95,12 +95,13 @@ When `kain run` succeeds, Kain is not merely validating authored source before h
 
 The semantic-analysis part of that pipeline now includes real executable-body checks in `kain-core`, not only declaration registration. The compiler validates return values, call arguments, `match` arm type agreement, duplicate boolean arms, and `await` / `async` future typing before downstream codegen and bundle emission consume the typed program. That typechecked program also feeds the runtime/interpreter lane; bundle/codegen flows are downstream consumers of the same semantic truth, not a replacement for it.
 
-That same frontend lane now owns four additional semantic declarations:
+That same frontend lane now owns five compiler-owned intent declarations:
 
+- `law` lowers to callable invariant metadata through explicit `laws[]` contract sections.
 - `patch` lowers to transactional mutation metadata with inferred undo mode plus explicit `patches[]` contract sections.
-- `converge` lowers to dispatcher-plus-lane metadata with deterministic selection and test-lane verification through `converges[]`.
-- `world` lowers to shared state/surface projection metadata through `worlds[]` and is the first pass at compiler-owned multi-surface projection.
-- `orchestrate` lowers to typed sequential stage metadata through `orchestrations[]`.
+- `converge` lowers to dispatcher-plus-lane metadata with deterministic selection and executable `verify random(n)` verification through `converges[]`.
+- `world` lowers to shared state/surface projection metadata through sparse `worlds[]` entries and compiler-owned active-world selection.
+- `orchestrate` lowers to strict typed stage metadata through `orchestrations[]`.
 
 The runtime-contract and realtime-bundle families now both carry these explicit sections, and downstream adapters should consume them directly instead of reverse-engineering equivalent intent from local conventions.
 
@@ -173,7 +174,7 @@ The native packaging lane is the operator-facing loop for UI iteration:
 - The runtime snapshot is the reload/control surface, not hidden launcher state. It carries explicit provider, session, workspace, command, and capability records, including the `runtime.reload` command already emitted by the packaging path.
 - Devtools and inspectors must stay opt-in and remain represented in packaged truth, not injected as default product chrome.
 - When a packaged launch stops reflecting a change, check the materialized manifest and snapshot sidecars first. That is the stable operator boundary before assuming the host itself is wrong.
-- native-ui root discovery can now resolve a single `world`'s `native_ui` surface automatically, and it must reject ambiguous multi-world inputs unless the caller provides an explicit `--root` selection.
+- target-aware world selection now resolves native desktop targets against `native_ui`, web targets against `web`, and UE5 targets against `ue5`; ambiguous multi-world cases must use an explicit `--root` selection.
 
 ### Viewport Contract Lane
 

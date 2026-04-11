@@ -895,7 +895,7 @@ pub fn discover_native_app_root_component(
     source_name: &str,
 ) -> Result<Option<String>, KainError> {
     let typed = DriverSession::default().frontend_to_typed_program(source, CompileTarget::Rust)?;
-    resolve_root_component_name(&typed, configured_root).map_err(|error| {
+    resolve_root_component_name(&typed, CompileTarget::Rust, configured_root).map_err(|error| {
         KainError::runtime(format!(
             "Failed to discover native app root for {}: {}",
             source_name, error

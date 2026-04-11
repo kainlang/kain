@@ -40,6 +40,7 @@ pub enum Value {
     HostObject(String, Arc<dyn Any + Send + Sync>),
     Function(String),
     Patch(String),
+    Law(String),
     Converge(String),
     Orchestrate(String),
     NativeFn(String, fn(&mut Env, Vec<Value>) -> KainResult<Value>),
@@ -83,6 +84,7 @@ impl fmt::Debug for Value {
             Value::HostObject(name, _) => write!(f, "HostObject({})", name),
             Value::Function(name) => write!(f, "Function({})", name),
             Value::Patch(name) => write!(f, "Patch({})", name),
+            Value::Law(name) => write!(f, "Law({})", name),
             Value::Converge(name) => write!(f, "Converge({})", name),
             Value::Orchestrate(name) => write!(f, "Orchestrate({})", name),
             Value::NativeFn(name, _) => write!(f, "NativeFn({})", name),
@@ -157,6 +159,7 @@ impl fmt::Display for Value {
             Value::HostObject(name, _) => write!(f, "<host {}>", name),
             Value::Function(name) => write!(f, "<fn {}>", name),
             Value::Patch(name) => write!(f, "<patch {}>", name),
+            Value::Law(name) => write!(f, "<law {}>", name),
             Value::Converge(name) => write!(f, "<converge {}>", name),
             Value::Orchestrate(name) => write!(f, "<orchestrate {}>", name),
             Value::NativeFn(name, _) => write!(f, "<native fn {}>", name),
@@ -316,6 +319,7 @@ pub struct Env {
     scopes: Vec<HashMap<String, Value>>,
     functions: HashMap<String, Function>,
     patches: HashMap<String, PatchDef>,
+    laws: HashMap<String, LawDef>,
     patch_undo_modes: HashMap<String, String>,
     converges: HashMap<String, ConvergeDef>,
     orchestrates: HashMap<String, OrchestrateDef>,
@@ -348,6 +352,7 @@ impl Env {
             scopes: vec![HashMap::new()],
             functions: HashMap::new(),
             patches: HashMap::new(),
+            laws: HashMap::new(),
             patch_undo_modes: HashMap::new(),
             converges: HashMap::new(),
             orchestrates: HashMap::new(),
@@ -1059,6 +1064,7 @@ impl Env {
                 Value::HostObject(name, _) => return Ok(Value::String(name.clone())),
                 Value::Function(_) => "function",
                 Value::Patch(_) => "patch",
+                Value::Law(_) => "law",
                 Value::Converge(_) => "converge",
                 Value::Orchestrate(_) => "orchestrate",
                 Value::NativeFn(_, _) => "native_function",
@@ -2067,6 +2073,11 @@ impl Env {
         self.define(patch.name.clone(), Value::Patch(patch.name.clone()));
     }
 
+    fn register_law_value(&mut self, law: &LawDef) {
+        self.laws.insert(law.name.clone(), law.clone());
+        self.define(law.name.clone(), Value::Law(law.name.clone()));
+    }
+
     fn register_converge_value(&mut self, converge: &ConvergeDef) {
         self.converges
             .insert(converge.name.clone(), converge.clone());
@@ -2253,6 +2264,9 @@ impl Env {
             Item::Patch(patch) => {
                 self.register_patch_value(patch, infer_patch_undo_mode(patch));
             }
+            Item::Law(law) => {
+                self.register_law_value(law);
+            }
             Item::Converge(converge) => {
                 self.register_converge_value(converge);
             }
@@ -2349,6 +2363,9 @@ impl Env {
                         crate::types::PatchUndoMode::BestEffort => "best_effort".to_string(),
                     },
                 );
+            }
+            TypedItem::Law(law) => {
+                self.register_law_value(&law.ast);
             }
             TypedItem::Converge(converge) => {
                 self.register_converge_value(&converge.ast);
@@ -3280,6 +3297,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                             Value::HostObject(name, _) => return Ok(Value::String(name.clone())),
                             Value::Function(_) => "function",
                             Value::Patch(_) => "patch",
+                            Value::Law(_) => "law",
                             Value::Converge(_) => "converge",
                             Value::Orchestrate(_) => "orchestrate",
                             Value::NativeFn(_, _) => "native_fn",
@@ -3551,6 +3569,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             let methods = env.methods.clone();
             let patches = env.patches.clone();
             let patch_undo_modes = env.patch_undo_modes.clone();
+            let laws = env.laws.clone();
             let converges = env.converges.clone();
             let orchestrates = env.orchestrates.clone();
             let worlds = env.worlds.clone();
@@ -3566,6 +3585,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     functions,
                     patches,
                     patch_undo_modes,
+                    laws,
                     converges,
                     orchestrates,
                     worlds,
@@ -3972,6 +3992,7 @@ fn call_function(env: &mut Env, func: Value, args: Vec<Value>) -> KainResult<Val
             }
         }
         Value::Patch(name) => execute_patch_call(env, &name, args),
+        Value::Law(name) => execute_law_call(env, &name, args),
         Value::Converge(name) => execute_converge_call(env, &name, args),
         Value::Orchestrate(name) => execute_orchestrate_call(env, &name, args),
         Value::NativeFn(_, f) => f(env, args),
@@ -4057,6 +4078,30 @@ fn execute_patch_call(env: &mut Env, name: &str, args: Vec<Value>) -> KainResult
     }
 }
 
+fn execute_law_call(env: &mut Env, name: &str, args: Vec<Value>) -> KainResult<Value> {
+    let law = env
+        .laws
+        .get(name)
+        .cloned()
+        .ok_or_else(|| KainError::runtime(format!("Law not found: {}", name)))?;
+    if law.params.len() != args.len() {
+        return Err(KainError::runtime(format!(
+            "Law {} expected {} arguments, got {}",
+            name,
+            law.params.len(),
+            args.len()
+        )));
+    }
+    let result = execute_function_body(env, &law.params, &law.body, args)?;
+    match result {
+        Value::Bool(_) => Ok(result),
+        other => Err(KainError::runtime(format!(
+            "Law {} must return Bool at runtime, found {:?}",
+            name, other
+        ))),
+    }
+}
+
 fn execute_converge_call(env: &mut Env, name: &str, args: Vec<Value>) -> KainResult<Value> {
     let converge =
         env.converges.get(name).cloned().ok_or_else(|| {
@@ -4074,15 +4119,27 @@ fn execute_converge_call(env: &mut Env, name: &str, args: Vec<Value>) -> KainRes
     let selected_lane = select_converge_lane(env, &converge);
     let selected_result =
         execute_function_body(env, &converge.params, &selected_lane.body, args.clone())?;
-
-    if env.execution_lane == ExecutionLane::Test {
-        let spec_result =
-            execute_function_body(env, &converge.params, &converge.spec_lane.body, args)?;
-        if !runtime_values_semantically_equal(&selected_result, &spec_result) {
-            return Err(KainError::runtime(format!(
-                "Converge verification failed for {}: selected lane '{}' diverged from spec '{}'",
-                name, selected_lane.lane_name, converge.spec_lane.lane_name
-            )));
+    if let Some(sample_count) = converge.verify_random_count {
+        verify_converge_selected_against_spec(
+            env,
+            &converge,
+            selected_lane,
+            &args,
+            &selected_result,
+            "call",
+        )?;
+        for sample_index in 0..sample_count {
+            let sample_args = synthesize_converge_sample_args(&converge, sample_index)?;
+            let sample_result =
+                execute_function_body(env, &converge.params, &selected_lane.body, sample_args.clone())?;
+            verify_converge_selected_against_spec(
+                env,
+                &converge,
+                selected_lane,
+                &sample_args,
+                &sample_result,
+                &format!("sample {}", sample_index + 1),
+            )?;
         }
     }
 
@@ -4112,25 +4169,25 @@ fn execute_stage_call(
     args: Vec<Value>,
 ) -> KainResult<Value> {
     match runtime {
-        OrchestrateStageRuntime::Kain | OrchestrateStageRuntime::Rust => {
-            env.call_named_function(function, args)
-        }
-        OrchestrateStageRuntime::Python => execute_python_stage_call(env, function, args.clone())
-            .or_else(|error| {
-                if env.lookup_value(function).is_some() {
-                    env.call_named_function(function, args)
-                } else {
-                    Err(error)
-                }
-            }),
-        OrchestrateStageRuntime::Node => execute_node_stage_call(env, function, args.clone())
-            .or_else(|error| {
-                if env.lookup_value(function).is_some() {
-                    env.call_named_function(function, args)
-                } else {
-                    Err(error)
-                }
-            }),
+        OrchestrateStageRuntime::Kain => env.call_named_function(function, args),
+        OrchestrateStageRuntime::Rust => execute_rust_stage_call(env, function, args),
+        OrchestrateStageRuntime::Python => execute_python_stage_call(env, function, args),
+        OrchestrateStageRuntime::Node => execute_node_stage_call(env, function, args),
+    }
+}
+
+fn execute_rust_stage_call(env: &mut Env, function: &str, args: Vec<Value>) -> KainResult<Value> {
+    match env.lookup_value(function) {
+        Some(Value::NativeFn(_, native)) => native(env, args),
+        Some(other) => Err(KainError::runtime(format!(
+            "Rust orchestrate stage '{}' must resolve to a native function, found {}",
+            function,
+            runtime_value_kind(&other)
+        ))),
+        None => Err(KainError::runtime(format!(
+            "Rust orchestrate stage '{}' was not registered as a native function",
+            function
+        ))),
     }
 }
 
@@ -4211,12 +4268,180 @@ fn select_converge_lane<'a>(env: &Env, converge: &'a ConvergeDef) -> &'a Converg
     converge
         .fast_lanes
         .iter()
-        .find(|lane| {
-            lane.selector
-                .as_ref()
-                .is_some_and(|selector| converge_selector_matches(env, selector))
+        .find(|lane| match lane.selector.as_ref() {
+            Some(selector) => converge_selector_matches(env, selector),
+            None => true,
         })
         .unwrap_or(&converge.spec_lane)
+}
+
+fn verify_converge_selected_against_spec(
+    env: &mut Env,
+    converge: &ConvergeDef,
+    selected_lane: &ConvergeLane,
+    args: &[Value],
+    selected_result: &Value,
+    verification_label: &str,
+) -> KainResult<()> {
+    let spec_result = execute_function_body(
+        env,
+        &converge.params,
+        &converge.spec_lane.body,
+        args.to_vec(),
+    )?;
+    if runtime_values_semantically_equal(selected_result, &spec_result) {
+        return Ok(());
+    }
+    Err(KainError::runtime(format!(
+        "Converge verification failed for {} during {}: selected lane '{}' diverged from spec '{}'",
+        converge.name,
+        verification_label,
+        selected_lane.lane_name,
+        converge.spec_lane.lane_name
+    )))
+}
+
+fn synthesize_converge_sample_args(
+    converge: &ConvergeDef,
+    sample_index: u32,
+) -> KainResult<Vec<Value>> {
+    let mut synthesizer =
+        DeterministicValueSynthesizer::new(stable_converge_sample_seed(&converge.name, sample_index));
+    converge
+        .params
+        .iter()
+        .map(|param| synthesize_value_for_type(&param.ty, &mut synthesizer))
+        .collect()
+}
+
+fn stable_converge_sample_seed(name: &str, sample_index: u32) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in name.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash ^ u64::from(sample_index).wrapping_mul(0x9e3779b97f4a7c15)
+}
+
+struct DeterministicValueSynthesizer {
+    state: u64,
+}
+
+impl DeterministicValueSynthesizer {
+    fn new(seed: u64) -> Self {
+        Self { state: seed.max(1) }
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        self.state ^= self.state << 13;
+        self.state ^= self.state >> 7;
+        self.state ^= self.state << 17;
+        self.state
+    }
+
+    fn next_bool(&mut self) -> bool {
+        self.next_u64() & 1 == 0
+    }
+}
+
+fn synthesize_value_for_type(
+    ty: &Type,
+    synthesizer: &mut DeterministicValueSynthesizer,
+) -> KainResult<Value> {
+    match ty {
+        Type::Named { name, generics, .. } => match name.as_str() {
+            "Bool" => Ok(Value::Bool(synthesizer.next_bool())),
+            "Int" | "i8" | "i16" | "i32" | "i64" | "i128" | "isize" => Ok(Value::Int(
+                ((synthesizer.next_u64() % 2001) as i64) - 1000,
+            )),
+            "UInt" | "u8" | "u16" | "u32" | "u64" | "u128" | "usize" => {
+                Ok(Value::Int((synthesizer.next_u64() % 2001) as i64))
+            }
+            "Float" | "f32" | "f64" => Ok(Value::Float(
+                ((synthesizer.next_u64() % 20001) as f64 / 100.0) - 100.0,
+            )),
+            "Char" => {
+                let offset = (synthesizer.next_u64() % 95) as u32;
+                Ok(Value::String(char::from_u32(32 + offset).unwrap().to_string()))
+            }
+            "Array" if generics.len() == 1 => {
+                let len = ((synthesizer.next_u64() % 3) + 1) as usize;
+                let mut values = Vec::with_capacity(len);
+                for _ in 0..len {
+                    values.push(synthesize_value_for_type(&generics[0], synthesizer)?);
+                }
+                Ok(runtime_array_value(values))
+            }
+            "Option" if generics.len() == 1 => {
+                if synthesizer.next_bool() {
+                    Ok(Value::None)
+                } else {
+                    synthesize_value_for_type(&generics[0], synthesizer)
+                }
+            }
+            other => Err(KainError::runtime(format!(
+                "verify random(n) does not support synthesized values for type {}",
+                other
+            ))),
+        },
+        Type::Tuple(items, _) => {
+            let mut values = Vec::with_capacity(items.len());
+            for item in items {
+                values.push(synthesize_value_for_type(item, synthesizer)?);
+            }
+            Ok(Value::Tuple(values))
+        }
+        Type::Array(inner, len, _) => {
+            let mut values = Vec::with_capacity(*len);
+            for _ in 0..*len {
+                values.push(synthesize_value_for_type(inner, synthesizer)?);
+            }
+            Ok(runtime_array_value(values))
+        }
+        Type::Option(inner, _) => {
+            if synthesizer.next_bool() {
+                Ok(Value::None)
+            } else {
+                synthesize_value_for_type(inner, synthesizer)
+            }
+        }
+        other => Err(KainError::runtime(format!(
+            "verify random(n) does not support synthesized values for type {:?}",
+            other
+        ))),
+    }
+}
+
+fn runtime_value_kind(value: &Value) -> &'static str {
+    match value {
+        Value::Unit => "unit",
+        Value::Bool(_) => "bool",
+        Value::Int(_) => "int",
+        Value::Float(_) => "float",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Tuple(_) => "tuple",
+        Value::Struct(_, _) => "struct",
+        Value::HostObject(_, _) => "host_object",
+        Value::Function(_) => "function",
+        Value::Patch(_) => "patch",
+        Value::Law(_) => "law",
+        Value::Converge(_) => "converge",
+        Value::Orchestrate(_) => "orchestrate",
+        Value::NativeFn(_, _) => "native_function",
+        Value::ActorRef(_) => "actor",
+        Value::None => "none",
+        Value::Return(_) => "return",
+        Value::Break(_) => "break",
+        Value::Continue => "continue",
+        Value::Result(_, _) => "result",
+        Value::Closure(_, _, _) => "closure",
+        Value::StructConstructor(_, _) => "struct_constructor",
+        Value::JSX(_) => "jsx",
+        Value::EnumVariant(_, _, _) => "enum_variant",
+        Value::Poll(_, _) => "poll",
+        Value::Future(_, _) => "future",
+    }
 }
 
 fn converge_selector_matches(env: &Env, selector: &ConvergeSelector) -> bool {

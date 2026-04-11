@@ -40,6 +40,7 @@ pub struct TypedMod {
 pub enum TypedItem {
     Function(TypedFunction),
     Patch(TypedPatch),
+    Law(TypedLaw),
     Converge(TypedConverge),
     World(TypedWorld),
     Orchestrate(TypedOrchestrate),
@@ -116,6 +117,13 @@ pub struct TypedPatch {
     pub effects: EffectSet,
     pub mutation_paths: Vec<String>,
     pub undo_mode: PatchUndoMode,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypedLaw {
+    pub ast: LawDef,
+    pub resolved_type: ResolvedType,
+    pub effects: EffectSet,
 }
 
 #[derive(Debug, Clone)]
@@ -562,6 +570,12 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
                 function_signature(env, &patch_function_view(patch), None)?,
             );
         }
+        Item::Law(law) => {
+            env.define_global(
+                law.name.clone(),
+                function_signature(env, &law_function_view(law), None)?,
+            );
+        }
         Item::Converge(converge) => {
             env.define_global(
                 converge.name.clone(),
@@ -642,6 +656,7 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
     match item {
         Item::Function(f) => Ok(TypedItem::Function(check_function(env, f)?)),
         Item::Patch(patch) => Ok(TypedItem::Patch(check_patch(env, patch)?)),
+        Item::Law(law) => Ok(TypedItem::Law(check_law(env, law)?)),
         Item::Converge(converge) => Ok(TypedItem::Converge(check_converge(env, converge)?)),
         Item::World(world) => Ok(TypedItem::World(check_world(env, world)?)),
         Item::Orchestrate(orchestrate) => {
@@ -845,6 +860,20 @@ fn patch_function_view(patch: &PatchDef) -> Function {
     }
 }
 
+fn law_function_view(law: &LawDef) -> Function {
+    Function {
+        name: law.name.clone(),
+        generics: vec![],
+        params: law.params.clone(),
+        return_type: Some(law.return_type.clone()),
+        effects: vec![],
+        body: law.body.clone(),
+        visibility: law.visibility,
+        attributes: law.attributes.clone(),
+        span: law.span,
+    }
+}
+
 fn converge_dispatcher_view(converge: &ConvergeDef) -> Function {
     Function {
         name: converge.name.clone(),
@@ -907,9 +936,32 @@ fn check_patch(env: &mut TypeEnv, patch: &PatchDef) -> KainResult<TypedPatch> {
     })
 }
 
+fn check_law(env: &mut TypeEnv, law: &LawDef) -> KainResult<TypedLaw> {
+    let typed_fn = check_function(env, &law_function_view(law))?;
+    let resolved_return_type = resolve_type_in_env(env, &law.return_type)?;
+    if resolved_return_type != ResolvedType::Bool {
+        return Err(env.type_error(
+            format!(
+                "law '{}' must return Bool, found {}",
+                law.name,
+                describe_type(&resolved_return_type)
+            ),
+            law.return_type.span(),
+        ));
+    }
+    Ok(TypedLaw {
+        ast: law.clone(),
+        resolved_type: typed_fn.resolved_type,
+        effects: typed_fn.effects,
+    })
+}
+
 fn check_converge(env: &mut TypeEnv, converge: &ConvergeDef) -> KainResult<TypedConverge> {
     let resolved_type = function_signature(env, &converge_dispatcher_view(converge), None)?;
     let expected_signature = resolved_type.clone();
+    if converge.verify_random_count.is_some() {
+        ensure_converge_verify_types_supported(env, converge, &expected_signature)?;
+    }
     check_function(
         env,
         &converge_lane_function_view(converge, &converge.spec_lane),
@@ -947,12 +999,17 @@ fn check_world(env: &mut TypeEnv, world: &WorldDef) -> KainResult<TypedWorld> {
             state.initial.span(),
             "world state initializer",
         )?;
-        env.define_global(state.name.clone(), resolved_ty.clone());
         state_types.insert(state.name.clone(), resolved_ty);
     }
     let world_ty = ResolvedType::Struct(world.name.clone(), state_types);
     env.types.insert(world.name.clone(), world_ty.clone());
     env.define_global(world.name.clone(), world_ty);
+    if world.surfaces.is_empty() {
+        return Err(env.type_error(
+            format!("world '{}' must declare at least one surface", world.name),
+            world.span,
+        ));
+    }
     for surface in &world.surfaces {
         if !seen_surface_kinds.insert(surface.kind) {
             return Err(env.type_error(
@@ -966,23 +1023,6 @@ fn check_world(env: &mut TypeEnv, world: &WorldDef) -> KainResult<TypedWorld> {
         }
         check_world_surface_projection(env, surface)?;
     }
-    for required_surface_kind in [
-        WorldSurfaceKind::NativeUi,
-        WorldSurfaceKind::Viewport3d,
-        WorldSurfaceKind::Web,
-        WorldSurfaceKind::Ue5,
-    ] {
-        if !seen_surface_kinds.contains(&required_surface_kind) {
-            return Err(env.type_error(
-                format!(
-                    "world '{}' is missing required '{}' surface",
-                    world.name,
-                    required_surface_kind.as_str()
-                ),
-                world.span,
-            ));
-        }
-    }
     Ok(TypedWorld { ast: world.clone() })
 }
 
@@ -991,7 +1031,7 @@ fn check_orchestrate(
     orchestrate: &OrchestrateDef,
 ) -> KainResult<TypedOrchestrate> {
     let typed_fn = check_function(env, &orchestrate_function_view(orchestrate))?;
-    let stages = collect_orchestrate_stage_descriptors(&orchestrate.body);
+    let stages = collect_orchestrate_stage_descriptors(env, orchestrate)?;
     Ok(TypedOrchestrate {
         ast: orchestrate.clone(),
         resolved_type: typed_fn.resolved_type,
@@ -1435,30 +1475,272 @@ fn expr_requires_best_effort_patch_mode(expr: &Expr) -> bool {
     }
 }
 
-fn collect_orchestrate_stage_descriptors(block: &Block) -> Vec<OrchestrateStageDescriptor> {
+fn collect_orchestrate_stage_descriptors(
+    env: &TypeEnv,
+    orchestrate: &OrchestrateDef,
+) -> KainResult<Vec<OrchestrateStageDescriptor>> {
     let mut stages = Vec::new();
-    for stmt in &block.stmts {
-        if let Stmt::Let {
-            pattern:
-                Pattern::Binding {
-                    name,
-                    mutable: _,
-                    span: _,
-                },
-            value: Some(Expr::StageCall {
-                runtime, function, ..
-            }),
-            ..
-        } = stmt
-        {
-            stages.push(OrchestrateStageDescriptor {
-                runtime: *runtime,
-                function: function.clone(),
-                binding_name: name.clone(),
-            });
+    let mut seen_non_stage_stmt = false;
+    for stmt in &orchestrate.body.stmts {
+        match stmt {
+            Stmt::Let {
+                pattern:
+                    Pattern::Binding {
+                        name,
+                        mutable: _,
+                        span: _,
+                    },
+                ty: Some(_),
+                value:
+                    Some(Expr::StageCall {
+                        runtime, function, ..
+                    }),
+                span,
+            } => {
+                if seen_non_stage_stmt {
+                    return Err(env.type_error(
+                        format!(
+                            "orchestrate '{}' must declare stage steps before local computation",
+                            orchestrate.name
+                        ),
+                        *span,
+                    ));
+                }
+                stages.push(OrchestrateStageDescriptor {
+                    runtime: *runtime,
+                    function: function.clone(),
+                    binding_name: name.clone(),
+                });
+            }
+            Stmt::Let {
+                value: Some(Expr::StageCall { span, .. }),
+                ..
+            } => {
+                return Err(env.type_error(
+                    format!(
+                        "orchestrate '{}' stage steps must be top-level 'let binding: Type = <runtime> function(...)' declarations",
+                        orchestrate.name
+                    ),
+                    *span,
+                ));
+            }
+            Stmt::Item(item) => {
+                return Err(env.type_error(
+                    format!(
+                        "orchestrate '{}' cannot declare nested items inside its pipeline body",
+                        orchestrate.name
+                    ),
+                    item_span(item.as_ref()),
+                ));
+            }
+            other => {
+                if let Some(stage_span) = first_stage_call_in_stmt(other) {
+                    return Err(env.type_error(
+                        format!(
+                            "orchestrate '{}' only permits stage calls in top-level typed let bindings",
+                            orchestrate.name
+                        ),
+                        stage_span,
+                    ));
+                }
+                seen_non_stage_stmt = true;
+            }
         }
     }
-    stages
+    Ok(stages)
+}
+
+fn first_stage_call_in_stmt(stmt: &Stmt) -> Option<Span> {
+    match stmt {
+        Stmt::Let { value, .. } => value.as_ref().and_then(first_stage_call_in_expr),
+        Stmt::Expr(expr) => first_stage_call_in_expr(expr),
+        Stmt::Return(value, _) | Stmt::Break(value, _) => {
+            value.as_ref().and_then(first_stage_call_in_expr)
+        }
+        Stmt::For { iter, body, .. } => {
+            first_stage_call_in_expr(iter).or_else(|| first_stage_call_in_block(body))
+        }
+        Stmt::While {
+            condition, body, ..
+        } => first_stage_call_in_expr(condition).or_else(|| first_stage_call_in_block(body)),
+        Stmt::Loop { body, .. } => first_stage_call_in_block(body),
+        Stmt::Item(_) | Stmt::Continue(_) => None,
+    }
+}
+
+fn first_stage_call_in_block(block: &Block) -> Option<Span> {
+    block.stmts.iter().find_map(first_stage_call_in_stmt)
+}
+
+fn first_stage_call_in_else_branch(branch: &ElseBranch) -> Option<Span> {
+    match branch {
+        ElseBranch::Else(block) => first_stage_call_in_block(block),
+        ElseBranch::ElseIf(condition, block, next) => first_stage_call_in_expr(condition)
+            .or_else(|| first_stage_call_in_block(block))
+            .or_else(|| next.as_ref().and_then(|branch| first_stage_call_in_else_branch(branch))),
+    }
+}
+
+fn first_stage_call_in_expr(expr: &Expr) -> Option<Span> {
+    match expr {
+        Expr::StageCall { span, .. } => Some(*span),
+        Expr::Assign { target, value, .. } => {
+            first_stage_call_in_expr(target).or_else(|| first_stage_call_in_expr(value))
+        }
+        Expr::Call { callee, args, .. } => first_stage_call_in_expr(callee).or_else(|| {
+            args.iter()
+                .find_map(|arg| first_stage_call_in_expr(&arg.value))
+        }),
+        Expr::MethodCall { args, .. } => args
+            .iter()
+            .find_map(|arg| first_stage_call_in_expr(&arg.value)),
+        Expr::Binary { left, right, .. } => {
+            first_stage_call_in_expr(left).or_else(|| first_stage_call_in_expr(right))
+        }
+        Expr::Unary { operand, .. }
+        | Expr::Try(operand, _)
+        | Expr::Await(operand, _)
+        | Expr::AsyncBlock(operand, _)
+        | Expr::Ref { value: operand, .. }
+        | Expr::AddrOf { value: operand, .. }
+        | Expr::Deref(operand, _)
+        | Expr::Paren(operand, _)
+        | Expr::Cast { value: operand, .. }
+        | Expr::Comptime(operand, _) => first_stage_call_in_expr(operand),
+        Expr::Field { object, .. } => first_stage_call_in_expr(object),
+        Expr::Index { object, index, .. } => {
+            first_stage_call_in_expr(object).or_else(|| first_stage_call_in_expr(index))
+        }
+        Expr::Struct { fields, rest, .. } => fields
+            .iter()
+            .find_map(|(_, value)| first_stage_call_in_expr(value))
+            .or_else(|| rest.as_ref().and_then(|rest| first_stage_call_in_expr(rest))),
+        Expr::AggregateInit { fields, .. } => fields
+            .iter()
+            .find_map(|(_, value)| first_stage_call_in_expr(value)),
+        Expr::EnumVariant { fields, .. } => match fields {
+            EnumVariantFields::Tuple(values) => values.iter().find_map(first_stage_call_in_expr),
+            EnumVariantFields::Struct(values) => values
+                .iter()
+                .find_map(|(_, value)| first_stage_call_in_expr(value)),
+            EnumVariantFields::Unit => None,
+        },
+        Expr::Array(values, _) | Expr::Tuple(values, _) => {
+            values.iter().find_map(first_stage_call_in_expr)
+        }
+        Expr::Range { start, end, .. } => start
+            .as_ref()
+            .and_then(|value| first_stage_call_in_expr(value))
+            .or_else(|| end.as_ref().and_then(|value| first_stage_call_in_expr(value))),
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => first_stage_call_in_expr(condition)
+            .or_else(|| first_stage_call_in_block(then_branch))
+            .or_else(|| {
+                else_branch
+                    .as_ref()
+                    .and_then(|branch| first_stage_call_in_else_branch(branch))
+            }),
+        Expr::Match {
+            scrutinee, arms, ..
+        } => first_stage_call_in_expr(scrutinee).or_else(|| {
+            arms.iter().find_map(|arm| {
+                arm.guard
+                    .as_ref()
+                    .and_then(first_stage_call_in_expr)
+                    .or_else(|| first_stage_call_in_expr(&arm.body))
+            })
+        }),
+        Expr::Lambda { body, .. } => first_stage_call_in_expr(body),
+        Expr::MemStore { pointer, value, .. } => {
+            first_stage_call_in_expr(pointer).or_else(|| first_stage_call_in_expr(value))
+        }
+        Expr::PtrOffset {
+            pointer, offset, ..
+        } => first_stage_call_in_expr(pointer).or_else(|| first_stage_call_in_expr(offset)),
+        Expr::MemLoad { pointer, .. } => first_stage_call_in_expr(pointer),
+        Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => init
+            .iter()
+            .find_map(|(_, value)| first_stage_call_in_expr(value)),
+        Expr::Return(value, _) | Expr::Break(value, _) => {
+            value
+                .as_ref()
+                .and_then(|expr| first_stage_call_in_expr(expr.as_ref()))
+        }
+        Expr::Block(block, _) => first_stage_call_in_block(block),
+        Expr::JSX(_, _)
+        | Expr::MacroCall { .. }
+        | Expr::Int(_, _)
+        | Expr::Float(_, _)
+        | Expr::String(_, _)
+        | Expr::FString(_, _)
+        | Expr::Bool(_, _)
+        | Expr::None(_)
+        | Expr::Ident(_, _)
+        | Expr::Alloca { .. }
+        | Expr::Uninit { .. }
+        | Expr::Alloc { .. }
+        | Expr::Realloc { .. }
+        | Expr::SizeOfType { .. }
+        | Expr::AlignOfType { .. }
+        | Expr::Continue(_) => None,
+    }
+}
+
+fn ensure_converge_verify_types_supported(
+    env: &TypeEnv,
+    converge: &ConvergeDef,
+    signature: &ResolvedType,
+) -> KainResult<()> {
+    let ResolvedType::Function { params, ret, .. } = signature else {
+        return Ok(());
+    };
+    for (param, ty) in converge.params.iter().zip(params.iter()) {
+        if !supports_converge_verify_sampling(ty) {
+            return Err(env.type_error(
+                format!(
+                    "converge '{}' verify random(n) does not support parameter '{}' of type {}",
+                    converge.name,
+                    param.name,
+                    describe_type(ty)
+                ),
+                param.span,
+            ));
+        }
+    }
+    if !supports_converge_verify_sampling(ret.as_ref()) {
+        let return_span = converge
+            .return_type
+            .as_ref()
+            .map(Type::span)
+            .unwrap_or(converge.span);
+        return Err(env.type_error(
+            format!(
+                "converge '{}' verify random(n) does not support return type {}",
+                converge.name,
+                describe_type(ret.as_ref())
+            ),
+            return_span,
+        ));
+    }
+    Ok(())
+}
+
+fn supports_converge_verify_sampling(ty: &ResolvedType) -> bool {
+    match ty {
+        ResolvedType::Bool
+        | ResolvedType::Int(_)
+        | ResolvedType::Float(_)
+        | ResolvedType::Char => true,
+        ResolvedType::Array(inner, _) | ResolvedType::Option(inner) => {
+            supports_converge_verify_sampling(inner)
+        }
+        ResolvedType::Tuple(items) => items.iter().all(supports_converge_verify_sampling),
+        _ => false,
+    }
 }
 
 fn check_struct(env: &mut TypeEnv, s: &Struct) -> KainResult<TypedStruct> {
@@ -1696,6 +1978,7 @@ fn item_span(item: &Item) -> Span {
     match item {
         Item::Function(f) => f.span,
         Item::Patch(patch) => patch.span,
+        Item::Law(law) => law.span,
         Item::Converge(converge) => converge.span,
         Item::World(world) => world.span,
         Item::Orchestrate(orchestrate) => orchestrate.span,

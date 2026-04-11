@@ -186,6 +186,18 @@ struct ResolvedWorldSelection {
     active_world_name: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+struct WorldSelectionInfo {
+    name: String,
+    surfaces: Vec<WorldSurfaceSelection>,
+}
+
+#[derive(Debug, Clone)]
+struct WorldSurfaceSelection {
+    kind: WorldSurfaceKind,
+    root_component: Option<String>,
+}
+
 #[cfg(feature = "sys")]
 #[derive(Debug, Clone)]
 pub struct RustBundleOutput {
@@ -291,7 +303,7 @@ impl DriverSession {
         let typed = self.frontend_to_typed_program(source, target)?;
         let prepared_source =
             prepare_c_ffi_source(source, target).unwrap_or_else(|_| source.to_string());
-        let resolved_world = resolve_world_selection(&typed, root_component)?;
+        let resolved_world = resolve_world_selection(&typed, target, root_component)?;
         let ui_output = if let Some(root_component) = resolved_world.root_component.as_deref() {
             Some(kain_core::build_ui_output_from_source(
                 &prepared_source,
@@ -770,38 +782,54 @@ pub fn compile_realtime_app_bundle(
 
 pub(crate) fn resolve_root_component_name(
     program: &TypedProgram,
+    target: CompileTarget,
     requested_root: Option<&str>,
 ) -> Result<Option<String>, KainError> {
-    Ok(resolve_world_selection(program, requested_root)?.root_component)
+    Ok(resolve_world_selection(program, target, requested_root)?.root_component)
 }
 
 pub(crate) fn resolve_world_selection(
     program: &TypedProgram,
+    target: CompileTarget,
     requested_root: Option<&str>,
 ) -> Result<ResolvedWorldSelection, KainError> {
     let component_names = collect_component_names(&program.items);
-    let world_roots = collect_world_native_ui_roots(&program.items)?;
+    let worlds = collect_world_selection_info(&program.items);
+    let required_surface = required_world_surface_for_target(target);
 
     if let Some(requested_root) = requested_root
         .map(str::trim)
         .filter(|value| !value.is_empty())
     {
-        if let Some((_, root_component)) = world_roots
-            .iter()
-            .find(|(world_name, _)| world_name == requested_root)
-        {
+        if let Some(world) = worlds.iter().find(|world| world.name == requested_root) {
+            ensure_world_supports_target_surface(world, target, required_surface)?;
             return Ok(ResolvedWorldSelection {
-                root_component: Some(root_component.clone()),
-                active_world_name: Some(requested_root.to_string()),
+                root_component: preferred_world_root_component(world, required_surface),
+                active_world_name: Some(world.name.clone()),
             });
         }
         if component_names.iter().any(|name| name == requested_root) {
+            let matching_worlds = worlds
+                .iter()
+                .filter(|world| {
+                    world_root_component_for_target(world, required_surface).as_deref()
+                        == Some(requested_root)
+                })
+                .collect::<Vec<_>>();
+            if matching_worlds.len() > 1 {
+                let world_names = matching_worlds
+                    .iter()
+                    .map(|world| world.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                return Err(KainError::runtime(format!(
+                    "Configured root '{}' matched multiple worlds for target {:?}: {}",
+                    requested_root, target, world_names
+                )));
+            }
             return Ok(ResolvedWorldSelection {
                 root_component: Some(requested_root.to_string()),
-                active_world_name: world_roots
-                    .first()
-                    .filter(|_| world_roots.len() == 1)
-                    .map(|(world_name, _)| world_name.clone()),
+                active_world_name: matching_worlds.first().map(|world| world.name.clone()),
             });
         }
         return Err(KainError::runtime(format!(
@@ -810,32 +838,112 @@ pub(crate) fn resolve_world_selection(
         )));
     }
 
-    if world_roots.len() > 1 {
-        let world_names = world_roots
+    if let Some(required_surface) = required_surface {
+        let eligible_worlds = worlds
             .iter()
-            .map(|(world_name, _)| world_name.as_str())
-            .collect::<Vec<_>>()
-            .join(", ");
-        return Err(KainError::runtime(format!(
-            "Multiple worlds declare native_ui surfaces ({world_names}); pass --root <world-name> to select one explicitly"
-        )));
+            .filter(|world| world.has_surface(required_surface))
+            .collect::<Vec<_>>();
+        if eligible_worlds.len() > 1 {
+            let world_names = eligible_worlds
+                .iter()
+                .map(|world| world.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(KainError::runtime(format!(
+                "Multiple worlds declare {} surfaces ({world_names}); pass --root <world-name> to select one explicitly",
+                required_surface.as_str()
+            )));
+        }
+        if let Some(world) = eligible_worlds.first() {
+            return Ok(ResolvedWorldSelection {
+                root_component: preferred_world_root_component(world, Some(required_surface))
+                    .or_else(|| fallback_root_component(&component_names)),
+                active_world_name: Some(world.name.clone()),
+            });
+        }
+        if !worlds.is_empty() {
+            return Err(KainError::runtime(format!(
+                "No world declares the required '{}' surface for target {:?}",
+                required_surface.as_str(),
+                target
+            )));
+        }
     }
-    if let Some((world_name, root_component)) = world_roots.first() {
+
+    if worlds.len() == 1 {
         return Ok(ResolvedWorldSelection {
-            root_component: Some(root_component.clone()),
-            active_world_name: Some(world_name.clone()),
+            root_component: preferred_world_root_component(&worlds[0], required_surface)
+                .or_else(|| fallback_root_component(&component_names)),
+            active_world_name: Some(worlds[0].name.clone()),
         });
     }
-    if let Some(app) = component_names.iter().find(|name| name.as_str() == "App") {
+
+    if let Some(root_component) = fallback_root_component(&component_names) {
         return Ok(ResolvedWorldSelection {
-            root_component: Some(app.clone()),
+            root_component: Some(root_component),
             active_world_name: None,
         });
     }
+
     Ok(ResolvedWorldSelection {
-        root_component: component_names.into_iter().next(),
+        root_component: None,
         active_world_name: None,
     })
+}
+
+fn required_world_surface_for_target(target: CompileTarget) -> Option<WorldSurfaceKind> {
+    match target {
+        CompileTarget::Rust | CompileTarget::Llvm | CompileTarget::Cpp => {
+            Some(WorldSurfaceKind::NativeUi)
+        }
+        CompileTarget::Js | CompileTarget::Ts | CompileTarget::Wasm | CompileTarget::Hybrid => {
+            Some(WorldSurfaceKind::Web)
+        }
+        CompileTarget::Ue5 | CompileTarget::Ue5Editor => Some(WorldSurfaceKind::Ue5),
+        _ => None,
+    }
+}
+
+fn ensure_world_supports_target_surface(
+    world: &WorldSelectionInfo,
+    target: CompileTarget,
+    required_surface: Option<WorldSurfaceKind>,
+) -> Result<(), KainError> {
+    if let Some(required_surface) = required_surface {
+        if !world.has_surface(required_surface) {
+            return Err(KainError::runtime(format!(
+                "World '{}' does not declare the required '{}' surface for target {:?}",
+                world.name,
+                required_surface.as_str(),
+                target
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn fallback_root_component(component_names: &[String]) -> Option<String> {
+    component_names
+        .iter()
+        .find(|name| name.as_str() == "App")
+        .cloned()
+        .or_else(|| component_names.first().cloned())
+}
+
+fn preferred_world_root_component(
+    world: &WorldSelectionInfo,
+    required_surface: Option<WorldSurfaceKind>,
+) -> Option<String> {
+    world_root_component_for_target(world, required_surface)
+        .or_else(|| world.root_component_for(WorldSurfaceKind::NativeUi))
+        .or_else(|| world.first_root_component())
+}
+
+fn world_root_component_for_target(
+    world: &WorldSelectionInfo,
+    required_surface: Option<WorldSurfaceKind>,
+) -> Option<String> {
+    required_surface.and_then(|surface| world.root_component_for(surface))
 }
 
 pub(crate) fn apply_active_world_selection_to_realtime_bundle(
@@ -920,38 +1028,50 @@ fn collect_component_names_into(items: &[TypedItem], output: &mut Vec<String>) {
     }
 }
 
-fn collect_world_native_ui_roots(items: &[TypedItem]) -> Result<Vec<(String, String)>, KainError> {
-    let mut roots = Vec::new();
-    collect_world_native_ui_roots_into(items, &mut roots)?;
-    Ok(roots)
+fn collect_world_selection_info(items: &[TypedItem]) -> Vec<WorldSelectionInfo> {
+    let mut worlds = Vec::new();
+    collect_world_selection_info_into(items, &mut worlds);
+    worlds
 }
 
-fn collect_world_native_ui_roots_into(
-    items: &[TypedItem],
-    output: &mut Vec<(String, String)>,
-) -> Result<(), KainError> {
+fn collect_world_selection_info_into(items: &[TypedItem], output: &mut Vec<WorldSelectionInfo>) {
     for item in items {
         match item {
-            TypedItem::World(world) => {
-                let root_component = world
+            TypedItem::World(world) => output.push(WorldSelectionInfo {
+                name: world.ast.name.clone(),
+                surfaces: world
                     .ast
                     .surfaces
                     .iter()
-                    .find(|surface| surface.kind == WorldSurfaceKind::NativeUi)
-                    .and_then(|surface| expr_component_name(&surface.expr))
-                    .ok_or_else(|| {
-                        KainError::runtime(format!(
-                            "World '{}' native_ui surface does not resolve to a component name",
-                            world.ast.name
-                        ))
-                    })?;
-                output.push((world.ast.name.clone(), root_component));
-            }
-            TypedItem::Mod(module) => collect_world_native_ui_roots_into(&module.items, output)?,
+                    .map(|surface| WorldSurfaceSelection {
+                        kind: surface.kind,
+                        root_component: expr_component_name(&surface.expr),
+                    })
+                    .collect(),
+            }),
+            TypedItem::Mod(module) => collect_world_selection_info_into(&module.items, output),
             _ => {}
         }
     }
-    Ok(())
+}
+
+impl WorldSelectionInfo {
+    fn has_surface(&self, kind: WorldSurfaceKind) -> bool {
+        self.surfaces.iter().any(|surface| surface.kind == kind)
+    }
+
+    fn root_component_for(&self, kind: WorldSurfaceKind) -> Option<String> {
+        self.surfaces
+            .iter()
+            .find(|surface| surface.kind == kind)
+            .and_then(|surface| surface.root_component.clone())
+    }
+
+    fn first_root_component(&self) -> Option<String> {
+        self.surfaces
+            .iter()
+            .find_map(|surface| surface.root_component.clone())
+    }
 }
 
 fn expr_component_name(expr: &Expr) -> Option<String> {
@@ -1380,6 +1500,51 @@ component Shell():
                 .map(|world| world.name.as_str()),
             Some("ShellWorld")
         );
+    }
+
+    #[test]
+    fn compile_realtime_bundle_selects_single_web_world_for_web_targets() {
+        let source = r#"
+world Studio:
+    state counter: Int = 0
+    surface web => App
+
+component App():
+    render <panel title="Studio" />
+"#;
+
+        let output =
+            compile_realtime_app_bundle(source, CompileTarget::Js, None).expect("web bundle");
+        assert_eq!(
+            output
+                .bundle
+                .active_world
+                .as_ref()
+                .map(|world| world.name.as_str()),
+            Some("Studio")
+        );
+        assert!(output.bundle.worlds[0]
+            .surfaces
+            .iter()
+            .any(|surface| surface.kind == "web" && surface.authored_expr == "App"));
+    }
+
+    #[test]
+    fn compile_realtime_bundle_rejects_selected_world_missing_target_surface() {
+        let source = r#"
+world Studio:
+    state counter: Int = 0
+    surface native_ui => App
+
+component App():
+    render <panel title="Studio" />
+"#;
+
+        let error = compile_realtime_app_bundle(source, CompileTarget::Js, Some("Studio"))
+            .expect_err("web targets should reject worlds without web surfaces");
+        assert!(error
+            .to_string()
+            .contains("does not declare the required 'web' surface"));
     }
 
     #[test]

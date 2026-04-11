@@ -46,6 +46,9 @@ pub enum Item {
     /// `patch name(args) -> Type: body`
     Patch(PatchDef),
 
+    /// `law name(args) -> Bool: body`
+    Law(LawDef),
+
     /// `converge name(args) -> Type: spec/fast lanes`
     Converge(ConvergeDef),
 
@@ -150,6 +153,17 @@ pub struct PatchDef {
     pub name: String,
     pub params: Vec<Param>,
     pub return_type: Option<Type>,
+    pub body: Block,
+    pub visibility: Visibility,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LawDef {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub return_type: Type,
     pub body: Block,
     pub visibility: Visibility,
     pub attributes: Vec<Attribute>,
@@ -2134,6 +2148,21 @@ fn collect_type_names_from_item(item: &Item, out: &mut HashSet<String>) {
             }
             collect_type_names_from_block(&patch.body, out);
             for attr in &patch.attributes {
+                for arg in &attr.args {
+                    collect_type_names_from_expr(arg, out);
+                }
+            }
+        }
+        Item::Law(law) => {
+            for param in &law.params {
+                collect_type_names_from_type(&param.ty, out);
+                if let Some(default) = &param.default {
+                    collect_type_names_from_expr(default, out);
+                }
+            }
+            collect_type_names_from_type(&law.return_type, out);
+            collect_type_names_from_block(&law.body, out);
+            for attr in &law.attributes {
                 for arg in &attr.args {
                     collect_type_names_from_expr(arg, out);
                 }

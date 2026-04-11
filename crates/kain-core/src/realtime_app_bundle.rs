@@ -4,7 +4,9 @@ use crate::ast::{
     ComputeMetadata, ConvergeSelector, ShaderStage, Type, WorldSurfaceKind,
     COMPUTE_PLAN_CAPABILITY_KEY,
 };
-use crate::types::{PatchUndoMode, TypedConverge, TypedOrchestrate, TypedPatch, TypedWorld};
+use crate::types::{
+    PatchUndoMode, TypedConverge, TypedLaw, TypedOrchestrate, TypedPatch, TypedWorld,
+};
 use crate::ui::render_authored_expr_contract;
 use crate::{CompileTarget, TypedItem, TypedProgram, TypedShader};
 use kain_ui::{
@@ -23,6 +25,8 @@ pub struct RealtimeAppBundle {
     pub render: RenderSceneBundle,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub patches: Vec<RealtimePatchBinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub laws: Vec<RealtimeLawBinding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub converges: Vec<RealtimeConvergeBinding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -348,6 +352,15 @@ pub struct RealtimePatchBinding {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RealtimeLawBinding {
+    pub name: String,
+    pub symbol: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub param_types: Vec<String>,
+    pub return_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RealtimeConvergeLaneBinding {
     pub lane_name: String,
     pub kind: String,
@@ -414,6 +427,7 @@ pub fn emit_realtime_app_bundle(
     let scenes = collect_scene_bindings(ui_output, &shader_bundle_refs);
     let materials = collect_materials(program, &scenes);
     let patches = collect_patch_bindings(program);
+    let laws = collect_law_bindings(program);
     let converges = collect_converge_bindings(program);
     let worlds = collect_world_bindings(program);
     let active_world = if worlds.len() == 1 {
@@ -430,6 +444,7 @@ pub fn emit_realtime_app_bundle(
         &shader_canvases,
         &worlds,
         !patches.is_empty(),
+        !laws.is_empty(),
         !converges.is_empty(),
         !orchestrations.is_empty(),
         has_explicit_compute_metadata,
@@ -442,6 +457,7 @@ pub fn emit_realtime_app_bundle(
         &worlds,
         &tool_caps,
         !patches.is_empty(),
+        !laws.is_empty(),
         !converges.is_empty(),
         !orchestrations.is_empty(),
         has_explicit_compute_metadata,
@@ -453,6 +469,7 @@ pub fn emit_realtime_app_bundle(
         target: compile_target_name(target).to_string(),
         render: RenderSceneBundle { scenes, materials },
         patches,
+        laws,
         converges,
         worlds,
         active_world,
@@ -771,6 +788,37 @@ fn realtime_patch_binding(patch: &TypedPatch) -> RealtimePatchBinding {
             PatchUndoMode::BestEffort => "best_effort".to_string(),
         },
         collaboration_event: format!("patch.{}", patch.ast.name),
+    }
+}
+
+fn collect_law_bindings(program: &TypedProgram) -> Vec<RealtimeLawBinding> {
+    let mut bindings = Vec::new();
+    collect_law_bindings_into(&program.items, &mut bindings);
+    bindings.sort_by(|left, right| left.name.cmp(&right.name));
+    bindings
+}
+
+fn collect_law_bindings_into(items: &[TypedItem], output: &mut Vec<RealtimeLawBinding>) {
+    for item in items {
+        match item {
+            TypedItem::Law(law) => output.push(realtime_law_binding(law)),
+            TypedItem::Mod(module) => collect_law_bindings_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn realtime_law_binding(law: &TypedLaw) -> RealtimeLawBinding {
+    RealtimeLawBinding {
+        name: law.ast.name.clone(),
+        symbol: law.ast.name.clone(),
+        param_types: law
+            .ast
+            .params
+            .iter()
+            .map(|param| render_contract_type_name(&param.ty))
+            .collect(),
+        return_type: render_contract_type_name(&law.ast.return_type),
     }
 }
 
@@ -1870,6 +1918,7 @@ fn collect_tool_caps(
     shader_canvases: &[RealtimeShaderCanvasBinding],
     worlds: &[RealtimeWorldBinding],
     has_patches: bool,
+    has_laws: bool,
     has_converges: bool,
     has_orchestrations: bool,
     has_explicit_compute_metadata: bool,
@@ -1877,6 +1926,9 @@ fn collect_tool_caps(
     let mut caps = Vec::new();
     if has_patches {
         caps.push("patch.transactions".to_string());
+    }
+    if has_laws {
+        caps.push("law.invariants".to_string());
     }
     if has_converges {
         caps.push("converge.dispatch".to_string());
@@ -1959,6 +2011,7 @@ fn collect_requirements(
     worlds: &[RealtimeWorldBinding],
     tool_caps: &[String],
     has_patches: bool,
+    has_laws: bool,
     has_converges: bool,
     has_orchestrations: bool,
     has_explicit_compute_metadata: bool,
@@ -1976,6 +2029,9 @@ fn collect_requirements(
     ];
     if has_patches {
         requirements.push("patch.transactions".to_string());
+    }
+    if has_laws {
+        requirements.push("law.invariants".to_string());
     }
     if has_converges {
         requirements.push("converge.dispatch".to_string());

@@ -1,5 +1,53 @@
 # MEMORY
 
+## 2026-04-11 - compiler-owned intent suite is now coherent across parser, typechecker, runtime, bundles, driver, and LSP
+
+The original quartet is no longer the right mental model. Kain now ships a five-part compiler-owned intent suite: `law`, `patch`, `converge`, `world`, and `orchestrate`.
+
+What changed:
+
+- Updated `crates/kain-core/src/ast.rs`, `parser.rs`, `types.rs`, `runtime.rs`, `runtime_contract.rs`, and `realtime_app_bundle.rs`
+  - Added first-class `law` declarations and runtime-callable `Value::Law`.
+  - Tightened `law` semantics to Bool-returning invariant declarations emitted into `laws[]` in both bundle families.
+  - Removed world-state name leakage from the global type environment; world state is now accessed only through the world value.
+  - Relaxed `world` validation from “all four surfaces required” to “at least one surface required,” while keeping duplicate-surface rejection.
+  - Made `converge` selector-less `fast` lanes valid declaration-ordered defaults.
+  - Made `verify random(n)` executable for real call args plus deterministic synthesized samples, with a hard typecheck fence around the supported scalar/tuple/array/option subset.
+  - Tightened `orchestrate` into a strict top-level typed pipeline and removed silent Rust/Python/Node fallback into normal Kain function dispatch.
+- Updated `crates/kain-core/tests/compiler_owned_intent_test.rs`
+  - Added coverage for `law`, world-state leakage, sparse worlds, selector-less fast lanes, executable converge verification, strict orchestrate rejection cases, and runtime-label enforcement.
+- Updated `crates/kain-driver/src/lib.rs` and `crates/kain-driver/src/native_app.rs`
+  - Replaced native-ui-only world selection heuristics with target-aware world selection.
+  - Native desktop targets resolve against `native_ui`, web targets against `web`, and UE5 targets against `ue5`.
+  - Explicit `--root` world selection now fails if the selected world does not declare the required surface for the active adapter target.
+- Updated `crates/cli/src/lsp.rs`
+  - Added `law` to keyword/symbol surfacing and kept the full intent-suite declaration set visible to editor tooling.
+- Updated `docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md` and `ARCHITECTURE.md`
+  - Reframed the old quartet doc into the current intent-suite contract.
+  - Recorded the new five-declaration doctrine and the target-aware world-selection behavior.
+
+Validation completed:
+
+- `cargo test -p kain-core --test compiler_owned_intent_test`
+- `cargo test -p kain-driver --lib world`
+- `cargo check -p cli`
+
+Design decisions:
+
+- Kept the declarations contextual rather than globally reserving `law`, `patch`, `converge`, `world`, and `orchestrate`.
+- Chose to make `verify random(n)` honest and executable now instead of leaving it as metadata-only aspiration.
+- Chose to make `orchestrate` stricter instead of trying to infer bundle metadata from arbitrary expression shapes.
+
+Current risks:
+
+- The parser still requires at least one `fast` lane in every `converge`, even when a `spec`-only form could be meaningful later.
+- `verify random(n)` is intentionally bounded to a scalar-centric synthesis subset; richer structural generation is still future work.
+- The full `cargo test -p kain-driver --lib` suite still contains unrelated package/network-heavy failures outside this feature lane, so the validated surface here is the focused world-selection/native-app path plus the full core intent suite.
+
+Recommended next step:
+
+- Decide whether to relax the “at least one fast lane” parser rule for `converge`, and if so, align that parser choice with bundle emission, runtime dispatch, and compiled/codegen lanes together.
+
 ## 2026-04-11 - LLVM now lowers world, patch, converge, and orchestrate directly enough for Omega to run without the wrapper path
 
 The previous Omega note is no longer current. The LLVM backend in `crates/kain-sys-codegen` now materializes compiler-owned intent items directly instead of requiring `main()` to route around them.

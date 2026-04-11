@@ -6,7 +6,9 @@ use crate::ast::{
     ConvergeSelector, ShaderStage, Type, WorldSurfaceKind, COMPUTE_PLAN_CAPABILITY_KEY,
 };
 use crate::low_level_memory::backend_memory_capabilities;
-use crate::types::{PatchUndoMode, TypedConverge, TypedOrchestrate, TypedPatch, TypedWorld};
+use crate::types::{
+    PatchUndoMode, TypedConverge, TypedLaw, TypedOrchestrate, TypedPatch, TypedWorld,
+};
 use crate::ui::render_authored_expr_contract;
 use crate::{CompileTarget, TypedItem, TypedProgram};
 
@@ -21,6 +23,8 @@ pub struct RuntimeContractBundle {
     pub items: Vec<RuntimeContractItem>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub patches: Vec<RuntimePatchContract>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub laws: Vec<RuntimeLawContract>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub converges: Vec<RuntimeConvergeContract>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -115,6 +119,15 @@ pub struct RuntimePatchContract {
     pub invalidation_keys: Vec<String>,
     pub collaboration_event: String,
     pub undo_mode: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeLawContract {
+    pub name: String,
+    pub symbol: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub param_types: Vec<String>,
+    pub return_type: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -250,6 +263,7 @@ pub fn emit_runtime_contract_bundle(
     collect_runtime_items(&program.items, &mut items, &mut reflection_names);
     items.sort_by(|left, right| left.id.cmp(&right.id));
     let patches = collect_patch_contracts(&program.items);
+    let laws = collect_law_contracts(&program.items);
     let converges = collect_converge_contracts(&program.items);
     let worlds = collect_world_contracts(&program.items);
     let active_world = if worlds.len() == 1 {
@@ -283,6 +297,7 @@ pub fn emit_runtime_contract_bundle(
         service_bindings,
         items,
         patches,
+        laws,
         converges,
         worlds,
         active_world,
@@ -444,6 +459,13 @@ fn collect_runtime_capabilities(
             Some("Program declares compiler-owned transactional patch semantics."),
         ));
     }
+    if summary.laws > 0 {
+        capabilities.push(runtime_capability(
+            "law.invariants",
+            "kain-core.runtime",
+            Some("Program declares compiler-owned invariant laws."),
+        ));
+    }
     if summary.converges > 0 {
         capabilities.push(runtime_capability(
             "converge.dispatch",
@@ -583,6 +605,13 @@ fn runtime_service_bindings_for_target(
             runtime_lane_name(target),
         ));
     }
+    if summary.laws > 0 {
+        bindings.push(runtime_service_binding(
+            "law.invariants",
+            "kain-core",
+            runtime_lane_name(target),
+        ));
+    }
     if summary.converges > 0 {
         bindings.push(runtime_service_binding(
             "converge.dispatch",
@@ -670,6 +699,9 @@ fn collect_runtime_items(
             }
             TypedItem::Patch(patch) => {
                 output.push(runtime_contract_item("patch", &patch.ast.name));
+            }
+            TypedItem::Law(law) => {
+                output.push(runtime_contract_item("law", &law.ast.name));
             }
             TypedItem::Converge(converge) => {
                 output.push(runtime_contract_item("converge", &converge.ast.name));
@@ -809,6 +841,37 @@ fn runtime_patch_contract(patch: &TypedPatch) -> RuntimePatchContract {
             PatchUndoMode::BestEffort => "best_effort".to_string(),
         },
         mutation_paths,
+    }
+}
+
+fn collect_law_contracts(items: &[TypedItem]) -> Vec<RuntimeLawContract> {
+    let mut contracts = Vec::new();
+    collect_law_contracts_into(items, &mut contracts);
+    contracts.sort_by(|left, right| left.name.cmp(&right.name));
+    contracts
+}
+
+fn collect_law_contracts_into(items: &[TypedItem], output: &mut Vec<RuntimeLawContract>) {
+    for item in items {
+        match item {
+            TypedItem::Law(law) => output.push(runtime_law_contract(law)),
+            TypedItem::Mod(module) => collect_law_contracts_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn runtime_law_contract(law: &TypedLaw) -> RuntimeLawContract {
+    RuntimeLawContract {
+        name: law.ast.name.clone(),
+        symbol: law.ast.name.clone(),
+        param_types: law
+            .ast
+            .params
+            .iter()
+            .map(|param| type_to_string(&param.ty))
+            .collect(),
+        return_type: type_to_string(&law.ast.return_type),
     }
 }
 
@@ -1094,6 +1157,7 @@ struct ItemSummary {
     actors: usize,
     async_tasks: usize,
     patches: usize,
+    laws: usize,
     converges: usize,
     worlds: usize,
     orchestrations: usize,
@@ -1125,6 +1189,7 @@ fn summarize_items_into(items: &[TypedItem], summary: &mut ItemSummary) {
             TypedItem::Actor(_) => summary.actors += 1,
             TypedItem::AsyncTask(_) => summary.async_tasks += 1,
             TypedItem::Patch(_) => summary.patches += 1,
+            TypedItem::Law(_) => summary.laws += 1,
             TypedItem::Converge(_) => summary.converges += 1,
             TypedItem::World(world) => {
                 summary.worlds += 1;
