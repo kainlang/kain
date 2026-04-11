@@ -15,8 +15,47 @@
  */
 
 #include "../../include/kain_runtime_memory.h"
-#include <string.h>
+#include <errno.h>
 #include <stdlib.h>
+#include <string.h>
+
+typedef union KainAllocHeader {
+    struct {
+        uint64_t magic;
+        size_t payload_size;
+    } metadata;
+    max_align_t alignment;
+} KainAllocHeader;
+
+static const uint64_t KAIN_ALLOC_MAGIC = 0x4b41494e4d454d31ULL;
+
+static int kain_mul_overflow_size(size_t left, size_t right, size_t* out) {
+    if (left != 0 && right > (SIZE_MAX / left)) {
+        return 1;
+    }
+    *out = left * right;
+    return 0;
+}
+
+static int kain_add_overflow_size(size_t left, size_t right, size_t* out) {
+    if (right > (SIZE_MAX - left)) {
+        return 1;
+    }
+    *out = left + right;
+    return 0;
+}
+
+static void* kain_payload_from_header(KainAllocHeader* header) {
+    return (void*)(header + 1);
+}
+
+static KainAllocHeader* kain_header_from_payload(void* ptr) {
+    return ((KainAllocHeader*)ptr) - 1;
+}
+
+static int kain_validate_helper_header(KainAllocHeader* header) {
+    return header != NULL && header->metadata.magic == KAIN_ALLOC_MAGIC;
+}
 
 /* ============================================================================
  * Category 1: Pointer and Address Operations
@@ -128,19 +167,28 @@ void __kain_mem_store(void* ptr, const void* value, size_t size) {
  * Allocates (size * stride) bytes.
  */
 void* __kain_alloc(size_t size, size_t stride, int zeroed) {
-    size_t total_size = size * stride;
-    void* ptr;
-    
-    if (zeroed) {
-        /* Use calloc for zero-initialized memory */
-        ptr = calloc(size, stride);
-    } else {
-        /* Use malloc for uninitialized memory */
-        ptr = malloc(total_size);
+    size_t payload_size = 0;
+    size_t allocation_size = 0;
+    KainAllocHeader* header = NULL;
+
+    if (kain_mul_overflow_size(size, stride, &payload_size)
+        || kain_add_overflow_size(sizeof(KainAllocHeader), payload_size, &allocation_size)) {
+        errno = ENOMEM;
+        return NULL;
     }
-    
-    /* Return NULL on allocation failure (no exceptions) */
-    return ptr;
+
+    if (zeroed) {
+        header = (KainAllocHeader*)calloc(1, allocation_size);
+    } else {
+        header = (KainAllocHeader*)malloc(allocation_size);
+    }
+    if (header == NULL) {
+        return NULL;
+    }
+
+    header->metadata.magic = KAIN_ALLOC_MAGIC;
+    header->metadata.payload_size = payload_size;
+    return kain_payload_from_header(header);
 }
 
 /*
@@ -150,28 +198,43 @@ void* __kain_alloc(size_t size, size_t stride, int zeroed) {
  * If ptr is NULL, behaves like __kain_alloc.
  */
 void* __kain_realloc(void* ptr, size_t size, size_t stride, int zeroed_new) {
-    size_t new_size = size * stride;
-    void* new_ptr;
-    
     if (ptr == NULL) {
-        /* If ptr is NULL, behave like __kain_alloc */
         return __kain_alloc(size, stride, zeroed_new);
     }
-    
-    if (zeroed_new) {
-        /* Need to track old size to zero new bytes, but we don't have it.
-         * For now, we use realloc and accept that new bytes are uninitialized.
-         * A production implementation would need to track allocation sizes. */
-        new_ptr = realloc(ptr, new_size);
-        
-        /* Note: This is a limitation - we cannot zero new bytes without
-         * knowing the old size. A full implementation would require an
-         * allocation tracking system. */
-    } else {
-        /* Simple realloc without zeroing */
-        new_ptr = realloc(ptr, new_size);
+
+    size_t new_payload_size = 0;
+    size_t allocation_size = 0;
+    KainAllocHeader* old_header = kain_header_from_payload(ptr);
+    KainAllocHeader* new_header = NULL;
+    size_t old_payload_size = 0;
+
+    if (!kain_validate_helper_header(old_header)) {
+        errno = EINVAL;
+        return NULL;
     }
-    
-    /* Return NULL on failure, original pointer remains valid */
-    return new_ptr;
+
+    if (kain_mul_overflow_size(size, stride, &new_payload_size)
+        || kain_add_overflow_size(sizeof(KainAllocHeader), new_payload_size, &allocation_size)) {
+        errno = ENOMEM;
+        return NULL;
+    }
+
+    old_payload_size = old_header->metadata.payload_size;
+    new_header = (KainAllocHeader*)realloc(old_header, allocation_size);
+    if (new_header == NULL) {
+        return NULL;
+    }
+
+    new_header->metadata.magic = KAIN_ALLOC_MAGIC;
+    new_header->metadata.payload_size = new_payload_size;
+
+    if (zeroed_new && new_payload_size > old_payload_size) {
+        memset(
+            ((char*)kain_payload_from_header(new_header)) + old_payload_size,
+            0,
+            new_payload_size - old_payload_size
+        );
+    }
+
+    return kain_payload_from_header(new_header);
 }

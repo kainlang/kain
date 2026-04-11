@@ -3231,37 +3231,14 @@ impl LlvmGenerator {
                 self.zero_value_for_ty(&self.map_type_from_ast(ty)),
                 self.map_type_from_ast(ty),
             )),
-            Expr::Alloc { size, .. } => {
-                let call = Expr::Call {
-                    callee: Box::new(Expr::Ident("__kain_alloc".to_string(), size.span())),
-                    args: vec![kain_core::ast::CallArg {
-                        name: None,
-                        value: (**size).clone(),
-                        span: size.span(),
-                    }],
-                    span: size.span(),
-                };
-                self.compile_expr(&call)
-            }
-            Expr::Realloc { pointer, size, .. } => {
-                let call = Expr::Call {
-                    callee: Box::new(Expr::Ident("__kain_realloc".to_string(), size.span())),
-                    args: vec![
-                        kain_core::ast::CallArg {
-                            name: None,
-                            value: (**pointer).clone(),
-                            span: pointer.span(),
-                        },
-                        kain_core::ast::CallArg {
-                            name: None,
-                            value: (**size).clone(),
-                            span: size.span(),
-                        },
-                    ],
-                    span: size.span(),
-                };
-                self.compile_expr(&call)
-            }
+            Expr::Alloc { .. } => Err(KainError::codegen(
+                "LLVM backend expected alloc to be lowered into a canonical __kain_alloc helper call",
+                expr.span(),
+            )),
+            Expr::Realloc { .. } => Err(KainError::codegen(
+                "LLVM backend expected realloc_mem to be lowered into a canonical __kain_realloc helper call",
+                expr.span(),
+            )),
             Expr::Unary { op, operand, span } => {
                 let (val, ty) = self.compile_expr(operand)?;
                 match op {
@@ -4144,28 +4121,13 @@ impl LlvmGenerator {
                     }
 
                     if name == "print" || name == "println" {
-                        // Just print the first arg for now
-                        if let Some(arg) = args.first() {
-                            let (val, ty) = self.compile_expr(&arg.value)?;
-                            if ty == "i64" {
-                                self.emit(&format!("  call void @print_i64(i64 {})", val));
-                            } else if ty == "double" {
-                                self.emit(&format!("  call void @print_f64(double {})", val));
-                            } else if ty == "i1" {
-                                self.emit(&format!("  call void @print_bool(i1 {})", val));
-                            } else {
-                                // Assume string or unknown
-                                self.emit(&format!("  call void @print_str(i8* {}, i64 0)", val));
-                            }
-
-                            // Release if temporary
-                            if (ty == "i8*" || ty.starts_with("%"))
-                                && self.is_new_object(&arg.value)
-                            {
-                                self.emit_release(&val, &ty);
-                            }
-                        }
-                        return Ok(("0".into(), "i64".into()));
+                        return Err(KainError::codegen(
+                            format!(
+                                "LLVM backend does not lower '{}' faithfully yet; runtime print semantics are still unsupported",
+                                name
+                            ),
+                            *span,
+                        ));
                     }
                 }
 

@@ -351,33 +351,33 @@ impl<'a> Parser<'a> {
 
             match self.peek_kind() {
                 // Visibility and attributes
-                TokenKind::Pub | 
+                TokenKind::Pub |
                 TokenKind::At |
-                
+
                 // Functions and async
-                TokenKind::Fn | 
+                TokenKind::Fn |
                 TokenKind::AsyncKw |
-                
+
                 // First-class citizens (KAIN-specific)
-                TokenKind::Component | 
-                TokenKind::Shader | 
+                TokenKind::Component |
+                TokenKind::Shader |
                 TokenKind::Actor |
-                
+
                 // Data structures
-                TokenKind::Struct | 
+                TokenKind::Struct |
                 TokenKind::Enum |
                 TokenKind::TypeKw |  // Type aliases
-                
+
                 // Traits and implementations
                 TokenKind::Trait |
                 TokenKind::Impl |
-                
+
                 // Module system
                 TokenKind::Use |
                 TokenKind::Mod |
-                
+
                 // Compile-time and macros
-                TokenKind::Const | 
+                TokenKind::Const |
                 TokenKind::Comptime |
                 TokenKind::Macro |
                 TokenKind::Test => {
@@ -411,14 +411,14 @@ impl<'a> Parser<'a> {
                         }
                     }
                 }
-                
+
                 // TODO: Future token kinds for advanced features:
                 // - TokenKind::Interface (for UE5 interfaces)
                 // - TokenKind::Delegate (explicit delegate declarations)
                 // - TokenKind::Event (event system)
                 // - TokenKind::Namespace (code organization)
                 // - TokenKind::Class (if we add class keyword separate from struct)
-                
+
                 _ => {
                     let before_pos = self.pos;
                     match self.parse_stmt() {
@@ -5544,10 +5544,10 @@ impl<'a> Parser<'a> {
     fn parse_ident(&mut self) -> KainResult<String> {
         let span = self.current_span();
         match self.peek_kind() {
-            TokenKind::Ident(s) => { 
-                self.advance(); 
+            TokenKind::Ident(s) => {
+                self.advance();
                 self.validate_identifier(&s, span)?;
-                Ok(s) 
+                Ok(s)
             }
             TokenKind::SelfLower => { self.advance(); Ok("self".to_string()) }
             TokenKind::SelfUpper => { self.advance(); Ok("Self".to_string()) }

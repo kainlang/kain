@@ -481,14 +481,17 @@ fn llvm_sizes_runtime_memory_helpers_for_bool_values() {
 #[test]
 fn llvm_consumes_lowered_alloc_and_realloc_helpers() {
     let typed = typed_program_from_source(
-        "fn heap(n: Int, p: ptr<Int>) -> Int:\n    let mut q: ptr<Int> = alloc((n * sizeof_type(\"Int\")), \"Int\")\n    let mut r: ptr<Int> = realloc_mem(p, (n * sizeof_type(\"Int\")), \"Int\")\n    return 0\n",
+        "fn heap(n: Int, p: ptr<Int>) -> Int:\n    let mut q: ptr<Int> = alloc_zeroed((n * sizeof_type(\"Int\")), \"Int\")\n    let mut r: ptr<Int> = realloc_mem(p, (n * sizeof_type(\"Int\")), \"Int\", true)\n    return 0\n",
     );
 
     let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
 
     assert!(llvm.contains("call i8* @__kain_alloc(i64"));
+    assert!(llvm.contains(", i64 8, i32 1)"));
     assert!(llvm.contains("call i8* @__kain_realloc(i8*"));
+    assert!(llvm.contains(", i64 8, i32 1)"));
+    assert!(llvm.contains("inttoptr i64"));
     assert!(llvm.contains("ptrtoint i8*"));
 }
 
@@ -1207,6 +1210,18 @@ fn llvm_rejects_unsupported_expressions_instead_of_silent_dummy_values() {
     let message = err.to_string();
     assert!(message.contains("Unsupported LLVM expression"));
     assert!(message.contains("Lambda"));
+}
+
+#[test]
+fn llvm_rejects_print_until_runtime_semantics_are_exact() {
+    let typed =
+        typed_program_from_source("fn main() -> Int:\n    println(\"llvm\")\n    return 0\n");
+
+    let err = generate_llvm(&typed).expect_err("llvm generation should fail for print/println");
+    let message = err.to_string();
+
+    assert!(message.contains("does not lower 'println' faithfully yet"));
+    assert!(message.contains("runtime print semantics"));
 }
 
 #[test]

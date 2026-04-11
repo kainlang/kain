@@ -1,0 +1,18 @@
+// LLVM heap helper execution fixture
+// Purpose: prove alloc/realloc/mem_store/mem_load run through the linked native runtime.
+
+fn main() -> Int:
+    let stride: Int = sizeof_type("Int")
+    let mut p: ptr<Int> = alloc_zeroed(stride, "Int")
+    mem_store(p, 7, "Int")
+
+    let mut q: ptr<Int> = realloc_mem(p, (2 * stride), "Int", true)
+    let preserved: Int = mem_load(q, "Int")
+    let grown: Int = mem_load(ptr_offset(q, 1, "Int"), "Int")
+
+    if preserved == 7:
+        if grown == 0:
+            return 0
+        return 12
+
+    return 11

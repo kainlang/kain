@@ -255,6 +255,7 @@ void __kain_mem_store(void* ptr, const void* value, size_t size);
  * ABI Considerations:
  *   - Allocates (size * stride) bytes
  *   - If zeroed is non-zero, memory is zero-initialized
+ *   - Helper-owned allocations carry internal metadata for realloc correctness
  *   - Alignment: natural alignment for stride size
  *   - Returns NULL on allocation failure (no exceptions)
  *   - Allocation strategy: malloc/calloc or custom allocator
@@ -286,9 +287,11 @@ void* __kain_alloc(size_t size, size_t stride, int zeroed);
  *   - Resizes allocation to (size * stride) bytes
  *   - Preserves existing data
  *   - If zeroed_new and size increased, zero-fills new bytes only
+ *   - Supported for helper-owned allocations returned by __kain_alloc/__kain_realloc
  *   - May move memory (return different address)
  *   - On failure, original pointer remains valid
  *   - If ptr is NULL, behaves like __kain_alloc
+ *   - Invalid or foreign pointers fail in a controlled way and return NULL
  *
  * Example Emission:
  *   let bigger = realloc(buffer, 2048, u8, zeroed_new: true)
