@@ -1,5 +1,31 @@
 # MEMORY
 
+## 2026-04-11 - architecture doc now states plainly that Kain is an executable language, not only a manifest/orchestration layer
+
+The durable repo overview had drifted toward the packaging/materialization story and was underselling what `crates/kain-core` already does directly.
+
+What changed:
+
+- Updated `ARCHITECTURE.md`
+  - Reframed Kain as a compiled multi-target language toolchain, executable semantic runtime, and embeddable host stack.
+  - Added an explicit semantic execution flow section describing `kain-core` as a real execution lane for functions, blocks, closures, control flow, async/await, actors, UI expression evaluation, and runtime execution of `patch` / `converge` / `orchestrate`.
+  - Tightened the language around host bridges so future agents do not mistake external adapters for proof that Kain itself is only config glue.
+  - Added guardrails stating that Kain-expressible logic should remain in Kain unless the capability is truly platform- or ecosystem-owned.
+
+Design decisions:
+
+- Anchored the architecture wording to actual `kain-core` behavior rather than repo-wide packaging ambitions, because future agents were at risk of reasoning from the wrong center of gravity.
+- Kept the bundle/materialization story intact, but repositioned it as downstream consumption of compiler/runtime truth instead of the whole identity of the language.
+
+Current risks:
+
+- The repo still contains a large amount of packaging, adapter, and target-specific work, so future docs can drift back toward an adapter-first framing if they are written from `kain-driver` outward instead of from `kain-core` semantics outward.
+- Some ambitious domains are still partly bridge-driven, so agents need to distinguish "Kain can execute real logic" from "every subsystem is already first-class native syntax."
+
+Recommended next step:
+
+- When future major language/runtime features land, record both the in-language execution surface and the emitted bundle/adapter surface together so the repo overview stays balanced.
+
 ## 2026-04-11 - kain-3d now has a first-class authored primitive pipeline with stable resource ids
 
 The 3D runtime no longer treats primitives as a few isolated helper meshes spread across scene setup and host wrappers.

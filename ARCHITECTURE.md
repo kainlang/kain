@@ -5,15 +5,19 @@ It is the fast way for future agents to understand what Kain is, where the impor
 
 ## What Kain Is
 
-Kain is a compiled multi-target language toolchain plus an embeddable runtime and host stack.
+Kain is a compiled multi-target language toolchain, an executable semantic runtime, and an embeddable host stack.
+
+It is not only a `KAIN.toml`/materialization language or an orchestration shell over Rust, C, Python, Node, and GPU targets. `crates/kain-core` already owns real language execution for substantial parts of Kain itself: parsing, `comptime`, executable-body typechecking, direct interpretation of functions and blocks, closures, control flow, `match`, async/await, actor semantics, JSX/UI expression evaluation, and runtime execution of compiler-owned declarations such as `patch`, `converge`, `world`, and `orchestrate`.
+
+The build, packaging, and adapter crates matter because Kain is meant to ship into multiple targets, not because the language is limited to manifests and glue. The durable architecture rule is: keep authored logic in Kain when it belongs to Kain semantics, and use host bridges when the capability is genuinely platform-, ABI-, or ecosystem-owned.
 
 The repo currently spans five connected layers:
 
 1. `crates/kain-core`
 Language semantics, parsing, typing, effects, comptime, interpreter lanes, runtime-contract emission, shader metadata, and other compiler-owned truth.
 
-2. Importers and orchestration
-`crates/kain-driver`, `crates/kain-omni`, `crates/kain-selfhost`, `crates/kain-build`, and importer crates turn source and manifests into emitted bundles, artifacts, and multi-runtime workflows.
+2. Materialization, import, and build orchestration
+`crates/kain-driver`, `crates/kain-omni`, `crates/kain-selfhost`, `crates/kain-build`, and importer crates turn Kain semantic truth into emitted bundles, packaged artifacts, imported surfaces, and multi-runtime workflows.
 
 3. Runtime and host bridges
 `runtime/native` is the canonical ABI floor and C runtime substrate. `crates/kain-host`, `crates/kain-sdk`, `crates/kain-reflect`, `crates/kain-c-ffi`, `crates/kain-crate-ffi`, `crates/kain-python`, `crates/kain-node`, and `crates/kain-interop` provide host/runtime integration.
@@ -26,9 +30,10 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 
 ## Non-Negotiable Ownership
 
-- `crates/kain-core` owns language meaning, typed metadata, capability requirements, and shader/compute-plan semantics.
+- `crates/kain-core` owns language meaning, typed metadata, executable semantics, capability requirements, and shader/compute-plan semantics.
 - `crates/kain-driver` owns emitted bundle truth and app/runtime materialization.
 - `runtime/native` owns the stable ABI floor, startup, service contracts, and low-level host/runtime substrate.
+- Host bridges and adapters extend Kain into external ecosystems; they do not downgrade Kain source into "configuration only."
 - Accelerated Rust lanes may optimize execution, but they must consume the same compiler-owned bundles rather than inventing a second semantic model.
 - Web, UE5, selfhost, and future lanes are adapters, not alternate definitions of what Kain source means.
 
@@ -55,7 +60,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 
 ## Key Crates
 
-- [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, comptime, runtime contract emission, realtime bundle metadata, and the compiler-owned intent quartet (`patch`, `converge`, `world`, `orchestrate`)
+- [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, `comptime`, interpreter/runtime execution for real Kain logic, runtime contract emission, realtime bundle metadata, and the compiler-owned intent quartet (`patch`, `converge`, `world`, `orchestrate`)
 - [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, native app materialization, packaged launcher snapshots, compute residency sidecars
 - [cli](/M:/Code/Kain/crates/cli): `kain` command surface
 - [kain-repair](/M:/Code/Kain/crates/kain-repair): profile-driven deterministic source repair engine consumed by the doctor/CLI repair lane; now split into a declarative rule registry plus a per-rule execution engine so repair policy stays visible and mode-aware; includes header normalization for parser-hostile `enum_` / `struct_` / `trait_` / `impl_` declaration forms
@@ -70,11 +75,25 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 
 ## Primary Data Flows
 
+### Semantic execution flow
+
+`Kain source -> lexer/parser -> comptime -> executable-body typecheck -> kain-core runtime/interpreter executes authored Kain logic`
+
+This repo does not only compile source outward into foreign runtimes. `kain-core` is already an execution engine for meaningful language behavior:
+
+- direct evaluation of functions, blocks, loops, assignment, field/index mutation, closures, and pattern matching
+- async/await and future/poll semantics in the in-language runtime lane
+- actor state initialization, message handling, and runtime-side actor behavior
+- JSX/UI expression evaluation and signal-driven UI contract execution
+- runtime execution of `patch`, `converge`, and `orchestrate`, including converge verification and patch transaction recording
+
+When `kain run` succeeds, Kain is not merely validating authored source before handing work to another backend. In many cases it is executing the language's own semantic model directly. Treat that lane as a first-class truth source for what Kain code means.
+
 ### Compile and runtime bundle flow
 
 `Kain source -> kain-core semantic analysis -> runtime contract / realtime app bundle / shader bundle metadata -> kain-driver materialization -> runtime/native and accelerated lanes consume the same bundle family`
 
-The semantic-analysis part of that pipeline now includes real executable-body checks in `kain-core`, not only declaration registration. The compiler validates return values, call arguments, `match` arm type agreement, duplicate boolean arms, and `await` / `async` future typing before downstream codegen and bundle emission consume the typed program.
+The semantic-analysis part of that pipeline now includes real executable-body checks in `kain-core`, not only declaration registration. The compiler validates return values, call arguments, `match` arm type agreement, duplicate boolean arms, and `await` / `async` future typing before downstream codegen and bundle emission consume the typed program. That typechecked program also feeds the runtime/interpreter lane; bundle/codegen flows are downstream consumers of the same semantic truth, not a replacement for it.
 
 That same frontend lane now owns four additional semantic declarations:
 
@@ -88,6 +107,8 @@ The runtime-contract and realtime-bundle families now both carry these explicit 
 ### Host bridge flow
 
 `.kn source -> compiler/runtime contracts -> host bridge crates (Python, Node, C ABI, Rust crate FFI) -> shared payload contracts via kain-interop`
+
+Bridges exist to expose external capabilities cleanly. They should not become the default place to hide logic that Kain can already express and execute itself. Prefer Kain-owned logic for domain behavior, control flow, state transitions, and semantic contracts; use bridge crates for foreign APIs, packaged dependencies, and target-native runtime services.
 
 Current native-ui packaging rule for C ABI imports:
 
@@ -210,9 +231,12 @@ If the debug CLI is missing:
 ## Architectural Guardrails
 
 - Do not split semantic truth across runtime lanes.
+- Do not describe Kain as "only orchestration" when `kain-core` already executes real authored logic.
 - Do not let hosts re-parse source as the normal execution path.
+- Do not push Kain-expressible business/domain logic into host bridges by default. Bridge when a capability is genuinely external, not because the language/runtime lane was ignored.
 - Do not invent lane-specific shader, UI, or compute metadata when compiler-owned bundles already exist.
 - Prefer data-driven capabilities, manifests, registries, and bundle metadata over scattered string checks and host-local assumptions.
+- Keep the interpreter/runtime lane and emitted bundle/codegen lanes semantically aligned. A packaged target may optimize or lower behavior, but it should not silently define different language meaning than `kain-core`.
 - Preserve the distinction between authored language semantics, importer behavior, and backend/runtime support.
 - Platform- or console-specific render-command experiments should start as isolated adapter lanes under `smoketest/` or another dedicated adapter crate before any shared `kain-3D` contract is widened. The new `smoketest/3D/sm64_fast3d_smoke` is the pattern: it owns its own manifest, segment registry, display-list interpreter, and combiner logic instead of baking N64-specific assumptions into the common scene/material API too early.
 - The SM64 import refresh workflow for that lane is now profile-driven and lives beside the smoke under `smoketest/3D/sm64_fast3d_smoke`. Use `refresh_sm64_import.bat` and `sm64_import_profile.render_us.json` instead of reconstructing long one-off `import-c` commands from memory.
