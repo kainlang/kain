@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::math::{Mat4, Vec2};
+use crate::primitive::{PrimitiveDefinition, PrimitiveLibrary, PrimitiveShape};
 use crate::scene::{
     BackgroundGradient, Camera, DirectionalLight, LightingRig, Material, Mesh, PointLight,
     SceneDescription, SceneInstance, Vertex,
@@ -123,110 +124,94 @@ impl Geometry {
     }
 
     pub fn plane(size: Vec2) -> Self {
-        let hx = size.x * 0.5;
-        let hy = size.y * 0.5;
-        Self::triangle_mesh()
-            .with_positions(vec![
-                Vec3::new(-hx, 0.0, -hy),
-                Vec3::new(hx, 0.0, -hy),
-                Vec3::new(hx, 0.0, hy),
-                Vec3::new(-hx, 0.0, hy),
-            ])
-            .with_normals(vec![Vec3::UP; 4])
-            .with_uvs(vec![
-                Vec2::new(0.0, 0.0),
-                Vec2::new(1.0, 0.0),
-                Vec2::new(1.0, 1.0),
-                Vec2::new(0.0, 1.0),
-            ])
-            .with_indices(vec![0, 1, 2, 0, 2, 3])
+        PrimitiveShape::Plane {
+            size,
+            width_segments: 1,
+            depth_segments: 1,
+        }
+        .build_geometry()
     }
 
     pub fn box_mesh(size: Vec3) -> Self {
-        let hx = size.x * 0.5;
-        let hy = size.y * 0.5;
-        let hz = size.z * 0.5;
-        let positions = [
-            Vec3::new(-hx, -hy, hz),
-            Vec3::new(hx, -hy, hz),
-            Vec3::new(hx, hy, hz),
-            Vec3::new(-hx, hy, hz),
-            Vec3::new(-hx, -hy, -hz),
-            Vec3::new(hx, -hy, -hz),
-            Vec3::new(hx, hy, -hz),
-            Vec3::new(-hx, hy, -hz),
-        ];
-        let faces = [
-            ([0, 1, 2, 3], Vec3::new(0.0, 0.0, 1.0)),
-            ([5, 4, 7, 6], Vec3::new(0.0, 0.0, -1.0)),
-            ([4, 0, 3, 7], Vec3::new(-1.0, 0.0, 0.0)),
-            ([1, 5, 6, 2], Vec3::new(1.0, 0.0, 0.0)),
-            ([3, 2, 6, 7], Vec3::new(0.0, 1.0, 0.0)),
-            ([4, 5, 1, 0], Vec3::new(0.0, -1.0, 0.0)),
-        ];
-        let mut final_positions = Vec::new();
-        let mut final_normals = Vec::new();
-        let mut final_uvs = Vec::new();
-        let mut indices = Vec::new();
-
-        for (face, normal) in faces {
-            let base = final_positions.len() as u32;
-            final_positions.extend(face.map(|index| positions[index]));
-            final_normals.extend([normal; 4]);
-            final_uvs.extend([
-                Vec2::new(0.0, 0.0),
-                Vec2::new(1.0, 0.0),
-                Vec2::new(1.0, 1.0),
-                Vec2::new(0.0, 1.0),
-            ]);
-            indices.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
+        PrimitiveShape::Box {
+            size,
+            width_segments: 1,
+            height_segments: 1,
+            depth_segments: 1,
         }
-
-        Self::triangle_mesh()
-            .with_positions(final_positions)
-            .with_normals(final_normals)
-            .with_uvs(final_uvs)
-            .with_indices(indices)
+        .build_geometry()
     }
 
     pub fn uv_sphere(radius: f32, latitude_segments: usize, longitude_segments: usize) -> Self {
-        let latitude_segments = latitude_segments.max(3);
-        let longitude_segments = longitude_segments.max(4);
-        let mut positions = Vec::new();
-        let mut normals = Vec::new();
-        let mut uvs = Vec::new();
-        let mut indices = Vec::new();
-
-        for latitude in 0..=latitude_segments {
-            let v = latitude as f32 / latitude_segments as f32;
-            let phi = v * std::f32::consts::PI;
-            let y = phi.cos();
-            let ring_radius = phi.sin();
-            for longitude in 0..=longitude_segments {
-                let u = longitude as f32 / longitude_segments as f32;
-                let theta = u * std::f32::consts::TAU;
-                let normal =
-                    Vec3::new(theta.cos() * ring_radius, y, theta.sin() * ring_radius).normalize();
-                positions.push(normal * radius);
-                normals.push(normal);
-                uvs.push(Vec2::new(u, v));
-            }
+        PrimitiveShape::UvSphere {
+            radius,
+            latitude_segments,
+            longitude_segments,
         }
+        .build_geometry()
+    }
 
-        let stride = longitude_segments + 1;
-        for latitude in 0..latitude_segments {
-            for longitude in 0..longitude_segments {
-                let current = (latitude * stride + longitude) as u32;
-                let next = current + stride as u32;
-                indices.extend([current, next, current + 1, current + 1, next, next + 1]);
-            }
+    pub fn cylinder(
+        radius: f32,
+        height: f32,
+        radial_segments: usize,
+        height_segments: usize,
+    ) -> Self {
+        PrimitiveShape::Cylinder {
+            radius,
+            height,
+            radial_segments,
+            height_segments,
+            cap_segments: 1,
         }
+        .build_geometry()
+    }
 
-        Self::triangle_mesh()
-            .with_positions(positions)
-            .with_normals(normals)
-            .with_uvs(uvs)
-            .with_indices(indices)
+    pub fn cone(radius: f32, height: f32, radial_segments: usize, height_segments: usize) -> Self {
+        PrimitiveShape::Cone {
+            radius,
+            height,
+            radial_segments,
+            height_segments,
+            cap_segments: 1,
+        }
+        .build_geometry()
+    }
+
+    pub fn capsule(
+        radius: f32,
+        height: f32,
+        radial_segments: usize,
+        hemisphere_segments: usize,
+        body_segments: usize,
+    ) -> Self {
+        PrimitiveShape::Capsule {
+            radius,
+            height,
+            radial_segments,
+            hemisphere_segments,
+            body_segments,
+        }
+        .build_geometry()
+    }
+
+    pub fn torus(
+        major_radius: f32,
+        minor_radius: f32,
+        major_segments: usize,
+        minor_segments: usize,
+    ) -> Self {
+        PrimitiveShape::Torus {
+            major_radius,
+            minor_radius,
+            major_segments,
+            minor_segments,
+        }
+        .build_geometry()
+    }
+
+    pub fn quad_sphere(radius: f32, resolution: usize) -> Self {
+        PrimitiveShape::QuadSphere { radius, resolution }.build_geometry()
     }
 
     pub fn from_mesh(mesh: &Mesh) -> Self {
@@ -1105,6 +1090,47 @@ impl Scene {
 
     pub fn add_geometry(&mut self, name: impl Into<String>, geometry: Geometry) -> &mut Self {
         self.geometries.insert(name.into(), geometry);
+        self
+    }
+
+    pub fn add_primitive_definition(&mut self, definition: &PrimitiveDefinition) -> &mut Self {
+        self.geometries
+            .insert(definition.id.clone(), definition.build_geometry());
+        self.metadata.insert(
+            format!("primitive_definition.{}.resource_uri", definition.id),
+            definition.resource_uri.clone(),
+        );
+        self.metadata.insert(
+            format!("primitive_definition.{}.display_name", definition.id),
+            definition.display_name.clone(),
+        );
+        self.metadata.insert(
+            format!("primitive_definition.{}.subdivision_ready", definition.id),
+            definition.subdivision_ready.to_string(),
+        );
+        self.metadata.insert(
+            format!("primitive_definition.{}.authored_intent", definition.id),
+            definition.authored_intent.clone(),
+        );
+        self
+    }
+
+    pub fn add_primitive_library(&mut self, library: &PrimitiveLibrary) -> &mut Self {
+        self.metadata.insert(
+            "primitive_library.resource_document_uri".to_string(),
+            library.resource_document_uri.clone(),
+        );
+        self.metadata.insert(
+            "primitive_library.startup_primitive_id".to_string(),
+            library.startup_primitive_id.clone(),
+        );
+        self.metadata.insert(
+            "primitive_library.authored_policy".to_string(),
+            library.authored_policy.clone(),
+        );
+        for definition in library.definitions.values() {
+            self.add_primitive_definition(definition);
+        }
         self
     }
 

@@ -3,6 +3,7 @@ mod host;
 mod interaction;
 mod math;
 mod prelude;
+mod primitive;
 mod renderer;
 mod scene;
 mod shader_bundle;
@@ -22,6 +23,7 @@ pub use interaction::{
 };
 pub use math::{ColorRgb, Mat4, Transform, Vec2, Vec3};
 pub use prelude::{emit_kain_prelude, reflected_type_registry};
+pub use primitive::{PrimitiveDefinition, PrimitiveLibrary, PrimitiveShape};
 pub use renderer::{
     RenderBackend, RenderError, RenderFrame, RenderResolution, RenderStats, RenderViewSettings,
     SoftwareRenderer, SoftwareRendererConfig,
