@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "target": "llvm",
+  "required_capabilities": [
+    {
+      "key": "compiler.typed-program",
+      "source": "kain-core",
+      "detail": "Typed frontend output is available for runtime packaging."
+    },
+    {
+      "key": "memory.raw-ops",
+      "source": "kain-core.low_level_memory",
+      "detail": "Target accepts raw memory operation lowering."
+    },
+    {
+      "key": "memory.raw-pointers",
+      "source": "kain-core.low_level_memory",
+      "detail": "Target accepts raw pointer lowering."
+    },
+    {
+      "key": "native.raw-runtime",
+      "source": "runtime/native",
+      "detail": "Program targets the raw native runtime lane."
+    },
+    {
+      "key": "native.viewport-host",
+      "source": "runtime/native",
+      "detail": "Viewport/app-host runtime services are expected in the native lane."
+    },
+    {
+      "key": "runtime.contract.bundle",
+      "source": "kain-core",
+      "detail": "Compiler-owned runtime contract scaffolding emitted."
+    }
+  ],
+  "service_bindings": [
+    {
+      "service": "asset.gltf",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
+      "service": "gfx.viewport",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
+      "service": "platform.app-host",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
+      "service": "platform.input",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
+      "service": "ui.bundle",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    }
+  ],
+  "items": [
+    {
+      "id": "function:main",
+      "name": "main",
+      "kind": "function"
+    }
+  ],
+  "reflection": {
+    "emitted": true,
+    "schema_names": [],
+    "notes": [
+      "Full reflection payload emitted from kain-core.",
+      "Includes type schemas, item metadata, actors, components, and messages."
+    ]
+  },
+  "compatibility": {
+    "schema_version": 1,
+    "bundle_target": "llvm",
+    "bundle_lane": "raw-native",
+    "runtime_lane": null,
+    "compatibility_class": null,
+    "runtime_version": null,
+    "abi_version": null,
+    "install": {
+      "supported": true,
+      "mode": "materialize",
+      "notes": [
+        "Bundle sidecars are emitted with the runtime contract.",
+        "Install can proceed once version and compatibility metadata are present."
+      ]
+    },
+    "update": {
+      "supported": true,
+      "mode": "compatible-replace",
+      "notes": [
+        "Update is expected to replace a bundle only after compatibility validation passes.",
+        "Migration data is still optional at the compiler layer."
+      ]
+    },
+    "uninstall": {
+      "supported": true,
+      "mode": "sidecar-remove",
+      "notes": [
+        "Uninstall removes emitted bundle artifacts together with compatibility metadata."
+      ]
+    },
+    "migration_hints": [
+      "Preserve the runtime contract and reflection payload together when updating.",
+      "Validate bundle and runtime version records before activating a replacement."
+    ]
+  },
+  "reflection_payload": {
+    "schema_version": 1,
+    "types": [],
+    "items": [
+      {
+        "item_id": 1,
+        "name": "main",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      }
+    ],
+    "actors": [],
+    "components": [],
+    "messages": []
+  }
+}

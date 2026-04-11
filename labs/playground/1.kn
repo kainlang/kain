@@ -1,0 +1,42 @@
+fn forge_executable() -> Array<Int>:
+    let exe_bytes = []
+
+    # 1. Write the legacy MS-DOS "MZ" Magic Number (0x5A4D)
+    exe_bytes.push(77)  # 'M'
+    exe_bytes.push(90)  # 'Z'
+
+    # ... zero-pad the rest of the 64-byte DOS header ...
+    let i = 2
+    while i < 60:
+        exe_bytes.push(0)
+        i++
+
+    # Offset to PE header (0x40 in little endian)
+    exe_bytes.push(64)
+    exe_bytes.push(0)
+    exe_bytes.push(0)
+    exe_bytes.push(0)
+
+    # 2. Write the "PE\0\0" Signature
+    exe_bytes.push(80)  # 'P'
+    exe_bytes.push(69)  # 'E'
+    exe_bytes.push(0)
+    exe_bytes.push(0)
+
+    # ... Write COFF Header, Optional Header, Section Headers ...
+
+    # 3. Write raw x86_64 Machine Code into the .text section
+    # This translates to: mov eax, 42; ret
+    exe_bytes.push(184) # 0xB8 (mov eax)
+    exe_bytes.push(42)  # 42
+    exe_bytes.push(0)
+    exe_bytes.push(0)
+    exe_bytes.push(0)
+    exe_bytes.push(195) # 0xC3 (ret)
+
+    return exe_bytes
+
+fn main():
+    let payload = forge_executable()
+    write_file("kain_forged.exe", payload)
+    println("Successfully forged a Windows Executable from scratch.")

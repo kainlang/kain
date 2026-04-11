@@ -1958,11 +1958,8 @@ impl LlvmGenerator {
                     self.callable_signature(&func.resolved_type, &func.ast.name, func.ast.span)?;
                 self.functions.insert(func.ast.name.clone(), ret_ty);
             } else if let TypedItem::Patch(patch) = item {
-                let (_, ret_ty) = self.callable_signature(
-                    &patch.resolved_type,
-                    &patch.ast.name,
-                    patch.ast.span,
-                )?;
+                let (_, ret_ty) =
+                    self.callable_signature(&patch.resolved_type, &patch.ast.name, patch.ast.span)?;
                 self.functions.insert(patch.ast.name.clone(), ret_ty);
             } else if let TypedItem::Converge(converge) = item {
                 let (_, ret_ty) = self.callable_signature(
@@ -2531,8 +2528,7 @@ impl LlvmGenerator {
                 "  store {} %arg{}, {}* {}",
                 param_ty, index, param_ty, addr_reg
             ));
-            self.locals
-                .insert(param.name.clone(), (addr_reg, param_ty));
+            self.locals.insert(param.name.clone(), (addr_reg, param_ty));
             if let Some(scope) = self.scopes.last_mut() {
                 scope.push(param.name.clone());
             }
@@ -2565,10 +2561,7 @@ impl LlvmGenerator {
         )
     }
 
-    fn compile_converge(
-        &mut self,
-        converge: &kain_core::types::TypedConverge,
-    ) -> KainResult<()> {
+    fn compile_converge(&mut self, converge: &kain_core::types::TypedConverge) -> KainResult<()> {
         self.compile_named_callable(
             &converge.ast.name,
             &converge.ast.params,
@@ -2617,11 +2610,7 @@ impl LlvmGenerator {
             let field_ptr = self.next_reg();
             self.emit(&format!(
                 "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
-                field_ptr,
-                world.ast.name,
-                world_ptr_type,
-                world_info.global_symbol,
-                index
+                field_ptr, world.ast.name, world_ptr_type, world_info.global_symbol, index
             ));
             let (initial_value, initial_ty) =
                 self.compile_expr_for_target_type(&state.initial, &field_ty)?;
@@ -2630,7 +2619,10 @@ impl LlvmGenerator {
                 initial_ty, initial_value, field_ty, field_ptr
             ));
         }
-        self.emit(&format!("  store i1 1, i1* {}", world_info.init_flag_symbol));
+        self.emit(&format!(
+            "  store i1 1, i1* {}",
+            world_info.init_flag_symbol
+        ));
         self.emit(&format!("  br label %{}", already_init_block));
 
         self.emit_label(&already_init_block);
@@ -4189,9 +4181,7 @@ impl LlvmGenerator {
                 };
                 self.compile_direct_call(&func_name, args)
             }
-            Expr::StageCall {
-                function, args, ..
-            } => self.compile_direct_call(function, args),
+            Expr::StageCall { function, args, .. } => self.compile_direct_call(function, args),
             Expr::EnumVariant {
                 enum_name,
                 variant,

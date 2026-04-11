@@ -1577,7 +1577,10 @@ fn first_stage_call_in_else_branch(branch: &ElseBranch) -> Option<Span> {
         ElseBranch::Else(block) => first_stage_call_in_block(block),
         ElseBranch::ElseIf(condition, block, next) => first_stage_call_in_expr(condition)
             .or_else(|| first_stage_call_in_block(block))
-            .or_else(|| next.as_ref().and_then(|branch| first_stage_call_in_else_branch(branch))),
+            .or_else(|| {
+                next.as_ref()
+                    .and_then(|branch| first_stage_call_in_else_branch(branch))
+            }),
     }
 }
 
@@ -1614,7 +1617,10 @@ fn first_stage_call_in_expr(expr: &Expr) -> Option<Span> {
         Expr::Struct { fields, rest, .. } => fields
             .iter()
             .find_map(|(_, value)| first_stage_call_in_expr(value))
-            .or_else(|| rest.as_ref().and_then(|rest| first_stage_call_in_expr(rest))),
+            .or_else(|| {
+                rest.as_ref()
+                    .and_then(|rest| first_stage_call_in_expr(rest))
+            }),
         Expr::AggregateInit { fields, .. } => fields
             .iter()
             .find_map(|(_, value)| first_stage_call_in_expr(value)),
@@ -1631,7 +1637,10 @@ fn first_stage_call_in_expr(expr: &Expr) -> Option<Span> {
         Expr::Range { start, end, .. } => start
             .as_ref()
             .and_then(|value| first_stage_call_in_expr(value))
-            .or_else(|| end.as_ref().and_then(|value| first_stage_call_in_expr(value))),
+            .or_else(|| {
+                end.as_ref()
+                    .and_then(|value| first_stage_call_in_expr(value))
+            }),
         Expr::If {
             condition,
             then_branch,
@@ -1665,11 +1674,9 @@ fn first_stage_call_in_expr(expr: &Expr) -> Option<Span> {
         Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => init
             .iter()
             .find_map(|(_, value)| first_stage_call_in_expr(value)),
-        Expr::Return(value, _) | Expr::Break(value, _) => {
-            value
-                .as_ref()
-                .and_then(|expr| first_stage_call_in_expr(expr.as_ref()))
-        }
+        Expr::Return(value, _) | Expr::Break(value, _) => value
+            .as_ref()
+            .and_then(|expr| first_stage_call_in_expr(expr.as_ref())),
         Expr::Block(block, _) => first_stage_call_in_block(block),
         Expr::JSX(_, _)
         | Expr::MacroCall { .. }
@@ -1731,10 +1738,9 @@ fn ensure_converge_verify_types_supported(
 
 fn supports_converge_verify_sampling(ty: &ResolvedType) -> bool {
     match ty {
-        ResolvedType::Bool
-        | ResolvedType::Int(_)
-        | ResolvedType::Float(_)
-        | ResolvedType::Char => true,
+        ResolvedType::Bool | ResolvedType::Int(_) | ResolvedType::Float(_) | ResolvedType::Char => {
+            true
+        }
         ResolvedType::Array(inner, _) | ResolvedType::Option(inner) => {
             supports_converge_verify_sampling(inner)
         }

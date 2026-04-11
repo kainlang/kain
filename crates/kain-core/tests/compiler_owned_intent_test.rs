@@ -129,15 +129,21 @@ fn extract_single_int_from_array_arg(name: &str, args: &[Value]) -> Result<i64, 
 }
 
 fn native_plus_two(_env: &mut Env, args: Vec<Value>) -> Result<Value, error::KainError> {
-    Ok(Value::Int(extract_single_int_arg("native_plus_two", &args)? + 2))
+    Ok(Value::Int(
+        extract_single_int_arg("native_plus_two", &args)? + 2,
+    ))
 }
 
 fn fake_py_call(_env: &mut Env, args: Vec<Value>) -> Result<Value, error::KainError> {
-    Ok(Value::Int(extract_single_int_from_array_arg("py_call", &args)? + 2))
+    Ok(Value::Int(
+        extract_single_int_from_array_arg("py_call", &args)? + 2,
+    ))
 }
 
 fn fake_js_call(_env: &mut Env, args: Vec<Value>) -> Result<Value, error::KainError> {
-    Ok(Value::Int(extract_single_int_from_array_arg("js_call", &args)? + 2))
+    Ok(Value::Int(
+        extract_single_int_from_array_arg("js_call", &args)? + 2,
+    ))
 }
 
 fn register_pipeline_stage_bridges(env: &mut Env) {
@@ -154,9 +160,18 @@ fn parse_and_typecheck_compiler_owned_intent_forms() {
     )
     .expect("typecheck");
 
-    assert!(typed.items.iter().any(|item| matches!(item, TypedItem::Law(_))));
-    assert!(typed.items.iter().any(|item| matches!(item, TypedItem::World(_))));
-    assert!(typed.items.iter().any(|item| matches!(item, TypedItem::Patch(_))));
+    assert!(typed
+        .items
+        .iter()
+        .any(|item| matches!(item, TypedItem::Law(_))));
+    assert!(typed
+        .items
+        .iter()
+        .any(|item| matches!(item, TypedItem::World(_))));
+    assert!(typed
+        .items
+        .iter()
+        .any(|item| matches!(item, TypedItem::Patch(_))));
     assert!(typed
         .items
         .iter()
@@ -177,7 +192,9 @@ component App():
 "#;
 
     let error = parse_and_typecheck(source).expect_err("worlds without surfaces should fail");
-    assert!(error.to_string().contains("must declare at least one surface"));
+    assert!(error
+        .to_string()
+        .contains("must declare at least one surface"));
 }
 
 #[test]
@@ -193,7 +210,8 @@ fn main() -> Int:
     return counter
 "#;
 
-    let error = parse_and_typecheck(source).expect_err("bare world state names should not typecheck");
+    let error =
+        parse_and_typecheck(source).expect_err("bare world state names should not typecheck");
     assert!(error.to_string().contains("counter"));
 }
 
@@ -290,11 +308,26 @@ fn realtime_bundle_emits_compiler_owned_intent_sections() {
             .map(|world| world.name.as_str()),
         Some("Studio")
     );
-    assert!(bundle.tool_caps.iter().any(|entry| entry == "patch.transactions"));
-    assert!(bundle.tool_caps.iter().any(|entry| entry == "law.invariants"));
-    assert!(bundle.tool_caps.iter().any(|entry| entry == "converge.dispatch"));
-    assert!(bundle.tool_caps.iter().any(|entry| entry == "world.native-ui"));
-    assert!(bundle.tool_caps.iter().any(|entry| entry == "world.viewport3d"));
+    assert!(bundle
+        .tool_caps
+        .iter()
+        .any(|entry| entry == "patch.transactions"));
+    assert!(bundle
+        .tool_caps
+        .iter()
+        .any(|entry| entry == "law.invariants"));
+    assert!(bundle
+        .tool_caps
+        .iter()
+        .any(|entry| entry == "converge.dispatch"));
+    assert!(bundle
+        .tool_caps
+        .iter()
+        .any(|entry| entry == "world.native-ui"));
+    assert!(bundle
+        .tool_caps
+        .iter()
+        .any(|entry| entry == "world.viewport3d"));
     assert!(bundle.tool_caps.iter().any(|entry| entry == "world.web"));
     assert!(bundle.tool_caps.iter().any(|entry| entry == "world.ue5"));
     assert!(bundle
@@ -322,14 +355,20 @@ fn runtime_executes_patch_converge_law_and_orchestrate_and_records_patch_transac
     assert_eq!(env.patch_records().len(), 1);
     assert_eq!(env.patch_records()[0].name, "set_counter");
     assert_eq!(env.patch_records()[0].undo_mode, "reversible");
-    assert_eq!(env.patch_records()[0].mutation_paths, vec!["studio.counter"]);
+    assert_eq!(
+        env.patch_records()[0].mutation_paths,
+        vec!["studio.counter"]
+    );
     assert_eq!(env.patch_records()[0].changes.len(), 1);
     assert_eq!(
         env.patch_records()[0].collaboration_event,
         "patch.set_counter.applied"
     );
     assert_eq!(env.patch_collaboration_events().len(), 1);
-    assert_eq!(env.patch_collaboration_events()[0].patch_name, "set_counter");
+    assert_eq!(
+        env.patch_collaboration_events()[0].patch_name,
+        "set_counter"
+    );
     assert_eq!(
         env.patch_collaboration_events()[0].mutation_paths,
         vec!["studio.counter"]
@@ -397,9 +436,12 @@ converge choose_value(payload: Payload) -> Payload:
 "#;
 
     let error = parse_and_typecheck(source).expect_err("verify random should reject structs");
-    assert!(error
-        .to_string()
-        .contains("verify random(n) does not support parameter 'payload'"), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains("verify random(n) does not support parameter 'payload'"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -498,8 +540,11 @@ fn main() -> Int:
     )
     .expect("typecheck");
     let mut env = Env::new();
-    let error = interpret_with_env(&mut env, &typed).expect_err("rust stage should require native fn");
-    assert!(error.to_string().contains("must resolve to a native function"));
+    let error =
+        interpret_with_env(&mut env, &typed).expect_err("rust stage should require native fn");
+    assert!(error
+        .to_string()
+        .contains("must resolve to a native function"));
 }
 
 #[test]
@@ -516,7 +561,8 @@ fn main() -> Int:
     )
     .expect("typecheck");
     let mut env = Env::new();
-    let error = interpret_with_env(&mut env, &typed).expect_err("python stage should require bridge");
+    let error =
+        interpret_with_env(&mut env, &typed).expect_err("python stage should require bridge");
     assert!(error
         .to_string()
         .contains("python bridge is not registered"));
@@ -537,7 +583,5 @@ fn main() -> Int:
     .expect("typecheck");
     let mut env = Env::new();
     let error = interpret_with_env(&mut env, &typed).expect_err("node stage should require bridge");
-    assert!(error
-        .to_string()
-        .contains("node bridge is not registered"));
+    assert!(error.to_string().contains("node bridge is not registered"));
 }
