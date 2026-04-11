@@ -142,8 +142,14 @@ pub fn run(
     let repair_profile = repair_profile(profile);
     let report = kain_repair::repair_source_with_profile(&source, repair_profile, mode);
     let validation = match validate_parser_conformance(&report.repaired) {
-        Ok(()) => kain_repair::ParseValidation { passed: true, detail: None },
-        Err(detail) => kain_repair::ParseValidation { passed: false, detail: Some(detail) },
+        Ok(()) => kain_repair::ParseValidation {
+            passed: true,
+            detail: None,
+        },
+        Err(detail) => kain_repair::ParseValidation {
+            passed: false,
+            detail: Some(detail),
+        },
     };
     if mode.writes() && report.changed() {
         fs::write(path, &report.repaired)
@@ -197,7 +203,8 @@ fn collect_tree_candidates(root: &PathBuf, candidates: &mut Vec<PathBuf>) -> Res
         let entries = fs::read_dir(&dir)
             .map_err(|err| format!("failed to read {}: {}", dir.display(), err))?;
         for entry in entries {
-            let entry = entry.map_err(|err| format!("failed to read {}: {}", dir.display(), err))?;
+            let entry =
+                entry.map_err(|err| format!("failed to read {}: {}", dir.display(), err))?;
             let path = entry.path();
             if path.is_dir() {
                 stack.push(path);

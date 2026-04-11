@@ -11,11 +11,11 @@ use kain_c_ffi::{
 };
 use kain_core::diagnostics::SpanMapper;
 use kain_core::runtime::{self, Env, Value};
-use kain_core::{EffectSet, IntSize, ResolvedType};
 use kain_core::{
     CompileTarget, ComputeMetadata, ComputeStreamPlan, ComputeTensorPlan, Item, Lexer, Parser,
     ShaderStage,
 };
+use kain_core::{EffectSet, IntSize, ResolvedType};
 use kain_crate_ffi::{
     import_crate, ArtifactMode as RustArtifactMode, ImportCrateOptions,
     PrepareContext as RustPrepareContext,
@@ -1585,7 +1585,10 @@ fn interpret_fabric_kain_source(
 fn fabric_semantic_globals() -> Vec<(String, ResolvedType)> {
     vec![
         ("fabric_inputs".to_string(), ResolvedType::Unknown),
-        ("fabric_serialized_inputs".to_string(), ResolvedType::Unknown),
+        (
+            "fabric_serialized_inputs".to_string(),
+            ResolvedType::Unknown,
+        ),
         ("fabric_context".to_string(), ResolvedType::Unknown),
         (
             "str".to_string(),
@@ -1753,7 +1756,9 @@ fn render_node_output_projection(
                 FabricContractKind::SharedImage => format!(
                     "kain_shared_image_from_js(js_getattr_raw(fabric_result, {field_name}))"
                 ),
-                FabricContractKind::ComputePlan => format!("js_getattr(fabric_result, {field_name})"),
+                FabricContractKind::ComputePlan => {
+                    format!("js_getattr(fabric_result, {field_name})")
+                }
             };
             format!("{}: {value_expr}", output.name)
         })
@@ -1767,15 +1772,16 @@ fn render_node_output_projection(
 fn render_fabric_inputs_binding(
     context: &FabricAdapterContext,
 ) -> Result<String, FabricFailureReason> {
-    let json_value = value_to_json_snapshot(&script_safe_value(&context.fabric_inputs)).ok_or_else(|| {
-        fabric_failure(
-            "fabric_inputs_serialize_failed",
-            format!(
-                "Fabric step '{}' could not serialize canonical script inputs",
-                context.step.id
-            ),
-        )
-    })?;
+    let json_value = value_to_json_snapshot(&script_safe_value(&context.fabric_inputs))
+        .ok_or_else(|| {
+            fabric_failure(
+                "fabric_inputs_serialize_failed",
+                format!(
+                    "Fabric step '{}' could not serialize canonical script inputs",
+                    context.step.id
+                ),
+            )
+        })?;
     let json_text = serde_json::to_string(&json_value).map_err(|err| {
         fabric_failure(
             "fabric_inputs_serialize_failed",

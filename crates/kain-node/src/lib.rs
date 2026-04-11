@@ -1622,8 +1622,7 @@ fn main() -> String:
             "export function run() { return 'local-raw-ok'; }\n",
         )
         .unwrap();
-        let module_literal =
-            serde_json::to_string(&module_path.display().to_string()).unwrap();
+        let module_literal = serde_json::to_string(&module_path.display().to_string()).unwrap();
         let source = format!(
             r#"
 use std::javascript::bridge

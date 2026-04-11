@@ -86,19 +86,27 @@ pub fn run_fast3d_cli() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 "--area" => {
                     let value = args.next().ok_or("expected area id after --area")?;
-                    area_id = value.parse::<u32>().map_err(|_| "area id must be a positive integer")?;
+                    area_id = value
+                        .parse::<u32>()
+                        .map_err(|_| "area id must be a positive integer")?;
                 }
                 "--manifest-out" => {
                     let value = args.next().ok_or("expected path after --manifest-out")?;
                     manifest_out = PathBuf::from(value);
                 }
-                other => return Err(format!("unrecognized level-chunk extractor argument `{other}`").into()),
+                other => {
+                    return Err(
+                        format!("unrecognized level-chunk extractor argument `{other}`").into(),
+                    )
+                }
             }
         }
         extract_sm64_level_chunk_scene(&sm64_root, &level_name, area_id, &manifest_out)?;
         println!(
             "Wrote extracted SM64 {} area {} level chunk manifest to {}",
-            level_name, area_id, manifest_out.display()
+            level_name,
+            area_id,
+            manifest_out.display()
         );
         return Ok(());
     }
@@ -122,11 +130,7 @@ pub fn run_fast3d_cli() -> Result<(), Box<dyn std::error::Error>> {
 
     let runtime = Fast3dRuntime::load_from_path(&manifest_path)?;
     if let Some(snapshot_path) = snapshot_path {
-        let frame = runtime.render_frame(
-            snapshot_time_seconds,
-            &OrbitControls::default(),
-            None,
-        )?;
+        let frame = runtime.render_frame(snapshot_time_seconds, &OrbitControls::default(), None)?;
         write_snapshot_png(&snapshot_path, &frame)?;
         println!(
             "Wrote Fast3D snapshot to {} ({}x{})",

@@ -1351,8 +1351,7 @@ pub enum UiNativeProjectionKind {
 
 /// Stable runtime bundle schema version for compiled KAIN UI apps.
 pub const UI_RUNTIME_BUNDLE_SCHEMA_VERSION: u32 = 1;
-const UI_RUNTIME_FORCE_COMPATIBILITY_BACKFILL_KEY: &str =
-    "ui.runtime.force_compatibility_backfill";
+const UI_RUNTIME_FORCE_COMPATIBILITY_BACKFILL_KEY: &str = "ui.runtime.force_compatibility_backfill";
 const UI_RUNTIME_COMPATIBILITY_FALLBACK_KEY: &str = "ui.runtime.compatibility_fallback";
 const UI_RUNTIME_COMPATIBILITY_MODE_KEY: &str = "ui.runtime.compatibility_mode";
 const UI_RUNTIME_NATIVE_PROJECTION_MODE_KEY: &str = "ui.runtime.native_projection_mode";

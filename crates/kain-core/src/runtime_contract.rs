@@ -2,7 +2,9 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::ast::{ConvergeSelector, ShaderStage, Type, WorldSurfaceKind, COMPUTE_PLAN_CAPABILITY_KEY};
+use crate::ast::{
+    ConvergeSelector, ShaderStage, Type, WorldSurfaceKind, COMPUTE_PLAN_CAPABILITY_KEY,
+};
 use crate::low_level_memory::backend_memory_capabilities;
 use crate::types::{PatchUndoMode, TypedConverge, TypedOrchestrate, TypedPatch, TypedWorld};
 use crate::ui::render_authored_expr_contract;
@@ -606,8 +608,7 @@ fn runtime_service_bindings_for_target(
             runtime_lane_name(target),
         ));
     }
-    if summary.world_viewport3d > 0 && matches!(target, CompileTarget::Rust | CompileTarget::Llvm)
-    {
+    if summary.world_viewport3d > 0 && matches!(target, CompileTarget::Rust | CompileTarget::Llvm) {
         bindings.push(runtime_service_binding(
             "world.viewport3d",
             if matches!(target, CompileTarget::Rust) {
@@ -624,10 +625,18 @@ fn runtime_service_bindings_for_target(
             CompileTarget::Js | CompileTarget::Ts | CompileTarget::Wasm | CompileTarget::Hybrid
         )
     {
-        bindings.push(runtime_service_binding("world.web", "web", runtime_lane_name(target)));
+        bindings.push(runtime_service_binding(
+            "world.web",
+            "web",
+            runtime_lane_name(target),
+        ));
     }
     if summary.world_ue5 > 0 && matches!(target, CompileTarget::Ue5 | CompileTarget::Ue5Editor) {
-        bindings.push(runtime_service_binding("world.ue5", "ue5", runtime_lane_name(target)));
+        bindings.push(runtime_service_binding(
+            "world.ue5",
+            "ue5",
+            runtime_lane_name(target),
+        ));
     }
 
     bindings
@@ -857,9 +866,7 @@ fn runtime_converge_lane_contract(
     lane: &crate::ast::ConvergeLane,
 ) -> RuntimeConvergeLaneContract {
     let (selector_kind, selector_value) = match &lane.selector {
-        Some(ConvergeSelector::Target(value)) => {
-            (Some("target".to_string()), Some(value.clone()))
-        }
+        Some(ConvergeSelector::Target(value)) => (Some("target".to_string()), Some(value.clone())),
         Some(ConvergeSelector::Capability(value)) => {
             (Some("capability".to_string()), Some(value.clone()))
         }
@@ -950,11 +957,7 @@ fn collect_orchestration_contracts_into(
 fn runtime_orchestration_contract(orchestrate: &TypedOrchestrate) -> RuntimeOrchestrationContract {
     RuntimeOrchestrationContract {
         name: orchestrate.ast.name.clone(),
-        return_type: orchestrate
-            .ast
-            .return_type
-            .as_ref()
-            .map(type_to_string),
+        return_type: orchestrate.ast.return_type.as_ref().map(type_to_string),
         stages: orchestrate
             .stages
             .iter()

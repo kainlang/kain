@@ -54,30 +54,54 @@ pub fn apply_collapse_extra_blank_lines(text: &str, _: RepairMode) -> Option<(St
     let mut changed = false;
     for line in text.split_inclusive('\n') {
         let is_blank = line.trim() == "";
-        if is_blank { blank_run += 1; } else { blank_run = 0; }
-        if blank_run > 2 { changed = true; continue; }
+        if is_blank {
+            blank_run += 1;
+        } else {
+            blank_run = 0;
+        }
+        if blank_run > 2 {
+            changed = true;
+            continue;
+        }
         out.push_str(line);
     }
     changed.then(|| {
         (
             out.clone(),
-            AppliedFix { kind: FixKind::CollapseExtraBlankLines, start: 0, end: text.len(), replacement: out, note: Some("collapsed excessive blank line runs".into()) },
+            AppliedFix {
+                kind: FixKind::CollapseExtraBlankLines,
+                start: 0,
+                end: text.len(),
+                replacement: out,
+                note: Some("collapsed excessive blank line runs".into()),
+            },
         )
     })
 }
 
-pub fn apply_close_unterminated_block_comment(text: &str, mode: RepairMode) -> Option<(String, AppliedFix)> {
+pub fn apply_close_unterminated_block_comment(
+    text: &str,
+    mode: RepairMode,
+) -> Option<(String, AppliedFix)> {
     let open_count = text.match_indices("/*").count();
     let close_count = text.match_indices("*/").count();
-    if open_count <= close_count || matches!(mode, RepairMode::Check) { return None; }
+    if open_count <= close_count || matches!(mode, RepairMode::Check) {
+        return None;
+    }
     let mut out = text.to_string();
     let start = out.len();
-    if !out.ends_with('\n') { out.push('\n'); }
+    if !out.ends_with('\n') {
+        out.push('\n');
+    }
     out.push_str("*/\n");
     Some((
         out.clone(),
         AppliedFix {
-            kind: if matches!(mode, RepairMode::ApplyAggressive) { FixKind::InsertMissingBlockCommentCloser } else { FixKind::CloseUnterminatedBlockComment },
+            kind: if matches!(mode, RepairMode::ApplyAggressive) {
+                FixKind::InsertMissingBlockCommentCloser
+            } else {
+                FixKind::CloseUnterminatedBlockComment
+            },
             start,
             end: out.len(),
             replacement: "*/\n".into(),
@@ -88,42 +112,156 @@ pub fn apply_close_unterminated_block_comment(text: &str, mode: RepairMode) -> O
 
 pub fn apply_normalize_indentation(text: &str, _: RepairMode) -> Option<(String, AppliedFix)> {
     let out = normalize_indentation(text);
-    (out != text).then(|| (out.clone(), AppliedFix { kind: FixKind::NormalizeIndentation, start: 0, end: text.len(), replacement: out, note: Some("normalized tabs and ragged leading indentation".into()) }))
+    (out != text).then(|| {
+        (
+            out.clone(),
+            AppliedFix {
+                kind: FixKind::NormalizeIndentation,
+                start: 0,
+                end: text.len(),
+                replacement: out,
+                note: Some("normalized tabs and ragged leading indentation".into()),
+            },
+        )
+    })
 }
 
-pub fn apply_normalize_declaration_headers(text: &str, _: RepairMode) -> Option<(String, AppliedFix)> {
+pub fn apply_normalize_declaration_headers(
+    text: &str,
+    _: RepairMode,
+) -> Option<(String, AppliedFix)> {
     let out = normalize_declaration_headers(text);
-    (out != text).then(|| (out.clone(), AppliedFix { kind: FixKind::NormalizeDeclarationHeader, start: 0, end: text.len(), replacement: out, note: Some("normalized parser-hostile declaration headers into canonical Kain syntax".into()) }))
+    (out != text).then(|| {
+        (
+            out.clone(),
+            AppliedFix {
+                kind: FixKind::NormalizeDeclarationHeader,
+                start: 0,
+                end: text.len(),
+                replacement: out,
+                note: Some(
+                    "normalized parser-hostile declaration headers into canonical Kain syntax"
+                        .into(),
+                ),
+            },
+        )
+    })
 }
 
-pub fn apply_flatten_nested_declaration_placement(text: &str, _: RepairMode) -> Option<(String, AppliedFix)> {
+pub fn apply_flatten_nested_declaration_placement(
+    text: &str,
+    _: RepairMode,
+) -> Option<(String, AppliedFix)> {
     let out = flatten_nested_declaration_placement(text);
-    (out != text).then(|| (out.clone(), AppliedFix { kind: FixKind::FlattenNestedDeclarationPlacement, start: 0, end: text.len(), replacement: out, note: Some("flattened nested declaration blocks to top-level placement".into()) }))
+    (out != text).then(|| {
+        (
+            out.clone(),
+            AppliedFix {
+                kind: FixKind::FlattenNestedDeclarationPlacement,
+                start: 0,
+                end: text.len(),
+                replacement: out,
+                note: Some("flattened nested declaration blocks to top-level placement".into()),
+            },
+        )
+    })
 }
 
-pub fn apply_rewrite_reserved_identifiers(text: &str, _: RepairMode) -> Option<(String, AppliedFix)> {
+pub fn apply_rewrite_reserved_identifiers(
+    text: &str,
+    _: RepairMode,
+) -> Option<(String, AppliedFix)> {
     let out = rewrite_reserved_identifiers(text);
-    (out != text).then(|| (out.clone(), AppliedFix { kind: FixKind::RewriteReservedIdentifier, start: 0, end: text.len(), replacement: out, note: Some("rewrote parser-hostile reserved identifiers with a deterministic suffix".into()) }))
+    (out != text).then(|| {
+        (
+            out.clone(),
+            AppliedFix {
+                kind: FixKind::RewriteReservedIdentifier,
+                start: 0,
+                end: text.len(),
+                replacement: out,
+                note: Some(
+                    "rewrote parser-hostile reserved identifiers with a deterministic suffix"
+                        .into(),
+                ),
+            },
+        )
+    })
 }
 
-pub fn apply_normalize_self_constructor_syntax(text: &str, _: RepairMode) -> Option<(String, AppliedFix)> {
+pub fn apply_normalize_self_constructor_syntax(
+    text: &str,
+    _: RepairMode,
+) -> Option<(String, AppliedFix)> {
     let out = normalize_self_constructor_syntax(text);
-    (out != text).then(|| (out.clone(), AppliedFix { kind: FixKind::NormalizeSelfConstructorSyntax, start: 0, end: text.len(), replacement: out, note: Some("normalized invalid Self constructor syntax to Self::".into()) }))
+    (out != text).then(|| {
+        (
+            out.clone(),
+            AppliedFix {
+                kind: FixKind::NormalizeSelfConstructorSyntax,
+                start: 0,
+                end: text.len(),
+                replacement: out,
+                note: Some("normalized invalid Self constructor syntax to Self::".into()),
+            },
+        )
+    })
 }
 
-pub fn apply_rewrite_inline_initializers(text: &str, _: RepairMode) -> Option<(String, AppliedFix)> {
+pub fn apply_rewrite_inline_initializers(
+    text: &str,
+    _: RepairMode,
+) -> Option<(String, AppliedFix)> {
     let out = rewrite_inline_initializers(text);
-    (out != text).then(|| (out.clone(), AppliedFix { kind: FixKind::RewriteInlineInitialization, start: 0, end: text.len(), replacement: out, note: Some("rewrote low-risk inline constructor initializers into parser-safe form".into()) }))
+    (out != text).then(|| {
+        (
+            out.clone(),
+            AppliedFix {
+                kind: FixKind::RewriteInlineInitialization,
+                start: 0,
+                end: text.len(),
+                replacement: out,
+                note: Some(
+                    "rewrote low-risk inline constructor initializers into parser-safe form".into(),
+                ),
+            },
+        )
+    })
 }
 
 pub fn apply_normalize_namespace_paths(text: &str, _: RepairMode) -> Option<(String, AppliedFix)> {
     let out = normalize_namespace_paths(text);
-    (out != text).then(|| (out.clone(), AppliedFix { kind: FixKind::NormalizeNamespacePath, start: 0, end: text.len(), replacement: out, note: Some("normalized namespace/path separators that confuse the parser".into()) }))
+    (out != text).then(|| {
+        (
+            out.clone(),
+            AppliedFix {
+                kind: FixKind::NormalizeNamespacePath,
+                start: 0,
+                end: text.len(),
+                replacement: out,
+                note: Some("normalized namespace/path separators that confuse the parser".into()),
+            },
+        )
+    })
 }
 
-pub fn apply_reconstruct_parser_safe_blocks(text: &str, _: RepairMode) -> Option<(String, AppliedFix)> {
+pub fn apply_reconstruct_parser_safe_blocks(
+    text: &str,
+    _: RepairMode,
+) -> Option<(String, AppliedFix)> {
     let out = reconstruct_parser_safe_blocks(text);
-    (out != text).then(|| (out.clone(), AppliedFix { kind: FixKind::ReconstructParserSafeBlock, start: 0, end: text.len(), replacement: out, note: Some("reconstructed block indentation from parser-safe structure".into()) }))
+    (out != text).then(|| {
+        (
+            out.clone(),
+            AppliedFix {
+                kind: FixKind::ReconstructParserSafeBlock,
+                start: 0,
+                end: text.len(),
+                replacement: out,
+                note: Some("reconstructed block indentation from parser-safe structure".into()),
+            },
+        )
+    })
 }
 
 fn normalize_indentation(source: &str) -> String {
@@ -141,7 +279,9 @@ fn normalize_indentation(source: &str) -> String {
 }
 
 fn rewrite_reserved_identifiers(source: &str) -> String {
-    const RESERVED: &[&str] = &["type", "mod", "self", "Self", "use", "impl", "struct", "enum", "trait", "const", "var"];
+    const RESERVED: &[&str] = &[
+        "type", "mod", "self", "Self", "use", "impl", "struct", "enum", "trait", "const", "var",
+    ];
     let mut out_lines = Vec::new();
     for line in source.lines() {
         let (_, trimmed) = split_leading_whitespace(line);
@@ -179,17 +319,27 @@ fn normalize_declaration_headers(source: &str) -> String {
         out.push_str(&next);
         out.push('\n');
     }
-    if source.ends_with('\n') { out } else { changed.then_some(out.trim_end_matches('\n').to_string()).unwrap_or_else(|| source.to_string()) }
+    if source.ends_with('\n') {
+        out
+    } else {
+        changed
+            .then_some(out.trim_end_matches('\n').to_string())
+            .unwrap_or_else(|| source.to_string())
+    }
 }
 
 fn normalize_declaration_header_line(line: &str) -> (String, bool) {
     let trimmed = line.trim_start();
     let indent = &line[..line.len() - trimmed.len()];
-    let Some(split_at) = trimmed.find(char::is_whitespace) else { return (line.to_string(), false); };
+    let Some(split_at) = trimmed.find(char::is_whitespace) else {
+        return (line.to_string(), false);
+    };
     let (keyword, rest) = trimmed.split_at(split_at);
     let rest = rest.trim_start();
     let is_declaration = matches!(keyword, "enum_" | "struct_" | "trait_" | "impl_");
-    if !is_declaration { return (line.to_string(), false); }
+    if !is_declaration {
+        return (line.to_string(), false);
+    }
     let canonical = keyword.trim_end_matches('_');
     let rest = rest.trim_end_matches(':');
     let mut normalized = String::new();
@@ -197,7 +347,9 @@ fn normalize_declaration_header_line(line: &str) -> (String, bool) {
     normalized.push_str(canonical);
     normalized.push(' ');
     normalized.push_str(rest);
-    if trimmed.ends_with(':') { normalized.push(':'); }
+    if trimmed.ends_with(':') {
+        normalized.push(':');
+    }
     (normalized, true)
 }
 
@@ -211,7 +363,8 @@ fn flatten_nested_declaration_placement(source: &str) -> String {
         let line = lines[index];
         let (indent, trimmed) = split_leading_whitespace(line);
         let current_indent_width = indent_width(indent);
-        let starts_nested_declaration = current_indent_width > 0 && starts_with_declaration_header(trimmed, &DECLARATION_KEYWORDS);
+        let starts_nested_declaration = current_indent_width > 0
+            && starts_with_declaration_header(trimmed, &DECLARATION_KEYWORDS);
 
         if !starts_nested_declaration {
             out.push_str(line);
@@ -220,7 +373,8 @@ fn flatten_nested_declaration_placement(source: &str) -> String {
             continue;
         }
 
-        let block_end = find_declaration_block_end(&lines, index, current_indent_width, &DECLARATION_KEYWORDS);
+        let block_end =
+            find_declaration_block_end(&lines, index, current_indent_width, &DECLARATION_KEYWORDS);
         let base_indent = current_indent_width;
         for block_index in index..block_end {
             let block_line = lines[block_index];
@@ -243,12 +397,20 @@ fn flatten_nested_declaration_placement(source: &str) -> String {
     out.trim_end_matches('\n').to_string()
 }
 
-fn find_declaration_block_end(lines: &[&str], start: usize, base_indent: usize, keywords: &[&str]) -> usize {
+fn find_declaration_block_end(
+    lines: &[&str],
+    start: usize,
+    base_indent: usize,
+    keywords: &[&str],
+) -> usize {
     let mut index = start + 1;
     while index < lines.len() {
         let line = lines[index];
         let (indent, trimmed) = split_leading_whitespace(line);
-        if trimmed.is_empty() { index += 1; continue; }
+        if trimmed.is_empty() {
+            index += 1;
+            continue;
+        }
         let current_indent = indent_width(indent);
         if current_indent <= base_indent && starts_with_declaration_header(trimmed, keywords) {
             break;
@@ -262,12 +424,18 @@ fn find_declaration_block_end(lines: &[&str], start: usize, base_indent: usize, 
 }
 
 fn starts_with_declaration_header(text: &str, keywords: &[&str]) -> bool {
-    let keyword = text.split_whitespace().next().map(|token| token.trim_end_matches(':'));
+    let keyword = text
+        .split_whitespace()
+        .next()
+        .map(|token| token.trim_end_matches(':'));
     keyword.map(|kw| keywords.contains(&kw)).unwrap_or(false)
 }
 
 fn indent_width(indent: &str) -> usize {
-    indent.chars().map(|ch| if ch == '\t' { 4 } else { 1 }).sum()
+    indent
+        .chars()
+        .map(|ch| if ch == '\t' { 4 } else { 1 })
+        .sum()
 }
 
 fn indent_width_of(indent: &str) -> usize {
@@ -324,23 +492,38 @@ fn rewrite_inline_initializers(source: &str) -> String {
         let trimmed = line.trim();
         if let Some((lhs, rhs)) = trimmed.split_once(" = ") {
             if rhs.contains('(') && rhs.contains(')') && !rhs.trim_end().ends_with(':') {
-                out.push_str(lhs); out.push_str(" = "); out.push_str(rhs); out.push('\n'); continue;
+                out.push_str(lhs);
+                out.push_str(" = ");
+                out.push_str(rhs);
+                out.push('\n');
+                continue;
             }
         }
-        out.push_str(line); out.push('\n');
+        out.push_str(line);
+        out.push('\n');
     }
     out.trim_end_matches('\n').to_string()
 }
-fn normalize_namespace_paths(source: &str) -> String { source.replace("/", "::").replace("\\", "::") }
+fn normalize_namespace_paths(source: &str) -> String {
+    source.replace("/", "::").replace("\\", "::")
+}
 fn reconstruct_parser_safe_blocks(source: &str) -> String {
-    let mut out = String::with_capacity(source.len()); let mut depth = 0usize;
+    let mut out = String::with_capacity(source.len());
+    let mut depth = 0usize;
     for line in source.lines() {
         let trimmed = line.trim_start();
-        if trimmed.starts_with('}') || trimmed.starts_with("end") { depth = depth.saturating_sub(1); }
+        if trimmed.starts_with('}') || trimmed.starts_with("end") {
+            depth = depth.saturating_sub(1);
+        }
         let expected = "    ".repeat(depth);
-        if !trimmed.is_empty() { out.push_str(&expected); out.push_str(trimmed); }
+        if !trimmed.is_empty() {
+            out.push_str(&expected);
+            out.push_str(trimmed);
+        }
         out.push('\n');
-        if trimmed.ends_with(':') || trimmed.ends_with('{') { depth += 1; }
+        if trimmed.ends_with(':') || trimmed.ends_with('{') {
+            depth += 1;
+        }
     }
     out.trim_end_matches('\n').to_string()
 }
@@ -350,9 +533,15 @@ fn find_word(text: &str, needle: &str, from: usize) -> Option<usize> {
         let abs = search + pos;
         let before = text[..abs].chars().next_back();
         let after = text[abs + needle.len()..].chars().next();
-        let before_ok = before.map(|c| !c.is_ascii_alphanumeric() && c != '_').unwrap_or(true);
-        let after_ok = after.map(|c| !c.is_ascii_alphanumeric() && c != '_').unwrap_or(true);
-        if before_ok && after_ok { return Some(abs); }
+        let before_ok = before
+            .map(|c| !c.is_ascii_alphanumeric() && c != '_')
+            .unwrap_or(true);
+        let after_ok = after
+            .map(|c| !c.is_ascii_alphanumeric() && c != '_')
+            .unwrap_or(true);
+        if before_ok && after_ok {
+            return Some(abs);
+        }
         search = abs + needle.len();
     }
     None

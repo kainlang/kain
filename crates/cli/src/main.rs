@@ -1341,7 +1341,9 @@ fn main() {
                         lsp::run_server().await;
                     });
                 }
-                Some(Commands::Doctor { repair: repair_args }) => {
+                Some(Commands::Doctor {
+                    repair: repair_args,
+                }) => {
                     if let Some(mode) = repair_args.selected_mode() {
                         let profile_label = repair_args.selected_profile_label();
                         match repair_args.target_kind() {
@@ -1362,7 +1364,9 @@ fn main() {
                             }
                             Some(repair::DoctorRepairTargetKind::Tree) => {
                                 let Some(root) = repair_args.repair_tree.as_ref() else {
-                                    eprintln!(" Doctor repair tree requested without a directory path.");
+                                    eprintln!(
+                                        " Doctor repair tree requested without a directory path."
+                                    );
                                     std::process::exit(1);
                                 };
                                 match repair::run_tree(root, repair_args.profile, mode) {
@@ -1964,7 +1968,11 @@ fn print_repair_tree_report(
                 println!(
                     "   - {} [{}] {}",
                     outcome.path.display(),
-                    if file_report.changed() { "changed" } else { "unchanged" },
+                    if file_report.changed() {
+                        "changed"
+                    } else {
+                        "unchanged"
+                    },
                     if file_report.fixes.is_empty() {
                         "no fixes"
                     } else {

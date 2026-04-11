@@ -120,8 +120,8 @@ fn canonical_runtime_bundle_omits_native_projection_until_requested() {
         ui_runtime_bundle_from_output_with_native_projection(metadata, output);
     let compatibility_json = ui_runtime_bundle_to_json(&compatibility_bundle)
         .expect("compatibility bundle should serialize");
-    let compatibility_value: serde_json::Value = serde_json::from_str(&compatibility_json)
-        .expect("compatibility bundle json should parse");
+    let compatibility_value: serde_json::Value =
+        serde_json::from_str(&compatibility_json).expect("compatibility bundle json should parse");
     let compatibility_projection = compatibility_value
         .get("native_projection")
         .expect("explicit compatibility helper should emit the sidecar");

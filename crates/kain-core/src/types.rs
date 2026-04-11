@@ -398,7 +398,9 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub fn lookup_method(&self, type_name: &str, method_name: &str) -> Option<&ResolvedType> {
-        self.methods.get(type_name).and_then(|methods| methods.get(method_name))
+        self.methods
+            .get(type_name)
+            .and_then(|methods| methods.get(method_name))
     }
 
     pub fn lookup_enum_variant_fields(
@@ -852,10 +854,14 @@ fn check_patch(env: &mut TypeEnv, patch: &PatchDef) -> KainResult<TypedPatch> {
 fn check_converge(env: &mut TypeEnv, converge: &ConvergeDef) -> KainResult<TypedConverge> {
     let resolved_type = function_signature(env, &converge_dispatcher_view(converge), None)?;
     let expected_signature = resolved_type.clone();
-    check_function(env, &converge_lane_function_view(converge, &converge.spec_lane))?;
+    check_function(
+        env,
+        &converge_lane_function_view(converge, &converge.spec_lane),
+    )?;
     for lane in &converge.fast_lanes {
         check_function(env, &converge_lane_function_view(converge, lane))?;
-        let lane_signature = function_signature(env, &converge_lane_function_view(converge, lane), None)?;
+        let lane_signature =
+            function_signature(env, &converge_lane_function_view(converge, lane), None)?;
         if lane_signature != expected_signature {
             return Err(env.type_error(
                 format!(
@@ -924,7 +930,10 @@ fn check_world(env: &mut TypeEnv, world: &WorldDef) -> KainResult<TypedWorld> {
     Ok(TypedWorld { ast: world.clone() })
 }
 
-fn check_orchestrate(env: &mut TypeEnv, orchestrate: &OrchestrateDef) -> KainResult<TypedOrchestrate> {
+fn check_orchestrate(
+    env: &mut TypeEnv,
+    orchestrate: &OrchestrateDef,
+) -> KainResult<TypedOrchestrate> {
     let typed_fn = check_function(env, &orchestrate_function_view(orchestrate))?;
     let stages = collect_orchestrate_stage_descriptors(&orchestrate.body);
     Ok(TypedOrchestrate {
@@ -1004,7 +1013,9 @@ fn collect_patch_mutation_paths_from_stmt(stmt: &Stmt, output: &mut Vec<String>)
                 collect_patch_mutation_paths_from_stmt(stmt, output);
             }
         }
-        Stmt::While { condition, body, .. } => {
+        Stmt::While {
+            condition, body, ..
+        } => {
             collect_patch_mutation_paths_from_expr(condition, output);
             for stmt in &body.stmts {
                 collect_patch_mutation_paths_from_stmt(stmt, output);
@@ -1108,7 +1119,9 @@ fn collect_patch_mutation_paths_from_expr(expr: &Expr, output: &mut Vec<String>)
                 collect_patch_mutation_paths_from_else_branch(else_branch, output);
             }
         }
-        Expr::Match { scrutinee, arms, .. } => {
+        Expr::Match {
+            scrutinee, arms, ..
+        } => {
             collect_patch_mutation_paths_from_expr(scrutinee, output);
             for arm in arms {
                 if let Some(guard) = &arm.guard {
@@ -1122,7 +1135,9 @@ fn collect_patch_mutation_paths_from_expr(expr: &Expr, output: &mut Vec<String>)
             collect_patch_mutation_paths_from_expr(pointer, output);
             collect_patch_mutation_paths_from_expr(value, output);
         }
-        Expr::PtrOffset { pointer, offset, .. } => {
+        Expr::PtrOffset {
+            pointer, offset, ..
+        } => {
             collect_patch_mutation_paths_from_expr(pointer, output);
             collect_patch_mutation_paths_from_expr(offset, output);
         }
@@ -1185,7 +1200,9 @@ fn collect_patch_mutation_paths_from_else_branch(branch: &ElseBranch, output: &m
 fn patch_target_path(target: &Expr) -> Option<String> {
     match target {
         Expr::Ident(name, _) => Some(name.clone()),
-        Expr::Field { object, field, .. } => patch_target_path(object).map(|base| format!("{base}.{field}")),
+        Expr::Field { object, field, .. } => {
+            patch_target_path(object).map(|base| format!("{base}.{field}"))
+        }
         Expr::Index { object, index, .. } => patch_target_path(object).map(|base| {
             let suffix = match index.as_ref() {
                 Expr::Int(value, _) => format!("[{value}]"),
@@ -1199,10 +1216,7 @@ fn patch_target_path(target: &Expr) -> Option<String> {
 }
 
 fn patch_body_requires_best_effort(block: &Block) -> bool {
-    block
-        .stmts
-        .iter()
-        .any(stmt_requires_best_effort_patch_mode)
+    block.stmts.iter().any(stmt_requires_best_effort_patch_mode)
 }
 
 fn stmt_requires_best_effort_patch_mode(stmt: &Stmt) -> bool {
@@ -1218,7 +1232,9 @@ fn stmt_requires_best_effort_patch_mode(stmt: &Stmt) -> bool {
             expr_requires_best_effort_patch_mode(iter)
                 || body.stmts.iter().any(stmt_requires_best_effort_patch_mode)
         }
-        Stmt::While { condition, body, .. } => {
+        Stmt::While {
+            condition, body, ..
+        } => {
             expr_requires_best_effort_patch_mode(condition)
                 || body.stmts.iter().any(stmt_requires_best_effort_patch_mode)
         }
@@ -1237,10 +1253,12 @@ fn expr_requires_best_effort_patch_mode(expr: &Expr) -> bool {
         | Expr::Await(_, _)
         | Expr::AsyncBlock(_, _) => true,
         Expr::Assign { target, value, .. } => {
-            expr_requires_best_effort_patch_mode(target) || expr_requires_best_effort_patch_mode(value)
+            expr_requires_best_effort_patch_mode(target)
+                || expr_requires_best_effort_patch_mode(value)
         }
         Expr::Binary { left, right, .. } => {
-            expr_requires_best_effort_patch_mode(left) || expr_requires_best_effort_patch_mode(right)
+            expr_requires_best_effort_patch_mode(left)
+                || expr_requires_best_effort_patch_mode(right)
         }
         Expr::Unary { operand, .. }
         | Expr::Try(operand, _)
@@ -1252,10 +1270,13 @@ fn expr_requires_best_effort_patch_mode(expr: &Expr) -> bool {
         | Expr::Comptime(operand, _) => expr_requires_best_effort_patch_mode(operand),
         Expr::Field { object, .. } => expr_requires_best_effort_patch_mode(object),
         Expr::Index { object, index, .. } => {
-            expr_requires_best_effort_patch_mode(object) || expr_requires_best_effort_patch_mode(index)
+            expr_requires_best_effort_patch_mode(object)
+                || expr_requires_best_effort_patch_mode(index)
         }
         Expr::Struct { fields, rest, .. } => {
-            fields.iter().any(|(_, value)| expr_requires_best_effort_patch_mode(value))
+            fields
+                .iter()
+                .any(|(_, value)| expr_requires_best_effort_patch_mode(value))
                 || rest
                     .as_ref()
                     .is_some_and(|rest| expr_requires_best_effort_patch_mode(rest))
@@ -1264,7 +1285,9 @@ fn expr_requires_best_effort_patch_mode(expr: &Expr) -> bool {
             .iter()
             .any(|(_, value)| expr_requires_best_effort_patch_mode(value)),
         Expr::EnumVariant { fields, .. } => match fields {
-            EnumVariantFields::Tuple(values) => values.iter().any(expr_requires_best_effort_patch_mode),
+            EnumVariantFields::Tuple(values) => {
+                values.iter().any(expr_requires_best_effort_patch_mode)
+            }
             EnumVariantFields::Struct(values) => values
                 .iter()
                 .any(|(_, value)| expr_requires_best_effort_patch_mode(value)),
@@ -1292,28 +1315,27 @@ fn expr_requires_best_effort_patch_mode(expr: &Expr) -> bool {
                     .stmts
                     .iter()
                     .any(stmt_requires_best_effort_patch_mode)
-                || else_branch.as_ref().is_some_and(|branch| match branch.as_ref() {
-                    ElseBranch::Else(block) => block
-                        .stmts
-                        .iter()
-                        .any(stmt_requires_best_effort_patch_mode),
-                    ElseBranch::ElseIf(condition, block, next) => {
-                        expr_requires_best_effort_patch_mode(condition)
-                            || block
-                                .stmts
-                                .iter()
-                                .any(stmt_requires_best_effort_patch_mode)
-                            || next.as_ref().is_some_and(|next| match next.as_ref() {
-                                ElseBranch::Else(block) => block
-                                    .stmts
-                                    .iter()
-                                    .any(stmt_requires_best_effort_patch_mode),
-                                ElseBranch::ElseIf(..) => true,
-                            })
-                    }
-                })
+                || else_branch
+                    .as_ref()
+                    .is_some_and(|branch| match branch.as_ref() {
+                        ElseBranch::Else(block) => {
+                            block.stmts.iter().any(stmt_requires_best_effort_patch_mode)
+                        }
+                        ElseBranch::ElseIf(condition, block, next) => {
+                            expr_requires_best_effort_patch_mode(condition)
+                                || block.stmts.iter().any(stmt_requires_best_effort_patch_mode)
+                                || next.as_ref().is_some_and(|next| match next.as_ref() {
+                                    ElseBranch::Else(block) => {
+                                        block.stmts.iter().any(stmt_requires_best_effort_patch_mode)
+                                    }
+                                    ElseBranch::ElseIf(..) => true,
+                                })
+                        }
+                    })
         }
-        Expr::Match { scrutinee, arms, .. } => {
+        Expr::Match {
+            scrutinee, arms, ..
+        } => {
             expr_requires_best_effort_patch_mode(scrutinee)
                 || arms.iter().any(|arm| {
                     arm.guard
@@ -1323,7 +1345,9 @@ fn expr_requires_best_effort_patch_mode(expr: &Expr) -> bool {
                 })
         }
         Expr::Lambda { body, .. } => expr_requires_best_effort_patch_mode(body),
-        Expr::PtrOffset { pointer, offset, .. } => {
+        Expr::PtrOffset {
+            pointer, offset, ..
+        } => {
             expr_requires_best_effort_patch_mode(pointer)
                 || expr_requires_best_effort_patch_mode(offset)
         }
@@ -1365,7 +1389,9 @@ fn collect_orchestrate_stage_descriptors(block: &Block) -> Vec<OrchestrateStageD
                     mutable: _,
                     span: _,
                 },
-            value: Some(Expr::StageCall { runtime, function, .. }),
+            value: Some(Expr::StageCall {
+                runtime, function, ..
+            }),
             ..
         } = stmt
         {
@@ -1480,10 +1506,7 @@ fn check_shader(env: &mut TypeEnv, s: &Shader) -> KainResult<TypedShader> {
         env.define(param.name.clone(), ty.clone());
     }
     for uniform in &s.uniforms {
-        env.define(
-            uniform.name.clone(),
-            resolve_type_in_env(env, &uniform.ty)?,
-        );
+        env.define(uniform.name.clone(), resolve_type_in_env(env, &uniform.ty)?);
     }
     check_block_semantics(env, &s.body, &ctx)?;
     env.pop_scope();
@@ -1561,15 +1584,17 @@ fn resolve_type_impl(env: Option<&TypeEnv>, ty: &Type) -> KainResult<ResolvedTyp
             Box::new(resolve_type_impl(env, inner)?),
             *len,
         )),
-        Type::Slice(inner, _) => Ok(ResolvedType::Slice(Box::new(resolve_type_impl(env, inner)?))),
-        Type::Option(inner, _) => Ok(ResolvedType::Option(Box::new(resolve_type_impl(env, inner)?))),
+        Type::Slice(inner, _) => Ok(ResolvedType::Slice(Box::new(resolve_type_impl(
+            env, inner,
+        )?))),
+        Type::Option(inner, _) => Ok(ResolvedType::Option(Box::new(resolve_type_impl(
+            env, inner,
+        )?))),
         Type::Result(ok, err, _) => Ok(ResolvedType::Result(
             Box::new(resolve_type_impl(env, ok)?),
             Box::new(resolve_type_impl(env, err)?),
         )),
-        Type::Ref {
-            mutable, inner, ..
-        } => Ok(ResolvedType::Ref {
+        Type::Ref { mutable, inner, .. } => Ok(ResolvedType::Ref {
             mutable: *mutable,
             inner: Box::new(resolve_type_impl(env, inner)?),
         }),
@@ -1690,11 +1715,7 @@ fn check_block_semantics(
     Ok(())
 }
 
-fn check_stmt_semantics(
-    env: &mut TypeEnv,
-    stmt: &Stmt,
-    ctx: &SemanticContext,
-) -> KainResult<()> {
+fn check_stmt_semantics(env: &mut TypeEnv, stmt: &Stmt, ctx: &SemanticContext) -> KainResult<()> {
     match stmt {
         Stmt::Let {
             pattern,
@@ -1755,7 +1776,10 @@ fn check_stmt_semantics(
                 ResolvedType::Unknown => ResolvedType::Unknown,
                 other => {
                     return Err(env.type_error(
-                        format!("for loop expects an iterable value, found {}", describe_type(&other)),
+                        format!(
+                            "for loop expects an iterable value, found {}",
+                            describe_type(&other)
+                        ),
                         *span,
                     ))
                 }
@@ -1813,7 +1837,10 @@ fn infer_expr_type(
                         Ok(operand_ty)
                     } else {
                         Err(env.type_error(
-                            format!("Unary '-' expects a numeric value, found {}", describe_type(&operand_ty)),
+                            format!(
+                                "Unary '-' expects a numeric value, found {}",
+                                describe_type(&operand_ty)
+                            ),
                             *span,
                         ))
                     }
@@ -1823,7 +1850,10 @@ fn infer_expr_type(
                         Ok(ResolvedType::Bool)
                     } else {
                         Err(env.type_error(
-                            format!("Unary '!' expects Bool, found {}", describe_type(&operand_ty)),
+                            format!(
+                                "Unary '!' expects Bool, found {}",
+                                describe_type(&operand_ty)
+                            ),
                             *span,
                         ))
                     }
@@ -1833,7 +1863,10 @@ fn infer_expr_type(
                         Ok(operand_ty)
                     } else {
                         Err(env.type_error(
-                            format!("Unary '~' expects an integer value, found {}", describe_type(&operand_ty)),
+                            format!(
+                                "Unary '~' expects an integer value, found {}",
+                                describe_type(&operand_ty)
+                            ),
                             *span,
                         ))
                     }
@@ -1918,7 +1951,11 @@ fn infer_expr_type(
                 .collect::<Result<Vec<_>, _>>()?;
 
             match callee_ty {
-                ResolvedType::Function { params, ret, effects } => {
+                ResolvedType::Function {
+                    params,
+                    ret,
+                    effects,
+                } => {
                     if params.len() != arg_types.len() {
                         return Err(env.type_error(
                             format!(
@@ -1945,7 +1982,10 @@ fn infer_expr_type(
                 }
                 ResolvedType::Unknown => Ok(ResolvedType::Unknown),
                 other => Err(env.type_error(
-                    format!("Cannot call non-function value of type {}", describe_type(&other)),
+                    format!(
+                        "Cannot call non-function value of type {}",
+                        describe_type(&other)
+                    ),
                     *span,
                 )),
             }
@@ -1963,16 +2003,24 @@ fn infer_expr_type(
                 .collect::<Result<Vec<_>, _>>()?;
             infer_method_call_type(env, ctx, &receiver_ty, method, &arg_types, *span)
         }
-        Expr::Field { object, field, span } => {
+        Expr::Field {
+            object,
+            field,
+            span,
+        } => {
             let object_ty = infer_expr_type(env, object, ctx)?;
             match object_ty {
-                ResolvedType::Struct(_, fields) => fields.get(field).cloned().ok_or_else(|| {
-                    env.type_error(format!("Unknown field '{}'", field), *span)
-                }),
+                ResolvedType::Struct(_, fields) => fields
+                    .get(field)
+                    .cloned()
+                    .ok_or_else(|| env.type_error(format!("Unknown field '{}'", field), *span)),
                 ResolvedType::Tuple(items) => tuple_field_type(env, &items, field, *span),
                 ResolvedType::Unknown => Ok(ResolvedType::Unknown),
                 other => Err(env.type_error(
-                    format!("Field access requires a struct value, found {}", describe_type(&other)),
+                    format!(
+                        "Field access requires a struct value, found {}",
+                        describe_type(&other)
+                    ),
                     *span,
                 )),
             }
@@ -1995,7 +2043,10 @@ fn infer_expr_type(
                 ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => Ok(*inner),
                 ResolvedType::Unknown => Ok(ResolvedType::Unknown),
                 other => Err(env.type_error(
-                    format!("Indexing requires an array or slice, found {}", describe_type(&other)),
+                    format!(
+                        "Indexing requires an array or slice, found {}",
+                        describe_type(&other)
+                    ),
                     *span,
                 )),
             }
@@ -2016,9 +2067,10 @@ fn infer_expr_type(
             rest,
             span,
         } => {
-            let struct_ty = env.lookup_type(name).cloned().unwrap_or_else(|| {
-                ResolvedType::Struct(name.clone(), HashMap::new())
-            });
+            let struct_ty = env
+                .lookup_type(name)
+                .cloned()
+                .unwrap_or_else(|| ResolvedType::Struct(name.clone(), HashMap::new()));
             match &struct_ty {
                 ResolvedType::Struct(_, known_fields) => {
                     for (field_name, field_expr) in fields {
@@ -2049,7 +2101,11 @@ fn infer_expr_type(
                 }
                 ResolvedType::Unknown => Ok(ResolvedType::Unknown),
                 other => Err(env.type_error(
-                    format!("'{}' does not resolve to a struct type (found {})", name, describe_type(&other)),
+                    format!(
+                        "'{}' does not resolve to a struct type (found {})",
+                        name,
+                        describe_type(&other)
+                    ),
                     *span,
                 )),
             }
@@ -2067,10 +2123,13 @@ fn infer_expr_type(
             fields,
             span,
         } => {
-            let enum_ty = env.lookup_type(enum_name).cloned().unwrap_or_else(|| {
-                ResolvedType::Enum(enum_name.clone(), Vec::new())
-            });
-            if let Some(expected_fields) = env.lookup_enum_variant_fields(enum_name, variant).cloned() {
+            let enum_ty = env
+                .lookup_type(enum_name)
+                .cloned()
+                .unwrap_or_else(|| ResolvedType::Enum(enum_name.clone(), Vec::new()));
+            if let Some(expected_fields) =
+                env.lookup_enum_variant_fields(enum_name, variant).cloned()
+            {
                 match (fields, expected_fields.as_slice()) {
                     (EnumVariantFields::Unit, []) => {}
                     (EnumVariantFields::Tuple(values), expected) => {
@@ -2134,16 +2193,16 @@ fn infer_expr_type(
                 .collect::<Result<_, _>>()?,
         )),
         Expr::Range {
-            start,
-            end,
-            span,
-            ..
+            start, end, span, ..
         } => {
             if let Some(start) = start {
                 let start_ty = infer_expr_type(env, start, ctx)?;
                 if !is_numeric_like(&start_ty) && !matches!(start_ty, ResolvedType::Unknown) {
                     return Err(env.type_error(
-                        format!("Range start must be numeric, found {}", describe_type(&start_ty)),
+                        format!(
+                            "Range start must be numeric, found {}",
+                            describe_type(&start_ty)
+                        ),
                         *span,
                     ));
                 }
@@ -2152,7 +2211,10 @@ fn infer_expr_type(
                 let end_ty = infer_expr_type(env, end, ctx)?;
                 if !is_numeric_like(&end_ty) && !matches!(end_ty, ResolvedType::Unknown) {
                     return Err(env.type_error(
-                        format!("Range end must be numeric, found {}", describe_type(&end_ty)),
+                        format!(
+                            "Range end must be numeric, found {}",
+                            describe_type(&end_ty)
+                        ),
                         *span,
                     ));
                 }
@@ -2245,9 +2307,7 @@ fn infer_expr_type(
             inner: Box::new(infer_expr_type(env, value, ctx)?),
         }),
         Expr::AddrOf {
-            value,
-            pointee_ty,
-            ..
+            value, pointee_ty, ..
         } => Ok(ResolvedType::Ptr {
             mutable: false,
             inner: Box::new(
@@ -2283,7 +2343,10 @@ fn infer_expr_type(
                 ResolvedType::Ptr { inner, .. } | ResolvedType::Ref { inner, .. } => Ok(*inner),
                 ResolvedType::Unknown => Ok(ResolvedType::Unknown),
                 other => Err(env.type_error(
-                    format!("mem_load expects a pointer, found {}", describe_type(&other)),
+                    format!(
+                        "mem_load expects a pointer, found {}",
+                        describe_type(&other)
+                    ),
                     *span,
                 )),
             }
@@ -2302,14 +2365,23 @@ fn infer_expr_type(
                     ResolvedType::Unknown => ResolvedType::Unknown,
                     other => {
                         return Err(env.type_error(
-                            format!("mem_store expects a pointer, found {}", describe_type(&other)),
+                            format!(
+                                "mem_store expects a pointer, found {}",
+                                describe_type(&other)
+                            ),
                             *span,
                         ))
                     }
                 }
             };
             let value_ty = infer_expr_type(env, value, ctx)?;
-            ensure_type_compatible(env, &expected_ty, &value_ty, value.span(), "mem_store value")?;
+            ensure_type_compatible(
+                env,
+                &expected_ty,
+                &value_ty,
+                value.span(),
+                "mem_store value",
+            )?;
             Ok(ResolvedType::Unit)
         }
         Expr::SizeOfType { .. } | Expr::AlignOfType { .. } => Ok(ResolvedType::Int(IntSize::I64)),
@@ -2343,7 +2415,10 @@ fn infer_expr_type(
                 ResolvedType::Result(ok, _) => Ok(*ok),
                 ResolvedType::Unknown => Ok(ResolvedType::Unknown),
                 other => Err(env.type_error(
-                    format!("'?' expects a Result value, found {}", describe_type(&other)),
+                    format!(
+                        "'?' expects a Result value, found {}",
+                        describe_type(&other)
+                    ),
                     *span,
                 )),
             }
@@ -2354,7 +2429,10 @@ fn infer_expr_type(
                 ResolvedType::Future(inner) => Ok(*inner),
                 ResolvedType::Unknown => Ok(ResolvedType::Unknown),
                 other => Err(env.type_error(
-                    format!("await expects a Future value, found {}", describe_type(&other)),
+                    format!(
+                        "await expects a Future value, found {}",
+                        describe_type(&other)
+                    ),
                     *span,
                 )),
             }
@@ -2379,7 +2457,13 @@ fn infer_expr_type(
         }
         Expr::Return(None, span) => {
             if let Some(ctx) = ctx {
-                ensure_type_compatible(env, &ctx.return_type, &ResolvedType::Unit, *span, "return")?;
+                ensure_type_compatible(
+                    env,
+                    &ctx.return_type,
+                    &ResolvedType::Unit,
+                    *span,
+                    "return",
+                )?;
             }
             Ok(ResolvedType::Never)
         }
@@ -2445,10 +2529,7 @@ fn infer_match_type(
 
     for arm in arms {
         if seen_catch_all {
-            return Err(env.type_error(
-                "Unreachable match arm after a catch-all pattern",
-                arm.span,
-            ));
+            return Err(env.type_error("Unreachable match arm after a catch-all pattern", arm.span));
         }
 
         let is_catch_all = matches!(arm.pattern, Pattern::Wildcard(_))
@@ -2509,10 +2590,9 @@ fn infer_assignment_target_type(
     ctx: Option<&SemanticContext>,
 ) -> KainResult<ResolvedType> {
     match expr {
-        Expr::Ident(_, _)
-        | Expr::Field { .. }
-        | Expr::Index { .. }
-        | Expr::Deref(_, _) => infer_expr_type(env, expr, ctx),
+        Expr::Ident(_, _) | Expr::Field { .. } | Expr::Index { .. } | Expr::Deref(_, _) => {
+            infer_expr_type(env, expr, ctx)
+        }
         other => Err(env.type_error(
             format!("Invalid assignment target: {:?}", other),
             other.span(),
@@ -2557,9 +2637,18 @@ fn infer_method_call_type(
     match receiver_ty {
         ResolvedType::Struct(name, _) | ResolvedType::Enum(name, _) => {
             if let Some(method_ty) = env.lookup_method(name, method).cloned() {
-                if let ResolvedType::Function { params, ret, effects } = method_ty {
-                    let start_index =
-                        usize::from(params.first().map(|ty| types_compatible(ty, receiver_ty)).unwrap_or(false));
+                if let ResolvedType::Function {
+                    params,
+                    ret,
+                    effects,
+                } = method_ty
+                {
+                    let start_index = usize::from(
+                        params
+                            .first()
+                            .map(|ty| types_compatible(ty, receiver_ty))
+                            .unwrap_or(false),
+                    );
                     let params = &params[start_index..];
                     if params.len() != arg_types.len() {
                         return Err(env.type_error(
@@ -2589,10 +2678,7 @@ fn infer_method_call_type(
                     Ok(ResolvedType::Unknown)
                 }
             } else {
-                Err(env.type_error(
-                    format!("Unknown method '{}' on {}", method, name),
-                    span,
-                ))
+                Err(env.type_error(format!("Unknown method '{}' on {}", method, name), span))
             }
         }
         ResolvedType::Array(inner, _) => match method {
@@ -2605,17 +2691,11 @@ fn infer_method_call_type(
                     Err(env.type_error("Array.push expects exactly one argument", span))
                 }
             }
-            _ => Err(env.type_error(
-                format!("Unknown method '{}' on Array", method),
-                span,
-            )),
+            _ => Err(env.type_error(format!("Unknown method '{}' on Array", method), span)),
         },
         ResolvedType::String => match method {
             "len" => Ok(ResolvedType::Int(IntSize::I64)),
-            _ => Err(env.type_error(
-                format!("Unknown method '{}' on String", method),
-                span,
-            )),
+            _ => Err(env.type_error(format!("Unknown method '{}' on String", method), span)),
         },
         ResolvedType::Unknown => Ok(ResolvedType::Unknown),
         other => Err(env.type_error(
@@ -2640,13 +2720,15 @@ fn infer_macro_type(
                 .iter()
                 .map(|arg| infer_expr_type(env, arg, ctx))
                 .collect::<Result<Vec<_>, _>>()?;
-            let element_ty = arg_types.into_iter().fold(ResolvedType::Unknown, |acc, ty| {
-                if matches!(acc, ResolvedType::Unknown) {
-                    ty
-                } else {
-                    unify_types(&acc, &ty).unwrap_or(ResolvedType::Unknown)
-                }
-            });
+            let element_ty = arg_types
+                .into_iter()
+                .fold(ResolvedType::Unknown, |acc, ty| {
+                    if matches!(acc, ResolvedType::Unknown) {
+                        ty
+                    } else {
+                        unify_types(&acc, &ty).unwrap_or(ResolvedType::Unknown)
+                    }
+                });
             Ok(ResolvedType::Array(Box::new(element_ty), args.len()))
         }
         "format" | "type_name" => Ok(ResolvedType::String),
@@ -2680,10 +2762,7 @@ fn check_pattern_compatibility(
             )),
         },
         Pattern::Struct {
-            name,
-            fields,
-            span,
-            ..
+            name, fields, span, ..
         } => match scrutinee_ty {
             ResolvedType::Struct(struct_name, known_fields)
                 if struct_name == name || matches!(scrutinee_ty, ResolvedType::Unknown) =>
@@ -2699,7 +2778,11 @@ fn check_pattern_compatibility(
             }
             ResolvedType::Unknown => Ok(()),
             other => Err(env.type_error(
-                format!("Struct pattern '{}' does not match {}", name, describe_type(other)),
+                format!(
+                    "Struct pattern '{}' does not match {}",
+                    name,
+                    describe_type(other)
+                ),
                 *span,
             )),
         },
@@ -2717,15 +2800,22 @@ fn check_pattern_compatibility(
                 })
                 .unwrap_or_default();
             if !expected_enum.is_empty() {
-                if let Some(field_types) = env.lookup_enum_variant_fields(expected_enum, variant).cloned() {
+                if let Some(field_types) = env
+                    .lookup_enum_variant_fields(expected_enum, variant)
+                    .cloned()
+                {
                     match (fields, field_types.as_slice()) {
                         (VariantPatternFields::Unit, []) => {}
-                        (VariantPatternFields::Tuple(patterns), types) if patterns.len() == types.len() => {
+                        (VariantPatternFields::Tuple(patterns), types)
+                            if patterns.len() == types.len() =>
+                        {
                             for (pattern, field_ty) in patterns.iter().zip(types.iter()) {
                                 check_pattern_compatibility(env, pattern, field_ty)?;
                             }
                         }
-                        (VariantPatternFields::Struct(patterns), types) if patterns.len() == types.len() => {
+                        (VariantPatternFields::Struct(patterns), types)
+                            if patterns.len() == types.len() =>
+                        {
                             for ((_, pattern), field_ty) in patterns.iter().zip(types.iter()) {
                                 check_pattern_compatibility(env, pattern, field_ty)?;
                             }
@@ -2761,7 +2851,9 @@ fn check_pattern_compatibility(
             }
             Ok(())
         }
-        Pattern::Range { start, end, span, .. } => {
+        Pattern::Range {
+            start, end, span, ..
+        } => {
             if let Some(start) = start {
                 let start_ty = infer_expr_type(env, start, None)?;
                 ensure_type_compatible(env, scrutinee_ty, &start_ty, *span, "range pattern")?;
@@ -2806,14 +2898,14 @@ fn bind_pattern_types(env: &mut TypeEnv, pattern: &Pattern, ty: &ResolvedType) -
             fields,
             ..
         } => {
-            let enum_name = enum_name
-                .as_deref()
-                .or_else(|| match ty {
-                    ResolvedType::Enum(name, _) => Some(name.as_str()),
-                    _ => None,
-                });
+            let enum_name = enum_name.as_deref().or_else(|| match ty {
+                ResolvedType::Enum(name, _) => Some(name.as_str()),
+                _ => None,
+            });
             if let Some(enum_name) = enum_name {
-                if let Some(field_types) = env.lookup_enum_variant_fields(enum_name, variant).cloned() {
+                if let Some(field_types) =
+                    env.lookup_enum_variant_fields(enum_name, variant).cloned()
+                {
                     match fields {
                         VariantPatternFields::Tuple(patterns) => {
                             for (pattern, field_ty) in patterns.iter().zip(field_types.iter()) {
@@ -2821,7 +2913,8 @@ fn bind_pattern_types(env: &mut TypeEnv, pattern: &Pattern, ty: &ResolvedType) -
                             }
                         }
                         VariantPatternFields::Struct(patterns) => {
-                            for ((_, pattern), field_ty) in patterns.iter().zip(field_types.iter()) {
+                            for ((_, pattern), field_ty) in patterns.iter().zip(field_types.iter())
+                            {
                                 bind_pattern_types(env, pattern, field_ty)?;
                             }
                         }
@@ -2833,17 +2926,16 @@ fn bind_pattern_types(env: &mut TypeEnv, pattern: &Pattern, ty: &ResolvedType) -
         }
         Pattern::Slice { patterns, rest, .. } => {
             let item_ty = match ty {
-                ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => inner.as_ref().clone(),
+                ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => {
+                    inner.as_ref().clone()
+                }
                 _ => ResolvedType::Unknown,
             };
             for pattern in patterns {
                 bind_pattern_types(env, pattern, &item_ty)?;
             }
             if let Some(rest_name) = rest {
-                env.define(
-                    rest_name.clone(),
-                    ResolvedType::Slice(Box::new(item_ty)),
-                );
+                env.define(rest_name.clone(), ResolvedType::Slice(Box::new(item_ty)));
             }
             Ok(())
         }
@@ -2885,7 +2977,12 @@ fn check_jsx_semantics(
         JSXNode::Expression(expr) => {
             let _ = infer_expr_type(env, expr, ctx)?;
         }
-        JSXNode::For { binding, iter, body, .. } => {
+        JSXNode::For {
+            binding,
+            iter,
+            body,
+            ..
+        } => {
             let iter_ty = infer_expr_type(env, iter, ctx)?;
             let item_ty = match iter_ty {
                 ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => *inner,
@@ -2963,7 +3060,10 @@ fn infer_binary_type(
             ))
         }
         Eq | Ne | Lt | Gt | Le | Ge => {
-            if types_compatible(left, right) || matches!(left, ResolvedType::Unknown) || matches!(right, ResolvedType::Unknown) {
+            if types_compatible(left, right)
+                || matches!(left, ResolvedType::Unknown)
+                || matches!(right, ResolvedType::Unknown)
+            {
                 Ok(ResolvedType::Bool)
             } else {
                 Err(env.type_error(
@@ -2995,7 +3095,9 @@ fn infer_binary_type(
         BitAnd | BitOr | BitXor | Shl | Shr => {
             if is_integer_like(left) && is_integer_like(right) {
                 Ok(promote_numeric_type(left, right))
-            } else if matches!(left, ResolvedType::Unknown) || matches!(right, ResolvedType::Unknown) {
+            } else if matches!(left, ResolvedType::Unknown)
+                || matches!(right, ResolvedType::Unknown)
+            {
                 Ok(ResolvedType::Unknown)
             } else {
                 Err(env.type_error(
@@ -3054,7 +3156,9 @@ fn types_compatible(expected: &ResolvedType, actual: &ResolvedType) -> bool {
         }
         (ResolvedType::Slice(left), ResolvedType::Slice(right)) => types_compatible(left, right),
         (ResolvedType::Slice(left), ResolvedType::Array(right, _))
-        | (ResolvedType::Array(left, _), ResolvedType::Slice(right)) => types_compatible(left, right),
+        | (ResolvedType::Array(left, _), ResolvedType::Slice(right)) => {
+            types_compatible(left, right)
+        }
         (ResolvedType::Tuple(left), ResolvedType::Tuple(right)) => {
             left.len() == right.len()
                 && left
@@ -3120,7 +3224,9 @@ fn unify_types(left: &ResolvedType, right: &ResolvedType) -> Option<ResolvedType
         | (ResolvedType::Float(_), ResolvedType::Float(_))
         | (ResolvedType::Int(_), ResolvedType::Float(_))
         | (ResolvedType::Float(_), ResolvedType::Int(_)) => Some(promote_numeric_type(left, right)),
-        (ResolvedType::Generic(_), other) | (other, ResolvedType::Generic(_)) => Some(other.clone()),
+        (ResolvedType::Generic(_), other) | (other, ResolvedType::Generic(_)) => {
+            Some(other.clone())
+        }
         _ if types_compatible(left, right) => Some(left.clone()),
         _ => None,
     }
@@ -3135,7 +3241,10 @@ fn promote_numeric_type(left: &ResolvedType, right: &ResolvedType) -> ResolvedTy
 }
 
 fn is_numeric_like(ty: &ResolvedType) -> bool {
-    matches!(ty, ResolvedType::Int(_) | ResolvedType::Float(_) | ResolvedType::Unknown)
+    matches!(
+        ty,
+        ResolvedType::Int(_) | ResolvedType::Float(_) | ResolvedType::Unknown
+    )
 }
 
 fn is_integer_like(ty: &ResolvedType) -> bool {
@@ -3154,7 +3263,11 @@ fn describe_type(ty: &ResolvedType) -> String {
         ResolvedType::Slice(inner) => format!("Slice<{}>", describe_type(inner)),
         ResolvedType::Tuple(items) => format!(
             "({})",
-            items.iter().map(describe_type).collect::<Vec<_>>().join(", ")
+            items
+                .iter()
+                .map(describe_type)
+                .collect::<Vec<_>>()
+                .join(", ")
         ),
         ResolvedType::Option(inner) => format!("Option<{}>", describe_type(inner)),
         ResolvedType::Result(ok, err) => {
@@ -3165,7 +3278,11 @@ fn describe_type(ty: &ResolvedType) -> String {
         ResolvedType::Ptr { inner, .. } => format!("ptr<{}>", describe_type(inner)),
         ResolvedType::Function { params, ret, .. } => format!(
             "fn({}) -> {}",
-            params.iter().map(describe_type).collect::<Vec<_>>().join(", "),
+            params
+                .iter()
+                .map(describe_type)
+                .collect::<Vec<_>>()
+                .join(", "),
             describe_type(ret)
         ),
         ResolvedType::Struct(name, _) | ResolvedType::Enum(name, _) => name.clone(),
@@ -3193,15 +3310,12 @@ fn tuple_field_type(
         "y" | "g" => 1,
         "z" | "b" => 2,
         "w" | "a" => 3,
-        _ => {
-            return Err(env.type_error(
-                format!("Unknown tuple/vector field '{}'", field),
-                span,
-            ))
-        }
+        _ => return Err(env.type_error(format!("Unknown tuple/vector field '{}'", field), span)),
     };
-    items
-        .get(index)
-        .cloned()
-        .ok_or_else(|| env.type_error(format!("Field '{}' is out of bounds for this tuple", field), span))
+    items.get(index).cloned().ok_or_else(|| {
+        env.type_error(
+            format!("Field '{}' is out of bounds for this tuple", field),
+            span,
+        )
+    })
 }

@@ -205,15 +205,36 @@ impl Fast3dViewerApp {
                     let right = [sin_yaw, 0.0_f32, -cos_yaw];
 
                     let mv_fwd = input.key_down(egui::Key::W) || input.key_down(egui::Key::ArrowUp);
-                    let mv_back = input.key_down(egui::Key::S) || input.key_down(egui::Key::ArrowDown);
-                    let mv_left = input.key_down(egui::Key::A) || input.key_down(egui::Key::ArrowLeft);
-                    let mv_right = input.key_down(egui::Key::D) || input.key_down(egui::Key::ArrowRight);
+                    let mv_back =
+                        input.key_down(egui::Key::S) || input.key_down(egui::Key::ArrowDown);
+                    let mv_left =
+                        input.key_down(egui::Key::A) || input.key_down(egui::Key::ArrowLeft);
+                    let mv_right =
+                        input.key_down(egui::Key::D) || input.key_down(egui::Key::ArrowRight);
                     let mv_up = input.key_down(egui::Key::Q);
                     let mv_down = input.key_down(egui::Key::E);
 
-                    let fs = if mv_fwd { 1.0 } else if mv_back { -1.0 } else { 0.0 };
-                    let rs = if mv_right { 1.0 } else if mv_left { -1.0 } else { 0.0 };
-                    let us = if mv_up { 1.0 } else if mv_down { -1.0 } else { 0.0 };
+                    let fs = if mv_fwd {
+                        1.0
+                    } else if mv_back {
+                        -1.0
+                    } else {
+                        0.0
+                    };
+                    let rs = if mv_right {
+                        1.0
+                    } else if mv_left {
+                        -1.0
+                    } else {
+                        0.0
+                    };
+                    let us = if mv_up {
+                        1.0
+                    } else if mv_down {
+                        -1.0
+                    } else {
+                        0.0
+                    };
 
                     self.free_fly.position[0] += fwd[0] * fs * speed + right[0] * rs * speed;
                     self.free_fly.position[1] += us * speed;
@@ -228,7 +249,8 @@ impl Fast3dViewerApp {
                     // Scroll to adjust fly speed
                     let scroll = input.raw_scroll_delta.y;
                     if scroll.abs() > f32::EPSILON {
-                        self.free_fly.speed = (self.free_fly.speed + scroll * 2.0).clamp(1.0, 500.0);
+                        self.free_fly.speed =
+                            (self.free_fly.speed + scroll * 2.0).clamp(1.0, 500.0);
                     }
                 }
             }
@@ -251,10 +273,11 @@ impl Fast3dViewerApp {
             self.runtime.apply_shader_overrides(shader_overrides);
         }
         match self.camera_mode {
-            CameraMode::Orbit => {
-                self.runtime
-                    .render_frame(self.elapsed_seconds, &self.orbit_controls, self.combine_override)
-            }
+            CameraMode::Orbit => self.runtime.render_frame(
+                self.elapsed_seconds,
+                &self.orbit_controls,
+                self.combine_override,
+            ),
             CameraMode::FreeFly => {
                 let camera = &self.runtime.manifest.camera;
                 self.runtime.render_frame_with_pose(
@@ -378,7 +401,10 @@ impl eframe::App for Fast3dViewerApp {
                 ));
                 if let Some(frame) = self.latest_frame.as_ref() {
                     ui.separator();
-                    ui.label(format!("triangles submitted: {}", frame.stats.triangles_submitted));
+                    ui.label(format!(
+                        "triangles submitted: {}",
+                        frame.stats.triangles_submitted
+                    ));
                     ui.label(format!(
                         "triangles rasterized: {}",
                         frame.stats.triangles_rasterized

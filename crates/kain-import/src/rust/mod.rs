@@ -159,7 +159,13 @@ fn import_rust_project_modular_detailed(paths: &[&Path]) -> Result<(Program, Vec
         }
     }
 
-    Ok((Program { items: top_items, span }, diagnostics))
+    Ok((
+        Program {
+            items: top_items,
+            span,
+        },
+        diagnostics,
+    ))
 }
 
 fn module_path_for_file(path: &Path) -> Vec<String> {
@@ -179,7 +185,10 @@ fn module_path_for_file(path: &Path) -> Vec<String> {
         }
     }
 
-    let file_stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("module");
+    let file_stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("module");
     if !(file_name == "mod.rs" && !parts.is_empty()) {
         let leaf = sanitize_module_component(file_stem);
         if !leaf.is_empty() {
@@ -197,7 +206,13 @@ fn module_path_for_file(path: &Path) -> Vec<String> {
 fn sanitize_module_component(raw: &str) -> String {
     let mut name = raw
         .chars()
-        .map(|ch| if ch.is_ascii_alphanumeric() { ch.to_ascii_lowercase() } else { '_' })
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
         .collect::<String>();
     while name.contains("__") {
         name = name.replace("__", "_");

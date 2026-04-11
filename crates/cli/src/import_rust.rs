@@ -177,25 +177,43 @@ pub fn import_rust_with_batch(
             }
         }
         if !summary.diagnostics.is_empty() {
-            let total_diags: usize = summary.diagnostics.iter().map(|(_, diags)| diags.len()).sum();
+            let total_diags: usize = summary
+                .diagnostics
+                .iter()
+                .map(|(_, diags)| diags.len())
+                .sum();
             let class_counts = diagnostic_class_counts(&summary.diagnostics);
             let external_mod_diags = *class_counts.get("external_mod_decl").unwrap_or(&0);
             let visible_diags = total_diags.saturating_sub(external_mod_diags);
             if visible_diags > 0 {
-                println!("   Lossy lowering: {} diagnostic(s) across {} file(s)", visible_diags, summary.diagnostics.len());
+                println!(
+                    "   Lossy lowering: {} diagnostic(s) across {} file(s)",
+                    visible_diags,
+                    summary.diagnostics.len()
+                );
                 if let Some((class, count)) = class_counts
                     .iter()
                     .find(|(class, _)| class.as_str() != "external_mod_decl")
                 {
-                    println!("   Primary repair seam: class:{} ({} note(s))", class, count);
+                    println!(
+                        "   Primary repair seam: class:{} ({} note(s))",
+                        class, count
+                    );
                 }
             }
             if external_mod_diags > 0 {
-                println!("   External module declarations: {} note(s) (directory structure preserved)", external_mod_diags);
+                println!(
+                    "   External module declarations: {} note(s) (directory structure preserved)",
+                    external_mod_diags
+                );
             }
         }
     } else if !summary.diagnostics.is_empty() {
-        let total_diags: usize = summary.diagnostics.iter().map(|(_, diags)| diags.len()).sum();
+        let total_diags: usize = summary
+            .diagnostics
+            .iter()
+            .map(|(_, diags)| diags.len())
+            .sum();
         let class_counts = diagnostic_class_counts(&summary.diagnostics);
         let external_mod_diags = *class_counts.get("external_mod_decl").unwrap_or(&0);
         let visible_diags = total_diags.saturating_sub(external_mod_diags);
@@ -205,11 +223,17 @@ pub fn import_rust_with_batch(
                 .iter()
                 .find(|(class, _)| class.as_str() != "external_mod_decl")
             {
-                println!("   Primary repair seam: class:{} ({} note(s))", class, count);
+                println!(
+                    "   Primary repair seam: class:{} ({} note(s))",
+                    class, count
+                );
             }
         }
         if external_mod_diags > 0 {
-            println!("   External module declarations: {} note(s)", external_mod_diags);
+            println!(
+                "   External module declarations: {} note(s)",
+                external_mod_diags
+            );
         }
     }
 
@@ -238,7 +262,11 @@ fn import_path_to_program(
             ImportRustSummary {
                 discovered_files: 1,
                 imported_files: 1,
-                diagnostics: if diagnostics.is_empty() { Vec::new() } else { vec![(input.to_path_buf(), diagnostics)] },
+                diagnostics: if diagnostics.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![(input.to_path_buf(), diagnostics)]
+                },
                 ..ImportRustSummary::default()
             },
         ));
@@ -300,7 +328,8 @@ fn import_path_to_program(
                             adjusted
                         };
 
-                        merged_items.push(build_nested_module(&resolved_module_path, program.items));
+                        merged_items
+                            .push(build_nested_module(&resolved_module_path, program.items));
                     }
                 }
             }
@@ -541,7 +570,10 @@ fn module_path_for_relative_file(path: &Path) -> Vec<String> {
         }
     }
 
-    let file_stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("module");
+    let file_stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("module");
     let leaf = if preserve_mod_file && !parts.is_empty() {
         None
     } else {
@@ -685,7 +717,15 @@ fn write_struct(output: &mut String, s: &kain_core::ast::Struct, indent: usize) 
     write_line(output, indent, &format!("struct {}:", s.name))?;
 
     if s.fields.is_empty() {
-        write_line(output, indent + 1, &lossy_marker("empty_struct_lowering", "empty Rust struct lowered to pass", None))?;
+        write_line(
+            output,
+            indent + 1,
+            &lossy_marker(
+                "empty_struct_lowering",
+                "empty Rust struct lowered to pass",
+                None,
+            ),
+        )?;
     } else {
         for field in &s.fields {
             write_line(
@@ -707,7 +747,15 @@ fn write_enum(output: &mut String, e: &kain_core::ast::Enum, indent: usize) -> K
     write_line(output, indent, &format!("enum {}:", e.name))?;
 
     if e.variants.is_empty() {
-        write_line(output, indent + 1, &lossy_marker("empty_enum_lowering", "empty Rust enum lowered to pass", None))?;
+        write_line(
+            output,
+            indent + 1,
+            &lossy_marker(
+                "empty_enum_lowering",
+                "empty Rust enum lowered to pass",
+                None,
+            ),
+        )?;
     } else {
         for variant in &e.variants {
             let variant_str = match &variant.fields {
@@ -758,7 +806,15 @@ fn write_trait(
     };
     write_line(output, indent, &trait_header)?;
     if value.methods.is_empty() {
-        write_line(output, indent + 1, &lossy_marker("empty_trait_lowering", "empty Rust trait lowered to pass", None))?;
+        write_line(
+            output,
+            indent + 1,
+            &lossy_marker(
+                "empty_trait_lowering",
+                "empty Rust trait lowered to pass",
+                None,
+            ),
+        )?;
     } else {
         for method in &value.methods {
             let mut signature = format!("fn {}(", method.name);
@@ -777,7 +833,15 @@ fn write_trait(
             if let Some(default_impl) = &method.default_impl {
                 write_block(output, default_impl, indent + 2)?;
             } else {
-                write_line(output, indent + 2, &lossy_marker("missing_trait_default_body", "missing Rust trait default body lowered to pass", Some("restore the original Rust body or add a concrete KAIN lowering")))?;
+                write_line(
+                    output,
+                    indent + 2,
+                    &lossy_marker(
+                        "missing_trait_default_body",
+                        "missing Rust trait default body lowered to pass",
+                        Some("restore the original Rust body or add a concrete KAIN lowering"),
+                    ),
+                )?;
             }
         }
     }
@@ -801,7 +865,15 @@ fn write_impl(output: &mut String, value: &kain_core::ast::Impl, indent: usize) 
     write_line(output, indent, &header)?;
 
     if value.methods.is_empty() {
-        write_line(output, indent + 1, &lossy_marker("empty_impl_lowering", "empty Rust impl lowered to pass", None))?;
+        write_line(
+            output,
+            indent + 1,
+            &lossy_marker(
+                "empty_impl_lowering",
+                "empty Rust impl lowered to pass",
+                None,
+            ),
+        )?;
     } else {
         for method in &value.methods {
             write_function(output, method, indent + 1)?;
@@ -819,7 +891,11 @@ fn write_block(
     indent: usize,
 ) -> KainResult<()> {
     if block.stmts.is_empty() {
-        write_line(output, indent, "# LOSSY LOWERING: empty Rust block lowered to pass")?;
+        write_line(
+            output,
+            indent,
+            "# LOSSY LOWERING: empty Rust block lowered to pass",
+        )?;
         return Ok(());
     }
 
@@ -872,9 +948,7 @@ fn write_line(output: &mut String, indent: usize, line: &str) -> KainResult<()> 
 
 fn lossy_marker(class: &str, message: &str, repair_hint: Option<&str>) -> String {
     match repair_hint {
-        Some(hint) => format!(
-            "# LOSSY LOWERING [class:{class}]: {message} | repair: {hint}",
-        ),
+        Some(hint) => format!("# LOSSY LOWERING [class:{class}]: {message} | repair: {hint}",),
         None => format!("# LOSSY LOWERING [class:{class}]: {message}"),
     }
 }
@@ -912,7 +986,12 @@ fn diagnostic_class_counts(diagnostics: &[(PathBuf, Vec<String>)]) -> BTreeMap<S
 }
 
 fn diagnostic_class(diag: &str) -> Option<&str> {
-    diag.split("[class:").nth(1)?.split(']').next().map(str::trim).filter(|s| !s.is_empty())
+    diag.split("[class:")
+        .nth(1)?
+        .split(']')
+        .next()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
 }
 
 fn pattern_to_string(pattern: &kain_core::ast::Pattern) -> String {

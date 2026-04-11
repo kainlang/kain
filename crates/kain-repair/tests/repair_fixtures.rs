@@ -7,7 +7,8 @@ fn fixture(name: &str) -> String {
         .join("tests")
         .join("fixtures")
         .join(name);
-    fs::read_to_string(&path).unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()))
+    fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()))
 }
 
 #[test]
@@ -16,7 +17,9 @@ fn parser_fragment_fixture_reconstructs_block_and_trims_noise() {
     let result = repair_text_with_input(&RepairInput::new(source).with_mode(RepairMode::ApplySafe));
 
     assert!(result.changed);
-    assert!(result.repaired.contains("let renderer = SceneRenderer::new(state)\n    renderer.begin()"));
+    assert!(result
+        .repaired
+        .contains("let renderer = SceneRenderer::new(state)\n    renderer.begin()"));
     assert!(result.repaired.ends_with('\n'));
 }
 
@@ -29,7 +32,9 @@ fn reserved_identifier_and_self_constructor_fixture_repairs_symbol_drift() {
     assert!(result.repaired.contains("fn Self(value: Int) -> Self"));
     assert!(result.repaired.contains("let type_ = value"));
     assert!(result.repaired.contains("Self::build(type_)"));
-    assert!(result.repaired.contains("fn build_pair(left: Self, right: Self) -> Result<Self, Self>"));
+    assert!(result
+        .repaired
+        .contains("fn build_pair(left: Self, right: Self) -> Result<Self, Self>"));
     assert!(result.repaired.contains("Result::ok(Self(left, right))"));
 }
 
@@ -45,8 +50,14 @@ fn repair_report_exposes_fix_counts_and_risk_classes() {
     assert!(report.changed());
     assert!(report.fixes_applied > 0);
     assert_eq!(report.fixes_applied, report.fixes.len());
-    assert_eq!(report.safety_class, kain_repair::RepairSafetyClass::Aggressive);
-    assert_eq!(report.remaining_unknown_risk, kain_repair::RepairRiskLevel::Elevated);
+    assert_eq!(
+        report.safety_class,
+        kain_repair::RepairSafetyClass::Aggressive
+    );
+    assert_eq!(
+        report.remaining_unknown_risk,
+        kain_repair::RepairRiskLevel::Elevated
+    );
     assert_eq!(report.parser_proof_status(), None);
 }
 
@@ -77,9 +88,18 @@ fn nested_declaration_fixture_flattens_nested_blocks_to_top_level() {
     assert!(result.repaired.contains("impl AssetRecord:"));
     assert!(result.repaired.contains("enum AssetState:"));
     assert!(result.repaired.contains("fn after_assets():"));
-    assert!(result.repaired.lines().any(|line| line == "struct AssetRecord:"));
-    assert!(result.repaired.lines().any(|line| line == "impl AssetRecord:"));
-    assert!(result.repaired.lines().any(|line| line == "enum AssetState:"));
+    assert!(result
+        .repaired
+        .lines()
+        .any(|line| line == "struct AssetRecord:"));
+    assert!(result
+        .repaired
+        .lines()
+        .any(|line| line == "impl AssetRecord:"));
+    assert!(result
+        .repaired
+        .lines()
+        .any(|line| line == "enum AssetState:"));
 }
 
 #[test]
@@ -88,8 +108,12 @@ fn impl_type_token_fixture_normalizes_parameter_and_type_positions() {
     let result = repair_text_with_input(&RepairInput::new(source).with_mode(RepairMode::ApplySafe));
 
     assert!(result.changed);
-    assert!(result.repaired.contains("fn with_name(plugin_name: impl Into<String>) -> Self:"));
-    assert!(result.repaired.contains("let name: impl Display = plugin_name"));
+    assert!(result
+        .repaired
+        .contains("fn with_name(plugin_name: impl Into<String>) -> Self:"));
+    assert!(result
+        .repaired
+        .contains("let name: impl Display = plugin_name"));
     assert!(result.repaired.contains("return Self::new(name)"));
 }
 
@@ -112,7 +136,8 @@ fn namespace_path_fixture_normalizes_slashes_without_touching_profile_defaults()
 fn unterminated_comment_fixture_stays_open_in_check_mode_but_closes_in_safe_mode() {
     let source = fixture("kain_repair_unterminated_comment.kn");
 
-    let check = repair_text_with_input(&RepairInput::new(source.clone()).with_mode(RepairMode::Check));
+    let check =
+        repair_text_with_input(&RepairInput::new(source.clone()).with_mode(RepairMode::Check));
     assert_eq!(check.original, source);
     assert_eq!(check.repaired, source);
     assert!(!check.changed);

@@ -841,7 +841,10 @@ impl RustTransformer {
                 other => {
                     self.note_lossy_class(
                         "trait_surface_lowering",
-                        format!("trait {} unsupported supertrait bound skipped: {:?}", name, other),
+                        format!(
+                            "trait {} unsupported supertrait bound skipped: {:?}",
+                            name, other
+                        ),
                     );
                 }
             }
@@ -1789,7 +1792,10 @@ impl RustTransformer {
             other => {
                 self.note_lossy_class(
                     "unsupported_expr_lowering",
-                    format!("unsupported expression kind: {}", Self::expr_kind_name(other)),
+                    format!(
+                        "unsupported expression kind: {}",
+                        Self::expr_kind_name(other)
+                    ),
                 );
                 Ok(Expr::None(S))
             }
@@ -1820,7 +1826,10 @@ impl RustTransformer {
             _ => {
                 self.note_lossy_class(
                     "unsupported_literal_lowering",
-                    format!("unsupported literal kind: {}", Self::lit_kind_name(&lit.lit)),
+                    format!(
+                        "unsupported literal kind: {}",
+                        Self::lit_kind_name(&lit.lit)
+                    ),
                 );
                 Ok(Expr::None(S))
             }
@@ -2176,10 +2185,20 @@ impl RustTransformer {
             Expr::Block(block, _) if block.stmts.len() == 1 => {
                 match block.stmts.into_iter().next().unwrap() {
                     Stmt::Expr(inner) => self.peel_expr_wrapper(inner),
-                    other => Expr::Block(Block { stmts: vec![other], span: S }, S),
+                    other => Expr::Block(
+                        Block {
+                            stmts: vec![other],
+                            span: S,
+                        },
+                        S,
+                    ),
                 }
             }
-            Expr::Ref { value, mutable, span } => Expr::Ref {
+            Expr::Ref {
+                value,
+                mutable,
+                span,
+            } => Expr::Ref {
                 value: Box::new(self.peel_expr_wrapper(*value)),
                 mutable,
                 span,
@@ -3081,7 +3100,9 @@ mod tests {
         };
 
         let Stmt::Let {
-            value: Some(Expr::MethodCall { receiver, method, .. }),
+            value: Some(Expr::MethodCall {
+                receiver, method, ..
+            }),
             ..
         } = &func.body.stmts[0]
         else {
@@ -3091,7 +3112,13 @@ mod tests {
         assert!(matches!(receiver.as_ref(), Expr::MethodCall { method, .. } if method == "iter"));
 
         let Stmt::Let {
-            value: Some(Expr::MethodCall { receiver, method, args, .. }),
+            value:
+                Some(Expr::MethodCall {
+                    receiver,
+                    method,
+                    args,
+                    ..
+                }),
             ..
         } = &func.body.stmts[1]
         else {
@@ -3113,7 +3140,9 @@ mod tests {
         );
 
         let Stmt::Let {
-            value: Some(Expr::MethodCall { receiver, method, .. }),
+            value: Some(Expr::MethodCall {
+                receiver, method, ..
+            }),
             ..
         } = &func.body.stmts[2]
         else {
@@ -3123,7 +3152,9 @@ mod tests {
         assert!(matches!(receiver.as_ref(), Expr::Try(_, _)));
 
         let Stmt::Let {
-            value: Some(Expr::MethodCall { receiver, method, .. }),
+            value: Some(Expr::MethodCall {
+                receiver, method, ..
+            }),
             ..
         } = &func.body.stmts[3]
         else {
@@ -3216,16 +3247,28 @@ mod tests {
             panic!("expected constructor body to lower to struct expression");
         };
 
-        let Some((field, Expr::If { condition, then_branch, else_branch, .. })) =
-            fields.iter().find(|(field, _)| field == "value")
+        let Some((
+            field,
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            },
+        )) = fields.iter().find(|(field, _)| field == "value")
         else {
             panic!("expected value field to lower to if-expression");
         };
 
         assert_eq!(field, "value");
         assert!(matches!(condition.as_ref(), Expr::Ident(name, _) if name == "flag"));
-        assert!(matches!(then_branch.stmts.as_slice(), [Stmt::Expr(Expr::Cast { .. })]));
-        assert!(matches!(else_branch.as_deref(), Some(ElseBranch::Else(block)) if matches!(block.stmts.as_slice(), [Stmt::Expr(Expr::Int(0, _))])));
+        assert!(matches!(
+            then_branch.stmts.as_slice(),
+            [Stmt::Expr(Expr::Cast { .. })]
+        ));
+        assert!(
+            matches!(else_branch.as_deref(), Some(ElseBranch::Else(block)) if matches!(block.stmts.as_slice(), [Stmt::Expr(Expr::Int(0, _))]))
+        );
     }
 
     #[test]
@@ -3541,7 +3584,10 @@ mod tests {
             Type::Impl { trait_name, .. } => trait_name.ends_with("Write"),
             _ => false,
         };
-        assert!(preserves_write_trait, "expected lowered dyn-trait wrapper to preserve Write-like impl shape");
+        assert!(
+            preserves_write_trait,
+            "expected lowered dyn-trait wrapper to preserve Write-like impl shape"
+        );
         assert!(diagnostics
             .iter()
             .any(|diag| diag.contains("dyn trait object lowered to impl std::fmt::Write")));

@@ -1,7 +1,7 @@
 use kain_core::runtime::{interpret_with_env, run_tests, Env, Value};
 use kain_core::{
-    build_ui_output_from_source, diagnostics, emit_realtime_app_bundle, emit_runtime_contract_bundle,
-    error, lexer, parser, types, CompileTarget, TypedItem,
+    build_ui_output_from_source, diagnostics, emit_realtime_app_bundle,
+    emit_runtime_contract_bundle, error, lexer, parser, types, CompileTarget, TypedItem,
 };
 
 fn parse_and_typecheck(source: &str) -> Result<types::TypedProgram, error::KainError> {
@@ -76,10 +76,22 @@ patch bump(studio: Studio) -> Int:
 fn parse_and_typecheck_compiler_owned_intent_forms() {
     let typed = parse_and_typecheck(compiler_owned_intent_source()).expect("typecheck");
 
-    assert!(typed.items.iter().any(|item| matches!(item, TypedItem::World(_))));
-    assert!(typed.items.iter().any(|item| matches!(item, TypedItem::Patch(_))));
-    assert!(typed.items.iter().any(|item| matches!(item, TypedItem::Converge(_))));
-    assert!(typed.items.iter().any(|item| matches!(item, TypedItem::Orchestrate(_))));
+    assert!(typed
+        .items
+        .iter()
+        .any(|item| matches!(item, TypedItem::World(_))));
+    assert!(typed
+        .items
+        .iter()
+        .any(|item| matches!(item, TypedItem::Patch(_))));
+    assert!(typed
+        .items
+        .iter()
+        .any(|item| matches!(item, TypedItem::Converge(_))));
+    assert!(typed
+        .items
+        .iter()
+        .any(|item| matches!(item, TypedItem::Orchestrate(_))));
 }
 
 #[test]
@@ -109,7 +121,13 @@ fn runtime_contract_emits_compiler_owned_intent_sections() {
     assert_eq!(bundle.orchestrations.len(), 1);
     assert_eq!(bundle.worlds[0].surfaces.len(), 4);
     assert_eq!(bundle.patches[0].undo_mode, "reversible");
-    assert_eq!(bundle.active_world.as_ref().map(|world| world.name.as_str()), Some("Studio"));
+    assert_eq!(
+        bundle
+            .active_world
+            .as_ref()
+            .map(|world| world.name.as_str()),
+        Some("Studio")
+    );
     assert!(bundle
         .required_capabilities
         .iter()
@@ -161,11 +179,29 @@ fn realtime_bundle_emits_compiler_owned_intent_sections() {
     assert_eq!(bundle.worlds.len(), 1);
     assert_eq!(bundle.orchestrations.len(), 1);
     assert_eq!(bundle.worlds[0].surfaces.len(), 4);
-    assert_eq!(bundle.active_world.as_ref().map(|world| world.name.as_str()), Some("Studio"));
-    assert!(bundle.tool_caps.iter().any(|entry| entry == "patch.transactions"));
-    assert!(bundle.tool_caps.iter().any(|entry| entry == "converge.dispatch"));
-    assert!(bundle.tool_caps.iter().any(|entry| entry == "world.native-ui"));
-    assert!(bundle.tool_caps.iter().any(|entry| entry == "world.viewport3d"));
+    assert_eq!(
+        bundle
+            .active_world
+            .as_ref()
+            .map(|world| world.name.as_str()),
+        Some("Studio")
+    );
+    assert!(bundle
+        .tool_caps
+        .iter()
+        .any(|entry| entry == "patch.transactions"));
+    assert!(bundle
+        .tool_caps
+        .iter()
+        .any(|entry| entry == "converge.dispatch"));
+    assert!(bundle
+        .tool_caps
+        .iter()
+        .any(|entry| entry == "world.native-ui"));
+    assert!(bundle
+        .tool_caps
+        .iter()
+        .any(|entry| entry == "world.viewport3d"));
     assert!(bundle.tool_caps.iter().any(|entry| entry == "world.web"));
     assert!(bundle.tool_caps.iter().any(|entry| entry == "world.ue5"));
     assert!(bundle
@@ -188,14 +224,20 @@ fn runtime_executes_patch_converge_and_orchestrate_and_records_patch_transaction
     assert_eq!(env.patch_records().len(), 1);
     assert_eq!(env.patch_records()[0].name, "set_counter");
     assert_eq!(env.patch_records()[0].undo_mode, "reversible");
-    assert_eq!(env.patch_records()[0].mutation_paths, vec!["studio.counter"]);
+    assert_eq!(
+        env.patch_records()[0].mutation_paths,
+        vec!["studio.counter"]
+    );
     assert_eq!(env.patch_records()[0].changes.len(), 1);
     assert_eq!(
         env.patch_records()[0].collaboration_event,
         "patch.set_counter.applied"
     );
     assert_eq!(env.patch_collaboration_events().len(), 1);
-    assert_eq!(env.patch_collaboration_events()[0].patch_name, "set_counter");
+    assert_eq!(
+        env.patch_collaboration_events()[0].patch_name,
+        "set_counter"
+    );
     assert_eq!(
         env.patch_collaboration_events()[0].mutation_paths,
         vec!["studio.counter"]

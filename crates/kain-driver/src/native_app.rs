@@ -494,7 +494,10 @@ impl DriverSession {
             .bundle;
         apply_active_world_selection_to_runtime_contract(
             &mut runtime_contract,
-            realtime.active_world.as_ref().map(|world| world.name.as_str()),
+            realtime
+                .active_world
+                .as_ref()
+                .map(|world| world.name.as_str()),
         )?;
         let shader_bundle = self.compile_shader_artifact_bundle(source).ok();
         let ui = build_ui_output_from_source(&prepared_ui_source, &root_component)?;
@@ -648,15 +651,17 @@ impl DriverSession {
             artifact_paths.push(reflection_payload_path);
         }
 
-        let (shader_bundle_path, shader_bundle_json) = if let Some(shader_bundle) = &bundle.shader_bundle {
-            let path = artifact_root.join(NATIVE_APP_SHADER_BUNDLE_FILE_NAME);
-            let json = shader_bundle.bundle_json.clone();
-            fs::write(&path, json.as_bytes()).map_err(io_error("write native app shader bundle"))?;
-            artifact_paths.push(path.clone());
-            (Some(path), Some(json))
-        } else {
-            (None, None)
-        };
+        let (shader_bundle_path, shader_bundle_json) =
+            if let Some(shader_bundle) = &bundle.shader_bundle {
+                let path = artifact_root.join(NATIVE_APP_SHADER_BUNDLE_FILE_NAME);
+                let json = shader_bundle.bundle_json.clone();
+                fs::write(&path, json.as_bytes())
+                    .map_err(io_error("write native app shader bundle"))?;
+                artifact_paths.push(path.clone());
+                (Some(path), Some(json))
+            } else {
+                (None, None)
+            };
         let (packaged_c_ffi_imports, packaged_c_ffi_manifest_path, c_ffi_artifact_paths) =
             materialize_c_ffi_bridge_sidecars(source, &artifact_root)?;
         artifact_paths.extend(c_ffi_artifact_paths.iter().cloned());
@@ -688,7 +693,8 @@ impl DriverSession {
         let app_manifest_path = config_dir.join(NATIVE_APP_MANIFEST_FILE_NAME);
         let runtime_snapshot_path = state_dir.join(NATIVE_APP_RUNTIME_SNAPSHOT_FILE_NAME);
         let launcher_metadata = build_native_app_launcher_metadata(&config.launcher_entrypoint);
-        let previous_manifest_metadata = read_previous_native_app_manifest_metadata(&app_manifest_path);
+        let previous_manifest_metadata =
+            read_previous_native_app_manifest_metadata(&app_manifest_path);
         let hot_reload = build_native_app_hot_reload_metadata(
             project_dir,
             &source_copy_path,
@@ -1357,7 +1363,11 @@ fn build_native_app_manifest(
         version,
         window_title: bundle.metadata.window_title.clone(),
         root_component: bundle.metadata.root_component.clone(),
-        active_world: bundle.realtime.active_world.as_ref().map(|world| world.name.clone()),
+        active_world: bundle
+            .realtime
+            .active_world
+            .as_ref()
+            .map(|world| world.name.clone()),
         layout_id: format!("{}_shell", bundle.metadata.app_name.replace('-', "_")),
         required_runtime_capabilities,
         target_outputs: vec!["native-ui-bundle".to_string(), "native-exe".to_string()],
@@ -1528,7 +1538,11 @@ fn build_native_app_hot_reload_metadata(
         name: bundle.metadata.window_title.clone(),
         window_title: bundle.metadata.window_title.clone(),
         root_component: bundle.metadata.root_component.clone(),
-        active_world: bundle.realtime.active_world.as_ref().map(|world| world.name.clone()),
+        active_world: bundle
+            .realtime
+            .active_world
+            .as_ref()
+            .map(|world| world.name.clone()),
         layout_id: format!("{}_shell", bundle.metadata.app_name.replace('-', "_")),
     };
     let mut artifact_fingerprints = vec![
@@ -1596,7 +1610,9 @@ fn build_native_app_hot_reload_metadata(
                         .artifact_fingerprints
                         .iter()
                         .find(|previous_artifact| previous_artifact.role == artifact.role)
-                        .map(|previous_artifact| previous_artifact.fingerprint != artifact.fingerprint)
+                        .map(|previous_artifact| {
+                            previous_artifact.fingerprint != artifact.fingerprint
+                        })
                         .unwrap_or(true)
                 })
                 .map(|artifact| artifact.role.clone())
@@ -1606,9 +1622,7 @@ fn build_native_app_hot_reload_metadata(
     let previous_materialization_fingerprint = previous_manifest_metadata
         .map(|previous| previous.hot_reload.materialization_fingerprint.clone());
     let reload_compatible_with_previous = previous_manifest_metadata
-        .map(|previous| {
-            previous.launcher == *launcher && previous.hot_reload.identity == identity
-        })
+        .map(|previous| previous.launcher == *launcher && previous.hot_reload.identity == identity)
         .unwrap_or(false);
     let summary = if previous_manifest_metadata.is_some() {
         format!(
@@ -2254,7 +2268,11 @@ component App():
         .expect("native app bundle generation should succeed");
 
         assert_eq!(
-            bundle.realtime.active_world.as_ref().map(|world| world.name.as_str()),
+            bundle
+                .realtime
+                .active_world
+                .as_ref()
+                .map(|world| world.name.as_str()),
             Some("Studio")
         );
         assert_eq!(

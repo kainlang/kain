@@ -5499,8 +5499,14 @@ fn untouched_afterwards():
 
     #[test]
     fn sanitize_path_to_ident_covers_parser_hostile_path_forms() {
-        assert_eq!(sanitize_path_to_ident("crate::repair::Self"), "crate__repair__Self_");
-        assert_eq!(sanitize_path_to_ident("std::collections::HashMap"), "std__collections__HashMap");
+        assert_eq!(
+            sanitize_path_to_ident("crate::repair::Self"),
+            "crate__repair__Self_"
+        );
+        assert_eq!(
+            sanitize_path_to_ident("std::collections::HashMap"),
+            "std__collections__HashMap"
+        );
         assert_eq!(sanitize_expr_path("foo::bar::baz"), "foo__bar__baz");
     }
 }

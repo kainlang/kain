@@ -808,5 +808,3 @@ mod tests {
         assert!(!is_allowed_diagnostic(diag, &options));
     }
 }
-
-

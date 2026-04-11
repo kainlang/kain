@@ -71,9 +71,7 @@ pub fn transform_from_trs(
         rotation_radians.y,
         rotation_radians.z,
     );
-    Matrix4::from_translation(translation)
-        * rotation
-        * Matrix4::from_scale(vec3_from_array(scale))
+    Matrix4::from_translation(translation) * rotation * Matrix4::from_scale(vec3_from_array(scale))
 }
 
 pub fn camera_forward(yaw_radians: f32, pitch_radians: f32) -> Float3 {

@@ -1119,8 +1119,8 @@ fn polyglot_manifest_template() -> FabricManifest {
                 crate_name: None,
                 manifest_path: None,
                 library: None,
-            shader_source: None,
-            compute_key: None,
+                shader_source: None,
+                compute_key: None,
                 depends_on: Vec::new(),
                 requires: Vec::new(),
                 outputs: vec![FabricOutputBinding {
@@ -1136,8 +1136,8 @@ fn polyglot_manifest_template() -> FabricManifest {
                 crate_name: None,
                 manifest_path: None,
                 library: None,
-            shader_source: None,
-            compute_key: None,
+                shader_source: None,
+                compute_key: None,
                 depends_on: vec!["python_source".to_string()],
                 requires: Vec::new(),
                 outputs: vec![
@@ -1182,8 +1182,8 @@ fn polyglot_manifest_template() -> FabricManifest {
                 crate_name: Some("fabric_runtime_lab".to_string()),
                 manifest_path: Some(PathBuf::from("local_crate/Cargo.toml")),
                 library: None,
-            shader_source: None,
-            compute_key: None,
+                shader_source: None,
+                compute_key: None,
                 depends_on: vec!["native_filter".to_string(), "kain_orchestrator".to_string()],
                 requires: Vec::new(),
                 outputs: vec![FabricOutputBinding {

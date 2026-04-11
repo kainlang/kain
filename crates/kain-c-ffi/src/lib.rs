@@ -846,7 +846,10 @@ mod tests {
         )
         .expect("resolve library");
 
-        assert_eq!(resolved.shared_lib_path.as_deref(), Some(dylib_path.as_path()));
+        assert_eq!(
+            resolved.shared_lib_path.as_deref(),
+            Some(dylib_path.as_path())
+        );
     }
 
     fn c_fixture_paths(native_dir: &Path) -> (PathBuf, PathBuf, PathBuf) {

@@ -127,14 +127,18 @@ impl Fast3dRuntime {
         self.actor_override_transforms.clear();
     }
 
-    pub fn apply_gameplay_state(&mut self, time_seconds: f32, gameplay: &Fast3dGameplayStateDocument) {
+    pub fn apply_gameplay_state(
+        &mut self,
+        time_seconds: f32,
+        gameplay: &Fast3dGameplayStateDocument,
+    ) {
         self.clear_actor_transforms();
         for binding in &gameplay.actor_bindings {
             let transform = match binding.animation {
                 ActorAnimationDefinition::None => Matrix4::IDENTITY,
-                ActorAnimationDefinition::SpinY {
-                    degrees_per_second,
-                } => Matrix4::from_rotation_y((degrees_per_second * time_seconds).to_radians()),
+                ActorAnimationDefinition::SpinY { degrees_per_second } => {
+                    Matrix4::from_rotation_y((degrees_per_second * time_seconds).to_radians())
+                }
                 ActorAnimationDefinition::BobY {
                     amplitude,
                     cycles_per_second,

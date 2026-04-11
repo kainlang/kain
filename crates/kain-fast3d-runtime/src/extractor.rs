@@ -39,11 +39,7 @@ pub fn extract_sm64_level_chunk_scene(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let level_dir = sm64_root.join("levels").join(level_name);
     if !level_dir.exists() {
-        return Err(format!(
-            "SM64 level directory not found: {}",
-            level_dir.display()
-        )
-        .into());
+        return Err(format!("SM64 level directory not found: {}", level_dir.display()).into());
     }
 
     let area_dir = level_dir.join("areas").join(area_id.to_string());
@@ -84,9 +80,8 @@ pub fn extract_sm64_level_chunk_scene(
     let mut root_display_list_names: Vec<String> = Vec::new();
 
     for (model_index, model_path) in model_paths.iter().enumerate() {
-        let model_text = fs::read_to_string(model_path).map_err(|err| {
-            format!("Failed to read {}: {}", model_path.display(), err)
-        })?;
+        let model_text = fs::read_to_string(model_path)
+            .map_err(|err| format!("Failed to read {}: {}", model_path.display(), err))?;
 
         let vertex_arrays = parse_vertex_arrays(&model_text)?;
         let display_lists = parse_display_lists(&model_text)?;
@@ -138,8 +133,11 @@ pub fn extract_sm64_level_chunk_scene(
     // Convert all parsed display lists to manifest format, scaling positions
     let mut extracted_display_lists: Vec<DisplayListDefinition> = Vec::new();
     for (dl_name, parsed_commands) in &all_display_lists {
-        let commands =
-            convert_display_list_commands_scaled(parsed_commands, &all_display_lists, &all_vertex_arrays)?;
+        let commands = convert_display_list_commands_scaled(
+            parsed_commands,
+            &all_display_lists,
+            &all_vertex_arrays,
+        )?;
         extracted_display_lists.push(DisplayListDefinition {
             id: dl_name.clone(),
             commands,
@@ -321,7 +319,6 @@ fn convert_display_list_commands_scaled(
     }
     Ok(commands)
 }
-
 
 #[derive(Clone, Copy, Debug)]
 struct ParsedVertex {

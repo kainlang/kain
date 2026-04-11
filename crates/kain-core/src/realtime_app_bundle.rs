@@ -483,15 +483,21 @@ fn collect_ui_contracts(ui_output: Option<&UiBuildOutput>) -> Option<RealtimeUiC
 
     let mut bundle = RealtimeUiContractsBundle::default();
     bundle.contract_version = ui_session_state_string(output, "ui.contract.version");
-    bundle.widget_registry_json = ui_session_state_string(output, "ui.contract.widget_registry.json");
-    bundle.command_registry_json = ui_session_state_string(output, "ui.contract.command_registry.json");
-    bundle.computed_registry_json = ui_session_state_string(output, "ui.contract.computed_registry.json");
+    bundle.widget_registry_json =
+        ui_session_state_string(output, "ui.contract.widget_registry.json");
+    bundle.command_registry_json =
+        ui_session_state_string(output, "ui.contract.command_registry.json");
+    bundle.computed_registry_json =
+        ui_session_state_string(output, "ui.contract.computed_registry.json");
     bundle.event_routes_json = ui_session_state_string(output, "ui.contract.event_routes.json");
     bundle.motion_policy_json = ui_session_state_string(output, "ui.contract.motion_policy.json");
     bundle.paint_registry_json = ui_session_state_string(output, "ui.contract.paint_registry.json");
-    bundle.motion_registry_json = ui_session_state_string(output, "ui.contract.motion_registry.json");
-    bundle.workspace_schema_json = ui_session_state_string(output, "ui.contract.workspace_schema.json");
-    bundle.workspace_layout_json = ui_session_state_string(output, "ui.contract.workspace_layout.json");
+    bundle.motion_registry_json =
+        ui_session_state_string(output, "ui.contract.motion_registry.json");
+    bundle.workspace_schema_json =
+        ui_session_state_string(output, "ui.contract.workspace_schema.json");
+    bundle.workspace_layout_json =
+        ui_session_state_string(output, "ui.contract.workspace_layout.json");
 
     if !output.systems.workspace_layout.roots.is_empty()
         || output.systems.workspace_layout.persistence_key.is_some()
@@ -521,7 +527,9 @@ fn collect_ui_contracts(ui_output: Option<&UiBuildOutput>) -> Option<RealtimeUiC
     if !output.systems.overlay_stack.entries.is_empty() {
         bundle.overlay_stack_json = serialize_contract_value(&output.systems.overlay_stack);
     }
-    if bundle.motion_policy_json.is_none() && output.systems.motion_policy != UiMotionPolicy::default() {
+    if bundle.motion_policy_json.is_none()
+        && output.systems.motion_policy != UiMotionPolicy::default()
+    {
         bundle.motion_policy_json = serialize_contract_value(&output.systems.motion_policy);
     }
 
@@ -542,7 +550,11 @@ fn collect_ui_contracts(ui_output: Option<&UiBuildOutput>) -> Option<RealtimeUiC
         || bundle.workspace_schema_json.is_some()
         || bundle.workspace_layout.is_some()
         || !bundle.structure_index.is_empty();
-    if has_any { Some(bundle) } else { None }
+    if has_any {
+        Some(bundle)
+    } else {
+        None
+    }
 }
 
 pub(crate) fn ui_session_state_string(output: &UiBuildOutput, key: &str) -> Option<String> {
@@ -615,7 +627,11 @@ fn build_ui_structure_index(output: &UiBuildOutput) -> Vec<RealtimeUiStructureNo
             role,
             anchor_zone,
             anchor_target,
-            dock_placement: node.layout.dock.map(dock_placement_name).map(ToString::to_string),
+            dock_placement: node
+                .layout
+                .dock
+                .map(dock_placement_name)
+                .map(ToString::to_string),
             persistent_layout_id: node.layout.persistent_layout_id.clone(),
             tab_group_id: node.layout.tab_group_id.clone(),
             tab_label: node.layout.tab_label.clone(),
@@ -1594,7 +1610,10 @@ fn collect_scene_presentation_binding(
     let presentation = RealtimeViewportPresentationBinding {
         profile: scene_prop_string_any(props, &["viewport.profile", "viewport_profile"]),
         fog_density: scene_prop_f32(props, &["viewport.fog_density", "viewport_fog_density"]),
-        particle_budget: scene_prop_u32(props, &["viewport.particle_budget", "viewport_particle_budget"]),
+        particle_budget: scene_prop_u32(
+            props,
+            &["viewport.particle_budget", "viewport_particle_budget"],
+        ),
         gizmo,
     };
     (presentation.profile.is_some()
@@ -1611,18 +1630,48 @@ fn collect_scene_gizmo_binding(
         profile_id: scene_prop_string_any(props, &["gizmo.profile", "gizmo_profile"]),
         visible: scene_prop_bool(props, &["gizmo.visible", "gizmo_visible"]),
         default_mode: scene_prop_string_any(props, &["gizmo.default_mode", "gizmo_default_mode"]),
-        default_space: scene_prop_string_any(props, &["gizmo.default_space", "gizmo_default_space"]),
+        default_space: scene_prop_string_any(
+            props,
+            &["gizmo.default_space", "gizmo_default_space"],
+        ),
         drag_trigger: scene_prop_string_any(props, &["gizmo.drag_trigger", "gizmo_drag_trigger"]),
-        selection_required: scene_prop_bool(props, &["gizmo.selection_required", "gizmo_selection_required"]),
-        translate_hotkey: scene_prop_string_any(props, &["gizmo.hotkey.translate", "gizmo_hotkey_translate"]),
-        rotate_hotkey: scene_prop_string_any(props, &["gizmo.hotkey.rotate", "gizmo_hotkey_rotate"]),
+        selection_required: scene_prop_bool(
+            props,
+            &["gizmo.selection_required", "gizmo_selection_required"],
+        ),
+        translate_hotkey: scene_prop_string_any(
+            props,
+            &["gizmo.hotkey.translate", "gizmo_hotkey_translate"],
+        ),
+        rotate_hotkey: scene_prop_string_any(
+            props,
+            &["gizmo.hotkey.rotate", "gizmo_hotkey_rotate"],
+        ),
         scale_hotkey: scene_prop_string_any(props, &["gizmo.hotkey.scale", "gizmo_hotkey_scale"]),
-        cycle_space_hotkey: scene_prop_string_any(props, &["gizmo.hotkey.cycle_space", "gizmo_hotkey_cycle_space"]),
-        toggle_snap_hotkey: scene_prop_string_any(props, &["gizmo.hotkey.toggle_snap", "gizmo_hotkey_toggle_snap"]),
-        translate_snap_units: scene_prop_f32(props, &["gizmo.snap.translate", "gizmo_snap_translate"]),
-        rotate_snap_degrees: scene_prop_f32(props, &["gizmo.snap.rotate_degrees", "gizmo_snap_rotate_degrees"]),
-        scale_snap_percent: scene_prop_f32(props, &["gizmo.snap.scale_percent", "gizmo_snap_scale_percent"]),
-        snap_default_enabled: scene_prop_bool(props, &["gizmo.snap.default_enabled", "gizmo_snap_default_enabled"]),
+        cycle_space_hotkey: scene_prop_string_any(
+            props,
+            &["gizmo.hotkey.cycle_space", "gizmo_hotkey_cycle_space"],
+        ),
+        toggle_snap_hotkey: scene_prop_string_any(
+            props,
+            &["gizmo.hotkey.toggle_snap", "gizmo_hotkey_toggle_snap"],
+        ),
+        translate_snap_units: scene_prop_f32(
+            props,
+            &["gizmo.snap.translate", "gizmo_snap_translate"],
+        ),
+        rotate_snap_degrees: scene_prop_f32(
+            props,
+            &["gizmo.snap.rotate_degrees", "gizmo_snap_rotate_degrees"],
+        ),
+        scale_snap_percent: scene_prop_f32(
+            props,
+            &["gizmo.snap.scale_percent", "gizmo_snap_scale_percent"],
+        ),
+        snap_default_enabled: scene_prop_bool(
+            props,
+            &["gizmo.snap.default_enabled", "gizmo_snap_default_enabled"],
+        ),
     };
     (gizmo.profile_id.is_some()
         || gizmo.visible.is_some()
@@ -2041,9 +2090,12 @@ fn sanitize_bundle_symbol_ident(name: &str) -> String {
 
 fn bundle_has_world_surface(worlds: &[RealtimeWorldBinding], kind: WorldSurfaceKind) -> bool {
     let expected = kind.as_str();
-    worlds
-        .iter()
-        .any(|world| world.surfaces.iter().any(|surface| surface.kind == expected))
+    worlds.iter().any(|world| {
+        world
+            .surfaces
+            .iter()
+            .any(|surface| surface.kind == expected)
+    })
 }
 
 #[cfg(test)]

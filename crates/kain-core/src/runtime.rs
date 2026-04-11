@@ -2052,8 +2052,9 @@ impl Env {
 
     fn set_execution_lane(&mut self, lane: ExecutionLane) {
         self.execution_lane = lane;
-        self.active_capabilities
-            .retain(|capability| capability != "host.runtime.interpret" && capability != "host.runtime.test");
+        self.active_capabilities.retain(|capability| {
+            capability != "host.runtime.interpret" && capability != "host.runtime.test"
+        });
         self.active_capabilities.push(match lane {
             ExecutionLane::Interpret => "host.runtime.interpret".to_string(),
             ExecutionLane::Test => "host.runtime.test".to_string(),
@@ -2067,7 +2068,8 @@ impl Env {
     }
 
     fn register_converge_value(&mut self, converge: &ConvergeDef) {
-        self.converges.insert(converge.name.clone(), converge.clone());
+        self.converges
+            .insert(converge.name.clone(), converge.clone());
         self.define(
             converge.name.clone(),
             Value::Converge(converge.name.clone()),
@@ -2091,7 +2093,10 @@ impl Env {
         }
         let world_value = Arc::new(RwLock::new(state_values));
         self.worlds.insert(world.name.clone(), world_value.clone());
-        self.define(world.name.clone(), Value::Struct(world.name.clone(), world_value));
+        self.define(
+            world.name.clone(),
+            Value::Struct(world.name.clone(), world_value),
+        );
         Ok(())
     }
 
@@ -2151,7 +2156,8 @@ impl Env {
                 collaboration_event: collaboration_event.clone(),
             });
             self.patch_replay_catalog.push(replayable_record.clone());
-            self.replayable_patch_history.push(replayable_record.clone());
+            self.replayable_patch_history
+                .push(replayable_record.clone());
             self.undone_patch_records.clear();
             self.patch_collaboration_events
                 .push(PatchCollaborationEvent {
@@ -2911,7 +2917,7 @@ fn eval_assignment(env: &mut Env, target: &Expr, value: Value) -> KainResult<()>
                 _ => {
                     return Err(KainError::runtime(
                         "Index assignment only supported on arrays with int index",
-                        ))
+                    ))
                 }
             }
             Ok(())
@@ -4052,11 +4058,10 @@ fn execute_patch_call(env: &mut Env, name: &str, args: Vec<Value>) -> KainResult
 }
 
 fn execute_converge_call(env: &mut Env, name: &str, args: Vec<Value>) -> KainResult<Value> {
-    let converge = env
-        .converges
-        .get(name)
-        .cloned()
-        .ok_or_else(|| KainError::runtime(format!("Converge definition not found: {}", name)))?;
+    let converge =
+        env.converges.get(name).cloned().ok_or_else(|| {
+            KainError::runtime(format!("Converge definition not found: {}", name))
+        })?;
     if converge.params.len() != args.len() {
         return Err(KainError::runtime(format!(
             "Converge {} expected {} arguments, got {}",
@@ -4067,10 +4072,12 @@ fn execute_converge_call(env: &mut Env, name: &str, args: Vec<Value>) -> KainRes
     }
 
     let selected_lane = select_converge_lane(env, &converge);
-    let selected_result = execute_function_body(env, &converge.params, &selected_lane.body, args.clone())?;
+    let selected_result =
+        execute_function_body(env, &converge.params, &selected_lane.body, args.clone())?;
 
     if env.execution_lane == ExecutionLane::Test {
-        let spec_result = execute_function_body(env, &converge.params, &converge.spec_lane.body, args)?;
+        let spec_result =
+            execute_function_body(env, &converge.params, &converge.spec_lane.body, args)?;
         if !runtime_values_semantically_equal(&selected_result, &spec_result) {
             return Err(KainError::runtime(format!(
                 "Converge verification failed for {}: selected lane '{}' diverged from spec '{}'",
@@ -4083,11 +4090,10 @@ fn execute_converge_call(env: &mut Env, name: &str, args: Vec<Value>) -> KainRes
 }
 
 fn execute_orchestrate_call(env: &mut Env, name: &str, args: Vec<Value>) -> KainResult<Value> {
-    let orchestrate = env
-        .orchestrates
-        .get(name)
-        .cloned()
-        .ok_or_else(|| KainError::runtime(format!("Orchestrate definition not found: {}", name)))?;
+    let orchestrate =
+        env.orchestrates.get(name).cloned().ok_or_else(|| {
+            KainError::runtime(format!("Orchestrate definition not found: {}", name))
+        })?;
     if orchestrate.params.len() != args.len() {
         return Err(KainError::runtime(format!(
             "Orchestrate {} expected {} arguments, got {}",
@@ -4109,24 +4115,22 @@ fn execute_stage_call(
         OrchestrateStageRuntime::Kain | OrchestrateStageRuntime::Rust => {
             env.call_named_function(function, args)
         }
-        OrchestrateStageRuntime::Python => {
-            execute_python_stage_call(env, function, args.clone()).or_else(|error| {
+        OrchestrateStageRuntime::Python => execute_python_stage_call(env, function, args.clone())
+            .or_else(|error| {
                 if env.lookup_value(function).is_some() {
                     env.call_named_function(function, args)
                 } else {
                     Err(error)
                 }
-            })
-        }
-        OrchestrateStageRuntime::Node => {
-            execute_node_stage_call(env, function, args.clone()).or_else(|error| {
+            }),
+        OrchestrateStageRuntime::Node => execute_node_stage_call(env, function, args.clone())
+            .or_else(|error| {
                 if env.lookup_value(function).is_some() {
                     env.call_named_function(function, args)
                 } else {
                     Err(error)
                 }
-            })
-        }
+            }),
     }
 }
 
@@ -4148,7 +4152,10 @@ fn execute_python_stage_call(env: &mut Env, function: &str, args: Vec<Value>) ->
             vec![module, Value::String(attr_name.to_string()), args_value],
         )
     } else {
-        env.call_named_function("py_call", vec![Value::String(function.to_string()), args_value])
+        env.call_named_function(
+            "py_call",
+            vec![Value::String(function.to_string()), args_value],
+        )
     }
 }
 
@@ -4175,7 +4182,10 @@ fn execute_node_stage_call(env: &mut Env, function: &str, args: Vec<Value>) -> K
             vec![module, Value::String(attr_name.to_string()), args_value],
         )
     } else {
-        env.call_named_function("js_call", vec![Value::String(function.to_string()), args_value])
+        env.call_named_function(
+            "js_call",
+            vec![Value::String(function.to_string()), args_value],
+        )
     }
 }
 
@@ -4260,7 +4270,10 @@ fn runtime_values_semantically_equal(left: &Value, right: &Value) -> bool {
                     })
                 })
         }
-        (Value::EnumVariant(left_enum, left_variant, left_fields), Value::EnumVariant(right_enum, right_variant, right_fields)) => {
+        (
+            Value::EnumVariant(left_enum, left_variant, left_fields),
+            Value::EnumVariant(right_enum, right_variant, right_fields),
+        ) => {
             left_enum == right_enum
                 && left_variant == right_variant
                 && left_fields.len() == right_fields.len()
@@ -4298,7 +4311,10 @@ fn infer_patch_undo_mode(patch: &PatchDef) -> String {
 }
 
 fn block_contains_runtime_best_effort_effects(block: &Block) -> bool {
-    block.stmts.iter().any(stmt_contains_runtime_best_effort_effects)
+    block
+        .stmts
+        .iter()
+        .any(stmt_contains_runtime_best_effort_effects)
 }
 
 fn stmt_contains_runtime_best_effort_effects(stmt: &Stmt) -> bool {
@@ -4314,7 +4330,9 @@ fn stmt_contains_runtime_best_effort_effects(stmt: &Stmt) -> bool {
             expr_contains_runtime_best_effort_effects(iter)
                 || block_contains_runtime_best_effort_effects(body)
         }
-        Stmt::While { condition, body, .. } => {
+        Stmt::While {
+            condition, body, ..
+        } => {
             expr_contains_runtime_best_effort_effects(condition)
                 || block_contains_runtime_best_effort_effects(body)
         }
@@ -4365,9 +4383,9 @@ fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> bool {
             .iter()
             .any(|(_, value)| expr_contains_runtime_best_effort_effects(value)),
         Expr::EnumVariant { fields, .. } => match fields {
-            EnumVariantFields::Tuple(values) => values
-                .iter()
-                .any(expr_contains_runtime_best_effort_effects),
+            EnumVariantFields::Tuple(values) => {
+                values.iter().any(expr_contains_runtime_best_effort_effects)
+            }
             EnumVariantFields::Struct(values) => values
                 .iter()
                 .any(|(_, value)| expr_contains_runtime_best_effort_effects(value)),
@@ -4392,23 +4410,27 @@ fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> bool {
         } => {
             expr_contains_runtime_best_effort_effects(condition)
                 || block_contains_runtime_best_effort_effects(then_branch)
-                || else_branch.as_ref().is_some_and(|branch| match branch.as_ref() {
-                    ElseBranch::Else(block) => block_contains_runtime_best_effort_effects(block),
-                    ElseBranch::ElseIf(condition, block, next) => {
-                        expr_contains_runtime_best_effort_effects(condition)
-                            || block_contains_runtime_best_effort_effects(block)
-                            || next
-                                .as_ref()
-                                .is_some_and(|next| match next.as_ref() {
+                || else_branch
+                    .as_ref()
+                    .is_some_and(|branch| match branch.as_ref() {
+                        ElseBranch::Else(block) => {
+                            block_contains_runtime_best_effort_effects(block)
+                        }
+                        ElseBranch::ElseIf(condition, block, next) => {
+                            expr_contains_runtime_best_effort_effects(condition)
+                                || block_contains_runtime_best_effort_effects(block)
+                                || next.as_ref().is_some_and(|next| match next.as_ref() {
                                     ElseBranch::Else(block) => {
                                         block_contains_runtime_best_effort_effects(block)
                                     }
                                     ElseBranch::ElseIf(..) => true,
                                 })
-                    }
-                })
+                        }
+                    })
         }
-        Expr::Match { scrutinee, arms, .. } => {
+        Expr::Match {
+            scrutinee, arms, ..
+        } => {
             expr_contains_runtime_best_effort_effects(scrutinee)
                 || arms.iter().any(|arm| {
                     arm.guard
@@ -4418,7 +4440,9 @@ fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> bool {
                 })
         }
         Expr::Lambda { body, .. } => expr_contains_runtime_best_effort_effects(body),
-        Expr::PtrOffset { pointer, offset, .. } => {
+        Expr::PtrOffset {
+            pointer, offset, ..
+        } => {
             expr_contains_runtime_best_effort_effects(pointer)
                 || expr_contains_runtime_best_effort_effects(offset)
         }
@@ -4528,7 +4552,10 @@ fn runtime_patch_record_value(record: &PatchRuntimeRecord) -> Value {
                 "mutation_paths".to_string(),
                 runtime_string_array_value(&record.mutation_paths),
             ),
-            ("undo_mode".to_string(), Value::String(record.undo_mode.clone())),
+            (
+                "undo_mode".to_string(),
+                Value::String(record.undo_mode.clone()),
+            ),
             (
                 "collaboration_event".to_string(),
                 Value::String(record.collaboration_event.clone()),
@@ -4551,13 +4578,22 @@ fn runtime_patch_collaboration_event_value(event: &PatchCollaborationEvent) -> V
     runtime_struct_value(
         "PatchCollaborationEvent",
         vec![
-            ("event_id".to_string(), Value::String(event.event_id.clone())),
-            ("patch_name".to_string(), Value::String(event.patch_name.clone())),
+            (
+                "event_id".to_string(),
+                Value::String(event.event_id.clone()),
+            ),
+            (
+                "patch_name".to_string(),
+                Value::String(event.patch_name.clone()),
+            ),
             (
                 "mutation_paths".to_string(),
                 runtime_string_array_value(&event.mutation_paths),
             ),
-            ("undo_mode".to_string(), Value::String(event.undo_mode.clone())),
+            (
+                "undo_mode".to_string(),
+                Value::String(event.undo_mode.clone()),
+            ),
         ],
     )
 }

@@ -852,9 +852,8 @@ fn shade_pixel(
     }
 
     let fresnel = (1.0 - world_normal.dot(view_direction).max(0.0)).powf(4.5);
-    color += material.specular_color.to_vec3()
-        * fresnel
-        * (0.035 + material.specular_strength * 0.14);
+    color +=
+        material.specular_color.to_vec3() * fresnel * (0.035 + material.specular_strength * 0.14);
 
     let rim =
         (1.0 - world_normal.dot(view_direction).max(0.0)).powf(2.0) * config.rim_light_strength;
@@ -948,17 +947,12 @@ fn shade_point(
             * material.specular_strength
 }
 
-fn shade_hemisphere_fill(
-    material: &Material,
-    lighting: &LightingRig,
-    world_normal: Vec3,
-) -> Vec3 {
+fn shade_hemisphere_fill(material: &Material, lighting: &LightingRig, world_normal: Vec3) -> Vec3 {
     let up_mix = (world_normal.y * 0.5 + 0.5).clamp(0.0, 1.0);
     let sky_color = lighting.ambient_color.to_vec3() * (lighting.ambient_intensity * 0.75 + 0.12);
     let ground_color = Vec3::new(0.05, 0.05, 0.06) + material.base_color.to_vec3() * 0.06;
     let fill_color = ground_color * (1.0 - up_mix) + sky_color * up_mix;
-    fill_color
-        .component_mul(material.base_color.to_vec3())
+    fill_color.component_mul(material.base_color.to_vec3())
         * ((0.10 + lighting.ambient_intensity * 0.22) * (0.45 + material.diffuse_strength * 0.55))
 }
 

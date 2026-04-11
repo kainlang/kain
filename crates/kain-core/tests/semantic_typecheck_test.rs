@@ -26,7 +26,8 @@ fn typecheck_rejects_mismatched_match_arm_types() {
         false => "nope"
 "#;
 
-    let err = parse_and_typecheck(source).expect_err("typecheck should reject mismatched match arms");
+    let err =
+        parse_and_typecheck(source).expect_err("typecheck should reject mismatched match arms");
     let message = err.to_string();
     assert!(message.contains("match arms do not agree on a type"));
 }
@@ -40,7 +41,8 @@ fn typecheck_rejects_duplicate_boolean_match_arms() {
     return 0
 "#;
 
-    let err = parse_and_typecheck(source).expect_err("typecheck should reject duplicate boolean arms");
+    let err =
+        parse_and_typecheck(source).expect_err("typecheck should reject duplicate boolean arms");
     let message = err.to_string();
     assert!(message.contains("Duplicate boolean match arm"));
 }
